@@ -69,110 +69,7 @@
       z-index: 99;
     }
 
-    /* ── Nav (floating glass — canonical from index.html) ── */
-    nav {
-      position: fixed;
-      top: 12px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: calc(100% - 32px);
-      max-width: var(--max-width);
-      z-index: 100;
-      height: var(--nav-height);
-      display: flex;
-      align-items: center;
-      background: rgba(36, 36, 46, 0.5);
-      backdrop-filter: blur(24px) saturate(1.6);
-      -webkit-backdrop-filter: blur(24px) saturate(1.6);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: var(--radius-xl);
-      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.2);
-      transition: background var(--duration-normal) var(--ease-out),
-                  border-color var(--duration-normal) var(--ease-out),
-                  box-shadow var(--duration-normal) var(--ease-out);
-    }
-    .nav-inner {
-      display: flex; align-items: center; justify-content: space-between;
-      width: 100%; padding: 0 var(--space-6);
-      position: relative;
-    }
-    .nav-brand { display: flex; align-items: center; gap: var(--space-3); text-decoration: none; }
-    .nav-brand img {
-      width: 30px; height: 30px; object-fit: contain;
-      filter: drop-shadow(0 0 16px rgba(0,191,255,0.5)) drop-shadow(0 0 8px rgba(0,191,255,0.3)) drop-shadow(0 0 40px rgba(0,191,255,0.15));
-    }
-    .nav-brand span { font-size: 16px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; }
-    .nav-links {
-      display: flex; align-items: center; gap: var(--space-8);
-      position: absolute; left: 50%; transform: translateX(-50%);
-    }
-    .nav-links a {
-      font-size: 18px; color: var(--text-secondary);
-      transition: color var(--duration-fast) var(--ease-out);
-      text-decoration: none;
-    }
-    .nav-links a:hover { color: var(--text-primary); }
-    .nav-links a.active { color: var(--text-accent); }
-    .nav-actions { display: flex; align-items: center; gap: var(--space-3); }
-    .btn {
-      display: inline-flex; align-items: center; gap: var(--space-2);
-      padding: 12px 24px; font-family: var(--font-body); font-size: 18px;
-      font-weight: 600; border-radius: var(--radius-full); border: none; cursor: pointer;
-      transition: all var(--duration-normal) var(--ease-out); white-space: nowrap; text-decoration: none;
-    }
-    .btn-primary {
-      background: var(--bg-accent); color: #0a0a12; font-weight: 700;
-      box-shadow: 0 0 0 1px rgba(0, 191, 255, 0.6), 0 4px 16px rgba(0, 191, 255, 0.35), 0 0 40px rgba(0, 191, 255, 0.15);
-    }
-    .btn-primary:hover { background: var(--bg-accent-hover); transform: translateY(-2px);
-      box-shadow: 0 0 0 1px rgba(0, 191, 255, 0.8), 0 8px 32px rgba(0, 191, 255, 0.45), 0 0 60px rgba(0, 191, 255, 0.2);
-    }
-    .btn-ghost { background: transparent; color: var(--text-secondary); padding: 12px 16px; text-decoration: none; }
-    .btn-ghost:hover { color: var(--text-primary); }
-
-    /* ── Hamburger menu ── */
-    .nav-hamburger {
-      display: none; width: 44px; height: 44px;
-      align-items: center; justify-content: center;
-      background: none; border: none; cursor: pointer;
-      padding: 0; flex-shrink: 0;
-    }
-    .nav-hamburger span {
-      display: block; width: 20px; height: 2px;
-      background: var(--text-primary); border-radius: 1px;
-      position: relative; transition: all 0.3s ease;
-    }
-    .nav-hamburger span::before,
-    .nav-hamburger span::after {
-      content: ""; position: absolute; left: 0; width: 100%; height: 2px;
-      background: var(--text-primary); border-radius: 1px; transition: all 0.3s ease;
-    }
-    .nav-hamburger span::before { top: -6px; }
-    .nav-hamburger span::after { top: 6px; }
-    .nav-hamburger.open span { background: transparent; }
-    .nav-hamburger.open span::before { top: 0; transform: rotate(45deg); }
-    .nav-hamburger.open span::after { top: 0; transform: rotate(-45deg); }
-
-    .nav-mobile-menu {
-      display: none; position: fixed;
-      top: calc(var(--nav-height) + 24px);
-      left: 12px; right: 12px;
-      background: rgba(36, 36, 46, 0.95);
-      backdrop-filter: blur(24px) saturate(1.6);
-      -webkit-backdrop-filter: blur(24px) saturate(1.6);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: var(--radius-lg);
-      padding: var(--space-4); z-index: 99;
-      flex-direction: column; gap: 2px;
-    }
-    .nav-mobile-menu.open { display: flex; }
-    .nav-mobile-menu a {
-      display: block; padding: 14px 16px;
-      font-size: 16px; font-weight: 500; color: var(--text-secondary);
-      border-radius: var(--radius-md); transition: all 0.15s ease;
-      min-height: 44px; text-decoration: none;
-    }
-    .nav-mobile-menu a:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+    /* Nav and footer are shared web components — see assets/nav.js and assets/footer.js */
 
     /* ── Hero / Intro ── */
     .hero {
@@ -453,28 +350,6 @@
       margin-right: auto;
     }
 
-    /* ── Footer ── */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: var(--space-10) 0;
-    }
-    .footer-inner {
-      max-width: var(--max-width);
-      margin: 0 auto;
-      padding: 0 clamp(16px, 4vw, 24px);
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .footer-brand { display: flex; align-items: center; gap: var(--space-3); }
-    .footer-brand img { width: 22px; height: 22px; object-fit: contain; opacity: 0.5; }
-    .footer-brand span { font-size: 13px; color: var(--text-tertiary); }
-    .footer-links { display: flex; gap: var(--space-6); list-style: none; }
-    .footer-links a {
-      font-size: 13px; color: var(--text-tertiary);
-      text-decoration: none;
-      transition: color var(--duration-fast) var(--ease-out);
-    }
-    .footer-links a:hover { color: var(--text-primary); }
-
     /* ── Responsive: Tablet ── */
     @media (max-width: 1024px) {
       .skills-grid { grid-template-columns: repeat(2, 1fr); }
@@ -506,15 +381,6 @@
       .why-terminal-body { font-size: 13px; }
       .what-section { padding: 60px 24px 80px; }
       .cta-section { padding: 60px 24px; }
-      nav { width: calc(100% - 24px); top: 8px; }
-      .nav-inner { padding: 0 var(--space-3); }
-      .nav-links { display: none; }
-      .nav-hamburger { display: flex; }
-      .nav-actions .btn-ghost { display: none; }
-      .nav-actions .btn-primary { font-size: 13px; padding: 8px 14px; min-height: 44px; display: flex; align-items: center; }
-      .nav-brand span { font-size: 14px; }
-      .footer-inner { flex-direction: column; gap: var(--space-4); text-align: center; }
-      .footer-links { justify-content: center; flex-wrap: wrap; }
     }
 
     /* ── Responsive: Small Mobile ── */
@@ -529,44 +395,14 @@
       .what-section { padding: 40px 16px 60px; }
       .why-inner { padding: 40px 16px; }
       .cta-section { padding: 40px 16px; }
-      footer { padding: var(--space-8) 0; }
-      .footer-inner { padding: 0 var(--space-4); }
     }
   </style>
 </head>
 <body>
 
-<!-- NAV -->
-<nav>
-  <div class="nav-inner">
-    <a href="/" class="nav-brand">
-      <img src="assets/raven-logo.png" alt="Raven">
-      <span>Raven</span>
-    </a>
-    <ul class="nav-links">
-      <li><a href="/#layers">Knowledge</a></li>
-      <li><a href="/#tools">Tools</a></li>
-      <li><a href="/#systems">Systems</a></li>
-      <li><a href="/docs.html">Docs</a></li>
-      <li><a href="/about.html" class="active">About</a></li>
-      <li><a href="/#pricing">Pricing</a></li>
-    </ul>
-    <div class="nav-actions">
-      <a href="https://github.com/rhinocap/raven-mcp" class="btn btn-ghost">GitHub</a>
-      <a href="/docs.html" class="btn btn-primary">Get Started</a>
-      <button class="nav-hamburger" id="nav-hamburger" aria-label="Toggle menu"><span></span></button>
-    </div>
-  </div>
-</nav>
-<div class="nav-mobile-menu" id="nav-mobile-menu">
-  <a href="/#layers">Knowledge</a>
-  <a href="/#tools">Tools</a>
-  <a href="/#systems">Systems</a>
-  <a href="/docs.html">Docs</a>
-  <a href="/about.html" class="active">About</a>
-  <a href="/#pricing">Pricing</a>
-  <a href="https://github.com/rhinocap/raven-mcp">GitHub</a>
-</div>
+<!-- NAV (shared component) -->
+<script src="assets/nav.js"></script>
+<raven-nav></raven-nav>
 
 <!-- HERO -->
 <section class="hero">
@@ -687,60 +523,9 @@
   </div>
 </section>
 
-<!-- FOOTER -->
-<footer>
-  <div class="footer-inner">
-    <div class="footer-brand">
-      <img src="assets/raven-logo.png" alt="Raven">
-      <span>Raven MCP &mdash; ravenmcp.ai</span>
-    </div>
-    <ul class="footer-links">
-      <li><a href="https://github.com/rhinocap/raven-mcp">GitHub</a></li>
-      <li><a href="docs.html">Docs</a></li>
-      <li><a href="/#systems">Systems</a></li>
-      <li><a href="about.html">About</a></li>
-    </ul>
-  </div>
-</footer>
+<!-- FOOTER (shared component) -->
+<script src="assets/footer.js"></script>
+<raven-footer></raven-footer>
 
-<script>
-  /* ── Hamburger Menu ── */
-  (function() {
-    var btn = document.getElementById('nav-hamburger');
-    var menu = document.getElementById('nav-mobile-menu');
-    if (btn && menu) {
-      btn.addEventListener('click', function() {
-        btn.classList.toggle('open');
-        menu.classList.toggle('open');
-      });
-      menu.querySelectorAll('a').forEach(function(link) {
-        link.addEventListener('click', function() {
-          btn.classList.remove('open');
-          menu.classList.remove('open');
-        });
-      });
-      document.addEventListener('click', function(e) {
-        if (!btn.contains(e.target) && !menu.contains(e.target)) {
-          btn.classList.remove('open');
-          menu.classList.remove('open');
-        }
-      });
-    }
-  })();
-
-  /* ── Nav scroll darkening ── */
-  var navEl = document.querySelector('nav');
-  window.addEventListener('scroll', function() {
-    if (window.scrollY > 50) {
-      navEl.style.borderColor = 'rgba(0, 191, 255, 0.12)';
-      navEl.style.background = 'rgba(36, 36, 46, 0.82)';
-      navEl.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.2), 0 0 20px rgba(0, 191, 255, 0.04)';
-    } else {
-      navEl.style.borderColor = '';
-      navEl.style.background = '';
-      navEl.style.boxShadow = '';
-    }
-  });
-</script>
 </body>
 </html>

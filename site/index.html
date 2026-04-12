@@ -242,51 +242,7 @@
        NAVIGATION
        ══════════════════════════════════════════ */
 
-    nav {
-      position: fixed;
-      top: 12px; left: 50%;
-      transform: translateX(-50%);
-      width: calc(100% - 32px);
-      max-width: var(--max-width);
-      z-index: 100;
-      height: var(--nav-height);
-      display: flex;
-      align-items: center;
-      background: rgba(36, 36, 46, 0.5);
-      backdrop-filter: blur(24px) saturate(1.6);
-      -webkit-backdrop-filter: blur(24px) saturate(1.6);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: var(--radius-xl);
-      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.2);
-      transition: background var(--duration-normal) var(--ease-out),
-                  border-color var(--duration-normal) var(--ease-out),
-                  box-shadow var(--duration-normal) var(--ease-out);
-    }
-
-    .nav-inner {
-      display: flex; align-items: center; justify-content: space-between;
-      width: 100%; padding: 0 var(--space-6);
-      position: relative;
-    }
-
-    .nav-brand { display: flex; align-items: center; gap: var(--space-3); }
-    .nav-brand img {
-      width: 30px; height: 30px; object-fit: contain;
-      filter: drop-shadow(0 0 16px rgba(0,191,255,0.5)) drop-shadow(0 0 8px rgba(0,191,255,0.3)) drop-shadow(0 0 40px rgba(0,191,255,0.15));
-    }
-    .nav-brand span { font-size: 16px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; }
-
-    .nav-links {
-      display: flex; align-items: center; gap: var(--space-8);
-      position: absolute;
-      left: 50%; transform: translateX(-50%);
-    }
-    .nav-links a {
-      font-size: 18px; color: var(--text-secondary);
-      transition: color var(--duration-fast) var(--ease-out);
-    }
-    .nav-links a:hover { color: var(--text-primary); }
-    .nav-actions { display: flex; align-items: center; gap: var(--space-3); }
+    /* Nav and footer styles are in assets/nav.js and assets/footer.js (web components) */
 
     /* ── Top gradient wash (behind floating nav) ── */
     body::before {
@@ -1424,85 +1380,13 @@
        FOOTER
        ══════════════════════════════════════════ */
 
-    footer {
-      border-top: 1px solid var(--border);
-      padding: var(--space-10) 0;
-    }
-    .footer-inner {
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .footer-brand { display: flex; align-items: center; gap: var(--space-3); }
-    .footer-brand img { width: 22px; height: 22px; object-fit: contain; opacity: 0.5; }
-    .footer-brand span { font-size: 13px; color: var(--text-tertiary); }
-    .footer-links { display: flex; gap: var(--space-6); }
-    .footer-links a {
-      font-size: 13px; color: var(--text-tertiary);
-      transition: color var(--duration-fast) var(--ease-out);
-    }
-    .footer-links a:hover { color: var(--text-primary); }
-
     /* ══════════════════════════════════════════
        RESPONSIVE
        ══════════════════════════════════════════ */
 
-    /* ── Hamburger menu ── */
-    .nav-hamburger {
-      display: none;
-      width: 44px; height: 44px;
-      align-items: center; justify-content: center;
-      background: none; border: none; cursor: pointer;
-      padding: 0; flex-shrink: 0;
-    }
-    .nav-hamburger span {
-      display: block; width: 20px; height: 2px;
-      background: var(--text-primary); border-radius: 1px;
-      position: relative; transition: all 0.3s ease;
-    }
-    .nav-hamburger span::before,
-    .nav-hamburger span::after {
-      content: ""; position: absolute; left: 0; width: 100%; height: 2px;
-      background: var(--text-primary); border-radius: 1px; transition: all 0.3s ease;
-    }
-    .nav-hamburger span::before { top: -6px; }
-    .nav-hamburger span::after { top: 6px; }
-    .nav-hamburger.open span { background: transparent; }
-    .nav-hamburger.open span::before { top: 0; transform: rotate(45deg); }
-    .nav-hamburger.open span::after { top: 0; transform: rotate(-45deg); }
-
-    .nav-mobile-menu {
-      display: none;
-      position: fixed;
-      top: calc(var(--nav-height) + 24px);
-      left: 12px; right: 12px;
-      background: rgba(36, 36, 46, 0.95);
-      backdrop-filter: blur(24px) saturate(1.6);
-      -webkit-backdrop-filter: blur(24px) saturate(1.6);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: var(--radius-lg);
-      padding: var(--space-4);
-      z-index: 99;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .nav-mobile-menu.open { display: flex; }
-    .nav-mobile-menu a {
-      display: block; padding: 14px 16px;
-      font-size: 16px; font-weight: 500; color: var(--text-secondary);
-      border-radius: var(--radius-md);
-      transition: all 0.15s ease;
-    }
-    .nav-mobile-menu a:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
-
     /* ── Mobile ── */
     @media (max-width: 768px) {
       html, body { overflow-x: hidden; }
-      nav { width: calc(100% - 24px); top: 8px; }
-      .nav-inner { padding: 0 var(--space-3); }
-      .nav-links { display: none; }
-      .nav-hamburger { display: flex; }
-      .nav-actions .btn-ghost { display: none; }
-      .nav-actions .btn-primary { font-size: 13px; padding: 8px 14px; }
-      .nav-brand span { font-size: 14px; }
 
       h1 { font-size: clamp(28px, 7vw, 44px) !important; }
       h2 { font-size: clamp(22px, 5.5vw, 32px) !important; }
@@ -1540,8 +1424,6 @@
       .how-step { padding: var(--space-6); }
       .tools-card { padding: var(--space-5); }
 
-      .footer-inner { flex-direction: column; gap: var(--space-4); text-align: center; }
-      .footer-links { justify-content: center; flex-wrap: wrap; }
 
       .quote-card { padding: var(--space-6) var(--space-4); }
       .quote-text { font-size: 18px !important; }
@@ -1573,37 +1455,9 @@
 </head>
 <body>
 
-  <!-- NAV -->
-  <nav>
-    <div class="nav-inner">
-      <a href="/" class="nav-brand">
-        <img src="assets/raven-logo.png" alt="Raven">
-        <span>Raven</span>
-      </a>
-      <ul class="nav-links">
-        <li><a href="#layers">Knowledge</a></li>
-        <li><a href="#tools">Tools</a></li>
-        <li><a href="#systems">Systems</a></li>
-        <li><a href="/docs.html">Docs</a></li>
-        <li><a href="/about.html">About</a></li>
-        <li><a href="#pricing">Pricing</a></li>
-      </ul>
-      <div class="nav-actions">
-        <a href="https://github.com/rhinocap/raven-mcp" class="btn btn-ghost">GitHub</a>
-        <a href="/docs.html" class="btn btn-primary">Get Started</a>
-        <button class="nav-hamburger" id="nav-hamburger" aria-label="Toggle menu"><span></span></button>
-      </div>
-    </div>
-  </nav>
-  <div class="nav-mobile-menu" id="nav-mobile-menu">
-    <a href="#layers">Knowledge</a>
-    <a href="#tools">Tools</a>
-    <a href="#systems">Systems</a>
-    <a href="/docs.html">Docs</a>
-    <a href="/about.html">About</a>
-    <a href="#pricing">Pricing</a>
-    <a href="https://github.com/rhinocap/raven-mcp">GitHub</a>
-  </div>
+  <!-- NAV (shared component) -->
+  <script src="assets/nav.js"></script>
+  <raven-nav></raven-nav>
 
   <!-- HERO -->
   <section class="hero">
@@ -2152,48 +2006,11 @@
     </div>
   </section>
 
-  <!-- FOOTER -->
-  <footer>
-    <div class="container">
-      <div class="footer-inner">
-        <div class="footer-brand">
-          <img src="assets/raven-logo.png" alt="Raven">
-          <span>Raven MCP &mdash; ravenmcp.ai</span>
-        </div>
-        <ul class="footer-links">
-          <li><a href="https://github.com/rhinocap/raven-mcp">GitHub</a></li>
-          <li><a href="docs.html">Docs</a></li>
-          <li><a href="#systems">Systems</a></li>
-          <li><a href="about.html">About</a></li>
-        </ul>
-      </div>
-    </div>
-  </footer>
+  <!-- FOOTER (shared component) -->
+  <script src="assets/footer.js"></script>
+  <raven-footer></raven-footer>
 
   <script>
-    /* ── Hamburger Menu ── */
-    (function() {
-      var btn = document.getElementById('nav-hamburger');
-      var menu = document.getElementById('nav-mobile-menu');
-      if (btn && menu) {
-        btn.addEventListener('click', function() {
-          btn.classList.toggle('open');
-          menu.classList.toggle('open');
-        });
-        menu.querySelectorAll('a').forEach(function(link) {
-          link.addEventListener('click', function() {
-            btn.classList.remove('open');
-            menu.classList.remove('open');
-          });
-        });
-        document.addEventListener('click', function(e) {
-          if (!btn.contains(e.target) && !menu.contains(e.target)) {
-            btn.classList.remove('open');
-            menu.classList.remove('open');
-          }
-        });
-      }
-    })();
 
     /* ── Scroll Reveal ── */
     var observer = new IntersectionObserver(function(entries) {
@@ -2465,20 +2282,6 @@
     }, { threshold: 0.5 });
     document.querySelectorAll('.stat-number').forEach(function(el) {
       counterObserver.observe(el);
-    });
-
-    /* ── Smooth nav background on scroll ── */
-    var nav = document.querySelector('nav');
-    window.addEventListener('scroll', function() {
-      if (window.scrollY > 50) {
-        nav.style.borderColor = 'rgba(0, 191, 255, 0.12)';
-        nav.style.background = 'rgba(36, 36, 46, 0.82)';
-        nav.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.2), 0 0 20px rgba(0, 191, 255, 0.04)';
-      } else {
-        nav.style.borderColor = '';
-        nav.style.background = '';
-        nav.style.boxShadow = '';
-      }
     });
 
     /* ── Video sound toggle ── */
