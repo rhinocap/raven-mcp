@@ -122,5 +122,185 @@
     ],
     "applies_to": ["mobile", "navigation", "tabs", "menus", "information-architecture"],
     "sources": ["https://developer.apple.com/design/human-interface-guidelines/tab-bars"]
+  },
+  {
+    "id": "mobile-overflow-control",
+    "name": "Mobile Overflow Control",
+    "category": "mobile-ux",
+    "summary": "Prevent horizontal scroll on mobile by clipping overflow at the html/body level and constraining all decorative elements.",
+    "description": "Horizontal scrolling on mobile is the most common layout bug and instantly makes a site feel broken. It's usually caused by absolutely positioned decorative elements (glow effects, background gradients, SVG decorations) that extend beyond the viewport. The fix is two-fold: set overflow-x: hidden on html, and ensure every section with positioned children that might exceed viewport width has overflow: hidden. Never rely on body overflow-x alone — positioned elements can escape it. Test on real devices because simulator widths differ from actual phone widths.",
+    "implications": [
+      "Always set `overflow-x: hidden` on the `html` element as a safety net",
+      "Every section with absolutely positioned decorative elements (glows, gradients) must have `overflow: hidden`",
+      "Glow/gradient elements with widths exceeding 100vw (e.g. 1400px) must be inside an overflow-hidden container",
+      "Test on real mobile devices — not just browser resize or DevTools simulator",
+      "Check for horizontal scroll at every viewport width, not just one breakpoint",
+      "The body scrollbar appearing horizontally is always a bug, never intentional"
+    ],
+    "violations": [
+      "Page that scrolls horizontally on mobile — the single biggest mobile red flag",
+      "Right-side margin/gap visible when scrolling — decorative element overflow",
+      "Absolutely positioned glow with width: 1400px in a container without overflow: hidden",
+      "Only testing responsive layout in desktop browser resize — misses real mobile issues"
+    ],
+    "applies_to": ["mobile", "layout", "overflow", "responsive", "debugging"],
+    "sources": ["https://css-tricks.com/findingfixing-unintended-body-overflow/"]
+  },
+  {
+    "id": "fixed-height-animated-containers",
+    "name": "Fixed Height for Animated Content",
+    "category": "mobile-ux",
+    "summary": "Containers with rotating or animated content must have a fixed height to prevent layout shift.",
+    "description": "When content cycles between different states (carousels, sizzle reels, testimonial rotators, auto-playing demos), each state may have different natural heights. On mobile, this causes the entire page below to shift up and down — a jarring, amateur-looking effect that triggers CLS (Cumulative Layout Shift) penalties in Core Web Vitals. The fix: set a fixed height on the container, not min-height. Use overflow: hidden to clip content that doesn't fit. The height should accommodate the tallest content state comfortably.",
+    "implications": [
+      "Use `height` (not `min-height`) on containers with cycling/rotating content",
+      "Set `overflow: hidden` to clip content that exceeds the fixed height",
+      "Calculate the height to fit the tallest content variant with comfortable padding",
+      "Reduce container height at mobile breakpoints — content gets smaller too",
+      "Test all carousel/rotation states to ensure none overflow the fixed container",
+      "This applies to: carousels, testimonial rotators, sizzle reels, auto-playing demos, tabbed content"
+    ],
+    "violations": [
+      "Page content jumping up/down as a carousel auto-rotates between different-height slides",
+      "Using min-height on a rotator — it grows to fit the tallest then shrinks for the shortest",
+      "No overflow: hidden — tall content leaks out of the container on mobile",
+      "High CLS score caused by dynamic content changing container height"
+    ],
+    "applies_to": ["mobile", "animation", "carousel", "layout-shift", "performance", "CLS"],
+    "sources": ["https://web.dev/articles/cls"]
+  },
+  {
+    "id": "mobile-web-hamburger-nav",
+    "name": "Mobile Web Hamburger Navigation",
+    "category": "mobile-ux",
+    "summary": "On mobile web, hide nav links behind a hamburger menu with a glass overlay dropdown. Keep the CTA visible but smaller.",
+    "description": "Mobile web navigation must adapt from desktop's horizontal link bar to a compact format. The pattern: show the logo (optionally without text), a smaller CTA button, and a hamburger icon. The hamburger opens a dropdown overlay with all navigation links as full-width, generously padded tap targets (minimum 48px height per link). The overlay should have a glass/blur backdrop matching the nav aesthetic, dismiss on link tap and outside tap, and animate the hamburger icon into an X when open. The CTA stays visible because it's the primary conversion action, but shrinks to fit the mobile nav bar.",
+    "implications": [
+      "Hide all nav links at mobile breakpoint — show hamburger icon instead",
+      "Hamburger button must be 44px minimum tap target",
+      "CTA button stays visible in the nav bar but with reduced padding (8-12px vertical, 14-16px horizontal)",
+      "Logo text can be hidden on mobile if space is tight — icon alone is sufficient",
+      "Mobile menu: full-width links with 48px+ height, 16px padding, rounded tap targets",
+      "Glass/blur backdrop on mobile menu matching the nav's aesthetic",
+      "Animate hamburger to X on open, close on link tap and outside tap",
+      "Mobile menu appears below nav bar, not fullscreen — user keeps spatial context"
+    ],
+    "violations": [
+      "Nav bar showing only a CTA with no way to access other pages on mobile",
+      "Hamburger menu with 32px links — too small for finger taps",
+      "No outside-tap-to-dismiss on mobile menu — must use hamburger to close",
+      "Full-screen mobile menu that disorientsthe user",
+      "Desktop nav links wrapping to multiple lines on mobile instead of collapsing to hamburger"
+    ],
+    "applies_to": ["mobile", "navigation", "hamburger-menu", "responsive", "web"],
+    "sources": ["https://www.nngroup.com/articles/hamburger-menus/"]
+  },
+  {
+    "id": "mobile-minimum-font-size",
+    "name": "Mobile Minimum Font Size",
+    "category": "mobile-ux",
+    "summary": "All readable text on mobile must be at least 13px. No exceptions for body content, labels, or UI text.",
+    "description": "Text below 13px becomes illegible on mobile screens, even on high-DPI displays. Apple's HIG specifies 11pt as the absolute minimum (which renders ~15px on retina), and Material Design uses 12sp minimum for captions. In practice, 13px is the floor for any text a user is expected to read — labels, captions, metadata, form hints, table cells, navigation items. The only exception is purely decorative text inside embedded simulations or miniatures that aren't meant to be read (e.g., a mock terminal inside a marketing hero). When in doubt, make it 13px. Users with aging eyes or lower-DPI devices will thank you.",
+    "implications": [
+      "Body text: minimum 16px on mobile, ideally 17-18px",
+      "Secondary text (captions, labels, metadata): minimum 13px",
+      "Form labels and placeholder text: minimum 14px",
+      "Navigation links: minimum 14px",
+      "Table cell text: minimum 13px — consider horizontal scroll for data-dense tables",
+      "Code blocks: minimum 13px on mobile (reduce from 14-15px desktop if needed, but never below 13)",
+      "Uppercase labels with letter-spacing: 11px uppercase text is equivalent to ~13px legibility — still push to 13px",
+      "Test at mobile breakpoints — font-size reductions in media queries must respect the 13px floor"
+    ],
+    "violations": [
+      "Font-size: 10px on any element visible at mobile breakpoint",
+      "Font-size: 11px on labels, captions, or metadata — too small for finger-adjacent reading",
+      "Font-size: 12px on navigation items or form elements",
+      "Media query that reduces desktop 14px text to 10px for mobile — overcorrection",
+      "Schedule/grid text at 11px — data tables are hard enough to read on mobile without tiny text"
+    ],
+    "applies_to": ["mobile", "typography", "font-size", "accessibility", "readability"],
+    "sources": ["https://developer.apple.com/design/human-interface-guidelines/typography"]
+  },
+  {
+    "id": "nav-consistency-across-pages",
+    "name": "Structural Chrome Consistency Across Pages",
+    "category": "mobile-ux",
+    "summary": "Navigation bars, headers, footers, and menus must be pixel-identical across every page — same HTML structure, same CSS values, same JS behavior.",
+    "description": "Structural chrome — the nav bar, header, footer, and mobile menu — is the user's constant frame of reference. When these components differ between pages (different font sizes, different spacing, different box-shadows, different link counts, different logo sizes), users perceive the site as broken or unprofessional. This is Nielsen's Consistency heuristic applied at the implementation level: not just 'use the same pattern' but 'use the exact same CSS custom properties, the same HTML structure, the same pixel values.' Designate one page as the canonical source of truth for each chrome component and enforce exact replication. Differences in hardcoded values vs CSS variables, link font sizes (14px vs 18px), logo dimensions (32px vs 30px), box-shadow definitions, or transition timings are all violations. On multi-page static sites, this means the nav CSS, footer CSS, hamburger CSS, and their responsive overrides must be identical across every HTML file.",
+    "implications": [
+      "Designate one page as the canonical source of truth for all chrome components",
+      "Nav, footer, and mobile menu CSS must use the same CSS custom properties on every page",
+      "Every page must have the exact same nav links in the same order",
+      "Hamburger menu must exist on every page with identical open/close behavior and JS",
+      "Footer must have the same structure, links, and styling on every page",
+      "Mobile responsive overrides for chrome must be identical across all pages",
+      "When updating any chrome component, grep and update ALL pages in one pass",
+      "CTA button in nav must be consistent — same text, same destination, same size",
+      "Box-shadow, border-radius, backdrop-filter, and transition values must match exactly",
+      "Logo size, drop-shadow filters, and brand text must be identical across pages",
+      "Outside-tap-to-dismiss must work on every page's mobile menu"
+    ],
+    "violations": [
+      "Nav uses 14px left-aligned links on about page but 18px center-positioned on index",
+      "Footer has different HTML structure on each page (plain text vs branded layout)",
+      "Nav box-shadow is 0 8px 32px on one page but 0 4px 24px on another",
+      "Logo is 32px on about page but 30px on index page",
+      "Nav CSS uses hardcoded pixel values on one page but CSS variables on another",
+      "Hamburger button exists in HTML but no JavaScript to toggle it",
+      "Footer links differ between pages (some have Docs, some have Pricing, some have neither)",
+      "Mobile menu on one page is missing links that exist on another"
+    ],
+    "applies_to": ["mobile", "navigation", "consistency", "hamburger-menu", "multi-page", "web", "footer", "header", "chrome"],
+    "sources": ["https://www.nngroup.com/articles/menu-design/", "https://www.nngroup.com/articles/consistency-and-standards/"]
+  },
+  {
+    "id": "flex-child-overflow-prevention",
+    "name": "Flex Child Overflow Prevention",
+    "category": "mobile-ux",
+    "summary": "Flex children containing wide content (code blocks, tables, images) must have min-width: 0 to prevent horizontal overflow.",
+    "description": "By default, flex items have min-width: auto, which means they won't shrink below their content's intrinsic width. When a code block with a long line sits inside a flex child, the flex child expands to fit the code — pushing past the viewport edge and causing horizontal scroll. The fix is min-width: 0 on the flex child, which allows it to shrink below its content width. Combined with overflow-x: auto on the code block itself, this creates a scrollable code area within a properly constrained layout. This is the #1 cause of horizontal overflow on mobile documentation and tutorial pages.",
+    "implications": [
+      "Always set `min-width: 0` on flex children that contain code blocks, tables, or wide content",
+      "The parent flex container should NOT have overflow: visible — use hidden or auto",
+      "Code blocks inside flex children need `overflow-x: auto` to scroll independently",
+      "Set `max-width: 100%` or a calc()-based max-width on code blocks as a safety net",
+      "This applies to any flex layout: steps with numbered circles, sidebar + content, card bodies",
+      "Test with long single-line code to verify — short code won't trigger the bug",
+      "Docs pages and tutorial layouts are the most common victims — audit them specifically"
+    ],
+    "violations": [
+      "Code block inside flex child without min-width: 0 — overflows on mobile",
+      "Step layout (circle + content) where .step-content lacks min-width: 0",
+      "Tool card with code example that pushes past the card boundary",
+      "Grid child with code block and no overflow constraint — breaks the grid on mobile",
+      "Pre tag with white-space: pre inside a flex child — infinite width on long lines"
+    ],
+    "applies_to": ["mobile", "layout", "flexbox", "code-blocks", "overflow", "documentation"],
+    "sources": ["https://css-tricks.com/flexbox-truncated-text/"]
+  },
+  {
+    "id": "mobile-button-touch-compliance",
+    "name": "Mobile Button Touch Compliance",
+    "category": "mobile-ux",
+    "summary": "When buttons shrink at mobile breakpoints, they must maintain a 44px minimum height — use min-height, not just padding.",
+    "description": "A common pattern is reducing button padding at mobile breakpoints to fit smaller nav bars or compact layouts. But padding: 8px 14px on a 13px font produces a button height of ~29px — well below the 44px minimum touch target. The fix is explicit: add min-height: 44px alongside the reduced padding. Use display: flex; align-items: center to vertically center the text within the taller button. This is especially critical for CTA buttons in navigation bars, which are often the first thing users tap on mobile.",
+    "implications": [
+      "Every button with reduced mobile padding must have `min-height: 44px`",
+      "Use `display: flex; align-items: center; justify-content: center` for vertical centering with min-height",
+      "Nav bar CTAs: reduce font-size and horizontal padding freely, but never let height drop below 44px",
+      "Inline buttons in forms and cards: same rule — min-height: 44px",
+      "Ghost/text buttons: even without a visible background, the tap target must be 44px",
+      "Test by actually tapping on a real device — simulator clicks are pixel-precise, fingers aren't",
+      "Adjacent buttons in a row: maintain 8px+ gap between them to prevent mis-taps"
+    ],
+    "violations": [
+      "Button with padding: 8px 14px and no min-height — renders at ~29px height",
+      "Nav CTA shrunk to fit mobile nav bar but only 32px tall",
+      "Submit button with font-size: 12px and padding: 6px 12px — ~24px height",
+      "Icon button at 32x32px on mobile — needs 44x44px tap area",
+      "Mobile breakpoint that reduces padding but doesn't add min-height safeguard"
+    ],
+    "applies_to": ["mobile", "buttons", "touch-targets", "navigation", "forms", "CTA"],
+    "sources": ["https://developer.apple.com/design/human-interface-guidelines/buttons"]
   }
 ]

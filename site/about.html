@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About — Andrew Cunliffe | Raven MCP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0E0F13;
+      --bg-surface: #16171D;
+      --bg-raised: #1C1D25;
+      --text-primary: #F0F0F2;
+      --text-secondary: #A0A3B1;
+      --text-tertiary: #6B6E7D;
+      --accent-blue: #00BFFF;
+      --accent-cyan: #00E5FF;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.12);
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 20px;
+      --max-width: 1080px;
+      --nav-height: 64px;
+      --space-2: 8px; --space-3: 12px; --space-4: 16px;
+      --space-6: 24px; --space-8: 32px;
+      --duration-fast: 150ms;
+      --duration-normal: 300ms;
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    html { scroll-behavior: smooth; overflow-x: hidden; }
+
+    body {
+      background: var(--bg);
+      color: var(--text-primary);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* ── Top gradient wash ── */
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 260px;
+      background: linear-gradient(180deg,
+        rgba(0, 191, 255, 0.28) 0%,
+        rgba(0, 191, 255, 0.15) 30%,
+        rgba(0, 191, 255, 0.06) 60%,
+        transparent 100%);
+      pointer-events: none;
+      z-index: 99;
+    }
+
+    /* ── Nav (floating glass — canonical from index.html) ── */
+    nav {
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 32px);
+      max-width: var(--max-width);
+      z-index: 100;
+      height: var(--nav-height);
+      display: flex;
+      align-items: center;
+      background: rgba(36, 36, 46, 0.5);
+      backdrop-filter: blur(24px) saturate(1.6);
+      -webkit-backdrop-filter: blur(24px) saturate(1.6);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: var(--radius-xl);
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.2);
+      transition: background var(--duration-normal) var(--ease-out),
+                  border-color var(--duration-normal) var(--ease-out),
+                  box-shadow var(--duration-normal) var(--ease-out);
+    }
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; padding: 0 var(--space-6);
+      position: relative;
+    }
+    .nav-brand { display: flex; align-items: center; gap: var(--space-3); text-decoration: none; }
+    .nav-brand img {
+      width: 30px; height: 30px; object-fit: contain;
+      filter: drop-shadow(0 0 16px rgba(0,191,255,0.5)) drop-shadow(0 0 8px rgba(0,191,255,0.3)) drop-shadow(0 0 40px rgba(0,191,255,0.15));
+    }
+    .nav-brand span { font-size: 16px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; }
+    .nav-links {
+      display: flex; align-items: center; gap: var(--space-8);
+      position: absolute; left: 50%; transform: translateX(-50%);
+    }
+    .nav-links a {
+      font-size: 18px; color: var(--text-secondary);
+      transition: color var(--duration-fast) var(--ease-out);
+      text-decoration: none;
+    }
+    .nav-links a:hover { color: var(--text-primary); }
+    .nav-links a.active { color: var(--accent-blue); }
+    .nav-actions { display: flex; align-items: center; gap: var(--space-3); }
+    .btn {
+      display: inline-flex; align-items: center; gap: var(--space-2);
+      padding: 12px 24px; font-family: inherit; font-size: 18px;
+      font-weight: 600; border-radius: 9999px; border: none; cursor: pointer;
+      transition: all var(--duration-normal) var(--ease-out); white-space: nowrap; text-decoration: none;
+    }
+    .btn-primary {
+      background: var(--accent-blue); color: #0a0a12; font-weight: 700;
+      box-shadow: 0 0 0 1px rgba(0, 191, 255, 0.6), 0 4px 16px rgba(0, 191, 255, 0.35), 0 0 40px rgba(0, 191, 255, 0.15);
+    }
+    .btn-primary:hover { background: var(--accent-cyan); transform: translateY(-2px);
+      box-shadow: 0 0 0 1px rgba(0, 191, 255, 0.8), 0 8px 32px rgba(0, 191, 255, 0.45), 0 0 60px rgba(0, 191, 255, 0.2);
+    }
+    .btn-ghost { background: transparent; color: var(--text-secondary); padding: 12px 16px; text-decoration: none; }
+    .btn-ghost:hover { color: var(--text-primary); }
+
+    /* ── Hamburger menu ── */
+    .nav-hamburger {
+      display: none; width: 44px; height: 44px;
+      align-items: center; justify-content: center;
+      background: none; border: none; cursor: pointer;
+      padding: 0; flex-shrink: 0;
+    }
+    .nav-hamburger span {
+      display: block; width: 20px; height: 2px;
+      background: var(--text-primary); border-radius: 1px;
+      position: relative; transition: all 0.3s ease;
+    }
+    .nav-hamburger span::before,
+    .nav-hamburger span::after {
+      content: ""; position: absolute; left: 0; width: 100%; height: 2px;
+      background: var(--text-primary); border-radius: 1px; transition: all 0.3s ease;
+    }
+    .nav-hamburger span::before { top: -6px; }
+    .nav-hamburger span::after { top: 6px; }
+    .nav-hamburger.open span { background: transparent; }
+    .nav-hamburger.open span::before { top: 0; transform: rotate(45deg); }
+    .nav-hamburger.open span::after { top: 0; transform: rotate(-45deg); }
+
+    .nav-mobile-menu {
+      display: none; position: fixed;
+      top: calc(var(--nav-height) + 24px);
+      left: 12px; right: 12px;
+      background: rgba(36, 36, 46, 0.95);
+      backdrop-filter: blur(24px) saturate(1.6);
+      -webkit-backdrop-filter: blur(24px) saturate(1.6);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4); z-index: 99;
+      flex-direction: column; gap: 2px;
+    }
+    .nav-mobile-menu.open { display: flex; }
+    .nav-mobile-menu a {
+      display: block; padding: 14px 16px;
+      font-size: 16px; font-weight: 500; color: var(--text-secondary);
+      border-radius: var(--radius-md); transition: all 0.15s ease;
+      min-height: 44px; text-decoration: none;
+    }
+    .nav-mobile-menu a:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+
+    /* ── Hero / Intro ── */
+    .hero {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 160px 40px 100px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+    }
+
+    .hero-photo {
+      width: 100%;
+      aspect-ratio: 3 / 4;
+      border-radius: var(--radius-xl);
+      background: linear-gradient(135deg, #1C1D25 0%, #252630 100%);
+      border: 1px solid var(--border-strong);
+      overflow: hidden;
+      position: relative;
+    }
+    .hero-photo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .hero-photo-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      color: var(--text-tertiary);
+      font-size: 14px;
+    }
+    .hero-photo-placeholder svg {
+      opacity: 0.3;
+    }
+
+    .hero-text {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .hero-eyebrow {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent-cyan);
+    }
+
+    .hero-name {
+      font-size: clamp(40px, 5vw, 56px);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+    }
+
+    .hero-title {
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .hero-bio {
+      font-size: 17px;
+      color: var(--text-secondary);
+      line-height: 1.75;
+      max-width: 520px;
+    }
+
+    .hero-links {
+      display: flex;
+      gap: 16px;
+      margin-top: 8px;
+    }
+
+    .hero-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 12px;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .hero-link.primary {
+      background: var(--accent-blue);
+      color: #000;
+    }
+    .hero-link.primary:hover {
+      background: var(--accent-cyan);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 191, 255, 0.25);
+    }
+    .hero-link.secondary {
+      background: var(--bg-raised);
+      color: var(--text-primary);
+      border: 1px solid var(--border-strong);
+    }
+    .hero-link.secondary:hover {
+      border-color: var(--accent-blue);
+      transform: translateY(-2px);
+    }
+
+    /* ── What I Do ── */
+    .what-section {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 80px 40px 120px;
+    }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent-cyan);
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 48px;
+      max-width: 600px;
+    }
+
+    .skills-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .skill-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 36px 32px;
+      transition: all 0.3s;
+    }
+    .skill-card:hover {
+      border-color: var(--border-strong);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .skill-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: rgba(0, 191, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent-blue);
+      margin-bottom: 24px;
+    }
+
+    .skill-card h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .skill-card p {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* ── Why Raven ── */
+    .why-section {
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .why-inner {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 120px 40px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+    }
+
+    .why-text {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .why-text p {
+      font-size: 17px;
+      color: var(--text-secondary);
+      line-height: 1.75;
+    }
+
+    .why-text p strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .why-terminal {
+      background: var(--bg);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .why-terminal-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 20px;
+      background: rgba(255, 255, 255, 0.03);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .why-terminal-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .why-terminal-dot:first-child { background: #FF5F57; }
+    .why-terminal-dot:nth-child(2) { background: #FEBC2E; }
+    .why-terminal-dot:nth-child(3) { background: #28C840; }
+
+    .why-terminal-body {
+      padding: 24px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 2;
+      color: var(--text-secondary);
+    }
+
+    .why-terminal-body .prompt { color: var(--accent-cyan); }
+    .why-terminal-body .cmd { color: var(--text-primary); }
+    .why-terminal-body .comment { color: var(--text-tertiary); font-style: italic; }
+    .why-terminal-body .output { color: var(--accent-blue); }
+
+    /* ── CTA ── */
+    .cta-section {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 120px 40px;
+      text-align: center;
+    }
+
+    .cta-section h2 {
+      font-size: clamp(32px, 5vw, 48px);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 16px;
+    }
+    .cta-section h2 span {
+      background: linear-gradient(135deg, #fff 0%, var(--accent-blue) 40%, var(--accent-cyan) 100%);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    .cta-section p {
+      font-size: 17px;
+      color: var(--text-secondary);
+      margin-bottom: 32px;
+      max-width: 480px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: var(--space-10) 0;
+    }
+    .footer-inner {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 clamp(16px, 4vw, 24px);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .footer-brand { display: flex; align-items: center; gap: var(--space-3); }
+    .footer-brand img { width: 22px; height: 22px; object-fit: contain; opacity: 0.5; }
+    .footer-brand span { font-size: 13px; color: var(--text-tertiary); }
+    .footer-links { display: flex; gap: var(--space-6); list-style: none; }
+    .footer-links a {
+      font-size: 13px; color: var(--text-tertiary);
+      text-decoration: none;
+      transition: color var(--duration-fast) var(--ease-out);
+    }
+    .footer-links a:hover { color: var(--text-primary); }
+
+    /* ── Responsive: Tablet ── */
+    @media (max-width: 1024px) {
+      .skills-grid { grid-template-columns: repeat(2, 1fr); }
+      .hero { padding: 140px 32px 80px; gap: 60px; }
+      .why-inner { padding: 100px 32px; gap: 60px; }
+      .what-section { padding: 70px 32px 100px; }
+      .cta-section { padding: 100px 32px; }
+    }
+
+    /* ── Responsive: Small Tablet / Large Phone ── */
+    @media (max-width: 768px) {
+      .hero {
+        grid-template-columns: 1fr;
+        gap: 48px;
+        padding: 140px 24px 60px;
+      }
+      .hero-photo {
+        max-width: 320px;
+        margin: 0 auto;
+      }
+      .hero-name { font-size: 36px; }
+      .hero-title { font-size: 18px; }
+      .skills-grid { grid-template-columns: 1fr; }
+      .why-inner {
+        grid-template-columns: 1fr;
+        gap: 48px;
+        padding: 60px 24px;
+      }
+      .why-terminal-body { font-size: 13px; }
+      .what-section { padding: 60px 24px 80px; }
+      .cta-section { padding: 60px 24px; }
+      nav { width: calc(100% - 24px); top: 8px; }
+      .nav-inner { padding: 0 var(--space-3); }
+      .nav-links { display: none; }
+      .nav-hamburger { display: flex; }
+      .nav-actions .btn-ghost { display: none; }
+      .nav-actions .btn-primary { font-size: 13px; padding: 8px 14px; min-height: 44px; display: flex; align-items: center; }
+      .nav-brand span { font-size: 14px; }
+      .footer-inner { flex-direction: column; gap: var(--space-4); text-align: center; }
+      .footer-links { justify-content: center; flex-wrap: wrap; }
+    }
+
+    /* ── Responsive: Small Mobile ── */
+    @media (max-width: 480px) {
+      .hero { padding: 120px 16px 40px; }
+      .hero-name { font-size: 28px; }
+      .hero-photo { max-width: 260px; }
+      .hero-bio { font-size: 15px; }
+      .hero-links { flex-direction: column; }
+      .hero-link { justify-content: center; }
+      .skills-grid { grid-template-columns: 1fr; }
+      .what-section { padding: 40px 16px 60px; }
+      .why-inner { padding: 40px 16px; }
+      .cta-section { padding: 40px 16px; }
+      footer { padding: var(--space-8) 0; }
+      .footer-inner { padding: 0 var(--space-4); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-brand">
+      <img src="/assets/raven-logo.png" alt="Raven">
+      <span>Raven MCP</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="/#layers">Knowledge</a></li>
+      <li><a href="/#tools">Tools</a></li>
+      <li><a href="/#systems">Systems</a></li>
+      <li><a href="/docs.html">Docs</a></li>
+      <li><a href="/about.html" class="active">About</a></li>
+      <li><a href="/#pricing">Pricing</a></li>
+    </ul>
+    <div class="nav-actions">
+      <a href="https://github.com/rhinocap/raven-mcp" class="btn btn-ghost">GitHub</a>
+      <a href="/docs.html" class="btn btn-primary">Get Started</a>
+      <button class="nav-hamburger" id="nav-hamburger" aria-label="Toggle menu"><span></span></button>
+    </div>
+  </div>
+</nav>
+<div class="nav-mobile-menu" id="nav-mobile-menu">
+  <a href="/#layers">Knowledge</a>
+  <a href="/#tools">Tools</a>
+  <a href="/#systems">Systems</a>
+  <a href="/docs.html">Docs</a>
+  <a href="/about.html" class="active">About</a>
+  <a href="/#pricing">Pricing</a>
+  <a href="https://github.com/rhinocap/raven-mcp">GitHub</a>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-photo">
+    <img src="/assets/IMG_2046.JPG" alt="Andrew Cunliffe">
+  </div>
+  <div class="hero-text">
+    <div class="hero-eyebrow">Creator of Raven MCP</div>
+    <h1 class="hero-name">Andrew<br>Cunliffe</h1>
+    <p class="hero-title">Senior Staff Designer & Design Strategist</p>
+    <p class="hero-bio">I drive platform visions and make company-wide AI+Human experiences a reality. Design strategy at the enterprise scale — setting the direction for how millions of customers interact with AI, then making sure those experiences actually ship and thrive.</p>
+    <p class="hero-bio">Raven MCP was born from a simple frustration: AI can write code, but it can't <em>design</em>. It doesn't know Nielsen's heuristics. It doesn't understand Gestalt. It reaches for Comic Sans when it should reach for Inter. I built Raven to fix that — permanently.</p>
+    <div class="hero-links">
+      <a href="/" class="hero-link primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        Explore Raven
+      </a>
+      <a href="https://github.com/rhinocap/raven-mcp" target="_blank" class="hero-link secondary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.08-.73.08-.73 1.2.08 1.84 1.23 1.84 1.23 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.52.12-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 016.02 0c2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.25 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.8 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.21.7.82.58A12.01 12.01 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- WHAT I DO -->
+<section class="what-section">
+  <div class="section-label">What I Do</div>
+  <h2 class="section-title">Platform vision meets enterprise execution</h2>
+  <div class="skills-grid">
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2zM22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+      </div>
+      <h3>Design Strategy</h3>
+      <p>Setting the vision for how products evolve. I connect business goals to customer outcomes through design — not just pixels, but the decisions behind them.</p>
+    </div>
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      </div>
+      <h3>AI + Human Experiences</h3>
+      <p>Designing enterprise-scale experiences where AI and humans work together seamlessly. Smart handoffs, trust calibration, and interfaces that make AI actually useful.</p>
+    </div>
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      </div>
+      <h3>Platform Vision</h3>
+      <p>I define the design direction for entire platforms — not individual features. Systems-level thinking that shapes how millions of customers experience a product.</p>
+    </div>
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </div>
+      <h3>AI Design Intelligence</h3>
+      <p>Building the tools that give AI real design taste. Raven MCP is the proof — 69 principles, 12 design systems, and a framework that turns Claude into a design-literate partner.</p>
+    </div>
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      </div>
+      <h3>Design Systems</h3>
+      <p>Tokens, patterns, standards — the shared language that makes consistent experiences possible at scale. I think in systems because one-off decisions don't survive contact with reality.</p>
+    </div>
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/><line x1="14" y1="4" x2="10" y2="20"/></svg>
+      </div>
+      <h3>Concept to Code</h3>
+      <p>I don't hand off — I ship. From strategy to working product in the same brain. AI is the force multiplier, taste is the filter.</p>
+    </div>
+  </div>
+</section>
+
+<!-- WHY RAVEN -->
+<section class="why-section">
+  <div class="why-inner">
+    <div class="why-text">
+      <div class="section-label">Why I Built Raven</div>
+      <h2 class="section-title">Design knowledge shouldn't be locked in people's heads</h2>
+      <p><strong>The problem is simple:</strong> AI can generate UI, but it doesn't understand <em>why</em> one layout works and another doesn't. It doesn't know that cards need consistent padding, that contrast ratios have legal minimums, or that Fitts's Law governs every button you've ever clicked.</p>
+      <p>Senior designers carry decades of this knowledge. When they review AI output, they see dozens of violations instantly. But that expertise doesn't transfer to the AI — it just gets corrected and forgotten.</p>
+      <p><strong>Raven changes that.</strong> It gives Claude access to 69 design principles, 13 UI patterns, 12 complete design system token sets, and strategic frameworks — all through MCP. The AI doesn't guess at design anymore. It knows.</p>
+    </div>
+    <div class="why-terminal">
+      <div class="why-terminal-header">
+        <span class="why-terminal-dot"></span>
+        <span class="why-terminal-dot"></span>
+        <span class="why-terminal-dot"></span>
+      </div>
+      <div class="why-terminal-body">
+        <span class="prompt">~</span> <span class="cmd">claude "build a dashboard"</span><br>
+        <span class="comment"># Without Raven:</span><br>
+        <span class="output">→ Generic layout, random colors, no system</span><br><br>
+        <span class="prompt">~</span> <span class="cmd">claude "build a dashboard" --mcp raven</span><br>
+        <span class="comment"># With Raven:</span><br>
+        <span class="output">→ Calls get_design_system("linear")</span><br>
+        <span class="output">→ Calls get_principles("hierarchy")</span><br>
+        <span class="output">→ Calls get_pattern("data-table")</span><br>
+        <span class="output">→ Calls evaluate_design()</span><br>
+        <span class="output">→ Ships pixel-perfect, accessible UI</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <h2>Ready to give AI<br><span>real design taste?</span></h2>
+  <p>Raven MCP is open source, free forever, and installs in 30 seconds.</p>
+  <div style="display:flex;gap:16px;justify-content:center;">
+    <a href="/" class="hero-link primary">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"/></svg>
+      Get Raven MCP
+    </a>
+    <a href="https://github.com/rhinocap/raven-mcp" target="_blank" class="hero-link secondary">View on GitHub</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <img src="assets/raven-logo.png" alt="Raven">
+      <span>Raven MCP &mdash; ravenmcp.ai</span>
+    </div>
+    <ul class="footer-links">
+      <li><a href="https://github.com/rhinocap/raven-mcp">GitHub</a></li>
+      <li><a href="docs.html">Docs</a></li>
+      <li><a href="/#systems">Systems</a></li>
+      <li><a href="about.html">About</a></li>
+    </ul>
+  </div>
+</footer>
+
+<script>
+  /* ── Hamburger Menu ── */
+  (function() {
+    var btn = document.getElementById('nav-hamburger');
+    var menu = document.getElementById('nav-mobile-menu');
+    if (btn && menu) {
+      btn.addEventListener('click', function() {
+        btn.classList.toggle('open');
+        menu.classList.toggle('open');
+      });
+      menu.querySelectorAll('a').forEach(function(link) {
+        link.addEventListener('click', function() {
+          btn.classList.remove('open');
+          menu.classList.remove('open');
+        });
+      });
+      document.addEventListener('click', function(e) {
+        if (!btn.contains(e.target) && !menu.contains(e.target)) {
+          btn.classList.remove('open');
+          menu.classList.remove('open');
+        }
+      });
+    }
+  })();
+
+  /* ── Nav scroll darkening ── */
+  var navEl = document.querySelector('nav');
+  window.addEventListener('scroll', function() {
+    if (window.scrollY > 50) {
+      navEl.style.borderColor = 'rgba(0, 191, 255, 0.12)';
+      navEl.style.background = 'rgba(36, 36, 46, 0.82)';
+      navEl.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.2), 0 0 20px rgba(0, 191, 255, 0.04)';
+    } else {
+      navEl.style.borderColor = '';
+      navEl.style.background = '';
+      navEl.style.boxShadow = '';
+    }
+  });
+</script>
+</body>
+</html>
