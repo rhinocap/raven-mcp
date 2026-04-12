@@ -1,11 +1,10 @@
 (function() {
-  var LINKS = [
-    { label: 'Knowledge', href: '/#layers' },
-    { label: 'Tools', href: '/#tools' },
-    { label: 'Systems', href: '/#systems' },
+  var CENTER_LINKS = [];
+
+  var PAGE_LINKS = [
+    { label: 'Pricing', href: '/#pricing' },
     { label: 'Docs', href: '/docs.html' },
-    { label: 'About', href: '/about.html' },
-    { label: 'Pricing', href: '/#pricing' }
+    { label: 'About', href: '/about.html' }
   ];
 
   var path = window.location.pathname;
@@ -16,13 +15,12 @@
     return false;
   }
 
-  function navLinksHTML(isMobile) {
+  function buildLinks(links, isMobile) {
     var html = '';
-    for (var i = 0; i < LINKS.length; i++) {
-      var link = LINKS[i];
+    for (var i = 0; i < links.length; i++) {
+      var link = links[i];
       var active = isActive(link.href) ? ' class="active"' : '';
       var href = link.href;
-      // On index page, strip leading / from hash links
       if ((path === '/' || path === '/index.html') && href.charAt(0) === '/' && href.charAt(1) === '#') {
         href = href.substring(1);
       }
@@ -33,6 +31,10 @@
       }
     }
     return html;
+  }
+
+  function allMobileLinks() {
+    return buildLinks(CENTER_LINKS, true) + buildLinks(PAGE_LINKS, true);
   }
 
   var CSS = '\
@@ -71,17 +73,15 @@
       filter: drop-shadow(0 0 16px rgba(0,191,255,0.5)) drop-shadow(0 0 8px rgba(0,191,255,0.3)) drop-shadow(0 0 40px rgba(0,191,255,0.15));\
     }\
     .nav-brand span { font-size: 16px; font-weight: 700; color: var(--text-primary, #F0F0F2); letter-spacing: -0.02em; }\
-    .nav-links {\
-      display: flex; align-items: center; gap: var(--space-8, 32px);\
-      position: absolute; left: 50%; transform: translateX(-50%);\
-    }\
-    .nav-links a {\
-      font-size: 18px; color: var(--text-secondary, #9498A0);\
+    .nav-links { display: none; }\
+    .nav-actions { display: flex; align-items: center; gap: var(--space-3, 12px); }\
+    .nav-page-links { display: flex; align-items: center; gap: var(--space-6, 24px); margin-right: var(--space-4, 16px); }\
+    .nav-page-links a {\
+      font-size: 15px; font-weight: 500; color: var(--text-secondary, #9498A0);\
       transition: color 150ms cubic-bezier(0.16, 1, 0.3, 1);\
     }\
-    .nav-links a:hover { color: var(--text-primary, #F0F0F2); }\
-    .nav-links a.active { color: var(--text-accent, #00BFFF); }\
-    .nav-actions { display: flex; align-items: center; gap: var(--space-3, 12px); }\
+    .nav-page-links a:hover { color: var(--text-primary, #F0F0F2); }\
+    .nav-page-links a.active { color: var(--text-accent, #00BFFF); }\
     .btn {\
       display: inline-flex; align-items: center; gap: var(--space-2, 8px);\
       padding: 12px 24px; font-family: var(--font-body, "Inter", -apple-system, BlinkMacSystemFont, sans-serif);\
@@ -144,6 +144,7 @@
       nav { width: calc(100% - 24px); top: 8px; }\
       .nav-inner { padding: 0 var(--space-3, 12px); }\
       .nav-links { display: none; }\
+      .nav-page-links { display: none; }\
       .nav-hamburger { display: flex; }\
       .nav-actions .btn-ghost { display: none; }\
       .nav-actions .btn-primary { font-size: 13px; padding: 8px 14px; }\
@@ -158,15 +159,15 @@
           <img src="/assets/raven-logo.png" alt="Raven">\
           <span>Raven</span>\
         </a>\
-        <ul class="nav-links">' + navLinksHTML(false) + '</ul>\
         <div class="nav-actions">\
+          <div class="nav-page-links">' + buildLinks(PAGE_LINKS, false).replace(/<\/?li>/g, '') + '</div>\
           <a href="https://github.com/rhinocap/raven-mcp" class="btn btn-ghost">GitHub</a>\
           <a href="/docs.html" class="btn btn-primary">Get Started</a>\
           <button class="nav-hamburger" aria-label="Toggle menu"><span></span></button>\
         </div>\
       </div>\
     </nav>\
-    <div class="nav-mobile-menu">' + navLinksHTML(true) + '\
+    <div class="nav-mobile-menu">' + allMobileLinks() + '\
       <a href="https://github.com/rhinocap/raven-mcp">GitHub</a>\
     </div>\
   ';

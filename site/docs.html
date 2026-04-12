@@ -74,6 +74,21 @@
 
     /* Nav and footer are shared web components — see assets/nav.js and assets/footer.js */
 
+    /* ── Scroll Reveal ── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(32px);
+      transition: opacity var(--duration-slow) var(--ease-out), transform var(--duration-slow) var(--ease-out);
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .reveal-delay-1 { transition-delay: 80ms; }
+    .reveal-delay-2 { transition-delay: 160ms; }
+    .reveal-delay-3 { transition-delay: 240ms; }
+    .reveal-delay-4 { transition-delay: 320ms; }
+
     /* ── Top gradient wash ── */
     body::before {
       content: "";
@@ -401,14 +416,16 @@
     </aside>
 
     <div class="docs-content">
+    <div class="reveal">
     <h1>Raven MCP <span class="accent">Docs</span></h1>
     <p class="subtitle">Everything you need to get Raven running with Claude Code, Claude Desktop, or any MCP-compatible client.</p>
+    </div>
 
     <!-- ── Quickstart ── -->
-    <h2 id="quickstart">Quickstart</h2>
+    <h2 id="quickstart" class="reveal">Quickstart</h2>
     <p>Get design intelligence in Claude in under 2 minutes.</p>
 
-    <div class="step">
+    <div class="step reveal">
       <div class="step-num">1</div>
       <div class="step-content">
         <h3>Install</h3>
@@ -416,7 +433,7 @@
       </div>
     </div>
 
-    <div class="step">
+    <div class="step reveal">
       <div class="step-num">2</div>
       <div class="step-content">
         <h3>Add to Claude Code</h3>
@@ -424,7 +441,7 @@
       </div>
     </div>
 
-    <div class="step">
+    <div class="step reveal">
       <div class="step-num">3</div>
       <div class="step-content">
         <h3>Use it</h3>
@@ -435,12 +452,12 @@
       </div>
     </div>
 
-    <div class="callout">
+    <div class="callout reveal">
       <strong>No configuration needed.</strong> Once added, Claude automatically queries Raven when you ask it to build, evaluate, or improve UI. The tools fire behind the scenes.
     </div>
 
     <!-- ── Installation ── -->
-    <h2 id="install">Installation</h2>
+    <h2 id="install" class="reveal">Installation</h2>
 
     <h3>From npm (recommended)</h3>
     <pre><code>npm install -g raven-mcp</code></pre>
@@ -456,7 +473,7 @@ npm run build</code></pre>
 npx raven-mcp</code></pre>
 
     <!-- ── Setup ── -->
-    <h2 id="setup">Setup</h2>
+    <h2 id="setup" class="reveal">Setup</h2>
 
     <h3>Claude Code (CLI)</h3>
     <pre><code>claude mcp add raven -- npx raven-mcp</code></pre>
@@ -490,12 +507,12 @@ npx raven-mcp</code></pre>
 }</code></pre>
 
     <!-- ── Tool Reference ── -->
-    <h2 id="tools">Tool Reference</h2>
+    <h2 id="tools" class="reveal">Tool Reference</h2>
     <p>Raven provides 13 tools across 4 knowledge layers. Claude calls them automatically based on what you're asking for.</p>
 
     <h3>Principles Layer</h3>
 
-    <div class="tool-card">
+    <div class="tool-card reveal">
       <h3>get_principles</h3>
       <p class="tool-desc">Get design principles relevant to a UI context. Returns usability heuristics, Laws of UX, Gestalt principles, accessibility rules, typography, color theory, mobile UX, and responsive layout.</p>
       <dl class="params">
@@ -512,7 +529,7 @@ npx raven-mcp</code></pre>
 "Check this against Nielsen's heuristics"</code></pre>
     </div>
 
-    <div class="tool-card">
+    <div class="tool-card reveal">
       <h3>evaluate_design</h3>
       <p class="tool-desc">Evaluate a design description against UX principles. Returns relevant principles, potential violations, and improvement suggestions.</p>
       <dl class="params">
@@ -528,7 +545,7 @@ npx raven-mcp</code></pre>
  button says Submit. Evaluate it for conversion."</code></pre>
     </div>
 
-    <div class="tool-card">
+    <div class="tool-card reveal">
       <h3>get_d4d_framework</h3>
       <p class="tool-desc">Get Design for Delight (D4D) templates — customer problem statement, ideal state, hypothesis, LOFAs, and experiment design.</p>
       <dl class="params">
@@ -539,7 +556,7 @@ npx raven-mcp</code></pre>
 
     <h3>Patterns Layer</h3>
 
-    <div class="tool-card">
+    <div class="tool-card reveal">
       <h3>get_pattern</h3>
       <p class="tool-desc">Get proven UI/UX patterns for a specific design type. Returns do's, don'ts, evidence, and checklists.</p>
       <dl class="params">
@@ -555,7 +572,7 @@ npx raven-mcp</code></pre>
 "What does a high-converting pricing page need?"</code></pre>
     </div>
 
-    <div class="tool-card">
+    <div class="tool-card reveal">
       <h3>get_checklist</h3>
       <p class="tool-desc">Get a pre-publish checklist for a UI type. Returns actionable yes/no items to verify before shipping.</p>
       <dl class="params">
@@ -571,7 +588,7 @@ npx raven-mcp</code></pre>
 
     <h3>Business Layer</h3>
 
-    <div class="tool-card">
+    <div class="tool-card reveal">
       <h3>get_business_strategy</h3>
       <p class="tool-desc">Get business and monetization strategies for digital products. Covers monetization, retention, onboarding, growth, and metrics.</p>
       <dl class="params">
@@ -584,7 +601,7 @@ npx raven-mcp</code></pre>
 
     <h3>Tokens Layer</h3>
 
-    <div class="tool-card">
+    <div class="tool-card reveal">
       <h3>list_design_systems</h3>
       <p class="tool-desc">Browse available design systems. Filter by category or search by name.</p>
       <dl class="params">
@@ -595,7 +612,7 @@ npx raven-mcp</code></pre>
       </dl>
     </div>
 
-    <div class="tool-card">
+    <div class="tool-card reveal">
       <h3>get_design_system</h3>
       <p class="tool-desc">Get design tokens for a specific system. Returns colors, typography, spacing, radii, elevation, and motion tokens.</p>
       <dl class="params">
@@ -611,7 +628,7 @@ npx raven-mcp</code></pre>
 "Give me Linear's typography scale as CSS variables"</code></pre>
     </div>
 
-    <div class="tool-card">
+    <div class="tool-card reveal">
       <h3>compose_system</h3>
       <p class="tool-desc">Mix tokens from different design systems to create a custom composite.</p>
       <dl class="params">
@@ -627,7 +644,7 @@ npx raven-mcp</code></pre>
 
     <h3>Search</h3>
 
-    <div class="tool-card">
+    <div class="tool-card reveal">
       <h3>search_knowledge</h3>
       <p class="tool-desc">Search across all principles, patterns, and strategies. Use when you need to find specific guidance or don't know which category to look in.</p>
       <dl class="params">
@@ -640,7 +657,7 @@ npx raven-mcp</code></pre>
 
     <h3>Advanced Tools</h3>
 
-    <div class="tool-card">
+    <div class="tool-card reveal">
       <h3>audit_page</h3>
       <p class="tool-desc">Audit an HTML page against design standards. Returns a score, grade, passes, and errors with specific fix recommendations.</p>
       <dl class="params">
@@ -656,7 +673,7 @@ npx raven-mcp</code></pre>
 "Check this signup form for WCAG compliance"</code></pre>
     </div>
 
-    <div class="tool-card">
+    <div class="tool-card reveal">
       <h3>get_brand_system</h3>
       <p class="tool-desc">Get a complete brand design system for a well-known company. Returns colors, typography, spacing, CSS variables, and implementation rules.</p>
       <dl class="params">
@@ -670,7 +687,7 @@ npx raven-mcp</code></pre>
 "Use Apple's design language for this landing page"</code></pre>
     </div>
 
-    <div class="tool-card">
+    <div class="tool-card reveal">
       <h3>generate_design_system</h3>
       <p class="tool-desc">Generate a complete, custom design system with full token set. Provide a brand color to auto-generate a harmonious palette, pick a style preset, and export as visual HTML documentation, CSS variables, W3C DTCG JSON, Figma Variables, or SVG palette card.</p>
       <dl class="params">
@@ -694,7 +711,7 @@ npx raven-mcp</code></pre>
     </div>
 
     <!-- ── Examples ── -->
-    <h2 id="examples">Examples</h2>
+    <h2 id="examples" class="reveal">Examples</h2>
     <p>You don't need to call tools directly. Just talk to Claude naturally and Raven fires automatically.</p>
 
     <h3>Build a pricing page with best practices</h3>
@@ -727,7 +744,7 @@ npx raven-mcp</code></pre>
     <p>Searches all 73 principles, 13 patterns, and 5 business strategy domains for relevant guidance.</p>
 
     <!-- ── Data Structure ── -->
-    <h2 id="data">Data Structure</h2>
+    <h2 id="data" class="reveal">Data Structure</h2>
     <p>All knowledge lives in <code>src/data/</code> as static JSON files. No database, no API calls, no latency.</p>
 
     <pre><code>src/data/
@@ -763,7 +780,7 @@ npx raven-mcp</code></pre>
       linear.json             # Linear's full token set</code></pre>
 
     <!-- ── Design Tokens ── -->
-    <h2 id="tokens">Design Tokens</h2>
+    <h2 id="tokens" class="reveal">Design Tokens</h2>
     <p>Tokens follow the <a href="https://tr.designtokens.org/format/">W3C Design Tokens Community Group (DTCG)</a> format. Each token has:</p>
     <ul>
       <li><code>$value</code> — the token value</li>
@@ -842,7 +859,7 @@ get_design_system({ id: "stripe", format: "flat" })
     </table>
 
     <!-- ── FAQ ── -->
-    <h2 id="faq">FAQ</h2>
+    <h2 id="faq" class="reveal">FAQ</h2>
 
     <h3>Does Raven make API calls?</h3>
     <p>No. All data is bundled locally in the npm package. No external API calls, no latency, no auth tokens needed. It's 272KB of curated JSON that runs on your machine.</p>
@@ -901,6 +918,14 @@ get_design_system({ id: "stripe", format: "flat" })
         link.classList.toggle('active', link.getAttribute('href') === '#' + current);
       });
     });
+
+    // Scroll reveal
+    var revealObserver = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) entry.target.classList.add('visible');
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+    document.querySelectorAll('.reveal').forEach(function(el) { revealObserver.observe(el); });
   </script>
 
 </body>
