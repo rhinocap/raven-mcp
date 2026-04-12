@@ -1,0 +1,1786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Raven MCP — Design Intelligence for AI</title>
+  <meta name="description" content="Odin's ravens brought back knowledge of the world. Raven brings back design intelligence. A design knowledge MCP server for Claude.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Dark grey base — NOT black */
+      --bg-base: #1a1a22;
+      --bg-surface: #212129;
+      --bg-raised: #2a2a33;
+      --bg-overlay: #32323d;
+      --bg-alt: #16161e;
+      --bg-accent: #00BFFF;
+      --bg-accent-hover: #33CFFF;
+      --bg-accent-subtle: rgba(0, 191, 255, 0.06);
+
+      --border: rgba(255, 255, 255, 0.06);
+      --border-strong: rgba(255, 255, 255, 0.1);
+      --border-accent: rgba(0, 191, 255, 0.3);
+
+      --text-primary: #F0F0F2;
+      --text-secondary: #9498A0;
+      --text-tertiary: #5C5F68;
+      --text-accent: #00BFFF;
+
+      /* Neon blue primary, supporting accents */
+      --accent-blue: #00BFFF;
+      --accent-cyan: #00E5FF;
+      --accent-green: #00E676;
+      --accent-orange: #FFAB40;
+      --accent-pink: #FF4081;
+
+      --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+      --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+      --space-12: 48px; --space-16: 64px; --space-20: 80px; --space-24: 96px;
+      --space-32: 128px;
+
+      --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+      --radius-xl: 20px; --radius-2xl: 24px; --radius-full: 9999px;
+
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+      --duration-fast: 150ms;
+      --duration-normal: 300ms;
+      --duration-slow: 600ms;
+
+      --max-width: 1140px;
+      --nav-height: 64px;
+    }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+    body {
+      font-family: var(--font-body);
+      font-size: 17px;
+      line-height: 1.65;
+      color: var(--text-secondary);
+      background: var(--bg-base);
+      overflow-x: hidden;
+    }
+    a { color: inherit; text-decoration: none; }
+    img { display: block; max-width: 100%; }
+    ul { list-style: none; }
+
+    .container { max-width: var(--max-width); margin: 0 auto; padding: 0 var(--space-6); }
+
+    /* ── Scroll Animations ── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(32px);
+      transition: opacity var(--duration-slow) var(--ease-out), transform var(--duration-slow) var(--ease-out);
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .reveal-delay-1 { transition-delay: 80ms; }
+    .reveal-delay-2 { transition-delay: 160ms; }
+    .reveal-delay-3 { transition-delay: 240ms; }
+    .reveal-delay-4 { transition-delay: 320ms; }
+
+    /* ── Grid Background Pattern ── */
+    .grid-bg {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 64px 64px;
+      mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* ── Gradient Glow ── */
+    .glow {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+    }
+
+    /* ── Typography ── */
+    h1, h2, h3, h4 { color: var(--text-primary); font-weight: 700; line-height: 1.15; }
+    h1 { font-size: clamp(44px, 6vw, 72px); font-weight: 800; letter-spacing: -0.04em; text-shadow: 0 0 80px rgba(0,191,255,0.08); }
+    h2 { font-size: clamp(30px, 4vw, 44px); letter-spacing: -0.03em; }
+    h3 { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+
+    .label {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-accent);
+    }
+
+    .subtitle {
+      font-size: clamp(18px, 1.6vw, 21px);
+      line-height: 1.65;
+      color: var(--text-secondary);
+      max-width: 580px;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: 12px 24px;
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: var(--radius-full);
+      border: none;
+      cursor: pointer;
+      transition: all var(--duration-normal) var(--ease-out);
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: var(--bg-accent);
+      color: #0a0a12;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px rgba(0, 191, 255, 0.6), 0 4px 16px rgba(0, 191, 255, 0.35), 0 0 40px rgba(0, 191, 255, 0.15);
+    }
+    .btn-primary:hover {
+      background: var(--bg-accent-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 0 0 1px rgba(0, 191, 255, 0.8), 0 8px 32px rgba(0, 191, 255, 0.45), 0 0 60px rgba(0, 191, 255, 0.2);
+    }
+
+    .btn-secondary {
+      background: var(--bg-raised);
+      color: var(--text-primary);
+      border: 1px solid var(--border-strong);
+    }
+    .btn-secondary:hover {
+      border-color: rgba(255,255,255,0.15);
+      background: var(--bg-overlay);
+      transform: translateY(-1px);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      padding: 12px 16px;
+    }
+    .btn-ghost:hover { color: var(--text-primary); }
+
+    /* ── Gradient Border Card ── */
+    .glow-card {
+      position: relative;
+      background: var(--bg-surface);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .glow-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 1px;
+      background: linear-gradient(135deg, rgba(0,191,255,0.25), rgba(255,255,255,0.06), rgba(0,229,255,0.15));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+    .glow-card:hover::before {
+      background: linear-gradient(135deg, rgba(0,191,255,0.45), rgba(255,255,255,0.1), rgba(0,229,255,0.3));
+    }
+    .glow-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.4), 0 0 60px rgba(0,191,255,0.06);
+    }
+    .glow-card { transition: all var(--duration-normal) var(--ease-out); }
+
+    /* ══════════════════════════════════════════
+       NAVIGATION
+       ══════════════════════════════════════════ */
+
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      height: var(--nav-height);
+      display: flex;
+      align-items: center;
+      background: rgba(26, 26, 34, 0.75);
+      backdrop-filter: blur(16px) saturate(1.4);
+      -webkit-backdrop-filter: blur(16px) saturate(1.4);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; max-width: var(--max-width); margin: 0 auto; padding: 0 var(--space-6);
+      position: relative;
+    }
+
+    .nav-brand { display: flex; align-items: center; gap: var(--space-3); }
+    .nav-brand img {
+      width: 30px; height: 30px; object-fit: contain;
+      filter: drop-shadow(0 0 12px rgba(0,191,255,0.3)) drop-shadow(0 0 4px rgba(0,191,255,0.15));
+    }
+    .nav-brand span { font-size: 16px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; }
+
+    .nav-links {
+      display: flex; align-items: center; gap: var(--space-8);
+      position: absolute;
+      left: 50%; transform: translateX(-50%);
+    }
+    .nav-links a {
+      font-size: 14px; color: var(--text-secondary);
+      transition: color var(--duration-fast) var(--ease-out);
+    }
+    .nav-links a:hover { color: var(--text-primary); }
+    .nav-actions { display: flex; align-items: center; gap: var(--space-3); }
+
+    /* ══════════════════════════════════════════
+       HERO
+       ══════════════════════════════════════════ */
+
+    .hero {
+      position: relative;
+      padding: calc(var(--nav-height) + var(--space-32)) 0 var(--space-20);
+      text-align: center;
+      overflow: hidden;
+    }
+
+    .hero .glow-1 {
+      top: -200px; left: 50%; transform: translateX(-50%);
+      width: 1000px; height: 600px;
+      background: radial-gradient(ellipse, rgba(0,191,255,0.18) 0%, rgba(0,229,255,0.05) 40%, transparent 70%);
+    }
+    .hero .glow-2 {
+      top: 100px; left: 15%;
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(0,229,255,0.08) 0%, transparent 55%);
+    }
+
+    .hero .container {
+      position: relative;
+      display: flex; flex-direction: column; align-items: center; gap: var(--space-6);
+    }
+
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: var(--space-2);
+      padding: 7px 16px 7px 12px;
+      background: var(--bg-accent-subtle);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-full);
+      font-size: 13px; font-weight: 500; color: var(--text-accent);
+    }
+    .hero-badge .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--accent-blue);
+      box-shadow: 0 0 12px var(--accent-blue), 0 0 24px rgba(0,191,255,0.3);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    .hero h1 { max-width: 760px; }
+    .hero h1 .gradient {
+      background: linear-gradient(135deg, #fff 0%, var(--accent-blue) 40%, var(--accent-cyan) 100%);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero .subtitle { margin: 0 auto; }
+
+    .hero-cta { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-4); }
+
+    /* Terminal */
+    .hero-visual {
+      margin-top: var(--space-16);
+      width: 100%; max-width: 900px;
+      position: relative;
+    }
+    .hero-visual::after {
+      content: "";
+      position: absolute;
+      bottom: -40px; left: 50%; transform: translateX(-50%);
+      width: 80%; height: 80px;
+      background: radial-gradient(ellipse, rgba(0,191,255,0.1) 0%, transparent 70%);
+      filter: blur(30px);
+    }
+
+    .terminal {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(0,191,255,0.15),
+        0 24px 80px rgba(0,0,0,0.6),
+        0 0 120px rgba(0,191,255,0.08),
+        inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    .terminal-header {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,0.01);
+    }
+    .terminal-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .terminal-dot:nth-child(1) { background: #ff5f57; }
+    .terminal-dot:nth-child(2) { background: #febc2e; }
+    .terminal-dot:nth-child(3) { background: #28c840; }
+    .terminal-title {
+      flex: 1; text-align: center;
+      font-size: 12px; color: var(--text-tertiary); font-family: var(--font-mono);
+    }
+    .terminal-body {
+      padding: var(--space-6) var(--space-8);
+      font-family: var(--font-mono); font-size: 13px; line-height: 2;
+      min-height: 380px;
+      position: relative;
+    }
+    .terminal-body .line { display: flex; gap: var(--space-2); }
+    .terminal-body .prompt { color: var(--accent-green); user-select: none; }
+    .terminal-body .cmd { color: var(--text-primary); }
+    .terminal-body .comment { color: var(--text-tertiary); }
+    .terminal-body .output { color: var(--accent-green); }
+    .terminal-body .key { color: var(--accent-blue); }
+    .terminal-body .val { color: var(--accent-orange); }
+    .terminal-body .fn { color: var(--accent-blue); }
+
+    /* Sizzle reel animation */
+    .sizzle-line {
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity 0.3s var(--ease-out), transform 0.3s var(--ease-out);
+    }
+    .sizzle-line.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .sizzle-cursor {
+      display: inline-block;
+      width: 8px;
+      height: 16px;
+      background: var(--accent-blue);
+      margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+      box-shadow: 0 0 8px rgba(0,191,255,0.5);
+    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+    .sizzle-typing .cmd-text { border-right: none; }
+
+    .tool-call {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: 3px 0;
+    }
+    .tool-spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--border-strong);
+      border-top-color: var(--accent-blue);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .tool-spinner.done {
+      animation: none;
+      border-color: var(--accent-green);
+      background: var(--accent-green);
+      box-shadow: 0 0 8px rgba(0,230,118,0.4);
+    }
+
+    /* UI Preview that appears after tools fire */
+    .ui-preview {
+      opacity: 0;
+      transform: translateY(12px) scale(0.98);
+      transition: opacity 0.6s var(--ease-out), transform 0.6s var(--ease-out);
+      margin-top: var(--space-4);
+    }
+    .ui-preview.visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    /* Browser chrome wrapper — same size for all 3 */
+    .browser-chrome {
+      background: #0e0e14;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    .browser-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .browser-dots { display: flex; gap: 5px; }
+    .browser-dots span { width: 8px; height: 8px; border-radius: 50%; }
+    .browser-dots span:nth-child(1) { background: #ff5f57; }
+    .browser-dots span:nth-child(2) { background: #febc2e; }
+    .browser-dots span:nth-child(3) { background: #28c840; }
+    .browser-url {
+      flex: 1;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-family: var(--font-body);
+    }
+    .browser-viewport {
+      height: 280px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: var(--bg-base);
+    }
+    .browser-viewport > * {
+      width: 100%;
+    }
+
+    /* Mini pricing UI */
+    .mini-pricing { display: flex; gap: 10px; justify-content: center; }
+    .mini-plan {
+      flex: 1; max-width: 200px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 14px;
+      text-align: center;
+      font-family: var(--font-body);
+    }
+    .mini-plan.pop {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 20px rgba(0,191,255,0.12);
+    }
+    .mini-plan-name { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-tertiary); margin-bottom: 4px; }
+    .mini-plan.pop .mini-plan-name { color: var(--accent-blue); }
+    .mini-plan-price { font-size: 24px; font-weight: 800; color: var(--text-primary); letter-spacing: -0.03em; margin-bottom: 2px; }
+    .mini-plan-price span { font-size: 12px; font-weight: 400; color: var(--text-tertiary); }
+    .mini-plan-desc { font-size: 10px; color: var(--text-tertiary); margin-bottom: 10px; line-height: 1.4; }
+    .mini-plan-features { text-align: left; margin-bottom: 12px; }
+    .mini-plan-features div { font-size: 10px; color: var(--text-secondary); padding: 2px 0; display: flex; align-items: center; gap: 5px; }
+    .mini-plan-features div::before { content: "\2713"; color: var(--accent-blue); font-size: 9px; font-weight: 700; }
+    .mini-plan-btn {
+      display: block; width: 100%; padding: 7px; border-radius: 7px; border: none;
+      font-size: 11px; font-weight: 600; cursor: default; font-family: var(--font-body);
+    }
+    .mini-plan-btn.outline { background: transparent; border: 1px solid var(--border-strong); color: var(--text-primary); }
+    .mini-plan-btn.fill { background: var(--accent-blue); color: var(--bg-base); }
+
+    /* Mini signup form UI */
+    .mini-form {
+      max-width: 300px; margin: 0 auto;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      font-family: var(--font-body);
+    }
+    .mini-form h4 { font-size: 16px; font-weight: 700; color: var(--text-primary); margin-bottom: 3px; text-align: center; }
+    .mini-form .mini-form-sub { font-size: 11px; color: var(--text-tertiary); margin-bottom: 14px; text-align: center; }
+    .mini-form-field { margin-bottom: 10px; }
+    .mini-form-field label { display: block; font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 3px; }
+    .mini-form-field .mini-input {
+      width: 100%; padding: 7px 10px; background: var(--bg-base); border: 1px solid var(--border-strong);
+      border-radius: 6px; font-size: 12px; color: var(--text-primary); font-family: var(--font-body); box-sizing: border-box;
+    }
+    .mini-form-field .mini-input.has-error { border-color: #FF4060; }
+    .mini-form-field .mini-error { font-size: 10px; color: #FF4060; margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+    .mini-form-row { display: flex; gap: 8px; }
+    .mini-form-row .mini-form-field { flex: 1; }
+    .mini-form-submit {
+      width: 100%; padding: 8px; background: var(--accent-blue); color: var(--bg-base);
+      border: none; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: default;
+      margin-top: 4px; font-family: var(--font-body);
+    }
+    .mini-form-terms { font-size: 9px; color: var(--text-tertiary); text-align: center; margin-top: 8px; }
+
+    /* Mini dashboard UI */
+    .mini-dash {
+      background: #191A23;
+      border-radius: 0;
+      padding: 16px;
+      font-family: var(--font-body);
+    }
+    .mini-dash-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .mini-dash-header h4 { font-size: 14px; font-weight: 700; color: #F2F2F2; }
+    .mini-dash-header span { font-size: 10px; color: #5E6AD2; font-weight: 600; }
+    .mini-dash-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+    .mini-kpi {
+      background: #1F2028; border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 10px;
+    }
+    .mini-kpi-label { font-size: 9px; color: #8A8F98; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
+    .mini-kpi-value { font-size: 18px; font-weight: 800; color: #F2F2F2; letter-spacing: -0.03em; }
+    .mini-kpi-change { font-size: 9px; font-weight: 600; margin-top: 2px; }
+    .mini-kpi-change.up { color: #6FCF97; }
+    .mini-kpi-change.down { color: #EB5757; }
+    .mini-dash-chart {
+      background: #1F2028; border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 12px;
+      height: 90px; position: relative; overflow: hidden;
+    }
+    .mini-dash-chart-label { font-size: 9px; color: #8A8F98; margin-bottom: 6px; }
+    .mini-chart-bars { display: flex; align-items: flex-end; gap: 4px; height: 54px; }
+    .mini-chart-bar {
+      flex: 1; border-radius: 3px 3px 0 0;
+      background: linear-gradient(to top, rgba(0,191,255,0.2), rgba(0,191,255,0.7));
+    }
+
+    .sizzle-progress {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-3);
+      margin-top: var(--space-4);
+    }
+    .sizzle-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-tertiary);
+      transition: all 0.3s var(--ease-out);
+      cursor: pointer;
+    }
+    .sizzle-dot.active {
+      background: var(--accent-blue);
+      box-shadow: 0 0 8px rgba(0,191,255,0.5);
+      transform: scale(1.4);
+    }
+
+    /* ══════════════════════════════════════════
+       SOCIAL PROOF
+       ══════════════════════════════════════════ */
+
+    .stats-section {
+      padding: var(--space-16) 0;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-6);
+    }
+    .stat-item {
+      text-align: center;
+      padding: var(--space-6) var(--space-4);
+      border-right: 1px solid var(--border);
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-number {
+      font-size: 48px;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      color: var(--accent-blue);
+      text-shadow: 0 0 40px rgba(0,191,255,0.3);
+      margin-bottom: var(--space-2);
+    }
+    .stat-number small {
+      font-size: 24px;
+      font-weight: 600;
+      opacity: 0.7;
+    }
+    .stat-desc {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      line-height: 1.4;
+    }
+    .stat-desc span {
+      font-weight: 400;
+      font-size: 14px;
+      color: var(--text-tertiary);
+    }
+
+    /* ══════════════════════════════════════════
+       PRICING
+       ══════════════════════════════════════════ */
+
+    .pricing-section {
+      position: relative;
+      padding: var(--space-32) 0;
+      background: var(--bg-alt);
+      overflow: hidden;
+    }
+
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-5);
+      align-items: stretch;
+    }
+
+    .pricing-card {
+      padding: var(--space-8) var(--space-6);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .pricing-card.featured {
+      border-color: var(--accent-blue);
+    }
+    .pricing-card.featured::before {
+      background: linear-gradient(135deg, rgba(0,191,255,0.4), rgba(0,229,255,0.15), rgba(0,191,255,0.3));
+    }
+
+    .pricing-badge {
+      position: absolute;
+      top: calc(var(--space-6) * -1 + 12px);
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 4px 14px;
+      background: var(--accent-blue);
+      color: var(--bg-base);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border-radius: var(--radius-full);
+      box-shadow: 0 0 20px rgba(0,191,255,0.4);
+    }
+
+    .pricing-tier {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-accent);
+      margin-bottom: var(--space-3);
+    }
+
+    .pricing-price {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+      margin-bottom: var(--space-1);
+    }
+    .pricing-price .amount {
+      font-size: 44px;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+    .pricing-card.featured .pricing-price .amount {
+      color: var(--accent-blue);
+      text-shadow: 0 0 30px rgba(0,191,255,0.25);
+    }
+    .pricing-price .period {
+      font-size: 14px;
+      color: var(--text-tertiary);
+    }
+
+    .pricing-desc {
+      font-size: 16px;
+      color: var(--text-secondary);
+      margin-bottom: var(--space-6);
+      line-height: 1.55;
+    }
+
+    .pricing-features {
+      list-style: none;
+      margin-bottom: var(--space-6);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+      flex: 1;
+    }
+    .pricing-features li {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-2);
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+    .pricing-features li .check {
+      color: var(--accent-blue);
+      font-size: 14px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .pricing-features li.dimmed {
+      color: var(--text-tertiary);
+    }
+    .pricing-features li.dimmed .check {
+      color: var(--text-tertiary);
+    }
+
+    .pricing-card .btn {
+      width: 100%;
+      justify-content: center;
+    }
+
+    /* ══════════════════════════════════════════
+       SECTION DIVIDER
+       ══════════════════════════════════════════ */
+
+    .divider {
+      width: 100%; max-width: var(--max-width);
+      margin: 0 auto;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
+    }
+
+    /* ══════════════════════════════════════════
+       KNOWLEDGE LAYERS
+       ══════════════════════════════════════════ */
+
+    .layers {
+      position: relative;
+      padding: var(--space-32) 0;
+      background: var(--bg-alt);
+    }
+
+    .section-header {
+      text-align: center;
+      margin-bottom: var(--space-16);
+    }
+    .section-header .label { margin-bottom: var(--space-3); }
+    .section-header h2 { margin-bottom: var(--space-4); }
+    .section-header .subtitle { margin: 0 auto; }
+
+    .layers-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-5);
+    }
+
+    .layer-card {
+      padding: var(--space-8) var(--space-6);
+    }
+
+    .layer-icon {
+      width: 44px; height: 44px;
+      border-radius: var(--radius-md);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: var(--space-5);
+    }
+    .layer-icon.blue { background: rgba(0,191,255,0.1); color: var(--accent-blue); }
+    .layer-icon.cyan { background: rgba(0,229,255,0.1); color: var(--accent-cyan); }
+    .layer-icon.green { background: rgba(0,230,118,0.1); color: var(--accent-green); }
+
+    .layer-card h3 { margin-bottom: var(--space-2); }
+    .layer-card p { font-size: 16px; line-height: 1.65; margin-bottom: var(--space-5); }
+    .layer-card .stat {
+      font-size: 28px; font-weight: 800; letter-spacing: -0.03em;
+      background: linear-gradient(135deg, var(--text-primary), var(--text-accent));
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      margin-bottom: var(--space-1);
+    }
+    .layer-card .stat-label { font-size: 12px; color: var(--text-tertiary); }
+
+    .layer-tags {
+      display: flex; flex-wrap: wrap; gap: var(--space-2);
+      margin-top: var(--space-4);
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--border);
+    }
+    .tag {
+      padding: 4px 10px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      font-size: 12px; font-weight: 500; color: var(--text-tertiary);
+    }
+
+    /* ══════════════════════════════════════════
+       TOOLS
+       ══════════════════════════════════════════ */
+
+    .tools-section {
+      position: relative;
+      padding: var(--space-32) 0;
+    }
+
+    .tools-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-4);
+    }
+
+    .tool-card {
+      display: flex; align-items: flex-start; gap: var(--space-4);
+      padding: var(--space-5) var(--space-6);
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+    .tool-card:hover {
+      border-color: var(--border-strong);
+      background: var(--bg-raised);
+    }
+    .tool-name {
+      font-family: var(--font-mono);
+      font-size: 14px; font-weight: 600; color: var(--text-primary);
+      margin-bottom: 2px;
+    }
+    .tool-desc { font-size: 15px; color: var(--text-secondary); line-height: 1.55; }
+    .tool-icon {
+      width: 36px; height: 36px;
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; background: var(--bg-raised);
+      border: 1px solid var(--border);
+    }
+
+    /* ══════════════════════════════════════════
+       HOW IT WORKS
+       ══════════════════════════════════════════ */
+
+    .how-section {
+      position: relative;
+      padding: var(--space-32) 0;
+      background: var(--bg-alt);
+    }
+
+    .how-steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-6);
+    }
+
+    .step {
+      text-align: center;
+      padding: var(--space-8) var(--space-6);
+    }
+
+    .step-number {
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-accent);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto var(--space-5);
+      font-size: 18px; font-weight: 800; color: var(--text-accent);
+      box-shadow: 0 0 30px rgba(0,191,255,0.2), 0 0 60px rgba(0,191,255,0.08);
+    }
+    .step h3 { margin-bottom: var(--space-2); }
+    .step p { font-size: 16px; max-width: 280px; margin: 0 auto; line-height: 1.6; }
+
+    .step-code {
+      margin-top: var(--space-4);
+      padding: var(--space-3) var(--space-4);
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-tertiary);
+      display: inline-block;
+    }
+
+    /* ══════════════════════════════════════════
+       DESIGN SYSTEMS REGISTRY
+       ══════════════════════════════════════════ */
+
+    .systems-section {
+      position: relative;
+      padding: var(--space-32) 0;
+    }
+
+    .systems-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-4);
+    }
+
+    .system-card {
+      padding: var(--space-6);
+      position: relative;
+    }
+
+    .system-name {
+      font-size: 15px; font-weight: 600; color: var(--text-primary);
+      margin-bottom: 2px;
+    }
+    .system-category {
+      font-size: 11px; color: var(--text-tertiary);
+      text-transform: uppercase; letter-spacing: 0.06em;
+      margin-bottom: var(--space-3);
+    }
+    .system-tags { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+    .system-tags span {
+      font-size: 11px; padding: 2px 8px;
+      background: rgba(255,255,255,0.03); border-radius: var(--radius-full);
+      color: var(--text-tertiary);
+    }
+    .system-status {
+      position: absolute;
+      top: var(--space-4); right: var(--space-4);
+      width: 8px; height: 8px; border-radius: 50%;
+    }
+    .system-status.live {
+      background: var(--accent-green);
+      box-shadow: 0 0 8px rgba(0,230,118,0.5), 0 0 20px rgba(0,230,118,0.25);
+    }
+    .system-status.planned { background: var(--text-tertiary); }
+
+    /* ══════════════════════════════════════════
+       TESTIMONIAL / QUOTE
+       ══════════════════════════════════════════ */
+
+    .quote-section {
+      position: relative;
+      padding: var(--space-24) 0;
+      background: var(--bg-alt);
+      overflow: hidden;
+    }
+
+    .quote-section .glow {
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 600px; height: 300px;
+      background: radial-gradient(ellipse, rgba(0,191,255,0.06) 0%, transparent 70%);
+    }
+
+    .quote-inner {
+      position: relative;
+      text-align: center;
+      max-width: 680px;
+      margin: 0 auto;
+    }
+
+    .quote-mark {
+      font-size: 64px; line-height: 1; color: var(--accent-blue); opacity: 0.4;
+      text-shadow: 0 0 40px rgba(0,191,255,0.3);
+      margin-bottom: var(--space-4);
+    }
+
+    .quote-text {
+      font-size: clamp(18px, 2.5vw, 24px);
+      font-weight: 500;
+      line-height: 1.55;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+      margin-bottom: var(--space-6);
+    }
+
+    .quote-attribution {
+      font-size: 14px;
+      color: var(--text-tertiary);
+    }
+
+    /* ══════════════════════════════════════════
+       MYTHOLOGY
+       ══════════════════════════════════════════ */
+
+    .mythology-section {
+      position: relative;
+      padding: var(--space-32) 0;
+      overflow: hidden;
+    }
+
+    .mythology-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-16);
+      align-items: center;
+    }
+    .mythology-text .label { margin-bottom: var(--space-3); }
+    .mythology-text h2 { margin-bottom: var(--space-4); }
+    .mythology-text p { margin-bottom: var(--space-5); line-height: 1.7; }
+
+    .mythology-visual {
+      display: flex; justify-content: center; align-items: center;
+      position: relative;
+    }
+    .mythology-visual img {
+      width: 340px; height: auto;
+      filter: drop-shadow(0 0 60px rgba(0,191,255,0.2)) drop-shadow(0 0 120px rgba(0,191,255,0.1));
+    }
+    .mythology-visual::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center, rgba(0,191,255,0.06) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    .mythology-realms {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-4);
+      margin-top: var(--space-16);
+    }
+
+    .realm {
+      padding: var(--space-6);
+      text-align: center;
+    }
+    .realm-tradition {
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--text-accent); margin-bottom: var(--space-2);
+    }
+    .realm h4 { font-size: 16px; margin-bottom: var(--space-1); }
+    .realm p { font-size: 15px; color: var(--text-tertiary); line-height: 1.55; }
+
+    /* ══════════════════════════════════════════
+       FINAL CTA
+       ══════════════════════════════════════════ */
+
+    .cta-section {
+      position: relative;
+      text-align: center;
+      padding: var(--space-32) 0;
+      background: var(--bg-alt);
+      overflow: hidden;
+    }
+
+    .cta-section .glow {
+      bottom: -100px; left: 50%; transform: translateX(-50%);
+      width: 800px; height: 400px;
+      background: radial-gradient(ellipse, rgba(0,191,255,0.08) 0%, transparent 70%);
+    }
+
+    .cta-section .container {
+      position: relative;
+      display: flex; flex-direction: column; align-items: center; gap: var(--space-5);
+    }
+    .cta-section h2 { max-width: 520px; }
+    .cta-section .subtitle { margin: 0 auto; }
+
+    .cta-actions {
+      display: flex; align-items: center; gap: var(--space-3);
+      margin-top: var(--space-4);
+    }
+
+    .cta-install {
+      display: flex; align-items: center; gap: var(--space-3);
+      padding: var(--space-3) var(--space-5);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-full);
+      font-family: var(--font-mono); font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+    .cta-install:hover {
+      border-color: rgba(255,255,255,0.15);
+      color: var(--text-primary);
+    }
+
+    /* ══════════════════════════════════════════
+       FOOTER
+       ══════════════════════════════════════════ */
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: var(--space-10) 0;
+    }
+    .footer-inner {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .footer-brand { display: flex; align-items: center; gap: var(--space-3); }
+    .footer-brand img { width: 22px; height: 22px; object-fit: contain; opacity: 0.5; }
+    .footer-brand span { font-size: 13px; color: var(--text-tertiary); }
+    .footer-links { display: flex; gap: var(--space-6); }
+    .footer-links a {
+      font-size: 13px; color: var(--text-tertiary);
+      transition: color var(--duration-fast) var(--ease-out);
+    }
+    .footer-links a:hover { color: var(--text-primary); }
+
+    /* ══════════════════════════════════════════
+       RESPONSIVE
+       ══════════════════════════════════════════ */
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .layers-grid, .how-steps, .mythology-realms, .tools-grid, .systems-grid, .pricing-grid {
+        grid-template-columns: 1fr;
+      }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .stat-item { border-right: none; border-bottom: 1px solid var(--border); padding: var(--space-4); }
+      .stat-item:nth-child(2), .stat-item:last-child { border-bottom: none; }
+      .stat-number { font-size: 36px; }
+      .mythology-inner { grid-template-columns: 1fr; text-align: center; }
+      .mythology-visual { order: -1; }
+      .mythology-visual img { width: 180px; }
+      .hero-cta, .cta-actions { flex-direction: column; width: 100%; }
+      .hero-cta .btn, .cta-actions .btn, .cta-actions .cta-install {
+        width: 100%; justify-content: center;
+      }
+      .footer-inner { flex-direction: column; gap: var(--space-4); text-align: center; }
+      .footer-links { justify-content: center; }
+    }
+    @media (min-width: 769px) and (max-width: 1024px) {
+      .layers-grid { grid-template-columns: 1fr; }
+      .tools-grid { grid-template-columns: 1fr; }
+      .systems-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <div class="nav-inner">
+      <a href="#" class="nav-brand">
+        <img src="assets/raven-logo.png" alt="Raven">
+        <span>Raven</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#layers">Knowledge</a></li>
+        <li><a href="#tools">Tools</a></li>
+        <li><a href="#systems">Systems</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+        <li><a href="#story">Story</a></li>
+      </ul>
+      <div class="nav-actions">
+        <a href="https://github.com/acunliffe/raven-mcp" class="btn btn-ghost">GitHub</a>
+        <a href="#get-started" class="btn btn-primary">Get Started</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="glow glow-1"></div>
+    <div class="glow glow-2"></div>
+    <div class="grid-bg"></div>
+    <div class="container">
+      <div class="hero-badge reveal">
+        <span class="dot"></span>
+        Open-source MCP Server
+      </div>
+      <h1 class="reveal reveal-delay-1">Design intelligence<br>for <span class="gradient">every prompt</span></h1>
+      <p class="subtitle reveal reveal-delay-2">Raven gives AI the design knowledge that used to live only in senior designers' heads. Principles, patterns, tokens, and strategy&mdash;ten tools, three knowledge layers.</p>
+      <div class="hero-cta reveal reveal-delay-3">
+        <a href="#get-started" class="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"/></svg>
+          Install Raven
+        </a>
+        <a href="#tools" class="btn btn-secondary">Explore Tools</a>
+      </div>
+
+      <div class="hero-visual reveal reveal-delay-4">
+        <div class="terminal">
+          <div class="terminal-header">
+            <span class="terminal-dot"></span>
+            <span class="terminal-dot"></span>
+            <span class="terminal-dot"></span>
+            <span class="terminal-title">claude &mdash; raven-mcp</span>
+          </div>
+          <div class="terminal-body" id="sizzle-reel"></div>
+        </div>
+        <div class="sizzle-progress">
+          <span class="sizzle-dot active" data-scene="0"></span>
+          <span class="sizzle-dot" data-scene="1"></span>
+          <span class="sizzle-dot" data-scene="2"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS — real numbers, not fake social proof -->
+  <section class="stats-section">
+    <div class="container">
+      <div class="stats-grid">
+        <div class="stat-item reveal">
+          <div class="stat-number">58</div>
+          <div class="stat-desc">Design principles<br><span>Nielsen, Gestalt, WCAG, Laws of UX</span></div>
+        </div>
+        <div class="stat-item reveal reveal-delay-1">
+          <div class="stat-number">13</div>
+          <div class="stat-desc">UI patterns<br><span>With do's, don'ts & evidence</span></div>
+        </div>
+        <div class="stat-item reveal reveal-delay-2">
+          <div class="stat-number">10</div>
+          <div class="stat-desc">MCP tools<br><span>Auto-called by Claude</span></div>
+        </div>
+        <div class="stat-item reveal reveal-delay-3">
+          <div class="stat-number">272<small>KB</small></div>
+          <div class="stat-desc">Curated knowledge<br><span>Zero hallucination, all sourced</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- KNOWLEDGE LAYERS -->
+  <section id="layers" class="layers">
+    <div class="grid-bg"></div>
+    <div class="container">
+      <div class="section-header">
+        <p class="label reveal">Three Knowledge Layers</p>
+        <h2 class="reveal reveal-delay-1">Everything a senior designer knows</h2>
+        <p class="subtitle reveal reveal-delay-2">From universal laws of perception to battle-tested business strategy&mdash;structured for machines to query and apply.</p>
+      </div>
+
+      <div class="layers-grid">
+        <div class="glow-card layer-card reveal">
+          <div class="layer-icon blue">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M11 7v4l3 2"/></svg>
+          </div>
+          <div class="stat">57</div>
+          <div class="stat-label">Design principles</div>
+          <h3>Principles</h3>
+          <p>Nielsen's Heuristics, Laws of UX, Gestalt, WCAG, typography, color theory, and D4D&mdash;with violations and checklists.</p>
+          <div class="layer-tags">
+            <span class="tag">Nielsen</span>
+            <span class="tag">Gestalt</span>
+            <span class="tag">WCAG</span>
+            <span class="tag">Laws of UX</span>
+          </div>
+        </div>
+
+        <div class="glow-card layer-card reveal reveal-delay-1">
+          <div class="layer-icon cyan">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="13" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="13" width="6" height="6" rx="1.5"/><rect x="13" y="13" width="6" height="6" rx="1.5"/></svg>
+          </div>
+          <div class="stat">13</div>
+          <div class="stat-label">Interface types</div>
+          <h3>Patterns</h3>
+          <p>Proven UI patterns for signup, pricing, dashboards, forms, navigation, CTAs, and more&mdash;each with do's, don'ts, and evidence.</p>
+          <div class="layer-tags">
+            <span class="tag">Landing Pages</span>
+            <span class="tag">Pricing</span>
+            <span class="tag">Forms</span>
+            <span class="tag">Navigation</span>
+          </div>
+        </div>
+
+        <div class="glow-card layer-card reveal reveal-delay-2">
+          <div class="layer-icon green">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 16l5-5 4 4 7-7"/><path d="M14 8h5v5"/></svg>
+          </div>
+          <div class="stat">5</div>
+          <div class="stat-label">Strategy domains</div>
+          <h3>Business Strategy</h3>
+          <p>Monetization, retention, onboarding, growth, and metrics&mdash;the business context that shapes every design decision.</p>
+          <div class="layer-tags">
+            <span class="tag">Monetization</span>
+            <span class="tag">Retention</span>
+            <span class="tag">Growth</span>
+            <span class="tag">Metrics</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUOTE -->
+  <section class="quote-section">
+    <div class="glow"></div>
+    <div class="container">
+      <div class="quote-inner reveal">
+        <div class="quote-mark">"</div>
+        <p class="quote-text">Design knowledge was locked in bentwood boxes&mdash;agency playbooks, enterprise design system teams, senior designers' heads. Raven broke the boxes open. Light for everyone.</p>
+        <p class="quote-attribution">The origin story &mdash; Tlingit mythology of Y&eacute;il, the Raven who stole the sun</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- TOOLS -->
+  <section id="tools" class="tools-section">
+    <div class="container">
+      <div class="section-header">
+        <p class="label reveal">Ten Tools</p>
+        <h2 class="reveal reveal-delay-1">The full flight across all realms</h2>
+        <p class="subtitle reveal reveal-delay-2">Each tool is a focused query. Claude calls them automatically&mdash;no special syntax, no configuration beyond install.</p>
+      </div>
+
+      <div class="tools-grid">
+        <div class="tool-card reveal">
+          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00BFFF" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3"/><circle cx="8" cy="11" r="0.5" fill="#00BFFF"/></svg></div>
+          <div><div class="tool-name">get_principles</div><div class="tool-desc">Design principles matched to your UI context&mdash;heuristics, laws, accessibility, color theory</div></div>
+        </div>
+        <div class="tool-card reveal reveal-delay-1">
+          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg></div>
+          <div><div class="tool-name">get_pattern</div><div class="tool-desc">Proven patterns with do's, don'ts, and evidence for 13 interface types</div></div>
+        </div>
+        <div class="tool-card reveal">
+          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" stroke-width="1.5" stroke-linecap="round"><path d="M2 12l4-4 3 3 5-5"/><path d="M10 6h4v4"/></svg></div>
+          <div><div class="tool-name">get_business_strategy</div><div class="tool-desc">Monetization, retention, onboarding, growth, and metrics frameworks</div></div>
+        </div>
+        <div class="tool-card reveal reveal-delay-1">
+          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" stroke-width="1.5" stroke-linecap="round"><path d="M8 2l2 4h4l-3 3 1 4-4-2-4 2 1-4-3-3h4z"/></svg></div>
+          <div><div class="tool-name">evaluate_design</div><div class="tool-desc">Score a design description against relevant principles and patterns</div></div>
+        </div>
+        <div class="tool-card reveal">
+          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00BFFF" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4"/><path d="M10 10l4 4"/></svg></div>
+          <div><div class="tool-name">search_knowledge</div><div class="tool-desc">Full-text search across all principles, patterns, and business strategy</div></div>
+        </div>
+        <div class="tool-card reveal reveal-delay-1">
+          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" stroke-width="1.5" stroke-linecap="round"><path d="M3 3h10v10H3z"/><path d="M3 7h10M7 3v10"/></svg></div>
+          <div><div class="tool-name">get_checklist</div><div class="tool-desc">Pre-publish quality checklist for any UI type&mdash;raise the raven banner</div></div>
+        </div>
+        <div class="tool-card reveal">
+          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" stroke-width="1.5" stroke-linecap="round"><path d="M8 2v4l3 2"/><circle cx="8" cy="8" r="6"/></svg></div>
+          <div><div class="tool-name">get_d4d_framework</div><div class="tool-desc">Design for Delight&mdash;customer empathy, hypothesis, and experiment templates</div></div>
+        </div>
+        <div class="tool-card reveal reveal-delay-1">
+          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" stroke-width="1.5" stroke-linecap="round"><path d="M2 4h12M2 8h8M2 12h10"/></svg></div>
+          <div><div class="tool-name">list_design_systems</div><div class="tool-desc">Browse the registry of 7 design systems with tokens and metadata</div></div>
+        </div>
+        <div class="tool-card reveal">
+          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00BFFF" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 6h6M5 8h4M5 10h5"/></svg></div>
+          <div><div class="tool-name">get_design_system</div><div class="tool-desc">Full tokens&mdash;colors, typography, spacing, radii, elevation, motion</div></div>
+        </div>
+        <div class="tool-card reveal reveal-delay-1">
+          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l4 4-4 4"/><path d="M12 4l-4 4 4 4"/></svg></div>
+          <div><div class="tool-name">compose_system</div><div class="tool-desc">Mix tokens from multiple design systems into a custom composition</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="how-section">
+    <div class="container">
+      <div class="section-header">
+        <p class="label reveal">How It Works</p>
+        <h2 class="reveal reveal-delay-1">Three steps to design-grade AI</h2>
+      </div>
+
+      <div class="how-steps">
+        <div class="glow-card step reveal">
+          <div class="step-number">1</div>
+          <h3>Install</h3>
+          <p>Clone, build, and add to your MCP config. Two minutes.</p>
+          <div class="step-code">npm install && npm run build</div>
+        </div>
+        <div class="glow-card step reveal reveal-delay-1">
+          <div class="step-number">2</div>
+          <h3>Prompt</h3>
+          <p>Ask Claude to build any UI. Raven's tools are called automatically.</p>
+          <div class="step-code">claude "design a dashboard"</div>
+        </div>
+        <div class="glow-card step reveal reveal-delay-2">
+          <div class="step-number">3</div>
+          <h3>Ship</h3>
+          <p>Get UI grounded in real principles, proven patterns, and production tokens.</p>
+          <div class="step-code">&#10003; Design-system grade</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DESIGN SYSTEMS -->
+  <section id="systems" class="systems-section">
+    <div class="container">
+      <div class="section-header">
+        <p class="label reveal">Token Registry</p>
+        <h2 class="reveal reveal-delay-1">The world's best design systems, queryable</h2>
+        <p class="subtitle reveal reveal-delay-2">Production tokens in W3C DTCG, CSS custom properties, or flat format. Two systems fully populated, five more planned.</p>
+      </div>
+
+      <div class="systems-grid">
+        <div class="glow-card system-card reveal">
+          <span class="system-status live"></span>
+          <div class="system-name">Stripe</div>
+          <div class="system-category">Fintech</div>
+          <div class="system-tags"><span>professional</span><span>clean</span><span>accessible</span></div>
+        </div>
+        <div class="glow-card system-card reveal reveal-delay-1">
+          <span class="system-status live"></span>
+          <div class="system-name">Linear</div>
+          <div class="system-category">Productivity</div>
+          <div class="system-tags"><span>dark</span><span>minimal</span><span>developer</span></div>
+        </div>
+        <div class="glow-card system-card reveal reveal-delay-2">
+          <span class="system-status planned"></span>
+          <div class="system-name">Vercel</div>
+          <div class="system-category">Developer</div>
+          <div class="system-tags"><span>monochrome</span><span>elegant</span></div>
+        </div>
+        <div class="glow-card system-card reveal reveal-delay-3">
+          <span class="system-status planned"></span>
+          <div class="system-name">GitHub Primer</div>
+          <div class="system-category">Design System</div>
+          <div class="system-tags"><span>enterprise</span><span>accessible</span></div>
+        </div>
+        <div class="glow-card system-card reveal reveal-delay-4">
+          <span class="system-status planned"></span>
+          <div class="system-name">Notion</div>
+          <div class="system-category">Productivity</div>
+          <div class="system-tags"><span>warm</span><span>content-first</span></div>
+        </div>
+        <div class="glow-card system-card reveal">
+          <span class="system-status planned"></span>
+          <div class="system-name">shadcn/ui</div>
+          <div class="system-category">Component Library</div>
+          <div class="system-tags"><span>tailwind</span><span>radix</span></div>
+        </div>
+        <div class="glow-card system-card reveal reveal-delay-1">
+          <span class="system-status planned"></span>
+          <div class="system-name">Supabase</div>
+          <div class="system-category">Developer</div>
+          <div class="system-tags"><span>dark</span><span>green-accent</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MYTHOLOGY -->
+  <section id="story" class="mythology-section">
+    <div class="container">
+      <div class="mythology-inner">
+        <div class="mythology-text reveal">
+          <p class="label">The Story</p>
+          <h2>Named for the creature that bridges worlds</h2>
+          <p>Across Norse, Celtic, and Native American traditions, the raven carries knowledge from hidden places and brings it into the light.</p>
+          <p>Odin's ravens Huginn and Muninn&mdash;Thought and Memory&mdash;fly across all nine realms at dawn and return to whisper everything they've seen. The Morr&iacute;gan takes raven form to decide fate. Y&eacute;il stole the sun from darkness and gave it to everyone.</p>
+          <p style="color: var(--text-accent); font-weight: 500;">Raven MCP: design intelligence that used to be locked away, now flying across your work.</p>
+        </div>
+        <div class="mythology-visual reveal reveal-delay-2">
+          <img src="assets/raven-logo.png" alt="Raven">
+        </div>
+      </div>
+
+      <div class="mythology-realms">
+        <div class="glow-card realm reveal">
+          <div class="realm-tradition">Norse</div>
+          <h4>Huginn & Muninn</h4>
+          <p>Thought & Memory&mdash;Odin's ravens that fly across all nine realms and return with knowledge</p>
+        </div>
+        <div class="glow-card realm reveal reveal-delay-1">
+          <div class="realm-tradition">Celtic</div>
+          <h4>The Morr&iacute;gan</h4>
+          <p>Sovereignty & Prophecy&mdash;the triple goddess who takes raven form to decide fate</p>
+        </div>
+        <div class="glow-card realm reveal reveal-delay-2">
+          <div class="realm-tradition">Tlingit</div>
+          <h4>Y&eacute;il the Transformer</h4>
+          <p>Light from Darkness&mdash;Raven stole the sun, moon, and stars and gave them to everyone</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section id="pricing" class="pricing-section">
+    <div class="grid-bg"></div>
+    <div class="container">
+      <div class="section-header">
+        <p class="label reveal">Pricing</p>
+        <h2 class="reveal reveal-delay-1">Free to start, pay to go deeper</h2>
+        <p class="subtitle reveal reveal-delay-2">Core design intelligence is open source. Premium unlocks the full token registry, advanced tools, and priority updates.</p>
+      </div>
+
+      <div class="pricing-grid">
+        <div class="glow-card pricing-card reveal">
+          <div class="pricing-tier">Open Source</div>
+          <div class="pricing-price">
+            <span class="amount">$0</span>
+            <span class="period">forever</span>
+          </div>
+          <p class="pricing-desc">Everything you need to ship design-grade UI with Claude.</p>
+          <ul class="pricing-features">
+            <li><span class="check">&#10003;</span> 58 design principles</li>
+            <li><span class="check">&#10003;</span> 13 UI pattern libraries</li>
+            <li><span class="check">&#10003;</span> 5 business strategy domains</li>
+            <li><span class="check">&#10003;</span> Pre-publish checklists</li>
+            <li><span class="check">&#10003;</span> D4D framework templates</li>
+            <li><span class="check">&#10003;</span> Knowledge search</li>
+            <li class="dimmed"><span class="check">&mdash;</span> 2 design system tokens</li>
+            <li class="dimmed"><span class="check">&mdash;</span> Community support</li>
+          </ul>
+          <a href="https://github.com/acunliffe/raven-mcp" class="btn btn-secondary">Get Started Free</a>
+        </div>
+
+        <div class="glow-card pricing-card featured reveal reveal-delay-1">
+          <div class="pricing-badge">Most Popular</div>
+          <div class="pricing-tier">Pro</div>
+          <div class="pricing-price">
+            <span class="amount">$9</span>
+            <span class="period">/month</span>
+          </div>
+          <p class="pricing-desc">Full token registry + advanced evaluation for professional designers and developers.</p>
+          <ul class="pricing-features">
+            <li><span class="check">&#10003;</span> Everything in Open Source</li>
+            <li><span class="check">&#10003;</span> All 7+ design system tokens</li>
+            <li><span class="check">&#10003;</span> compose_system &mdash; mix tokens</li>
+            <li><span class="check">&#10003;</span> evaluate_design &mdash; score UIs</li>
+            <li><span class="check">&#10003;</span> Priority new system additions</li>
+            <li><span class="check">&#10003;</span> Dark &amp; light mode tokens</li>
+            <li><span class="check">&#10003;</span> W3C DTCG + CSS + flat formats</li>
+            <li><span class="check">&#10003;</span> Email support</li>
+          </ul>
+          <a href="#get-started" class="btn btn-primary">Start Pro Trial</a>
+        </div>
+
+        <div class="glow-card pricing-card reveal reveal-delay-2">
+          <div class="pricing-tier">Team</div>
+          <div class="pricing-price">
+            <span class="amount">$29</span>
+            <span class="period">/month</span>
+          </div>
+          <p class="pricing-desc">For design teams shipping consistently across multiple products and codebases.</p>
+          <ul class="pricing-features">
+            <li><span class="check">&#10003;</span> Everything in Pro</li>
+            <li><span class="check">&#10003;</span> Up to 10 seats</li>
+            <li><span class="check">&#10003;</span> Custom design system upload</li>
+            <li><span class="check">&#10003;</span> Team token presets</li>
+            <li><span class="check">&#10003;</span> Shared evaluation reports</li>
+            <li><span class="check">&#10003;</span> Usage analytics dashboard</li>
+            <li><span class="check">&#10003;</span> Slack support channel</li>
+            <li><span class="check">&#10003;</span> Onboarding call</li>
+          </ul>
+          <a href="#get-started" class="btn btn-secondary">Contact Us</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section id="get-started" class="cta-section">
+    <div class="glow"></div>
+    <div class="grid-bg"></div>
+    <div class="container">
+      <p class="label reveal">Get Started</p>
+      <h2 class="reveal reveal-delay-1">Give your AI<br>design intelligence</h2>
+      <p class="subtitle reveal reveal-delay-2">Open source. Zero runtime dependencies. Works with Claude Code and Claude Desktop.</p>
+      <div class="cta-actions reveal reveal-delay-3">
+        <a href="https://github.com/acunliffe/raven-mcp" class="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          View on GitHub
+        </a>
+        <button class="cta-install" onclick="navigator.clipboard.writeText('npm install raven-mcp').then(()=>{this.querySelector('.copy-label').textContent='Copied!'})">
+          <span class="copy-label">npm install raven-mcp</span>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M2 10V3a1 1 0 011-1h7"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <img src="assets/raven-logo.png" alt="Raven">
+          <span>Raven MCP &mdash; ravenmcp.ai</span>
+        </div>
+        <ul class="footer-links">
+          <li><a href="https://github.com/acunliffe/raven-mcp">GitHub</a></li>
+          <li><a href="#tools">Tools</a></li>
+          <li><a href="#systems">Systems</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+          <li><a href="#story">Story</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    /* ── Scroll Reveal ── */
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) entry.target.classList.add('visible');
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+    document.querySelectorAll('.reveal').forEach(function(el) { observer.observe(el); });
+
+    /* ── Sizzle Reel ── */
+    function chrome(url, inner) {
+      return '<div class="browser-chrome">'
+        + '<div class="browser-bar"><div class="browser-dots"><span></span><span></span><span></span></div><div class="browser-url">' + url + '</div></div>'
+        + '<div class="browser-viewport">' + inner + '</div></div>';
+    }
+
+    var uiPricing = chrome('app.acme.io/pricing',
+      '<div class="mini-pricing">'
+      + '<div class="mini-plan"><div class="mini-plan-name">Starter</div><div class="mini-plan-price">$0<span>/mo</span></div><div class="mini-plan-desc">For side projects and solo devs</div><div class="mini-plan-features"><div>5 projects</div><div>Basic analytics</div><div>Community support</div></div><div class="mini-plan-btn outline">Get Started</div></div>'
+      + '<div class="mini-plan pop"><div class="mini-plan-name">Pro</div><div class="mini-plan-price">$19<span>/mo</span></div><div class="mini-plan-desc">For professional teams shipping fast</div><div class="mini-plan-features"><div>Unlimited projects</div><div>Advanced analytics</div><div>Priority support</div><div>Custom domains</div></div><div class="mini-plan-btn fill">Start Free Trial</div></div>'
+      + '<div class="mini-plan"><div class="mini-plan-name">Enterprise</div><div class="mini-plan-price">$79<span>/mo</span></div><div class="mini-plan-desc">For orgs that need scale and control</div><div class="mini-plan-features"><div>Everything in Pro</div><div>SSO &amp; SAML</div><div>Audit logs</div><div>Dedicated support</div></div><div class="mini-plan-btn outline">Contact Sales</div></div>'
+      + '</div>');
+
+    var uiForm = chrome('app.acme.io/signup',
+      '<div class="mini-form">'
+      + '<h4>Create your account</h4>'
+      + '<div class="mini-form-sub">Start your 14-day free trial</div>'
+      + '<div class="mini-form-row"><div class="mini-form-field"><label>First name</label><div class="mini-input">Sarah</div></div><div class="mini-form-field"><label>Last name</label><div class="mini-input">Chen</div></div></div>'
+      + '<div class="mini-form-field"><label>Work email</label><div class="mini-input">sarah@acme.co</div></div>'
+      + '<div class="mini-form-field"><label>Password</label><div class="mini-input has-error">\u2022\u2022\u2022\u2022\u2022\u2022</div><div class="mini-error">\u26A0 Must be at least 8 characters with one number</div></div>'
+      + '<div class="mini-form-submit">Create Account</div>'
+      + '<div class="mini-form-terms">By signing up you agree to our Terms and Privacy Policy</div>'
+      + '</div>');
+
+    var bars = [35,52,44,68,58,72,48,65,80,55,70,90].map(function(h){return '<div class="mini-chart-bar" style="height:'+h+'%"></div>';}).join('');
+    var uiDash = chrome('app.acme.io/dashboard',
+      '<div class="mini-dash">'
+      + '<div class="mini-dash-header"><h4>Analytics Overview</h4><span>Last 30 days</span></div>'
+      + '<div class="mini-dash-kpis">'
+      + '<div class="mini-kpi"><div class="mini-kpi-label">Revenue</div><div class="mini-kpi-value">$48.2k</div><div class="mini-kpi-change up">\u2191 12.3%</div></div>'
+      + '<div class="mini-kpi"><div class="mini-kpi-label">Users</div><div class="mini-kpi-value">2,847</div><div class="mini-kpi-change up">\u2191 8.1%</div></div>'
+      + '<div class="mini-kpi"><div class="mini-kpi-label">Churn</div><div class="mini-kpi-value">1.2%</div><div class="mini-kpi-change down">\u2193 0.3%</div></div>'
+      + '<div class="mini-kpi"><div class="mini-kpi-label">NPS</div><div class="mini-kpi-value">72</div><div class="mini-kpi-change up">\u2191 4pts</div></div>'
+      + '</div>'
+      + '<div class="mini-dash-chart"><div class="mini-dash-chart-label">Monthly Revenue</div><div class="mini-chart-bars">' + bars + '</div></div>'
+      + '</div>');
+
+    var scenes = [
+      {
+        prompt: 'claude "add a pricing section to the landing page"',
+        comment: '# Raven auto-queries 3 knowledge layers:',
+        tools: [
+          { fn: 'get_principles', result: 'Hick\'s Law, Anchoring, Von Restorff', color: 'fn' },
+          { fn: 'get_pattern', result: '3-tier, feature comparison, social proof', color: 'fn' },
+          { fn: 'get_design_system', result: 'Stripe tokens \u2014 colors, spacing, type', color: 'key' },
+          { fn: 'get_business_strategy', result: 'decoy pricing, annual discount, CTA', color: 'val' }
+        ],
+        ui: uiPricing
+      },
+      {
+        prompt: 'claude "the signup form feels off, check it"',
+        comment: '# Raven evaluates against principles:',
+        tools: [
+          { fn: 'evaluate_design', result: 'Placeholder-only labels, no inline errors', color: 'val' },
+          { fn: 'get_principles', result: 'Contrast 4.5:1, keyboard nav, focus ring', color: 'fn' },
+          { fn: 'get_pattern', result: 'Single-column, labels above, smart defaults', color: 'fn' },
+          { fn: 'get_checklist', result: '12 items \u2014 3 pass, 4 warn, 5 violations', color: 'val' }
+        ],
+        ui: uiForm
+      },
+      {
+        prompt: 'claude "build the analytics view, use Linear\'s tokens"',
+        comment: '# Raven fetches real production tokens:',
+        tools: [
+          { fn: 'get_design_system', result: '#191A23 bg, #5E6AD2 accent, Inter 13px', color: 'key' },
+          { fn: 'get_pattern', result: 'KPI cards, activity feed, skeleton loading', color: 'fn' },
+          { fn: 'get_principles', result: 'Progressive disclosure, recognition > recall', color: 'fn' },
+          { fn: 'compose_system', result: 'Linear tokens + custom overrides merged', color: 'val' }
+        ],
+        ui: uiDash
+      }
+    ];
+
+    var reel = document.getElementById('sizzle-reel');
+    var dots = document.querySelectorAll('.sizzle-dot');
+    var currentScene = -1;
+    var sceneTimer = null;
+    var isAnimating = false;
+
+    function sleep(ms) {
+      return new Promise(function(resolve) { setTimeout(resolve, ms); });
+    }
+
+    function addLine(html, cls) {
+      var div = document.createElement('div');
+      div.className = 'sizzle-line' + (cls ? ' ' + cls : '');
+      div.innerHTML = html;
+      reel.appendChild(div);
+      div.offsetHeight;
+      div.classList.add('visible');
+      return div;
+    }
+
+    async function typeText(el, text, speed) {
+      var span = el.querySelector('.cmd-text');
+      for (var i = 0; i < text.length; i++) {
+        span.textContent += text[i];
+        await sleep(speed || 22);
+      }
+    }
+
+    async function playScene(index) {
+      if (isAnimating) return;
+      isAnimating = true;
+      currentScene = index;
+
+      dots.forEach(function(d, i) {
+        d.classList.toggle('active', i === index);
+      });
+
+      var scene = scenes[index];
+      reel.innerHTML = '';
+
+      /* prompt line with typing */
+      var promptLine = addLine(
+        '<span class="prompt">~</span> <span class="cmd"><span class="cmd-text"></span><span class="sizzle-cursor"></span></span>',
+        'line'
+      );
+      await sleep(300);
+      await typeText(promptLine, scene.prompt, 20);
+
+      var cursor = promptLine.querySelector('.sizzle-cursor');
+      if (cursor) cursor.remove();
+      await sleep(400);
+
+      /* comment */
+      addLine('<br>');
+      addLine('<span class="comment">' + scene.comment + '</span>', 'line');
+      await sleep(250);
+
+      /* tool calls with spinners */
+      for (var i = 0; i < scene.tools.length; i++) {
+        var t = scene.tools[i];
+        var padded = t.fn;
+        while (padded.length < 22) padded += '\u00a0';
+
+        var line = addLine(
+          '<span class="tool-call">' +
+            '<span class="tool-spinner"></span>' +
+            '<span class="fn">' + padded + '</span>' +
+            '<span class="comment">\u2192</span> ' +
+            '<span class="' + t.color + '">' + t.result + '</span>' +
+          '</span>',
+          'line'
+        );
+        await sleep(350);
+        var spinner = line.querySelector('.tool-spinner');
+        if (spinner) spinner.classList.add('done');
+        await sleep(150);
+      }
+
+      /* show the rendered UI */
+      await sleep(500);
+      var preview = document.createElement('div');
+      preview.className = 'ui-preview';
+      preview.innerHTML = scene.ui;
+      reel.appendChild(preview);
+      preview.offsetHeight;
+      preview.classList.add('visible');
+
+      isAnimating = false;
+    }
+
+    function nextScene() {
+      var next = (currentScene + 1) % scenes.length;
+      playScene(next);
+    }
+
+    function startLoop() {
+      clearInterval(sceneTimer);
+      sceneTimer = setInterval(function() {
+        if (!isAnimating) nextScene();
+      }, 9000);
+    }
+
+    dots.forEach(function(dot) {
+      dot.addEventListener('click', function() {
+        var idx = parseInt(this.getAttribute('data-scene'));
+        clearInterval(sceneTimer);
+        playScene(idx).then(startLoop);
+      });
+    });
+
+    playScene(0).then(startLoop);
+  </script>
+</body>
+</html>

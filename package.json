@@ -1,16 +1,23 @@
 {
   "name": "raven-mcp",
   "version": "1.0.0",
-  "description": "Design intelligence MCP server — Odin's ravens brought back knowledge of the world, Raven brings back design intelligence.",
+  "description": "Design intelligence MCP server — principles, patterns, tokens, and strategy for AI-generated UI. 58 design principles, 13 UI patterns, 7 design system tokens.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
     "raven-mcp": "dist/index.js"
   },
+  "files": [
+    "dist/",
+    "src/data/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
@@ -21,6 +28,24 @@
     "tsx": "^4.19.0",
     "@types/node": "^22.0.0"
   },
-  "keywords": ["mcp", "design", "tokens", "ux", "principles", "patterns"],
-  "license": "MIT"
+  "keywords": [
+    "mcp",
+    "design",
+    "design-system",
+    "tokens",
+    "ux",
+    "ui-patterns",
+    "principles",
+    "accessibility",
+    "claude",
+    "ai",
+    "model-context-protocol"
+  ],
+  "author": "Andrew Cunliffe",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/acunliffe/raven-mcp"
+  },
+  "homepage": "https://ravenmcp.ai"
 }
