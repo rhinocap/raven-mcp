@@ -293,28 +293,6 @@
     }
     .callout strong { color: var(--text-accent); }
 
-    /* ── Step numbers ── */
-    .step {
-      display: flex;
-      gap: var(--space-4);
-      margin-bottom: var(--space-6);
-    }
-    .step-num {
-      flex-shrink: 0;
-      width: 32px;
-      height: 32px;
-      background: var(--bg-accent);
-      color: var(--bg-base);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      font-weight: 700;
-      margin-top: 2px;
-    }
-    .step-content { flex: 1; min-width: 0; }
-    .step-content h3 { margin-top: 0; }
 
     /* ── Mobile: 768px ── */
     @media (max-width: 768px) {
@@ -359,28 +337,6 @@
       /* Touch targets */
       .toc a { min-height: 44px; display: flex; align-items: center; }
 
-      /* Steps layout: compact, number + heading inline */
-      .step {
-        gap: var(--space-3);
-        align-items: flex-start;
-        margin-bottom: var(--space-4);
-      }
-      .step-num {
-        width: 28px;
-        height: 28px;
-        font-size: 13px;
-        margin-top: 0;
-      }
-      .step-content h3 {
-        font-size: 16px;
-        margin-bottom: var(--space-2);
-        line-height: 28px; /* match step-num height for alignment */
-      }
-      .step-content pre {
-        max-width: calc(100vw - 80px);
-        margin-bottom: var(--space-3);
-      }
-
       /* Footer */
     }
 
@@ -404,9 +360,7 @@
     <aside class="toc">
       <div class="toc-label">On this page</div>
       <ul>
-        <li><a href="#quickstart">Quickstart</a></li>
-        <li><a href="#install">Installation</a></li>
-        <li><a href="#setup">Setup</a></li>
+        <li><a href="#quickstart">Get Started</a></li>
         <li><a href="#tools">Tool Reference</a></li>
         <li><a href="#examples">Examples</a></li>
         <li><a href="#data">Data Structure</a></li>
@@ -421,90 +375,48 @@
     <p class="subtitle">Everything you need to get Raven running with Claude Code, Claude Desktop, or any MCP-compatible client.</p>
     </div>
 
-    <!-- ── Quickstart ── -->
-    <h2 id="quickstart" class="reveal">Quickstart</h2>
-    <p>Get design intelligence in Claude in under 2 minutes.</p>
+    <!-- ── Get Started ── -->
+    <h2 id="quickstart" class="reveal">Get Started</h2>
+    <p>Design intelligence in Claude in under 2 minutes.</p>
 
-    <div class="step reveal">
-      <div class="step-num">1</div>
-      <div class="step-content">
-        <h3>Install</h3>
-        <pre><code>npm install -g raven-mcp</code></pre>
-      </div>
-    </div>
+    <h3 class="reveal">Install &amp; connect</h3>
+    <pre><code>npm install -g raven-mcp
+claude mcp add raven -- npx raven-mcp</code></pre>
 
-    <div class="step reveal">
-      <div class="step-num">2</div>
-      <div class="step-content">
-        <h3>Add to Claude Code</h3>
-        <pre><code>claude mcp add raven -- npx raven-mcp</code></pre>
-      </div>
-    </div>
-
-    <div class="step reveal">
-      <div class="step-num">3</div>
-      <div class="step-content">
-        <h3>Use it</h3>
-        <p>Just ask Claude to build UI. Raven's tools fire automatically when relevant.</p>
-        <pre><code>"Build me a pricing page with 3 tiers"
+    <p>That's it. Ask Claude to build UI and Raven's tools fire automatically:</p>
+    <pre><code>"Build me a pricing page with 3 tiers"
 "Check this signup form for accessibility issues"
 "Use Stripe's design tokens for the checkout flow"</code></pre>
-      </div>
-    </div>
 
     <div class="callout reveal">
       <strong>No configuration needed.</strong> Once added, Claude automatically queries Raven when you ask it to build, evaluate, or improve UI. The tools fire behind the scenes.
     </div>
 
-    <!-- ── Installation ── -->
-    <h2 id="install" class="reveal">Installation</h2>
+    <h3 class="reveal">Claude Desktop</h3>
+    <p>Add to your config file (<strong>macOS:</strong> <code>~/Library/Application Support/Claude/claude_desktop_config.json</code> &middot; <strong>Windows:</strong> <code>%APPDATA%\Claude\claude_desktop_config.json</code>):</p>
+    <pre><code>{
+  "mcpServers": {
+    "raven": {
+      "command": "npx",
+      "args": ["raven-mcp"]
+    }
+  }
+}</code></pre>
 
-    <h3>From npm (recommended)</h3>
-    <pre><code>npm install -g raven-mcp</code></pre>
+    <h3 class="reveal">Team config</h3>
+    <p>Add a <code>.mcp.json</code> to your project root so everyone gets Raven automatically:</p>
+    <pre><code>{
+  "mcpServers": {
+    "raven": {
+      "command": "npx",
+      "args": ["raven-mcp"]
+    }
+  }
+}</code></pre>
 
-    <h3>From GitHub</h3>
+    <h3 class="reveal">Install from source</h3>
     <pre><code>git clone https://github.com/rhinocap/raven-mcp.git
-cd raven-mcp
-npm install
-npm run build</code></pre>
-
-    <h3>Verify installation</h3>
-    <pre><code># Should print: raven-mcp server running on stdio
-npx raven-mcp</code></pre>
-
-    <!-- ── Setup ── -->
-    <h2 id="setup" class="reveal">Setup</h2>
-
-    <h3>Claude Code (CLI)</h3>
-    <pre><code>claude mcp add raven -- npx raven-mcp</code></pre>
-    <p>Verify it's connected:</p>
-    <pre><code>claude mcp list</code></pre>
-
-    <h3>Claude Desktop</h3>
-    <p>Add to your Claude Desktop config file:</p>
-    <ul>
-      <li><strong>macOS:</strong> <code>~/Library/Application Support/Claude/claude_desktop_config.json</code></li>
-      <li><strong>Windows:</strong> <code>%APPDATA%\Claude\claude_desktop_config.json</code></li>
-    </ul>
-    <pre><code>{
-  "mcpServers": {
-    "raven": {
-      "command": "npx",
-      "args": ["raven-mcp"]
-    }
-  }
-}</code></pre>
-
-    <h3>Project-level config</h3>
-    <p>Add a <code>.mcp.json</code> file to your project root to share Raven with your team:</p>
-    <pre><code>{
-  "mcpServers": {
-    "raven": {
-      "command": "npx",
-      "args": ["raven-mcp"]
-    }
-  }
-}</code></pre>
+cd raven-mcp && npm install && npm run build</code></pre>
 
     <!-- ── Tool Reference ── -->
     <h2 id="tools" class="reveal">Tool Reference</h2>
