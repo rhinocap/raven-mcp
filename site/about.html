@@ -14,16 +14,23 @@
       --bg: #0E0F13;
       --bg-surface: #16171D;
       --bg-raised: #1C1D25;
+      --bg-overlay: #32323d;
+      --bg-accent: #00BFFF;
+      --bg-accent-hover: #33CFFF;
+      --bg-accent-subtle: rgba(0, 191, 255, 0.06);
       --text-primary: #F0F0F2;
       --text-secondary: #A0A3B1;
       --text-tertiary: #6B6E7D;
+      --text-accent: #00BFFF;
       --accent-blue: #00BFFF;
       --accent-cyan: #00E5FF;
       --border: rgba(255, 255, 255, 0.08);
       --border-strong: rgba(255, 255, 255, 0.12);
+      --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --radius-md: 12px;
       --radius-lg: 16px;
       --radius-xl: 20px;
+      --radius-full: 9999px;
       --max-width: 1080px;
       --nav-height: 64px;
       --space-2: 8px; --space-3: 12px; --space-4: 16px;
@@ -103,19 +110,19 @@
       text-decoration: none;
     }
     .nav-links a:hover { color: var(--text-primary); }
-    .nav-links a.active { color: var(--accent-blue); }
+    .nav-links a.active { color: var(--text-accent); }
     .nav-actions { display: flex; align-items: center; gap: var(--space-3); }
     .btn {
       display: inline-flex; align-items: center; gap: var(--space-2);
-      padding: 12px 24px; font-family: inherit; font-size: 18px;
-      font-weight: 600; border-radius: 9999px; border: none; cursor: pointer;
+      padding: 12px 24px; font-family: var(--font-body); font-size: 18px;
+      font-weight: 600; border-radius: var(--radius-full); border: none; cursor: pointer;
       transition: all var(--duration-normal) var(--ease-out); white-space: nowrap; text-decoration: none;
     }
     .btn-primary {
-      background: var(--accent-blue); color: #0a0a12; font-weight: 700;
+      background: var(--bg-accent); color: #0a0a12; font-weight: 700;
       box-shadow: 0 0 0 1px rgba(0, 191, 255, 0.6), 0 4px 16px rgba(0, 191, 255, 0.35), 0 0 40px rgba(0, 191, 255, 0.15);
     }
-    .btn-primary:hover { background: var(--accent-cyan); transform: translateY(-2px);
+    .btn-primary:hover { background: var(--bg-accent-hover); transform: translateY(-2px);
       box-shadow: 0 0 0 1px rgba(0, 191, 255, 0.8), 0 8px 32px rgba(0, 191, 255, 0.45), 0 0 60px rgba(0, 191, 255, 0.2);
     }
     .btn-ghost { background: transparent; color: var(--text-secondary); padding: 12px 16px; text-decoration: none; }
@@ -531,8 +538,8 @@
 <nav>
   <div class="nav-inner">
     <a href="/" class="nav-brand">
-      <img src="/assets/raven-logo.png" alt="Raven">
-      <span>Raven MCP</span>
+      <img src="assets/raven-logo.png" alt="Raven">
+      <span>Raven</span>
     </a>
     <ul class="nav-links">
       <li><a href="/#layers">Knowledge</a></li>
