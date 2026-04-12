@@ -1,0 +1,154 @@
+{
+  "$name": "GitHub Primer",
+  "$description": "GitHub Primer design system tokens — functional, accessible, dense information design for developer tools.",
+  "color": {
+    "$type": "color",
+    "primary": { "$value": "#0969DA", "$description": "Primary blue — links, primary actions, focus indicators" },
+    "primary-emphasis": { "$value": "#0550AE", "$description": "Darker blue for hover states on primary actions" },
+    "primary-muted": { "$value": "#DAEEFF", "$description": "Light blue background for primary highlights" },
+    "danger": { "$value": "#CF222E", "$description": "Danger red — destructive actions, errors, critical alerts" },
+    "danger-emphasis": { "$value": "#A40E26", "$description": "Darker red for hover states on danger actions" },
+    "danger-muted": { "$value": "#FFEBE9", "$description": "Light red background for error states" },
+    "success": { "$value": "#1A7F37", "$description": "Success green — positive states, merged PRs, passing checks" },
+    "success-emphasis": { "$value": "#116329", "$description": "Darker green for hover states" },
+    "success-muted": { "$value": "#DAFBE1", "$description": "Light green background for success highlights" },
+    "attention": { "$value": "#9A6700", "$description": "Attention yellow — warnings, pending states" },
+    "attention-emphasis": { "$value": "#7D4E00", "$description": "Darker amber for hover states" },
+    "attention-muted": { "$value": "#FFF8C5", "$description": "Light yellow background for warning highlights" },
+    "severe": { "$value": "#BC4C00", "$description": "Severe orange — serious warnings, failing checks" },
+    "severe-emphasis": { "$value": "#953800", "$description": "Darker orange for hover states" },
+    "severe-muted": { "$value": "#FFF1E5", "$description": "Light orange background for severe highlights" },
+    "done": { "$value": "#8250DF", "$description": "Done purple — completed, closed (merged) states" },
+    "done-emphasis": { "$value": "#6639BA", "$description": "Darker purple for hover states" },
+    "done-muted": { "$value": "#FBEFFF", "$description": "Light purple background for done highlights" },
+    "sponsors": { "$value": "#BF3989", "$description": "Sponsors pink — sponsorship-related UI" },
+    "sponsors-emphasis": { "$value": "#971368", "$description": "Darker pink for hover states" },
+    "sponsors-muted": { "$value": "#FFEFF7", "$description": "Light pink background for sponsor highlights" },
+    "background": { "$value": "#FFFFFF", "$description": "Default page background (canvas-default)" },
+    "background-muted": { "$value": "#F6F8FA", "$description": "Muted surface — sidebar, code blocks, table headers" },
+    "background-inset": { "$value": "#EFF2F5", "$description": "Inset canvas — recessed areas, diff backgrounds" },
+    "background-emphasis": { "$value": "#24292F", "$description": "Emphasis background — tooltips, badges" },
+    "background-overlay": { "$value": "rgba(27, 31, 36, 0.5)", "$description": "Modal/dialog overlay backdrop" },
+    "border": { "$value": "#D0D7DE", "$description": "Default border color" },
+    "border-muted": { "$value": "#D8DEE4", "$description": "Muted border — subtle separators" },
+    "border-emphasis": { "$value": "#24292F", "$description": "Strong border — active states, focus" },
+    "text-primary": { "$value": "#1F2328", "$description": "Primary text color (fg-default)" },
+    "text-secondary": { "$value": "#656D76", "$description": "Secondary text — descriptions, metadata (fg-muted)" },
+    "text-tertiary": { "$value": "#6E7781", "$description": "Tertiary text — timestamps, placeholders" },
+    "text-inverse": { "$value": "#FFFFFF", "$description": "Text on emphasis/dark backgrounds" },
+    "text-link": { "$value": "#0969DA", "$description": "Link text color" }
+  },
+  "color-dark": {
+    "$type": "color",
+    "background": { "$value": "#0D1117", "$description": "Dark mode page background" },
+    "background-muted": { "$value": "#161B22", "$description": "Dark mode muted surface" },
+    "background-inset": { "$value": "#010409", "$description": "Dark mode inset canvas" },
+    "background-emphasis": { "$value": "#6E7681", "$description": "Dark mode emphasis background" },
+    "border": { "$value": "#30363D", "$description": "Dark mode default border" },
+    "border-muted": { "$value": "#21262D", "$description": "Dark mode muted border" },
+    "text-primary": { "$value": "#E6EDF3", "$description": "Dark mode primary text" },
+    "text-secondary": { "$value": "#8B949E", "$description": "Dark mode secondary text" },
+    "text-tertiary": { "$value": "#6E7681", "$description": "Dark mode tertiary text" },
+    "primary": { "$value": "#58A6FF", "$description": "Dark mode primary blue" },
+    "danger": { "$value": "#F85149", "$description": "Dark mode danger red" },
+    "success": { "$value": "#3FB950", "$description": "Dark mode success green" },
+    "attention": { "$value": "#D29922", "$description": "Dark mode attention yellow" }
+  },
+  "typography": {
+    "font-family": {
+      "$type": "fontFamily",
+      "body": { "$value": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Noto Sans\", Helvetica, Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\"", "$description": "System font stack — optimized for readability across platforms" },
+      "mono": { "$value": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Consolas, \"Liberation Mono\", monospace", "$description": "Monospace for code, diffs, and terminal output" },
+      "heading": { "$value": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Noto Sans\", Helvetica, Arial, sans-serif", "$description": "Heading font — same system stack as body" }
+    },
+    "font-size": {
+      "$type": "dimension",
+      "xs": { "$value": "12px", "$description": "Extra small — timestamps, badges, counters" },
+      "sm": { "$value": "14px", "$description": "Small / base body — GitHub's default body size" },
+      "base": { "$value": "16px", "$description": "Standard readable text" },
+      "lg": { "$value": "20px", "$description": "Large text — subheadings" },
+      "xl": { "$value": "24px", "$description": "Page titles" },
+      "2xl": { "$value": "32px", "$description": "Large page titles" },
+      "3xl": { "$value": "40px", "$description": "Marketing/hero headings" }
+    },
+    "font-weight": {
+      "$type": "fontWeight",
+      "light": { "$value": "300", "$description": "Light weight — large display text" },
+      "regular": { "$value": "400", "$description": "Normal body weight" },
+      "medium": { "$value": "500", "$description": "Medium emphasis — nav items" },
+      "semibold": { "$value": "600", "$description": "Semibold — headings, labels, strong emphasis" },
+      "bold": { "$value": "700", "$description": "Bold — rare, only for critical emphasis" }
+    },
+    "line-height": {
+      "$type": "number",
+      "condensed": { "$value": "1.25", "$description": "Condensed — headings, single-line items" },
+      "default": { "$value": "1.5", "$description": "Default body line height" },
+      "spacious": { "$value": "1.75", "$description": "Spacious — long-form content, markdown" }
+    }
+  },
+  "spacing": {
+    "$type": "dimension",
+    "0": { "$value": "0px", "$description": "No spacing" },
+    "1": { "$value": "4px", "$description": "Condensed — tight inline spacing" },
+    "2": { "$value": "8px", "$description": "Normal — default padding, small gaps" },
+    "3": { "$value": "16px", "$description": "Spacious — standard padding and gaps" },
+    "4": { "$value": "24px", "$description": "Large — section padding" },
+    "5": { "$value": "32px", "$description": "Extra large — major section gaps" },
+    "6": { "$value": "40px", "$description": "Page-level spacing" },
+    "7": { "$value": "48px", "$description": "Hero spacing" },
+    "8": { "$value": "64px", "$description": "Maximum spacing" }
+  },
+  "radius": {
+    "$type": "dimension",
+    "none": { "$value": "0px", "$description": "No rounding — square elements" },
+    "sm": { "$value": "3px", "$description": "Small radius — labels, badges, counters" },
+    "md": { "$value": "6px", "$description": "Medium radius — buttons, inputs, cards" },
+    "lg": { "$value": "12px", "$description": "Large radius — modals, dialogs" },
+    "full": { "$value": "9999px", "$description": "Fully rounded — avatars, pills, status dots" }
+  },
+  "elevation": {
+    "sm": {
+      "$type": "shadow",
+      "$value": "0 1px 0 rgba(27, 31, 36, 0.04)",
+      "$description": "Small shadow — cards, button borders"
+    },
+    "md": {
+      "$type": "shadow",
+      "$value": "0 3px 6px rgba(140, 149, 159, 0.15)",
+      "$description": "Medium shadow — dropdowns, popovers"
+    },
+    "lg": {
+      "$type": "shadow",
+      "$value": "0 8px 24px rgba(140, 149, 159, 0.2)",
+      "$description": "Large shadow — modals, overlays"
+    },
+    "xl": {
+      "$type": "shadow",
+      "$value": "0 12px 28px rgba(140, 149, 159, 0.3)",
+      "$description": "Extra large shadow — drag overlays"
+    }
+  },
+  "motion": {
+    "duration": {
+      "$type": "duration",
+      "fast": { "$value": "80ms", "$description": "Fast — hover states, focus rings" },
+      "normal": { "$value": "160ms", "$description": "Normal — button presses, toggles" },
+      "slow": { "$value": "300ms", "$description": "Slow — expandable sections, modals" },
+      "slower": { "$value": "450ms", "$description": "Slower — page-level transitions" }
+    },
+    "easing": {
+      "$type": "cubicBezier",
+      "default": { "$value": [0.3, 0, 0.5, 1], "$description": "Standard ease — most UI transitions" },
+      "in": { "$value": [0.5, 0, 1, 1], "$description": "Ease in — elements exiting" },
+      "out": { "$value": [0, 0, 0.5, 1], "$description": "Ease out — elements entering" }
+    }
+  },
+  "breakpoints": {
+    "$type": "dimension",
+    "xs": { "$value": "320px", "$description": "Extra small screens — narrow mobile" },
+    "sm": { "$value": "544px", "$description": "Small screens — mobile" },
+    "md": { "$value": "768px", "$description": "Medium screens — tablet" },
+    "lg": { "$value": "1012px", "$description": "Large screens — desktop" },
+    "xl": { "$value": "1280px", "$description": "Extra large screens — wide desktop" }
+  }
+}

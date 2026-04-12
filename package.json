@@ -10,6 +10,7 @@
   "files": [
     "dist/",
     "src/data/",
+    "scripts/postinstall.cjs",
     "README.md",
     "LICENSE"
   ],
@@ -17,15 +18,16 @@
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
+    "postinstall": "node scripts/postinstall.cjs || true",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "resend": "^6.10.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "resend": "^6.10.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   },

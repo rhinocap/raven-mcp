@@ -318,7 +318,7 @@
       h3 { font-size: 17px; }
       .subtitle { font-size: 16px; }
 
-      /* Code blocks: no overflow */
+      /* Code blocks: wrap instead of scroll on mobile */
       pre {
         font-size: 13px;
         padding: var(--space-4);
@@ -328,9 +328,9 @@
       }
       pre code {
         font-size: 13px;
-        white-space: pre;
-        word-break: normal;
-        overflow-wrap: normal;
+        white-space: pre-wrap;
+        word-break: break-all;
+        overflow-wrap: break-word;
       }
       code { font-size: 13px; }
 
@@ -344,9 +344,27 @@
       /* Touch targets */
       .toc a { min-height: 44px; display: flex; align-items: center; }
 
-      /* Steps layout */
-      .step { gap: var(--space-3); }
-      .step-content pre { max-width: calc(100vw - 88px); }
+      /* Steps layout: compact, number + heading inline */
+      .step {
+        gap: var(--space-3);
+        align-items: flex-start;
+        margin-bottom: var(--space-4);
+      }
+      .step-num {
+        width: 28px;
+        height: 28px;
+        font-size: 13px;
+        margin-top: 0;
+      }
+      .step-content h3 {
+        font-size: 16px;
+        margin-bottom: var(--space-2);
+        line-height: 28px; /* match step-num height for alignment */
+      }
+      .step-content pre {
+        max-width: calc(100vw - 80px);
+        margin-bottom: var(--space-3);
+      }
 
       /* Footer */
     }

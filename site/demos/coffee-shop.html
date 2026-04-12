@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ember & Grain — Specialty Coffee Roasters</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --cream: #FAF6F1;
+      --espresso: #2C1810;
+      --terracotta: #C4724E;
+      --sage: #7A8B6F;
+      --warm-white: #FFF8F0;
+      --border: #E8DDD4;
+      --text-muted: #8A7768;
+      --text-body: #4A3828;
+      --shadow-sm: 0 2px 8px rgba(44, 24, 16, 0.06);
+      --shadow-md: 0 8px 32px rgba(44, 24, 16, 0.08);
+      --shadow-lg: 0 16px 48px rgba(44, 24, 16, 0.12);
+      --radius-sm: 8px;
+      --radius-md: 16px;
+      --radius-lg: 24px;
+    }
+
+    html { scroll-behavior: smooth; overflow-x: hidden; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--cream);
+      color: var(--espresso);
+      font-size: 17px;
+      line-height: 1.6;
+      font-weight: 400;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    h1, h2, h3, h4 {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-weight: 500;
+      line-height: 1.2;
+    }
+
+    /* ---- NAV ---- */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 16px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(250, 246, 241, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(232, 221, 212, 0.5);
+      transition: background 0.3s;
+    }
+
+    .nav-logo {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 20px;
+      color: var(--espresso);
+      text-decoration: none;
+      letter-spacing: -0.02em;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 32px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-body);
+      text-decoration: none;
+      letter-spacing: 0.02em;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--terracotta); }
+
+    /* ---- HERO ---- */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 120px 40px 80px;
+      overflow: hidden;
+      background: url('https://images.unsplash.com/photo-1447933601403-56dc2df4e4e6?w=1920&q=80') center/cover no-repeat;
+    }
+    .hero-video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 0;
+    }
+
+    .hero::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(175deg, rgba(61,37,24,0.8) 0%, rgba(44,24,16,0.75) 40%, rgba(26,14,8,0.85) 100%);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      max-width: 720px;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 20px;
+      background: rgba(255, 248, 240, 0.08);
+      border: 1px solid rgba(255, 248, 240, 0.12);
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(255, 248, 240, 0.85);
+      margin-bottom: 32px;
+    }
+
+    .hero-badge::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--terracotta);
+    }
+
+    .hero h1 {
+      font-size: clamp(48px, 7vw, 80px);
+      color: var(--warm-white);
+      margin-bottom: 24px;
+      letter-spacing: -0.02em;
+    }
+
+    .hero h1 em {
+      font-style: italic;
+      color: var(--terracotta);
+    }
+
+    .hero p {
+      font-size: 18px;
+      color: rgba(255, 248, 240, 0.85);
+      max-width: 480px;
+      margin: 0 auto 40px;
+      line-height: 1.7;
+      font-weight: 400;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    .hero-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 36px;
+      background: var(--terracotta);
+      color: var(--warm-white);
+      border: none;
+      border-radius: 100px;
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-decoration: none;
+    }
+
+    .hero-cta:hover {
+      background: #D4825E;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(196, 114, 78, 0.4);
+    }
+
+    .hero-cta svg { transition: transform 0.3s; }
+    .hero-cta:hover svg { transform: translateX(4px); }
+
+    .hero-scroll {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      color: rgba(255, 248, 240, 0.7);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      text-decoration: none;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50% { transform: translateX(-50%) translateY(8px); }
+    }
+
+    /* ---- SECTION SPACING ---- */
+    section {
+      padding: clamp(48px, 8vw, 128px) clamp(16px, 4vw, 24px);
+    }
+
+    .section-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--terracotta);
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-size: clamp(32px, 4vw, 48px);
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+    }
+
+    .section-subtitle {
+      font-size: 17px;
+      color: var(--text-body);
+      max-width: 560px;
+      line-height: 1.7;
+      font-weight: 400;
+    }
+
+    /* ---- FEATURED ROASTS ---- */
+    .roasts {
+      background: linear-gradient(to bottom, rgba(255, 248, 240, 0.97), rgba(255, 248, 240, 0.95)),
+        url('https://images.unsplash.com/photo-1534778101976-62847782c213?w=1600&q=80') center/cover no-repeat;
+    }
+
+    .roasts-header {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+
+    .roasts-header .section-subtitle {
+      margin: 0 auto;
+    }
+
+    .roasts-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 32px;
+    }
+
+    .roast-card {
+      flex: 1 1 300px;
+      min-width: 280px;
+      background: var(--cream);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      transition: all 0.4s ease;
+      border: 1px solid transparent;
+    }
+
+    .roast-card:hover {
+      transform: translateY(-8px);
+      box-shadow: var(--shadow-lg);
+      border-color: var(--border);
+    }
+
+    .roast-img {
+      height: 240px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .roast-card:nth-child(1) .roast-img {
+      background: url('https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=400&q=80') center/cover no-repeat;
+    }
+
+    .roast-card:nth-child(2) .roast-img {
+      background: url('https://images.unsplash.com/photo-1514432324607-a09d9b4aefda?w=400&q=80') center/cover no-repeat;
+    }
+
+    .roast-card:nth-child(3) .roast-img {
+      background: url('https://images.unsplash.com/photo-1611854779393-1b2da9d400fe?w=400&q=80') center/cover no-repeat;
+    }
+
+    .roast-img-content {
+      display: none;
+    }
+    .roast-img-content-DISABLED {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .roast-icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      background: rgba(255, 248, 240, 0.08);
+      border: 1px solid rgba(255, 248, 240, 0.1);
+      backdrop-filter: blur(8px);
+    }
+
+    .roast-origin-tag {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      padding: 6px 14px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--warm-white);
+      background: rgba(44, 24, 16, 0.55);
+      backdrop-filter: blur(8px);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+
+    .roast-body {
+      padding: 32px;
+    }
+
+    .roast-name {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .roast-origin {
+      font-size: 15px;
+      color: var(--terracotta);
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .roast-notes {
+      font-size: 15px;
+      color: var(--text-body);
+      line-height: 1.7;
+      font-weight: 400;
+      margin-bottom: 24px;
+    }
+
+    .roast-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .roast-price {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 24px;
+      color: var(--espresso);
+    }
+
+    .roast-price span {
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .roast-btn {
+      padding: 10px 24px;
+      min-height: 44px;
+      background: var(--espresso);
+      color: var(--warm-white);
+      border: none;
+      border-radius: 100px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .roast-btn:hover {
+      background: var(--terracotta);
+      transform: translateY(-1px);
+    }
+
+    /* ---- PHOTO BREAK ---- */
+    .photo-break {
+      width: 100%;
+      height: 480px;
+      background-size: cover;
+      background-position: center;
+      position: relative;
+    }
+    .photo-break::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, rgba(250, 246, 241, 0.6) 0%, transparent 20%, transparent 80%, rgba(250, 246, 241, 0.6) 100%);
+    }
+
+    /* ---- PROCESS ---- */
+    .process-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 32px;
+      margin-top: 64px;
+    }
+
+    .process-card {
+      flex: 1 1 300px;
+      min-width: 280px;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      transition: all 0.3s;
+      position: relative;
+      background: var(--warm-white);
+      border: 1px solid var(--border);
+    }
+
+    .process-card:hover {
+      border-color: var(--terracotta);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-4px);
+    }
+
+    .process-card-img {
+      height: 200px;
+      background-size: cover;
+      background-position: center;
+    }
+
+    .process-card:nth-child(1) .process-card-img {
+      background-image: url('https://images.unsplash.com/photo-1524350876685-274059332603?w=500&q=80');
+    }
+    .process-card:nth-child(2) .process-card-img {
+      background-image: url('https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=500&q=80');
+    }
+    .process-card:nth-child(3) .process-card-img {
+      background-image: url('https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=500&q=80');
+    }
+
+    .process-card-body {
+      padding: 32px;
+    }
+
+    .process-num {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 48px;
+      color: rgba(196, 114, 78, 0.15);
+      line-height: 1;
+      margin-bottom: 16px;
+    }
+
+    .process-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-sm);
+      background: rgba(196, 114, 78, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--terracotta);
+      margin-bottom: 20px;
+    }
+
+    .process-card h3 {
+      font-size: 24px;
+      margin-bottom: 12px;
+    }
+
+    .process-card p {
+      font-size: 15px;
+      color: var(--text-body);
+      line-height: 1.7;
+      font-weight: 400;
+    }
+
+    /* ---- SUBSCRIPTION CTA ---- */
+    .subscription {
+      background: url('https://images.unsplash.com/photo-1447933601403-56dc2f6421e4?w=1600&q=80') center/cover no-repeat;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .subscription::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(44, 24, 16, 0.88);
+      pointer-events: none;
+    }
+
+    .subscription::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at top right, rgba(196, 114, 78, 0.15) 0%, transparent 60%),
+        radial-gradient(ellipse at bottom left, rgba(122, 139, 111, 0.1) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .subscription .section-inner {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+    }
+
+    .subscription .section-label {
+      color: rgba(196, 114, 78, 0.8);
+    }
+
+    .subscription .section-title {
+      color: var(--warm-white);
+      margin-bottom: 16px;
+    }
+
+    .subscription .section-subtitle {
+      color: rgba(255, 248, 240, 0.8);
+      margin: 0 auto 48px;
+      text-align: center;
+    }
+
+    .sub-features {
+      display: flex;
+      justify-content: center;
+      gap: 48px;
+      margin-bottom: 48px;
+    }
+
+    .sub-feature {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 15px;
+      font-weight: 500;
+      color: rgba(255, 248, 240, 0.85);
+    }
+
+    .sub-feature-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(196, 114, 78, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--terracotta);
+      flex-shrink: 0;
+    }
+
+    .sub-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 18px 40px;
+      background: var(--terracotta);
+      color: var(--warm-white);
+      border: none;
+      border-radius: 100px;
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-decoration: none;
+    }
+
+    .sub-cta:hover {
+      background: #D4825E;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(196, 114, 78, 0.35);
+    }
+
+    .sub-price {
+      margin-top: 16px;
+      font-size: 14px;
+      font-weight: 500;
+      color: rgba(255, 248, 240, 0.7);
+    }
+
+    /* ---- LOCATION ---- */
+    .location {
+      background: linear-gradient(to bottom, rgba(255, 248, 240, 0.96), rgba(255, 248, 240, 0.94)),
+        url('https://images.unsplash.com/photo-1445116572660-236099ec97a0?w=1600&q=80') center/cover no-repeat;
+    }
+
+    .location-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 64px;
+      margin-top: 64px;
+      align-items: center;
+    }
+
+    .location-map {
+      flex: 1 1 360px;
+      min-width: 320px;
+      height: 400px;
+      border-radius: var(--radius-lg);
+      background: url('https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800&q=80') center/cover no-repeat;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .location-map-inner {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .location-pin {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--terracotta);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--warm-white);
+      box-shadow: 0 4px 16px rgba(196, 114, 78, 0.3);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 4px 16px rgba(196, 114, 78, 0.3); }
+      50% { box-shadow: 0 4px 32px rgba(196, 114, 78, 0.5); }
+    }
+
+    .location-map-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-body);
+      letter-spacing: 0.05em;
+    }
+
+    .location-map::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(44, 24, 16, 0.04) 39px, rgba(44, 24, 16, 0.04) 40px),
+        repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(44, 24, 16, 0.04) 39px, rgba(44, 24, 16, 0.04) 40px);
+      pointer-events: none;
+    }
+
+    .location-details {
+      flex: 1 1 320px;
+      min-width: 280px;
+    }
+
+    .location-details h3 {
+      font-size: 32px;
+      margin-bottom: 24px;
+    }
+
+    .location-info {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .location-info li {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    .location-info-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-sm);
+      background: rgba(196, 114, 78, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--terracotta);
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .location-info-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .location-info-label {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .location-info-value {
+      font-size: 16px;
+      color: var(--espresso);
+      line-height: 1.6;
+      font-weight: 400;
+    }
+
+    /* ---- RAVEN BADGE ---- */
+    .raven-badge {
+      text-align: center;
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .raven-badge a {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .raven-badge a:hover {
+      color: var(--terracotta);
+    }
+
+    /* ---- FOOTER ---- */
+    footer {
+      background:
+        linear-gradient(to bottom, rgba(44, 24, 16, 0.95), rgba(44, 24, 16, 0.98)),
+        url('https://images.unsplash.com/photo-1524350876685-274059332603?w=1600&q=80') center/cover no-repeat;
+      padding: 64px clamp(16px, 4vw, 40px) 40px;
+    }
+
+    .footer-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .footer-top {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 48px;
+      margin-bottom: 48px;
+    }
+
+    .footer-brand {
+      flex: 2 1 240px;
+      min-width: 200px;
+    }
+
+    .footer-col {
+      flex: 1 1 140px;
+      min-width: 120px;
+    }
+
+    .footer-brand h4 {
+      font-size: 24px;
+      color: var(--warm-white);
+      margin-bottom: 12px;
+    }
+
+    .footer-brand p {
+      font-size: 15px;
+      color: rgba(255, 248, 240, 0.75);
+      line-height: 1.7;
+      font-weight: 400;
+      max-width: 280px;
+    }
+
+    .footer-col h5 {
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255, 248, 240, 0.7);
+      margin-bottom: 20px;
+    }
+
+    .footer-col ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .footer-col a {
+      font-size: 15px;
+      font-weight: 400;
+      color: rgba(255, 248, 240, 0.8);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-col a:hover { color: var(--terracotta); }
+
+    .footer-bottom {
+      padding-top: 32px;
+      border-top: 1px solid rgba(255, 248, 240, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .footer-copy {
+      font-size: 14px;
+      font-weight: 400;
+      color: rgba(255, 248, 240, 0.7);
+    }
+
+    .footer-social {
+      display: flex;
+      gap: 16px;
+    }
+
+    .footer-social a {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(255, 248, 240, 0.06);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255, 248, 240, 0.75);
+      text-decoration: none;
+      transition: all 0.3s;
+    }
+
+    .footer-social a:hover {
+      background: var(--terracotta);
+      color: var(--warm-white);
+    }
+
+    /* ---- RESPONSIVE ---- */
+    @media (max-width: 900px) {
+      .sub-features {
+        flex-direction: column;
+        align-items: center;
+        gap: 24px;
+      }
+
+      .nav-links { display: none; }
+    }
+
+    @media (max-width: 600px) {
+      nav { padding: 16px 24px; }
+      .hero { padding: 96px 24px 64px; }
+      .hero h1 { font-size: clamp(32px, 7vw, 48px); }
+      .section-title { font-size: clamp(24px, 5vw, 36px); }
+      footer { padding: 48px 24px 32px; }
+    }
+
+    @media (max-width: 480px) {
+      .hero { padding: 80px 16px 48px; }
+      .hero h1 { font-size: 28px; }
+      .section-title { font-size: 22px; }
+      .hero-cta { width: 100%; text-align: center; }
+      .sub-cta { width: 100%; justify-content: center; }
+      .sub-features { gap: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <a href="#" class="nav-logo">Ember & Grain</a>
+    <ul class="nav-links">
+      <li><a href="#roasts">Roasts</a></li>
+      <li><a href="#process">Process</a></li>
+      <li><a href="#subscribe">Subscribe</a></li>
+      <li><a href="#visit">Visit</a></li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <video class="hero-video" autoplay muted loop playsinline>
+      <source src="/assets/video/demos/coffee-shop.mp4" type="video/mp4">
+    </video>
+    <div class="hero-content">
+      <div class="hero-badge">Est. 2019 — Portland, OR</div>
+      <h1>Coffee is a craft,<br>not a <em>commodity</em></h1>
+      <p>We source single-origin beans from small farms, roast them in micro-batches, and deliver flavor that tells a story.</p>
+      <a href="#roasts" class="hero-cta">
+        Explore Our Roasts
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+    </div>
+    <a href="#roasts" class="hero-scroll">
+      Scroll
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+    </a>
+  </section>
+
+  <!-- FEATURED ROASTS -->
+  <section class="roasts" id="roasts">
+    <div class="section-inner">
+      <div class="roasts-header">
+        <div class="section-label">Featured Roasts</div>
+        <h2 class="section-title">This season's selections</h2>
+        <p class="section-subtitle">Hand-picked from the world's finest growing regions. Each roast is profiled to bring out the unique character of its origin.</p>
+      </div>
+      <div class="roasts-grid">
+        <!-- Card 1 -->
+        <div class="roast-card">
+          <div class="roast-img">
+            <div class="roast-origin-tag">Ethiopia</div>
+            <div class="roast-img-content">
+              <div class="roast-icon">&#9749;</div>
+            </div>
+          </div>
+          <div class="roast-body">
+            <h3 class="roast-name">Yirgacheffe Dawn</h3>
+            <div class="roast-origin">Yirgacheffe, Ethiopia &middot; Light Roast</div>
+            <p class="roast-notes">Bright blueberry and jasmine florals with a honey-sweet finish. Washed process brings exceptional clarity to every sip.</p>
+            <div class="roast-footer">
+              <div class="roast-price">$22 <span>/ 12oz</span></div>
+              <button class="roast-btn">Add to bag</button>
+            </div>
+          </div>
+        </div>
+        <!-- Card 2 -->
+        <div class="roast-card">
+          <div class="roast-img">
+            <div class="roast-origin-tag">Colombia</div>
+            <div class="roast-img-content">
+              <div class="roast-icon">&#9749;</div>
+            </div>
+          </div>
+          <div class="roast-body">
+            <h3 class="roast-name">Huila Velvet</h3>
+            <div class="roast-origin">Huila, Colombia &middot; Medium Roast</div>
+            <p class="roast-notes">Rich caramel and toasted almond with a velvety body. Notes of dark chocolate linger on the palate. Our bestseller.</p>
+            <div class="roast-footer">
+              <div class="roast-price">$19 <span>/ 12oz</span></div>
+              <button class="roast-btn">Add to bag</button>
+            </div>
+          </div>
+        </div>
+        <!-- Card 3 -->
+        <div class="roast-card">
+          <div class="roast-img">
+            <div class="roast-origin-tag">Guatemala</div>
+            <div class="roast-img-content">
+              <div class="roast-icon">&#9749;</div>
+            </div>
+          </div>
+          <div class="roast-body">
+            <h3 class="roast-name">Antigua Ember</h3>
+            <div class="roast-origin">Antigua, Guatemala &middot; Dark Roast</div>
+            <p class="roast-notes">Smoky cedar and bittersweet cocoa with a full, syrupy body. Volcanic soil gives this bean its signature depth.</p>
+            <div class="roast-footer">
+              <div class="roast-price">$21 <span>/ 12oz</span></div>
+              <button class="roast-btn">Add to bag</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PHOTO BREAK -->
+  <div class="photo-break" style="background-image: url('https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=1600&q=80');"></div>
+
+  <!-- OUR PROCESS -->
+  <section class="process" id="process">
+    <div class="section-inner">
+      <div class="section-label">Our Process</div>
+      <h2 class="section-title">From farm to your cup</h2>
+      <p class="section-subtitle">Every bag we roast follows the same three principles that have guided us since day one.</p>
+      <div class="process-grid">
+        <div class="process-card">
+          <div class="process-card-img"></div>
+          <div class="process-card-body">
+            <div class="process-num">01</div>
+            <div class="process-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4-4 8-7.5 8-12a8 8 0 10-16 0c0 4.5 4 8 8 12z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <h3>Source</h3>
+            <p>We travel to origin, build relationships with farming families, and pay above fair-trade prices. Every bean is traceable to the lot it was grown on.</p>
+          </div>
+        </div>
+        <div class="process-card">
+          <div class="process-card-img"></div>
+          <div class="process-card-body">
+            <div class="process-num">02</div>
+            <div class="process-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M6.34 6.34l2.83 2.83M2 12h4M6.34 17.66l2.83-2.83M12 18v4M17.66 17.66l-2.83-2.83M18 12h4M17.66 6.34l-2.83 2.83"/></svg>
+            </div>
+            <h3>Roast</h3>
+            <p>Micro-batches of 25 pounds or less, roasted on a vintage Probat. We profile each lot individually to find its sweetest expression.</p>
+          </div>
+        </div>
+        <div class="process-card">
+          <div class="process-card-img"></div>
+          <div class="process-card-body">
+            <div class="process-num">03</div>
+            <div class="process-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 010 8h-1"/><path d="M3 8h14v9a4 4 0 01-4 4H7a4 4 0 01-4-4V8z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
+            </div>
+            <h3>Brew</h3>
+            <p>We ship within 48 hours of roasting so you get peak flavor. Brewing guides included with every order to help you get the perfect cup at home.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PHOTO BREAK 2 -->
+  <div class="photo-break" style="background-image: url('https://images.unsplash.com/photo-1510707577719-ae7c14805e3a?w=1600&q=80');"></div>
+
+  <!-- SUBSCRIPTION CTA -->
+  <section class="subscription" id="subscribe">
+    <div class="section-inner">
+      <div class="section-label">Subscribe & Save</div>
+      <h2 class="section-title">Fresh beans, every two weeks</h2>
+      <p class="section-subtitle">Never run out of great coffee. We'll rotate through seasonal picks or lock in your favorite&mdash;your call.</p>
+      <div class="sub-features">
+        <div class="sub-feature">
+          <div class="sub-feature-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          Free shipping, always
+        </div>
+        <div class="sub-feature">
+          <div class="sub-feature-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          </div>
+          Skip or cancel anytime
+        </div>
+        <div class="sub-feature">
+          <div class="sub-feature-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+          </div>
+          Roasted to order
+        </div>
+      </div>
+      <a href="#" class="sub-cta">
+        Start Your Subscription
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+      <p class="sub-price">Starting at $18/delivery &middot; Cancel anytime</p>
+    </div>
+  </section>
+
+  <!-- LOCATION -->
+  <section class="location" id="visit">
+    <div class="section-inner">
+      <div class="section-label">Visit Us</div>
+      <h2 class="section-title">Come say hello</h2>
+      <p class="section-subtitle">Our roastery and tasting room is open to the public. Walk-ins always welcome.</p>
+      <div class="location-grid">
+        <div class="location-map">
+          <div class="location-map-inner">
+            <div class="location-pin">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c4-4 8-7.5 8-12a8 8 0 10-16 0c0 4.5 4 8 8 12z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <span class="location-map-label">Ember & Grain Roastery</span>
+          </div>
+        </div>
+        <div class="location-details">
+          <h3>The Roastery</h3>
+          <ul class="location-info">
+            <li>
+              <div class="location-info-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22c4-4 8-7.5 8-12a8 8 0 10-16 0c0 4.5 4 8 8 12z"/><circle cx="12" cy="10" r="3"/></svg>
+              </div>
+              <div class="location-info-text">
+                <span class="location-info-label">Address</span>
+                <span class="location-info-value">742 SE Hawthorne Blvd<br>Portland, OR 97214</span>
+              </div>
+            </li>
+            <li>
+              <div class="location-info-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+              </div>
+              <div class="location-info-text">
+                <span class="location-info-label">Hours</span>
+                <span class="location-info-value">Mon&ndash;Fri: 7am &ndash; 5pm<br>Sat&ndash;Sun: 8am &ndash; 4pm</span>
+              </div>
+            </li>
+            <li>
+              <div class="location-info-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+              </div>
+              <div class="location-info-text">
+                <span class="location-info-label">Contact</span>
+                <span class="location-info-value">(503) 555-0142<br>hello@emberandgrain.com</span>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RAVEN BADGE -->
+  <div style="text-align:center;padding:40px 0;border-top:1px solid #E8DDD4;">
+    <a href="https://ravenmcp.ai" target="_blank" style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#A89888;text-decoration:none;transition:color 0.2s;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      <span style="font-weight:500">Built with Raven MCP — Design intelligence for AI</span>
+    </a>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <h4>Ember & Grain</h4>
+          <p>Specialty coffee roasted with intention in Portland, Oregon. Every cup tells a story.</p>
+        </div>
+        <div class="footer-col">
+          <h5>Shop</h5>
+          <ul>
+            <li><a href="#">All Roasts</a></li>
+            <li><a href="#">Subscriptions</a></li>
+            <li><a href="#">Brewing Gear</a></li>
+            <li><a href="#">Gift Cards</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>Learn</h5>
+          <ul>
+            <li><a href="#">Brew Guides</a></li>
+            <li><a href="#">Our Story</a></li>
+            <li><a href="#">Farm Partners</a></li>
+            <li><a href="#">Journal</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>Connect</h5>
+          <ul>
+            <li><a href="#">Instagram</a></li>
+            <li><a href="#">Twitter</a></li>
+            <li><a href="#">Newsletter</a></li>
+            <li><a href="#">Wholesale</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span class="footer-copy">&copy; 2026 Ember & Grain. All rights reserved.</span>
+        <div class="footer-social">
+          <a href="#" aria-label="Instagram">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg>
+          </a>
+          <a href="#" aria-label="Twitter">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 3a10.9 10.9 0 01-3.14 1.53 4.48 4.48 0 00-7.86 3v1A10.66 10.66 0 013 4s-4 9 5 13a11.64 11.64 0 01-7 2c9 5 20 0 20-11.5a4.5 4.5 0 00-.08-.83A7.72 7.72 0 0023 3z"/></svg>
+          </a>
+          <a href="#" aria-label="YouTube">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22.54 6.42a2.78 2.78 0 00-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 00-1.94 2A29 29 0 001 11.75a29 29 0 00.46 5.33A2.78 2.78 0 003.4 19.1c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 001.94-2 29 29 0 00.46-5.25 29 29 0 00-.46-5.43z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/></svg>
+          </a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

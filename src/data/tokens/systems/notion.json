@@ -1,0 +1,160 @@
+{
+  "$name": "Notion",
+  "$description": "Notion design system tokens — warm, approachable, content-first with generous spacing.",
+  "color": {
+    "$type": "color",
+    "primary": { "$value": "#000000", "$description": "Primary text — pure black for maximum readability" },
+    "accent-blue": { "$value": "#2F80ED", "$description": "Notion blue — links, selections, active states" },
+    "accent-blue-light": { "$value": "#529CCA", "$description": "Light blue — hover states, subtle highlights" },
+    "accent-brown": { "$value": "#64473A", "$description": "Brown accent — tags, callouts" },
+    "accent-orange": { "$value": "#D9730D", "$description": "Orange accent — tags, callouts, highlights" },
+    "accent-yellow": { "$value": "#DFAB01", "$description": "Yellow accent — highlights, callouts" },
+    "accent-green": { "$value": "#0F7B6C", "$description": "Green accent — tags, success indicators" },
+    "accent-pink": { "$value": "#AD1A72", "$description": "Pink accent — tags, callouts" },
+    "accent-purple": { "$value": "#6940A5", "$description": "Purple accent — tags, callouts" },
+    "accent-red": { "$value": "#E03E3E", "$description": "Red accent — tags, callouts, destructive" },
+    "accent-gray": { "$value": "#9B9A97", "$description": "Gray accent — tags, muted elements" },
+    "background": { "$value": "#FFFFFF", "$description": "Default page background" },
+    "background-secondary": { "$value": "#F7F6F3", "$description": "Warm off-white — sidebar, secondary panels" },
+    "background-tertiary": { "$value": "#F1F1EF", "$description": "Slightly darker warm gray — hover backgrounds" },
+    "background-highlight-yellow": { "$value": "#FBF3DB", "$description": "Yellow highlight background for text" },
+    "background-highlight-blue": { "$value": "#DDEBF1", "$description": "Blue highlight background for text" },
+    "background-highlight-pink": { "$value": "#F4DFEB", "$description": "Pink highlight background for text" },
+    "background-highlight-purple": { "$value": "#E8DEEE", "$description": "Purple highlight background for text" },
+    "background-highlight-green": { "$value": "#DDEDEA", "$description": "Green highlight background for text" },
+    "background-highlight-orange": { "$value": "#FAEBDD", "$description": "Orange highlight background for text" },
+    "background-highlight-brown": { "$value": "#E9E5E3", "$description": "Brown highlight background for text" },
+    "background-highlight-red": { "$value": "#FBE4E4", "$description": "Red highlight background for text" },
+    "background-highlight-gray": { "$value": "#EBECED", "$description": "Gray highlight background for text" },
+    "surface": { "$value": "#FFFFFF", "$description": "Card and panel surface" },
+    "surface-elevated": { "$value": "#FFFFFF", "$description": "Elevated surface — modals, popovers, slash menu" },
+    "border": { "$value": "#E9E9E7", "$description": "Default border — warm light gray" },
+    "border-dark": { "$value": "#D3D1CB", "$description": "Emphasized border for dividers" },
+    "text-primary": { "$value": "#37352F", "$description": "Primary text — Notion signature warm dark" },
+    "text-secondary": { "$value": "#787774", "$description": "Secondary/muted text" },
+    "text-tertiary": { "$value": "#9B9A97", "$description": "Tertiary/placeholder text" },
+    "text-inverse": { "$value": "#FFFFFF", "$description": "Text on dark backgrounds" },
+    "icon-default": { "$value": "#A4A4A2", "$description": "Default icon color — warm gray" },
+    "success": { "$value": "#0F7B6C", "$description": "Success green" },
+    "error": { "$value": "#E03E3E", "$description": "Error red" },
+    "warning": { "$value": "#D9730D", "$description": "Warning orange" },
+    "info": { "$value": "#2F80ED", "$description": "Info blue" }
+  },
+  "color-dark": {
+    "$type": "color",
+    "background": { "$value": "#191919", "$description": "Dark mode background" },
+    "background-secondary": { "$value": "#202020", "$description": "Dark mode sidebar and secondary panels" },
+    "background-tertiary": { "$value": "#2F2F2F", "$description": "Dark mode hover background" },
+    "surface": { "$value": "#252525", "$description": "Dark mode surface" },
+    "surface-elevated": { "$value": "#2D2D2D", "$description": "Dark mode elevated surface" },
+    "border": { "$value": "#363636", "$description": "Dark mode border" },
+    "border-dark": { "$value": "#454545", "$description": "Dark mode emphasized border" },
+    "text-primary": { "$value": "#FFFFFFCF", "$description": "Dark mode primary text — slightly softened white" },
+    "text-secondary": { "$value": "#FFFFFF9A", "$description": "Dark mode secondary text" },
+    "text-tertiary": { "$value": "#FFFFFF52", "$description": "Dark mode tertiary/placeholder text" },
+    "icon-default": { "$value": "#FFFFFF52", "$description": "Dark mode default icon color" }
+  },
+  "typography": {
+    "font-family": {
+      "$type": "fontFamily",
+      "default": { "$value": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Inter\", Helvetica, sans-serif", "$description": "Default system font stack with Inter fallback" },
+      "serif": { "$value": "Lyon-Text, Georgia, \"YuMincho\", \"Yu Mincho\", serif", "$description": "Serif option for page content" },
+      "mono": { "$value": "iawriter-mono, \"Nitti\", \"Menlo\", \"Consolas\", monospace", "$description": "Monospace for code blocks and inline code" }
+    },
+    "font-size": {
+      "$type": "dimension",
+      "xs": { "$value": "12px", "$description": "Extra small — timestamps, fine print" },
+      "sm": { "$value": "14px", "$description": "Small — sidebar items, metadata" },
+      "base": { "$value": "16px", "$description": "Base body text — page content" },
+      "lg": { "$value": "18px", "$description": "Large body — comfortable reading" },
+      "xl": { "$value": "20px", "$description": "Heading 3" },
+      "2xl": { "$value": "24px", "$description": "Heading 2" },
+      "3xl": { "$value": "30px", "$description": "Heading 1" },
+      "4xl": { "$value": "40px", "$description": "Page title" }
+    },
+    "font-weight": {
+      "$type": "fontWeight",
+      "regular": { "$value": "400", "$description": "Regular — body text" },
+      "medium": { "$value": "500", "$description": "Medium — sidebar items, labels" },
+      "semibold": { "$value": "600", "$description": "Semibold — headings" },
+      "bold": { "$value": "700", "$description": "Bold — strong emphasis in text" }
+    },
+    "line-height": {
+      "$type": "number",
+      "tight": { "$value": "1.2", "$description": "Page titles and large headings" },
+      "normal": { "$value": "1.5", "$description": "Body text — generous for readability" },
+      "relaxed": { "$value": "1.7", "$description": "Long-form content blocks" }
+    },
+    "letter-spacing": {
+      "$type": "dimension",
+      "tight": { "$value": "-0.01em", "$description": "Large headings" },
+      "normal": { "$value": "0", "$description": "Body text — no extra tracking" },
+      "wide": { "$value": "0.06em", "$description": "All-caps overlines and labels" }
+    }
+  },
+  "spacing": {
+    "$type": "dimension",
+    "0": { "$value": "0px", "$description": "No spacing" },
+    "1": { "$value": "4px", "$description": "Minimal gap" },
+    "2": { "$value": "8px", "$description": "Tight spacing — inline elements" },
+    "3": { "$value": "12px", "$description": "Compact spacing — list items" },
+    "4": { "$value": "16px", "$description": "Default padding — content blocks" },
+    "5": { "$value": "20px", "$description": "Comfortable spacing" },
+    "6": { "$value": "24px", "$description": "Section padding" },
+    "8": { "$value": "32px", "$description": "Large section spacing" },
+    "10": { "$value": "40px", "$description": "Block gaps" },
+    "12": { "$value": "48px", "$description": "Major section gaps" },
+    "16": { "$value": "64px", "$description": "Page section spacing" },
+    "24": { "$value": "96px", "$description": "Page-level horizontal margins" },
+    "page-width": { "$value": "900px", "$description": "Default content width for pages" },
+    "page-width-wide": { "$value": "1200px", "$description": "Wide layout content width" }
+  },
+  "radius": {
+    "$type": "dimension",
+    "none": { "$value": "0px", "$description": "No radius — sharp corners" },
+    "sm": { "$value": "3px", "$description": "Subtle rounding — inline tags, code" },
+    "md": { "$value": "6px", "$description": "Default radius — cards, buttons, inputs" },
+    "lg": { "$value": "8px", "$description": "Rounded — panels, callout blocks" },
+    "xl": { "$value": "12px", "$description": "Well-rounded — modals, image blocks" },
+    "full": { "$value": "9999px", "$description": "Pill shape — avatars, status dots" }
+  },
+  "elevation": {
+    "sm": {
+      "$type": "shadow",
+      "$value": "0 1px 2px rgba(55, 53, 47, 0.08), 0 0px 1px rgba(55, 53, 47, 0.08)",
+      "$description": "Subtle elevation — hover cards, tooltips"
+    },
+    "md": {
+      "$type": "shadow",
+      "$value": "0 4px 12px rgba(55, 53, 47, 0.08), 0 0px 4px rgba(55, 53, 47, 0.04)",
+      "$description": "Medium elevation — dropdowns, slash menu"
+    },
+    "lg": {
+      "$type": "shadow",
+      "$value": "0 8px 24px rgba(55, 53, 47, 0.12), 0 2px 8px rgba(55, 53, 47, 0.08)",
+      "$description": "High elevation — modals, dialogs"
+    },
+    "xl": {
+      "$type": "shadow",
+      "$value": "0 14px 40px rgba(55, 53, 47, 0.16), 0 4px 12px rgba(55, 53, 47, 0.08)",
+      "$description": "Highest elevation — page peek, overlays"
+    }
+  },
+  "motion": {
+    "duration": {
+      "$type": "duration",
+      "instant": { "$value": "50ms", "$description": "Instant feedback — checkbox, toggle" },
+      "fast": { "$value": "100ms", "$description": "Quick — hover states, focus rings" },
+      "normal": { "$value": "200ms", "$description": "Default — panel transitions, fades" },
+      "slow": { "$value": "300ms", "$description": "Deliberate — modals, page transitions" },
+      "slower": { "$value": "400ms", "$description": "Slow — page-level reveals" }
+    },
+    "easing": {
+      "$type": "cubicBezier",
+      "default": { "$value": [0.4, 0, 0.2, 1], "$description": "Standard ease — most transitions" },
+      "in": { "$value": [0.4, 0, 1, 1], "$description": "Ease in — elements exiting view" },
+      "out": { "$value": [0, 0, 0.2, 1], "$description": "Ease out — elements entering view" },
+      "smooth": { "$value": [0.25, 0.1, 0.25, 1], "$description": "Smooth — sidebar expand/collapse" }
+    }
+  }
+}

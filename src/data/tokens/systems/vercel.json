@@ -1,0 +1,145 @@
+{
+  "$name": "Vercel Geist",
+  "$description": "Vercel Geist design system tokens — monochrome, minimal, developer-focused.",
+  "color": {
+    "$type": "color",
+    "primary": { "$value": "#000000", "$description": "Primary foreground — pure black" },
+    "accent-blue": { "$value": "#0070F3", "$description": "Vercel accent blue — links, focus rings, CTAs" },
+    "accent-blue-light": { "$value": "#3291FF", "$description": "Lighter blue for hover states" },
+    "accent-blue-dark": { "$value": "#0761D1", "$description": "Darker blue for active/pressed states" },
+    "accent-purple": { "$value": "#7928CA", "$description": "Purple accent for gradients and highlights" },
+    "accent-cyan": { "$value": "#50E3C2", "$description": "Cyan accent — success tones, marketing gradients" },
+    "accent-pink": { "$value": "#FF0080", "$description": "Magenta accent — marketing gradients" },
+    "accent-orange": { "$value": "#F5A623", "$description": "Orange for warnings" },
+    "background": { "$value": "#FFFFFF", "$description": "Default page background — --geist-background" },
+    "background-secondary": { "$value": "#FAFAFA", "$description": "Secondary background for offset sections" },
+    "surface": { "$value": "#FFFFFF", "$description": "Card and panel surface" },
+    "surface-elevated": { "$value": "#FFFFFF", "$description": "Elevated surface — modals, command palette" },
+    "border": { "$value": "#EAEAEA", "$description": "Default border — signature Vercel light gray" },
+    "border-dark": { "$value": "#666666", "$description": "Emphasized border for active/focus states" },
+    "text-primary": { "$value": "#000000", "$description": "Primary text — --geist-foreground" },
+    "text-secondary": { "$value": "#666666", "$description": "Secondary/muted text" },
+    "text-tertiary": { "$value": "#888888", "$description": "Tertiary/placeholder text" },
+    "text-inverse": { "$value": "#FFFFFF", "$description": "Text on dark backgrounds" },
+    "success": { "$value": "#0070F3", "$description": "Success — uses accent blue" },
+    "error": { "$value": "#EE0000", "$description": "Error red — bright, high contrast" },
+    "error-light": { "$value": "#FF1A1A", "$description": "Lighter error for hover" },
+    "warning": { "$value": "#F5A623", "$description": "Warning amber" },
+    "info": { "$value": "#0070F3", "$description": "Info — uses accent blue" }
+  },
+  "color-dark": {
+    "$type": "color",
+    "background": { "$value": "#000000", "$description": "Dark mode background — pure black" },
+    "background-secondary": { "$value": "#111111", "$description": "Dark mode secondary background" },
+    "surface": { "$value": "#111111", "$description": "Dark mode card and panel surface" },
+    "surface-elevated": { "$value": "#1A1A1A", "$description": "Dark mode elevated surface" },
+    "border": { "$value": "#333333", "$description": "Dark mode border" },
+    "border-light": { "$value": "#222222", "$description": "Dark mode subtle border" },
+    "text-primary": { "$value": "#FFFFFF", "$description": "Dark mode primary text — --geist-foreground" },
+    "text-secondary": { "$value": "#999999", "$description": "Dark mode secondary text" },
+    "text-tertiary": { "$value": "#666666", "$description": "Dark mode tertiary/placeholder text" }
+  },
+  "typography": {
+    "font-family": {
+      "$type": "fontFamily",
+      "sans": { "$value": "\"Geist Sans\", \"Geist\", system-ui, -apple-system, sans-serif", "$description": "Geist Sans — primary UI and body font" },
+      "mono": { "$value": "\"Geist Mono\", \"Menlo\", \"Consolas\", monospace", "$description": "Geist Mono — code, terminal, technical content" }
+    },
+    "font-size": {
+      "$type": "dimension",
+      "xs": { "$value": "12px", "$description": "Extra small — badges, fine print" },
+      "sm": { "$value": "14px", "$description": "Small — labels, secondary text, most UI" },
+      "base": { "$value": "16px", "$description": "Base body text" },
+      "lg": { "$value": "18px", "$description": "Large body text" },
+      "xl": { "$value": "20px", "$description": "Section headings" },
+      "2xl": { "$value": "24px", "$description": "Page headings" },
+      "3xl": { "$value": "32px", "$description": "Large headings" },
+      "4xl": { "$value": "40px", "$description": "Hero headings" },
+      "5xl": { "$value": "48px", "$description": "Display text" },
+      "6xl": { "$value": "64px", "$description": "Large display text" }
+    },
+    "font-weight": {
+      "$type": "fontWeight",
+      "regular": { "$value": "400", "$description": "Regular body weight" },
+      "medium": { "$value": "500", "$description": "Medium — UI labels, emphasis" },
+      "semibold": { "$value": "600", "$description": "Semibold — headings" },
+      "bold": { "$value": "700", "$description": "Bold — strong emphasis" }
+    },
+    "line-height": {
+      "$type": "number",
+      "tight": { "$value": "1.2", "$description": "Headings and display text" },
+      "normal": { "$value": "1.5", "$description": "Body text" },
+      "relaxed": { "$value": "1.7", "$description": "Long-form prose" }
+    },
+    "letter-spacing": {
+      "$type": "dimension",
+      "tight": { "$value": "-0.02em", "$description": "Large headings — tighter tracking" },
+      "normal": { "$value": "0", "$description": "Body text" },
+      "wide": { "$value": "0.04em", "$description": "All-caps labels, small overlines" }
+    }
+  },
+  "spacing": {
+    "$type": "dimension",
+    "0": { "$value": "0px", "$description": "No spacing" },
+    "1": { "$value": "4px", "$description": "Minimal gap" },
+    "2": { "$value": "8px", "$description": "Tight spacing — icon gaps, inline elements" },
+    "3": { "$value": "12px", "$description": "Compact spacing" },
+    "4": { "$value": "16px", "$description": "Default component padding" },
+    "5": { "$value": "20px", "$description": "Comfortable spacing" },
+    "6": { "$value": "24px", "$description": "Section padding" },
+    "8": { "$value": "32px", "$description": "Large section spacing" },
+    "10": { "$value": "40px", "$description": "Page section gaps" },
+    "12": { "$value": "48px", "$description": "Major section spacing" },
+    "16": { "$value": "64px", "$description": "Large layout gaps" },
+    "20": { "$value": "80px", "$description": "Hero section spacing" },
+    "24": { "$value": "96px", "$description": "Extra large spacing" }
+  },
+  "radius": {
+    "$type": "dimension",
+    "none": { "$value": "0px", "$description": "No radius — sharp corners" },
+    "sm": { "$value": "4px", "$description": "Subtle rounding — inputs, small elements" },
+    "md": { "$value": "6px", "$description": "Default radius — cards, buttons" },
+    "lg": { "$value": "8px", "$description": "Slightly rounded — panels" },
+    "xl": { "$value": "12px", "$description": "Rounded — modals, large cards" },
+    "full": { "$value": "9999px", "$description": "Pill shape — tags, badges, avatars" }
+  },
+  "elevation": {
+    "sm": {
+      "$type": "shadow",
+      "$value": "0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 1px rgba(0, 0, 0, 0.06)",
+      "$description": "Subtle elevation — inputs, small cards"
+    },
+    "md": {
+      "$type": "shadow",
+      "$value": "0 4px 8px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04)",
+      "$description": "Medium elevation — dropdowns, tooltips"
+    },
+    "lg": {
+      "$type": "shadow",
+      "$value": "0 8px 30px rgba(0, 0, 0, 0.12)",
+      "$description": "High elevation — modals, command palette"
+    },
+    "xl": {
+      "$type": "shadow",
+      "$value": "0 30px 60px rgba(0, 0, 0, 0.12), 0 10px 20px rgba(0, 0, 0, 0.08)",
+      "$description": "Highest elevation — floating panels"
+    }
+  },
+  "motion": {
+    "duration": {
+      "$type": "duration",
+      "instant": { "$value": "50ms", "$description": "Instant feedback" },
+      "fast": { "$value": "100ms", "$description": "Quick transitions — hover states" },
+      "normal": { "$value": "200ms", "$description": "Default transition speed" },
+      "slow": { "$value": "300ms", "$description": "Deliberate transitions — modals, panels" },
+      "slower": { "$value": "500ms", "$description": "Slow transitions — page-level animation" }
+    },
+    "easing": {
+      "$type": "cubicBezier",
+      "default": { "$value": [0.4, 0, 0.2, 1], "$description": "Standard ease — most transitions" },
+      "in": { "$value": [0.4, 0, 1, 1], "$description": "Ease in — elements exiting" },
+      "out": { "$value": [0, 0, 0.2, 1], "$description": "Ease out — elements entering" },
+      "spring": { "$value": [0.175, 0.885, 0.32, 1.275], "$description": "Slight spring for playful interactions" }
+    }
+  }
+}

@@ -19,49 +19,94 @@
       "status": "available"
     },
     {
+      "id": "apple-hig",
+      "name": "Apple HIG",
+      "description": "Apple Human Interface Guidelines — iOS/macOS design language. SF Pro typography, system colors, vibrancy, and spatial design.",
+      "category": "platform",
+      "tags": ["ios", "macos", "platform", "premium", "spatial"],
+      "url": "https://developer.apple.com/design/human-interface-guidelines",
+      "status": "available"
+    },
+    {
+      "id": "material-design",
+      "name": "Material Design 3",
+      "description": "Google's Material Design 3 (Material You) — dynamic color, expressive motion, adaptive layouts.",
+      "category": "platform",
+      "tags": ["android", "google", "platform", "dynamic-color", "adaptive"],
+      "url": "https://m3.material.io",
+      "status": "available"
+    },
+    {
       "id": "vercel",
       "name": "Vercel",
       "description": "Vercel's Geist design system — monochrome elegance with developer-first aesthetics.",
       "category": "developer",
       "tags": ["monochrome", "developer", "minimal", "elegant"],
       "url": "https://vercel.com/geist",
-      "status": "planned"
+      "status": "available"
     },
     {
       "id": "shadcn",
       "name": "shadcn/ui",
-      "description": "shadcn/ui component tokens — beautifully designed components using Radix and Tailwind CSS.",
+      "description": "shadcn/ui component tokens — beautifully designed components using Radix and Tailwind CSS. HSL-based Zinc palette.",
       "category": "component-library",
-      "tags": ["accessible", "customizable", "tailwind", "radix"],
+      "tags": ["accessible", "customizable", "tailwind", "radix", "react"],
       "url": "https://ui.shadcn.com",
-      "status": "planned"
+      "status": "available"
     },
     {
       "id": "github-primer",
       "name": "GitHub Primer",
       "description": "GitHub's Primer design system — functional, accessible, scale-tested across one of the world's largest developer platforms.",
-      "category": "design-system",
-      "tags": ["accessible", "enterprise", "developer", "functional"],
+      "category": "developer",
+      "tags": ["accessible", "enterprise", "developer", "functional", "dense"],
       "url": "https://primer.style",
-      "status": "planned"
+      "status": "available"
     },
     {
       "id": "notion",
       "name": "Notion",
-      "description": "Notion's design tokens — warm, approachable, content-first design with playful illustrations.",
+      "description": "Notion's design tokens — warm, approachable, content-first design with generous spacing and highlight colors.",
       "category": "productivity",
-      "tags": ["warm", "content-first", "approachable", "illustrations"],
+      "tags": ["warm", "content-first", "approachable", "editorial"],
       "url": "https://notion.so",
-      "status": "planned"
+      "status": "available"
     },
     {
       "id": "supabase",
       "name": "Supabase",
-      "description": "Supabase's design tokens — dark-mode-first developer tool aesthetic with green accent.",
+      "description": "Supabase's design tokens — dark-mode-first developer tool aesthetic with signature green accent and glow effects.",
       "category": "developer",
       "tags": ["dark", "developer", "green-accent", "technical"],
       "url": "https://supabase.com",
-      "status": "planned"
+      "status": "available"
+    },
+    {
+      "id": "tailwind",
+      "name": "Tailwind CSS",
+      "description": "Tailwind CSS default design tokens — comprehensive utility-first color palette, spacing scale, typography, and breakpoints.",
+      "category": "framework",
+      "tags": ["utility-first", "comprehensive", "colors", "responsive"],
+      "url": "https://tailwindcss.com",
+      "status": "available"
+    },
+    {
+      "id": "spotify",
+      "name": "Spotify",
+      "description": "Spotify's design language — dark-first music UI with vibrant green CTAs, card-heavy layout, and high-contrast hierarchy.",
+      "category": "consumer",
+      "tags": ["dark", "music", "consumer", "vibrant", "cards"],
+      "url": "https://spotify.com",
+      "status": "available"
+    },
+    {
+      "id": "airbnb",
+      "name": "Airbnb",
+      "description": "Airbnb's design language system (DLS) — warm, trustworthy, accessible. Rausch red, Cereal font, generous 8px grid.",
+      "category": "consumer",
+      "tags": ["warm", "trustworthy", "accessible", "travel", "marketplace"],
+      "url": "https://airbnb.design",
+      "status": "available"
     }
   ]
 }

@@ -1,0 +1,162 @@
+{
+  "$name": "shadcn/ui",
+  "$description": "shadcn/ui default theme tokens — HSL-based, Zinc palette, with full light and dark mode support.",
+  "color": {
+    "$type": "color",
+    "background": { "$value": "#FFFFFF", "$description": "Default page background (HSL 0 0% 100%)" },
+    "foreground": { "$value": "#09090B", "$description": "Default foreground/text color (HSL 240 10% 3.9%)" },
+    "card": { "$value": "#FFFFFF", "$description": "Card background" },
+    "card-foreground": { "$value": "#09090B", "$description": "Card text color" },
+    "popover": { "$value": "#FFFFFF", "$description": "Popover background" },
+    "popover-foreground": { "$value": "#09090B", "$description": "Popover text color" },
+    "primary": { "$value": "#18181B", "$description": "Primary button/action color (Zinc 900)" },
+    "primary-foreground": { "$value": "#FAFAFA", "$description": "Text on primary background (Zinc 50)" },
+    "secondary": { "$value": "#F4F4F5", "$description": "Secondary button background (Zinc 100)" },
+    "secondary-foreground": { "$value": "#18181B", "$description": "Text on secondary background" },
+    "muted": { "$value": "#F4F4F5", "$description": "Muted backgrounds for subtle UI (Zinc 100)" },
+    "muted-foreground": { "$value": "#71717A", "$description": "Muted/placeholder text (Zinc 500)" },
+    "accent": { "$value": "#F4F4F5", "$description": "Accent background for hover states (Zinc 100)" },
+    "accent-foreground": { "$value": "#18181B", "$description": "Text on accent background" },
+    "destructive": { "$value": "#EF4444", "$description": "Destructive action color (Red 500)" },
+    "destructive-foreground": { "$value": "#FAFAFA", "$description": "Text on destructive background" },
+    "border": { "$value": "#E4E4E7", "$description": "Default border color (Zinc 200)" },
+    "input": { "$value": "#E4E4E7", "$description": "Input border color (Zinc 200)" },
+    "ring": { "$value": "#18181B", "$description": "Focus ring color (Zinc 900)" },
+    "chart-1": { "$value": "#E76E50", "$description": "Chart color 1 — warm orange" },
+    "chart-2": { "$value": "#2A9D90", "$description": "Chart color 2 — teal" },
+    "chart-3": { "$value": "#274754", "$description": "Chart color 3 — dark teal" },
+    "chart-4": { "$value": "#E9C46A", "$description": "Chart color 4 — amber" },
+    "chart-5": { "$value": "#F4A462", "$description": "Chart color 5 — peach" }
+  },
+  "color-dark": {
+    "$type": "color",
+    "background": { "$value": "#09090B", "$description": "Dark mode background (Zinc 950)" },
+    "foreground": { "$value": "#FAFAFA", "$description": "Dark mode foreground (Zinc 50)" },
+    "card": { "$value": "#09090B", "$description": "Dark mode card background" },
+    "card-foreground": { "$value": "#FAFAFA", "$description": "Dark mode card text" },
+    "popover": { "$value": "#09090B", "$description": "Dark mode popover background" },
+    "popover-foreground": { "$value": "#FAFAFA", "$description": "Dark mode popover text" },
+    "primary": { "$value": "#FAFAFA", "$description": "Dark mode primary (Zinc 50)" },
+    "primary-foreground": { "$value": "#18181B", "$description": "Dark mode text on primary" },
+    "secondary": { "$value": "#27272A", "$description": "Dark mode secondary (Zinc 800)" },
+    "secondary-foreground": { "$value": "#FAFAFA", "$description": "Dark mode text on secondary" },
+    "muted": { "$value": "#27272A", "$description": "Dark mode muted background (Zinc 800)" },
+    "muted-foreground": { "$value": "#A1A1AA", "$description": "Dark mode muted text (Zinc 400)" },
+    "accent": { "$value": "#27272A", "$description": "Dark mode accent (Zinc 800)" },
+    "accent-foreground": { "$value": "#FAFAFA", "$description": "Dark mode text on accent" },
+    "destructive": { "$value": "#7F1D1D", "$description": "Dark mode destructive (Red 900)" },
+    "destructive-foreground": { "$value": "#FAFAFA", "$description": "Dark mode text on destructive" },
+    "border": { "$value": "#27272A", "$description": "Dark mode border (Zinc 800)" },
+    "input": { "$value": "#27272A", "$description": "Dark mode input border" },
+    "ring": { "$value": "#D4D4D8", "$description": "Dark mode focus ring (Zinc 300)" }
+  },
+  "typography": {
+    "font-family": {
+      "$type": "fontFamily",
+      "body": { "$value": "\"Inter\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", sans-serif", "$description": "Default body font — Inter with system fallbacks" },
+      "heading": { "$value": "\"Inter\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", sans-serif", "$description": "Heading font — same as body for shadcn default" },
+      "mono": { "$value": "\"JetBrains Mono\", \"Fira Code\", \"Consolas\", monospace", "$description": "Monospace font for code blocks" }
+    },
+    "font-size": {
+      "$type": "dimension",
+      "xs": { "$value": "12px", "$description": "Extra small — badges, captions" },
+      "sm": { "$value": "14px", "$description": "Small — labels, secondary text" },
+      "base": { "$value": "16px", "$description": "Base body text (1rem)" },
+      "lg": { "$value": "18px", "$description": "Large body text (1.125rem)" },
+      "xl": { "$value": "20px", "$description": "Small headings (1.25rem)" },
+      "2xl": { "$value": "24px", "$description": "Section headings (1.5rem)" },
+      "3xl": { "$value": "30px", "$description": "Page headings (1.875rem)" },
+      "4xl": { "$value": "36px", "$description": "Large headings (2.25rem)" },
+      "5xl": { "$value": "48px", "$description": "Display text (3rem)" }
+    },
+    "font-weight": {
+      "$type": "fontWeight",
+      "regular": { "$value": "400", "$description": "Body text weight" },
+      "medium": { "$value": "500", "$description": "Medium emphasis" },
+      "semibold": { "$value": "600", "$description": "Headings and labels" },
+      "bold": { "$value": "700", "$description": "Strong emphasis" }
+    },
+    "line-height": {
+      "$type": "number",
+      "tight": { "$value": "1.25", "$description": "Headings and compact text" },
+      "normal": { "$value": "1.5", "$description": "Body text" },
+      "relaxed": { "$value": "1.75", "$description": "Long-form content" }
+    },
+    "letter-spacing": {
+      "$type": "dimension",
+      "tighter": { "$value": "-0.05em", "$description": "Display headings" },
+      "tight": { "$value": "-0.025em", "$description": "Headings" },
+      "normal": { "$value": "0em", "$description": "Body text" },
+      "wide": { "$value": "0.025em", "$description": "Uppercase labels" },
+      "wider": { "$value": "0.05em", "$description": "Small caps, badges" }
+    }
+  },
+  "spacing": {
+    "$type": "dimension",
+    "0": { "$value": "0px", "$description": "No spacing" },
+    "0.5": { "$value": "2px", "$description": "Hairline spacing" },
+    "1": { "$value": "4px", "$description": "Minimal spacing" },
+    "1.5": { "$value": "6px", "$description": "Tight spacing" },
+    "2": { "$value": "8px", "$description": "Compact spacing" },
+    "2.5": { "$value": "10px", "$description": "Small gap" },
+    "3": { "$value": "12px", "$description": "Standard small gap" },
+    "3.5": { "$value": "14px", "$description": "Between small and base" },
+    "4": { "$value": "16px", "$description": "Base spacing unit" },
+    "5": { "$value": "20px", "$description": "Comfortable gap" },
+    "6": { "$value": "24px", "$description": "Section padding" },
+    "8": { "$value": "32px", "$description": "Large section gap" },
+    "10": { "$value": "40px", "$description": "Major section spacing" },
+    "12": { "$value": "48px", "$description": "Page-level padding" },
+    "16": { "$value": "64px", "$description": "Large page spacing" },
+    "20": { "$value": "80px", "$description": "Hero section spacing" },
+    "24": { "$value": "96px", "$description": "Maximum spacing" }
+  },
+  "radius": {
+    "$type": "dimension",
+    "none": { "$value": "0px", "$description": "No rounding" },
+    "sm": { "$value": "calc(0.5rem - 4px)", "$description": "Small radius — inner elements" },
+    "md": { "$value": "calc(0.5rem - 2px)", "$description": "Medium radius — buttons, inputs" },
+    "lg": { "$value": "0.5rem", "$description": "Default radius — cards, dialogs (8px)" },
+    "xl": { "$value": "0.75rem", "$description": "Large radius — feature cards" },
+    "2xl": { "$value": "1rem", "$description": "Extra large radius" },
+    "full": { "$value": "9999px", "$description": "Fully rounded — pills, avatars" }
+  },
+  "elevation": {
+    "sm": {
+      "$type": "shadow",
+      "$value": "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
+      "$description": "Subtle shadow — cards, inputs"
+    },
+    "md": {
+      "$type": "shadow",
+      "$value": "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)",
+      "$description": "Medium shadow — dropdowns"
+    },
+    "lg": {
+      "$type": "shadow",
+      "$value": "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)",
+      "$description": "Large shadow — modals, popovers"
+    },
+    "xl": {
+      "$type": "shadow",
+      "$value": "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+      "$description": "Extra large shadow — floating elements"
+    }
+  },
+  "motion": {
+    "duration": {
+      "$type": "duration",
+      "fast": { "$value": "150ms", "$description": "Quick interactions — hover, focus" },
+      "normal": { "$value": "200ms", "$description": "Standard transitions" },
+      "slow": { "$value": "300ms", "$description": "Complex animations — accordions, sheets" },
+      "slower": { "$value": "500ms", "$description": "Page-level transitions" }
+    },
+    "easing": {
+      "$type": "cubicBezier",
+      "default": { "$value": [0.4, 0, 0.2, 1], "$description": "Standard ease — most transitions" },
+      "in": { "$value": [0.4, 0, 1, 1], "$description": "Ease in — for exit animations" },
+      "out": { "$value": [0, 0, 0.2, 1], "$description": "Ease out — for entrance animations" },
+      "in-out": { "$value": [0.4, 0, 0.2, 1], "$description": "Ease in-out — for morphing" }
+    }
+  }
+}

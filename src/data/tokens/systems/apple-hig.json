@@ -1,0 +1,152 @@
+{
+  "$name": "Apple HIG",
+  "$description": "Apple Human Interface Guidelines — iOS/macOS design language. SF Pro typography, system colors, vibrancy, and spatial design.",
+  "color": {
+    "$type": "color",
+    "primary": { "$value": "#007AFF", "$description": "iOS system blue — default tint color for interactive elements" },
+    "primary-light": { "$value": "#409CFF", "$description": "Lighter blue for hover and highlighted states" },
+    "primary-dark": { "$value": "#0066CC", "$description": "Darker blue for pressed/active states" },
+    "system-red": { "$value": "#FF3B30", "$description": "System red — destructive actions, errors, badges" },
+    "system-orange": { "$value": "#FF9500", "$description": "System orange — warnings, attention" },
+    "system-yellow": { "$value": "#FFCC00", "$description": "System yellow — stars, highlights, caution" },
+    "system-green": { "$value": "#34C759", "$description": "System green — success, completion, active toggles" },
+    "system-mint": { "$value": "#00C7BE", "$description": "System mint — fresh accents, wellness" },
+    "system-teal": { "$value": "#30B0C7", "$description": "System teal — communication, connectivity" },
+    "system-cyan": { "$value": "#32ADE6", "$description": "System cyan — sky, open, information" },
+    "system-indigo": { "$value": "#5856D6", "$description": "System indigo — focus, depth, immersive" },
+    "system-purple": { "$value": "#AF52DE", "$description": "System purple — creativity, richness" },
+    "system-pink": { "$value": "#FF2D55", "$description": "System pink — love, energy, health" },
+    "system-brown": { "$value": "#A2845E", "$description": "System brown — earth, warmth, grounding" },
+    "background": { "$value": "#FFFFFF", "$description": "Primary background — systemBackground" },
+    "background-secondary": { "$value": "#F2F2F7", "$description": "Secondary grouped background — secondarySystemBackground" },
+    "background-tertiary": { "$value": "#FFFFFF", "$description": "Tertiary background — tertiarySystemBackground" },
+    "surface": { "$value": "#FFFFFF", "$description": "Card and content surface" },
+    "surface-elevated": { "$value": "#FFFFFF", "$description": "Elevated surface — sheets, popovers in light mode" },
+    "border": { "$value": "rgba(60,60,67,0.12)", "$description": "Default separator — opaqueSeparator equivalent" },
+    "border-light": { "$value": "rgba(60,60,67,0.06)", "$description": "Subtle separator — thin dividers between grouped rows" },
+    "text-primary": { "$value": "#000000", "$description": "Primary label text — label" },
+    "text-secondary": { "$value": "rgba(60,60,67,0.6)", "$description": "Secondary label text — secondaryLabel" },
+    "text-tertiary": { "$value": "rgba(60,60,67,0.3)", "$description": "Tertiary label text — tertiaryLabel" },
+    "text-quaternary": { "$value": "rgba(60,60,67,0.18)", "$description": "Quaternary label text — quaternaryLabel" },
+    "success": { "$value": "#34C759", "$description": "Semantic success — mirrors system green" },
+    "error": { "$value": "#FF3B30", "$description": "Semantic error — mirrors system red" },
+    "warning": { "$value": "#FF9500", "$description": "Semantic warning — mirrors system orange" },
+    "info": { "$value": "#007AFF", "$description": "Semantic info — mirrors primary blue" },
+    "fill-primary": { "$value": "rgba(120,120,128,0.2)", "$description": "Primary fill — systemFill for large shapes" },
+    "fill-secondary": { "$value": "rgba(120,120,128,0.16)", "$description": "Secondary fill — secondarySystemFill" },
+    "fill-tertiary": { "$value": "rgba(118,118,128,0.12)", "$description": "Tertiary fill — tertiarySystemFill for subtle backgrounds" }
+  },
+  "color-dark": {
+    "$type": "color",
+    "background": { "$value": "#000000", "$description": "Dark mode primary background — pure black for OLED" },
+    "background-secondary": { "$value": "#1C1C1E", "$description": "Dark mode secondary background — systemGray6" },
+    "background-tertiary": { "$value": "#2C2C2E", "$description": "Dark mode tertiary background — systemGray5" },
+    "surface": { "$value": "#1C1C1E", "$description": "Dark mode card surface" },
+    "surface-elevated": { "$value": "#2C2C2E", "$description": "Dark mode elevated surface — sheets and popovers lift one level" },
+    "border": { "$value": "rgba(84,84,88,0.65)", "$description": "Dark mode separator" },
+    "border-light": { "$value": "rgba(84,84,88,0.35)", "$description": "Dark mode subtle separator" },
+    "text-primary": { "$value": "#FFFFFF", "$description": "Dark mode primary label" },
+    "text-secondary": { "$value": "rgba(235,235,245,0.6)", "$description": "Dark mode secondary label" },
+    "text-tertiary": { "$value": "rgba(235,235,245,0.3)", "$description": "Dark mode tertiary label" },
+    "fill-primary": { "$value": "rgba(120,120,128,0.36)", "$description": "Dark mode primary fill — increased opacity for visibility" },
+    "fill-secondary": { "$value": "rgba(120,120,128,0.32)", "$description": "Dark mode secondary fill" }
+  },
+  "typography": {
+    "font-family": {
+      "$type": "fontFamily",
+      "display": { "$value": "\"SF Pro Display\", -apple-system, system-ui, sans-serif", "$description": "Display font — used for sizes 20pt and above" },
+      "body": { "$value": "\"SF Pro Text\", -apple-system, system-ui, sans-serif", "$description": "Text font — optimized for sizes below 20pt" },
+      "rounded": { "$value": "\"SF Pro Rounded\", -apple-system, system-ui, sans-serif", "$description": "Rounded variant — friendly, approachable UI elements" },
+      "mono": { "$value": "\"SF Mono\", ui-monospace, monospace", "$description": "Monospace — code, tabular data, timestamps" }
+    },
+    "font-size": {
+      "$type": "dimension",
+      "large-title": { "$value": "34px", "$description": "Large Title — top-level screen titles, bold weight" },
+      "title-1": { "$value": "28px", "$description": "Title 1 — primary section headings" },
+      "title-2": { "$value": "22px", "$description": "Title 2 — secondary section headings" },
+      "title-3": { "$value": "20px", "$description": "Title 3 — tertiary headings, transition point to SF Pro Display" },
+      "headline": { "$value": "17px", "$description": "Headline — semibold, used for emphasis within body content" },
+      "body": { "$value": "17px", "$description": "Body — default reading size across iOS" },
+      "callout": { "$value": "16px", "$description": "Callout — slightly smaller body, secondary descriptions" },
+      "subheadline": { "$value": "15px", "$description": "Subheadline — list subtitles, supporting text" },
+      "footnote": { "$value": "13px", "$description": "Footnote — annotations, timestamps, metadata" },
+      "caption-1": { "$value": "12px", "$description": "Caption 1 — tab bar labels, small annotations" },
+      "caption-2": { "$value": "11px", "$description": "Caption 2 — smallest standard text, badge labels" }
+    },
+    "font-weight": {
+      "$type": "fontWeight",
+      "regular": { "$value": "400", "$description": "Regular — body text, descriptions" },
+      "medium": { "$value": "500", "$description": "Medium — subtle emphasis, navigation items" },
+      "semibold": { "$value": "600", "$description": "Semibold — headlines, emphasized labels" },
+      "bold": { "$value": "700", "$description": "Bold — large titles, strong emphasis" },
+      "heavy": { "$value": "800", "$description": "Heavy — display impact, marketing headlines" }
+    },
+    "line-height": {
+      "$type": "number",
+      "tight": { "$value": "1.06", "$description": "Tight — large titles and display text" },
+      "heading": { "$value": "1.18", "$description": "Heading — title styles, compact vertical rhythm" },
+      "body": { "$value": "1.29", "$description": "Body — default reading line height for 17px body" },
+      "relaxed": { "$value": "1.41", "$description": "Relaxed — long-form content, footnotes, captions" }
+    }
+  },
+  "spacing": {
+    "$type": "dimension",
+    "0": { "$value": "0px", "$description": "Zero spacing — flush alignment" },
+    "0.5": { "$value": "2px", "$description": "Hairline — minimal separation, icon-to-text micro gap" },
+    "1": { "$value": "4px", "$description": "Base unit — Apple's 4px grid foundation" },
+    "2": { "$value": "8px", "$description": "Compact — tight element spacing, inner padding" },
+    "3": { "$value": "12px", "$description": "Default — standard cell padding, icon margins" },
+    "4": { "$value": "16px", "$description": "Standard — iOS layout margins (compact width)" },
+    "5": { "$value": "20px", "$description": "Comfortable — iOS layout margins (regular width)" },
+    "6": { "$value": "24px", "$description": "Generous — section spacing, card padding" },
+    "8": { "$value": "32px", "$description": "Large — between content sections" },
+    "10": { "$value": "40px", "$description": "Extra large — major section breaks" },
+    "12": { "$value": "48px", "$description": "Spacious — prominent section separation" },
+    "16": { "$value": "64px", "$description": "Maximum — hero spacing, top-level layout gaps" }
+  },
+  "radius": {
+    "$type": "dimension",
+    "none": { "$value": "0px", "$description": "No rounding — sharp corners" },
+    "sm": { "$value": "6px", "$description": "Small — text fields, segmented controls, small buttons" },
+    "md": { "$value": "10px", "$description": "Medium — cards, action sheets, standard containers" },
+    "lg": { "$value": "13px", "$description": "Large — app icon inner radius (icon grid spec)" },
+    "xl": { "$value": "20px", "$description": "Extra large — modal sheets, large cards" },
+    "2xl": { "$value": "38px", "$description": "Widget — home screen widget corner radius" },
+    "full": { "$value": "9999px", "$description": "Full — circular elements, pills, capsule buttons" }
+  },
+  "elevation": {
+    "sm": {
+      "$type": "shadow",
+      "$value": "0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)",
+      "$description": "Subtle — Apple prefers blur and vibrancy over shadows; minimal lift for cards"
+    },
+    "md": {
+      "$type": "shadow",
+      "$value": "0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04)",
+      "$description": "Medium — floating cards, contextual menus in web contexts"
+    },
+    "lg": {
+      "$type": "shadow",
+      "$value": "0 12px 40px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06)",
+      "$description": "High — modal sheets, popovers; Apple uses blur-backed materials natively"
+    }
+  },
+  "motion": {
+    "duration": {
+      "$type": "duration",
+      "instant": { "$value": "50ms", "$description": "Instant — micro-feedback, button highlights" },
+      "fast": { "$value": "100ms", "$description": "Fast — toggles, small state changes" },
+      "normal": { "$value": "250ms", "$description": "Normal — standard transitions, navigation pushes" },
+      "slow": { "$value": "350ms", "$description": "Slow — modal presentations, large element transitions" },
+      "spring": { "$value": "500ms", "$description": "Spring — elastic settle duration for spring-based animations" }
+    },
+    "easing": {
+      "$type": "cubicBezier",
+      "default": { "$value": [0.25, 0.1, 0.25, 1.0], "$description": "Default spring-like — approximation of iOS spring(1, 100, 10)" },
+      "ease-in-out": { "$value": [0.42, 0, 0.58, 1], "$description": "Ease in-out — symmetric, used for looping or reversible animations" },
+      "ease-out": { "$value": [0, 0, 0.2, 1], "$description": "Ease out — entrances, elements appearing on screen" },
+      "ease-in": { "$value": [0.4, 0, 1, 1], "$description": "Ease in — exits, elements leaving the screen" },
+      "bounce": { "$value": [0.34, 1.56, 0.64, 1], "$description": "Bounce — playful overshoot for delightful micro-interactions" }
+    }
+  }
+}

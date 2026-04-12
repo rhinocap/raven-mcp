@@ -1,0 +1,95 @@
+[
+  {
+    "id": "flex-wrap-over-breakpoints",
+    "name": "Flex Wrap Over Hard Breakpoints",
+    "category": "responsive-layout",
+    "summary": "Use flex-wrap with min-width on children instead of media query breakpoints for layout reflow.",
+    "description": "Hard breakpoints create brittle layouts that only work at specific widths and require constant maintenance as new screen sizes emerge. Instead, use display: flex; flex-wrap: wrap with min-width constraints on children so content reflows naturally at whatever width the container happens to be. This approach is container-aware by default — cards stack when they run out of room, not when the viewport hits an arbitrary pixel value. The layout becomes intrinsically responsive rather than extrinsically controlled.",
+    "implications": [
+      "Use `display: flex; flex-wrap: wrap` on grid/card containers instead of CSS Grid with breakpoint overrides",
+      "Set `flex: 1 1 <min-width>` on children (e.g. `flex: 1 1 280px`) so items grow to fill and wrap when they can't fit",
+      "The min-width value is the design's true breakpoint — when a card can't be narrower than 280px, it wraps",
+      "This works inside any container width, not just viewport — critical for sidebar layouts, modals, and embedded components",
+      "No need to update breakpoints when adding/removing columns — the layout self-adjusts",
+      "Combine with `gap` for consistent spacing that doesn't need breakpoint-specific overrides"
+    ],
+    "violations": [
+      "Media queries that switch between `grid-template-columns: 1fr 1fr 1fr` and `1fr 1fr` and `1fr` at arbitrary widths",
+      "Breakpoints that only work for current designs and break when content changes",
+      "Different gap/spacing values at each breakpoint instead of one consistent value",
+      "Layout that breaks in a sidebar or modal because breakpoints assume full viewport width"
+    ],
+    "applies_to": ["layout", "responsive", "cards", "grids", "flexbox", "containers"],
+    "sources": ["https://every-layout.dev/layouts/sidebar/", "https://css-tricks.com/snippets/css/a-guide-to-flexbox/"]
+  },
+  {
+    "id": "clamp-over-breakpoint-values",
+    "name": "Clamp for Fluid Sizing",
+    "category": "responsive-layout",
+    "summary": "Use clamp() for padding, font sizes, and spacing instead of breakpoint-specific values.",
+    "description": "The CSS clamp() function creates fluid values that scale smoothly between a minimum and maximum, eliminating the need for breakpoint-specific overrides. Instead of padding: 16px at mobile and padding: 48px at desktop with a jarring jump between them, use clamp(1rem, 4vw, 3rem) for a smooth transition. This applies to font sizes, padding, margins, gaps, and any value that should scale with the viewport. The result is fewer media queries and smoother visual transitions across all screen sizes.",
+    "implications": [
+      "Use `clamp(min, preferred, max)` for padding: e.g. `padding: clamp(1rem, 4vw, 3rem)`",
+      "Use clamp for fluid typography: e.g. `font-size: clamp(1rem, 2.5vw, 2rem)` for headings",
+      "Use clamp for container gaps: e.g. `gap: clamp(1rem, 3vw, 2.5rem)`",
+      "The preferred (middle) value uses viewport units (vw) to create the fluid scaling",
+      "Set sensible min/max bounds to prevent text from becoming unreadably small or absurdly large",
+      "Replaces multiple breakpoints worth of font-size and spacing overrides with a single declaration"
+    ],
+    "violations": [
+      "Three or more media queries just to change font-size at different widths",
+      "Breakpoint-specific padding that creates visible jumps when resizing",
+      "Using only vw units without min/max bounds — text becomes microscopic on mobile",
+      "Hardcoded px values at every breakpoint instead of one fluid clamp expression"
+    ],
+    "applies_to": ["typography", "spacing", "responsive", "layout", "padding", "font-size"],
+    "sources": ["https://developer.mozilla.org/en-US/docs/Web/CSS/clamp", "https://utopia.fyi/"]
+  },
+  {
+    "id": "media-queries-last-resort",
+    "name": "Media Queries as Last Resort",
+    "category": "responsive-layout",
+    "summary": "Reserve media queries only for things that intrinsic layout techniques cannot handle.",
+    "description": "Media queries should be the exception, not the primary responsive strategy. Flexbox wrap, clamp(), min(), max(), and container queries handle the vast majority of responsive needs without breakpoints. Reserve media queries for truly structural changes: collapsing a navigation bar into a hamburger menu, hiding decorative elements on small screens, switching from horizontal to vertical navigation, or changing the fundamental page structure. If a media query is only changing a width, padding, or font-size, there is almost certainly a better intrinsic approach.",
+    "implications": [
+      "Never use media queries for layout reflow — let flex-wrap handle when cards/columns stack",
+      "Never use media queries for font-size scaling — use clamp() instead",
+      "Never use media queries for spacing changes — use clamp() or min()/max()",
+      "Use media queries for: nav collapse (hamburger), showing/hiding elements, switching layout direction",
+      "Use media queries for: print styles, reduced-motion preferences, dark mode (prefers-color-scheme)",
+      "If you have more than 2-3 media queries in a component, audit for intrinsic alternatives"
+    ],
+    "violations": [
+      "5+ breakpoints in a single component's CSS — sign of over-reliance on media queries",
+      "Media queries that only change grid-template-columns — use flex-wrap instead",
+      "Media queries that only change font-size or padding — use clamp() instead",
+      "Components that break at non-standard widths because breakpoints assume specific containers"
+    ],
+    "applies_to": ["responsive", "layout", "css", "media-queries", "mobile", "architecture"],
+    "sources": ["https://every-layout.dev/blog/algorithmic-design/", "https://moderncss.dev/contextual-spacing-for-intrinsic-web-design/"]
+  },
+  {
+    "id": "consistent-spatial-rhythm",
+    "name": "Consistent Spatial Rhythm",
+    "category": "responsive-layout",
+    "summary": "All section spacing must use the same clamp expression. Never mix different max values, space tokens, or fixed values for the same purpose.",
+    "description": "Spatial rhythm is the vertical pulse of a page — the breathing room between sections. When one section uses clamp(48px, 6vw, 80px) and the next uses var(--space-24) and the next uses clamp(48px, 8vw, 128px), the page feels disjointed even if individual sections look fine. Choose ONE clamp expression for section padding and use it everywhere. Choose ONE gap value for card grids and use it everywhere. The eye detects inconsistency faster than it detects absolutes — 80px of padding everywhere looks intentional; 64px next to 128px next to 96px looks careless. Define a spatial scale (e.g. section: 80px, subsection: 48px, card: 24px, element: 16px) and enforce it across the entire page.",
+    "implications": [
+      "Define a single clamp expression for section vertical padding and apply it to EVERY section — e.g. `padding: clamp(48px, 6vw, 80px) 0`",
+      "Never use different max values for sections at the same hierarchy level — if hero uses 80px max, features must use 80px max",
+      "Define a spatial scale with clear hierarchy: section > subsection > card > element, each with its own consistent value",
+      "When adding inline styles for padding, use the same clamp expression as the CSS class — never introduce a one-off value",
+      "Audit all sections together, not individually — inconsistency only shows in context",
+      "Use CSS custom properties for spacing scale: `--section-padding: clamp(48px, 6vw, 80px)` to enforce consistency"
+    ],
+    "violations": [
+      "Adjacent sections with different vertical padding values (e.g. one at 64px, next at 128px)",
+      "Mixing clamp() expressions with var(--space-X) tokens for the same purpose on the same page",
+      "Inline style padding that doesn't match the CSS class pattern used elsewhere",
+      "Section spacing that looks 'really small' next to 'really big' when scrolling the full page",
+      "Card grids with inconsistent gap values across different sections"
+    ],
+    "applies_to": ["spacing", "layout", "rhythm", "sections", "padding", "consistency", "vertical-spacing"],
+    "sources": ["https://every-layout.dev/rudiments/modular-scale/", "https://www.smashingmagazine.com/2012/12/css-baseline-the-good-the-bad-and-the-ugly/"]
+  }
+]

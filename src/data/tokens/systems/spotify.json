@@ -1,0 +1,155 @@
+{
+  "$name": "Spotify",
+  "$description": "Spotify design language tokens — dark-first UI with vibrant green CTAs, card-heavy layouts, and high contrast.",
+  "color": {
+    "$type": "color",
+    "primary": { "$value": "#1DB954", "$description": "Spotify Green — primary brand color, CTAs, active states" },
+    "primary-light": { "$value": "#1ED760", "$description": "Lighter green — hover state for primary actions" },
+    "primary-dark": { "$value": "#1AA34A", "$description": "Darker green — pressed state for primary actions" },
+    "black": { "$value": "#191414", "$description": "Spotify Black — brand black, deepest background" },
+    "white": { "$value": "#FFFFFF", "$description": "Pure white — primary text on dark backgrounds" },
+    "background": { "$value": "#121212", "$description": "App background — main canvas color" },
+    "background-base": { "$value": "#121212", "$description": "Base background for the app shell" },
+    "background-elevated": { "$value": "#181818", "$description": "Elevated surface — cards, sidebar, now-playing bar" },
+    "background-highlight": { "$value": "#282828", "$description": "Highlight surface — hover states, selected items" },
+    "background-tinted": { "$value": "#1A1A1A", "$description": "Tinted surface — subtle contrast from base" },
+    "surface": { "$value": "#181818", "$description": "Card and panel surface" },
+    "surface-elevated": { "$value": "#282828", "$description": "Elevated cards — context menus, dialogs" },
+    "surface-bright": { "$value": "#3E3E3E", "$description": "Bright surface — active/pressed card states" },
+    "border": { "$value": "#282828", "$description": "Default border — subtle separation" },
+    "border-light": { "$value": "#3E3E3E", "$description": "Light border — dividers between sections" },
+    "text-primary": { "$value": "#FFFFFF", "$description": "Primary text — high contrast on dark backgrounds" },
+    "text-secondary": { "$value": "#B3B3B3", "$description": "Secondary text — descriptions, metadata, subtitles" },
+    "text-tertiary": { "$value": "#727272", "$description": "Tertiary text — timestamps, disabled labels" },
+    "text-subdued": { "$value": "#6A6A6A", "$description": "Subdued text — least important information" },
+    "text-link": { "$value": "#1DB954", "$description": "Link text — uses primary green" },
+    "text-positive": { "$value": "#1DB954", "$description": "Positive text — playing indicator, success" },
+    "text-warning": { "$value": "#FFA42B", "$description": "Warning text — explicit content, alerts" },
+    "text-negative": { "$value": "#F15E6C", "$description": "Negative/error text" },
+    "icon-active": { "$value": "#1DB954", "$description": "Active icon color — playing, liked" },
+    "icon-default": { "$value": "#B3B3B3", "$description": "Default icon color" },
+    "icon-subdued": { "$value": "#727272", "$description": "Subdued icon color — inactive states" },
+    "overlay": { "$value": "rgba(0, 0, 0, 0.7)", "$description": "Modal/dialog overlay backdrop" },
+    "essential-positive": { "$value": "#1DB954", "$description": "Essential positive — success, online, playing" },
+    "essential-negative": { "$value": "#E91429", "$description": "Essential negative — errors, offline" },
+    "essential-warning": { "$value": "#FFA42B", "$description": "Essential warning — caution states" },
+    "essential-announcement": { "$value": "#3D91F4", "$description": "Announcement blue — informational badges" }
+  },
+  "color-light": {
+    "$type": "color",
+    "background": { "$value": "#FFFFFF", "$description": "Light mode background (web marketing pages)" },
+    "background-elevated": { "$value": "#F6F6F6", "$description": "Light mode elevated surface" },
+    "background-highlight": { "$value": "#EBEBEB", "$description": "Light mode highlight surface" },
+    "text-primary": { "$value": "#191414", "$description": "Light mode primary text" },
+    "text-secondary": { "$value": "#535353", "$description": "Light mode secondary text" },
+    "text-tertiary": { "$value": "#787878", "$description": "Light mode tertiary text" },
+    "border": { "$value": "#EBEBEB", "$description": "Light mode border" }
+  },
+  "typography": {
+    "font-family": {
+      "$type": "fontFamily",
+      "display": { "$value": "\"Circular\", \"Helvetica Neue\", Helvetica, Arial, sans-serif", "$description": "Display/heading font — Spotify Circular with Helvetica fallback" },
+      "body": { "$value": "\"Circular\", \"Helvetica Neue\", Helvetica, Arial, sans-serif", "$description": "Body text font" },
+      "mono": { "$value": "\"Circular Mono\", \"SF Mono\", Menlo, Consolas, monospace", "$description": "Monospace for technical UI" }
+    },
+    "font-size": {
+      "$type": "dimension",
+      "xs": { "$value": "11px", "$description": "Extra small — metadata, counters, labels" },
+      "sm": { "$value": "12px", "$description": "Small — secondary labels, timestamps" },
+      "base": { "$value": "14px", "$description": "Base body text — list items, descriptions" },
+      "md": { "$value": "16px", "$description": "Medium — card titles, navigation" },
+      "lg": { "$value": "20px", "$description": "Large — section headings" },
+      "xl": { "$value": "24px", "$description": "XL — page section titles" },
+      "2xl": { "$value": "28px", "$description": "2XL — page headings" },
+      "3xl": { "$value": "32px", "$description": "3XL — large headings" },
+      "4xl": { "$value": "48px", "$description": "4XL — hero/feature headings" },
+      "5xl": { "$value": "64px", "$description": "5XL — marketing display text" },
+      "6xl": { "$value": "96px", "$description": "6XL — Wrapped/campaign display" }
+    },
+    "font-weight": {
+      "$type": "fontWeight",
+      "light": { "$value": "300", "$description": "Light — large display text" },
+      "regular": { "$value": "400", "$description": "Regular — body text" },
+      "medium": { "$value": "500", "$description": "Medium — emphasized body" },
+      "bold": { "$value": "700", "$description": "Bold — headings, CTAs" },
+      "black": { "$value": "900", "$description": "Black — marketing display, Wrapped" }
+    },
+    "line-height": {
+      "$type": "number",
+      "tight": { "$value": "1.1", "$description": "Tight — display text, large headings" },
+      "compact": { "$value": "1.25", "$description": "Compact — headings" },
+      "normal": { "$value": "1.5", "$description": "Normal — body text" },
+      "relaxed": { "$value": "1.6", "$description": "Relaxed — long-form content" }
+    },
+    "letter-spacing": {
+      "$type": "dimension",
+      "tight": { "$value": "-0.04em", "$description": "Tight — large display headings" },
+      "normal": { "$value": "-0.01em", "$description": "Normal — slight negative tracking for Circular" },
+      "wide": { "$value": "0.1em", "$description": "Wide — all-caps labels, overlines" },
+      "widest": { "$value": "0.2em", "$description": "Widest — section overline labels" }
+    }
+  },
+  "spacing": {
+    "$type": "dimension",
+    "0": { "$value": "0px", "$description": "No spacing" },
+    "1": { "$value": "4px", "$description": "Minimal — tight inline gaps" },
+    "2": { "$value": "8px", "$description": "Small — compact card padding, icon gaps" },
+    "3": { "$value": "12px", "$description": "Standard — list item padding" },
+    "4": { "$value": "16px", "$description": "Base — card padding, section gaps" },
+    "5": { "$value": "20px", "$description": "Comfortable — between card groups" },
+    "6": { "$value": "24px", "$description": "Section — major group spacing" },
+    "8": { "$value": "32px", "$description": "Large — between page sections" },
+    "10": { "$value": "40px", "$description": "XL — page-level section gaps" },
+    "12": { "$value": "48px", "$description": "2XL — hero section padding" },
+    "16": { "$value": "64px", "$description": "3XL — major page sections" },
+    "20": { "$value": "80px", "$description": "4XL — marketing section spacing" }
+  },
+  "radius": {
+    "$type": "dimension",
+    "none": { "$value": "0px", "$description": "No rounding — square elements" },
+    "sm": { "$value": "4px", "$description": "Small — buttons, chips, tags" },
+    "md": { "$value": "8px", "$description": "Medium — cards, inputs, album art" },
+    "lg": { "$value": "12px", "$description": "Large — modals, feature cards" },
+    "xl": { "$value": "16px", "$description": "XL — marketing cards" },
+    "full": { "$value": "50%", "$description": "Circle — artist images, play button" }
+  },
+  "elevation": {
+    "sm": {
+      "$type": "shadow",
+      "$value": "0 2px 4px rgba(0, 0, 0, 0.3)",
+      "$description": "Subtle elevation — cards on dark background"
+    },
+    "md": {
+      "$type": "shadow",
+      "$value": "0 4px 12px rgba(0, 0, 0, 0.4)",
+      "$description": "Medium elevation — context menus, popovers"
+    },
+    "lg": {
+      "$type": "shadow",
+      "$value": "0 8px 24px rgba(0, 0, 0, 0.5)",
+      "$description": "High elevation — modals, full-screen overlays"
+    },
+    "xl": {
+      "$type": "shadow",
+      "$value": "0 16px 48px rgba(0, 0, 0, 0.6)",
+      "$description": "Highest elevation — now-playing bar, floating player"
+    }
+  },
+  "motion": {
+    "duration": {
+      "$type": "duration",
+      "instant": { "$value": "50ms", "$description": "Instant — icon state changes" },
+      "fast": { "$value": "100ms", "$description": "Fast — hover color transitions" },
+      "normal": { "$value": "200ms", "$description": "Normal — card hover lifts" },
+      "slow": { "$value": "300ms", "$description": "Slow — expanding player, sheet transitions" },
+      "slower": { "$value": "500ms", "$description": "Slower — page-level transitions" }
+    },
+    "easing": {
+      "$type": "cubicBezier",
+      "default": { "$value": [0.3, 0, 0, 1], "$description": "Spotify standard ease — quick in, gentle out" },
+      "in": { "$value": [0.5, 0, 1, 1], "$description": "Ease in — elements leaving" },
+      "out": { "$value": [0, 0, 0.3, 1], "$description": "Ease out — elements entering" },
+      "bounce": { "$value": [0.34, 1.3, 0.64, 1], "$description": "Playful bounce — like/save heart animation" }
+    }
+  }
+}

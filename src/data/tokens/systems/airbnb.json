@@ -1,0 +1,187 @@
+{
+  "$name": "Airbnb",
+  "$description": "Airbnb Design Language System (DLS) tokens — warm, trustworthy, accessible design with generous spacing and rounded corners.",
+  "color": {
+    "$type": "color",
+    "rausch": { "$value": "#FF5A5F", "$description": "Rausch — primary brand red, named after Rausch Street (Airbnb's first office)" },
+    "rausch-dark": { "$value": "#E04347", "$description": "Darker Rausch — hover/pressed state for primary actions" },
+    "rausch-light": { "$value": "#FF8C8F", "$description": "Lighter Rausch — subtle red highlights" },
+    "kazan": { "$value": "#00A699", "$description": "Kazan — secondary teal, success states, verified badges" },
+    "kazan-dark": { "$value": "#008F82", "$description": "Darker Kazan — hover state for teal elements" },
+    "kazan-light": { "$value": "#66D0C8", "$description": "Lighter Kazan — teal highlights, backgrounds" },
+    "arches": { "$value": "#FC642D", "$description": "Arches — accent orange, CTAs, Superhost badge" },
+    "arches-dark": { "$value": "#D9531F", "$description": "Darker Arches — pressed state" },
+    "hof": { "$value": "#484848", "$description": "Hof — primary text color, dark gray" },
+    "foggy": { "$value": "#767676", "$description": "Foggy — secondary text, meets WCAG AA on white" },
+    "hackberry": { "$value": "#C4C4C4", "$description": "Hackberry — disabled states, muted borders" },
+    "background": { "$value": "#FFFFFF", "$description": "Default page background — clean white" },
+    "background-warm": { "$value": "#FAFAFA", "$description": "Warm off-white surface — subtle section backgrounds" },
+    "background-tinted": { "$value": "#F7F7F7", "$description": "Tinted background — search bar, muted sections" },
+    "background-highlight": { "$value": "#EBEBEB", "$description": "Highlight background — hover states on surfaces" },
+    "surface": { "$value": "#FFFFFF", "$description": "Card surface — listings, experience cards" },
+    "surface-elevated": { "$value": "#FFFFFF", "$description": "Elevated surface — modals, bottom sheets" },
+    "border": { "$value": "#DDDDDD", "$description": "Default border — card outlines, dividers" },
+    "border-light": { "$value": "#EBEBEB", "$description": "Light border — subtle dividers between sections" },
+    "border-dark": { "$value": "#B0B0B0", "$description": "Dark border — input focus, emphasized separators" },
+    "text-primary": { "$value": "#222222", "$description": "Primary text — headings, important content" },
+    "text-secondary": { "$value": "#484848", "$description": "Secondary text — body text (Hof)" },
+    "text-tertiary": { "$value": "#767676", "$description": "Tertiary text — metadata, secondary labels (Foggy)" },
+    "text-inverse": { "$value": "#FFFFFF", "$description": "Inverse text — text on dark/colored backgrounds" },
+    "text-link": { "$value": "#008489", "$description": "Link text — teal links for navigation" },
+    "success": { "$value": "#008A05", "$description": "Success green — booking confirmed, verification" },
+    "error": { "$value": "#C13515", "$description": "Error red — form validation, critical alerts" },
+    "warning": { "$value": "#FFB400", "$description": "Warning amber — cancellation policies, attention" },
+    "info": { "$value": "#428BFF", "$description": "Info blue — tips, informational callouts" },
+    "star": { "$value": "#FF5A5F", "$description": "Star rating color — uses Rausch" },
+    "superhost": { "$value": "#FC642D", "$description": "Superhost badge color — uses Arches" },
+    "overlay": { "$value": "rgba(0, 0, 0, 0.48)", "$description": "Modal/map overlay backdrop" }
+  },
+  "color-dark": {
+    "$type": "color",
+    "background": { "$value": "#1A1A1A", "$description": "Dark mode background" },
+    "background-warm": { "$value": "#222222", "$description": "Dark mode warm surface" },
+    "surface": { "$value": "#222222", "$description": "Dark mode card surface" },
+    "surface-elevated": { "$value": "#2E2E2E", "$description": "Dark mode elevated surface" },
+    "border": { "$value": "#3D3D3D", "$description": "Dark mode border" },
+    "text-primary": { "$value": "#FFFFFF", "$description": "Dark mode primary text" },
+    "text-secondary": { "$value": "#DDDDDD", "$description": "Dark mode secondary text" },
+    "text-tertiary": { "$value": "#B0B0B0", "$description": "Dark mode tertiary text" }
+  },
+  "typography": {
+    "font-family": {
+      "$type": "fontFamily",
+      "display": { "$value": "\"Cereal\", \"Circular\", \"Helvetica Neue\", Helvetica, Arial, sans-serif", "$description": "Display font — Airbnb Cereal with Circular and system fallbacks" },
+      "body": { "$value": "\"Cereal\", \"Circular\", \"Helvetica Neue\", Helvetica, Arial, sans-serif", "$description": "Body text font" },
+      "mono": { "$value": "\"SF Mono\", Menlo, Consolas, \"Liberation Mono\", monospace", "$description": "Monospace for pricing, codes" }
+    },
+    "font-size": {
+      "$type": "dimension",
+      "xs": { "$value": "12px", "$description": "Extra small — legal text, fine print" },
+      "sm": { "$value": "14px", "$description": "Small — secondary labels, metadata" },
+      "base": { "$value": "16px", "$description": "Base body text — descriptions, paragraphs" },
+      "md": { "$value": "18px", "$description": "Medium — emphasized body text" },
+      "lg": { "$value": "22px", "$description": "Large — section headings, card titles" },
+      "xl": { "$value": "26px", "$description": "XL — page subheadings" },
+      "2xl": { "$value": "32px", "$description": "2XL — page headings" },
+      "3xl": { "$value": "38px", "$description": "3XL — hero subheadings" },
+      "4xl": { "$value": "48px", "$description": "4XL — hero headings" },
+      "5xl": { "$value": "56px", "$description": "5XL — campaign display text" },
+      "6xl": { "$value": "72px", "$description": "6XL — marketing hero text" }
+    },
+    "font-weight": {
+      "$type": "fontWeight",
+      "book": { "$value": "400", "$description": "Book — body text, descriptions" },
+      "medium": { "$value": "500", "$description": "Medium — labels, navigation" },
+      "bold": { "$value": "700", "$description": "Bold — headings, prices, CTAs" },
+      "extrabold": { "$value": "800", "$description": "Extra bold — marketing display, hero text" }
+    },
+    "line-height": {
+      "$type": "number",
+      "tight": { "$value": "1.15", "$description": "Tight — large display headings" },
+      "compact": { "$value": "1.25", "$description": "Compact — headings, card titles" },
+      "normal": { "$value": "1.5", "$description": "Normal — body text" },
+      "relaxed": { "$value": "1.65", "$description": "Relaxed — long descriptions, reviews" }
+    },
+    "letter-spacing": {
+      "$type": "dimension",
+      "tight": { "$value": "-0.02em", "$description": "Tight — display headings" },
+      "normal": { "$value": "0em", "$description": "Normal — body text" },
+      "wide": { "$value": "0.04em", "$description": "Wide — overline labels, category names" },
+      "widest": { "$value": "0.1em", "$description": "Widest — uppercase labels (SUPERHOST, PLUS)" }
+    }
+  },
+  "spacing": {
+    "$type": "dimension",
+    "0": { "$value": "0px", "$description": "No spacing" },
+    "1": { "$value": "4px", "$description": "Hairline — icon/text gap (half grid unit)" },
+    "2": { "$value": "8px", "$description": "Tight — 1 grid unit, inline spacing" },
+    "3": { "$value": "12px", "$description": "Compact — small card internal padding" },
+    "4": { "$value": "16px", "$description": "Standard — 2 grid units, default padding" },
+    "5": { "$value": "20px", "$description": "Comfortable gap" },
+    "6": { "$value": "24px", "$description": "Section — 3 grid units, card padding" },
+    "8": { "$value": "32px", "$description": "Large — 4 grid units, between listing cards" },
+    "10": { "$value": "40px", "$description": "XL — 5 grid units, section gaps" },
+    "12": { "$value": "48px", "$description": "2XL — 6 grid units, major section spacing" },
+    "16": { "$value": "64px", "$description": "3XL — 8 grid units, page section padding" },
+    "20": { "$value": "80px", "$description": "4XL — 10 grid units, hero padding" },
+    "24": { "$value": "96px", "$description": "5XL — 12 grid units, hero section" },
+    "32": { "$value": "128px", "$description": "6XL — 16 grid units, maximum spacing" }
+  },
+  "radius": {
+    "$type": "dimension",
+    "none": { "$value": "0px", "$description": "No rounding" },
+    "sm": { "$value": "4px", "$description": "Small — tags, chips, small buttons" },
+    "md": { "$value": "8px", "$description": "Medium — buttons, inputs, small cards" },
+    "lg": { "$value": "12px", "$description": "Large — listing cards, experience cards" },
+    "xl": { "$value": "16px", "$description": "XL — feature cards, search bar" },
+    "2xl": { "$value": "24px", "$description": "2XL — modals, bottom sheets" },
+    "3xl": { "$value": "32px", "$description": "3XL — marketing cards, category pills" },
+    "full": { "$value": "9999px", "$description": "Fully rounded — avatars, host photos, pills" }
+  },
+  "elevation": {
+    "sm": {
+      "$type": "shadow",
+      "$value": "0 1px 2px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.05)",
+      "$description": "Subtle — listing cards, default card state"
+    },
+    "md": {
+      "$type": "shadow",
+      "$value": "0 2px 4px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.08)",
+      "$description": "Medium — card hover state"
+    },
+    "lg": {
+      "$type": "shadow",
+      "$value": "0 6px 20px rgba(0, 0, 0, 0.12)",
+      "$description": "Large — sticky header, date picker dropdown"
+    },
+    "xl": {
+      "$type": "shadow",
+      "$value": "0 6px 20px rgba(0, 0, 0, 0.2)",
+      "$description": "XL — modals, bottom sheets"
+    },
+    "header": {
+      "$type": "shadow",
+      "$value": "0 2px 8px rgba(0, 0, 0, 0.08)",
+      "$description": "Header shadow — sticky navigation bar on scroll"
+    },
+    "card-hover": {
+      "$type": "shadow",
+      "$value": "0 2px 4px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.12)",
+      "$description": "Card hover — lifted card state on listing hover"
+    }
+  },
+  "motion": {
+    "duration": {
+      "$type": "duration",
+      "fast": { "$value": "100ms", "$description": "Fast — button presses, icon transitions" },
+      "normal": { "$value": "200ms", "$description": "Normal — hover card lifts, color changes" },
+      "slow": { "$value": "300ms", "$description": "Slow — modal opens, date picker expansion" },
+      "slower": { "$value": "400ms", "$description": "Slower — bottom sheet slide, map transitions" },
+      "slowest": { "$value": "600ms", "$description": "Slowest — hero image crossfade, page transitions" }
+    },
+    "easing": {
+      "$type": "cubicBezier",
+      "default": { "$value": [0.2, 0, 0.2, 1], "$description": "Standard ease — gentle, approachable motion" },
+      "in": { "$value": [0.4, 0, 1, 1], "$description": "Ease in — elements exiting" },
+      "out": { "$value": [0, 0, 0.2, 1], "$description": "Ease out — elements entering" },
+      "spring": { "$value": [0.34, 1.4, 0.64, 1], "$description": "Spring — playful interactions, heart like" }
+    }
+  },
+  "grid": {
+    "$type": "dimension",
+    "unit": { "$value": "8px", "$description": "Base grid unit — all spacing derives from 8px multiples" },
+    "column-gap": { "$value": "24px", "$description": "Default column gutter — 3 grid units" },
+    "container-sm": { "$value": "744px", "$description": "Small container — mobile content area" },
+    "container-md": { "$value": "1032px", "$description": "Medium container — tablet content area" },
+    "container-lg": { "$value": "1128px", "$description": "Large container — desktop content area" },
+    "container-xl": { "$value": "1440px", "$description": "XL container — wide desktop max-width" }
+  },
+  "breakpoints": {
+    "$type": "dimension",
+    "sm": { "$value": "550px", "$description": "Small — mobile landscape" },
+    "md": { "$value": "744px", "$description": "Medium — tablet portrait" },
+    "lg": { "$value": "950px", "$description": "Large — tablet landscape / small desktop" },
+    "xl": { "$value": "1128px", "$description": "XL — desktop" },
+    "2xl": { "$value": "1440px", "$description": "2XL — wide desktop" }
+  }
+}

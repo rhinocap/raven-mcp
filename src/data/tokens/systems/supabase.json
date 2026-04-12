@@ -1,0 +1,179 @@
+{
+  "$name": "Supabase",
+  "$description": "Supabase design system tokens — dark-first developer aesthetic with signature green energy.",
+  "color": {
+    "$type": "color",
+    "primary": { "$value": "#3ECF8E", "$description": "Supabase green — the signature brand color" },
+    "primary-light": { "$value": "#5FE9A0", "$description": "Lighter green for hover states and gradient endpoints" },
+    "primary-dark": { "$value": "#2BA872", "$description": "Darker green for active/pressed states" },
+    "primary-muted": { "$value": "#3ECF8E20", "$description": "Muted green — subtle backgrounds, badges" },
+    "accent-emerald": { "$value": "#10B981", "$description": "Emerald for success states and secondary green" },
+    "accent-teal": { "$value": "#14B8A6", "$description": "Teal accent for alternative highlights" },
+    "accent-blue": { "$value": "#3B82F6", "$description": "Blue accent — links, info states" },
+    "accent-purple": { "$value": "#8B5CF6", "$description": "Purple accent — realtime features, special badges" },
+    "accent-amber": { "$value": "#F59E0B", "$description": "Amber for warnings" },
+    "background": { "$value": "#1C1C1C", "$description": "Default dark background" },
+    "background-alternative": { "$value": "#181818", "$description": "Alternative dark background — deeper sections" },
+    "background-light": { "$value": "#FFFFFF", "$description": "Light mode fallback background" },
+    "surface": { "$value": "#232323", "$description": "Card and panel surface — elevated from background" },
+    "surface-100": { "$value": "#1C1C1C", "$description": "Surface level 100 — flush with background" },
+    "surface-200": { "$value": "#232323", "$description": "Surface level 200 — default cards" },
+    "surface-300": { "$value": "#2A2A2A", "$description": "Surface level 300 — raised elements" },
+    "surface-400": { "$value": "#333333", "$description": "Surface level 400 — highly elevated" },
+    "border": { "$value": "#2E2E2E", "$description": "Default border on dark backgrounds" },
+    "border-light": { "$value": "#252525", "$description": "Subtle border — separator lines" },
+    "border-strong": { "$value": "#3E3E3E", "$description": "Emphasized border — active inputs, focus rings" },
+    "text-primary": { "$value": "#EDEDED", "$description": "Primary text on dark backgrounds" },
+    "text-secondary": { "$value": "#A1A1A1", "$description": "Secondary/muted text" },
+    "text-tertiary": { "$value": "#6B6B6B", "$description": "Tertiary/placeholder text" },
+    "text-inverse": { "$value": "#1C1C1C", "$description": "Text on light/green backgrounds" },
+    "success": { "$value": "#3ECF8E", "$description": "Success — uses brand green" },
+    "error": { "$value": "#EF4444", "$description": "Error red" },
+    "error-muted": { "$value": "#EF444420", "$description": "Muted error background" },
+    "warning": { "$value": "#F59E0B", "$description": "Warning amber" },
+    "warning-muted": { "$value": "#F59E0B20", "$description": "Muted warning background" },
+    "info": { "$value": "#3B82F6", "$description": "Info blue" }
+  },
+  "color-dark": {
+    "$type": "color",
+    "$description": "Supabase is dark-first — these are adjustments for even deeper dark contexts (e.g., dashboard panels, code editors)",
+    "background": { "$value": "#111111", "$description": "Deepest dark background — code editors, terminals" },
+    "background-alternative": { "$value": "#0D0D0D", "$description": "Alternative deep dark" },
+    "surface": { "$value": "#171717", "$description": "Deep dark surface" },
+    "surface-elevated": { "$value": "#1E1E1E", "$description": "Deep dark elevated surface" },
+    "border": { "$value": "#262626", "$description": "Deep dark border" },
+    "text-primary": { "$value": "#F0F0F0", "$description": "Deep dark primary text — slightly brighter" },
+    "text-secondary": { "$value": "#8A8A8A", "$description": "Deep dark secondary text" },
+    "text-tertiary": { "$value": "#555555", "$description": "Deep dark tertiary text" }
+  },
+  "color-light": {
+    "$type": "color",
+    "$description": "Light mode overrides for documentation pages and marketing",
+    "background": { "$value": "#FFFFFF", "$description": "Light mode background" },
+    "background-secondary": { "$value": "#F8F8F8", "$description": "Light mode secondary background" },
+    "surface": { "$value": "#FFFFFF", "$description": "Light mode surface" },
+    "surface-elevated": { "$value": "#FFFFFF", "$description": "Light mode elevated surface" },
+    "border": { "$value": "#E5E5E5", "$description": "Light mode border" },
+    "text-primary": { "$value": "#171717", "$description": "Light mode primary text" },
+    "text-secondary": { "$value": "#666666", "$description": "Light mode secondary text" },
+    "text-tertiary": { "$value": "#999999", "$description": "Light mode tertiary text" }
+  },
+  "gradient": {
+    "$type": "color",
+    "brand": { "$value": "linear-gradient(135deg, #3ECF8E 0%, #5FE9A0 100%)", "$description": "Brand gradient — green to lighter green" },
+    "brand-vivid": { "$value": "linear-gradient(135deg, #2BA872 0%, #3ECF8E 50%, #5FE9A0 100%)", "$description": "Vivid brand gradient — three-stop green" },
+    "brand-glow": { "$value": "radial-gradient(circle, #3ECF8E40 0%, transparent 70%)", "$description": "Green glow for background effects" },
+    "dark-fade": { "$value": "linear-gradient(180deg, #1C1C1C 0%, #111111 100%)", "$description": "Dark background gradient" }
+  },
+  "typography": {
+    "font-family": {
+      "$type": "fontFamily",
+      "sans": { "$value": "\"Circular\", system-ui, -apple-system, BlinkMacSystemFont, sans-serif", "$description": "Primary font — Circular with system fallback" },
+      "mono": { "$value": "\"Source Code Pro\", \"Menlo\", \"Consolas\", monospace", "$description": "Monospace — code blocks, SQL editors, terminal" },
+      "display": { "$value": "\"Circular\", system-ui, -apple-system, sans-serif", "$description": "Display font — same family, used at larger sizes" }
+    },
+    "font-size": {
+      "$type": "dimension",
+      "xs": { "$value": "12px", "$description": "Extra small — badges, timestamps" },
+      "sm": { "$value": "14px", "$description": "Small — labels, sidebar items, most dashboard UI" },
+      "base": { "$value": "16px", "$description": "Base body text" },
+      "lg": { "$value": "18px", "$description": "Large body text" },
+      "xl": { "$value": "20px", "$description": "Section headings" },
+      "2xl": { "$value": "24px", "$description": "Page headings" },
+      "3xl": { "$value": "30px", "$description": "Large headings" },
+      "4xl": { "$value": "36px", "$description": "Hero headings" },
+      "5xl": { "$value": "48px", "$description": "Display text — marketing pages" },
+      "6xl": { "$value": "60px", "$description": "Large display text" }
+    },
+    "font-weight": {
+      "$type": "fontWeight",
+      "regular": { "$value": "400", "$description": "Regular — body text" },
+      "medium": { "$value": "500", "$description": "Medium — UI labels, navigation" },
+      "semibold": { "$value": "600", "$description": "Semibold — headings, emphasis" },
+      "bold": { "$value": "700", "$description": "Bold — strong emphasis, marketing headlines" }
+    },
+    "line-height": {
+      "$type": "number",
+      "tight": { "$value": "1.2", "$description": "Headings and display text" },
+      "normal": { "$value": "1.5", "$description": "Body text" },
+      "relaxed": { "$value": "1.7", "$description": "Documentation prose" },
+      "code": { "$value": "1.6", "$description": "Code blocks — slightly more generous" }
+    },
+    "letter-spacing": {
+      "$type": "dimension",
+      "tight": { "$value": "-0.02em", "$description": "Large headings" },
+      "normal": { "$value": "0", "$description": "Body text" },
+      "wide": { "$value": "0.05em", "$description": "All-caps labels and overlines" }
+    }
+  },
+  "spacing": {
+    "$type": "dimension",
+    "0": { "$value": "0px", "$description": "No spacing" },
+    "1": { "$value": "4px", "$description": "Minimal gap" },
+    "2": { "$value": "8px", "$description": "Tight spacing — icon gaps" },
+    "3": { "$value": "12px", "$description": "Compact spacing — list items" },
+    "4": { "$value": "16px", "$description": "Default component padding" },
+    "5": { "$value": "20px", "$description": "Comfortable spacing" },
+    "6": { "$value": "24px", "$description": "Section padding" },
+    "8": { "$value": "32px", "$description": "Large section spacing" },
+    "10": { "$value": "40px", "$description": "Panel gaps" },
+    "12": { "$value": "48px", "$description": "Major section spacing" },
+    "16": { "$value": "64px", "$description": "Large layout gaps" },
+    "20": { "$value": "80px", "$description": "Hero section spacing" },
+    "24": { "$value": "96px", "$description": "Page-level spacing" }
+  },
+  "radius": {
+    "$type": "dimension",
+    "none": { "$value": "0px", "$description": "No radius" },
+    "sm": { "$value": "4px", "$description": "Subtle rounding — inputs, badges" },
+    "md": { "$value": "6px", "$description": "Default radius — buttons, cards" },
+    "lg": { "$value": "8px", "$description": "Rounded — panels, table cells" },
+    "xl": { "$value": "12px", "$description": "Well-rounded — modals, large cards" },
+    "2xl": { "$value": "16px", "$description": "Very rounded — marketing cards" },
+    "full": { "$value": "9999px", "$description": "Pill shape — tags, toggles" }
+  },
+  "elevation": {
+    "sm": {
+      "$type": "shadow",
+      "$value": "0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2)",
+      "$description": "Subtle elevation — darker shadows for dark UI"
+    },
+    "md": {
+      "$type": "shadow",
+      "$value": "0 4px 8px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.25)",
+      "$description": "Medium elevation — dropdowns, tooltips"
+    },
+    "lg": {
+      "$type": "shadow",
+      "$value": "0 8px 24px rgba(0, 0, 0, 0.5), 0 4px 8px rgba(0, 0, 0, 0.3)",
+      "$description": "High elevation — modals, command palette"
+    },
+    "xl": {
+      "$type": "shadow",
+      "$value": "0 20px 40px rgba(0, 0, 0, 0.6), 0 8px 16px rgba(0, 0, 0, 0.35)",
+      "$description": "Highest elevation — overlays, floating panels"
+    },
+    "glow-green": {
+      "$type": "shadow",
+      "$value": "0 0 20px rgba(62, 207, 142, 0.3), 0 0 40px rgba(62, 207, 142, 0.1)",
+      "$description": "Green glow effect — brand buttons, active states"
+    }
+  },
+  "motion": {
+    "duration": {
+      "$type": "duration",
+      "instant": { "$value": "50ms", "$description": "Instant feedback" },
+      "fast": { "$value": "100ms", "$description": "Quick — hover, focus" },
+      "normal": { "$value": "200ms", "$description": "Default transitions" },
+      "slow": { "$value": "300ms", "$description": "Panel transitions, modals" },
+      "slower": { "$value": "500ms", "$description": "Page-level transitions, loading states" }
+    },
+    "easing": {
+      "$type": "cubicBezier",
+      "default": { "$value": [0.4, 0, 0.2, 1], "$description": "Standard ease" },
+      "in": { "$value": [0.4, 0, 1, 1], "$description": "Ease in — exits" },
+      "out": { "$value": [0, 0, 0.2, 1], "$description": "Ease out — entrances" },
+      "spring": { "$value": [0.34, 1.56, 0.64, 1], "$description": "Spring — playful micro-interactions" }
+    }
+  }
+}
