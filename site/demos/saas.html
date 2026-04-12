@@ -68,7 +68,7 @@
     padding: 12px 24px; border-radius: var(--radius-sm);
     font-family: inherit; font-size: 14px; font-weight: 600;
     border: none; cursor: pointer; transition: all 0.2s ease;
-    text-decoration: none;
+    text-decoration: none; min-height: 44px;
   }
   .btn-primary {
     background: var(--accent); color: #fff;
@@ -340,7 +340,7 @@
   .footer-left { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 400; color: var(--text-tertiary); }
   .footer-left svg { color: var(--text-tertiary); }
   .footer-links { display: flex; gap: 24px; }
-  .footer-links a { font-size: 14px; font-weight: 500; color: var(--text-tertiary); transition: color 0.2s; padding: 8px 16px; }
+  .footer-links a { font-size: 14px; font-weight: 500; color: var(--text-tertiary); transition: color 0.2s; padding: 8px 16px; min-height: 44px; display: inline-flex; align-items: center; }
   .footer-links a:hover { color: var(--text-primary); }
 
   /* ─── RAVEN BADGE ─── */
@@ -634,6 +634,7 @@
   <a href="https://ravenmcp.ai" target="_blank" style="display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:500;color:#848694;text-decoration:none;transition:color 0.2s;">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
     Built with Raven MCP — Design intelligence for AI
+  </a>
 </div>
 
 <!-- FOOTER -->

@@ -264,7 +264,7 @@
 
     .feature-card {
       flex: 1 1 280px;
-      min-width: 280px;
+      min-width: 0;
       background: var(--white);
       padding: 40px 36px;
       transition: background 0.3s;
@@ -304,7 +304,7 @@
 
     .gallery-item {
       flex: 1 1 300px;
-      min-width: 300px;
+      min-width: 0;
       min-height: 280px;
       background: linear-gradient(135deg, #D4CCC4, #C4BAB0);
       background-size: cover;
@@ -479,6 +479,10 @@
       .agent-card { flex-direction: column; text-align: center; gap: 32px; }
       .agent-contact-row { justify-content: center; flex-wrap: wrap; }
       .agent-name { font-size: 28px; }
+    }
+
+    @media (max-width: 768px) {
+      .gallery-item:first-child { flex: 1 1 100%; }
     }
 
     @media (max-width: 600px) {

@@ -33,7 +33,7 @@
       --radius-full: 9999px;
       --max-width: 1140px;
       --nav-height: 64px;
-      --space-2: 8px; --space-3: 12px; --space-4: 16px;
+      --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px;
       --space-6: 24px; --space-8: 32px;
       --duration-fast: 150ms;
       --duration-normal: 300ms;
@@ -103,7 +103,7 @@
       align-items: center;
       justify-content: center;
       flex-direction: column;
-      gap: 12px;
+      gap: var(--space-3, 12px);
       color: var(--text-tertiary);
       font-size: 14px;
     }
@@ -114,7 +114,7 @@
     .hero-text {
       display: flex;
       flex-direction: column;
-      gap: 24px;
+      gap: var(--space-6, 24px);
     }
 
     .hero-eyebrow {
@@ -148,20 +148,20 @@
 
     .hero-links {
       display: flex;
-      gap: 16px;
-      margin-top: 8px;
+      gap: var(--space-4, 16px);
+      margin-top: var(--space-2, 8px);
     }
 
     .hero-link {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 12px 24px;
+      gap: var(--space-2, 8px);
+      padding: var(--space-3, 12px) var(--space-6, 24px);
       font-size: 14px;
       font-weight: 600;
-      border-radius: 12px;
+      border-radius: var(--radius-md, 12px);
       text-decoration: none;
-      transition: all 0.2s;
+      transition: all var(--duration-fast, 0.2s);
     }
     .hero-link.primary {
       background: var(--accent-blue);
@@ -195,7 +195,7 @@
       letter-spacing: 0.15em;
       text-transform: uppercase;
       color: var(--accent-cyan);
-      margin-bottom: 16px;
+      margin-bottom: var(--space-4, 16px);
     }
 
     .section-title {
@@ -209,7 +209,7 @@
     .skills-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 24px;
+      gap: var(--space-6, 24px);
     }
 
     .skill-card {
@@ -217,7 +217,7 @@
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       padding: 36px 32px;
-      transition: all 0.3s;
+      transition: all var(--duration-normal, 0.3s);
     }
     .skill-card:hover {
       border-color: var(--border-strong);
@@ -228,19 +228,19 @@
     .skill-icon {
       width: 48px;
       height: 48px;
-      border-radius: 12px;
+      border-radius: var(--radius-md, 12px);
       background: rgba(0, 191, 255, 0.08);
       display: flex;
       align-items: center;
       justify-content: center;
       color: var(--accent-blue);
-      margin-bottom: 24px;
+      margin-bottom: var(--space-6, 24px);
     }
 
     .skill-card h3 {
       font-size: 18px;
       font-weight: 700;
-      margin-bottom: 8px;
+      margin-bottom: var(--space-2, 8px);
     }
 
     .skill-card p {
@@ -269,7 +269,7 @@
     .why-text {
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: var(--space-5, 20px);
     }
 
     .why-text p {
@@ -293,7 +293,7 @@
     .why-terminal-header {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: var(--space-2, 8px);
       padding: 14px 20px;
       background: rgba(255, 255, 255, 0.03);
       border-bottom: 1px solid var(--border);
@@ -310,7 +310,9 @@
     .why-terminal-dot:nth-child(3) { background: #28C840; }
 
     .why-terminal-body {
-      padding: 24px;
+      padding: var(--space-6, 24px);
+      overflow-x: auto;
+      max-width: 100%;
       font-family: 'JetBrains Mono', monospace;
       font-size: 13px;
       line-height: 2;
@@ -334,7 +336,7 @@
       font-size: clamp(32px, 5vw, 48px);
       font-weight: 800;
       letter-spacing: -0.03em;
-      margin-bottom: 16px;
+      margin-bottom: var(--space-4, 16px);
     }
     .cta-section h2 span {
       background: linear-gradient(135deg, #fff 0%, var(--accent-blue) 40%, var(--accent-cyan) 100%);
@@ -344,7 +346,7 @@
     .cta-section p {
       font-size: 17px;
       color: var(--text-secondary);
-      margin-bottom: 32px;
+      margin-bottom: var(--space-8, 32px);
       max-width: 480px;
       margin-left: auto;
       margin-right: auto;
@@ -514,7 +516,7 @@
 <section class="cta-section">
   <h2>Ready to give AI<br><span>real design taste?</span></h2>
   <p>Raven MCP is open source, free forever, and installs in 30 seconds.</p>
-  <div style="display:flex;gap:16px;justify-content:center;">
+  <div style="display:flex;gap:var(--space-4,16px);justify-content:center;">
     <a href="/" class="hero-link primary">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"/></svg>
       Get Raven MCP
