@@ -1,0 +1,48 @@
+{
+  "id": "metrics",
+  "name": "Product Metrics Framework",
+  "category": "business",
+  "summary": "North star metrics, AARRR funnel, leading indicators, and measurement frameworks for product teams.",
+  "strategies": [
+    {
+      "name": "North Star Metric",
+      "description": "A single metric that best captures the core value your product delivers to customers. All team efforts should ultimately ladder up to moving this metric. It's not a revenue metric — it's a value metric that leads to revenue.",
+      "when_to_use": "Every product should have one. Define it early and revisit quarterly.",
+      "pitfalls": ["Choosing a vanity metric (pageviews, signups without activation)", "Choosing a lagging metric (revenue, NPS) instead of a leading one", "Metric that's too easy to game", "Metric that doesn't correlate with actual business outcomes", "Changing the North Star too frequently"],
+      "examples": ["Slack: daily messages sent (measures engagement value)", "Airbnb: nights booked (measures marketplace value)", "Figma: weekly active editors (measures creation value)", "Spotify: time spent listening (measures consumption value)"],
+      "metrics": ["North Star trend (weekly/monthly)", "input metrics that drive the North Star", "lag between input metrics and North Star movement"]
+    },
+    {
+      "name": "AARRR Pirate Metrics",
+      "description": "Dave McClure's framework: Acquisition → Activation → Retention → Revenue → Referral. Each stage has specific metrics. Identify the weakest stage and fix it — that's your biggest leverage point.",
+      "when_to_use": "Early-stage products finding product-market fit. Any product optimizing its funnel.",
+      "pitfalls": ["Optimizing all stages simultaneously instead of the bottleneck", "Focusing on acquisition when activation is the real problem", "Measuring stages in isolation instead of as a funnel", "Ignoring that stages interact (better activation improves retention)"],
+      "examples": ["Acquisition: signups, trial starts, app installs", "Activation: completed onboarding, reached aha moment, first core action", "Retention: DAU/MAU, D7/D30 retention, session frequency", "Revenue: conversion rate, ARPU, LTV, expansion revenue", "Referral: viral coefficient, referral rate, NPS"],
+      "metrics": ["funnel conversion rates between each stage", "stage-specific drop-off rates", "time spent in each stage", "bottleneck stage identification"]
+    },
+    {
+      "name": "Retention cohort analysis",
+      "description": "Track retention by signup cohort to see if product changes improve long-term usage. The most honest metric — it shows whether users stick around after the novelty wears off.",
+      "when_to_use": "Always. Retention curves are the single best indicator of product-market fit.",
+      "pitfalls": ["Looking only at aggregate retention (masks cohort differences)", "Not enough time to see long-term trends (need 3-6 months of data)", "Confusing retention with engagement (active doesn't mean valuable)", "Survival bias — only looking at retained users, not analyzing churned ones"],
+      "examples": ["D1, D7, D30 retention curves", "Cohort retention table (month of signup vs. month of activity)", "Feature-specific retention (users of feature X retain at Y%)", "Segment-specific retention (enterprise vs SMB)"],
+      "metrics": ["D1/D7/D30/D90 retention rates", "retention curve shape (flattening = product-market fit)", "cohort-over-cohort improvement", "resurrection rate (returning after dormancy)"]
+    },
+    {
+      "name": "Leading vs lagging indicators",
+      "description": "Leading indicators predict future outcomes (feature usage, activation rate, NPS). Lagging indicators measure past results (revenue, churn rate, LTV). Optimize leading indicators to improve lagging ones.",
+      "when_to_use": "When building OKRs, dashboards, and team metrics. Always prioritize leading indicators for team goals.",
+      "pitfalls": ["Setting team goals on lagging indicators (revenue) that they can't directly influence", "Mistaking a lagging indicator for a leading one", "Too many leading indicators — focus on 2-3 per team", "Leading indicators that don't actually lead (no causal relationship)"],
+      "examples": ["Leading: activation rate, feature adoption, NPS, time-in-product → Lagging: revenue, churn, LTV", "Leading: weekly active teams, integrations connected → Lagging: expansion revenue, net dollar retention", "Leading: support ticket volume, time-to-resolution → Lagging: churn rate"],
+      "metrics": ["leading indicator trends", "correlation between leading and lagging indicators", "time lag between leading change and lagging impact"]
+    },
+    {
+      "name": "Unit economics (LTV:CAC)",
+      "description": "The relationship between customer lifetime value (LTV) and customer acquisition cost (CAC). Healthy SaaS targets LTV:CAC of 3:1 or higher. CAC payback period should be under 12 months.",
+      "when_to_use": "When evaluating growth sustainability, marketing spend efficiency, and pricing strategy.",
+      "pitfalls": ["Calculating LTV with insufficient data (need 12+ months)", "Not segmenting LTV:CAC by channel and segment", "Ignoring CAC for organic/viral channels (it's not zero — there's product and engineering cost)", "Blended metrics hiding underperforming channels"],
+      "examples": ["LTV = ARPU × gross margin × (1/churn rate)", "CAC = total sales+marketing spend / new customers acquired", "CAC payback = CAC / (ARPU × gross margin)", "Target: LTV:CAC > 3:1, CAC payback < 12 months"],
+      "metrics": ["LTV:CAC ratio by segment and channel", "CAC payback period in months", "gross margin", "net dollar retention rate (>100% = expansion)"]
+    }
+  ]
+}

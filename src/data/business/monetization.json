@@ -1,0 +1,56 @@
+{
+  "id": "monetization",
+  "name": "Monetization Strategies",
+  "category": "business",
+  "summary": "Pricing psychology, revenue models, and monetization patterns for digital products.",
+  "strategies": [
+    {
+      "name": "Freemium with usage limits",
+      "description": "Free tier with core functionality, paid tiers unlocked by usage volume (messages, storage, members, API calls). The free tier is the acquisition engine; limits create natural upgrade triggers.",
+      "when_to_use": "Products with clear usage-based value scaling. Works when free users provide network effects or social proof.",
+      "pitfalls": ["Free tier too generous — no incentive to upgrade", "Free tier too restrictive — users churn before seeing value", "Usage limits that feel arbitrary or punishing", "No clear upgrade path at the moment limits are hit"],
+      "examples": ["Slack (message history limit)", "Dropbox (storage limit)", "Zoom (40-min meeting limit)", "Notion (block limit on free)"],
+      "metrics": ["free-to-paid conversion rate (target: 2-5%)", "time-to-upgrade", "usage before upgrade trigger", "free user retention (leading indicator)"]
+    },
+    {
+      "name": "Freemium with feature gating",
+      "description": "Free tier with basic features, paid tiers unlock advanced features. Unlike usage limits, the free tier is fully functional for basic use — paid unlocks power features.",
+      "when_to_use": "Products where basic and advanced use cases are clearly segmented. When free users don't need and won't miss advanced features.",
+      "pitfalls": ["Gating too many features — free tier feels broken", "Gating the wrong features — core value must be free", "No preview of premium features — users don't know what they're missing", "Feature creep in the free tier eroding paid value"],
+      "examples": ["Figma (free: 3 files, paid: unlimited + libraries)", "GitHub (free: public repos, paid: private + actions)", "Canva (free: templates, paid: brand kit + resize)"],
+      "metrics": ["feature discovery rate", "premium feature trial conversion", "upgrade trigger feature usage"]
+    },
+    {
+      "name": "Free trial with paywall",
+      "description": "Full product access for a limited time (7, 14, or 30 days), then requires payment. No feature restrictions during trial — users experience full value.",
+      "when_to_use": "Products where full-feature experience is needed to understand value. High-ACV products where the conversion rate matters more than volume.",
+      "pitfalls": ["Trial too short — user doesn't reach aha moment", "Trial too long — user delays evaluation and forgets", "No onboarding during trial — user doesn't discover key features", "Requiring credit card upfront reduces trial starts by 60% but increases conversion rate"],
+      "examples": ["Netflix (30-day trial)", "Adobe Creative Cloud (7-day trial)", "Linear (14-day trial)"],
+      "metrics": ["trial start rate", "activation during trial", "trial-to-paid conversion (target: 15-25%)", "time-to-activation within trial"]
+    },
+    {
+      "name": "Per-seat pricing",
+      "description": "Price scales with the number of users/seats on the account. Revenue grows as the customer's team grows. Standard for B2B SaaS.",
+      "when_to_use": "Products where value scales with team size. When each user gets distinct value from their own seat.",
+      "pitfalls": ["Discourages adoption — teams share logins to save money", "No value for inactive seats — feels like waste", "Pricing cliff at team size thresholds", "Complexity of annual commits for growing teams"],
+      "examples": ["Slack ($7.25/user/mo)", "Jira ($7.75/user/mo)", "Figma ($15/editor/mo)"],
+      "metrics": ["seats per account", "seat expansion rate", "seat utilization (active/total)", "revenue per seat"]
+    },
+    {
+      "name": "Usage-based pricing",
+      "description": "Pay for what you use — API calls, compute minutes, messages sent, records processed. Revenue directly correlates with value delivered.",
+      "when_to_use": "Products where usage directly maps to value. When customers have highly variable usage patterns.",
+      "pitfalls": ["Unpredictable bills cause anxiety and churn", "New users afraid to experiment (fear of charges)", "Revenue volatility for the business", "Complex billing that's hard to understand"],
+      "examples": ["AWS (compute hours)", "Twilio (per message)", "OpenAI (per token)", "Vercel (per function invocation)"],
+      "metrics": ["usage growth rate", "bill predictability score", "usage per customer", "revenue per unit consumed"]
+    },
+    {
+      "name": "Anchor pricing (decoy effect)",
+      "description": "Introduce a premium option that makes the target option look like a better value by comparison. The premium option isn't expected to sell — it's an anchor.",
+      "when_to_use": "When you want to steer users toward a specific plan. Most effective with 3-plan pricing pages.",
+      "pitfalls": ["Anchor too expensive — feels unrealistic and breaks trust", "Anchor too close to target — no contrast", "Anchor doesn't have enough differentiating features", "Using this technique unethically or in regulated markets"],
+      "examples": ["The Economist subscription study (print+digital anchor)", "SaaS pricing with enterprise tier 4x the pro tier"],
+      "metrics": ["plan distribution shift", "mid-tier selection rate", "overall conversion rate"]
+    }
+  ]
+}

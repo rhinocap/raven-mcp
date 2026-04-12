@@ -1,0 +1,147 @@
+{
+  "$name": "Stripe",
+  "$description": "Stripe design system tokens — clean, professional fintech design.",
+  "color": {
+    "$type": "color",
+    "primary": { "$value": "#635BFF", "$description": "Stripe purple — the signature brand color" },
+    "primary-light": { "$value": "#7A73FF", "$description": "Lighter purple for hover states" },
+    "primary-dark": { "$value": "#4B45C6", "$description": "Darker purple for active states" },
+    "secondary": { "$value": "#0A2540", "$description": "Dark navy — primary text and backgrounds" },
+    "accent-cyan": { "$value": "#00D4FF", "$description": "Cyan accent for highlights and gradients" },
+    "accent-green": { "$value": "#77E4B1", "$description": "Green accent for success states" },
+    "accent-pink": { "$value": "#FF80E5", "$description": "Pink accent for gradients and marketing" },
+    "accent-orange": { "$value": "#FF9E2C", "$description": "Orange accent for warnings" },
+    "background": { "$value": "#FFFFFF", "$description": "Default page background" },
+    "background-offset": { "$value": "#F6F9FC", "$description": "Offset background for sections" },
+    "background-dark": { "$value": "#0A2540", "$description": "Dark background for dark sections" },
+    "surface": { "$value": "#FFFFFF", "$description": "Card and panel surface" },
+    "surface-elevated": { "$value": "#FFFFFF", "$description": "Elevated surface (modals, popovers)" },
+    "border": { "$value": "#E3E8EF", "$description": "Default border color" },
+    "border-light": { "$value": "#F0F2F5", "$description": "Subtle border" },
+    "text-primary": { "$value": "#0A2540", "$description": "Primary text" },
+    "text-secondary": { "$value": "#425466", "$description": "Secondary/muted text" },
+    "text-tertiary": { "$value": "#8898AA", "$description": "Tertiary/placeholder text" },
+    "text-inverse": { "$value": "#FFFFFF", "$description": "Text on dark backgrounds" },
+    "success": { "$value": "#34D399", "$description": "Success green" },
+    "error": { "$value": "#DF1B41", "$description": "Error red" },
+    "warning": { "$value": "#F5A623", "$description": "Warning amber" },
+    "info": { "$value": "#635BFF", "$description": "Info — uses primary purple" }
+  },
+  "color-dark": {
+    "$type": "color",
+    "background": { "$value": "#0A2540", "$description": "Dark mode background" },
+    "background-offset": { "$value": "#0F2D4A", "$description": "Dark mode offset background" },
+    "surface": { "$value": "#1A3A5C", "$description": "Dark mode surface" },
+    "surface-elevated": { "$value": "#1F4468", "$description": "Dark mode elevated surface" },
+    "border": { "$value": "#2D4F6E", "$description": "Dark mode border" },
+    "text-primary": { "$value": "#FFFFFF", "$description": "Dark mode primary text" },
+    "text-secondary": { "$value": "#ADBDCC", "$description": "Dark mode secondary text" },
+    "text-tertiary": { "$value": "#6B7C93", "$description": "Dark mode tertiary text" }
+  },
+  "typography": {
+    "font-family": {
+      "$type": "fontFamily",
+      "display": { "$value": "\"Stripe Display\", system-ui, -apple-system, sans-serif", "$description": "Display/heading font" },
+      "body": { "$value": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", sans-serif", "$description": "Body text font" },
+      "mono": { "$value": "\"Menlo\", \"Consolas\", monospace", "$description": "Monospace for code" }
+    },
+    "font-size": {
+      "$type": "dimension",
+      "xs": { "$value": "12px", "$description": "Extra small — captions, badges" },
+      "sm": { "$value": "14px", "$description": "Small — labels, secondary text" },
+      "base": { "$value": "16px", "$description": "Base body text" },
+      "lg": { "$value": "18px", "$description": "Large body text" },
+      "xl": { "$value": "20px", "$description": "Section headings" },
+      "2xl": { "$value": "24px", "$description": "Page headings" },
+      "3xl": { "$value": "32px", "$description": "Large headings" },
+      "4xl": { "$value": "40px", "$description": "Hero headings" },
+      "5xl": { "$value": "48px", "$description": "Display text" },
+      "6xl": { "$value": "64px", "$description": "Large display text" }
+    },
+    "font-weight": {
+      "$type": "fontWeight",
+      "regular": { "$value": "400" },
+      "medium": { "$value": "500" },
+      "semibold": { "$value": "600" },
+      "bold": { "$value": "700" }
+    },
+    "line-height": {
+      "$type": "number",
+      "tight": { "$value": "1.2", "$description": "Headings" },
+      "normal": { "$value": "1.5", "$description": "Body text" },
+      "relaxed": { "$value": "1.7", "$description": "Long-form content" }
+    },
+    "letter-spacing": {
+      "$type": "dimension",
+      "tight": { "$value": "-0.02em", "$description": "Large headings" },
+      "normal": { "$value": "0", "$description": "Body text" },
+      "wide": { "$value": "0.05em", "$description": "All-caps labels" }
+    }
+  },
+  "spacing": {
+    "$type": "dimension",
+    "0": { "$value": "0px" },
+    "1": { "$value": "4px" },
+    "2": { "$value": "8px" },
+    "3": { "$value": "12px" },
+    "4": { "$value": "16px" },
+    "5": { "$value": "20px" },
+    "6": { "$value": "24px" },
+    "8": { "$value": "32px" },
+    "10": { "$value": "40px" },
+    "12": { "$value": "48px" },
+    "16": { "$value": "64px" },
+    "20": { "$value": "80px" },
+    "24": { "$value": "96px" },
+    "32": { "$value": "128px" }
+  },
+  "radius": {
+    "$type": "dimension",
+    "none": { "$value": "0px" },
+    "sm": { "$value": "4px" },
+    "md": { "$value": "8px" },
+    "lg": { "$value": "12px" },
+    "xl": { "$value": "16px" },
+    "2xl": { "$value": "24px" },
+    "full": { "$value": "9999px" }
+  },
+  "elevation": {
+    "sm": {
+      "$type": "shadow",
+      "$value": "0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06)",
+      "$description": "Subtle elevation — cards, inputs"
+    },
+    "md": {
+      "$type": "shadow",
+      "$value": "0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.06)",
+      "$description": "Medium elevation — dropdowns, popovers"
+    },
+    "lg": {
+      "$type": "shadow",
+      "$value": "0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05)",
+      "$description": "High elevation — modals"
+    },
+    "xl": {
+      "$type": "shadow",
+      "$value": "0 20px 25px rgba(0, 0, 0, 0.1), 0 10px 10px rgba(0, 0, 0, 0.04)",
+      "$description": "Highest elevation — toasts, notifications"
+    }
+  },
+  "motion": {
+    "duration": {
+      "$type": "duration",
+      "instant": { "$value": "50ms" },
+      "fast": { "$value": "100ms" },
+      "normal": { "$value": "200ms" },
+      "slow": { "$value": "300ms" },
+      "slower": { "$value": "500ms" }
+    },
+    "easing": {
+      "$type": "cubicBezier",
+      "default": { "$value": [0.4, 0, 0.2, 1], "$description": "Standard easing" },
+      "in": { "$value": [0.4, 0, 1, 1], "$description": "Ease in — for exits" },
+      "out": { "$value": [0, 0, 0.2, 1], "$description": "Ease out — for entrances" },
+      "bounce": { "$value": [0.34, 1.56, 0.64, 1], "$description": "Playful bounce" }
+    }
+  }
+}

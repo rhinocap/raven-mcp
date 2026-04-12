@@ -1,0 +1,50 @@
+{
+  "id": "navigation",
+  "name": "Navigation Patterns",
+  "category": "usability",
+  "summary": "Navigation patterns that help users find content quickly and understand where they are in the product.",
+  "principles_referenced": ["hicks-law", "millers-law", "jakobs-law", "recognition-over-recall", "serial-position-effect"],
+  "patterns": [
+    {
+      "name": "Top navigation bar",
+      "description": "Horizontal navigation across the top of the page. Standard for desktop web. Contains logo (left), primary nav items (center or left), and utility items (right — search, profile, CTA).",
+      "do": ["Logo in top-left linking to homepage", "5-7 primary nav items maximum", "Active state on current page/section", "CTA button (Sign up, Get started) on the far right", "Sticky on scroll for long pages"],
+      "dont": ["More than 7 primary items — use grouping or mega-menu", "Hide primary nav in a hamburger on desktop", "Equally styled nav items and CTA — the CTA should stand out", "Auto-hide on scroll down without showing on scroll up"],
+      "evidence": "Top navigation is the most expected pattern on desktop web. Users find content 50% faster with visible navigation vs. hidden hamburger menus."
+    },
+    {
+      "name": "Sidebar navigation",
+      "description": "Vertical navigation on the left side. Standard for SaaS dashboards and admin panels. Can be collapsed/expanded. Supports hierarchy with nested sections.",
+      "do": ["Icon + label for each item (not icon-only when expanded)", "Collapsible to icon-only mode for more content space", "Group items by section with dividers or headers", "Show active state and expand active section", "Keep it fixed/sticky while content scrolls"],
+      "dont": ["More than 3 levels of nesting — flatten or redesign", "Auto-collapse on every page navigation", "Use right-side navigation (unexpected in LTR languages)", "Put primary actions in the sidebar — they belong in the content area"],
+      "evidence": "Sidebar navigation is the dominant pattern for SaaS products (Slack, Linear, Notion, Figma). Users expect it for tool-type applications."
+    },
+    {
+      "name": "Breadcrumbs",
+      "description": "Horizontal trail showing the user's location in the site hierarchy. Helpful for deep content structures (e-commerce categories, documentation, file systems).",
+      "do": ["Show the full path from root to current page", "Make each breadcrumb item a clickable link (except the current page)", "Use a chevron (>) or slash (/) as separator", "Place below the top nav, above the page title"],
+      "dont": ["Use as the only navigation — it's supplementary", "Show breadcrumbs on flat sites with no hierarchy", "Truncate breadcrumbs without showing the first and last items", "Use breadcrumbs for multi-step wizards (use a step indicator instead)"],
+      "evidence": "Breadcrumbs reduce the number of actions needed to navigate to a higher page by 50%. Most effective for sites with 3+ levels of hierarchy."
+    },
+    {
+      "name": "Command palette",
+      "description": "Keyboard-triggered search overlay (Cmd+K / Ctrl+K) that lets users jump to any page, run commands, or search content. Power user essential for complex products.",
+      "do": ["Trigger with Cmd+K / Ctrl+K (de facto standard)", "Search across pages, actions, settings, and content", "Show recent items and suggested actions", "Support keyboard navigation within results", "Show keyboard shortcuts next to actions"],
+      "dont": ["Replace standard search with command palette — it's an accelerator, not the default", "Require the command palette for basic navigation", "Show too many result categories — keep it focused", "Delay results — show them as the user types (instant)"],
+      "evidence": "Power users cite command palettes as the #1 productivity feature in tools like Linear, Figma, VS Code, and Slack."
+    }
+  ],
+  "checklist": [
+    "Can a user reach any key page in 3 clicks or fewer?",
+    "Is there a visible active state on the current navigation item?",
+    "Does the logo link to the homepage?",
+    "Is there a search feature for products with 20+ pages?",
+    "Is the navigation consistent across all pages?",
+    "Does the mobile navigation follow thumb-zone principles?",
+    "Are breadcrumbs shown for deep hierarchical content?",
+    "Is there a keyboard shortcut for search/command palette?",
+    "Does navigation persist during scrolling (sticky or scroll-up reveal)?",
+    "Is the navigation responsive — does it adapt to mobile breakpoints?",
+    "Are primary navigation items limited to 7 or fewer?"
+  ]
+}

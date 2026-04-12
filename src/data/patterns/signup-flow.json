@@ -1,0 +1,52 @@
+{
+  "id": "signup-flow",
+  "name": "Signup Flow",
+  "category": "conversion",
+  "summary": "Patterns for high-converting signup experiences that minimize friction and maximize activation.",
+  "principles_referenced": ["fitts-law", "hicks-law", "millers-law", "goal-gradient-effect", "teslers-law", "postels-law"],
+  "patterns": [
+    {
+      "name": "Progressive disclosure",
+      "description": "Don't show all fields at once. Break signup into logical steps, revealing fields progressively as the user commits to the process.",
+      "do": ["Split into 2-3 logical steps (identity → details → preferences)", "Show a progress indicator", "Allow going back to previous steps", "Save progress so users can return later"],
+      "dont": ["Show all 15 fields on one page", "Ask for optional fields during initial signup", "Require credit card on free trial signup", "Ask for information you can auto-detect (timezone, country)"],
+      "evidence": "Reducing form fields from 11 to 4 increased conversions by 120% (Imagescape). HubSpot saw a 5% conversion increase per field removed."
+    },
+    {
+      "name": "Social login as primary",
+      "description": "Offer social/SSO login as the primary path, with email signup as secondary. Reduces friction to near-zero for users with Google/Apple/GitHub accounts.",
+      "do": ["Place social login buttons prominently above email form", "Support Google, Apple, and GitHub for developer tools", "Auto-fill profile data from social account", "Show 'Continue with...' language (not 'Sign in with')"],
+      "dont": ["Offer more than 4 social login options (paradox of choice)", "Hide the email signup option", "Require additional profile completion after social signup", "Use social login buttons that look like regular buttons"],
+      "evidence": "Social login can increase signup rates by 20-40%. Google Sign-In alone accounts for over 50% of social logins on most platforms."
+    },
+    {
+      "name": "Single-field step-through",
+      "description": "Show one field at a time with large input areas and auto-advance. Creates a focused, low-cognitive-load experience. Works especially well on mobile.",
+      "do": ["Auto-focus the input field on each step", "Auto-advance after valid selection (no submit button needed)", "Use keyboard-appropriate input types", "Show inline validation immediately"],
+      "dont": ["Use for more than 5-6 steps — it becomes tedious", "Remove the ability to see/edit previous answers", "Auto-advance on text fields — only on selection fields", "Skip the progress indicator"],
+      "evidence": "Typeform-style single-field forms see 3-4x higher completion rates than traditional multi-field forms for surveys and lead capture."
+    },
+    {
+      "name": "Value-first onboarding",
+      "description": "Let users experience value before requiring signup. Show the product working, then gate further usage behind account creation.",
+      "do": ["Let users try the core feature without signing up", "Gate saves, exports, or collaboration behind signup", "Show what they'll get by signing up in context", "Preserve any work done before signup"],
+      "dont": ["Require signup before showing any product value", "Lose the user's pre-signup work after account creation", "Show a generic landing page instead of the product", "Force signup for read-only access"],
+      "evidence": "Products that allow value-first usage see 2-3x higher signup rates. Canva, Figma, and Notion all use this pattern."
+    }
+  ],
+  "checklist": [
+    "Is the value proposition clear before the user starts signing up?",
+    "Can a user complete signup in under 60 seconds?",
+    "Are only essential fields required at signup?",
+    "Is there a social/SSO login option?",
+    "Does the form use appropriate input types and autocomplete?",
+    "Is there a progress indicator for multi-step flows?",
+    "Can the user go back and edit previous steps?",
+    "Is inline validation provided (not just on submit)?",
+    "Is the form single-column layout?",
+    "Does the CTA button have clear, action-oriented text ('Create account', not 'Submit')?",
+    "Is there a clear path if the user already has an account?",
+    "Does the form work well on mobile?",
+    "Is progress saved if the user leaves and returns?"
+  ]
+}

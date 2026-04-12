@@ -1,0 +1,51 @@
+{
+  "id": "loading-states",
+  "name": "Loading States",
+  "category": "usability",
+  "summary": "Patterns for skeleton screens, optimistic UI, and perceived performance that keep users engaged during data loading.",
+  "principles_referenced": ["doherty-threshold", "visibility-of-system-status", "aesthetic-usability-effect"],
+  "patterns": [
+    {
+      "name": "Skeleton screens",
+      "description": "Placeholder UI that mirrors the layout of the content being loaded, using gray shapes. Shows the user what's coming and reduces perceived wait time.",
+      "do": ["Match the skeleton to the actual content layout (cards, text lines, avatars)", "Use subtle animation (shimmer/pulse) to indicate loading", "Show immediately — no spinner before the skeleton", "Transition smoothly from skeleton to real content", "Size skeleton elements to match real content dimensions"],
+      "dont": ["Use generic skeletons that don't match the actual content", "Show a skeleton for more than 3-5 seconds (fall back to a spinner with message)", "Animate too aggressively — a gentle shimmer, not rapid flashing", "Show skeleton screens for instant data (under 200ms)", "Mix skeletons and spinners on the same page"],
+      "evidence": "Skeleton screens reduce perceived loading time by 10-20% compared to spinners. Users rate pages with skeletons as loading faster even when actual load times are identical."
+    },
+    {
+      "name": "Optimistic UI",
+      "description": "Immediately show the result of a user action (like, save, delete) before the server confirms it. Roll back only if the server returns an error.",
+      "do": ["Show the action result immediately", "Send the server request in the background", "Roll back with a clear error message if the server fails", "Use for low-risk, reversible actions (likes, toggles, edits)", "Queue offline actions and sync when connection returns"],
+      "dont": ["Use for irreversible or high-stakes actions (payments, deletes)", "Roll back silently — always inform the user of failures", "Delay the UI update waiting for server confirmation", "Show a loading spinner for actions that can be optimistic"],
+      "evidence": "Optimistic UI makes interfaces feel 2-3x faster. Instagram, Twitter, and Slack all use optimistic updates for likes, sends, and edits."
+    },
+    {
+      "name": "Progressive loading",
+      "description": "Load and display content incrementally as it arrives, rather than waiting for everything before showing anything.",
+      "do": ["Load above-the-fold content first", "Stream in content as it loads (text before images, structure before data)", "Use lazy loading for images and below-fold content", "Show placeholders for content still loading", "Prioritize interactive elements over decorative ones"],
+      "dont": ["Wait for all data before rendering anything", "Load below-fold content eagerly (especially images)", "Lazy-load above-fold content (causes layout shifts)", "Show a blank page while assembling all the data"],
+      "evidence": "Progressive loading improves First Contentful Paint by 30-50%. Users perceive progressively loaded pages as 40% faster than pages that wait for all content."
+    },
+    {
+      "name": "Loading indicators by duration",
+      "description": "Different loading patterns for different expected durations. The right indicator sets correct expectations.",
+      "do": ["Under 200ms: no indicator needed", "200ms-1s: subtle inline indicator (spinner, pulse)", "1-5s: skeleton screen or progress bar", "5-30s: progress bar with percentage or step description", "30s+: background task with notification on completion"],
+      "dont": ["Show a spinner for operations under 200ms (feels glitchy)", "Use a spinner for operations over 5 seconds (no progress information)", "Show indeterminate progress for long operations (users need to estimate time)", "Block the entire UI for operations that could run in the background"],
+      "evidence": "Matching loading indicator to duration reduces perceived wait time by up to 40%. Users abandon tasks after 10 seconds without progress feedback."
+    }
+  ],
+  "checklist": [
+    "Do all data-loading views have a loading state?",
+    "Are skeleton screens used for content-heavy views?",
+    "Is optimistic UI used for low-risk, reversible actions?",
+    "Is above-the-fold content prioritized in loading order?",
+    "Are images lazy-loaded below the fold?",
+    "Is the loading indicator appropriate for the expected duration?",
+    "Do long operations (5s+) show progress percentage or steps?",
+    "Is there a timeout and error state for failed loads?",
+    "Do loading states prevent layout shift when content arrives?",
+    "Are background tasks used for very long operations (30s+)?",
+    "Is content streamed progressively rather than shown all at once?",
+    "Does the app remain interactive during loading when possible?"
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "id": "social-proof",
+  "name": "Social Proof",
+  "category": "conversion",
+  "summary": "Patterns for testimonials, logos, reviews, and trust signals that build credibility and reduce purchase anxiety.",
+  "principles_referenced": ["aesthetic-usability-effect", "jakobs-law", "serial-position-effect"],
+  "patterns": [
+    {
+      "name": "Customer logos",
+      "description": "A row of recognizable customer logos that instantly communicates credibility. Most effective for B2B products where brand association signals trust.",
+      "do": ["Show 6-8 logos — enough for credibility, not so many they're overwhelming", "Use grayscale/monochrome versions for visual consistency", "Include logos the target audience will recognize (industry-relevant)", "Place near the hero section — early on the page", "Update regularly to show current, relevant customers"],
+      "dont": ["Use more than 12 logos (dilutes impact)", "Include logos without permission", "Show tiny, unrecognizable logo sizes", "Mix colored logos with different styles (visual chaos)", "Show logos of companies that aren't actually customers"],
+      "evidence": "Customer logos increase trust for B2B buyers by 15-25%. Recognition of even one logo significantly increases credibility perception."
+    },
+    {
+      "name": "Testimonials with attribution",
+      "description": "Quotes from real customers with full attribution (name, title, company, photo). The more specific and verifiable, the more trustworthy.",
+      "do": ["Include real name, title, company, and headshot photo", "Feature specific outcomes ('Reduced support tickets by 40%')", "Rotate testimonials relevant to the page context", "Place near decision points (pricing, signup, checkout)", "Video testimonials for high-stakes purchases"],
+      "dont": ["Use anonymous testimonials ('A satisfied customer')", "Use vague praise ('Great product!', 'Love it!')", "Show only 5-star reviews (suspicious)", "Use stock photos for headshots", "Write testimonials that sound like marketing copy"],
+      "evidence": "Testimonials with photos increase trust by 35%. Specific testimonials with metrics are 2x more persuasive than general praise."
+    },
+    {
+      "name": "Aggregate metrics",
+      "description": "Large numbers that communicate scale and momentum: user counts, transactions processed, countries served, uptime percentages.",
+      "do": ["Show 2-3 impressive metrics prominently", "Use real, verifiable numbers", "Round to readable numbers ('50,000+' not '49,847')", "Update regularly to show growth", "Choose metrics that resonate with the target audience's concerns"],
+      "dont": ["Show vanity metrics that don't indicate trust or value", "Use numbers so large they're unrelatable", "Show metrics that could be embarrassingly small", "Lie or exaggerate — it destroys trust when discovered"],
+      "evidence": "Aggregate metrics create 'bandwagon effect' — people trust what others trust. '50,000+ teams' is more persuasive than any individual testimonial."
+    },
+    {
+      "name": "Star ratings and reviews",
+      "description": "Numerical ratings and user-generated reviews. Most effective for consumer products and marketplaces where peer experience matters.",
+      "do": ["Show average rating + total number of reviews", "Display a distribution chart (5-star breakdown)", "Allow filtering by rating", "Show recent reviews prominently", "Respond to negative reviews publicly (shows accountability)"],
+      "dont": ["Show only 5-star reviews (suspicious — 4.2-4.7 is the trust sweet spot)", "Hide negative reviews", "Show ratings without the review count", "Use ratings without a sufficient sample size", "Fake reviews (illegal in many jurisdictions)"],
+      "evidence": "Products with 4.2-4.5 star ratings convert better than 5.0 (imperfect feels more authentic). Showing the review count increases trust by 20%."
+    }
+  ],
+  "checklist": [
+    "Is there social proof above the fold or early on the page?",
+    "Are customer logos real and permission-granted?",
+    "Do testimonials include full attribution (name, title, company, photo)?",
+    "Are testimonials specific (metrics, outcomes) not vague?",
+    "Are aggregate metrics real and regularly updated?",
+    "Is social proof placed near decision points (pricing, signup)?",
+    "Are star ratings shown with review counts?",
+    "Is there a mix of social proof types (logos + testimonials + metrics)?",
+    "Are testimonials relevant to the page context?",
+    "Is there social proof that resonates with each target audience segment?"
+  ]
+}

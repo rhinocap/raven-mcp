@@ -1,0 +1,129 @@
+[
+  {
+    "id": "gestalt-proximity",
+    "name": "Proximity",
+    "category": "gestalt",
+    "summary": "Elements placed close together are perceived as a group.",
+    "description": "The most fundamental spatial grouping principle. Objects near each other are automatically perceived as related. The space between groups must be significantly larger than the space within groups for grouping to be clear. This applies to form layouts, navigation, card grids, and any multi-element composition.",
+    "implications": [
+      "Keep related form fields close together with more space between groups",
+      "Use consistent spacing within groups and larger gaps between groups",
+      "Place labels immediately adjacent to their corresponding inputs",
+      "Group navigation items by section with visual separators",
+      "Use spacing ratios (inner spacing = base, outer spacing = 2-3x base)"
+    ],
+    "violations": [
+      "Labels equidistant between two inputs — ambiguous association",
+      "Uniform spacing throughout — no grouping communicated",
+      "Action buttons far from the content they affect"
+    ],
+    "applies_to": ["layout", "forms", "spacing", "grouping", "navigation", "cards"],
+    "sources": ["https://www.interaction-design.org/literature/topics/gestalt-principles"]
+  },
+  {
+    "id": "gestalt-similarity",
+    "name": "Similarity",
+    "category": "gestalt",
+    "summary": "Elements that share visual characteristics (color, shape, size) are perceived as related.",
+    "description": "When elements look alike, we assume they serve the same function or belong to the same category. This principle is the foundation of consistent component design — all buttons, all cards, all links should share visual characteristics within their type. Breaking similarity intentionally draws attention to the different element (see Von Restorff Effect).",
+    "implications": [
+      "Style all elements of the same type consistently",
+      "Use color coding consistently to represent categories or states",
+      "Differentiate interactive from non-interactive elements clearly",
+      "Use consistent icon styles throughout the product",
+      "Break similarity intentionally for emphasis (highlighted CTA, featured plan)"
+    ],
+    "violations": [
+      "Same color used for links and static text",
+      "Interactive elements that look like non-interactive ones",
+      "Inconsistent icon styles (some outlined, some filled) without meaning"
+    ],
+    "applies_to": ["consistency", "color", "icons", "buttons", "visual-design", "cards"],
+    "sources": ["https://www.interaction-design.org/literature/topics/gestalt-principles"]
+  },
+  {
+    "id": "gestalt-closure",
+    "name": "Closure",
+    "category": "gestalt",
+    "summary": "The brain completes incomplete shapes, perceiving them as whole forms.",
+    "description": "People perceive incomplete shapes as complete when enough visual information is provided. In UI, this means you don't need to fully enclose every element — partial borders, implied containers, and cropped images all work because the brain fills in the gaps. This enables cleaner, less cluttered designs that still communicate structure.",
+    "implications": [
+      "Use partial borders or open containers for a lighter visual feel",
+      "Cropped images at screen edges suggest more content beyond the viewport",
+      "Horizontal scroll indicators can show partial next items to imply scrollability",
+      "Progress indicators work because the brain completes the circle/bar",
+      "Card carousels showing partial next card encourage swiping"
+    ],
+    "violations": [
+      "Fully enclosed sections with heavy borders creating visual clutter",
+      "Cropped content that looks broken rather than intentionally suggesting more",
+      "Hidden scrollable content with no partial element visible to indicate scrollability"
+    ],
+    "applies_to": ["layout", "cards", "carousel", "progress", "visual-design", "scroll"],
+    "sources": ["https://www.interaction-design.org/literature/topics/gestalt-principles"]
+  },
+  {
+    "id": "gestalt-continuity",
+    "name": "Continuity",
+    "category": "gestalt",
+    "summary": "The eye follows smooth lines and curves, preferring continuous paths over abrupt changes.",
+    "description": "Elements arranged along a line or curve are perceived as related and following a direction. The eye follows the smoothest path. In UI, this applies to reading patterns (F-pattern, Z-pattern), timeline designs, step progressions, and flow visualizations. Alignment creates continuity — misalignment breaks it and creates friction.",
+    "implications": [
+      "Align elements to create clear reading paths (left-aligned text, grid alignment)",
+      "Design timelines and step indicators as continuous flows",
+      "Use consistent alignment across pages to create predictable scan patterns",
+      "Guide the eye through intentional visual flow (size, color, position)",
+      "Ensure data visualizations follow smooth, readable paths"
+    ],
+    "violations": [
+      "Misaligned elements that break the reading flow",
+      "Step indicators that jump between different visual positions",
+      "Inconsistent alignment across different sections"
+    ],
+    "applies_to": ["alignment", "timelines", "reading-patterns", "visual-flow", "layout"],
+    "sources": ["https://www.interaction-design.org/literature/topics/gestalt-principles"]
+  },
+  {
+    "id": "gestalt-figure-ground",
+    "name": "Figure-Ground",
+    "category": "gestalt",
+    "summary": "The brain separates visual input into foreground (figure) and background (ground).",
+    "description": "Users instantly perceive which elements are the focus (figure) and which are the background (ground). Modals with overlays, cards on backgrounds, and highlighted elements all leverage figure-ground separation. Ambiguity in figure-ground creates confusion. Strong contrast between figure and ground creates clarity.",
+    "implications": [
+      "Use overlays/scrims behind modals to establish clear figure-ground",
+      "Elevate cards above the background with subtle shadows or border contrast",
+      "Use background color to push non-essential content to the 'ground'",
+      "Create depth hierarchy: background → surface → elevated → overlay",
+      "Ensure sufficient contrast between foreground content and background"
+    ],
+    "violations": [
+      "Modal without overlay — unclear what's foreground vs background",
+      "Cards that don't visually separate from the page background",
+      "Elements with ambiguous depth — unclear if they're clickable or decorative",
+      "Text on patterned backgrounds with insufficient contrast"
+    ],
+    "applies_to": ["modals", "cards", "elevation", "depth", "contrast", "overlays"],
+    "sources": ["https://www.interaction-design.org/literature/topics/gestalt-principles"]
+  },
+  {
+    "id": "gestalt-common-fate",
+    "name": "Common Fate",
+    "category": "gestalt",
+    "summary": "Elements moving in the same direction are perceived as a group.",
+    "description": "Motion creates grouping. When multiple elements animate or move together, they're perceived as a unit. In UI, this applies to drag-and-drop selections, coordinated animations, parallax scrolling layers, and accordion expansions. Elements that move differently from the group are perceived as separate or special.",
+    "implications": [
+      "Animate related elements together (multi-select drag, group transitions)",
+      "Use coordinated animations for elements that belong together",
+      "Different scroll speeds (parallax) create distinct visual layers",
+      "Accordion animations should move all child content together",
+      "Loading sequences can animate related elements simultaneously"
+    ],
+    "violations": [
+      "Elements in the same group animating at different speeds or directions",
+      "Unrelated elements animating together, creating false grouping",
+      "Drag-and-drop where selected items don't move together"
+    ],
+    "applies_to": ["animation", "motion", "drag-and-drop", "transitions", "grouping"],
+    "sources": ["https://www.interaction-design.org/literature/topics/gestalt-principles"]
+  }
+]

@@ -1,0 +1,26 @@
+{
+  "name": "raven-mcp",
+  "version": "1.0.0",
+  "description": "Design intelligence MCP server — Odin's ravens brought back knowledge of the world, Raven brings back design intelligence.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "raven-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "tsx": "^4.19.0",
+    "@types/node": "^22.0.0"
+  },
+  "keywords": ["mcp", "design", "tokens", "ux", "principles", "patterns"],
+  "license": "MIT"
+}

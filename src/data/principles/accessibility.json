@@ -1,0 +1,151 @@
+[
+  {
+    "id": "color-contrast",
+    "name": "Color Contrast",
+    "category": "accessibility",
+    "summary": "Text and interactive elements must have sufficient contrast against their backgrounds.",
+    "description": "WCAG 2.1 requires minimum contrast ratios to ensure readability for users with low vision or color blindness. Normal text needs 4.5:1, large text (18px+ or 14px+ bold) needs 3:1, and UI components/graphics need 3:1. This is non-negotiable for any public-facing product. Test with tools like WebAIM's contrast checker.",
+    "implications": [
+      "Normal text: minimum 4.5:1 contrast ratio (WCAG AA)",
+      "Large text (18px+ regular or 14px+ bold): minimum 3:1",
+      "UI components and graphical objects: minimum 3:1",
+      "Enhanced accessibility (WCAG AAA): 7:1 for normal text, 4.5:1 for large",
+      "Don't rely on color alone to convey information — use icons, text, or patterns too",
+      "Test with grayscale to verify information is still clear without color",
+      "Check contrast on all background colors, not just the primary background"
+    ],
+    "violations": [
+      "Light gray text on white background (#999 on #fff = 2.85:1 — fails)",
+      "Colored text on colored background without checking contrast",
+      "Placeholder text with insufficient contrast (common: #aaa on #fff)",
+      "Status indicators using only color (red/green dots with no label)",
+      "Links that are only distinguished from body text by color"
+    ],
+    "applies_to": ["color", "typography", "buttons", "forms", "status-indicators", "links"],
+    "sources": ["https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html"]
+  },
+  {
+    "id": "keyboard-navigation",
+    "name": "Keyboard Navigation",
+    "category": "accessibility",
+    "summary": "All interactive content must be accessible and operable through keyboard alone.",
+    "description": "Many users navigate with keyboards — screen reader users, users with motor disabilities, and power users. All interactive elements must be reachable via Tab, operable via Enter/Space, and dismissible via Escape. Focus order should follow visual reading order. Custom interactive components need proper ARIA roles and keyboard event handlers.",
+    "implications": [
+      "All interactive elements must be focusable and have visible focus indicators",
+      "Tab order must follow the logical reading order of the page",
+      "Modals must trap focus and return focus to the trigger when closed",
+      "Custom dropdowns, tabs, and menus need arrow key navigation",
+      "Escape should close modals, dropdowns, and overlay elements",
+      "Skip navigation links for users to bypass repeated content",
+      "Never remove focus outlines without providing a visible alternative"
+    ],
+    "violations": [
+      "Click-only interactions with no keyboard equivalent",
+      "Invisible or removed focus indicators (outline: none without replacement)",
+      "Modal that doesn't trap focus — Tab goes to elements behind the overlay",
+      "Custom dropdown that doesn't respond to arrow keys or Escape",
+      "Focus order that doesn't match visual order (e.g., due to CSS order/flex)"
+    ],
+    "applies_to": ["navigation", "forms", "modals", "menus", "interactive-elements", "focus"],
+    "sources": ["https://www.w3.org/WAI/WCAG21/Understanding/keyboard.html"]
+  },
+  {
+    "id": "screen-reader-support",
+    "name": "Screen Reader Support",
+    "category": "accessibility",
+    "summary": "Content must be perceivable and understandable when read by assistive technologies.",
+    "description": "Screen readers translate visual interfaces into speech or braille. This requires semantic HTML, proper ARIA labels, meaningful alt text, and logical document structure. The goal is equivalent access — a screen reader user should be able to accomplish the same tasks and access the same information as a sighted user.",
+    "implications": [
+      "Use semantic HTML elements (nav, main, header, footer, article, section)",
+      "Provide alt text for all meaningful images; empty alt for decorative images",
+      "Use ARIA labels for interactive elements without visible text labels",
+      "Heading hierarchy should be logical (h1 > h2 > h3, no skipping levels)",
+      "Form inputs must have associated labels (label element or aria-label)",
+      "Live regions (aria-live) for dynamic content updates",
+      "Announce state changes (loading, error, success) to screen readers"
+    ],
+    "violations": [
+      "Images without alt text or with unhelpful alt text ('image.png')",
+      "Div/span used for interactive elements instead of button/a",
+      "Form inputs without labels",
+      "Dynamic content updates that aren't announced to screen readers",
+      "Heading levels skipped or used for styling instead of structure"
+    ],
+    "applies_to": ["html", "images", "forms", "navigation", "dynamic-content", "headings"],
+    "sources": ["https://www.w3.org/WAI/WCAG21/Understanding/info-and-relationships.html"]
+  },
+  {
+    "id": "touch-target-size",
+    "name": "Touch Target Size",
+    "category": "accessibility",
+    "summary": "Interactive elements must be large enough to activate easily without accidental activation of adjacent targets.",
+    "description": "WCAG 2.5.5 (Enhanced, AAA) recommends 44x44 CSS pixels minimum. WCAG 2.5.8 (AA in WCAG 2.2) requires targets of at least 24x24px with adequate spacing. Apple HIG requires 44pt, Material Design requires 48dp. Small targets cause errors, frustration, and are inaccessible to users with motor impairments. This applies to buttons, links, checkboxes, and any tappable element.",
+    "implications": [
+      "Minimum 44x44px touch targets (Apple HIG) or 48x48dp (Material)",
+      "WCAG 2.2 minimum: 24x24px with adequate spacing",
+      "Adequate spacing between adjacent touch targets (at least 8px)",
+      "Inline links in text should have enough padding/line-height for tapping",
+      "Checkboxes and radio buttons need enlarged tap areas (label wrapping)",
+      "Small icons should have padding to extend the touch target beyond the visual"
+    ],
+    "violations": [
+      "Icon buttons smaller than 44px without extended tap target",
+      "Adjacent links in text with no spacing between them",
+      "Tiny checkboxes without clickable labels",
+      "Close buttons on modals that are 16x16px",
+      "Dense data tables with row-level click targets on mobile"
+    ],
+    "applies_to": ["buttons", "links", "mobile", "touch-targets", "forms", "icons"],
+    "sources": ["https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html"]
+  },
+  {
+    "id": "motion-sensitivity",
+    "name": "Motion and Animation Sensitivity",
+    "category": "accessibility",
+    "summary": "Provide mechanisms to pause, stop, or reduce motion for users who are sensitive to animation.",
+    "description": "Some users experience nausea, dizziness, or seizures from excessive motion, parallax effects, or flashing content. WCAG requires the ability to pause or disable motion, limits on flashing content, and respect for the prefers-reduced-motion media query. Auto-playing animations and videos must have pause controls.",
+    "implications": [
+      "Respect prefers-reduced-motion media query — reduce or eliminate animations",
+      "No content that flashes more than 3 times per second",
+      "Provide pause/stop controls for auto-playing content",
+      "Auto-playing videos must be muted and pausable",
+      "Parallax scrolling should be optional and smooth",
+      "Use subtle, purposeful animations — not gratuitous motion",
+      "Provide a motion preference toggle in app settings"
+    ],
+    "violations": [
+      "Ignoring prefers-reduced-motion — animations play regardless",
+      "Auto-playing video backgrounds with no pause control",
+      "Excessive parallax that causes motion sickness",
+      "Content that flashes rapidly (seizure risk)",
+      "Large, sweeping page transitions with no reduced-motion alternative"
+    ],
+    "applies_to": ["animation", "video", "transitions", "parallax", "auto-play", "motion"],
+    "sources": ["https://www.w3.org/WAI/WCAG21/Understanding/animation-from-interactions.html"]
+  },
+  {
+    "id": "text-readability",
+    "name": "Text Readability",
+    "category": "accessibility",
+    "summary": "Text must be resizable, reflowable, and formatted for comfortable reading.",
+    "description": "WCAG requires text be resizable up to 200% without loss of content. Content should reflow on zoom without horizontal scrolling. Line length, line height, letter spacing, and paragraph spacing all affect readability. Minimum body text of 16px on web. Text should be readable with user-customized fonts and spacing.",
+    "implications": [
+      "Minimum 16px (1rem) body text on web",
+      "Line height of 1.5 for body text (WCAG recommendation)",
+      "Line length of 45-75 characters for optimal readability",
+      "Text must be resizable to 200% without content loss",
+      "Use responsive units (rem, em) not fixed px for font sizes",
+      "Ensure text reflows properly at all zoom levels",
+      "Support user-customized text spacing without breaking layout"
+    ],
+    "violations": [
+      "Body text smaller than 16px on web / 11pt on mobile",
+      "Line length exceeding 80 characters without a max-width",
+      "Fixed font sizes that don't scale with browser zoom",
+      "Text clipped or overflowing when zoomed to 200%",
+      "Single-line height (line-height: 1) on multi-line text"
+    ],
+    "applies_to": ["typography", "responsive", "zoom", "readability", "content"],
+    "sources": ["https://www.w3.org/WAI/WCAG21/Understanding/text-spacing.html"]
+  }
+]

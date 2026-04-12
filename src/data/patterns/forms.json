@@ -1,0 +1,53 @@
+{
+  "id": "forms",
+  "name": "Form Design",
+  "category": "usability",
+  "summary": "Form patterns that minimize friction, prevent errors, and maximize completion rates.",
+  "principles_referenced": ["fitts-law", "hicks-law", "millers-law", "postels-law", "error-prevention", "teslers-law"],
+  "patterns": [
+    {
+      "name": "Single-column layout",
+      "description": "All form fields in a single vertical column. Users process forms top-to-bottom. Multi-column layouts break the scanning pattern and cause field-skipping errors.",
+      "do": ["Stack all fields vertically in a single column", "Left-align labels above inputs", "Group related fields with section headers", "Use full-width inputs (or consistent widths)"],
+      "dont": ["Use multi-column form layouts (except very short paired fields like city/state)", "Place labels to the left of inputs on forms with 5+ fields", "Mix label positions (some above, some inline, some left)"],
+      "evidence": "Single-column forms are completed 15.4 seconds faster than multi-column equivalents (CXL research). Eye-tracking shows multi-column causes 50% more field-skipping errors."
+    },
+    {
+      "name": "Inline validation",
+      "description": "Validate fields as the user fills them out, showing success or error states in real time. Validates on blur (leaving the field) not on every keystroke.",
+      "do": ["Validate on blur (when the user leaves the field)", "Show error messages directly below the field", "Use color + icon + text for error states (not color alone)", "Show success state for validated fields (green checkmark)", "Keep error messages specific and actionable"],
+      "dont": ["Validate on every keystroke (shows errors while user is still typing)", "Show errors only on form submission", "Use generic errors ('Invalid input') — be specific", "Remove the user's input on error — let them correct it"],
+      "evidence": "Inline validation reduces form errors by 22% and completion time by 42% compared to submit-only validation (Luke Wroblewski)."
+    },
+    {
+      "name": "Smart defaults and auto-detection",
+      "description": "Pre-fill fields with smart defaults whenever possible. Auto-detect country, timezone, currency. Use browser autocomplete. Reduce the number of fields the user must actively fill.",
+      "do": ["Set autocomplete attributes on all relevant fields", "Auto-detect country from IP or browser locale", "Pre-fill with previously entered data when editing", "Default to the most common option for radio/select fields", "Auto-format inputs (phone numbers, credit cards)"],
+      "dont": ["Pre-fill fields with placeholder text that must be cleared", "Auto-detect and hide the field — show it pre-filled so users can verify", "Default to an option that could cause data issues if not changed", "Pre-fill marketing opt-in checkboxes (dark pattern, often illegal)"],
+      "evidence": "Auto-filling reduces form completion time by 30% and errors by 25%. Google found that users complete forms 30% faster with autofill."
+    },
+    {
+      "name": "Progressive form disclosure",
+      "description": "Show only the fields relevant to the user's previous selections. Conditional fields appear/disappear based on prior answers. Reduces visible complexity.",
+      "do": ["Show conditional fields only when triggered by a prior selection", "Animate the appearance of new fields (slide down, fade in)", "Group optional fields under an 'Advanced' or 'More options' toggle", "Pre-fill conditional fields with smart defaults"],
+      "dont": ["Show all fields including conditional ones with disable states", "Remove previously answered fields when new ones appear", "Use confusing conditional logic — the user should understand why fields appeared", "Hide required fields behind toggles"],
+      "evidence": "Progressive disclosure reduces perceived form complexity by 40% and increases completion rates by 20-30%."
+    }
+  ],
+  "checklist": [
+    "Is the form single-column layout?",
+    "Are labels positioned above inputs?",
+    "Does every field have a visible label (not just placeholder text)?",
+    "Is inline validation implemented (on blur)?",
+    "Are error messages specific, actionable, and positioned below the field?",
+    "Are appropriate input types used (email, tel, url, number)?",
+    "Are autocomplete attributes set on all relevant fields?",
+    "Is the submit button clearly visible and action-oriented?",
+    "Are optional fields marked (or better: removed)?",
+    "Is there a clear way to cancel/abandon the form?",
+    "Does the form work with keyboard only (tab, enter)?",
+    "Is the form mobile-friendly (touch targets, keyboard types)?",
+    "Are smart defaults applied where possible?",
+    "Is sensitive data (password) masked with a show/hide toggle?"
+  ]
+}

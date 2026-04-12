@@ -1,0 +1,113 @@
+[
+  {
+    "id": "d4d-framework",
+    "name": "Design for Delight (D4D)",
+    "category": "d4d",
+    "summary": "A customer empathy framework for validating product decisions through structured hypothesis testing.",
+    "description": "Design for Delight is a framework that starts with deep customer empathy, generates multiple solution options, narrows through evidence-based evaluation, and validates through scrappy experiments. It prevents teams from jumping to solutions before understanding the problem, and ensures hypotheses are testable and measurable. Every step produces an artifact that feeds the next step.",
+    "implications": [
+      "Always start with a Customer Problem Statement before proposing solutions",
+      "Frame problems from the customer's perspective using first-person voice",
+      "Generate 3-5 solution options before committing to one",
+      "Every hypothesis must include a measurable signal and target timeframe",
+      "LOFAs (Leap of Faith Assumptions) must be falsifiable and ordered by risk",
+      "Experiments should be the smallest possible test that produces learning"
+    ],
+    "violations": [
+      "Jumping to a solution without articulating the customer problem",
+      "Only considering one solution option",
+      "Hypotheses without measurable success criteria or timeframes",
+      "LOFAs that aren't falsifiable ('Users will like it')",
+      "Running experiments without clear decision rules (advance vs pivot)"
+    ],
+    "applies_to": ["product-strategy", "research", "validation", "prioritization", "experimentation"],
+    "sources": ["Internal framework"],
+    "templates": {
+      "customer_problem_statement": {
+        "format": "- I am [narrow description of the customer/persona]\n- I am trying to [desired outcome]\n- But [problem/barrier]\n- Because [root cause]\n- Which makes me feel [emotion]",
+        "guidance": [
+          "First person, customer voice",
+          "'I am' must be narrow — not 'a user' but a specific persona with context",
+          "The barrier should be observable, not assumed",
+          "Root cause should be specific enough to act on",
+          "Emotion reveals the true impact and urgency"
+        ]
+      },
+      "ideal_state": {
+        "format": "In the ideal state, [customer/segment] can [job/outcome] so that [benefit/emotion/impact], measurable by [customer benefit metric / outcome metric].",
+        "guidance": [
+          "Describes the end state without prescribing a solution",
+          "Includes a measurable indicator of success",
+          "Focuses on customer benefit, not feature delivery"
+        ]
+      },
+      "hypothesis_statement": {
+        "format": "We believe that [solution/approach] for [customer/segment] will [customer benefit/outcome]. We'll know this is true when [signal/metric] moves to [target] by [timeframe].",
+        "guidance": [
+          "'Moves to [target] by [timeframe]' is mandatory — never leave it vague",
+          "The signal should be something you can actually measure",
+          "The timeframe forces urgency and prevents infinite experiments",
+          "If you can't fill in the target, you don't understand the problem well enough"
+        ]
+      },
+      "lofa": {
+        "format": "Assumption: [Statement that must be true for the solution to work]\nRisk level: [High/Medium/Low]\nHow to test: [Cheapest way to validate or invalidate]\nFalsification criteria: [What would prove this wrong]",
+        "guidance": [
+          "2-4 assumptions, ordered by risk (highest first)",
+          "Each must be falsifiable",
+          "Test the riskiest assumption first",
+          "If the highest-risk LOFA fails, the solution fails — don't proceed"
+        ]
+      },
+      "scrappy_experiment": {
+        "format": "Test: [smallest test to learn fast]\nOwners: [who]\nStart date: [when]\nDecision rule: [advance if X, pivot if Y]",
+        "guidance": [
+          "The test should take days, not weeks",
+          "Decision rules must be specific and agreed upon before starting",
+          "The experiment tests the riskiest LOFA, not the full solution",
+          "If the decision rule is met, advance to the next LOFA or build"
+        ]
+      },
+      "operating_loop": {
+        "stages": [
+          {
+            "stage": "frame",
+            "name": "Frame",
+            "description": "Define the customer, problem, desired benefit, and constraints.",
+            "outputs": ["Customer Problem Statement", "Ideal State"]
+          },
+          {
+            "stage": "empathy",
+            "name": "Empathy",
+            "description": "Key observations about the customer. What have you seen? What are you assuming?",
+            "outputs": ["Observation list", "Assumption list"]
+          },
+          {
+            "stage": "broad",
+            "name": "Go Broad",
+            "description": "Generate 3-5 distinct solution options. Keep each to 1-2 lines. No evaluation yet.",
+            "outputs": ["3-5 solution options"]
+          },
+          {
+            "stage": "narrow",
+            "name": "Go Narrow",
+            "description": "Compare options on customer benefit and feasibility. Pick 1-2 to pursue.",
+            "outputs": ["Comparison matrix", "Selected option(s)"]
+          },
+          {
+            "stage": "experiment",
+            "name": "Experiment",
+            "description": "Write hypothesis, identify LOFAs, define signals, and design the smallest test.",
+            "outputs": ["Hypothesis Statement", "LOFAs", "Scrappy Experiment"]
+          },
+          {
+            "stage": "recommendation",
+            "name": "Recommendation",
+            "description": "Clear call: build, pivot, or kill. Include risks, dependencies, and now vs. later.",
+            "outputs": ["Recommendation", "Risk assessment", "Timeline"]
+          }
+        ]
+      }
+    }
+  }
+]

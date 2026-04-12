@@ -1,0 +1,51 @@
+{
+  "id": "cta",
+  "name": "CTA Design",
+  "category": "conversion",
+  "summary": "Patterns for calls-to-action that drive the desired user behavior through clear hierarchy, placement, and copy.",
+  "principles_referenced": ["fitts-law", "von-restorff-effect", "hicks-law", "serial-position-effect", "color-60-30-10"],
+  "patterns": [
+    {
+      "name": "Button hierarchy",
+      "description": "Every page should have a clear CTA hierarchy: one primary action, optional secondary, and tertiary actions. Visual weight communicates importance.",
+      "do": ["One primary CTA per viewport — filled, high-contrast, prominent", "Secondary actions as outlined or ghost buttons", "Tertiary actions as text links or icon buttons", "Size primary button larger than secondary (min 16px height difference)", "Use brand accent color only for primary CTAs"],
+      "dont": ["Two buttons competing for primary attention", "Ghost/outlined button for the most important action", "All buttons the same visual weight", "Primary button in a color that blends with the background", "More than 3 action levels on one screen"],
+      "evidence": "Pages with clear single-primary CTA convert 20% higher than those with multiple competing CTAs. Button size correlates with click rate up to 44px height."
+    },
+    {
+      "name": "Action-oriented copy",
+      "description": "CTA button text should describe the outcome, not the mechanism. Use verbs that tell users what they'll get, not what they'll do.",
+      "do": ["'Start free trial' (outcome) vs 'Submit' (mechanism)", "'Get started' vs 'Sign up'", "'Save 20% annually' vs 'Choose annual'", "'Create your first project' vs 'Continue'", "Include value in the CTA ('Get 14-day free trial' vs 'Start trial')"],
+      "dont": ["Generic: 'Submit', 'OK', 'Click here', 'Continue'", "Vague: 'Learn more' (learn what?)", "Scary: 'Buy now' on a freemium product", "Wordy: more than 5 words on a button", "Passive: 'Your account will be created' vs 'Create account'"],
+      "evidence": "Action-oriented CTA text increases click-through by 25-35%. Including a benefit in the CTA text ('Get your free report') outperforms generic text by 40%."
+    },
+    {
+      "name": "CTA placement patterns",
+      "description": "Where you place the CTA dramatically affects conversion. Above-fold, at decision points, and at the end of content sections are the highest-performing positions.",
+      "do": ["Primary CTA above the fold on landing pages", "CTA at the end of every persuasive content section", "Sticky CTA on mobile (bottom of screen) for long pages", "Repeat the CTA at natural decision points throughout the page", "Place CTA adjacent to social proof and trust signals"],
+      "dont": ["Hide the CTA below multiple scrolls of content", "Put the CTA only at the bottom of a very long page", "Place CTA in the navigation (easy to miss)", "Float CTA over content it obscures", "Show CTA before the value proposition is understood"],
+      "evidence": "CTAs above the fold receive 80% more attention. Sticky mobile CTAs increase conversion by 10-15%. Repeating CTAs on long pages increases total clicks by 20%."
+    },
+    {
+      "name": "Urgency and scarcity signals",
+      "description": "Ethical use of time and availability signals to encourage action. Must be truthful — fake urgency destroys trust.",
+      "do": ["Show real limited-time offers with countdown timers", "Display actual stock/seat/spot counts when genuinely limited", "Show social proof of recent sign-ups ('12 people signed up today')", "Use 'limited beta' truthfully during actual beta phases", "Show the benefit of acting now vs later"],
+      "dont": ["Fake countdown timers that reset on page load (dark pattern)", "Artificial scarcity ('Only 2 left!') that's not real", "Pressure language ('Don't miss out!', 'Last chance!')", "Moving deadlines that erode trust", "Using urgency on non-time-sensitive products"],
+      "evidence": "Genuine scarcity signals increase conversion by 5-15%. Fake urgency increases conversion short-term but reduces trust and LTV. EU/US regulators increasingly penalize dark patterns."
+    }
+  ],
+  "checklist": [
+    "Is there one clear primary CTA per viewport?",
+    "Does the CTA button text describe the outcome (not 'Submit')?",
+    "Is the primary CTA above the fold?",
+    "Is the CTA visually distinct from surrounding elements?",
+    "Does the CTA use the brand accent color?",
+    "Is there a clear visual hierarchy between primary, secondary, and tertiary actions?",
+    "Is the CTA button large enough (min 44px height, min 120px width)?",
+    "Is the CTA repeated at natural decision points on long pages?",
+    "Is there a mobile sticky CTA for long scrolling pages?",
+    "Is any urgency/scarcity messaging truthful?",
+    "Is the CTA accessible (sufficient contrast, keyboard focusable)?",
+    "Is there supporting text near the CTA ('No credit card required', 'Free for 14 days')?"
+  ]
+}

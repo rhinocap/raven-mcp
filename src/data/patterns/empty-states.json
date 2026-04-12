@@ -1,0 +1,42 @@
+{
+  "id": "empty-states",
+  "name": "Empty States",
+  "category": "usability",
+  "summary": "Patterns for zero-data states that guide users to take their first action and understand what the feature does.",
+  "principles_referenced": ["visibility-of-system-status", "help-documentation", "peak-end-rule", "goal-gradient-effect"],
+  "patterns": [
+    {
+      "name": "First-use empty state",
+      "description": "What a new user sees when they first encounter a feature with no data. The most important empty state — it determines whether the user understands the feature and takes action.",
+      "do": ["Use an illustration or icon that represents the feature", "Explain what will appear here once they take action", "Provide a clear, prominent CTA to create the first item", "Use encouraging, friendly language ('Start by creating your first project')", "Consider showing a template or example to lower the barrier"],
+      "dont": ["Show a blank page or just 'No items'", "Use error styling for empty states", "Overwhelm with explanation — keep it to 1-2 sentences + CTA", "Show a loading state that resolves to empty (feels like an error)", "Block the rest of the UI — empty states should be scoped to the empty section"],
+      "evidence": "First-use empty states with CTAs increase feature activation by 30-50%. Illustration + copy + CTA is the most effective format."
+    },
+    {
+      "name": "No-results empty state",
+      "description": "What appears when a search or filter returns no results. Must help the user recover — either by adjusting their query or discovering alternative content.",
+      "do": ["Clearly state that no results were found", "Show the user's search query so they can verify spelling", "Suggest actions: try different keywords, remove filters, browse categories", "Show popular or recent items as alternatives", "Provide a 'clear all filters' shortcut"],
+      "dont": ["Show a completely blank area — always provide guidance", "Blame the user ('No results for your bad query')", "Just say 'No results' with no recovery options", "Redirect away from the search page — let them adjust in place"],
+      "evidence": "No-results pages with suggestions reduce exit rates by 40%. Showing popular alternatives keeps users engaged when their search fails."
+    },
+    {
+      "name": "Cleared/completed empty state",
+      "description": "What appears when the user has processed all items (inbox zero, all tasks completed). A moment to celebrate and reinforce positive behavior.",
+      "do": ["Celebrate the achievement ('All caught up!', 'Inbox zero!')", "Use a positive illustration or animation", "Suggest next actions or related content", "Make it feel like an accomplishment, not a void"],
+      "dont": ["Show the same empty state as first-use (this is a different context)", "Make it feel like something is broken", "Immediately push the user to create more work", "Use generic 'No items' messaging — this is a win moment"],
+      "evidence": "Celebratory empty states increase user satisfaction and daily return rate by 15%. Gmail's 'Nothing in Promotions' sunshine illustration set the standard."
+    }
+  ],
+  "checklist": [
+    "Does every list/collection view have a designed empty state?",
+    "Do first-use empty states explain what will appear and how to populate it?",
+    "Is there a clear CTA on first-use empty states?",
+    "Do search/filter empty states help users recover?",
+    "Do completion empty states celebrate the user?",
+    "Are empty states visually distinct from error states?",
+    "Do empty states include helpful illustrations or icons?",
+    "Is the language encouraging and non-blaming?",
+    "Is the empty state scoped to the empty section (not the full page)?",
+    "Have you designed for all three types: first-use, no-results, completed?"
+  ]
+}

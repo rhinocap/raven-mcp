@@ -1,0 +1,51 @@
+{
+  "id": "dashboard",
+  "name": "Dashboard Design",
+  "category": "usability",
+  "summary": "Patterns for dashboards that surface the right data at the right time without overwhelming users.",
+  "principles_referenced": ["aesthetic-minimalist-design", "recognition-over-recall", "millers-law", "pareto-principle", "hicks-law"],
+  "patterns": [
+    {
+      "name": "KPI cards at the top",
+      "description": "The top of the dashboard shows 3-5 key metrics as large, scannable cards. These are the numbers the user checks every day — their 'north star' data.",
+      "do": ["Show 3-5 key metrics as prominent cards/tiles", "Include trend indicators (up/down arrows, sparklines)", "Show comparison to previous period (vs last week, vs target)", "Use semantic color for positive/negative trends", "Make cards clickable for drill-down"],
+      "dont": ["Show more than 6 KPI cards — prioritize", "Use equal visual weight for all metrics", "Show raw numbers without context (1,234 what?)", "Include metrics that don't drive action"],
+      "evidence": "Users spend 80% of dashboard time on 20% of data (Pareto). Dashboards with 3-5 KPIs have 40% higher engagement than those with 10+."
+    },
+    {
+      "name": "Activity feed / recent items",
+      "description": "A chronological feed of recent events, changes, or items. Provides a 'pulse' of what's happening. Can be the center or right panel of a dashboard.",
+      "do": ["Show the most recent items first", "Include timestamps (relative: '2 hours ago')", "Group by date for longer histories", "Show enough detail to act without clicking through", "Include avatar/icon for the actor or event type"],
+      "dont": ["Show a firehose of all events without filtering", "Use identical styling for different event types", "Require pagination for the recent 24 hours of activity", "Mix unrelated event types without visual distinction"],
+      "evidence": "Activity feeds increase daily active usage by 20-30% in SaaS products. They reduce the need to navigate to individual sections to check for updates."
+    },
+    {
+      "name": "Empty states",
+      "description": "What the dashboard shows when there's no data yet. The first experience a new user sees. Must guide them to take the first meaningful action.",
+      "do": ["Show a clear illustration or graphic (not just 'No data')", "Explain what will appear here and how to populate it", "Provide a primary CTA to take the first action", "Use encouraging, helpful language", "Consider showing sample/demo data with a clear label"],
+      "dont": ["Show a blank page or just 'No data found'", "Display error-styled empty states (red, warning icons)", "Show complex visualizations with zero values", "Leave the user to figure out what to do next"],
+      "evidence": "Well-designed empty states increase user activation by 30%. They're the single most impactful pattern for new user experience."
+    },
+    {
+      "name": "Data density management",
+      "description": "Balancing information density with clarity. Dense dashboards for experts (Bloomberg terminal), spacious dashboards for occasional users. Use progressive disclosure to serve both.",
+      "do": ["Default to a clean, focused view", "Allow users to customize which widgets/cards are visible", "Use expandable sections for detailed data", "Provide view toggles (summary vs detailed)", "Consider a 'focus mode' that shows only one metric with full detail"],
+      "dont": ["Show all available data at once — curate and prioritize", "Use tiny text to fit more data (accessibility failure)", "Ignore user role — admins and users need different views", "Make the dense view the default for all users"],
+      "evidence": "Customizable dashboards have 50% higher engagement than static ones. Default views should serve the most common use case."
+    }
+  ],
+  "checklist": [
+    "Are the top 3-5 KPIs immediately visible without scrolling?",
+    "Do metrics include trend indicators and comparison context?",
+    "Is there an empty state that guides new users to take action?",
+    "Can users customize their dashboard (show/hide widgets)?",
+    "Are data cards clickable for drill-down?",
+    "Is there a recent activity or updates section?",
+    "Is the dashboard responsive — does it work on tablet/mobile?",
+    "Is loading fast (<2 seconds) with skeleton screens for slower data?",
+    "Are error states handled gracefully when data fails to load?",
+    "Is the information density appropriate for the target user?",
+    "Are refresh intervals communicated ('Updated 5 minutes ago')?",
+    "Can the user take action directly from the dashboard (not just view data)?"
+  ]
+}

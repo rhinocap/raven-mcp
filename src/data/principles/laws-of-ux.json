@@ -1,0 +1,490 @@
+[
+  {
+    "id": "aesthetic-usability-effect",
+    "name": "Aesthetic-Usability Effect",
+    "category": "laws-of-ux",
+    "summary": "Users often perceive aesthetically pleasing design as design that's more usable.",
+    "description": "Attractive things work better — or at least users believe they do. An aesthetically pleasing interface creates a positive emotional response that makes users more tolerant of minor usability issues. This effect can mask usability problems during testing, so beautiful designs need rigorous usability testing. The takeaway: visual polish is not superficial — it directly impacts perceived usability and trust.",
+    "implications": [
+      "Invest in visual polish — it directly impacts perceived usability",
+      "Beautiful designs need MORE usability testing, not less (the effect masks problems)",
+      "Use visual design to build trust, especially for financial and health products",
+      "First impressions are formed in 50ms — aesthetic quality drives them"
+    ],
+    "violations": [
+      "Functional but visually outdated interface that erodes user trust",
+      "Beautiful prototype that passes testing but has hidden usability issues",
+      "Assuming good functionality compensates for poor visual design"
+    ],
+    "applies_to": ["visual-design", "trust", "branding", "landing-page", "first-impression"],
+    "sources": ["https://lawsofux.com/aesthetic-usability-effect/"]
+  },
+  {
+    "id": "doherty-threshold",
+    "name": "Doherty Threshold",
+    "category": "laws-of-ux",
+    "summary": "Productivity soars when a computer and its users interact at a pace (<400ms) that ensures that neither has to wait on the other.",
+    "description": "Research by Walter Doherty and Ahrvind Thadani at IBM showed that when system response time drops below 400 milliseconds, users enter a state of flow. Above this threshold, attention wanders and errors increase. The practical implication: perceived performance matters as much as actual performance. Use optimistic UI, skeleton screens, and progressive loading to keep interactions feeling instant.",
+    "implications": [
+      "Target <400ms response time for all interactions",
+      "Use optimistic UI updates — show the result before the server confirms",
+      "Show skeleton screens or shimmer placeholders during loading",
+      "Use animations (150-300ms) to make transitions feel smooth, not slow",
+      "Preload content the user is likely to need next",
+      "Use progressive loading — show content as it arrives, not all at once"
+    ],
+    "violations": [
+      "Full-page spinner for 2+ seconds on every navigation",
+      "Waiting for server confirmation before showing any UI update",
+      "No loading state — interface freezes while waiting for data",
+      "Animations longer than 400ms that feel sluggish"
+    ],
+    "applies_to": ["performance", "loading", "animation", "feedback", "optimistic-ui"],
+    "sources": ["https://lawsofux.com/doherty-threshold/"]
+  },
+  {
+    "id": "fitts-law",
+    "name": "Fitts's Law",
+    "category": "laws-of-ux",
+    "summary": "The time to acquire a target is a function of the distance to and size of the target.",
+    "description": "Formulated by Paul Fitts in 1954, this law states that the time to move to a target is logarithmically related to the distance divided by the target width. Larger, closer targets are faster to click. Screen edges and corners are effectively infinite-width targets (the cursor stops there). This has profound implications for button sizing, placement, and touch target design.",
+    "implications": [
+      "Make primary action buttons large and prominent",
+      "Place important actions near the user's current focus area",
+      "Use minimum 44x44px touch targets on mobile (Apple HIG), 48x48dp (Material)",
+      "Leverage screen edges and corners for frequently used controls",
+      "Group related actions together to reduce cursor travel distance",
+      "Make destructive actions small and far from primary actions",
+      "Consider right-click context menus to bring actions to the cursor"
+    ],
+    "violations": [
+      "Tiny close buttons on modals (12x12px)",
+      "Important CTAs far from the form fields they relate to",
+      "Touch targets smaller than 44px on mobile",
+      "Actions requiring precise cursor placement (thin borders, small checkboxes)",
+      "Critical actions placed in corners far from content"
+    ],
+    "applies_to": ["buttons", "navigation", "forms", "mobile", "cta", "touch-targets"],
+    "sources": ["https://lawsofux.com/fittss-law/"]
+  },
+  {
+    "id": "goal-gradient-effect",
+    "name": "Goal-Gradient Effect",
+    "category": "laws-of-ux",
+    "summary": "The tendency to approach a goal increases with proximity to the goal.",
+    "description": "People are more motivated to complete a task when they can see they're close to finishing. This is why progress bars, step indicators, and completion percentages work. The classic example: coffee loyalty cards pre-stamped with 2 of 12 stamps get completed faster than blank 10-of-10 cards. In UX, this means showing progress, breaking tasks into visible steps, and giving users a sense of advancement.",
+    "implications": [
+      "Show progress indicators on multi-step flows",
+      "Start users with some progress already completed (profile 20% complete)",
+      "Break long forms into smaller, numbered steps",
+      "Show completion percentage on profiles and onboarding",
+      "Use checklists that users can visibly check off",
+      "Celebrate milestones and completions with visual feedback"
+    ],
+    "violations": [
+      "Multi-step process with no indication of how many steps remain",
+      "Long form with no progress indicator",
+      "Onboarding that feels endless with no sense of how close the user is to done",
+      "No celebration or acknowledgment when a task is completed"
+    ],
+    "applies_to": ["onboarding", "forms", "progress", "gamification", "checkout", "signup"],
+    "sources": ["https://lawsofux.com/goal-gradient-effect/"]
+  },
+  {
+    "id": "hicks-law",
+    "name": "Hick's Law",
+    "category": "laws-of-ux",
+    "summary": "The time it takes to make a decision increases with the number and complexity of choices.",
+    "description": "Described by William Edmund Hick and Ray Hyman, this law quantifies the relationship between choices and decision time. More options = longer decision time = higher abandonment risk. This doesn't mean removing all choices — it means structuring them. Progressive disclosure, smart defaults, and categorization all help manage complexity without removing functionality.",
+    "implications": [
+      "Limit navigation items to 7±2 top-level options",
+      "Use progressive disclosure to reveal options as needed",
+      "Highlight a recommended option in pricing and feature selections",
+      "Break complex decisions into smaller sequential choices",
+      "Use smart defaults to reduce the number of decisions users must make",
+      "Categorize and group options to reduce perceived complexity",
+      "Consider a search/filter for lists with 15+ items"
+    ],
+    "violations": [
+      "Mega-menus with 50+ uncategorized options",
+      "Pricing page with 6+ plans and no recommended option",
+      "Settings page with 100+ toggles all visible at once",
+      "Dropdown with 200 unsearchable options",
+      "Homepage with 10+ competing CTAs"
+    ],
+    "applies_to": ["navigation", "pricing", "forms", "settings", "menus", "cta", "decision-making"],
+    "sources": ["https://lawsofux.com/hicks-law/"]
+  },
+  {
+    "id": "jakobs-law",
+    "name": "Jakob's Law",
+    "category": "laws-of-ux",
+    "summary": "Users spend most of their time on other sites. This means that users prefer your site to work the same way as all the other sites they already know.",
+    "description": "Named after Jakob Nielsen, this law recognizes that users build mental models from their cumulative experience across all digital products. When you deviate from established conventions, you force users to learn new patterns, increasing cognitive load and error rates. Innovation is good, but it should build on familiar foundations. Use common patterns and innovate on top of them, not instead of them.",
+    "implications": [
+      "Follow platform conventions for common interactions (navigation, search, forms)",
+      "Place the logo in the top-left, linking to the homepage",
+      "Put search in the top-right or center of the header",
+      "Use standard e-commerce checkout patterns",
+      "Follow OS conventions for native apps (iOS HIG, Material Design)",
+      "Innovate on value proposition, not on basic interaction patterns",
+      "When you must break convention, provide clear affordances and guidance"
+    ],
+    "violations": [
+      "Custom navigation patterns that don't match any standard app",
+      "Non-standard scroll behavior (horizontal scrolling for content, scroll hijacking)",
+      "Creative but confusing form layouts (labels inside inputs that don't float)",
+      "Bottom navigation on desktop or top tabs on mobile",
+      "Non-standard gestures for common actions"
+    ],
+    "applies_to": ["navigation", "layout", "forms", "conventions", "patterns", "mobile"],
+    "sources": ["https://lawsofux.com/jakobs-law/"]
+  },
+  {
+    "id": "law-of-common-region",
+    "name": "Law of Common Region",
+    "category": "laws-of-ux",
+    "summary": "Elements tend to be perceived into groups if they are sharing an area with a clearly defined boundary.",
+    "description": "A Gestalt principle stating that elements within a shared visual boundary are perceived as a group. Cards, panels, sections with borders, and background colors all create regions. This is fundamental to information architecture — grouping related content visually communicates structure without requiring labels. It's one of the strongest grouping cues available.",
+    "implications": [
+      "Use cards to group related information",
+      "Apply subtle background colors to delineate sections",
+      "Use borders or dividers to separate distinct groups",
+      "Ensure form field groups are visually contained",
+      "Use whitespace between regions to reinforce boundaries",
+      "Apply consistent styling to similar regions (all feature cards look alike)"
+    ],
+    "violations": [
+      "Related form fields that span different visual regions",
+      "Dashboard widgets with no visual separation",
+      "Content sections with no background or border differentiation",
+      "Mixed content types in the same visual container"
+    ],
+    "applies_to": ["layout", "cards", "forms", "grouping", "information-architecture"],
+    "sources": ["https://lawsofux.com/law-of-common-region/"]
+  },
+  {
+    "id": "law-of-proximity",
+    "name": "Law of Proximity",
+    "category": "laws-of-ux",
+    "summary": "Objects that are near, or proximate to each other, tend to be grouped together.",
+    "description": "The most fundamental Gestalt principle in UI design. Spatial proximity is the strongest cue for grouping. Elements placed close together are perceived as related. This applies to form labels and inputs, navigation items, action buttons, and content sections. The space BETWEEN groups should always be larger than the space WITHIN groups.",
+    "implications": [
+      "Place labels close to their corresponding form fields",
+      "Group related actions together (Save, Cancel)",
+      "Use more space between groups than within groups",
+      "Place helper text immediately below the field it describes",
+      "Keep navigation items for the same section visually close",
+      "Separate unrelated actions with significant whitespace"
+    ],
+    "violations": [
+      "Form label equidistant between two fields — unclear which it belongs to",
+      "Helper text so far below a field it looks like a standalone paragraph",
+      "Action buttons scattered across a page instead of grouped",
+      "Equal spacing between all elements — no grouping communicated"
+    ],
+    "applies_to": ["layout", "forms", "spacing", "grouping", "typography", "buttons"],
+    "sources": ["https://lawsofux.com/law-of-proximity/"]
+  },
+  {
+    "id": "law-of-pragnanz",
+    "name": "Law of Pragnanz",
+    "category": "laws-of-ux",
+    "summary": "People will perceive and interpret ambiguous or complex images as the simplest form possible, because it is the interpretation that requires the least cognitive effort.",
+    "description": "Also known as the Law of Simplicity or the Law of Good Figure. The human brain prefers simple, regular, orderly forms. Complex layouts are mentally reorganized into simpler patterns. This means interfaces should align with how the brain naturally simplifies — use regular grids, consistent spacing, clear hierarchies, and predictable layouts. Complexity creates cognitive friction.",
+    "implications": [
+      "Use consistent grid systems for layout",
+      "Align elements to create visual order",
+      "Simplify complex data with clear visual hierarchy",
+      "Use regular, predictable spacing patterns",
+      "Reduce visual noise — fewer borders, shadows, and decorative elements",
+      "Group related information into simple, recognizable shapes (rectangles, cards)"
+    ],
+    "violations": [
+      "Misaligned elements that create visual tension",
+      "Inconsistent spacing that makes the layout feel chaotic",
+      "Complex infographics with no clear reading order",
+      "Overlapping elements that create ambiguous boundaries",
+      "Too many different visual treatments on one page"
+    ],
+    "applies_to": ["layout", "grid", "visual-design", "simplicity", "hierarchy"],
+    "sources": ["https://lawsofux.com/law-of-pragnanz/"]
+  },
+  {
+    "id": "law-of-similarity",
+    "name": "Law of Similarity",
+    "category": "laws-of-ux",
+    "summary": "The human eye tends to perceive similar elements in a design as a complete picture, shape, or group, even if those elements are separated.",
+    "description": "Elements that look alike are perceived as related or having the same function. Similarity can be expressed through color, shape, size, texture, or orientation. In UI design, this means all buttons that do similar things should look similar. All cards representing the same type of content should share visual treatment. Breaking similarity signals that something is different or special.",
+    "implications": [
+      "Make all interactive elements of the same type visually consistent",
+      "Use the same card style for the same type of content",
+      "Differentiate primary vs secondary actions through visual weight",
+      "Use color coding consistently to indicate status or category",
+      "Apply consistent icon styles (outline, filled, or glyph — pick one)",
+      "Break similarity intentionally to draw attention to special items"
+    ],
+    "violations": [
+      "Buttons with the same function styled differently on different pages",
+      "Using the same color for both interactive and decorative elements",
+      "Cards with inconsistent layouts for the same content type",
+      "Interactive elements that look like non-interactive ones (and vice versa)"
+    ],
+    "applies_to": ["buttons", "cards", "icons", "consistency", "visual-design", "color"],
+    "sources": ["https://lawsofux.com/law-of-similarity/"]
+  },
+  {
+    "id": "law-of-uniform-connectedness",
+    "name": "Law of Uniform Connectedness",
+    "category": "laws-of-ux",
+    "summary": "Elements that are visually connected are perceived as more related than elements with no connection.",
+    "description": "Visual connections — lines, arrows, color-coded backgrounds, or shared containers — create the strongest grouping perception, even overriding proximity and similarity. In UI, this applies to step indicators connected by lines, grouped inputs in fieldsets, timeline designs, and flow diagrams. Connecting elements visually communicates sequence and relationship.",
+    "implications": [
+      "Connect step indicators with lines to show sequence",
+      "Use borders or shared backgrounds for fieldsets and form groups",
+      "Apply connecting lines in timeline and flow visualizations",
+      "Use color bands or bars to connect related items across a layout",
+      "Connect data points in charts with lines to show trends"
+    ],
+    "violations": [
+      "Step indicators as isolated dots with no connecting line",
+      "Related metrics displayed as disconnected cards with no visual link",
+      "Timeline with no connecting line between events",
+      "Flow diagram where connections are implied but not drawn"
+    ],
+    "applies_to": ["progress", "timelines", "charts", "grouping", "flows", "steps"],
+    "sources": ["https://lawsofux.com/law-of-uniform-connectedness/"]
+  },
+  {
+    "id": "millers-law",
+    "name": "Miller's Law",
+    "category": "laws-of-ux",
+    "summary": "The average person can only keep 7 (plus or minus 2) items in their working memory.",
+    "description": "George Miller's 1956 paper established that human short-term memory holds approximately 7±2 chunks of information. This doesn't mean every menu should have 7 items — it means interfaces should not require users to hold many items in memory simultaneously. Chunking (grouping information into meaningful units), progressive disclosure, and persistent displays reduce memory demands.",
+    "implications": [
+      "Chunk information into meaningful groups of 3-5 items",
+      "Don't require users to remember information from one page to use on another",
+      "Keep navigation categories to ~7 top-level items",
+      "Show relevant context inline rather than requiring memory",
+      "Use step indicators in multi-step flows to offload memory",
+      "Organize long lists into categorized, scannable sections"
+    ],
+    "violations": [
+      "Requiring users to remember a code from page 1 to enter on page 3",
+      "15+ item navigation with no grouping",
+      "Complex comparison requiring users to mentally hold features from scrolled-past options",
+      "Phone numbers displayed as raw 10-digit strings without grouping"
+    ],
+    "applies_to": ["navigation", "forms", "information-architecture", "content", "memory"],
+    "sources": ["https://lawsofux.com/millers-law/"]
+  },
+  {
+    "id": "occams-razor",
+    "name": "Occam's Razor",
+    "category": "laws-of-ux",
+    "summary": "Among competing hypotheses that predict equally well, the one with the fewest assumptions should be selected.",
+    "description": "In design, Occam's Razor means choosing the simplest solution that adequately solves the problem. Don't add features, screens, or options unless they earn their complexity. Every element in a UI should justify its existence. If two designs solve the problem equally well, the simpler one is better — it's faster to build, easier to maintain, and less likely to confuse users.",
+    "implications": [
+      "Start with the simplest possible solution and add complexity only when needed",
+      "Remove features and options that don't serve core user goals",
+      "Prefer single-purpose interfaces over multi-function Swiss army knives",
+      "Question every field on a form — is it truly necessary?",
+      "Reduce steps in workflows — can any be combined or eliminated?",
+      "Default to showing less, with options to show more"
+    ],
+    "violations": [
+      "Adding a settings page when smart defaults would work",
+      "Building a complex permissions system for a 5-person team app",
+      "10-step onboarding when 3 steps would achieve the same activation",
+      "Feature-packed UI that tries to serve every possible use case"
+    ],
+    "applies_to": ["simplicity", "features", "forms", "onboarding", "settings", "complexity"],
+    "sources": ["https://lawsofux.com/occams-razor/"]
+  },
+  {
+    "id": "pareto-principle",
+    "name": "Pareto Principle",
+    "category": "laws-of-ux",
+    "summary": "The Pareto principle states that, for many events, roughly 80% of the effects come from 20% of the causes.",
+    "description": "In product design, approximately 80% of users use only 20% of features. 80% of errors come from 20% of issues. 80% of revenue comes from 20% of customers. Focus design effort on the critical 20% — the core workflows, the most common tasks, the most valuable user segments. Don't spread attention evenly across all features; optimize for the vital few.",
+    "implications": [
+      "Identify and optimize the top 20% most-used features",
+      "Design for the most common use case first, then accommodate edge cases",
+      "Fix the 20% of bugs that cause 80% of user complaints",
+      "Focus onboarding on the features that drive 80% of value",
+      "Use analytics to identify which features and flows matter most",
+      "Don't give equal design attention to rarely-used admin screens and core workflows"
+    ],
+    "violations": [
+      "Equal design investment in all features regardless of usage",
+      "Optimizing edge cases before the core flow is solid",
+      "Spending weeks on admin UI while the signup funnel leaks",
+      "Feature parity with competitors on features nobody uses"
+    ],
+    "applies_to": ["prioritization", "features", "analytics", "design-investment", "product-strategy"],
+    "sources": ["https://lawsofux.com/pareto-principle/"]
+  },
+  {
+    "id": "parkinsons-law",
+    "name": "Parkinson's Law",
+    "category": "laws-of-ux",
+    "summary": "Any task will inflate until all of the available time is spent.",
+    "description": "Cyril Northcote Parkinson observed that work expands to fill the time available for its completion. In UX, this means that giving users too much time, space, or flexibility often leads to worse outcomes, not better ones. Constrained design — shorter forms, tighter deadlines, limited text areas — often produces better results. This also applies to design process: timeboxing decisions prevents over-analysis.",
+    "implications": [
+      "Set appropriate constraints on inputs (character limits, field counts)",
+      "Use timeboxing for design decisions — don't let analysis expand forever",
+      "Shorter forms get completed more often than long ones",
+      "Limited-time offers and urgency create action (use ethically)",
+      "Constrain text areas to encourage conciseness",
+      "Break large tasks into smaller, time-bounded chunks"
+    ],
+    "violations": [
+      "Unlimited text areas that encourage novels instead of summaries",
+      "Open-ended questionnaires with no indication of expected length",
+      "Infinite scroll that encourages endless browsing instead of action"
+    ],
+    "applies_to": ["forms", "time", "constraints", "productivity", "input-design"],
+    "sources": ["https://lawsofux.com/parkinsons-law/"]
+  },
+  {
+    "id": "peak-end-rule",
+    "name": "Peak-End Rule",
+    "category": "laws-of-ux",
+    "summary": "People judge an experience largely based on how they felt at its most intense point and at its end, rather than based on the sum or average of every moment of the experience.",
+    "description": "Discovered by Daniel Kahneman, this principle means that users remember the best (or worst) moment of an experience and the final moment. Two practical implications: (1) create a delightful peak moment in every flow, and (2) end every interaction on a positive note. A painful middle is forgiven if the peak is delightful and the ending is satisfying.",
+    "implications": [
+      "Design a delightful 'peak moment' in key user flows (celebration, surprise, achievement)",
+      "End flows positively — confirmation pages, success messages, next steps",
+      "Invest in the last step of any process (checkout confirmation, welcome screen)",
+      "Front-load pain (complex setup) and end with delight (immediate value)",
+      "Avoid ending on error states — always provide a recovery path",
+      "Celebrate milestones and completions with animations or encouraging copy"
+    ],
+    "violations": [
+      "Checkout flow that ends with a bland 'Order placed' text",
+      "Onboarding that ends with a blank dashboard instead of guided first action",
+      "Error as the last thing a user sees before leaving",
+      "No celebration or positive reinforcement after completing a task"
+    ],
+    "applies_to": ["onboarding", "checkout", "success-states", "delight", "emotions", "cta"],
+    "sources": ["https://lawsofux.com/peak-end-rule/"]
+  },
+  {
+    "id": "postels-law",
+    "name": "Postel's Law",
+    "category": "laws-of-ux",
+    "summary": "Be liberal in what you accept, and conservative in what you send.",
+    "description": "Originally a principle of network protocol design by Jon Postel, applied to UX it means: accept input in many formats (phone numbers with or without dashes, dates in various formats) but display output in a consistent, well-formatted way. Be forgiving of user input variations while maintaining strict output quality. This reduces errors and frustration.",
+    "implications": [
+      "Accept multiple input formats (phone: (555) 123-4567, 5551234567, 555-123-4567)",
+      "Auto-format inputs to a standard display format",
+      "Don't reject input for minor formatting differences",
+      "Be permissive with search queries — handle typos, partial matches",
+      "Display output in a consistent, well-formatted manner",
+      "Trim whitespace, fix capitalization, handle edge cases gracefully"
+    ],
+    "violations": [
+      "Rejecting a phone number because it includes dashes",
+      "Requiring exact date format instead of accepting natural language dates",
+      "Case-sensitive search or login fields",
+      "Rejecting a credit card number with spaces",
+      "Email validation that rejects valid but unusual addresses"
+    ],
+    "applies_to": ["forms", "validation", "inputs", "search", "error-prevention"],
+    "sources": ["https://lawsofux.com/postels-law/"]
+  },
+  {
+    "id": "serial-position-effect",
+    "name": "Serial Position Effect",
+    "category": "laws-of-ux",
+    "summary": "Users have a propensity to best remember the first and last items in a series.",
+    "description": "Composed of two effects: the primacy effect (better recall of first items) and recency effect (better recall of last items). In UI, this means the most important items should be placed first or last in a list, navigation, or set of options. The middle items receive the least attention. This directly impacts navigation design, feature lists, and content ordering.",
+    "implications": [
+      "Place the most important navigation items first and last",
+      "Put key features at the beginning and end of feature lists",
+      "In bottom navigation (mobile), place primary actions at the edges",
+      "Start and end presentations/onboarding with the most important information",
+      "Place the most valuable options at the beginning and end of dropdowns",
+      "Use the middle positions for secondary or less critical items"
+    ],
+    "violations": [
+      "Most important navigation buried in the middle of the menu",
+      "Key features listed in the middle of a long feature comparison",
+      "Primary mobile tab bar actions in center positions",
+      "Burying the most compelling pricing feature mid-list"
+    ],
+    "applies_to": ["navigation", "lists", "mobile", "content-order", "information-architecture"],
+    "sources": ["https://lawsofux.com/serial-position-effect/"]
+  },
+  {
+    "id": "teslers-law",
+    "name": "Tesler's Law",
+    "category": "laws-of-ux",
+    "summary": "Tesler's Law, also known as The Law of Conservation of Complexity, states that for any system there is a certain amount of complexity which cannot be reduced.",
+    "description": "Larry Tesler argued that every application has an inherent amount of irreducible complexity. The question is: who bears that complexity — the user or the system? Good design absorbs complexity on the system side so users don't have to deal with it. Smart defaults, auto-detection, and intelligent preprocessing all shift complexity from user to system.",
+    "implications": [
+      "Absorb complexity on the system side whenever possible",
+      "Use smart defaults that work for 80% of users",
+      "Auto-detect settings when possible (timezone, language, currency)",
+      "Don't expose system architecture to end users",
+      "Use progressive disclosure to hide complexity until it's needed",
+      "Invest engineering time to simplify the user experience, not just the code"
+    ],
+    "violations": [
+      "Exposing configuration that could be auto-detected",
+      "Requiring users to understand technical concepts to use the product",
+      "Making users manually set timezone, locale, or date format",
+      "Showing raw API responses or database field names in the UI",
+      "Requiring manual data transformation that could be automated"
+    ],
+    "applies_to": ["simplicity", "settings", "onboarding", "automation", "complexity-management"],
+    "sources": ["https://lawsofux.com/teslers-law/"]
+  },
+  {
+    "id": "von-restorff-effect",
+    "name": "Von Restorff Effect",
+    "category": "laws-of-ux",
+    "summary": "The Von Restorff effect, also known as The Isolation Effect, predicts that when multiple similar objects are present, the one that differs from the rest is most likely to be remembered.",
+    "description": "Hedwig von Restorff discovered that distinctive items in a group are better remembered. In UI design, this is the foundation of visual hierarchy — the element that's different gets noticed first. Use this for CTAs, featured pricing plans, important alerts, and any element that needs to stand out. But use sparingly — if everything is highlighted, nothing is.",
+    "implications": [
+      "Make the primary CTA visually distinct from surrounding elements",
+      "Highlight the recommended pricing plan with a different color or badge",
+      "Use visual contrast to draw attention to important alerts and notifications",
+      "Make the most important metric on a dashboard visually prominent",
+      "Use color, size, or weight to distinguish key information",
+      "Reserve distinctive styling for truly important elements — overuse destroys the effect"
+    ],
+    "violations": [
+      "All pricing plans styled identically with no recommended option highlighted",
+      "Every element on the page demanding attention equally",
+      "CTAs that blend into the page design",
+      "Using highlight colors so frequently they lose meaning",
+      "Important alerts styled the same as informational messages"
+    ],
+    "applies_to": ["cta", "pricing", "hierarchy", "alerts", "visual-design", "emphasis"],
+    "sources": ["https://lawsofux.com/von-restorff-effect/"]
+  },
+  {
+    "id": "zeigarnik-effect",
+    "name": "Zeigarnik Effect",
+    "category": "laws-of-ux",
+    "summary": "People remember uncompleted or interrupted tasks better than completed tasks.",
+    "description": "Bluma Zeigarnik discovered that incomplete tasks create a state of cognitive tension that keeps them in memory. In UX, this powers engagement mechanics: progress bars, incomplete profiles, unfinished tutorials, and streak counters all leverage this effect. Users are drawn to complete what they've started. Use ethically — this can be manipulative (dark patterns) or helpful (onboarding nudges).",
+    "implications": [
+      "Show profile completion percentages to encourage finishing setup",
+      "Use progress bars on multi-step flows to create completion motivation",
+      "Break onboarding into visible steps that show what's left",
+      "Send reminders about abandoned carts, drafts, or incomplete actions",
+      "Use streaks and chains to encourage habitual engagement",
+      "Save progress so users can return to incomplete tasks easily"
+    ],
+    "violations": [
+      "No save state for partially completed forms",
+      "Onboarding with no visible progress or completion indicator",
+      "Abandoning the user after they start a task with no way to return",
+      "Using this effect manipulatively (fake urgency, artificial scarcity)"
+    ],
+    "applies_to": ["onboarding", "engagement", "gamification", "progress", "retention", "forms"],
+    "sources": ["https://lawsofux.com/zeigarnik-effect/"]
+  }
+]

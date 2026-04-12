@@ -1,0 +1,48 @@
+{
+  "id": "growth",
+  "name": "Growth Strategies",
+  "category": "business",
+  "summary": "Viral loops, referral mechanics, network effects, and organic growth patterns for digital products.",
+  "strategies": [
+    {
+      "name": "Viral loops (inherent virality)",
+      "description": "Product usage naturally exposes the product to non-users. The product is the marketing. Every user action has the potential to bring in new users without explicit referral effort.",
+      "when_to_use": "Products where the output is shared (documents, designs, links). Collaborative products where inviting others is part of the core workflow.",
+      "pitfalls": ["Viral loops that feel spammy ('X invited you!' emails)", "Forcing sharing as a gate to features (dark pattern)", "Virality that brings low-quality users who don't retain", "No onboarding for virally-acquired users (they arrive without context)"],
+      "examples": ["Figma: share a design link → viewer sees Figma branding → signs up", "Calendly: share scheduling link → recipient experiences the product", "Loom: share video → viewer sees Loom branding → records their own", "Notion: shared pages expose Notion to non-users"],
+      "metrics": ["viral coefficient (K-factor, target: >1.0 for viral growth)", "cycle time (days per viral loop)", "invitation rate (% of users who invite)", "invited-user activation rate"]
+    },
+    {
+      "name": "Referral programs",
+      "description": "Structured incentive programs that reward users for bringing in new users. Both referrer and referee receive a benefit. Must be easy to share and clearly valuable.",
+      "when_to_use": "Products with clear monetary value where a discount or credit is meaningful. Marketplaces and subscription products.",
+      "pitfalls": ["Incentive too small to motivate sharing", "Referral process too complex (long URLs, manual entry)", "One-sided rewards (only referrer benefits)", "Referral fraud and gaming", "Running out of budget on a viral referral program"],
+      "examples": ["Dropbox: 500MB free for referrer + referee (grew 3900%)", "Uber: free ride credit for both parties", "Morning Brew: tiered rewards (swag at milestones)"],
+      "metrics": ["referral rate (% of users who refer)", "referral conversion rate", "CAC from referrals vs paid acquisition", "LTV of referred users vs organic"]
+    },
+    {
+      "name": "Network effects",
+      "description": "The product becomes more valuable as more people use it. Direct network effects (more users = more value, like social networks) or indirect (more users = more content/integrations, like marketplaces).",
+      "when_to_use": "Products where user density or content volume drives value. Marketplaces, social products, and platforms.",
+      "pitfalls": ["Cold start problem — no value without users, no users without value", "Local network effects masquerading as global (valuable only within teams, not across platform)", "Network effects weakening as market saturates", "Negative network effects at scale (congestion, noise)"],
+      "examples": ["Slack: more team members → more conversations → more value", "Figma: more designers → more components shared → more templates available", "LinkedIn: more professionals → more job opportunities → more professionals"],
+      "metrics": ["network density", "cross-team adoption rate", "content created per user", "value per user as a function of total users"]
+    },
+    {
+      "name": "Content and SEO as growth engine",
+      "description": "User-generated or editorially-created content that ranks in search engines and brings organic traffic. The product's content IS the acquisition channel.",
+      "when_to_use": "Products that generate indexable content. Knowledge bases, template marketplaces, community forums.",
+      "pitfalls": ["Content without conversion paths (traffic but no signups)", "SEO-first content that's low quality (Google increasingly penalizes this)", "User-generated content quality issues", "Keyword cannibalization between pages"],
+      "examples": ["Notion: template gallery ranks for workflow searches", "Canva: design templates rank for 'resume template', 'poster maker'", "Stack Overflow: Q&A ranks for every programming question"],
+      "metrics": ["organic traffic growth rate", "content-to-signup conversion rate", "keyword rankings", "content volume growth"]
+    },
+    {
+      "name": "Product-led growth (PLG)",
+      "description": "The product itself drives acquisition, conversion, and expansion — without requiring sales teams for initial adoption. Users self-serve into the product, discover value, and expand usage.",
+      "when_to_use": "Products simple enough for self-serve onboarding. When end-users (not just buyers) influence purchasing decisions. Developer tools, design tools, and horizontal SaaS.",
+      "pitfalls": ["Underinvesting in onboarding — self-serve isn't self-explanatory", "No path from individual to team adoption (bottom-up to top-down)", "Pricing that doesn't scale with self-serve adoption", "No sales assist for enterprise deals that start PLG"],
+      "examples": ["Slack: team adoption → department → org-wide", "Figma: individual designer → design team → cross-functional", "Notion: personal notes → team wiki → company knowledge base"],
+      "metrics": ["product-qualified leads (PQLs)", "self-serve revenue %", "bottom-up expansion rate", "time-to-team-adoption"]
+    }
+  ]
+}

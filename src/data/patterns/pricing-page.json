@@ -1,0 +1,59 @@
+{
+  "id": "pricing-page",
+  "name": "Pricing Page",
+  "category": "conversion",
+  "summary": "Patterns for pricing pages that convert browsers into buyers through clear value communication and smart psychology.",
+  "principles_referenced": ["hicks-law", "von-restorff-effect", "jakobs-law", "aesthetic-usability-effect", "serial-position-effect"],
+  "patterns": [
+    {
+      "name": "Recommended plan highlight",
+      "description": "Visually distinguish one plan as recommended. This leverages the Von Restorff Effect and anchoring to guide choice. The recommended plan should be the one that delivers the best value for most users.",
+      "do": ["Use a 'Most Popular' or 'Recommended' badge", "Make the recommended plan visually elevated (larger card, colored border, different background)", "Position the recommended plan in the center (3 plans) or second from left (4 plans)", "Show the recommended plan's CTA as the primary button style"],
+      "dont": ["Highlight the most expensive plan (feels pushy)", "Highlight two or more plans (defeats the purpose)", "Use subtle differentiation — it needs to be obvious", "Make the recommended plan look like an ad users might ignore"],
+      "evidence": "Highlighting a recommended plan increases selection of that plan by 20-30%. The center position effect (serial position) adds another 5-10%."
+    },
+    {
+      "name": "Three-plan structure",
+      "description": "Offer exactly 3 plans: a free/low tier for consideration, a mid tier as the target, and a high tier for anchoring. This is the most effective pricing structure for most SaaS products.",
+      "do": ["Name plans for the user segment, not the feature set (Starter, Pro, Team)", "Keep the free tier useful enough to demonstrate value", "Make the mid tier the obvious best value", "Use the top tier for price anchoring and enterprise needs"],
+      "dont": ["Offer more than 4 plans on the main pricing page", "Name plans Good/Better/Best (it's patronizing)", "Make the free tier so limited it's frustrating", "Price the tiers too close together — create clear value gaps"],
+      "evidence": "The 'decoy effect' (asymmetric dominance) is most effective with 3 options. Adding a premium tier can increase mid-tier conversion by 40%."
+    },
+    {
+      "name": "Feature comparison table",
+      "description": "A detailed comparison of what's included in each plan, using checkmarks and clear categories. Placed below the plan cards for users who need details before deciding.",
+      "do": ["Group features by category", "Use checkmarks (not just text) for at-a-glance scanning", "Highlight the differences between plans, not the similarities", "Make the table responsive — stack on mobile or allow horizontal scroll"],
+      "dont": ["Show the comparison as the primary pricing view (overwhelming)", "List 50+ features without categorization", "Use vague feature names only internal teams understand", "Hide limits in footnotes — be transparent"],
+      "evidence": "Feature comparison tables increase time-on-page by 60% and conversion by 15% for considered purchases."
+    },
+    {
+      "name": "Annual vs monthly toggle",
+      "description": "Offer both billing cycles with the annual savings prominently displayed. Default to annual (higher LTV) but make monthly easy to switch to.",
+      "do": ["Show the savings percentage or dollar amount for annual billing", "Default to annual pricing view", "Use a simple toggle switch between monthly/annual", "Show monthly price even for annual (e.g., '$8/mo billed annually')"],
+      "dont": ["Hide the monthly option", "Make the savings math hard to calculate", "Show only the annual price without explaining the billing", "Use confusing 'per seat per month billed annually' without a total"],
+      "evidence": "Showing annual savings increases annual plan selection by 15-25%. Displaying the monthly-equivalent price for annual plans reduces sticker shock."
+    },
+    {
+      "name": "Social proof on pricing",
+      "description": "Place trust signals on the pricing page to reduce purchase anxiety: customer logos, testimonials, ratings, and security badges.",
+      "do": ["Show customer logos relevant to the plan tier", "Include a testimonial about value/ROI near the CTA", "Display security badges near payment forms", "Show customer count ('Join 10,000+ teams')"],
+      "dont": ["Use fake testimonials or logos without permission", "Place social proof where it distracts from pricing clarity", "Show generic testimonials unrelated to the product's value", "Overload with too many logos — 6-8 is optimal"],
+      "evidence": "Social proof near pricing CTAs increases conversion by 10-15%. Customer logos increase trust for B2B buyers."
+    }
+  ],
+  "checklist": [
+    "Are there 2-4 clearly differentiated plans?",
+    "Is one plan visually highlighted as recommended?",
+    "Is the recommended plan positioned in the center or one-from-left?",
+    "Are plan names based on user segments, not features?",
+    "Is there an annual/monthly toggle with savings displayed?",
+    "Can users start a free trial or freemium tier without payment?",
+    "Is there a feature comparison table for detail-oriented buyers?",
+    "Are CTAs action-oriented ('Start free trial', not 'Buy now')?",
+    "Is social proof visible on the pricing page?",
+    "Is the pricing page responsive and readable on mobile?",
+    "Are enterprise/custom plans handled with 'Contact sales'?",
+    "Is there a FAQ section addressing common pricing objections?",
+    "Is the currency localized or selectable?"
+  ]
+}

@@ -1,0 +1,126 @@
+[
+  {
+    "id": "thumb-zone",
+    "name": "Thumb Zone Design",
+    "category": "mobile-ux",
+    "summary": "Design for one-handed use — the most important actions should be in the natural thumb reach zone.",
+    "description": "Steven Hoober's research shows that 49% of people use their phone with one hand. The 'thumb zone' — the easy, natural reach area — is an arc from the bottom-center to the middle of the screen. Top corners and far edges are hard to reach. Primary actions (compose, send, navigate) should be in the easy zone. Secondary actions (settings, edit, delete) can be in stretch zones. This is why bottom navigation, floating action buttons, and bottom sheets are standard mobile patterns.",
+    "implications": [
+      "Place primary actions in the bottom third of the screen",
+      "Use bottom navigation instead of top hamburger menus",
+      "Bottom sheets for action menus and selections",
+      "Floating action button (FAB) in bottom-right for the primary action",
+      "Avoid placing frequent actions in the top-left corner",
+      "Pull-to-refresh works because it uses the natural thumb zone",
+      "Consider swipe gestures for common actions (swipe to delete, archive)"
+    ],
+    "violations": [
+      "Primary navigation only in the top-left hamburger menu",
+      "Important CTAs in the top corners of the screen",
+      "Action sheets that appear at the top of the screen",
+      "Requiring two-handed operation for core tasks",
+      "Small targets in the top corners (back button < 44px)"
+    ],
+    "applies_to": ["mobile", "navigation", "buttons", "touch-targets", "layout"],
+    "sources": ["https://www.smashingmagazine.com/2016/09/the-thumb-zone-designing-for-mobile-users/"]
+  },
+  {
+    "id": "touch-targets",
+    "name": "Touch Target Sizing",
+    "category": "mobile-ux",
+    "summary": "Interactive elements must be at least 44x44 points with adequate spacing between targets.",
+    "description": "The average adult fingertip is 10mm wide (about 44px at 160dpi). Apple HIG requires 44pt minimum, Material Design requires 48dp, and WCAG 2.2 requires at least 24px with spacing. Touch targets can be larger than the visual element — use padding to extend the tap area. Adjacent targets need at least 8px spacing to prevent mis-taps. This is the most commonly violated mobile UX guideline.",
+    "implications": [
+      "Minimum 44x44pt (Apple) or 48x48dp (Material) for touch targets",
+      "At least 8px spacing between adjacent touch targets",
+      "Extend tap area with padding even when the visual element is small",
+      "Inline links need adequate line-height for tapping (min 48px line-height)",
+      "List items used as navigation: full-width tap target, min 48px height",
+      "Icon buttons: icon can be 24px but tap target should be 44px+",
+      "Test on real devices — simulator clicks are more precise than fingers"
+    ],
+    "violations": [
+      "24px icon buttons with no extended tap area",
+      "Dense tables with small tap targets on mobile",
+      "Text links with tight line-height — nearly impossible to tap accurately",
+      "Adjacent buttons touching with no spacing — frequent mis-taps",
+      "Checkbox/radio inputs at native browser size (13px)"
+    ],
+    "applies_to": ["mobile", "buttons", "links", "forms", "touch-targets", "lists"],
+    "sources": ["https://developer.apple.com/design/human-interface-guidelines/buttons"]
+  },
+  {
+    "id": "bottom-sheet-pattern",
+    "name": "Bottom Sheet Pattern",
+    "category": "mobile-ux",
+    "summary": "Bottom sheets are the mobile-native way to present actions, selections, and supplementary content.",
+    "description": "Bottom sheets slide up from the bottom of the screen, appearing in the natural thumb zone. They replace desktop patterns like dropdowns, popovers, and modals for mobile. Modal bottom sheets block the content behind them (with a scrim). Persistent bottom sheets stay visible alongside content (like Google Maps). Standard bottom sheets have a drag handle, snap to peek/half/full heights, and dismiss by swiping down.",
+    "implications": [
+      "Use instead of desktop dropdown menus on mobile",
+      "Include a visible drag handle at the top",
+      "Support swipe-to-dismiss (swipe down)",
+      "Snap to predefined heights: peek (25%), half (50%), full (85-90%)",
+      "Modal bottom sheets: add a scrim behind, tap-outside-to-dismiss",
+      "Content should be scrollable within the sheet when expanded",
+      "Place the most common action at the top of the sheet content"
+    ],
+    "violations": [
+      "Desktop-style dropdown menus on mobile — too small, wrong position",
+      "Full-screen modals for simple selections (date, filter, action)",
+      "Bottom sheet without drag handle — unclear dismissal method",
+      "Bottom sheet covering the full screen with no way to see context behind"
+    ],
+    "applies_to": ["mobile", "modals", "menus", "actions", "navigation", "selection"],
+    "sources": ["https://m3.material.io/components/bottom-sheets/overview"]
+  },
+  {
+    "id": "mobile-forms",
+    "name": "Mobile Form Design",
+    "category": "mobile-ux",
+    "summary": "Mobile forms must minimize typing, use appropriate keyboards, and handle the virtual keyboard gracefully.",
+    "description": "Typing on mobile is slow and error-prone. Every form field is a friction point. Use the right input type to trigger the right keyboard (email, tel, number, url). Prefer selection over typing (pickers, segmented controls, switches). Auto-fill everything possible. Single-column layout only — multi-column forms break on mobile. The form should scroll smoothly when the keyboard appears, keeping the active field visible.",
+    "implications": [
+      "Use appropriate input types: email, tel, number, url, search",
+      "Set autocomplete attributes for auto-fill (name, email, address, cc-number)",
+      "Single-column layout only — never multi-column on mobile",
+      "Replace text inputs with pickers, toggles, and segmented controls where possible",
+      "Labels above inputs (not inline/floating for mobile — they shrink to unreadable sizes)",
+      "Active field must be visible above the virtual keyboard",
+      "Place the submit button above the fold or make it sticky at the bottom"
+    ],
+    "violations": [
+      "Email field without inputmode='email' — shows default keyboard",
+      "Multi-column form layout on mobile — fields too narrow",
+      "Phone field without inputmode='tel' — shows full keyboard",
+      "Form that doesn't scroll when keyboard appears — active field hidden",
+      "No autocomplete attributes — user must type everything manually"
+    ],
+    "applies_to": ["mobile", "forms", "inputs", "keyboards", "validation"],
+    "sources": ["https://web.dev/learn/forms/"]
+  },
+  {
+    "id": "mobile-navigation",
+    "name": "Mobile Navigation Patterns",
+    "category": "mobile-ux",
+    "summary": "Mobile navigation should prioritize the thumb zone and minimize the number of taps to reach key content.",
+    "description": "Bottom tab bars are the gold standard for mobile apps with 3-5 top-level destinations. Hamburger menus hide navigation and reduce discoverability — use only when you have 5+ sections or navigation is secondary. Tab bars should show icons + labels (not icon-only), highlight the active tab, and be persistent across screens. For deep hierarchies, use stack navigation with a clear back button.",
+    "implications": [
+      "Bottom tab bar for 3-5 primary destinations (iOS tab bar, Material bottom nav)",
+      "Always show icon + label on tab items (icon-only reduces discoverability 50%)",
+      "Hamburger menu only for 5+ sections or when navigation is secondary",
+      "Stack navigation with clear back button for hierarchical content",
+      "Search should be prominent — top of screen or dedicated tab",
+      "Maximum 2-3 taps to reach any key content",
+      "Persistent navigation — don't hide it on scroll (or at least show on scroll-up)"
+    ],
+    "violations": [
+      "Hamburger menu as the only navigation with 3 items — should be a tab bar",
+      "Icon-only tab bar with no labels — low discoverability",
+      "More than 5 items in the bottom tab bar — too many to tap accurately",
+      "Navigation hidden on scroll with no way to bring it back",
+      "Deep navigation hierarchy requiring 4+ taps to reach content"
+    ],
+    "applies_to": ["mobile", "navigation", "tabs", "menus", "information-architecture"],
+    "sources": ["https://developer.apple.com/design/human-interface-guidelines/tab-bars"]
+  }
+]

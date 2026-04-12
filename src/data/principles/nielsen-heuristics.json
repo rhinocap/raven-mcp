@@ -1,0 +1,258 @@
+[
+  {
+    "id": "visibility-of-system-status",
+    "name": "Visibility of System Status",
+    "category": "nielsen-heuristics",
+    "summary": "The design should always keep users informed about what is going on, through appropriate feedback within a reasonable amount of time.",
+    "description": "Users should never have to wonder about the current state of the system. Every action should produce visible, immediate feedback. Progress indicators, loading states, success confirmations, and error messages all serve this heuristic. The system should proactively communicate state changes rather than leaving users to guess.",
+    "implications": [
+      "Show loading indicators for any operation over 1 second",
+      "Provide progress bars for multi-step processes",
+      "Confirm successful actions with visual feedback (toast, check mark, color change)",
+      "Display real-time validation on form inputs",
+      "Show current location in navigation (breadcrumbs, active nav state)",
+      "Indicate unsaved changes before the user navigates away",
+      "Use skeleton screens instead of blank loading states"
+    ],
+    "violations": [
+      "A form submits with no visual feedback — user clicks again, creating duplicates",
+      "File upload with no progress bar — user doesn't know if it's working",
+      "No active state on navigation — user doesn't know which page they're on",
+      "Long-running process with no indication of progress or estimated time",
+      "Button click with no visual response (no disabled state, no spinner)"
+    ],
+    "applies_to": ["loading", "forms", "navigation", "feedback", "progress", "empty-states", "error-states"],
+    "sources": ["https://www.nngroup.com/articles/visibility-system-status/"]
+  },
+  {
+    "id": "match-real-world",
+    "name": "Match Between System and the Real World",
+    "category": "nielsen-heuristics",
+    "summary": "The design should speak the users' language. Use words, phrases, and concepts familiar to the user, rather than internal jargon.",
+    "description": "Information should appear in a natural and logical order, following real-world conventions. The interface should use language and metaphors the target users already understand. Icons should map to real-world objects users recognize. Workflows should follow real-world task sequences rather than system architecture.",
+    "implications": [
+      "Use domain-specific language your users actually use, not internal product terms",
+      "Order information following real-world conventions (dates, addresses, names)",
+      "Use icons and metaphors that map to physical-world objects users recognize",
+      "Design workflows that mirror real-world task sequences",
+      "Use natural language for labels and instructions, not technical jargon",
+      "Show amounts in user's local currency and date format"
+    ],
+    "violations": [
+      "Using 'repository' instead of 'project' for non-developer audiences",
+      "Error codes like 'ERR_404' instead of 'Page not found'",
+      "Technical field names like 'varchar' or 'uuid' visible to end users",
+      "Calendar that starts weeks on Monday in US-locale apps (or Sunday in European ones)",
+      "Using 'tenant' or 'instance' in user-facing copy"
+    ],
+    "applies_to": ["copy", "labels", "navigation", "forms", "error-states", "onboarding"],
+    "sources": ["https://www.nngroup.com/articles/match-system-real-world/"]
+  },
+  {
+    "id": "user-control-freedom",
+    "name": "User Control and Freedom",
+    "category": "nielsen-heuristics",
+    "summary": "Users often perform actions by mistake. They need a clearly marked 'emergency exit' to leave the unwanted action without having to go through an extended process.",
+    "description": "Users need to feel in control. Every destructive or significant action should be undoable. The system should provide clear ways to go back, cancel, or undo. Confirmation dialogs for irreversible actions. Easy navigation back to known states. Users should never feel trapped in a flow they didn't intend to enter.",
+    "implications": [
+      "Support undo/redo for all significant actions",
+      "Provide a clear 'Cancel' option on every modal and multi-step flow",
+      "Allow users to go back to previous steps in multi-step processes",
+      "Use 'soft delete' (trash/archive) instead of permanent deletion",
+      "Show confirmation dialogs only for truly irreversible actions",
+      "Let users exit onboarding flows and return later",
+      "Provide a 'Home' or logo link that always returns to a known state"
+    ],
+    "violations": [
+      "Permanent deletion with no undo or archive option",
+      "Multi-step wizard with no back button",
+      "Modal that can only be dismissed by completing the action",
+      "Onboarding flow that can't be skipped or paused",
+      "No way to unsend or edit a message after sending",
+      "Settings change that takes effect immediately with no revert option"
+    ],
+    "applies_to": ["modals", "forms", "navigation", "settings", "destructive-actions", "onboarding"],
+    "sources": ["https://www.nngroup.com/articles/user-control-and-freedom/"]
+  },
+  {
+    "id": "consistency-standards",
+    "name": "Consistency and Standards",
+    "category": "nielsen-heuristics",
+    "summary": "Users should not have to wonder whether different words, situations, or actions mean the same thing. Follow platform and industry conventions.",
+    "description": "Jakob's Law applies here — users spend most of their time on other sites and apps. They expect your interface to work the same way. Internal consistency (within your product) and external consistency (with platform conventions) both matter. Design systems exist to enforce this. Breaking convention requires a very good reason.",
+    "implications": [
+      "Use standard platform patterns (hamburger menu, search icon, settings gear)",
+      "Keep terminology consistent across the entire product",
+      "Use the same visual treatment for the same type of action everywhere",
+      "Follow platform conventions for gestures, keyboard shortcuts, and navigation",
+      "Maintain a design system to enforce visual and interaction consistency",
+      "Use standard form patterns (labels above inputs, primary action on the right)"
+    ],
+    "violations": [
+      "Different words for the same action ('Remove' vs 'Delete' vs 'Trash')",
+      "Buttons that look different but do the same thing on different pages",
+      "Non-standard icons (using a heart icon for bookmarking)",
+      "Different navigation patterns on different pages of the same app",
+      "Custom scrollbar behavior that doesn't match OS conventions",
+      "Different date formats on different screens"
+    ],
+    "applies_to": ["buttons", "navigation", "forms", "icons", "copy", "design-system"],
+    "sources": ["https://www.nngroup.com/articles/consistency-and-standards/"]
+  },
+  {
+    "id": "error-prevention",
+    "name": "Error Prevention",
+    "category": "nielsen-heuristics",
+    "summary": "Good error messages are important, but the best designs carefully prevent problems from occurring in the first place.",
+    "description": "There are two types of errors: slips (unconscious mistakes from inattention) and mistakes (conscious errors from incorrect mental models). Prevent slips with good defaults, constraints, and confirmations. Prevent mistakes with clear instructions, affordances, and previews. Error prevention is always better than error recovery.",
+    "implications": [
+      "Use inline validation to catch errors before form submission",
+      "Provide sensible defaults for complex inputs",
+      "Use constrained inputs (dropdowns, date pickers) instead of free text where possible",
+      "Show a confirmation step before irreversible actions",
+      "Disable or hide actions that aren't available in the current context",
+      "Auto-save work to prevent data loss",
+      "Show previews of the result before the user commits to an action"
+    ],
+    "violations": [
+      "Free text input for dates instead of a date picker",
+      "No validation until the entire form is submitted",
+      "Destructive action button right next to the primary action with no confirmation",
+      "Allowing submission of obviously invalid data (negative quantities, past dates for future events)",
+      "No auto-save on long forms — a browser crash loses all work",
+      "Delete button with no confirmation or undo"
+    ],
+    "applies_to": ["forms", "validation", "destructive-actions", "inputs", "settings"],
+    "sources": ["https://www.nngroup.com/articles/slips/"]
+  },
+  {
+    "id": "recognition-over-recall",
+    "name": "Recognition Rather Than Recall",
+    "category": "nielsen-heuristics",
+    "summary": "Minimize the user's memory load by making elements, actions, and options visible. The user should not have to remember information from one part of the interface to another.",
+    "description": "Human short-term memory is limited (Miller's Law). Interfaces should present options visibly rather than requiring users to remember them. Recently used items, search suggestions, contextual help, and visible navigation all reduce cognitive load. Every time a user has to remember something, there's a chance for error.",
+    "implications": [
+      "Show recently used items and searches",
+      "Use descriptive labels instead of icon-only buttons",
+      "Provide search with autocomplete and suggestions",
+      "Show contextual help and tooltips for complex features",
+      "Display relevant information in context rather than requiring navigation",
+      "Use visual cues (color, icons, thumbnails) to aid recognition",
+      "Keep important actions visible, not buried in menus"
+    ],
+    "violations": [
+      "Icon-only toolbar with no labels or tooltips",
+      "Requiring users to remember codes or IDs from a previous screen",
+      "Hidden navigation that requires memorizing keyboard shortcuts",
+      "No search history or recent items",
+      "Complex settings with no preview of what they affect",
+      "Reference numbers shown once with no way to look them up later"
+    ],
+    "applies_to": ["navigation", "search", "forms", "icons", "tooltips", "dashboard"],
+    "sources": ["https://www.nngroup.com/articles/recognition-and-recall/"]
+  },
+  {
+    "id": "flexibility-efficiency",
+    "name": "Flexibility and Efficiency of Use",
+    "category": "nielsen-heuristics",
+    "summary": "Shortcuts — hidden from novice users — can speed up the interaction for the expert user so that the design can cater to both inexperienced and experienced users.",
+    "description": "Interfaces should serve both novices and experts. Accelerators like keyboard shortcuts, customizable workflows, and batch operations let power users work faster without overwhelming beginners. Progressive disclosure shows basic features first with advanced options available on demand. The system should be learnable but also efficient at scale.",
+    "implications": [
+      "Provide keyboard shortcuts for common actions",
+      "Support batch/bulk operations for repetitive tasks",
+      "Allow users to customize their workspace and workflows",
+      "Implement progressive disclosure — basic features first, advanced on demand",
+      "Support command palettes for power users (Cmd+K pattern)",
+      "Allow drag-and-drop as an alternative to menu-driven interactions",
+      "Remember user preferences and recent selections"
+    ],
+    "violations": [
+      "No keyboard shortcuts for any actions",
+      "Forcing users through a wizard for a task they do 50 times a day",
+      "No bulk selection or batch operations on lists",
+      "Expert features mixed in with beginner UI, making both worse",
+      "No way to save or template frequently used configurations",
+      "Search that requires exact matches with no fuzzy matching"
+    ],
+    "applies_to": ["navigation", "keyboard", "power-users", "customization", "search", "workflows"],
+    "sources": ["https://www.nngroup.com/articles/flexibility-efficiency-heuristic/"]
+  },
+  {
+    "id": "aesthetic-minimalist-design",
+    "name": "Aesthetic and Minimalist Design",
+    "category": "nielsen-heuristics",
+    "summary": "Interfaces should not contain information that is irrelevant or rarely needed. Every extra unit of information in an interface competes with the relevant units of information and diminishes their relative visibility.",
+    "description": "This is not about visual minimalism — it's about information minimalism. Every element on the screen should earn its place. Prioritize content that serves the user's primary task. Secondary information should be available on demand, not competing for attention. Visual hierarchy should make the most important content immediately clear. White space is a feature, not wasted space.",
+    "implications": [
+      "Prioritize content by user goals — primary task front and center",
+      "Use progressive disclosure to hide secondary information",
+      "Remove decorative elements that don't communicate meaning",
+      "Use generous whitespace to create visual hierarchy",
+      "Limit choices to reduce cognitive load (Hick's Law)",
+      "Show only the most relevant data; let users drill down for details",
+      "Every visual element should serve a purpose — decoration, distinction, or information"
+    ],
+    "violations": [
+      "Dashboard with 20+ metrics all given equal visual weight",
+      "Settings page showing every option at once with no grouping",
+      "Marketing copy mixed into a task-focused UI",
+      "Decorative animations that slow down task completion",
+      "Cluttered headers with too many navigation items",
+      "Showing database fields the user doesn't need to see"
+    ],
+    "applies_to": ["layout", "dashboard", "navigation", "content", "hierarchy", "whitespace"],
+    "sources": ["https://www.nngroup.com/articles/aesthetic-minimalist-design/"]
+  },
+  {
+    "id": "help-recover-errors",
+    "name": "Help Users Recognize, Diagnose, and Recover from Errors",
+    "category": "nielsen-heuristics",
+    "summary": "Error messages should be expressed in plain language (no error codes), precisely indicate the problem, and constructively suggest a solution.",
+    "description": "When errors happen, the user needs three things: what went wrong, why it went wrong, and how to fix it. Error messages should be written in human language, point to the specific field or action that caused the error, and provide a clear path to resolution. Never blame the user. Never show technical error codes without a human explanation.",
+    "implications": [
+      "Write error messages in plain, non-technical language",
+      "Point to the specific field or input that caused the error",
+      "Suggest a concrete next step to resolve the error",
+      "Use inline validation to show errors next to the relevant field",
+      "Provide a way to recover — retry, edit, go back, or contact support",
+      "Never blame the user ('Invalid input' vs 'Please enter a valid email')",
+      "Log technical details for developers but show human messages to users"
+    ],
+    "violations": [
+      "Generic 'An error occurred' with no details or recovery path",
+      "Technical error codes shown to end users (500 Internal Server Error)",
+      "Error messages that blame the user ('You entered invalid data')",
+      "Validation errors shown at the top of the page, far from the problem field",
+      "Error state with no way to retry or recover without refreshing",
+      "Red text with no explanation of what's wrong or how to fix it"
+    ],
+    "applies_to": ["error-states", "forms", "validation", "feedback", "copy"],
+    "sources": ["https://www.nngroup.com/articles/error-message-guidelines/"]
+  },
+  {
+    "id": "help-documentation",
+    "name": "Help and Documentation",
+    "category": "nielsen-heuristics",
+    "summary": "It's best if the system doesn't need any additional explanation. However, it may be necessary to provide documentation to help users understand how to complete their tasks.",
+    "description": "The best interface needs no documentation. But complex systems often do. When help is needed, it should be contextual (right where the user needs it), searchable, task-oriented (focused on concrete steps), concise, and easy to find. Help should be the last resort, not a crutch for bad design. Tooltips, onboarding tours, and inline guidance are all forms of help.",
+    "implications": [
+      "Provide contextual help tooltips next to complex features",
+      "Include a searchable help center or knowledge base",
+      "Write task-oriented documentation (how to accomplish X, not feature descriptions)",
+      "Offer onboarding tours for first-time users",
+      "Show inline hints for complex or infrequently used features",
+      "Provide example values in form fields (placeholder text)",
+      "Make help accessible without leaving the current context"
+    ],
+    "violations": [
+      "Complex feature with no documentation or tooltip explaining it",
+      "Help docs that are only accessible from a separate website",
+      "Documentation organized by feature, not by user task",
+      "No onboarding or guidance for first-time users",
+      "Tooltip text that's just the field label repeated",
+      "Help that requires reading a 10-page document for a simple task"
+    ],
+    "applies_to": ["tooltips", "onboarding", "documentation", "forms", "complex-features"],
+    "sources": ["https://www.nngroup.com/articles/help-and-documentation/"]
+  }
+]

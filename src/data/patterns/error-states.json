@@ -1,0 +1,51 @@
+{
+  "id": "error-states",
+  "name": "Error States",
+  "category": "usability",
+  "summary": "Patterns for error pages, error messages, and recovery flows that help users understand and fix problems.",
+  "principles_referenced": ["help-recover-errors", "visibility-of-system-status", "user-control-freedom", "postels-law"],
+  "patterns": [
+    {
+      "name": "Inline field errors",
+      "description": "Error messages that appear directly below the form field that has the error. The most effective error display pattern for forms.",
+      "do": ["Position the error message directly below the field", "Use red/destructive color + an error icon + text (redundant coding)", "State what's wrong AND how to fix it ('Email must include @')", "Show on blur (when the user leaves the field)", "Keep the user's input so they can edit, not re-type"],
+      "dont": ["Show errors only at the top of the form (far from the problem)", "Use red text without an icon (fails for colorblind users)", "Say 'Invalid' without explaining what's valid", "Clear the field on error — the user's input is the starting point for fixing", "Show errors while the user is still typing (validate on blur)"],
+      "evidence": "Inline errors reduce form completion time by 42% and errors by 22% compared to top-of-form error summaries."
+    },
+    {
+      "name": "Error pages (404, 500)",
+      "description": "Full-page error states for broken links, server errors, and unavailable content. Must be helpful and provide clear recovery paths.",
+      "do": ["Use human-readable language ('Page not found', not '404 Error')", "Provide recovery options: go home, search, go back", "Include search if the site has it", "Use a consistent, branded design", "Log the error details for debugging without showing them to the user"],
+      "dont": ["Show raw technical error codes to end users", "Provide no recovery options — users leave instead", "Use humor that might frustrate an already annoyed user", "Show a completely different design from the rest of the site", "Auto-redirect away from the error page (let the user choose)"],
+      "evidence": "Custom error pages that include search reduce bounce rate by 35%. Recovery links increase the chance of the user staying on-site by 50%."
+    },
+    {
+      "name": "Connection/network error",
+      "description": "What to show when the user's internet connection is lost or the server is unreachable. Must clearly communicate the issue and provide a retry path.",
+      "do": ["Clearly state it's a connection issue, not a bug", "Provide a 'Retry' or 'Try again' button", "Show what was saved vs what might be lost", "Auto-retry in the background with exponential backoff", "Show offline indicator in the UI (banner or toast)"],
+      "dont": ["Show a generic 'Error' with no context", "Delete the user's unsaved work", "Auto-redirect to a different page", "Silently fail without notifying the user", "Show a technical timeout error message"],
+      "evidence": "Auto-retry with user notification reduces support tickets for network issues by 60%. Offline indicators set correct expectations and reduce frustration."
+    },
+    {
+      "name": "Partial failure (graceful degradation)",
+      "description": "When part of a page fails to load but the rest works. Show the working content with a focused error indicator on the failed section.",
+      "do": ["Show the parts of the page that work normally", "Show an error state only in the failed section", "Provide a retry option for just the failed section", "Log the error for debugging", "Use a consistent error card/placeholder style"],
+      "dont": ["Show a full-page error for a single failed widget", "Silently hide the failed section with no indication", "Retry infinitely without telling the user", "Block interaction with working sections while one section retries"],
+      "evidence": "Graceful degradation keeps users productive even during partial failures. Full-page errors for partial failures lose 80% of users; partial error states lose only 20%."
+    }
+  ],
+  "checklist": [
+    "Do all form fields have inline error messages below the field?",
+    "Do error messages explain what's wrong AND how to fix it?",
+    "Are error states accessible (color + icon + text, not just color)?",
+    "Is there a custom 404 page with recovery options?",
+    "Is there a custom 500/server error page?",
+    "Do network errors show a retry option?",
+    "Is partial failure handled gracefully (not full-page error)?",
+    "Are error messages written in human language (no error codes)?",
+    "Is user input preserved on error (not cleared)?",
+    "Are errors logged for debugging without showing technical details to users?",
+    "Is there an offline state/banner for network disconnection?",
+    "Do error pages match the site's design (not a generic server page)?"
+  ]
+}

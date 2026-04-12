@@ -1,0 +1,51 @@
+{
+  "id": "landing-page",
+  "name": "Landing Page",
+  "category": "conversion",
+  "summary": "Landing page patterns that communicate value, build trust, and drive conversions.",
+  "principles_referenced": ["aesthetic-usability-effect", "serial-position-effect", "von-restorff-effect", "hicks-law", "peak-end-rule"],
+  "patterns": [
+    {
+      "name": "Hero section",
+      "description": "The first screen a visitor sees. Must communicate what the product does, who it's for, and why they should care — in under 5 seconds. One primary CTA.",
+      "do": ["Clear headline that states the benefit (not the feature)", "Subheadline that adds specificity (who it's for, how it works)", "One primary CTA with high-contrast styling", "Product screenshot, video, or illustration that shows value", "Keep it above the fold — no scrolling required to understand"],
+      "dont": ["Multiple CTAs competing for attention", "Jargon-heavy headline that requires industry knowledge", "Autoplay video with sound", "Headline about the company instead of the user's benefit", "Generic stock photos that don't relate to the product"],
+      "evidence": "Users form an opinion about a page in 50ms. Hero sections with product screenshots convert 80% better than stock photos. Single-CTA heroes outperform multi-CTA by 20%."
+    },
+    {
+      "name": "Social proof section",
+      "description": "Customer logos, testimonials, case studies, ratings, and usage metrics that build trust. Should appear early — ideally as the second section after the hero.",
+      "do": ["Show recognizable customer logos (6-8 is optimal)", "Include testimonials with real names, photos, and titles", "Display specific metrics ('Saved 10 hours/week', not 'Saved time')", "Show aggregate stats ('50,000+ teams trust us')", "Place social proof near CTAs to reduce purchase anxiety"],
+      "dont": ["Use fake or anonymous testimonials", "Show logos without permission", "Use vague testimonials ('Great product!')", "Place all social proof at the bottom of the page", "Show ratings without the number of reviews"],
+      "evidence": "92% of consumers trust peer recommendations over advertising. Testimonials with photos increase trust by 35%. Customer logos increase B2B conversion by 15%."
+    },
+    {
+      "name": "Feature/benefit blocks",
+      "description": "Sections that explain key features through the lens of user benefits. Typically 3-4 features with alternating left/right image+text layout or icon-based grid.",
+      "do": ["Lead with the benefit, follow with the feature", "Use screenshots or illustrations showing the feature in action", "Keep to 3-4 key features — don't list everything", "Use alternating layouts to maintain visual interest", "Each feature gets its own clear section with breathing room"],
+      "dont": ["List 20 features as bullet points", "Use generic icons that don't relate to the feature", "Write feature-first copy ('We have X' vs 'You can do X')", "Cram all features into one section"],
+      "evidence": "Benefit-oriented copy outperforms feature-oriented copy by 20-30%. Limiting to 3-4 features increases recall by 40%."
+    },
+    {
+      "name": "Final CTA section",
+      "description": "A closing section that restates the value proposition and presents the final call to action. This is the 'end' in Peak-End Rule — make it compelling.",
+      "do": ["Restate the core value proposition (different wording from hero)", "Use a high-contrast CTA button", "Address the primary objection ('No credit card required', 'Free for teams under 10')", "Create urgency without manipulation (limited beta, growing community)", "Make it visually distinct from the rest of the page"],
+      "dont": ["Just repeat the hero section verbatim", "Add a lengthy form — keep it to one button", "Introduce new information that should have been earlier", "End with a generic 'Contact us' instead of a clear action"],
+      "evidence": "Pages with a final CTA section have 15% higher conversion than those ending with footer content. Peak-End Rule: the last impression disproportionately affects memory."
+    }
+  ],
+  "checklist": [
+    "Does the hero clearly communicate what the product does in 5 seconds?",
+    "Is there one clear primary CTA above the fold?",
+    "Is there social proof (logos, testimonials) early on the page?",
+    "Are features presented as benefits to the user?",
+    "Is there a product screenshot or demo showing real value?",
+    "Does the page follow a clear narrative arc (problem → solution → proof → action)?",
+    "Is the page responsive and fast-loading on mobile?",
+    "Is there a final CTA section before the footer?",
+    "Are objections addressed near the CTA ('Free trial', 'No credit card')?",
+    "Is the page focused on one goal (not a homepage trying to do everything)?",
+    "Does the page load in under 3 seconds?",
+    "Is there a clear visual hierarchy guiding the user's eye?"
+  ]
+}

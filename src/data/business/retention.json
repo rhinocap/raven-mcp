@@ -1,0 +1,48 @@
+{
+  "id": "retention",
+  "name": "Retention Strategies",
+  "category": "business",
+  "summary": "Engagement loops, habit formation, and churn prevention patterns that keep users coming back.",
+  "strategies": [
+    {
+      "name": "Hook model (Trigger → Action → Variable Reward → Investment)",
+      "description": "Nir Eyal's framework for building habit-forming products. External triggers (notifications, emails) drive initial actions. Variable rewards keep users engaged. Investments (data, customization, social connections) increase switching costs.",
+      "when_to_use": "Consumer products aiming for daily/weekly usage. Products that benefit from habitual use.",
+      "pitfalls": ["Manipulative if rewards exploit vulnerabilities", "External triggers become annoying if over-used", "Investment phase can feel like work if not tied to clear value", "Habit loops without genuine value create resentment"],
+      "examples": ["Instagram (trigger: notification → action: open → reward: new content → invest: post)", "Duolingo (trigger: streak reminder → action: lesson → reward: XP → invest: streak)"],
+      "metrics": ["DAU/MAU ratio (target: >20% for consumer, >40% for productivity)", "time-to-habit (how long until daily usage)", "session frequency", "notification-to-open rate"]
+    },
+    {
+      "name": "Streaks and progress systems",
+      "description": "Visual representations of consecutive usage that leverage loss aversion (Zeigarnik Effect). Users are motivated to maintain their streak and feel loss if it breaks.",
+      "when_to_use": "Products where consistent daily/weekly usage drives value. Learning, fitness, language, and productivity apps.",
+      "pitfalls": ["Broken streaks causing permanent disengagement", "Streaks feeling like a chore rather than achievement", "No streak recovery mechanism (freeze, bonus)", "Streaks not tied to meaningful progress"],
+      "examples": ["Duolingo (daily streak with freeze protection)", "GitHub (contribution graph)", "Snapchat (streak counter with friends)"],
+      "metrics": ["average streak length", "streak break recovery rate", "DAU impact of streak feature", "churn correlation with streak breaks"]
+    },
+    {
+      "name": "Re-engagement campaigns",
+      "description": "Email, push, and in-app campaigns targeted at users showing declining engagement. Win-back flows before they churn.",
+      "when_to_use": "When you can detect declining engagement patterns. Products with email/push notification permission.",
+      "pitfalls": ["Too frequent — becomes spam and accelerates churn", "Generic messaging — not personalized to the user's context", "Offering discounts too early — trains users to disengage for deals", "No segmentation — treating all at-risk users the same"],
+      "examples": ["'We miss you' emails with product updates", "Win-back offers after 30 days inactive", "Feature announcement targeting dormant users", "Personal onboarding call offers for high-value at-risk accounts"],
+      "metrics": ["reactivation rate", "win-back campaign ROI", "time-to-reactivation", "churn rate reduction from campaigns"]
+    },
+    {
+      "name": "Community and social features",
+      "description": "Features that create social bonds within the product — shared workspaces, commenting, mentions, and community spaces. Social connections are the strongest retention lever.",
+      "when_to_use": "Products where collaboration or social interaction adds value. When users benefit from seeing others' activity.",
+      "pitfalls": ["Building social features nobody uses (ghost town effect)", "Privacy concerns with activity visibility", "Moderation costs for user-generated content", "Social features that distract from core product value"],
+      "examples": ["Figma (collaborative editing, comments)", "Notion (shared workspaces)", "Strava (activity feed, challenges)", "Discord (community servers)"],
+      "metrics": ["connected users per account", "collaboration frequency", "social feature usage rate", "retention delta: social users vs solo users"]
+    },
+    {
+      "name": "Switching cost accumulation",
+      "description": "Product design that naturally increases the cost of switching over time — through data accumulation, integrations, customizations, and learned proficiency.",
+      "when_to_use": "B2B products and platforms where long-term retention matters. Products with significant setup investment.",
+      "pitfalls": ["Intentionally making data export difficult (hostile lock-in)", "Switching costs without corresponding value (feels like a trap)", "Over-reliance on switching costs instead of product quality", "Violating data portability regulations"],
+      "examples": ["Salesforce (CRM data + workflows + integrations)", "Slack (message history + integrations + channel structure)", "Notion (team knowledge base accumulation)"],
+      "metrics": ["data volume per account", "integration count", "customization depth", "churn correlation with investment level"]
+    }
+  ]
+}

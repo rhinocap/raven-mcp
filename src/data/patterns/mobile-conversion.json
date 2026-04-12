@@ -1,0 +1,51 @@
+{
+  "id": "mobile-conversion",
+  "name": "Mobile Conversion",
+  "category": "conversion",
+  "summary": "Mobile-specific conversion patterns that account for thumb zones, small screens, and on-the-go usage contexts.",
+  "principles_referenced": ["fitts-law", "thumb-zone", "touch-targets", "hicks-law", "doherty-threshold"],
+  "patterns": [
+    {
+      "name": "Sticky mobile CTA",
+      "description": "A persistent CTA button fixed to the bottom of the screen on mobile. Always visible, always in the thumb zone. Essential for landing pages and product pages.",
+      "do": ["Fix to the bottom of the viewport", "Use full-width or near-full-width button", "High-contrast, brand-accent color", "Show/hide intelligently (appear after scroll past hero CTA)", "Include supporting text inline ('Free 14-day trial')"],
+      "dont": ["Cover important content (add bottom padding to compensate)", "Show immediately on page load (wait for initial scroll)", "Use alongside other fixed bottom elements (competing for space)", "Animate distractingly on scroll", "Block the ability to scroll to the footer"],
+      "evidence": "Sticky mobile CTAs increase conversion by 10-15% on long scrolling pages. Most effective when they appear after the user has scrolled past the first CTA."
+    },
+    {
+      "name": "Thumb-friendly checkout",
+      "description": "Mobile checkout flows designed for one-handed use. Large inputs, smart keyboard types, and minimal steps.",
+      "do": ["Use Apple Pay, Google Pay, and Shop Pay as primary options", "Single-column layout with large touch targets", "Appropriate keyboard types (numeric for card, email for email)", "Auto-advance between fields where possible", "Show order summary in a collapsible section"],
+      "dont": ["Require typing credit card numbers when wallet payments are available", "Use multi-column layouts for address forms", "Show a progress indicator with more than 3 steps", "Force account creation before checkout", "Open new tabs/windows during checkout"],
+      "evidence": "Mobile wallet payments convert 2-3x higher than manual card entry. Removing account creation from checkout reduces abandonment by 35%."
+    },
+    {
+      "name": "Simplified mobile forms",
+      "description": "Mobile form optimization: fewer fields, larger inputs, native pickers, and graceful keyboard management.",
+      "do": ["Reduce fields to the absolute minimum", "Use native pickers (date, select) instead of custom ones", "Set inputmode and autocomplete attributes", "Make the submit button visible above the keyboard", "Use a single-field-per-screen pattern for critical flows"],
+      "dont": ["Use custom dropdowns that fight with mobile scrolling", "Show more than 4-5 fields at once on mobile", "Place the submit button where the keyboard hides it", "Use placeholder-only labels (they disappear on focus)", "Require precise input formatting (let the system format)"],
+      "evidence": "Every additional form field on mobile reduces conversion by 3-5%. Native pickers are 40% faster than custom dropdowns on mobile."
+    },
+    {
+      "name": "Bottom sheet actions",
+      "description": "Replace desktop dropdowns and popovers with bottom sheets on mobile. Native to the platform, in the thumb zone, dismissible by swipe.",
+      "do": ["Use for action menus, filters, and selection lists", "Include a drag handle at the top", "Support swipe-down to dismiss", "Limit actions to 5-7 per sheet", "Use icons + labels for quick scanning"],
+      "dont": ["Use desktop-style dropdowns on mobile", "Show more than 7-8 actions without scrolling", "Nest bottom sheets inside bottom sheets", "Use bottom sheets for critical confirmations (use a centered dialog)", "Remove the backdrop tap-to-dismiss behavior"],
+      "evidence": "Bottom sheets have 25% higher task completion than dropdown menus on mobile. They align with native platform patterns (iOS Action Sheet, Material Bottom Sheet)."
+    }
+  ],
+  "checklist": [
+    "Is there a sticky CTA on long scrolling mobile pages?",
+    "Are wallet payments (Apple Pay, Google Pay) offered prominently?",
+    "Are all touch targets at least 44x44px?",
+    "Do forms use appropriate input modes and autocomplete?",
+    "Are dropdown menus replaced with bottom sheets on mobile?",
+    "Is the submit button visible above the virtual keyboard?",
+    "Is the checkout flow 3 steps or fewer?",
+    "Are forms single-column on mobile?",
+    "Can core tasks be completed one-handed?",
+    "Does the page load in under 3 seconds on mobile?",
+    "Are images optimized/lazy-loaded for mobile bandwidth?",
+    "Is font size at least 16px to prevent iOS auto-zoom?"
+  ]
+}

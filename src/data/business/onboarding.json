@@ -1,0 +1,48 @@
+{
+  "id": "onboarding",
+  "name": "Onboarding Strategies",
+  "category": "business",
+  "summary": "Time-to-value optimization, activation metrics, and aha moment strategies for new user onboarding.",
+  "strategies": [
+    {
+      "name": "Time-to-value optimization",
+      "description": "The faster a user experiences the product's core value, the more likely they are to activate and retain. Every second between signup and 'aha' is friction. Measure time-to-value and systematically reduce it.",
+      "when_to_use": "Every product. This is the single most important onboarding metric.",
+      "pitfalls": ["Confusing setup with value — configuration isn't the aha moment", "Front-loading all features instead of the one that matters", "Measuring time-to-first-action instead of time-to-value-realized", "Ignoring time-to-value for different user segments (admin vs user)"],
+      "examples": ["Canva: first design in under 2 minutes with templates", "Slack: first team message within 5 minutes of workspace creation", "Figma: collaborative editing demo before any setup"],
+      "metrics": ["time-to-value (minutes from signup to core action)", "activation rate (% who reach aha moment)", "Day 1 retention", "onboarding completion rate"]
+    },
+    {
+      "name": "Aha moment identification",
+      "description": "The specific action or experience that makes the product's value click for the user. Identify it through data (what do retained users have in common?) and optimize the path to reach it.",
+      "when_to_use": "Products with clear 'aha' moments that correlate with retention. Use data analysis to identify the action that predicts long-term usage.",
+      "pitfalls": ["Assuming you know the aha moment without data validation", "Multiple aha moments for different segments — don't force one path", "Aha moment requires too many prerequisites", "Confusing feature engagement with genuine value realization"],
+      "examples": ["Facebook: '7 friends in 10 days' — social graph density predicted retention", "Dropbox: first file sync — experiencing the magic", "Slack: '2,000 messages sent by the team' — team communication habit formed"],
+      "metrics": ["aha moment reach rate", "correlation between aha action and D30 retention", "time-to-aha", "aha moment drop-off points"]
+    },
+    {
+      "name": "Progressive onboarding",
+      "description": "Reveal features gradually as users need them, rather than showing everything upfront. Use contextual tips, tooltips, and coach marks at the moment of relevance.",
+      "when_to_use": "Complex products with many features. Products where new users only need 20% of features initially.",
+      "pitfalls": ["Showing too many tooltips at once (tooltip fatigue)", "Onboarding that blocks the UI until dismissed", "Tips that appear at irrelevant times", "No way to replay or find onboarding tips later"],
+      "examples": ["Notion: empty page with '/' command hint — teaches as you create", "Linear: contextual keyboard shortcut hints during normal use", "Figma: feature tips on first use of each tool"],
+      "metrics": ["feature discovery rate", "onboarding tip engagement", "tip-to-feature-use conversion", "time-to-feature-discovery"]
+    },
+    {
+      "name": "Checklist onboarding",
+      "description": "A visible checklist of setup tasks that leverages the Goal-Gradient Effect and Zeigarnik Effect. Start with some items pre-completed to show momentum.",
+      "when_to_use": "Products requiring multiple setup steps. B2B products with team/workspace configuration.",
+      "pitfalls": ["Too many items on the checklist (5-7 max)", "Including non-essential items that delay value", "No clear benefit explanation for each item", "Checklist that can't be dismissed or deferred"],
+      "examples": ["Notion: workspace setup checklist with progress bar", "Intercom: getting started guide with percentage completion", "HubSpot: setup wizard with clear step descriptions"],
+      "metrics": ["checklist completion rate", "items-completed distribution", "correlation of completion with activation", "time-to-checklist-completion"]
+    },
+    {
+      "name": "Template/quickstart approach",
+      "description": "Offer pre-built templates, example data, or quickstart projects that give users a running start. Instead of blank canvas, start with something meaningful they can customize.",
+      "when_to_use": "Products where starting from blank is intimidating. Creative tools, project management, databases, and documentation products.",
+      "pitfalls": ["Templates that are too generic to be useful", "No clear path from template to customization", "Template library that's overwhelming (too many choices)", "Templates that don't represent real use cases"],
+      "examples": ["Notion: page templates for every use case", "Canva: design templates as the primary creation path", "Airtable: base templates for common workflows", "Linear: project templates with pre-configured workflows"],
+      "metrics": ["template usage rate", "template-to-custom creation ratio", "time-to-first-edit from template", "retention: template starters vs blank starters"]
+    }
+  ]
+}

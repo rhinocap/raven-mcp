@@ -1,0 +1,117 @@
+[
+  {
+    "id": "type-scale",
+    "name": "Typographic Scale",
+    "category": "typography",
+    "summary": "Use a mathematically consistent type scale to create harmonious size relationships.",
+    "description": "A type scale provides a set of predetermined font sizes based on a ratio (1.125, 1.200, 1.250, 1.333, 1.414, 1.500, 1.618). This creates visual harmony and reduces ad-hoc sizing decisions. Common scales: Minor Third (1.2) for compact UIs, Major Third (1.25) for general use, Perfect Fourth (1.333) for content-heavy sites, Golden Ratio (1.618) for editorial/marketing.",
+    "implications": [
+      "Choose a scale ratio based on content type (1.2 for apps, 1.25-1.333 for marketing)",
+      "Base size of 16px (1rem) for body text on web",
+      "Limit to 5-7 sizes in the scale — more creates noise",
+      "Use the scale for all text: headings, body, captions, labels",
+      "Define the scale in design tokens for consistency across the product",
+      "Adjust scale for mobile — tighter ratios (1.125-1.2) work better on small screens"
+    ],
+    "violations": [
+      "Ad-hoc font sizes (13px, 15px, 17px, 19px) with no systematic relationship",
+      "Too many distinct sizes on one page",
+      "Heading sizes too close together — no clear hierarchy",
+      "Scale too aggressive for the content type (1.618 on a dense data app)"
+    ],
+    "applies_to": ["typography", "hierarchy", "design-system", "headings", "body-text"],
+    "sources": ["https://typescale.com/", "https://alistapart.com/article/more-meaningful-typography/"]
+  },
+  {
+    "id": "line-height-spacing",
+    "name": "Line Height and Spacing",
+    "category": "typography",
+    "summary": "Proper line height and spacing dramatically impacts readability and scannability.",
+    "description": "Line height (leading) should increase with line length and decrease with font size. Body text: 1.4-1.6. Headings: 1.1-1.3. Captions/small text: 1.4-1.5. Paragraph spacing should be approximately equal to line height. Letter spacing (tracking) is generally left at default for body text but may need adjustment for all-caps text (add 0.05-0.1em) and large headings (tighten slightly).",
+    "implications": [
+      "Body text: line-height 1.5 (WCAG recommendation), range 1.4-1.6",
+      "Headings: line-height 1.1-1.3 (tighter for larger text)",
+      "All-caps text: add letter-spacing of 0.05-0.1em for readability",
+      "Large headings (32px+): tighten letter-spacing slightly (-0.01 to -0.03em)",
+      "Paragraph spacing: at least 1.5x the font size (WCAG)",
+      "Consistent spacing between all typographic elements"
+    ],
+    "violations": [
+      "Single line height (line-height: 1.0) on multi-line body text",
+      "All-caps text without added letter-spacing",
+      "Inconsistent line heights across the same text style",
+      "No paragraph spacing — text blocks run together"
+    ],
+    "applies_to": ["typography", "readability", "spacing", "accessibility", "content"],
+    "sources": ["https://www.w3.org/WAI/WCAG21/Understanding/text-spacing.html"]
+  },
+  {
+    "id": "font-pairing",
+    "name": "Font Pairing",
+    "category": "typography",
+    "summary": "Combine typefaces with complementary characteristics for visual variety and hierarchy.",
+    "description": "Effective font pairing creates contrast and hierarchy without chaos. The safest approach: one serif + one sans-serif, or one display + one text face. Look for shared characteristics (x-height, letterform proportions) with contrasting styles (weight, width, classification). Most products need only 1-2 typefaces. Three is the maximum. System font stacks are increasingly preferred for performance.",
+    "implications": [
+      "Use at most 2-3 typefaces in a product",
+      "Pair typefaces with contrasting classification but similar proportions",
+      "Consider system font stacks for performance (Inter, -apple-system, system-ui)",
+      "One typeface for headings/display, one for body/UI — or one family with enough weights",
+      "Variable fonts offer weight/width flexibility with a single font file",
+      "Test pairings at all sizes — what works at 48px may not at 14px"
+    ],
+    "violations": [
+      "4+ different typefaces creating visual chaos",
+      "Two similar sans-serifs that don't create clear contrast",
+      "Display typeface used for body text (poor readability at small sizes)",
+      "Font loading flash causing layout shifts"
+    ],
+    "applies_to": ["typography", "branding", "design-system", "performance", "visual-design"],
+    "sources": ["https://fonts.google.com/knowledge/choosing_type"]
+  },
+  {
+    "id": "text-hierarchy",
+    "name": "Text Hierarchy",
+    "category": "typography",
+    "summary": "Create clear levels of importance through size, weight, color, and spacing.",
+    "description": "Visual hierarchy in text guides the reader through content in order of importance. Primary hierarchy tools: size (the strongest), weight (bold vs regular), color (dark vs muted), and spacing (generous around important items). A clear hierarchy means users can scan the page and immediately identify what's most important. Every text element should clearly belong to one level.",
+    "implications": [
+      "Use 3-4 distinct hierarchy levels: primary (heading), secondary (subheading), body, and muted",
+      "Size is the strongest hierarchy signal — use it for the most important distinction",
+      "Weight creates secondary hierarchy within the same size",
+      "Color (opacity/saturation) creates tertiary hierarchy — muted for less important text",
+      "Combine size + weight + color for maximum hierarchy contrast",
+      "Test hierarchy by squinting — the most important text should still be visible"
+    ],
+    "violations": [
+      "All text the same size and weight — no hierarchy",
+      "Too many hierarchy levels — 6+ sizes that blur the distinctions",
+      "Using only color to create hierarchy (fails for color-blind users)",
+      "Heading and body text too close in size — unclear distinction"
+    ],
+    "applies_to": ["typography", "hierarchy", "layout", "content", "headings", "labels"],
+    "sources": ["https://practicaltypography.com/"]
+  },
+  {
+    "id": "measure-line-length",
+    "name": "Measure (Line Length)",
+    "category": "typography",
+    "summary": "Optimal line length for body text is 45-75 characters per line.",
+    "description": "The 'measure' in typography refers to the width of a text block. Lines that are too long cause the reader's eye to lose its place when returning to the left margin. Lines that are too short break reading rhythm with too many line breaks. The ideal range is 45-75 characters (about 2-3 lowercase alphabets). For multi-column layouts, 40-50 characters per column. Set max-width on text containers, not just the parent.",
+    "implications": [
+      "Body text: 45-75 characters per line (max-width: 65ch is a good default)",
+      "Short-form text (cards, labels): 20-40 characters",
+      "Use max-width on text containers — not on the parent layout",
+      "Wider columns need larger text; narrower columns can use smaller text",
+      "Increase line-height if line length exceeds 65 characters",
+      "Left-align body text for Western languages — centered text is harder to read beyond 3 lines"
+    ],
+    "violations": [
+      "Full-width text spanning 1200px+ viewport — 120+ characters per line",
+      "Text constrained to 200px — constant line breaks, choppy reading",
+      "Centered text in paragraphs — hard to find the start of the next line",
+      "Justified text on the web (inconsistent word spacing)"
+    ],
+    "applies_to": ["typography", "layout", "readability", "responsive", "content"],
+    "sources": ["https://practicaltypography.com/line-length.html"]
+  }
+]

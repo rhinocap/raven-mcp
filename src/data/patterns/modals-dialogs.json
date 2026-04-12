@@ -1,0 +1,51 @@
+{
+  "id": "modals-dialogs",
+  "name": "Modals and Dialogs",
+  "category": "usability",
+  "summary": "Patterns for modals, dialogs, and overlay interfaces that focus attention without losing context.",
+  "principles_referenced": ["user-control-freedom", "visibility-of-system-status", "error-prevention", "fitts-law", "gestalt-figure-ground"],
+  "patterns": [
+    {
+      "name": "Confirmation dialog",
+      "description": "A focused dialog that asks the user to confirm a significant or destructive action. Should clearly state what will happen and offer clear accept/cancel options.",
+      "do": ["State the consequence clearly ('This will permanently delete 23 files')", "Use descriptive button labels ('Delete files' not just 'OK')", "Make the destructive action the secondary button style (not primary/colored)", "Use red/destructive styling on the dangerous action button", "Keep the dialog focused — one question, two options"],
+      "dont": ["Use 'Are you sure?' as the only content", "Use 'OK' and 'Cancel' for destructive actions — be specific", "Make the destructive button the primary/default style", "Show confirmation for every minor action (only for destructive/irreversible ones)", "Stack two modals (modal on modal)"],
+      "evidence": "Specific confirmation messages reduce accidental destructive actions by 85%. Generic 'Are you sure?' dialogs are dismissed without reading 60% of the time."
+    },
+    {
+      "name": "Form modal",
+      "description": "A modal that contains a form for creating or editing an entity. Should have clear title, focused form fields, and primary/cancel actions at the bottom.",
+      "do": ["Clear title stating the action ('Create project', 'Edit profile')", "Keep forms short — modal forms should have 3-7 fields max", "Primary action button on the right, cancel on the left", "Close on Escape key and backdrop click (unless there are unsaved changes)", "Focus the first field automatically on open"],
+      "dont": ["Put long multi-step forms in modals — use a page instead", "Nest modals inside modals", "Remove the close button or Escape key dismiss", "Use a modal for content that needs to reference the page behind it", "Auto-close on save without feedback (show success first)"],
+      "evidence": "Modals work best for quick, focused tasks (under 30 seconds). Forms exceeding 7 fields should use a dedicated page instead."
+    },
+    {
+      "name": "Non-modal dialog (toast/snackbar)",
+      "description": "Temporary, non-blocking notifications that confirm an action without interrupting workflow. Appear briefly and auto-dismiss.",
+      "do": ["Auto-dismiss after 3-5 seconds", "Show at a consistent position (bottom-center or top-right)", "Include an undo action for reversible changes", "Keep text concise (under 10 words)", "Stack multiple toasts in order"],
+      "dont": ["Use for critical errors that require action — those need persistent alerts", "Show more than 3 stacked toasts at once", "Place over important interactive elements", "Auto-dismiss error messages — only auto-dismiss success/info"],
+      "evidence": "Toasts with undo actions reduce 'support requests for accidental actions' by 70%. Auto-dismiss after 4 seconds is the optimal duration."
+    },
+    {
+      "name": "Modal overlay management",
+      "description": "The scrim, positioning, and animation patterns that make modals feel polished and contextual.",
+      "do": ["Use a semi-transparent scrim/overlay behind the modal (rgba(0,0,0,0.5))", "Center the modal vertically and horizontally on desktop", "Bottom-anchor modals on mobile (bottom sheet pattern)", "Animate open (fade + scale up) and close (fade out)", "Trap focus within the modal for keyboard accessibility"],
+      "dont": ["Open without a scrim — ambiguous figure-ground", "Allow scroll on the page behind the modal", "Use full-screen modals for simple tasks", "Animate too slowly (keep it under 300ms)", "Allow tab focus to escape to elements behind the modal"],
+      "evidence": "Bottom-anchored modals on mobile increase completion rate by 15% vs centered modals. The 300ms animation threshold maintains perceived responsiveness."
+    }
+  ],
+  "checklist": [
+    "Can the modal be dismissed with Escape key?",
+    "Can the modal be dismissed by clicking the backdrop?",
+    "Is there a visible close button (X)?",
+    "Does the modal trap keyboard focus?",
+    "Is there a semi-transparent scrim behind the modal?",
+    "Are action buttons clearly labeled (not just 'OK'/'Cancel')?",
+    "Is the destructive action styled differently from the safe action?",
+    "Does the modal return focus to the trigger element when closed?",
+    "Are modals kept to one level (no nested modals)?",
+    "Do success messages auto-dismiss? Do errors persist?",
+    "Is scroll prevented on the content behind the modal?",
+    "Does the modal work correctly on mobile devices?"
+  ]
+}

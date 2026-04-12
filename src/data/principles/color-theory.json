@@ -1,0 +1,100 @@
+[
+  {
+    "id": "color-60-30-10",
+    "name": "60-30-10 Color Rule",
+    "category": "color-theory",
+    "summary": "Use a 60% dominant color, 30% secondary color, and 10% accent color for balanced compositions.",
+    "description": "Borrowed from interior design, this ratio creates visual balance and hierarchy. 60% is the dominant/background color, 30% is the secondary/surface color, and 10% is the accent used for CTAs, highlights, and emphasis. This prevents the common mistake of overusing brand colors, which creates visual fatigue. The accent color's power comes from its scarcity.",
+    "implications": [
+      "60% dominant: background, large surfaces (white, off-white, or dark bg)",
+      "30% secondary: cards, sidebar, secondary surfaces",
+      "10% accent: CTAs, links, active states, key highlights",
+      "The accent color should be used sparingly — overuse destroys its impact",
+      "Neutral colors (gray spectrum) should make up most of the 60% and 30%",
+      "Test by blurring the page — the accent should pop against the dominant"
+    ],
+    "violations": [
+      "Brand color used as background — creates visual fatigue",
+      "Accent color used on 30%+ of the page — loses emphasis power",
+      "No accent color — everything is gray and nothing stands out",
+      "Three equally competing bright colors with no clear hierarchy"
+    ],
+    "applies_to": ["color", "visual-design", "branding", "layout", "cta", "hierarchy"],
+    "sources": ["https://www.interaction-design.org/literature/article/the-60-30-10-rule"]
+  },
+  {
+    "id": "dark-ui-design",
+    "name": "Dark UI Design",
+    "category": "color-theory",
+    "summary": "Dark interfaces require different approaches to elevation, contrast, and color usage.",
+    "description": "Dark mode isn't just inverting colors. Material Design's dark theme guide establishes that lighter surfaces are 'elevated' (opposite of light mode). Use desaturated colors to reduce eye strain. Don't use pure black (#000) — it creates excessive contrast and halation. Background surfaces should use dark grays (#121212 to #1e1e1e). Color accents need more saturation to be visible on dark backgrounds.",
+    "implications": [
+      "Don't use pure black (#000000) — use dark grays (#121212, #1a1a1a, #1e1e1e)",
+      "Express elevation with lighter surfaces (dp0: #121212, dp1: #1e1e1e, dp2: #222222)",
+      "Use desaturated colors on dark backgrounds to reduce eye strain",
+      "Increase text opacity levels: primary 87%, secondary 60%, disabled 38%",
+      "Accent colors may need higher saturation to maintain visibility",
+      "Avoid pure white text on dark backgrounds — use off-white (rgba(255,255,255,0.87))",
+      "Shadows are less effective in dark mode — use borders or surface elevation instead",
+      "Test for dark mode contrast issues — WCAG ratios still apply"
+    ],
+    "violations": [
+      "Pure black background with pure white text — harsh, causes halation",
+      "Inverted light mode colors without adjustment — saturated colors cause eye strain",
+      "Shadows as the primary elevation cue — invisible on dark backgrounds",
+      "Low-saturation accent colors that disappear on dark surfaces",
+      "Same opacity for text that works in light mode — appears washed out"
+    ],
+    "applies_to": ["color", "dark-mode", "elevation", "contrast", "visual-design"],
+    "sources": ["https://m3.material.io/styles/color/dark-theme"]
+  },
+  {
+    "id": "semantic-color",
+    "name": "Semantic Color Usage",
+    "category": "color-theory",
+    "summary": "Assign meaning to colors consistently — success is green, error is red, warning is amber.",
+    "description": "Colors carry meaning. Red signals error/danger, green signals success, amber/yellow signals warning, blue signals information. These mappings are deeply cultural (in Western markets) and should be consistent across the entire product. Always pair color with another signal (icon, text, pattern) for accessibility. Define semantic color tokens in your design system.",
+    "implications": [
+      "Red/destructive: errors, delete actions, critical alerts",
+      "Green/success: confirmations, completion, positive status",
+      "Amber/warning: caution states, approaching limits, non-critical issues",
+      "Blue/info: informational messages, links, primary actions",
+      "Gray/neutral: disabled states, secondary information, borders",
+      "Always pair color with text or icon — never color alone",
+      "Define semantic tokens: color-error, color-success, color-warning, color-info"
+    ],
+    "violations": [
+      "Red used for a non-error primary CTA (confusing meaning)",
+      "Green and red used interchangeably for different UI elements",
+      "Inconsistent status colors across different pages",
+      "Color as the only indicator of state — fails for colorblind users"
+    ],
+    "applies_to": ["color", "status", "error-states", "success", "warnings", "design-system"],
+    "sources": ["https://m3.material.io/styles/color/roles"]
+  },
+  {
+    "id": "color-accessibility",
+    "name": "Color and Accessibility",
+    "category": "color-theory",
+    "summary": "8% of men and 0.5% of women have some form of color vision deficiency — design for it.",
+    "description": "Color blindness affects 1 in 12 men and 1 in 200 women. The most common type (deuteranopia/protanopia) makes red and green difficult to distinguish. Design should never rely on color alone. Use redundant coding: color + shape, color + text, color + pattern. Test designs with color blindness simulators. Ensure sufficient contrast between all color pairs that need to be distinguished.",
+    "implications": [
+      "Never use color as the sole indicator of meaning or state",
+      "Add icons or text labels alongside color-coded status indicators",
+      "Use patterns or hatching in charts/graphs in addition to color",
+      "Test with color blindness simulators (deuteranopia, protanopia, tritanopia)",
+      "Red-green combinations are the most problematic — use additional cues",
+      "Ensure adjacent colors in charts have sufficient contrast from each other",
+      "Consider colorblind-safe palettes (blue-orange instead of red-green)"
+    ],
+    "violations": [
+      "Red/green only indicators for success/error states",
+      "Pie chart with color-only legend — indistinguishable segments",
+      "Form validation using only red outlines with no icon or text",
+      "Traffic light status indicators without labels",
+      "Data visualization using only color to distinguish series"
+    ],
+    "applies_to": ["color", "accessibility", "charts", "status", "forms", "data-visualization"],
+    "sources": ["https://www.w3.org/WAI/WCAG21/Understanding/use-of-color.html"]
+  }
+]

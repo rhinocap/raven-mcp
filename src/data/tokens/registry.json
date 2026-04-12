@@ -1,0 +1,67 @@
+{
+  "systems": [
+    {
+      "id": "stripe",
+      "name": "Stripe",
+      "description": "Stripe's design system tokens — clean, professional fintech design with excellent typography and a signature purple accent.",
+      "category": "fintech",
+      "tags": ["professional", "clean", "accessible", "fintech"],
+      "url": "https://stripe.com",
+      "status": "available"
+    },
+    {
+      "id": "linear",
+      "name": "Linear",
+      "description": "Linear's design system tokens — dark-first, minimal, fast. Iconic developer productivity aesthetic.",
+      "category": "productivity",
+      "tags": ["dark", "minimal", "developer", "fast"],
+      "url": "https://linear.app",
+      "status": "available"
+    },
+    {
+      "id": "vercel",
+      "name": "Vercel",
+      "description": "Vercel's Geist design system — monochrome elegance with developer-first aesthetics.",
+      "category": "developer",
+      "tags": ["monochrome", "developer", "minimal", "elegant"],
+      "url": "https://vercel.com/geist",
+      "status": "planned"
+    },
+    {
+      "id": "shadcn",
+      "name": "shadcn/ui",
+      "description": "shadcn/ui component tokens — beautifully designed components using Radix and Tailwind CSS.",
+      "category": "component-library",
+      "tags": ["accessible", "customizable", "tailwind", "radix"],
+      "url": "https://ui.shadcn.com",
+      "status": "planned"
+    },
+    {
+      "id": "github-primer",
+      "name": "GitHub Primer",
+      "description": "GitHub's Primer design system — functional, accessible, scale-tested across one of the world's largest developer platforms.",
+      "category": "design-system",
+      "tags": ["accessible", "enterprise", "developer", "functional"],
+      "url": "https://primer.style",
+      "status": "planned"
+    },
+    {
+      "id": "notion",
+      "name": "Notion",
+      "description": "Notion's design tokens — warm, approachable, content-first design with playful illustrations.",
+      "category": "productivity",
+      "tags": ["warm", "content-first", "approachable", "illustrations"],
+      "url": "https://notion.so",
+      "status": "planned"
+    },
+    {
+      "id": "supabase",
+      "name": "Supabase",
+      "description": "Supabase's design tokens — dark-mode-first developer tool aesthetic with green accent.",
+      "category": "developer",
+      "tags": ["dark", "developer", "green-accent", "technical"],
+      "url": "https://supabase.com",
+      "status": "planned"
+    }
+  ]
+}
