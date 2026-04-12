@@ -1,0 +1,103 @@
+[
+  {
+    "id": "shared-chrome-components",
+    "name": "Shared Chrome Components",
+    "category": "component-architecture",
+    "summary": "Navigation, headers, footers, and menus must be single reusable components — never duplicated per-page HTML/CSS.",
+    "description": "Structural chrome — nav bars, headers, footers, mobile menus — must exist as a single component used by every page, not as copy-pasted HTML and CSS in each file. When chrome is duplicated, drift is inevitable: one page gets a bug fix, others don't. Font sizes, box-shadows, spacing tokens, link sets, and JavaScript behavior all diverge silently. The fix is to extract chrome into a shared component (web component, React component, server include, or partial template) with its own encapsulated styles. Each page then renders the component with zero page-level overrides. Shadow DOM or CSS Modules prevent style leaks in both directions — page styles can't break the nav, and nav styles can't break the page.",
+    "implications": [
+      "Extract nav, footer, and mobile menu into a single shared component file",
+      "Use Shadow DOM or CSS Modules for style encapsulation — no page CSS can leak in, no component CSS can leak out",
+      "The component owns ALL its CSS — positioning, typography, colors, shadows, transitions, and responsive overrides",
+      "Pages include the component with a single element tag, no per-page CSS for chrome",
+      "Active page state should be auto-detected by the component (check window.location), not set per-page",
+      "When adding a nav link, update ONE file — the component — and all pages get it",
+      "Hamburger toggle, outside-click dismiss, scroll darkening all live inside the component",
+      "Component reads design tokens from :root CSS custom properties for theming"
+    ],
+    "violations": [
+      "Copy-pasting nav HTML into every page and then forgetting to update one",
+      "Page-level CSS that overrides nav font sizes, colors, or spacing",
+      "Bare element selectors (ul, li) that leak into nav lists from page content styles",
+      "Hamburger JS duplicated in every page's script block",
+      "Different footer HTML structure on different pages",
+      "Nav CSS using hardcoded values on one page but CSS variables on another"
+    ],
+    "applies_to": ["navigation", "footer", "header", "chrome", "components", "architecture", "web"],
+    "sources": ["https://developer.mozilla.org/en-US/docs/Web/API/Web_components", "https://www.nngroup.com/articles/consistency-and-standards/"]
+  },
+  {
+    "id": "unified-layout-tokens",
+    "name": "Unified Layout Tokens",
+    "category": "component-architecture",
+    "summary": "Max-width, spacing scale, radius scale, and timing values must be defined once in :root and shared across all pages.",
+    "description": "When layout values like max-width, spacing, border-radius, and animation timing are defined differently per page (1080px on about, 1140px on index, hardcoded 24px vs var(--space-6)), the site feels subtly inconsistent and maintenance becomes a guessing game. All layout tokens must be defined once — either in a shared CSS file or in each page's :root block with identical values. The canonical set includes: max-width (content container), nav-height, spacing scale (space-1 through space-32), radius scale (sm/md/lg/xl/full), timing (duration-fast/normal/slow), and easing (ease-out/ease-in-out). Every CSS rule must reference these tokens, never bare values.",
+    "implications": [
+      "Define a canonical :root token set and replicate it exactly on every page (or extract to a shared CSS file)",
+      "Content containers on all pages must use the same --max-width value",
+      "Spacing must come from the spacing scale — never arbitrary pixel values",
+      "Border-radius must come from the radius scale — never bare px values except for circles (50%)",
+      "Transitions must use duration and easing tokens — never bare ms or cubic-bezier values",
+      "When a token is updated (e.g. max-width from 1080 to 1140), grep and update all pages in one pass",
+      "Audit for bare values regularly — any hardcoded px/ms in layout CSS is a drift risk"
+    ],
+    "violations": [
+      "--max-width is 1140px on index but 1080px on about",
+      "padding: 24px instead of padding: var(--space-6)",
+      "border-radius: 16px instead of border-radius: var(--radius-lg)",
+      "transition: 0.3s instead of transition: var(--duration-normal)",
+      "One page defines --space-8 but another doesn't have it in :root",
+      "Font sizes hardcoded as px in one file but using clamp() in another for the same element"
+    ],
+    "applies_to": ["layout", "tokens", "design-system", "spacing", "responsive", "architecture"],
+    "sources": ["https://www.w3.org/TR/design-tokens/", "https://every-layout.dev/"]
+  },
+  {
+    "id": "component-style-encapsulation",
+    "name": "Component Style Encapsulation",
+    "category": "component-architecture",
+    "summary": "Component styles must be scoped to prevent CSS leaks — bare element selectors in page CSS must never affect component internals.",
+    "description": "The most common source of cross-page inconsistency is CSS leaking across boundaries. A page with ul { list-style: disc } for content lists will also put bullets on nav links. A page with li { margin-bottom: 8px } will push nav items apart. Shadow DOM solves this completely — styles inside a shadow root can't be affected by page styles. Without Shadow DOM, all page-level element selectors (ul, li, a, p, h1-h6) must be scoped to a content container class (e.g. .docs-content ul) so they never accidentally target component markup. This applies to ANY reusable component, not just nav — cards, modals, tooltips, and sidebars all need protection from page-level style bleed.",
+    "implications": [
+      "Use Shadow DOM for all structural chrome components (nav, footer, mobile menu)",
+      "If Shadow DOM isn't available, scope ALL bare element selectors to a content container class",
+      "Never write `ul { }` or `li { }` at the page level — always `.content ul { }` or `.docs-content li { }`",
+      "Components should set their own resets internally: list-style: none, text-decoration: none, margin: 0",
+      "Test components by adding aggressive page-level styles (large margins, colored backgrounds, list bullets) and verifying they don't affect the component",
+      "When a style 'leak' is found, fix the scope, don't add a compensating override in the component"
+    ],
+    "violations": [
+      "Bare `ul { list-style: disc }` on a page that also has nav ul elements",
+      "Bare `li { margin-bottom: 8px }` pushing nav links apart",
+      "Bare `a { color: blue }` turning nav links blue when the component expected var(--text-secondary)",
+      "Adding `!important` in a component to fight page-level styles instead of scoping the page styles",
+      "Component CSS leaking padding or font-size changes into page content"
+    ],
+    "applies_to": ["css", "components", "architecture", "shadow-dom", "scoping", "web"],
+    "sources": ["https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_scoping"]
+  },
+  {
+    "id": "design-system-token-contract",
+    "name": "Design System Token Contract",
+    "category": "component-architecture",
+    "summary": "Components consume design tokens via CSS custom properties with fallback defaults — the page sets the theme, the component adapts.",
+    "description": "A well-built component reads its visual properties from CSS custom properties (design tokens) defined on :root by the page, with sensible fallback defaults for when a token isn't defined. This creates a clean contract: the page owns the design system (colors, spacing, typography), the component consumes it. The component never defines its own brand color — it reads var(--bg-accent, #00BFFF) and falls back gracefully. This means the same nav component can be used on a blue-themed marketing site and a green-themed dashboard without modification. It also means adding dark mode is a :root swap, not a component rewrite.",
+    "implications": [
+      "Components must use var(--token, fallback) for ALL visual values — colors, spacing, radii, fonts, shadows",
+      "Fallback defaults must produce a reasonable appearance if no tokens are defined",
+      "The page's :root defines the design system — the component adapts",
+      "Dark mode is a :root variable swap or data-theme attribute, not component-level logic",
+      "Token names must be semantic (--bg-accent, --text-secondary) not raw (--blue, --gray-400)",
+      "Document which tokens a component reads — this is its public API"
+    ],
+    "violations": [
+      "Component uses hardcoded hex colors instead of var(--bg-accent)",
+      "Component defines its own --accent-blue in its CSS instead of reading the page's token",
+      "Different components use different token names for the same concept (--bg-accent vs --accent-blue vs --primary)",
+      "No fallback value provided — component breaks silently when token is undefined",
+      "Dark mode implemented with component-level media queries instead of token swapping"
+    ],
+    "applies_to": ["design-system", "tokens", "components", "theming", "css-custom-properties"],
+    "sources": ["https://www.w3.org/TR/design-tokens/", "https://css-tricks.com/a-complete-guide-to-custom-properties/"]
+  }
+]
