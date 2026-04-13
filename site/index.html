@@ -481,43 +481,6 @@
       .demo-card-thumb { aspect-ratio: 16 / 10; }
     }
 
-    /* Hero Video */
-    .hero-video {
-      margin-top: var(--space-12);
-      width: 100%;
-      max-width: 960px;
-      border-radius: var(--radius-xl);
-      overflow: hidden;
-      border: 1px solid var(--border-strong);
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 191, 255, 0.08);
-      position: relative;
-    }
-    .hero-video video {
-      width: 100%;
-      display: block;
-    }
-    .video-sound-btn {
-      position: absolute;
-      bottom: var(--space-4);
-      right: var(--space-4);
-      width: 40px; height: 40px;
-      background: rgba(0, 0, 0, 0.6);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer;
-      color: white;
-      transition: background var(--duration-fast) var(--ease-out),
-                  transform var(--duration-fast) var(--ease-out);
-      z-index: 2;
-    }
-    .video-sound-btn:hover {
-      background: rgba(0, 191, 255, 0.3);
-      transform: scale(1.1);
-    }
-
     /* Terminal */
     .hero-visual {
       margin-top: var(--space-16);
@@ -785,6 +748,79 @@
     .mini-check.pass span { background: rgba(29,185,84,0.15); color: #1DB954; }
     .mini-check.warn { color: #FFAB40; }
     .mini-check.warn span { background: rgba(255,171,64,0.15); color: #FFAB40; }
+
+    /* Mini Accessibility Report UI */
+    .mini-a11y {
+      padding: 16px 20px; background: var(--bg-surface); font-family: var(--font-body);
+    }
+    .mini-a11y-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .mini-a11y-header h4 { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+    .mini-a11y-badge {
+      font-size: 9px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+      background: rgba(0,230,118,0.12); color: #00E676; padding: 3px 8px; border-radius: 4px;
+    }
+    .mini-a11y-summary { display: flex; gap: 12px; margin-bottom: 14px; }
+    .mini-a11y-stat {
+      flex: 1; text-align: center; padding: 8px; background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.05); border-radius: 8px;
+    }
+    .mini-a11y-stat-val { font-size: 18px; font-weight: 800; letter-spacing: -0.03em; }
+    .mini-a11y-stat-val.good { color: #00E676; }
+    .mini-a11y-stat-val.bad { color: #FF4060; }
+    .mini-a11y-stat-label { font-size: 9px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+    .mini-a11y-checks { display: flex; flex-direction: column; gap: 3px; }
+    .mini-a11y-check { font-size: 10px; display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+    .mini-a11y-check .a11y-icon {
+      width: 14px; height: 14px; border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-size: 8px; font-weight: 700; flex-shrink: 0;
+    }
+    .mini-a11y-check.pass { color: var(--text-secondary); }
+    .mini-a11y-check.pass .a11y-icon { background: rgba(0,230,118,0.15); color: #00E676; }
+    .mini-a11y-check.fail { color: #FF4060; }
+    .mini-a11y-check.fail .a11y-icon { background: rgba(255,64,96,0.15); color: #FF4060; }
+
+    /* Mini Phone / Mobile App UI */
+    .mini-phone {
+      width: 200px; margin: 0 auto; background: #000; border-radius: 24px;
+      padding: 8px; box-shadow: 0 0 0 2px #2A2A2E, 0 8px 32px rgba(0,0,0,0.5);
+      font-family: var(--font-body);
+    }
+    .mini-phone-notch {
+      width: 72px; height: 18px; background: #000; border-radius: 0 0 12px 12px;
+      margin: 0 auto -8px; position: relative; z-index: 2;
+    }
+    .mini-phone-screen {
+      background: #1C1D25; border-radius: 18px; overflow: hidden;
+      display: flex; flex-direction: column; min-height: 280px;
+    }
+    .mini-phone-status {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 14px 4px; font-size: 9px; font-weight: 600; color: #fff;
+    }
+    .mini-phone-content { flex: 1; padding: 10px 14px; }
+    .mini-phone-content h4 { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 10px; }
+    .mini-app-card {
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px; padding: 10px; margin-bottom: 8px;
+    }
+    .mini-app-card-title { font-size: 10px; font-weight: 600; color: #fff; margin-bottom: 3px; }
+    .mini-app-card-sub { font-size: 9px; color: #8A8F98; }
+    .mini-phone-tabbar {
+      display: flex; align-items: center; justify-content: space-around;
+      padding: 8px 4px 12px; border-top: 1px solid rgba(255,255,255,0.06);
+      background: rgba(28,29,37,0.95);
+    }
+    .mini-tab { display: flex; flex-direction: column; align-items: center; gap: 2px; position: relative; }
+    .mini-tab-icon { font-size: 14px; line-height: 1; }
+    .mini-tab-label { font-size: 8px; font-weight: 500; color: #8A8F98; }
+    .mini-tab.active .mini-tab-icon { color: #00BFFF; }
+    .mini-tab.active .mini-tab-label { color: #00BFFF; font-weight: 600; }
+    .mini-tab-badge {
+      position: absolute; top: -4px; right: -6px; min-width: 12px; height: 12px;
+      background: #FF4060; color: #fff; font-size: 7px; font-weight: 700;
+      border-radius: 6px; display: flex; align-items: center; justify-content: center;
+      padding: 0 3px;
+    }
 
     /* Mini Brand Kit UI */
     .mini-brand {
@@ -1408,7 +1444,7 @@
       .mythology-visual { order: -1; }
       .mythology-visual img { width: 140px; }
 
-      .hero-video { border-radius: var(--radius-lg); }
+
 
       .hero-cta, .cta-actions { flex-direction: column; width: 100%; }
       .hero-cta .btn, .cta-actions .btn, .cta-actions .cta-install {
@@ -1471,7 +1507,7 @@
         Open-source MCP Server
       </div>
       <h1 class="reveal reveal-delay-1">Design intelligence<br>for <span class="gradient">every prompt</span></h1>
-      <p class="subtitle reveal reveal-delay-2">Raven gives AI the design knowledge that used to live only in senior designers' heads. Principles, patterns, tokens, and strategy&mdash;thirteen tools, three knowledge layers.</p>
+      <p class="subtitle reveal reveal-delay-2">Raven gives AI the design knowledge that used to live only in senior designers' heads. Accessibility, principles, patterns, tokens, and strategy&mdash;thirteen tools, three knowledge layers.</p>
       <div class="hero-cta reveal reveal-delay-3">
         <a href="/docs.html" class="btn btn-primary">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"/></svg>
@@ -1565,7 +1601,7 @@
       <div class="stats-grid">
         <div class="stat-item reveal">
           <div class="stat-number">73</div>
-          <div class="stat-desc">Design principles<br><span>Nielsen, Gestalt, WCAG, Laws of UX, Component Architecture</span></div>
+          <div class="stat-desc">Design principles<br><span>Accessibility, Nielsen, Gestalt, Laws of UX, Architecture</span></div>
         </div>
         <div class="stat-item reveal reveal-delay-1">
           <div class="stat-number">13</div>
@@ -1619,17 +1655,28 @@
     </div>
   </section>
 
-  <!-- HERO VIDEO + SIZZLE REEL -->
-  <section class="hero" style="padding-top: clamp(48px, 6vw, 80px); padding-bottom: clamp(24px, 3vw, 40px); overflow: visible;">
+  <!-- SIZZLE REEL -->
+  <section style="padding: clamp(48px, 6vw, 80px) 0 clamp(24px, 3vw, 40px);">
     <div class="container" style="display:flex;flex-direction:column;align-items:center;">
-      <div class="hero-video reveal">
-        <video autoplay muted loop playsinline preload="metadata" id="hero-vid">
-          <source src="/assets/video/raven-hero-1.mp4" type="video/mp4">
-        </video>
-        <button class="video-sound-btn" id="sound-toggle" aria-label="Toggle sound">
-          <svg id="icon-muted" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
-          <svg id="icon-unmuted" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-        </button>
+      <div class="hero-visual reveal" style="margin-top:0;">
+        <div class="terminal">
+          <div class="terminal-header">
+            <span class="terminal-dot"></span>
+            <span class="terminal-dot"></span>
+            <span class="terminal-dot"></span>
+            <span class="terminal-title">claude &mdash; raven-mcp</span>
+          </div>
+          <div class="terminal-body" id="sizzle-reel"></div>
+        </div>
+        <div class="sizzle-progress">
+          <span class="sizzle-dot active" data-scene="0"></span>
+          <span class="sizzle-dot" data-scene="1"></span>
+          <span class="sizzle-dot" data-scene="2"></span>
+          <span class="sizzle-dot" data-scene="3"></span>
+          <span class="sizzle-dot" data-scene="4"></span>
+          <span class="sizzle-dot" data-scene="5"></span>
+          <span class="sizzle-dot" data-scene="6"></span>
+        </div>
       </div>
     </div>
   </section>
@@ -1652,11 +1699,11 @@
           <div class="stat">73</div>
           <div class="stat-label">Design principles</div>
           <h3>Principles</h3>
-          <p>Nielsen's Heuristics, Laws of UX, Gestalt, WCAG, typography, color theory, mobile UX, responsive layout, and D4D&mdash;with violations and checklists.</p>
+          <p>Nielsen's Heuristics, Laws of UX, Gestalt, WCAG accessibility, typography, color theory, mobile UX, responsive layout, component architecture, and D4D&mdash;with violations and checklists.</p>
           <div class="layer-tags">
+            <span class="tag">Accessibility</span>
             <span class="tag">Nielsen</span>
             <span class="tag">Gestalt</span>
-            <span class="tag">WCAG</span>
             <span class="tag">Laws of UX</span>
             <span class="tag">Mobile UX</span>
             <span class="tag">Responsive</span>
@@ -1698,37 +1745,11 @@
     </div>
   </section>
 
-  <!-- TERMINAL SIZZLE REEL -->
-  <section style="padding: clamp(48px, 6vw, 80px) 0;">
-    <div class="container" style="display:flex;flex-direction:column;align-items:center;">
-      <div class="hero-visual" style="margin-top:0;">
-        <div class="terminal">
-          <div class="terminal-header">
-            <span class="terminal-dot"></span>
-            <span class="terminal-dot"></span>
-            <span class="terminal-dot"></span>
-            <span class="terminal-title">claude &mdash; raven-mcp</span>
-          </div>
-          <div class="terminal-body" id="sizzle-reel"></div>
-        </div>
-        <div class="sizzle-progress">
-          <span class="sizzle-dot active" data-scene="0"></span>
-          <span class="sizzle-dot" data-scene="1"></span>
-          <span class="sizzle-dot" data-scene="2"></span>
-          <span class="sizzle-dot" data-scene="3"></span>
-          <span class="sizzle-dot" data-scene="4"></span>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <div class="divider"></div>
-
   <!-- TOOLS -->
   <section id="tools" class="tools-section">
     <div class="container">
       <div class="section-header">
-        <p class="label reveal">Twelve Tools</p>
+        <p class="label reveal">Thirteen Tools</p>
         <h2 class="reveal reveal-delay-1">The full flight across all realms</h2>
         <p class="subtitle reveal reveal-delay-2">Each tool is a focused query. Claude calls them automatically&mdash;no special syntax, no configuration beyond install.</p>
       </div>
@@ -1781,6 +1802,10 @@
         <div class="tool-card reveal reveal-delay-1">
           <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M5 8h6M8 5v6"/></svg></div>
           <div><div class="tool-name">get_brand_system</div><div class="tool-desc">Get a complete design system for building an app with branding like any company</div></div>
+        </div>
+        <div class="tool-card reveal">
+          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FF4081" stroke-width="1.5" stroke-linecap="round"><path d="M3 8a5 5 0 0110 0"/><path d="M8 3v5l3 2"/></svg></div>
+          <div><div class="tool-name">generate_design_system</div><div class="tool-desc">Generate a complete design system from a brand color&mdash;export as HTML, CSS, Figma, or SVG</div></div>
         </div>
       </div>
     </div>
@@ -2084,6 +2109,43 @@
       + '<div class="mini-brand-fonts"><span>Circular Std</span><span>dark-first</span><span>4px radius</span></div>'
       + '</div>');
 
+    var uiA11y = chrome('app.acme.io/accessibility',
+      '<div class="mini-a11y">'
+      + '<div class="mini-a11y-header"><h4>Accessibility Report</h4><span class="mini-a11y-badge">WCAG AA</span></div>'
+      + '<div class="mini-a11y-summary">'
+      + '<div class="mini-a11y-stat"><div class="mini-a11y-stat-val good">6</div><div class="mini-a11y-stat-label">Passed</div></div>'
+      + '<div class="mini-a11y-stat"><div class="mini-a11y-stat-val bad">2</div><div class="mini-a11y-stat-label">Failed</div></div>'
+      + '</div>'
+      + '<div class="mini-a11y-checks">'
+      + '<div class="mini-a11y-check pass"><span class="a11y-icon">\u2713</span> Color contrast \u2265 4.5:1</div>'
+      + '<div class="mini-a11y-check pass"><span class="a11y-icon">\u2713</span> Focus indicators on all interactive elements</div>'
+      + '<div class="mini-a11y-check pass"><span class="a11y-icon">\u2713</span> Touch targets \u2265 44px</div>'
+      + '<div class="mini-a11y-check fail"><span class="a11y-icon">\u2717</span> 2 images missing alt text</div>'
+      + '<div class="mini-a11y-check pass"><span class="a11y-icon">\u2713</span> Keyboard navigation complete</div>'
+      + '<div class="mini-a11y-check fail"><span class="a11y-icon">\u2717</span> Skip navigation link missing</div>'
+      + '<div class="mini-a11y-check pass"><span class="a11y-icon">\u2713</span> ARIA roles on dynamic content</div>'
+      + '<div class="mini-a11y-check pass"><span class="a11y-icon">\u2713</span> Reduced motion respected</div>'
+      + '</div></div>');
+
+    var uiMobile = '<div class="mini-phone">'
+      + '<div class="mini-phone-notch"></div>'
+      + '<div class="mini-phone-screen">'
+      + '<div class="mini-phone-status"><span>9:41</span><span>\u2022\u2022\u2022\u2022 \u{1F50B}</span></div>'
+      + '<div class="mini-phone-content">'
+      + '<h4>Good morning</h4>'
+      + '<div class="mini-app-card"><div class="mini-app-card-title">Weekly Summary</div><div class="mini-app-card-sub">Your activity is up 12% this week</div></div>'
+      + '<div class="mini-app-card"><div class="mini-app-card-title">New Message</div><div class="mini-app-card-sub">Sarah shared a design update</div></div>'
+      + '<div class="mini-app-card"><div class="mini-app-card-title">Reminder</div><div class="mini-app-card-sub">Design review at 2:00 PM</div></div>'
+      + '</div>'
+      + '<div class="mini-phone-tabbar">'
+      + '<div class="mini-tab active"><span class="mini-tab-icon">\u2302</span><span class="mini-tab-label">Home</span></div>'
+      + '<div class="mini-tab"><span class="mini-tab-icon">\u2315</span><span class="mini-tab-label">Search</span></div>'
+      + '<div class="mini-tab"><span class="mini-tab-icon">\u271A</span><span class="mini-tab-label">Create</span></div>'
+      + '<div class="mini-tab"><span class="mini-tab-icon">\u2661</span><span class="mini-tab-label">Activity</span><span class="mini-tab-badge">3</span></div>'
+      + '<div class="mini-tab"><span class="mini-tab-icon">\u2299</span><span class="mini-tab-label">Profile</span></div>'
+      + '</div>'
+      + '</div></div>';
+
     var scenes = [
       {
         prompt: 'claude "add a pricing section to the landing page"',
@@ -2095,6 +2157,17 @@
           { fn: 'get_business_strategy', result: 'decoy pricing, annual discount, CTA', color: 'val' }
         ],
         ui: uiPricing
+      },
+      {
+        prompt: 'claude "check this page meets WCAG AA accessibility standards"',
+        comment: '# Raven runs a full accessibility audit:',
+        tools: [
+          { fn: 'get_principles', result: 'WCAG AA contrast 4.5:1, focus indicators, ARIA roles', color: 'fn' },
+          { fn: 'get_checklist', result: 'Keyboard nav, screen reader, color blindness, motion', color: 'fn' },
+          { fn: 'evaluate_design', result: '3 violations: missing alt text, low contrast link, no skip nav', color: 'val' },
+          { fn: 'get_pattern', result: 'Focus ring styles, skip-to-content, aria-live regions', color: 'fn' }
+        ],
+        ui: uiA11y
       },
       {
         prompt: 'claude "audit this page for design quality"',
@@ -2117,6 +2190,17 @@
           { fn: 'compose_system', result: 'Spotify tokens + custom overrides \u2192 CSS vars', color: 'val' }
         ],
         ui: uiDash
+      },
+      {
+        prompt: 'claude "design the tab bar and navigation for our iOS app"',
+        comment: '# Raven applies mobile-first principles:',
+        tools: [
+          { fn: 'get_principles', result: 'Thumb zone design, Fitts\'s Law, touch targets 44pt', color: 'fn' },
+          { fn: 'get_pattern', result: 'Tab bar: 5 max items, active state, badge counts', color: 'fn' },
+          { fn: 'get_principles', result: 'Bottom nav for primary, hamburger for secondary only', color: 'fn' },
+          { fn: 'get_design_system', result: 'Apple HIG tokens \u2014 SF Pro, semantic colors, 8pt grid', color: 'key' }
+        ],
+        ui: uiMobile
       },
       {
         prompt: 'claude "the signup form feels off, check it"',
@@ -2284,18 +2368,6 @@
       counterObserver.observe(el);
     });
 
-    /* ── Video sound toggle ── */
-    var vid = document.getElementById('hero-vid');
-    var soundBtn = document.getElementById('sound-toggle');
-    var iconMuted = document.getElementById('icon-muted');
-    var iconUnmuted = document.getElementById('icon-unmuted');
-    if (soundBtn && vid) {
-      soundBtn.addEventListener('click', function() {
-        vid.muted = !vid.muted;
-        iconMuted.style.display = vid.muted ? 'block' : 'none';
-        iconUnmuted.style.display = vid.muted ? 'none' : 'block';
-      });
-    }
   </script>
 </body>
 </html>

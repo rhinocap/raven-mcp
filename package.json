@@ -1,7 +1,7 @@
 {
   "name": "raven-mcp",
   "version": "1.0.0",
-  "description": "Design intelligence MCP server — principles, patterns, tokens, and strategy for AI-generated UI. 73 design principles, 13 UI patterns, 13 tools, 12 design system tokens.",
+  "description": "Design intelligence MCP server — accessibility, principles, patterns, tokens, and strategy for AI-generated UI. 73 design principles, 13 UI patterns, 13 tools, 12 design system tokens.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
