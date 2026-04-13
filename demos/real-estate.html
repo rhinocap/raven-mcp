@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Residence at Oleander — $12,500,000</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --white: #FFFFFF;
+      --black: #1A1A1A;
+      --stone: #F5F0EB;
+      --gold: #B8965A;
+      --gray: #E5E0DB;
+      --text-secondary: #57504A;
+      --serif: 'Cormorant Garamond', 'Georgia', serif;
+      --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    }
+
+    html { scroll-behavior: smooth; overflow-x: hidden; }
+
+    body {
+      font-family: var(--sans);
+      color: var(--black);
+      background: var(--white);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Navigation ── */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--gray);
+      padding: 0 clamp(16px, 4vw, 24px);
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-brand {
+      font-family: var(--serif);
+      font-weight: 400;
+      font-size: 20px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--black);
+      text-decoration: none;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 36px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 12px 0;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.3s;
+    }
+
+    .nav-links a:hover { color: var(--gold); }
+
+    /* ── Hero ── */
+    .hero {
+      margin-top: 64px;
+      position: relative;
+      height: calc(100vh - 64px);
+      min-height: 600px;
+      background: var(--stone);
+      display: flex;
+      align-items: flex-end;
+      overflow: hidden;
+    }
+
+    .hero-video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 1;
+    }
+
+    .hero-image {
+      position: absolute;
+      inset: 0;
+      background: url('https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1920&q=80') center/cover no-repeat;
+    }
+
+    .hero-image::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 70%;
+      background: linear-gradient(to top, rgba(26,26,26,0.7) 0%, rgba(26,26,26,0.2) 60%, transparent 100%);
+      z-index: 2;
+    }
+
+    .hero-placeholder {
+      color: rgba(255,255,255,0.3);
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: 14px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      display: none;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 3;
+      padding: clamp(48px, 8vw, 128px) clamp(16px, 4vw, 24px);
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .hero-eyebrow {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 16px;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    }
+
+    .hero-title {
+      font-family: var(--serif);
+      font-weight: 400;
+      font-size: clamp(42px, 6vw, 80px);
+      line-height: 1.05;
+      color: var(--white);
+      margin-bottom: 20px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+
+    .hero-location {
+      font-size: 16px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      color: rgba(255,255,255,0.9);
+      margin-bottom: 32px;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    }
+
+    .hero-price {
+      font-family: var(--serif);
+      font-weight: 500;
+      font-size: 32px;
+      color: var(--white);
+      letter-spacing: 0.02em;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    }
+
+    /* ── Details Bar ── */
+    .details-bar {
+      border-bottom: 1px solid var(--gray);
+      padding: 0 clamp(16px, 4vw, 24px);
+    }
+
+    .details-grid {
+      display: flex;
+      flex-wrap: wrap;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .detail-item {
+      flex: 1 1 150px;
+      padding: 36px 0;
+      text-align: center;
+    }
+
+    .detail-value {
+      font-family: var(--serif);
+      font-weight: 500;
+      font-size: 28px;
+      color: var(--black);
+      margin-bottom: 4px;
+    }
+
+    .detail-label {
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+
+    /* ── Section layout ── */
+    .section {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: clamp(48px, 8vw, 128px) clamp(16px, 4vw, 24px);
+    }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-family: var(--serif);
+      font-weight: 400;
+      font-size: clamp(32px, 4vw, 48px);
+      line-height: 1.15;
+      margin-bottom: 40px;
+      color: var(--black);
+    }
+
+    /* ── Description ── */
+    .description {
+      border-bottom: 1px solid var(--gray);
+    }
+
+    .description-text {
+      max-width: 720px;
+      font-size: 17px;
+      line-height: 1.8;
+      color: var(--text-secondary);
+    }
+
+    .description-text p + p { margin-top: 24px; }
+
+    /* ── Features ── */
+    .features { border-bottom: 1px solid var(--gray); }
+
+    .features-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1px;
+      background: var(--gray);
+      border: 1px solid var(--gray);
+    }
+
+    .feature-card {
+      flex: 1 1 280px;
+      min-width: 0;
+      background: var(--white);
+      padding: 40px 36px;
+      transition: background 0.3s;
+    }
+
+    .feature-card:hover { background: var(--stone); }
+
+    .feature-icon {
+      width: 32px;
+      height: 32px;
+      margin-bottom: 20px;
+      color: var(--gold);
+    }
+
+    .feature-name {
+      font-family: var(--serif);
+      font-weight: 600;
+      font-size: 22px;
+      margin-bottom: 8px;
+      color: var(--black);
+    }
+
+    .feature-desc {
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+
+    /* ── Gallery ── */
+    .gallery { border-bottom: 1px solid var(--gray); }
+
+    .gallery-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .gallery-item {
+      flex: 1 1 300px;
+      min-width: 0;
+      min-height: 280px;
+      background: linear-gradient(135deg, #D4CCC4, #C4BAB0);
+      background-size: cover;
+      background-position: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      transition: transform 0.4s;
+    }
+    .gallery-item:nth-child(1) { background-image: url('https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800&q=80'); }
+    .gallery-item:nth-child(2) { background-image: url('https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=800&q=80'); }
+    .gallery-item:nth-child(3) { background-image: url('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&q=80'); }
+    .gallery-item:nth-child(4) { background-image: url('https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800&q=80'); }
+    .gallery-item:nth-child(5) { background-image: url('https://images.unsplash.com/photo-1600573472550-8090b5e0745e?w=800&q=80'); }
+    .gallery-item:nth-child(6) { background-image: url('https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?w=800&q=80'); }
+
+    .gallery-item:hover { transform: scale(0.98); }
+
+    .gallery-item:first-child {
+      flex: 2 1 620px;
+      min-height: 360px;
+    }
+
+    .gallery-item span {
+      font-size: 13px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.4);
+      display: none;
+    }
+
+    /* ── Agent Card ── */
+    .agent-section {
+      background: var(--stone);
+    }
+
+    .agent-card {
+      display: flex;
+      align-items: center;
+      gap: 60px;
+    }
+
+    .agent-photo {
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #D4CCC4, #B8AFA6);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .agent-photo span {
+      font-size: 13px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.5);
+    }
+
+    .agent-info { flex: 1; }
+
+    .agent-name {
+      font-family: var(--serif);
+      font-weight: 400;
+      font-size: 32px;
+      margin-bottom: 4px;
+      color: var(--black);
+    }
+
+    .agent-title {
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+    }
+
+    .agent-contact-row {
+      display: flex;
+      gap: 32px;
+      margin-bottom: 32px;
+    }
+
+    .agent-contact-item {
+      font-size: 15px;
+      color: var(--text-secondary);
+    }
+
+    .agent-contact-item a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 12px 0;
+      color: var(--black);
+      text-decoration: none;
+      border-bottom: 1px solid var(--gray);
+      transition: border-color 0.3s;
+    }
+
+    .agent-contact-item a:hover { border-color: var(--gold); }
+
+    .cta-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 12px 48px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      background: var(--black);
+      color: var(--white);
+      text-decoration: none;
+      transition: background 0.3s;
+    }
+
+    .cta-button:hover { background: var(--gold); }
+
+    /* ── Raven Badge ── */
+    .raven-badge {
+      text-align: center;
+      padding: 40px 0;
+      border-top: 1px solid var(--gray);
+    }
+
+    .raven-badge a {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #B0A898;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .raven-badge a:hover { color: var(--gold); }
+
+    /* ── Footer ── */
+    footer {
+      background: var(--black);
+      padding: clamp(48px, 8vw, 128px) clamp(16px, 4vw, 24px);
+      color: rgba(255,255,255,0.55);
+      font-size: 13px;
+      letter-spacing: 0.04em;
+    }
+
+    .footer-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-brand {
+      font-family: var(--serif);
+      font-weight: 400;
+      font-size: 18px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.7);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .nav-links { display: none; }
+      .hero-title { font-size: clamp(36px, 6vw, 56px); }
+      .detail-value { font-size: 24px; }
+      .agent-card { flex-direction: column; text-align: center; gap: 32px; }
+      .agent-contact-row { justify-content: center; flex-wrap: wrap; }
+      .agent-name { font-size: 28px; }
+    }
+
+    @media (max-width: 768px) {
+      .gallery-item:first-child { flex: 1 1 100%; }
+    }
+
+    @media (max-width: 600px) {
+      .hero-title { font-size: 32px; }
+      .hero-price { font-size: 24px; }
+      .hero-eyebrow { font-size: 13px; }
+      .section-title { font-size: 24px; }
+      .description-text { font-size: 15px; }
+      .detail-value { font-size: 22px; }
+      .feature-card { padding: 32px 24px; }
+      .cta-button { width: 100%; text-align: center; }
+      .agent-photo { width: 160px; height: 160px; }
+      .agent-name { font-size: 24px; }
+      .footer-inner { flex-direction: column; gap: 16px; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav>
+    <a href="#" class="nav-brand">Oleander Estates</a>
+    <ul class="nav-links">
+      <li><a href="#details">Details</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#gallery">Gallery</a></li>
+      <li><a href="#contact">Contact</a></li>
+    </ul>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <video class="hero-video" autoplay muted loop playsinline>
+      <source src="/assets/video/demos/real-estate.mp4" type="video/mp4">
+    </video>
+    <div class="hero-image">
+      <span class="hero-placeholder">Property hero photograph — 2400 x 1600</span>
+    </div>
+    <div class="hero-content">
+      <div class="hero-eyebrow">Exclusive Listing</div>
+      <h1 class="hero-title">The Residence<br>at Oleander</h1>
+      <div class="hero-location">1247 Oleander Drive, Montecito, California 93108</div>
+      <div class="hero-price">$12,500,000</div>
+    </div>
+  </section>
+
+  <!-- Details Bar -->
+  <div class="details-bar" id="details">
+    <div class="details-grid">
+      <div class="detail-item">
+        <div class="detail-value">6</div>
+        <div class="detail-label">Bedrooms</div>
+      </div>
+      <div class="detail-item">
+        <div class="detail-value">8</div>
+        <div class="detail-label">Bathrooms</div>
+      </div>
+      <div class="detail-item">
+        <div class="detail-value">12,400</div>
+        <div class="detail-label">Square Feet</div>
+      </div>
+      <div class="detail-item">
+        <div class="detail-value">2.3</div>
+        <div class="detail-label">Acres</div>
+      </div>
+      <div class="detail-item">
+        <div class="detail-value">2024</div>
+        <div class="detail-label">Year Built</div>
+      </div>
+      <div class="detail-item">
+        <div class="detail-value">Yes</div>
+        <div class="detail-label">Pool &amp; Spa</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Description -->
+  <section class="section description">
+    <div class="section-label">About the Property</div>
+    <h2 class="section-title">Where Architecture<br>Meets the Pacific</h2>
+    <div class="description-text">
+      <p>Set behind a canopy of centuries-old oleander trees along one of Montecito's most coveted private drives, this newly completed estate redefines California living. Conceived by a collaboration between internationally acclaimed architects and the region's most celebrated landscape designers, every surface, sightline, and material has been considered with an uncompromising commitment to craft.</p>
+      <p>The main residence unfolds across a single story of white oak, hand-finished plaster, and floor-to-ceiling glass that frames uninterrupted views of the Channel Islands. A central courtyard — open to the sky — anchors the plan, drawing natural light deep into the living quarters while preserving an atmosphere of serene privacy. The primary suite occupies its own wing, with a private garden, a freestanding soaking tub aligned to the morning sun, and a dressing room that rivals the finest Parisian ateliers.</p>
+      <p>Outside, the grounds descend through terraced gardens to an infinity-edge pool that appears to merge with the Pacific horizon. A detached guest pavilion, professional outdoor kitchen, and championship-grade tennis court complete a property that offers not merely a home, but a way of life reserved for the most discerning few.</p>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="section features" id="features">
+    <div class="section-label">Amenities &amp; Features</div>
+    <h2 class="section-title">Considered in<br>Every Detail</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2">
+          <rect x="4" y="12" width="24" height="16" rx="1"/><path d="M8 12V8a8 8 0 0116 0v4"/><circle cx="16" cy="21" r="2"/>
+        </svg>
+        <div class="feature-name">Chef's Kitchen</div>
+        <div class="feature-desc">La Cornue range, dual islands of book-matched Calacatta marble, walk-in pantry with climate-controlled wine storage.</div>
+      </div>
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2">
+          <path d="M16 4v24M8 8l8-4 8 4M8 14l8 4 8-4M8 20l8 4 8-4"/>
+        </svg>
+        <div class="feature-name">Wine Cellar</div>
+        <div class="feature-desc">Temperature-controlled vault for 1,200 bottles with tasting room, reclaimed stone walls, and hand-forged iron details.</div>
+      </div>
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2">
+          <path d="M4 24c0 0 4-8 12-8s12 8 12 8"/><path d="M4 24h24"/><circle cx="16" cy="12" r="3"/>
+        </svg>
+        <div class="feature-name">Infinity Pool</div>
+        <div class="feature-desc">Negative-edge pool with integrated spa, automated cover, and heating — aligned to Pacific sunset views.</div>
+      </div>
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2">
+          <rect x="4" y="8" width="24" height="16" rx="2"/><path d="M10 28h12M16 24v4"/><path d="M9 14h14M9 18h8"/>
+        </svg>
+        <div class="feature-name">Home Theater</div>
+        <div class="feature-desc">Acoustically engineered 12-seat cinema with 4K laser projection, Dolby Atmos, and a concealed wet bar.</div>
+      </div>
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2">
+          <path d="M6 28V12l10-8 10 8v16"/><path d="M6 28h20"/><rect x="12" y="18" width="8" height="10"/>
+        </svg>
+        <div class="feature-name">Guest Pavilion</div>
+        <div class="feature-desc">Detached two-bedroom suite with private entrance, kitchenette, and covered terrace overlooking the gardens.</div>
+      </div>
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2">
+          <circle cx="16" cy="16" r="12"/><path d="M16 4v24M4 16h24M7 9l18 14M25 9L7 23"/>
+        </svg>
+        <div class="feature-name">Smart Home</div>
+        <div class="feature-desc">Whole-home Crestron automation — lighting, climate, security, audio, shades — controllable from any device, anywhere.</div>
+      </div>
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2">
+          <rect x="2" y="20" width="28" height="8" rx="1"/><path d="M6 20v-6a10 10 0 0120 0v6"/><line x1="16" y1="14" x2="16" y2="20"/>
+        </svg>
+        <div class="feature-name">Wellness Suite</div>
+        <div class="feature-desc">Private gym, steam room, cold plunge, and massage room with outdoor garden access and natural ventilation.</div>
+      </div>
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2">
+          <path d="M4 28h24"/><path d="M8 28V14l8-6 8 6v14"/><path d="M4 14l12-10 12 10"/>
+        </svg>
+        <div class="feature-name">Motor Court</div>
+        <div class="feature-desc">Gated entry with circular drive, four-car gallery garage with EV charging, and separate service entrance.</div>
+      </div>
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2">
+          <circle cx="16" cy="16" r="6"/><path d="M16 2v4M16 26v4M2 16h4M26 16h4M5.5 5.5l2.8 2.8M23.7 23.7l2.8 2.8M5.5 26.5l2.8-2.8M23.7 8.3l2.8-2.8"/>
+        </svg>
+        <div class="feature-name">Solar Array</div>
+        <div class="feature-desc">42kW rooftop solar with Tesla Powerwall battery storage — net-zero capable with whole-home backup.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Gallery -->
+  <section class="section gallery" id="gallery">
+    <div class="section-label">Gallery</div>
+    <h2 class="section-title">A Visual Tour</h2>
+    <div class="gallery-grid">
+      <div class="gallery-item"><span>Great Room — 1600 x 900</span></div>
+      <div class="gallery-item"><span>Primary Suite — 800 x 900</span></div>
+      <div class="gallery-item"><span>Kitchen — 800 x 600</span></div>
+      <div class="gallery-item"><span>Pool Terrace — 800 x 600</span></div>
+      <div class="gallery-item"><span>Wine Cellar — 800 x 600</span></div>
+      <div class="gallery-item"><span>Garden — 800 x 600</span></div>
+    </div>
+  </section>
+
+  <!-- Agent Contact -->
+  <section class="section agent-section" id="contact">
+    <div class="section-label">Your Private Advisor</div>
+    <h2 class="section-title">Schedule a Viewing</h2>
+    <div class="agent-card">
+      <div class="agent-photo"><span>Agent Photo</span></div>
+      <div class="agent-info">
+        <div class="agent-name">Catherine Ashworth</div>
+        <div class="agent-title">Senior Estate Advisor &middot; DRE #01987654</div>
+        <div class="agent-contact-row">
+          <div class="agent-contact-item">
+            <a href="tel:+18055551247">+1 (805) 555-1247</a>
+          </div>
+          <div class="agent-contact-item">
+            <a href="mailto:catherine@oleander-estates.com">catherine@oleander-estates.com</a>
+          </div>
+        </div>
+        <a href="mailto:catherine@oleander-estates.com?subject=Private%20Viewing%20—%20The%20Residence%20at%20Oleander" class="cta-button">Request Private Showing</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Raven Badge -->
+  <div class="raven-badge">
+    <a href="https://ravenmcp.ai" target="_blank">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      Built with Raven MCP — Design intelligence for AI
+    </a>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-brand">Oleander Estates</div>
+      <div>&copy; 2024 Oleander Estates. All rights reserved. Equal Housing Opportunity.</div>
+    </div>
+  </footer>
+
+</body>
+</html>

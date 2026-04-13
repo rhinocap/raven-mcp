@@ -5,6 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Raven MCP — Design Intelligence for AI</title>
   <meta name="description" content="Odin's ravens brought back knowledge of the world. Raven brings back design intelligence. A design knowledge MCP server for Claude.">
+
+  <!-- Favicon & Icons -->
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Raven MCP — Design Intelligence for AI">
+  <meta property="og:description" content="73 design principles, 13 UI patterns, 13 tools, real design system tokens. One install gives your AI assistant expert-level design knowledge.">
+  <meta property="og:image" content="https://ravenmcp.ai/assets/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:url" content="https://ravenmcp.ai">
+  <meta property="og:site_name" content="Raven MCP">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Raven MCP — Design Intelligence for AI">
+  <meta name="twitter:description" content="73 design principles, 13 UI patterns, 13 tools. One install gives your AI assistant expert-level design knowledge.">
+  <meta name="twitter:image" content="https://ravenmcp.ai/assets/og-image.jpg">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -36,11 +58,13 @@
       --accent-orange: #FFAB40;
       --accent-pink: #FF4081;
 
+      --text-on-accent: #0a0a12;
+
       --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
 
       --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
-      --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+      --space-5: 20px; --space-6: 24px; --space-7: 28px; --space-8: 32px; --space-10: 40px;
       --space-12: 48px; --space-16: 64px; --space-20: 80px; --space-24: 96px;
       --space-32: 128px;
 
@@ -58,10 +82,10 @@
     }
 
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-    html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+    html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
     body {
       font-family: var(--font-body);
-      font-size: 17px;
+      font-size: 21px;
       line-height: 1.65;
       color: var(--text-secondary);
       background: var(--bg-base);
@@ -71,7 +95,7 @@
     img { display: block; max-width: 100%; }
     ul { list-style: none; }
 
-    .container { max-width: var(--max-width); margin: 0 auto; padding: 0 var(--space-6); }
+    .container { max-width: var(--max-width); margin: 0 auto; padding: 0 clamp(16px, 4vw, 24px); }
 
     /* ── Scroll Animations ── */
     .reveal {
@@ -113,13 +137,13 @@
     h1, h2, h3, h4 { color: var(--text-primary); font-weight: 700; line-height: 1.15; }
     h1 { font-size: clamp(44px, 6vw, 72px); font-weight: 800; letter-spacing: -0.04em; text-shadow: 0 0 80px rgba(0,191,255,0.08); }
     h2 { font-size: clamp(30px, 4vw, 44px); letter-spacing: -0.03em; }
-    h3 { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+    h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
 
     .label {
       display: inline-flex;
       align-items: center;
       gap: var(--space-2);
-      font-size: 13px;
+      font-size: 17px;
       font-weight: 600;
       letter-spacing: 0.06em;
       text-transform: uppercase;
@@ -127,7 +151,7 @@
     }
 
     .subtitle {
-      font-size: clamp(18px, 1.6vw, 21px);
+      font-size: clamp(22px, 2vw, 25px);
       line-height: 1.65;
       color: var(--text-secondary);
       max-width: 580px;
@@ -140,7 +164,7 @@
       gap: var(--space-2);
       padding: 12px 24px;
       font-family: var(--font-body);
-      font-size: 14px;
+      font-size: 18px;
       font-weight: 600;
       border-radius: var(--radius-full);
       border: none;
@@ -151,7 +175,7 @@
 
     .btn-primary {
       background: var(--bg-accent);
-      color: #0a0a12;
+      color: var(--text-on-accent);
       font-weight: 700;
       box-shadow: 0 0 0 1px rgba(0, 191, 255, 0.6), 0 4px 16px rgba(0, 191, 255, 0.35), 0 0 40px rgba(0, 191, 255, 0.15);
     }
@@ -208,47 +232,37 @@
     }
     .glow-card { transition: all var(--duration-normal) var(--ease-out); }
 
+    /* Alternating card contrast — dark/lighter rhythm */
+    .glow-card.card-raised {
+      background: var(--bg-raised);
+    }
+    .glow-card.card-raised::before {
+      background: linear-gradient(135deg, rgba(0,191,255,0.15), rgba(255,255,255,0.08), rgba(0,229,255,0.12));
+    }
+    .glow-card.card-raised:hover::before {
+      background: linear-gradient(135deg, rgba(0,191,255,0.35), rgba(255,255,255,0.12), rgba(0,229,255,0.25));
+    }
+
     /* ══════════════════════════════════════════
        NAVIGATION
        ══════════════════════════════════════════ */
 
-    nav {
+    /* Nav and footer styles are in assets/nav.js and assets/footer.js (web components) */
+
+    /* ── Top gradient wash (behind floating nav) ── */
+    body::before {
+      content: "";
       position: fixed;
       top: 0; left: 0; right: 0;
-      z-index: 100;
-      height: var(--nav-height);
-      display: flex;
-      align-items: center;
-      background: rgba(26, 26, 34, 0.75);
-      backdrop-filter: blur(16px) saturate(1.4);
-      -webkit-backdrop-filter: blur(16px) saturate(1.4);
-      border-bottom: 1px solid var(--border);
+      height: 400px;
+      background: linear-gradient(180deg,
+        rgba(0, 191, 255, 0.38) 0%,
+        rgba(0, 191, 255, 0.22) 25%,
+        rgba(0, 191, 255, 0.10) 55%,
+        transparent 100%);
+      pointer-events: none;
+      z-index: 99;
     }
-
-    .nav-inner {
-      display: flex; align-items: center; justify-content: space-between;
-      width: 100%; max-width: var(--max-width); margin: 0 auto; padding: 0 var(--space-6);
-      position: relative;
-    }
-
-    .nav-brand { display: flex; align-items: center; gap: var(--space-3); }
-    .nav-brand img {
-      width: 30px; height: 30px; object-fit: contain;
-      filter: drop-shadow(0 0 12px rgba(0,191,255,0.3)) drop-shadow(0 0 4px rgba(0,191,255,0.15));
-    }
-    .nav-brand span { font-size: 16px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; }
-
-    .nav-links {
-      display: flex; align-items: center; gap: var(--space-8);
-      position: absolute;
-      left: 50%; transform: translateX(-50%);
-    }
-    .nav-links a {
-      font-size: 14px; color: var(--text-secondary);
-      transition: color var(--duration-fast) var(--ease-out);
-    }
-    .nav-links a:hover { color: var(--text-primary); }
-    .nav-actions { display: flex; align-items: center; gap: var(--space-3); }
 
     /* ══════════════════════════════════════════
        HERO
@@ -256,15 +270,15 @@
 
     .hero {
       position: relative;
-      padding: calc(var(--nav-height) + var(--space-32)) 0 var(--space-20);
+      padding: calc(var(--nav-height) + var(--space-32) + 12px) 0 var(--space-20);
       text-align: center;
       overflow: hidden;
     }
 
     .hero .glow-1 {
-      top: -200px; left: 50%; transform: translateX(-50%);
-      width: 1000px; height: 600px;
-      background: radial-gradient(ellipse, rgba(0,191,255,0.18) 0%, rgba(0,229,255,0.05) 40%, transparent 70%);
+      top: -120px; left: 50%; transform: translateX(-50%);
+      width: 1400px; height: 800px;
+      background: radial-gradient(ellipse, rgba(0,191,255,0.40) 0%, rgba(0,229,255,0.18) 30%, rgba(0,191,255,0.06) 55%, transparent 80%);
     }
     .hero .glow-2 {
       top: 100px; left: 15%;
@@ -293,14 +307,199 @@
     }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
+    /* ── Floating ambient orbs (Linear/Raycast-level) ── */
+    @keyframes float-drift-1 {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      25% { transform: translate(60px, -40px) scale(1.1); }
+      50% { transform: translate(-30px, -80px) scale(0.95); }
+      75% { transform: translate(-60px, 20px) scale(1.05); }
+    }
+    @keyframes float-drift-2 {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      33% { transform: translate(-80px, 50px) scale(1.08); }
+      66% { transform: translate(40px, -60px) scale(0.92); }
+    }
+    @keyframes float-drift-3 {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      20% { transform: translate(40px, 60px) scale(1.12); }
+      60% { transform: translate(-50px, -30px) scale(0.9); }
+      80% { transform: translate(30px, -50px) scale(1.05); }
+    }
+    .hero .glow-1 { animation: float-drift-1 20s ease-in-out infinite; }
+    .hero .glow-2 { animation: float-drift-2 25s ease-in-out infinite; }
+    .hero .glow-3 {
+      top: 300px; right: 10%;
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(0,229,255,0.06) 0%, transparent 55%);
+      animation: float-drift-3 18s ease-in-out infinite;
+    }
+
+    /* ── Gradient mesh background ── */
+    .hero::before {
+      content: "";
+      position: absolute;
+      top: -20%; left: -10%; width: 120%; height: 140%;
+      background:
+        radial-gradient(ellipse at 20% 50%, rgba(0,191,255,0.06) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(0,229,255,0.04) 0%, transparent 40%),
+        radial-gradient(ellipse at 50% 80%, rgba(0,230,118,0.03) 0%, transparent 50%);
+      pointer-events: none;
+      animation: mesh-shift 30s ease-in-out infinite alternate;
+    }
+    @keyframes mesh-shift {
+      0% { transform: translate(0, 0) rotate(0deg); }
+      100% { transform: translate(-40px, 30px) rotate(2deg); }
+    }
+
+    /* ── Stat counter animation ── */
+    .stat-number { transition: color 0.3s; }
+    .stat-number.counting { color: var(--accent-cyan); }
+
     .hero h1 { max-width: 760px; }
     .hero h1 .gradient {
-      background: linear-gradient(135deg, #fff 0%, var(--accent-blue) 40%, var(--accent-cyan) 100%);
+      background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-blue) 40%, var(--accent-cyan) 100%);
       -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 24px rgba(0, 191, 255, 0.5)) drop-shadow(0 0 48px rgba(0, 191, 255, 0.25)) drop-shadow(0 0 80px rgba(0, 191, 255, 0.12));
     }
     .hero .subtitle { margin: 0 auto; }
 
     .hero-cta { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-4); }
+
+    /* Sizzle reel video */
+    .sizzle-video {
+      margin-top: var(--space-16);
+      width: 100%;
+      max-width: 1080px;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 0 80px rgba(0, 191, 255, 0.08), 0 4px 32px rgba(0, 0, 0, 0.4);
+    }
+    .sizzle-video video {
+      width: 100%;
+      display: block;
+      border-radius: 16px;
+    }
+
+    /* Demo showcase */
+    .demo-showcase {
+      margin-top: var(--space-16);
+      width: 100%;
+      max-width: 1080px;
+    }
+    .demo-showcase-header {
+      text-align: center;
+      margin-bottom: var(--space-12);
+    }
+    .demo-showcase-header h3 {
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.03em;
+      margin-bottom: var(--space-2);
+    }
+    .demo-showcase-header p {
+      font-size: 17px;
+      color: var(--text-secondary);
+    }
+    .demo-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-5);
+    }
+    .demo-card {
+      flex: 1 1 280px;
+      min-width: 280px;
+      display: flex;
+      flex-direction: column;
+      border-radius: var(--radius-xl);
+      transition: all var(--duration-normal) var(--ease-out);
+      text-decoration: none;
+      overflow: hidden;
+      position: relative;
+    }
+    .demo-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5), 0 0 24px rgba(0, 191, 255, 0.1);
+    }
+    .demo-card-thumb {
+      width: 100%;
+      aspect-ratio: 3 / 2;
+      background-size: cover;
+      background-position: center;
+      position: relative;
+      filter: saturate(0.35) brightness(0.85);
+      transition: filter var(--duration-normal) var(--ease-out);
+    }
+    .demo-card:hover .demo-card-thumb {
+      filter: saturate(0.55) brightness(0.95);
+    }
+    .demo-card-thumb::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 30, 60, 0.25);
+      mix-blend-mode: multiply;
+      z-index: 0;
+    }
+    .demo-card-thumb::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(10,15,30,0.85) 0%, rgba(10,15,30,0.15) 50%, transparent 100%);
+      z-index: 0;
+    }
+    .demo-card-overlay {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: var(--space-6) var(--space-5);
+      z-index: 1;
+    }
+    .demo-card-industry {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--accent-cyan);
+      line-height: 1.1;
+      margin-bottom: 4px;
+      text-shadow: 0 2px 12px rgba(0,191,255,0.3);
+    }
+    .demo-card-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.85);
+      line-height: 1.3;
+    }
+    .demo-card-desc {
+      font-size: 12px;
+      color: rgba(255,255,255,0.5);
+      line-height: 1.4;
+    }
+    .demo-card-arrow {
+      position: absolute;
+      top: var(--space-4);
+      right: var(--space-4);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-primary);
+      z-index: 1;
+      transition: background var(--duration-fast), transform var(--duration-fast);
+    }
+    .demo-card:hover .demo-card-arrow {
+      background: var(--accent-blue);
+      transform: scale(1.1);
+    }
+    @media (max-width: 540px) {
+      .demo-card-thumb { aspect-ratio: 16 / 10; }
+    }
 
     /* Terminal */
     .hero-visual {
@@ -345,7 +544,9 @@
     .terminal-body {
       padding: var(--space-6) var(--space-8);
       font-family: var(--font-mono); font-size: 13px; line-height: 2;
-      min-height: 380px;
+      height: 620px;
+      overflow-y: hidden;
+      overflow-x: hidden;
       position: relative;
     }
     .terminal-body .line { display: flex; gap: var(--space-2); }
@@ -418,7 +619,7 @@
 
     /* Browser chrome wrapper — same size for all 3 */
     .browser-chrome {
-      background: #0e0e14;
+      background: var(--bg-alt);
       border: 1px solid rgba(255,255,255,0.08);
       border-radius: 10px;
       overflow: hidden;
@@ -446,7 +647,7 @@
       font-family: var(--font-body);
     }
     .browser-viewport {
-      height: 280px;
+      height: 300px;
       overflow: hidden;
       display: flex;
       align-items: center;
@@ -546,6 +747,122 @@
       background: linear-gradient(to top, rgba(0,191,255,0.2), rgba(0,191,255,0.7));
     }
 
+    /* Mini Audit UI */
+    .mini-audit {
+      padding: 16px 20px; background: var(--bg-surface); font-family: var(--font-family);
+    }
+    .mini-audit-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .mini-audit-header h4 { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+    .mini-audit-grade {
+      width: 32px; height: 32px; border-radius: 50%; background: #1DB954; color: #000;
+      display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800;
+    }
+    .mini-audit-score { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+    .mini-audit-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+    .mini-audit-fill { height: 100%; background: linear-gradient(90deg, #1DB954, #00BFFF); border-radius: 3px; }
+    .mini-audit-score span { font-size: 11px; font-weight: 700; color: var(--text-primary); }
+    .mini-audit-checks { display: flex; flex-direction: column; gap: 4px; }
+    .mini-check { font-size: 10px; display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+    .mini-check span { width: 14px; height: 14px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; flex-shrink: 0; }
+    .mini-check.pass { color: var(--text-secondary); }
+    .mini-check.pass span { background: rgba(29,185,84,0.15); color: #1DB954; }
+    .mini-check.warn { color: #FFAB40; }
+    .mini-check.warn span { background: rgba(255,171,64,0.15); color: #FFAB40; }
+
+    /* Mini Accessibility Report UI */
+    .mini-a11y {
+      padding: 16px 20px; background: var(--bg-surface); font-family: var(--font-body);
+    }
+    .mini-a11y-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .mini-a11y-header h4 { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+    .mini-a11y-badge {
+      font-size: 9px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+      background: rgba(0,230,118,0.12); color: #00E676; padding: 3px 8px; border-radius: 4px;
+    }
+    .mini-a11y-summary { display: flex; gap: 12px; margin-bottom: 14px; }
+    .mini-a11y-stat {
+      flex: 1; text-align: center; padding: 8px; background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.05); border-radius: 8px;
+    }
+    .mini-a11y-stat-val { font-size: 18px; font-weight: 800; letter-spacing: -0.03em; }
+    .mini-a11y-stat-val.good { color: #00E676; }
+    .mini-a11y-stat-val.bad { color: #FF4060; }
+    .mini-a11y-stat-label { font-size: 9px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+    .mini-a11y-checks { display: flex; flex-direction: column; gap: 3px; }
+    .mini-a11y-check { font-size: 10px; display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+    .mini-a11y-check .a11y-icon {
+      width: 14px; height: 14px; border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-size: 8px; font-weight: 700; flex-shrink: 0;
+    }
+    .mini-a11y-check.pass { color: var(--text-secondary); }
+    .mini-a11y-check.pass .a11y-icon { background: rgba(0,230,118,0.15); color: #00E676; }
+    .mini-a11y-check.fail { color: #FF4060; }
+    .mini-a11y-check.fail .a11y-icon { background: rgba(255,64,96,0.15); color: #FF4060; }
+
+    /* Mini Phone / Mobile App UI */
+    .mini-phone {
+      width: 200px; margin: 0 auto; background: #000; border-radius: 24px;
+      padding: 8px; box-shadow: 0 0 0 2px #2A2A2E, 0 8px 32px rgba(0,0,0,0.5);
+      font-family: var(--font-body);
+    }
+    .mini-phone-notch {
+      width: 72px; height: 18px; background: #000; border-radius: 0 0 12px 12px;
+      margin: 0 auto -8px; position: relative; z-index: 2;
+    }
+    .mini-phone-screen {
+      background: #1C1D25; border-radius: 18px; overflow: hidden;
+      display: flex; flex-direction: column; min-height: 280px;
+    }
+    .mini-phone-status {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 14px 4px; font-size: 9px; font-weight: 600; color: #fff;
+    }
+    .mini-phone-content { flex: 1; padding: 10px 14px; }
+    .mini-phone-content h4 { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 10px; }
+    .mini-app-card {
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px; padding: 10px; margin-bottom: 8px;
+    }
+    .mini-app-card-title { font-size: 10px; font-weight: 600; color: #fff; margin-bottom: 3px; }
+    .mini-app-card-sub { font-size: 9px; color: #8A8F98; }
+    .mini-phone-tabbar {
+      display: flex; align-items: center; justify-content: space-around;
+      padding: 8px 4px 12px; border-top: 1px solid rgba(255,255,255,0.06);
+      background: rgba(28,29,37,0.95);
+    }
+    .mini-tab { display: flex; flex-direction: column; align-items: center; gap: 2px; position: relative; }
+    .mini-tab-icon { font-size: 14px; line-height: 1; }
+    .mini-tab-label { font-size: 8px; font-weight: 500; color: #8A8F98; }
+    .mini-tab.active .mini-tab-icon { color: #00BFFF; }
+    .mini-tab.active .mini-tab-label { color: #00BFFF; font-weight: 600; }
+    .mini-tab-badge {
+      position: absolute; top: -4px; right: -6px; min-width: 12px; height: 12px;
+      background: #FF4060; color: #fff; font-size: 7px; font-weight: 700;
+      border-radius: 6px; display: flex; align-items: center; justify-content: center;
+      padding: 0 3px;
+    }
+
+    /* Mini Brand Kit UI */
+    .mini-brand {
+      padding: 16px 20px; background: #191414; font-family: var(--font-family);
+    }
+    .mini-brand-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .mini-brand-logo { width: 28px; height: 28px; border-radius: 50%; }
+    .mini-brand-header h4 { font-size: 14px; font-weight: 700; color: #fff; }
+    .mini-brand-tokens { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .mini-token { display: flex; align-items: center; gap: 10px; padding: 6px 8px; background: rgba(255,255,255,0.04); border-radius: 6px; }
+    .mini-token-swatch { width: 20px; height: 20px; border-radius: 4px; flex-shrink: 0; }
+    .mini-token-info { display: flex; align-items: center; justify-content: space-between; flex: 1; }
+    .mini-token-name { font-size: 11px; font-weight: 600; color: #fff; }
+    .mini-token-val { font-size: 10px; font-family: monospace; color: #B3B3B3; }
+    .mini-brand-fonts {
+      display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .mini-brand-fonts span {
+      font-size: 9px; font-weight: 600; color: #1DB954; background: rgba(29,185,84,0.1);
+      padding: 3px 8px; border-radius: 4px;
+    }
+
     .sizzle-progress {
       display: flex;
       align-items: center;
@@ -572,14 +889,16 @@
        ══════════════════════════════════════════ */
 
     .stats-section {
-      padding: var(--space-16) 0;
+      padding: clamp(48px, 6vw, 80px) 0;
     }
     .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      display: flex;
+      flex-wrap: wrap;
       gap: var(--space-6);
     }
     .stat-item {
+      flex: 1 1 180px;
+      min-width: 180px;
       text-align: center;
       padding: var(--space-6) var(--space-4);
       border-right: 1px solid var(--border);
@@ -600,7 +919,7 @@
       opacity: 0.7;
     }
     .stat-desc {
-      font-size: 16px;
+      font-size: 20px;
       font-weight: 600;
       color: var(--text-primary);
       line-height: 1.4;
@@ -617,49 +936,71 @@
 
     .pricing-section {
       position: relative;
-      padding: var(--space-32) 0;
+      padding: clamp(48px, 6vw, 80px) 0;
       background: var(--bg-alt);
       overflow: hidden;
     }
 
-    .pricing-grid {
+    .pricing-open-source {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: var(--space-5);
-      align-items: stretch;
+      grid-template-columns: 1.8fr 1fr;
+      gap: var(--space-6);
+      align-items: start;
     }
 
-    .pricing-card {
-      padding: var(--space-8) var(--space-6);
-      position: relative;
+    .pricing-open-card {
+      padding: var(--space-8);
+      display: flex;
+      flex-direction: column;
+      border-color: var(--accent-blue);
+    }
+    .pricing-open-card::before {
+      background: linear-gradient(135deg, rgba(0,191,255,0.3), rgba(0,229,255,0.08), rgba(0,191,255,0.2));
+    }
+
+    .pricing-open-stats {
+      display: flex;
+      gap: var(--space-8);
+      margin-bottom: var(--space-8);
+    }
+    .pricing-open-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .pricing-open-num {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      color: var(--accent-blue);
+      line-height: 1;
+      text-shadow: 0 0 30px rgba(0,191,255,0.25);
+    }
+    .pricing-open-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      letter-spacing: 0.02em;
+    }
+
+    .pricing-open-desc {
+      font-size: 17px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: var(--space-8);
+    }
+
+    .pricing-open-actions {
+      display: flex;
+      gap: var(--space-3);
+    }
+
+    .pricing-services-card {
+      padding: var(--space-8);
       display: flex;
       flex-direction: column;
     }
-
-    .pricing-card.featured {
-      border-color: var(--accent-blue);
-    }
-    .pricing-card.featured::before {
-      background: linear-gradient(135deg, rgba(0,191,255,0.4), rgba(0,229,255,0.15), rgba(0,191,255,0.3));
-    }
-
-    .pricing-badge {
-      position: absolute;
-      top: calc(var(--space-6) * -1 + 12px);
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 4px 14px;
-      background: var(--accent-blue);
-      color: var(--bg-base);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      border-radius: var(--radius-full);
-      box-shadow: 0 0 20px rgba(0,191,255,0.4);
-    }
-
-    .pricing-tier {
+    .pricing-services-label {
       font-size: 13px;
       font-weight: 600;
       letter-spacing: 0.04em;
@@ -667,68 +1008,49 @@
       color: var(--text-accent);
       margin-bottom: var(--space-3);
     }
-
-    .pricing-price {
-      display: flex;
-      align-items: baseline;
-      gap: 4px;
-      margin-bottom: var(--space-1);
-    }
-    .pricing-price .amount {
-      font-size: 44px;
-      font-weight: 800;
-      letter-spacing: -0.04em;
+    .pricing-services-title {
+      font-size: 22px;
+      font-weight: 700;
       color: var(--text-primary);
-      line-height: 1;
+      letter-spacing: -0.02em;
+      margin-bottom: var(--space-4);
     }
-    .pricing-card.featured .pricing-price .amount {
-      color: var(--accent-blue);
-      text-shadow: 0 0 30px rgba(0,191,255,0.25);
-    }
-    .pricing-price .period {
-      font-size: 14px;
-      color: var(--text-tertiary);
-    }
-
-    .pricing-desc {
-      font-size: 16px;
-      color: var(--text-secondary);
-      margin-bottom: var(--space-6);
-      line-height: 1.55;
-    }
-
-    .pricing-features {
-      list-style: none;
-      margin-bottom: var(--space-6);
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
-      flex: 1;
-    }
-    .pricing-features li {
-      display: flex;
-      align-items: flex-start;
-      gap: var(--space-2);
+    .pricing-services-desc {
       font-size: 15px;
       color: var(--text-secondary);
-      line-height: 1.5;
+      line-height: 1.6;
+      flex: 1;
+      margin-bottom: var(--space-6);
     }
-    .pricing-features li .check {
+    .pricing-services-link {
+      font-size: 15px;
+      font-weight: 600;
       color: var(--accent-blue);
-      font-size: 14px;
-      flex-shrink: 0;
-      margin-top: 1px;
+      text-decoration: none;
+      transition: color 150ms ease;
     }
-    .pricing-features li.dimmed {
-      color: var(--text-tertiary);
-    }
-    .pricing-features li.dimmed .check {
-      color: var(--text-tertiary);
+    .pricing-services-link:hover {
+      color: var(--text-primary);
     }
 
-    .pricing-card .btn {
-      width: 100%;
-      justify-content: center;
+    @media (max-width: 768px) {
+      .pricing-open-source {
+        grid-template-columns: 1fr;
+      }
+      .pricing-open-stats {
+        flex-wrap: wrap;
+        gap: var(--space-5);
+      }
+      .pricing-open-stat {
+        min-width: 60px;
+      }
+      .pricing-open-actions {
+        flex-direction: column;
+      }
+      .pricing-open-actions .btn {
+        width: 100%;
+        justify-content: center;
+      }
     }
 
     /* ══════════════════════════════════════════
@@ -748,7 +1070,7 @@
 
     .layers {
       position: relative;
-      padding: var(--space-32) 0;
+      padding: clamp(48px, 6vw, 80px) 0;
       background: var(--bg-alt);
     }
 
@@ -761,12 +1083,14 @@
     .section-header .subtitle { margin: 0 auto; }
 
     .layers-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      display: flex;
+      flex-wrap: wrap;
       gap: var(--space-5);
     }
 
     .layer-card {
+      flex: 1 1 280px;
+      min-width: 280px;
       padding: var(--space-8) var(--space-6);
     }
 
@@ -781,14 +1105,14 @@
     .layer-icon.green { background: rgba(0,230,118,0.1); color: var(--accent-green); }
 
     .layer-card h3 { margin-bottom: var(--space-2); }
-    .layer-card p { font-size: 16px; line-height: 1.65; margin-bottom: var(--space-5); }
+    .layer-card p { font-size: 20px; line-height: 1.65; margin-bottom: var(--space-5); }
     .layer-card .stat {
       font-size: 28px; font-weight: 800; letter-spacing: -0.03em;
       background: linear-gradient(135deg, var(--text-primary), var(--text-accent));
       -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
       margin-bottom: var(--space-1);
     }
-    .layer-card .stat-label { font-size: 12px; color: var(--text-tertiary); }
+    .layer-card .stat-label { font-size: 13px; color: var(--text-tertiary); }
 
     .layer-tags {
       display: flex; flex-wrap: wrap; gap: var(--space-2);
@@ -801,7 +1125,7 @@
       background: rgba(255,255,255,0.03);
       border: 1px solid var(--border);
       border-radius: var(--radius-full);
-      font-size: 12px; font-weight: 500; color: var(--text-tertiary);
+      font-size: 13px; font-weight: 500; color: var(--text-tertiary);
     }
 
     /* ══════════════════════════════════════════
@@ -810,16 +1134,18 @@
 
     .tools-section {
       position: relative;
-      padding: var(--space-32) 0;
+      padding: clamp(48px, 6vw, 80px) 0;
     }
 
     .tools-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      display: flex;
+      flex-wrap: wrap;
       gap: var(--space-4);
     }
 
     .tool-card {
+      flex: 1 1 280px;
+      min-width: 280px;
       display: flex; align-items: flex-start; gap: var(--space-4);
       padding: var(--space-5) var(--space-6);
       background: var(--bg-surface);
@@ -833,10 +1159,10 @@
     }
     .tool-name {
       font-family: var(--font-mono);
-      font-size: 14px; font-weight: 600; color: var(--text-primary);
+      font-size: 18px; font-weight: 600; color: var(--text-primary);
       margin-bottom: 2px;
     }
-    .tool-desc { font-size: 15px; color: var(--text-secondary); line-height: 1.55; }
+    .tool-desc { font-size: 19px; color: var(--text-secondary); line-height: 1.55; }
     .tool-icon {
       width: 36px; height: 36px;
       border-radius: var(--radius-sm);
@@ -851,17 +1177,19 @@
 
     .how-section {
       position: relative;
-      padding: var(--space-32) 0;
+      padding: clamp(48px, 6vw, 80px) 0;
       background: var(--bg-alt);
     }
 
     .how-steps {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      display: flex;
+      flex-wrap: wrap;
       gap: var(--space-6);
     }
 
     .step {
+      flex: 1 1 250px;
+      min-width: 250px;
       text-align: center;
       padding: var(--space-8) var(--space-6);
     }
@@ -877,7 +1205,7 @@
       box-shadow: 0 0 30px rgba(0,191,255,0.2), 0 0 60px rgba(0,191,255,0.08);
     }
     .step h3 { margin-bottom: var(--space-2); }
-    .step p { font-size: 16px; max-width: 280px; margin: 0 auto; line-height: 1.6; }
+    .step p { font-size: 20px; max-width: 280px; margin: 0 auto; line-height: 1.6; }
 
     .step-code {
       margin-top: var(--space-4);
@@ -886,7 +1214,7 @@
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
       font-family: var(--font-mono);
-      font-size: 12px;
+      font-size: 13px;
       color: var(--text-tertiary);
       display: inline-block;
     }
@@ -897,32 +1225,34 @@
 
     .systems-section {
       position: relative;
-      padding: var(--space-32) 0;
+      padding: clamp(48px, 6vw, 80px) 0;
     }
 
     .systems-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      display: flex;
+      flex-wrap: wrap;
       gap: var(--space-4);
     }
 
     .system-card {
+      flex: 1 1 220px;
+      min-width: 220px;
       padding: var(--space-6);
       position: relative;
     }
 
     .system-name {
-      font-size: 15px; font-weight: 600; color: var(--text-primary);
+      font-size: 19px; font-weight: 600; color: var(--text-primary);
       margin-bottom: 2px;
     }
     .system-category {
-      font-size: 11px; color: var(--text-tertiary);
+      font-size: 15px; color: var(--text-tertiary);
       text-transform: uppercase; letter-spacing: 0.06em;
       margin-bottom: var(--space-3);
     }
     .system-tags { display: flex; flex-wrap: wrap; gap: var(--space-1); }
     .system-tags span {
-      font-size: 11px; padding: 2px 8px;
+      font-size: 13px; padding: 2px 8px;
       background: rgba(255,255,255,0.03); border-radius: var(--radius-full);
       color: var(--text-tertiary);
     }
@@ -943,8 +1273,7 @@
 
     .quote-section {
       position: relative;
-      padding: var(--space-24) 0;
-      background: var(--bg-alt);
+      padding: clamp(48px, 6vw, 80px) 0;
       overflow: hidden;
     }
 
@@ -957,8 +1286,12 @@
     .quote-inner {
       position: relative;
       text-align: center;
-      max-width: 680px;
+      max-width: 740px;
       margin: 0 auto;
+      background: var(--bg-raised);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-xl);
+      padding: var(--space-12) var(--space-10);
     }
 
     .quote-mark {
@@ -987,21 +1320,27 @@
 
     .mythology-section {
       position: relative;
-      padding: var(--space-32) 0;
+      padding: clamp(48px, 6vw, 80px) 0;
       overflow: hidden;
     }
 
     .mythology-inner {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+      display: flex;
+      flex-wrap: wrap;
       gap: var(--space-16);
       align-items: center;
+    }
+    .mythology-text {
+      flex: 1 1 320px;
+      min-width: 320px;
     }
     .mythology-text .label { margin-bottom: var(--space-3); }
     .mythology-text h2 { margin-bottom: var(--space-4); }
     .mythology-text p { margin-bottom: var(--space-5); line-height: 1.7; }
 
     .mythology-visual {
+      flex: 1 1 280px;
+      min-width: 280px;
       display: flex; justify-content: center; align-items: center;
       position: relative;
     }
@@ -1018,23 +1357,25 @@
     }
 
     .mythology-realms {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      display: flex;
+      flex-wrap: wrap;
       gap: var(--space-4);
       margin-top: var(--space-16);
     }
 
     .realm {
+      flex: 1 1 250px;
+      min-width: 250px;
       padding: var(--space-6);
       text-align: center;
     }
     .realm-tradition {
-      font-size: 11px; font-weight: 700;
+      font-size: 13px; font-weight: 700;
       letter-spacing: 0.1em; text-transform: uppercase;
       color: var(--text-accent); margin-bottom: var(--space-2);
     }
-    .realm h4 { font-size: 16px; margin-bottom: var(--space-1); }
-    .realm p { font-size: 15px; color: var(--text-tertiary); line-height: 1.55; }
+    .realm h4 { font-size: 20px; margin-bottom: var(--space-1); }
+    .realm p { font-size: 19px; color: var(--text-tertiary); line-height: 1.55; }
 
     /* ══════════════════════════════════════════
        FINAL CTA
@@ -1043,7 +1384,7 @@
     .cta-section {
       position: relative;
       text-align: center;
-      padding: var(--space-32) 0;
+      padding: clamp(48px, 6vw, 80px) 0;
       background: var(--bg-alt);
       overflow: hidden;
     }
@@ -1086,80 +1427,88 @@
        FOOTER
        ══════════════════════════════════════════ */
 
-    footer {
-      border-top: 1px solid var(--border);
-      padding: var(--space-10) 0;
-    }
-    .footer-inner {
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .footer-brand { display: flex; align-items: center; gap: var(--space-3); }
-    .footer-brand img { width: 22px; height: 22px; object-fit: contain; opacity: 0.5; }
-    .footer-brand span { font-size: 13px; color: var(--text-tertiary); }
-    .footer-links { display: flex; gap: var(--space-6); }
-    .footer-links a {
-      font-size: 13px; color: var(--text-tertiary);
-      transition: color var(--duration-fast) var(--ease-out);
-    }
-    .footer-links a:hover { color: var(--text-primary); }
-
     /* ══════════════════════════════════════════
        RESPONSIVE
        ══════════════════════════════════════════ */
 
+    /* ── Mobile ── */
     @media (max-width: 768px) {
-      .nav-links { display: none; }
-      .layers-grid, .how-steps, .mythology-realms, .tools-grid, .systems-grid, .pricing-grid {
-        grid-template-columns: 1fr;
-      }
-      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      html, body { overflow-x: hidden; }
+
+      h1 { font-size: clamp(28px, 7vw, 44px) !important; }
+      h2 { font-size: clamp(22px, 5.5vw, 32px) !important; }
+      .subtitle { font-size: 15px !important; }
+
+      .hero { padding: calc(var(--nav-height) + var(--space-12) + 12px) 0 var(--space-10); }
+
+      .demo-card-thumb { aspect-ratio: 16 / 9; }
+      .demo-card-industry { font-size: 18px; }
+      .demo-showcase { margin-top: var(--space-8); }
+      .demo-showcase-header { margin-bottom: var(--space-6); }
+      .demo-showcase-header h3 { font-size: 26px; }
+
       .stat-item { border-right: none; border-bottom: 1px solid var(--border); padding: var(--space-4); }
       .stat-item:nth-child(2), .stat-item:last-child { border-bottom: none; }
       .stat-number { font-size: 36px; }
-      .mythology-inner { grid-template-columns: 1fr; text-align: center; }
+
+      .mythology-inner { text-align: center; }
       .mythology-visual { order: -1; }
-      .mythology-visual img { width: 180px; }
+      .mythology-visual img { width: 140px; }
+
+
+
       .hero-cta, .cta-actions { flex-direction: column; width: 100%; }
       .hero-cta .btn, .cta-actions .btn, .cta-actions .cta-install {
         width: 100%; justify-content: center;
       }
-      .footer-inner { flex-direction: column; gap: var(--space-4); text-align: center; }
-      .footer-links { justify-content: center; }
+
+      .terminal { font-size: 11px; }
+      .terminal-body { height: 480px; padding: var(--space-4) var(--space-4); line-height: 1.8; }
+      .browser-viewport { height: auto; min-height: 200px; }
+
+      .hero-visual { max-width: 100%; }
+
+      .step { padding: var(--space-6); }
+      .tool-card { padding: var(--space-5); }
+
+      .quote-inner { padding: var(--space-6) var(--space-4); }
+      .quote-text { font-size: 18px !important; }
+
+      .section-header { padding: 0; }
+      .section-header .subtitle { max-width: 100%; }
     }
-    @media (min-width: 769px) and (max-width: 1024px) {
-      .layers-grid { grid-template-columns: 1fr; }
-      .tools-grid { grid-template-columns: 1fr; }
-      .systems-grid { grid-template-columns: repeat(2, 1fr); }
+
+    /* ── Small mobile ── */
+    @media (max-width: 480px) {
+      nav { width: calc(100% - 16px); top: 6px; }
+      .nav-inner { padding: 0 var(--space-2); }
+
+      h1 { font-size: 26px !important; }
+      h2 { font-size: 20px !important; }
+
+      .terminal-body { height: 420px; font-size: 13px; }
+
+      .stat-item { border-bottom: 1px solid var(--border); }
+      .stat-item:last-child { border-bottom: none; }
+
+      .hero-cta .btn { font-size: 14px; padding: 12px 20px; }
+      .demo-card-industry { font-size: 16px; }
+      .demo-card-name { font-size: 13px; }
+
     }
   </style>
 </head>
 <body>
 
-  <!-- NAV -->
-  <nav>
-    <div class="nav-inner">
-      <a href="#" class="nav-brand">
-        <img src="assets/raven-logo.png" alt="Raven">
-        <span>Raven</span>
-      </a>
-      <ul class="nav-links">
-        <li><a href="#layers">Knowledge</a></li>
-        <li><a href="#tools">Tools</a></li>
-        <li><a href="#systems">Systems</a></li>
-        <li><a href="#pricing">Pricing</a></li>
-        <li><a href="#story">Story</a></li>
-      </ul>
-      <div class="nav-actions">
-        <a href="https://github.com/acunliffe/raven-mcp" class="btn btn-ghost">GitHub</a>
-        <a href="#get-started" class="btn btn-primary">Get Started</a>
-      </div>
-    </div>
-  </nav>
+  <!-- NAV (shared component) -->
+  <script src="assets/nav.js"></script>
+  <raven-nav></raven-nav>
 
   <!-- HERO -->
   <section class="hero">
     <div class="glow glow-1"></div>
     <div class="glow glow-2"></div>
+    <div class="glow glow-3"></div>
     <div class="grid-bg"></div>
     <div class="container">
       <div class="hero-badge reveal">
@@ -1167,16 +1516,165 @@
         Open-source MCP Server
       </div>
       <h1 class="reveal reveal-delay-1">Design intelligence<br>for <span class="gradient">every prompt</span></h1>
-      <p class="subtitle reveal reveal-delay-2">Raven gives AI the design knowledge that used to live only in senior designers' heads. Principles, patterns, tokens, and strategy&mdash;ten tools, three knowledge layers.</p>
+      <p class="subtitle reveal reveal-delay-2">Raven gives AI the design knowledge that used to live only in senior designers' heads. Accessibility, principles, patterns, tokens, and strategy&mdash;thirteen tools, three knowledge layers.</p>
       <div class="hero-cta reveal reveal-delay-3">
-        <a href="#get-started" class="btn btn-primary">
+        <a href="/docs.html" class="btn btn-primary">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"/></svg>
           Install Raven
         </a>
         <a href="#tools" class="btn btn-secondary">Explore Tools</a>
       </div>
 
-      <div class="hero-visual reveal reveal-delay-4">
+      <!-- Sizzle reel -->
+      <div class="sizzle-video reveal reveal-delay-3">
+        <video controls playsinline preload="metadata" poster="assets/og-image.jpg">
+          <source src="assets/video/sizzle-reel.mp4" type="video/mp4">
+        </video>
+      </div>
+
+      <!-- Demo showcase -->
+      <div class="demo-showcase reveal reveal-delay-3">
+        <div class="demo-showcase-header">
+          <h3>One tool. Every industry.</h3>
+          <p>Click any demo &mdash; built entirely with Raven's design intelligence</p>
+        </div>
+        <div class="demo-grid">
+          <a href="/demos/law-firm.html" class="demo-card">
+            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=600&q=80');"></div>
+            <div class="demo-card-overlay">
+              <div class="demo-card-industry">Legal</div>
+              <div class="demo-card-name">Harrison & Cole</div>
+              <div class="demo-card-desc">Full-service litigation firm</div>
+            </div>
+            <div class="demo-card-arrow">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
+            </div>
+          </a>
+          <a href="/demos/wedding.html" class="demo-card">
+            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1606800052052-a08af7148866?w=600&q=80');"></div>
+            <div class="demo-card-overlay">
+              <div class="demo-card-industry">Wedding</div>
+              <div class="demo-card-name">Elara & Co.</div>
+              <div class="demo-card-desc">Luxury wedding planning</div>
+            </div>
+            <div class="demo-card-arrow">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
+            </div>
+          </a>
+          <a href="/demos/coffee-shop.html" class="demo-card">
+            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=600&q=80');"></div>
+            <div class="demo-card-overlay">
+              <div class="demo-card-industry">Food & Beverage</div>
+              <div class="demo-card-name">Ember & Grain</div>
+              <div class="demo-card-desc">Specialty coffee roaster</div>
+            </div>
+            <div class="demo-card-arrow">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
+            </div>
+          </a>
+          <a href="/demos/saas.html" class="demo-card">
+            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&q=80');"></div>
+            <div class="demo-card-overlay">
+              <div class="demo-card-industry">SaaS</div>
+              <div class="demo-card-name">Flux</div>
+              <div class="demo-card-desc">Real-time analytics platform</div>
+            </div>
+            <div class="demo-card-arrow">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
+            </div>
+          </a>
+          <a href="/demos/fitness.html" class="demo-card">
+            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=600&q=80');"></div>
+            <div class="demo-card-overlay">
+              <div class="demo-card-industry">Fitness</div>
+              <div class="demo-card-name">FORGE</div>
+              <div class="demo-card-desc">Performance training studio</div>
+            </div>
+            <div class="demo-card-arrow">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
+            </div>
+          </a>
+          <a href="/demos/real-estate.html" class="demo-card">
+            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=600&q=80');"></div>
+            <div class="demo-card-overlay">
+              <div class="demo-card-industry">Real Estate</div>
+              <div class="demo-card-name">Oleander Residence</div>
+              <div class="demo-card-desc">$12.5M luxury estate listing</div>
+            </div>
+            <div class="demo-card-arrow">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
+            </div>
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section class="stats-section">
+    <div class="container">
+      <div class="stats-grid">
+        <div class="stat-item reveal">
+          <div class="stat-number">73</div>
+          <div class="stat-desc">Design principles<br><span>Accessibility, Nielsen, Gestalt, Laws of UX, Architecture</span></div>
+        </div>
+        <div class="stat-item reveal reveal-delay-1">
+          <div class="stat-number">13</div>
+          <div class="stat-desc">UI patterns<br><span>With do's, don'ts & evidence</span></div>
+        </div>
+        <div class="stat-item reveal reveal-delay-2">
+          <div class="stat-number">12</div>
+          <div class="stat-desc">Design systems<br><span>Apple, Google, Stripe, Airbnb & more</span></div>
+        </div>
+        <div class="stat-item reveal reveal-delay-3">
+          <div class="stat-number">13</div>
+          <div class="stat-desc">MCP tools<br><span>Auto-called by Claude</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MYTHOLOGY — the brand story -->
+  <section id="story" class="mythology-section">
+    <div class="container">
+      <div class="mythology-inner">
+        <div class="mythology-text reveal">
+          <p class="label">The Story</p>
+          <h2>Named for the creature that bridges worlds</h2>
+          <p>Across Norse, Celtic, and Native American traditions, the raven carries knowledge from hidden places and brings it into the light.</p>
+          <p>Odin's ravens Huginn and Muninn&mdash;Thought and Memory&mdash;fly across all nine realms at dawn and return to whisper everything they've seen. The Morr&iacute;gan takes raven form to decide fate. Y&eacute;il stole the sun from darkness and gave it to everyone.</p>
+          <p style="color: var(--text-accent); font-weight: 500;">Raven MCP: design intelligence that used to be locked away, now flying across your work.</p>
+        </div>
+        <div class="mythology-visual reveal reveal-delay-2">
+          <img src="assets/raven-logo.png" alt="Raven">
+        </div>
+      </div>
+
+      <div class="mythology-realms">
+        <div class="glow-card realm reveal">
+          <div class="realm-tradition">Norse</div>
+          <h4>Huginn & Muninn</h4>
+          <p>Thought & Memory&mdash;Odin's ravens that fly across all nine realms and return with knowledge</p>
+        </div>
+        <div class="glow-card card-raised realm reveal reveal-delay-1">
+          <div class="realm-tradition">Celtic</div>
+          <h4>The Morr&iacute;gan</h4>
+          <p>Sovereignty & Prophecy&mdash;the triple goddess who takes raven form to decide fate</p>
+        </div>
+        <div class="glow-card realm reveal reveal-delay-2">
+          <div class="realm-tradition">Tlingit</div>
+          <h4>Y&eacute;il the Transformer</h4>
+          <p>Light from Darkness&mdash;Raven stole the sun, moon, and stars and gave them to everyone</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SIZZLE REEL -->
+  <section style="padding: clamp(48px, 6vw, 80px) 0 clamp(24px, 3vw, 40px);">
+    <div class="container" style="display:flex;flex-direction:column;align-items:center;">
+      <div class="hero-visual reveal" style="margin-top:0;">
         <div class="terminal">
           <div class="terminal-header">
             <span class="terminal-dot"></span>
@@ -1190,36 +1688,14 @@
           <span class="sizzle-dot active" data-scene="0"></span>
           <span class="sizzle-dot" data-scene="1"></span>
           <span class="sizzle-dot" data-scene="2"></span>
+          <span class="sizzle-dot" data-scene="3"></span>
+          <span class="sizzle-dot" data-scene="4"></span>
+          <span class="sizzle-dot" data-scene="5"></span>
+          <span class="sizzle-dot" data-scene="6"></span>
         </div>
       </div>
     </div>
   </section>
-
-  <!-- STATS — real numbers, not fake social proof -->
-  <section class="stats-section">
-    <div class="container">
-      <div class="stats-grid">
-        <div class="stat-item reveal">
-          <div class="stat-number">58</div>
-          <div class="stat-desc">Design principles<br><span>Nielsen, Gestalt, WCAG, Laws of UX</span></div>
-        </div>
-        <div class="stat-item reveal reveal-delay-1">
-          <div class="stat-number">13</div>
-          <div class="stat-desc">UI patterns<br><span>With do's, don'ts & evidence</span></div>
-        </div>
-        <div class="stat-item reveal reveal-delay-2">
-          <div class="stat-number">10</div>
-          <div class="stat-desc">MCP tools<br><span>Auto-called by Claude</span></div>
-        </div>
-        <div class="stat-item reveal reveal-delay-3">
-          <div class="stat-number">272<small>KB</small></div>
-          <div class="stat-desc">Curated knowledge<br><span>Zero hallucination, all sourced</span></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <div class="divider"></div>
 
   <!-- KNOWLEDGE LAYERS -->
   <section id="layers" class="layers">
@@ -1236,19 +1712,21 @@
           <div class="layer-icon blue">
             <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M11 7v4l3 2"/></svg>
           </div>
-          <div class="stat">57</div>
+          <div class="stat">73</div>
           <div class="stat-label">Design principles</div>
           <h3>Principles</h3>
-          <p>Nielsen's Heuristics, Laws of UX, Gestalt, WCAG, typography, color theory, and D4D&mdash;with violations and checklists.</p>
+          <p>Nielsen's Heuristics, Laws of UX, Gestalt, WCAG accessibility, typography, color theory, mobile UX, responsive layout, component architecture, and D4D&mdash;with violations and checklists.</p>
           <div class="layer-tags">
+            <span class="tag">Accessibility</span>
             <span class="tag">Nielsen</span>
             <span class="tag">Gestalt</span>
-            <span class="tag">WCAG</span>
             <span class="tag">Laws of UX</span>
+            <span class="tag">Mobile UX</span>
+            <span class="tag">Responsive</span>
           </div>
         </div>
 
-        <div class="glow-card layer-card reveal reveal-delay-1">
+        <div class="glow-card layer-card card-raised reveal reveal-delay-1">
           <div class="layer-icon cyan">
             <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="13" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="13" width="6" height="6" rx="1.5"/><rect x="13" y="13" width="6" height="6" rx="1.5"/></svg>
           </div>
@@ -1283,23 +1761,11 @@
     </div>
   </section>
 
-  <!-- QUOTE -->
-  <section class="quote-section">
-    <div class="glow"></div>
-    <div class="container">
-      <div class="quote-inner reveal">
-        <div class="quote-mark">"</div>
-        <p class="quote-text">Design knowledge was locked in bentwood boxes&mdash;agency playbooks, enterprise design system teams, senior designers' heads. Raven broke the boxes open. Light for everyone.</p>
-        <p class="quote-attribution">The origin story &mdash; Tlingit mythology of Y&eacute;il, the Raven who stole the sun</p>
-      </div>
-    </div>
-  </section>
-
   <!-- TOOLS -->
   <section id="tools" class="tools-section">
     <div class="container">
       <div class="section-header">
-        <p class="label reveal">Ten Tools</p>
+        <p class="label reveal">Thirteen Tools</p>
         <h2 class="reveal reveal-delay-1">The full flight across all realms</h2>
         <p class="subtitle reveal reveal-delay-2">Each tool is a focused query. Claude calls them automatically&mdash;no special syntax, no configuration beyond install.</p>
       </div>
@@ -1335,7 +1801,7 @@
         </div>
         <div class="tool-card reveal reveal-delay-1">
           <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" stroke-width="1.5" stroke-linecap="round"><path d="M2 4h12M2 8h8M2 12h10"/></svg></div>
-          <div><div class="tool-name">list_design_systems</div><div class="tool-desc">Browse the registry of 7 design systems with tokens and metadata</div></div>
+          <div><div class="tool-name">list_design_systems</div><div class="tool-desc">Browse the registry of 12 design systems with tokens and metadata</div></div>
         </div>
         <div class="tool-card reveal">
           <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00BFFF" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 6h6M5 8h4M5 10h5"/></svg></div>
@@ -1345,6 +1811,30 @@
           <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l4 4-4 4"/><path d="M12 4l-4 4 4 4"/></svg></div>
           <div><div class="tool-name">compose_system</div><div class="tool-desc">Mix tokens from multiple design systems into a custom composition</div></div>
         </div>
+        <div class="tool-card reveal">
+          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" stroke-width="1.5" stroke-linecap="round"><path d="M2 3h12M2 7h8M2 11h10M13 7l-2 2 2 2"/></svg></div>
+          <div><div class="tool-name">audit_page</div><div class="tool-desc">Score any HTML page against Raven's design quality standards &mdash; typography, accessibility, responsive, tokens</div></div>
+        </div>
+        <div class="tool-card reveal reveal-delay-1">
+          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M5 8h6M8 5v6"/></svg></div>
+          <div><div class="tool-name">get_brand_system</div><div class="tool-desc">Get a complete design system for building an app with branding like any company</div></div>
+        </div>
+        <div class="tool-card reveal">
+          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FF4081" stroke-width="1.5" stroke-linecap="round"><path d="M3 8a5 5 0 0110 0"/><path d="M8 3v5l3 2"/></svg></div>
+          <div><div class="tool-name">generate_design_system</div><div class="tool-desc">Generate a complete design system from a brand color&mdash;export as HTML, CSS, Figma, or SVG</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUOTE -->
+  <section class="quote-section">
+    <div class="glow"></div>
+    <div class="container">
+      <div class="quote-inner reveal">
+        <div class="quote-mark">"</div>
+        <p class="quote-text">Design knowledge was locked in bentwood boxes&mdash;agency playbooks, enterprise design system teams, senior designers' heads. Raven broke the boxes open. Light for everyone.</p>
+        <p class="quote-attribution">The origin story &mdash; Tlingit mythology of Y&eacute;il, the Raven who stole the sun</p>
       </div>
     </div>
   </section>
@@ -1364,7 +1854,7 @@
           <p>Clone, build, and add to your MCP config. Two minutes.</p>
           <div class="step-code">npm install && npm run build</div>
         </div>
-        <div class="glow-card step reveal reveal-delay-1">
+        <div class="glow-card card-raised step reveal reveal-delay-1">
           <div class="step-number">2</div>
           <h3>Prompt</h3>
           <p>Ask Claude to build any UI. Raven's tools are called automatically.</p>
@@ -1386,87 +1876,81 @@
       <div class="section-header">
         <p class="label reveal">Token Registry</p>
         <h2 class="reveal reveal-delay-1">The world's best design systems, queryable</h2>
-        <p class="subtitle reveal reveal-delay-2">Production tokens in W3C DTCG, CSS custom properties, or flat format. Two systems fully populated, five more planned.</p>
+        <p class="subtitle reveal reveal-delay-2">Production tokens from 12 world-class design systems in W3C DTCG format. Platforms, products, and frameworks &mdash; all queryable.</p>
       </div>
 
       <div class="systems-grid">
         <div class="glow-card system-card reveal">
           <span class="system-status live"></span>
+          <div class="system-name">Apple HIG</div>
+          <div class="system-category">Platform</div>
+          <div class="system-tags"><span>iOS</span><span>macOS</span><span>premium</span></div>
+        </div>
+        <div class="glow-card system-card card-raised reveal reveal-delay-1">
+          <span class="system-status live"></span>
+          <div class="system-name">Material Design 3</div>
+          <div class="system-category">Platform</div>
+          <div class="system-tags"><span>Android</span><span>dynamic-color</span></div>
+        </div>
+        <div class="glow-card system-card reveal reveal-delay-2">
+          <span class="system-status live"></span>
           <div class="system-name">Stripe</div>
           <div class="system-category">Fintech</div>
-          <div class="system-tags"><span>professional</span><span>clean</span><span>accessible</span></div>
+          <div class="system-tags"><span>professional</span><span>clean</span></div>
         </div>
-        <div class="glow-card system-card reveal reveal-delay-1">
+        <div class="glow-card system-card reveal reveal-delay-3">
           <span class="system-status live"></span>
           <div class="system-name">Linear</div>
           <div class="system-category">Productivity</div>
-          <div class="system-tags"><span>dark</span><span>minimal</span><span>developer</span></div>
+          <div class="system-tags"><span>dark</span><span>minimal</span></div>
+        </div>
+        <div class="glow-card system-card card-raised reveal">
+          <span class="system-status live"></span>
+          <div class="system-name">Airbnb</div>
+          <div class="system-category">Consumer</div>
+          <div class="system-tags"><span>warm</span><span>trustworthy</span></div>
+        </div>
+        <div class="glow-card system-card reveal reveal-delay-1">
+          <span class="system-status live"></span>
+          <div class="system-name">Spotify</div>
+          <div class="system-category">Consumer</div>
+          <div class="system-tags"><span>dark</span><span>vibrant</span></div>
         </div>
         <div class="glow-card system-card reveal reveal-delay-2">
-          <span class="system-status planned"></span>
+          <span class="system-status live"></span>
           <div class="system-name">Vercel</div>
           <div class="system-category">Developer</div>
-          <div class="system-tags"><span>monochrome</span><span>elegant</span></div>
+          <div class="system-tags"><span>monochrome</span><span>minimal</span></div>
         </div>
-        <div class="glow-card system-card reveal reveal-delay-3">
-          <span class="system-status planned"></span>
+        <div class="glow-card system-card card-raised reveal reveal-delay-3">
+          <span class="system-status live"></span>
           <div class="system-name">GitHub Primer</div>
-          <div class="system-category">Design System</div>
+          <div class="system-category">Developer</div>
           <div class="system-tags"><span>enterprise</span><span>accessible</span></div>
         </div>
-        <div class="glow-card system-card reveal reveal-delay-4">
-          <span class="system-status planned"></span>
+        <div class="glow-card system-card reveal">
+          <span class="system-status live"></span>
           <div class="system-name">Notion</div>
           <div class="system-category">Productivity</div>
           <div class="system-tags"><span>warm</span><span>content-first</span></div>
         </div>
-        <div class="glow-card system-card reveal">
-          <span class="system-status planned"></span>
+        <div class="glow-card system-card reveal reveal-delay-1">
+          <span class="system-status live"></span>
           <div class="system-name">shadcn/ui</div>
           <div class="system-category">Component Library</div>
           <div class="system-tags"><span>tailwind</span><span>radix</span></div>
         </div>
-        <div class="glow-card system-card reveal reveal-delay-1">
-          <span class="system-status planned"></span>
+        <div class="glow-card system-card card-raised reveal reveal-delay-2">
+          <span class="system-status live"></span>
+          <div class="system-name">Tailwind CSS</div>
+          <div class="system-category">Framework</div>
+          <div class="system-tags"><span>utility-first</span><span>comprehensive</span></div>
+        </div>
+        <div class="glow-card system-card reveal reveal-delay-3">
+          <span class="system-status live"></span>
           <div class="system-name">Supabase</div>
           <div class="system-category">Developer</div>
           <div class="system-tags"><span>dark</span><span>green-accent</span></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- MYTHOLOGY -->
-  <section id="story" class="mythology-section">
-    <div class="container">
-      <div class="mythology-inner">
-        <div class="mythology-text reveal">
-          <p class="label">The Story</p>
-          <h2>Named for the creature that bridges worlds</h2>
-          <p>Across Norse, Celtic, and Native American traditions, the raven carries knowledge from hidden places and brings it into the light.</p>
-          <p>Odin's ravens Huginn and Muninn&mdash;Thought and Memory&mdash;fly across all nine realms at dawn and return to whisper everything they've seen. The Morr&iacute;gan takes raven form to decide fate. Y&eacute;il stole the sun from darkness and gave it to everyone.</p>
-          <p style="color: var(--text-accent); font-weight: 500;">Raven MCP: design intelligence that used to be locked away, now flying across your work.</p>
-        </div>
-        <div class="mythology-visual reveal reveal-delay-2">
-          <img src="assets/raven-logo.png" alt="Raven">
-        </div>
-      </div>
-
-      <div class="mythology-realms">
-        <div class="glow-card realm reveal">
-          <div class="realm-tradition">Norse</div>
-          <h4>Huginn & Muninn</h4>
-          <p>Thought & Memory&mdash;Odin's ravens that fly across all nine realms and return with knowledge</p>
-        </div>
-        <div class="glow-card realm reveal reveal-delay-1">
-          <div class="realm-tradition">Celtic</div>
-          <h4>The Morr&iacute;gan</h4>
-          <p>Sovereignty & Prophecy&mdash;the triple goddess who takes raven form to decide fate</p>
-        </div>
-        <div class="glow-card realm reveal reveal-delay-2">
-          <div class="realm-tradition">Tlingit</div>
-          <h4>Y&eacute;il the Transformer</h4>
-          <p>Light from Darkness&mdash;Raven stole the sun, moon, and stars and gave them to everyone</p>
         </div>
       </div>
     </div>
@@ -1477,71 +1961,43 @@
     <div class="grid-bg"></div>
     <div class="container">
       <div class="section-header">
-        <p class="label reveal">Pricing</p>
-        <h2 class="reveal reveal-delay-1">Free to start, pay to go deeper</h2>
-        <p class="subtitle reveal reveal-delay-2">Core design intelligence is open source. Premium unlocks the full token registry, advanced tools, and priority updates.</p>
+        <p class="label reveal">Open Source</p>
+        <h2 class="reveal reveal-delay-1">Free. All of it.</h2>
+        <p class="subtitle reveal reveal-delay-2">Every tool, every token, every principle &mdash; no limits, no tiers, no catch. Raven is open source and always will be.</p>
       </div>
 
-      <div class="pricing-grid">
-        <div class="glow-card pricing-card reveal">
-          <div class="pricing-tier">Open Source</div>
-          <div class="pricing-price">
-            <span class="amount">$0</span>
-            <span class="period">forever</span>
+      <div class="pricing-open-source reveal reveal-delay-3">
+        <div class="glow-card pricing-open-card">
+          <div class="pricing-open-stats">
+            <div class="pricing-open-stat">
+              <span class="pricing-open-num">13</span>
+              <span class="pricing-open-label">Tools</span>
+            </div>
+            <div class="pricing-open-stat">
+              <span class="pricing-open-num">73</span>
+              <span class="pricing-open-label">Principles</span>
+            </div>
+            <div class="pricing-open-stat">
+              <span class="pricing-open-num">12</span>
+              <span class="pricing-open-label">Design Systems</span>
+            </div>
+            <div class="pricing-open-stat">
+              <span class="pricing-open-num">13</span>
+              <span class="pricing-open-label">UI Patterns</span>
+            </div>
           </div>
-          <p class="pricing-desc">Everything you need to ship design-grade UI with Claude.</p>
-          <ul class="pricing-features">
-            <li><span class="check">&#10003;</span> 58 design principles</li>
-            <li><span class="check">&#10003;</span> 13 UI pattern libraries</li>
-            <li><span class="check">&#10003;</span> 5 business strategy domains</li>
-            <li><span class="check">&#10003;</span> Pre-publish checklists</li>
-            <li><span class="check">&#10003;</span> D4D framework templates</li>
-            <li><span class="check">&#10003;</span> Knowledge search</li>
-            <li class="dimmed"><span class="check">&mdash;</span> 2 design system tokens</li>
-            <li class="dimmed"><span class="check">&mdash;</span> Community support</li>
-          </ul>
-          <a href="https://github.com/acunliffe/raven-mcp" class="btn btn-secondary">Get Started Free</a>
+          <p class="pricing-open-desc">Design intelligence for every AI-generated interface &mdash; accessibility audits, token systems, evaluation scoring, and more. Install in 30 seconds.</p>
+          <div class="pricing-open-actions">
+            <a href="/docs.html" class="btn btn-primary">Get Started</a>
+            <a href="https://github.com/rhinocap/raven-mcp" class="btn btn-secondary">View on GitHub</a>
+          </div>
         </div>
 
-        <div class="glow-card pricing-card featured reveal reveal-delay-1">
-          <div class="pricing-badge">Most Popular</div>
-          <div class="pricing-tier">Pro</div>
-          <div class="pricing-price">
-            <span class="amount">$9</span>
-            <span class="period">/month</span>
-          </div>
-          <p class="pricing-desc">Full token registry + advanced evaluation for professional designers and developers.</p>
-          <ul class="pricing-features">
-            <li><span class="check">&#10003;</span> Everything in Open Source</li>
-            <li><span class="check">&#10003;</span> All 7+ design system tokens</li>
-            <li><span class="check">&#10003;</span> compose_system &mdash; mix tokens</li>
-            <li><span class="check">&#10003;</span> evaluate_design &mdash; score UIs</li>
-            <li><span class="check">&#10003;</span> Priority new system additions</li>
-            <li><span class="check">&#10003;</span> Dark &amp; light mode tokens</li>
-            <li><span class="check">&#10003;</span> W3C DTCG + CSS + flat formats</li>
-            <li><span class="check">&#10003;</span> Email support</li>
-          </ul>
-          <a href="#get-started" class="btn btn-primary">Start Pro Trial</a>
-        </div>
-
-        <div class="glow-card pricing-card reveal reveal-delay-2">
-          <div class="pricing-tier">Team</div>
-          <div class="pricing-price">
-            <span class="amount">$29</span>
-            <span class="period">/month</span>
-          </div>
-          <p class="pricing-desc">For design teams shipping consistently across multiple products and codebases.</p>
-          <ul class="pricing-features">
-            <li><span class="check">&#10003;</span> Everything in Pro</li>
-            <li><span class="check">&#10003;</span> Up to 10 seats</li>
-            <li><span class="check">&#10003;</span> Custom design system upload</li>
-            <li><span class="check">&#10003;</span> Team token presets</li>
-            <li><span class="check">&#10003;</span> Shared evaluation reports</li>
-            <li><span class="check">&#10003;</span> Usage analytics dashboard</li>
-            <li><span class="check">&#10003;</span> Slack support channel</li>
-            <li><span class="check">&#10003;</span> Onboarding call</li>
-          </ul>
-          <a href="#get-started" class="btn btn-secondary">Contact Us</a>
+        <div class="glow-card pricing-services-card">
+          <p class="pricing-services-label">Need something custom?</p>
+          <h3 class="pricing-services-title">Custom Design Systems</h3>
+          <p class="pricing-services-desc">Get a bespoke Raven-compatible design system built for your brand &mdash; tokens, principles, evaluation rules, all tailored to your product.</p>
+          <a href="mailto:andrew@ravenmcp.ai" class="pricing-services-link">Get in touch &rarr;</a>
         </div>
       </div>
     </div>
@@ -1556,9 +2012,9 @@
       <h2 class="reveal reveal-delay-1">Give your AI<br>design intelligence</h2>
       <p class="subtitle reveal reveal-delay-2">Open source. Zero runtime dependencies. Works with Claude Code and Claude Desktop.</p>
       <div class="cta-actions reveal reveal-delay-3">
-        <a href="https://github.com/acunliffe/raven-mcp" class="btn btn-primary">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-          View on GitHub
+        <a href="/docs.html" class="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"/></svg>
+          Install Raven
         </a>
         <button class="cta-install" onclick="navigator.clipboard.writeText('npm install raven-mcp').then(()=>{this.querySelector('.copy-label').textContent='Copied!'})">
           <span class="copy-label">npm install raven-mcp</span>
@@ -1568,26 +2024,12 @@
     </div>
   </section>
 
-  <!-- FOOTER -->
-  <footer>
-    <div class="container">
-      <div class="footer-inner">
-        <div class="footer-brand">
-          <img src="assets/raven-logo.png" alt="Raven">
-          <span>Raven MCP &mdash; ravenmcp.ai</span>
-        </div>
-        <ul class="footer-links">
-          <li><a href="https://github.com/acunliffe/raven-mcp">GitHub</a></li>
-          <li><a href="#tools">Tools</a></li>
-          <li><a href="#systems">Systems</a></li>
-          <li><a href="#pricing">Pricing</a></li>
-          <li><a href="#story">Story</a></li>
-        </ul>
-      </div>
-    </div>
-  </footer>
+  <!-- FOOTER (shared component) -->
+  <script src="assets/footer.js"></script>
+  <raven-footer></raven-footer>
 
   <script>
+
     /* ── Scroll Reveal ── */
     var observer = new IntersectionObserver(function(entries) {
       entries.forEach(function(entry) {
@@ -1610,7 +2052,21 @@
       + '<div class="mini-plan"><div class="mini-plan-name">Enterprise</div><div class="mini-plan-price">$79<span>/mo</span></div><div class="mini-plan-desc">For orgs that need scale and control</div><div class="mini-plan-features"><div>Everything in Pro</div><div>SSO &amp; SAML</div><div>Audit logs</div><div>Dedicated support</div></div><div class="mini-plan-btn outline">Contact Sales</div></div>'
       + '</div>');
 
-    var uiForm = chrome('app.acme.io/signup',
+    var uiForm = chrome('app.acme.io/audit-report',
+      '<div class="mini-audit">'
+      + '<div class="mini-audit-header"><h4>Design Audit Report</h4><div class="mini-audit-grade">A</div></div>'
+      + '<div class="mini-audit-score"><div class="mini-audit-bar"><div class="mini-audit-fill" style="width:92%"></div></div><span>92/100</span></div>'
+      + '<div class="mini-audit-checks">'
+      + '<div class="mini-check pass"><span>\u2713</span> Font sizes \u2265 13px</div>'
+      + '<div class="mini-check pass"><span>\u2713</span> Font weights \u2265 400</div>'
+      + '<div class="mini-check pass"><span>\u2713</span> All images have alt text</div>'
+      + '<div class="mini-check pass"><span>\u2713</span> Uses flex-wrap layout</div>'
+      + '<div class="mini-check pass"><span>\u2713</span> Uses clamp() sizing</div>'
+      + '<div class="mini-check warn"><span>!</span> 3 bare hex values found</div>'
+      + '<div class="mini-check pass"><span>\u2713</span> 44px touch targets</div>'
+      + '</div></div>');
+
+    var uiSignup = chrome('app.acme.io/signup',
       '<div class="mini-form">'
       + '<h4>Create your account</h4>'
       + '<div class="mini-form-sub">Start your 14-day free trial</div>'
@@ -1622,7 +2078,7 @@
       + '</div>');
 
     var bars = [35,52,44,68,58,72,48,65,80,55,70,90].map(function(h){return '<div class="mini-chart-bar" style="height:'+h+'%"></div>';}).join('');
-    var uiDash = chrome('app.acme.io/dashboard',
+    var uiLinear = chrome('app.acme.io/dashboard',
       '<div class="mini-dash">'
       + '<div class="mini-dash-header"><h4>Analytics Overview</h4><span>Last 30 days</span></div>'
       + '<div class="mini-dash-kpis">'
@@ -1633,6 +2089,55 @@
       + '</div>'
       + '<div class="mini-dash-chart"><div class="mini-dash-chart-label">Monthly Revenue</div><div class="mini-chart-bars">' + bars + '</div></div>'
       + '</div>');
+
+    var uiDash = chrome('app.mystore.io',
+      '<div class="mini-brand">'
+      + '<div class="mini-brand-header"><div class="mini-brand-logo" style="background:#1DB954"></div><h4>Spotify Brand Kit</h4></div>'
+      + '<div class="mini-brand-tokens">'
+      + '<div class="mini-token"><div class="mini-token-swatch" style="background:#1DB954"></div><div class="mini-token-info"><span class="mini-token-name">primary</span><span class="mini-token-val">#1DB954</span></div></div>'
+      + '<div class="mini-token"><div class="mini-token-swatch" style="background:#191414"></div><div class="mini-token-info"><span class="mini-token-name">background</span><span class="mini-token-val">#191414</span></div></div>'
+      + '<div class="mini-token"><div class="mini-token-swatch" style="background:#535353"></div><div class="mini-token-info"><span class="mini-token-name">surface</span><span class="mini-token-val">#535353</span></div></div>'
+      + '<div class="mini-token"><div class="mini-token-swatch" style="background:#B3B3B3"></div><div class="mini-token-info"><span class="mini-token-name">text-secondary</span><span class="mini-token-val">#B3B3B3</span></div></div>'
+      + '</div>'
+      + '<div class="mini-brand-fonts"><span>Circular Std</span><span>dark-first</span><span>4px radius</span></div>'
+      + '</div>');
+
+    var uiA11y = chrome('app.acme.io/accessibility',
+      '<div class="mini-a11y">'
+      + '<div class="mini-a11y-header"><h4>Accessibility Report</h4><span class="mini-a11y-badge">WCAG AA</span></div>'
+      + '<div class="mini-a11y-summary">'
+      + '<div class="mini-a11y-stat"><div class="mini-a11y-stat-val good">6</div><div class="mini-a11y-stat-label">Passed</div></div>'
+      + '<div class="mini-a11y-stat"><div class="mini-a11y-stat-val bad">2</div><div class="mini-a11y-stat-label">Failed</div></div>'
+      + '</div>'
+      + '<div class="mini-a11y-checks">'
+      + '<div class="mini-a11y-check pass"><span class="a11y-icon">\u2713</span> Color contrast \u2265 4.5:1</div>'
+      + '<div class="mini-a11y-check pass"><span class="a11y-icon">\u2713</span> Focus indicators on all interactive elements</div>'
+      + '<div class="mini-a11y-check pass"><span class="a11y-icon">\u2713</span> Touch targets \u2265 44px</div>'
+      + '<div class="mini-a11y-check fail"><span class="a11y-icon">\u2717</span> 2 images missing alt text</div>'
+      + '<div class="mini-a11y-check pass"><span class="a11y-icon">\u2713</span> Keyboard navigation complete</div>'
+      + '<div class="mini-a11y-check fail"><span class="a11y-icon">\u2717</span> Skip navigation link missing</div>'
+      + '<div class="mini-a11y-check pass"><span class="a11y-icon">\u2713</span> ARIA roles on dynamic content</div>'
+      + '<div class="mini-a11y-check pass"><span class="a11y-icon">\u2713</span> Reduced motion respected</div>'
+      + '</div></div>');
+
+    var uiMobile = '<div class="mini-phone">'
+      + '<div class="mini-phone-notch"></div>'
+      + '<div class="mini-phone-screen">'
+      + '<div class="mini-phone-status"><span>9:41</span><span>\u2022\u2022\u2022\u2022 \u{1F50B}</span></div>'
+      + '<div class="mini-phone-content">'
+      + '<h4>Good morning</h4>'
+      + '<div class="mini-app-card"><div class="mini-app-card-title">Weekly Summary</div><div class="mini-app-card-sub">Your activity is up 12% this week</div></div>'
+      + '<div class="mini-app-card"><div class="mini-app-card-title">New Message</div><div class="mini-app-card-sub">Sarah shared a design update</div></div>'
+      + '<div class="mini-app-card"><div class="mini-app-card-title">Reminder</div><div class="mini-app-card-sub">Design review at 2:00 PM</div></div>'
+      + '</div>'
+      + '<div class="mini-phone-tabbar">'
+      + '<div class="mini-tab active"><span class="mini-tab-icon">\u2302</span><span class="mini-tab-label">Home</span></div>'
+      + '<div class="mini-tab"><span class="mini-tab-icon">\u2315</span><span class="mini-tab-label">Search</span></div>'
+      + '<div class="mini-tab"><span class="mini-tab-icon">\u271A</span><span class="mini-tab-label">Create</span></div>'
+      + '<div class="mini-tab"><span class="mini-tab-icon">\u2661</span><span class="mini-tab-label">Activity</span><span class="mini-tab-badge">3</span></div>'
+      + '<div class="mini-tab"><span class="mini-tab-icon">\u2299</span><span class="mini-tab-label">Profile</span></div>'
+      + '</div>'
+      + '</div></div>';
 
     var scenes = [
       {
@@ -1647,6 +2152,50 @@
         ui: uiPricing
       },
       {
+        prompt: 'claude "check this page meets WCAG AA accessibility standards"',
+        comment: '# Raven runs a full accessibility audit:',
+        tools: [
+          { fn: 'get_principles', result: 'WCAG AA contrast 4.5:1, focus indicators, ARIA roles', color: 'fn' },
+          { fn: 'get_checklist', result: 'Keyboard nav, screen reader, color blindness, motion', color: 'fn' },
+          { fn: 'evaluate_design', result: '3 violations: missing alt text, low contrast link, no skip nav', color: 'val' },
+          { fn: 'get_pattern', result: 'Focus ring styles, skip-to-content, aria-live regions', color: 'fn' }
+        ],
+        ui: uiA11y
+      },
+      {
+        prompt: 'claude "audit this page for design quality"',
+        comment: '# Raven checks against 73 design principles:',
+        tools: [
+          { fn: 'audit_page', result: 'Score: 92/100 \u2014 Grade A, 11/12 checks pass', color: 'val' },
+          { fn: 'get_principles', result: 'Typography min 13px, weight 400+, WCAG AA', color: 'fn' },
+          { fn: 'get_checklist', result: 'Touch targets, alt text, flex-wrap, clamp()', color: 'fn' },
+          { fn: 'evaluate_design', result: '3 bare hex values \u2014 use CSS custom props', color: 'val' }
+        ],
+        ui: uiForm
+      },
+      {
+        prompt: 'claude "make it look like Spotify"',
+        comment: '# Raven matches brand + generates full token kit:',
+        tools: [
+          { fn: 'get_brand_system', result: 'Spotify \u2014 dark-first, #1DB954, Circular Std', color: 'key' },
+          { fn: 'get_design_system', result: '47 tokens \u2014 colors, type, spacing, radius', color: 'fn' },
+          { fn: 'get_principles', result: 'Contrast 4.5:1 on dark bg, card hierarchy', color: 'fn' },
+          { fn: 'compose_system', result: 'Spotify tokens + custom overrides \u2192 CSS vars', color: 'val' }
+        ],
+        ui: uiDash
+      },
+      {
+        prompt: 'claude "design the tab bar and navigation for our iOS app"',
+        comment: '# Raven applies mobile-first principles:',
+        tools: [
+          { fn: 'get_principles', result: 'Thumb zone design, Fitts\'s Law, touch targets 44pt', color: 'fn' },
+          { fn: 'get_pattern', result: 'Tab bar: 5 max items, active state, badge counts', color: 'fn' },
+          { fn: 'get_principles', result: 'Bottom nav for primary, hamburger for secondary only', color: 'fn' },
+          { fn: 'get_design_system', result: 'Apple HIG tokens \u2014 SF Pro, semantic colors, 8pt grid', color: 'key' }
+        ],
+        ui: uiMobile
+      },
+      {
         prompt: 'claude "the signup form feels off, check it"',
         comment: '# Raven evaluates against principles:',
         tools: [
@@ -1655,7 +2204,7 @@
           { fn: 'get_pattern', result: 'Single-column, labels above, smart defaults', color: 'fn' },
           { fn: 'get_checklist', result: '12 items \u2014 3 pass, 4 warn, 5 violations', color: 'val' }
         ],
-        ui: uiForm
+        ui: uiSignup
       },
       {
         prompt: 'claude "build the analytics view, use Linear\'s tokens"',
@@ -1666,7 +2215,7 @@
           { fn: 'get_principles', result: 'Progressive disclosure, recognition > recall', color: 'fn' },
           { fn: 'compose_system', result: 'Linear tokens + custom overrides merged', color: 'val' }
         ],
-        ui: uiDash
+        ui: uiLinear
       }
     ];
 
@@ -1781,6 +2330,37 @@
     });
 
     playScene(0).then(startLoop);
+
+    /* ── Animated Counters ── */
+    var counterObserver = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (!entry.isIntersecting) return;
+        var el = entry.target;
+        if (el.dataset.counted) return;
+        el.dataset.counted = '1';
+        var text = el.textContent.trim();
+        var match = text.match(/^(\d+)/);
+        if (!match) return;
+        var target = parseInt(match[1]);
+        var suffix = text.replace(match[1], '');
+        var duration = 1200;
+        var start = performance.now();
+        el.classList.add('counting');
+        function tick(now) {
+          var t = Math.min((now - start) / duration, 1);
+          var eased = 1 - Math.pow(1 - t, 3);
+          var current = Math.round(target * eased);
+          el.innerHTML = current + suffix;
+          if (t < 1) requestAnimationFrame(tick);
+          else el.classList.remove('counting');
+        }
+        requestAnimationFrame(tick);
+      });
+    }, { threshold: 0.5 });
+    document.querySelectorAll('.stat-number').forEach(function(el) {
+      counterObserver.observe(el);
+    });
+
   </script>
 </body>
 </html>

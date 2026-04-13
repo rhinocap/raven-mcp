@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Elara & Co. — Luxury Wedding Planning</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --ivory: #FFFDF7;
+      --rose: #D4A0A0;
+      --rose-light: #E8CDCD;
+      --rose-pale: #F2E4E4;
+      --sage: #A8B5A0;
+      --sage-light: #C5CEBC;
+      --gold: #C5A55A;
+      --gold-light: #D4BC82;
+      --charcoal: #2C2C2C;
+      --warm-gray: #6B6560;
+      --border: #E8E0D8;
+      --bg-warm: #FAF6F0;
+    }
+
+    html { scroll-behavior: smooth; overflow-x: hidden; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      font-weight: 400;
+      color: var(--charcoal);
+      background: var(--ivory);
+      line-height: 1.7;
+      font-size: 17px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    h1, h2, h3, h4, h5 {
+      font-family: 'Cormorant Garamond', serif;
+      font-weight: 500;
+      line-height: 1.2;
+    }
+
+    /* ---- NAV ---- */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 20px 48px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 253, 247, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(232, 224, 216, 0.4);
+      transition: background 0.4s, box-shadow 0.4s;
+    }
+
+    nav.scrolled {
+      background: rgba(255, 253, 247, 0.95);
+      box-shadow: 0 1px 20px rgba(0,0,0,0.04);
+    }
+
+    .nav-logo {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 22px;
+      font-weight: 400;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--charcoal);
+      text-decoration: none;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 36px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--charcoal);
+      text-decoration: none;
+      transition: color 0.3s;
+      padding: 12px 0;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .nav-links a:hover { color: var(--rose); }
+
+    /* ---- HERO ---- */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 120px 24px 80px;
+      background: url('https://images.unsplash.com/photo-1519741497674-611481863552?w=1920&q=80') center/cover no-repeat;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 0;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(44, 36, 30, 0.6);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .hero::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, rgba(44, 36, 30, 0.3) 0%, rgba(44, 36, 30, 0.7) 100%);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .hero-overline {
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--rose-light);
+      margin-bottom: 24px;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      opacity: 0;
+      transform: translateY(20px);
+      animation: fadeUp 1s 0.3s forwards;
+      position: relative;
+      z-index: 2;
+    }
+
+    .hero h1 {
+      font-size: clamp(42px, 7vw, 80px);
+      font-weight: 500;
+      color: #FFFDF7;
+      margin-bottom: 24px;
+      max-width: 800px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      opacity: 0;
+      transform: translateY(30px);
+      animation: fadeUp 1s 0.5s forwards;
+      position: relative;
+      z-index: 2;
+    }
+
+    .hero h1 em {
+      font-style: italic;
+      color: var(--rose-light);
+    }
+
+    .hero-sub {
+      font-size: 18px;
+      font-weight: 400;
+      color: rgba(255, 253, 247, 0.95);
+      max-width: 520px;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      margin-bottom: 48px;
+      opacity: 0;
+      transform: translateY(20px);
+      animation: fadeUp 1s 0.7s forwards;
+      position: relative;
+      z-index: 2;
+    }
+
+    .hero-cta {
+      display: inline-block;
+      padding: 16px 48px;
+      min-height: 44px;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--charcoal);
+      background: var(--ivory);
+      border: none;
+      text-decoration: none;
+      transition: background 0.4s, transform 0.3s, color 0.4s;
+      opacity: 0;
+      transform: translateY(20px);
+      animation: fadeUp 1s 0.9s forwards;
+      position: relative;
+      z-index: 2;
+    }
+
+    .hero-cta:hover {
+      background: var(--rose-light);
+      color: var(--charcoal);
+      transform: translateY(-2px);
+    }
+
+    .hero-scroll {
+      position: absolute;
+      bottom: 40px;
+      left: 0;
+      right: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      color: rgba(255, 253, 247, 0.9);
+      opacity: 0;
+      animation: fadeUp 1s 1.2s forwards;
+      z-index: 2;
+    }
+
+    .hero-scroll span {
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+
+    .scroll-line {
+      width: 1px;
+      height: 40px;
+      background: rgba(255, 253, 247, 0.5);
+      animation: scrollPulse 2s infinite;
+    }
+
+    @keyframes scrollPulse {
+      0%, 100% { opacity: 0.3; transform: scaleY(0.5); }
+      50% { opacity: 1; transform: scaleY(1); }
+    }
+
+    @keyframes fadeUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ---- AS SEEN IN ---- */
+    .seen-in {
+      padding: clamp(48px, 8vw, 128px) clamp(16px, 4vw, 24px);
+      background: var(--ivory);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .seen-in-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .seen-in-label {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #8A827A;
+      margin-bottom: 32px;
+    }
+
+    .seen-in-logos {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 48px;
+      flex-wrap: wrap;
+    }
+
+    .seen-in-logos span {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 20px;
+      font-weight: 500;
+      font-style: italic;
+      color: #9A928A;
+      letter-spacing: 1px;
+      white-space: nowrap;
+    }
+
+    /* ---- SECTION COMMON ---- */
+    section { padding: clamp(48px, 8vw, 128px) clamp(16px, 4vw, 24px); }
+
+    .section-overline {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #B07878;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    .section-title {
+      font-size: clamp(32px, 5vw, 48px);
+      text-align: center;
+      margin-bottom: 20px;
+      color: var(--charcoal);
+    }
+
+    .section-subtitle {
+      text-align: center;
+      color: var(--warm-gray);
+      max-width: 560px;
+      margin: 0 auto 64px;
+      font-size: 17px;
+      font-weight: 400;
+      line-height: 1.7;
+    }
+
+    /* ---- SERVICES ---- */
+    .services { background: var(--bg-warm); }
+
+    .services-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 32px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .service-card {
+      flex: 1 1 280px;
+      min-width: 0;
+      background: var(--ivory);
+      padding: 56px 40px;
+      border: 1px solid var(--border);
+      text-align: center;
+      transition: transform 0.4s, box-shadow 0.4s;
+    }
+
+    .service-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.06);
+    }
+
+    .service-icon {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .service-icon svg {
+      width: 100%;
+      height: 100%;
+      stroke: #B07878;
+    }
+
+    .service-card h3 {
+      font-size: 26px;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .service-price {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 20px;
+    }
+
+    .service-card p {
+      font-size: 15px;
+      font-weight: 400;
+      color: #5A5550;
+      line-height: 1.8;
+    }
+
+    .service-divider {
+      width: 40px;
+      height: 1px;
+      background: var(--rose-light);
+      margin: 24px auto;
+    }
+
+    /* ---- GALLERY ---- */
+    .gallery { background: var(--ivory); }
+
+    .gallery-grid {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .gallery-item {
+      flex: 1 1 300px;
+      min-width: 0;
+      min-height: 300px;
+      border-radius: 2px;
+      overflow: hidden;
+      position: relative;
+      transition: transform 0.5s;
+    }
+
+    .gallery-item:hover { transform: scale(1.02); }
+
+    .gallery-item:nth-child(1) {
+      flex: 1 1 100%;
+      min-height: 400px;
+      background: url('https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=800&q=80') center/cover no-repeat;
+    }
+    .gallery-item:nth-child(2) {
+      background: url('https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?w=800&q=80') center/cover no-repeat;
+    }
+    .gallery-item:nth-child(3) {
+      background: url('https://images.unsplash.com/photo-1507504031003-b417219a0fde?w=800&q=80') center/cover no-repeat;
+    }
+    .gallery-item:nth-child(4) {
+      background: url('https://images.unsplash.com/photo-1520854221256-17451cc331bf?w=800&q=80') center/cover no-repeat;
+    }
+    .gallery-item:nth-child(5) {
+      background: url('https://images.unsplash.com/photo-1460978812857-470ed1c77af0?w=800&q=80') center/cover no-repeat;
+    }
+
+    .gallery-item::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, transparent 50%, rgba(44,44,44,0.08) 100%);
+    }
+
+    /* ---- TESTIMONIAL ---- */
+    .testimonial {
+      background: linear-gradient(170deg, #FAF6F0 0%, var(--rose-pale) 100%);
+      text-align: center;
+    }
+
+    .testimonial-inner {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    .testimonial-quote {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(24px, 4vw, 36px);
+      font-style: italic;
+      font-weight: 500;
+      color: var(--charcoal);
+      line-height: 1.5;
+      margin-bottom: 40px;
+    }
+
+    .testimonial-quote::before {
+      content: '\201C';
+      display: block;
+      font-size: 72px;
+      font-style: normal;
+      color: #B07878;
+      line-height: 1;
+      margin-bottom: 16px;
+    }
+
+    .testimonial-author {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--charcoal);
+      margin-bottom: 4px;
+    }
+
+    .testimonial-detail {
+      font-size: 14px;
+      font-weight: 400;
+      color: #8A827A;
+      font-style: italic;
+    }
+
+    /* ---- CONTACT ---- */
+    .contact { background: var(--ivory); }
+
+    .contact-inner {
+      max-width: 580px;
+      margin: 0 auto;
+    }
+
+    .contact-form {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .form-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .form-row .form-group {
+      flex: 1 1 280px;
+      min-width: 0;
+    }
+
+    .form-group label {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #5A5550;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      font-weight: 400;
+      padding: 14px 16px;
+      min-height: 44px;
+      border: 1px solid var(--border);
+      background: var(--bg-warm);
+      color: var(--charcoal);
+      outline: none;
+      transition: border-color 0.3s, box-shadow 0.3s;
+      -webkit-appearance: none;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      border-color: var(--rose);
+      box-shadow: 0 0 0 3px rgba(212, 160, 160, 0.15);
+    }
+
+    .form-group textarea { resize: vertical; min-height: 120px; }
+
+    .form-group select {
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6560' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+      padding-right: 40px;
+    }
+
+    .form-submit {
+      display: inline-block;
+      padding: 18px 56px;
+      min-height: 44px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--ivory);
+      background: var(--charcoal);
+      border: none;
+      cursor: pointer;
+      transition: background 0.4s, transform 0.3s;
+      align-self: center;
+    }
+
+    .form-submit:hover {
+      background: var(--rose);
+      transform: translateY(-2px);
+    }
+
+    /* ---- FOOTER ---- */
+    footer {
+      padding: clamp(48px, 8vw, 128px) clamp(16px, 4vw, 24px);
+      text-align: center;
+      background: var(--charcoal);
+      color: rgba(255,253,247,0.8);
+    }
+
+    .footer-logo {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 24px;
+      font-weight: 500;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--ivory);
+      margin-bottom: 24px;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+
+    .footer-links a {
+      font-size: 14px;
+      font-weight: 400;
+      letter-spacing: 1px;
+      color: rgba(255,253,247,0.75);
+      text-decoration: none;
+      transition: color 0.3s;
+      padding: 12px 0;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .footer-links a:hover { color: var(--rose-light); }
+
+    .footer-ig {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 400;
+      color: rgba(255,253,247,0.7);
+      text-decoration: none;
+      transition: color 0.3s;
+      margin-bottom: 32px;
+    }
+
+    .footer-ig:hover { color: var(--rose-light); }
+
+    .footer-copy {
+      font-size: 13px;
+      font-weight: 400;
+      color: rgba(255,253,247,0.55);
+    }
+
+    /* ---- RAVEN BADGE ---- */
+    .raven-badge {
+      text-align: center;
+      padding: 40px 0;
+      border-top: 1px solid #E8E0D8;
+      background: var(--ivory);
+    }
+
+    .raven-badge a {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 400;
+      color: #7A7272;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .raven-badge a:hover { color: var(--rose); }
+
+    /* ---- SCROLL REVEAL ---- */
+    .reveal {
+      opacity: 0;
+      transform: translateY(40px);
+      transition: opacity 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                  transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+
+    /* ---- RESPONSIVE ---- */
+    @media (max-width: 768px) {
+      nav { padding: 16px 24px; }
+      .nav-links { gap: 20px; }
+      .nav-links a { font-size: 13px; }
+      .hero { padding: 100px 24px 60px; }
+      .hero h1 { font-size: clamp(32px, 6vw, 48px); }
+      .hero-sub { font-size: 16px; }
+      .service-card { padding: 40px 28px; }
+      .service-card h3 { font-size: 22px; }
+      .seen-in-logos { gap: 28px; }
+      .seen-in-logos span { font-size: 16px; }
+      .section-title { font-size: clamp(28px, 5vw, 40px); }
+    }
+
+    @media (max-width: 480px) {
+      .nav-links { display: none; }
+      .hero { padding: 88px 16px 48px; }
+      .hero h1 { font-size: 28px; }
+      .hero-sub { font-size: 15px; max-width: 100%; }
+      .hero-cta { padding: 14px 36px; width: 100%; text-align: center; min-height: 44px; }
+      .service-card { padding: 32px 20px; }
+      .service-card h3 { font-size: 20px; }
+      .section-title { font-size: 24px; }
+      .section-subtitle { font-size: 15px; }
+      .testimonial-quote { font-size: 20px; }
+      .gallery-item { min-height: 200px; }
+      .form-submit { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <a href="#" class="nav-logo">Elara & Co.</a>
+    <ul class="nav-links">
+      <li><a href="#services">Services</a></li>
+      <li><a href="#gallery">Gallery</a></li>
+      <li><a href="#testimonials">Kind Words</a></li>
+      <li><a href="#contact">Inquire</a></li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <video class="hero-video" autoplay muted loop playsinline>
+      <source src="/assets/video/demos/wedding.mp4" type="video/mp4">
+    </video>
+    <div class="hero-overline">Luxury Wedding Planning</div>
+    <h1>Where love stories become <em>unforgettable</em> celebrations</h1>
+    <p class="hero-sub">Elara & Co. designs extraordinary weddings for couples who believe every detail deserves to be as intentional as the love it celebrates.</p>
+    <a href="#contact" class="hero-cta">Begin Your Journey</a>
+    <div class="hero-scroll">
+      <span>Scroll</span>
+      <div class="scroll-line"></div>
+    </div>
+  </section>
+
+  <!-- AS SEEN IN -->
+  <div class="seen-in">
+    <div class="seen-in-inner">
+      <div class="seen-in-label">As Featured In</div>
+      <div class="seen-in-logos">
+        <span>Vogue</span>
+        <span>Martha Stewart Weddings</span>
+        <span>Brides</span>
+        <span>Harper's Bazaar</span>
+        <span>The Knot</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SERVICES -->
+  <section class="services" id="services">
+    <div class="section-overline reveal">What We Offer</div>
+    <h2 class="section-title reveal">Curated Planning Experiences</h2>
+    <p class="section-subtitle reveal">Every wedding is a world unto itself. We offer three tiers of service, each delivered with the same devotion to beauty and precision.</p>
+
+    <div class="services-grid">
+      <div class="service-card reveal reveal-delay-1">
+        <div class="service-icon">
+          <svg viewBox="0 0 48 48" fill="none" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="24" cy="24" r="20"/>
+            <path d="M24 12v12l8 4"/>
+          </svg>
+        </div>
+        <h3>Full Planning</h3>
+        <div class="service-price">From $15,000</div>
+        <div class="service-divider"></div>
+        <p>From vision to vows, we handle every detail. Venue selection, vendor curation, design, logistics, and flawless execution — so you can simply be present for every moment.</p>
+      </div>
+
+      <div class="service-card reveal reveal-delay-2">
+        <div class="service-icon">
+          <svg viewBox="0 0 48 48" fill="none" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 8h32v32H8z"/>
+            <path d="M8 18h32"/>
+            <path d="M20 8v10"/>
+          </svg>
+        </div>
+        <h3>Partial Planning</h3>
+        <div class="service-price">From $8,000</div>
+        <div class="service-divider"></div>
+        <p>For couples who have started the journey and need expert guidance to elevate it. We step in seamlessly, refining your vision and managing the details that matter most.</p>
+      </div>
+
+      <div class="service-card reveal reveal-delay-3">
+        <div class="service-icon">
+          <svg viewBox="0 0 48 48" fill="none" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M24 4l6 12 13 2-9 9 2 13-12-6-12 6 2-13-9-9 13-2z"/>
+          </svg>
+        </div>
+        <h3>Day-Of Coordination</h3>
+        <div class="service-price">From $3,500</div>
+        <div class="service-divider"></div>
+        <p>You've planned it beautifully. We'll make sure it unfolds perfectly. Our team manages every timeline, transition, and last-minute detail on your most important day.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- GALLERY -->
+  <section class="gallery" id="gallery">
+    <div class="section-overline reveal">Portfolio</div>
+    <h2 class="section-title reveal">Moments We've Crafted</h2>
+    <p class="section-subtitle reveal">A glimpse into the celebrations we've had the honor of bringing to life.</p>
+
+    <div class="gallery-grid">
+      <div class="gallery-item reveal reveal-delay-1"></div>
+      <div class="gallery-item reveal reveal-delay-1"></div>
+      <div class="gallery-item reveal reveal-delay-2"></div>
+      <div class="gallery-item reveal reveal-delay-2"></div>
+      <div class="gallery-item reveal reveal-delay-3"></div>
+    </div>
+  </section>
+
+  <!-- TESTIMONIAL -->
+  <section class="testimonial" id="testimonials">
+    <div class="testimonial-inner reveal">
+      <div class="testimonial-quote">
+        Elara & Co. didn't just plan our wedding — they understood the feeling we wanted to create. Every guest said it was the most beautiful celebration they'd ever attended. We still get emotional thinking about how perfect everything was.
+      </div>
+      <div class="testimonial-author">Margaux & Julian</div>
+      <div class="testimonial-detail">Napa Valley, October 2025</div>
+    </div>
+  </section>
+
+  <!-- CONTACT -->
+  <section class="contact" id="contact">
+    <div class="section-overline reveal">Get In Touch</div>
+    <h2 class="section-title reveal">Let's Begin</h2>
+    <p class="section-subtitle reveal">Tell us about your love story and the celebration you've been dreaming of. We'd love to hear from you.</p>
+
+    <div class="contact-inner reveal">
+      <form class="contact-form" onsubmit="return false;">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="name">Your Names</label>
+            <input type="text" id="name" placeholder="e.g. Margaux & Julian">
+          </div>
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" placeholder="hello@example.com">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="date">Wedding Date</label>
+            <input type="text" id="date" placeholder="Month / Year or TBD">
+          </div>
+          <div class="form-group">
+            <label for="service">Service Interest</label>
+            <select id="service">
+              <option value="" disabled selected>Select a service</option>
+              <option>Full Planning</option>
+              <option>Partial Planning</option>
+              <option>Day-Of Coordination</option>
+              <option>Not sure yet</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="message">Tell Us About Your Vision</label>
+          <textarea id="message" placeholder="Your dream venue, guest count, the feeling you want your day to have..."></textarea>
+        </div>
+        <button type="submit" class="form-submit">Send Inquiry</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- RAVEN BADGE -->
+  <div class="raven-badge">
+    <a href="https://ravenmcp.ai" target="_blank">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      Built with Raven MCP — Design intelligence for AI
+    </a>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-logo">Elara & Co.</div>
+    <div class="footer-links">
+      <a href="#services">Services</a>
+      <a href="#gallery">Gallery</a>
+      <a href="#testimonials">Kind Words</a>
+      <a href="#contact">Inquire</a>
+    </div>
+    <a href="https://instagram.com" target="_blank" class="footer-ig">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="2" width="20" height="20" rx="5"/>
+        <circle cx="12" cy="12" r="5"/>
+        <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/>
+      </svg>
+      @elaraandco
+    </a>
+    <div class="footer-copy">&copy; 2026 Elara & Co. All rights reserved.</div>
+  </footer>
+
+  <script>
+    // Scroll reveal
+    const reveals = document.querySelectorAll('.reveal');
+    const observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+
+    reveals.forEach(function(el) { observer.observe(el); });
+
+    // Nav scroll effect
+    window.addEventListener('scroll', function() {
+      document.querySelector('nav').classList.toggle('scrolled', window.scrollY > 60);
+    });
+  </script>
+
+</body>
+</html>

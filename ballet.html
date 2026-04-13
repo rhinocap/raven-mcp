@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Petite Pirouette &mdash; Ballet Essentials for Little Dancers</title>
+  <meta name="description" content="Curated ballet leotards, shoes, and accessories for dancers of every age. Beautiful gear that moves with you.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Warm feminine palette */
+      --bg: #FDF8F5;
+      --bg-warm: #FAF0EB;
+      --bg-blush: #F9EBE5;
+      --bg-card: #FFFFFF;
+
+      --border: #F0E0D8;
+      --border-light: #F5EAE4;
+
+      --text-primary: #3D2B24;
+      --text-secondary: #7A6259;
+      --text-tertiary: #A8938A;
+      --text-accent: #C4727A;
+
+      --accent-rose: #C4727A;
+      --accent-rose-light: #D4949A;
+      --accent-rose-dark: #A85860;
+      --accent-blush: #E8B4B8;
+      --accent-gold: #C9A96E;
+      --accent-lavender: #B8A9D4;
+      --accent-sage: #A8C4A8;
+
+      /* Stripe spacing system */
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+      --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+      --space-12: 48px; --space-16: 64px; --space-20: 80px; --space-24: 96px;
+
+      /* Stripe radius */
+      --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px;
+      --radius-xl: 16px; --radius-2xl: 24px; --radius-full: 9999px;
+
+      /* Stripe elevation */
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+      --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+      --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1), 0 10px 10px rgba(0, 0, 0, 0.04);
+
+      --font-display: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+      --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+      --ease-out: cubic-bezier(0, 0, 0.2, 1);
+      --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+      --duration-fast: 100ms;
+      --duration-normal: 200ms;
+      --duration-slow: 300ms;
+
+      --max-width: 1140px;
+      --nav-height: 64px;
+    }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+    body {
+      font-family: var(--font-body);
+      font-size: 16px;
+      line-height: 1.5;
+      color: var(--text-secondary);
+      background: var(--bg);
+    }
+    a { color: inherit; text-decoration: none; }
+    img { display: block; max-width: 100%; }
+    ul { list-style: none; }
+
+    .container { max-width: var(--max-width); margin: 0 auto; padding: 0 var(--space-6); }
+
+    /* ── Scroll reveal ── */
+    .reveal {
+      opacity: 0; transform: translateY(24px);
+      transition: opacity 0.6s var(--ease-out), transform 0.6s var(--ease-out);
+    }
+    .reveal.visible { opacity: 1; transform: none; }
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+
+    /* ══════════════════════════════════════════
+       NAV — floating glass, warm
+       ══════════════════════════════════════════ */
+
+    nav {
+      position: fixed;
+      top: 12px; left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 32px);
+      max-width: var(--max-width);
+      z-index: 100;
+      height: var(--nav-height);
+      display: flex;
+      align-items: center;
+      background: rgba(253, 248, 245, 0.7);
+      backdrop-filter: blur(20px) saturate(1.4);
+      -webkit-backdrop-filter: blur(20px) saturate(1.4);
+      border: 1px solid rgba(240, 224, 216, 0.6);
+      border-radius: var(--radius-2xl);
+      box-shadow: 0 4px 24px rgba(61, 43, 36, 0.06);
+      transition: background var(--duration-slow) var(--ease-out),
+                  box-shadow var(--duration-slow) var(--ease-out);
+    }
+
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; padding: 0 var(--space-6);
+    }
+
+    .nav-brand {
+      display: flex; align-items: center; gap: var(--space-3);
+    }
+    .nav-brand svg { width: 28px; height: 28px; color: var(--accent-rose); }
+    .nav-brand span {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    .nav-links {
+      display: flex; align-items: center; gap: var(--space-8);
+      position: absolute; left: 50%; transform: translateX(-50%);
+    }
+    .nav-links a {
+      font-size: 14px; font-weight: 500; color: var(--text-tertiary);
+      transition: color var(--duration-fast) var(--ease-out);
+    }
+    .nav-links a:hover { color: var(--text-primary); }
+
+    .nav-actions { display: flex; align-items: center; gap: var(--space-3); }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: var(--space-2);
+      padding: 10px 20px;
+      font-family: var(--font-body);
+      font-size: 14px; font-weight: 500;
+      border-radius: var(--radius-full);
+      border: none; cursor: pointer;
+      transition: all var(--duration-normal) var(--ease-out);
+    }
+    .btn-primary {
+      background: var(--accent-rose);
+      color: white;
+      box-shadow: 0 1px 3px rgba(196, 114, 122, 0.3);
+    }
+    .btn-primary:hover {
+      background: var(--accent-rose-dark);
+      box-shadow: 0 4px 12px rgba(196, 114, 122, 0.3);
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover {
+      background: var(--bg-warm);
+      border-color: var(--accent-blush);
+      color: var(--text-primary);
+    }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      padding: 10px 16px;
+    }
+    .btn-ghost:hover { color: var(--text-primary); }
+    .btn-cart {
+      position: relative;
+      background: transparent;
+      color: var(--text-secondary);
+      padding: 10px;
+    }
+    .btn-cart:hover { color: var(--accent-rose); }
+    .cart-count {
+      position: absolute; top: 4px; right: 2px;
+      width: 16px; height: 16px;
+      background: var(--accent-rose);
+      color: white;
+      font-size: 10px; font-weight: 600;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* ══════════════════════════════════════════
+       HERO
+       ══════════════════════════════════════════ */
+
+    .hero {
+      position: relative;
+      padding: calc(var(--nav-height) + var(--space-24) + 12px) 0 var(--space-20);
+      text-align: center;
+      overflow: hidden;
+      background: linear-gradient(180deg, var(--bg-warm) 0%, var(--bg) 100%);
+    }
+
+    /* Soft decorative blobs */
+    .hero::before, .hero::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    .hero::before {
+      top: -100px; right: -100px;
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(232, 180, 184, 0.2) 0%, transparent 70%);
+    }
+    .hero::after {
+      bottom: -50px; left: -80px;
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(184, 169, 212, 0.12) 0%, transparent 70%);
+    }
+
+    .hero .container {
+      position: relative;
+      display: flex; flex-direction: column; align-items: center; gap: var(--space-5);
+    }
+
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: var(--space-2);
+      padding: 6px 16px;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      font-size: 13px; font-weight: 500;
+      color: var(--text-tertiary);
+      box-shadow: var(--shadow-sm);
+    }
+    .hero-badge .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent-sage);
+      box-shadow: 0 0 6px rgba(168, 196, 168, 0.5);
+    }
+
+    .hero h1 {
+      font-family: var(--font-display);
+      font-size: clamp(40px, 7vw, 72px);
+      font-weight: 500;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      max-width: 700px;
+    }
+    .hero h1 em {
+      font-style: italic;
+      color: var(--accent-rose);
+    }
+
+    .hero .subtitle {
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      max-width: 520px;
+    }
+
+    .hero-cta {
+      display: flex; align-items: center; gap: var(--space-3);
+      margin-top: var(--space-4);
+    }
+
+    .hero-image {
+      margin-top: var(--space-12);
+      width: 100%;
+      max-width: 900px;
+      aspect-ratio: 16/9;
+      background: var(--bg-blush);
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--border-light);
+      box-shadow: var(--shadow-xl);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-tertiary);
+      font-size: 14px;
+      font-style: italic;
+    }
+
+    /* ══════════════════════════════════════════
+       CATEGORIES
+       ══════════════════════════════════════════ */
+
+    .categories-section {
+      padding: var(--space-24) 0;
+    }
+
+    .section-header {
+      text-align: center;
+      margin-bottom: var(--space-12);
+    }
+    .section-header .label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent-rose);
+      margin-bottom: var(--space-3);
+    }
+    .section-header h2 {
+      font-family: var(--font-display);
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 500;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      margin-bottom: var(--space-4);
+    }
+    .section-header p {
+      font-size: 16px;
+      color: var(--text-secondary);
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    .categories-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-6);
+    }
+
+    .category-card {
+      position: relative;
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform var(--duration-slow) var(--ease-out),
+                  box-shadow var(--duration-slow) var(--ease-out);
+    }
+    .category-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .category-img {
+      aspect-ratio: 3/4;
+      background: var(--bg-blush);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .category-img svg {
+      width: 48px; height: 48px;
+      color: var(--accent-rose-light);
+    }
+
+    .category-label {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: var(--space-5) var(--space-4);
+      background: linear-gradient(transparent, rgba(61, 43, 36, 0.6));
+      color: white;
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 500;
+    }
+
+    /* ══════════════════════════════════════════
+       FEATURED PRODUCTS
+       ══════════════════════════════════════════ */
+
+    .products-section {
+      padding: var(--space-24) 0;
+      background: var(--bg-warm);
+    }
+
+    .products-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-6);
+    }
+
+    .product-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      border: 1px solid var(--border-light);
+      transition: transform var(--duration-slow) var(--ease-out),
+                  box-shadow var(--duration-slow) var(--ease-out);
+    }
+    .product-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .product-img {
+      aspect-ratio: 1;
+      background: var(--bg-blush);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .product-img svg {
+      width: 40px; height: 40px;
+      color: var(--accent-blush);
+    }
+
+    .product-badge {
+      position: absolute;
+      top: var(--space-3); left: var(--space-3);
+      padding: 3px 10px;
+      background: var(--accent-rose);
+      color: white;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-radius: var(--radius-full);
+    }
+    .product-badge.new { background: var(--accent-lavender); }
+    .product-badge.sale { background: var(--accent-rose); }
+
+    .product-info {
+      padding: var(--space-4);
+    }
+    .product-name {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: var(--space-1);
+    }
+    .product-detail {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      margin-bottom: var(--space-3);
+    }
+    .product-price {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .product-price .current {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .product-price .original {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      text-decoration: line-through;
+    }
+
+    .product-actions {
+      padding: 0 var(--space-4) var(--space-4);
+    }
+    .btn-add-cart {
+      width: 100%;
+      padding: 10px;
+      background: var(--bg-warm);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--duration-normal) var(--ease-out);
+    }
+    .btn-add-cart:hover {
+      background: var(--accent-rose);
+      color: white;
+      border-color: var(--accent-rose);
+    }
+
+    /* ══════════════════════════════════════════
+       ABOUT / STORY
+       ══════════════════════════════════════════ */
+
+    .story-section {
+      padding: var(--space-24) 0;
+    }
+
+    .story-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-16);
+      align-items: center;
+    }
+
+    .story-image {
+      aspect-ratio: 4/5;
+      background: var(--bg-blush);
+      border-radius: var(--radius-xl);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .story-image svg {
+      width: 64px; height: 64px;
+      color: var(--accent-blush);
+    }
+
+    .story-text .label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent-rose);
+      margin-bottom: var(--space-3);
+    }
+    .story-text h2 {
+      font-family: var(--font-display);
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 500;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      margin-bottom: var(--space-5);
+    }
+    .story-text p {
+      color: var(--text-secondary);
+      margin-bottom: var(--space-4);
+      line-height: 1.7;
+    }
+
+    /* ══════════════════════════════════════════
+       QUOTE / TESTIMONIAL
+       ══════════════════════════════════════════ */
+
+    .testimonial-section {
+      padding: var(--space-24) 0;
+      background: var(--bg-warm);
+    }
+
+    .testimonials-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-6);
+    }
+
+    .testimonial-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg);
+      padding: var(--space-6);
+    }
+
+    .testimonial-stars {
+      color: var(--accent-gold);
+      font-size: 14px;
+      letter-spacing: 2px;
+      margin-bottom: var(--space-3);
+    }
+
+    .testimonial-text {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-style: italic;
+      color: var(--text-primary);
+      line-height: 1.5;
+      margin-bottom: var(--space-4);
+    }
+
+    .testimonial-author {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .testimonial-avatar {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--bg-blush);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent-rose);
+    }
+    .testimonial-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+    .testimonial-role {
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+
+    /* ══════════════════════════════════════════
+       NEWSLETTER
+       ══════════════════════════════════════════ */
+
+    .newsletter-section {
+      padding: var(--space-24) 0;
+      text-align: center;
+    }
+
+    .newsletter-inner {
+      max-width: 520px;
+      margin: 0 auto;
+    }
+
+    .newsletter-inner h2 {
+      font-family: var(--font-display);
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 500;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+      margin-bottom: var(--space-3);
+    }
+
+    .newsletter-inner p {
+      color: var(--text-secondary);
+      margin-bottom: var(--space-6);
+    }
+
+    .newsletter-form {
+      display: flex;
+      gap: var(--space-3);
+    }
+
+    .newsletter-form input {
+      flex: 1;
+      padding: 12px 16px;
+      font-family: var(--font-body);
+      font-size: 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      background: white;
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color var(--duration-normal) var(--ease-out);
+    }
+    .newsletter-form input::placeholder { color: var(--text-tertiary); }
+    .newsletter-form input:focus { border-color: var(--accent-rose); }
+
+    /* ══════════════════════════════════════════
+       FOOTER
+       ══════════════════════════════════════════ */
+
+    footer {
+      padding: var(--space-16) 0 var(--space-8);
+      border-top: 1px solid var(--border);
+    }
+
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: var(--space-10);
+      margin-bottom: var(--space-10);
+    }
+
+    .footer-brand span {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: block;
+      margin-bottom: var(--space-3);
+    }
+    .footer-brand p {
+      font-size: 14px;
+      color: var(--text-tertiary);
+      max-width: 280px;
+      line-height: 1.6;
+    }
+
+    .footer-col h4 {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-primary);
+      margin-bottom: var(--space-4);
+    }
+    .footer-col a {
+      display: block;
+      font-size: 14px;
+      color: var(--text-tertiary);
+      margin-bottom: var(--space-2);
+      transition: color var(--duration-fast);
+    }
+    .footer-col a:hover { color: var(--accent-rose); }
+
+    .footer-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: var(--space-6);
+      border-top: 1px solid var(--border-light);
+      font-size: 13px;
+      color: var(--text-tertiary);
+    }
+
+    /* ══════════════════════════════════════════
+       RESPONSIVE
+       ══════════════════════════════════════════ */
+
+    @media (max-width: 900px) {
+      nav { width: calc(100% - 24px); top: 8px; }
+      .nav-links { display: none; }
+      .categories-grid { grid-template-columns: repeat(2, 1fr); }
+      .products-grid { grid-template-columns: repeat(2, 1fr); }
+      .testimonials-grid { grid-template-columns: 1fr; }
+      .story-inner { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: 1fr 1fr; gap: var(--space-8); }
+    }
+
+    @media (max-width: 540px) {
+      .categories-grid { grid-template-columns: 1fr 1fr; }
+      .products-grid { grid-template-columns: 1fr 1fr; }
+      .hero-cta { flex-direction: column; width: 100%; }
+      .hero-cta .btn { width: 100%; justify-content: center; }
+      .newsletter-form { flex-direction: column; }
+      .footer-grid { grid-template-columns: 1fr; }
+      .footer-bottom { flex-direction: column; gap: var(--space-3); text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <div class="nav-inner">
+      <a href="#" class="nav-brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+          <path d="M8 12c0-3 1.5-6 4-8M16 12c0 3-1.5 6-4 8"/>
+        </svg>
+        <span>Petite Pirouette</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#shop">Shop</a></li>
+        <li><a href="#categories">Categories</a></li>
+        <li><a href="#about">Our Story</a></li>
+        <li><a href="#reviews">Reviews</a></li>
+      </ul>
+      <div class="nav-actions">
+        <a href="#" class="btn-ghost">Account</a>
+        <button class="btn-cart" aria-label="Cart">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+          </svg>
+          <span class="cart-count">2</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-badge reveal">
+        <span class="dot"></span>
+        New Spring Collection
+      </div>
+      <h1 class="reveal reveal-delay-1">Ballet gear for<br><em>little dancers</em></h1>
+      <p class="subtitle reveal reveal-delay-2">Curated leotards, shoes, and accessories that move as beautifully as she does. Designed by dancers, for dancers.</p>
+      <div class="hero-cta reveal reveal-delay-3">
+        <a href="#shop" class="btn btn-primary">Shop the Collection</a>
+        <a href="#about" class="btn btn-secondary">Our Story</a>
+      </div>
+      <div class="hero-image reveal reveal-delay-3">
+        Hero lifestyle image &mdash; little dancers in studio
+      </div>
+    </div>
+  </section>
+
+  <!-- CATEGORIES -->
+  <section id="categories" class="categories-section">
+    <div class="container">
+      <div class="section-header">
+        <p class="label reveal">Shop by Category</p>
+        <h2 class="reveal reveal-delay-1">Everything she needs</h2>
+        <p class="reveal reveal-delay-2">From her first plié to her first performance.</p>
+      </div>
+
+      <div class="categories-grid">
+        <div class="category-card reveal">
+          <div class="category-img">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="4" y="2" width="16" height="20" rx="3"/></svg>
+          </div>
+          <div class="category-label">Leotards</div>
+        </div>
+        <div class="category-card reveal reveal-delay-1">
+          <div class="category-img" style="background: #EDE5F5;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><ellipse cx="12" cy="18" rx="8" ry="4"/><path d="M12 2v16"/></svg>
+          </div>
+          <div class="category-label">Tutus & Skirts</div>
+        </div>
+        <div class="category-card reveal reveal-delay-2">
+          <div class="category-img" style="background: #E5EDE9;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M4 20c0-4 3-6 8-6s8 2 8 6"/><ellipse cx="12" cy="8" rx="6" ry="6"/></svg>
+          </div>
+          <div class="category-label">Ballet Shoes</div>
+        </div>
+        <div class="category-card reveal reveal-delay-3">
+          <div class="category-img" style="background: #F5EDE5;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+          </div>
+          <div class="category-label">Accessories</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURED PRODUCTS -->
+  <section id="shop" class="products-section">
+    <div class="container">
+      <div class="section-header">
+        <p class="label reveal">Featured</p>
+        <h2 class="reveal reveal-delay-1">Picked for her</h2>
+        <p class="reveal reveal-delay-2">Our most-loved pieces this season.</p>
+      </div>
+
+      <div class="products-grid">
+        <div class="product-card reveal">
+          <div class="product-img">
+            <span class="product-badge new">New</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="4" y="2" width="16" height="20" rx="3"/></svg>
+          </div>
+          <div class="product-info">
+            <div class="product-name">Rosebud Camisole Leotard</div>
+            <div class="product-detail">Dusty rose &middot; Ages 4&ndash;12</div>
+            <div class="product-price">
+              <span class="current">$38</span>
+            </div>
+          </div>
+          <div class="product-actions">
+            <button class="btn-add-cart">Add to Bag</button>
+          </div>
+        </div>
+
+        <div class="product-card reveal reveal-delay-1">
+          <div class="product-img" style="background: #EDE5F5;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><ellipse cx="12" cy="18" rx="8" ry="4"/><path d="M12 2v16"/></svg>
+          </div>
+          <div class="product-info">
+            <div class="product-name">Classic Tulle Practice Tutu</div>
+            <div class="product-detail">Lavender &middot; XS&ndash;L</div>
+            <div class="product-price">
+              <span class="current">$42</span>
+            </div>
+          </div>
+          <div class="product-actions">
+            <button class="btn-add-cart">Add to Bag</button>
+          </div>
+        </div>
+
+        <div class="product-card reveal reveal-delay-2">
+          <div class="product-img" style="background: #E5EDE9;">
+            <span class="product-badge sale">Sale</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M4 20c0-4 3-6 8-6s8 2 8 6"/><ellipse cx="12" cy="8" rx="6" ry="6"/></svg>
+          </div>
+          <div class="product-info">
+            <div class="product-name">Canvas Split-Sole Ballet Slipper</div>
+            <div class="product-detail">Pink &middot; Sizes 8&ndash;3</div>
+            <div class="product-price">
+              <span class="current">$24</span>
+              <span class="original">$32</span>
+            </div>
+          </div>
+          <div class="product-actions">
+            <button class="btn-add-cart">Add to Bag</button>
+          </div>
+        </div>
+
+        <div class="product-card reveal reveal-delay-3">
+          <div class="product-img" style="background: #F5EDE5;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4"/></svg>
+          </div>
+          <div class="product-info">
+            <div class="product-name">Satin Ribbon Hair Kit</div>
+            <div class="product-detail">Blush &middot; Set of 6</div>
+            <div class="product-price">
+              <span class="current">$16</span>
+            </div>
+          </div>
+          <div class="product-actions">
+            <button class="btn-add-cart">Add to Bag</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STORY -->
+  <section id="about" class="story-section">
+    <div class="container">
+      <div class="story-inner">
+        <div class="story-image reveal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.5"><circle cx="12" cy="12" r="10"/></svg>
+        </div>
+        <div class="story-text reveal reveal-delay-1">
+          <p class="label">Our Story</p>
+          <h2>Started by a mom who couldn't find what she wanted</h2>
+          <p>When our daughter started ballet at four, we wanted gear that was as beautiful as the art form itself &mdash; not scratchy polyester in garish colors. So we started making it ourselves.</p>
+          <p>Every piece is designed with care: soft fabrics that let little bodies move freely, colors inspired by real ballet costumes, and details that make girls feel like they're already on stage.</p>
+          <a href="#" class="btn btn-secondary" style="margin-top: var(--space-4);">Read More</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TESTIMONIALS -->
+  <section id="reviews" class="testimonial-section">
+    <div class="container">
+      <div class="section-header">
+        <p class="label reveal">Reviews</p>
+        <h2 class="reveal reveal-delay-1">From our ballet families</h2>
+      </div>
+
+      <div class="testimonials-grid">
+        <div class="testimonial-card reveal">
+          <div class="testimonial-stars">&starf;&starf;&starf;&starf;&starf;</div>
+          <p class="testimonial-text">"My daughter refuses to wear anything else to class now. The leotards are so soft and the colors are gorgeous."</p>
+          <div class="testimonial-author">
+            <div class="testimonial-avatar">S</div>
+            <div>
+              <div class="testimonial-name">Sarah M.</div>
+              <div class="testimonial-role">Mom of 2 dancers</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="testimonial-card reveal reveal-delay-1">
+          <div class="testimonial-stars">&starf;&starf;&starf;&starf;&starf;</div>
+          <p class="testimonial-text">"Finally, ballet shoes that actually fit narrow feet. We've tried every brand &mdash; these are the ones."</p>
+          <div class="testimonial-author">
+            <div class="testimonial-avatar">J</div>
+            <div>
+              <div class="testimonial-name">Jessica R.</div>
+              <div class="testimonial-role">Dance teacher, 12 years</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="testimonial-card reveal reveal-delay-2">
+          <div class="testimonial-stars">&starf;&starf;&starf;&starf;&starf;</div>
+          <p class="testimonial-text">"Ordered the recital bundle for my granddaughter's first show. She looked like a tiny professional. Cried happy tears."</p>
+          <div class="testimonial-author">
+            <div class="testimonial-avatar">L</div>
+            <div>
+              <div class="testimonial-name">Linda K.</div>
+              <div class="testimonial-role">Proud grandma</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- NEWSLETTER -->
+  <section class="newsletter-section">
+    <div class="container">
+      <div class="newsletter-inner reveal">
+        <h2>Stay in the studio</h2>
+        <p>New arrivals, sale alerts, and tiny dancer inspiration. No spam, ever.</p>
+        <div class="newsletter-form">
+          <input type="email" placeholder="Your email address" aria-label="Email address">
+          <button class="btn btn-primary">Subscribe</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <span>Petite Pirouette</span>
+          <p>Beautiful ballet essentials for little dancers. Designed by a dance family, made with love.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Shop</h4>
+          <a href="#">Leotards</a>
+          <a href="#">Tutus & Skirts</a>
+          <a href="#">Ballet Shoes</a>
+          <a href="#">Accessories</a>
+          <a href="#">Gift Cards</a>
+        </div>
+        <div class="footer-col">
+          <h4>Help</h4>
+          <a href="#">Size Guide</a>
+          <a href="#">Shipping</a>
+          <a href="#">Returns</a>
+          <a href="#">Contact Us</a>
+        </div>
+        <div class="footer-col">
+          <h4>Follow</h4>
+          <a href="#">Instagram</a>
+          <a href="#">Pinterest</a>
+          <a href="#">TikTok</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>&copy; 2026 Petite Pirouette. All rights reserved.</span>
+        <span>Made with love in the studio</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Scroll reveal
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.reveal').forEach(function(el) {
+      observer.observe(el);
+    });
+
+    // Nav scroll effect
+    var nav = document.querySelector('nav');
+    window.addEventListener('scroll', function() {
+      if (window.scrollY > 50) {
+        nav.style.background = 'rgba(253, 248, 245, 0.92)';
+        nav.style.boxShadow = '0 8px 32px rgba(61, 43, 36, 0.08)';
+      } else {
+        nav.style.background = '';
+        nav.style.boxShadow = '';
+      }
+    });
+  </script>
+</body>
+</html>

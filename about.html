@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About — Andrew Cunliffe | Raven MCP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0E0F13;
+      --bg-surface: #16171D;
+      --bg-raised: #1C1D25;
+      --bg-overlay: #32323d;
+      --bg-accent: #00BFFF;
+      --bg-accent-hover: #33CFFF;
+      --bg-accent-subtle: rgba(0, 191, 255, 0.06);
+      --text-primary: #F0F0F2;
+      --text-secondary: #A0A3B1;
+      --text-tertiary: #6B6E7D;
+      --text-accent: #00BFFF;
+      --accent-blue: #00BFFF;
+      --accent-cyan: #00E5FF;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.12);
+      --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 20px;
+      --radius-full: 9999px;
+      --max-width: 1140px;
+      --nav-height: 64px;
+      --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px;
+      --space-6: 24px; --space-8: 32px;
+      --duration-fast: 150ms;
+      --duration-normal: 300ms;
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    html { scroll-behavior: smooth; overflow-x: hidden; }
+    a { color: inherit; text-decoration: none; }
+    ul { list-style: none; }
+
+    body {
+      background: var(--bg);
+      color: var(--text-primary);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* ── Scroll Reveal ── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(32px);
+      transition: opacity var(--duration-slow) var(--ease-out), transform var(--duration-slow) var(--ease-out);
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .reveal-delay-1 { transition-delay: 80ms; }
+    .reveal-delay-2 { transition-delay: 160ms; }
+    .reveal-delay-3 { transition-delay: 240ms; }
+    .reveal-delay-4 { transition-delay: 320ms; }
+
+    /* ── Top gradient wash ── */
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 260px;
+      background: linear-gradient(180deg,
+        rgba(0, 191, 255, 0.28) 0%,
+        rgba(0, 191, 255, 0.15) 30%,
+        rgba(0, 191, 255, 0.06) 60%,
+        transparent 100%);
+      pointer-events: none;
+      z-index: 99;
+    }
+
+    /* Nav and footer are shared web components — see assets/nav.js and assets/footer.js */
+
+    /* ── Hero / Intro ── */
+    .hero {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 160px 40px 100px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+    }
+
+    .hero-photo {
+      width: 100%;
+      aspect-ratio: 3 / 4;
+      border-radius: var(--radius-xl);
+      background: linear-gradient(135deg, #1C1D25 0%, #252630 100%);
+      border: 1px solid var(--border-strong);
+      overflow: hidden;
+      position: relative;
+    }
+    .hero-photo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .hero-photo-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: var(--space-3, 12px);
+      color: var(--text-tertiary);
+      font-size: 14px;
+    }
+    .hero-photo-placeholder svg {
+      opacity: 0.3;
+    }
+
+    .hero-text {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-6, 24px);
+    }
+
+    .hero-eyebrow {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent-cyan);
+    }
+
+    .hero-name {
+      font-size: clamp(40px, 5vw, 56px);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+    }
+
+    .hero-title {
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .hero-bio {
+      font-size: 17px;
+      color: var(--text-secondary);
+      line-height: 1.75;
+      max-width: 520px;
+    }
+
+    .hero-links {
+      display: flex;
+      gap: var(--space-4, 16px);
+      margin-top: var(--space-2, 8px);
+    }
+
+    .hero-link {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2, 8px);
+      padding: var(--space-3, 12px) var(--space-6, 24px);
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: var(--radius-md, 12px);
+      text-decoration: none;
+      transition: all var(--duration-fast, 0.2s);
+    }
+    .hero-link.primary {
+      background: var(--accent-blue);
+      color: #000;
+    }
+    .hero-link.primary:hover {
+      background: var(--accent-cyan);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 191, 255, 0.25);
+    }
+    .hero-link.secondary {
+      background: var(--bg-raised);
+      color: var(--text-primary);
+      border: 1px solid var(--border-strong);
+    }
+    .hero-link.secondary:hover {
+      border-color: var(--accent-blue);
+      transform: translateY(-2px);
+    }
+
+    /* ── What I Do ── */
+    .what-section {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 80px 40px 120px;
+    }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent-cyan);
+      margin-bottom: var(--space-4, 16px);
+    }
+
+    .section-title {
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 48px;
+      max-width: 600px;
+    }
+
+    .skills-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-6, 24px);
+    }
+
+    .skill-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 36px 32px;
+      transition: all var(--duration-normal, 0.3s);
+    }
+    .skill-card:hover {
+      border-color: var(--border-strong);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .skill-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-md, 12px);
+      background: rgba(0, 191, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent-blue);
+      margin-bottom: var(--space-6, 24px);
+    }
+
+    .skill-card h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: var(--space-2, 8px);
+    }
+
+    .skill-card p {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* ── Why Raven ── */
+    .why-section {
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .why-inner {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 120px 40px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+    }
+
+    .why-text {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5, 20px);
+    }
+
+    .why-text p {
+      font-size: 17px;
+      color: var(--text-secondary);
+      line-height: 1.75;
+    }
+
+    .why-text p strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .why-terminal {
+      background: var(--bg);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .why-terminal-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2, 8px);
+      padding: 14px 20px;
+      background: rgba(255, 255, 255, 0.03);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .why-terminal-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .why-terminal-dot:first-child { background: #FF5F57; }
+    .why-terminal-dot:nth-child(2) { background: #FEBC2E; }
+    .why-terminal-dot:nth-child(3) { background: #28C840; }
+
+    .why-terminal-body {
+      padding: var(--space-6, 24px);
+      overflow-x: auto;
+      max-width: 100%;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 2;
+      color: var(--text-secondary);
+    }
+
+    .why-terminal-body .prompt { color: var(--accent-cyan); }
+    .why-terminal-body .cmd { color: var(--text-primary); }
+    .why-terminal-body .comment { color: var(--text-tertiary); font-style: italic; }
+    .why-terminal-body .output { color: var(--accent-blue); }
+
+    /* ── CTA ── */
+    .cta-section {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 120px 40px;
+      text-align: center;
+    }
+
+    .cta-section h2 {
+      font-size: clamp(32px, 5vw, 48px);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: var(--space-4, 16px);
+    }
+    .cta-section h2 span {
+      background: linear-gradient(135deg, #fff 0%, var(--accent-blue) 40%, var(--accent-cyan) 100%);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    .cta-section p {
+      font-size: 17px;
+      color: var(--text-secondary);
+      margin-bottom: var(--space-8, 32px);
+      max-width: 480px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* ── Responsive: Tablet ── */
+    @media (max-width: 1024px) {
+      .skills-grid { grid-template-columns: repeat(2, 1fr); }
+      .hero { padding: 140px 32px 80px; gap: 60px; }
+      .why-inner { padding: 100px 32px; gap: 60px; }
+      .what-section { padding: 70px 32px 100px; }
+      .cta-section { padding: 100px 32px; }
+    }
+
+    /* ── Responsive: Small Tablet / Large Phone ── */
+    @media (max-width: 768px) {
+      .hero {
+        grid-template-columns: 1fr;
+        gap: 48px;
+        padding: 140px 24px 60px;
+      }
+      .hero-photo {
+        max-width: 320px;
+        margin: 0 auto;
+      }
+      .hero-name { font-size: 36px; }
+      .hero-title { font-size: 18px; }
+      .skills-grid { grid-template-columns: 1fr; }
+      .why-inner {
+        grid-template-columns: 1fr;
+        gap: 48px;
+        padding: 60px 24px;
+      }
+      .why-terminal-body { font-size: 13px; }
+      .what-section { padding: 60px 24px 80px; }
+      .cta-section { padding: 60px 24px; }
+    }
+
+    /* ── Responsive: Small Mobile ── */
+    @media (max-width: 480px) {
+      .hero { padding: 120px 16px 40px; }
+      .hero-name { font-size: 28px; }
+      .hero-photo { max-width: 260px; }
+      .hero-bio { font-size: 15px; }
+      .hero-links { flex-direction: column; }
+      .hero-link { justify-content: center; }
+      .skills-grid { grid-template-columns: 1fr; }
+      .what-section { padding: 40px 16px 60px; }
+      .why-inner { padding: 40px 16px; }
+      .cta-section { padding: 40px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV (shared component) -->
+<script src="assets/nav.js"></script>
+<raven-nav></raven-nav>
+
+<!-- HERO -->
+<section class="hero reveal">
+  <div class="hero-photo">
+    <img src="/assets/IMG_2046.JPG" alt="Andrew Cunliffe">
+  </div>
+  <div class="hero-text">
+    <div class="hero-eyebrow">Creator of Raven MCP</div>
+    <h1 class="hero-name">Andrew<br>Cunliffe</h1>
+    <p class="hero-title">Senior Staff Designer & Product Strategist</p>
+    <p class="hero-bio">I drive platform visions and make company-wide AI+Human experiences a reality. Design strategy at the enterprise scale — setting the direction for how millions of customers interact with AI, then making sure those experiences actually ship and thrive.</p>
+    <p class="hero-bio">Raven MCP was born from a simple frustration: AI can write code, but it can't <em>design</em>. It doesn't know Nielsen's heuristics. It doesn't understand Gestalt. It reaches for Comic Sans when it should reach for Inter. I built Raven to fix that — permanently.</p>
+    <div class="hero-links">
+      <a href="/" class="hero-link primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        Explore Raven
+      </a>
+      <a href="https://github.com/rhinocap/raven-mcp" target="_blank" class="hero-link secondary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.08-.73.08-.73 1.2.08 1.84 1.23 1.84 1.23 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.52.12-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 016.02 0c2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.25 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.8 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.21.7.82.58A12.01 12.01 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- WHAT I DO -->
+<section class="what-section reveal">
+  <div class="section-label">What I Do</div>
+  <h2 class="section-title">Platform vision meets enterprise execution</h2>
+  <div class="skills-grid">
+    <div class="skill-card reveal reveal-delay-1">
+      <div class="skill-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2zM22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+      </div>
+      <h3>Design Strategy</h3>
+      <p>Setting the vision for how products evolve. I connect business goals to customer outcomes through design — not just pixels, but the decisions behind them.</p>
+    </div>
+    <div class="skill-card reveal reveal-delay-2">
+      <div class="skill-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      </div>
+      <h3>AI + Human Experiences</h3>
+      <p>Designing enterprise-scale experiences where AI and humans work together seamlessly. Smart handoffs, trust calibration, and interfaces that make AI actually useful.</p>
+    </div>
+    <div class="skill-card reveal reveal-delay-3">
+      <div class="skill-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      </div>
+      <h3>Platform Vision</h3>
+      <p>I define the design direction for entire platforms — not individual features. Systems-level thinking that shapes how millions of customers experience a product.</p>
+    </div>
+    <div class="skill-card reveal reveal-delay-4">
+      <div class="skill-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </div>
+      <h3>AI Design Intelligence</h3>
+      <p>Building the tools that give AI real design taste. Raven MCP is the proof — 73 principles, 12 design systems, and a framework that turns Claude into a design-literate partner.</p>
+    </div>
+    <div class="skill-card reveal reveal-delay-1">
+      <div class="skill-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      </div>
+      <h3>Design Systems</h3>
+      <p>Tokens, patterns, standards — the shared language that makes consistent experiences possible at scale. I think in systems because one-off decisions don't survive contact with reality.</p>
+    </div>
+    <div class="skill-card reveal reveal-delay-2">
+      <div class="skill-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/><line x1="14" y1="4" x2="10" y2="20"/></svg>
+      </div>
+      <h3>Concept to Code</h3>
+      <p>I don't hand off — I ship. From strategy to working product in the same brain. AI is the force multiplier, taste is the filter.</p>
+    </div>
+  </div>
+</section>
+
+<!-- WHY RAVEN -->
+<section class="why-section reveal">
+  <div class="why-inner">
+    <div class="why-text">
+      <div class="section-label">Why I Built Raven</div>
+      <h2 class="section-title">Design knowledge shouldn't be locked in people's heads</h2>
+      <p><strong>The problem is simple:</strong> AI can generate UI, but it doesn't understand <em>why</em> one layout works and another doesn't. It doesn't know that cards need consistent padding, that contrast ratios have legal minimums, or that Fitts's Law governs every button you've ever clicked.</p>
+      <p>Senior designers carry decades of this knowledge. When they review AI output, they see dozens of violations instantly. But that expertise doesn't transfer to the AI — it just gets corrected and forgotten.</p>
+      <p><strong>Raven changes that.</strong> It gives Claude access to 69 design principles, 13 UI patterns, 12 complete design system token sets, and strategic frameworks — all through MCP. The AI doesn't guess at design anymore. It knows.</p>
+    </div>
+    <div class="why-terminal">
+      <div class="why-terminal-header">
+        <span class="why-terminal-dot"></span>
+        <span class="why-terminal-dot"></span>
+        <span class="why-terminal-dot"></span>
+      </div>
+      <div class="why-terminal-body">
+        <span class="prompt">~</span> <span class="cmd">claude "build a dashboard"</span><br>
+        <span class="comment"># Without Raven:</span><br>
+        <span class="output">→ Generic layout, random colors, no system</span><br><br>
+        <span class="prompt">~</span> <span class="cmd">claude "build a dashboard" --mcp raven</span><br>
+        <span class="comment"># With Raven:</span><br>
+        <span class="output">→ Calls get_design_system("linear")</span><br>
+        <span class="output">→ Calls get_principles("hierarchy")</span><br>
+        <span class="output">→ Calls get_pattern("data-table")</span><br>
+        <span class="output">→ Calls evaluate_design()</span><br>
+        <span class="output">→ Ships pixel-perfect, accessible UI</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section reveal">
+  <h2>Ready to give AI<br><span>real design taste?</span></h2>
+  <p>Raven MCP is open source, free forever, and installs in 30 seconds.</p>
+  <div style="display:flex;gap:var(--space-4,16px);justify-content:center;">
+    <a href="/" class="hero-link primary">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"/></svg>
+      Get Raven MCP
+    </a>
+    <a href="https://github.com/rhinocap/raven-mcp" target="_blank" class="hero-link secondary">View on GitHub</a>
+  </div>
+</section>
+
+<!-- FOOTER (shared component) -->
+<script src="assets/footer.js"></script>
+<raven-footer></raven-footer>
+
+<script>
+  var observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) entry.target.classList.add('visible');
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.reveal').forEach(function(el) { observer.observe(el); });
+</script>
+
+</body>
+</html>
