@@ -2,7 +2,7 @@
   var CENTER_LINKS = [];
 
   var PAGE_LINKS = [
-    { label: 'Pricing', href: '/#pricing' },
+    { label: 'Open Source', href: '/#pricing' },
     { label: 'Docs', href: '/docs.html' },
     { label: 'About', href: '/about.html' }
   ];

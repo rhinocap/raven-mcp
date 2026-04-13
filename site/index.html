@@ -14,7 +14,7 @@
   <meta property="og:type" content="website">
   <meta property="og:title" content="Raven MCP — Design Intelligence for AI">
   <meta property="og:description" content="73 design principles, 13 UI patterns, 13 tools, real design system tokens. One install gives your AI assistant expert-level design knowledge.">
-  <meta property="og:image" content="https://ravenmcp.ai/assets/og-image.jpg">
+  <meta property="og:image" content="https://ravenmcp.ai/assets/og-image.png">
   <meta property="og:url" content="https://ravenmcp.ai">
   <meta property="og:site_name" content="Raven MCP">
 
@@ -22,7 +22,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Raven MCP — Design Intelligence for AI">
   <meta name="twitter:description" content="73 design principles, 13 UI patterns, 13 tools. One install gives your AI assistant expert-level design knowledge.">
-  <meta name="twitter:image" content="https://ravenmcp.ai/assets/og-image.jpg">
+  <meta name="twitter:image" content="https://ravenmcp.ai/assets/og-image.png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -921,48 +921,67 @@
       overflow: hidden;
     }
 
-    .pricing-grid {
-      display: flex;
-      flex-wrap: wrap;
+    .pricing-open-source {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr;
       gap: var(--space-5);
       align-items: stretch;
     }
 
-    .glow-card.pricing-card {
-      flex: 1 1 280px;
-      min-width: 280px;
-      padding: var(--space-8) var(--space-6);
-      position: relative;
+    .pricing-open-card {
+      padding: var(--space-8) var(--space-7);
       display: flex;
       flex-direction: column;
-      overflow: visible;
-    }
-
-    .pricing-card.featured {
       border-color: var(--accent-blue);
     }
-    .pricing-card.featured::before {
-      background: linear-gradient(135deg, rgba(0,191,255,0.4), rgba(0,229,255,0.15), rgba(0,191,255,0.3));
+    .pricing-open-card::before {
+      background: linear-gradient(135deg, rgba(0,191,255,0.3), rgba(0,229,255,0.08), rgba(0,191,255,0.2));
     }
 
-    .pricing-badge {
-      position: absolute;
-      top: -12px;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 6px 18px;
-      background: var(--accent-blue);
-      color: var(--bg-base);
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      border-radius: var(--radius-full);
-      box-shadow: 0 0 20px rgba(0,191,255,0.4);
-      z-index: 2;
+    .pricing-open-stats {
+      display: flex;
+      gap: var(--space-6);
+      margin-bottom: var(--space-6);
+    }
+    .pricing-open-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .pricing-open-num {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      color: var(--accent-blue);
+      line-height: 1;
+      text-shadow: 0 0 30px rgba(0,191,255,0.25);
+    }
+    .pricing-open-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      letter-spacing: 0.02em;
     }
 
-    .pricing-tier {
+    .pricing-open-desc {
+      font-size: 18px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: var(--space-6);
+      flex: 1;
+    }
+
+    .pricing-open-actions {
+      display: flex;
+      gap: var(--space-3);
+    }
+
+    .pricing-services-card {
+      padding: var(--space-7) var(--space-6);
+      display: flex;
+      flex-direction: column;
+    }
+    .pricing-services-label {
       font-size: 13px;
       font-weight: 600;
       letter-spacing: 0.04em;
@@ -970,76 +989,49 @@
       color: var(--text-accent);
       margin-bottom: var(--space-3);
     }
-
-    .pricing-price {
-      display: flex;
-      align-items: baseline;
-      gap: 4px;
-      margin-bottom: var(--space-1);
-    }
-    .pricing-price .amount {
-      font-size: 44px;
-      font-weight: 800;
-      letter-spacing: -0.04em;
+    .pricing-services-title {
+      font-size: 24px;
+      font-weight: 700;
       color: var(--text-primary);
-      line-height: 1;
+      letter-spacing: -0.02em;
+      margin-bottom: var(--space-3);
     }
-    .pricing-card.featured .pricing-price .amount {
-      color: var(--accent-blue);
-      text-shadow: 0 0 30px rgba(0,191,255,0.25);
-    }
-    .pricing-price .period {
+    .pricing-services-desc {
       font-size: 16px;
-      color: var(--text-tertiary);
-    }
-
-    .pricing-desc {
-      font-size: 20px;
       color: var(--text-secondary);
-      margin-bottom: var(--space-6);
-      line-height: 1.55;
-    }
-
-    .pricing-features {
-      list-style: none;
-      margin-bottom: var(--space-6);
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
+      line-height: 1.6;
       flex: 1;
+      margin-bottom: var(--space-5);
     }
-    .pricing-features li {
-      display: flex;
-      align-items: flex-start;
-      gap: var(--space-2);
-      font-size: 19px;
-      color: var(--text-secondary);
-      line-height: 1.5;
-    }
-    .pricing-features li .check {
+    .pricing-services-link {
+      font-size: 15px;
+      font-weight: 600;
       color: var(--accent-blue);
-      font-size: 18px;
-      flex-shrink: 0;
-      margin-top: 1px;
+      text-decoration: none;
+      transition: color 150ms ease;
     }
-    .pricing-features li.dimmed {
-      color: var(--text-tertiary);
-    }
-    .pricing-features li.dimmed .check {
-      color: var(--text-tertiary);
+    .pricing-services-link:hover {
+      color: var(--text-primary);
     }
 
-    .pricing-card .btn {
-      width: 100%;
-      justify-content: center;
-    }
-    .btn-coming-soon {
-      opacity: 0.5;
-      cursor: default;
-      pointer-events: none;
-    }
-    .coming-soon-price {
-      opacity: 0.4;
+    @media (max-width: 768px) {
+      .pricing-open-source {
+        grid-template-columns: 1fr;
+      }
+      .pricing-open-stats {
+        flex-wrap: wrap;
+        gap: var(--space-5);
+      }
+      .pricing-open-stat {
+        min-width: 60px;
+      }
+      .pricing-open-actions {
+        flex-direction: column;
+      }
+      .pricing-open-actions .btn {
+        width: 100%;
+        justify-content: center;
+      }
     }
 
     /* ══════════════════════════════════════════
@@ -1485,7 +1477,6 @@
       .demo-card-industry { font-size: 16px; }
       .demo-card-name { font-size: 13px; }
 
-      .pricing-card { padding: var(--space-6); }
     }
   </style>
 </head>
@@ -1945,66 +1936,43 @@
     <div class="grid-bg"></div>
     <div class="container">
       <div class="section-header">
-        <p class="label reveal">Pricing</p>
-        <h2 class="reveal reveal-delay-1">Free while we grow</h2>
-        <p class="subtitle reveal reveal-delay-2">Everything is free right now. We're focused on building the best design intelligence for AI — paid tiers are coming once the community is thriving.</p>
+        <p class="label reveal">Open Source</p>
+        <h2 class="reveal reveal-delay-1">Free. All of it.</h2>
+        <p class="subtitle reveal reveal-delay-2">Every tool, every token, every principle &mdash; no limits, no tiers, no catch. Raven is open source and always will be.</p>
       </div>
 
-      <div class="pricing-grid">
-        <div class="glow-card pricing-card featured reveal">
-          <div class="pricing-badge">Everything Included</div>
-          <div class="pricing-tier">Free</div>
-          <div class="pricing-price">
-            <span class="amount">$0</span>
-            <span class="period">forever</span>
+      <div class="pricing-open-source reveal reveal-delay-3">
+        <div class="glow-card pricing-open-card">
+          <div class="pricing-open-stats">
+            <div class="pricing-open-stat">
+              <span class="pricing-open-num">13</span>
+              <span class="pricing-open-label">Tools</span>
+            </div>
+            <div class="pricing-open-stat">
+              <span class="pricing-open-num">73</span>
+              <span class="pricing-open-label">Principles</span>
+            </div>
+            <div class="pricing-open-stat">
+              <span class="pricing-open-num">12</span>
+              <span class="pricing-open-label">Design Systems</span>
+            </div>
+            <div class="pricing-open-stat">
+              <span class="pricing-open-num">13</span>
+              <span class="pricing-open-label">UI Patterns</span>
+            </div>
           </div>
-          <p class="pricing-desc">The full Raven experience — every tool, every token, every principle. No limits.</p>
-          <ul class="pricing-features">
-            <li><span class="check">&#10003;</span> 73 design principles</li>
-            <li><span class="check">&#10003;</span> 13 UI pattern libraries</li>
-            <li><span class="check">&#10003;</span> All 12 design system tokens</li>
-            <li><span class="check">&#10003;</span> 5 business strategy domains</li>
-            <li><span class="check">&#10003;</span> compose_system &mdash; mix tokens</li>
-            <li><span class="check">&#10003;</span> evaluate_design &mdash; score UIs</li>
-            <li><span class="check">&#10003;</span> D4D framework templates</li>
-            <li><span class="check">&#10003;</span> Knowledge search &amp; all 13 tools</li>
-          </ul>
-          <a href="/docs.html" class="btn btn-primary">Get Started Free</a>
+          <p class="pricing-open-desc">Design intelligence for every AI-generated interface &mdash; accessibility audits, token systems, evaluation scoring, and more. Install in 30 seconds.</p>
+          <div class="pricing-open-actions">
+            <a href="/docs.html" class="btn btn-primary">Get Started</a>
+            <a href="https://github.com/rhinocap/raven-mcp" class="btn btn-secondary">View on GitHub</a>
+          </div>
         </div>
 
-        <div class="glow-card pricing-card reveal reveal-delay-1">
-          <div class="pricing-tier">Pro</div>
-          <div class="pricing-price">
-            <span class="amount coming-soon-price">$9</span>
-            <span class="period">/month</span>
-          </div>
-          <p class="pricing-desc">Priority updates, advanced evaluation reports, and email support for professional teams.</p>
-          <ul class="pricing-features">
-            <li><span class="check">&#10003;</span> Everything in Free</li>
-            <li><span class="check">&#10003;</span> Priority new system additions</li>
-            <li><span class="check">&#10003;</span> Dark &amp; light mode tokens</li>
-            <li><span class="check">&#10003;</span> W3C DTCG + CSS + flat formats</li>
-            <li><span class="check">&#10003;</span> Email support</li>
-          </ul>
-          <a href="#get-started" class="btn btn-secondary btn-coming-soon">Coming Soon</a>
-        </div>
-
-        <div class="glow-card pricing-card card-raised reveal reveal-delay-2">
-          <div class="pricing-tier">Team</div>
-          <div class="pricing-price">
-            <span class="amount coming-soon-price">$29</span>
-            <span class="period">/month</span>
-          </div>
-          <p class="pricing-desc">For design teams shipping consistently across multiple products and codebases.</p>
-          <ul class="pricing-features">
-            <li><span class="check">&#10003;</span> Everything in Pro</li>
-            <li><span class="check">&#10003;</span> Up to 10 seats</li>
-            <li><span class="check">&#10003;</span> Custom design system upload</li>
-            <li><span class="check">&#10003;</span> Team token presets</li>
-            <li><span class="check">&#10003;</span> Shared evaluation reports</li>
-            <li><span class="check">&#10003;</span> Slack support channel</li>
-          </ul>
-          <a href="#get-started" class="btn btn-secondary btn-coming-soon">Coming Soon</a>
+        <div class="glow-card pricing-services-card">
+          <p class="pricing-services-label">Need something custom?</p>
+          <h3 class="pricing-services-title">Custom Design Systems</h3>
+          <p class="pricing-services-desc">Get a bespoke Raven-compatible design system built for your brand &mdash; tokens, principles, evaluation rules, all tailored to your product.</p>
+          <a href="mailto:andrew@ravenmcp.ai" class="pricing-services-link">Get in touch &rarr;</a>
         </div>
       </div>
     </div>
