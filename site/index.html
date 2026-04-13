@@ -365,6 +365,21 @@
 
     .hero-cta { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-4); }
 
+    /* Sizzle reel video */
+    .sizzle-video {
+      margin-top: var(--space-16);
+      width: 100%;
+      max-width: 1080px;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 0 80px rgba(0, 191, 255, 0.08), 0 4px 32px rgba(0, 0, 0, 0.4);
+    }
+    .sizzle-video video {
+      width: 100%;
+      display: block;
+      border-radius: 16px;
+    }
+
     /* Demo showcase */
     .demo-showcase {
       margin-top: var(--space-16);
@@ -1508,6 +1523,13 @@
           Install Raven
         </a>
         <a href="#tools" class="btn btn-secondary">Explore Tools</a>
+      </div>
+
+      <!-- Sizzle reel -->
+      <div class="sizzle-video reveal reveal-delay-3">
+        <video controls playsinline preload="metadata" poster="assets/og-image.jpg">
+          <source src="assets/video/sizzle-reel.mp4" type="video/mp4">
+        </video>
       </div>
 
       <!-- Demo showcase -->
