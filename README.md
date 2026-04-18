@@ -13,27 +13,32 @@ Raven gives Claude access to a comprehensive design knowledge base:
 - **Business** — Monetization models, retention strategies, onboarding optimization, growth mechanics, and product metrics frameworks
 - **Tokens** — Design system tokens for Stripe, Linear, and more (registry of 7 systems, 2 fully populated)
 
-## Setup
+## Install
 
+### Claude Desktop — one click
+Download [raven.mcpb](https://ravenmcp.ai/raven.mcpb) and double-click it. Claude Desktop installs Raven automatically — no JSON, no Node, no terminal.
+
+### Claude Code — one command
 ```bash
-cd raven-mcp
-npm install
-npm run build
+claude mcp add raven -- npx -y raven-mcp
 ```
 
-## Add to Claude Code
-
-Add to your Claude Code MCP config (`~/.claude/claude_desktop_config.json` or project `.mcp.json`):
-
+### Manual config (Claude Desktop or team `.mcp.json`)
 ```json
 {
   "mcpServers": {
     "raven": {
-      "command": "node",
-      "args": ["/path/to/raven-mcp/dist/index.js"]
+      "command": "npx",
+      "args": ["-y", "raven-mcp"]
     }
   }
 }
+```
+
+### From source
+```bash
+git clone https://github.com/rhinocap/raven-mcp.git
+cd raven-mcp && npm install && npm run build
 ```
 
 ## Tools

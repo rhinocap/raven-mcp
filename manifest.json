@@ -1,0 +1,63 @@
+{
+  "manifest_version": "0.3",
+  "name": "raven-mcp",
+  "display_name": "Raven",
+  "version": "1.1.1",
+  "description": "Design intelligence for Claude — 73 design principles, 13 UI patterns, business strategy, and production design system tokens.",
+  "long_description": "Raven gives Claude a design knowledge base it can query while generating UI. Four layers: principles (Nielsen, Laws of UX, Gestalt, WCAG, typography, color, mobile UX, D4D), patterns (signup, pricing, nav, forms, landing, dashboard, modals, empty/error/loading states, CTAs, social proof, mobile conversion), business strategy (monetization, retention, onboarding, growth, metrics), and production design tokens (Stripe, Linear, and more). Claude calls Raven's tools automatically when you ask it to build, evaluate, or improve UI.",
+  "author": {
+    "name": "Andrew Cunliffe",
+    "email": "cunliffeandrewc@gmail.com",
+    "url": "https://ravenmcp.ai"
+  },
+  "homepage": "https://ravenmcp.ai",
+  "documentation": "https://ravenmcp.ai/docs.html",
+  "support": "https://github.com/rhinocap/raven-mcp/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rhinocap/raven-mcp"
+  },
+  "license": "MIT",
+  "keywords": [
+    "design",
+    "design-system",
+    "tokens",
+    "ux",
+    "ui-patterns",
+    "principles",
+    "accessibility"
+  ],
+  "icon": "icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"]
+    }
+  },
+  "tools": [
+    { "name": "get_principles", "description": "Get design principles relevant to a UI context" },
+    { "name": "get_pattern", "description": "Get proven patterns for a specific UI type" },
+    { "name": "get_business_strategy", "description": "Get business/monetization strategies" },
+    { "name": "evaluate_design", "description": "Evaluate a design description against principles" },
+    { "name": "search_knowledge", "description": "Search across all principles, patterns, and strategies" },
+    { "name": "get_checklist", "description": "Get a pre-publish checklist for a UI type" },
+    { "name": "get_d4d_framework", "description": "Get Design for Delight framework templates" },
+    { "name": "list_design_systems", "description": "Browse available design systems" },
+    { "name": "get_design_system", "description": "Get tokens for a specific design system" },
+    { "name": "compose_system", "description": "Mix tokens from different systems" },
+    { "name": "get_brand_system", "description": "Get a full design system styled like a well-known brand" },
+    { "name": "audit_page", "description": "Audit HTML/CSS against Raven's design quality standards" },
+    { "name": "generate_design_system", "description": "Generate a complete custom design system from a brand color" },
+    { "name": "audit_layout", "description": "Evaluate visual rhythm, alignment, and optical balance of a rendered page" },
+    { "name": "raven_register", "description": "Register to receive design updates and send feedback" }
+  ],
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  }
+}

@@ -296,6 +296,61 @@
     }
     .callout strong { color: var(--text-accent); }
 
+    /* ── Install card ── */
+    .install-card {
+      background: var(--bg-raised);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg, 12px);
+      padding: var(--space-5) var(--space-6);
+      margin-bottom: var(--space-6);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-5);
+      flex-wrap: wrap;
+    }
+    .install-card .install-copy h4 {
+      margin: 0 0 6px 0;
+      font-size: 18px;
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+    .install-card .install-copy p {
+      margin: 0;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+    .install-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 20px;
+      background: var(--accent-cyan);
+      color: var(--bg-base);
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: 15px;
+      text-decoration: none;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      border: none;
+      white-space: nowrap;
+    }
+    .install-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(0,191,255,0.25);
+    }
+    .install-btn svg { width: 16px; height: 16px; }
+    .install-note {
+      color: var(--text-tertiary, var(--text-secondary));
+      font-size: 13px;
+      margin-top: -12px;
+      margin-bottom: var(--space-6);
+    }
+    @media (max-width: 600px) {
+      .install-card { flex-direction: column; align-items: flex-start; }
+      .install-btn { width: 100%; justify-content: center; }
+    }
+
 
     /* ── Mobile: 768px ── */
     @media (max-width: 768px) {
@@ -380,42 +435,63 @@
 
     <!-- ── Get Started ── -->
     <h2 id="quickstart" class="reveal">Get Started</h2>
-    <p>Design intelligence in Claude in under 2 minutes.</p>
+    <p>Design intelligence in Claude in under 2 minutes. Pick the path that matches how you use Claude.</p>
 
-    <h3 class="reveal">Install &amp; connect</h3>
-    <pre><code>npm install -g raven-mcp
-claude mcp add raven -- npx raven-mcp</code></pre>
+    <h3 class="reveal">Claude Desktop — one click</h3>
+    <p>Download the extension and double-click it. Claude Desktop installs Raven automatically — no JSON, no Node, no terminal.</p>
 
-    <p>That's it. Ask Claude to build UI and Raven's tools fire automatically:</p>
+    <div class="install-card reveal">
+      <div class="install-copy">
+        <h4>Raven for Claude Desktop</h4>
+        <p>macOS &middot; Windows &middot; Linux &nbsp;•&nbsp; ~4 MB &middot; v1.1.1</p>
+      </div>
+      <a href="/raven.mcpb" class="install-btn" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download .mcpb
+      </a>
+    </div>
+
+    <ol>
+      <li>Download the <code>.mcpb</code> file above.</li>
+      <li>Double-click it (or drag into Claude Desktop's Settings → Extensions).</li>
+      <li>Click <strong>Install</strong> in the dialog and restart Claude Desktop.</li>
+    </ol>
+
+    <div class="callout reveal">
+      <strong>What's a .mcpb?</strong> It's Anthropic's official Claude Desktop Extension format — a single file containing Raven's server, dependencies, and tool definitions. Claude Desktop handles install and auto-updates for you.
+    </div>
+
+    <h3 class="reveal">Claude Code — one command</h3>
+    <p>If you're in the terminal, this is the fastest path:</p>
+    <pre><code>claude mcp add raven -- npx -y raven-mcp</code></pre>
+
+    <p>Ask Claude to build UI and Raven's tools fire automatically:</p>
     <pre><code>"Build me a pricing page with 3 tiers"
 "Check this signup form for accessibility issues"
 "Use Stripe's design tokens for the checkout flow"</code></pre>
 
-    <div class="callout reveal">
-      <strong>No configuration needed.</strong> Once added, Claude automatically queries Raven when you ask it to build, evaluate, or improve UI. The tools fire behind the scenes.
-    </div>
-
-    <h3 class="reveal">Claude Desktop</h3>
-    <p>Add to your config file (<strong>macOS:</strong> <code>~/Library/Application Support/Claude/claude_desktop_config.json</code> &middot; <strong>Windows:</strong> <code>%APPDATA%\Claude\claude_desktop_config.json</code>):</p>
+    <h3 class="reveal">Team config (.mcp.json)</h3>
+    <p>Add a <code>.mcp.json</code> to your project root so everyone on the team gets Raven automatically:</p>
     <pre><code>{
   "mcpServers": {
     "raven": {
       "command": "npx",
-      "args": ["raven-mcp"]
+      "args": ["-y", "raven-mcp"]
     }
   }
 }</code></pre>
 
-    <h3 class="reveal">Team config</h3>
-    <p>Add a <code>.mcp.json</code> to your project root so everyone gets Raven automatically:</p>
+    <h3 class="reveal">Manual Claude Desktop config</h3>
+    <p>Prefer to edit JSON yourself? Add this to your config file (<strong>macOS:</strong> <code>~/Library/Application Support/Claude/claude_desktop_config.json</code> &middot; <strong>Windows:</strong> <code>%APPDATA%\Claude\claude_desktop_config.json</code>):</p>
     <pre><code>{
   "mcpServers": {
     "raven": {
       "command": "npx",
-      "args": ["raven-mcp"]
+      "args": ["-y", "raven-mcp"]
     }
   }
 }</code></pre>
+    <p class="install-note">Requires Node.js 18 or later. The one-click <code>.mcpb</code> above skips this step entirely.</p>
 
     <h3 class="reveal">Install from source</h3>
     <pre><code>git clone https://github.com/rhinocap/raven-mcp.git
