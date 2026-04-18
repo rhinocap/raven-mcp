@@ -437,8 +437,44 @@
     <h2 id="quickstart" class="reveal">Get Started</h2>
     <p>Design intelligence in Claude in under 2 minutes. Pick the path that matches how you use Claude.</p>
 
-    <h3 class="reveal">Claude Desktop — one click</h3>
-    <p>Download the extension and double-click it. Claude Desktop installs Raven automatically — no JSON, no Node, no terminal.</p>
+    <h3 class="reveal">Claude Code — one command</h3>
+    <p>If you're in the terminal, this is the fastest path:</p>
+    <pre><code>claude mcp add raven -- npx -y raven-mcp</code></pre>
+
+    <p>Ask Claude to build UI and Raven's tools fire automatically:</p>
+    <pre><code>"Build me a pricing page with 3 tiers"
+"Check this signup form for accessibility issues"
+"Use Stripe's design tokens for the checkout flow"</code></pre>
+
+    <div class="callout reveal">
+      <strong>No configuration needed.</strong> Once added, Claude automatically queries Raven when you ask it to build, evaluate, or improve UI. The tools fire behind the scenes.
+    </div>
+
+    <h3 class="reveal">Team config (.mcp.json)</h3>
+    <p>Add a <code>.mcp.json</code> to your project root so everyone on the team gets Raven automatically:</p>
+    <pre><code>{
+  "mcpServers": {
+    "raven": {
+      "command": "npx",
+      "args": ["-y", "raven-mcp"]
+    }
+  }
+}</code></pre>
+
+    <h3 class="reveal">Claude Desktop — manual config</h3>
+    <p>Add this to your config file (<strong>macOS:</strong> <code>~/Library/Application Support/Claude/claude_desktop_config.json</code> &middot; <strong>Windows:</strong> <code>%APPDATA%\Claude\claude_desktop_config.json</code>):</p>
+    <pre><code>{
+  "mcpServers": {
+    "raven": {
+      "command": "npx",
+      "args": ["-y", "raven-mcp"]
+    }
+  }
+}</code></pre>
+    <p class="install-note">Requires Node.js 18 or later.</p>
+
+    <h3 class="reveal">Claude Desktop — one-click extension</h3>
+    <p>Prefer not to edit JSON? Download the extension and double-click it. Claude Desktop installs Raven automatically — no Node, no terminal.</p>
 
     <div class="install-card reveal">
       <div class="install-copy">
@@ -456,42 +492,6 @@
       <li>Double-click it (or drag into Claude Desktop's Settings → Extensions).</li>
       <li>Click <strong>Install</strong> in the dialog and restart Claude Desktop.</li>
     </ol>
-
-    <div class="callout reveal">
-      <strong>What's a .mcpb?</strong> It's Anthropic's official Claude Desktop Extension format — a single file containing Raven's server, dependencies, and tool definitions. Claude Desktop handles install and auto-updates for you.
-    </div>
-
-    <h3 class="reveal">Claude Code — one command</h3>
-    <p>If you're in the terminal, this is the fastest path:</p>
-    <pre><code>claude mcp add raven -- npx -y raven-mcp</code></pre>
-
-    <p>Ask Claude to build UI and Raven's tools fire automatically:</p>
-    <pre><code>"Build me a pricing page with 3 tiers"
-"Check this signup form for accessibility issues"
-"Use Stripe's design tokens for the checkout flow"</code></pre>
-
-    <h3 class="reveal">Team config (.mcp.json)</h3>
-    <p>Add a <code>.mcp.json</code> to your project root so everyone on the team gets Raven automatically:</p>
-    <pre><code>{
-  "mcpServers": {
-    "raven": {
-      "command": "npx",
-      "args": ["-y", "raven-mcp"]
-    }
-  }
-}</code></pre>
-
-    <h3 class="reveal">Manual Claude Desktop config</h3>
-    <p>Prefer to edit JSON yourself? Add this to your config file (<strong>macOS:</strong> <code>~/Library/Application Support/Claude/claude_desktop_config.json</code> &middot; <strong>Windows:</strong> <code>%APPDATA%\Claude\claude_desktop_config.json</code>):</p>
-    <pre><code>{
-  "mcpServers": {
-    "raven": {
-      "command": "npx",
-      "args": ["-y", "raven-mcp"]
-    }
-  }
-}</code></pre>
-    <p class="install-note">Requires Node.js 18 or later. The one-click <code>.mcpb</code> above skips this step entirely.</p>
 
     <h3 class="reveal">Install from source</h3>
     <pre><code>git clone https://github.com/rhinocap/raven-mcp.git

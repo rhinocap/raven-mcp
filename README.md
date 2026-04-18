@@ -15,9 +15,6 @@ Raven gives Claude access to a comprehensive design knowledge base:
 
 ## Install
 
-### Claude Desktop — one click
-Download [raven.mcpb](https://ravenmcp.ai/raven.mcpb) and double-click it. Claude Desktop installs Raven automatically — no JSON, no Node, no terminal.
-
 ### Claude Code — one command
 ```bash
 claude mcp add raven -- npx -y raven-mcp
@@ -34,6 +31,9 @@ claude mcp add raven -- npx -y raven-mcp
   }
 }
 ```
+
+### Claude Desktop — one-click extension
+Prefer not to edit JSON? Download [raven.mcpb](https://ravenmcp.ai/raven.mcpb) and double-click it. Claude Desktop installs Raven automatically — no Node, no terminal.
 
 ### From source
 ```bash
