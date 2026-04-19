@@ -11,7 +11,8 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { execSync } from "node:child_process";
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -145,19 +146,39 @@ function openPR(issue, plan, filePath) {
 
   sh(`git checkout -b ${branch}`);
   sh(`git add "${relPath}"`);
-  sh(
-    `git commit -m "${plan.pr_title.replace(/"/g, '\\"')}" -m "Drafted from issue #${issue.number} by the weekly knowledge-PR workflow.${"\n\n"}Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"`,
+
+  // Write commit message via tmpfile so backticks/quotes in plan content
+  // can't be interpreted by the shell.
+  const commitMsgFile = join(tmpdir(), `raven-commit-${issue.number}.txt`);
+  writeFileSync(
+    commitMsgFile,
+    `${plan.pr_title}\n\nDrafted from issue #${issue.number} by the weekly knowledge-PR workflow.\n\nCo-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>\n`,
   );
+  sh(`git commit -F "${commitMsgFile}"`);
+  unlinkSync(commitMsgFile);
+
   sh(`git push -u origin ${branch}`);
 
-  const body = `${plan.pr_description}\n\nSource: closes #${issue.number}\n\n— Drafted by the weekly knowledge-PR workflow. Review the diff, edit if needed, merge when ready.`;
-  sh(
-    `gh pr create --base main --head ${branch} --title "${plan.pr_title.replace(/"/g, '\\"')}" --body ${JSON.stringify(body)}`,
+  // gh pr create with --body-file — avoids shell interpretation of
+  // backticks, $(), ! and other chars that appear naturally in design docs.
+  const bodyFile = join(tmpdir(), `raven-pr-body-${issue.number}.md`);
+  const titleFile = join(tmpdir(), `raven-pr-title-${issue.number}.txt`);
+  writeFileSync(
+    bodyFile,
+    `${plan.pr_description}\n\nCloses #${issue.number}\n\n— Drafted by the weekly knowledge-PR workflow. Review the diff, edit if needed, merge when ready.\n`,
   );
+  writeFileSync(titleFile, plan.pr_title);
+  // gh accepts --title via arg; escape for safety anyway via single-quote wrap + sed-friendly content
+  sh(`gh pr create --base main --head ${branch} --title "$(cat '${titleFile}')" --body-file "${bodyFile}"`);
+  unlinkSync(bodyFile);
+  unlinkSync(titleFile);
 
   // Mark issue so we don't re-draft next week
   sh(`gh issue edit ${issue.number} --add-label drafted`);
-  sh(`gh issue comment ${issue.number} --body "A draft PR was opened on branch \\\`${branch}\\\` — review it there."`);
+  const commentFile = join(tmpdir(), `raven-comment-${issue.number}.md`);
+  writeFileSync(commentFile, `A draft PR was opened on branch \`${branch}\` — review it there.\n`);
+  sh(`gh issue comment ${issue.number} --body-file "${commentFile}"`);
+  unlinkSync(commentFile);
 
   // Back to main for next iteration
   sh(`git checkout main`);
