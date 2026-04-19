@@ -4,6 +4,7 @@
   var PAGE_LINKS = [
     { label: 'Open Source', href: '/#pricing' },
     { label: 'Docs', href: '/docs.html' },
+    { label: 'Changelog', href: '/changelog.html' },
     { label: 'About', href: '/about.html' }
   ];
 
@@ -11,6 +12,7 @@
 
   function isActive(href) {
     if (href === '/docs.html') return path === '/docs.html';
+    if (href === '/changelog.html') return path === '/changelog.html';
     if (href === '/about.html') return path === '/about.html';
     return false;
   }

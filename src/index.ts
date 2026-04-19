@@ -476,12 +476,92 @@ function formatPrinciple(p: Principle, format: string): any {
   return p;
 }
 
+// ── Update check ────────────────────────────────────────────────────
+// On startup, fetch the latest published version from npm and compare against
+// our own. Minor/major bumps get surfaced via stderr + injected into the first
+// tool response. Patch releases stay silent. Never blocks. Never throws. Can
+// be disabled with RAVEN_NO_UPDATE_CHECK=1.
+
+var PKG_VERSION: string = "0.0.0";
+try {
+  var pkgPath = join(PKG_ROOT, "package.json");
+  if (existsSync(pkgPath)) {
+    PKG_VERSION = JSON.parse(readFileSync(pkgPath, "utf-8")).version || "0.0.0";
+  }
+} catch {}
+
+var pendingUpdateNotice: string | null = null;
+var noticeShown: boolean = false;
+
+function cmpVersions(a: string, b: string): "older" | "same" | "newer-patch" | "newer-minor" | "newer-major" {
+  var pa = a.split(".").map(function (n) { return parseInt(n, 10) || 0; });
+  var pb = b.split(".").map(function (n) { return parseInt(n, 10) || 0; });
+  if (pa[0] < pb[0]) return "newer-major";
+  if (pa[0] > pb[0]) return "older";
+  if (pa[1] < pb[1]) return "newer-minor";
+  if (pa[1] > pb[1]) return "older";
+  if (pa[2] < pb[2]) return "newer-patch";
+  if (pa[2] > pb[2]) return "older";
+  return "same";
+}
+
+async function checkForUpdate(): Promise<void> {
+  if (process.env.RAVEN_NO_UPDATE_CHECK === "1") return;
+  try {
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, 3000);
+    var res = await fetch("https://registry.npmjs.org/raven-mcp/latest", {
+      signal: controller.signal,
+      headers: { accept: "application/json" }
+    });
+    clearTimeout(timer);
+    if (!res.ok) return;
+    var body: any = await res.json();
+    var latest = String(body.version || "");
+    if (!latest) return;
+    var cmp = cmpVersions(PKG_VERSION, latest);
+    if (cmp === "newer-minor" || cmp === "newer-major") {
+      var installHint = "npx -y raven-mcp@latest  •  https://ravenmcp.ai/raven.mcpb  •  https://ravenmcp.ai/changelog.html";
+      pendingUpdateNotice =
+        "⬆ Raven update available: you're on v" + PKG_VERSION + ", v" + latest + " is out (" +
+        (cmp === "newer-major" ? "major" : "minor") + " bump). " + installHint;
+      console.error(pendingUpdateNotice);
+    }
+  } catch {
+    // Offline, blocked, rate-limited, anything — stay silent.
+  }
+}
+
 // ── Server ──────────────────────────────────────────────────────────
 
 var server = new McpServer({
   name: "raven-mcp",
-  version: "1.0.0"
+  version: PKG_VERSION
 });
+
+// Wrap every tool handler so the first response after an update is available
+// includes a one-line banner. Shown once per server lifetime.
+var originalTool: any = server.tool.bind(server);
+(server as any).tool = function () {
+  var args = Array.prototype.slice.call(arguments);
+  var handler = args[args.length - 1];
+  if (typeof handler === "function") {
+    args[args.length - 1] = async function () {
+      var result = await handler.apply(null, arguments);
+      if (pendingUpdateNotice && !noticeShown && result && Array.isArray(result.content)) {
+        for (var i = 0; i < result.content.length; i++) {
+          if (result.content[i] && result.content[i].type === "text") {
+            result.content[i].text = pendingUpdateNotice + "\n\n" + result.content[i].text;
+            noticeShown = true;
+            break;
+          }
+        }
+      }
+      return result;
+    };
+  }
+  return originalTool.apply(null, args);
+};
 
 // ── Tool 1: get_principles ──────────────────────────────────────────
 
@@ -1082,7 +1162,7 @@ server.tool(
 
 server.tool(
   "audit_page",
-  "Audit HTML/CSS against Raven's design quality standards. Checks typography (min 13px, weight 400+), accessibility (WCAG touch targets, alt text, contrast), responsive patterns (flexbox over grid, clamp sizing, max-width containers), and style guide compliance (CSS custom properties, no bare hex). Returns pass/fail per check with specific fix instructions.",
+  "Audit HTML/CSS against Raven's design quality standards. Checks typography (min 13px, weight 400+, modular-scale heading ratios, line-height consistency), accessibility (WCAG touch targets, alt text, contrast), responsive patterns (flexbox over grid, clamp sizing, max-width containers), style guide compliance (CSS custom properties, no bare hex), and visual rhythm (4/8px spacing grid, tight spacing scale, palette size). Returns pass/fail per check with specific fix instructions.",
   {
     html: z.string().describe("The full HTML content of the page to audit"),
     strict: z.boolean().optional().describe("Strict mode — also flags warnings as failures. Default: false")
@@ -1161,6 +1241,91 @@ server.tool(
     }
     if (bareHexCount <= 5) passes.push("Minimal bare hex colors (" + bareHexCount + ")");
     else issues.push({ severity: "warning", rule: "tokens/no-bare-hex", message: bareHexCount + " bare hex color values found outside custom property definitions", fix: "Define colors as --color-name: #hex in :root, then use var(--color-name) throughout" });
+
+    // ── Rhythm & scale checks
+    var spacingRegex = /\b(?:gap|padding(?:-(?:top|right|bottom|left|inline|block))?|margin(?:-(?:top|right|bottom|left|inline|block))?)\s*:\s*([^;}\n]+)/g;
+    var spacingValues: number[] = [];
+    var spacingMatch;
+    while ((spacingMatch = spacingRegex.exec(html)) !== null) {
+      var spacingPx = spacingMatch[1].match(/-?\d+(?:\.\d+)?\s*px/g) || [];
+      for (var sv of spacingPx) {
+        var svNum = parseFloat(sv);
+        if (!isNaN(svNum) && svNum > 0) spacingValues.push(svNum);
+      }
+    }
+
+    if (spacingValues.length >= 3) {
+      var onGrid4 = spacingValues.filter(function(n) { return n % 4 === 0; }).length;
+      var onGrid8 = spacingValues.filter(function(n) { return n % 8 === 0; }).length;
+      var bestGrid = onGrid8 >= onGrid4 * 0.7 ? { base: 8, count: onGrid8 } : { base: 4, count: onGrid4 };
+      var gridPct = bestGrid.count / spacingValues.length;
+      if (gridPct >= 0.9) passes.push("Spacing values on " + bestGrid.base + "px base grid (" + Math.round(gridPct * 100) + "% of " + spacingValues.length + ")");
+      else issues.push({ severity: "warning", rule: "spacing/base-unit", message: "Only " + Math.round(gridPct * 100) + "% of spacing values on a " + bestGrid.base + "px grid (" + spacingValues.length + " sampled)", fix: "Snap gap/padding/margin values to multiples of 4 or 8. Define as tokens: --space-1:4px, --space-2:8px, --space-3:12px, --space-4:16px, --space-5:24px, --space-6:32px, --space-7:48px." });
+
+      var uniqueSpacings = Array.from(new Set(spacingValues)).sort(function(a, b) { return a - b; });
+      if (uniqueSpacings.length <= 7) passes.push("Spacing scale is tight (" + uniqueSpacings.length + " unique values)");
+      else issues.push({ severity: "warning", rule: "spacing/scale-count", message: uniqueSpacings.length + " unique spacing values found: " + uniqueSpacings.join(", ") + "px — visual rhythm breaks down past ~7", fix: "Consolidate to a 5–7 token scale (e.g. 4, 8, 12, 16, 24, 32, 48). Round ad-hoc values to the nearest token." });
+    }
+
+    // ── Modular scale check — heading font sizes
+    var headingSizes: { tag: string; size: number }[] = [];
+    var headingTags = ["h1", "h2", "h3", "h4", "h5", "h6"];
+    for (var ht of headingTags) {
+      var hre = new RegExp("(?:^|[\\s,}])" + ht + "\\b[^{]*\\{[^}]*font-size\\s*:\\s*(\\d+(?:\\.\\d+)?)\\s*px", "i");
+      var hm = html.match(hre);
+      if (hm) headingSizes.push({ tag: ht, size: parseFloat(hm[1]) });
+    }
+    if (headingSizes.length >= 2) {
+      var hRatios: number[] = [];
+      for (var hi = 1; hi < headingSizes.length; hi++) {
+        hRatios.push(headingSizes[hi - 1].size / headingSizes[hi].size);
+      }
+      var standardScales = [
+        { name: "minor second (1.067)", v: 1.067 },
+        { name: "major second (1.125)", v: 1.125 },
+        { name: "minor third (1.2)", v: 1.2 },
+        { name: "major third (1.25)", v: 1.25 },
+        { name: "perfect fourth (1.333)", v: 1.333 },
+        { name: "augmented fourth (1.414)", v: 1.414 },
+        { name: "perfect fifth (1.5)", v: 1.5 },
+        { name: "golden ratio (1.618)", v: 1.618 }
+      ];
+      var bestScale = standardScales[0];
+      var bestDev = Infinity;
+      for (var ss of standardScales) {
+        var dev = 0;
+        for (var r of hRatios) dev += Math.abs(r - ss.v) / ss.v;
+        dev = dev / hRatios.length;
+        if (dev < bestDev) { bestDev = dev; bestScale = ss; }
+      }
+      if (bestDev <= 0.05) passes.push("Heading scale matches " + bestScale.name + " (avg deviation " + (bestDev * 100).toFixed(1) + "%)");
+      else issues.push({ severity: "warning", rule: "typography/modular-scale", message: "Heading sizes don't follow a consistent modular scale. Closest: " + bestScale.name + ", avg deviation " + (bestDev * 100).toFixed(1) + "%. Ratios: " + hRatios.map(function(r) { return r.toFixed(2); }).join(", "), fix: "Pick one ratio (1.25 major-third is a safe default) and derive h1→h6 from a base size. Example with base 16px × 1.25^n: 16, 20, 25, 31, 39, 49." });
+    }
+
+    // ── Line-height consistency
+    var lhMatches = html.match(/line-height\s*:\s*(\d+(?:\.\d+)?)(?!px)/g) || [];
+    var lhValues = lhMatches
+      .map(function(m) { return parseFloat(m.replace(/line-height\s*:\s*/, "")); })
+      .filter(function(n) { return n > 0 && n < 3; });
+    var uniqueLh = Array.from(new Set(lhValues));
+    if (uniqueLh.length > 0) {
+      if (uniqueLh.length <= 4) passes.push("Line-height scale is tight (" + uniqueLh.length + " unique values)");
+      else issues.push({ severity: "warning", rule: "typography/line-height-scale", message: uniqueLh.length + " unique line-height values: " + uniqueLh.map(function(n) { return n.toFixed(2); }).join(", "), fix: "Use at most 3–4 line-heights: tight (~1.1) for display, normal (1.4–1.5) for body, relaxed (1.6–1.7) for long-form." });
+    }
+
+    // ── Palette size
+    var allHex = html.match(/#[0-9a-fA-F]{3,8}(?![-\w])/g) || [];
+    var normalizedHex = allHex.map(function(h) {
+      var hh = h.toLowerCase();
+      if (hh.length === 4) hh = "#" + hh[1] + hh[1] + hh[2] + hh[2] + hh[3] + hh[3];
+      if (hh.length === 9) hh = hh.substring(0, 7);
+      return hh;
+    });
+    var uniqueHex = Array.from(new Set(normalizedHex));
+    if (uniqueHex.length > 0) {
+      if (uniqueHex.length <= 10) passes.push("Color palette is tight (" + uniqueHex.length + " distinct colors)");
+      else issues.push({ severity: "warning", rule: "color/palette-size", message: uniqueHex.length + " distinct hex colors found — hierarchy breaks down past ~10", fix: "Consolidate to 6–10 colors: 1 primary, 1 accent, 4 neutrals, plus semantic (success/warning/error). Reuse with opacity/alpha for variation instead of adding new hues." });
+    }
 
     // ── Touch target check
     var btnPadding = html.match(/\.btn[^{]*\{[^}]*padding\s*:\s*(\d+)px/g) || [];
@@ -1782,6 +1947,179 @@ server.tool(
   }
 );
 
+// ── Tool 14: audit_layout ──────────────────────────────────────────
+//
+// Evaluates visual rhythm from *rendered* geometry — the things audit_page
+// can't see from source alone: alignment, gap consistency across siblings,
+// and horizontal optical balance. Stateless: caller runs a snippet in
+// DevTools (or a headless browser) to collect bounding rects, then passes
+// them back here for scoring.
+
+server.tool(
+  "audit_layout",
+  "Evaluate visual rhythm from a rendered page's geometry. Call with no arguments to get a DevTools snippet to paste into your page — it prints {elements, viewport} JSON. Call again with that JSON to get alignment, gap-rhythm, and optical-balance scores. This is the complement to audit_page for things only visible once rendered.",
+  {
+    elements: z.array(z.object({
+      selector: z.string(),
+      rect: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
+      computed: z.object({
+        padding: z.string().optional(),
+        margin: z.string().optional(),
+        gap: z.string().optional(),
+        fontSize: z.string().optional(),
+        color: z.string().optional(),
+        background: z.string().optional()
+      }).optional()
+    })).optional().describe("Array of element rects captured from the rendered page via the DevTools snippet"),
+    viewport: z.object({ w: z.number(), h: z.number() }).optional().describe("Viewport dimensions {w,h} at capture time")
+  },
+  async ({ elements, viewport }) => {
+    if (!elements || !viewport) {
+      var snippet = "// Paste into DevTools console on the page you want to audit.\n" +
+        "// Copies {elements, viewport} JSON to clipboard — pass it back to audit_layout.\n" +
+        "(() => {\n" +
+        "  const pick = el => {\n" +
+        "    const r = el.getBoundingClientRect();\n" +
+        "    const cs = getComputedStyle(el);\n" +
+        "    const cls = (el.className && typeof el.className === 'string') ? el.className.trim().split(/\\s+/).slice(0,2).join('.') : '';\n" +
+        "    const sel = el.id ? '#' + el.id : el.tagName.toLowerCase() + (cls ? '.' + cls : '');\n" +
+        "    return {\n" +
+        "      selector: sel,\n" +
+        "      rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },\n" +
+        "      computed: { padding: cs.padding, margin: cs.margin, gap: cs.gap, fontSize: cs.fontSize, color: cs.color, background: cs.backgroundColor }\n" +
+        "    };\n" +
+        "  };\n" +
+        "  const all = [...document.querySelectorAll('body *')]\n" +
+        "    .filter(el => { const r = el.getBoundingClientRect(); return r.width > 4 && r.height > 4 && r.width < 4000 && r.height < 4000; })\n" +
+        "    .slice(0, 400)\n" +
+        "    .map(pick);\n" +
+        "  const out = { elements: all, viewport: { w: innerWidth, h: innerHeight } };\n" +
+        "  try { copy(JSON.stringify(out)); console.log('✓ copied to clipboard — ' + all.length + ' elements'); } catch (_) { console.log(JSON.stringify(out)); }\n" +
+        "  return out;\n" +
+        "})();";
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            instructions: "Paste the snippet below into DevTools console on your rendered page. It copies a {elements, viewport} JSON blob to your clipboard. Call audit_layout again with that JSON as arguments.",
+            snippet: snippet,
+            example_call: "audit_layout({ elements: [...], viewport: { w: 1440, h: 900 } })"
+          }, null, 2)
+        }]
+      };
+    }
+
+    var rects = elements.map(function(e) { return e.rect; });
+
+    // ── Alignment: cluster left edges (x) within 2px
+    var clusterTol = 2;
+    var colCounts = new Map<number, number>();
+    for (var r of rects) {
+      var matched: number | null = null;
+      for (var c of colCounts.keys()) {
+        if (Math.abs(r.x - c) <= clusterTol) { matched = c; break; }
+      }
+      if (matched !== null) colCounts.set(matched, (colCounts.get(matched) || 0) + 1);
+      else colCounts.set(r.x, 1);
+    }
+    var sharedCols = Array.from(colCounts.values()).filter(function(n) { return n >= 2; }).length;
+    var singletonCols = Array.from(colCounts.values()).filter(function(n) { return n === 1; }).length;
+    var alignedElements = 0;
+    colCounts.forEach(function(n) { if (n >= 2) alignedElements += n; });
+    var alignmentRatio = rects.length > 0 ? alignedElements / rects.length : 0;
+
+    // ── Gap rhythm: vertical gaps between horizontally-overlapping siblings
+    var vGaps: number[] = [];
+    var sortedByY = rects.slice().sort(function(a, b) { return a.y - b.y; });
+    for (var i = 1; i < sortedByY.length; i++) {
+      var prev = sortedByY[i - 1];
+      var cur = sortedByY[i];
+      var xOverlap = Math.min(prev.x + prev.w, cur.x + cur.w) - Math.max(prev.x, cur.x);
+      if (xOverlap > 0) {
+        var gap = cur.y - (prev.y + prev.h);
+        if (gap > 0 && gap < 200) vGaps.push(gap);
+      }
+    }
+    var gapMedian = 0, gapStdev = 0, gapCV = 0;
+    if (vGaps.length >= 3) {
+      var sortedGaps = vGaps.slice().sort(function(a, b) { return a - b; });
+      gapMedian = sortedGaps[Math.floor(sortedGaps.length / 2)];
+      var gapMean = vGaps.reduce(function(a, b) { return a + b; }, 0) / vGaps.length;
+      var gapVar = vGaps.reduce(function(a, b) { return a + (b - gapMean) * (b - gapMean); }, 0) / vGaps.length;
+      gapStdev = Math.sqrt(gapVar);
+      gapCV = gapMean > 0 ? gapStdev / gapMean : 0;
+    }
+
+    // ── Optical balance: visual weight (area) left vs right of content-bounds midline
+    // Measure relative to content's own bounding box, not the viewport — otherwise any
+    // intentionally left-anchored content column on a wide viewport registers as "skewed."
+    var contentMinX = Infinity, contentMaxX = -Infinity;
+    for (var rb of rects) {
+      if (rb.x < contentMinX) contentMinX = rb.x;
+      if (rb.x + rb.w > contentMaxX) contentMaxX = rb.x + rb.w;
+    }
+    var contentMid = (contentMinX + contentMaxX) / 2;
+    var contentHalfWidth = (contentMaxX - contentMinX) / 2;
+    // Torque = area × distance from midline. Normalized against the maximum possible
+    // net torque (if all mass were at one extreme edge) so that perfectly centered
+    // elements contribute 0 and the score reflects actual imbalance fraction.
+    var leftTorque = 0, rightTorque = 0, totalArea = 0;
+    for (var r2 of rects) {
+      var area = r2.w * r2.h;
+      var cx = r2.x + r2.w / 2;
+      var dist = Math.abs(cx - contentMid);
+      totalArea += area;
+      if (cx < contentMid) leftTorque += area * dist;
+      else if (cx > contentMid) rightTorque += area * dist;
+    }
+    var maxPossibleTorque = totalArea * contentHalfWidth;
+    var netTorque = Math.abs(leftTorque - rightTorque);
+    var balanceSkew = maxPossibleTorque > 0 ? netTorque / maxPossibleTorque : 0;
+    var leftWeight = Math.round(leftTorque);
+    var rightWeight = Math.round(rightTorque);
+
+    var findings: Array<{ check: string; status: "pass" | "warn"; message: string; fix?: string }> = [];
+
+    if (alignmentRatio >= 0.6) {
+      findings.push({ check: "alignment", status: "pass", message: Math.round(alignmentRatio * 100) + "% of elements share a left edge with another (" + sharedCols + " alignment column" + (sharedCols === 1 ? "" : "s") + ", " + singletonCols + " one-off" + (singletonCols === 1 ? "" : "s") + ")" });
+    } else {
+      findings.push({ check: "alignment", status: "warn", message: "Weak alignment — only " + Math.round(alignmentRatio * 100) + "% of elements align with any sibling (" + singletonCols + " unique left edges across " + rects.length + " elements). Elements should live on a small number of alignment columns.", fix: "Wrap siblings in a flex/grid parent and let the parent dictate alignment. Remove ad-hoc left margins that push children off the grid." });
+    }
+
+    if (vGaps.length >= 3) {
+      if (gapCV <= 0.5) {
+        findings.push({ check: "gap-rhythm", status: "pass", message: "Vertical gaps are consistent (median " + Math.round(gapMedian) + "px, CV " + gapCV.toFixed(2) + " across " + vGaps.length + " pairs)" });
+      } else {
+        findings.push({ check: "gap-rhythm", status: "warn", message: "Inconsistent vertical rhythm — gap coefficient of variation " + gapCV.toFixed(2) + " (median " + Math.round(gapMedian) + "px, σ " + Math.round(gapStdev) + "px across " + vGaps.length + " pairs)", fix: "Siblings should share one gap value. Move spacing from per-child margin-top/bottom to a single gap: on the parent flex/grid container." });
+      }
+    } else {
+      findings.push({ check: "gap-rhythm", status: "pass", message: "Not enough vertical sibling pairs to score (" + vGaps.length + " found)" });
+    }
+
+    if (balanceSkew <= 0.2) {
+      findings.push({ check: "optical-balance", status: "pass", message: "Horizontal weight is balanced (skew " + Math.round(balanceSkew * 100) + "%)" });
+    } else {
+      findings.push({ check: "optical-balance", status: "warn", message: "Layout is " + (leftWeight > rightWeight ? "left-heavy" : "right-heavy") + " — visual weight skewed by " + Math.round(balanceSkew * 100) + "%", fix: balanceSkew > 0.4 ? "Redistribute dense blocks (images, tables) toward center, or add counterweight on the lighter side." : "Minor imbalance — review whether it's intentional asymmetry or accidental." });
+    }
+
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({
+          elements_analyzed: rects.length,
+          viewport: viewport,
+          findings: findings,
+          metrics: {
+            alignment: { total_columns: colCounts.size, shared_columns: sharedCols, singleton_columns: singletonCols, aligned_ratio: Number(alignmentRatio.toFixed(2)) },
+            gap_rhythm: vGaps.length >= 3 ? { samples: vGaps.length, median_px: Math.round(gapMedian), stdev_px: Math.round(gapStdev), coef_variation: Number(gapCV.toFixed(2)) } : { samples: vGaps.length, note: "not enough horizontally-overlapping vertical sibling pairs" },
+            balance: { left_weight: Math.round(leftWeight), right_weight: Math.round(rightWeight), skew_pct: Math.round(balanceSkew * 100) }
+          }
+        }, null, 2)
+      }]
+    };
+  }
+);
+
 // ── Registration ───────────────────────────────────────────────────
 
 var REGISTER_API = "https://ravenmcp.ai/api/welcome";
@@ -1833,7 +2171,9 @@ server.tool(
 async function main() {
   var transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("raven-mcp server running on stdio — design intelligence ready");
+  console.error("raven-mcp v" + PKG_VERSION + " running on stdio — design intelligence ready");
+  // Non-blocking: kicks off, silently no-ops on any failure.
+  checkForUpdate();
 }
 
 main().catch(err => {

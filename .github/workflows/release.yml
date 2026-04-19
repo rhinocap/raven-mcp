@@ -1,0 +1,105 @@
+name: Weekly release
+
+on:
+  schedule:
+    # Fridays 17:00 UTC — ship window
+    - cron: "0 17 * * 5"
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump (auto | patch | minor | major)"
+        required: false
+        default: "auto"
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.release.outputs.released }}
+      version: ${{ steps.release.outputs.version }}
+      bump: ${{ steps.release.outputs.bump }}
+      notes: ${{ steps.release.outputs.notes }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Configure git identity
+        run: |
+          git config user.name "raven-bot"
+          git config user.email "raven-bot@users.noreply.github.com"
+
+      - name: Detect release scope
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_BUMP: ${{ inputs.bump }}
+        run: node scripts/detect-release-scope.mjs
+
+      - name: Cut release
+        if: steps.release.outputs.released == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          bash scripts/release.sh "${{ steps.release.outputs.bump }}"
+
+      - name: Create GitHub Release
+        if: steps.release.outputs.released == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s\n' "${{ steps.release.outputs.notes }}" > /tmp/release-notes.md
+          gh release create "v${{ steps.release.outputs.version }}" \
+            --title "v${{ steps.release.outputs.version }}" \
+            --notes-file /tmp/release-notes.md \
+            site/raven.mcpb
+
+      - name: Rebuild changelog page
+        if: steps.release.outputs.released == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/build-changelog.mjs
+
+      - name: Commit changelog + push
+        if: steps.release.outputs.released == 'true'
+        run: |
+          git add site/changelog.html
+          if ! git diff --cached --quiet; then
+            git commit -m "Update changelog for v${{ steps.release.outputs.version }}"
+            git push
+          fi
+
+  notify:
+    needs: release
+    if: needs.release.outputs.released == 'true' && needs.release.outputs.bump != 'patch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+      - run: npm ci
+      - name: Send release email
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_AUDIENCE_ID: ${{ secrets.RESEND_AUDIENCE_ID }}
+          RELEASE_VERSION: ${{ needs.release.outputs.version }}
+          RELEASE_NOTES: ${{ needs.release.outputs.notes }}
+          RELEASE_BUMP: ${{ needs.release.outputs.bump }}
+        run: node scripts/notify-release.mjs
