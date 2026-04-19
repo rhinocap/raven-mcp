@@ -51,6 +51,7 @@
     { "name": "audit_page", "description": "Audit HTML/CSS against Raven's design quality standards" },
     { "name": "generate_design_system", "description": "Generate a complete custom design system from a brand color" },
     { "name": "audit_layout", "description": "Evaluate visual rhythm, alignment, and optical balance of a rendered page" },
+    { "name": "raven_reflect", "description": "Summarize your local Raven usage log — tool counts, recurring audit warnings, and likely knowledge gaps. Reads only the local log file; never fetches." },
     { "name": "raven_register", "description": "Register to receive design updates and send feedback" }
   ],
   "compatibility": {

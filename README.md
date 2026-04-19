@@ -55,6 +55,23 @@ cd raven-mcp && npm install && npm run build
 | `list_design_systems` | Browse available design systems |
 | `get_design_system` | Get tokens for a specific design system |
 | `compose_system` | Mix tokens from different systems |
+| `get_brand_system` | Get a full system styled like a well-known brand |
+| `audit_page` | Audit HTML/CSS against Raven's quality standards |
+| `audit_layout` | Evaluate visual rhythm, alignment, and optical balance |
+| `generate_design_system` | Generate a custom design system from a brand color |
+| `raven_reflect` | Summarize your local Raven usage log to find patterns + gaps |
+
+## Learning loop
+
+Raven keeps a small **local-only** log of how you use it so you (and Claude) can spot which patterns you build most often and which gaps show up again and again.
+
+- **Location:** `~/.raven/usage.jsonl` (override with `RAVEN_USAGE_LOG=/path`).
+- **What's written:** tool name, timestamp, elapsed ms, and a tiny insight object — audit score/warning rule names, pattern `type`, brand company name, search layer. **Never the HTML you audit, never prompt text, never brand copy.**
+- **What's never written:** raw page bodies, client content, your work product.
+- **Disable entirely:** `RAVEN_NO_USAGE_LOG=1`.
+- **Reflect:** ask Claude *"what have I been using Raven for?"* and it will call `raven_reflect`, which reads the log locally and summarizes the last N days — most-used tools, recurring audit warnings (likely knowledge gaps), patterns you request most, design systems you reach for.
+
+Nothing is sent to a remote server. If a recurring gap is worth turning into a new Raven principle or pattern, you file an issue by hand — the automated pipeline at [github.com/rhinocap/raven-mcp](https://github.com/rhinocap/raven-mcp) handles it from there.
 
 ## Development
 

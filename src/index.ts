@@ -532,6 +532,142 @@ async function checkForUpdate(): Promise<void> {
   }
 }
 
+// ── Usage log ───────────────────────────────────────────────────────
+// Local-only, insight-only passive capture of every tool call so Andrew can
+// ask Raven "what have I been using you for?" and get real signal back.
+//
+// What gets written: tool name, timestamp, elapsed ms, a small summary of the
+// INPUT (no raw content), and the INSIGHT from the output (audit score, rule
+// names that fired, pattern IDs returned, etc).
+//
+// What NEVER gets written: HTML bodies, prompt text, brand names, client copy,
+// anything that could leak proprietary work.
+//
+// Location: $RAVEN_USAGE_LOG or ~/.raven/usage.jsonl. Opt out: RAVEN_NO_USAGE_LOG=1.
+
+import { appendFileSync, mkdirSync, readFileSync as fsReadFile, existsSync as fsExists, statSync } from "fs";
+import { homedir } from "os";
+
+var USAGE_LOG_ENABLED = process.env.RAVEN_NO_USAGE_LOG !== "1";
+var USAGE_LOG_PATH = process.env.RAVEN_USAGE_LOG || join(homedir(), ".raven", "usage.jsonl");
+
+function safeStr(s: any, max: number = 64): string {
+  if (typeof s !== "string") return "";
+  var t = s.trim();
+  if (t.length > max) t = t.slice(0, max);
+  return t.replace(/\s+/g, " ");
+}
+
+function extractInsight(toolName: string, input: any, output: any): any {
+  var insight: any = {};
+  try {
+    switch (toolName) {
+      case "audit_page": {
+        var text = output?.content?.[0]?.text || "";
+        var parsed = JSON.parse(text);
+        insight = {
+          score: parsed.score,
+          grade: parsed.grade,
+          warnings: (parsed.warnings || []).map((w: any) => w.rule),
+          errors: (parsed.errors || []).map((e: any) => e.rule)
+        };
+        break;
+      }
+      case "audit_layout": {
+        var text2 = output?.content?.[0]?.text || "";
+        var p2 = JSON.parse(text2);
+        insight = {
+          alignment: p2.alignment?.score,
+          gap_rhythm: p2.gap_rhythm?.score,
+          optical_balance: p2.optical_balance?.score
+        };
+        break;
+      }
+      case "evaluate_design": {
+        insight = { goals: input?.goals || [] };
+        break;
+      }
+      case "get_principles":
+        insight = { category: input?.category || "auto", format: input?.format };
+        break;
+      case "get_pattern":
+      case "get_business_strategy":
+      case "get_checklist":
+        insight = { type: input?.type };
+        break;
+      case "search_knowledge":
+        insight = { layer: input?.layer || "all", query_len: (input?.query || "").length };
+        break;
+      case "get_d4d_framework":
+        insight = { stage: input?.stage || "full" };
+        break;
+      case "list_design_systems":
+        insight = { category: input?.category, search: !!input?.search };
+        break;
+      case "get_design_system":
+        insight = { system: input?.id, format: input?.format };
+        break;
+      case "compose_system":
+        insight = { parts: (input?.compositions || []).length };
+        break;
+      case "get_brand_system":
+        insight = { company: safeStr(input?.company, 32), mode: input?.mode };
+        break;
+      case "generate_design_system":
+        insight = { style: input?.style, has_brand_color: !!input?.brand_color, format: input?.format };
+        break;
+      case "raven_register":
+      case "raven_reflect":
+        insight = { action: toolName };
+        break;
+      default:
+        insight = {};
+    }
+  } catch {
+    insight = { extract_failed: true };
+  }
+  return insight;
+}
+
+function logUsage(toolName: string, input: any, output: any, elapsedMs: number): void {
+  if (!USAGE_LOG_ENABLED) return;
+  try {
+    var entry = {
+      t: new Date().toISOString(),
+      tool: toolName,
+      ms: elapsedMs,
+      insight: extractInsight(toolName, input, output)
+    };
+    mkdirSync(dirname(USAGE_LOG_PATH), { recursive: true });
+    appendFileSync(USAGE_LOG_PATH, JSON.stringify(entry) + "\n", "utf-8");
+  } catch {
+    // Never let logging disrupt a real tool call.
+  }
+}
+
+function readUsageSince(daysBack: number): any[] {
+  if (!fsExists(USAGE_LOG_PATH)) return [];
+  try {
+    var cutoff = Date.now() - daysBack * 24 * 60 * 60 * 1000;
+    var size = statSync(USAGE_LOG_PATH).size;
+    // Cap read at 5 MB to stay cheap. Log grows slowly enough this is a decade.
+    var start = Math.max(0, size - 5 * 1024 * 1024);
+    var slice = fsReadFile(USAGE_LOG_PATH, "utf-8");
+    if (start > 0) slice = slice.slice(slice.indexOf("\n", start) + 1);
+    var out: any[] = [];
+    for (var line of slice.split("\n")) {
+      if (!line) continue;
+      try {
+        var e = JSON.parse(line);
+        if (new Date(e.t).getTime() >= cutoff) out.push(e);
+      } catch {}
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 // ── Server ──────────────────────────────────────────────────────────
 
 var server = new McpServer({
@@ -539,15 +675,19 @@ var server = new McpServer({
   version: PKG_VERSION
 });
 
-// Wrap every tool handler so the first response after an update is available
-// includes a one-line banner. Shown once per server lifetime.
+// Wrap every tool handler: log the call to the local usage log, then inject
+// the one-time update banner if one is pending.
 var originalTool: any = server.tool.bind(server);
 (server as any).tool = function () {
   var args = Array.prototype.slice.call(arguments);
+  var toolName: string = args[0];
   var handler = args[args.length - 1];
   if (typeof handler === "function") {
     args[args.length - 1] = async function () {
+      var start = Date.now();
+      var input = arguments[0];
       var result = await handler.apply(null, arguments);
+      logUsage(toolName, input, result, Date.now() - start);
       if (pendingUpdateNotice && !noticeShown && result && Array.isArray(result.content)) {
         for (var i = 0; i < result.content.length; i++) {
           if (result.content[i] && result.content[i].type === "text") {
@@ -2115,6 +2255,89 @@ server.tool(
             balance: { left_weight: Math.round(leftWeight), right_weight: Math.round(rightWeight), skew_pct: Math.round(balanceSkew * 100) }
           }
         }, null, 2)
+      }]
+    };
+  }
+);
+
+// ── Reflection ─────────────────────────────────────────────────────
+// Summarize the local usage log so the user (or Claude acting on their
+// behalf) can see what Raven is being asked to do, and what it's often
+// missing. Feeds the "Raven gets smarter from how you use it" loop —
+// nothing leaves the machine unless the user chooses to share.
+
+server.tool(
+  "raven_reflect",
+  "Summarize how Raven has been used on this machine over the last N days. Reports which tools are called most, which audit warnings fire repeatedly (→ likely gaps in Raven's knowledge), which patterns and design systems you look up, and which companies you ask for brand styles. Call this when the user asks 'what have I been building with Raven' or 'what's Raven missing'. All data is read from a local log ($RAVEN_USAGE_LOG or ~/.raven/usage.jsonl) — nothing is fetched over the network.",
+  {
+    days: z.number().int().min(1).max(365).optional().describe("How many days back to include. Default: 30.")
+  },
+  async function (params: { days?: number }) {
+    if (!USAGE_LOG_ENABLED) {
+      return { content: [{ type: "text" as const, text: "Usage logging is disabled on this machine (RAVEN_NO_USAGE_LOG=1). No data to reflect on." }] };
+    }
+    var days = params.days || 30;
+    var entries = readUsageSince(days);
+    if (entries.length === 0) {
+      return { content: [{ type: "text" as const, text: "No usage logged in the last " + days + " days. Log path: " + USAGE_LOG_PATH }] };
+    }
+
+    var toolCounts: Record<string, number> = {};
+    var warningCounts: Record<string, number> = {};
+    var patternTypes: Record<string, number> = {};
+    var systemsLookedUp: Record<string, number> = {};
+    var brandsLookedUp: Record<string, number> = {};
+    var searchLayers: Record<string, number> = {};
+    var auditScores: number[] = [];
+
+    for (var e of entries) {
+      toolCounts[e.tool] = (toolCounts[e.tool] || 0) + 1;
+      var ins = e.insight || {};
+      if (Array.isArray(ins.warnings)) {
+        for (var w of ins.warnings) warningCounts[w] = (warningCounts[w] || 0) + 1;
+      }
+      if (typeof ins.score === "number") auditScores.push(ins.score);
+      if (e.tool === "get_pattern" && ins.type) patternTypes[ins.type] = (patternTypes[ins.type] || 0) + 1;
+      if (e.tool === "get_design_system" && ins.system) systemsLookedUp[ins.system] = (systemsLookedUp[ins.system] || 0) + 1;
+      if (e.tool === "get_brand_system" && ins.company) brandsLookedUp[ins.company] = (brandsLookedUp[ins.company] || 0) + 1;
+      if (e.tool === "search_knowledge" && ins.layer) searchLayers[ins.layer] = (searchLayers[ins.layer] || 0) + 1;
+    }
+
+    function topN<T extends string | number>(counts: Record<T, number>, n: number): Array<[T, number]> {
+      return Object.entries(counts).sort((a, b) => (b[1] as number) - (a[1] as number)).slice(0, n) as Array<[T, number]>;
+    }
+
+    var avgScore = auditScores.length ? Math.round(auditScores.reduce((a, b) => a + b, 0) / auditScores.length) : null;
+
+    var firstT = entries[0].t;
+    var lastT = entries[entries.length - 1].t;
+
+    var summary = {
+      window: { days: days, first_call: firstT, last_call: lastT, total_calls: entries.length },
+      tool_usage: Object.fromEntries(topN(toolCounts, 20)),
+      audit: {
+        calls: auditScores.length,
+        avg_score: avgScore,
+        recurring_warnings: Object.fromEntries(topN(warningCounts, 15))
+      },
+      patterns_requested: Object.fromEntries(topN(patternTypes, 10)),
+      design_systems_used: Object.fromEntries(topN(systemsLookedUp, 10)),
+      brand_styles_requested: Object.fromEntries(topN(brandsLookedUp, 10)),
+      search_layers: Object.fromEntries(topN(searchLayers, 5)),
+      log_location: USAGE_LOG_PATH,
+      gap_hints: (topN(warningCounts, 5) as Array<[string, number]>)
+        .filter(([, count]) => count >= Math.max(3, Math.floor(entries.length * 0.05)))
+        .map(([rule, count]) => ({
+          rule: rule,
+          fired_times: count,
+          interpretation: "Fires often across your work — may indicate a pattern or principle missing from Raven's knowledge base. Consider filing a knowledge-request issue on GitHub."
+        }))
+    };
+
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(summary, null, 2)
       }]
     };
   }
