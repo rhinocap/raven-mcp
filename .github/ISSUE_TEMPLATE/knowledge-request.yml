@@ -1,0 +1,59 @@
+name: Knowledge request
+description: Propose a new design principle, UI pattern, or business strategy for Raven to know about.
+title: "[knowledge] "
+labels: ["knowledge-request"]
+body:
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Layer
+      description: Which knowledge layer does this belong in?
+      options:
+        - principles (heuristics, laws, accessibility rules, typography, color)
+        - patterns (signup, pricing, nav, forms, landing, dashboard, modals, CTAs, etc.)
+        - business (monetization, retention, onboarding, growth, metrics)
+    validations:
+      required: true
+
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      description: A short, specific name — e.g. "Doherty Threshold" or "Empty state CTAs".
+      placeholder: "e.g. Fitts's Law for touch targets"
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What should Raven know?
+      description: A 2–5 sentence summary. Describe the principle or pattern as if teaching it.
+      placeholder: "Users can't accurately tap targets smaller than 44px. On mobile..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: dos_donts
+    attributes:
+      label: Do / Don't (optional, for patterns)
+      description: Bullet lists work well. Raven uses these directly in `do[]` and `dont[]` arrays.
+      placeholder: |
+        Do:
+        - ...
+        Don't:
+        - ...
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence & sources (optional)
+      description: Research links, studies, or industry data that support this. Raven prefers quantified evidence ("conversion lifts 22%") over adjectives.
+      placeholder: "NN/g, Baymard, specific study URLs..."
+
+  - type: textarea
+    id: applies_to
+    attributes:
+      label: When does this apply?
+      description: Tags / contexts where this principle or pattern is relevant.
+      placeholder: "mobile, forms, checkout, first-run onboarding..."
