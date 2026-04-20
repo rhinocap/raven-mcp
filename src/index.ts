@@ -668,6 +668,66 @@ function readUsageSince(daysBack: number): any[] {
   }
 }
 
+// ── Daily digest ────────────────────────────────────────────────────
+// Once per calendar day (user's local time), the first tool response gets a
+// one-line digest of yesterday's usage prepended. Skipped if yesterday had
+// no activity, if logging is off, or if RAVEN_NO_DAILY_DIGEST=1.
+
+var pendingDailyDigest: string | null = null;
+var digestComputedForDay: string | null = null;
+
+function localDateKey(d: Date): string {
+  return d.getFullYear() + "-" +
+    String(d.getMonth() + 1).padStart(2, "0") + "-" +
+    String(d.getDate()).padStart(2, "0");
+}
+
+function maybeComputeDailyDigest(): void {
+  if (!USAGE_LOG_ENABLED) return;
+  if (process.env.RAVEN_NO_DAILY_DIGEST === "1") return;
+  var todayKey = localDateKey(new Date());
+  if (digestComputedForDay === todayKey) return;
+  digestComputedForDay = todayKey; // guard even if we decide not to emit
+  try {
+    var now = new Date();
+    var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    var startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
+    var yesterdayKey = localDateKey(new Date(startOfYesterday));
+
+    var entries = readUsageSince(2).filter(function (e: any) {
+      var t = new Date(e.t).getTime();
+      return t >= startOfYesterday && t < startOfToday;
+    });
+    if (entries.length === 0) return;
+
+    var toolCounts: Record<string, number> = {};
+    var warningCounts: Record<string, number> = {};
+    for (var e of entries) {
+      toolCounts[e.tool] = (toolCounts[e.tool] || 0) + 1;
+      var ins = e.insight || {};
+      if (Array.isArray(ins.warnings)) {
+        for (var w of ins.warnings) warningCounts[w] = (warningCounts[w] || 0) + 1;
+      }
+    }
+    var topTool = Object.entries(toolCounts).sort(function (a: any, b: any) {
+      return b[1] - a[1];
+    })[0];
+    var topWarnings = Object.entries(warningCounts)
+      .sort(function (a: any, b: any) { return b[1] - a[1]; })
+      .slice(0, 3)
+      .map(function (w) { return w[0] + " (" + w[1] + "×)"; });
+
+    var parts: string[] = [];
+    parts.push("☕ Raven daily digest — " + yesterdayKey + ": " + entries.length + " calls");
+    if (topTool) parts.push("top tool " + topTool[0] + " (" + topTool[1] + ")");
+    if (topWarnings.length) parts.push("recurring " + topWarnings.join(", "));
+    parts.push('ask "raven_reflect" for full breakdown');
+    pendingDailyDigest = parts.join(" · ");
+  } catch {
+    // Silent.
+  }
+}
+
 // ── Server ──────────────────────────────────────────────────────────
 
 var server = new McpServer({
@@ -688,11 +748,21 @@ var originalTool: any = server.tool.bind(server);
       var input = arguments[0];
       var result = await handler.apply(null, arguments);
       logUsage(toolName, input, result, Date.now() - start);
-      if (pendingUpdateNotice && !noticeShown && result && Array.isArray(result.content)) {
+      maybeComputeDailyDigest();
+      // Collect any notices to prepend — daily digest first, then update.
+      var notices: string[] = [];
+      if (pendingDailyDigest) {
+        notices.push(pendingDailyDigest);
+        pendingDailyDigest = null;
+      }
+      if (pendingUpdateNotice && !noticeShown) {
+        notices.push(pendingUpdateNotice);
+        noticeShown = true;
+      }
+      if (notices.length > 0 && result && Array.isArray(result.content)) {
         for (var i = 0; i < result.content.length; i++) {
           if (result.content[i] && result.content[i].type === "text") {
-            result.content[i].text = pendingUpdateNotice + "\n\n" + result.content[i].text;
-            noticeShown = true;
+            result.content[i].text = notices.join("\n") + "\n\n" + result.content[i].text;
             break;
           }
         }

@@ -36,6 +36,12 @@ async function runAudits() {
     command: "node",
     args: [join(ROOT, "dist", "index.js")],
     cwd: ROOT,
+    env: {
+      ...process.env,
+      RAVEN_NO_UPDATE_CHECK: "1",
+      RAVEN_NO_DAILY_DIGEST: "1",
+      RAVEN_NO_USAGE_LOG: "1"
+    }
   });
   const client = new Client({ name: "raven-self-audit", version: "1.0.0" }, { capabilities: {} });
   await client.connect(transport);
