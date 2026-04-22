@@ -1,0 +1,100 @@
+{
+  "$name": "Shopify Polaris Content",
+  "$description": "Shopify's content guidelines for merchant-facing experiences. Confident, empowering, action-oriented — written for people running a business.",
+  "url": "https://polaris.shopify.com/content",
+  "voice": {
+    "identity": "A trusted advisor who has seen thousands of merchants build businesses — helpful, specific, never preachy.",
+    "attributes": [
+      { "name": "Empowering", "description": "Merchants are capable adults. Give them information and tools, not a tutorial. Respect their expertise in their own business." },
+      { "name": "Confident", "description": "Say things directly. 'This will take 5 minutes' — not 'This may take approximately a few minutes.'" },
+      { "name": "Action-oriented", "description": "Every screen answers: what can the merchant do here, and what's the outcome? Lead with action, not description." },
+      { "name": "Practical", "description": "Concrete over abstract. 'Your customers will see this as the sender name' — not 'This impacts brand perception.'" },
+      { "name": "Inclusive by default", "description": "Merchants sell worldwide — write for global commerce, not US retail." }
+    ]
+  },
+  "tone_shifts": {
+    "onboarding": "Welcoming but fast. Don't slow experienced sellers down. Offer guidance, don't impose it.",
+    "errors": "Specific about what happened, specific about the fix. Acknowledge that merchant time is money.",
+    "settings": "Neutral and clear. Explain what each option does in merchant terms, not engineering terms.",
+    "success": "Celebrate what matters — first sale, milestones. Don't inflate small actions.",
+    "help": "Scannable. Lead with the answer. Put the explanation after."
+  },
+  "vocabulary": {
+    "use": [
+      "customer (not consumer or user, in merchant-facing context)",
+      "store (not shop — Shopify's own convention)",
+      "product (not SKU, item, unit — unless precision matters)",
+      "order (not transaction, in merchant context)",
+      "sell (not monetize or convert)",
+      "learn more (for links to longer guidance)",
+      "set up (not configure)",
+      "turn on / turn off (not enable / disable)"
+    ],
+    "avoid": [
+      "ecosystem",
+      "holistic",
+      "journey (customer journey is OK; everything else is a path)",
+      "leverage",
+      "solution",
+      "stakeholder",
+      "touchpoint",
+      "unlock (unless literally unlocking)"
+    ],
+    "never": [
+      "'Click here' — describe the destination",
+      "'Please' — direct is not rude",
+      "Gendered assumptions about who runs a business",
+      "Region-specific idioms"
+    ]
+  },
+  "grammar": {
+    "voice": "Active voice. 'Add a product' — not 'A product can be added.'",
+    "contractions": "Use them. They're natural and save space.",
+    "oxford-comma": "Use.",
+    "titles": "Sentence case for headings, buttons, page titles.",
+    "numbers": "Numerals for most numeric contexts — merchants read dashboards full of numbers. Spell out one through nine only in pure prose.",
+    "currency": "Always use the merchant's configured currency. Never assume USD. Format by locale.",
+    "dates": "Use localized formats. Default to unambiguous: 'January 5, 2026' or '5 January 2026' depending on locale."
+  },
+  "content-patterns": {
+    "errors": {
+      "structure": "What the merchant was trying to do → why it didn't work → what to do now.",
+      "example-good": "We couldn't publish this product. Add a title and at least one variant, then try again.",
+      "example-bad": "Product save failed. Check your input."
+    },
+    "empty-states": {
+      "structure": "What this section is for in the merchant's business → the one action that starts it.",
+      "example-good": "Your customers will appear here once they place their first order. Import existing customers to get started.",
+      "example-bad": "No customers yet."
+    },
+    "buttons": {
+      "rules": [
+        "Verb + noun. 'Add product', 'Save changes', 'Publish store'.",
+        "Match the action to the outcome — the button's label is a promise.",
+        "Don't use 'Submit' — say what gets submitted."
+      ],
+      "good": ["Add product", "Save changes", "Send invoice", "Activate theme"],
+      "bad": ["Submit", "OK", "Go", "Continue"]
+    },
+    "headings": {
+      "rules": [
+        "Lead with what matters to the merchant.",
+        "No clever wordplay — this is a tool, not a brochure.",
+        "Question format is fine when the heading maps to a decision the merchant is making."
+      ]
+    }
+  },
+  "inclusive-language": {
+    "rules": [
+      "Global by default — don't assume US retail, US sizing, US currency.",
+      "Describe businesses neutrally: 'your business' works for a solo seller or a 500-person team.",
+      "Use 'staff' or 'team' not 'employees' (contractors, family members, partners may be involved).",
+      "No assumption of physical retail or online-only — Shopify merchants run both."
+    ]
+  },
+  "sources": [
+    "https://polaris.shopify.com/content/product-content",
+    "https://polaris.shopify.com/content/voice-and-tone",
+    "https://polaris.shopify.com/content/grammar-and-mechanics"
+  ]
+}

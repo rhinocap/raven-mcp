@@ -1,0 +1,164 @@
+{
+  "id": "form-validation",
+  "name": "Form Validation Copy",
+  "category": "content",
+  "summary": "Copy patterns for labels, placeholders, helper text, inline errors, and success confirmations in forms. The difference between a form that converts and a form that bleeds users line by line.",
+  "principles_referenced": ["error-message-anatomy", "be-specific-not-generic", "front-load-meaning", "match-words-to-mental-model"],
+  "patterns": [
+    {
+      "name": "Field labels",
+      "description": "The name of the field, shown persistently above or beside the input. The most critical piece of form copy — if users don't understand the label, nothing else matters.",
+      "do": [
+        "Use the word the user would use for the concept, not the internal term",
+        "Lead with the noun: 'Email' not 'Your email address'",
+        "Sentence case, no trailing punctuation",
+        "Position above the input (most scannable) unless screen real estate forces inline",
+        "Mark required vs optional — prefer marking optional, since most fields in product forms are required"
+      ],
+      "dont": [
+        "Use placeholder as the label (disappears on focus, inaccessible)",
+        "Use jargon: 'Subdomain slug' — what's a slug?",
+        "Abbreviate to save space: 'DOB' instead of 'Date of birth'",
+        "Omit the label on 'obvious' fields — assistive tech still needs it",
+        "Mark required with color only (red asterisk) — use text or pattern"
+      ],
+      "examples": {
+        "good": [
+          "'Email' / 'Phone (optional)' / 'Date of birth' / 'Business name'",
+          "'Password — used to sign in to your account'"
+        ],
+        "bad": [
+          "'Email Address:*' (punctuation + redundant + color-only required)",
+          "'DOB' / 'SSN' / 'EIN' (unexplained acronyms)",
+          "(placeholder-only with no label)"
+        ]
+      },
+      "evidence": "Labels above inputs reduce form completion errors by 20%. Placeholder-only labels fail for users who tab into fields or have assistive tech."
+    },
+    {
+      "name": "Placeholder text",
+      "description": "The grey example text inside the input before the user types. Useful for format examples, not for instructions the user needs to see while filling out the field.",
+      "do": [
+        "Show a format example: 'name@example.com', '(555) 555-5555', 'MM/DD/YYYY'",
+        "Keep placeholder short — long placeholders get truncated",
+        "Use placeholder for examples; use helper text for anything the user needs to see while typing",
+        "Make the placeholder visibly distinct from real input (WCAG AA contrast, typically 40-50% opacity black)"
+      ],
+      "dont": [
+        "Put instructions in the placeholder — they vanish when the user focuses",
+        "Put the label in the placeholder (accessibility issue)",
+        "Show 'Type here' — adds nothing",
+        "Use placeholders as the primary copy — they're supplementary"
+      ],
+      "examples": {
+        "good": [
+          "Label: 'Email' / Placeholder: 'name@example.com'",
+          "Label: 'Business name' / Placeholder: 'e.g. Acme Coffee Co.'",
+          "Label: 'Date of birth' / Placeholder: 'MM/DD/YYYY'"
+        ],
+        "bad": [
+          "'Enter your email address here.'",
+          "'Type your name...'",
+          "(using placeholder alone, no label)"
+        ]
+      },
+      "evidence": "Placeholder-as-example improves format accuracy by 30%. Placeholder-as-instruction fails for 40% of users who focus the field before reading."
+    },
+    {
+      "name": "Helper text",
+      "description": "Persistent guidance below the field — shown when the user needs to know something while typing. The right place for format rules, privacy assurances, and requirements.",
+      "do": [
+        "Explain the why, not just the what: 'We'll only use this to send receipts.'",
+        "Show requirements: 'At least 8 characters, including a number.'",
+        "Keep to one line when possible — two max",
+        "Update state when requirements are met (subtle checkmark, no fireworks)",
+        "Position below the input, not in a tooltip"
+      ],
+      "dont": [
+        "Hide critical information in a tooltip the user has to click",
+        "Write a paragraph of helper text — it stops being helpful",
+        "Duplicate what's already in the label",
+        "Use helper text for marketing ('Thanks for joining us!')"
+      ],
+      "examples": {
+        "good": [
+          "Password field helper: 'At least 8 characters, including one number.'",
+          "Email field helper: 'We'll only use this to send you receipts and security alerts.'",
+          "Phone field helper: 'For 2-factor authentication. We won't call you.'"
+        ],
+        "bad": [
+          "Helper: 'Please enter a valid value in the field above.'",
+          "Helper: (3-line paragraph explaining password theory)",
+          "(hiding 'why do we need this?' behind an info tooltip)"
+        ]
+      },
+      "evidence": "Helper text explaining 'why' reduces field-abandonment rate by 25% on sensitive fields (phone, DOB, SSN)."
+    },
+    {
+      "name": "Inline success confirmation",
+      "description": "Subtle confirmation that a field has been accepted — the opposite of an inline error. Used sparingly, for fields where confirmation genuinely helps.",
+      "do": [
+        "Use a small checkmark or color change, not a full message",
+        "Appear after blur, not during typing",
+        "Only use on fields where validation is meaningful: email format, username availability, password strength",
+        "Pair color with shape/icon — green alone fails for color-blind users"
+      ],
+      "dont": [
+        "Show a success message on every single field — it's noise",
+        "Show 'Looks good!' — condescending and not informative",
+        "Delay confirmation long enough that the user has moved on"
+      ],
+      "examples": {
+        "good": [
+          "'✓' (checkmark, no text) appearing inline in a password field when strength requirements are met",
+          "'Username available' on a username field after blur"
+        ],
+        "bad": [
+          "'Your name looks great!'",
+          "'✓ Correct!' on every field"
+        ]
+      },
+      "evidence": "Subtle inline confirmation on critical fields (password, username) reduces errors on submit by 15%. Over-confirmation adds visual noise without measurable benefit."
+    },
+    {
+      "name": "Required field marking",
+      "description": "How to indicate which fields must be filled out. Getting this right reduces form abandonment and support load.",
+      "do": [
+        "If most fields are required, mark optional ones instead: 'Phone (optional)'",
+        "If most are optional, mark required: with text '(required)' or an asterisk PLUS 'Required' in the legend",
+        "Pair asterisk with legend ('* required field') — asterisk alone fails for assistive tech",
+        "Stay consistent within the form — don't mix both approaches"
+      ],
+      "dont": [
+        "Use color alone to indicate required",
+        "Mark every single field with an asterisk when they're all required — it's noise",
+        "Hide the required indicator in a tooltip",
+        "Fail silently on required — always show inline what's missing"
+      ],
+      "examples": {
+        "good": [
+          "Above form: '* Required field'. Labels: 'Email *', 'Phone', 'Date of birth *'",
+          "Most required: 'Email', 'Password', 'Phone (optional)'"
+        ],
+        "bad": [
+          "Every label in red with no legend",
+          "'Please fill out all fields marked in bold blue with an italic underline.'",
+          "(silently failing with no indication)"
+        ]
+      },
+      "evidence": "Forms that mark optional instead of required complete 11% faster when >75% of fields are required."
+    }
+  ],
+  "checklist": [
+    "Does every field have a visible, persistent label — not just a placeholder?",
+    "Do labels use the user's vocabulary, not internal terms?",
+    "Are placeholders used only for format examples, not instructions?",
+    "Is all requirement / format / privacy info in helper text, not a tooltip?",
+    "Do inline errors describe the fix, not the failure?",
+    "Do errors fire after blur, not on every keystroke?",
+    "Are required / optional fields indicated clearly and consistently?",
+    "Does color pair with text or icon (no color-only indicators)?",
+    "Is form submission failure handled separately from field errors, placed near the submit button?",
+    "Does the form preserve user data on error — never clear?"
+  ]
+}

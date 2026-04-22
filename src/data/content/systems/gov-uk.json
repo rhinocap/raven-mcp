@@ -1,0 +1,96 @@
+{
+  "$name": "GOV.UK Style Guide",
+  "$description": "The UK government's content standard. Writing that must work for every citizen — so plain language isn't a preference, it's the law.",
+  "url": "https://www.gov.uk/guidance/style-guide",
+  "voice": {
+    "identity": "A trusted civil servant — neutral, authoritative, useful. Never marketing, never condescending.",
+    "attributes": [
+      { "name": "Plain English", "description": "Reading age 9. If a plain word exists, use it. Assume the reader is smart but has zero context." },
+      { "name": "User-task-focused", "description": "Write for what the user needs to do, not what the department wants to announce." },
+      { "name": "Neutral", "description": "No marketing, no spin, no opinion. Facts and actions only." },
+      { "name": "Serious", "description": "No humor. Services people use in stressful moments (tax, benefits, visas) deserve seriousness." },
+      { "name": "Action-oriented", "description": "Tell people what to do. Use verbs. 'Apply for a passport' — not 'Passport applications.'" }
+    ]
+  },
+  "tone_shifts": {
+    "services": "Direct and task-focused. 'To claim, you'll need your National Insurance number.'",
+    "guidance": "Explanatory and complete. Assume no prior knowledge.",
+    "errors": "Calm and specific. Tell the user what's wrong and exactly how to fix it.",
+    "confirmations": "Unambiguous. Include reference numbers, dates, what happens next."
+  },
+  "vocabulary": {
+    "use": [
+      "help (not facilitate)",
+      "get (not obtain)",
+      "start (not commence)",
+      "use (not utilise)",
+      "end (not terminate)",
+      "buy (not purchase)",
+      "about (not regarding, concerning)",
+      "need to (not required to)",
+      "because (not due to the fact that)"
+    ],
+    "avoid": [
+      "agenda (unless it's a list of items for a meeting)",
+      "advancing",
+      "collaborate (use 'work with')",
+      "combating",
+      "commit/pledge (use 'promise', 'agree')",
+      "deploy (unless military/software)",
+      "deliver (pizzas and post are delivered — not services or improvements)",
+      "drive (unless actually driving)",
+      "foster (unless fostering children)",
+      "leverage",
+      "streamline",
+      "tackle",
+      "utilise"
+    ],
+    "never": [
+      "Latin abbreviations — write 'for example' not 'e.g.', 'that is' not 'i.e.'",
+      "Jargon without explanation",
+      "Euphemism — say what you mean"
+    ]
+  },
+  "grammar": {
+    "voice": "Active voice. 'We'll send you a letter' — not 'A letter will be sent.'",
+    "contractions": "Avoid in most formal guidance — 'do not' over 'don't'. Allowed in less formal contexts.",
+    "oxford-comma": "Avoid unless it removes genuine ambiguity (British style).",
+    "titles": "Sentence case for everything.",
+    "numbers": "Use numerals for 10 and above. Spell out for 1-9. Always numerals for ages, money, measurements, percentages, dates, and when the number is part of a set containing any 10+.",
+    "dates": "'5 January 2026'. Not '05/01/26'. Not 'Jan 5th'.",
+    "times": "'9:30am to 5pm' — no spaces around 'am'/'pm', no full stops. 24-hour clock only where context requires.",
+    "lists": "Bullet lists for 3+ items. Each bullet: lowercase start, no full stop unless the bullet is a full sentence.",
+    "acronyms": "Spell out on first use, then abbreviate. No full stops (BBC not B.B.C.)."
+  },
+  "content-patterns": {
+    "errors": {
+      "structure": "Name the problem specifically → say exactly what to do. No apology, no blame.",
+      "example-good": "Enter your full name as it appears on your passport.",
+      "example-bad": "Invalid entry. Please try again."
+    },
+    "actions": {
+      "structure": "Lead with a verb, state the outcome.",
+      "example-good": "Apply for a new passport",
+      "example-bad": "Passport application service"
+    },
+    "confirmations": {
+      "structure": "State what happened → give reference → state what happens next → state what to expect by when.",
+      "example-good": "Application sent. Your reference is HMRC-2026-8812. We'll email you within 5 working days.",
+      "example-bad": "Thank you for your submission."
+    }
+  },
+  "inclusive-language": {
+    "rules": [
+      "Address the reader as 'you'.",
+      "Singular 'they' when gender is unknown or non-binary.",
+      "No assumption of ability, literacy, or digital confidence.",
+      "No assumption that English is the reader's first language — write for translation.",
+      "Plain alternatives to idioms. 'Starting point' not 'square one'."
+    ]
+  },
+  "sources": [
+    "https://www.gov.uk/guidance/style-guide/a-to-z-of-gov-uk-style",
+    "https://www.gov.uk/guidance/content-design/writing-for-gov-uk",
+    "https://www.plainlanguage.gov/"
+  ]
+}

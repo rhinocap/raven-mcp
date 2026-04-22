@@ -2,16 +2,17 @@
 
 **Odin's ravens brought back knowledge of the world — Raven brings back design intelligence.**
 
-A design knowledge MCP server that Claude can query when generating UI. Three layers: principles, patterns, and business strategy.
+A design knowledge MCP server that Claude can query when generating UI. Five layers: principles, patterns, content design systems, business strategy, and design tokens.
 
 ## What it does
 
 Raven gives Claude access to a comprehensive design knowledge base:
 
-- **Principles** — Nielsen's 10 Heuristics, all 21 Laws of UX, Gestalt principles, WCAG accessibility, typography rules, color theory, mobile UX, and D4D framework
-- **Patterns** — Proven UI patterns for signup flows, pricing pages, navigation, forms, landing pages, dashboards, modals, empty/error/loading states, CTAs, social proof, and mobile conversion
+- **Principles** — Nielsen's 10 Heuristics, all 21 Laws of UX, Gestalt principles, WCAG accessibility, typography rules, color theory, mobile UX, D4D framework, and UX writing principles
+- **Patterns** — Proven UI patterns for signup flows, pricing pages, navigation, forms, landing pages, dashboards, modals, empty/error/loading states, CTAs, social proof, mobile conversion — plus content patterns for error messages, empty-state copy, notifications, and form validation
+- **Content systems** — Voice & tone guides from real brands: Mailchimp, GOV.UK, Shopify Polaris, Atlassian, and Intuit
 - **Business** — Monetization models, retention strategies, onboarding optimization, growth mechanics, and product metrics frameworks
-- **Tokens** — Design system tokens for Stripe, Linear, and more (registry of 7 systems, 2 fully populated)
+- **Tokens** — Design system tokens for Stripe, Linear, and more
 
 ## Install
 
@@ -59,6 +60,10 @@ cd raven-mcp && npm install && npm run build
 | `audit_page` | Audit HTML/CSS against Raven's quality standards |
 | `audit_layout` | Evaluate visual rhythm, alignment, and optical balance |
 | `generate_design_system` | Generate a custom design system from a brand color |
+| `list_content_systems` | Browse brand voice & tone systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian, Intuit) |
+| `get_content_system` | Get a brand's voice attributes, tone shifts, vocabulary, grammar, and content patterns |
+| `get_content_principles` | Get UX-writing principles — clarity, active voice, error anatomy, inclusive language |
+| `get_content_pattern` | Get copy recipes for error messages, empty-state copy, notifications, form validation |
 | `raven_reflect` | Summarize your local Raven usage log to find patterns + gaps |
 
 ## Learning loop
@@ -90,5 +95,9 @@ src/data/
   principles/   # Nielsen, Laws of UX, Gestalt, accessibility, typography, color, mobile, D4D
   patterns/     # signup, pricing, nav, forms, landing, dashboard, modals, empty/error/loading, CTA, social proof, mobile
   business/     # monetization, retention, onboarding, growth, metrics
-  tokens/       # registry.json + systems/ (stripe.json, linear.json)
+  tokens/       # registry.json + systems/ (stripe, linear, vercel, …)
+  content/      # voice & tone: Mailchimp, GOV.UK, Shopify Polaris, Atlassian, Intuit
+    systems/    # registry.json + brand-voice JSONs
+    principles/ # UX-writing principles (clarity, active voice, error anatomy, …)
+    patterns/   # copy recipes for errors, empty states, notifications, form validation
 ```

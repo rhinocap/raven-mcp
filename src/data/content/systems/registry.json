@@ -1,0 +1,49 @@
+{
+  "systems": [
+    {
+      "id": "mailchimp",
+      "name": "Mailchimp Content Style Guide",
+      "description": "Mailchimp's voice — plain-spoken, genuine, expert without being know-it-alls. Dry humor, clarity over cleverness. The canonical modern content style guide.",
+      "category": "marketing-saas",
+      "tags": ["conversational", "friendly", "plain-language", "humor-careful", "saas"],
+      "url": "https://styleguide.mailchimp.com",
+      "status": "available"
+    },
+    {
+      "id": "gov-uk",
+      "name": "GOV.UK Style Guide",
+      "description": "Britain's government content standard — absolute plain language, zero marketing, reading age 9. The gold standard for writing that has to work for everyone.",
+      "category": "government",
+      "tags": ["plain-language", "inclusive", "accessibility-first", "no-jargon", "civic"],
+      "url": "https://www.gov.uk/guidance/style-guide",
+      "status": "available"
+    },
+    {
+      "id": "shopify-polaris",
+      "name": "Shopify Polaris Content",
+      "description": "Shopify's content guidelines for merchants — confident, empowering, action-oriented. Written for business owners who want momentum, not a lecture.",
+      "category": "commerce-saas",
+      "tags": ["empowering", "action-oriented", "merchant-facing", "confident", "commerce"],
+      "url": "https://polaris.shopify.com/content",
+      "status": "available"
+    },
+    {
+      "id": "atlassian",
+      "name": "Atlassian Design System Content",
+      "description": "Atlassian's voice across Jira/Confluence/Trello — bold, optimistic, practical. Written for teams, collaborative in tone, never condescending.",
+      "category": "productivity-saas",
+      "tags": ["collaborative", "practical", "optimistic", "team-facing", "productivity"],
+      "url": "https://atlassian.design/content",
+      "status": "available"
+    },
+    {
+      "id": "intuit",
+      "name": "Intuit Content Design Principles",
+      "description": "Intuit's voice across TurboTax, QuickBooks, Mint — empathetic, confidence-building, prosperity-focused. Written for people stressed about money; every word earns trust.",
+      "category": "fintech",
+      "tags": ["empathetic", "trust-building", "confidence", "money", "fintech"],
+      "url": "https://contentdesign.intuit.com",
+      "status": "available"
+    }
+  ]
+}

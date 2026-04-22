@@ -1,0 +1,239 @@
+[
+  {
+    "id": "clarity-over-cleverness",
+    "name": "Clarity over cleverness",
+    "category": "ux-writing",
+    "summary": "Every line of UI copy should be instantly understood. If a user pauses to parse wit or poetry, the copy failed.",
+    "description": "Interfaces are read under cognitive load — during a task, often with a goal in mind. Clever copy demands attention the user doesn't have. Plain language is not boring; it's respectful. The most elegant UX writing disappears because users understand it without noticing it.",
+    "implications": [
+      "Test every headline, button, and error by asking: 'Would this be understood by someone reading it at 3am, in their second language, with a crying baby?'",
+      "Remove metaphors, puns, and analogies unless they save the user real effort.",
+      "If a clever line and a plain line convey the same information, ship the plain one.",
+      "Brand voice lives in the places with room — empty states, marketing, success moments. Not in labels, errors, or forms."
+    ],
+    "violations": [
+      "Button label 'Let's do this!' instead of 'Create account'",
+      "Error message written as a joke about the user's mistake",
+      "Navigation labels that require interpretation ('The Vault', 'Command Center') instead of clear nouns",
+      "Product copy that reads like marketing taglines inside the app"
+    ],
+    "applies_to": ["content", "microcopy", "buttons", "errors", "navigation"],
+    "sources": ["https://styleguide.mailchimp.com/voice-and-tone/", "https://contentdesign.intuit.com/principles"]
+  },
+  {
+    "id": "front-load-meaning",
+    "name": "Front-load meaning",
+    "category": "ux-writing",
+    "summary": "Put the most important word first. Users scan — they rarely read to the end of a line.",
+    "description": "Eye-tracking studies consistently show users scan the first two words of headings, links, and bullets. Anything after is probably skipped. A headline like 'How to apply for a passport' should become 'Apply for a passport' — the verb and object are what the user is looking for.",
+    "implications": [
+      "Start headings with the noun or verb that matters — not with 'How to', 'Guide to', 'The future of'.",
+      "Buttons lead with a verb: 'Save changes', not 'Please save your changes'.",
+      "Link text leads with the destination: 'Billing settings', not 'Click here to go to billing settings'.",
+      "Bullet lists: first two words carry the meaning.",
+      "Notifications: actor, action, object — in that order. 'Priya commented on Q2 roadmap.'"
+    ],
+    "violations": [
+      "Headings starting with filler: 'Welcome to...', 'Introducing...', 'Let us help you...'",
+      "Links that say 'click here' instead of naming the destination",
+      "Buttons with the verb buried mid-phrase",
+      "Notifications that open with the system ('A new comment has been added to...')"
+    ],
+    "applies_to": ["content", "headings", "buttons", "links", "notifications"],
+    "sources": ["https://www.nngroup.com/articles/first-2-words-a-signal/"]
+  },
+  {
+    "id": "active-voice",
+    "name": "Active voice",
+    "category": "ux-writing",
+    "summary": "Active voice is shorter, clearer, and names the actor. Passive voice hides responsibility and adds words.",
+    "description": "Passive: 'Your payment has been received.' Active: 'We received your payment.' Passive voice is everywhere in product copy because it sounds 'safer' — no one is blamed, no one takes credit. But users want to know who did what. Passive voice is appropriate only when the actor is unknown or truly irrelevant.",
+    "implications": [
+      "Rewrite any sentence with a 'to be' + past participle pattern ('has been', 'was', 'will be') unless the passive is genuinely better.",
+      "Name the actor — 'We emailed you' over 'An email has been sent'.",
+      "In errors, active voice tells the user what system did what: 'We couldn't reach Stripe' vs 'Payment processing failed'.",
+      "Exception: when the object is more relevant than the actor ('Your card was charged' is fine because the user cares about their card)."
+    ],
+    "violations": [
+      "'Your request has been submitted' — who submitted it? Use 'We received your request.'",
+      "'The page cannot be loaded' — say who couldn't load it and why.",
+      "'A decision will be made within 5 days' — who decides? Use 'We'll decide within 5 days.'"
+    ],
+    "applies_to": ["content", "notifications", "errors", "confirmations"],
+    "sources": ["https://www.plainlanguage.gov/guidelines/conversational/use-active-voice/"]
+  },
+  {
+    "id": "be-specific-not-generic",
+    "name": "Be specific, not generic",
+    "category": "ux-writing",
+    "summary": "Replace generic words with concrete ones. Specific copy builds trust; generic copy erodes it.",
+    "description": "'Something went wrong' tells the user nothing — except that the product doesn't know what happened. 'We couldn't save your changes because your session expired' tells the user the problem, the cause, and implies the fix. Specificity is the single biggest signal of quality in UX writing.",
+    "implications": [
+      "Replace 'Submit' with what gets submitted: 'Send invoice', 'Publish page'.",
+      "Replace 'Something went wrong' with what actually went wrong.",
+      "Replace 'This might take a while' with how long, roughly.",
+      "Replace 'Recently viewed' with 'Viewed in the last 7 days'.",
+      "Replace 'Learn more' with what the user will learn: 'See pricing details'."
+    ],
+    "violations": [
+      "Generic buttons: 'Submit', 'OK', 'Continue', 'Go', 'Click here'",
+      "Generic errors: 'Error', 'Something went wrong', 'Please try again'",
+      "Generic confirmations: 'Success!', 'Done', 'Thanks'",
+      "Generic empty states: 'No data', 'Nothing to show'"
+    ],
+    "applies_to": ["content", "buttons", "errors", "empty-states", "confirmations"],
+    "sources": ["https://www.nngroup.com/articles/error-message-guidelines/"]
+  },
+  {
+    "id": "acknowledge-the-user",
+    "name": "Acknowledge the user",
+    "category": "ux-writing",
+    "summary": "Write to 'you' — a real person with a goal, time pressure, and emotions. Don't refer to the user as 'the user'.",
+    "description": "Using 'you' (second person) makes copy direct and personal. Using 'users', 'customers', or 'the filer' depersonalizes the interaction and creates distance. 'You' also forces the writer to name who is doing what — it can't hide behind abstractions.",
+    "implications": [
+      "Always 'you' and 'your' in product copy, never 'the user'.",
+      "Use 'we' for the company/product when it adds warmth. 'We noticed' beats 'It has been noticed'.",
+      "In settings and preferences, 'your' makes the data feel owned. 'Your notifications' beats 'Notifications'.",
+      "Exception: third-party admin views where 'you' would be ambiguous — use roles ('the customer', 'the teammate')."
+    ],
+    "violations": [
+      "'Users can configure...' → 'You can set up...'",
+      "'The filer should verify...' → 'Check your...'",
+      "'Members may receive notifications' → 'You'll get a notification when...'"
+    ],
+    "applies_to": ["content", "settings", "help", "onboarding"],
+    "sources": ["https://styleguide.mailchimp.com/voice-and-tone/", "https://www.gov.uk/guidance/content-design/writing-for-gov-uk"]
+  },
+  {
+    "id": "match-words-to-mental-model",
+    "name": "Match words to the user's mental model",
+    "category": "ux-writing",
+    "summary": "Use the words the user already uses. Internal product names, team vocabulary, and technical jargon confuse users who don't share your context.",
+    "description": "Users come in with their own mental model — what they'd call a thing based on their job, other tools they've used, and their everyday vocabulary. The product should meet them there. 'Environment' is a DevOps term; a merchant calls it a 'store'. 'Entity' is a codebase term; a user calls it a 'customer' or 'invoice'. When internal terms leak into UI, users get lost.",
+    "implications": [
+      "Audit all UI copy for internal terms (codenames, schema names, team shorthand).",
+      "Ask three users from the target audience: 'What would you call this?' — use the word that wins.",
+      "When the product must use its own term (trademark, differentiation), define it on first use and stay consistent.",
+      "Localize terms to the industry the user is in, not the industry the product thinks it's in."
+    ],
+    "violations": [
+      "'Tenant' in a B2B SaaS (most admins say 'workspace' or 'organization')",
+      "'Resource' when you mean 'invoice' or 'document'",
+      "'Entity' when you mean 'customer'",
+      "Mixing 'team', 'workspace', 'organization', and 'account' inconsistently in the same product"
+    ],
+    "applies_to": ["content", "ia", "navigation", "labels"],
+    "sources": ["https://www.nngroup.com/articles/mental-models/"]
+  },
+  {
+    "id": "consistent-terminology",
+    "name": "Consistent terminology",
+    "category": "ux-writing",
+    "summary": "One concept, one word — used everywhere. Inconsistency makes users wonder if they're looking at the same thing.",
+    "description": "If you call it a 'project' on one screen, a 'workspace' on another, and a 'space' in an email, users can't build a stable mental model. They'll waste cognitive effort deciding whether these are the same thing. Consistency is boring to write and invisible when done well — which is the point.",
+    "implications": [
+      "Maintain a product lexicon — the canonical term for every concept, plus acceptable synonyms (and a ban list).",
+      "When in doubt, write the term once and do a project-wide find-and-replace.",
+      "Lexicon updates ship in a single PR — don't roll out a rename gradually.",
+      "Changes to core terms need a migration plan: in-product announcements, updated help content, email to active users."
+    ],
+    "violations": [
+      "Using 'user', 'member', and 'teammate' interchangeably for the same role",
+      "Mixing 'delete' and 'remove' for the same destructive action",
+      "Navigation item 'Settings' leading to a page titled 'Preferences'",
+      "Email calling it a 'campaign' but the dashboard calling it a 'send'"
+    ],
+    "applies_to": ["content", "ia", "navigation", "product-lexicon"],
+    "sources": ["https://polaris.shopify.com/content/product-content", "https://atlassian.design/content/writing-style"]
+  },
+  {
+    "id": "error-message-anatomy",
+    "name": "Error message anatomy",
+    "category": "ux-writing",
+    "summary": "A good error message has three parts: what happened, why, and what to do next. Never blame the user.",
+    "description": "Errors arrive at a frustrating moment. The message must reduce that frustration, not add to it. Users need to know: (1) What happened, in their terms — not 'HTTP 500', (2) Why, if knowing would help them fix it, (3) What to do now, with a concrete action. Everything else is noise.",
+    "implications": [
+      "Name the problem in plain terms: 'We couldn't charge your card' — not 'Payment processing error'.",
+      "Explain only when it helps: 'because your card expired' is useful; 'due to PCI compliance timeout' is not.",
+      "Give an action: 'Add a new card' or 'Try a different payment method'.",
+      "If there's a retry path, offer the retry in the error surface itself.",
+      "Never use 'invalid', 'incorrect', or 'wrong' about user input — they're blaming. Use 'doesn't match', 'needs to include', 'looks incomplete'."
+    ],
+    "violations": [
+      "Error codes in user-facing copy with no plain-language explanation",
+      "'Invalid input' / 'Please try again' / 'An error occurred'",
+      "Errors that describe the failure but not the recovery",
+      "Technical stack trace visible to users",
+      "Blame language: 'You entered an invalid...' instead of 'That address doesn't match our records — check the ZIP and try again.'"
+    ],
+    "applies_to": ["content", "errors", "form-validation"],
+    "sources": ["https://www.nngroup.com/articles/error-message-guidelines/", "https://contentdesign.intuit.com/principles"]
+  },
+  {
+    "id": "scannable-structure",
+    "name": "Scannable structure",
+    "category": "ux-writing",
+    "summary": "Users scan before they read. Structure the copy so meaning is extractable in two seconds.",
+    "description": "Long paragraphs on UI are almost never read. Users flick their eyes down the page looking for the word or number that matches their goal. If the copy is a wall of prose, they miss what they need and bounce. Short paragraphs, bullets, inverted-pyramid structure, and meaningful headings are not optional for UI — they're how it works.",
+    "implications": [
+      "Lead with the answer (inverted pyramid). Explanation comes after.",
+      "Break content into chunks of 3-5 lines or fewer.",
+      "Use bullets when the order doesn't matter; numbered lists when it does.",
+      "Make headings descriptive, not clever. 'Refunds take 5-7 days' beats 'A note about refunds'.",
+      "Bold the 2-3 words per paragraph that carry the meaning."
+    ],
+    "violations": [
+      "Help articles as multi-paragraph prose with no subheadings",
+      "Settings descriptions written as full paragraphs",
+      "Emails that bury the action under three paragraphs of context",
+      "Notifications that are full sentences when a fragment would work"
+    ],
+    "applies_to": ["content", "help", "email", "notifications"],
+    "sources": ["https://www.nngroup.com/articles/how-users-read-on-the-web/"]
+  },
+  {
+    "id": "inclusive-language",
+    "name": "Inclusive language",
+    "category": "ux-writing",
+    "summary": "Write for every reader. Avoid language that excludes, stereotypes, or makes assumptions about who the user is.",
+    "description": "Inclusive language is not about saying the 'right' words — it's about not making any user feel the product wasn't built for them. Gendered assumptions, ability-based metaphors, US-centric idioms, and culture-specific references all exclude silently. Inclusive copy uses 'they' for unknown gender, describes actions instead of assumed abilities, and works without cultural context.",
+    "implications": [
+      "Use 'they/them' as singular when gender is unknown or non-binary.",
+      "Replace ability metaphors: 'blind spot' → 'gap', 'tone-deaf' → 'out of touch', 'crazy' → 'unexpected'.",
+      "Describe what the user does, not what they are: 'people who sign up' instead of 'signups'.",
+      "Avoid idioms that don't translate: 'home run', 'ballpark', 'out of left field'.",
+      "No assumption of family structure, citizenship, employment type, or physical ability.",
+      "Accessibility copy is plain: 'works with screen readers', not 'a11y-optimized'."
+    ],
+    "violations": [
+      "Using 'he' or 'she' as a default when gender is unknown",
+      "Military/sports metaphors in general product copy",
+      "Holiday references that assume a specific religion or region",
+      "Labels like 'businessman' instead of 'business owner'",
+      "Disability-related words used as casual insults or emphasis"
+    ],
+    "applies_to": ["content", "accessibility", "global"],
+    "sources": ["https://www.microsoft.com/en-us/style-guide/bias-free-communication", "https://atlassian.design/content/inclusive-writing"]
+  },
+  {
+    "id": "voice-vs-tone",
+    "name": "Voice is constant, tone shifts",
+    "category": "ux-writing",
+    "summary": "A brand's voice doesn't change. Its tone should — to match the user's emotional state in each context.",
+    "description": "Voice is personality; tone is how that personality shows up in a given moment. Your voice might be 'friendly, direct, witty'. But your tone during a failed payment shouldn't be witty — it should be calm and clear. Tone shifts are the most commonly missed part of a content system, and they're what separate warm, trustworthy products from tone-deaf ones.",
+    "implications": [
+      "Define tone shifts explicitly — what changes in onboarding vs error vs billing vs success?",
+      "Humor is never neutral — it always shifts the tone. Use it carefully, and never when the user is stressed or in a money/legal/safety context.",
+      "When drafting copy, ask: 'What is the user feeling when they read this?' — and adjust tone to match.",
+      "Document tone shifts in the brand guide with examples, not just adjectives."
+    ],
+    "violations": [
+      "Same jokey tone in a welcome message and a payment failure",
+      "Formal legal-style tone in a playful onboarding flow",
+      "'Oops!' in a security breach notification",
+      "Marketing-style enthusiasm in the middle of a serious workflow"
+    ],
+    "applies_to": ["content", "brand-voice", "errors", "onboarding", "billing"],
+    "sources": ["https://styleguide.mailchimp.com/voice-and-tone/"]
+  }
+]

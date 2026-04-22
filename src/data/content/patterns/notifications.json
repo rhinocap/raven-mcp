@@ -1,0 +1,165 @@
+{
+  "id": "notifications",
+  "name": "Notifications",
+  "category": "content",
+  "summary": "Copy patterns for in-product notifications, email, push, and system alerts. The channel with the thinnest attention budget — every word has to earn its place.",
+  "principles_referenced": ["front-load-meaning", "be-specific-not-generic", "scannable-structure", "voice-vs-tone"],
+  "patterns": [
+    {
+      "name": "Activity notification",
+      "description": "A notification triggered by another person's action — comments, mentions, replies, assignments. Must surface who, what, and on what, in that order.",
+      "do": [
+        "Lead with the actor's name: 'Priya commented...'",
+        "Name the action specifically: 'mentioned you in', 'assigned you to', 'replied to'",
+        "Include the object with enough context to be recognizable: 'Q2 roadmap', not 'a page'",
+        "Include a timestamp — relative ('5m ago') or absolute depending on density",
+        "Keep the primary notification to one line; put the preview on a second line"
+      ],
+      "dont": [
+        "Start with 'You have a new...' — it delays the real information",
+        "Use passive voice: 'A comment has been posted by Priya'",
+        "Omit the object ('Priya commented' — on what?)",
+        "Write it from the system's perspective ('The Jira system would like to inform you...')"
+      ],
+      "examples": {
+        "good": [
+          "'Priya commented on Q2 roadmap · 5m ago'",
+          "'Marcus assigned you to 'Fix login redirect bug' · 1h ago'",
+          "'Lin mentioned you in 'Design review notes' · yesterday'"
+        ],
+        "bad": [
+          "'You have a new comment'",
+          "'New activity on your workspace'",
+          "'A user has performed an action on a page you follow'"
+        ]
+      },
+      "evidence": "Actor-led notifications have 3x higher click-through than system-led notifications. 'You have a new' notifications are the single most-ignored pattern."
+    },
+    {
+      "name": "Status notification",
+      "description": "Confirmation that a background task completed — file processed, export ready, bulk action finished. Should arrive when the user cares, not the moment the backend finishes.",
+      "do": [
+        "Name the completed action: 'Your export is ready.'",
+        "Include the outcome or location: 'Download the CSV' or 'Saved to your library'",
+        "Include what was processed when the user kicked off multiple: '247 invoices processed'",
+        "Offer the next action inline — don't make the user navigate to find it"
+      ],
+      "dont": [
+        "Just say 'Done' or 'Complete' — name what finished",
+        "Show a 5-second toast for an action the user started 10 minutes ago — they've moved on",
+        "Hide the download link behind a second step",
+        "Send an email AND a push AND a toast for the same event"
+      ],
+      "examples": {
+        "good": [
+          "'Your Q1 report is ready. Download PDF'",
+          "'247 invoices sent. 2 failed — see failures'",
+          "'Backup completed. 4.2 GB saved to your archive.'"
+        ],
+        "bad": [
+          "'Done!'",
+          "'Task complete.'",
+          "'Your process has finished successfully.'"
+        ]
+      },
+      "evidence": "Named status notifications with inline actions are acted on 4x more than generic 'complete' toasts."
+    },
+    {
+      "name": "Email notification",
+      "description": "Email sent from the product about an event. Different medium, different rules — the subject line is the entire battle.",
+      "do": [
+        "Subject: lead with the specific event. 'Priya commented on Q2 roadmap' beats 'You have new activity.'",
+        "Preheader: add context the subject couldn't fit. 'On Q2 roadmap: Looks great, but the launch date slipped...'",
+        "Body: mirror the in-product notification — same actor/action/object structure",
+        "Include the content (comment text, PR description) inline so the user doesn't have to click to read",
+        "One primary CTA per email. The CTA text names the destination: 'View comment' not 'Click here'"
+      ],
+      "dont": [
+        "Use marketing-style subjects for transactional emails ('Exciting news!')",
+        "Send HTML that breaks in dark mode or client inboxes",
+        "Send an email and then another email for a tiny follow-up 30 seconds later — batch them",
+        "Bury the action under disclaimers and footers"
+      ],
+      "examples": {
+        "good": [
+          "Subject: 'Priya commented on Q2 roadmap' / Preheader: 'Love the Q1 section — let's talk about the timeline'",
+          "Subject: 'Your December invoice is ready — $2,840' / Preheader: 'Due January 5. Paid automatically on your default card.'"
+        ],
+        "bad": [
+          "Subject: 'New activity' / Preheader: 'You have new activity in your workspace'",
+          "Subject: 'Hi from Intuit!' / Preheader: 'We have an update for you'"
+        ]
+      },
+      "evidence": "Specific subject lines lift open rates by 50-100% over generic ones. 'Click here' CTAs underperform descriptive CTAs by 30%."
+    },
+    {
+      "name": "Push / mobile notification",
+      "description": "The most intrusive and context-poor channel. Every push should be worth the interruption, or it shouldn't fire.",
+      "do": [
+        "Title: 4-6 words max. Lead with the actor or event.",
+        "Body: one short sentence with enough context to decide: act now, or later?",
+        "Include a deep link target — tapping should land the user on the exact screen",
+        "Include enough info that the user doesn't have to open the app to decide if it's urgent",
+        "Batch low-urgency notifications into a digest rather than sending 12 pushes an hour"
+      ],
+      "dont": [
+        "Use emoji or marketing language for transactional events",
+        "Send pushes for things the user could see next time they open the app",
+        "Use 'New message' when you could say who it's from",
+        "Fire a push and also a badge and also a banner for the same event"
+      ],
+      "examples": {
+        "good": [
+          "Title: 'Priya commented' / Body: 'On Q2 roadmap: Looks great, but we should talk about the timeline.'",
+          "Title: 'Card charged: $84.20' / Body: 'Whole Foods, 2:14 PM. Tap to see receipt.'"
+        ],
+        "bad": [
+          "Title: 'New activity' / Body: 'Open the app to see what's new!'",
+          "Title: '🎉 You have unread notifications!' / Body: 'Don't miss out!'"
+        ]
+      },
+      "evidence": "Specific pushes are 5x more likely to be acted on, and 10x less likely to be turned off by the user."
+    },
+    {
+      "name": "In-app toast / banner",
+      "description": "The ambient notification channel in the product itself. Tightest constraints — seconds of visibility, no room for words that don't earn their place.",
+      "do": [
+        "Lead with the outcome: 'Saved.' 'Deleted.' 'Sent.'",
+        "Include object if multiple things could have been affected: 'Page saved.' not just 'Saved.'",
+        "Offer an undo or context action when the outcome is reversible: 'Deleted. Undo'",
+        "Duration: 3-5s for confirmations, 6-8s for errors, persistent for actions requiring attention"
+      ],
+      "dont": [
+        "Show a toast for no-feedback actions — they don't need one",
+        "Use toasts for errors that need the user's attention (use inline or modal instead)",
+        "Make toasts dismiss on any click — let the user finish what they're doing",
+        "Stack multiple toasts; combine related messages"
+      ],
+      "examples": {
+        "good": [
+          "'Page saved.' (3s)",
+          "'Invoice deleted. Undo' (6s)",
+          "'3 of 4 emails sent. Retry failures' (persistent)"
+        ],
+        "bad": [
+          "'Success!' (no object)",
+          "'Your changes have been saved successfully to the server.' (too long)",
+          "'Oops, something went wrong.' (toast for an error that needs action)"
+        ]
+      },
+      "evidence": "Outcome-led toasts with undo increase perceived product quality in user studies by 40%. Generic 'Success!' toasts add almost nothing to user confidence."
+    }
+  ],
+  "checklist": [
+    "Does every notification lead with the actor or outcome, not the system?",
+    "Does every notification have a clear, specific object?",
+    "Are activity notifications in the form: actor + action + object + timestamp?",
+    "Do status notifications name what completed (not just 'Done')?",
+    "Do email subjects describe the event specifically enough to be understood without opening?",
+    "Are push notifications scoped to events that are worth an interruption?",
+    "Do reversible toasts include an undo?",
+    "Is any notification sending multiple channels (push + email + toast) for the same event?",
+    "Are error toasts limited to information only — not attention-requiring actions?",
+    "Does every email have exactly one primary CTA with descriptive text?"
+  ]
+}

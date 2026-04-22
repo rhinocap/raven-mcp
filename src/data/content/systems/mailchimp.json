@@ -1,0 +1,102 @@
+{
+  "$name": "Mailchimp Content Style Guide",
+  "$description": "Mailchimp's voice — plain-spoken, genuine, expert without being a know-it-all. Humor used carefully, never at the user's expense.",
+  "url": "https://styleguide.mailchimp.com",
+  "voice": {
+    "identity": "A trusted, knowledgeable friend helping a small-business owner get their work done.",
+    "attributes": [
+      { "name": "Plain-spoken", "description": "Use ordinary words. Avoid marketing-speak, legalese, and jargon. If a customer wouldn't say it out loud, don't write it." },
+      { "name": "Genuine", "description": "Write like a person, not a brand. Acknowledge when things are broken, weird, or hard. Don't oversell." },
+      { "name": "Translator", "description": "Technical things are real; explain them without dumbing them down. Audience: small-business owners, not engineers." },
+      { "name": "Dry humor", "description": "Occasional wit, not jokes. Never at the user's expense. When someone is frustrated (errors, billing issues), drop the humor entirely." },
+      { "name": "Expert but not know-it-all", "description": "Share what we know. Don't lecture. Don't claim perfection." }
+    ]
+  },
+  "tone_shifts": {
+    "onboarding-and-success": "Warm, encouraging, light humor OK. 'Nice work — your first campaign is live.'",
+    "errors-and-recovery": "Direct, calm, helpful. No humor. No blame. Explain what happened and what to do next.",
+    "billing-and-legal": "Clear, formal-adjacent, never funny. Numbers and dates must be unambiguous.",
+    "marketing-pages": "Confident and specific. No empty superlatives. Every claim supported by a concrete capability.",
+    "empty-states": "Encouraging. Explain what will appear, then give one clear action."
+  },
+  "vocabulary": {
+    "use": [
+      "help (not assist)",
+      "show (not display)",
+      "get (not obtain or acquire)",
+      "pay (not remit)",
+      "send (not deliver or transmit)",
+      "use (not utilize)",
+      "about (not regarding)",
+      "start (not commence or initiate)"
+    ],
+    "avoid": [
+      "leverage",
+      "utilize",
+      "synergy",
+      "best-in-class",
+      "revolutionary",
+      "unleash",
+      "empower (overused)",
+      "seamless",
+      "ninja/rockstar/guru"
+    ],
+    "never": [
+      "Internal codenames in user-facing copy",
+      "Acronyms without first-use expansion",
+      "Trendy slang with short half-life",
+      "References that assume US-only context"
+    ]
+  },
+  "grammar": {
+    "voice": "Active voice over passive. 'We emailed you a receipt' — not 'A receipt has been emailed.'",
+    "contractions": "Use them — they sound human. It's, you're, we've, don't.",
+    "oxford-comma": "Use the Oxford (serial) comma.",
+    "titles": "Sentence case for buttons, headings, page titles. Not Title Case Everywhere.",
+    "numbers": "Spell out one through nine; use numerals for 10+. Except percentages, measurements, money — always numerals.",
+    "abbreviations": "Spell out on first use, abbreviate after. No periods in acronyms (HTML, not H.T.M.L.).",
+    "dates": "Spell out the month. 'January 5, 2026' not '01/05/26' — which is ambiguous internationally.",
+    "times": "Include time zone. '2:00 pm EST' not '2pm'."
+  },
+  "content-patterns": {
+    "errors": {
+      "structure": "What happened → what to do next. Never blame the user.",
+      "example-good": "We couldn't process that payment. Try a different card, or contact your bank.",
+      "example-bad": "Error: Transaction failed. Please retry."
+    },
+    "empty-states": {
+      "structure": "What this is → what will appear → one action.",
+      "example-good": "No campaigns yet. Your sent campaigns will show up here. Create your first one.",
+      "example-bad": "No data."
+    },
+    "success": {
+      "structure": "Confirm what happened → next step if relevant.",
+      "example-good": "Your campaign is scheduled for Friday at 10 am. We'll email you when it sends.",
+      "example-bad": "Success!"
+    },
+    "buttons": {
+      "rules": [
+        "Lead with a verb",
+        "Sentence case",
+        "Specific not generic — 'Create campaign' not 'Submit'",
+        "2-4 words max"
+      ],
+      "good": ["Create campaign", "Send test email", "View report", "Add audience"],
+      "bad": ["Submit", "Click here", "OK", "Continue"]
+    }
+  },
+  "inclusive-language": {
+    "rules": [
+      "Write to 'you' — direct, inclusive.",
+      "No gendered assumptions. 'Their' over 'his/her' when gender unknown.",
+      "No ability-based metaphors that exclude ('tone-deaf', 'blind spot', 'crazy').",
+      "No cultural idioms that don't translate ('hit a home run', 'ballpark figure').",
+      "Describe accessibility plainly — 'Works with screen readers' not 'a11y-friendly'."
+    ]
+  },
+  "sources": [
+    "https://styleguide.mailchimp.com/voice-and-tone/",
+    "https://styleguide.mailchimp.com/grammar-and-mechanics/",
+    "https://styleguide.mailchimp.com/writing-goals-and-principles/"
+  ]
+}

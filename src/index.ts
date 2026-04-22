@@ -17,6 +17,10 @@ var PATTERNS_DIR = join(DATA_DIR, "patterns");
 var BUSINESS_DIR = join(DATA_DIR, "business");
 var TOKENS_DIR = join(DATA_DIR, "tokens");
 var SYSTEMS_DIR = join(TOKENS_DIR, "systems");
+var CONTENT_DIR = join(DATA_DIR, "content");
+var CONTENT_SYSTEMS_DIR = join(CONTENT_DIR, "systems");
+var CONTENT_PRINCIPLES_DIR = join(CONTENT_DIR, "principles");
+var CONTENT_PATTERNS_DIR = join(CONTENT_DIR, "patterns");
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -90,6 +94,14 @@ function loadAllData() {
   allPrinciples = loadJsonDir<Principle>(PRINCIPLES_DIR);
   allPatterns = loadJsonDir<Pattern>(PATTERNS_DIR);
   allBusiness = loadJsonDir<BusinessStrategy>(BUSINESS_DIR);
+
+  // Content-layer principles and patterns share the schema of the others,
+  // so they slot into the same arrays and are automatically searchable
+  // through get_principles, get_pattern, and search_knowledge. Content
+  // brand systems (voice & tone) live in a parallel registry and are
+  // accessed via list_content_systems / get_content_system.
+  allPrinciples = allPrinciples.concat(loadJsonDir<Principle>(CONTENT_PRINCIPLES_DIR));
+  allPatterns = allPatterns.concat(loadJsonDir<Pattern>(CONTENT_PATTERNS_DIR));
 }
 
 loadAllData();
@@ -112,6 +124,25 @@ function getAvailableSystemIds(): string[] {
   if (!existsSync(SYSTEMS_DIR)) return [];
   return readdirSync(SYSTEMS_DIR)
     .filter(f => f.endsWith(".json"))
+    .map(f => f.replace(".json", ""));
+}
+
+function loadContentRegistry() {
+  var raw = readFileSync(join(CONTENT_SYSTEMS_DIR, "registry.json"), "utf-8");
+  return JSON.parse(raw);
+}
+
+function loadContentSystem(id: string) {
+  var filePath = join(CONTENT_SYSTEMS_DIR, id + ".json");
+  if (!existsSync(filePath)) return null;
+  var raw = readFileSync(filePath, "utf-8");
+  return JSON.parse(raw);
+}
+
+function getAvailableContentSystemIds(): string[] {
+  if (!existsSync(CONTENT_SYSTEMS_DIR)) return [];
+  return readdirSync(CONTENT_SYSTEMS_DIR)
+    .filter(f => f.endsWith(".json") && f !== "registry.json")
     .map(f => f.replace(".json", ""));
 }
 
@@ -612,6 +643,18 @@ function extractInsight(toolName: string, input: any, output: any): any {
         break;
       case "get_brand_system":
         insight = { company: safeStr(input?.company, 32), mode: input?.mode };
+        break;
+      case "list_content_systems":
+        insight = { category: input?.category, search: !!input?.search };
+        break;
+      case "get_content_system":
+        insight = { system: input?.id, section: input?.section };
+        break;
+      case "get_content_principles":
+        insight = { context: safeStr(input?.context, 48), format: input?.format };
+        break;
+      case "get_content_pattern":
+        insight = { type: input?.type };
         break;
       case "generate_design_system":
         insight = { style: input?.style, has_brand_color: !!input?.brand_color, format: input?.format };
@@ -2325,6 +2368,150 @@ server.tool(
             balance: { left_weight: Math.round(leftWeight), right_weight: Math.round(rightWeight), skew_pct: Math.round(balanceSkew * 100) }
           }
         }, null, 2)
+      }]
+    };
+  }
+);
+
+// ── Content design systems ─────────────────────────────────────────
+// Parallel to tokens/: voice & tone guides from real brands. Content
+// principles and patterns are loaded into the regular principles/pattern
+// arrays and reachable through get_principles/get_pattern as well — these
+// tools are the discoverable shortcuts.
+
+server.tool(
+  "list_content_systems",
+  "Browse available content design systems — brand voice and tone guides from real companies (Mailchimp, GOV.UK, Shopify Polaris, Atlassian, Intuit). Filter by category or search by name.",
+  {
+    category: z.string().optional().describe("Filter by category: marketing-saas, government, commerce-saas, productivity-saas, fintech"),
+    search: z.string().optional().describe("Search by name, description, or tag")
+  },
+  async ({ category, search }) => {
+    var registry = loadContentRegistry();
+    var systems = registry.systems;
+    var available = getAvailableContentSystemIds();
+
+    if (category) {
+      systems = systems.filter((s: any) => s.category === category);
+    }
+    if (search) {
+      var q = search.toLowerCase();
+      systems = systems.filter((s: any) =>
+        s.name.toLowerCase().includes(q) ||
+        s.description.toLowerCase().includes(q) ||
+        (s.tags && s.tags.some((t: string) => t.includes(q)))
+      );
+    }
+
+    systems = systems.map((s: any) => ({
+      ...s,
+      content_available: available.includes(s.id)
+    }));
+
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({ count: systems.length, systems }, null, 2)
+      }]
+    };
+  }
+);
+
+server.tool(
+  "get_content_system",
+  "Get a brand's content design system — voice attributes, tone shifts by context, vocabulary (use/avoid/never), grammar rules, content patterns for errors/empty-states/buttons/etc., and inclusive language guidance.",
+  {
+    id: z.string().describe("Content system ID (e.g. 'mailchimp', 'gov-uk', 'shopify-polaris', 'atlassian', 'intuit')"),
+    section: z.enum(["all", "voice", "tone_shifts", "vocabulary", "grammar", "content-patterns", "inclusive-language"]).optional().describe("Return just one section. Default: all.")
+  },
+  async ({ id, section }) => {
+    var sys = loadContentSystem(id);
+    if (!sys) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: "Content system '" + id + "' not found. Use list_content_systems to see available systems."
+        }]
+      };
+    }
+
+    var output: any = sys;
+    if (section && section !== "all") {
+      var slice: Record<string, any> = {
+        "$name": sys["$name"],
+        "$description": sys["$description"],
+        url: sys.url
+      };
+      if (sys[section] !== undefined) slice[section] = sys[section];
+      output = slice;
+    }
+
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(output, null, 2)
+      }]
+    };
+  }
+);
+
+server.tool(
+  "get_content_principles",
+  "Get UX-writing principles — clarity over cleverness, active voice, error-message anatomy, inclusive language, voice vs tone, and more. Filter by the writing context (e.g. 'error messages', 'notifications', 'form labels').",
+  {
+    context: z.string().optional().describe("What you're writing for (e.g. 'error messages', 'onboarding copy', 'empty state', 'notification'). Omit to get all UX-writing principles."),
+    format: z.enum(["full", "checklist", "brief"]).optional().describe("Output format: full (all details), checklist (implications + violations), brief (just summary). Default: full")
+  },
+  async ({ context, format }) => {
+    var fmt = format || "full";
+    var uxWriting = allPrinciples.filter(p => p.category === "ux-writing");
+
+    var results = uxWriting;
+    if (context) {
+      results = uxWriting.filter(p => {
+        var tagMatch = p.applies_to ? matchesTags(p.applies_to, context) : false;
+        var textMatch = textSearch(p.name + " " + p.summary + " " + p.description, context);
+        return tagMatch || textMatch;
+      });
+      if (results.length === 0) results = uxWriting;
+    }
+
+    var formatted = results.map(p => formatPrinciple(p, fmt));
+
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({
+          context: context || "all ux-writing principles",
+          count: formatted.length,
+          principles: formatted
+        }, null, 2)
+      }]
+    };
+  }
+);
+
+server.tool(
+  "get_content_pattern",
+  "Get content design patterns — copy recipes for error messages, empty-state copy, notifications, and form validation. Returns do's, don'ts, good/bad examples, evidence, and a checklist.",
+  {
+    type: z.enum(["error-messages", "empty-state-copy", "notifications", "form-validation"]).describe("Content pattern type")
+  },
+  async ({ type }) => {
+    var pattern = allPatterns.find(p => p.id === type && p.category === "content");
+    if (!pattern) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: "Content pattern '" + type + "' not found. Available: error-messages, empty-state-copy, notifications, form-validation."
+        }]
+      };
+    }
+
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(pattern, null, 2)
       }]
     };
   }

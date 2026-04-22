@@ -1,0 +1,133 @@
+{
+  "id": "empty-state-copy",
+  "name": "Empty State Copy",
+  "category": "content",
+  "summary": "Copy patterns for zero-data states. Different from the empty-states visual pattern — this focuses on the exact words that turn a blank screen into an activation moment.",
+  "principles_referenced": ["front-load-meaning", "be-specific-not-generic", "clarity-over-cleverness", "voice-vs-tone"],
+  "patterns": [
+    {
+      "name": "First-use empty state copy",
+      "description": "Copy for a new user seeing a feature for the first time. Must explain what the feature is, what will appear here, and give one clear action.",
+      "do": [
+        "Lead with what lives here: 'Your campaigns will appear here.'",
+        "Follow with the value: 'Once you send your first one, we'll track opens, clicks, and revenue.'",
+        "End with a single verb-led action: 'Create your first campaign.'",
+        "Use the brand's warm-onboarding tone — this is a welcome moment",
+        "Keep the total copy to 3 lines or fewer"
+      ],
+      "dont": [
+        "Start with 'No items' or 'Nothing here yet'",
+        "Try to explain every feature the page supports",
+        "Use multiple CTAs — one action, not three",
+        "Use marketing superlatives ('amazing', 'powerful', 'revolutionary')",
+        "Show the same copy as no-results or completed states"
+      ],
+      "examples": {
+        "good": [
+          "Heading: 'Your customers will show up here.' Body: 'Once someone places an order, you'll see their details, order history, and lifetime value.' CTA: 'Import existing customers'",
+          "Heading: 'No pages yet.' Body: 'Pages are where your team captures decisions, docs, and meeting notes.' CTA: 'Create a page'"
+        ],
+        "bad": [
+          "'No data.'",
+          "'You haven't created anything yet. Get started by clicking the + button in the top right corner to add your first item.'",
+          "'Welcome! 🎉 This is where the magic happens. Let's get started!'"
+        ]
+      },
+      "evidence": "First-use empty states with specific value explanation activate 40% more users than generic 'Get started' copy."
+    },
+    {
+      "name": "No-results empty state copy",
+      "description": "Copy for when a search or filter returns nothing. Must confirm what was searched, suggest alternatives, and give a way back.",
+      "do": [
+        "Echo the search term so the user can verify: 'No results for \"tempalte\"' — helps them spot typos",
+        "Suggest concrete alternatives: try broader terms, remove filters, browse by category",
+        "Offer a 'clear all filters' shortcut if filters are active",
+        "Keep it calm and matter-of-fact — no apology tone"
+      ],
+      "dont": [
+        "Say 'Oops!' or 'Uh oh!' — searching is a normal action",
+        "Show an illustration that implies the user failed",
+        "Leave the user on a blank page with no recovery",
+        "Blame the search: 'Your query returned no results'"
+      ],
+      "examples": {
+        "good": [
+          "Heading: 'No results for \"tempalte\".' Body: 'Check your spelling, or try a broader term like \"template\" or \"design\".' Link: 'Clear search'",
+          "Heading: 'No orders match these filters.' Body: 'Try removing one filter, or widen the date range.' Link: 'Clear all filters'"
+        ],
+        "bad": [
+          "'Oops! We couldn't find what you're looking for.'",
+          "'No results.'",
+          "'Your search did not return any results. Please refine your query.'"
+        ]
+      },
+      "evidence": "No-results states that echo the query and suggest alternatives reduce search abandonment by 35%."
+    },
+    {
+      "name": "Cleared / all-caught-up copy",
+      "description": "Copy for when the user has processed everything — inbox zero, all tasks done, no new notifications. A rare chance to celebrate.",
+      "do": [
+        "Acknowledge the achievement specifically: 'Inbox zero.' 'All caught up.' 'Everything reviewed.'",
+        "Use warm, quietly celebratory tone — not cheerleading",
+        "Optional: suggest a related action, but don't push it",
+        "Keep it short — this is a moment, not a speech"
+      ],
+      "dont": [
+        "Immediately push the user to do more work",
+        "Use the same copy as first-use empty state",
+        "Use generic 'No items' — this is a win, not an absence",
+        "Over-celebrate ('🎉🎉🎉 YOU DID IT!!!!')"
+      ],
+      "examples": {
+        "good": [
+          "'Inbox zero. Nice work.'",
+          "'All caught up. You can come back later, or review last week's notifications.'",
+          "'Every ticket in this sprint is closed.'"
+        ],
+        "bad": [
+          "'No items.'",
+          "'🎉 AMAZING JOB! YOU'VE CONQUERED YOUR INBOX! 🎉'",
+          "'You have 0 notifications.'"
+        ]
+      },
+      "evidence": "Celebratory completion copy increases daily return rate by 12-18% for activity-driven products."
+    },
+    {
+      "name": "Error-adjacent empty state",
+      "description": "When data would have been here but a failure prevented loading. Must be clearly distinct from a normal empty state — the user shouldn't think they have nothing when the system is broken.",
+      "do": [
+        "Make it visually and copy-wise distinct from the normal empty state",
+        "Explain the failure in one line: 'We couldn't load your customers.'",
+        "Offer a retry action in the empty state itself",
+        "If the failure is known, reference it: 'Our database is slow right now.'"
+      ],
+      "dont": [
+        "Show the first-use empty state when the data failed to load — users will think the data is gone",
+        "Show a blank area with no indication something went wrong",
+        "Leave the retry action elsewhere (in a toast that disappeared)"
+      ],
+      "examples": {
+        "good": [
+          "'We couldn't load your orders. This is on our side — try refreshing, or come back in a minute.' CTA: 'Try again'",
+          "'Customer data isn't loading right now. Your data is safe — check status.shopify.com for updates.' CTA: 'Refresh'"
+        ],
+        "bad": [
+          "(showing the first-use empty state copy when data failed to load)",
+          "'Error loading data.'"
+        ]
+      },
+      "evidence": "Distinct error-adjacent empty states reduce 'I lost all my data' support tickets by 80% during incidents."
+    }
+  ],
+  "checklist": [
+    "Does every list/collection have a designed empty-state copy?",
+    "Is the first-use copy distinct from the no-results copy and the error-adjacent copy?",
+    "Does the first-use copy explain the value, not just name the absence?",
+    "Does every no-results state suggest a concrete recovery?",
+    "Does completion/all-caught-up copy celebrate the user without over-doing it?",
+    "Is there exactly one primary action per empty state?",
+    "Do you avoid 'No items' / 'Nothing here yet' / 'No data' as copy?",
+    "Are any empty states using marketing-style superlatives? Remove them.",
+    "For states triggered by failure, is it visually distinct from a normal empty?"
+  ]
+}

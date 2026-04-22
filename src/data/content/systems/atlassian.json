@@ -1,0 +1,99 @@
+{
+  "$name": "Atlassian Design System Content",
+  "$description": "Atlassian's voice across Jira, Confluence, Trello, and Bitbucket. Bold, optimistic, practical — written for teams getting real work done together.",
+  "url": "https://atlassian.design/content",
+  "voice": {
+    "identity": "A capable teammate who's seen enough team dynamics to be practical about them. Encourages without cheerleading.",
+    "attributes": [
+      { "name": "Bold", "description": "Make a point. Take a position. Don't hedge with 'might', 'could', 'possibly' when you mean something concrete." },
+      { "name": "Optimistic", "description": "Teams doing hard work deserve a tool that believes in them. Frame capabilities around what the team can accomplish." },
+      { "name": "Practical", "description": "Skip the motivational framing. Tell people how to do the thing. 'Drag to reorder' beats 'Organize your priorities with ease.'" },
+      { "name": "Collaborative", "description": "Write as 'we' (the team) when referring to the shared work, 'you' when addressing the individual. Never 'users'." },
+      { "name": "Human", "description": "Acknowledge real work situations — rushed, tired, interrupted. Write so someone can skim at 4pm Friday." }
+    ]
+  },
+  "tone_shifts": {
+    "onboarding": "Bold and optimistic. 'Your team is about to ship faster.' Not 'Welcome to your new productivity platform.'",
+    "errors": "Practical and solution-focused. No humor when money, data, or deadlines are at stake.",
+    "empty-states": "Invitational. Frame the empty state as the start of something, not an absence.",
+    "notifications": "Scannable. Lead with who did what, then the object.",
+    "changelogs": "Direct and celebratory about improvements — users care about what's faster or easier now."
+  },
+  "vocabulary": {
+    "use": [
+      "team (not users, stakeholders)",
+      "you / your team (not 'users')",
+      "create (not generate, produce)",
+      "workspace (not environment, tenant)",
+      "issue (Jira convention — not ticket, in Jira)",
+      "card (Trello convention — not task, in Trello)",
+      "page (Confluence convention — not doc, in Confluence)"
+    ],
+    "avoid": [
+      "users (in user-facing copy — say 'your team' or 'you')",
+      "synergy",
+      "leverage",
+      "solutioning",
+      "ideate",
+      "unpack",
+      "circle back",
+      "empower (overused)",
+      "best-in-class",
+      "game-changer"
+    ],
+    "never": [
+      "Condescending tutorial phrasing ('Did you know you can...?')",
+      "Passive-aggressive error messages",
+      "Pet names for the product ('the Jira magic')"
+    ]
+  },
+  "grammar": {
+    "voice": "Active voice. 'Assign this to someone' — not 'This can be assigned.'",
+    "contractions": "Use. They make the product sound like a teammate, not a legal document.",
+    "oxford-comma": "Use.",
+    "titles": "Sentence case for most UI. Title case only for formal product names.",
+    "numbers": "Numerals for counts, ages, measurements, money, time. Spell out in pure prose for one through nine.",
+    "lists": "Bullets when the order doesn't matter. Numbered when it does (steps, ranked results).",
+    "imperatives": "Use. Buttons and menu items are commands to the system: 'Create issue', 'Move to done', 'Share page'."
+  },
+  "content-patterns": {
+    "errors": {
+      "structure": "What went wrong → what the team can do about it → alternative path if needed.",
+      "example-good": "We couldn't save this page. Check your connection, or copy your changes before refreshing.",
+      "example-bad": "Save failed."
+    },
+    "notifications": {
+      "structure": "Actor → action → object → timing. Scannable at a glance.",
+      "example-good": "Priya commented on 'Q2 roadmap' · 5m ago",
+      "example-bad": "You have a new notification."
+    },
+    "empty-states": {
+      "structure": "Frame what will live here → one action to start.",
+      "example-good": "Your team's work will show up here once someone creates an issue. Create your first issue.",
+      "example-bad": "No issues."
+    },
+    "buttons": {
+      "rules": [
+        "Verb + noun, sentence case.",
+        "Match the button label to the heading or modal title.",
+        "Destructive actions name what they destroy — 'Delete page', not 'Delete'."
+      ],
+      "good": ["Create issue", "Invite teammates", "Move to done", "Share page"],
+      "bad": ["OK", "Submit", "Proceed", "Click here"]
+    }
+  },
+  "inclusive-language": {
+    "rules": [
+      "Address teams, not user types. Roles vary — don't assume 'admin' == 'manager' == 'owner'.",
+      "No assumption of physical co-location — teams are distributed.",
+      "No assumption of timezone — always show the viewer's local time.",
+      "No gendered pronouns — 'they' for teammates of unknown gender.",
+      "Avoid military/sports metaphors ('deploy', 'ship it' are fine; 'war room', 'rockstar', 'take no prisoners' are out)."
+    ]
+  },
+  "sources": [
+    "https://atlassian.design/content/voice-and-tone",
+    "https://atlassian.design/content/writing-style",
+    "https://atlassian.design/content/inclusive-writing"
+  ]
+}

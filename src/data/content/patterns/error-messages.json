@@ -1,0 +1,141 @@
+{
+  "id": "error-messages",
+  "name": "Error Messages",
+  "category": "content",
+  "summary": "Copy patterns for inline validation, form errors, system errors, and failure states. The single largest source of trust erosion in a product — and the single biggest opportunity to stand out.",
+  "principles_referenced": ["error-message-anatomy", "be-specific-not-generic", "clarity-over-cleverness", "acknowledge-the-user"],
+  "patterns": [
+    {
+      "name": "Inline field validation",
+      "description": "The error that shows up next to a single field when the user's input is invalid. Should fire after the user leaves the field, not on every keystroke. Should describe the format needed, not just say 'invalid'.",
+      "do": [
+        "Describe the fix, not the failure: 'Use at least 8 characters' not 'Password too short'",
+        "Appear inline, directly below or beside the field — not in a banner",
+        "Stay visible until the user corrects it",
+        "Include the format or example when a specific shape is required",
+        "Fire on blur (when the user leaves the field), not while they type"
+      ],
+      "dont": [
+        "Use 'invalid', 'incorrect', 'wrong' — they're blaming",
+        "Fire validation on every keystroke — users haven't finished thinking",
+        "Show errors in red text only (color-blind users) — always pair with an icon or position",
+        "Show a generic 'Please enter a valid value' — be specific to the field",
+        "Disable the submit button without telling the user which field is wrong"
+      ],
+      "examples": {
+        "good": [
+          "Field: Email — 'This needs to include an @ and a domain (like name@example.com).'",
+          "Field: Phone — 'Add the area code (10 digits total).'",
+          "Field: Password — 'Use at least 8 characters, including one number.'",
+          "Field: Date — 'Enter the date as MM/DD/YYYY.'"
+        ],
+        "bad": [
+          "'Invalid email'",
+          "'Please enter a valid phone number'",
+          "'Password does not meet requirements'",
+          "'Invalid date format'"
+        ]
+      },
+      "evidence": "Specific inline validation reduces form abandonment by 22%. Generic 'invalid' messages increase task completion time by 30% because users have to guess what's wrong."
+    },
+    {
+      "name": "Form submission failure",
+      "description": "The error that appears when the whole form can't be submitted — usually because of a backend, auth, or network problem. Often follows a successful client-side validation.",
+      "do": [
+        "Show the error at the top of the form, near where the submit button lives",
+        "Name what the user was trying to do: 'We couldn't save your profile'",
+        "Explain the cause if it helps: 'because your session expired'",
+        "Offer a concrete next step: 'Sign in again to continue'",
+        "Preserve the user's data — never clear the form on error"
+      ],
+      "dont": [
+        "Clear the form — users will leave rather than re-enter everything",
+        "Show a toast that disappears in 4 seconds",
+        "Mix system errors with field errors in the same space",
+        "Blame the user ('You did not fill out the form correctly')",
+        "Say 'An error occurred' without context"
+      ],
+      "examples": {
+        "good": [
+          "'We couldn't save your profile because your session expired. Sign in again to continue.'",
+          "'We couldn't reach our payment processor. Try again in a moment, or use a different card.'",
+          "'This email is already in use. Sign in, or use a different address.'"
+        ],
+        "bad": [
+          "'Error 500. Please try again later.'",
+          "'Submission failed.'",
+          "'An unexpected error occurred.'"
+        ]
+      },
+      "evidence": "Named errors with a recovery path increase retry success rate by 60% over generic errors."
+    },
+    {
+      "name": "System-wide failure",
+      "description": "A larger error state when an entire page or feature is broken — database down, third-party outage, deploy in progress. Requires acknowledgment, honesty, and a path forward.",
+      "do": [
+        "Acknowledge the problem exists — don't pretend the page is empty",
+        "Use plain language: 'This isn't working right now' over 'HTTP 503'",
+        "Offer an alternative: refresh, check status page, wait and retry",
+        "If this is a known incident, link to the status page",
+        "Keep the global navigation intact so the user isn't stuck"
+      ],
+      "dont": [
+        "Show a blank white screen",
+        "Show a stack trace",
+        "Show a generic 'Something went wrong' with no context",
+        "Hide the error behind a spinner that never resolves"
+      ],
+      "examples": {
+        "good": [
+          "'Reports aren't loading right now. We're looking into it — check status.ravenmcp.ai for updates.'",
+          "'We couldn't load your dashboard. Refresh the page, or try again in a minute.'"
+        ],
+        "bad": [
+          "'Something went wrong.'",
+          "'Error 503: Service Unavailable'",
+          "(blank page)"
+        ]
+      },
+      "evidence": "Honest error messages with a link to status pages reduce support tickets by 40% during outages."
+    },
+    {
+      "name": "Permission / access denied",
+      "description": "Error when the user doesn't have access to a resource. Must be informative without revealing sensitive information about the resource itself.",
+      "do": [
+        "Name what's being blocked ('You can't edit this page')",
+        "Explain why at the right level of detail — 'because you have view access' is better than 'role_id != 2'",
+        "Offer a path: request access, switch accounts, contact the owner",
+        "For security-sensitive cases: acknowledge without confirming the resource exists"
+      ],
+      "dont": [
+        "Reveal whether a resource exists if that's a security issue (use 'not found or no access')",
+        "Blame the user's role",
+        "Leave them on a dead-end page with no action"
+      ],
+      "examples": {
+        "good": [
+          "'You can't edit this page. Ask the page owner to give you edit access, or view in read-only mode.'",
+          "'This workspace isn't available to your account. Switch accounts or contact the admin.'"
+        ],
+        "bad": [
+          "'Access denied.'",
+          "'Forbidden.'",
+          "'You do not have the required role to perform this action.'"
+        ]
+      },
+      "evidence": "Actionable permission errors reduce 'why can't I do X' support requests by 50%."
+    }
+  ],
+  "checklist": [
+    "Does every error say what happened in the user's terms?",
+    "Does every error include a specific next step?",
+    "Are errors placed where the action happened (inline for fields, near submit for forms)?",
+    "Is any error message using 'invalid', 'incorrect', or 'wrong'? Rewrite them.",
+    "Does any error reveal a stack trace, error code, or internal term without translation?",
+    "Does any error disappear before the user can read it (toast under 5s)?",
+    "Does form error handling preserve the user's input?",
+    "Is there a recovery path from every error — not just a dead end?",
+    "Do errors differ in tone from success messages (more direct, less humor)?",
+    "For global failures, is there a link to a status page or clear retry path?"
+  ]
+}
