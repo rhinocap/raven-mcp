@@ -14,6 +14,7 @@ on:
 permissions:
   contents: write
   pull-requests: read
+  id-token: write
 
 jobs:
   release:
@@ -36,6 +37,9 @@ jobs:
           cache: "npm"
           registry-url: "https://registry.npmjs.org"
 
+      - name: Upgrade npm (OIDC trusted publishing requires 11.5.1+)
+        run: npm install -g npm@latest
+
       - name: Install deps
         run: npm ci
 
@@ -53,8 +57,6 @@ jobs:
 
       - name: Cut release
         if: steps.release.outputs.released == 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           bash scripts/release.sh "${{ steps.release.outputs.bump }}"
 
