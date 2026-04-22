@@ -213,10 +213,48 @@
     </header>
 
     
-    <div class="empty">
-      <h2>The first release is on its way.</h2>
-      <p>Raven ships a new version every Friday with whatever knowledge landed that week. Check back soon.</p>
-    </div>
+    <article class="release">
+      <header class="release-head">
+        <h2>v1.2.0</h2>
+        <span class="badge badge-initial">initial</span>
+        <time datetime="2026-04-22T22:39:50Z">April 22, 2026</time>
+      </header>
+      <div class="release-body">
+        <p>Raven v1.2.0 — minor release</p>
+
+<h3>Changes</h3>
+<ul>
+<li>6e98d29 Release via npm OIDC trusted publishing</li>
+<li>6e5fafc Content design systems — voice, writing principles, copy patterns</li>
+<li>a51eb76 Session logs — 2026-04-11 and 2026-04-17</li>
+<li>b5dbd65 OG card + wallpaper design experiments</li>
+<li>5046f6e Welcome email — dark-mode hardening for Gmail/Outlook</li>
+<li>4c59ac6 Daily digest — in-server injection + launchd agent at 18:00 local</li>
+<li>ed23f42 Raven learns from local usage — passive, insight-only, never leaves the machine</li>
+<li>c79fece End-to-end release automation</li>
+<li>26107e0 Route gh/git content through tmpfiles to avoid shell interpretation</li>
+<li>91a63e5 Map RAVEN_KNOWLEDGE_PR secret to ANTHROPIC_API_KEY env var</li>
+<li>86609b1 Bump workflow runtime to Node.js 24</li>
+<li>92692ce Add weekly knowledge-PR pipeline + release script</li>
+<li>f53f8b9 Lead docs install with npm/CLI, keep .mcpb as secondary</li>
+<li>d137355 Package Raven as a Claude Desktop Extension (.mcpb)</li>
+<li>0f06086 Add build prompt clip to sizzle reel</li>
+<li>35f5c5f Test Vercel auto-deploy from git push</li>
+<li>0c71445 Re-render sizzle reel with OffthreadVideo for smooth playback</li>
+<li>2ee3a6c Add sizzle reel video to homepage</li>
+<li>9005f8a Switch OG image to compressed JPEG (827KB→80KB), add dimension meta tags</li>
+<li>3b7db99 Add missing --space-7 token, use tokens not hardcoded values</li>
+</ul>
+
+<p><strong>Install:</strong></p>
+<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
+
+
+      </div>
+      <footer class="release-foot">
+        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.2.0" target="_blank" rel="noopener">View on GitHub &rarr;</a>
+      </footer>
+    </article>
   </main>
 
   <script src="assets/footer.js"></script>
