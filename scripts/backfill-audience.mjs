@@ -26,6 +26,7 @@ if (!RESEND_API_KEY || !RESEND_AUDIENCE_ID) {
 }
 
 const commit = process.argv.includes("--commit");
+const debug = process.argv.includes("--debug");
 const resend = new Resend(RESEND_API_KEY);
 
 function normalizeAddress(value) {
@@ -60,6 +61,8 @@ async function walkLogs(onLog) {
   let cursor = undefined;
   let page = 0;
   let total = 0;
+  let dumpedListShape = false;
+  let dumpedGetShape = false;
   while (true) {
     page += 1;
     const params = { limit: 100 };
@@ -73,8 +76,27 @@ async function walkLogs(onLog) {
     const arr = Array.isArray(raw) ? raw : (raw?.data || []);
     if (!Array.isArray(arr) || arr.length === 0) break;
 
+    if (debug && !dumpedListShape && arr.length > 0) {
+      console.log("\n=== DEBUG: logs.list entry shape ===");
+      console.log(JSON.stringify(arr[0], null, 2));
+      console.log("=== END ===\n");
+      dumpedListShape = true;
+    }
+
     for (const log of arr) {
       total += 1;
+      if (debug && !dumpedGetShape && log?.id) {
+        try {
+          const full = await resend.logs.get(log.id);
+          console.log("\n=== DEBUG: logs.get(" + log.id + ") shape ===");
+          console.log(JSON.stringify(full, null, 2));
+          console.log("=== END ===\n");
+          dumpedGetShape = true;
+        } catch (e) {
+          console.log("DEBUG: logs.get failed:", e?.message);
+          dumpedGetShape = true;
+        }
+      }
       await onLog(log);
     }
 
