@@ -66,6 +66,15 @@ cd raven-mcp && npm install && npm run build
 | `get_content_pattern` | Get copy recipes for error messages, empty-state copy, notifications, form validation |
 | `raven_reflect` | Summarize your local Raven usage log to find patterns + gaps |
 
+## Release updates
+
+Raven ships new principles, patterns, and brand systems regularly. For one email per minor/major release (patches stay quiet):
+
+- **Web:** [ravenmcp.ai/#updates](https://ravenmcp.ai/#updates) — 10 seconds, one email field.
+- **In-product:** ask Claude *"register me for Raven updates at you@work.com"* — Claude calls `raven_register` and you're in.
+
+No marketing, unsubscribe anytime. Powered by Resend.
+
 ## Learning loop
 
 Raven keeps a small **local-only** log of how you use it so you (and Claude) can spot which patterns you build most often and which gaps show up again and again.

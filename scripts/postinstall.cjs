@@ -35,3 +35,11 @@ req.on("error", function() {}); // silent
 req.on("timeout", function() { req.destroy(); });
 req.write(data);
 req.end();
+
+// Friendly one-liner so users know where to opt in to release updates.
+// Stays quiet on CI / non-TTY installs so it never spams logs.
+if (process.stdout.isTTY && process.env.npm_config_loglevel !== "silent") {
+  try {
+    console.log("\n  \u2728 Raven installed. Subscribe to release updates: https://ravenmcp.ai/#updates\n");
+  } catch (_) { /* never fail the install */ }
+}

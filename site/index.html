@@ -1424,6 +1424,68 @@
     }
 
     /* ══════════════════════════════════════════
+       MAILING LIST
+       ══════════════════════════════════════════ */
+    .signup-section {
+      position: relative;
+      padding: clamp(48px, 6vw, 80px) 0;
+      text-align: center;
+    }
+    .signup-section .container {
+      display: flex; flex-direction: column; align-items: center; gap: var(--space-4);
+    }
+    .signup-section h2 { max-width: 520px; }
+    .signup-section .subtitle { max-width: 520px; margin: 0 auto; }
+    .signup-form {
+      display: flex; gap: var(--space-2); margin-top: var(--space-3);
+      width: 100%; max-width: 480px;
+    }
+    .signup-input {
+      flex: 1; min-width: 0;
+      padding: 14px 18px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-full);
+      color: var(--text-primary);
+      font-family: var(--font-sans); font-size: 14px;
+      transition: border-color var(--duration-fast) var(--ease-out);
+    }
+    .signup-input::placeholder { color: var(--text-tertiary); }
+    .signup-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .signup-submit {
+      flex-shrink: 0;
+      padding: 14px 24px;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: var(--radius-full);
+      font-family: var(--font-sans); font-size: 14px; font-weight: 600;
+      cursor: pointer;
+      transition: opacity var(--duration-fast) var(--ease-out);
+    }
+    .signup-submit:hover { opacity: 0.9; }
+    .signup-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+    .signup-status {
+      min-height: 20px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: var(--space-2);
+    }
+    .signup-status.success { color: var(--accent); }
+    .signup-status.error { color: #FF6B6B; }
+    .signup-note {
+      font-size: 12px; color: var(--text-tertiary);
+      margin-top: var(--space-1);
+    }
+    @media (max-width: 640px) {
+      .signup-form { flex-direction: column; }
+      .signup-submit { width: 100%; }
+    }
+
+    /* ══════════════════════════════════════════
        FOOTER
        ══════════════════════════════════════════ */
 
@@ -2004,6 +2066,20 @@
   </section>
 
   <!-- FINAL CTA -->
+  <section id="updates" class="signup-section">
+    <div class="container">
+      <p class="label reveal">Release Updates</p>
+      <h2 class="reveal reveal-delay-1">New patterns, new systems, in&nbsp;your&nbsp;inbox</h2>
+      <p class="subtitle reveal reveal-delay-2">One email when new design principles, UI patterns, or brand systems ship. No marketing. Unsubscribe anytime.</p>
+      <form id="signup-form" class="signup-form reveal reveal-delay-3" novalidate>
+        <input id="signup-email" class="signup-input" type="email" placeholder="you@work.com" required autocomplete="email">
+        <button id="signup-submit" class="signup-submit" type="submit">Subscribe</button>
+      </form>
+      <div id="signup-status" class="signup-status" aria-live="polite"></div>
+      <p class="signup-note reveal reveal-delay-3">Minor &amp; major releases only — patches stay quiet.</p>
+    </div>
+  </section>
+
   <section id="get-started" class="cta-section">
     <div class="glow"></div>
     <div class="grid-bg"></div>
@@ -2360,6 +2436,48 @@
     document.querySelectorAll('.stat-number').forEach(function(el) {
       counterObserver.observe(el);
     });
+
+    /* ── Signup Form ── */
+    (function() {
+      var form = document.getElementById('signup-form');
+      if (!form) return;
+      var input = document.getElementById('signup-email');
+      var button = document.getElementById('signup-submit');
+      var status = document.getElementById('signup-status');
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var email = (input.value || '').trim();
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          status.textContent = "That doesn't look like a valid email.";
+          status.className = 'signup-status error';
+          return;
+        }
+        button.disabled = true;
+        status.textContent = 'Subscribing…';
+        status.className = 'signup-status';
+        fetch('/api/welcome', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email })
+        })
+          .then(function(r) { return r.json().then(function(b) { return { ok: r.ok, body: b }; }); })
+          .then(function(res) {
+            if (res.ok) {
+              status.textContent = "You're in. Check your inbox for a welcome from Drew.";
+              status.className = 'signup-status success';
+              input.value = '';
+            } else {
+              status.textContent = (res.body && res.body.error) ? res.body.error : 'Something went wrong — try again.';
+              status.className = 'signup-status error';
+            }
+          })
+          .catch(function() {
+            status.textContent = "Couldn't reach the server. Try again in a moment.";
+            status.className = 'signup-status error';
+          })
+          .finally(function() { button.disabled = false; });
+      });
+    })();
 
   </script>
 </body>
