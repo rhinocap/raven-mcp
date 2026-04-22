@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
+<title>OG Gradient</title>
+<script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1200px; height: 630px; overflow: hidden; }
+  .frame {
+    width: 1200px;
+    height: 630px;
+    background: #0a0e14;
+    position: relative;
+    overflow: hidden;
+  }
+  .glow-1 {
+    position: absolute;
+    top: -10%;
+    left: 30%;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(0,160,200,0.35) 0%, rgba(0,140,180,0.15) 30%, transparent 65%);
+  }
+  .glow-2 {
+    position: absolute;
+    top: -30%;
+    left: 15%;
+    width: 800px;
+    height: 800px;
+    background: radial-gradient(circle, rgba(0,80,120,0.25) 0%, transparent 60%);
+  }
+  .glow-3 {
+    position: absolute;
+    bottom: -40%;
+    right: -10%;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(0,100,140,0.12) 0%, transparent 55%);
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="glow-2"></div>
+  <div class="glow-1"></div>
+  <div class="glow-3"></div>
+</div>
+</body>
+</html>

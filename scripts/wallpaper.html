@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 5120px;
+    height: 2880px;
+    background: #1a1a22;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Grid pattern */
+  .grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+    -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+  }
+
+  /* Top gradient wash */
+  .top-wash {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1200px;
+    background: linear-gradient(180deg,
+      rgba(0, 191, 255, 0.38) 0%,
+      rgba(0, 191, 255, 0.22) 25%,
+      rgba(0, 191, 255, 0.10) 55%,
+      transparent 100%);
+  }
+
+  /* Main hero glow — large elliptical */
+  .glow-1 {
+    position: absolute;
+    top: -200px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 3600px;
+    height: 2000px;
+    background: radial-gradient(ellipse,
+      rgba(0,191,255,0.35) 0%,
+      rgba(0,229,255,0.15) 25%,
+      rgba(0,191,255,0.05) 50%,
+      transparent 75%);
+    pointer-events: none;
+  }
+
+  /* Secondary glow — left */
+  .glow-2 {
+    position: absolute;
+    top: 400px;
+    left: 12%;
+    width: 1200px;
+    height: 1200px;
+    background: radial-gradient(circle,
+      rgba(0,229,255,0.07) 0%,
+      transparent 55%);
+  }
+
+  /* Tertiary glow — right */
+  .glow-3 {
+    position: absolute;
+    top: 800px;
+    right: 8%;
+    width: 1000px;
+    height: 1000px;
+    background: radial-gradient(circle,
+      rgba(0,229,255,0.05) 0%,
+      transparent 55%);
+  }
+
+  /* Gradient mesh — subtle multi-point ambient light */
+  .mesh {
+    position: absolute;
+    top: -15%;
+    left: -10%;
+    width: 120%;
+    height: 130%;
+    background:
+      radial-gradient(ellipse at 20% 50%, rgba(0,191,255,0.05) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(0,229,255,0.04) 0%, transparent 40%),
+      radial-gradient(ellipse at 50% 80%, rgba(0,230,118,0.025) 0%, transparent 50%);
+  }
+
+  /* Bottom vignette */
+  .vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(22,22,30,0.6) 100%);
+  }
+</style>
+</head>
+<body>
+  <div class="mesh"></div>
+  <div class="glow-1"></div>
+  <div class="glow-2"></div>
+  <div class="glow-3"></div>
+  <div class="top-wash"></div>
+  <div class="grid"></div>
+  <div class="vignette"></div>
+</body>
+</html>
