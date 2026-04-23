@@ -630,18 +630,39 @@ function renderBlueprintSection(bp: BlueprintInput): string {
 
   var body: string;
   if (twoActor) {
+    // Simple person silhouette avatars — Actor A plain, Actor B with a
+    // subtle collar/V to distinguish. Both tint to their lane color.
+    // Simple person silhouettes wrapped in an accent-colored circle.
+    // Actor A is a plain head+shoulders; Actor B has a small V to
+    // distinguish it (hint of a collar) so the two are visually distinct.
+    var avatarA =
+      '<span class="lane-avatar-wrap">' +
+      '<svg class="lane-avatar" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
+      '<circle cx="12" cy="9" r="4"/>' +
+      '<path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5v1H4z"/>' +
+      '</svg>' +
+      '</span>';
+    var avatarB =
+      '<span class="lane-avatar-wrap">' +
+      '<svg class="lane-avatar" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
+      '<circle cx="12" cy="9" r="4"/>' +
+      '<path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5v1H4z"/>' +
+      '<path d="M10.8 15.2l1.2 2 1.2-2z" fill="rgba(26,26,34,0.55)"/>' +
+      '</svg>' +
+      '</span>';
+
     // Two-actor / HI-loop layout:
     // Actor A (above line of interaction), Actor B (below), then line of visibility, backstage, support.
     body =
       '<div class="swim-lane lane-a">' +
-      '<div class="lane-label lane-label-a">' + escapeHtml(labelA) + '</div>' +
+      '<div class="lane-label lane-label-a">' + avatarA + '<span>' + escapeHtml(labelA) + '</span></div>' +
       row("Physical evidence", "row-evidence", "evidence") +
       row("Actions", "row-user", "user_action") +
       row("Frontstage (sees)", "row-frontstage", "frontstage") +
       '</div>' +
       '<div class="line-of-interaction">Line of interaction</div>' +
       '<div class="swim-lane lane-b">' +
-      '<div class="lane-label lane-label-b">' + escapeHtml(labelB) + '</div>' +
+      '<div class="lane-label lane-label-b">' + avatarB + '<span>' + escapeHtml(labelB) + '</span></div>' +
       actorBRow("Frontstage (sees)", "row-frontstage-b", "frontstage") +
       actorBRow("Actions", "row-user-b", "action") +
       actorBRow("Physical evidence", "row-evidence-b", "evidence") +
@@ -718,7 +739,13 @@ function generateServiceBlueprintHtml(current: BlueprintInput, ideal: BlueprintI
     '.row-support{background:rgba(255,64,129,0.06);color:var(--accent-pink);border:1px solid rgba(255,64,129,0.14)}' +
     '.row-pain{background:rgba(255,255,255,0.04);color:var(--text-secondary);border:1px solid var(--border)}' +
     '.swim-lane{padding:14px 0;position:relative}' +
-    '.lane-label{font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:10px;padding-left:16px;display:inline-block;padding:4px 12px;border-radius:9999px;background:rgba(255,255,255,0.05);border:1px solid var(--border)}' +
+    '.lane-label{font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:12px;display:inline-flex;align-items:center;gap:10px;padding:6px 16px 6px 6px;border-radius:9999px;background:rgba(255,255,255,0.05);border:1px solid var(--border)}' +
+    '.lane-avatar-wrap{width:26px;height:26px;border-radius:9999px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}' +
+    '.lane-avatar{width:18px;height:18px}' +
+    '.lane-label-a .lane-avatar-wrap{background:var(--accent-blue)}' +
+    '.lane-label-b .lane-avatar-wrap{background:var(--accent-cyan,#00E5FF)}' +
+    '.lane-label-a .lane-avatar{color:var(--bg-base)}' +
+    '.lane-label-b .lane-avatar{color:var(--bg-base)}' +
     '.lane-label-a{color:var(--accent-blue);background:rgba(0,191,255,0.08);border-color:rgba(0,191,255,0.22)}' +
     '.lane-label-b{color:var(--accent-cyan,#00E5FF);background:rgba(0,229,255,0.08);border-color:rgba(0,229,255,0.22)}' +
     '.line-of-interaction{text-align:center;font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--accent-blue);padding:14px 0;border-top:2px solid rgba(0,191,255,0.32);border-bottom:2px solid rgba(0,191,255,0.32);margin:18px 0;background:rgba(0,191,255,0.04)}' +
