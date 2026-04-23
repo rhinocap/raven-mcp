@@ -661,9 +661,9 @@ function renderBlueprintSection(bp: BlueprintInput): string {
       '<div class="line-of-interaction">Line of interaction</div>' +
       '<div class="swim-lane lane-b">' +
       '<div class="lane-label lane-label-b">' + avatarB + '<span>' + escapeHtml(labelB) + '</span></div>' +
-      actorBRow("Frontstage (sees)", "row-frontstage", "frontstage") +
-      actorBRow("Actions", "row-user", "action") +
       actorBRow("Physical evidence", "row-evidence", "evidence") +
+      actorBRow("Actions", "row-user", "action") +
+      actorBRow("Frontstage (sees)", "row-frontstage", "frontstage") +
       '</div>' +
       '<div class="line-of-visibility">Line of visibility</div>' +
       row("Backstage", "row-backstage", "backstage") +
