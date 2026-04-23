@@ -60,6 +60,24 @@
       "evidence": "The current/ideal comparison is the single most persuasive artifact for stakeholders deciding whether to invest in service improvements. Abstract descriptions of 'improving the service' don't move budgets; a visible gap does."
     },
     {
+      "name": "Two-actor / HI-loop blueprints",
+      "description": "When the service involves two people interacting through the service (customer ↔ lawyer, patient ↔ doctor, buyer ↔ agent, shopper ↔ merchant), the classic single-actor Shostack blueprint breaks down — there's a second actor with their own actions, their own UI, their own artifacts. The fix is a two-swim-lane layout with a 'line of interaction' between the two sides.",
+      "do": [
+        "Give each actor their own swim lane with actions, frontstage (what they see), and physical evidence",
+        "Draw a 'line of interaction' between them — the moments they actually talk, meet, or exchange artifacts",
+        "Keep the line of visibility below both lanes — backstage and support processes are shared",
+        "Name each actor explicitly ('Client', 'Lawyer' — not 'User A', 'User B')",
+        "Identify the handoffs across the line of interaction — each is a moment to design explicitly"
+      ],
+      "dont": [
+        "Collapse the second actor into 'frontstage' — loses their own workflow, tools, and pain points",
+        "Try to map three or more actors into the same blueprint — split into multiple or zoom out",
+        "Ignore the asymmetry of information — the two actors often have very different knowledge at each step",
+        "Forget that the second actor has their own unhappy path (agent overloaded, tool breaks, context lost)"
+      ],
+      "evidence": "Two-actor blueprints are standard for professional services (law, medicine, financial advising), marketplaces (buyer/seller), and support-heavy SaaS (client + CSM). Raven's `generate_service_blueprint` tool renders this layout when you pass an `actors: { a, b }` object; each step gets an `actor_b` sub-object with that actor's action/frontstage/evidence."
+    },
+    {
       "name": "Unhappy-path blueprinting",
       "description": "Most service failures happen off the happy path. Blueprinting explicit failure scenarios — payment declined, SKU out of stock, agent unavailable — reveals recovery designs (or their absence).",
       "do": [

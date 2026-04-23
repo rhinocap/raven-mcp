@@ -541,6 +541,12 @@ function formatPrinciple(p: Principle, format: string): any {
 // visibility, backstage, support processes. Steps are the columns.
 // Optionally renders current vs ideal state side-by-side.
 
+interface BlueprintActorSide {
+  action?: string;
+  frontstage?: string;
+  evidence?: string;
+}
+
 interface BlueprintStep {
   label: string;
   user_action?: string;
@@ -550,6 +556,12 @@ interface BlueprintStep {
   evidence?: string;
   pain_point?: string;
   delight?: string;
+  actor_b?: BlueprintActorSide;
+}
+
+interface BlueprintActors {
+  a?: { label: string };
+  b: { label: string };
 }
 
 interface BlueprintInput {
@@ -557,6 +569,7 @@ interface BlueprintInput {
   subtitle?: string;
   state_label?: string; // "Current state", "Ideal state", etc.
   steps: BlueprintStep[];
+  actors?: BlueprintActors;
 }
 
 function escapeHtml(s: string | undefined): string {
@@ -571,21 +584,37 @@ function escapeHtml(s: string | undefined): string {
 
 function renderBlueprintSection(bp: BlueprintInput): string {
   var stepCount = bp.steps.length;
+  var twoActor = !!(bp.actors && bp.actors.b);
+  var labelA = (bp.actors && bp.actors.a && bp.actors.a.label) || "User";
+  var labelB = twoActor ? bp.actors!.b.label : "";
+
   var cols = bp.steps.map(function (s) {
     return '<div class="step-header">' + escapeHtml(s.label) + '</div>';
   }).join("");
 
-  function row(title: string, accent: string, field: keyof BlueprintStep): string {
-    var cells = bp.steps.map(function (s) {
-      var content = s[field];
-      return '<div class="cell">' + (content ? escapeHtml(content as string) : '<span class="empty">&mdash;</span>') + '</div>';
-    }).join("");
+  function rowFromCells(title: string, accent: string, cells: string): string {
     return (
       '<div class="row">' +
       '<div class="row-label ' + accent + '">' + title + '</div>' +
       '<div class="row-cells" style="grid-template-columns: repeat(' + stepCount + ', minmax(0, 1fr));">' + cells + '</div>' +
       '</div>'
     );
+  }
+
+  function row(title: string, accent: string, field: keyof BlueprintStep): string {
+    var cells = bp.steps.map(function (s) {
+      var content = s[field];
+      return '<div class="cell">' + (content ? escapeHtml(content as string) : '<span class="empty">&mdash;</span>') + '</div>';
+    }).join("");
+    return rowFromCells(title, accent, cells);
+  }
+
+  function actorBRow(title: string, accent: string, field: keyof BlueprintActorSide): string {
+    var cells = bp.steps.map(function (s) {
+      var content = s.actor_b ? s.actor_b[field] : undefined;
+      return '<div class="cell">' + (content ? escapeHtml(content) : '<span class="empty">&mdash;</span>') + '</div>';
+    }).join("");
+    return rowFromCells(title, accent, cells);
   }
 
   // Pain/delight row is merged — one cell per step
@@ -595,23 +624,47 @@ function renderBlueprintSection(bp: BlueprintInput): string {
     return '<div class="cell"><span class="empty">&mdash;</span></div>';
   }).join("");
 
+  var body: string;
+  if (twoActor) {
+    // Two-actor / HI-loop layout:
+    // Actor A (above line of interaction), Actor B (below), then line of visibility, backstage, support.
+    body =
+      '<div class="swim-lane lane-a">' +
+      '<div class="lane-label lane-label-a">' + escapeHtml(labelA) + '</div>' +
+      row("Physical evidence", "row-evidence", "evidence") +
+      row("Actions", "row-user", "user_action") +
+      row("Frontstage (sees)", "row-frontstage", "frontstage") +
+      '</div>' +
+      '<div class="line-of-interaction">Line of interaction</div>' +
+      '<div class="swim-lane lane-b">' +
+      '<div class="lane-label lane-label-b">' + escapeHtml(labelB) + '</div>' +
+      actorBRow("Frontstage (sees)", "row-frontstage-b", "frontstage") +
+      actorBRow("Actions", "row-user-b", "action") +
+      actorBRow("Physical evidence", "row-evidence-b", "evidence") +
+      '</div>' +
+      '<div class="line-of-visibility">Line of visibility</div>' +
+      row("Backstage", "row-backstage", "backstage") +
+      row("Support processes", "row-support", "support") +
+      rowFromCells("Pain / moments", "row-pain", pdCells);
+  } else {
+    body =
+      row("Physical evidence", "row-evidence", "evidence") +
+      row("User actions", "row-user", "user_action") +
+      row("Frontstage", "row-frontstage", "frontstage") +
+      '<div class="line-of-visibility">Line of visibility</div>' +
+      row("Backstage", "row-backstage", "backstage") +
+      row("Support processes", "row-support", "support") +
+      rowFromCells("Pain / moments", "row-pain", pdCells);
+  }
+
   return (
-    '<section class="blueprint">' +
+    '<section class="blueprint' + (twoActor ? ' two-actor' : '') + '">' +
     (bp.state_label ? '<h2 class="state-label">' + escapeHtml(bp.state_label) + '</h2>' : '') +
     '<div class="steps-header" style="grid-template-columns: 180px repeat(' + stepCount + ', minmax(0, 1fr));">' +
     '<div class="row-label empty-label">Step</div>' +
     cols +
     '</div>' +
-    row("Physical evidence", "row-evidence", "evidence") +
-    row("User actions", "row-user", "user_action") +
-    row("Frontstage", "row-frontstage", "frontstage") +
-    '<div class="line-of-visibility">Line of visibility</div>' +
-    row("Backstage", "row-backstage", "backstage") +
-    row("Support processes", "row-support", "support") +
-    '<div class="row">' +
-    '<div class="row-label row-pain">Pain / moments</div>' +
-    '<div class="row-cells" style="grid-template-columns: repeat(' + stepCount + ', minmax(0, 1fr));">' + pdCells + '</div>' +
-    '</div>' +
+    body +
     '</section>'
   );
 }
@@ -654,9 +707,17 @@ function generateServiceBlueprintHtml(current: BlueprintInput, ideal: BlueprintI
     '.row-evidence{background:rgba(179,136,255,0.08);color:var(--accent-purple);border:1px solid rgba(179,136,255,0.18)}' +
     '.row-user{background:rgba(0,191,255,0.08);color:var(--accent-blue);border:1px solid rgba(0,191,255,0.18)}' +
     '.row-frontstage{background:rgba(0,230,118,0.08);color:var(--accent-green);border:1px solid rgba(0,230,118,0.18)}' +
+    '.row-frontstage-b{background:rgba(0,229,255,0.08);color:var(--accent-cyan,#00E5FF);border:1px solid rgba(0,229,255,0.18)}' +
+    '.row-user-b{background:rgba(0,229,255,0.10);color:var(--accent-cyan,#00E5FF);border:1px solid rgba(0,229,255,0.22)}' +
+    '.row-evidence-b{background:rgba(179,136,255,0.06);color:var(--accent-purple);border:1px solid rgba(179,136,255,0.14)}' +
     '.row-backstage{background:rgba(255,171,64,0.08);color:var(--accent-orange);border:1px solid rgba(255,171,64,0.18)}' +
     '.row-support{background:rgba(255,64,129,0.06);color:var(--accent-pink);border:1px solid rgba(255,64,129,0.14)}' +
     '.row-pain{background:rgba(255,255,255,0.04);color:var(--text-secondary);border:1px solid var(--border)}' +
+    '.swim-lane{padding:14px 0;position:relative}' +
+    '.lane-label{font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:10px;padding-left:16px;display:inline-block;padding:4px 12px;border-radius:9999px;background:rgba(255,255,255,0.05);border:1px solid var(--border)}' +
+    '.lane-label-a{color:var(--accent-blue);background:rgba(0,191,255,0.08);border-color:rgba(0,191,255,0.22)}' +
+    '.lane-label-b{color:var(--accent-cyan,#00E5FF);background:rgba(0,229,255,0.08);border-color:rgba(0,229,255,0.22)}' +
+    '.line-of-interaction{text-align:center;font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--accent-blue);padding:14px 0;border-top:2px solid rgba(0,191,255,0.32);border-bottom:2px solid rgba(0,191,255,0.32);margin:18px 0;background:rgba(0,191,255,0.04)}' +
     '.empty-label{background:transparent;border:1px dashed var(--border);color:var(--text-tertiary)}' +
     '.row-cells{display:grid;gap:8px}' +
     '.cell{background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:13px;color:var(--text-primary);min-height:72px;display:flex;flex-direction:column;gap:6px}' +
@@ -854,7 +915,8 @@ function extractInsight(toolName: string, input: any, output: any): any {
         insight = {
           has_ideal: Array.isArray(input?.ideal),
           current_steps: Array.isArray(input?.current) ? input.current.length : 0,
-          ideal_steps: Array.isArray(input?.ideal) ? input.ideal.length : 0
+          ideal_steps: Array.isArray(input?.ideal) ? input.ideal.length : 0,
+          two_actor: !!(input?.actors && input.actors.b)
         };
         break;
       case "get_brand_principles":
@@ -2823,19 +2885,28 @@ server.tool(
 
 server.tool(
   "generate_service_blueprint",
-  "Render a service blueprint as a self-contained HTML page. Accepts a service name and an array of steps, each with fields for user action, frontstage, backstage, support processes, physical evidence, and optional pain points or delight moments. Optionally accepts an ideal-state blueprint to render alongside the current state for current-vs-ideal comparison.",
+  "Render a service blueprint as a self-contained HTML page. Supports two modes: (1) classic Shostack single-actor blueprint — user action, frontstage, backstage, support, evidence, pain/delight; (2) two-actor HI-loop blueprint — when `actors` is supplied, renders two swim lanes with a line of interaction between them (e.g. customer ↔ lawyer, patient ↔ doctor, buyer ↔ agent). Each actor gets their own actions, frontstage (what they see), and evidence. Optionally accepts an ideal-state to render side-by-side with the current state.",
   {
-    service_name: z.string().describe("Name of the service (e.g. 'Free trial signup', 'Restaurant reservation')"),
+    service_name: z.string().describe("Name of the service (e.g. 'Free trial signup', 'Client intake', 'Restaurant reservation')"),
     subtitle: z.string().optional().describe("Short description or context line under the title"),
+    actors: z.object({
+      a: z.object({ label: z.string() }).optional().describe("Actor A label (default: 'User'). Use when you want to name the first side (e.g. 'Customer', 'Patient')."),
+      b: z.object({ label: z.string() }).describe("Actor B label (e.g. 'Lawyer', 'Doctor', 'Agent'). Presence of this field switches to two-actor layout.")
+    }).optional().describe("Omit for classic single-actor Shostack blueprint. Provide to render a two-swim-lane HI-loop blueprint with a line of interaction between the two sides."),
     current: z.array(z.object({
       label: z.string().describe("Step label (e.g. 'Discover', 'Sign up', 'First use')"),
-      user_action: z.string().optional().describe("What the user is doing in this step"),
-      frontstage: z.string().optional().describe("What the user SEES — UI, agent greeting, system response"),
-      backstage: z.string().optional().describe("What the user does NOT see — employee actions, internal process"),
-      support: z.string().optional().describe("Supporting processes, systems, or third-party dependencies"),
-      evidence: z.string().optional().describe("Physical/digital artifact (email, receipt, page, tracking link)"),
+      user_action: z.string().optional().describe("In single-actor: what the user does. In two-actor: what actor A does."),
+      frontstage: z.string().optional().describe("In single-actor: what the user SEES (UI, agent greeting). In two-actor: what actor A sees."),
+      backstage: z.string().optional().describe("What neither actor sees directly — shared systems, internal processes, back-office work"),
+      support: z.string().optional().describe("Supporting processes, systems, third-party dependencies"),
+      evidence: z.string().optional().describe("In single-actor: artifact user receives. In two-actor: artifact actor A has."),
       pain_point: z.string().optional().describe("Known pain point at this step (shown as red callout)"),
-      delight: z.string().optional().describe("Designed moment of delight at this step (shown as green callout)")
+      delight: z.string().optional().describe("Designed moment of delight at this step (shown as green callout)"),
+      actor_b: z.object({
+        action: z.string().optional().describe("What actor B does in this step"),
+        frontstage: z.string().optional().describe("What actor B sees — their own UI, tools, views"),
+        evidence: z.string().optional().describe("Artifact actor B has — case file, notes, record")
+      }).optional().describe("Only used when `actors.b` is provided. Captures the other side of the interaction.")
     })).describe("The current-state blueprint as an array of steps"),
     ideal: z.array(z.object({
       label: z.string(),
@@ -2845,13 +2916,18 @@ server.tool(
       support: z.string().optional(),
       evidence: z.string().optional(),
       pain_point: z.string().optional(),
-      delight: z.string().optional()
-    })).optional().describe("Optional ideal-state blueprint — if provided, the output shows current AND ideal side-by-side")
+      delight: z.string().optional(),
+      actor_b: z.object({
+        action: z.string().optional(),
+        frontstage: z.string().optional(),
+        evidence: z.string().optional()
+      }).optional()
+    })).optional().describe("Optional ideal-state blueprint — if provided, output shows current AND ideal side-by-side")
   },
-  async ({ service_name, subtitle, current, ideal }) => {
+  async ({ service_name, subtitle, actors, current, ideal }) => {
     var html = generateServiceBlueprintHtml(
-      { service_name, subtitle, steps: current as BlueprintStep[] },
-      ideal ? { service_name, steps: ideal as BlueprintStep[] } : null
+      { service_name, subtitle, steps: current as BlueprintStep[], actors: actors as BlueprintActors | undefined },
+      ideal ? { service_name, steps: ideal as BlueprintStep[], actors: actors as BlueprintActors | undefined } : null
     );
     return { content: [{ type: "text" as const, text: html }] };
   }
