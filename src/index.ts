@@ -604,7 +604,9 @@ function renderBlueprintSection(bp: BlueprintInput): string {
   function row(title: string, accent: string, field: keyof BlueprintStep): string {
     var cells = bp.steps.map(function (s) {
       var content = s[field];
-      return '<div class="cell">' + (content ? escapeHtml(content as string) : '<span class="empty">&mdash;</span>') + '</div>';
+      return content
+        ? '<div class="cell">' + escapeHtml(content as string) + '</div>'
+        : '<div class="cell cell-empty"></div>';
     }).join("");
     return rowFromCells(title, accent, cells);
   }
@@ -612,7 +614,9 @@ function renderBlueprintSection(bp: BlueprintInput): string {
   function actorBRow(title: string, accent: string, field: keyof BlueprintActorSide): string {
     var cells = bp.steps.map(function (s) {
       var content = s.actor_b ? s.actor_b[field] : undefined;
-      return '<div class="cell">' + (content ? escapeHtml(content) : '<span class="empty">&mdash;</span>') + '</div>';
+      return content
+        ? '<div class="cell">' + escapeHtml(content) + '</div>'
+        : '<div class="cell cell-empty"></div>';
     }).join("");
     return rowFromCells(title, accent, cells);
   }
@@ -621,7 +625,7 @@ function renderBlueprintSection(bp: BlueprintInput): string {
   var pdCells = bp.steps.map(function (s) {
     if (s.pain_point) return '<div class="cell pain"><span class="tag tag-pain">Pain</span>' + escapeHtml(s.pain_point) + '</div>';
     if (s.delight) return '<div class="cell delight"><span class="tag tag-delight">Moment</span>' + escapeHtml(s.delight) + '</div>';
-    return '<div class="cell"><span class="empty">&mdash;</span></div>';
+    return '<div class="cell cell-empty"></div>';
   }).join("");
 
   var body: string;
@@ -723,7 +727,7 @@ function generateServiceBlueprintHtml(current: BlueprintInput, ideal: BlueprintI
     '.cell{background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:13px;color:var(--text-primary);min-height:72px;display:flex;flex-direction:column;gap:6px}' +
     '.cell.pain{background:rgba(255,64,129,0.08);border-color:rgba(255,64,129,0.22)}' +
     '.cell.delight{background:rgba(0,230,118,0.08);border-color:rgba(0,230,118,0.22)}' +
-    '.cell .empty{color:var(--text-tertiary);font-size:12px}' +
+    '.cell.cell-empty{background:transparent;border:none;padding:0;min-height:72px}' +
     '.tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:2px 8px;border-radius:9999px;width:fit-content}' +
     '.tag-pain{background:rgba(255,64,129,0.18);color:var(--accent-pink)}' +
     '.tag-delight{background:rgba(0,230,118,0.18);color:var(--accent-green)}' +
