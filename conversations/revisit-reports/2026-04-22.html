@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revisit — 2026-04-22</title>
+<style>
+  :root {
+    --bg-base: #1a1a22;
+    --bg-surface: #212129;
+    --bg-raised: #2a2a33;
+    --border: rgba(255, 255, 255, 0.06);
+    --border-strong: rgba(255, 255, 255, 0.1);
+    --text-primary: #F0F0F2;
+    --text-secondary: #9498A0;
+    --text-tertiary: #5C5F68;
+    --text-accent: #00BFFF;
+    --accent-blue: #00BFFF;
+    --accent-green: #00E676;
+    --accent-orange: #FFAB40;
+    --accent-pink: #FF4081;
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+    --max-width: 960px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .cover {
+    padding: 80px 24px 64px;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 0%, rgba(0, 191, 255, 0.12), transparent),
+      radial-gradient(ellipse 60% 60% at 80% 20%, rgba(255, 64, 129, 0.08), transparent),
+      linear-gradient(180deg, #1f1f2b 0%, var(--bg-base) 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .cover-inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+  }
+  .cover-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 16px;
+  }
+  .cover h1 {
+    font-size: 48px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+  .cover .subtitle {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 640px;
+    margin-bottom: 48px;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .stat {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .stat-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+  .content {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 64px 24px;
+  }
+  section { margin-bottom: 56px; }
+  section h2 {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+  }
+  .card-meta {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 8px;
+  }
+  .card p { color: var(--text-secondary); margin-bottom: 12px; }
+  .card p:last-child { margin-bottom: 0; }
+  .card code, p code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: var(--bg-raised);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-primary);
+  }
+  .tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    margin-right: 8px;
+  }
+  .tag-win { background: rgba(0, 230, 118, 0.12); color: var(--accent-green); }
+  .tag-miss { background: rgba(255, 64, 129, 0.12); color: var(--accent-pink); }
+  .tag-neutral { background: rgba(255, 171, 64, 0.12); color: var(--accent-orange); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+  th {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+  ul { margin: 8px 0 0 0; padding-left: 20px; color: var(--text-secondary); }
+  ul li { margin-bottom: 6px; }
+  a { color: var(--text-accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .footer {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 24px;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text-tertiary);
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-label">Revisit Report</div>
+    <h1>2026-04-22 — v1.2.0 ship, trademark prep, RavenMCP rebrand</h1>
+    <p class="subtitle">Content-design layer shipped in 6 hours, site rebranded to <strong>RavenMCP</strong> for the USPTO Class 009 specimen, audience backfill attempted and diagnosed as impossible-by-design, and a live Raven audit run against blacksheepjiujitsu.com as specimen-grade proof of commercial use.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value">2</div>
+        <div class="stat-label">Commits pushed</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">3</div>
+        <div class="stat-label">Drafts written</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">1</div>
+        <div class="stat-label">Global rule added</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">3</div>
+        <div class="stat-label">Lessons logged</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+
+<section>
+  <h2>Wins</h2>
+
+  <div class="card">
+    <div class="card-meta"><span class="tag tag-win">Win</span> Trademark pivot handled cleanly</div>
+    <div class="card-title">RavenAI → RavenMCP reversal without friction</div>
+    <p>Andrew asked to rename the site to RavenAI; I flagged likely conflicts upfront ("raven.ai exists, several Raven AI marks, filing risk"). Cowork then reversed to RavenMCP. Total cost of the detour: one wasted batch of edits, all reversible. Time saved vs. shipping RavenAI to the specimen and hitting a TESS rejection: substantial.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-meta"><span class="tag tag-win">Win</span> Single-viewport specimen</div>
+    <div class="card-title">Moved install command into hero CTA row</div>
+    <p>USPTO Class 009 specimen requires the mark visible alongside commercial-context use of the software. Moving <code>claude mcp add raven -- npx -y raven-mcp</code> directly under the primary CTA means a single above-the-fold screenshot captures the wordmark + install in one shot. Pattern worth reusing for any future mark filings.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-meta"><span class="tag tag-win">Win</span> OIDC Trusted Publishing</div>
+    <div class="card-title">Killed the NPM_TOKEN / EOTP friction loop permanently</div>
+    <p>Rather than chase the EOTP failure on every release, flipped the release workflow to npm's OIDC Trusted Publishing. No long-lived token to rotate, no 2FA interception on CI. Cleaner long-term than any token variant.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-meta"><span class="tag tag-win">Win</span> Backfill attempt, clean diagnosis</div>
+    <div class="card-title">69 install pings → 0 emails, because design</div>
+    <p>Walked Resend <code>logs.list</code> for POST /emails, pulled recipients via <code>logs.get</code>. Every ping was anonymous to drew@ravenmcp.ai. Conclusion: audience can only fill forward via the <code>#updates</code> form or the <code>raven_register</code> MCP tool. Not a bug — a correct privacy-by-construction outcome. Worth explicitly confirming to Andrew.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-meta"><span class="tag tag-win">Win</span> New workflow rule captured</div>
+    <div class="card-title">External-share drafts → <code>/tmp/drafts/*.md</code> → Zed</div>
+    <p>Added to <code>~/.claude/CLAUDE.md</code>. Every future LinkedIn/tweet/email draft lands as a markdown file with styles intact for clean copy-out. Catches a friction Andrew was hitting consistently.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Misses &amp; rules added</h2>
+
+  <div class="card">
+    <div class="card-meta"><span class="tag tag-miss">Miss</span> Autonomy gap</div>
+    <div class="card-title">Wrote a paste-prompt when Andrew asked me to use Raven directly</div>
+    <p>Andrew: <em>"can you audit the content on the BlackSheep website? Framer is open and the MCP is connected"</em> — I produced a markdown prompt for him to paste into another Claude session. Cost him a round-trip: <em>"No!!! Don't rewrite it. use Raven so i can screenshot this terminal auditing blacksheep's content."</em></p>
+    <p><strong>Rule added to memory:</strong> <em>When the verb is "use X" and X is available as a tool in this session, run it here. Don't default to producing cross-session handoff copy unless Andrew explicitly asks.</em></p>
+  </div>
+
+  <div class="card">
+    <div class="card-meta"><span class="tag tag-miss">Miss</span> Accuracy gap</div>
+    <div class="card-title">LinkedIn draft said "Last week" — actual timeline was 6 hours</div>
+    <p>Narrative copy should respect the timeline. I guessed. Rule: for story-driven external posts, ask <em>"when did the inciting event happen?"</em> before writing the narrative frame. The same-day ship ("2pm → 8pm, six hours") is a far stronger hook than "last week."</p>
+  </div>
+
+  <div class="card">
+    <div class="card-meta"><span class="tag tag-neutral">Process</span> Speed gap</div>
+    <div class="card-title">Oversized Raven tool result</div>
+    <p><code>get_principles</code> with a rich context returned 82KB, got shunted to a file. Tool-call card was still screenshot-visible so no specimen harm, but could have scoped tighter. Rule: default to <code>format: "brief"</code> or add a <code>category</code> filter on rich contexts.</p>
+  </div>
+</section>
+
+<section>
+  <h2>What Andrew can provide upfront next time</h2>
+  <ul>
+    <li>For story-driven posts: the timeline ("this happened X hours/days ago") so I don't guess.</li>
+    <li>For audit-style requests: the target URL in the same message as the ask.</li>
+    <li>For trademark/filing work: the authoritative mark string first — reduces pivot cost downstream.</li>
+    <li>James West's X handle — placeholder still in Twitter drafts.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Carried forward</h2>
+  <table>
+    <thead>
+      <tr><th>Item</th><th>Owner</th><th>Next check</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>TEAS Plus filing for RAVENMCP Class 009 (+ optionally 042)</td><td>Andrew (in cowork session)</td><td>Receipt + serial number</td></tr>
+      <tr><td>Post LinkedIn + Twitter announcements</td><td>Andrew</td><td>After serial number assigned</td></tr>
+      <tr><td>Submit own email to <code>#updates</code> form to validate prod env wiring</td><td>Andrew</td><td>Confirm audience shows +1</td></tr>
+      <tr><td>Sunday self-audit 2026-04-26 — add <code>content/</code> coverage</td><td>Raven cron</td><td>2026-04-26</td></tr>
+      <tr><td>Consider MCP registry submission on modelcontextprotocol.io</td><td>Andrew</td><td>When audience passes 25</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</div>
+
+<div class="footer">
+  Generated by <code>/revisit</code> · conversations/revisit-reports/2026-04-22.html
+</div>
+
+</body>
+</html>
