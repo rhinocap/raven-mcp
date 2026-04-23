@@ -1,0 +1,127 @@
+{
+  "id": "usability-methods",
+  "name": "Usability Study Methods",
+  "category": "research-methods",
+  "summary": "Methods specifically for evaluating how well users can accomplish tasks in an interface. Span moderated/unmoderated, synchronous/asynchronous, and test different aspects (findability, clarity, effectiveness).",
+  "principles_referenced": ["match-method-to-question", "sample-size-matters", "observe-behavior-not-opinion", "context-of-use"],
+  "patterns": [
+    {
+      "name": "Moderated usability testing (think-aloud)",
+      "description": "One-on-one session where a moderator gives the participant a set of realistic tasks and asks them to think aloud while attempting them. The moderator observes, asks follow-up questions, and probes at key moments. Still the single most diagnostic method for understanding UI friction.",
+      "do": [
+        "Design tasks that are realistic, have a clear end state, and don't give away the UI vocabulary",
+        "Start with a warm-up task and work up to the hardest ones",
+        "Use the 5-user rule: 5–8 per user type catches ~85% of issues",
+        "Keep the moderator neutral — 'tell me what you're thinking' not 'did that work?'",
+        "Record screen + audio with consent; review afterward for details you missed",
+        "Tag issues by severity (0–3) during or right after each session",
+        "Use a rainbow spreadsheet or issue matrix to aggregate across participants"
+      ],
+      "dont": [
+        "Write tasks that embed the answer ('click the red Export button to download your data')",
+        "Help the participant when they get stuck — that's the finding",
+        "Moderate and take notes alone — at least one observer note-taker is better",
+        "Skip the debrief immediately after the session — memory is freshest then",
+        "Run more than 3 sessions a day solo — moderator fatigue damages quality"
+      ],
+      "evidence": "Jakob Nielsen's 1993 study (and subsequent work by Tom Tullis, Jeff Sauro, and others) established that 5–8 users catch the majority of usability problems for a given design and user type. Diminishing returns are steep after that — additional sample should go to a different user type or a new study."
+    },
+    {
+      "name": "Unmoderated usability testing",
+      "description": "Participants complete tasks on their own, on their own devices, via a platform (Maze, UserTesting, UserZoom, Lyssna). No live moderator. Scale is much higher (50–200 participants) but depth of insight per participant is much lower.",
+      "do": [
+        "Use when you have a specific question — 'can users find X' or 'which design tests better'",
+        "Write task instructions that can't be misunderstood (have 2 colleagues try them first)",
+        "Keep the test under 15 minutes",
+        "Use post-task confidence or ease scales for quick quantitative signal",
+        "Sample size: 30–50 per variant for A/B style tests; 15–20 for diagnostic finds"
+      ],
+      "dont": [
+        "Use for exploratory research — there's no follow-up probing",
+        "Include tasks that depend on specific data or account state",
+        "Skip the pilot — unclear instructions kill the data",
+        "Treat results as causal if comparing old vs. new — differences in task clarity or novelty effect confound"
+      ],
+      "evidence": "Unmoderated testing excels at directional quant signal and rapid iteration. The tradeoff versus moderated: breadth over depth. Best used for narrowly scoped questions (does this CTA work? does this IA convert?) rather than broad discovery."
+    },
+    {
+      "name": "Five-second test",
+      "description": "Participant views a screen or asset for 5 seconds, then answers what they remember and understood. Measures first-impression clarity, visual hierarchy, and value-prop comprehension. Very fast, very cheap, surprisingly powerful for marketing pages and hero designs.",
+      "do": [
+        "Test the first 5 seconds — exactly what a new visitor gets",
+        "Ask: what is this about? who is it for? what can you do here?",
+        "Use 30–50 participants per variant",
+        "Compare versions side-by-side for iterative refinement",
+        "Pair with heatmaps of where attention landed"
+      ],
+      "dont": [
+        "Use for comparison of detailed UI — 5 seconds isn't enough for complex screens",
+        "Test without a hypothesis about what should be readable in 5 seconds",
+        "Ignore the open-ended 'what stood out?' answers — they're the richest data"
+      ],
+      "evidence": "Originated by Matt Balara and popularized by UsabilityHub/Lyssna. Most valuable for landing pages, above-the-fold hero sections, and marketing assets where the '5-second question' is the real-world standard a user applies."
+    },
+    {
+      "name": "Card sorting (IA validation)",
+      "description": "Participants group a set of content items into categories that make sense to them (open sort) or into pre-defined categories (closed sort). Used to design or validate information architecture. Sample: 15–30 for reliable clustering.",
+      "do": [
+        "Use open sort early to discover user mental models",
+        "Use closed sort later to validate a proposed IA",
+        "Include 30–60 items — enough to reveal structure, not so many users give up",
+        "Use a tool (OptimalSort, UserZoom, UXtweak) to analyze dendrogram + agreement scores",
+        "Recruit participants who match the target users for the eventual IA",
+        "Combine with tree testing to validate the resulting IA"
+      ],
+      "dont": [
+        "Include ambiguous items that force participants to invent categories",
+        "Include too many items (100+) — participants satisfice",
+        "Use cards that look like navigation labels — leads witnesses",
+        "Skip analysis beyond 'most common groupings' — dendrograms reveal more"
+      ],
+      "evidence": "Card sorting is the most reliable method for IA design. It surfaces the user's mental model independent of your proposed structure. Tree testing validates that a proposed IA supports findability — the pair is stronger than either alone."
+    },
+    {
+      "name": "Tree testing (findability)",
+      "description": "Participants navigate a text-only version of your IA (the 'tree') to find specific items, indicating which path they'd take. Measures findability without the confound of visual design. Typical sample: 50+ for reliable percentages per task.",
+      "do": [
+        "Test 8–15 tasks covering the most important items users need to find",
+        "Measure: success rate (right destination), directness (did they backtrack), time",
+        "Compare task success across IA variants to choose between them",
+        "Run before investing in visual design — fixing IA later is expensive",
+        "Re-run after launching a new IA to confirm the win"
+      ],
+      "dont": [
+        "Include the search bar — test navigation, not search",
+        "Use task phrasing that matches your category labels exactly",
+        "Skip tasks that should fail — you want to see where the confusion lives",
+        "Treat 70% success as good enough for critical pathways — aim for 85%+ on the top-10 tasks"
+      ],
+      "evidence": "Tree testing (originated by Donna Spencer, popularized by Dave O'Brien and Treejack) is the standard method for measuring IA findability before visual design is done. It isolates navigation from visual affordance, producing cleaner signal."
+    },
+    {
+      "name": "Heuristic evaluation (expert review)",
+      "description": "Expert reviewers assess an interface against established heuristics (Nielsen's 10, Gerhardt-Powals', WCAG) and flag violations by severity. Cheap, fast, best for catching obvious issues before user testing. Not a substitute for user testing.",
+      "do": [
+        "Use 3–5 reviewers independently, then aggregate (one reviewer catches ~35% of issues; five catches ~75%)",
+        "Score each issue by severity (0=not an issue, 4=critical)",
+        "Pair with user testing — heuristic review catches known-pattern issues; users catch mental-model mismatches",
+        "Reference specific heuristics in findings for credibility"
+      ],
+      "dont": [
+        "Use as the only method — experts miss what users actually do",
+        "Run with a single reviewer — finds only their personal blind spots",
+        "Score without a rubric — severity becomes personal opinion",
+        "Skip when user testing is available — it's a complement, not a replacement"
+      ],
+      "evidence": "Heuristic evaluation is cost-effective for catching ~75% of issues before user testing (Nielsen 1994, 1995). Best used to clean up obvious problems before spending user-testing budget on the less obvious ones."
+    }
+  ],
+  "checklist": [
+    "Is the method matched to the question (discovery vs. validation, findability vs. effectiveness)?",
+    "Is the sample size appropriate (5–8 moderated; 30–50 unmoderated; 50+ tree test)?",
+    "Are tasks realistic, scoped, and free of leading language?",
+    "Is there a debrief and synthesis session planned?",
+    "Will findings be actionable with clear owners?",
+    "Is the test context representative (mobile device for mobile product, real data for real workflows)?"
+  ]
+}

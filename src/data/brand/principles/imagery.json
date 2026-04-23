@@ -1,0 +1,70 @@
+[
+  {
+    "id": "imagery-consistency",
+    "name": "Imagery is a system, not a collection",
+    "category": "brand",
+    "summary": "Photography, illustration, and graphics are brand surfaces. Treat them with the same systematic rigor as typography and color — define the rules, enforce the rules.",
+    "description": "Brands frequently systematize type and color, then hire stock photography at random. The result: a consistent visual identity up to the moment an image appears, then a disconnect. Mature brands define an image system: treatment (filter, desaturation, warmth), composition (close-crop vs. environmental, human-present vs. product-only), subject matter (who appears, what activities, what contexts), color harmony with the palette. Examples: Airbnb's warm, slightly-desaturated, human-centered photography; Stripe's abstract geometric illustration; Apple's product-on-white with precise lighting; Figma's playful geometric graphics. Each is a coherent system, recognizable across surfaces.",
+    "implications": [
+      "Define image treatment rules: color grading, filter, crop, lighting direction.",
+      "Define composition rules: what's in frame, what's excluded, how humans are portrayed.",
+      "Define subject matter rules: activities, environments, cultures represented.",
+      "When commissioning photography or illustration, provide the system — not 'make it look good.'",
+      "Audit imagery across product, marketing, and social regularly for drift.",
+      "Stock imagery is almost never system-compliant. Factor treatment (recoloring, recropping) into the budget."
+    ],
+    "violations": [
+      "Corporate stock on the marketing site, in-house photography on the product, user-generated on social — three different brands.",
+      "A color palette that harmonizes carefully in type but clashes with imagery tints.",
+      "Illustration style 1 on onboarding, style 2 on empty states, style 3 in marketing — each commissioned separately.",
+      "Imagery that contradicts the brand values (e.g., 'inclusive and accessible' brand with a photo-library of only young professionals)."
+    ],
+    "applies_to": ["brand", "imagery", "photography", "illustration", "brand-system"],
+    "sources": ["https://airbnb.design/building-a-visual-language/", "https://www.figma.com/brand/"]
+  },
+  {
+    "id": "imagery-represents-users",
+    "name": "Represent the full range of your users",
+    "category": "brand",
+    "summary": "Every image is a statement about who the product is for. Curate imagery deliberately to represent the actual user base — not a narrowed demographic from stock libraries.",
+    "description": "Users recognize when imagery doesn't reflect them. A product marketed to families whose photography only shows 25-year-old professionals tells families they're not welcome. Thoughtful brands audit their image libraries: age, race, body type, ability, gender presentation, geography, environment. This is not decoration; it's a product decision. Inclusive imagery correlates with broader user adoption and stronger trust metrics. The constraint is real — default stock libraries skew heavily toward a narrow set of people — but workable with deliberate curation or commissioned photography.",
+    "implications": [
+      "Audit your image library for representation across age, race, body type, ability, gender, and environment.",
+      "For stock photography, filter explicitly (e.g., Tonl, Nappy, Diversely, Canva Pro's inclusive filter).",
+      "Commission original photography when budget allows — it's the only way to control representation fully.",
+      "Show users doing the real thing, not models miming the thing.",
+      "Show a range of environments — not only modern minimal apartments or corporate offices.",
+      "Show people with visible disabilities as users, not only as case studies."
+    ],
+    "violations": [
+      "Marketing site where every user shown is 25-35, conventionally attractive, in a loft apartment.",
+      "Empty-state illustrations where every character is the same skin tone.",
+      "'Team' page where diversity appears only in the photos but not in the subjects they're shown doing.",
+      "Stock photography of hands-on-keyboards that subtly standardizes on one hand type and skin tone."
+    ],
+    "applies_to": ["brand", "imagery", "inclusion", "marketing"],
+    "sources": ["https://contentdesign.intuit.com/principles/inclusive/", "https://airbnb.design/"]
+  },
+  {
+    "id": "imagery-serve-the-message",
+    "name": "Every image earns its place",
+    "category": "brand",
+    "summary": "If the image doesn't clarify, persuade, or teach, remove it. Decorative imagery is visual filler — it dilutes attention and often actively harms comprehension.",
+    "description": "The reflex to 'break up text with an image' often produces images that do nothing. A product screenshot illustrating the point = earns place. A generic 'three happy coworkers around a laptop' stock photo = dilutes. Every image should have a clear job: demonstrate the product, illustrate a concept the text can't quite reach, provide social proof, show scale or context. If the only job is 'make the page less dense,' the answer is usually more space or less text — not an image.",
+    "implications": [
+      "Before adding an image, name its job — demonstrate, illustrate, prove, provide context — and evaluate whether it does that job.",
+      "Prefer product screenshots over decorative imagery on product pages.",
+      "Prefer real photography over stock over illustration when specificity matters.",
+      "For decorative sections, consider whether typography + space + color achieve the goal without imagery.",
+      "Avoid 'three people around a laptop' — it's the universal signal for 'we had nothing to show.'"
+    ],
+    "violations": [
+      "A marketing page with 12 stock photos that could each be removed without losing meaning.",
+      "Empty-state illustrations that take up more space than the instruction text.",
+      "Hero image that's an abstract gradient blob, decorative only.",
+      "'About us' page filled with stock photos of unrelated people at desks."
+    ],
+    "applies_to": ["brand", "imagery", "content-density"],
+    "sources": ["https://www.nngroup.com/articles/image-focused-design/", "https://airbnb.design/"]
+  }
+]

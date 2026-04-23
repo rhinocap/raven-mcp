@@ -21,6 +21,17 @@ var CONTENT_DIR = join(DATA_DIR, "content");
 var CONTENT_SYSTEMS_DIR = join(CONTENT_DIR, "systems");
 var CONTENT_PRINCIPLES_DIR = join(CONTENT_DIR, "principles");
 var CONTENT_PATTERNS_DIR = join(CONTENT_DIR, "patterns");
+var RESEARCH_DIR = join(DATA_DIR, "research");
+var RESEARCH_PRINCIPLES_DIR = join(RESEARCH_DIR, "principles");
+var RESEARCH_METHODS_DIR = join(RESEARCH_DIR, "methods");
+var RESEARCH_FRAMEWORKS_DIR = join(RESEARCH_DIR, "frameworks");
+var SERVICE_DIR = join(DATA_DIR, "service-design");
+var SERVICE_PRINCIPLES_DIR = join(SERVICE_DIR, "principles");
+var SERVICE_PATTERNS_DIR = join(SERVICE_DIR, "patterns");
+var SERVICE_FRAMEWORKS_DIR = join(SERVICE_DIR, "frameworks");
+var BRAND_DIR = join(DATA_DIR, "brand");
+var BRAND_PRINCIPLES_DIR = join(BRAND_DIR, "principles");
+var BRAND_TRENDS_DIR = join(BRAND_DIR, "trends");
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -102,6 +113,18 @@ function loadAllData() {
   // accessed via list_content_systems / get_content_system.
   allPrinciples = allPrinciples.concat(loadJsonDir<Principle>(CONTENT_PRINCIPLES_DIR));
   allPatterns = allPatterns.concat(loadJsonDir<Pattern>(CONTENT_PATTERNS_DIR));
+
+  // Research / service-design / brand layers — principles follow the same
+  // schema and merge into allPrinciples. Service-design also contributes
+  // patterns. Research methods, research metrics frameworks, service
+  // frameworks, and brand trends use domain-specific shapes and are
+  // accessed through dedicated tools.
+  allPrinciples = allPrinciples.concat(
+    loadJsonDir<Principle>(RESEARCH_PRINCIPLES_DIR),
+    loadJsonDir<Principle>(SERVICE_PRINCIPLES_DIR),
+    loadJsonDir<Principle>(BRAND_PRINCIPLES_DIR)
+  );
+  allPatterns = allPatterns.concat(loadJsonDir<Pattern>(SERVICE_PATTERNS_DIR));
 }
 
 loadAllData();
@@ -145,6 +168,11 @@ function getAvailableContentSystemIds(): string[] {
     .filter(f => f.endsWith(".json") && f !== "registry.json")
     .map(f => f.replace(".json", ""));
 }
+
+function loadResearchMethods() { return loadJsonDir<any>(RESEARCH_METHODS_DIR); }
+function loadMetricsFrameworks() { return loadJsonDir<any>(RESEARCH_FRAMEWORKS_DIR); }
+function loadServiceFrameworks() { return loadJsonDir<any>(SERVICE_FRAMEWORKS_DIR); }
+function loadBrandTrends() { return loadJsonDir<any>(BRAND_TRENDS_DIR); }
 
 function flattenTokens(obj: any, prefix: string): Array<{ path: string; value: any; type?: string; description?: string }> {
   var results: Array<{ path: string; value: any; type?: string; description?: string }> = [];
@@ -507,6 +535,160 @@ function formatPrinciple(p: Principle, format: string): any {
   return p;
 }
 
+// ── Service blueprint HTML generator ───────────────────────────────
+// Renders a Stickdorn-style service blueprint as a self-contained HTML
+// page. Rows: physical evidence, user actions, frontstage, line of
+// visibility, backstage, support processes. Steps are the columns.
+// Optionally renders current vs ideal state side-by-side.
+
+interface BlueprintStep {
+  label: string;
+  user_action?: string;
+  frontstage?: string;
+  backstage?: string;
+  support?: string;
+  evidence?: string;
+  pain_point?: string;
+  delight?: string;
+}
+
+interface BlueprintInput {
+  service_name: string;
+  subtitle?: string;
+  state_label?: string; // "Current state", "Ideal state", etc.
+  steps: BlueprintStep[];
+}
+
+function escapeHtml(s: string | undefined): string {
+  if (!s) return "";
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderBlueprintSection(bp: BlueprintInput): string {
+  var stepCount = bp.steps.length;
+  var cols = bp.steps.map(function (s) {
+    return '<div class="step-header">' + escapeHtml(s.label) + '</div>';
+  }).join("");
+
+  function row(title: string, accent: string, field: keyof BlueprintStep): string {
+    var cells = bp.steps.map(function (s) {
+      var content = s[field];
+      return '<div class="cell">' + (content ? escapeHtml(content as string) : '<span class="empty">&mdash;</span>') + '</div>';
+    }).join("");
+    return (
+      '<div class="row">' +
+      '<div class="row-label ' + accent + '">' + title + '</div>' +
+      '<div class="row-cells" style="grid-template-columns: repeat(' + stepCount + ', minmax(0, 1fr));">' + cells + '</div>' +
+      '</div>'
+    );
+  }
+
+  // Pain/delight row is merged — one cell per step
+  var pdCells = bp.steps.map(function (s) {
+    if (s.pain_point) return '<div class="cell pain"><span class="tag tag-pain">Pain</span>' + escapeHtml(s.pain_point) + '</div>';
+    if (s.delight) return '<div class="cell delight"><span class="tag tag-delight">Moment</span>' + escapeHtml(s.delight) + '</div>';
+    return '<div class="cell"><span class="empty">&mdash;</span></div>';
+  }).join("");
+
+  return (
+    '<section class="blueprint">' +
+    (bp.state_label ? '<h2 class="state-label">' + escapeHtml(bp.state_label) + '</h2>' : '') +
+    '<div class="steps-header" style="grid-template-columns: 180px repeat(' + stepCount + ', minmax(0, 1fr));">' +
+    '<div class="row-label empty-label">Step</div>' +
+    cols +
+    '</div>' +
+    row("Physical evidence", "row-evidence", "evidence") +
+    row("User actions", "row-user", "user_action") +
+    row("Frontstage", "row-frontstage", "frontstage") +
+    '<div class="line-of-visibility">Line of visibility</div>' +
+    row("Backstage", "row-backstage", "backstage") +
+    row("Support processes", "row-support", "support") +
+    '<div class="row">' +
+    '<div class="row-label row-pain">Pain / moments</div>' +
+    '<div class="row-cells" style="grid-template-columns: repeat(' + stepCount + ', minmax(0, 1fr));">' + pdCells + '</div>' +
+    '</div>' +
+    '</section>'
+  );
+}
+
+function generateServiceBlueprintHtml(current: BlueprintInput, ideal: BlueprintInput | null): string {
+  var subtitle = current.subtitle ? '<p class="subtitle">' + escapeHtml(current.subtitle) + '</p>' : '';
+  var currentBlueprint = renderBlueprintSection({
+    ...current,
+    state_label: current.state_label || (ideal ? "Current state" : undefined)
+  });
+  var idealBlueprint = ideal
+    ? renderBlueprintSection({
+        ...ideal,
+        service_name: current.service_name,
+        state_label: ideal.state_label || "Ideal state"
+      })
+    : "";
+
+  var css =
+    ':root {' +
+    '--bg-base:#1a1a22;--bg-surface:#212129;--bg-raised:#2a2a33;--bg-alt:#16161e;' +
+    '--border:rgba(255,255,255,0.08);--border-strong:rgba(255,255,255,0.12);' +
+    '--text-primary:#F0F0F2;--text-secondary:#9498A0;--text-tertiary:#5C5F68;' +
+    '--accent-blue:#00BFFF;--accent-green:#00E676;--accent-orange:#FFAB40;--accent-pink:#FF4081;--accent-purple:#B388FF;' +
+    '--font-body:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;' +
+    '}' +
+    '*{margin:0;padding:0;box-sizing:border-box}' +
+    'body{font-family:var(--font-body);background:var(--bg-base);color:var(--text-primary);padding:48px 24px;line-height:1.5;font-size:14px;-webkit-font-smoothing:antialiased}' +
+    '.container{max-width:1600px;margin:0 auto}' +
+    'header{margin-bottom:48px;padding-bottom:24px;border-bottom:1px solid var(--border)}' +
+    'header .eyebrow{font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--accent-blue);font-weight:700;margin-bottom:8px}' +
+    'header h1{font-size:32px;font-weight:800;letter-spacing:-0.02em;margin-bottom:8px}' +
+    'header .subtitle{color:var(--text-secondary);font-size:16px;max-width:720px}' +
+    '.blueprint{margin-bottom:64px}' +
+    '.state-label{font-size:18px;font-weight:700;color:var(--text-primary);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border)}' +
+    '.steps-header{display:grid;gap:8px;margin-bottom:12px}' +
+    '.step-header{background:var(--bg-raised);padding:12px 14px;font-weight:700;font-size:13px;border-radius:10px;border:1px solid var(--border);text-align:center}' +
+    '.row{display:grid;grid-template-columns:180px 1fr;gap:8px;margin-bottom:8px;align-items:stretch}' +
+    '.row-label{padding:12px 14px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;border-radius:10px;display:flex;align-items:center;min-height:72px}' +
+    '.row-evidence{background:rgba(179,136,255,0.08);color:var(--accent-purple);border:1px solid rgba(179,136,255,0.18)}' +
+    '.row-user{background:rgba(0,191,255,0.08);color:var(--accent-blue);border:1px solid rgba(0,191,255,0.18)}' +
+    '.row-frontstage{background:rgba(0,230,118,0.08);color:var(--accent-green);border:1px solid rgba(0,230,118,0.18)}' +
+    '.row-backstage{background:rgba(255,171,64,0.08);color:var(--accent-orange);border:1px solid rgba(255,171,64,0.18)}' +
+    '.row-support{background:rgba(255,64,129,0.06);color:var(--accent-pink);border:1px solid rgba(255,64,129,0.14)}' +
+    '.row-pain{background:rgba(255,255,255,0.04);color:var(--text-secondary);border:1px solid var(--border)}' +
+    '.empty-label{background:transparent;border:1px dashed var(--border);color:var(--text-tertiary)}' +
+    '.row-cells{display:grid;gap:8px}' +
+    '.cell{background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:13px;color:var(--text-primary);min-height:72px;display:flex;flex-direction:column;gap:6px}' +
+    '.cell.pain{background:rgba(255,64,129,0.08);border-color:rgba(255,64,129,0.22)}' +
+    '.cell.delight{background:rgba(0,230,118,0.08);border-color:rgba(0,230,118,0.22)}' +
+    '.cell .empty{color:var(--text-tertiary);font-size:12px}' +
+    '.tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:2px 8px;border-radius:9999px;width:fit-content}' +
+    '.tag-pain{background:rgba(255,64,129,0.18);color:var(--accent-pink)}' +
+    '.tag-delight{background:rgba(0,230,118,0.18);color:var(--accent-green)}' +
+    '.line-of-visibility{text-align:center;font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-tertiary);padding:14px 0;border-top:2px dashed var(--border-strong);border-bottom:2px dashed var(--border-strong);margin:14px 0}' +
+    'footer{margin-top:48px;padding-top:24px;border-top:1px solid var(--border);color:var(--text-tertiary);font-size:12px;text-align:center}';
+
+  var html =
+    '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">' +
+    '<title>Service blueprint &mdash; ' + escapeHtml(current.service_name) + '</title>' +
+    '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
+    '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">' +
+    '<style>' + css + '</style>' +
+    '</head><body><div class="container">' +
+    '<header>' +
+    '<div class="eyebrow">Service blueprint</div>' +
+    '<h1>' + escapeHtml(current.service_name) + '</h1>' +
+    subtitle +
+    '</header>' +
+    currentBlueprint +
+    idealBlueprint +
+    '<footer>Generated by Raven &middot; frontstage / line of visibility / backstage &middot; Shostack-Stickdorn</footer>' +
+    '</div></body></html>';
+
+  return html;
+}
+
 // ── Update check ────────────────────────────────────────────────────
 // On startup, fetch the latest published version from npm and compare against
 // our own. Minor/major bumps get surfaced via stderr + injected into the first
@@ -655,6 +837,31 @@ function extractInsight(toolName: string, input: any, output: any): any {
         break;
       case "get_content_pattern":
         insight = { type: input?.type };
+        break;
+      case "get_research_method":
+        insight = { category: input?.category, search: !!input?.search };
+        break;
+      case "get_metrics_framework":
+        insight = { id: input?.id, search: !!input?.search };
+        break;
+      case "get_service_pattern":
+        insight = { type: input?.type };
+        break;
+      case "get_service_standard":
+        insight = { action: "service-standard" };
+        break;
+      case "generate_service_blueprint":
+        insight = {
+          has_ideal: Array.isArray(input?.ideal),
+          current_steps: Array.isArray(input?.current) ? input.current.length : 0,
+          ideal_steps: Array.isArray(input?.ideal) ? input.ideal.length : 0
+        };
+        break;
+      case "get_brand_principles":
+        insight = { topic: safeStr(input?.topic, 32), format: input?.format };
+        break;
+      case "get_brand_trends":
+        insight = { action: "trends" };
         break;
       case "generate_design_system":
         insight = { style: input?.style, has_brand_color: !!input?.brand_color, format: input?.format };
@@ -2514,6 +2721,181 @@ server.tool(
         text: JSON.stringify(pattern, null, 2)
       }]
     };
+  }
+);
+
+// ── Research / service-design / brand tools ───────────────────────
+
+server.tool(
+  "get_research_method",
+  "Get research method details — qualitative (interviews, contextual inquiry, diary, field, intercept), quantitative (surveys, analytics, A/B tests, benchmarking, clickstream), or usability (moderated, unmoderated, 5-second, card sort, tree test, heuristic eval). Returns specific protocols, do/don't guidance, evidence, and a checklist. Use when the user is designing a study or asking how to measure something.",
+  {
+    category: z.enum(["qualitative", "quantitative", "usability", "all"]).optional().describe("Which family of methods. Default: all."),
+    search: z.string().optional().describe("Search within methods by name or description.")
+  },
+  async ({ category, search }) => {
+    var methods = loadResearchMethods();
+    var result = methods;
+    if (category && category !== "all") {
+      result = methods.filter((m: any) => m.id && m.id.startsWith(category));
+    }
+    if (search) {
+      var q = search.toLowerCase();
+      result = result.filter((m: any) =>
+        (m.name && m.name.toLowerCase().includes(q)) ||
+        (m.summary && m.summary.toLowerCase().includes(q)) ||
+        (m.patterns && m.patterns.some((p: any) =>
+          (p.name && p.name.toLowerCase().includes(q)) ||
+          (p.description && p.description.toLowerCase().includes(q))
+        ))
+      );
+    }
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({ count: result.length, methods: result }, null, 2)
+      }]
+    };
+  }
+);
+
+server.tool(
+  "get_metrics_framework",
+  "Get a product-metrics framework — HEART (Google), AARRR/Pirate (Dave McClure), North Star Metric, Conversion Funnel, RICE Scoring, or OKRs. Returns structure, when-to-use, pitfalls, and examples. Use when the user asks 'how should we measure success?' or 'what metrics should we track?'",
+  {
+    id: z.string().optional().describe("Framework id (heart, aarrr, north-star-metric, conversion-funnel, rice-scoring, okrs). Omit to list all."),
+    search: z.string().optional().describe("Search for a framework by name or summary.")
+  },
+  async ({ id, search }) => {
+    var frameworks = loadMetricsFrameworks();
+    var flat: any[] = [];
+    for (var file of frameworks) {
+      if (Array.isArray(file?.frameworks)) flat = flat.concat(file.frameworks.map((f: any) => ({ ...f, source_file: file.id })));
+    }
+    if (id) {
+      var match = flat.find(f => f.id === id);
+      if (!match) {
+        return { content: [{ type: "text" as const, text: "Framework '" + id + "' not found. Available: " + flat.map(f => f.id).join(", ") }] };
+      }
+      return { content: [{ type: "text" as const, text: JSON.stringify(match, null, 2) }] };
+    }
+    if (search) {
+      var q = search.toLowerCase();
+      flat = flat.filter(f => (f.name && f.name.toLowerCase().includes(q)) || (f.summary && f.summary.toLowerCase().includes(q)));
+    }
+    return { content: [{ type: "text" as const, text: JSON.stringify({ count: flat.length, frameworks: flat }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "get_service_pattern",
+  "Get a service design pattern — service blueprinting, human handoff, signup-as-service, omnichannel continuity, or moments of truth / recovery. Returns patterns, do/don't guidance, evidence, and a checklist. Use when the user is designing a service flow, escalation, cross-channel experience, or moment of truth.",
+  {
+    type: z.enum(["service-blueprinting", "human-handoff", "signup-as-service", "omnichannel-continuity", "moments-of-truth"]).describe("Service design pattern type")
+  },
+  async ({ type }) => {
+    var pattern = allPatterns.find(p => p.id === type && p.category === "service-design");
+    if (!pattern) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: "Service pattern '" + type + "' not found. Available: service-blueprinting, human-handoff, signup-as-service, omnichannel-continuity, moments-of-truth."
+        }]
+      };
+    }
+    return { content: [{ type: "text" as const, text: JSON.stringify(pattern, null, 2) }] };
+  }
+);
+
+server.tool(
+  "get_service_standard",
+  "Get the GOV.UK Service Standard — 14 points the UK government uses to assess whether a public service is ready to launch. Widely applicable as a rigorous service-quality checklist beyond government. Use when the user asks how to evaluate a whole service.",
+  {},
+  async () => {
+    var frameworks = loadServiceFrameworks();
+    var govuk = frameworks.find((f: any) => f.id === "gov-uk-service-standard");
+    if (!govuk) {
+      return { content: [{ type: "text" as const, text: "GOV.UK service standard not found." }] };
+    }
+    return { content: [{ type: "text" as const, text: JSON.stringify(govuk, null, 2) }] };
+  }
+);
+
+server.tool(
+  "generate_service_blueprint",
+  "Render a service blueprint as a self-contained HTML page. Accepts a service name and an array of steps, each with fields for user action, frontstage, backstage, support processes, physical evidence, and optional pain points or delight moments. Optionally accepts an ideal-state blueprint to render alongside the current state for current-vs-ideal comparison.",
+  {
+    service_name: z.string().describe("Name of the service (e.g. 'Free trial signup', 'Restaurant reservation')"),
+    subtitle: z.string().optional().describe("Short description or context line under the title"),
+    current: z.array(z.object({
+      label: z.string().describe("Step label (e.g. 'Discover', 'Sign up', 'First use')"),
+      user_action: z.string().optional().describe("What the user is doing in this step"),
+      frontstage: z.string().optional().describe("What the user SEES — UI, agent greeting, system response"),
+      backstage: z.string().optional().describe("What the user does NOT see — employee actions, internal process"),
+      support: z.string().optional().describe("Supporting processes, systems, or third-party dependencies"),
+      evidence: z.string().optional().describe("Physical/digital artifact (email, receipt, page, tracking link)"),
+      pain_point: z.string().optional().describe("Known pain point at this step (shown as red callout)"),
+      delight: z.string().optional().describe("Designed moment of delight at this step (shown as green callout)")
+    })).describe("The current-state blueprint as an array of steps"),
+    ideal: z.array(z.object({
+      label: z.string(),
+      user_action: z.string().optional(),
+      frontstage: z.string().optional(),
+      backstage: z.string().optional(),
+      support: z.string().optional(),
+      evidence: z.string().optional(),
+      pain_point: z.string().optional(),
+      delight: z.string().optional()
+    })).optional().describe("Optional ideal-state blueprint — if provided, the output shows current AND ideal side-by-side")
+  },
+  async ({ service_name, subtitle, current, ideal }) => {
+    var html = generateServiceBlueprintHtml(
+      { service_name, subtitle, steps: current as BlueprintStep[] },
+      ideal ? { service_name, steps: ideal as BlueprintStep[] } : null
+    );
+    return { content: [{ type: "text" as const, text: html }] };
+  }
+);
+
+server.tool(
+  "get_brand_principles",
+  "Get brand and visual-design principles — logo usage (clear space, min sizes, variants, placement, restraint), gradient usage (hierarchy, palette, contrast, trend vs signature), imagery (consistency, representation, purpose), visual hierarchy, and brand-as-system thinking. Use when the user asks about branding, logos, gradients, imagery, visual consistency, or how to treat a brand across surfaces.",
+  {
+    topic: z.string().optional().describe("Filter by topic: 'logo', 'gradient', 'imagery', 'hierarchy', 'system', or a freeform search term. Omit to return all brand principles."),
+    format: z.enum(["full", "checklist", "brief"]).optional().describe("Output format. Default: full.")
+  },
+  async ({ topic, format }) => {
+    var fmt = format || "full";
+    var brand = allPrinciples.filter(p => p.category === "brand");
+    var results = brand;
+    if (topic) {
+      var q = topic.toLowerCase();
+      results = brand.filter(p => {
+        var idMatch = p.id.toLowerCase().includes(q);
+        var nameMatch = p.name.toLowerCase().includes(q);
+        var appliesMatch = p.applies_to ? matchesTags(p.applies_to, topic) : false;
+        var textMatch = textSearch(p.name + " " + p.summary + " " + p.description, topic);
+        return idMatch || nameMatch || appliesMatch || textMatch;
+      });
+      if (results.length === 0) results = brand;
+    }
+    var formatted = results.map(p => formatPrinciple(p, fmt));
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({ topic: topic || "all brand principles", count: formatted.length, principles: formatted }, null, 2)
+      }]
+    };
+  }
+);
+
+server.tool(
+  "get_brand_trends",
+  "Get current brand and visual-design trends — what's working in 2026 and where each trend fits or fails. Includes bento grids, monospace type, neon-on-dark-glass, generative patterns, brutalism rebound, AI-generated imagery, lowercase/mixed case. Each trend is time-stamped — treat as a calibration signal, not a prescription.",
+  {},
+  async () => {
+    var trends = loadBrandTrends();
+    return { content: [{ type: "text" as const, text: JSON.stringify({ count: trends.length, trends: trends }, null, 2) }] };
   }
 );
 

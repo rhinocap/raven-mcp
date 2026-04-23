@@ -1,0 +1,112 @@
+{
+  "id": "qualitative-methods",
+  "name": "Qualitative Research Methods",
+  "category": "research-methods",
+  "summary": "Methods for understanding why users behave as they do — their mental models, motivations, frustrations, and language. Small samples, deep data. Best for framing problems, discovering unknowns, and generating hypotheses.",
+  "principles_referenced": ["match-method-to-question", "observe-behavior-not-opinion", "minimize-bias", "context-of-use", "recruit-to-the-target-population"],
+  "patterns": [
+    {
+      "name": "User interviews (semi-structured)",
+      "description": "One-on-one conversations guided by an interview script but open to follow-ups. Best for understanding user goals, workflows, decision criteria, and emotional context. Typical length: 30–60 minutes. Sample: 5–8 per user type.",
+      "do": [
+        "Write a discussion guide with ~5–7 open-ended primary questions and 'probes' underneath each",
+        "Ask about past behavior: 'Tell me about the last time you [X]' — concrete, memorable, less biased",
+        "Use the 5 Whys to chase causation without imposing your own theory",
+        "Record (with consent) so you can listen back and quote verbatim",
+        "Transcribe or auto-transcribe — otherwise analysis is memory, not data",
+        "Run the first 1–2 sessions as pilots; revise the guide based on what didn't land"
+      ],
+      "dont": [
+        "Ask hypothetical future questions ('would you use this?') — unreliable",
+        "Stack multi-part questions — participants only answer the last part",
+        "Nod, smile, or react to answers you expected or liked — reinforces acquiescence bias",
+        "Show mockups in the first 10 minutes before you understand their context",
+        "Interview only 2–3 people and call it a study — n=5+ per user type"
+      ],
+      "evidence": "Nielsen Norman Group's research consistently shows that 5–8 semi-structured interviews per user type surface the dominant themes. Additional interviews yield diminishing returns and should be reserved for edge segments or validation of a specific hypothesis."
+    },
+    {
+      "name": "Contextual inquiry",
+      "description": "Hybrid of interview + observation, conducted in the participant's actual work environment (physical or digital). The researcher watches the user do their real work, asking questions about what they're doing and why. Reveals workarounds, context, and tools invisible in a lab.",
+      "do": [
+        "Ask the user to do the real task with real data — not a scripted scenario",
+        "Watch first, ask second — avoid interrupting mid-task",
+        "Note down the tools and artifacts they use (other apps, spreadsheets, printouts, sticky notes)",
+        "Ask 'why' at natural pause points — not at every click",
+        "Use a master-apprentice framing: 'I'm here to learn how you do this'"
+      ],
+      "dont": [
+        "Bring a long interview script — follow the work, not the script",
+        "Ignore 'unrelated' behavior — the workaround often IS the insight",
+        "Interrupt mid-flow to ask questions that can wait",
+        "Try to train the user on better ways — you're here to observe, not teach",
+        "Skip the follow-up synthesis session — the second hour is where patterns emerge"
+      ],
+      "evidence": "Contextual inquiry, originated by Beyer & Holtzblatt (Rapid Contextual Design, 1998), surfaces workarounds, tools, and context that users will not mention in a lab interview — because they don't consciously notice them. Often the most valuable findings for enterprise products come from this method."
+    },
+    {
+      "name": "Diary studies",
+      "description": "Longitudinal self-report method. Participants log behavior, thoughts, or feelings over time (typically 1–4 weeks) via a daily or event-triggered prompt. Good for behavior that happens rarely, is context-dependent, or unfolds over time.",
+      "do": [
+        "Decide cadence: fixed (daily) vs. event-triggered (each time X happens)",
+        "Keep entries short — one prompt, 2–3 questions, 2 minutes to complete",
+        "Use a tool the participant already has (SMS, WhatsApp, email) — not a new app",
+        "Send reminders; expect 50–70% entry completion",
+        "Follow up with exit interviews to contextualize patterns you saw in the diary"
+      ],
+      "dont": [
+        "Require a special app or complex workflow — kills completion",
+        "Ask 10 questions per entry — participants drop out",
+        "Run without exit interviews — you miss the story behind the data",
+        "Forget to incentivize entry completion (daily micro-payment works)",
+        "Rely on memory-based questions that defeat the purpose ('what did you do last week?')"
+      ],
+      "evidence": "Diary studies excel at capturing emotion in the moment, rare events, and behavior spread over time (e.g., health, finance, multi-day workflows) — things interviews miss because participants don't remember accurately."
+    },
+    {
+      "name": "Field studies / ethnographic observation",
+      "description": "Researcher embeds in the user's environment for an extended period (hours to days), observing behavior with minimal interference. Best for understanding social context, culture, and tacit knowledge around a product or task.",
+      "do": [
+        "Define what you're looking for (e.g., 'how this workflow moves between people') but stay open to surprises",
+        "Take field notes in a structured template — observations, quotes, questions, your interpretations",
+        "Spend enough time that the participant stops performing for you (typically a few hours in)",
+        "Triangulate with artifacts — photos of their workspace, screenshots, printed forms"
+      ],
+      "dont": [
+        "Stay only 30 minutes — you'll see the 'show version' of their day",
+        "Try to prove a hypothesis — stay in observation mode",
+        "Whisper questions constantly — let them work",
+        "Generalize from one site — if feasible, visit 2–3"
+      ],
+      "evidence": "Field studies surface the social and cultural context of product use, which laboratory or remote methods cannot. Best used when the product integrates with a physical environment, team workflow, or lived routine."
+    },
+    {
+      "name": "Intercept studies",
+      "description": "Short, opportunistic research with users captured in the moment of product use — via in-app prompt, on-site survey, or in-person approach. Very short (2–5 questions). Good for high-volume, low-depth feedback tied to a specific interaction.",
+      "do": [
+        "Trigger the intercept after a clear completion point — not mid-task",
+        "Ask 1–3 questions, focused on what just happened",
+        "Mix one closed (scalar) + one open-ended question for richness",
+        "Aggregate responses over time; patterns emerge with 100+ responses",
+        "Offer a small incentive for longer follow-up interviews when valuable"
+      ],
+      "dont": [
+        "Interrupt users mid-task — destroys goodwill and data quality",
+        "Ask 10 questions — response rate collapses past 3",
+        "Use generic NPS — context-free, low-signal",
+        "Analyze 10 intercept responses and call it a finding — volume matters"
+      ],
+      "evidence": "Used well, intercept surveys generate large-volume, lightly-structured feedback tied to moments of truth. Best paired with longer qualitative work for the 'why' behind the signal."
+    }
+  ],
+  "checklist": [
+    "Have you picked a qualitative method whose output will answer your actual question?",
+    "Is the sample size appropriate (5–8 for interviews per user type; 10–20 for diary; field: depth over breadth)?",
+    "Are your questions open-ended, behavior-focused, and free of leading language?",
+    "Is the recruiting screener tight enough to ensure the sample represents your target?",
+    "Do you have consent to record, and a plan for secure storage + retention?",
+    "Will participants be compensated fairly?",
+    "Is there a clear decision the study will inform?",
+    "Have you planned analysis time equal to at least 2x the data collection time?"
+  ]
+}

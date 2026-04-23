@@ -1,0 +1,68 @@
+[
+  {
+    "id": "hierarchy-one-primary-focus",
+    "name": "Every view has one primary focus — not three",
+    "category": "brand",
+    "summary": "Visual hierarchy works by differential, not uniform, emphasis. When everything is shouting, nothing is heard. Every view should have one primary, one secondary, and the rest as support.",
+    "description": "The most common hierarchy failure: every element competes. Three CTAs of equal weight. Five headlines at the same size. Every card with its own accent color. The fix is ruthless differential: one primary element dominates (largest, boldest, most saturated, most space around it); one secondary supports; everything else is muted. This principle holds across scale — a single screen, a landing page, a full navigation system. The moment two elements demand the same attention, the hierarchy is flat — and flat hierarchies read as 'nothing here matters.'",
+    "implications": [
+      "Designate one primary element per visible region — hero, section, card, screen.",
+      "The primary gets the strongest treatment: largest type, most saturated color, most space, most motion.",
+      "Secondary elements step down clearly — a visible gap in scale, weight, or color intensity.",
+      "Supporting elements recede — muted color, reduced weight, less space.",
+      "If you can't pick the primary, the content isn't prioritized — the design can't fix that."
+    ],
+    "violations": [
+      "Hero with three buttons at equal visual weight — user has no lead.",
+      "Five section headlines at the same size and color — eye has no entry point.",
+      "Every card with a unique accent color — a variegated surface with no focal point.",
+      "Navigation with 12 items at equal emphasis — nothing stands out; user scans everything."
+    ],
+    "applies_to": ["brand", "visual-hierarchy", "typography", "layout"],
+    "sources": ["https://www.nngroup.com/articles/visual-hierarchy-ux-definition/", "https://lawsofux.com/visual-hierarchy/"]
+  },
+  {
+    "id": "hierarchy-whitespace-is-signal",
+    "name": "Whitespace is a hierarchy tool, not empty space",
+    "category": "brand",
+    "summary": "The amount of space around an element tells the reader how important it is. Primary elements get more breathing room; supporting elements cluster tighter.",
+    "description": "Whitespace is one of the most powerful tools in visual hierarchy — and one of the most misunderstood. It is not 'empty space to be filled'; it is an active design element that says 'this matters.' Apple famously surrounds its hero product with acres of empty space, signaling importance. Dense cards with minimal padding read as secondary, reference material. The relationship between whitespace and hierarchy is linear: more space around an element = more importance signaled. Compress space to signal 'reference' or 'dense detail'; expand space to signal 'this is the point.'",
+    "implications": [
+      "Give the primary element generous space — usually 2-4x more than supporting elements.",
+      "Tighten space around reference material and supporting elements.",
+      "Whitespace on mobile looks different than on desktop but functions the same — proportional.",
+      "Resist the reflex to fill white space. A cramped layout reads as anxious; a confident layout breathes.",
+      "If a page is 'too empty,' the issue is almost always lack of hierarchy, not lack of content."
+    ],
+    "violations": [
+      "Primary CTA squeezed between a dense nav and a dense content block — space doesn't signal its importance.",
+      "Uniform padding across every section — hierarchy flattened to a grid.",
+      "'Business card' layouts where content pushes edge-to-edge — reads as anxious, undesigned.",
+      "Marketing page with the same vertical rhythm throughout — hero doesn't feel like a hero."
+    ],
+    "applies_to": ["brand", "visual-hierarchy", "whitespace", "layout"],
+    "sources": ["https://www.nngroup.com/articles/white-space/", "https://www.apple.com/"]
+  },
+  {
+    "id": "hierarchy-scale-not-color",
+    "name": "Lead with scale and weight; use color to accent",
+    "category": "brand",
+    "summary": "Scale and weight are the most readable hierarchy tools — they work even without color. Color should accent the hierarchy, not carry it. Color-only hierarchy fails for color-blind users and in grayscale print.",
+    "description": "A common hierarchy trap: differentiating elements only through color (e.g., 'primary CTA is orange, secondary is gray'). Without scale or weight difference, the hierarchy is fragile: color-blind users can't see it, printed/screenshot versions lose it, and even normal-vision users process scale faster than color. Strong hierarchies lead with scale (size) and weight (boldness), then accent with color. You should be able to print a page in black-and-white and still read the hierarchy clearly. Color is the seasoning, not the meal.",
+    "implications": [
+      "Design hierarchy in grayscale first — if it doesn't read, color won't save it.",
+      "Use scale (size) and weight (boldness) as the primary hierarchy tools.",
+      "Use color to reinforce the existing hierarchy — saturation and contrast following scale, not leading it.",
+      "Test designs in grayscale regularly to verify hierarchy holds.",
+      "For color-accessible design (color-blindness, low-contrast screens), scale-and-weight-first is a requirement, not a preference."
+    ],
+    "violations": [
+      "Primary and secondary CTAs at identical size — only color differentiates them.",
+      "H1, H2, H3 all at the same size, differentiated only by color tint.",
+      "Badge system where red, yellow, green signal priority but the size and weight are identical.",
+      "Data tables where the only hierarchy is color-coded rows — unreadable when printed or scanned."
+    ],
+    "applies_to": ["brand", "visual-hierarchy", "accessibility", "typography", "color"],
+    "sources": ["https://www.w3.org/WAI/WCAG22/quickref/", "https://www.nngroup.com/articles/visual-hierarchy-ux-definition/"]
+  }
+]

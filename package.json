@@ -1,7 +1,7 @@
 {
   "name": "raven-mcp",
   "version": "1.2.0",
-  "description": "Design intelligence MCP server — accessibility, principles, patterns, tokens, and strategy for AI-generated UI. 73 design principles, 13 UI patterns, 13 tools, 12 design system tokens.",
+  "description": "Design intelligence MCP server — principles, patterns, tokens, content systems, research methods, service design, and brand guidance for AI-generated UI. Now with research, service design (with HTML blueprint generation), and brand/visual design layers.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -46,7 +46,16 @@
     "accessibility",
     "claude",
     "ai",
-    "model-context-protocol"
+    "model-context-protocol",
+    "content-design",
+    "ux-writing",
+    "voice-and-tone",
+    "ux-research",
+    "service-design",
+    "service-blueprint",
+    "brand",
+    "visual-design",
+    "branding"
   ],
   "author": "Andrew Cunliffe",
   "license": "MIT",

@@ -1,0 +1,90 @@
+[
+  {
+    "id": "gradient-serve-hierarchy",
+    "name": "Gradients should serve hierarchy, not decorate",
+    "category": "brand",
+    "summary": "A gradient should draw the eye to what matters — a primary CTA, a hero headline, a key metric. Gradients applied decoratively dilute attention and read as 'designer had time to burn.'",
+    "description": "Gradients are a tool for directing attention. Used well, they create visual weight where weight is needed: a primary CTA that sits forward, a hero text treatment that commands the fold, a card that signals importance. Used badly — applied to every background, every border, every icon — they become noise. The 2020-era gradient trend (Stripe, Linear, Vercel) worked because gradients were used in one or two places per surface, with clean surrounding geometry. The imitation trend, with gradients on everything, produced the 'neon rave' look that designers now recognize as amateur. Gradient is a focus tool, not a finish.",
+    "implications": [
+      "Use one gradient per visible surface as the primary accent — rarely two.",
+      "Reserve gradients for elements you want to emphasize: primary CTAs, key metrics, feature callouts.",
+      "Pair gradients with calm surroundings — solid backgrounds, neutral typography — to let the gradient do its work.",
+      "If every element has a gradient, none stands out. Remove gradients from supporting elements to strengthen the primary one.",
+      "A good test: if you removed all gradients and the hierarchy still read clearly, the gradients were structural. If it didn't, they were decorative."
+    ],
+    "violations": [
+      "Gradient on the nav, gradient on the card borders, gradient on every button, gradient behind the hero — everything screams, nothing reads.",
+      "A gradient applied to body text 'to look premium' — degrades readability.",
+      "Rainbow-gradient icons on a black background — tricks borrowed from hackathon sites.",
+      "Animating a gradient as the default background — pulls attention away from content."
+    ],
+    "applies_to": ["brand", "visual-hierarchy", "gradients", "cta"],
+    "sources": ["https://brandnew.underconsideration.com/", "https://vercel.com/design"]
+  },
+  {
+    "id": "gradient-limit-palette",
+    "name": "Limit gradient palette and direction",
+    "category": "brand",
+    "summary": "Every additional color or angle in a gradient system increases brand entropy. Limit the palette to 2-3 harmonious colors and the direction to 1-2 angles. Consistency reads as intention.",
+    "description": "An over-rich gradient system — 5 colors, 8 angles, different per page — looks like a brand still deciding what it wants to be. Mature gradient systems limit the palette: Stripe has its specific purples and cyans; Linear has its specific lavenders and pinks; Vercel has its black-to-blue. They also limit direction: usually one or two angles used consistently (top-left to bottom-right, or radial from top). Consistency of palette and direction across surfaces is what makes a gradient feel like a brand cue rather than a decorative whim. It's the color equivalent of using one typeface — rigor, not restriction.",
+    "implications": [
+      "Define the gradient palette as 2-3 colors with specific stops — not 'any brand color' — and include them in your design system.",
+      "Pick 1-2 angles (usually 135° or 180° radial) and use them consistently.",
+      "Document gradient tokens: the specific colors, stops, angles, and usage contexts.",
+      "Publish a 'gradient don't' page: unapproved color combinations, unapproved angles.",
+      "When a campaign wants a new gradient, treat it as a brand extension decision, not a per-page choice."
+    ],
+    "violations": [
+      "Different gradient colors on the marketing site, product, email, and social — reads as uncoordinated.",
+      "Random gradient angles per component — chaotic feel.",
+      "Adding a 'limited edition' gradient for every campaign — dilutes the system.",
+      "A 5-color gradient that contains no brand colors — decorative not strategic."
+    ],
+    "applies_to": ["brand", "gradients", "design-tokens", "brand-system"],
+    "sources": ["https://stripe.com/newsroom/news/stripe-brand", "https://linear.app/docs/brand"]
+  },
+  {
+    "id": "gradient-respect-contrast",
+    "name": "Never sacrifice text contrast for a gradient background",
+    "category": "brand",
+    "summary": "A gradient that makes text hard to read is a failed gradient. Test contrast at every point along the gradient, not just the brightest spot. WCAG AA minimum; AAA preferred for body copy.",
+    "description": "A gradient background shifts color along its length, which means text contrast shifts too. A headline that's perfectly readable against the top of a gradient may fail WCAG AA against the bottom. The common failure: designer tests with a single representative background color and ships. The fix: test the text against every representative point of the gradient, or use a solid overlay/plate behind the text. Never assume a gradient 'looks fine' — measure. Accessibility is not aesthetic preference; it's the floor.",
+    "implications": [
+      "For any text over a gradient, measure contrast at the text's position against the darkest AND lightest part of the gradient it overlaps.",
+      "If contrast fails anywhere, either move the text, darken the whole gradient, or add a semi-opaque plate (glass or solid) behind the text.",
+      "Decorative text effects (gradient-filled headlines) should be reserved for display sizes (>=48px) where contrast is less critical — and tested even then.",
+      "Body copy over a gradient is nearly always a mistake — use a plate.",
+      "Include gradient-contrast checks in your accessibility audit, not just solid-color checks."
+    ],
+    "violations": [
+      "Hero headline in white over a pink-to-yellow gradient — fails against the yellow half.",
+      "Body paragraph over a dark-to-medium gradient — reads against the dark half, becomes illegible against the medium half.",
+      "Glowing neon CTA button where the text contrast is borderline AAA and fails AA in user conditions.",
+      "Accessibility audit passes because the tester only checked the darkest swatch."
+    ],
+    "applies_to": ["brand", "gradients", "accessibility", "wcag"],
+    "sources": ["https://www.w3.org/WAI/WCAG22/quickref/", "https://webaim.org/articles/contrast/"]
+  },
+  {
+    "id": "gradient-trend-vs-signature",
+    "name": "Distinguish trend gradients from signature gradients",
+    "category": "brand",
+    "summary": "Trend gradients age fast; signature gradients become part of the brand. Know which you're building — a Figma-filter finish or a recognizable visual asset.",
+    "description": "There's a difference between a gradient that's fashionable in a given year (rainbow mesh 2020, neon-on-black 2022, cyber-lime 2024) and a gradient that becomes a brand signature (Stripe's purple-cyan arc, Instagram's original sunset, Vercel's deep-field black-to-indigo). Trend gradients are recognizable as 'in the style of [current year]'; signature gradients are recognizable as 'that's [brand]'. Use trend gradients deliberately and time-box them. Build signature gradients as long-term brand assets. The first compounds into 'dated' in 3 years; the second compounds into equity.",
+    "implications": [
+      "When picking a gradient, ask: is this a signature I'm investing in, or a trend I'm riding?",
+      "Signature gradients require commitment — appear on primary surfaces, stay for years, become associated with the brand.",
+      "Trend gradients are fine for campaigns, launches, seasonal moments — with an explicit expiration.",
+      "If the gradient is hackathon-sticker-identical to 10 other brands right now, it's a trend, not a signature.",
+      "The test: a year after retiring this gradient, would users remember it was yours? If yes, it was a signature. If no, it was a trend."
+    ],
+    "violations": [
+      "Building a brand identity on a gradient palette visibly identical to the hot brand of this quarter.",
+      "Investing huge marketing spend behind a gradient that will look dated by the next brand review.",
+      "Treating every gradient as a signature — the brand becomes a collage of short-lived cues.",
+      "Ignoring the question entirely and letting designers pick per-project."
+    ],
+    "applies_to": ["brand", "gradients", "brand-identity", "trends"],
+    "sources": ["https://brandnew.underconsideration.com/", "https://www.pentagram.com/"]
+  }
+]

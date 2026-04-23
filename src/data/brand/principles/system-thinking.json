@@ -1,0 +1,90 @@
+[
+  {
+    "id": "brand-as-system",
+    "name": "A brand is a system, not a logo",
+    "category": "brand",
+    "summary": "The logo is one output of the brand system. The brand itself is the set of rules — typography, color, spacing, voice, imagery, motion — that produce coherent surfaces across every context.",
+    "description": "New brands invest heavily in a logo and treat everything else as downstream. Mature brands invest in the system — the typography scale, the color palette, the spacing grid, the voice guide, the motion language, the imagery treatment — and the logo is one artifact produced by the system. The system is what lets 30 designers across 10 teams produce consistent work over 5 years. Without it, every touchpoint drifts. The signal of a mature brand isn't a distinctive logo; it's that you recognize the brand even when the logo isn't visible — because the typography, color, and voice are doing the work.",
+    "implications": [
+      "Invest in tokens (color, type, spacing, radii, motion) as much as in the logo — the tokens scale; the logo is one instance.",
+      "Publish the system in a public or internal design site — make it easy to find and use.",
+      "Build components that encode the system, so developers can't accidentally violate it.",
+      "When evaluating brand quality, look at non-logo surfaces — empty states, tooltips, invoices, 404s. That's where system consistency shows.",
+      "Prefer decisions that extend the system over decisions that add exceptions."
+    ],
+    "violations": [
+      "A beautiful logo on an inconsistent product — different fonts, random spacing, ad-hoc colors.",
+      "Brand refresh that updates the logo but not the underlying system — nothing actually changes.",
+      "Design system tokens that designers have to discover through Figma search rather than having at their fingertips.",
+      "A 'brand guide' that's 80% logo rules and 20% everything else."
+    ],
+    "applies_to": ["brand", "design-system", "brand-systems"],
+    "sources": ["https://www.pentagram.com/", "https://brandnew.underconsideration.com/", "https://www.figma.com/brand/"]
+  },
+  {
+    "id": "brand-consistency-with-exceptions",
+    "name": "Be consistent 95% of the time; make 5% deliberate exceptions",
+    "category": "brand",
+    "summary": "Rigid consistency makes a brand feel corporate. No consistency makes it feel confused. Rigorous consistency with a small number of deliberate, documented exceptions is the mark of confident design.",
+    "description": "There's a false dichotomy between 'strict brand guidelines' and 'brand flexibility.' The truth: be strict on the 95% that's routine (nav, buttons, typography, voice) — users learn the pattern and trust it. Invest the 5% of exceptions in moments that matter: a hero that breaks the mold, a campaign that stretches the palette, an interaction that violates the motion system for surprise. Exceptions should be rare, deliberate, and documented — not 'whatever the designer felt like.' Brands that break their rules everywhere become unrecognizable; brands that never break them become boring.",
+    "implications": [
+      "Default to the system for all routine surfaces — nav, forms, cards, transactional emails, error states.",
+      "Reserve exceptions for moments of emphasis — hero, campaign, anniversary, launch, onboarding peak.",
+      "Document each exception: why it deviates, for how long, what's specifically different.",
+      "Review exceptions quarterly — retire the ones that have outlived their moment.",
+      "When a team starts breaking rules routinely, the issue is usually that the rules don't serve a real need — revisit the system, not the discipline."
+    ],
+    "violations": [
+      "Every page has a slightly different hero treatment — reads as undesigned.",
+      "Transactional emails that each pick a different type scale — the system never extended to email.",
+      "Campaigns that override brand color every quarter — brand equity dilutes.",
+      "A rigid guide that blocks any deviation, then designers work around it — the system collapses from within."
+    ],
+    "applies_to": ["brand", "brand-system", "governance"],
+    "sources": ["https://www.pentagram.com/", "https://airbnb.design/"]
+  },
+  {
+    "id": "brand-accumulate-trust-over-time",
+    "name": "Brand accumulates through consistency over time — not through novelty",
+    "category": "brand",
+    "summary": "A brand isn't strong because it's new or surprising. It's strong because users have seen the same signals often enough to recognize and trust them. Consistency over time is the slow compounding that creates real equity.",
+    "description": "Brand equity is the accumulated trust a user feels when they see your signals — color, typography, logo, voice, imagery — in any context. It accumulates the same way interest does: through repetition. Every consistent touchpoint is a deposit; every inconsistent one is a withdrawal. The most valuable brands in the world (Apple, IBM, Disney, Coca-Cola, Nike) maintain remarkable consistency across decades. The ones that refresh constantly — new logos, new palettes, new campaigns — burn the equity they spent years accumulating. This doesn't mean never evolve; it means evolve slowly and with visible continuity.",
+    "implications": [
+      "Resist the 'every 2 years we need a refresh' instinct — most refreshes burn more equity than they build.",
+      "Evolution, not revolution: when you do update, keep visible continuity (same type family, evolved logo, extended palette).",
+      "Measure brand investment in decades, not quarters.",
+      "Audit your own touchpoints for consistency: does a user's experience today match their experience 2 years ago?",
+      "Campaign creativity is fine — it belongs on top of, not instead of, the brand system."
+    ],
+    "violations": [
+      "A brand refresh every 18 months — users never learn the signals.",
+      "'Rebrand' that changes the logo, color palette, typography, and voice at once — starts from zero in trust.",
+      "Marketing campaigns that run with their own visual language disconnected from the brand.",
+      "Legacy surfaces (old emails, old pages) that feel like a different product than the current one."
+    ],
+    "applies_to": ["brand", "brand-equity", "brand-evolution"],
+    "sources": ["https://www.pentagram.com/", "https://brandnew.underconsideration.com/"]
+  },
+  {
+    "id": "brand-shows-without-logo",
+    "name": "The best brands are recognizable without the logo",
+    "category": "brand",
+    "summary": "If a user would recognize your product's surface with the logo removed, your brand system is working. If not, the system leans too hard on the logo and hasn't done the deeper work.",
+    "description": "The test of a mature brand: cover the logo, show the surface to a user, ask if they recognize the brand. Apple, Notion, Linear, Stripe, and Vercel all pass this test easily — their typography, color, motion, and layout are distinct enough that the logo is reinforcement, not identification. Weaker brands fail it — remove the logo and the surface could be any of 50 products. This isn't about stylistic gimmick; it's about depth of system. Distinctive type pairings, a characteristic color accent, a recognizable motion signature, a specific imagery treatment — each contributes a signal that accumulates into recognition. Invest in those; the logo is a cherry, not the cake.",
+    "implications": [
+      "Run the 'logo-blind' test on your surfaces — does the brand still show?",
+      "Identify which non-logo signals carry your brand most strongly (type? color? layout? motion? imagery?).",
+      "Invest disproportionately in strengthening those signals — not in making the logo bigger.",
+      "Distinctive choices that persist across time build recognition; trendy choices that turn over don't.",
+      "A weak brand system reaches for the logo when recognition is needed. A strong one doesn't need to."
+    ],
+    "violations": [
+      "Removing the logo leaves a generic-looking surface — brand equity is 100% in the mark.",
+      "Marketing where every asset must include the logo in a corner for anyone to recognize the brand.",
+      "Product screens that could belong to any competitor — no distinctive type, color, or layout cue.",
+      "Investing all brand budget in the logo refresh and nothing in typography, tokens, or voice."
+    ],
+    "applies_to": ["brand", "brand-equity", "brand-system"],
+    "sources": ["https://www.pentagram.com/", "https://brandnew.underconsideration.com/"]
+  }
+]

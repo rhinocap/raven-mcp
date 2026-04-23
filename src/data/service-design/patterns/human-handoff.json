@@ -1,0 +1,108 @@
+{
+  "id": "human-handoff",
+  "name": "Human Handoff Patterns",
+  "category": "service-design",
+  "summary": "Patterns for moving between self-service and human help, between bot and human, and between support tiers. Handoffs are where most services break — and where the best services earn trust.",
+  "principles_referenced": ["offer-human-help-where-it-counts", "anticipate-handoff", "moments-of-truth"],
+  "patterns": [
+    {
+      "name": "Proactive escalation on signal",
+      "description": "Detect signs that self-service is failing (repeated retries, backtracks, negative sentiment, long pauses, support-terminology in search) and offer human help before the user has to hunt for it.",
+      "do": [
+        "Monitor for behavioral signals: ≥3 failed attempts at a form field, ≥2 back-navigations on the same flow, search queries containing 'help' / 'broken' / 'can't'",
+        "Trigger a subtle prompt: 'Having trouble? Chat with a human in ~2 minutes.'",
+        "Route to the right tier — billing signals go to billing, technical go to tech support",
+        "Preserve the context: the human agent opens with knowledge of what failed",
+        "If the estimated wait is long, offer async (email, ticket) as an alternative"
+      ],
+      "dont": [
+        "Interrupt on the first failure — users want to try once or twice themselves",
+        "Pop up a modal that blocks the UI — offer help alongside, not on top of",
+        "Open the chat with 'hi, how can I help?' — the agent should know what was failing",
+        "Route every escalation to a generalist — tier the triage",
+        "Hide wait times — users prefer honest hour than pretend minute"
+      ],
+      "evidence": "Forrester research consistently shows proactive help offered at the right signal converts abandonment into resolution — and resolutions feel like wins, not obligations. The key is reading signal, not spraying offers."
+    },
+    {
+      "name": "Bot-to-human escalation",
+      "description": "Chat bots handle routine questions well. Their failure mode is looping or dead-ending on edge cases. A well-designed bot-to-human escalation is what separates useful bots from frustrating ones.",
+      "do": [
+        "Let users type 'talk to a human' (or synonyms) at any point — never trap them",
+        "Detect loops (bot repeats an answer, user repeats a question) and offer escalation automatically",
+        "On escalation, pass the full conversation history to the human agent",
+        "Human agent opens with acknowledgment: 'I can see you were asking about X — let me help with that.'",
+        "If no human is available, offer a realistic callback time or email follow-up with a commitment",
+        "Display bot capability clearly at the start — 'I can help with account, billing, and password questions. For anything else, I'll connect you.'"
+      ],
+      "dont": [
+        "Force users through a decision tree before allowing escalation",
+        "Hide the 'talk to a human' option behind multiple bot responses",
+        "Have the human agent restart the conversation from scratch",
+        "Use bots for emotionally charged moments (refund disputes, cancellations, bereavement)",
+        "Let the bot claim it can help, fail, and then say 'I'm just a bot' — honesty upfront is cheaper"
+      ],
+      "evidence": "Bots that allow instant human escalation have significantly higher CSAT than bots that gate escalation. Customers forgive bot failure; they don't forgive bot imprisonment. The best implementations frame the bot as triage, not as a wall."
+    },
+    {
+      "name": "Tier 1 to tier 2 escalation",
+      "description": "Support tiered by expertise: tier 1 handles common issues; tier 2 handles technical or complex cases. A good handoff between tiers transfers the full context so the customer doesn't re-explain.",
+      "do": [
+        "Use a shared ticketing system where the full conversation history and any diagnostic data travel with the case",
+        "Tier 1 ends with a summary note: 'Escalating because X. Already tried Y.'",
+        "Tier 2 agent opens with that context: 'I see tier 1 has tried Y; let me dig into X.'",
+        "Communicate the handoff to the customer: 'I'm transferring you to an engineer who specializes in this — they'll have everything you've told me.'",
+        "Set expectations about response time if the handoff is async"
+      ],
+      "dont": [
+        "Require the customer to re-explain to tier 2 — the single most common complaint about tiered support",
+        "Lose diagnostic data in the handoff (logs, screenshots, user ID)",
+        "Hand off without a clear 'reason for escalation' field — tier 2 wastes time guessing",
+        "Bounce the customer back to tier 1 without explanation — feels like being passed around"
+      ],
+      "evidence": "Zendesk and Intercom research shows that every re-explanation in a support flow drops CSAT by measurable double digits. Context-preserving handoffs are the single highest-ROI support investment."
+    },
+    {
+      "name": "Channel escalation (chat → phone)",
+      "description": "Sometimes the right answer is to move from text to voice. A good channel escalation preserves context, doesn't waste the user's time rebuilding rapport, and only happens when necessary.",
+      "do": [
+        "Offer phone only when the issue genuinely benefits (complex, emotional, visual walk-through needed)",
+        "Schedule the call — don't force an immediate one — and offer a time window the user picks",
+        "Pass the chat transcript to the phone agent before the call",
+        "Confirm the phone number via chat to avoid typos",
+        "Offer a callback rather than requiring the user to dial in — saves them queuing"
+      ],
+      "dont": [
+        "Push phone as the default — most users prefer async for simple issues",
+        "Transfer to a phone queue with no context — worst-of-both channels",
+        "Require phone for actions that could be self-service (cancellations especially — that's a dark pattern)"
+      ],
+      "evidence": "For product-led companies, chat and email dominate. Phone is the highest-friction channel; reserve it for where voice actually helps (complex financial, emotional, high-value-account)."
+    },
+    {
+      "name": "Return handoff: human → self-service",
+      "description": "A handoff is not just to a human — it's also back to the product. After human resolution, the best services close the loop by updating self-service with the lessons learned, so the next user doesn't need the escalation.",
+      "do": [
+        "Tag common escalation reasons and surface them to the product team weekly",
+        "Update help docs, FAQ, or in-product hints based on recurring escalations",
+        "Offer the user a 'next time, you can do this here' link at the end of the support interaction",
+        "Feed common issues back into the self-service design — don't just fix the individual ticket"
+      ],
+      "dont": [
+        "Resolve tickets as isolated events without feeding learnings back",
+        "Keep support and product as separate orgs with no tight feedback loop",
+        "Ignore the opportunity to reduce future escalation volume"
+      ],
+      "evidence": "Support-to-product feedback loops (e.g., the 'support as a product function' model at Basecamp, GitHub, Stripe) shift cost over time from people-hours to product improvement. The savings compound."
+    }
+  ],
+  "checklist": [
+    "Is there a visible 'talk to a human' option at every stage of self-service?",
+    "Does the bot detect and respond to explicit 'talk to a human' requests immediately?",
+    "Does context (conversation, user, diagnostic data) transfer across every handoff?",
+    "Does the receiving agent open with acknowledgment, not 'hi how can I help?'",
+    "Are wait times communicated honestly?",
+    "Are failure modes for handoffs designed (no agent available, timeout, transfer fails)?",
+    "Is there a return handoff that feeds learnings back to product and self-service?"
+  ]
+}

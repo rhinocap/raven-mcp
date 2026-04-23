@@ -1,0 +1,179 @@
+{
+  "id": "gov-uk-service-standard",
+  "name": "GOV.UK Service Standard (14 points)",
+  "category": "service-frameworks",
+  "summary": "The UK government's Service Standard — a 14-point framework for building user-centered services. Every government service in the UK must meet this standard to launch. Widely adopted beyond government as a rigorous checklist for service quality.",
+  "principles_referenced": ["human-centered", "sequential", "holistic", "service-as-experience-over-time", "anticipate-handoff"],
+  "standard": [
+    {
+      "number": 1,
+      "name": "Understand users and their needs",
+      "description": "Develop a deep knowledge of who is going to use the service and what they need from it. Research the range of users and situations — especially those with access needs or complex contexts.",
+      "how_to_meet": [
+        "Conduct user research with a representative sample — including users in challenging contexts",
+        "Name specific user types with distinct needs (not just 'users')",
+        "Document the non-digital paths users currently take to meet this need",
+        "Identify users with accessibility needs and those without digital fluency"
+      ]
+    },
+    {
+      "number": 2,
+      "name": "Solve a whole problem for users",
+      "description": "Work with others to make sure the service is designed to solve a whole problem — not just the piece of it that sits within your team's remit.",
+      "how_to_meet": [
+        "Map the full journey the user takes to solve their problem — not just the parts you own",
+        "Collaborate with other services, departments, or organizations that share the journey",
+        "Design the handoffs between your service and adjacent ones",
+        "Reduce duplication: if another service already has the user's data or identity, use it"
+      ]
+    },
+    {
+      "number": 3,
+      "name": "Provide a joined-up experience across all channels",
+      "description": "Work together across all channels — not just the digital one — to provide a seamless experience whether the user is on the web, on the phone, in person, or via paper.",
+      "how_to_meet": [
+        "Identify every channel users might use — web, phone, paper, in-person, email",
+        "Design consistent service quality and voice across channels",
+        "Preserve context when users switch channels",
+        "Ensure offline/assisted channels are available for users who need them"
+      ]
+    },
+    {
+      "number": 4,
+      "name": "Make the service simple to use",
+      "description": "Make your service so simple that people can use it on first attempt — without assistance. Fewer clicks, plain language, clear calls to action.",
+      "how_to_meet": [
+        "User test the service; aim for successful task completion without help",
+        "Use plain language — reading age 9 standard",
+        "Remove unnecessary steps, fields, and jargon",
+        "Show progress clearly; don't hide what happens next"
+      ]
+    },
+    {
+      "number": 5,
+      "name": "Make sure everyone can use the service",
+      "description": "Provide a service that all users can access — regardless of disability, device, location, language, or ability to use the internet. Meets WCAG 2.2 AA and works for assisted-digital users.",
+      "how_to_meet": [
+        "Meet WCAG 2.2 AA as a minimum; aim for AAA where possible",
+        "Test with assistive technology (screen readers, voice control, keyboard-only)",
+        "Include users with low digital literacy and low bandwidth in research",
+        "Provide an assisted-digital channel for users who can't use the service alone"
+      ]
+    },
+    {
+      "number": 6,
+      "name": "Have a multidisciplinary team",
+      "description": "A team with the full range of skills to design, build, and operate the service — including user research, content design, service design, product management, engineering, and operations.",
+      "how_to_meet": [
+        "Named roles for UR, content design, service design, product, tech, delivery",
+        "Team empowered to make decisions without escalating to steering committees",
+        "Continuous rather than project-based — the team stays with the service",
+        "Cross-functional co-location (physical or virtual) during active phases"
+      ]
+    },
+    {
+      "number": 7,
+      "name": "Use agile ways of working",
+      "description": "Build and deploy iteratively in short cycles. Release early, release often, respond to real user behavior.",
+      "how_to_meet": [
+        "Release working software to real users in short cycles (weekly or better)",
+        "Measure against user outcomes, not feature shipping",
+        "Adjust direction based on evidence, not fixed requirements",
+        "Keep technical debt low enough to sustain the pace"
+      ]
+    },
+    {
+      "number": 8,
+      "name": "Iterate and improve frequently",
+      "description": "Keep responding to user needs, feedback, and data after launch — not just before. The service should improve continuously, not stagnate post-release.",
+      "how_to_meet": [
+        "Continuous user research, not one-off pre-launch studies",
+        "Review performance data weekly; act on it",
+        "Have a funded plan for post-launch iteration — not just initial build",
+        "Celebrate retiring features or flows when evidence supports it"
+      ]
+    },
+    {
+      "number": 9,
+      "name": "Create a secure service which protects users' privacy",
+      "description": "Design and operate the service in a way that protects users' data and privacy by default — and builds trust in the service's handling of information.",
+      "how_to_meet": [
+        "Minimize data collected — only what's needed for the user's goal",
+        "Be transparent about what's collected, why, and how it's used",
+        "Implement security review, threat modeling, and regular pen testing",
+        "Meet legal obligations (GDPR, PECR, accessibility laws)"
+      ]
+    },
+    {
+      "number": 10,
+      "name": "Define what success looks like and publish performance data",
+      "description": "Set measurable goals for success before launch — and publish the data. Accountability comes from transparency.",
+      "how_to_meet": [
+        "Name the 4 standard KPIs for government services: completion rate, cost per transaction, user satisfaction, digital take-up",
+        "Adapt or supplement with service-specific metrics",
+        "Publish performance data externally for accountability",
+        "Use the data to drive iteration decisions, not just report cards"
+      ]
+    },
+    {
+      "number": 11,
+      "name": "Choose the right tools and technology",
+      "description": "Pick tools, platforms, and languages appropriate to the problem — preferring common platforms, open source, and patterns already proven elsewhere.",
+      "how_to_meet": [
+        "Reuse existing platforms and components rather than building bespoke",
+        "Prefer open-source tools and open standards",
+        "Avoid vendor lock-in where possible",
+        "Document the architecture for future teams"
+      ]
+    },
+    {
+      "number": 12,
+      "name": "Make new source code open",
+      "description": "Publish source code openly under an appropriate license. Transparency enables reuse and public scrutiny.",
+      "how_to_meet": [
+        "Publish source under an open license (MIT, Apache 2, GPL, OGL)",
+        "Maintain code in a public repository",
+        "Document setup and contribution",
+        "Only keep security-sensitive components private — and justify the exception"
+      ]
+    },
+    {
+      "number": 13,
+      "name": "Use and contribute to open standards, common components, and patterns",
+      "description": "Adopt existing patterns and components where they exist. Contribute improvements back. Don't reinvent the button, the form field, the header.",
+      "how_to_meet": [
+        "Use GOV.UK Design System (or equivalent) components where applicable",
+        "Contribute fixes and new patterns back to shared libraries",
+        "Align with existing conventions — users carry expectations across services",
+        "Justify deviation from conventions — the burden of proof is on the deviator"
+      ]
+    },
+    {
+      "number": 14,
+      "name": "Operate a reliable service",
+      "description": "Keep the service running. Monitor, alert, respond, and communicate clearly about outages. Reliability is not optional — it's the minimum.",
+      "how_to_meet": [
+        "Define SLAs for uptime, response time, and incident response",
+        "Monitor actively; alert on degradation, not just outage",
+        "Have an incident response plan, rehearsed, not written-once-and-filed",
+        "Communicate to users during incidents — status pages, incident emails",
+        "Post-incident: blameless review, share learnings"
+      ]
+    }
+  ],
+  "when_to_use": [
+    "Designing a new service end-to-end — not just a feature",
+    "Reviewing an existing service for gaps",
+    "Setting standards for a team building multiple services",
+    "Preparing for a service assessment (UK government) or an internal equivalent"
+  ],
+  "checklist": [
+    "Have you met all 14 points explicitly — not just in spirit?",
+    "For each point, is there evidence (research, code, metrics) to demonstrate it?",
+    "Is the team multidisciplinary with named roles?",
+    "Is there a funded plan for post-launch iteration?",
+    "Are performance metrics defined, published, and being used?",
+    "Are users across the full range of needs and contexts included in research and testing?"
+  ],
+  "source": "https://www.gov.uk/service-manual/service-standard"
+}

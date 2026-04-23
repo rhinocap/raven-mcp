@@ -3,8 +3,8 @@
   "name": "raven-mcp",
   "display_name": "Raven",
   "version": "1.2.0",
-  "description": "Design intelligence for Claude — design principles, UI patterns, content design systems, business strategy, and production design system tokens.",
-  "long_description": "Raven gives Claude a design knowledge base it can query while generating UI. Five layers: principles (Nielsen, Laws of UX, Gestalt, WCAG, typography, color, mobile UX, D4D, UX writing), patterns (signup, pricing, nav, forms, landing, dashboard, modals, empty/error/loading states, CTAs, social proof, mobile conversion, plus content patterns for error messages, empty-state copy, notifications, and form validation), content design systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian, Intuit voice & tone guides), business strategy (monetization, retention, onboarding, growth, metrics), and production design tokens (Stripe, Linear, and more). Claude calls Raven's tools automatically when you ask it to build, evaluate, or improve UI.",
+  "description": "Design intelligence for Claude — principles, UI patterns, content systems, research methods, service design, brand, business strategy, and production design tokens.",
+  "long_description": "Raven gives Claude a design knowledge base it can query while generating UI. Eight layers: principles (Nielsen, Laws of UX, Gestalt, WCAG, typography, color, mobile UX, D4D, UX writing, service design, brand), patterns (signup, pricing, nav, forms, landing, dashboard, modals, empty/error/loading states, CTAs, social proof, mobile conversion, plus content patterns and service patterns), content design systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian, Intuit voice & tone), research methods (qualitative, quantitative, usability) and metrics frameworks (HEART, AARRR, North Star, conversion funnel, RICE, OKRs), service design (service blueprinting with HTML blueprint generation, human handoff, signup-as-service, omnichannel continuity, moments of truth / recovery, GOV.UK service standard), brand & visual design (logo usage, gradient usage, imagery, visual hierarchy, brand-as-system, current trends), business strategy, and production design tokens (Stripe, Linear, and more). Claude calls Raven's tools automatically when you ask it to build, evaluate, or improve UI, design research, or design a service.",
   "author": {
     "name": "Andrew Cunliffe",
     "email": "cunliffeandrewc@gmail.com",
@@ -28,7 +28,13 @@
     "accessibility",
     "content-design",
     "ux-writing",
-    "voice-and-tone"
+    "voice-and-tone",
+    "ux-research",
+    "service-design",
+    "service-blueprint",
+    "brand",
+    "visual-design",
+    "branding"
   ],
   "icon": "icon.png",
   "server": {
@@ -113,6 +119,34 @@
     {
       "name": "get_content_pattern",
       "description": "Get content design patterns — copy recipes for error messages, empty-state copy, notifications, and form validation"
+    },
+    {
+      "name": "get_research_method",
+      "description": "Get research method details — qualitative, quantitative, or usability — with protocols, do/don't guidance, and checklists"
+    },
+    {
+      "name": "get_metrics_framework",
+      "description": "Get a product-metrics framework — HEART, AARRR, North Star, conversion funnel, RICE, or OKRs"
+    },
+    {
+      "name": "get_service_pattern",
+      "description": "Get a service design pattern — service blueprinting, human handoff, signup-as-service, omnichannel continuity, or moments of truth / recovery"
+    },
+    {
+      "name": "get_service_standard",
+      "description": "Get the GOV.UK Service Standard — 14 points for assessing whether a service is ready to launch"
+    },
+    {
+      "name": "generate_service_blueprint",
+      "description": "Render a service blueprint as a self-contained HTML page — with optional current-vs-ideal state comparison"
+    },
+    {
+      "name": "get_brand_principles",
+      "description": "Get brand and visual-design principles — logo usage, gradient usage, imagery, visual hierarchy, brand-as-system"
+    },
+    {
+      "name": "get_brand_trends",
+      "description": "Get current brand and visual-design trends (2026) — bento grids, monospace type, neon-on-glass, generative patterns, brutalism rebound, and more"
     },
     {
       "name": "raven_reflect",

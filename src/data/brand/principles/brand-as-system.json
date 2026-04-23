@@ -1,0 +1,106 @@
+[
+  {
+    "id": "brand-as-system-not-decoration",
+    "name": "A brand is a system, not a logo",
+    "category": "brand",
+    "summary": "Mature brands treat identity as a system of rules across logo, color, type, imagery, voice, motion, and interaction — not as a single mark applied to surfaces. A logo without a system is visual karaoke.",
+    "description": "Asked 'what's the brand?' — a junior designer points at the logo. A senior one points at the system: 'logo lockups and their clear space rules, color tokens including light and dark mode, a type scale, imagery treatment rules, voice guidelines for UI and marketing, motion principles, and interaction rules.' The system is what gives the logo meaning across every surface. Without it, each new surface guesses — and the guesses rarely agree. The system is a finite set of decisions, once made, applied consistently. Stripe, Airbnb, Linear, and Vercel all have publicly documented brand systems. Their power is in being system-consistent, not in being each individually beautiful.",
+    "implications": [
+      "Document the brand as a system: logo + color + typography + imagery + voice + motion + interaction.",
+      "Each component has rules; each rule has examples; each example is applied in real surfaces.",
+      "Publish the system internally (and externally when useful) so teams can apply it consistently.",
+      "Treat divergence as a review-triggering moment — not a style choice."
+    ],
+    "violations": [
+      "A brand guide that only covers logo and colors — everything else is improvised per project.",
+      "Every surface is 'on-brand' in the designer's opinion but reads as different brand identities.",
+      "The brand system exists as a PDF; no designer reaches for it in daily work."
+    ],
+    "applies_to": ["brand-system", "design-system"],
+    "sources": ["https://brand.stripe.com/", "https://linear.app/brand", "https://brand.vercel.com/", "https://airbnb.design/"]
+  },
+  {
+    "id": "consistency-with-licensed-exceptions",
+    "name": "Consistency by default; exceptions must be named",
+    "category": "brand",
+    "summary": "Every surface follows the brand system unless there's an explicit, documented reason not to. 'Special case' without justification is how brands rot.",
+    "description": "The healthiest brand systems enforce consistency by default — every surface gets the same typography, color, imagery treatment, voice — but they also reserve named exceptions for specific purposes. A campaign page may use a limited-time palette. A developer docs subdomain may use a more subdued variant. An app icon for a specific OS may follow platform conventions. The key is that exceptions are explicit, documented, time-bounded, and owned. 'Let's just try something different here' with no documentation is the start of brand drift. In a year, the 'something different' becomes as familiar as the original, and the brand has two voices.",
+    "implications": [
+      "Deviation from the brand system requires a named reason, an owner, and (for campaigns) a sunset date.",
+      "Exceptions live in the same documentation as the rules — not in someone's head.",
+      "Review exceptions periodically; retire ones that no longer serve.",
+      "When multiple exceptions accumulate, the system itself may need to evolve — but the evolution is deliberate."
+    ],
+    "violations": [
+      "Each team has invented its own variation with no coordination.",
+      "One-off campaign visuals become the new default because no one pulled them back.",
+      "Marketing uses one color palette; product uses another; neither team knows why.",
+      "Exceptions never reviewed — rot accumulates."
+    ],
+    "applies_to": ["brand-governance", "design-system"],
+    "sources": ["https://brand.stripe.com/", "https://www.underconsideration.com/brandnew/"]
+  },
+  {
+    "id": "interactions-are-brand",
+    "name": "Interactions and motion express the brand as much as visuals",
+    "category": "brand",
+    "summary": "A brand communicates through how things move, respond, and feel — not just how they look. Consistent motion tokens (easing, duration, scale, fade) are as important as color tokens.",
+    "description": "How a button responds to hover, how a modal enters the screen, how a tab transitions, how notifications slide in — these motion choices communicate brand personality at a subconscious level. A brand that feels 'premium' usually has subtle, slow easing on interactions. A brand that feels 'playful' has bouncier, more energetic motion. A brand that feels 'efficient' has snappy, nearly-instant transitions. Without consistency, every surface feels designed by a different team. Publish motion tokens (default ease curves, durations, reduced-motion alternatives) alongside color tokens. Include them in component libraries. The result is a brand that feels the same across every touchpoint — even when users can't articulate why.",
+    "implications": [
+      "Publish motion tokens: default ease curve, standard durations (fast/normal/slow), reduced-motion alternatives.",
+      "Apply motion tokens in component libraries — don't let each component invent its own.",
+      "Test motion on the full range of devices — 'beautiful' at 120Hz can be 'janky' at 60Hz.",
+      "Respect prefers-reduced-motion — the brand still needs to feel on-brand for users who've opted out of motion."
+    ],
+    "violations": [
+      "Modal uses 300ms ease-out; toast uses 500ms spring — from the same product.",
+      "Hover transitions vary across buttons for no reason.",
+      "Motion designed for the design file, not the real device — janky at runtime.",
+      "Reduced-motion alternative is 'no animation' — breaks the pacing of the product."
+    ],
+    "applies_to": ["brand", "motion", "interaction", "design-tokens"],
+    "sources": ["https://material.io/design/motion/", "https://www.apple.com/accessibility/", "https://designsystemsrepo.com/"]
+  },
+  {
+    "id": "voice-is-brand",
+    "name": "Voice is the brand's audible surface",
+    "category": "brand",
+    "summary": "The words a product uses — in UI, emails, errors, marketing, support — are as much of the brand as the colors. Voice inconsistency cracks the brand faster than visual inconsistency.",
+    "description": "Users read thousands of words of product copy, error messages, emails, and notifications per year. Every word either reinforces the brand or undermines it. A brand that looks warm in its colors but writes in clinical legalese feels fractured. A brand with a playful marketing voice and a dry product voice feels like two companies. Voice is not optional — it's one of the load-bearing parts of the brand. Mature brands publish voice guidelines alongside visual ones (Mailchimp's content style guide is the canonical example), and apply them consistently across marketing, product, transactional email, and support. When voice breaks, the brand weakens — even if the visuals are pristine.",
+    "implications": [
+      "Publish voice guidelines with the same rigor as visual guidelines — tone, vocabulary, grammar, usage.",
+      "Apply voice across marketing, product, email, and support — not just marketing.",
+      "Treat support reps and transactional email copy as brand surfaces — they are.",
+      "When visual and voice conflict (warm visuals, cold copy), the conflict is visible even when users can't name it."
+    ],
+    "violations": [
+      "Warm, friendly marketing; cold, legalistic transactional emails.",
+      "Error messages written by engineers without content-design review.",
+      "Support team responds in a different voice than marketing or product.",
+      "Third-party tools (billing, analytics) introduce template language that doesn't match the brand voice."
+    ],
+    "applies_to": ["brand", "voice", "content-design"],
+    "sources": ["https://styleguide.mailchimp.com/", "https://atlassian.design/content/", "https://contentdesign.intuit.com/"]
+  },
+  {
+    "id": "brand-evolution-with-discipline",
+    "name": "Evolve the brand system — with discipline, not drift",
+    "category": "brand",
+    "summary": "Brands must evolve to stay contemporary. But evolution is discrete and documented; drift is continuous and unnoticed. The difference is whether the change was chosen.",
+    "description": "Every brand needs to evolve — color palettes, type, motion idioms, imagery styles all age. The question is how. Disciplined evolution: every 18–36 months, review the system; decide what to refresh; update the tokens; roll out systematically. Undisciplined drift: each team makes small incremental changes over time — a new color here, a new illustration style there, a new type pairing — until the brand no longer matches its own documentation. Drift is invisible day-to-day and obvious in hindsight. The cure is a living brand system, reviewed on a cadence, with a named owner. Evolution is a feature; drift is a bug.",
+    "implications": [
+      "Schedule brand system reviews on a cadence (every 18–36 months typically).",
+      "Name an owner for the brand system — someone accountable for consistency and evolution.",
+      "When change is needed, update the canonical system first, then roll out to surfaces.",
+      "Audit surfaces quarterly for drift — especially ones the core team doesn't touch often."
+    ],
+    "violations": [
+      "Brand guide hasn't been updated in 5 years; actual surfaces diverged 3 years ago.",
+      "No named owner — each team guesses.",
+      "Change happens ad hoc; no record of what was deliberate vs. accidental.",
+      "Refresh project happens every 5 years with a big-bang rebrand — traumatic, expensive, avoidable."
+    ],
+    "applies_to": ["brand-governance", "brand-system"],
+    "sources": ["https://www.underconsideration.com/brandnew/", "https://brand.stripe.com/"]
+  }
+]

@@ -1,0 +1,111 @@
+{
+  "id": "signup-as-service",
+  "name": "Signup as a Service Moment",
+  "category": "service-design",
+  "summary": "Signup is the first moment of truth. Most teams optimize only the form and miss the service arc — awareness through first-value. Designing signup as a service compounds into retention.",
+  "principles_referenced": ["moments-of-truth", "service-as-experience-over-time", "peak-end-rule", "evidencing", "anticipate-handoff"],
+  "patterns": [
+    {
+      "name": "Awareness to first-value arc",
+      "description": "A signup is not 'fill out the form.' It's the arc from 'I just heard about this product' to 'I've experienced the value.' The service covers that whole arc — marketing, form, confirmation, onboarding, first-success — not just the middle.",
+      "do": [
+        "Map the 5 phases: awareness → consideration → decision → signup → first-value",
+        "Name the artifacts at each phase: ad → landing page → comparison page → form → confirmation email → onboarding sequence → first-success moment",
+        "Make each phase reinforce the same value proposition — same voice, same promise, same specificity",
+        "Measure drop-off at each phase, not just the form conversion",
+        "Design the post-form phase with at least as much care as the form — this is where retention is won or lost"
+      ],
+      "dont": [
+        "Call signup 'done' when the form submits — the first 30 days is still signup territory",
+        "Let marketing and product own different phases with different voices — feels like two products",
+        "Ignore the confirmation email — it's a moment of truth, not a transactional receipt",
+        "Dump new users into an empty dashboard — the opposite of first-value"
+      ],
+      "evidence": "Companies that measure and optimize the full awareness-to-first-value arc see retention improvements disproportionate to pure signup-form conversion work. A signup form with 80% conversion but 10% D7 retention is losing more users than a 60% conversion / 50% D7 retention alternative."
+    },
+    {
+      "name": "Confirmation as a service moment",
+      "description": "The confirmation email/screen is the user's first post-signup artifact. It proves the service exists and sets the tone for the relationship. Treat it like a welcome, not a receipt.",
+      "do": [
+        "Open with gratitude and the value promise, not 'your submission has been received'",
+        "Show what happens next — with a concrete timeline ('we'll email you within 10 minutes with your login')",
+        "Include the first step the user can take immediately",
+        "Use the product's brand voice, not a transactional template",
+        "Include a human signature or sender, not 'no-reply@'",
+        "Make reply possible — users who reply convert higher and churn less"
+      ],
+      "dont": [
+        "Send from a 'donotreply' address — a wall between you and the user",
+        "Use plain-text 'your order has been received' when a designed artifact is trivially possible",
+        "Bury the first useful action below legal footer and unsubscribe links",
+        "Leave a confirmation screen that feels like the user is on hold — give them something to do"
+      ],
+      "evidence": "Companies that audit their confirmation artifacts consistently find disproportionate returns: an email that sets expectations reduces support tickets, an email that invites action raises activation rates, and an email with brand voice builds trust measurable in retention."
+    },
+    {
+      "name": "First-value within the session",
+      "description": "The strongest signup conversion tactic is also the strongest retention tactic: let the user experience core value before they finish the form — or within 30 seconds of finishing it.",
+      "do": [
+        "Let users try the product's core action before signup ('try it' before 'sign up to save')",
+        "Pre-populate the new account with sample data that demonstrates the product's value",
+        "Auto-complete the first useful action — scaffold the win, don't ask the user to invent it",
+        "Show progress toward a concrete outcome, not just 'account created'",
+        "Celebrate first-value explicitly — a visible marker the user reached the 'aha' moment"
+      ],
+      "dont": [
+        "Require complete account setup before showing any value",
+        "Present a blank canvas at first login — intimidating, not inviting",
+        "Hide the core value behind permissions, integrations, or onboarding wizards",
+        "Gate access to the 'aha' with a paywall during signup"
+      ],
+      "evidence": "Products with 'try-before-buy' or 'pre-populated-sandbox' signup patterns (Figma, Canva, Notion) show significantly higher activation and retention than products requiring full setup before value. Time-to-first-value is the single metric most correlated with long-term retention."
+    },
+    {
+      "name": "Progressive commitment, not everything upfront",
+      "description": "The traditional signup form asks for everything at once — a high-commitment moment. A service-oriented signup asks only what's needed to deliver the next value, collecting more as the relationship deepens.",
+      "do": [
+        "Ask for email + password (or SSO) only; everything else comes later in context",
+        "Collect profile, preferences, and team info in-product once the user is already engaged",
+        "Tie each data request to a specific value ('tell us your industry so we can tailor templates')",
+        "Mark optional fields explicitly — and actually allow skip",
+        "For B2B: defer payment collection until value is proved; for consumer: consider 'no card trial'"
+      ],
+      "dont": [
+        "Ask for credit card on a free trial without clear explanation of charge timing",
+        "Require 12 fields before allowing entry — abandonment spikes with every field beyond 4",
+        "Require address, phone, or demographic data unless genuinely needed at signup",
+        "Use a progress bar that suggests 3 more 'quick' pages — users know the trick"
+      ],
+      "evidence": "Imagescape study: reducing signup form fields from 11 to 4 raised conversion 120%. HubSpot: each removed field raises conversion ~5%. The cost of a field is nonlinear at the high end — field 11 costs more conversion than field 3."
+    },
+    {
+      "name": "The welcome sequence (days 1-14)",
+      "description": "Most signups die in the first two weeks — not because the form was bad, but because no one taught the user how to succeed. A designed welcome sequence is a service investment that pays back in retention.",
+      "do": [
+        "Day 0: confirmation + first action prompt",
+        "Day 1: 'did you hit X?' with a nudge if not",
+        "Day 3: show a second value — a feature the user hasn't used yet",
+        "Day 7: check-in, inviting reply if stuck",
+        "Day 14: milestone celebration or gentle re-engagement",
+        "Personalize by behavior — users who hit activation skip remedial content",
+        "Stop the sequence if the user unsubscribes or churns — no zombies"
+      ],
+      "dont": [
+        "Send the same 'tips and tricks' email to everyone regardless of behavior",
+        "Time emails mechanically — align with user's progress, not the clock",
+        "Overload with emails — 1-2 per week is enough at the start",
+        "Treat the sequence as marketing — it's a service, voiced like it"
+      ],
+      "evidence": "Drift, Intercom, and Basecamp all report that behavior-triggered welcome sequences raise activation and retention measurably vs. time-based sequences. The best sequences feel like a helpful colleague, not a marketing funnel."
+    }
+  ],
+  "checklist": [
+    "Is signup mapped as an arc, not a form — from awareness to first-value?",
+    "Is the confirmation artifact designed (not templated)?",
+    "Is first-value achievable within the first session?",
+    "Does the form ask for the minimum — with deferred collection for the rest?",
+    "Is there a designed welcome sequence for the first 14 days?",
+    "Are support and product watching post-signup behavior to iterate on the service?",
+    "Is there an explicit 'moment of truth' celebration when users hit the activation milestone?"
+  ]
+}

@@ -1,0 +1,139 @@
+{
+  "id": "brand-trends-2026",
+  "name": "Brand &amp; Visual Design Trends (2026)",
+  "category": "brand-trends",
+  "summary": "Current visual and brand trends observed in 2026. Trends are signals — not prescriptions. Use them to calibrate, not copy. This file is time-stamped; expect it to drift and be rewritten annually.",
+  "snapshot_date": "2026-04",
+  "principles_referenced": ["brand-as-system", "gradient-trend-vs-signature", "brand-accumulate-trust-over-time"],
+  "trends": [
+    {
+      "name": "Bento-grid layouts",
+      "description": "Dense, card-based grids where each cell contains a specific feature, metric, or asset — modeled on Japanese bento boxes. Popularized by Apple's marketing pages and Vercel's product surfaces. Works because it conveys density and capability without requiring the user to read sequential copy.",
+      "when_it_works": [
+        "Product landing pages with many discrete features to showcase",
+        "Dashboard previews where each cell highlights a capability",
+        "Portfolio sites showing varied work",
+        "Hero sections that need to communicate breadth at a glance"
+      ],
+      "when_it_fails": [
+        "When the cells aren't genuinely distinct — same content repeated in different containers reads as padding",
+        "On narrow mobile viewports where bento collapses to a single column and loses its purpose",
+        "When every cell fights for primary emphasis — bento works because ONE cell is the hero",
+        "As a default for every page — becomes a visual tic"
+      ],
+      "examples": ["apple.com/iphone", "linear.app", "vercel.com", "cal.com"]
+    },
+    {
+      "name": "Monospace for tone, not just code",
+      "description": "Using monospace type in non-code contexts — nav, headlines, UI labels — to signal precision, technicality, or developer-facing confidence. Moved from novelty to house-style at many developer tools (Vercel, Linear, Supabase, Railway).",
+      "when_it_works": [
+        "Developer-facing products where monospace reinforces the audience",
+        "Data-heavy UIs where monospace improves numeric alignment",
+        "Accent usage — a monospace eyebrow above a serif headline creates contrast",
+        "Status badges, tags, and version numbers"
+      ],
+      "when_it_fails": [
+        "As body copy — monospace reduces reading speed ~15% vs. proportional type",
+        "For consumer products where 'technical' signals alienate rather than attract",
+        "When the monospace choice doesn't harmonize with the rest of the type stack",
+        "As decoration only — should carry content meaning or stay out"
+      ],
+      "examples": ["vercel.com", "linear.app", "railway.app", "supabase.com"]
+    },
+    {
+      "name": "Neon-on-dark-glass / liquid glass surfaces",
+      "description": "Dark backgrounds with neon-accent colors (electric blue, cyan, violet, magenta) and semi-transparent glass layers that blur the background. The aesthetic of Linear, Arc, Raycast, many 2024-2026 developer tools.",
+      "when_it_works": [
+        "Dark-mode-first products where the aesthetic is native",
+        "Marketing sites where 'modern' and 'premium' are the primary moods",
+        "One or two accent moments per surface — a glowing CTA, a glass modal",
+        "When the neon accent color doubles as the brand's signature color"
+      ],
+      "when_it_fails": [
+        "On light-mode surfaces where it reads as clash",
+        "When every element glows — returns to the 2008 'Windows Vista' era",
+        "When contrast fails at the glass/text boundary — accessibility breaks",
+        "For products whose users actually prefer light mode (most consumer products still)"
+      ],
+      "examples": ["linear.app", "arc.net", "raycast.com", "vercel.com"]
+    },
+    {
+      "name": "Generative / coded patterns",
+      "description": "Procedurally-generated visual assets — gradients, patterns, shapes — where each instance is unique but follows the same system. Stripe, Notion, Airbnb use this for user-specific branding or editorial variety.",
+      "when_it_works": [
+        "User-specific branding where each user gets a subtly unique visual",
+        "Editorial content where variety prevents monotony without losing system",
+        "Logo systems (e.g., MIT Media Lab, Brooklyn Museum) where every employee or exhibit has a variant",
+        "Empty states, avatars, covers that benefit from individuality"
+      ],
+      "when_it_fails": [
+        "When the generation is too varied — system doesn't read",
+        "When the generation is too constrained — feels like templated filler",
+        "When accessibility/contrast isn't respected by the generation algorithm",
+        "When the generation requires runtime compute for zero real user benefit"
+      ],
+      "examples": ["stripe.com", "notion.so", "mit media lab identity (2011)", "brooklyn museum identity (2021)"]
+    },
+    {
+      "name": "Brutalism rebound / intentional rawness",
+      "description": "Reaction against over-polished design. Large uppercase wordmarks, intentionally mismatched typography, exposed grid lines, system-native controls. Signals authenticity, anti-corporate attitude, or technical confidence.",
+      "when_it_works": [
+        "Brands positioning against 'VC-polished' competitors",
+        "Indie products, newsletters, artist portfolios, editorial outlets",
+        "Landing pages where 'different' matters more than 'approachable'",
+        "Fashion, music, and lifestyle brands targeting younger audiences"
+      ],
+      "when_it_fails": [
+        "When mimicked by large corporations — comes across as tone-deaf",
+        "On products where users need to find and do things quickly — brutalism trades usability for style",
+        "When the rawness is inconsistent — reads as unfinished rather than intentional",
+        "For high-trust categories (finance, health, enterprise) — brutalism signals lack of polish"
+      ],
+      "examples": ["are.na", "the browser company (partial)", "hardmode.network", "arena.social"]
+    },
+    {
+      "name": "AI-generated hero imagery (with caveats)",
+      "description": "Text-to-image assets replacing stock photography in marketing contexts. Faster, cheaper, sometimes more distinctive than stock. But increasingly recognizable as AI, which can cheapen perceived brand quality.",
+      "when_it_works": [
+        "Abstract or conceptual imagery where realism isn't the goal",
+        "Internal tool documentation where speed matters more than polish",
+        "Draft/exploration phase before commissioning real assets",
+        "Specific styles (stylized illustration, dreamscape) where AI excels"
+      ],
+      "when_it_fails": [
+        "Product screenshots or people shots — the uncanny valley is still a factor",
+        "When users detect it as AI — trust drops, brand perception weakens",
+        "As a default across a whole brand system — visible shortcut",
+        "For brands where authenticity is part of the value proposition"
+      ],
+      "examples": ["limited public-brand use in 2026; more common in internal and indie contexts"]
+    },
+    {
+      "name": "Aggressive use of lowercase / mixed case",
+      "description": "Lowercase wordmarks and headlines, mixed-case sentences in titles, deliberately 'quiet' type. Signals accessibility, friendliness, or anti-corporate stance.",
+      "when_it_works": [
+        "Consumer products where warmth and approachability matter",
+        "Brands targeting Gen Z / younger audiences who read uppercase as shouting",
+        "Body-adjacent content (long-form, editorial, reading apps)",
+        "When paired with a distinctive letterform — the lowercase becomes its own identifier"
+      ],
+      "when_it_fails": [
+        "In high-trust contexts where uppercase signals authority (finance, legal, healthcare)",
+        "When paired with sloppy kerning or casual letterforms — reads as unpolished",
+        "For products used by older demographics who associate lowercase with low-quality",
+        "As a trend-copy rather than a considered choice"
+      ],
+      "examples": ["notion.so", "linear.app", "figma.com", "framer.com"]
+    }
+  ],
+  "how_to_apply": [
+    "Trends are signals, not directives — calibrate against your audience, category, and brand maturity.",
+    "Use trends for campaigns and launch moments; be cautious using them as foundation for a permanent brand system.",
+    "Where a trend overlaps with a signature you already have, lean in — free relevance.",
+    "Where a trend fights your existing system, skip it — coherence beats fashion.",
+    "Document trend usage with an expiration — 'we'll use this for this campaign; if it still fits in a year, we extend; otherwise we retire.'",
+    "The strongest brand move is to look slightly behind the trend — not contemporary enough to be identical with competitors, not so outdated that you look stale."
+  ],
+  "retire_before": "2027-04",
+  "source": "Synthesis across Brand New, Pentagram case studies, observed launches 2025-2026, active brand systems at Linear, Vercel, Notion, Figma, Apple, Cal.com"
+}

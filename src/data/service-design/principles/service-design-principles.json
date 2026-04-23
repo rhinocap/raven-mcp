@@ -1,0 +1,216 @@
+[
+  {
+    "id": "service-as-experience-over-time",
+    "name": "A service is an experience over time, not a screen",
+    "category": "service-design",
+    "summary": "Services unfold across touchpoints and time — before, during, and after the moment of interaction. Designing only the 'product' ignores the majority of the experience.",
+    "description": "When a product team designs a signup flow, they design 5 screens. When a service designer designs the same signup, they map the 45 minutes before a user lands on the first screen (ad → landing → comparison → decision) and the 7 days after (confirmation → onboarding → first-success → first-support-touch). A service is the full arc. The in-product UI is one slice. Designers who think only about the slice design services that feel disjointed — a great signup followed by a broken welcome email is still a broken service.",
+    "implications": [
+      "Map the user's experience from 'awareness' to 'outcome' — not just the in-product flow.",
+      "Name the touchpoints that are NOT your UI: emails, notifications, support, invoices, docs, marketing pages, third-party integrations.",
+      "When a handoff happens (UI → email, sales → support, agent → self-service), the handoff itself needs explicit design — it's where experience breaks.",
+      "Before designing a new screen, ask: 'what happens 10 minutes before this screen? 10 minutes after? tomorrow?' If you can't answer, the screen is under-specified."
+    ],
+    "violations": [
+      "A beautiful in-product signup followed by a transactional welcome email with the wrong brand voice.",
+      "A 'free trial' that requires a credit card but doesn't explain the charge timing — service breaks at billing.",
+      "Onboarding that ends at 'account created' without a first-success plan.",
+      "Support tickets handed off to a different team that has no context — user re-explains."
+    ],
+    "applies_to": ["service-design", "onboarding", "support", "end-to-end-experience"],
+    "sources": ["https://www.nngroup.com/articles/service-design-101/", "https://thisisservicedesigndoing.com"]
+  },
+  {
+    "id": "frontstage-backstage",
+    "name": "Design the line of visibility between frontstage and backstage",
+    "category": "service-design",
+    "summary": "Every service has a frontstage (visible to the user) and a backstage (employees, systems, processes). The quality of the frontstage depends on how well the backstage supports it.",
+    "description": "Lynn Shostack's 1984 work on service blueprinting introduced the 'line of visibility' — the boundary between what the customer sees and what happens behind the scenes to make it possible. A great customer-facing experience is not a front-of-house illusion; it's the visible result of aligned back-of-house work. When a user books a flight and gets a confirmation in 3 seconds, the backstage chain (payment processor → seat inventory → fraud check → email provider) has to run flawlessly. When any backstage step fails, the frontstage service degrades. Designing the service means designing both — and the interfaces between them.",
+    "implications": [
+      "Every customer-visible action should be traced to the backstage systems and people required to fulfill it.",
+      "Name the SLAs at the line of visibility (response time, data freshness, failure handling) explicitly.",
+      "When changing the frontstage, audit backstage dependencies — new screens often need new backstage capabilities.",
+      "Errors in backstage systems must be exposed to the frontstage with clear, honest copy — not 'something went wrong.'"
+    ],
+    "violations": [
+      "Designing a 'real-time' dashboard without confirming the backstage pipeline can deliver real-time data.",
+      "A 'chat with us' button routed to a team that isn't staffed during visible hours.",
+      "Marketing a '24-hour response' SLA the support team has never agreed to.",
+      "A self-service flow that depends on CRM data the customer doesn't have visibility into — stalls silently."
+    ],
+    "applies_to": ["service-blueprinting", "operations", "sla-design"],
+    "sources": ["https://en.wikipedia.org/wiki/Service_blueprint", "https://www.nngroup.com/articles/service-blueprints-definition/"]
+  },
+  {
+    "id": "human-centered",
+    "name": "Human-centered: design with users, not for them",
+    "category": "service-design",
+    "summary": "Stickdorn's first principle. Users are co-creators, not objects of study. Co-design, prototyping in the real, and rapid iteration beat waterfall specification for service problems.",
+    "description": "The first of the five principles from *This Is Service Design Thinking* (Stickdorn/Schneider, 2011; refined in *This Is Service Design Doing*, 2018). Service problems are systems problems, and systems problems resist specification by expert. Involving users in the design — through co-creation workshops, prototyping with real people in real contexts, and iterative testing — surfaces constraints and opportunities a desk-bound design process cannot. Human-centered is not decoration; it's the only reliable way to design a service that actually works.",
+    "implications": [
+      "Start with qualitative research — interviews, contextual inquiry, journey mapping with real users.",
+      "Prototype service moments with real people and real context (not in a conference room with sticky notes alone).",
+      "Involve frontline employees — they know the service better than the executives who pay for it.",
+      "Iterate fast: prototype → test → refine → test, not big-bang rollout of an untested service."
+    ],
+    "violations": [
+      "Designing a new support flow from a conference room without observing support agents do their real work.",
+      "Skipping customer research because 'we know our customers.'",
+      "Rolling out a new service to 100% of users without a pilot.",
+      "Treating users as test subjects rather than collaborators in the design."
+    ],
+    "applies_to": ["service-design", "co-creation", "research"],
+    "sources": ["https://www.thisisservicedesigndoing.com/", "https://www.nngroup.com/articles/service-design-101/"]
+  },
+  {
+    "id": "sequential",
+    "name": "Sequential: visualize the service as a sequence",
+    "category": "service-design",
+    "summary": "Stickdorn's principle: services happen in time. Mapping the sequence — from first awareness through post-purchase — reveals moments that matter, gaps, and handoffs.",
+    "description": "Time is the most neglected dimension of service design. A service is experienced as a sequence: the user notices, considers, decides, signs up, sets up, reaches first value, returns, escalates to support, renews or churns. Visualizing this sequence — as a customer journey map or service blueprint — reveals the moments that shape overall perception. Some of those moments are in-product; most are not. A great service designer obsesses over the sequence and its transitions, not just the screens.",
+    "implications": [
+      "Build a journey map for every critical user type before designing screens.",
+      "Name each transition and the emotion/goal at each phase.",
+      "Identify the 2–3 'moments of truth' that most shape perception — invest disproportionately there.",
+      "Plan the post-purchase phase with at least as much care as the pre-purchase phase — retention is where services live or die."
+    ],
+    "violations": [
+      "A beautiful purchase flow followed by a confusing onboarding — users drop off before experiencing value.",
+      "Mapping 'AARRR' as a funnel without ever drawing the user's emotional experience through it.",
+      "Designing each phase in isolation with no continuity ('marketing owns acquisition; product owns activation; support owns retention')."
+    ],
+    "applies_to": ["journey-mapping", "blueprinting", "service-design"],
+    "sources": ["https://www.thisisservicedesigndoing.com/", "https://www.nngroup.com/articles/customer-journey-mapping/"]
+  },
+  {
+    "id": "evidencing",
+    "name": "Evidencing: make intangible services tangible",
+    "category": "service-design",
+    "summary": "Stickdorn's principle: users experience services through the tangible evidence left behind — receipts, confirmations, artifacts, status updates. Each piece of evidence is a design opportunity.",
+    "description": "A service is intangible — the user cannot hold it. What they can hold is the evidence: the confirmation email, the receipt, the tracking page, the status update, the onboarding PDF, the pickup slip, the renewal reminder. These artifacts are not paperwork; they are the service, made touchable. Design them with the same care as the UI. A thoughtless confirmation email damages a great purchase flow; a delightful one extends it.",
+    "implications": [
+      "Inventory every artifact the user receives — emails, receipts, PDFs, physical mail, notifications, tracking pages.",
+      "Each artifact should be on-brand, informative, and confirm the service commitment.",
+      "Receipts and confirmations are opportunities for trust and reassurance — not dry logistics.",
+      "Physical evidence (packaging, printed materials) is a design surface too — especially for services with physical components."
+    ],
+    "violations": [
+      "A confirmation email that looks like it came from a billing system — breaks the brand arc.",
+      "A delivery tracking page that hasn't been updated since 2019 — feels abandoned.",
+      "No confirmation at all after a major action ('did my payment go through?').",
+      "Generic 'your order has shipped' language when a moment of delight was possible."
+    ],
+    "applies_to": ["transactional-email", "receipts", "confirmations", "tracking"],
+    "sources": ["https://www.thisisservicedesigndoing.com/", "https://www.nngroup.com/articles/evidencing/"]
+  },
+  {
+    "id": "holistic",
+    "name": "Holistic: consider the whole service environment",
+    "category": "service-design",
+    "summary": "Stickdorn's principle: services exist inside an ecosystem of people, channels, competitors, regulation, and context. Design the whole, not just the interface.",
+    "description": "A signup flow isn't designed in isolation — it exists inside an ecosystem: the ads the user saw first, the review sites they compared on, the competitor they considered, the regulatory environment (GDPR consent, age verification), the support team they'll meet tomorrow. Service design takes the whole context seriously. It anticipates how channels interact, how one team's decision ripples into another's workload, how external constraints (legal, platform, device) shape what's possible. The holistic view is what separates a service designer from a screen designer.",
+    "implications": [
+      "Map the ecosystem — channels, stakeholders, regulations, competitors, platforms — before designing.",
+      "Decisions in one channel have consequences in others; anticipate them.",
+      "Legal, finance, and operations constraints shape the service as much as user needs do.",
+      "When optimizing one part of the service, watch for second-order effects on adjacent parts."
+    ],
+    "violations": [
+      "Optimizing signup conversion by removing a required consent field — legal rejection at launch.",
+      "Launching a feature that doubles support ticket volume without warning the support team.",
+      "Designing a service that depends on a third-party integration whose SLA doesn't meet the service promise.",
+      "Building a 'white-glove' onboarding without the staffing to deliver it."
+    ],
+    "applies_to": ["ecosystem-mapping", "stakeholder-management", "compliance"],
+    "sources": ["https://www.thisisservicedesigndoing.com/", "https://www.servicedesignnetwork.org/"]
+  },
+  {
+    "id": "moments-of-truth",
+    "name": "Invest disproportionately in moments of truth",
+    "category": "service-design",
+    "summary": "Jan Carlzon's concept: a handful of interactions shape the customer's overall perception of a service. Identifying and investing in those moments yields outsized return.",
+    "description": "Former SAS Airlines CEO Jan Carlzon coined 'moments of truth' in the 1980s — the specific interactions where a customer forms a lasting impression of the company. Not every interaction is equal. The first 30 seconds of onboarding, the moment a payment fails, the first support interaction, the renewal email — these shape perception more than hundreds of routine moments. Service design concentrates investment where it compounds. Identify your moments of truth through journey research, then overinvest there.",
+    "implications": [
+      "In the customer journey, explicitly mark 2–5 moments of truth — not every moment qualifies.",
+      "Invest disproportionately in copy, design, and operational reliability at these moments.",
+      "Measure satisfaction at each moment of truth separately — average CSAT hides the ones that matter.",
+      "Recovery from a bad moment of truth (error, outage, delay) is itself a moment of truth — the peak-end rule applies."
+    ],
+    "violations": [
+      "Treating the first session and the 100th session with equal polish — wasted effort.",
+      "Rushing the welcome email because 'it's just a notification.'",
+      "Measuring satisfaction only in aggregate — the moments that matter are invisible.",
+      "Ignoring the recovery experience — a delayed order handled gracefully wins more loyalty than an on-time one taken for granted."
+    ],
+    "applies_to": ["journey-mapping", "customer-experience", "retention"],
+    "sources": ["https://en.wikipedia.org/wiki/Moment_of_truth_(marketing)", "https://www.nngroup.com/articles/peak-end-rule/"]
+  },
+  {
+    "id": "peak-end-rule",
+    "name": "The peak-end rule: users remember the peak and the end",
+    "category": "service-design",
+    "summary": "Kahneman's cognitive research shows people evaluate experiences by their emotional peak (positive or negative) and their ending. Averages don't matter; endings do.",
+    "description": "Daniel Kahneman's work on the 'experiencing self' vs the 'remembering self' reveals that how we judge past experiences is dominated by (1) the most intense moment — positive or negative — and (2) the end. The duration of the experience barely registers. This has profound implications for service design: a service that ends well is remembered well, even if the middle was mixed. A service with a strong positive peak (a moment of surprise, delight, or mastery) is remembered as great. Apple's 'one more thing,' the handwritten note in the packaging, the graceful goodbye after unsubscribing — these all exploit peak-end.",
+    "implications": [
+      "Design the end of every flow intentionally: successful purchase, completed task, cancellation, unsubscribe.",
+      "Place a deliberate moment of peak (warmth, surprise, competence) near the end, not the middle.",
+      "When a service experience goes wrong, a well-designed recovery can create a positive peak that overrides the negative.",
+      "Don't frontload all the value — keep a highlight near the end.",
+      "Graceful off-boarding matters: users who leave well speak about the product well; users who leave poorly tell ten friends."
+    ],
+    "violations": [
+      "A signup flow that ends with 'success!' and then dumps the user into an empty dashboard.",
+      "A cancel-subscription flow full of dark patterns — the end is remembered as the service.",
+      "A support ticket that closes with 'ticket resolved' and no follow-up — missed peak opportunity.",
+      "Hiding the unsubscribe link in an email footer — final impression is bad."
+    ],
+    "applies_to": ["journey-mapping", "offboarding", "recovery", "completion-states"],
+    "sources": ["https://www.nngroup.com/articles/peak-end-rule/", "https://en.wikipedia.org/wiki/Peak%E2%80%93end_rule"]
+  },
+  {
+    "id": "anticipate-handoff",
+    "name": "Design the handoff as deliberately as the handler",
+    "category": "service-design",
+    "summary": "Services break at handoffs — between channels, teams, systems, roles. The handoff itself is a design object. If you don't design it, it will fail.",
+    "description": "Every service has handoffs: UI to email, bot to human, sales to support, support tier 1 to tier 2, web to mobile, old system to new. Each handoff is an interface between two systems that were likely designed independently. Without deliberate handoff design, the user re-explains context, loses data, waits longer, and experiences the service as two broken halves. Designing the handoff means specifying: what context transfers, in what format, with what SLA; what the user sees during the handoff; and how the receiving party acknowledges receipt.",
+    "implications": [
+      "For every handoff, name what context must transfer — user intent, state, history, identity.",
+      "Minimize re-explanation — the handoff should preserve what the user has already said or done.",
+      "Communicate the handoff to the user explicitly ('you're being connected to…') — silence feels like abandonment.",
+      "The receiving party opens with acknowledgment of what they know — not 'hi, how can I help?' when the user just told someone else.",
+      "Failure modes for handoffs (timeouts, agent unavailable) need their own designed fallback."
+    ],
+    "violations": [
+      "Support chat bot escalates to a human who asks the user to start over.",
+      "Password reset email arrives, user clicks link, redirected to signup — state lost.",
+      "User abandons cart on mobile, opens desktop — cart empty. Handoff across devices wasn't designed.",
+      "Sales rep hands off to implementation; implementation has no record of what was promised.",
+      "Third-party integration fails; user sees no indication of what to do next."
+    ],
+    "applies_to": ["handoff", "channel-transitions", "escalation", "omnichannel"],
+    "sources": ["https://www.nngroup.com/articles/service-design-101/", "https://www.nngroup.com/articles/handoff-design/"]
+  },
+  {
+    "id": "offer-human-help-where-it-counts",
+    "name": "Offer human help where self-service runs out of road",
+    "category": "service-design",
+    "summary": "Self-service is efficient; human help is trust-building. The best services know which moments deserve which — and make the transition seamless in both directions.",
+    "description": "The cheapest model is pure self-service. The trust-building model is concierge. The right model is usually both, with thoughtful design of when each applies. Moments to offer human help: first failure after repeated tries, high-stakes decisions (upgrade, cancellation, large purchase), emotionally charged moments (bereavement, dispute, refund), legal/compliance questions, edge cases the FAQ can't cover. Moments to stay self-serve: routine tasks the user has done before, clearly scoped questions with good docs, moments when the user wants speed over conversation. The key is reading the signal — retries, backtracks, sentiment in chat, time-on-page — and offering help before the user has to ask.",
+    "implications": [
+      "Monitor for signals that self-service is failing: retries, backtracks, negative sentiment, long pauses.",
+      "Offer human help proactively at high-stakes moments — don't wait for users to hunt for it.",
+      "Make the 'talk to a human' option visible but not intrusive — a floating chat button, a 'need help?' link at decision points.",
+      "When a human takes over from a bot, the human should see the full conversation context, not restart.",
+      "When human help closes, summarize what happened in text the user can come back to."
+    ],
+    "violations": [
+      "'Contact support' buried in a footer, with email-only response and 48-hour SLA — user leaves before help arrives.",
+      "Chatbot-only support with no escalation path — burns trust on every edge case.",
+      "Human agent joins chat and opens with 'hi, what's your issue?' when the bot already knows.",
+      "Offering live chat only during business hours without telling users when those are.",
+      "Routing cancellation flow entirely to a human — dark pattern that damages brand worse than letting them leave."
+    ],
+    "applies_to": ["support", "escalation", "self-service", "chat"],
+    "sources": ["https://www.nngroup.com/articles/chatbots/", "https://www.nngroup.com/articles/customer-service/"]
+  }
+]

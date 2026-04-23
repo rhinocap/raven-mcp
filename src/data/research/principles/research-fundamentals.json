@@ -1,0 +1,238 @@
+[
+  {
+    "id": "match-method-to-question",
+    "name": "Match the method to the question",
+    "category": "research",
+    "summary": "Qualitative methods answer 'why' and 'how' questions; quantitative answer 'how many' and 'how much'. Picking the wrong kind of method wastes time and produces confidently wrong answers.",
+    "description": "The single most common research failure is running the wrong study for the question at hand. A survey can't tell you why users abandon a flow — it can only tell you how many did. A five-person usability test can't validate whether a 2% lift is real — it can only find the obvious friction. Before choosing a method, state the decision the research must inform and whether the uncertainty is about meaning (qual) or magnitude (quant). When both are unknown, run qual first to frame the questions, then quant to measure.",
+    "implications": [
+      "For exploratory questions ('what's confusing users?'), start with 5–8 qualitative interviews or moderated usability sessions.",
+      "For validation questions ('does option A convert better?'), run a properly powered A/B test — not a qual study.",
+      "For discovery plus validation, pair: interviews to find the hypothesis, then analytics/A/B to measure it.",
+      "Avoid survey-driven product decisions when you have no prior qualitative grounding — you'll get answers to questions users don't care about."
+    ],
+    "violations": [
+      "Running a survey to understand 'why' users churn — they don't know, and self-report is unreliable for root cause.",
+      "A/B testing a feature nobody has ever used to decide whether to build it — qual first.",
+      "Using a 5-user usability test to justify a multi-million-dollar redesign — the sample is too small to measure magnitude.",
+      "Sending a 40-question survey with no qualitative pre-work — you're guessing what to ask."
+    ],
+    "applies_to": ["research-planning", "method-selection", "study-design"],
+    "sources": ["https://www.nngroup.com/articles/which-ux-research-methods/", "https://measuringu.com/qual-quant/"]
+  },
+  {
+    "id": "observe-behavior-not-opinion",
+    "name": "Observe behavior, not opinion",
+    "category": "research",
+    "summary": "What people do reveals more than what they say they'll do. Self-report is systematically unreliable for prediction, frequency, and emotion in the moment.",
+    "description": "Users underreport struggles, overreport engagement, and predict their future behavior with striking inaccuracy. When asked 'would you use this?', most people are polite. When asked 'how often do you do X?', most inflate. The most reliable data comes from observing actual behavior — in a usability test, in product analytics, or in contextual inquiry. Interviews are valuable for meaning, not measurement. If the question is about what users will do, design a study that measures doing, not telling.",
+    "implications": [
+      "Prefer observational methods (usability tests, contextual inquiry, analytics) over self-report for behavioral predictions.",
+      "In interviews, ask about past behavior ('tell me about the last time you…') rather than hypothetical future behavior ('would you…').",
+      "Cross-check survey frequency self-reports against analytics when possible — they almost never match.",
+      "Treat 'I would pay for this' as cheap talk until you see evidence of paying (preorders, waitlists, pricing tests)."
+    ],
+    "violations": [
+      "Asking 'Would you use this feature?' and shipping because 80% said yes — they're being polite.",
+      "Surveying users about usage frequency to size a feature — people inflate by 2–3x.",
+      "Interviewing as the only method for a conversion question.",
+      "Treating 'net promoter score' as predictive of growth without behavioral corroboration."
+    ],
+    "applies_to": ["interviews", "surveys", "method-selection"],
+    "sources": ["https://www.nngroup.com/articles/say-vs-do/", "https://www.nngroup.com/articles/observation-in-user-research/"]
+  },
+  {
+    "id": "sample-size-matters",
+    "name": "Sample size matters — and depends on the method",
+    "category": "research",
+    "summary": "Five users find ~85% of usability issues. But five users cannot validate a conversion lift. Match your sample size to the claim you want to make.",
+    "description": "Nielsen's landmark 1993 study established that 5 users find ~85% of usability problems in any given design — discovery tests plateau fast. This is true for qualitative usability. It is not true for quantitative claims. To detect a 10% conversion lift with 95% confidence and 80% power, you typically need thousands of users per variant. Researchers routinely confuse the two: they run an A/B test on 100 users and call a 3% 'lift' a win. Know which regime you're in. For insight, 5–8 is enough. For measurement, use a power calculator.",
+    "implications": [
+      "Moderated usability testing: 5–8 users per distinct user type catches the majority of issues.",
+      "A/B tests: use a power calculator (Evan Miller, Optimizely) — rule of thumb is thousands per variant for small effects.",
+      "Surveys: target 100+ responses for descriptive claims; more for subgroup analysis.",
+      "Card sorting: 15–30 participants for reliable IA clustering.",
+      "Tree testing: 50+ for confident findability percentages."
+    ],
+    "violations": [
+      "Declaring an A/B test a winner at 200 users — statistically meaningless for normal effect sizes.",
+      "Running usability tests with 30 users 'to be safe' — diminishing returns after 8; effort better spent on a different study.",
+      "Comparing survey sub-segments with fewer than 30 responses each — the noise exceeds the signal.",
+      "Stopping an A/B test early because 'it looks significant' — peeking inflates false-positive rate."
+    ],
+    "applies_to": ["study-design", "ab-testing", "usability-testing", "surveys"],
+    "sources": ["https://www.nngroup.com/articles/why-you-only-need-to-test-with-5-users/", "https://www.evanmiller.org/ab-testing/sample-size.html", "https://measuringu.com/sample-size-ux/"]
+  },
+  {
+    "id": "minimize-bias",
+    "name": "Minimize bias at every stage",
+    "category": "research",
+    "summary": "Bias creeps in at recruiting, question wording, moderator behavior, and analysis. Every bias pulls findings toward false confidence. Name the biases; counter each one explicitly.",
+    "description": "Research produces decisions. A biased study produces biased decisions — with the false authority of 'data.' Common biases: sampling bias (only your power users respond to your survey), acquiescence bias (participants agree to please), leading questions ('how much do you love this?'), confirmation bias (the team hears what it wants), demand characteristics (participants guess the 'right' answer), and availability bias (we interview whoever is easy to reach). A good study pre-commits to its methods, uses neutral wording, and separates observation from interpretation.",
+    "implications": [
+      "Recruit to a screener that matches the target population — not just 'power users willing to talk.'",
+      "Write questions double-barreled-free and value-neutral; pilot with 2 colleagues to catch leading phrasing.",
+      "In moderated sessions, avoid 'what did you like?' — ask 'what happened?' and 'walk me through what you were thinking.'",
+      "Share raw observations with the team before interpretations; separate the two in reports.",
+      "Pre-register hypotheses and analysis plan for quant studies — avoids p-hacking."
+    ],
+    "violations": [
+      "Surveying only your existing customers about churn — the churners have already left.",
+      "Asking 'On a scale of 1–10, how useful is feature X?' — skips whether they use or need it.",
+      "Moderator nodding and smiling when user says something expected — reinforces the bias.",
+      "Analysis starts by looking for evidence that supports the team's hypothesis."
+    ],
+    "applies_to": ["recruiting", "study-design", "moderation", "analysis"],
+    "sources": ["https://www.nngroup.com/articles/survey-bias/", "https://www.nngroup.com/articles/leading-questions/"]
+  },
+  {
+    "id": "triangulate-findings",
+    "name": "Triangulate findings across methods",
+    "category": "research",
+    "summary": "No single method is fully reliable. When two or more independent methods point at the same finding, confidence climbs. When they disagree, you've found the most interesting question.",
+    "description": "Triangulation is the practice of using multiple methods, data sources, or researchers to corroborate a finding. If usability testing surfaces an issue AND analytics show drop-off at the same step AND support tickets mention the same confusion — you have high confidence. If only one method shows the issue, it might still be real, but it might also be method artifact. When methods disagree, don't pick one — investigate the disagreement. That's where the most interesting insights live.",
+    "implications": [
+      "For any significant decision, look for two independent sources of evidence (e.g., interviews + analytics; survey + behavioral data; observation + support tickets).",
+      "Treat single-method findings as provisional; treat converging findings as actionable.",
+      "When qual and quant disagree, the qual usually explains a finding the quant can't; the quant usually sizes an effect the qual misses. Investigate both.",
+      "Document the evidence base for each claim in your report."
+    ],
+    "violations": [
+      "One interview quote used as 'users say X' without corroboration.",
+      "Analytics drop-off blamed on a theory from an unrelated study — could be many causes.",
+      "Choosing the method whose result matches the team's preference.",
+      "Reporting a finding without disclosing the method — strips the reader of ability to weigh it."
+    ],
+    "applies_to": ["analysis", "reporting", "decision-making"],
+    "sources": ["https://www.nngroup.com/articles/triangulation/", "https://measuringu.com/triangulation-ux/"]
+  },
+  {
+    "id": "separate-observation-from-interpretation",
+    "name": "Separate observation from interpretation",
+    "category": "research",
+    "summary": "Report what you saw. Separately, report what you think it means. The two often diverge — and stakeholders need to judge both.",
+    "description": "A common research failure is conflating raw observation ('5 of 8 users could not find the export button') with interpretation ('users find the interface confusing'). Interpretations are theories; observations are data. Stakeholders need both, clearly distinguished. When you surface a finding, lead with the observation — quote, behavior, number — then follow with your theory and its confidence. This lets the reader reach their own conclusions, disagree with you productively, and decide what to act on.",
+    "implications": [
+      "In reports: use a two-column or two-section structure — 'observed' vs 'inferred'.",
+      "Quote participants verbatim where possible — 'I thought X would be here' beats 'users found the IA confusing'.",
+      "Tag each interpretation with a confidence level (high / medium / low) and the evidence supporting it.",
+      "Distinguish descriptive claims ('30% dropped off at step 3') from causal claims ('they dropped off because X')."
+    ],
+    "violations": [
+      "A report of 'key insights' with no underlying observations — unfalsifiable.",
+      "Claiming root cause from correlational data.",
+      "Paraphrased participant quotes that subtly change meaning.",
+      "Mixing what users did with what researchers wished they did."
+    ],
+    "applies_to": ["analysis", "reporting"],
+    "sources": ["https://www.nngroup.com/articles/qualitative-surveys/", "https://www.nngroup.com/articles/ux-research-report/"]
+  },
+  {
+    "id": "start-with-the-decision",
+    "name": "Start with the decision the research will inform",
+    "category": "research",
+    "summary": "Every study should begin with: 'What decision are we making? What would we do differently if the answer is A vs B?' If there's no decision, the research is theater.",
+    "description": "Research is expensive. Every study should be tied to a decision — a ship/don't ship, an A/B choice, a priority ranking, a go/no-go. If stakeholders can't name the decision, or say 'it depends on what we find,' the study has no success criterion. Worse, it probably won't get used. Before designing the study, name the decision; name the answers that would lead to different actions; and agree on what evidence would be sufficient. This forces the team to commit to using the results, and narrows the study to what actually matters.",
+    "implications": [
+      "Document the decision + the two-to-three branching outcomes before writing the first question.",
+      "If the stakeholder can't articulate the decision, the study is premature — or being used as cover.",
+      "Pre-commit to the action for each possible finding — 'if X, we'll do Y' — before running the study.",
+      "If no finding would change the plan, cancel the study and save the money."
+    ],
+    "violations": [
+      "'We're doing research to understand our users' — unspecific, unactionable.",
+      "Running a study after the decision is already made — confirmation theater.",
+      "Research that produces a report no one reads — decision was never tied to it.",
+      "Ongoing 'insight programs' with no decisions in sight — burns budget, demoralizes researchers."
+    ],
+    "applies_to": ["research-planning", "stakeholder-management"],
+    "sources": ["https://www.nngroup.com/articles/research-plans/", "https://www.jnd.org/dn.mss/the_research-practice_gap_1.html"]
+  },
+  {
+    "id": "context-of-use",
+    "name": "Study behavior in context of use",
+    "category": "research",
+    "summary": "A user in a research lab is not the same user in their kitchen, on the subway, on their phone, with a screaming toddler. Context shapes behavior. Lab-only research understates real-world friction.",
+    "description": "Classic usability testing happens in a controlled lab — quiet, focused, paid attention. Real use happens in chaos: interruptions, low bandwidth, partial attention, split tasks, mobile one-handed, screen glare. Contextual inquiry and field studies surface friction that lab studies miss entirely. For any feature whose use is dominated by real-world constraints (mobile, on-the-go, emergency, home-in-the-evening), at least some research should happen in that context — even if just a diary study or a remote unmoderated test that the participant completes in their own environment.",
+    "implications": [
+      "For mobile-first products, run at least some sessions on participants' own devices in their own locations.",
+      "For enterprise tools used under time pressure, observe users doing their real work — not scripted tasks.",
+      "For consumer products used in ambient attention, consider diary studies over lab tests.",
+      "Remote unmoderated testing captures context for free — the downside is loss of moderator probing."
+    ],
+    "violations": [
+      "All research conducted in a formal lab for a product used primarily on phones during commutes.",
+      "Enterprise usability tests where participants are given pre-cleaned, pre-loaded data they wouldn't have in reality.",
+      "Ignoring low-bandwidth, poor-connection, or interrupted scenarios that are common in the real user population.",
+      "Studying only users with ideal hardware, when the user base runs on 3-year-old Android devices."
+    ],
+    "applies_to": ["field-studies", "contextual-inquiry", "mobile-research"],
+    "sources": ["https://www.nngroup.com/articles/field-studies/", "https://www.nngroup.com/articles/diary-studies/"]
+  },
+  {
+    "id": "recruit-to-the-target-population",
+    "name": "Recruit to the target population, not convenience",
+    "category": "research",
+    "summary": "Your findings are only as valid as your sample. If you recruit only power users, only employees, or only whoever answered the Slack call — your results describe a group that isn't your user base.",
+    "description": "Recruiting drives validity. A study of 8 participants is powerful if those 8 represent the target population — weak if they're all internal employees or power users who self-selected. Write a screener that captures the dimensions that matter: use frequency, role, tenure, technical skill, demographic diversity if relevant. For B2B research, representative means spanning the roles who actually use the product — decision-makers, power users, occasional users. For consumer, it often means intentionally recruiting across age, device type, and technical fluency — otherwise findings will skew to the sample you could reach easily.",
+    "implications": [
+      "Write a screener with disqualifiers, not just qualifiers.",
+      "Recruit across at least 2 user types when possible — differences between them are usually the most interesting finding.",
+      "For B2B: include the buyer and the end user; their needs often diverge.",
+      "Pay participants fairly — free participants skew toward people with time and opinions, both of which bias results.",
+      "Name recruiting constraints in every report — 'n=8, all current power users' lets the reader adjust confidence."
+    ],
+    "violations": [
+      "Recruiting only through a company's marketing list — self-selects for engaged users.",
+      "Using employees as participants for consumer research — they know too much.",
+      "All-volunteer research with no compensation — biased toward people with time, opinions, or both.",
+      "A homogeneous sample for a product with a diverse user base — findings don't generalize."
+    ],
+    "applies_to": ["recruiting", "screener-design"],
+    "sources": ["https://www.nngroup.com/articles/recruiting-participants/", "https://www.nngroup.com/articles/user-research-participants/"]
+  },
+  {
+    "id": "ethical-responsibility",
+    "name": "Ethics: informed consent, privacy, fair compensation",
+    "category": "research",
+    "summary": "Research involves people. Respect is non-negotiable: explain the study, get explicit consent, protect data, pay fairly, and honor the right to stop.",
+    "description": "Professional research ethics are codified in disciplines like IRB standards, ISO 20252, and UXPA ethics. Key obligations: (1) Informed consent — participants know what the study is, what will be recorded, how the data will be used, and who will see it. (2) Privacy — PII is minimized, stored securely, and destroyed per retention policy. (3) Right to withdraw — participants can stop at any time without penalty. (4) Fair compensation — payment reflects the time, effort, and expertise required. (5) No deception without post-debrief. These aren't bureaucratic checkboxes; they're the condition for trustworthy research.",
+    "implications": [
+      "Every session starts with a plain-language consent form covering what's recorded, how it's used, and who sees it.",
+      "Redact or anonymize quotes in reports unless the participant explicitly agreed to be identified.",
+      "Store recordings securely, retain only as long as needed, delete per your retention policy.",
+      "Offer a compensation rate that reflects market — underpaid participants skew the sample.",
+      "Make it easy for participants to withdraw; never re-contact a participant who opted out."
+    ],
+    "violations": [
+      "Recording sessions without explicit audio/video consent.",
+      "Quoting participants by name or identifying detail without permission.",
+      "Using research data for purposes not disclosed at consent.",
+      "Underpaying participants or paying only in product credit.",
+      "Pressuring a participant to continue after they expressed discomfort."
+    ],
+    "applies_to": ["research-ethics", "recruiting", "data-handling"],
+    "sources": ["https://uxpa.org/uxpa-code-of-professional-conduct/", "https://www.nngroup.com/articles/ethics-user-research/"]
+  },
+  {
+    "id": "tie-findings-to-action",
+    "name": "Tie every finding to an action, an owner, and a deadline",
+    "category": "research",
+    "summary": "A finding without a clear action is a paperweight. Each recommendation should be specific enough to build, assigned to someone, and bounded by time.",
+    "description": "Research lives or dies by whether it changes what the team ships. A beautifully written report that produces no action is a failure — no matter how sound the methodology. Translate each finding into: (1) the specific change that would address it, (2) the person responsible for making it, (3) the deadline by which it should be done. Vague recommendations ('improve the onboarding flow') don't get done. Specific ones ('on step 3 of onboarding, add a sample project to accelerate time-to-value — owner: @amelia — ships by 2026-05-15') do. Research is not journalism; it's decision support.",
+    "implications": [
+      "Every report section ends with a concrete recommendation, not a general observation.",
+      "Use a findings → recommendations → owner → deadline table in reports.",
+      "Prioritize by impact × confidence — don't hand stakeholders a 40-item list.",
+      "Revisit the actions 2–4 weeks later; track what shipped. If nothing did, the study failed its purpose."
+    ],
+    "violations": [
+      "A report that ends with 'opportunities' and no owners.",
+      "Recommendations too abstract to build ('improve usability', 'make it clearer').",
+      "Handing the PM a 40-item punch list without prioritization — paralysis.",
+      "Never following up to see what shipped — findings rot in a shared drive."
+    ],
+    "applies_to": ["reporting", "stakeholder-management"],
+    "sources": ["https://www.nngroup.com/articles/user-research-findings-action/", "https://www.nngroup.com/articles/research-action/"]
+  }
+]

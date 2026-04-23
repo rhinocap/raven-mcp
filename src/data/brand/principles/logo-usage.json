@@ -1,0 +1,113 @@
+[
+  {
+    "id": "logo-clear-space",
+    "name": "Respect logo clear space",
+    "category": "brand",
+    "summary": "Every logo needs a minimum buffer of empty space around it. Violating clear space reduces recognition and damages brand authority. Define it; enforce it.",
+    "description": "Clear space — sometimes called exclusion zone or safe area — is the minimum amount of empty space surrounding the logo that no other element may enter. Most brand guidelines define it in terms of an element of the mark itself (e.g., 'the height of the uppercase letter in the wordmark on all sides'). Clear space lets the logo breathe and keeps it visually dominant in any context. Violating it — placing text right against the mark, overlapping with imagery, crowding into a corner — signals amateurism and weakens recognition. Define clear space as part of the brand system and enforce it in design reviews and templates.",
+    "implications": [
+      "Derive clear space from a unit of the mark itself so it scales: 'clear space = height of the uppercase letter' or 'clear space = width of the primary glyph'.",
+      "Apply clear space to all four sides, including when the logo sits against an edge or another element.",
+      "In responsive layouts, clear space often needs to scale — don't hard-code it in pixels.",
+      "In component libraries, bake clear space into the logo component so developers can't violate it accidentally.",
+      "Exception: favicons, app icons, and other micro-contexts where the rule is adapted — but don't let those micro-adaptations creep into larger contexts."
+    ],
+    "violations": [
+      "Placing page navigation elements flush against the logo with no buffer.",
+      "Compositing the logo over busy photography where it competes with detail.",
+      "Setting the logo at 12px next to 36px page title — visual hierarchy inverts, the logo disappears.",
+      "Cramming the logo into a corner badge with no breathing room."
+    ],
+    "applies_to": ["brand", "logo", "brand-systems", "layout"],
+    "sources": ["https://www.airbnb.design/building-a-visual-language/", "https://atlassian.design/foundations/logo-usage"]
+  },
+  {
+    "id": "logo-minimum-size",
+    "name": "Set and enforce minimum logo sizes",
+    "category": "brand",
+    "summary": "Below a threshold, logo detail degrades and recognition collapses. Define minimum sizes per context — screen, print, favicon — and use appropriate simplified marks when space is tight.",
+    "description": "Logos are designed to be recognizable at a particular range of sizes. Below the minimum, details blur, letter spacing breaks down, and the mark loses its intended form. Most brand systems define multiple minimum sizes for different contexts: desktop header, mobile header, print, favicon, app icon. Often this requires alternate marks: a full wordmark-plus-symbol for large contexts, a symbol-only version for constrained ones. The best systems produce these variants in the same design pass so the brand remains coherent across scales.",
+    "implications": [
+      "Define minimum sizes explicitly in the brand guide: e.g., 'full wordmark ≥ 120px wide; symbol-only below that.'",
+      "Design at least two variants — full lockup and symbol-only — for any mark that must work at small sizes.",
+      "Test logos at favicon size (16x16, 32x32) as part of design review — many otherwise-beautiful marks fall apart here.",
+      "For print, minimum sizes are usually larger than screen (due to ink spread and paper texture) — define separately.",
+      "Reject 'enlarge to fit' requests that push a small-size variant past its designed range."
+    ],
+    "violations": [
+      "Shrinking the full wordmark to favicon size without an alternate symbol-only version.",
+      "A thin-weight wordmark that becomes unreadable below 24px.",
+      "Allowing designers to scale logos freely without referencing a size table.",
+      "Favicon that's just a letterform so generic it matches six other brands."
+    ],
+    "applies_to": ["brand", "logo", "responsive", "print"],
+    "sources": ["https://atlassian.design/foundations/logo", "https://spectrum.adobe.com/page/logo/"]
+  },
+  {
+    "id": "logo-dont-distort",
+    "name": "Never distort, recolor outside the system, or embellish the logo",
+    "category": "brand",
+    "summary": "A logo is a fixed asset. Stretching, skewing, recoloring, adding effects, or modifying the mark degrades brand equity and must be explicitly forbidden.",
+    "description": "Every brand guide has a 'don'ts' page for the logo. The list is remarkably consistent across well-designed systems: don't stretch; don't skew; don't drop-shadow; don't gradient-overlay; don't outline; don't bevel; don't rotate; don't recolor outside the approved palette; don't reverse the lockup; don't combine with other marks. These rules exist because every violation pulls the mark away from its designed form, weakens recognition, and makes the brand look amateur. Enforce them — include the don'ts in the brand guide alongside the dos, so reviewers and stakeholders have clear reference.",
+    "implications": [
+      "Ship the logo as locked SVG/PDF assets — don't give editable source to people who will modify it.",
+      "Publish a 'don'ts' page in the brand guide with visual examples of each forbidden treatment.",
+      "Specify approved color variants (primary, reversed/white, mono black, mono white) — not 'any color that looks good'.",
+      "Specify approved backgrounds (solid, approved photography) — and forbidden (busy patterns, text overlays).",
+      "Include 'do not modify' language in contracts with external vendors."
+    ],
+    "violations": [
+      "Stretching a logo horizontally to fill a wide banner.",
+      "Adding a drop shadow to 'pop' the logo on a white background.",
+      "Recoloring the logo to match a campaign palette that isn't in the brand system.",
+      "Placing the logo inside a shape (circle, pill) that isn't part of the designed lockup.",
+      "Combining the logo with partner logos without approved co-branding rules."
+    ],
+    "applies_to": ["brand", "logo", "governance"],
+    "sources": ["https://atlassian.design/foundations/logo", "https://spectrum.adobe.com/page/logo/", "https://www.figma.com/brand/"]
+  },
+  {
+    "id": "logo-placement-consistency",
+    "name": "Place the logo consistently across surfaces",
+    "category": "brand",
+    "summary": "A brand builds recognition through repetition. Place the logo in the same position, at the same scale, on every major surface — don't reinvent the placement per page.",
+    "description": "Where the logo lives matters as much as how it looks. Users learn to look in the same place across surfaces: top-left of the nav (most common), footer credit, favicon tab. Moving the logo around — right-aligned on some pages, centered on others, absent on a third — dilutes recognition and makes the surfaces feel disjointed. A well-designed system specifies logo placement per surface type (app, web, marketing, email, mobile, social) and enforces it via templates and components. Most successful brands pick ONE canonical placement (typically top-left) and make everything else a deliberate exception.",
+    "implications": [
+      "Pick a primary placement (usually top-left nav on web, center-top on mobile, top-left on email) and stick to it.",
+      "Bake the placement into components and templates — don't leave it to per-page decisions.",
+      "Treat exceptions (hero with no logo, full-bleed imagery) as deliberate design choices, not accidents.",
+      "Align logo placement across web, app, email, and social for recognition.",
+      "Favicon is a placement too — make sure yours is distinct enough to be recognized in a tab row."
+    ],
+    "violations": [
+      "Logo top-left on most pages, center on the homepage, missing on the login screen.",
+      "Transactional emails that don't show the logo.",
+      "Social media posts with a different logo variant every week.",
+      "Favicon that's a generic letter — unrecognizable in a crowded tab bar."
+    ],
+    "applies_to": ["brand", "logo", "layout", "templates"],
+    "sources": ["https://airbnb.design/building-a-visual-language/", "https://spectrum.adobe.com/page/logo/"]
+  },
+  {
+    "id": "logo-restraint",
+    "name": "Use the logo sparingly — let it appear, don't repeat it",
+    "category": "brand",
+    "summary": "More logos doesn't mean more brand. Placing the logo on every card, section, and footer dilutes its impact and looks insecure. Brand confidence shows in restraint.",
+    "description": "New brands often sprinkle the logo everywhere: in the hero, in every card, in the footer, watermarked across hero imagery. The instinct is 'reinforce the brand.' The effect is the opposite — when the logo is everywhere, it stops being noticed, the layout feels cluttered, and the brand reads as insecure. Mature brands use the logo with restraint: in the nav, in the footer, and in a handful of high-impact moments (confirmation emails, welcome screens). Everywhere else, the brand shows through color, typography, voice, and systematic decisions — not logo repetition. 'The best branding feels like the brand without showing the logo.'",
+    "implications": [
+      "One logo per visible surface — not one per section of that surface.",
+      "Don't watermark imagery with the logo unless there's a specific IP reason.",
+      "In cards, lists, and repeating components, use brand cues (color, typography, voice) instead of the logo.",
+      "Let the brand show in the product's tone and visual system — repetition of the mark is not the vehicle for recognition.",
+      "Exception: co-branded contexts where logo presence is required for attribution."
+    ],
+    "violations": [
+      "Every card on the page has the logo in its corner.",
+      "The logo appears 8 times in the marketing hero.",
+      "A watermark on every product photograph.",
+      "Footer with a logo AND a big 'Brand' text treatment AND a byline — all saying the same thing."
+    ],
+    "applies_to": ["brand", "logo", "layout-density"],
+    "sources": ["https://www.pentagram.com/", "https://airbnb.design/building-a-visual-language/"]
+  }
+]

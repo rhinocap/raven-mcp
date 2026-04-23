@@ -1,0 +1,104 @@
+{
+  "id": "omnichannel-continuity",
+  "name": "Omnichannel Continuity",
+  "category": "service-design",
+  "summary": "Users move between channels — mobile, desktop, email, phone, chat, in-person. A good service feels like one conversation across all of them. A broken service feels like starting over each time.",
+  "principles_referenced": ["anticipate-handoff", "frontstage-backstage", "holistic", "service-as-experience-over-time"],
+  "patterns": [
+    {
+      "name": "Cross-device state preservation",
+      "description": "The user starts on mobile, switches to desktop, continues. Their progress, cart, draft, or conversation should continue seamlessly. Missing state across devices is the most common modern service break.",
+      "do": [
+        "Persist unfinished actions server-side keyed by user identity",
+        "Sync on device switch: 'you had a cart open on mobile — continue here?'",
+        "Cover the common transitions: cart, draft, form-in-progress, viewed-items, chat conversation",
+        "Respect recency — stale drafts should be offered, not forced",
+        "Handle conflict resolution when two devices diverge (merge, pick latest, ask user)"
+      ],
+      "dont": [
+        "Rely on localStorage/cookies alone — they don't cross devices",
+        "Lose the cart on logout — persist across sessions for known users",
+        "Silently discard progress when the user returns on a different device",
+        "Expose internal 'session' concepts to the user"
+      ],
+      "evidence": "Ecommerce benchmarks (Baymard, various retailers) show cart recovery across devices is one of the highest-ROI state-preservation investments. The same pattern applies broadly: draft emails, form progress, chat history."
+    },
+    {
+      "name": "Channel parity for core actions",
+      "description": "The actions a user can take on desktop should also be takeable on mobile, and vice versa. Feature parity is a service commitment — 'do this thing from any device I have on me.'",
+      "do": [
+        "For every core user goal (sign up, buy, change plan, cancel, invite, export), ensure it's completable on all supported channels",
+        "For actions that genuinely require a different device (e.g., 2FA setup on a phone), design the handoff explicitly — 'we'll text you a link to complete this on your phone'",
+        "Don't replicate every feature — prioritize the goals that matter on every channel",
+        "Respect channel strengths: mobile for on-the-go actions, desktop for depth"
+      ],
+      "dont": [
+        "Say 'only available on desktop' for an action the user started on mobile",
+        "Design for one channel first and retrofit the others — patches rarely reach parity",
+        "Make core actions (cancellation especially) artificially hard on one channel",
+        "Treat web and app as competing surfaces — treat them as two windows onto one service"
+      ],
+      "evidence": "Apple, Stripe, and Slack are widely cited for strong channel parity: what you can do on mobile, you can do on desktop, and the transition is fluid. Teams that let channels diverge report that the weaker channel becomes a support tax."
+    },
+    {
+      "name": "Unified identity across channels",
+      "description": "The user is one person. A unified identity across channels means the product (and support) recognizes them regardless of where they arrive — email, chat, phone, mobile, desktop, marketing site.",
+      "do": [
+        "Invest in a single identity system — social login or unified auth across all surfaces",
+        "Carry recent behavior signals across surfaces (recently viewed, incomplete actions) subject to privacy",
+        "When a customer calls support, they should be recognized by phone number; when they chat, by account",
+        "Respect privacy boundaries — marketing cookie-tracking should not contaminate support CRM without consent"
+      ],
+      "dont": [
+        "Let each channel build its own identity database",
+        "Require the user to identify themselves multiple times in one journey",
+        "Use identity in surveillance ways the user hasn't consented to",
+        "Lose the mapping when the user signs in on a new device"
+      ],
+      "evidence": "The highest-friction service experiences are those where the user must re-authenticate or re-identify at every channel transition. The best services feel like one relationship, not a dozen siloed ones."
+    },
+    {
+      "name": "Conversation continuity",
+      "description": "Chat, email, and support conversations should read as one thread regardless of which surface the user is on. If they start a question on web chat and reply from email, it should be the same conversation.",
+      "do": [
+        "Store all user-service messages in a single conversation log per customer",
+        "When a user replies by email to a ticket, it appends to the existing conversation — not creates a new ticket",
+        "Surface the conversation history to the user when they return — not just to the agent",
+        "If email and chat are truly separate systems, invest in cross-linking so agents can see the full picture"
+      ],
+      "dont": [
+        "Create a new ticket every time the user changes channel",
+        "Lose context when a conversation goes async ('we'll email you' → new thread, new number)",
+        "Require the user to remember or forward their ticket ID",
+        "Mix chatbot conversations with support tickets — they're the same customer"
+      ],
+      "evidence": "Intercom and Zendesk both built their modern products around the unified-conversation model. The older ticket-based model (create, close, never again) generates re-explanation friction that compounds over a customer's lifetime."
+    },
+    {
+      "name": "Consistent voice across channels",
+      "description": "The brand voice should be recognizable whether the user is reading a marketing page, a transactional email, a chat reply from support, or a system notification. Inconsistency signals that teams aren't talking to each other.",
+      "do": [
+        "Publish a cross-channel voice guide that marketing, product, and support all use",
+        "Audit a recent user's full journey quarterly: marketing → signup → confirmation → product → email → support. Does it feel like one service?",
+        "Transactional emails and system notifications get the brand voice, not boilerplate",
+        "Support agents write in the voice, within their personal style — not as robots"
+      ],
+      "dont": [
+        "Let marketing be warm and product be cold — same user, different faces",
+        "Send transactional emails in legalese when the product voice is friendly",
+        "Outsource support writing to a team that never sees the product voice guide",
+        "Let third-party tools (billing, email providers) introduce their template language without editing"
+      ],
+      "evidence": "Brands with tight cross-channel voice (Mailchimp, Intercom, Atlassian) report measurable lift in trust metrics. Users don't describe what they're noticing — but they feel it when the voice cracks."
+    }
+  ],
+  "checklist": [
+    "Does state persist across devices for core actions (cart, draft, form)?",
+    "Can every critical user goal be completed on every supported channel?",
+    "Is identity unified — same user recognized everywhere?",
+    "Is there one conversation log per user, spanning channels?",
+    "Is the brand voice consistent across marketing, product, email, and support?",
+    "Are the handoffs between channels designed, not accidental?",
+    "If a channel goes down, is the degradation graceful and communicated?"
+  ]
+}

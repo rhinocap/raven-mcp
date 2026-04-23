@@ -2,15 +2,18 @@
 
 **Odin's ravens brought back knowledge of the world — Raven brings back design intelligence.**
 
-A design knowledge MCP server that Claude can query when generating UI. Five layers: principles, patterns, content design systems, business strategy, and design tokens.
+A design knowledge MCP server that Claude can query when generating UI. Eight layers: principles, patterns, content design systems, research methods, service design, brand/visual, business strategy, and design tokens.
 
 ## What it does
 
 Raven gives Claude access to a comprehensive design knowledge base:
 
-- **Principles** — Nielsen's 10 Heuristics, all 21 Laws of UX, Gestalt principles, WCAG accessibility, typography rules, color theory, mobile UX, D4D framework, and UX writing principles
-- **Patterns** — Proven UI patterns for signup flows, pricing pages, navigation, forms, landing pages, dashboards, modals, empty/error/loading states, CTAs, social proof, mobile conversion — plus content patterns for error messages, empty-state copy, notifications, and form validation
+- **Principles** — Nielsen's 10 Heuristics, all 21 Laws of UX, Gestalt principles, WCAG accessibility, typography rules, color theory, mobile UX, D4D framework, UX writing, service design, and brand
+- **Patterns** — Proven UI patterns for signup flows, pricing pages, navigation, forms, landing pages, dashboards, modals, empty/error/loading states, CTAs, social proof, mobile conversion — plus content patterns (error messages, empty-state copy, notifications, form validation) and service patterns (service blueprinting, human handoff, signup-as-service, omnichannel continuity, moments of truth)
 - **Content systems** — Voice & tone guides from real brands: Mailchimp, GOV.UK, Shopify Polaris, Atlassian, and Intuit
+- **Research** — Qualitative, quantitative, and usability methods with do/don't protocols and checklists. Metrics frameworks: HEART, AARRR/Pirate, North Star Metric, conversion funnel, RICE, OKRs.
+- **Service design** — Service blueprinting (with HTML blueprint generation — current vs. ideal state), human-handoff patterns, signup-as-service, omnichannel continuity, moments of truth / recovery, and the GOV.UK Service Standard
+- **Brand & visual** — Logo usage (clear space, min sizes, variants, placement, restraint), gradient usage (hierarchy, palette, contrast, trend vs signature), imagery (consistency, representation, purpose), visual hierarchy, brand-as-system, and current (2026) visual-design trends
 - **Business** — Monetization models, retention strategies, onboarding optimization, growth mechanics, and product metrics frameworks
 - **Tokens** — Design system tokens for Stripe, Linear, and more
 
@@ -64,6 +67,13 @@ cd raven-mcp && npm install && npm run build
 | `get_content_system` | Get a brand's voice attributes, tone shifts, vocabulary, grammar, and content patterns |
 | `get_content_principles` | Get UX-writing principles — clarity, active voice, error anatomy, inclusive language |
 | `get_content_pattern` | Get copy recipes for error messages, empty-state copy, notifications, form validation |
+| `get_research_method` | Get qualitative, quantitative, or usability research methods with protocols and checklists |
+| `get_metrics_framework` | Get a product-metrics framework — HEART, AARRR, North Star, conversion funnel, RICE, OKRs |
+| `get_service_pattern` | Get a service design pattern — blueprinting, human handoff, signup-as-service, omnichannel, moments of truth |
+| `get_service_standard` | Get the GOV.UK Service Standard — 14 points for evaluating service quality |
+| `generate_service_blueprint` | Render a service blueprint as HTML — current state, or current vs. ideal side-by-side |
+| `get_brand_principles` | Get brand/visual principles — logo, gradient, imagery, hierarchy, brand-as-system |
+| `get_brand_trends` | Get current (2026) brand and visual-design trends with usage guidance |
 | `raven_reflect` | Summarize your local Raven usage log to find patterns + gaps |
 
 ## Release updates
@@ -101,12 +111,23 @@ All knowledge lives in `src/data/` as static JSON files:
 
 ```
 src/data/
-  principles/   # Nielsen, Laws of UX, Gestalt, accessibility, typography, color, mobile, D4D
-  patterns/     # signup, pricing, nav, forms, landing, dashboard, modals, empty/error/loading, CTA, social proof, mobile
-  business/     # monetization, retention, onboarding, growth, metrics
-  tokens/       # registry.json + systems/ (stripe, linear, vercel, …)
-  content/      # voice & tone: Mailchimp, GOV.UK, Shopify Polaris, Atlassian, Intuit
-    systems/    # registry.json + brand-voice JSONs
-    principles/ # UX-writing principles (clarity, active voice, error anatomy, …)
-    patterns/   # copy recipes for errors, empty states, notifications, form validation
+  principles/      # Nielsen, Laws of UX, Gestalt, accessibility, typography, color, mobile, D4D
+  patterns/        # signup, pricing, nav, forms, landing, dashboard, modals, empty/error/loading, CTA, social proof, mobile
+  business/        # monetization, retention, onboarding, growth, metrics
+  tokens/          # registry.json + systems/ (stripe, linear, vercel, …)
+  content/         # voice & tone: Mailchimp, GOV.UK, Shopify Polaris, Atlassian, Intuit
+    systems/       # registry.json + brand-voice JSONs
+    principles/    # UX-writing principles (clarity, active voice, error anatomy, …)
+    patterns/      # copy recipes for errors, empty states, notifications, form validation
+  research/        # study protocols + metrics frameworks
+    principles/    # research fundamentals (method match, bias, sample size, ethics, triangulation, …)
+    methods/       # qualitative, quantitative, usability
+    frameworks/    # HEART, AARRR, North Star, conversion funnel, RICE, OKRs
+  service-design/  # service-level principles + patterns + frameworks
+    principles/    # Stickdorn, Shostack, peak-end, moments of truth, handoff
+    patterns/      # service blueprinting, human handoff, signup-as-service, omnichannel, moments of truth
+    frameworks/    # GOV.UK Service Standard (14 points)
+  brand/           # brand & visual design
+    principles/    # logo, gradient, imagery, hierarchy, brand-as-system
+    trends/        # 2026-current.json
 ```

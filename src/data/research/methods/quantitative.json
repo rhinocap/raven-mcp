@@ -1,0 +1,118 @@
+{
+  "id": "quantitative-methods",
+  "name": "Quantitative Research Methods",
+  "category": "research-methods",
+  "summary": "Methods for measuring magnitude, frequency, and statistical relationships. Larger samples, structured data. Best for validating hypotheses, sizing opportunities, and tracking change over time.",
+  "principles_referenced": ["match-method-to-question", "sample-size-matters", "minimize-bias", "start-with-the-decision"],
+  "patterns": [
+    {
+      "name": "Surveys (descriptive and attitudinal)",
+      "description": "Structured self-report instruments administered to a sample. Best for measuring attitudes, satisfaction, demographics, and declared behavior (with the caveat that declared ≠ actual). Sample size depends on population size, desired confidence, and subgroup analysis plans.",
+      "do": [
+        "Start with the decision — 'what would we do differently if 60% say yes vs 40%?'",
+        "Pre-test with 3–5 participants to catch ambiguous wording",
+        "Use 5- or 7-point scales, balanced with neutral midpoint",
+        "Randomize answer-option order where applicable (avoid primacy bias)",
+        "Keep it under 10 minutes — drop-off scales with length",
+        "Target 100+ responses for descriptive claims; 400+ for ±5% margin on a single proportion; more for subgroup slicing",
+        "Include an 'other (please specify)' option to catch what you didn't anticipate"
+      ],
+      "dont": [
+        "Use NPS alone as a business metric — it's a weak signal and context-free",
+        "Double-barrel questions ('how useful and intuitive is feature X?')",
+        "Leading wording ('how much do you love…')",
+        "Run without a pilot — questions that seemed clear to the author confuse participants",
+        "Compare sub-segments with n<30 — noise dominates",
+        "Survey only existing customers about churn — they're the ones who stayed"
+      ],
+      "evidence": "Surveys are the most overused and least understood quantitative method. Their strength is scale; their weakness is self-report bias. Best paired with behavioral data (analytics, logs) for validation."
+    },
+    {
+      "name": "Product analytics",
+      "description": "Behavioral instrumentation of the product — events, screens, funnels, retention cohorts. The single largest source of quantitative UX data. Best for understanding what users actually do, at scale, over time. Requires disciplined event taxonomy.",
+      "do": [
+        "Define a canonical event taxonomy (verb_noun, lowercase, stable over time)",
+        "Instrument key moments: signup, activation, core action, retention events, churn signals",
+        "Build funnels for the critical conversion flows (signup, first-success, upgrade)",
+        "Cohort users by signup week to see retention curves properly",
+        "Segment by plan type, platform, and traffic source to reveal heterogeneity",
+        "Pair funnel drop-off with qualitative research to understand why"
+      ],
+      "dont": [
+        "Ship 500 events without a taxonomy — analysis debt compounds fast",
+        "Mix anonymous + logged-in users in the same funnel without disambiguation",
+        "Rely on a single dashboard KPI — suppresses important heterogeneity",
+        "Treat analytics as causal — it's correlational without A/B testing",
+        "Track PII in event properties (user-typed text, emails) — privacy and compliance disaster",
+        "Ignore data freshness issues — pipelines fail quietly"
+      ],
+      "evidence": "Products with disciplined analytics (Amplitude/Mixpanel/PostHog well-modeled) can answer most behavioral questions in minutes. Products without it guess from surveys and executive hunches — a slower, less reliable path to the same answers."
+    },
+    {
+      "name": "A/B testing (controlled experiments)",
+      "description": "Randomized assignment of users to two (or more) versions, with pre-committed metrics. The only method that can make causal claims about UI changes. Requires sufficient sample size, statistical rigor, and discipline around peeking.",
+      "do": [
+        "Calculate required sample size up front using a power calculator (effect size, baseline, power 0.8, alpha 0.05)",
+        "Pre-register the primary metric — one, not five",
+        "Pre-register analysis plan and stopping rules",
+        "Run for full business cycles (usually 1–2 weeks) to capture day-of-week variance",
+        "Check for guardrail metrics (revenue, latency, error rate) not just the primary",
+        "Only call the test when the required sample is reached",
+        "Document the test regardless of outcome; build an institutional library"
+      ],
+      "dont": [
+        "Peek at results daily and stop 'when it looks significant' — inflates false-positive rate",
+        "Test 5 primary metrics — you'll 'win' on one by chance",
+        "Ship at 90% power if the effect is business-critical; weak evidence",
+        "Run tests with sample size below minimum detectable effect — you can't detect what you're claiming",
+        "A/B test cosmetic changes that can't plausibly move the metric — noise exercise",
+        "Ignore novelty effects on new UI — measure over at least 2 weeks"
+      ],
+      "evidence": "A/B testing is the gold standard for causal claims about UI changes. It is also the most abused — most tests in industry are underpowered, peeked at, or measuring the wrong thing. A disciplined program ships ~15–25% of tests as wins; an undisciplined program 'ships' far more, with most wins being artifact."
+    },
+    {
+      "name": "Task-based benchmarking",
+      "description": "Measuring task success rate, time on task, and error rate for a defined set of scenarios, across versions or against competitors. Provides objective, comparable numbers over time. Typical sample: 20–50 users per scenario.",
+      "do": [
+        "Define specific, realistic tasks with clear success criteria",
+        "Use unmoderated testing platforms (Maze, UserTesting, UserZoom) for scale",
+        "Capture completion rate, time, error count, and post-task ease score",
+        "Benchmark against competitors on the same tasks for calibration",
+        "Re-run periodically (quarterly) to track trend — not just point estimates"
+      ],
+      "dont": [
+        "Use moderated testing for benchmarking — too expensive for the sample size",
+        "Change the task between rounds — breaks comparability",
+        "Report only averages — include completion rate and variance",
+        "Use benchmarks alone — pair with qual to understand the 'why' behind changes"
+      ],
+      "evidence": "Benchmarking surfaces regression early (a redesign that seemed good dropped task success from 80% to 60%) and gives the team a scoreboard. Best paired with moderated qual to diagnose the 'why'."
+    },
+    {
+      "name": "Log and clickstream analysis",
+      "description": "Analysis of server-side logs or front-end clickstreams to reconstruct user sessions. Complementary to event analytics — captures behavior that wasn't instrumented. Useful for debugging weird drop-offs and finding unexpected paths.",
+      "do": [
+        "Use session replay tools (FullStory, Hotjar, LogRocket) to watch real user sessions on the funnel steps that lose people",
+        "Look for rage clicks, dead clicks, and u-turns as friction signals",
+        "Sample sessions rather than trying to watch all of them",
+        "Cross-reference with event analytics for triangulation"
+      ],
+      "dont": [
+        "Treat session replay as representative — you'll remember the weird ones disproportionately",
+        "Violate privacy — mask form inputs, redact PII",
+        "Skip quantitative aggregation — one user's weird session is not a pattern"
+      ],
+      "evidence": "Session replay complements analytics: where analytics says '30% drop off at step 3,' session replay shows you the three most common things they do before bouncing. Paired, they turn 'what happened' into 'why.'"
+    }
+  ],
+  "checklist": [
+    "Is the sample size calculated, not guessed?",
+    "Is the primary metric pre-registered (one, not many)?",
+    "Have you checked for bias in recruiting, wording, or assignment?",
+    "Is there a pre-committed analysis plan?",
+    "Will findings be paired with qualitative context?",
+    "Is there a clear decision tied to each possible outcome?",
+    "Are guardrail metrics monitored alongside the primary?",
+    "Is the data pipeline healthy (no silent failures)?"
+  ]
+}

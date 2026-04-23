@@ -1,0 +1,112 @@
+{
+  "id": "moments-of-truth",
+  "name": "Moments of Truth &amp; Recovery",
+  "category": "service-design",
+  "summary": "A handful of moments — good and bad — shape how a customer remembers the whole service. Identifying them, investing in them, and designing graceful recovery from the bad ones is where service design earns its ROI.",
+  "principles_referenced": ["moments-of-truth", "peak-end-rule", "service-as-experience-over-time", "offer-human-help-where-it-counts"],
+  "patterns": [
+    {
+      "name": "Identify the moments of truth",
+      "description": "Not every interaction is a moment of truth. Typically 3-7 moments disproportionately shape perception. Identifying them is the first step to designing them.",
+      "do": [
+        "Run journey research: ask users to describe the experience, note what they remember — those are the moments that stuck",
+        "Survey for emotional intensity — which moments produced strong positive or negative reaction",
+        "Look at support ticket data — moments that generate the most tickets often are moments of truth (the user cared enough to call)",
+        "Look at retention cliffs — the moments where users leave are usually preceded by a moment of truth",
+        "Typical candidates: first use, first success, first failure, first support interaction, upgrade moment, renewal moment, cancellation moment"
+      ],
+      "dont": [
+        "Assume every touchpoint is equally important — resources are scarce",
+        "Pick moments by internal priority rather than customer impact",
+        "Miss the quiet moments — a confirmation email can be a bigger moment than a landing page",
+        "Only look at in-product moments — many moments of truth are in emails, support, billing"
+      ],
+      "evidence": "Jan Carlzon's original 1980s work at SAS identified ~50,000 'moments of truth' per day across the airline — but his insight was that only a handful per customer actually mattered. Service leaders concentrate investment there."
+    },
+    {
+      "name": "Invest disproportionately at moments of truth",
+      "description": "Once identified, a moment of truth gets overinvested in copy, design, and operational reliability. The ROI justifies it — these moments compound into retention.",
+      "do": [
+        "Spend 5-10x more design/copy time on moment-of-truth moments than on routine ones",
+        "Set tighter SLAs at moments of truth (response time, reliability, human backup)",
+        "Measure satisfaction specifically at these moments — not just aggregate NPS",
+        "Rehearse moments of truth with internal teams — especially support and ops",
+        "Consider the moment-of-truth as a creative brief, not a template slot"
+      ],
+      "dont": [
+        "Apply uniform effort across all touchpoints — wastes the budget",
+        "Delegate moment-of-truth writing to the team that usually writes it ('it's just an email')",
+        "Measure only in aggregate — moment-specific satisfaction is the real signal"
+      ],
+      "evidence": "Apple's packaging, Disney's park arrival, Four Seasons' check-in, Basecamp's welcome email — each is well-known for disproportionate investment in a specific moment. The moment disappears from aggregate metrics but sets the tone for the full relationship."
+    },
+    {
+      "name": "Recovery as a moment of truth",
+      "description": "A failure — payment declined, delay, outage, mistake — is itself a moment of truth. A graceful recovery can produce a positive peak that overrides the original failure and strengthens the relationship.",
+      "do": [
+        "Name the recovery experience explicitly in your service design — what happens when X fails?",
+        "Acknowledge the failure honestly — 'we got this wrong' not 'an error occurred'",
+        "Offer concrete resolution with a timeline — 'we'll refund within 2 business days'",
+        "Exceed expectations where the cost is small — a small credit, a handwritten note, a faster-than-promised resolution",
+        "Close the loop: follow up to confirm resolution worked",
+        "Use the incident as a system-level learning — feed back into product/ops"
+      ],
+      "dont": [
+        "Handwave failures with 'technical difficulties'",
+        "Hide behind passive voice ('mistakes were made')",
+        "Make the customer drive the resolution — proactive over reactive",
+        "Over-apologize verbally while under-delivering on the fix",
+        "Forget the follow-up — close-the-loop is where trust is rebuilt"
+      ],
+      "evidence": "Service recovery paradox: customers whose failures were well-resolved often show higher loyalty than customers who never experienced a failure. The condition is that the recovery was genuine and the customer saw it as the service's choice to make things right."
+    },
+    {
+      "name": "The peak-end rule in practice",
+      "description": "Kahneman's finding: people remember experiences by their emotional peak and their ending. Design services with an intentional peak and a strong ending — not a long, uniform middle.",
+      "do": [
+        "Place a designed moment of delight near the end of the flow — not the middle (end-weighted memory)",
+        "Design the end of every flow deliberately: signup, purchase, onboarding, cancellation, unsubscribe",
+        "Celebrate completion — not with confetti theater, but with honest acknowledgment of the milestone",
+        "Make off-boarding graceful — users who leave well return later and refer others",
+        "Avoid 'dark patterns' at endings — they're remembered the longest"
+      ],
+      "dont": [
+        "Front-load all the value — users remember the end",
+        "End flows with generic 'success' toasts — missed peak",
+        "Make cancellation/unsubscribe hard — the damage far exceeds the retention saved",
+        "Drop the user into an empty dashboard after signup — weakest possible end"
+      ],
+      "evidence": "Peak-end rule (Kahneman et al., 1993) is one of the best-replicated findings in behavioral economics. Services that deliberately design the end moment consistently outperform those that don't on loyalty metrics."
+    },
+    {
+      "name": "The cancellation moment",
+      "description": "Most teams treat cancellation as a failure to prevent. Service designers treat it as a moment of truth — the last thing the user remembers, and the thing they'll tell others about.",
+      "do": [
+        "Make cancellation as easy to find as signup was — one link, clearly labeled",
+        "Allow cancellation fully self-service — no forced phone call",
+        "Ask one lightweight question about why, but accept 'other' and move on",
+        "Confirm the effective date clearly — 'you'll have access until X; no further charges'",
+        "Offer a graceful re-entry path: 'we'll keep your data for 90 days if you change your mind'",
+        "Say thank you honestly — they gave you time and money",
+        "Follow up once with a short survey (optional, one question) to learn — not to retain"
+      ],
+      "dont": [
+        "Route cancellation through a 'retention specialist' phone call",
+        "Require a multi-step flow with friction designed to frustrate",
+        "Delete user data immediately — offer a grace period with clear timeline",
+        "Make re-subscribe require starting from scratch",
+        "Treat the cancellation moment as the company's last chance to sell — the damage from aggressive retention exceeds the value saved"
+      ],
+      "evidence": "Companies with graceful cancellation (Basecamp's famous 'Adios' screen, Netflix's one-click cancel) see higher re-subscription rates and more positive word-of-mouth than companies with friction-based retention. The cancellation moment is one of the highest-leverage moments in the entire service."
+    }
+  ],
+  "checklist": [
+    "Have you identified 3–7 moments of truth for your primary customer journey?",
+    "Is investment concentrated at those moments — not spread uniformly?",
+    "Is there a designed recovery experience for each common failure?",
+    "Does each flow have a deliberate ending — not a fallback success toast?",
+    "Is cancellation as easy to find as signup?",
+    "Are moment-level satisfaction scores being measured, not just aggregate?",
+    "Are recovery moments producing higher loyalty than pre-failure — the service recovery paradox?"
+  ]
+}

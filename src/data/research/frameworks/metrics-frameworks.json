@@ -1,0 +1,229 @@
+{
+  "id": "metrics-frameworks",
+  "name": "Product Metrics Frameworks",
+  "category": "research-frameworks",
+  "summary": "Canonical frameworks for measuring product success. Each framework scopes which metrics to track and how to organize them around a decision. Using the right framework matters more than perfect instrumentation of the wrong one.",
+  "principles_referenced": ["start-with-the-decision", "match-method-to-question", "tie-findings-to-action"],
+  "frameworks": [
+    {
+      "id": "heart",
+      "name": "HEART (Google)",
+      "summary": "Five-category framework from Google's UX research team: Happiness, Engagement, Adoption, Retention, Task success. For each, pick a Goal → Signal → Metric. Forces breadth; avoids metric monoculture.",
+      "categories": {
+        "happiness": {
+          "what": "Attitudinal — how users feel about the product",
+          "signals": "Satisfaction survey score, NPS, CSAT, App Store rating, written feedback sentiment",
+          "metrics": "Median satisfaction score, % of 5-star reviews, NPS over time"
+        },
+        "engagement": {
+          "what": "Depth of interaction per user per time window",
+          "signals": "Sessions per user per week, actions per session, content views, time on core surfaces",
+          "metrics": "Weekly active users (WAU) × median session count; share of users who hit core action ≥ N times / week"
+        },
+        "adoption": {
+          "what": "Share of users who adopt a new feature or capability",
+          "signals": "New user signup rate, feature discovery rate, trial-to-paid conversion",
+          "metrics": "% of eligible users who used feature X within 30 days of launch"
+        },
+        "retention": {
+          "what": "Users who return over time",
+          "signals": "Week-N retention, churn rate, reactivation rate",
+          "metrics": "Retention curves by cohort (D1/D7/D30 retention); churn rate for paying users"
+        },
+        "task-success": {
+          "what": "Can users complete their critical tasks effectively?",
+          "signals": "Task completion rate, time on task, error rate, support tickets for task confusion",
+          "metrics": "% of attempts to complete task X that succeed; median time on task; errors per 100 attempts"
+        }
+      },
+      "when_to_use": [
+        "You need a balanced scorecard across attitudinal + behavioral + task-level metrics",
+        "The team is overindexed on engagement and needs to also watch satisfaction or task success",
+        "You're setting up UX measurement from scratch and want a complete starting template"
+      ],
+      "pitfalls": [
+        "Filling all 5 categories with metrics you can instrument, not ones that matter — forces bloat",
+        "Confusing Engagement with success — users can be highly engaged with a broken flow",
+        "Ignoring the Happiness dimension because it's 'soft' — leading indicator of churn",
+        "Stopping at metric definition; skipping the goal-signal-metric chain Google intended"
+      ],
+      "example": "For a calendar app: Happiness = in-app thumbs up/down, target 80% positive. Engagement = events-created per WAU, target 3+/week. Adoption = % of new users who create event in first session, target 70%. Retention = D28 retention, target 50%. Task Success = % of event creations completed without error, target 95%.",
+      "source": "https://www.thinkwithgoogle.com/marketing-strategies/app-and-mobile/how-to-choose-the-right-ux-metrics-for-your-product/"
+    },
+    {
+      "id": "aarrr",
+      "name": "AARRR / Pirate Metrics (Dave McClure)",
+      "summary": "Funnel-shaped framework from Dave McClure for growth-stage products: Acquisition, Activation, Retention, Revenue, Referral. Simpler than HEART; tailored to product-led growth.",
+      "categories": {
+        "acquisition": {
+          "what": "How users first arrive",
+          "signals": "Channel-level visits, signup rate, landing-page conversion",
+          "metrics": "CAC by channel, visitor-to-signup conversion rate"
+        },
+        "activation": {
+          "what": "Do new users reach the 'aha' moment?",
+          "signals": "First successful core action, time-to-value, setup completion",
+          "metrics": "% of new signups who complete activation event (must be defined explicitly)"
+        },
+        "retention": {
+          "what": "Do they keep coming back?",
+          "signals": "Return rate, feature re-use, cohort retention curves",
+          "metrics": "D7 / D30 / W12 retention; churn rate"
+        },
+        "revenue": {
+          "what": "Do they pay?",
+          "signals": "Free-to-paid conversion, expansion, contraction",
+          "metrics": "ARPU, MRR, net revenue retention"
+        },
+        "referral": {
+          "what": "Do they invite others?",
+          "signals": "Invite sent, invite accepted, viral K-factor",
+          "metrics": "K-factor (invites sent × acceptance rate); viral cycle time"
+        }
+      },
+      "when_to_use": [
+        "Early-stage or growth-stage PLG product",
+        "You need a funnel view from acquisition through revenue",
+        "The business case depends on viral/referral mechanics"
+      ],
+      "pitfalls": [
+        "Focusing on Acquisition before Retention — leaking bucket problem",
+        "Ill-defined Activation event — usually vague, needs a crisp 'aha' milestone",
+        "Ignoring Referral when there's no genuine viral loop — fake metric"
+      ],
+      "example": "For a note-taking app: Acquisition = landing visits → signups; Activation = created ≥3 notes in first session; Retention = W1 active; Revenue = upgraded to paid within 30 days; Referral = invited ≥1 collaborator in first 60 days.",
+      "source": "https://500hats.typepad.com/500blogs/2007/09/startup-metrics.html"
+    },
+    {
+      "id": "north-star-metric",
+      "name": "North Star Metric",
+      "summary": "Single primary metric that captures the core value a product delivers to its users. Forcing function for alignment; best paired with a small set of supporting input metrics.",
+      "definition": {
+        "criteria": [
+          "Measures actual value delivered to users — not just revenue or pageviews",
+          "Leading indicator of long-term business success",
+          "Actionable — teams can directly influence it through their work",
+          "Understandable — a single sentence tells the whole company what to optimize",
+          "Measurable in a timeframe that allows iteration (daily/weekly, not quarterly)"
+        ],
+        "examples": [
+          "Airbnb: Nights booked",
+          "Spotify: Time spent listening",
+          "Netflix: Hours streamed per user per week",
+          "Slack: Daily active users who have sent ≥2,000 messages",
+          "Facebook: Daily active users",
+          "WhatsApp: Messages sent",
+          "Uber: Weekly completed rides",
+          "Amplitude: Weekly learning queries per user"
+        ]
+      },
+      "input_metrics": {
+        "what": "The leading indicators that move the North Star",
+        "examples": [
+          "For Airbnb's 'nights booked': search-to-booking conversion rate, listing supply, host response rate, trust signals",
+          "For Spotify's 'time listening': sessions per user, skip rate, personalized playlist engagement",
+          "For Slack's 'DAU who sent 2k messages': team size at signup, channels created, integrations installed"
+        ]
+      },
+      "when_to_use": [
+        "The team needs alignment on one primary growth metric across product/design/eng/marketing",
+        "Revenue is a lagging indicator; you need a leading proxy for long-term value",
+        "The company is overindexed on vanity metrics (downloads, signups) that don't predict success"
+      ],
+      "pitfalls": [
+        "Choosing a metric that's really revenue in disguise — loses the 'value to user' framing",
+        "Single metric gaming — always pair with guardrail metrics (quality, satisfaction, retention)",
+        "Never revisiting — the right metric at Series A is usually wrong at Series C",
+        "Treating it as the only metric — it's the primary, not the only"
+      ],
+      "source": "https://amplitude.com/blog/north-star-metric"
+    },
+    {
+      "id": "conversion-funnel",
+      "name": "Conversion Funnel",
+      "summary": "Sequential model of user progression from entry to a valued outcome, with drop-off measured at each step. The foundation of most growth and onboarding work.",
+      "structure": [
+        "Define the endpoints: entry event (e.g., landing page visit) and success event (e.g., paid subscription)",
+        "List the sequential steps between them",
+        "Measure conversion rate at each step",
+        "Multiply step rates for overall funnel conversion",
+        "Identify the step(s) with the largest drop-off (in absolute users, not just percent)"
+      ],
+      "how_to_use": [
+        "Start with the largest absolute loss — fixing a 50→30 drop matters more than a 10→7",
+        "Run qualitative research on the worst step to understand why",
+        "A/B test fixes against the worst step",
+        "Re-measure after each fix; declare win only with statistical significance",
+        "Watch for 'conservation of drop-off' — sometimes fixing one step just shifts friction to the next"
+      ],
+      "when_to_use": [
+        "Any sequential flow: signup, onboarding, checkout, upgrade, content consumption",
+        "You need to identify where users leak before intervening",
+        "Comparing variant flows (old signup vs. new signup) end-to-end"
+      ],
+      "pitfalls": [
+        "Funnel includes steps users don't actually traverse — breaks the comparison",
+        "Confusing funnel drop-off with churn — funnel is within a single sequence, churn is across time",
+        "Optimizing one step without watching the next — novelty effect or selection effect can fool you",
+        "Measuring funnel conversion on signed-in users when the loss is pre-signup"
+      ],
+      "source": "https://www.nngroup.com/articles/funnel-analysis/"
+    },
+    {
+      "id": "rice-scoring",
+      "name": "RICE Scoring (Intercom)",
+      "summary": "Prioritization framework: Reach × Impact × Confidence ÷ Effort. Produces a single score per candidate, enabling ranked debate on relative priority.",
+      "formula": "Score = (Reach × Impact × Confidence) / Effort",
+      "variables": {
+        "reach": "How many users this affects per time period (e.g., users per quarter)",
+        "impact": "How much it moves the needle for those users. Use 0.25 / 0.5 / 1 / 2 / 3 scale (minimal / low / medium / high / massive)",
+        "confidence": "How confident are we in the estimates? 50% / 80% / 100%",
+        "effort": "Person-months to ship"
+      },
+      "when_to_use": [
+        "Prioritizing across candidate features or initiatives with comparable metrics",
+        "Making tradeoffs explicit in roadmap debates",
+        "Structuring disagreements — 'we disagree on impact, let's talk'"
+      ],
+      "pitfalls": [
+        "False precision — scores are directional, not exact",
+        "Reach, impact, and confidence are each estimates; compounding them hides uncertainty",
+        "Ignoring strategic bets that score low because reach is small today — some things need qualitative override",
+        "Using RICE as the only input — it's a tool for prioritization debates, not a substitute for them"
+      ],
+      "source": "https://www.intercom.com/blog/rice-simple-prioritization-for-product-managers/"
+    },
+    {
+      "id": "okrs",
+      "name": "OKRs (Objectives and Key Results)",
+      "summary": "Goal-setting framework popularized by Intel and Google. Objectives are qualitative ambitions; Key Results are quantitative measures of progress. Pair with metrics frameworks — OKRs set direction; metrics track delivery.",
+      "structure": {
+        "objective": "A short, aspirational qualitative statement. 'Make new-user activation a standout moment.'",
+        "key_results": "3–5 measurable outcomes. 'Raise 7-day activation rate from 35% to 50%. Reduce time-to-first-value from 8 min to under 3. Double the rate of new users who share the product.'"
+      },
+      "best_practices": [
+        "Objectives should be ambitious — 60–70% achievement is healthy, 100% means targets were too safe",
+        "Key Results must be measurable — vague KRs undermine the system",
+        "Cascade but don't waterfall — team OKRs should reference company OKRs without being strict subsets",
+        "Review quarterly; don't churn objectives mid-quarter without real reason",
+        "Decouple OKRs from performance reviews — otherwise KRs get sandbagged"
+      ],
+      "pitfalls": [
+        "Every metric is a KR — destroys focus",
+        "Sandbagging KRs to guarantee green — defeats the ambition",
+        "Treating KRs as contracts — they're targets, not SLAs",
+        "Ignoring OKR progress mid-quarter — no learning loop"
+      ],
+      "source": "https://www.whatmatters.com/"
+    }
+  ],
+  "checklist": [
+    "Have you picked a framework whose structure matches your business stage?",
+    "Does each metric tie to a decision someone on the team can make?",
+    "Are you pairing lagging metrics (revenue, retention) with leading indicators?",
+    "Do you have guardrail metrics alongside primary ones?",
+    "Is the metric definition precise enough that two people would compute the same number?",
+    "Are you reviewing metrics on a cadence that supports action (weekly/monthly)?",
+    "Are you triangulating behavioral metrics with attitudinal signals (surveys, interviews)?"
+  ]
+}

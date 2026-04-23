@@ -1,0 +1,89 @@
+{
+  "id": "service-blueprinting",
+  "name": "Service Blueprinting",
+  "category": "service-design",
+  "summary": "A service blueprint visualizes the full service across time — user actions, frontstage interactions, the line of visibility, backstage operations, and supporting processes. The canonical artifact of service design.",
+  "principles_referenced": ["frontstage-backstage", "service-as-experience-over-time", "sequential", "holistic"],
+  "patterns": [
+    {
+      "name": "Core blueprint structure",
+      "description": "Classic five-row structure originated by Lynn Shostack (1984) and refined by Mary Jo Bitner and others. Read left-to-right as time; top-to-bottom as the depth of the service from the user's view.",
+      "do": [
+        "Row 1: Physical evidence — artifacts the user sees and touches at each step (emails, receipts, pages, printouts)",
+        "Row 2: User actions — what the user is doing in this step",
+        "Row 3: Frontstage actions — employee/system actions visible to the user (agent greeting, UI response, chat reply)",
+        "Line of visibility — explicit dividing line",
+        "Row 4: Backstage actions — employee/system actions NOT visible (CRM update, fraud check, inventory reserve)",
+        "Row 5: Support processes — third-party, infrastructure, or internal systems enabling backstage",
+        "Time moves left to right, step-by-step"
+      ],
+      "dont": [
+        "Skip the line of visibility — it's the single most valuable signal in the blueprint",
+        "Start blueprinting before you've done the upstream journey research — you'll document assumptions, not reality",
+        "Over-detail routine backstage steps and skip the critical moments — focus where it matters",
+        "Blueprint only the happy path — the unhappy-path blueprint is where the service actually lives"
+      ],
+      "evidence": "Service blueprinting (Shostack 1984) remains the foundational service-design artifact. A blueprint produced collaboratively with operations and support teams is also an alignment tool — it makes implicit dependencies explicit."
+    },
+    {
+      "name": "When to produce a blueprint",
+      "description": "Blueprints are expensive to produce. Reserve them for moments where the cross-functional cost of misalignment is high.",
+      "do": [
+        "Before launching a new service or major flow (new onboarding, new pricing tier, new channel)",
+        "When debugging a failing service where no single team knows the full picture",
+        "When handing off a service from one team to another (e.g., sales → CS)",
+        "Before a significant redesign that touches operations and UI together",
+        "As a living document for a service critical enough to warrant ongoing maintenance"
+      ],
+      "dont": [
+        "Blueprint every flow — most flows don't cross enough teams to need one",
+        "Produce the blueprint as a one-time artifact that goes into a drawer — either keep it alive or don't make it",
+        "Confuse a journey map (user-side only) with a blueprint (includes backstage)"
+      ],
+      "evidence": "In teams that blueprint the critical services, cross-functional defects drop. In teams that blueprint everything, blueprint quality degrades and the artifact loses authority."
+    },
+    {
+      "name": "Current state vs. ideal state",
+      "description": "The most powerful blueprinting workshop produces two blueprints side-by-side: the current experience, warts and all, and the target future experience. The gap is the roadmap.",
+      "do": [
+        "Build the current-state blueprint from observed reality — user research, support tickets, time-in-motion studies",
+        "Show pain points explicitly — red flags, emojis, short callouts at the problematic step",
+        "Build the ideal-state blueprint collaboratively — across product, design, ops, support",
+        "List the changes needed to get from current to ideal: process, system, role, tool, policy",
+        "Prioritize changes by impact × effort (RICE-style) — the ideal can't ship all at once"
+      ],
+      "dont": [
+        "Build the ideal first — you'll design for a system that doesn't exist",
+        "Let the ideal become aspirational fiction — anchor to what's actually achievable",
+        "Skip the pain point markers on the current state — they justify the ideal"
+      ],
+      "evidence": "The current/ideal comparison is the single most persuasive artifact for stakeholders deciding whether to invest in service improvements. Abstract descriptions of 'improving the service' don't move budgets; a visible gap does."
+    },
+    {
+      "name": "Unhappy-path blueprinting",
+      "description": "Most service failures happen off the happy path. Blueprinting explicit failure scenarios — payment declined, SKU out of stock, agent unavailable — reveals recovery designs (or their absence).",
+      "do": [
+        "For each critical happy path, pick 2–3 common failure modes and blueprint each",
+        "Design the recovery experience at the same level of polish as the happy path — it's a moment of truth",
+        "Identify the backstage systems and people needed for graceful recovery",
+        "Use the blueprint to drive SLA conversations: 'what does the recovery promise look like, and who owns it?'"
+      ],
+      "dont": [
+        "Handwave failure modes as 'show an error' — the recovery is where the service is actually judged",
+        "Blueprint only the happy path and expect the unhappy path to take care of itself",
+        "Design recovery only for technical failures — human errors (wrong card, wrong address) need recovery too"
+      ],
+      "evidence": "Services that deliberately design their recovery experiences (Amazon returns, Apple genius-bar repair, AirBnB dispute resolution) earn loyalty disproportionately at those moments. The peak-end rule applies: a graceful recovery can produce a positive peak that overrides the original failure."
+    }
+  ],
+  "checklist": [
+    "Does the blueprint show all 5 rows (physical evidence, user actions, frontstage, backstage, support processes)?",
+    "Is the line of visibility drawn and labeled?",
+    "Is time on the x-axis, with discrete columns per step?",
+    "Does the unhappy path appear somewhere — or are we only blueprinting the happy path?",
+    "Were operations and support involved in producing the blueprint — or is it a product-team artifact?",
+    "For current-state, do pain points show with callouts?",
+    "For ideal-state, are the required changes named (process, system, role, policy)?",
+    "Is this a living document, or a one-off? If living, who owns it and when is it reviewed?"
+  ]
+}
