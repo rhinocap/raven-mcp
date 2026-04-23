@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "raven-mcp",
   "display_name": "Raven",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Design intelligence for Claude — principles, UI patterns, content systems, research methods, service design, brand, business strategy, and production design tokens.",
   "long_description": "Raven gives Claude a design knowledge base it can query while generating UI. Eight layers: principles (Nielsen, Laws of UX, Gestalt, WCAG, typography, color, mobile UX, D4D, UX writing, service design, brand), patterns (signup, pricing, nav, forms, landing, dashboard, modals, empty/error/loading states, CTAs, social proof, mobile conversion, plus content patterns and service patterns), content design systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian, Intuit voice & tone), research methods (qualitative, quantitative, usability) and metrics frameworks (HEART, AARRR, North Star, conversion funnel, RICE, OKRs), service design (service blueprinting with HTML blueprint generation, human handoff, signup-as-service, omnichannel continuity, moments of truth / recovery, GOV.UK service standard), brand & visual design (logo usage, gradient usage, imagery, visual hierarchy, brand-as-system, current trends), business strategy, and production design tokens (Stripe, Linear, and more). Claude calls Raven's tools automatically when you ask it to build, evaluate, or improve UI, design research, or design a service.",
   "author": {
