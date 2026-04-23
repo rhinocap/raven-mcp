@@ -661,9 +661,9 @@ function renderBlueprintSection(bp: BlueprintInput): string {
       '<div class="line-of-interaction">Line of interaction</div>' +
       '<div class="swim-lane lane-b">' +
       '<div class="lane-label lane-label-b">' + avatarB + '<span>' + escapeHtml(labelB) + '</span></div>' +
-      actorBRow("Frontstage (sees)", "row-frontstage-b", "frontstage") +
-      actorBRow("Actions", "row-user-b", "action") +
-      actorBRow("Physical evidence", "row-evidence-b", "evidence") +
+      actorBRow("Frontstage (sees)", "row-frontstage", "frontstage") +
+      actorBRow("Actions", "row-user", "action") +
+      actorBRow("Physical evidence", "row-evidence", "evidence") +
       '</div>' +
       '<div class="line-of-visibility">Line of visibility</div>' +
       row("Backstage", "row-backstage", "backstage") +
@@ -730,9 +730,6 @@ function generateServiceBlueprintHtml(current: BlueprintInput, ideal: BlueprintI
     '.row-evidence{background:rgba(179,136,255,0.08);color:var(--accent-purple);border:1px solid rgba(179,136,255,0.18)}' +
     '.row-user{background:rgba(0,191,255,0.08);color:var(--accent-blue);border:1px solid rgba(0,191,255,0.18)}' +
     '.row-frontstage{background:rgba(0,230,118,0.08);color:var(--accent-green);border:1px solid rgba(0,230,118,0.18)}' +
-    '.row-frontstage-b{background:rgba(255,171,64,0.08);color:var(--accent-orange);border:1px solid rgba(255,171,64,0.22)}' +
-    '.row-user-b{background:rgba(255,171,64,0.12);color:var(--accent-orange);border:1px solid rgba(255,171,64,0.28)}' +
-    '.row-evidence-b{background:rgba(255,171,64,0.06);color:var(--accent-orange);border:1px solid rgba(255,171,64,0.18)}' +
     '.row-backstage{background:rgba(255,171,64,0.08);color:var(--accent-orange);border:1px solid rgba(255,171,64,0.18)}' +
     '.row-support{background:rgba(255,64,129,0.06);color:var(--accent-pink);border:1px solid rgba(255,64,129,0.14)}' +
     '.row-pain{background:rgba(255,255,255,0.04);color:var(--text-secondary);border:1px solid var(--border)}' +
