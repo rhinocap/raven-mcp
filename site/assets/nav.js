@@ -156,8 +156,8 @@
     <nav>\
       <div class="nav-inner">\
         <a href="/" class="nav-brand">\
-          <img src="/assets/raven-logo.png" alt="Raven">\
-          <span>Raven</span>\
+          <img src="/assets/raven-logo.png" alt="RavenMCP">\
+          <span>RavenMCP</span>\
         </a>\
         <div class="nav-actions">\
           <div class="nav-page-links">' + buildLinks(PAGE_LINKS, false).replace(/<\/?li>/g, '') + '</div>\

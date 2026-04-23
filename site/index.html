@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Raven MCP — Design Intelligence for AI</title>
-  <meta name="description" content="Odin's ravens brought back knowledge of the world. Raven brings back design intelligence. A design knowledge MCP server for Claude.">
+  <title>RavenMCP — Design Intelligence for AI</title>
+  <meta name="description" content="Odin's ravens brought back knowledge of the world. RavenMCP brings back design intelligence. A design knowledge MCP server for Claude.">
 
   <!-- Favicon & Icons -->
   <link rel="icon" href="/favicon.ico" sizes="32x32">
@@ -12,18 +12,18 @@
 
   <!-- Open Graph -->
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Raven MCP — Design Intelligence for AI">
+  <meta property="og:title" content="RavenMCP — Design Intelligence for AI">
   <meta property="og:description" content="73 design principles, 13 UI patterns, 13 tools, real design system tokens. One install gives your AI assistant expert-level design knowledge.">
   <meta property="og:image" content="https://ravenmcp.ai/assets/og-image.jpg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:image:type" content="image/jpeg">
   <meta property="og:url" content="https://ravenmcp.ai">
-  <meta property="og:site_name" content="Raven MCP">
+  <meta property="og:site_name" content="RavenMCP">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Raven MCP — Design Intelligence for AI">
+  <meta name="twitter:title" content="RavenMCP — Design Intelligence for AI">
   <meta name="twitter:description" content="73 design principles, 13 UI patterns, 13 tools. One install gives your AI assistant expert-level design knowledge.">
   <meta name="twitter:image" content="https://ravenmcp.ai/assets/og-image.jpg">
 
@@ -1578,12 +1578,16 @@
         Open-source MCP Server
       </div>
       <h1 class="reveal reveal-delay-1">Design intelligence<br>for <span class="gradient">every prompt</span></h1>
-      <p class="subtitle reveal reveal-delay-2">Raven gives AI the design knowledge that used to live only in senior designers' heads. Accessibility, principles, patterns, tokens, and strategy&mdash;thirteen tools, three knowledge layers.</p>
+      <p class="subtitle reveal reveal-delay-2">RavenMCP gives AI the design knowledge that used to live only in senior designers' heads. Accessibility, principles, patterns, tokens, and strategy&mdash;thirteen tools, three knowledge layers.</p>
       <div class="hero-cta reveal reveal-delay-3">
         <a href="/docs.html" class="btn btn-primary">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"/></svg>
-          Install Raven
+          Install RavenMCP
         </a>
+        <button class="cta-install" onclick="navigator.clipboard.writeText('claude mcp add raven -- npx -y raven-mcp').then(()=>{this.querySelector('.copy-label').textContent='Copied!'})">
+          <span class="copy-label">claude mcp add raven -- npx -y raven-mcp</span>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M2 10V3a1 1 0 011-1h7"/></svg>
+        </button>
         <a href="#tools" class="btn btn-secondary">Explore Tools</a>
       </div>
 
