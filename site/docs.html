@@ -499,7 +499,7 @@ cd raven-mcp && npm install && npm run build</code></pre>
 
     <!-- ── Tool Reference ── -->
     <h2 id="tools" class="reveal">Tool Reference</h2>
-    <p>Raven provides 13 tools across 4 knowledge layers. Claude calls them automatically based on what you're asking for.</p>
+    <p>Raven provides 27 tools across 8 knowledge layers. Claude calls them automatically based on what you're asking for. Below, the original 13 tools have full docs; the 14 newer tools from v1.2 and v1.3 are listed with summary descriptions.</p>
 
     <h3>Principles Layer</h3>
 
@@ -701,6 +701,128 @@ cd raven-mcp && npm install && npm run build</code></pre>
 "Export my design system as Figma Variables"</code></pre>
     </div>
 
+    <h3>Content Design Layer <span style="color:var(--accent-blue);font-size:13px;letter-spacing:0.08em;font-weight:600;">v1.2</span></h3>
+
+    <div class="tool-card reveal">
+      <h3>list_content_systems</h3>
+      <p class="tool-desc">Browse the registry of brand voice &amp; tone systems. Five live: Mailchimp, GOV.UK, Shopify Polaris, Atlassian, Intuit. Filter by category or tag.</p>
+      <pre><code>"Which brand voice guides does Raven know about?"</code></pre>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>get_content_system</h3>
+      <p class="tool-desc">Full voice &amp; tone system for one brand — attributes, tone shifts by context (onboarding/errors/billing/success), vocabulary (use/avoid/never), grammar rules, content patterns, inclusive language.</p>
+      <dl class="params">
+        <dt>id <span class="required">required</span></dt>
+        <dd>"mailchimp" | "gov-uk" | "shopify-polaris" | "atlassian" | "intuit"</dd>
+        <dt>section <span class="optional">optional</span></dt>
+        <dd>"all" (default) | "voice" | "tone_shifts" | "vocabulary" | "grammar" | "content-patterns" | "inclusive-language"</dd>
+      </dl>
+      <pre><code>"Write this error message in Mailchimp's voice"
+"Use GOV.UK plain-language guidelines for these forms"</code></pre>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>get_content_principles</h3>
+      <p class="tool-desc">11 UX-writing principles: clarity over cleverness, front-load meaning, active voice, be specific, acknowledge the user, match words to mental model, consistent terminology, error-message anatomy, scannable structure, inclusive language, voice vs tone.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>get_content_pattern</h3>
+      <p class="tool-desc">Copy recipes — full do/don't with examples and evidence — for error messages, empty-state copy, notifications, form validation.</p>
+      <dl class="params">
+        <dt>type <span class="required">required</span></dt>
+        <dd>"error-messages" | "empty-state-copy" | "notifications" | "form-validation"</dd>
+      </dl>
+    </div>
+
+    <h3>Research &amp; Data Layer <span style="color:var(--accent-blue);font-size:13px;letter-spacing:0.08em;font-weight:600;">v1.3</span></h3>
+
+    <div class="tool-card reveal">
+      <h3>get_research_method</h3>
+      <p class="tool-desc">Qualitative (interviews, contextual inquiry, diary, field, intercepts), quantitative (surveys, analytics, A/B tests, benchmarking, clickstream), or usability (moderated, unmoderated, 5-sec, card sort, tree test, heuristic eval). Each with protocols, do/don'ts, evidence, and checklists.</p>
+      <dl class="params">
+        <dt>category <span class="optional">optional</span></dt>
+        <dd>"qualitative" | "quantitative" | "usability" | "all" (default)</dd>
+      </dl>
+      <pre><code>"Design a usability study for my mobile onboarding"
+"How do I run a proper A/B test on this pricing change?"</code></pre>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>get_metrics_framework</h3>
+      <p class="tool-desc">Six canonical frameworks: HEART (Google), AARRR / Pirate Metrics (McClure), North Star Metric, Conversion Funnel, RICE Scoring (Intercom), OKRs. Each with structure, when-to-use, pitfalls, and examples.</p>
+      <dl class="params">
+        <dt>id <span class="optional">optional</span></dt>
+        <dd>"heart" | "aarrr" | "north-star-metric" | "conversion-funnel" | "rice-scoring" | "okrs". Omit to list all.</dd>
+      </dl>
+      <pre><code>"What metrics should we track for this app?"
+"Build me a HEART framework for our onboarding"</code></pre>
+    </div>
+
+    <h3>Service Design Layer <span style="color:var(--accent-blue);font-size:13px;letter-spacing:0.08em;font-weight:600;">v1.3</span></h3>
+
+    <div class="tool-card reveal">
+      <h3>get_service_pattern</h3>
+      <p class="tool-desc">Service blueprinting, human handoff, signup-as-service, omnichannel continuity, moments of truth / recovery. Each with do/don'ts, evidence, and a checklist.</p>
+      <dl class="params">
+        <dt>type <span class="required">required</span></dt>
+        <dd>"service-blueprinting" | "human-handoff" | "signup-as-service" | "omnichannel-continuity" | "moments-of-truth"</dd>
+      </dl>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>get_service_standard</h3>
+      <p class="tool-desc">The GOV.UK Service Standard — 14 points the UK government uses to assess whether a public service is ready to launch. Widely applicable as a rigorous service-quality checklist beyond government.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>generate_service_blueprint</h3>
+      <p class="tool-desc">Render a Shostack/Stickdorn-style service blueprint as a self-contained HTML page. Two modes: classic single-actor, or <strong>two-actor HI-loop</strong> (customer&#x2194;lawyer, patient&#x2194;doctor, buyer&#x2194;agent) with swim lanes + line of interaction. Pass <code>ideal</code> for a current-vs-ideal side-by-side.</p>
+      <dl class="params">
+        <dt>service_name <span class="required">required</span></dt>
+        <dd>Name of the service</dd>
+        <dt>current <span class="required">required</span></dt>
+        <dd>Array of steps with fields: label, user_action, frontstage, backstage, support, evidence, pain_point, delight, actor_b (for two-actor mode)</dd>
+        <dt>actors <span class="optional">optional</span></dt>
+        <dd><code>{ a: {label}, b: {label} }</code> — switches on the two-actor / HI-loop layout</dd>
+        <dt>ideal <span class="optional">optional</span></dt>
+        <dd>Ideal-state steps rendered side-by-side with current</dd>
+      </dl>
+      <pre><code>"Map the client intake for a personal-injury firm — customer and
+ lawyer as two actors. Show current state and ideal state."</code></pre>
+    </div>
+
+    <h3>Brand &amp; Visual Layer <span style="color:var(--accent-blue);font-size:13px;letter-spacing:0.08em;font-weight:600;">v1.3</span></h3>
+
+    <div class="tool-card reveal">
+      <h3>get_brand_principles</h3>
+      <p class="tool-desc">Logo usage (clear space, min sizes, variants, placement, restraint), gradient usage (hierarchy, palette, contrast, trend vs signature), imagery (consistency, representation, purpose), visual hierarchy, and brand-as-system thinking.</p>
+      <dl class="params">
+        <dt>topic <span class="optional">optional</span></dt>
+        <dd>"logo" | "gradient" | "imagery" | "hierarchy" | "system" — or a free-form search term</dd>
+      </dl>
+      <pre><code>"Audit this brand system for logo-usage consistency"
+"What are the rules for gradient overuse?"</code></pre>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>get_brand_trends</h3>
+      <p class="tool-desc">Current 2026 brand &amp; visual-design trends with when-it-works / when-it-fails guidance — bento grids, monospace for tone, neon-on-dark-glass, generative patterns, brutalism rebound, AI-generated imagery, aggressive lowercase. Time-stamped (retire-before 2027-04) so it doesn't rot silently.</p>
+    </div>
+
+    <h3>Reflection &amp; Registration</h3>
+
+    <div class="tool-card reveal">
+      <h3>raven_reflect</h3>
+      <p class="tool-desc">Summarize your local Raven usage log over the last N days — tool counts, recurring audit warnings (likely knowledge gaps), patterns requested most, design systems reached for. Reads only <code>~/.raven/usage.jsonl</code> locally. Never fetches.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>raven_register</h3>
+      <p class="tool-desc">Register an email to receive release updates from the Raven team. One email per minor/major release — patches stay silent.</p>
+    </div>
+
     <!-- ── Examples ── -->
     <h2 id="examples" class="reveal">Examples</h2>
     <p>You don't need to call tools directly. Just talk to Claude naturally and Raven fires automatically.</p>
@@ -732,25 +854,21 @@ cd raven-mcp && npm install && npm run build</code></pre>
 
     <h3>Search across everything</h3>
     <pre><code>"What does Raven know about color contrast?"</code></pre>
-    <p>Searches all 73 principles, 13 patterns, and 5 business strategy domains for relevant guidance.</p>
+    <p>Searches all 129 principles, 22 patterns, 5 business strategy domains, content voice systems, research methods, service patterns, and brand principles for relevant guidance.</p>
 
     <!-- ── Data Structure ── -->
     <h2 id="data" class="reveal">Data Structure</h2>
     <p>All knowledge lives in <code>src/data/</code> as static JSON files. No database, no API calls, no latency.</p>
 
     <pre><code>src/data/
-  principles/          # 73 principles across 10 files
-    nielsen-heuristics.json   # 10 usability heuristics
-    laws-of-ux.json           # 21 Laws of UX
-    gestalt.json              # Gestalt principles
-    accessibility.json        # WCAG & a11y rules
-    typography.json           # Type scale & hierarchy
-    color-theory.json         # Color systems & contrast
-    mobile-ux.json            # 12 mobile UX rules (touch, nav, overflow, fonts)
-    d4d.json                  # Design for Delight framework
-    responsive-layout.json    # Fluid layout & intrinsic design
+  principles/          # 129 principles across 10 files
+    nielsen-heuristics.json   laws-of-ux.json
+    gestalt.json              accessibility.json
+    typography.json           color-theory.json
+    mobile-ux.json            d4d.json
+    responsive-layout.json    component-architecture.json
 
-  patterns/            # 13 proven UI patterns
+  patterns/            # 13 UI patterns
     signup-flow.json          pricing-page.json
     navigation.json           forms.json
     landing-page.json         dashboard.json
@@ -760,15 +878,35 @@ cd raven-mcp && npm install && npm run build</code></pre>
     mobile-conversion.json
 
   business/            # 5 strategy domains
-    monetization.json         retention.json
-    onboarding.json           growth.json
-    metrics.json
+    monetization.json  retention.json  onboarding.json
+    growth.json        metrics.json
 
-  tokens/              # Design system tokens
-    registry.json             # 7 systems registered
-    systems/
-      stripe.json             # Stripe's full token set
-      linear.json             # Linear's full token set</code></pre>
+  tokens/              # 12 design system tokens
+    registry.json
+    systems/stripe.json, linear.json, vercel.json, …
+
+  content/             # v1.2 — content design systems
+    systems/           # 5 brand voice guides (Mailchimp, GOV.UK,
+                       #   Polaris, Atlassian, Intuit)
+    principles/        # 11 UX-writing principles
+    patterns/          # 4 content patterns (errors, empty states,
+                       #   notifications, form validation)
+
+  research/            # v1.3 — research &amp; data analysis
+    principles/        # 11 research fundamentals
+    methods/           # qualitative, quantitative, usability
+    frameworks/        # HEART, AARRR, North Star, funnel, RICE, OKRs
+
+  service-design/      # v1.3 — service design
+    principles/        # Stickdorn, Shostack, moments of truth,
+                       #   peak-end, handoff, human help
+    patterns/          # blueprinting, handoff, signup-as-service,
+                       #   omnichannel, moments of truth
+    frameworks/        # GOV.UK Service Standard (14 points)
+
+  brand/               # v1.3 — brand &amp; visual design
+    principles/        # logo, gradient, imagery, hierarchy, system
+    trends/            # 2026-current-trends.json</code></pre>
 
     <!-- ── Design Tokens ── -->
     <h2 id="tokens" class="reveal">Design Tokens</h2>
@@ -868,7 +1006,7 @@ get_design_system({ id: "stripe", format: "flat" })
     <pre><code>npm update -g raven-mcp</code></pre>
 
     <h3>Where does the knowledge come from?</h3>
-    <p>73 principles curated from Nielsen Norman Group, Laws of UX, Gestalt psychology, WCAG 2.1, established typography and color theory, mobile UX excellence (touch targets, nav consistency, overflow prevention, font sizing), responsive layout best practices, and component architecture (shared chrome, style encapsulation, design token contracts). 13 UI patterns based on conversion research and A/B test evidence. Design tokens extracted from public-facing design systems.</p>
+    <p>129 principles curated from Nielsen Norman Group, Laws of UX, Gestalt psychology, WCAG 2.2, typography and color theory, mobile UX (touch targets, nav consistency, font sizing), responsive layout, component architecture, UX writing (Mailchimp, GOV.UK, Intuit), research fundamentals, service design (Stickdorn, Shostack, Carlzon's moments of truth, GOV.UK Service Standard), and brand systems (Pentagram, Brand New, public brand guidelines from Stripe, Airbnb, Linear, Vercel). 22 patterns based on conversion research, service-design practice, and copy-design evidence. Design tokens extracted from public-facing design systems. Metrics frameworks from Google, Amplitude, Dave McClure, and Intercom.</p>
 
     </div>
   </div>
