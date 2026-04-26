@@ -1170,6 +1170,21 @@
     }
     .layer-card .stat-label { font-size: 13px; color: var(--text-tertiary); }
 
+    .layers-pill {
+      display: inline-flex;
+      align-items: center;
+      margin-top: var(--space-4);
+      padding: 6px 16px;
+      background: rgba(0, 191, 255, 0.08);
+      border: 1px solid rgba(0, 191, 255, 0.2);
+      border-radius: var(--radius-full);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-accent);
+      letter-spacing: 0.04em;
+    }
+
     .layer-tags {
       display: flex; flex-wrap: wrap; gap: var(--space-2);
       margin-top: var(--space-4);
@@ -1184,9 +1199,7 @@
       font-size: 13px; font-weight: 500; color: var(--text-tertiary);
     }
 
-    /* ══════════════════════════════════════════
-       TOOLS
-       ══════════════════════════════════════════ */
+
 
     .tools-section {
       position: relative;
@@ -1541,6 +1554,70 @@
       .signup-submit { width: 100%; }
     }
 
+
+    /* ══════════════════════════════════════════
+       EXAMPLES
+       ══════════════════════════════════════════ */
+
+    .examples-section {
+      position: relative;
+      padding: clamp(48px, 6vw, 80px) 0;
+    }
+
+    .examples-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: var(--space-4);
+    }
+
+    .example-card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      padding: var(--space-6);
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      text-decoration: none;
+      transition: border-color var(--duration-fast) var(--ease-out),
+                  background var(--duration-fast) var(--ease-out),
+                  transform var(--duration-fast) var(--ease-out);
+    }
+    .example-card:hover {
+      border-color: var(--border-accent);
+      background: var(--bg-raised);
+      transform: translateY(-2px);
+    }
+    .example-industry {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-accent);
+    }
+    .example-name {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+    .example-desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      flex: 1;
+    }
+    .example-arrow {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--text-tertiary);
+      margin-top: var(--space-3);
+      transition: color var(--duration-fast);
+    }
+    .example-card:hover .example-arrow {
+      color: var(--text-accent);
+    }
     /* ══════════════════════════════════════════
        FOOTER
        ══════════════════════════════════════════ */
@@ -1723,154 +1800,12 @@
       })();
       </script>
 
-      <!-- Sizzle reel -->
-      <div class="sizzle-video reveal reveal-delay-3">
-        <video controls playsinline preload="metadata" poster="assets/og-image.jpg">
-          <source src="assets/video/sizzle-reel.mp4" type="video/mp4">
-        </video>
-      </div>
 
-      <!-- Demo showcase -->
-      <div class="demo-showcase reveal reveal-delay-3">
-        <div class="demo-showcase-header">
-          <h3>One tool. Every industry.</h3>
-          <p>Click any demo &mdash; built entirely with Raven's design intelligence</p>
-        </div>
-        <div class="demo-grid">
-          <a href="/demos/law-firm.html" class="demo-card">
-            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=600&q=80');"></div>
-            <div class="demo-card-overlay">
-              <div class="demo-card-industry">Legal</div>
-              <div class="demo-card-name">Harrison & Cole</div>
-              <div class="demo-card-desc">Full-service litigation firm</div>
-            </div>
-            <div class="demo-card-arrow">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
-            </div>
-          </a>
-          <a href="/demos/wedding.html" class="demo-card">
-            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1606800052052-a08af7148866?w=600&q=80');"></div>
-            <div class="demo-card-overlay">
-              <div class="demo-card-industry">Wedding</div>
-              <div class="demo-card-name">Elara & Co.</div>
-              <div class="demo-card-desc">Luxury wedding planning</div>
-            </div>
-            <div class="demo-card-arrow">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
-            </div>
-          </a>
-          <a href="/demos/coffee-shop.html" class="demo-card">
-            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=600&q=80');"></div>
-            <div class="demo-card-overlay">
-              <div class="demo-card-industry">Food & Beverage</div>
-              <div class="demo-card-name">Ember & Grain</div>
-              <div class="demo-card-desc">Specialty coffee roaster</div>
-            </div>
-            <div class="demo-card-arrow">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
-            </div>
-          </a>
-          <a href="/demos/saas.html" class="demo-card">
-            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&q=80');"></div>
-            <div class="demo-card-overlay">
-              <div class="demo-card-industry">SaaS</div>
-              <div class="demo-card-name">Flux</div>
-              <div class="demo-card-desc">Real-time analytics platform</div>
-            </div>
-            <div class="demo-card-arrow">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
-            </div>
-          </a>
-          <a href="/demos/fitness.html" class="demo-card">
-            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=600&q=80');"></div>
-            <div class="demo-card-overlay">
-              <div class="demo-card-industry">Fitness</div>
-              <div class="demo-card-name">FORGE</div>
-              <div class="demo-card-desc">Performance training studio</div>
-            </div>
-            <div class="demo-card-arrow">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
-            </div>
-          </a>
-          <a href="/demos/real-estate.html" class="demo-card">
-            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=600&q=80');"></div>
-            <div class="demo-card-overlay">
-              <div class="demo-card-industry">Real Estate</div>
-              <div class="demo-card-name">Oleander Residence</div>
-              <div class="demo-card-desc">$12.5M luxury estate listing</div>
-            </div>
-            <div class="demo-card-arrow">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
-            </div>
-          </a>
-        </div>
-      </div>
-
-    </div>
-  </section>
-
-  <!-- STATS -->
-  <section class="stats-section">
-    <div class="container">
-      <div class="stats-grid">
-        <div class="stat-item reveal">
-          <div class="stat-number">129</div>
-          <div class="stat-desc">Design principles<br><span>Accessibility, Nielsen, Gestalt, Laws of UX, Brand, Research</span></div>
-        </div>
-        <div class="stat-item reveal reveal-delay-1">
-          <div class="stat-number">22</div>
-          <div class="stat-desc">Patterns<br><span>UI, content, and service patterns</span></div>
-        </div>
-        <div class="stat-item reveal reveal-delay-2">
-          <div class="stat-number">12</div>
-          <div class="stat-desc">Design systems<br><span>Stripe, Linear, Apple, Airbnb &amp; more</span></div>
-        </div>
-        <div class="stat-item reveal reveal-delay-3">
-          <div class="stat-number">27</div>
-          <div class="stat-desc">MCP tools<br><span>Auto-called by Claude</span></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- MYTHOLOGY — the brand story -->
-  <section id="story" class="mythology-section">
-    <div class="container">
-      <div class="mythology-inner">
-        <div class="mythology-text reveal">
-          <p class="label">The Story</p>
-          <h2>Named for the creature that bridges worlds</h2>
-          <p>Across Norse, Celtic, and Native American traditions, the raven carries knowledge from hidden places and brings it into the light.</p>
-          <p>Odin's ravens Huginn and Muninn&mdash;Thought and Memory&mdash;fly across all nine realms at dawn and return to whisper everything they've seen. The Morr&iacute;gan takes raven form to decide fate. Y&eacute;il stole the sun from darkness and gave it to everyone.</p>
-          <p style="color: var(--text-accent); font-weight: 500;">Raven MCP: design intelligence that used to be locked away, now flying across your work.</p>
-        </div>
-        <div class="mythology-visual reveal reveal-delay-2">
-          <img src="assets/raven-logo.png" alt="Raven">
-        </div>
-      </div>
-
-      <div class="mythology-realms">
-        <div class="glow-card realm reveal">
-          <div class="realm-tradition">Norse</div>
-          <h4>Huginn & Muninn</h4>
-          <p>Thought & Memory&mdash;Odin's ravens that fly across all nine realms and return with knowledge</p>
-        </div>
-        <div class="glow-card card-raised realm reveal reveal-delay-1">
-          <div class="realm-tradition">Celtic</div>
-          <h4>The Morr&iacute;gan</h4>
-          <p>Sovereignty & Prophecy&mdash;the triple goddess who takes raven form to decide fate</p>
-        </div>
-        <div class="glow-card realm reveal reveal-delay-2">
-          <div class="realm-tradition">Tlingit</div>
-          <h4>Y&eacute;il the Transformer</h4>
-          <p>Light from Darkness&mdash;Raven stole the sun, moon, and stars and gave them to everyone</p>
-        </div>
-      </div>
     </div>
   </section>
 
   <!-- SIZZLE REEL -->
-  <section style="padding: clamp(48px, 6vw, 80px) 0 clamp(24px, 3vw, 40px);">
+  <section id="sizzle" style="padding: clamp(48px, 6vw, 80px) 0 clamp(24px, 3vw, 40px);">
     <div class="container" style="display:flex;flex-direction:column;align-items:center;">
       <div class="hero-visual reveal" style="margin-top:0;">
         <div class="terminal">
@@ -1903,6 +1838,7 @@
         <p class="label reveal">Eight Knowledge Layers</p>
         <h2 class="reveal reveal-delay-1">Eight disciplines, one MCP server.</h2>
         <p class="subtitle reveal reveal-delay-2">Design, content, brand, research, service, business &mdash; every layer your AI is missing.</p>
+        <div class="layers-pill reveal reveal-delay-3">27 tools across 8 layers</div>
       </div>
 
       <div class="layers-grid">
@@ -2039,163 +1975,53 @@
     </div>
   </section>
 
-  <!-- TOOLS -->
-  <section id="tools" class="tools-section">
+
+  <!-- EXAMPLES -->
+  <section id="examples" class="examples-section">
     <div class="container">
       <div class="section-header">
-        <p class="label reveal">Twenty-Seven Tools</p>
-        <h2 class="reveal reveal-delay-1">The full flight across all realms</h2>
-        <p class="subtitle reveal reveal-delay-2">Each tool is a focused query. Claude calls them automatically&mdash;no special syntax, no configuration beyond install.</p>
+        <p class="label reveal">Examples</p>
+        <h2 class="reveal reveal-delay-1">Real outputs, real industries</h2>
+        <p class="subtitle reveal reveal-delay-2">Every demo was built entirely with Raven&rsquo;s design intelligence &mdash; no screenshots yet, but each one is a live page.</p>
       </div>
 
-      <div class="tools-grid">
-        <div class="tool-card reveal">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00BFFF" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3"/><circle cx="8" cy="11" r="0.5" fill="#00BFFF"/></svg></div>
-          <div><div class="tool-name">get_principles</div><div class="tool-desc">Design principles matched to your UI context&mdash;heuristics, laws, accessibility, color theory</div></div>
-        </div>
-        <div class="tool-card reveal reveal-delay-1">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg></div>
-          <div><div class="tool-name">get_pattern</div><div class="tool-desc">Proven patterns with do's, don'ts, and evidence across UI, content, and service-design types</div></div>
-        </div>
-        <div class="tool-card reveal">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" stroke-width="1.5" stroke-linecap="round"><path d="M2 12l4-4 3 3 5-5"/><path d="M10 6h4v4"/></svg></div>
-          <div><div class="tool-name">get_business_strategy</div><div class="tool-desc">Monetization, retention, onboarding, growth, and metrics frameworks</div></div>
-        </div>
-        <div class="tool-card reveal reveal-delay-1">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" stroke-width="1.5" stroke-linecap="round"><path d="M8 2l2 4h4l-3 3 1 4-4-2-4 2 1-4-3-3h4z"/></svg></div>
-          <div><div class="tool-name">evaluate_design</div><div class="tool-desc">Score a design description against relevant principles and patterns</div></div>
-        </div>
-        <div class="tool-card reveal">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00BFFF" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4"/><path d="M10 10l4 4"/></svg></div>
-          <div><div class="tool-name">search_knowledge</div><div class="tool-desc">Full-text search across all principles, patterns, and business strategy</div></div>
-        </div>
-        <div class="tool-card reveal reveal-delay-1">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" stroke-width="1.5" stroke-linecap="round"><path d="M3 3h10v10H3z"/><path d="M3 7h10M7 3v10"/></svg></div>
-          <div><div class="tool-name">get_checklist</div><div class="tool-desc">Pre-publish quality checklist for any UI type&mdash;raise the raven banner</div></div>
-        </div>
-        <div class="tool-card reveal">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" stroke-width="1.5" stroke-linecap="round"><path d="M8 2v4l3 2"/><circle cx="8" cy="8" r="6"/></svg></div>
-          <div><div class="tool-name">get_d4d_framework</div><div class="tool-desc">Design for Delight&mdash;customer empathy, hypothesis, and experiment templates</div></div>
-        </div>
-        <div class="tool-card reveal reveal-delay-1">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" stroke-width="1.5" stroke-linecap="round"><path d="M2 4h12M2 8h8M2 12h10"/></svg></div>
-          <div><div class="tool-name">list_design_systems</div><div class="tool-desc">Browse the registry of 12 design systems with tokens and metadata</div></div>
-        </div>
-        <div class="tool-card reveal">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00BFFF" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 6h6M5 8h4M5 10h5"/></svg></div>
-          <div><div class="tool-name">get_design_system</div><div class="tool-desc">Full tokens&mdash;colors, typography, spacing, radii, elevation, motion</div></div>
-        </div>
-        <div class="tool-card reveal reveal-delay-1">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l4 4-4 4"/><path d="M12 4l-4 4 4 4"/></svg></div>
-          <div><div class="tool-name">compose_system</div><div class="tool-desc">Mix tokens from multiple design systems into a custom composition</div></div>
-        </div>
-        <div class="tool-card reveal">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" stroke-width="1.5" stroke-linecap="round"><path d="M2 3h12M2 7h8M2 11h10M13 7l-2 2 2 2"/></svg></div>
-          <div><div class="tool-name">audit_page</div><div class="tool-desc">Score any HTML page against Raven's design quality standards &mdash; typography, accessibility, responsive, tokens</div></div>
-        </div>
-        <div class="tool-card reveal reveal-delay-1">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M5 8h6M8 5v6"/></svg></div>
-          <div><div class="tool-name">get_brand_system</div><div class="tool-desc">Get a complete design system for building an app with branding like any company</div></div>
-        </div>
-        <div class="tool-card reveal">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FF4081" stroke-width="1.5" stroke-linecap="round"><path d="M3 8a5 5 0 0110 0"/><path d="M8 3v5l3 2"/></svg></div>
-          <div><div class="tool-name">generate_design_system</div><div class="tool-desc">Generate a complete design system from a brand color&mdash;export as HTML, CSS, Figma, or SVG</div></div>
-        </div>
-        <div class="tool-card reveal reveal-delay-1">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00BFFF" stroke-width="1.5" stroke-linecap="round"><path d="M3 13l4-4M8 8l2 2M3 3l10 10"/></svg></div>
-          <div><div class="tool-name">audit_layout</div><div class="tool-desc">Evaluate a rendered page's visual rhythm, alignment, and optical balance</div></div>
-        </div>
-        <div class="tool-card reveal">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#B388FF" stroke-width="1.5" stroke-linecap="round"><path d="M4 3h8v10H4z"/><path d="M6 7h4M6 10h4"/></svg></div>
-          <div><div class="tool-name">list_content_systems</div><div class="tool-desc">Browse brand voice &amp; tone systems&mdash;Mailchimp, GOV.UK, Polaris, Atlassian, Intuit</div></div>
-        </div>
-        <div class="tool-card reveal reveal-delay-1">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#B388FF" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="5" r="2"/><path d="M5 13c0-2 1-4 3-4s3 2 3 4"/></svg></div>
-          <div><div class="tool-name">get_content_system</div><div class="tool-desc">A brand's full voice&mdash;attributes, tone shifts, vocabulary, grammar, content patterns</div></div>
-        </div>
-        <div class="tool-card reveal">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#B388FF" stroke-width="1.5" stroke-linecap="round"><path d="M3 3v10h10"/><path d="M6 10l2-3 2 2 3-4"/></svg></div>
-          <div><div class="tool-name">get_content_principles</div><div class="tool-desc">UX-writing principles&mdash;clarity, active voice, error anatomy, inclusive language</div></div>
-        </div>
-        <div class="tool-card reveal reveal-delay-1">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#B388FF" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M6 8l1.5 1.5L11 6"/></svg></div>
-          <div><div class="tool-name">get_content_pattern</div><div class="tool-desc">Copy recipes for error messages, empty states, notifications, form validation</div></div>
-        </div>
-        <div class="tool-card reveal">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4"/><path d="M10 10l4 4"/><path d="M5 7h4"/></svg></div>
-          <div><div class="tool-name">get_research_method</div><div class="tool-desc">Qualitative, quantitative, and usability methods&mdash;with protocols and bias traps</div></div>
-        </div>
-        <div class="tool-card reveal reveal-delay-1">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" stroke-width="1.5" stroke-linecap="round"><path d="M3 13V3M3 13h10"/><path d="M5 10l2-4 2 3 3-6"/></svg></div>
-          <div><div class="tool-name">get_metrics_framework</div><div class="tool-desc">HEART, AARRR, North Star, conversion funnel, RICE, OKRs&mdash;with examples</div></div>
-        </div>
-        <div class="tool-card reveal">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" stroke-width="1.5" stroke-linecap="round"><circle cx="5" cy="8" r="2"/><circle cx="11" cy="8" r="2"/><path d="M7 8h2"/></svg></div>
-          <div><div class="tool-name">get_service_pattern</div><div class="tool-desc">Blueprinting, human handoff, signup-as-service, omnichannel, moments of truth</div></div>
-        </div>
-        <div class="tool-card reveal reveal-delay-1">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="10" height="10" rx="1"/><path d="M6 6l1.5 1.5L10 5"/></svg></div>
-          <div><div class="tool-name">get_service_standard</div><div class="tool-desc">The GOV.UK Service Standard&mdash;14 points for service-quality assessment</div></div>
-        </div>
-        <div class="tool-card reveal">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="3" width="5" height="4"/><rect x="9" y="3" width="5" height="4"/><rect x="2" y="9" width="5" height="4"/><rect x="9" y="9" width="5" height="4"/></svg></div>
-          <div><div class="tool-name">generate_service_blueprint</div><div class="tool-desc">Render a service blueprint as HTML&mdash;current vs. ideal, with two-actor HI-loop mode</div></div>
-        </div>
-        <div class="tool-card reveal reveal-delay-1">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2"/></svg></div>
-          <div><div class="tool-name">get_brand_principles</div><div class="tool-desc">Logo usage, gradient rules, imagery, visual hierarchy, brand-as-system</div></div>
-        </div>
-        <div class="tool-card reveal">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" stroke-width="1.5" stroke-linecap="round"><path d="M3 5l2-2 2 2M11 5l2-2 2 2M3 11l2 2 2-2M11 11l2 2 2-2"/><rect x="6" y="6" width="4" height="4"/></svg></div>
-          <div><div class="tool-name">get_brand_trends</div><div class="tool-desc">2026 visual trends&mdash;bento, monospace, neon-on-glass, brutalism, AI imagery</div></div>
-        </div>
-        <div class="tool-card reveal reveal-delay-1">
-          <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00BFFF" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 1"/></svg></div>
-          <div><div class="tool-name">raven_reflect</div><div class="tool-desc">Summarize your local Raven usage log&mdash;tool counts, recurring warnings, gaps</div></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- QUOTE -->
-  <section class="quote-section">
-    <div class="glow"></div>
-    <div class="container">
-      <div class="quote-inner reveal">
-        <div class="quote-mark">"</div>
-        <p class="quote-text">Design knowledge was locked in bentwood boxes&mdash;agency playbooks, enterprise design system teams, senior designers' heads. Raven broke the boxes open. Light for everyone.</p>
-        <p class="quote-attribution">The origin story &mdash; Tlingit mythology of Y&eacute;il, the Raven who stole the sun</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- HOW IT WORKS -->
-  <section class="how-section">
-    <div class="container">
-      <div class="section-header">
-        <p class="label reveal">How It Works</p>
-        <h2 class="reveal reveal-delay-1">Three steps to design-grade AI</h2>
-      </div>
-
-      <div class="how-steps">
-        <div class="glow-card step reveal">
-          <div class="step-number">1</div>
-          <h3>Install</h3>
-          <p>Clone, build, and add to your MCP config. Two minutes.</p>
-          <div class="step-code">npm install && npm run build</div>
-        </div>
-        <div class="glow-card card-raised step reveal reveal-delay-1">
-          <div class="step-number">2</div>
-          <h3>Prompt</h3>
-          <p>Ask Claude to build any UI. Raven's tools are called automatically.</p>
-          <div class="step-code">claude "design a dashboard"</div>
-        </div>
-        <div class="glow-card step reveal reveal-delay-2">
-          <div class="step-number">3</div>
-          <h3>Ship</h3>
-          <p>Get UI grounded in real principles, proven patterns, and production tokens.</p>
-          <div class="step-code">&#10003; Design-system grade</div>
-        </div>
+      <div class="examples-grid">
+        <a href="/demos/law-firm.html" class="example-card reveal">
+          <span class="example-industry">Legal</span>
+          <span class="example-name">Harrison &amp; Cole</span>
+          <span class="example-desc">Full-service litigation firm &mdash; trust-led, high-contrast, conversion-focused</span>
+          <span class="example-arrow">→</span>
+        </a>
+        <a href="/demos/wedding.html" class="example-card reveal reveal-delay-1">
+          <span class="example-industry">Wedding</span>
+          <span class="example-name">Elara &amp; Co.</span>
+          <span class="example-desc">Luxury wedding planning &mdash; editorial grid, warm tone, aspirational pricing</span>
+          <span class="example-arrow">→</span>
+        </a>
+        <a href="/demos/coffee-shop.html" class="example-card reveal reveal-delay-2">
+          <span class="example-industry">Food &amp; Beverage</span>
+          <span class="example-name">Ember &amp; Grain</span>
+          <span class="example-desc">Specialty coffee roaster &mdash; dark palette, origin story, community-first</span>
+          <span class="example-arrow">→</span>
+        </a>
+        <a href="/demos/saas.html" class="example-card reveal">
+          <span class="example-industry">SaaS</span>
+          <span class="example-name">Flux</span>
+          <span class="example-desc">Real-time analytics platform &mdash; data-dense, developer-friendly, three-tier pricing</span>
+          <span class="example-arrow">→</span>
+        </a>
+        <a href="/demos/fitness.html" class="example-card reveal reveal-delay-1">
+          <span class="example-industry">Fitness</span>
+          <span class="example-name">FORGE</span>
+          <span class="example-desc">Performance training studio &mdash; bold type, motion-led, membership-gated</span>
+          <span class="example-arrow">→</span>
+        </a>
+        <a href="/demos/real-estate.html" class="example-card reveal reveal-delay-2">
+          <span class="example-industry">Real Estate</span>
+          <span class="example-name">Oleander Residence</span>
+          <span class="example-desc">$12.5M luxury estate listing &mdash; full-bleed imagery, white space, single CTA</span>
+          <span class="example-arrow">→</span>
+        </a>
       </div>
     </div>
   </section>
@@ -2281,6 +2107,43 @@
           <div class="system-name">Supabase</div>
           <div class="system-category">Developer</div>
           <div class="system-tags"><span>dark</span><span>green-accent</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- STORY -->
+  <section id="story" class="mythology-section">
+    <div class="container">
+      <div class="mythology-inner">
+        <div class="mythology-text reveal">
+          <p class="label">The Story</p>
+          <h2>Named for the creature that bridges worlds</h2>
+          <p>Across Norse, Celtic, and Native American traditions, the raven carries knowledge from hidden places and brings it into the light.</p>
+          <p>Odin&rsquo;s ravens Huginn and Muninn&mdash;Thought and Memory&mdash;fly across all nine realms at dawn and return to whisper everything they&rsquo;ve seen. The Morr&iacute;gan takes raven form to decide fate. Y&eacute;il stole the sun from darkness and gave it to everyone.</p>
+          <p style="color: var(--text-accent); font-weight: 500;">Raven MCP: design intelligence that used to be locked away, now flying across your work.</p>
+        </div>
+        <div class="mythology-visual reveal reveal-delay-2">
+          <img src="assets/raven-logo.png" alt="Raven">
+        </div>
+      </div>
+
+      <div class="mythology-realms">
+        <div class="glow-card realm reveal">
+          <div class="realm-tradition">Norse</div>
+          <h4>Huginn &amp; Muninn</h4>
+          <p>Thought &amp; Memory&mdash;Odin&rsquo;s ravens that fly across all nine realms and return with knowledge</p>
+        </div>
+        <div class="glow-card card-raised realm reveal reveal-delay-1">
+          <div class="realm-tradition">Celtic</div>
+          <h4>The Morr&iacute;gan</h4>
+          <p>Sovereignty &amp; Prophecy&mdash;the triple goddess who takes raven form to decide fate</p>
+        </div>
+        <div class="glow-card realm reveal reveal-delay-2">
+          <div class="realm-tradition">Tlingit</div>
+          <h4>Y&eacute;il the Transformer</h4>
+          <p>Light from Darkness&mdash;Raven stole the sun, moon, and stars and gave them to everyone</p>
         </div>
       </div>
     </div>
