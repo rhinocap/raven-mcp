@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RavenMCP — Design Intelligence for AI</title>
+  <meta name="theme-color" content="#1a1a22">
+  <title>RavenMCP — Design Intelligence MCP for Claude · Open Source</title>
   <meta name="description" content="Odin's ravens brought back knowledge of the world. RavenMCP brings back design intelligence. A design knowledge MCP server for Claude.">
 
   <!-- Favicon & Icons -->
@@ -85,11 +86,54 @@
     html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
     body {
       font-family: var(--font-body);
-      font-size: 21px;
+      font-size: clamp(17px, 1.6vw, 21px);
       line-height: 1.65;
       color: var(--text-secondary);
       background: var(--bg-base);
       overflow-x: hidden;
+    }
+
+    /* Visually-hidden but accessible to screen readers */
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0);
+      white-space: nowrap; border: 0;
+    }
+
+    /* Tertiary text-link CTA (less weight than .btn-secondary) */
+    .btn-text-link {
+      color: var(--text-secondary, #9498A0);
+      font-size: 14px;
+      font-weight: 500;
+      padding: 8px 4px;
+      transition: color 200ms;
+      text-decoration: none;
+    }
+    .btn-text-link:hover {
+      color: var(--accent-blue, #00BFFF);
+    }
+
+    /* Skip-to-content link — visually hidden until focused (WCAG 2.4.1) */
+    .skip-link {
+      position: absolute;
+      top: -64px;
+      left: 16px;
+      background: var(--accent-blue);
+      color: var(--text-on-accent);
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      z-index: 1000;
+      transition: top 200ms ease;
+      text-decoration: none;
+    }
+    .skip-link:focus {
+      top: 16px;
+      outline: 3px solid var(--accent-cyan);
+      outline-offset: 2px;
     }
     a { color: inherit; text-decoration: none; }
     img { display: block; max-width: 100%; }
@@ -293,11 +337,11 @@
 
     .hero-badge {
       display: inline-flex; align-items: center; gap: var(--space-2);
-      padding: 7px 16px 7px 12px;
-      background: var(--bg-accent-subtle);
-      border: 1px solid var(--border-accent);
-      border-radius: var(--radius-full);
+      padding: 4px 0;
+      background: transparent;
+      border: 0;
       font-size: 13px; font-weight: 500; color: var(--text-accent);
+      letter-spacing: 0.02em;
     }
     .hero-badge .dot {
       width: 7px; height: 7px; border-radius: 50%;
@@ -1562,9 +1606,13 @@
 </head>
 <body>
 
+  <a href="#main" class="skip-link">Skip to content</a>
+
   <!-- NAV (shared component) -->
   <script src="assets/nav.js"></script>
   <raven-nav></raven-nav>
+
+  <main id="main">
 
   <!-- HERO -->
   <section class="hero">
@@ -1574,22 +1622,91 @@
     <div class="grid-bg"></div>
     <div class="container">
       <div class="hero-badge reveal">
-        <span class="dot"></span>
-        Open-source MCP Server
+        Open-source MCP Server · MIT
       </div>
       <h1 class="reveal reveal-delay-1">Design intelligence<br>for <span class="gradient">every prompt</span></h1>
       <p class="subtitle reveal reveal-delay-2">RavenMCP gives AI the design knowledge that used to live only in senior designers' heads. Principles, patterns, tokens, content voice, research methods, service blueprints, brand &amp; visual&mdash;twenty-seven tools across eight knowledge layers.</p>
       <div class="hero-cta reveal reveal-delay-3">
-        <a href="/docs.html" class="btn btn-primary">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"/></svg>
-          Install RavenMCP
-        </a>
-        <button class="cta-install" onclick="navigator.clipboard.writeText('claude mcp add raven -- npx -y raven-mcp').then(()=>{this.querySelector('.copy-label').textContent='Copied!'})">
+        <button class="cta-install" aria-label="Copy install command to clipboard" onclick="navigator.clipboard.writeText('claude mcp add raven -- npx -y raven-mcp').then(()=>{this.querySelector('.copy-label').textContent='Copied!'; this.setAttribute('aria-label', 'Install command copied');})">
           <span class="copy-label">claude mcp add raven -- npx -y raven-mcp</span>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M2 10V3a1 1 0 011-1h7"/></svg>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M2 10V3a1 1 0 011-1h7"/></svg>
         </button>
         <a href="#tools" class="btn btn-secondary">Explore Tools</a>
+        <a href="/docs.html" class="btn-text-link">Install guide →</a>
       </div>
+      <div role="status" aria-live="polite" id="copy-status" class="sr-only"></div>
+
+      <!-- Live install stats — three-card row with big numbers + monospace labels -->
+      <div class="raven-stats-row reveal reveal-delay-3" aria-live="polite">
+        <div class="raven-stat-card">
+          <div class="raven-stat-num" id="rs-ver">v—</div>
+          <div class="raven-stat-label">Latest</div>
+        </div>
+        <div class="raven-stat-card">
+          <div class="raven-stat-num" id="rs-rel">—</div>
+          <div class="raven-stat-label">Releases</div>
+        </div>
+        <div class="raven-stat-card">
+          <div class="raven-stat-num" id="rs-dl">—<span class="unit">/wk</span></div>
+          <div class="raven-stat-label">npm Downloads</div>
+        </div>
+      </div>
+      <style>
+        .raven-stats-row {
+          display: flex;
+          gap: 16px;
+          margin-top: 32px;
+          flex-wrap: wrap;
+          max-width: 560px;
+        }
+        .raven-stat-card {
+          flex: 1;
+          min-width: 130px;
+          padding: 20px;
+          background: var(--bg-raised, #2a2a33);
+          border: 1px solid var(--border, rgba(255,255,255,0.06));
+          border-radius: 12px;
+        }
+        .raven-stat-num {
+          font-size: clamp(28px, 4vw, 36px);
+          font-weight: 800;
+          color: var(--text-primary, #F0F0F2);
+          line-height: 1;
+          letter-spacing: -0.02em;
+        }
+        .raven-stat-num .unit {
+          font-size: 0.5em;
+          color: var(--text-tertiary, #5C5F68);
+          font-weight: 600;
+          margin-left: 2px;
+        }
+        .raven-stat-label {
+          font-family: var(--font-mono, ui-monospace, "SF Mono", monospace);
+          font-size: 11px;
+          color: var(--text-tertiary, #5C5F68);
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          margin-top: 10px;
+        }
+      </style>
+      <script>
+      (async () => {
+        try {
+          const [npmWeek, npmMeta] = await Promise.all([
+            fetch('https://api.npmjs.org/downloads/point/last-week/raven-mcp').then(r => r.json()),
+            fetch('https://registry.npmjs.org/raven-mcp').then(r => r.json())
+          ]);
+          const v = npmMeta['dist-tags'] && npmMeta['dist-tags'].latest;
+          const versionCount = Object.keys(npmMeta.versions || {}).length;
+          document.getElementById('rs-ver').textContent = v ? `v${v}` : 'v—';
+          document.getElementById('rs-rel').textContent = String(versionCount);
+          const dl = (npmWeek.downloads || 0).toLocaleString();
+          document.getElementById('rs-dl').innerHTML = `${dl}<span class="unit">/wk</span>`;
+        } catch (e) {
+          console.warn('raven stats fetch failed', e);
+        }
+      })();
+      </script>
 
       <!-- Sizzle reel -->
       <div class="sizzle-video reveal reveal-delay-3">
@@ -2236,9 +2353,13 @@
     </div>
   </section>
 
+  </main>
+
   <!-- FOOTER (shared component) -->
-  <script src="assets/footer.js"></script>
-  <raven-footer></raven-footer>
+  <footer>
+    <script src="assets/footer.js"></script>
+    <raven-footer></raven-footer>
+  </footer>
 
   <script>
 
