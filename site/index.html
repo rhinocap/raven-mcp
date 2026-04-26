@@ -409,6 +409,18 @@
 
     .hero-cta { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-4); }
 
+    .hero-text-links {
+      display: flex; align-items: center; gap: var(--space-6);
+      margin-top: var(--space-3);
+    }
+
+    .hero-divider {
+      width: 100%; max-width: 480px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
+      margin-top: var(--space-6);
+    }
+
     /* Sizzle reel video */
     .sizzle-video {
       margin-top: var(--space-16);
@@ -1625,16 +1637,19 @@
         Open-source MCP Server · MIT
       </div>
       <h1 class="reveal reveal-delay-1">Design intelligence<br>for <span class="gradient">every prompt</span></h1>
-      <p class="subtitle reveal reveal-delay-2">RavenMCP gives AI the design knowledge that used to live only in senior designers' heads. Principles, patterns, tokens, content voice, research methods, service blueprints, brand &amp; visual&mdash;twenty-seven tools across eight knowledge layers.</p>
+      <p class="subtitle reveal reveal-delay-2">Twenty-seven tools that give AI the design knowledge once locked in expert heads — principles, patterns, tokens, voice, brand, and more.</p>
       <div class="hero-cta reveal reveal-delay-3">
         <button class="cta-install" aria-label="Copy install command to clipboard" onclick="navigator.clipboard.writeText('claude mcp add raven -- npx -y raven-mcp').then(()=>{this.querySelector('.copy-label').textContent='Copied!'; this.setAttribute('aria-label', 'Install command copied');})">
           <span class="copy-label">claude mcp add raven -- npx -y raven-mcp</span>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M2 10V3a1 1 0 011-1h7"/></svg>
         </button>
-        <a href="#tools" class="btn btn-secondary">Explore Tools</a>
-        <a href="/docs.html" class="btn-text-link">Install guide →</a>
+      </div>
+      <div class="hero-text-links reveal reveal-delay-3">
+        <a href="/docs.html" class="btn-text-link">Docs →</a>
+        <a href="https://github.com/rhinocap/raven-mcp" class="btn-text-link">View on GitHub →</a>
       </div>
       <div role="status" aria-live="polite" id="copy-status" class="sr-only"></div>
+      <div class="hero-divider reveal reveal-delay-3"></div>
 
       <!-- Live install stats — three-card row with big numbers + monospace labels -->
       <div class="raven-stats-row reveal reveal-delay-3" aria-live="polite">
