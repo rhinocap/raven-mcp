@@ -1,0 +1,130 @@
+{
+  "id": "dropdown-menu",
+  "name": "Dropdown Menu",
+  "category": "navigation",
+  "summary": "Patterns for dropdown, select, and menu components that are accessible, keyboard-navigable, and predictable across desktop and mobile — including when to reach for a native control, a listbox, or a bottom sheet.",
+  "principles_referenced": [
+    "fitts-law",
+    "hicks-law",
+    "jakobs-law",
+    "miller-law",
+    "doherty-threshold",
+    "aesthetic-usability-effect"
+  ],
+  "patterns": [
+    {
+      "name": "Pick the right ARIA role",
+      "description": "Dropdown is a visual pattern, not a semantic one. The correct ARIA role depends on what the user is doing: selecting a value, navigating to a destination, or filtering a list. Using the wrong role breaks screen reader expectations.",
+      "do": [
+        "Use a native `<select>` for single-value form inputs whenever possible — it's free, accessible, and familiar",
+        "Use `role=listbox` (with `role=option` children) for custom single/multi-select form controls where the user picks a value",
+        "Use `role=menu` (with `role=menuitem` children) only for action menus — commands that do something, not select a value (e.g. 'Duplicate', 'Delete', 'Share')",
+        "Use `role=combobox` when the trigger is an editable text input that filters or autocompletes against a list",
+        "Pair the trigger with `aria-haspopup`, `aria-expanded`, and `aria-controls` pointing at the popup"
+      ],
+      "dont": [
+        "Use `role=menu` for a country picker or a sort-by selector — these are listboxes, not menus",
+        "Nest a listbox inside a menu or vice versa — screen readers will announce the wrong interaction model",
+        "Rely on `<div onclick>` with no role — invisible to assistive tech",
+        "Add `role=button` to the trigger if it's already a `<button>` (redundant)",
+        "Toggle `aria-expanded` only on the popup — it belongs on the trigger"
+      ],
+      "evidence": "WAI-ARIA Authoring Practices distinguishes listbox, menu, and combobox as three separate patterns with different keyboard models. NN/g testing shows screen reader users abandon custom dropdowns at 2–3x the rate of native selects when roles are misapplied."
+    },
+    {
+      "name": "Keyboard navigation",
+      "description": "A dropdown that can't be driven from the keyboard is broken. The expected model is well-established — match it exactly rather than inventing your own.",
+      "do": [
+        "Enter, Space, or Down Arrow on the trigger opens the menu",
+        "Up/Down arrows move focus between items, wrapping or stopping at ends (pick one and be consistent)",
+        "Home jumps to first item, End jumps to last",
+        "Type-ahead: typing a letter jumps to the next item starting with that letter; typing multiple letters within ~500ms matches a prefix",
+        "Escape closes the menu and returns focus to the trigger",
+        "Enter or Space on a focused item selects it and closes the menu (for single-select)",
+        "Tab closes the menu and moves focus to the next focusable element on the page"
+      ],
+      "dont": [
+        "Trap focus inside the menu with no Escape route",
+        "Require mouse hover to reveal submenus with no keyboard equivalent",
+        "Steal Tab to cycle within the menu — Tab should exit, arrows navigate",
+        "Open on focus (Tab) — that triggers unwanted menus while traversing a form",
+        "Ignore type-ahead — for lists over ~7 items it's the single biggest usability win"
+      ],
+      "evidence": "WAI-ARIA Authoring Practices 1.2 specifies this exact keyboard model for listbox and menu patterns. Baymard found type-ahead support on country/state selectors reduces selection time by ~60% for long lists."
+    },
+    {
+      "name": "Focus management on open and close",
+      "description": "Focus is the screen reader user's cursor. Mismanaging it is equivalent to the page scrolling to a random location for a sighted user.",
+      "do": [
+        "On open: move focus to the first item for menus (`role=menu`), or to the currently selected item for listboxes (`role=listbox`)",
+        "On close via selection, Escape, or outside click: return focus to the trigger",
+        "For comboboxes: keep focus on the input; use `aria-activedescendant` to indicate the highlighted option without moving DOM focus",
+        "Make the trigger itself focusable (`<button>`, not a `<div>`)",
+        "Visibly indicate the focused item with a focus ring that meets 3:1 contrast against its background"
+      ],
+      "dont": [
+        "Leave focus on the trigger after opening a menu — keyboard users can't reach the items",
+        "Dump focus on `<body>` after close — the user loses their place",
+        "Rely only on `:hover` styles to show the focused item — keyboard users never hover",
+        "Move DOM focus into a combobox's listbox — breaks typing in the input"
+      ],
+      "evidence": "NN/g usability studies consistently cite 'lost focus' as a top-3 accessibility failure. WCAG 2.4.3 (Focus Order) and 2.4.7 (Focus Visible) make this a conformance requirement, not a nice-to-have."
+    },
+    {
+      "name": "Mobile: native vs custom vs bottom sheet",
+      "description": "The best dropdown on mobile is often not a dropdown. Native controls get OS-level wheel pickers for free; long lists deserve a full-screen or bottom-sheet treatment.",
+      "do": [
+        "Use native `<select>` for simple single-value inputs on mobile — users get the OS picker with haptics, search, and accessibility handled",
+        "Use a bottom sheet (modal overlay from the bottom edge) for lists over ~8 items, multi-select, or when options need rich content (icons, descriptions, prices)",
+        "For country/state/timezone pickers, use a full-screen overlay with a search field at the top",
+        "Make touch targets at least 44×44pt (iOS HIG) / 48×48dp (Material) with 8pt spacing between them",
+        "Close the sheet with a swipe-down gesture, a dedicated Close button, and tapping the scrim"
+      ],
+      "dont": [
+        "Render a desktop-style inline dropdown pinned to the trigger on a 375px screen — it overflows, gets clipped, or hides behind the keyboard",
+        "Use a custom dropdown just to match brand styling when the native control would work — the UX cost is almost always higher than the visual benefit",
+        "Put a 200-item list in an inline dropdown with no search on mobile",
+        "Use a bottom sheet for a 2-option choice — that's a segmented control or a pair of radio buttons"
+      ],
+      "evidence": "Baymard's mobile e-commerce research found custom dropdowns cause 2x more selection errors than native `<select>` on mobile. Bottom-sheet selectors improved completion rates by 15–25% for country and shipping-option pickers in their benchmark studies."
+    },
+    {
+      "name": "Visual layout and sizing",
+      "description": "A dropdown's visual design signals its behavior. Mismatched widths, clipped menus, and ambiguous selection states make even a technically correct implementation feel broken.",
+      "do": [
+        "Set popup min-width equal to the trigger width; allow it to grow wider if item labels require it",
+        "Cap max-height (~40–60vh) and scroll internally rather than letting the menu run off-screen",
+        "Flip the menu upward when there's insufficient space below the trigger",
+        "Show the current selection with a check icon or filled state, not just a background color",
+        "Differentiate hover, keyboard-focus, and selected states — they are three different things",
+        "Use subtle elevation (shadow) and a 1px border so the menu reads as layered above content"
+      ],
+      "dont": [
+        "Let the popup be narrower than the trigger — it looks broken and truncates labels",
+        "Render the menu in a parent with `overflow: hidden` that clips it — portal it to `<body>` or use the native popover API",
+        "Use the same background color for hover and selected — users can't tell what's picked",
+        "Animate the open longer than ~150ms — violates the Doherty threshold and feels sluggish",
+        "Forget to handle the case where the menu would overlap the viewport edge"
+      ],
+      "evidence": "Doherty threshold research (<400ms) applies to open/close transitions — animations over ~200ms are perceived as lag. NN/g found ambiguous selected-state indication was the top cause of 'I already picked that' errors in dropdown usability tests."
+    }
+  ],
+  "checklist": [
+    "Is this actually a listbox, a menu, or a combobox? Is the ARIA role correct for the interaction?",
+    "Could a native `<select>` do the job? (If yes, use it.)",
+    "Does the trigger have `aria-haspopup`, `aria-expanded`, and `aria-controls`?",
+    "Does Enter/Space/Down on the trigger open the menu?",
+    "Do arrow keys move between items, Home/End jump to ends, Escape close?",
+    "Does type-ahead work for lists over ~7 items?",
+    "On open, does focus land on the first item (menu) or selected item (listbox)?",
+    "On close, does focus return to the trigger?",
+    "Is the focused item visibly distinct from hover and from the selected item?",
+    "Are touch targets at least 44×44pt on mobile?",
+    "Does the mobile experience use a bottom sheet or native picker for long lists?",
+    "Does the popup min-width match the trigger, with a max-height and internal scroll?",
+    "Does the menu flip upward when there's no room below?",
+    "Does the menu portal out of clipping parents (`overflow: hidden`)?",
+    "Is the open/close animation under 200ms?",
+    "Does tapping outside, pressing Escape, and selecting an item all close the menu?"
+  ]
+}
