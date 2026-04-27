@@ -408,6 +408,7 @@
     .hero .subtitle { margin: 0 auto; }
 
     .hero-cta { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-4); }
+    .hero-text-links { display: flex; align-items: center; gap: var(--space-6); margin-top: var(--space-3); }
 
     /* Sizzle reel video */
     .sizzle-video {
@@ -1564,6 +1565,7 @@
 
 
       .hero-cta, .cta-actions { flex-direction: column; width: 100%; }
+      .hero-text-links { flex-direction: row; justify-content: center; }
       .hero-cta .btn, .cta-actions .btn, .cta-actions .cta-install {
         width: 100%; justify-content: center;
       }
@@ -1625,14 +1627,16 @@
         Open-source MCP Server · MIT
       </div>
       <h1 class="reveal reveal-delay-1">Design intelligence<br>for <span class="gradient">every prompt</span></h1>
-      <p class="subtitle reveal reveal-delay-2">RavenMCP gives AI the design knowledge that used to live only in senior designers' heads. Principles, patterns, tokens, content voice, research methods, service blueprints, brand &amp; visual&mdash;twenty-seven tools across eight knowledge layers.</p>
+      <p class="subtitle reveal reveal-delay-2">Twenty-seven tools that give AI the design knowledge once locked in expert heads — principles, patterns, tokens, voice, brand, and more.</p>
       <div class="hero-cta reveal reveal-delay-3">
-        <button class="cta-install" aria-label="Copy install command to clipboard" onclick="navigator.clipboard.writeText('claude mcp add raven -- npx -y raven-mcp').then(()=>{this.querySelector('.copy-label').textContent='Copied!'; this.setAttribute('aria-label', 'Install command copied');})">
+        <button class="cta-install" aria-label="Copy install command to clipboard" onclick="navigator.clipboard.writeText('claude mcp add raven -- npx -y raven-mcp').then(()=>{this.querySelector('.copy-label').textContent='Copied!'; this.setAttribute('aria-label', 'Install command copied'); document.getElementById('copy-status').textContent='Install command copied to clipboard.'})">
           <span class="copy-label">claude mcp add raven -- npx -y raven-mcp</span>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M2 10V3a1 1 0 011-1h7"/></svg>
         </button>
-        <a href="#tools" class="btn btn-secondary">Explore Tools</a>
-        <a href="/docs.html" class="btn-text-link">Install guide →</a>
+      </div>
+      <div class="hero-text-links reveal reveal-delay-3">
+        <a href="/docs.html" class="btn-text-link">Docs →</a>
+        <a href="https://github.com/rhinocap/raven-mcp" class="btn-text-link">View on GitHub →</a>
       </div>
       <div role="status" aria-live="polite" id="copy-status" class="sr-only"></div>
 
@@ -1708,117 +1712,10 @@
       })();
       </script>
 
-      <!-- Sizzle reel -->
-      <div class="sizzle-video reveal reveal-delay-3">
-        <video controls playsinline preload="metadata" poster="assets/og-image.jpg">
-          <source src="assets/video/sizzle-reel.mp4" type="video/mp4">
-        </video>
-      </div>
-
-      <!-- Demo showcase -->
-      <div class="demo-showcase reveal reveal-delay-3">
-        <div class="demo-showcase-header">
-          <h3>One tool. Every industry.</h3>
-          <p>Click any demo &mdash; built entirely with Raven's design intelligence</p>
-        </div>
-        <div class="demo-grid">
-          <a href="/demos/law-firm.html" class="demo-card">
-            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=600&q=80');"></div>
-            <div class="demo-card-overlay">
-              <div class="demo-card-industry">Legal</div>
-              <div class="demo-card-name">Harrison & Cole</div>
-              <div class="demo-card-desc">Full-service litigation firm</div>
-            </div>
-            <div class="demo-card-arrow">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
-            </div>
-          </a>
-          <a href="/demos/wedding.html" class="demo-card">
-            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1606800052052-a08af7148866?w=600&q=80');"></div>
-            <div class="demo-card-overlay">
-              <div class="demo-card-industry">Wedding</div>
-              <div class="demo-card-name">Elara & Co.</div>
-              <div class="demo-card-desc">Luxury wedding planning</div>
-            </div>
-            <div class="demo-card-arrow">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
-            </div>
-          </a>
-          <a href="/demos/coffee-shop.html" class="demo-card">
-            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=600&q=80');"></div>
-            <div class="demo-card-overlay">
-              <div class="demo-card-industry">Food & Beverage</div>
-              <div class="demo-card-name">Ember & Grain</div>
-              <div class="demo-card-desc">Specialty coffee roaster</div>
-            </div>
-            <div class="demo-card-arrow">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
-            </div>
-          </a>
-          <a href="/demos/saas.html" class="demo-card">
-            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&q=80');"></div>
-            <div class="demo-card-overlay">
-              <div class="demo-card-industry">SaaS</div>
-              <div class="demo-card-name">Flux</div>
-              <div class="demo-card-desc">Real-time analytics platform</div>
-            </div>
-            <div class="demo-card-arrow">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
-            </div>
-          </a>
-          <a href="/demos/fitness.html" class="demo-card">
-            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=600&q=80');"></div>
-            <div class="demo-card-overlay">
-              <div class="demo-card-industry">Fitness</div>
-              <div class="demo-card-name">FORGE</div>
-              <div class="demo-card-desc">Performance training studio</div>
-            </div>
-            <div class="demo-card-arrow">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
-            </div>
-          </a>
-          <a href="/demos/real-estate.html" class="demo-card">
-            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=600&q=80');"></div>
-            <div class="demo-card-overlay">
-              <div class="demo-card-industry">Real Estate</div>
-              <div class="demo-card-name">Oleander Residence</div>
-              <div class="demo-card-desc">$12.5M luxury estate listing</div>
-            </div>
-            <div class="demo-card-arrow">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
-            </div>
-          </a>
-        </div>
-      </div>
-
     </div>
   </section>
 
-  <!-- STATS -->
-  <section class="stats-section">
-    <div class="container">
-      <div class="stats-grid">
-        <div class="stat-item reveal">
-          <div class="stat-number">129</div>
-          <div class="stat-desc">Design principles<br><span>Accessibility, Nielsen, Gestalt, Laws of UX, Brand, Research</span></div>
-        </div>
-        <div class="stat-item reveal reveal-delay-1">
-          <div class="stat-number">22</div>
-          <div class="stat-desc">Patterns<br><span>UI, content, and service patterns</span></div>
-        </div>
-        <div class="stat-item reveal reveal-delay-2">
-          <div class="stat-number">12</div>
-          <div class="stat-desc">Design systems<br><span>Stripe, Linear, Apple, Airbnb &amp; more</span></div>
-        </div>
-        <div class="stat-item reveal reveal-delay-3">
-          <div class="stat-number">27</div>
-          <div class="stat-desc">MCP tools<br><span>Auto-called by Claude</span></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- MYTHOLOGY — the brand story -->
+  <!-- SIZZLE REEL -->
   <section style="padding: clamp(48px, 6vw, 80px) 0 clamp(24px, 3vw, 40px);">
     <div class="container" style="display:flex;flex-direction:column;align-items:center;">
       <div class="hero-visual reveal" style="margin-top:0;">
@@ -1844,52 +1741,14 @@
     </div>
   </section>
 
-  <section id="story" class="mythology-section">
-    <div class="container">
-      <div class="mythology-inner">
-        <div class="mythology-text reveal">
-          <p class="label">The Story</p>
-          <h2>Named for the creature that bridges worlds</h2>
-          <p>Across Norse, Celtic, and Native American traditions, the raven carries knowledge from hidden places and brings it into the light.</p>
-          <p>Odin's ravens Huginn and Muninn&mdash;Thought and Memory&mdash;fly across all nine realms at dawn and return to whisper everything they've seen. The Morr&iacute;gan takes raven form to decide fate. Y&eacute;il stole the sun from darkness and gave it to everyone.</p>
-          <p style="color: var(--text-accent); font-weight: 500;">Raven MCP: design intelligence that used to be locked away, now flying across your work.</p>
-        </div>
-        <div class="mythology-visual reveal reveal-delay-2">
-          <img src="assets/raven-logo.png" alt="Raven">
-        </div>
-      </div>
-
-      <div class="mythology-realms">
-        <div class="glow-card realm reveal">
-          <div class="realm-tradition">Norse</div>
-          <h4>Huginn & Muninn</h4>
-          <p>Thought & Memory&mdash;Odin's ravens that fly across all nine realms and return with knowledge</p>
-        </div>
-        <div class="glow-card card-raised realm reveal reveal-delay-1">
-          <div class="realm-tradition">Celtic</div>
-          <h4>The Morr&iacute;gan</h4>
-          <p>Sovereignty & Prophecy&mdash;the triple goddess who takes raven form to decide fate</p>
-        </div>
-        <div class="glow-card realm reveal reveal-delay-2">
-          <div class="realm-tradition">Tlingit</div>
-          <h4>Y&eacute;il the Transformer</h4>
-          <p>Light from Darkness&mdash;Raven stole the sun, moon, and stars and gave them to everyone</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- SIZZLE REEL -->
-
-
   <!-- KNOWLEDGE LAYERS -->
   <section id="layers" class="layers">
     <div class="grid-bg"></div>
     <div class="container">
       <div class="section-header">
         <p class="label reveal">Eight Knowledge Layers</p>
-        <h2 class="reveal reveal-delay-1">Everything a senior design team knows</h2>
-        <p class="subtitle reveal reveal-delay-2">From universal laws of perception to content voice, research methods, service design, brand systems, and production tokens&mdash;structured for machines to query and apply.</p>
+        <h2 class="reveal reveal-delay-1">Eight disciplines, one MCP server</h2>
+        <p class="subtitle reveal reveal-delay-2">Design, content, brand, research, service, business &mdash; every layer your AI is missing, structured for machines to query and apply.</p>
       </div>
 
       <div class="layers-grid">
@@ -2144,44 +2003,93 @@
     </div>
   </section>
 
-  <!-- QUOTE -->
-  <section class="quote-section">
-    <div class="glow"></div>
-    <div class="container">
-      <div class="quote-inner reveal">
-        <div class="quote-mark">"</div>
-        <p class="quote-text">Design knowledge was locked in bentwood boxes&mdash;agency playbooks, enterprise design system teams, senior designers' heads. Raven broke the boxes open. Light for everyone.</p>
-        <p class="quote-attribution">The origin story &mdash; Tlingit mythology of Y&eacute;il, the Raven who stole the sun</p>
+  <!-- VIDEO DEMONSTRATION -->
+  <section style="padding: clamp(48px, 6vw, 80px) 0;">
+    <div class="container" style="display:flex;flex-direction:column;align-items:center;max-width:800px;">
+      <div class="sizzle-video reveal" style="width:100%;">
+        <video controls playsinline preload="metadata" poster="assets/og-image.jpg" style="width:100%;border-radius:12px;">
+          <source src="assets/video/sizzle-reel.mp4" type="video/mp4">
+        </video>
       </div>
     </div>
   </section>
 
-  <!-- HOW IT WORKS -->
-  <section class="how-section">
-    <div class="container">
+  <!-- EXAMPLES -->
+  <section id="examples" class="examples-section" style="padding: clamp(48px, 6vw, 80px) 0;">
+    <div class="container" style="display:flex;flex-direction:column;align-items:center;">
       <div class="section-header">
-        <p class="label reveal">How It Works</p>
-        <h2 class="reveal reveal-delay-1">Three steps to design-grade AI</h2>
+        <p class="label reveal">Real Outputs</p>
+        <h2 class="reveal reveal-delay-1">One tool. Every industry.</h2>
+        <p class="subtitle reveal reveal-delay-2">Built entirely with Raven's design intelligence. Click any to explore.</p>
       </div>
-
-      <div class="how-steps">
-        <div class="glow-card step reveal">
-          <div class="step-number">1</div>
-          <h3>Install</h3>
-          <p>Clone, build, and add to your MCP config. Two minutes.</p>
-          <div class="step-code">npm install && npm run build</div>
-        </div>
-        <div class="glow-card card-raised step reveal reveal-delay-1">
-          <div class="step-number">2</div>
-          <h3>Prompt</h3>
-          <p>Ask Claude to build any UI. Raven's tools are called automatically.</p>
-          <div class="step-code">claude "design a dashboard"</div>
-        </div>
-        <div class="glow-card step reveal reveal-delay-2">
-          <div class="step-number">3</div>
-          <h3>Ship</h3>
-          <p>Get UI grounded in real principles, proven patterns, and production tokens.</p>
-          <div class="step-code">&#10003; Design-system grade</div>
+      <div class="demo-showcase reveal reveal-delay-3" style="margin-top: 0; max-width: 1080px; width: 100%;">
+        <div class="demo-grid">
+          <a href="/demos/law-firm.html" class="demo-card">
+            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=600&q=80');"></div>
+            <div class="demo-card-overlay">
+              <div class="demo-card-industry">Legal</div>
+              <div class="demo-card-name">Harrison &amp; Cole</div>
+              <div class="demo-card-desc">Full-service litigation firm</div>
+            </div>
+            <div class="demo-card-arrow">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
+            </div>
+          </a>
+          <a href="/demos/wedding.html" class="demo-card">
+            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1606800052052-a08af7148866?w=600&q=80');"></div>
+            <div class="demo-card-overlay">
+              <div class="demo-card-industry">Wedding</div>
+              <div class="demo-card-name">Elara &amp; Co.</div>
+              <div class="demo-card-desc">Luxury wedding planning</div>
+            </div>
+            <div class="demo-card-arrow">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
+            </div>
+          </a>
+          <a href="/demos/coffee-shop.html" class="demo-card">
+            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=600&q=80');"></div>
+            <div class="demo-card-overlay">
+              <div class="demo-card-industry">Food &amp; Beverage</div>
+              <div class="demo-card-name">Ember &amp; Grain</div>
+              <div class="demo-card-desc">Specialty coffee roaster</div>
+            </div>
+            <div class="demo-card-arrow">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
+            </div>
+          </a>
+          <a href="/demos/saas.html" class="demo-card">
+            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&q=80');"></div>
+            <div class="demo-card-overlay">
+              <div class="demo-card-industry">SaaS</div>
+              <div class="demo-card-name">Flux</div>
+              <div class="demo-card-desc">Real-time analytics platform</div>
+            </div>
+            <div class="demo-card-arrow">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
+            </div>
+          </a>
+          <a href="/demos/fitness.html" class="demo-card">
+            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=600&q=80');"></div>
+            <div class="demo-card-overlay">
+              <div class="demo-card-industry">Fitness</div>
+              <div class="demo-card-name">FORGE</div>
+              <div class="demo-card-desc">Performance training studio</div>
+            </div>
+            <div class="demo-card-arrow">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
+            </div>
+          </a>
+          <a href="/demos/real-estate.html" class="demo-card">
+            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=600&q=80');"></div>
+            <div class="demo-card-overlay">
+              <div class="demo-card-industry">Real Estate</div>
+              <div class="demo-card-name">Oleander Residence</div>
+              <div class="demo-card-desc">$12.5M luxury estate listing</div>
+            </div>
+            <div class="demo-card-arrow">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h8M9 4l4 4-4 4"/></svg>
+            </div>
+          </a>
         </div>
       </div>
     </div>
@@ -2273,6 +2181,42 @@
     </div>
   </section>
 
+  <!-- MYTHOLOGY — the brand story -->
+  <section id="story" class="mythology-section">
+    <div class="container">
+      <div class="mythology-inner">
+        <div class="mythology-text reveal">
+          <p class="label">The Story</p>
+          <h2>Named for the creature that bridges worlds</h2>
+          <p>Across Norse, Celtic, and Native American traditions, the raven carries knowledge from hidden places and brings it into the light.</p>
+          <p>Odin's ravens Huginn and Muninn&mdash;Thought and Memory&mdash;fly across all nine realms at dawn and return to whisper everything they've seen. The Morr&iacute;gan takes raven form to decide fate. Y&eacute;il stole the sun from darkness and gave it to everyone.</p>
+          <p style="color: var(--text-accent); font-weight: 500;">Raven MCP: design intelligence that used to be locked away, now flying across your work.</p>
+        </div>
+        <div class="mythology-visual reveal reveal-delay-2">
+          <img src="assets/raven-logo.png" alt="Raven">
+        </div>
+      </div>
+
+      <div class="mythology-realms">
+        <div class="glow-card realm reveal">
+          <div class="realm-tradition">Norse</div>
+          <h4>Huginn &amp; Muninn</h4>
+          <p>Thought &amp; Memory&mdash;Odin's ravens that fly across all nine realms and return with knowledge</p>
+        </div>
+        <div class="glow-card card-raised realm reveal reveal-delay-1">
+          <div class="realm-tradition">Celtic</div>
+          <h4>The Morr&iacute;gan</h4>
+          <p>Sovereignty &amp; Prophecy&mdash;the triple goddess who takes raven form to decide fate</p>
+        </div>
+        <div class="glow-card realm reveal reveal-delay-2">
+          <div class="realm-tradition">Tlingit</div>
+          <h4>Y&eacute;il the Transformer</h4>
+          <p>Light from Darkness&mdash;Raven stole the sun, moon, and stars and gave them to everyone</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- PRICING -->
   <section id="pricing" class="pricing-section">
     <div class="grid-bg"></div>
@@ -2304,10 +2248,6 @@
             </div>
           </div>
           <p class="pricing-open-desc">Design intelligence for every AI-generated interface &mdash; accessibility audits, token systems, evaluation scoring, and more. Install in 30 seconds.</p>
-          <div class="pricing-open-actions">
-            <a href="/docs.html" class="btn btn-primary">Get Started</a>
-            <a href="https://github.com/rhinocap/raven-mcp" class="btn btn-secondary">View on GitHub</a>
-          </div>
         </div>
 
         <div class="glow-card pricing-services-card">
@@ -2317,21 +2257,6 @@
           <a href="mailto:andrew@ravenmcp.ai" class="pricing-services-link">Get in touch &rarr;</a>
         </div>
       </div>
-    </div>
-  </section>
-
-  <!-- FINAL CTA -->
-  <section id="updates" class="signup-section">
-    <div class="container">
-      <p class="label reveal">Release Updates</p>
-      <h2 class="reveal reveal-delay-1">New patterns, new systems, in&nbsp;your&nbsp;inbox</h2>
-      <p class="subtitle reveal reveal-delay-2">One email when new design principles, UI patterns, or brand systems ship. No marketing. Unsubscribe anytime.</p>
-      <form id="signup-form" class="signup-form reveal reveal-delay-3" novalidate>
-        <input id="signup-email" class="signup-input" type="email" placeholder="you@work.com" required autocomplete="email">
-        <button id="signup-submit" class="signup-submit" type="submit">Subscribe</button>
-      </form>
-      <div id="signup-status" class="signup-status" aria-live="polite"></div>
-      <p class="signup-note reveal reveal-delay-3">Minor &amp; major releases only — patches stay quiet.</p>
     </div>
   </section>
 
@@ -2696,47 +2621,6 @@
       counterObserver.observe(el);
     });
 
-    /* ── Signup Form ── */
-    (function() {
-      var form = document.getElementById('signup-form');
-      if (!form) return;
-      var input = document.getElementById('signup-email');
-      var button = document.getElementById('signup-submit');
-      var status = document.getElementById('signup-status');
-      form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        var email = (input.value || '').trim();
-        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-          status.textContent = "That doesn't look like a valid email.";
-          status.className = 'signup-status error';
-          return;
-        }
-        button.disabled = true;
-        status.textContent = 'Subscribing…';
-        status.className = 'signup-status';
-        fetch('/api/welcome', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email })
-        })
-          .then(function(r) { return r.json().then(function(b) { return { ok: r.ok, body: b }; }); })
-          .then(function(res) {
-            if (res.ok) {
-              status.textContent = "You're in. Check your inbox for a welcome from Drew.";
-              status.className = 'signup-status success';
-              input.value = '';
-            } else {
-              status.textContent = (res.body && res.body.error) ? res.body.error : 'Something went wrong — try again.';
-              status.className = 'signup-status error';
-            }
-          })
-          .catch(function() {
-            status.textContent = "Couldn't reach the server. Try again in a moment.";
-            status.className = 'signup-status error';
-          })
-          .finally(function() { button.disabled = false; });
-      });
-    })();
 
   </script>
 </body>
