@@ -1,0 +1,94 @@
+[
+  {
+    "id": "spacing-base-unit",
+    "name": "Spacing Base Unit",
+    "category": "spacing-systems",
+    "summary": "All spacing values (margin, padding, gap) should snap to multiples of a single base unit — typically 4px or 8px.",
+    "description": "A base-unit spacing system enforces visual rhythm and predictability across an interface. Pick one base (4px for fine-grained control, 8px for stronger rhythm) and require every spacing value to be a multiple of it. This eliminates the dozens of arbitrary one-off values (6px here, 14px there, 18px somewhere else) that accumulate in undisciplined designs and produce subtle visual noise. The 8px grid is the most common choice — it aligns with most icon sizes, divides cleanly across common viewport widths, and matches the Material Design 8dp grid and Apple's layout guidance. A 4px base is acceptable when you need finer steps (icon padding, dense data tables) but requires more discipline to avoid drift.",
+    "implications": [
+      "Pick one base unit (4px or 8px) and document it as a token",
+      "Every margin, padding, and gap value must be a multiple of the base",
+      "Use design tokens (space-1, space-2, space-3...) instead of raw pixel values",
+      "Lint or audit for off-grid values in production CSS",
+      "Round any value imported from comps/Figma to the nearest base-unit multiple"
+    ],
+    "violations": [
+      "Mixing 14px, 15px, 16px, 18px, 20px in the same layout",
+      "Off-grid values like 6px, 10px, 18px appearing alongside grid values",
+      "Using arbitrary px values from a design tool without snapping to the system",
+      "Different spacing units in adjacent components (one uses 12px gaps, neighbor uses 14px)"
+    ],
+    "applies_to": [
+      "layout",
+      "spacing",
+      "design-tokens",
+      "visual-rhythm",
+      "consistency"
+    ],
+    "sources": [
+      "https://m3.material.io/foundations/layout/understanding-layout/spacing",
+      "https://spec.commerce.shopify.com/foundations/spacing"
+    ]
+  },
+  {
+    "id": "spacing-scale-constraint",
+    "name": "Limited Spacing Scale",
+    "category": "spacing-systems",
+    "summary": "Restrict the spacing scale to roughly 6–8 steps following a geometric or near-geometric progression.",
+    "description": "Even when every value is on the base grid, using 15+ distinct spacing values produces visual chaos. A constrained scale — typically 6 to 8 steps — forces consistent decisions and creates predictable rhythm. The classic progression is geometric or near-geometric: 4, 8, 16, 24, 32, 48, 64, 96 (and sometimes 128). Each step is large enough to be visibly different from its neighbors; values that are too close (16 vs 18, 20 vs 24) read as inconsistency rather than intent. Tailwind's default scale, Material's spacing tokens, and most mature design systems all follow this pattern. The constraint is the point: when you must choose from 7 values, you make better, more consistent choices than when any multiple of 4 is available.",
+    "implications": [
+      "Define ~6–8 named tokens (e.g., xs, sm, md, lg, xl, 2xl, 3xl) and use only these",
+      "Follow a geometric or near-geometric progression — each step ~1.5–2x the previous",
+      "Common scale: 4, 8, 16, 24, 32, 48, 64, 96 (px)",
+      "Prefer doubling at the small end (4→8→16) and looser steps at the large end (32→48→64→96)",
+      "Audit demos and components for spacing-value count — more than ~10 unique values is a smell"
+    ],
+    "violations": [
+      "Using 19 distinct spacing values across a single product (audit finding)",
+      "Adjacent steps that differ by only 2px (14 and 16, 18 and 20) — visually indistinguishable but inconsistent",
+      "Linear scales (4, 8, 12, 16, 20, 24, 28, 32...) that produce too many similar steps",
+      "Inventing new spacing values per component instead of reusing the scale"
+    ],
+    "applies_to": [
+      "layout",
+      "spacing",
+      "design-tokens",
+      "design-system",
+      "consistency"
+    ],
+    "sources": [
+      "https://tailwindcss.com/docs/customizing-spacing",
+      "https://m3.material.io/foundations/layout/applying-layout/spacing"
+    ]
+  },
+  {
+    "id": "spacing-intentional-exceptions",
+    "name": "Intentional Spacing Exceptions",
+    "category": "spacing-systems",
+    "summary": "Break the spacing scale only for optical alignment, hairline borders, and icon-specific adjustments — and document why.",
+    "description": "A strict spacing system has narrow, well-understood exceptions. Optical alignment sometimes requires 1–2px nudges (a triangular play icon centered in a circle needs to shift right of geometric center to look centered). 1px borders aren't on the grid by definition, and that's fine — borders are a separate concern from spacing. Icon padding inside small buttons may need a 2px or 6px tweak to match the visual weight of text. The rule isn't 'never break the grid' — it's 'break it deliberately, locally, and with a reason.' If you find yourself reaching for off-grid values frequently, the system is probably wrong (base unit too coarse) or the design is undisciplined.",
+    "implications": [
+      "Allow 1px borders and dividers — they're not 'spacing' in the rhythm sense",
+      "Permit small optical-alignment nudges (1–2px) for icons and asymmetric shapes",
+      "Document any exception in code (comment) or in the design system",
+      "If you need off-grid values often, consider a smaller base unit (8 → 4)",
+      "Frequent exceptions are a signal that the scale or base unit is wrong, not the rule"
+    ],
+    "violations": [
+      "Using 'optical alignment' as a blanket excuse for any off-grid value",
+      "Off-grid spacing in normal layout (between cards, sections, paragraphs)",
+      "Accumulating undocumented exceptions until the system has no real constraint",
+      "Different components solving the same alignment problem with different off-grid values"
+    ],
+    "applies_to": [
+      "spacing",
+      "icons",
+      "optical-alignment",
+      "borders",
+      "design-system"
+    ],
+    "sources": [
+      "https://www.figma.com/blog/optical-effects/"
+    ]
+  }
+]
