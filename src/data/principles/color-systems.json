@@ -1,0 +1,38 @@
+[
+  {
+    "id": "color-systems",
+    "name": "Color System Discipline",
+    "category": "color",
+    "summary": "Constrain your palette to ~10 role-based values. Each additional color dilutes hierarchy and weakens the signal of what's interactive.",
+    "description": "A disciplined color system uses a small, role-based palette rather than an ad-hoc collection of hex values. The working budget is roughly 10 distinct colors total: 1 primary brand color, 1 accent for emphasis and CTAs, 4–5 neutrals for text and surfaces, and 2–3 semantic colors (success, warning, error, optionally info). Tints and shades count as separate values — `#1a73e8` and `#1565c0` are two colors in your budget, not one. When palettes balloon past ~10 values, users lose the ability to distinguish what's interactive from what's decorative, and visual hierarchy collapses. Every new color must earn its place by representing a distinct role or state, not a one-off styling decision.",
+    "implications": [
+      "Define every color by role (primary, accent, neutral-100…900, success, warning, error, surface) before assigning hex values",
+      "Cap total distinct color values at ~10 across the entire interface",
+      "Use a single neutral ramp of 4–5 steps for all grays — no near-duplicates like #333 and #2f2f2f",
+      "Reserve the accent color for the most important interactive elements; it loses meaning if applied broadly",
+      "Treat tints, shades, and gradient stops as part of the budget — count them",
+      "Codify the palette as design tokens so components reference roles, not raw hex",
+      "Add new colors only when introducing a new role or state, never for one-off component styling"
+    ],
+    "violations": [
+      "Page using 11+ distinct hex values where hierarchy between interactive and decorative elements becomes unclear",
+      "Multiple near-duplicate grays (e.g., #333, #2f2f2f, #2e2e2e) that add complexity without visual difference",
+      "Ad-hoc hex values dropped into individual components instead of referencing the system",
+      "Accent color used for both primary CTAs and decorative flourishes, diluting its call-to-action signal",
+      "Unbounded gradient stops introducing 4–5 new color values for a single hero section",
+      "No semantic colors defined — success and error states reuse brand colors, creating ambiguity"
+    ],
+    "applies_to": [
+      "color",
+      "design-tokens",
+      "visual-hierarchy",
+      "branding",
+      "design-systems",
+      "palette"
+    ],
+    "sources": [
+      "https://refactoringui.com/previews/building-your-color-palette/",
+      "https://m3.material.io/styles/color/system/overview"
+    ]
+  }
+]
