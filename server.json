@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "ai.ravenmcp/raven-mcp",
+  "title": "Raven",
+  "description": "Design intelligence MCP server — principles, UI patterns, content systems, research methods, service design, brand, business strategy, and production design tokens for AI-generated UI.",
+  "version": "1.3.3",
+  "websiteUrl": "https://ravenmcp.ai",
+  "repository": {
+    "url": "https://github.com/rhinocap/raven-mcp",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "raven-mcp",
+      "version": "1.3.3",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
