@@ -86,8 +86,21 @@ function loadJsonDir<T>(dir: string): T[] {
   var files = readdirSync(dir).filter(f => f.endsWith(".json"));
   var results: T[] = [];
   for (var file of files) {
-    var raw = readFileSync(join(dir, file), "utf-8");
-    var parsed = JSON.parse(raw);
+    var fullPath = join(dir, file);
+    var raw: string;
+    try {
+      raw = readFileSync(fullPath, "utf-8");
+    } catch (err) {
+      console.error("[raven] skipped " + fullPath + " (read failed: " + (err as Error).message + ")");
+      continue;
+    }
+    var parsed: any;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      console.error("[raven] skipped " + fullPath + " (invalid JSON: " + (err as Error).message + ")");
+      continue;
+    }
     if (Array.isArray(parsed)) {
       results = results.concat(parsed);
     } else {
@@ -790,7 +803,9 @@ try {
   if (existsSync(pkgPath)) {
     PKG_VERSION = JSON.parse(readFileSync(pkgPath, "utf-8")).version || "0.0.0";
   }
-} catch {}
+} catch (_err) {
+  // Best-effort version read; falls back to "0.0.0" if package.json is unavailable.
+}
 
 var pendingUpdateNotice: string | null = null;
 var noticeShown: boolean = false;
@@ -829,7 +844,7 @@ async function checkForUpdate(): Promise<void> {
         (cmp === "newer-major" ? "major" : "minor") + " bump). " + installHint;
       console.error(pendingUpdateNotice);
     }
-  } catch {
+  } catch (_err) {
     // Offline, blocked, rate-limited, anything — stay silent.
   }
 }
@@ -963,7 +978,7 @@ function extractInsight(toolName: string, input: any, output: any): any {
       default:
         insight = {};
     }
-  } catch {
+  } catch (_err) {
     insight = { extract_failed: true };
   }
   return insight;
@@ -980,7 +995,7 @@ function logUsage(toolName: string, input: any, output: any, elapsedMs: number):
     };
     mkdirSync(dirname(USAGE_LOG_PATH), { recursive: true });
     appendFileSync(USAGE_LOG_PATH, JSON.stringify(entry) + "\n", "utf-8");
-  } catch {
+  } catch (_err) {
     // Never let logging disrupt a real tool call.
   }
 }
@@ -1000,10 +1015,12 @@ function readUsageSince(daysBack: number): any[] {
       try {
         var e = JSON.parse(line);
         if (new Date(e.t).getTime() >= cutoff) out.push(e);
-      } catch {}
+      } catch (_parseErr) {
+        // Corrupt single line — skip and continue reading the rest of the log.
+      }
     }
     return out;
-  } catch {
+  } catch (_err) {
     return [];
   }
 }
@@ -1063,8 +1080,8 @@ function maybeComputeDailyDigest(): void {
     if (topWarnings.length) parts.push("recurring " + topWarnings.join(", "));
     parts.push('ask "raven_reflect" for full breakdown');
     pendingDailyDigest = parts.join(" · ");
-  } catch {
-    // Silent.
+  } catch (_err) {
+    // Silent — digest is best-effort and never blocks tool calls.
   }
 }
 

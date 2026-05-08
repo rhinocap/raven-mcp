@@ -1,6 +1,6 @@
 {
   "name": "raven-mcp",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "mcpName": "ai.ravenmcp/raven-mcp",
   "description": "Design intelligence MCP server — principles, patterns, tokens, content systems, research methods, service design, and brand guidance for AI-generated UI. Now with research, service design (with HTML blueprint generation), and brand/visual design layers.",
   "type": "module",
@@ -26,15 +26,19 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.90.0",
+    "@anthropic-ai/sdk": "^0.95.1",
     "@types/node": "^22.0.0",
     "resend": "^6.10.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
+  },
+  "overrides": {
+    "hono": "^4.12.18",
+    "express-rate-limit": "^8.5.1"
   },
   "keywords": [
     "mcp",
