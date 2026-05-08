@@ -57,6 +57,18 @@ node -e '
   fs.writeFileSync("manifest.json", JSON.stringify(m, null, 2) + "\n");
 '
 
+echo "→ Syncing version into server.json (MCP Registry / marketplace metadata)"
+node -e '
+  const fs = require("fs");
+  const v = require("./package.json").version;
+  const s = JSON.parse(fs.readFileSync("server.json", "utf8"));
+  s.version = v;
+  if (Array.isArray(s.packages)) {
+    for (const p of s.packages) p.version = v;
+  }
+  fs.writeFileSync("server.json", JSON.stringify(s, null, 2) + "\n");
+'
+
 echo "→ Rebuilding .mcpb"
 npm run build:mcpb
 
@@ -64,7 +76,7 @@ echo "→ Publishing to npm"
 npm publish
 
 echo "→ Committing + tagging"
-git add package.json package-lock.json manifest.json site/raven.mcpb
+git add package.json package-lock.json manifest.json server.json site/raven.mcpb
 git commit -m "Release v$NEW
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
