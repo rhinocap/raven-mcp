@@ -1,0 +1,3 @@
+[mcp_servers.raven]
+args = ["/Users/accunliffe/projects/raven-mcp/dist/index.js"]
+command = "node"
