@@ -1,0 +1,102 @@
+[
+  {
+    "id": "palette-budget",
+    "name": "Palette Budget",
+    "category": "palette-construction",
+    "summary": "A design system should ship with ~5–8 core color tokens; exceeding ~10 distinct hex values almost always indicates duplication, not intentional variety.",
+    "description": "Color palettes bloat silently. A new section needs a 'slightly darker border', a hover state gets a one-off tint, a shadow uses a novel rgba — and suddenly the page has 15 hex values, most of which are visually indistinguishable. A disciplined palette has a fixed budget: 1–2 brand colors, 1 accent, 3–5 neutral steps, and semantic states (success/warning/error/info). Everything else should be derived (opacity, mix) or reused. If you find yourself reaching for a new hex, the correct move is almost always to reuse an existing token.",
+    "implications": [
+      "Define the full palette upfront as named tokens (brand, accent, neutral-50 through neutral-900, success, warning, error, info)",
+      "Cap distinct hex values at ~8–10 across the entire product surface",
+      "Derive variations through opacity (rgba) or color-mix() rather than new hex values",
+      "Use a single neutral scale for borders, dividers, muted text, and backgrounds — pick the closest step, don't invent a new one",
+      "Treat shadows as tokens too — define 2–4 elevation levels, not arbitrary rgba per component",
+      "When adding a section, audit existing tokens before introducing a new shade"
+    ],
+    "violations": [
+      "Three nearly-identical grays for borders (#e5e5e5), dividers (#e8e8e8), and muted backgrounds (#ececec)",
+      "One-off hover tints generated per-component instead of a systematic 'hover' modifier",
+      "Hardcoded rgba shadows that differ slightly across cards, modals, and dropdowns",
+      "Section-specific 'accent' colors that drift from the brand accent",
+      "More than 10 distinct hex values on a single page",
+      "Duplicating a token with a 1–2 point hex difference because 'this one needs to be slightly warmer'"
+    ],
+    "applies_to": [
+      "design-tokens",
+      "color-system",
+      "theming",
+      "marketing-page",
+      "component-library",
+      "visual-consistency"
+    ],
+    "sources": [
+      "https://spectrum.adobe.com/page/color-system/",
+      "https://m3.material.io/styles/color/system/overview",
+      "https://refactoringui.com/"
+    ]
+  },
+  {
+    "id": "token-reuse-over-invention",
+    "name": "Token Reuse Over Invention",
+    "category": "palette-construction",
+    "summary": "When a new UI element needs a color, reach for an existing token first; only invent a new one when no existing token is within ~5% perceptual distance.",
+    "description": "Every new color in a system has a maintenance cost: it must be themed, tested for contrast, documented, and kept consistent across components. The default behavior when building a new section or component should be to pick the closest existing token, not to introduce a new shade. A useful heuristic: if a candidate new color is within ~5% perceptual distance (roughly ΔE < 5) of an existing token, use the existing one. Users will not perceive the difference, and the system stays coherent.",
+    "implications": [
+      "Make the token list visible to designers and developers during component creation",
+      "Build linting that flags hardcoded hex values in components — force usage of named tokens",
+      "When in doubt, round to the nearest existing neutral step rather than inventing a new one",
+      "Document the intended use of each token (e.g., 'neutral-200 for subtle borders AND dividers AND disabled backgrounds') so reuse is the obvious path",
+      "Resist the urge to add 'just one more' shade for a specific component — that shade will spawn cousins"
+    ],
+    "violations": [
+      "Adding neutral-250 because neutral-200 felt 'a bit too light' for one specific card",
+      "Per-component color decisions made in isolation without checking the token list",
+      "Designers picking colors from a color picker instead of from the token palette",
+      "Developers writing inline hex values instead of referencing tokens",
+      "Multiple tokens that serve the same semantic purpose (e.g., 'border-default' and 'divider-line' both pointing to near-identical grays)"
+    ],
+    "applies_to": [
+      "design-tokens",
+      "component-library",
+      "design-handoff",
+      "linting",
+      "system-governance"
+    ],
+    "sources": [
+      "https://refactoringui.com/",
+      "https://spectrum.adobe.com/page/color-system/"
+    ]
+  },
+  {
+    "id": "palette-bloat-detection",
+    "name": "Palette Bloat Detection",
+    "category": "palette-construction",
+    "summary": "If a page uses more than ~10 distinct hex values, it almost certainly contains duplicated near-identical colors that should be consolidated.",
+    "description": "Palette bloat is hard to see by eye because the duplicates are, by definition, visually similar. The fastest detection is mechanical: count distinct hex values (including rgba) across the rendered page. A well-systemized product surface lands at 8–10. Above 12 indicates drift. Common bloat sources: (1) slightly-different grays used for borders vs. dividers vs. muted text vs. disabled states, (2) one-off hover and active tints invented per-component, (3) hardcoded rgba shadow values that differ across elevations, (4) section-specific accent variations, (5) imported third-party components bringing their own color values. The fix is consolidation: pick the dominant value in each cluster and replace the rest.",
+    "implications": [
+      "Add a build-time or CI check that counts distinct hex/rgba values per page and warns above a threshold (~10)",
+      "Periodically audit rendered pages with a color-extraction tool to catch drift",
+      "Cluster near-identical colors (ΔE < 5) and consolidate to a single token",
+      "Treat shadows and rgba overlays with the same scrutiny as solid colors — they bloat palettes too",
+      "When the count is high, look first at neutrals (borders, dividers, muted text) — that's where 60% of bloat lives"
+    ],
+    "violations": [
+      "Shipping a marketing page with 11+ distinct hex values",
+      "No automated detection — palette size is only noticed during occasional manual audits",
+      "Treating rgba and hex as separate palettes (they're not — they all contribute to perceived color count)",
+      "Consolidation deferred indefinitely because 'it's just a few extra grays'"
+    ],
+    "applies_to": [
+      "design-tokens",
+      "ci-checks",
+      "design-audits",
+      "marketing-page",
+      "linting",
+      "quality-assurance"
+    ],
+    "sources": [
+      "https://refactoringui.com/",
+      "https://spectrum.adobe.com/page/color-system/"
+    ]
+  }
+]
