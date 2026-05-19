@@ -43,7 +43,7 @@
       "Stock photography of hands-on-keyboards that subtly standardizes on one hand type and skin tone."
     ],
     "applies_to": ["brand", "imagery", "inclusion", "marketing"],
-    "sources": ["https://contentdesign.intuit.com/principles/inclusive/", "https://airbnb.design/"]
+    "sources": ["https://airbnb.design/", "https://www.w3.org/WAI/standards-guidelines/wcag/"]
   },
   {
     "id": "imagery-serve-the-message",

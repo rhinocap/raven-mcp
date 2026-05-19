@@ -4,7 +4,7 @@
     "name": "Aesthetic-Usability Effect",
     "category": "laws-of-ux",
     "summary": "Users often perceive aesthetically pleasing design as design that's more usable.",
-    "description": "Attractive things work better — or at least users believe they do. An aesthetically pleasing interface creates a positive emotional response that makes users more tolerant of minor usability issues. This effect can mask usability problems during testing, so beautiful designs need rigorous usability testing. The takeaway: visual polish is not superficial — it directly impacts perceived usability and trust.",
+    "description": "Pretty interfaces feel easier to use, even when they aren't. Kurosu and Kashimura's 1995 study at Hitachi found a strong correlation between users' aesthetic ratings of an ATM interface and their perceived ease of use. That halo effect buys goodwill for minor friction, but it also masks real usability defects in testing — so polished prototypes need harder scrutiny, not less. The takeaway: visual craft is not decoration; it shapes trust and tolerance.",
     "implications": [
       "Invest in visual polish — it directly impacts perceived usability",
       "Beautiful designs need MORE usability testing, not less (the effect masks problems)",
@@ -17,14 +17,17 @@
       "Assuming good functionality compensates for poor visual design"
     ],
     "applies_to": ["visual-design", "trust", "branding", "landing-page", "first-impression"],
-    "sources": ["https://lawsofux.com/aesthetic-usability-effect/"]
+    "sources": [
+      "Kurosu, M. & Kashimura, K. (1995). Apparent usability vs. inherent usability: experimental analysis on the determinants of the apparent usability. CHI '95 Conference Companion.",
+      "Tractinsky, N., Katz, A. S. & Ikar, D. (2000). What is beautiful is usable. Interacting with Computers, 13(2)."
+    ]
   },
   {
     "id": "doherty-threshold",
     "name": "Doherty Threshold",
     "category": "laws-of-ux",
     "summary": "Productivity soars when a computer and its users interact at a pace (<400ms) that ensures that neither has to wait on the other.",
-    "description": "Research by Walter Doherty and Ahrvind Thadani at IBM showed that when system response time drops below 400 milliseconds, users enter a state of flow. Above this threshold, attention wanders and errors increase. The practical implication: perceived performance matters as much as actual performance. Use optimistic UI, skeleton screens, and progressive loading to keep interactions feeling instant.",
+    "description": "Walter Doherty and Arvind Thadani's 1982 IBM study showed that when system response drops under 400ms, users stop waiting on the machine and the machine stops waiting on them — productivity jumps disproportionately. Cross that threshold the wrong way and attention drifts, errors climb, and the flow state collapses. In practice, perceived performance counts as much as actual performance: optimistic UI, skeletons, and progressive rendering keep the interaction inside the threshold even when the network doesn't.",
     "implications": [
       "Target <400ms response time for all interactions",
       "Use optimistic UI updates — show the result before the server confirms",
@@ -40,14 +43,16 @@
       "Animations longer than 400ms that feel sluggish"
     ],
     "applies_to": ["performance", "loading", "animation", "feedback", "optimistic-ui"],
-    "sources": ["https://lawsofux.com/doherty-threshold/"]
+    "sources": [
+      "Doherty, W. J. & Thadani, A. J. (1982). The Economic Value of Rapid Response Time. IBM Technical Report GE20-0752-0."
+    ]
   },
   {
     "id": "fitts-law",
     "name": "Fitts's Law",
     "category": "laws-of-ux",
     "summary": "The time to acquire a target is a function of the distance to and size of the target.",
-    "description": "Formulated by Paul Fitts in 1954, this law states that the time to move to a target is logarithmically related to the distance divided by the target width. Larger, closer targets are faster to click. Screen edges and corners are effectively infinite-width targets (the cursor stops there). This has profound implications for button sizing, placement, and touch target design.",
+    "description": "Paul Fitts modeled pointing in 1954 and produced one of the most replicated results in HCI: time-to-target grows with distance and shrinks with target size, on a logarithmic curve. Big targets close to the cursor are fast; small targets far from it are slow. Screen edges and corners act as infinitely large targets because the cursor can't overshoot them, which is why macOS menus live at the top of the screen. Designing buttons, touch targets, and hit areas is mostly an exercise in respecting this curve.",
     "implications": [
       "Make primary action buttons large and prominent",
       "Place important actions near the user's current focus area",
@@ -65,14 +70,17 @@
       "Critical actions placed in corners far from content"
     ],
     "applies_to": ["buttons", "navigation", "forms", "mobile", "cta", "touch-targets"],
-    "sources": ["https://lawsofux.com/fittss-law/"]
+    "sources": [
+      "Fitts, P. M. (1954). The information capacity of the human motor system in controlling the amplitude of movement. Journal of Experimental Psychology, 47(6), 381-391.",
+      "MacKenzie, I. S. (1992). Fitts' law as a research and design tool in human-computer interaction. Human-Computer Interaction, 7(1)."
+    ]
   },
   {
     "id": "goal-gradient-effect",
     "name": "Goal-Gradient Effect",
     "category": "laws-of-ux",
     "summary": "The tendency to approach a goal increases with proximity to the goal.",
-    "description": "People are more motivated to complete a task when they can see they're close to finishing. This is why progress bars, step indicators, and completion percentages work. The classic example: coffee loyalty cards pre-stamped with 2 of 12 stamps get completed faster than blank 10-of-10 cards. In UX, this means showing progress, breaking tasks into visible steps, and giving users a sense of advancement.",
+    "description": "Clark Hull demonstrated in 1932 that animals accelerate as they near a reward, and Kivetz, Urminsky, and Zheng's 2006 work on consumer loyalty programs confirmed it in humans: people push harder on the last few stamps than the first. A coffee card pre-stamped with two of twelve squares gets filled faster than a blank ten-of-ten card — same work, different perceived distance. In product, this is the case for visible progress, pre-filled state, and granular step counters that show the finish line shrinking.",
     "implications": [
       "Show progress indicators on multi-step flows",
       "Start users with some progress already completed (profile 20% complete)",
@@ -88,14 +96,17 @@
       "No celebration or acknowledgment when a task is completed"
     ],
     "applies_to": ["onboarding", "forms", "progress", "gamification", "checkout", "signup"],
-    "sources": ["https://lawsofux.com/goal-gradient-effect/"]
+    "sources": [
+      "Hull, C. L. (1932). The goal-gradient hypothesis and maze learning. Psychological Review, 39(1), 25-43.",
+      "Kivetz, R., Urminsky, O. & Zheng, Y. (2006). The goal-gradient hypothesis resurrected: purchase acceleration, illusionary goal progress, and customer retention. Journal of Marketing Research, 43(1)."
+    ]
   },
   {
     "id": "hicks-law",
     "name": "Hick's Law",
     "category": "laws-of-ux",
     "summary": "The time it takes to make a decision increases with the number and complexity of choices.",
-    "description": "Described by William Edmund Hick and Ray Hyman, this law quantifies the relationship between choices and decision time. More options = longer decision time = higher abandonment risk. This doesn't mean removing all choices — it means structuring them. Progressive disclosure, smart defaults, and categorization all help manage complexity without removing functionality.",
+    "description": "William Hick (1952) and Ray Hyman (1953) independently established that reaction time grows logarithmically with the number of equally probable options. The implication isn't to strip choice — it's to structure it. Group related options, surface the recommended path, hide advanced controls behind progressive disclosure, and rely on smart defaults so most users never have to enumerate alternatives at all.",
     "implications": [
       "Limit navigation items to 7±2 top-level options",
       "Use progressive disclosure to reveal options as needed",
@@ -113,14 +124,17 @@
       "Homepage with 10+ competing CTAs"
     ],
     "applies_to": ["navigation", "pricing", "forms", "settings", "menus", "cta", "decision-making"],
-    "sources": ["https://lawsofux.com/hicks-law/"]
+    "sources": [
+      "Hick, W. E. (1952). On the rate of gain of information. Quarterly Journal of Experimental Psychology, 4(1), 11-26.",
+      "Hyman, R. (1953). Stimulus information as a determinant of reaction time. Journal of Experimental Psychology, 45(3)."
+    ]
   },
   {
     "id": "jakobs-law",
     "name": "Jakob's Law",
     "category": "laws-of-ux",
     "summary": "Users spend most of their time on other sites. This means that users prefer your site to work the same way as all the other sites they already know.",
-    "description": "Named after Jakob Nielsen, this law recognizes that users build mental models from their cumulative experience across all digital products. When you deviate from established conventions, you force users to learn new patterns, increasing cognitive load and error rates. Innovation is good, but it should build on familiar foundations. Use common patterns and innovate on top of them, not instead of them.",
+    "description": "Jakob Nielsen's observation is blunt: your users have spent thousands of hours on other products and only minutes on yours, so their expectations were set elsewhere. Deviating from established conventions taxes attention, raises error rates, and rarely pays for itself. The right move is to be conventional in the plumbing — navigation, search, forms, checkout — and reserve novelty for the parts that actually differentiate the product.",
     "implications": [
       "Follow platform conventions for common interactions (navigation, search, forms)",
       "Place the logo in the top-left, linking to the homepage",
@@ -138,14 +152,17 @@
       "Non-standard gestures for common actions"
     ],
     "applies_to": ["navigation", "layout", "forms", "conventions", "patterns", "mobile"],
-    "sources": ["https://lawsofux.com/jakobs-law/"]
+    "sources": [
+      "Nielsen, J. (2000). End of Web Design. Nielsen Norman Group. https://www.nngroup.com/articles/end-of-web-design/",
+      "Nielsen, J. (2017). A 100-Year View of User Experience. Nielsen Norman Group. https://www.nngroup.com/articles/100-years-ux/"
+    ]
   },
   {
     "id": "law-of-common-region",
     "name": "Law of Common Region",
     "category": "laws-of-ux",
     "summary": "Elements tend to be perceived into groups if they are sharing an area with a clearly defined boundary.",
-    "description": "A Gestalt principle stating that elements within a shared visual boundary are perceived as a group. Cards, panels, sections with borders, and background colors all create regions. This is fundamental to information architecture — grouping related content visually communicates structure without requiring labels. It's one of the strongest grouping cues available.",
+    "description": "Stephen Palmer formalized this Gestalt principle in 1992: a shared enclosure — a card, a panel, a tinted background — binds the elements inside it into a perceived group, often more strongly than proximity or similarity alone. It's the cheapest, most legible way to communicate structure without writing a label. Cards on a dashboard, fieldsets in a form, and tinted footer regions all lean on it.",
     "implications": [
       "Use cards to group related information",
       "Apply subtle background colors to delineate sections",
@@ -161,14 +178,16 @@
       "Mixed content types in the same visual container"
     ],
     "applies_to": ["layout", "cards", "forms", "grouping", "information-architecture"],
-    "sources": ["https://lawsofux.com/law-of-common-region/"]
+    "sources": [
+      "Palmer, S. E. (1992). Common region: a new principle of perceptual grouping. Cognitive Psychology, 24(3), 436-447."
+    ]
   },
   {
     "id": "law-of-proximity",
     "name": "Law of Proximity",
     "category": "laws-of-ux",
     "summary": "Objects that are near, or proximate to each other, tend to be grouped together.",
-    "description": "The most fundamental Gestalt principle in UI design. Spatial proximity is the strongest cue for grouping. Elements placed close together are perceived as related. This applies to form labels and inputs, navigation items, action buttons, and content sections. The space BETWEEN groups should always be larger than the space WITHIN groups.",
+    "description": "Max Wertheimer's foundational 1923 Gestalt paper established proximity as the dominant grouping cue: things that sit close together read as related, full stop. In interfaces, that means the gap between groups must always exceed the gap within a group — otherwise the eye merges them wrongly. Labels-to-inputs, action-button clusters, navigation sections, and content blocks all stand or fall on this.",
     "implications": [
       "Place labels close to their corresponding form fields",
       "Group related actions together (Save, Cancel)",
@@ -184,14 +203,16 @@
       "Equal spacing between all elements — no grouping communicated"
     ],
     "applies_to": ["layout", "forms", "spacing", "grouping", "typography", "buttons"],
-    "sources": ["https://lawsofux.com/law-of-proximity/"]
+    "sources": [
+      "Wertheimer, M. (1923). Untersuchungen zur Lehre von der Gestalt II. Psychologische Forschung, 4, 301-350. (English translation: Laws of Organization in Perceptual Forms, 1938.)"
+    ]
   },
   {
     "id": "law-of-pragnanz",
     "name": "Law of Pragnanz",
     "category": "laws-of-ux",
     "summary": "People will perceive and interpret ambiguous or complex images as the simplest form possible, because it is the interpretation that requires the least cognitive effort.",
-    "description": "Also known as the Law of Simplicity or the Law of Good Figure. The human brain prefers simple, regular, orderly forms. Complex layouts are mentally reorganized into simpler patterns. This means interfaces should align with how the brain naturally simplifies — use regular grids, consistent spacing, clear hierarchies, and predictable layouts. Complexity creates cognitive friction.",
+    "description": "Also called the Law of Good Figure or the Law of Simplicity, Prägnanz is the Gestalt observation that the visual system aggressively reorganizes complex scenes into the simplest stable interpretation it can find. Regular grids, consistent spacing, and aligned edges feel calm because they require less work to parse. Chaos, misalignment, and visual noise force the brain to keep computing — that's the cognitive tax bad layouts charge.",
     "implications": [
       "Use consistent grid systems for layout",
       "Align elements to create visual order",
@@ -208,14 +229,17 @@
       "Too many different visual treatments on one page"
     ],
     "applies_to": ["layout", "grid", "visual-design", "simplicity", "hierarchy"],
-    "sources": ["https://lawsofux.com/law-of-pragnanz/"]
+    "sources": [
+      "Koffka, K. (1935). Principles of Gestalt Psychology. Harcourt Brace.",
+      "Wertheimer, M. (1923). Laws of Organization in Perceptual Forms. Psychologische Forschung."
+    ]
   },
   {
     "id": "law-of-similarity",
     "name": "Law of Similarity",
     "category": "laws-of-ux",
     "summary": "The human eye tends to perceive similar elements in a design as a complete picture, shape, or group, even if those elements are separated.",
-    "description": "Elements that look alike are perceived as related or having the same function. Similarity can be expressed through color, shape, size, texture, or orientation. In UI design, this means all buttons that do similar things should look similar. All cards representing the same type of content should share visual treatment. Breaking similarity signals that something is different or special.",
+    "description": "Another Gestalt grouping principle from Wertheimer: elements that share color, shape, size, texture, or orientation read as belonging to the same family, even when they sit apart on the canvas. In interfaces, that's the contract behind consistency — buttons that do the same job should look the same, cards of the same type should share treatment, and an outlier appearance should mean something. Break similarity on purpose, never by accident.",
     "implications": [
       "Make all interactive elements of the same type visually consistent",
       "Use the same card style for the same type of content",
@@ -231,14 +255,16 @@
       "Interactive elements that look like non-interactive ones (and vice versa)"
     ],
     "applies_to": ["buttons", "cards", "icons", "consistency", "visual-design", "color"],
-    "sources": ["https://lawsofux.com/law-of-similarity/"]
+    "sources": [
+      "Wertheimer, M. (1923). Untersuchungen zur Lehre von der Gestalt II. Psychologische Forschung, 4."
+    ]
   },
   {
     "id": "law-of-uniform-connectedness",
     "name": "Law of Uniform Connectedness",
     "category": "laws-of-ux",
     "summary": "Elements that are visually connected are perceived as more related than elements with no connection.",
-    "description": "Visual connections — lines, arrows, color-coded backgrounds, or shared containers — create the strongest grouping perception, even overriding proximity and similarity. In UI, this applies to step indicators connected by lines, grouped inputs in fieldsets, timeline designs, and flow diagrams. Connecting elements visually communicates sequence and relationship.",
+    "description": "Palmer and Rock (1994) showed that visible connection — a line, a shared enclosure, a uniform color region — is one of the strongest grouping cues available, often overriding both proximity and similarity. In product design, this is why step indicators with a connecting rail read as a sequence, why fieldset borders bind inputs together, and why timeline UIs need an actual line drawn between events. If two things belong together, draw the connection.",
     "implications": [
       "Connect step indicators with lines to show sequence",
       "Use borders or shared backgrounds for fieldsets and form groups",
@@ -253,14 +279,16 @@
       "Flow diagram where connections are implied but not drawn"
     ],
     "applies_to": ["progress", "timelines", "charts", "grouping", "flows", "steps"],
-    "sources": ["https://lawsofux.com/law-of-uniform-connectedness/"]
+    "sources": [
+      "Palmer, S. & Rock, I. (1994). Rethinking perceptual organization: the role of uniform connectedness. Psychonomic Bulletin & Review, 1(1), 29-55."
+    ]
   },
   {
     "id": "millers-law",
     "name": "Miller's Law",
     "category": "laws-of-ux",
     "summary": "The average person can only keep 7 (plus or minus 2) items in their working memory.",
-    "description": "George Miller's 1956 paper established that human short-term memory holds approximately 7±2 chunks of information. This doesn't mean every menu should have 7 items — it means interfaces should not require users to hold many items in memory simultaneously. Chunking (grouping information into meaningful units), progressive disclosure, and persistent displays reduce memory demands.",
+    "description": "George Miller's 1956 paper proposed that short-term memory holds roughly seven chunks — not seven items, but seven meaningfully-grouped units. The lesson for interfaces isn't 'always show seven things,' it's 'never make users carry information across screens in their head.' Chunk phone numbers, surface relevant context inline, and persist state instead of asking people to remember a code from page one.",
     "implications": [
       "Chunk information into meaningful groups of 3-5 items",
       "Don't require users to remember information from one page to use on another",
@@ -276,14 +304,16 @@
       "Phone numbers displayed as raw 10-digit strings without grouping"
     ],
     "applies_to": ["navigation", "forms", "information-architecture", "content", "memory"],
-    "sources": ["https://lawsofux.com/millers-law/"]
+    "sources": [
+      "Miller, G. A. (1956). The magical number seven, plus or minus two: some limits on our capacity for processing information. Psychological Review, 63(2), 81-97."
+    ]
   },
   {
     "id": "occams-razor",
     "name": "Occam's Razor",
     "category": "laws-of-ux",
     "summary": "Among competing hypotheses that predict equally well, the one with the fewest assumptions should be selected.",
-    "description": "In design, Occam's Razor means choosing the simplest solution that adequately solves the problem. Don't add features, screens, or options unless they earn their complexity. Every element in a UI should justify its existence. If two designs solve the problem equally well, the simpler one is better — it's faster to build, easier to maintain, and less likely to confuse users.",
+    "description": "Attributed to the 14th-century logician William of Ockham, the razor says: don't multiply entities beyond necessity. Translated into product work, the simplest solution that adequately solves the problem wins — it ships faster, breaks less, and asks less of users. Every screen, field, and option should justify the complexity it adds; if it can't, cut it.",
     "implications": [
       "Start with the simplest possible solution and add complexity only when needed",
       "Remove features and options that don't serve core user goals",
@@ -299,14 +329,16 @@
       "Feature-packed UI that tries to serve every possible use case"
     ],
     "applies_to": ["simplicity", "features", "forms", "onboarding", "settings", "complexity"],
-    "sources": ["https://lawsofux.com/occams-razor/"]
+    "sources": [
+      "Attributed to William of Ockham (c. 1287-1347). Modern formulation discussed in Sober, E. (2015). Ockham's Razors: A User's Manual. Cambridge University Press."
+    ]
   },
   {
     "id": "pareto-principle",
     "name": "Pareto Principle",
     "category": "laws-of-ux",
     "summary": "The Pareto principle states that, for many events, roughly 80% of the effects come from 20% of the causes.",
-    "description": "In product design, approximately 80% of users use only 20% of features. 80% of errors come from 20% of issues. 80% of revenue comes from 20% of customers. Focus design effort on the critical 20% — the core workflows, the most common tasks, the most valuable user segments. Don't spread attention evenly across all features; optimize for the vital few.",
+    "description": "Italian economist Vilfredo Pareto noticed in 1896 that 80% of Italian land was owned by 20% of the population, and the ratio has been observed in countless distributions since. In product, the rule of thumb is similar: a small share of features generates most of the usage, a small share of bugs drives most of the complaints, and a small share of customers produces most of the revenue. Spend design effort proportionally — the vital few, not the trivial many.",
     "implications": [
       "Identify and optimize the top 20% most-used features",
       "Design for the most common use case first, then accommodate edge cases",
@@ -322,14 +354,17 @@
       "Feature parity with competitors on features nobody uses"
     ],
     "applies_to": ["prioritization", "features", "analytics", "design-investment", "product-strategy"],
-    "sources": ["https://lawsofux.com/pareto-principle/"]
+    "sources": [
+      "Pareto, V. (1896). Cours d'Économie Politique. F. Rouge.",
+      "Juran, J. M. (1951). Quality Control Handbook. McGraw-Hill. (Popularized the 80/20 framing.)"
+    ]
   },
   {
     "id": "parkinsons-law",
     "name": "Parkinson's Law",
     "category": "laws-of-ux",
     "summary": "Any task will inflate until all of the available time is spent.",
-    "description": "Cyril Northcote Parkinson observed that work expands to fill the time available for its completion. In UX, this means that giving users too much time, space, or flexibility often leads to worse outcomes, not better ones. Constrained design — shorter forms, tighter deadlines, limited text areas — often produces better results. This also applies to design process: timeboxing decisions prevents over-analysis.",
+    "description": "Cyril Northcote Parkinson, writing in The Economist in 1955, observed that work expands to fill the time allotted to it. The implication for product design is constraint-as-feature: shorter forms get finished, capped text fields produce sharper writing, and timeboxed design decisions ship. Where you don't impose a limit, users (and teams) tend to use all of the room you gave them — and not always for the better.",
     "implications": [
       "Set appropriate constraints on inputs (character limits, field counts)",
       "Use timeboxing for design decisions — don't let analysis expand forever",
@@ -344,14 +379,17 @@
       "Infinite scroll that encourages endless browsing instead of action"
     ],
     "applies_to": ["forms", "time", "constraints", "productivity", "input-design"],
-    "sources": ["https://lawsofux.com/parkinsons-law/"]
+    "sources": [
+      "Parkinson, C. N. (1955). Parkinson's Law. The Economist, 19 November 1955.",
+      "Parkinson, C. N. (1958). Parkinson's Law: The Pursuit of Progress. John Murray."
+    ]
   },
   {
     "id": "peak-end-rule",
     "name": "Peak-End Rule",
     "category": "laws-of-ux",
     "summary": "People judge an experience largely based on how they felt at its most intense point and at its end, rather than based on the sum or average of every moment of the experience.",
-    "description": "Discovered by Daniel Kahneman, this principle means that users remember the best (or worst) moment of an experience and the final moment. Two practical implications: (1) create a delightful peak moment in every flow, and (2) end every interaction on a positive note. A painful middle is forgiven if the peak is delightful and the ending is satisfying.",
+    "description": "Daniel Kahneman and colleagues showed in the 1990s that retrospective evaluations of an experience are anchored disproportionately by its emotional peak and its final moments — the average and the duration barely register. Two design instructions follow: engineer a real peak (a moment of delight, achievement, or surprise) somewhere in the flow, and put care into the ending. A rough middle can be forgiven; a flat or painful ending will not.",
     "implications": [
       "Design a delightful 'peak moment' in key user flows (celebration, surprise, achievement)",
       "End flows positively — confirmation pages, success messages, next steps",
@@ -367,14 +405,17 @@
       "No celebration or positive reinforcement after completing a task"
     ],
     "applies_to": ["onboarding", "checkout", "success-states", "delight", "emotions", "cta"],
-    "sources": ["https://lawsofux.com/peak-end-rule/"]
+    "sources": [
+      "Kahneman, D., Fredrickson, B. L., Schreiber, C. A. & Redelmeier, D. A. (1993). When more pain is preferred to less: adding a better end. Psychological Science, 4(6), 401-405.",
+      "Kahneman, D. (2011). Thinking, Fast and Slow. Farrar, Straus and Giroux."
+    ]
   },
   {
     "id": "postels-law",
     "name": "Postel's Law",
     "category": "laws-of-ux",
     "summary": "Be liberal in what you accept, and conservative in what you send.",
-    "description": "Originally a principle of network protocol design by Jon Postel, applied to UX it means: accept input in many formats (phone numbers with or without dashes, dates in various formats) but display output in a consistent, well-formatted way. Be forgiving of user input variations while maintaining strict output quality. This reduces errors and frustration.",
+    "description": "Jon Postel coined this as the robustness principle in the original TCP specification (RFC 761, 1980). Applied to interfaces, the rule becomes: accept human input in whatever shape it arrives — phone numbers with or without dashes, dates phrased in natural language, credit card numbers with spaces — and normalize on the way out. Forgiving inputs and consistent outputs cut error rates and rescue users from punishment-loop validation.",
     "implications": [
       "Accept multiple input formats (phone: (555) 123-4567, 5551234567, 555-123-4567)",
       "Auto-format inputs to a standard display format",
@@ -391,14 +432,17 @@
       "Email validation that rejects valid but unusual addresses"
     ],
     "applies_to": ["forms", "validation", "inputs", "search", "error-prevention"],
-    "sources": ["https://lawsofux.com/postels-law/"]
+    "sources": [
+      "Postel, J. (1980). DoD Standard Transmission Control Protocol. RFC 761, Section 2.10.",
+      "Postel, J. (1981). Transmission Control Protocol. RFC 793."
+    ]
   },
   {
     "id": "serial-position-effect",
     "name": "Serial Position Effect",
     "category": "laws-of-ux",
     "summary": "Users have a propensity to best remember the first and last items in a series.",
-    "description": "Composed of two effects: the primacy effect (better recall of first items) and recency effect (better recall of last items). In UI, this means the most important items should be placed first or last in a list, navigation, or set of options. The middle items receive the least attention. This directly impacts navigation design, feature lists, and content ordering.",
+    "description": "Hermann Ebbinghaus identified this in his pioneering 1885 memory studies: recall is highest for the first items (primacy) and the last items (recency) in a sequence, and lowest for whatever sits in the middle. The design instruction is straightforward — put the most important nav items, features, or pricing rows at the ends of the list, and treat the middle as the spot where attention goes to die.",
     "implications": [
       "Place the most important navigation items first and last",
       "Put key features at the beginning and end of feature lists",
@@ -414,14 +458,17 @@
       "Burying the most compelling pricing feature mid-list"
     ],
     "applies_to": ["navigation", "lists", "mobile", "content-order", "information-architecture"],
-    "sources": ["https://lawsofux.com/serial-position-effect/"]
+    "sources": [
+      "Ebbinghaus, H. (1885). Über das Gedächtnis: Untersuchungen zur experimentellen Psychologie. Duncker & Humblot. (English translation: Memory: A Contribution to Experimental Psychology, 1913.)",
+      "Murdock, B. B. (1962). The serial position effect of free recall. Journal of Experimental Psychology, 64(5)."
+    ]
   },
   {
     "id": "teslers-law",
     "name": "Tesler's Law",
     "category": "laws-of-ux",
     "summary": "Tesler's Law, also known as The Law of Conservation of Complexity, states that for any system there is a certain amount of complexity which cannot be reduced.",
-    "description": "Larry Tesler argued that every application has an inherent amount of irreducible complexity. The question is: who bears that complexity — the user or the system? Good design absorbs complexity on the system side so users don't have to deal with it. Smart defaults, auto-detection, and intelligent preprocessing all shift complexity from user to system.",
+    "description": "Larry Tesler, working at Xerox PARC in the mid-1980s, argued that complexity in a system is conserved — you can move it around, but you can't make it vanish. The real design question is who pays for it: the user or the engineering team. Good products absorb the irreducible complexity behind smart defaults, auto-detection, and intelligent preprocessing, leaving the user with the simplest surface that still does the job.",
     "implications": [
       "Absorb complexity on the system side whenever possible",
       "Use smart defaults that work for 80% of users",
@@ -438,14 +485,16 @@
       "Requiring manual data transformation that could be automated"
     ],
     "applies_to": ["simplicity", "settings", "onboarding", "automation", "complexity-management"],
-    "sources": ["https://lawsofux.com/teslers-law/"]
+    "sources": [
+      "Originally formulated by Larry Tesler at Xerox PARC, c. 1984. Discussed in Saffer, D. (2010). Designing for Interaction (2nd ed.). New Riders."
+    ]
   },
   {
     "id": "von-restorff-effect",
     "name": "Von Restorff Effect",
     "category": "laws-of-ux",
     "summary": "The Von Restorff effect, also known as The Isolation Effect, predicts that when multiple similar objects are present, the one that differs from the rest is most likely to be remembered.",
-    "description": "Hedwig von Restorff discovered that distinctive items in a group are better remembered. In UI design, this is the foundation of visual hierarchy — the element that's different gets noticed first. Use this for CTAs, featured pricing plans, important alerts, and any element that needs to stand out. But use sparingly — if everything is highlighted, nothing is.",
+    "description": "Hedwig von Restorff's 1933 memory experiments showed that an item that visually breaks from its neighbors is recalled more reliably than items that blend in. In interface terms, this is the engine behind visual hierarchy: a single high-contrast CTA, a highlighted pricing tier, a colored alert. The catch is that the effect depends on scarcity — if everything is emphasized, nothing is, and the hierarchy collapses.",
     "implications": [
       "Make the primary CTA visually distinct from surrounding elements",
       "Highlight the recommended pricing plan with a different color or badge",
@@ -462,14 +511,16 @@
       "Important alerts styled the same as informational messages"
     ],
     "applies_to": ["cta", "pricing", "hierarchy", "alerts", "visual-design", "emphasis"],
-    "sources": ["https://lawsofux.com/von-restorff-effect/"]
+    "sources": [
+      "von Restorff, H. (1933). Über die Wirkung von Bereichsbildungen im Spurenfeld. Psychologische Forschung, 18, 299-342."
+    ]
   },
   {
     "id": "zeigarnik-effect",
     "name": "Zeigarnik Effect",
     "category": "laws-of-ux",
     "summary": "People remember uncompleted or interrupted tasks better than completed tasks.",
-    "description": "Bluma Zeigarnik discovered that incomplete tasks create a state of cognitive tension that keeps them in memory. In UX, this powers engagement mechanics: progress bars, incomplete profiles, unfinished tutorials, and streak counters all leverage this effect. Users are drawn to complete what they've started. Use ethically — this can be manipulative (dark patterns) or helpful (onboarding nudges).",
+    "description": "Bluma Zeigarnik's 1927 dissertation, supervised by Kurt Lewin in Berlin, showed that waiters could recall unpaid orders far better than paid ones — an open task holds cognitive tension that closure releases. Product design borrows the effect for engagement: progress bars, half-finished profile prompts, abandoned-cart reminders, and streak counters all exploit the pull of an unresolved loop. It works; use it for genuine helpfulness rather than manufactured anxiety.",
     "implications": [
       "Show profile completion percentages to encourage finishing setup",
       "Use progress bars on multi-step flows to create completion motivation",
@@ -485,6 +536,8 @@
       "Using this effect manipulatively (fake urgency, artificial scarcity)"
     ],
     "applies_to": ["onboarding", "engagement", "gamification", "progress", "retention", "forms"],
-    "sources": ["https://lawsofux.com/zeigarnik-effect/"]
+    "sources": [
+      "Zeigarnik, B. (1927). Das Behalten erledigter und unerledigter Handlungen. Psychologische Forschung, 9, 1-85."
+    ]
   }
 ]

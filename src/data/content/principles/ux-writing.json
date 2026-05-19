@@ -18,7 +18,7 @@
       "Product copy that reads like marketing taglines inside the app"
     ],
     "applies_to": ["content", "microcopy", "buttons", "errors", "navigation"],
-    "sources": ["https://styleguide.mailchimp.com/voice-and-tone/", "https://contentdesign.intuit.com/principles"]
+    "sources": ["https://styleguide.mailchimp.com/voice-and-tone/"]
   },
   {
     "id": "front-load-meaning",
@@ -167,7 +167,7 @@
       "Blame language: 'You entered an invalid...' instead of 'That address doesn't match our records — check the ZIP and try again.'"
     ],
     "applies_to": ["content", "errors", "form-validation"],
-    "sources": ["https://www.nngroup.com/articles/error-message-guidelines/", "https://contentdesign.intuit.com/principles"]
+    "sources": ["https://www.nngroup.com/articles/error-message-guidelines/"]
   },
   {
     "id": "scannable-structure",

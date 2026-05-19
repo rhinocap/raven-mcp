@@ -4,3 +4,8 @@ dist/
 *.tsbuildinfo
 .vercel
 .mcpb-stage/
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example

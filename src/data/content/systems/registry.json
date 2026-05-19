@@ -35,15 +35,6 @@
       "tags": ["collaborative", "practical", "optimistic", "team-facing", "productivity"],
       "url": "https://atlassian.design/content",
       "status": "available"
-    },
-    {
-      "id": "intuit",
-      "name": "Intuit Content Design Principles",
-      "description": "Intuit's voice across TurboTax, QuickBooks, Mint — empathetic, confidence-building, prosperity-focused. Written for people stressed about money; every word earns trust.",
-      "category": "fintech",
-      "tags": ["empathetic", "trust-building", "confidence", "money", "fintech"],
-      "url": "https://contentdesign.intuit.com",
-      "status": "available"
     }
   ]
 }

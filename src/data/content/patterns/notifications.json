@@ -87,7 +87,7 @@
         ],
         "bad": [
           "Subject: 'New activity' / Preheader: 'You have new activity in your workspace'",
-          "Subject: 'Hi from Intuit!' / Preheader: 'We have an update for you'"
+          "Subject: 'Hi from the team!' / Preheader: 'We have an update for you'"
         ]
       },
       "evidence": "Specific subject lines lift open rates by 50-100% over generic ones. 'Click here' CTAs underperform descriptive CTAs by 30%."

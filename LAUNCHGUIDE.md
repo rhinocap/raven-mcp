@@ -4,7 +4,7 @@
 Design intelligence for AI-generated UI — principles, patterns, content, brand, design tokens.
 
 ## Description
-Raven gives Claude (and any MCP client) a queryable design knowledge base it can reach into while generating UI. Eight layers cover the complete surface of design work: principles (Nielsen's heuristics, the 21 Laws of UX, Gestalt, WCAG, typography, color, mobile UX, D4D, UX writing, service design, brand), patterns (signup, pricing, nav, forms, landing, dashboards, modals, empty/error/loading states, CTAs, social proof, mobile conversion, plus content and service patterns), content design systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian, Intuit voice & tone), research methods (qualitative, quantitative, usability) and metrics frameworks (HEART, AARRR, North Star, conversion funnel, RICE, OKRs), service design (blueprinting with HTML output, human handoff, signup-as-service, omnichannel continuity, moments of truth, GOV.UK Service Standard), brand & visual design (logo usage, gradient usage, imagery, hierarchy, brand-as-system, 2026 trends), business strategy, and production design tokens (Stripe, Linear, and more). Claude calls Raven's tools automatically when you ask it to build, evaluate, or improve UI.
+Raven gives Claude (and any MCP client) a queryable design knowledge base it can reach into while generating UI. Eight layers cover the complete surface of design work: principles (Nielsen's heuristics, the 21 Laws of UX, Gestalt, WCAG, typography, color, mobile UX, D4D, UX writing, service design, brand), patterns (signup, pricing, nav, forms, landing, dashboards, modals, empty/error/loading states, CTAs, social proof, mobile conversion, plus content and service patterns), content design systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian voice & tone), research methods (qualitative, quantitative, usability) and metrics frameworks (HEART, AARRR, North Star, conversion funnel, RICE, OKRs), service design (blueprinting with HTML output, human handoff, signup-as-service, omnichannel continuity, moments of truth, GOV.UK Service Standard), brand & visual design (logo usage, gradient usage, imagery, hierarchy, brand-as-system, 2026 trends), business strategy, and production design tokens (Stripe, Linear, and more). Claude calls Raven's tools automatically when you ask it to build, evaluate, or improve UI.
 
 ## Setup Requirements
 None. Raven ships as a stdio MCP server — no API keys, no environment variables, no accounts. Install with `claude mcp add raven -- npx -y raven-mcp` and Claude can use it immediately.
@@ -20,7 +20,7 @@ Developer Tools
 - Generate a complete custom design system from a single brand color
 - Browse production design tokens from real systems (Stripe, Linear, and more)
 - Compose tokens across multiple design systems for hybrid styling
-- Get brand voice & tone systems from Mailchimp, GOV.UK, Shopify Polaris, Atlassian, and Intuit
+- Get brand voice & tone systems from Mailchimp, GOV.UK, Shopify Polaris, and Atlassian
 - Apply UX-writing principles to error messages, empty states, notifications, and form validation
 - Get research methods with protocols and checklists (qualitative, quantitative, usability)
 - Apply product-metrics frameworks (HEART, AARRR, North Star, conversion funnel, RICE, OKRs)

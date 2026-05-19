@@ -80,7 +80,7 @@
       "Third-party tools (billing, analytics) introduce template language that doesn't match the brand voice."
     ],
     "applies_to": ["brand", "voice", "content-design"],
-    "sources": ["https://styleguide.mailchimp.com/", "https://atlassian.design/content/", "https://contentdesign.intuit.com/"]
+    "sources": ["https://styleguide.mailchimp.com/", "https://atlassian.design/content/"]
   },
   {
     "id": "brand-evolution-with-discipline",

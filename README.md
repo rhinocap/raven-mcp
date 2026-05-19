@@ -4,13 +4,15 @@
 
 A design knowledge MCP server that Claude can query when generating UI. Eight layers: principles, patterns, content design systems, research methods, service design, brand/visual, business strategy, and design tokens.
 
+> Raven MCP is a personal open-source project by [Andrew Cunliffe](https://ravenmcp.ai). It is **not endorsed by, affiliated with, or supported by Intuit Inc.** or any other company referenced in its source data. See [NOTICE](./NOTICE) for full attribution of upstream sources and their licenses.
+
 ## What it does
 
 Raven gives Claude access to a comprehensive design knowledge base:
 
 - **Principles** — Nielsen's 10 Heuristics, all 21 Laws of UX, Gestalt principles, WCAG accessibility, typography rules, color theory, mobile UX, D4D framework, UX writing, service design, and brand
 - **Patterns** — Proven UI patterns for signup flows, pricing pages, navigation, forms, landing pages, dashboards, modals, empty/error/loading states, CTAs, social proof, mobile conversion — plus content patterns (error messages, empty-state copy, notifications, form validation) and service patterns (service blueprinting, human handoff, signup-as-service, omnichannel continuity, moments of truth)
-- **Content systems** — Voice & tone guides from real brands: Mailchimp, GOV.UK, Shopify Polaris, Atlassian, and Intuit
+- **Content systems** — Voice & tone guides from publicly documented brand systems: Mailchimp, GOV.UK, Shopify Polaris, and Atlassian
 - **Research** — Qualitative, quantitative, and usability methods with do/don't protocols and checklists. Metrics frameworks: HEART, AARRR/Pirate, North Star Metric, conversion funnel, RICE, OKRs.
 - **Service design** — Service blueprinting (with HTML blueprint generation — current vs. ideal state), human-handoff patterns, signup-as-service, omnichannel continuity, moments of truth / recovery, and the GOV.UK Service Standard
 - **Brand & visual** — Logo usage (clear space, min sizes, variants, placement, restraint), gradient usage (hierarchy, palette, contrast, trend vs signature), imagery (consistency, representation, purpose), visual hierarchy, brand-as-system, and current (2026) visual-design trends
@@ -63,7 +65,7 @@ cd raven-mcp && npm install && npm run build
 | `audit_page` | Audit HTML/CSS against Raven's quality standards |
 | `audit_layout` | Evaluate visual rhythm, alignment, and optical balance |
 | `generate_design_system` | Generate a custom design system from a brand color |
-| `list_content_systems` | Browse brand voice & tone systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian, Intuit) |
+| `list_content_systems` | Browse brand voice & tone systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian) |
 | `get_content_system` | Get a brand's voice attributes, tone shifts, vocabulary, grammar, and content patterns |
 | `get_content_principles` | Get UX-writing principles — clarity, active voice, error anatomy, inclusive language |
 | `get_content_pattern` | Get copy recipes for error messages, empty-state copy, notifications, form validation |
@@ -105,6 +107,16 @@ npm run build  # Compile TypeScript
 npm start      # Run compiled output
 ```
 
+## License & attribution
+
+Raven MCP is released under the [MIT License](./LICENSE) — Copyright (c) 2026 Andrew Cunliffe.
+
+If you fork, embed, or redistribute Raven (in whole or in part), retain the MIT license notice and the `LICENSE` file. If you ship Raven inside another product, include attribution to "Raven MCP — https://ravenmcp.ai" in your acknowledgements.
+
+Raven's knowledge base paraphrases and references work from many third-party sources — Nielsen Norman Group, Laws of UX (CC BY-NC-ND 4.0), Gestalt principles, WCAG (W3C), Mailchimp (CC BY-NC 4.0), GOV.UK (Open Government Licence v3.0), Shopify Polaris, Atlassian Design, and others. Each entry carries a `sources` URL field. See [NOTICE](./NOTICE) for the full list of upstream sources and license terms; some carry their own conditions beyond MIT.
+
+This is a personal project. It is not endorsed by Intuit Inc. or any other company referenced in its source data.
+
 ## Data structure
 
 All knowledge lives in `src/data/` as static JSON files:
@@ -115,8 +127,8 @@ src/data/
   patterns/        # signup, pricing, nav, forms, landing, dashboard, modals, empty/error/loading, CTA, social proof, mobile
   business/        # monetization, retention, onboarding, growth, metrics
   tokens/          # registry.json + systems/ (stripe, linear, vercel, …)
-  content/         # voice & tone: Mailchimp, GOV.UK, Shopify Polaris, Atlassian, Intuit
-    systems/       # registry.json + brand-voice JSONs
+  content/         # voice & tone: Mailchimp, GOV.UK, Shopify Polaris, Atlassian
+    systems/       # registry.json + brand-voice JSONs (Mailchimp, GOV.UK, Polaris, Atlassian)
     principles/    # UX-writing principles (clarity, active voice, error anatomy, …)
     patterns/      # copy recipes for errors, empty states, notifications, form validation
   research/        # study protocols + metrics frameworks

@@ -1,0 +1,101 @@
+Raven MCP
+Copyright (c) 2026 Andrew Cunliffe
+
+Licensed under the MIT License — see LICENSE for full text.
+
+This is a personal open-source project. It is not endorsed by, affiliated with,
+or supported by Intuit Inc. or any other company referenced in the source data.
+
+================================================================================
+Third-party sources referenced in src/data/
+================================================================================
+
+Raven's knowledge base paraphrases, summarizes, and references the work of many
+authors and organizations. Source URLs are embedded in each entry's `sources`
+field. Several upstream sources carry their own licenses — listed below in
+descending order of permissiveness.
+
+Permissive / public-domain sources
+----------------------------------
+- Gestalt principles — early-20th-century academic work, public domain.
+  Descriptions in Raven are original prose.
+
+- W3C Web Content Accessibility Guidelines (WCAG 2.1 / 2.2)
+  https://www.w3.org/WAI/standards-guidelines/wcag/
+  Licensed under the W3C Document License. Permits redistribution and
+  derivative works with attribution.
+
+- GOV.UK Style Guide and GOV.UK Service Standard
+  https://www.gov.uk/guidance/style-guide
+  https://www.gov.uk/service-manual/service-standard
+  Contains public sector information licensed under the Open Government
+  Licence v3.0: https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/
+
+- Shopify Polaris (component library)
+  https://polaris.shopify.com — Polaris code is MIT-licensed. Content
+  documentation is paraphrased as reference; consult Shopify for the
+  authoritative version.
+
+Attribution-with-conditions sources
+-----------------------------------
+- Nielsen's 10 Usability Heuristics, Nielsen Norman Group
+  https://www.nngroup.com/articles/ten-usability-heuristics/
+  Heuristic names are short factual labels; Raven's descriptions are original
+  paraphrase under fair-use commentary. NN/g is the canonical source for
+  production use.
+
+- Laws of UX, Jon Yablonski
+  https://lawsofux.com — licensed under CC BY-NC-ND 4.0.
+  Raven references the named laws (Fitts's Law, Miller's Law, Hick's Law,
+  etc. — which are public academic concepts) and provides original
+  descriptions. No prose from lawsofux.com is reproduced. The named "21
+  Laws of UX" framing and any Yablonski-authored summaries are the
+  property of the original author; consult lawsofux.com for the canonical
+  versions.
+
+- Mailchimp Content Style Guide
+  https://styleguide.mailchimp.com — licensed under CC BY-NC 4.0.
+  Raven's mailchimp.json is a paraphrased reference to the publicly
+  documented voice attributes, tone shifts, and content patterns.
+  Consult the original for authoritative or commercial use.
+
+- Atlassian Design System
+  https://atlassian.design — content paraphrased as reference; no
+  Atlassian copy is reproduced verbatim.
+
+- This Is Service Design Doing (Stickdorn, Hormess, Lawrence, Schneider),
+  O'Reilly 2018 — five service-design principles are referenced as
+  concepts; descriptions are original.
+
+- Lynn Shostack, "How to Design a Service" / "Designing Services That
+  Deliver" (Harvard Business Review, 1984) — service-blueprinting concept
+  is referenced; descriptions are original.
+
+Frameworks (concept-only, no copyrighted prose)
+-----------------------------------------------
+- HEART framework (Kerry Rodden, Hilary Hutchinson, Xin Fu — Google, 2010)
+- AARRR / Pirate Metrics (Dave McClure, 500 Startups, 2007)
+- North Star Metric (Sean Ellis / Amplitude)
+- RICE prioritization (Intercom)
+- OKRs (Andy Grove / John Doerr)
+- Carlzon's Moments of Truth (Jan Carlzon, 1987)
+
+These are methodological frameworks; concepts are not copyrightable.
+Descriptions in Raven are original.
+
+Design tokens
+-------------
+Token values (color hex codes, type scales, spacing units, motion timings)
+for the design systems referenced in src/data/tokens/ are functional values
+extracted from publicly accessible design-system documentation. Functional
+design values are not protectable expression. Brand names are used
+nominatively to label which system a token set is styled like, not to
+suggest endorsement.
+
+================================================================================
+Removing a source
+================================================================================
+
+If you are a rights-holder and would like a source removed, amended, or
+attributed differently, file an issue at:
+https://github.com/rhinocap/raven-mcp/issues

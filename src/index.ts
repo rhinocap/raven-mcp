@@ -2695,7 +2695,7 @@ server.tool(
 
 server.tool(
   "list_content_systems",
-  "Browse available content design systems — brand voice and tone guides from real companies (Mailchimp, GOV.UK, Shopify Polaris, Atlassian, Intuit). Filter by category or search by name.",
+  "Browse available content design systems — brand voice and tone guides from real companies (Mailchimp, GOV.UK, Shopify Polaris, Atlassian). Filter by category or search by name.",
   {
     category: z.string().optional().describe("Filter by category: marketing-saas, government, commerce-saas, productivity-saas, fintech"),
     search: z.string().optional().describe("Search by name, description, or tag")
@@ -2735,7 +2735,7 @@ server.tool(
   "get_content_system",
   "Get a brand's content design system — voice attributes, tone shifts by context, vocabulary (use/avoid/never), grammar rules, content patterns for errors/empty-states/buttons/etc., and inclusive language guidance.",
   {
-    id: z.string().describe("Content system ID (e.g. 'mailchimp', 'gov-uk', 'shopify-polaris', 'atlassian', 'intuit')"),
+    id: z.string().describe("Content system ID (e.g. 'mailchimp', 'gov-uk', 'shopify-polaris', 'atlassian')"),
     section: z.enum(["all", "voice", "tone_shifts", "vocabulary", "grammar", "content-patterns", "inclusive-language"]).optional().describe("Return just one section. Default: all.")
   },
   async ({ id, section }) => {

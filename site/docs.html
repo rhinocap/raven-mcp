@@ -705,7 +705,7 @@ cd raven-mcp && npm install && npm run build</code></pre>
 
     <div class="tool-card reveal">
       <h3>list_content_systems</h3>
-      <p class="tool-desc">Browse the registry of brand voice &amp; tone systems. Five live: Mailchimp, GOV.UK, Shopify Polaris, Atlassian, Intuit. Filter by category or tag.</p>
+      <p class="tool-desc">Browse the registry of brand voice &amp; tone systems. Four live: Mailchimp, GOV.UK, Shopify Polaris, Atlassian. Filter by category or tag.</p>
       <pre><code>"Which brand voice guides does Raven know about?"</code></pre>
     </div>
 
@@ -714,7 +714,7 @@ cd raven-mcp && npm install && npm run build</code></pre>
       <p class="tool-desc">Full voice &amp; tone system for one brand — attributes, tone shifts by context (onboarding/errors/billing/success), vocabulary (use/avoid/never), grammar rules, content patterns, inclusive language.</p>
       <dl class="params">
         <dt>id <span class="required">required</span></dt>
-        <dd>"mailchimp" | "gov-uk" | "shopify-polaris" | "atlassian" | "intuit"</dd>
+        <dd>"mailchimp" | "gov-uk" | "shopify-polaris" | "atlassian"</dd>
         <dt>section <span class="optional">optional</span></dt>
         <dd>"all" (default) | "voice" | "tone_shifts" | "vocabulary" | "grammar" | "content-patterns" | "inclusive-language"</dd>
       </dl>
@@ -886,8 +886,8 @@ cd raven-mcp && npm install && npm run build</code></pre>
     systems/stripe.json, linear.json, vercel.json, …
 
   content/             # v1.2 — content design systems
-    systems/           # 5 brand voice guides (Mailchimp, GOV.UK,
-                       #   Polaris, Atlassian, Intuit)
+    systems/           # 4 brand voice guides (Mailchimp, GOV.UK,
+                       #   Polaris, Atlassian)
     principles/        # 11 UX-writing principles
     patterns/          # 4 content patterns (errors, empty states,
                        #   notifications, form validation)
@@ -1006,7 +1006,7 @@ get_design_system({ id: "stripe", format: "flat" })
     <pre><code>npm update -g raven-mcp</code></pre>
 
     <h3>Where does the knowledge come from?</h3>
-    <p>129 principles curated from Nielsen Norman Group, Laws of UX, Gestalt psychology, WCAG 2.2, typography and color theory, mobile UX (touch targets, nav consistency, font sizing), responsive layout, component architecture, UX writing (Mailchimp, GOV.UK, Intuit), research fundamentals, service design (Stickdorn, Shostack, Carlzon's moments of truth, GOV.UK Service Standard), and brand systems (Pentagram, Brand New, public brand guidelines from Stripe, Airbnb, Linear, Vercel). 22 patterns based on conversion research, service-design practice, and copy-design evidence. Design tokens extracted from public-facing design systems. Metrics frameworks from Google, Amplitude, Dave McClure, and Intercom.</p>
+    <p>129 principles curated from Nielsen Norman Group, Laws of UX, Gestalt psychology, WCAG 2.2, typography and color theory, mobile UX (touch targets, nav consistency, font sizing), responsive layout, component architecture, UX writing (Mailchimp, GOV.UK), research fundamentals, service design (Stickdorn, Shostack, Carlzon's moments of truth, GOV.UK Service Standard), and brand systems (Pentagram, Brand New, public brand guidelines from Stripe, Airbnb, Linear, Vercel). 22 patterns based on conversion research, service-design practice, and copy-design evidence. Design tokens extracted from public-facing design systems. Metrics frameworks from Google, Amplitude, Dave McClure, and Intercom.</p>
 
     </div>
   </div>
