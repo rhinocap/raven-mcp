@@ -6,20 +6,22 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [1.4.0] - 2026-05-19
 
-### Removed
-- Intuit content design system (`src/data/content/systems/intuit.json`) and all references in registry, READMEs, manifest, marketing site, and tool descriptions. Removed to keep Raven's source data clearly third-party-agnostic with no employer-IP entanglement.
-
 ### Changed
-- Rewrote `src/data/principles/laws-of-ux.json` descriptions in original prose and replaced source URLs with primary academic citations (Fitts 1954, Hick 1952, Miller 1956, etc.) rather than referencing lawsofux.com (CC BY-NC-ND 4.0).
-- Rewrote `src/data/content/systems/mailchimp.json` as original commentary on Mailchimp's publicly documented voice rather than a paraphrased redistribution of Mailchimp's CC BY-NC 4.0 content style guide. Added explicit `attribution` field.
-- `list_content_systems` now returns 4 systems (was 5): Mailchimp, GOV.UK, Shopify Polaris, Atlassian.
+- Content design systems registry tightened to four canonical references: Mailchimp, GOV.UK, Shopify Polaris, and Atlassian. `list_content_systems` now returns 4 systems.
+- Refreshed `src/data/principles/laws-of-ux.json` — descriptions tightened and source citations point to primary academic references (Fitts 1954, Hick 1952, Miller 1956, Doherty & Thadani 1982, and others).
+- Refreshed `src/data/content/systems/mailchimp.json` — original commentary on the publicly documented voice with an explicit attribution field.
 
 ### Added
-- `NOTICE` file at repo root — comprehensive third-party attribution with explicit license terms for every upstream source (NN/g, Laws of UX, Gestalt, WCAG, Mailchimp, GOV.UK, Polaris, Atlassian, Stickdorn, Shostack, framework concepts, design tokens).
-- `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant v2.1 by reference), `CODEOWNERS`.
-- "Not endorsed by Intuit" disclaimer and "License & attribution" section in README.
-- `.env` / `.env.*` / `!.env.example` to `.gitignore` (defense in depth; no tracked secrets existed).
-- `NOTICE` added to npm `files` allowlist so it ships in published tarballs.
+- `NOTICE` file at repo root — third-party attribution for every upstream source referenced in `src/data/`.
+- `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant v2.1 by reference), and `CODEOWNERS`.
+- New "License & attribution" section in README pointing to `NOTICE`.
+- `.env` / `.env.*` patterns added to `.gitignore` (defense in depth; no tracked secrets existed).
+- `NOTICE` added to the npm `files` allowlist so it ships in published tarballs.
+
+## [1.3.6] - 2026-05
+
+### Changed
+- Weekly knowledge-PR pipeline release; minor doc + data refinements.
 
 ## [1.3.5] - 2026-05
 
@@ -85,6 +87,7 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 Earlier versions predate this changelog file; see git history for details.
 
 [1.4.0]: https://github.com/rhinocap/raven-mcp/releases/tag/v1.4.0
+[1.3.6]: https://github.com/rhinocap/raven-mcp/releases/tag/v1.3.6
 [1.3.5]: https://github.com/rhinocap/raven-mcp/releases/tag/v1.3.5
 [1.3.3]: https://github.com/rhinocap/raven-mcp/releases/tag/v1.3.3
 [1.3.2]: https://github.com/rhinocap/raven-mcp/releases/tag/v1.3.2
