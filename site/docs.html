@@ -499,7 +499,7 @@ cd raven-mcp && npm install && npm run build</code></pre>
 
     <!-- ── Tool Reference ── -->
     <h2 id="tools" class="reveal">Tool Reference</h2>
-    <p>Raven provides 31 tools across 8 knowledge layers. Claude calls them automatically based on what you're asking for. Below, the original 13 tools have full docs; the 18 newer tools from v1.2–v1.5 are listed with summary descriptions.</p>
+    <p>Raven provides 32 tools across 8 knowledge layers. Claude calls them automatically based on what you're asking for. Below, the original 13 tools have full docs; the 19 newer tools from v1.2–v1.6 are listed with summary descriptions.</p>
 
     <h3>Principles Layer</h3>
 
@@ -826,8 +826,8 @@ cd raven-mcp && npm install && npm run build</code></pre>
     </div>
 
     <div class="tool-card reveal">
-      <h3>audit_ios_screen</h3>
-      <p class="tool-desc">Score a rendered iOS screen from a view-hierarchy / accessibility snapshot (<code>{elements:[{label,rect,role,fontPt,fgColor,bgColor}],viewport}</code>) — 44×44pt touch targets, contrast (iOS <code>secondaryLabel</code>/<code>tertiaryLabel</code> treated as platform-standard — warn, not fail), and alignment / gap-rhythm / optical balance, in points. RN renders native, so this scores RN screens too.</p>
+      <h3>audit_screen <span class="optional">(alias: audit_ios_screen)</span></h3>
+      <p class="tool-desc">Score a rendered iOS or Android screen from a view-hierarchy / accessibility snapshot (<code>{platform,elements:[{label,rect,role,fontPt,fgColor,bgColor}],viewport}</code>) — touch targets (44pt iOS / 48dp Android), contrast (platform-standard muted roles — iOS <code>secondaryLabel</code>, Material <code>onSurfaceVariant</code> — warn, not fail), and alignment / gap-rhythm / optical balance. Pass <code>platform:"android"</code> for the Material thresholds; defaults to iOS. RN renders native, so this scores RN screens too. <code>audit_ios_screen</code> remains as a back-compat alias.</p>
     </div>
 
     <div class="tool-card reveal">
