@@ -13,6 +13,7 @@
     "src/data/",
     "scripts/postinstall.cjs",
     "scripts/ios-audit.mjs",
+    "scripts/rn-audit.mjs",
     "scripts/AccessibilitySnapshot.swift",
     "README.md",
     "LICENSE",

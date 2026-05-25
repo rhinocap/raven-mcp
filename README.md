@@ -66,7 +66,8 @@ cd raven-mcp && npm install && npm run build
 | `audit_layout` | Evaluate visual rhythm, alignment, and optical balance |
 | `audit_swiftui` | Audit SwiftUI source against Apple HIG — Dynamic Type, semantic colors, 44pt targets, 4/8pt spacing, AccentColor |
 | `audit_ios_screen` | Score a rendered iOS screen from an accessibility/view-hierarchy snapshot — 44pt targets + contrast + rhythm, in points |
-| `audit_ios_privacy` | Audit Info.plist/PRIVACY.md/entitlements/source — usage-string honesty, ATS, bundled secrets, undisclosed default data-egress |
+| `audit_ios_privacy` | Audit Info.plist (or Expo app.json) /PRIVACY.md/entitlements/source — usage-string honesty, ATS, Android permissions, bundled secrets, undisclosed default data-egress |
+| `audit_rn` | Audit React Native / Expo source — touchable a11y labels, 44/48pt+hitSlop targets, font scaling, SafeAreaView, dark mode, against iOS HIG + Android Material |
 | `generate_design_system` | Generate a custom design system from a brand color |
 | `list_content_systems` | Browse brand voice & tone systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian) |
 | `get_content_system` | Get a brand's voice attributes, tone shifts, vocabulary, grammar, and content patterns |
@@ -87,9 +88,20 @@ Raven audits native iOS apps against the **Apple Human Interface Guidelines**, n
 
 - **`audit_swiftui`** — paste SwiftUI source (`source`: a string or array of files). Statically flags hardcoded `.font(.system(size:))` below ~13pt, tiny semantic fonts (`.caption`/`.caption2`), hardcoded `Color(red:green:blue:)`/hex literals (vs. asset-catalog or semantic system colors), interactive frames under 44×44pt, and ad-hoc spacing off the 4/8-pt grid. Rewards semantic Dynamic Type fonts, semantic system colors, SF Symbols, and flexible frames. Pass the optional `accent_color_contents` (the raw `AccentColor.colorset/Contents.json`) and it verifies the accent color actually defines components — catching an **empty/undefined AccentColor** that would silently fall back to system blue.
 - **`audit_ios_screen`** — the iOS analog of `audit_layout`. Call with no args for the expected snapshot shape and how to capture it (Accessibility Inspector / XCUITest). Call with `{ elements: [{ label, rect, role, fontPt, fgColor, bgColor }], viewport }` (plus an optional base64 `screenshot`) to score 44×44**pt** touch targets, contrast (with iOS `secondaryLabel`/`tertiaryLabel` treated as platform-standard — a warning, not a hard fail), and visual rhythm (alignment, gap consistency, optical balance).
-- **`audit_ios_privacy`** — the "no sketchy issues" gate. Reads `info_plist` (required) plus optional `privacy_md`, `entitlements`, and `source`. Flags `NS*UsageDescription` strings that are vague or **contradict the code** (e.g. an `NSHealthUpdateUsageDescription` write claim that `requestAuthorization(toShare: [])` never fulfills), unused entitlements, ATS cleartext exceptions, **secrets/keys shipped in the bundle**, and **default data-egress paths not disclosed at the point of choice** (a pre-selected "Recommended" option that silently sends personal data to a hosted server).
+- **`audit_ios_privacy`** — the "no sketchy issues" gate. Reads `info_plist` **or** an Expo `app_json` (managed RN apps have no Info.plist) plus optional `privacy_md`, `entitlements`, and `source`. Flags `NS*UsageDescription` strings that are vague or **contradict the code** (e.g. an `NSHealthUpdateUsageDescription` write claim that `requestAuthorization(toShare: [])` never fulfills), unused entitlements, **Android permissions** (Expo), ATS cleartext exceptions, **secrets/keys shipped in the bundle or `app.json` `extra`**, and **default data-egress paths not disclosed at the point of choice** (a pre-selected "Recommended" option that silently sends personal data to a hosted server).
 
 All three return the same shape as `audit_page` — `score`, `grade`, `summary`, `passes`, `errors`, `warnings`, `fix_priority` (with `audit_ios_screen` adding a `metrics` block).
+
+**One command:** `node scripts/ios-audit.mjs <app-dir> [--snapshot snap.json] [--md report.md]` discovers all the inputs and runs all three tools with an aggregated report.
+
+## React Native / Expo audits
+
+Anyone building a React Native or Expo app gets the same treatment. RN renders to **native** iOS + Android widgets, so `audit_ios_screen` already scores its *rendered* output (an accessibility snapshot is platform-level); `audit_rn` covers the **JSX/StyleSheet source** — the RN analog of `audit_swiftui` — graded against the iOS HIG + Android Material conventions RN has to satisfy on both platforms. `get_checklist`/`get_principles` take `platform: "react-native"`.
+
+- **`audit_rn`** — paste RN source (`source`: a string or array). Flags touchables (`Pressable`/`Touchable*`) missing `accessibilityLabel`/`accessibilityRole`, touchables under 44pt with no `hitSlop`, `allowFontScaling={false}` (silently breaks Dynamic Type), `fontSize` below ~13, screens with no `SafeAreaView`/`useSafeAreaInsets`, and — for multi-mode apps — hardcoded colors with no `useColorScheme`/`Appearance`. Pass `color_scheme: "dark"`/`"light"` (your Expo `userInterfaceStyle`) and the dark-mode check is suppressed for intentionally single-mode apps. Rewards `SafeAreaView`, `hitSlop`, `Platform`-aware code, and a theme.
+- **`audit_ios_privacy`** also accepts an Expo **`app_json`** — it audits `expo.ios.infoPlist`, Android permissions, plugins, and scans `expo.extra`/config for secrets and Google API keys.
+
+**One command:** `node scripts/rn-audit.mjs <app-dir> [--snapshot snap.json] [--md report.md]` discovers screens + `app.json` (reading `userInterfaceStyle` so dark-only apps aren't false-flagged) and runs everything.
 
 ## Release updates
 

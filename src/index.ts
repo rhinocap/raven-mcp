@@ -1152,34 +1152,36 @@ server.tool(
   {
     context: z.string().describe("What you're designing (e.g. 'signup form', 'pricing page', 'mobile nav', 'dark dashboard')"),
     category: z.string().optional().describe("Filter to category: nielsen-heuristics, laws-of-ux, gestalt, accessibility, typography, color-theory, mobile-ux, d4d"),
-    platform: z.enum(["web", "ios"]).optional().describe("Platform context. Use 'ios' to get Apple HIG principles (Dynamic Type, 44pt targets, SF Symbols, safe areas, dark-mode parity, haptics, App Review privacy) instead of the web/CSS-oriented principle set. Default: web."),
+    platform: z.enum(["web", "ios", "react-native"]).optional().describe("Platform context. 'ios' returns Apple HIG principles (Dynamic Type, 44pt targets, SF Symbols, safe areas, dark-mode, haptics, App Review privacy); 'react-native' returns RN principles (44/48pt+hitSlop, accessibilityLabel/Role, font scaling, SafeAreaView, dark mode, iOS+Android parity, secrets). Both replace the web/CSS-oriented set. Default: web."),
     format: z.enum(["full", "checklist", "brief"]).optional().describe("Output format: full (all details), checklist (implications + violations), brief (just summary). Default: full")
   },
   async ({ context, category, platform, format }) => {
     var fmt = format || "full";
 
-    // iOS: return curated HIG principles only. The generic principle bank is
-    // web/CSS-oriented, so we don't run its matcher here — keeps web artifacts
-    // out of native guidance entirely.
-    if (platform === "ios") {
-      var iosResults = IOS_HIG_PRINCIPLES.filter(function (p) {
+    // Native platforms: return the curated principle set only. The generic
+    // principle bank is web/CSS-oriented, so we don't run its matcher here —
+    // keeps web artifacts out of native guidance entirely.
+    if (platform === "ios" || platform === "react-native") {
+      var nativeBank = platform === "react-native" ? RN_HIG_PRINCIPLES : IOS_HIG_PRINCIPLES;
+      var nativeSource = platform === "react-native" ? "iOS HIG + Android Material (React Native)" : "Apple Human Interface Guidelines";
+      var nativeResults = nativeBank.filter(function (p) {
         return textSearch(p.id + " " + p.name + " " + p.summary + " " + p.verify.join(" "), context);
       });
-      if (iosResults.length === 0) iosResults = IOS_HIG_PRINCIPLES.slice();
+      if (nativeResults.length === 0) nativeResults = nativeBank.slice();
       return {
         content: [{
           type: "text" as const,
           text: JSON.stringify({
             context: context,
-            platform: "ios",
-            source: "Apple Human Interface Guidelines",
-            count: iosResults.length,
-            principles: iosResults.map(function (p) {
+            platform: platform,
+            source: nativeSource,
+            count: nativeResults.length,
+            principles: nativeResults.map(function (p) {
               return fmt === "brief"
                 ? { id: p.id, name: p.name, summary: p.summary }
                 : { id: p.id, name: p.name, summary: p.summary, what_to_verify: p.verify };
             }),
-            note: "Universal heuristics (Nielsen, Gestalt, Fitts's/Hick's laws) still apply — call get_principles without platform:'ios' for those."
+            note: "Universal heuristics (Nielsen, Gestalt, Fitts's/Hick's laws) still apply — call get_principles without a native platform for those."
           }, null, 2)
         }]
       };
@@ -1483,7 +1485,7 @@ server.tool(
   "Get a pre-publish checklist for a specific UI type. Returns actionable yes/no items to verify before shipping.",
   {
     type: z.string().describe("What you're shipping (e.g. 'signup form', 'pricing page', 'dashboard', 'landing page', 'modal')"),
-    platform: z.enum(["desktop", "mobile", "responsive", "ios"]).optional().describe("Platform context for platform-specific checks. Use 'ios' for native SwiftUI/iOS apps — returns Apple HIG items (Dynamic Type, 44pt targets, SF Symbols, safe areas, dark-mode parity, App Review privacy) instead of web/mobile-web checks.")
+    platform: z.enum(["desktop", "mobile", "responsive", "ios", "react-native"]).optional().describe("Platform context for platform-specific checks. 'ios' = native SwiftUI/iOS (Apple HIG); 'react-native' = RN/Expo (iOS HIG + Android Material: 44/48pt+hitSlop, accessibilityLabel/Role, font scaling, SafeAreaView, dark mode, platform parity, secrets). Both replace the web/mobile-web checks.")
   },
   async ({ type, platform }) => {
     // Gather checklists from matching patterns
@@ -1493,15 +1495,16 @@ server.tool(
 
     var checklists: Array<{ source: string; items: string[] }> = [];
 
-    // Web idioms that are meaningless on native iOS (px sizing, Mobile-Safari
-    // auto-zoom, hover, CSS grid/media queries). Pattern checklists are mostly
-    // platform-agnostic conversion/usability guidance, so we keep them but
-    // strip the web-only items when platform is ios.
+    // Web idioms that are meaningless on native iOS/RN (px sizing, Mobile-
+    // Safari auto-zoom, hover, CSS grid/media queries). Pattern checklists are
+    // mostly platform-agnostic conversion/usability guidance, so we keep them
+    // but strip the web-only items for native platforms.
+    var isNative = platform === "ios" || platform === "react-native";
     var WEB_IDIOM = /\bpx\b|auto-zoom|grid-template|:hover|hover state|\bviewport\b|\bCSS\b|media quer|\bem\b|browser/i;
 
     for (var pattern of matchedPatterns) {
       var items = pattern.checklist;
-      if (platform === "ios") items = items.filter(function (it: string) { return !WEB_IDIOM.test(it); });
+      if (isNative) items = items.filter(function (it: string) { return !WEB_IDIOM.test(it); });
       if (items.length > 0) {
         checklists.push({
           source: pattern.name,
@@ -1510,10 +1513,17 @@ server.tool(
       }
     }
 
-    // Add universal accessibility checks (iOS gets a VoiceOver-flavored set so
-    // no web terms — alt text, focus rings, keyboard nav — leak into a native
-    // checklist).
-    var accessibilityChecklist = platform === "ios" ? [
+    // Add universal accessibility checks (native platforms get a VoiceOver/
+    // TalkBack-flavored set so no web terms — alt text, focus rings, keyboard
+    // nav — leak into a native checklist).
+    var accessibilityChecklist = platform === "react-native" ? [
+      "Text meets WCAG AA contrast (4.5:1 normal, 3:1 large) in both light and dark?",
+      "Every touchable and meaningful image has accessibilityLabel + accessibilityRole?",
+      "Decorative imagery sets accessible={false}?",
+      "accessibilityState reflects disabled/selected/expanded?",
+      "Reduce Motion is honored for non-essential animation?",
+      "Touch targets are at least 44pt (iOS) / 48dp (Android)?"
+    ] : platform === "ios" ? [
       "Text meets WCAG AA contrast (4.5:1 normal, 3:1 large) in both light and dark?",
       "All interactive and image elements have a VoiceOver accessibilityLabel?",
       "Decorative imagery is hidden from VoiceOver (.accessibilityHidden)?",
@@ -1535,6 +1545,9 @@ server.tool(
       // Native iOS: return HIG items only — none of the web/mobile-web checks
       // (16px iOS-zoom, CSS responsiveness) apply to a SwiftUI app.
       platformChecklist = IOS_HIG_CHECKLIST.slice();
+    } else if (platform === "react-native") {
+      // RN/Expo: iOS HIG + Android Material items, no web/mobile-web checks.
+      platformChecklist = RN_CHECKLIST.slice();
     } else if (platform === "mobile" || platform === "responsive") {
       platformChecklist = [
         "Font size is at least 16px to prevent iOS auto-zoom?",
@@ -3164,28 +3177,72 @@ server.tool(
 
 // ── Tool 14d: audit_ios_privacy ────────────────────────────────────
 //
-// The "no sketchy issues" gate. Reads Info.plist (+ optional PRIVACY.md,
-// entitlements, and Swift source) and flags usage strings that are vague or
-// contradict the code, unused permissions, ATS/cleartext exceptions, secrets
-// shipped in the bundle, and default data-egress paths that aren't disclosed
-// at the point of choice. Same return shape as audit_page.
+// The "no sketchy issues" gate. Reads Info.plist OR an Expo app.json (+
+// optional PRIVACY.md, entitlements, and source) and flags usage strings that
+// are vague or contradict the code, unused permissions, ATS/cleartext
+// exceptions, secrets shipped in the bundle, and default data-egress paths
+// that aren't disclosed at the point of choice. Same return shape as audit_page.
+
+// Serialize a JS value (from Expo app.json's ios.infoPlist) back into plist
+// XML so the same regex/key checks the native path uses work uniformly.
+function objToPlistXml(val: any): string {
+  if (typeof val === "string") return "<string>" + val + "</string>";
+  if (typeof val === "boolean") return val ? "<true/>" : "<false/>";
+  if (typeof val === "number") return "<integer>" + val + "</integer>";
+  if (Array.isArray(val)) return "<array>" + val.map(objToPlistXml).join("") + "</array>";
+  if (val && typeof val === "object") {
+    var out = "<dict>";
+    for (var k of Object.keys(val)) out += "<key>" + k + "</key>" + objToPlistXml(val[k]);
+    return out + "</dict>";
+  }
+  return "<string></string>";
+}
 
 server.tool(
   "audit_ios_privacy",
-  "Audit an iOS app's privacy posture for App Review and user trust. Reads Info.plist (required) plus optional PRIVACY.md, entitlements, and Swift source. Flags: NS*UsageDescription strings that are vague/missing or contradict the code (e.g. a HealthKit write claim the code never fulfills), entitlements/permissions the app doesn't use, ATS cleartext exceptions and non-HTTPS endpoints, secrets/keys shipped in the bundle, and default data-egress paths not disclosed at the point of choice (a pre-selected 'Recommended' option that silently sends personal data to a server). Same return shape as audit_page.",
+  "Audit an iOS or React Native/Expo app's privacy posture for App Review and user trust. Reads a native Info.plist XML OR an Expo app.json (managed Expo apps have no Info.plist) — plus optional PRIVACY.md, entitlements, and source. Flags: NS*UsageDescription strings that are vague/missing or contradict the code (e.g. a HealthKit write claim the code never fulfills), entitlements/permissions and Android permissions the app doesn't use, ATS cleartext exceptions and non-HTTPS endpoints, secrets/keys shipped in the bundle or app.json, and default data-egress paths not disclosed at the point of choice (a pre-selected 'Recommended' option that silently sends personal data to a server). Same return shape as audit_page.",
   {
-    info_plist: z.string().describe("Raw Info.plist XML"),
+    info_plist: z.string().optional().describe("Raw Info.plist XML (native iOS / bare RN). Provide this OR app_json."),
+    app_json: z.string().optional().describe("Expo app.json / app.config JSON (managed RN). Its expo.ios.infoPlist, expo.android.permissions, plugins, and extra are audited."),
     privacy_md: z.string().optional().describe("Optional PRIVACY.md / privacy policy text to cross-reference against declared permissions and default behavior"),
     entitlements: z.string().optional().describe("Optional .entitlements XML"),
-    source: z.string().optional().describe("Optional concatenated Swift source — enables code-vs-declaration contradiction checks and default-egress detection")
+    source: z.string().optional().describe("Optional concatenated source (Swift or JS/TS) — enables code-vs-declaration contradiction checks and default-egress detection")
   },
-  async ({ info_plist, privacy_md, entitlements, source }) => {
+  async ({ info_plist, app_json, privacy_md, entitlements, source }) => {
     var issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }> = [];
     var passes: string[] = [];
-    var plist = parsePlistKeys(info_plist);
     var src = source || "";
     var policy = privacy_md || "";
     var ent = entitlements || "";
+
+    if (!info_plist && !app_json) {
+      return { content: [{ type: "text" as const, text: JSON.stringify({ error: "Provide either info_plist (native) or app_json (Expo).", platform: "ios" }, null, 2) }] };
+    }
+
+    // Build one plist-XML blob the existing checks run against. For Expo, we
+    // serialize expo.ios.infoPlist back into plist XML and append the raw
+    // app.json (so the secret scan also sees expo.extra/keys), and collect
+    // Android permissions + plugins for RN-specific checks.
+    var isExpo = !!app_json && !info_plist;
+    var androidPerms: string[] = [];
+    var expoPlugins: string[] = [];
+    var plistXml = info_plist || "";
+    if (app_json) {
+      try {
+        var aj = JSON.parse(app_json);
+        var expo = aj.expo || aj;
+        if (expo && expo.android && Array.isArray(expo.android.permissions)) androidPerms = expo.android.permissions;
+        if (expo && Array.isArray(expo.plugins)) expoPlugins = expo.plugins.map(function (p: any) { return Array.isArray(p) ? p[0] : p; }).filter(function (p: any) { return typeof p === "string"; });
+        // Serialize the whole expo config to plist XML so every check runs
+        // uniformly: ios.infoPlist (usage strings + ATS), plus extra/config
+        // where Expo secrets and Google API keys hide.
+        if (expo) plistXml += objToPlistXml(expo);
+      } catch (_e) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ error: "app_json is not valid JSON.", platform: "ios" }, null, 2) }] };
+      }
+    }
+    var info_plist_text = plistXml; // alias used by the regex-based checks below
+    var plist = parsePlistKeys(plistXml);
 
     // ── Usage descriptions: present + specific
     var usageKeys = Object.keys(plist).filter(function (k) { return /UsageDescription$/.test(k); });
@@ -3222,10 +3279,10 @@ server.tool(
     }
 
     // ── ATS / cleartext
-    if (/<key>\s*NSAllowsArbitraryLoads\s*<\/key>\s*<true\s*\/>/.test(info_plist)) {
+    if (/<key>\s*NSAllowsArbitraryLoads\s*<\/key>\s*<true\s*\/>/.test(info_plist_text)) {
       issues.push({ severity: "error", rule: "ios-privacy/ats-global", message: "NSAllowsArbitraryLoads = true disables App Transport Security app-wide — all cleartext HTTP is allowed.", fix: "Remove the global opt-out. Scope any necessary exception to a specific NSExceptionDomains entry over HTTPS, or justify it in the App Review notes." });
-    } else if (/NSExceptionAllowsInsecureHTTPLoads\s*<\/key>\s*<true\s*\/>/.test(info_plist)) {
-      var domMatch = info_plist.match(/<key>([\d.]+|[a-z0-9.-]+\.[a-z]{2,})<\/key>\s*<dict>[\s\S]*?NSExceptionAllowsInsecureHTTPLoads/i);
+    } else if (/NSExceptionAllowsInsecureHTTPLoads\s*<\/key>\s*<true\s*\/>/.test(info_plist_text)) {
+      var domMatch = info_plist_text.match(/<key>([\d.]+|[a-z0-9.-]+\.[a-z]{2,})<\/key>\s*<dict>[\s\S]*?NSExceptionAllowsInsecureHTTPLoads/i);
       issues.push({ severity: "warning", rule: "ios-privacy/ats-exception", message: "Cleartext HTTP is allowed via an ATS exception" + (domMatch ? " for " + domMatch[1] : "") + ". Acceptable when scoped to a known host (e.g. a LAN/Tailscale IP), but confirm no personal data rides over plain HTTP.", fix: "Keep the exception scoped to the single host, document why in App Review notes, and prefer HTTPS even on the local network where possible." });
     } else if (usageKeys.length > 0) {
       passes.push("No global ATS opt-out (no NSAllowsArbitraryLoads)");
@@ -3237,30 +3294,49 @@ server.tool(
     var secretFindings: string[] = [];
     var caughtKeys: Record<string, boolean> = {};
     var realSecret = false;
-    while ((secM = secretRe.exec(info_plist)) !== null) {
+    while ((secM = secretRe.exec(info_plist_text)) !== null) {
       var skey = secM[1]; var sval = (secM[2] || "").trim();
       var isPlaceholder = sval === "" || sval === skey || /^\$\(/.test(sval) || /^[A-Z_]+$/.test(sval);
       secretFindings.push(skey + (isPlaceholder ? " (placeholder)" : " (LOOKS REAL)"));
       caughtKeys[skey] = true;
       if (!isPlaceholder) realSecret = true;
     }
+    var manifestName = isExpo ? "app.json" : "Info.plist";
     if (secretFindings.length > 0) {
-      issues.push({ severity: realSecret ? "error" : "warning", rule: "ios-privacy/secret-in-bundle", message: "Secret-shaped key(s) in Info.plist ship inside the app bundle and are trivially extractable from the IPA: " + secretFindings.join(", ") + ". Client secrets in particular must never live in the app.", fix: "Remove secrets from Info.plist. Keep client secrets server-side (proxy the OAuth token exchange); store per-user tokens in the Keychain at runtime." });
+      issues.push({ severity: realSecret ? "error" : "warning", rule: "ios-privacy/secret-in-bundle", message: "Secret-shaped key(s) in " + manifestName + " ship inside the app and are trivially extractable: " + secretFindings.join(", ") + ". Client secrets in particular must never live in the app.", fix: "Remove secrets from " + manifestName + ". Keep client secrets server-side (proxy the OAuth token exchange); store per-user tokens in the Keychain / expo-secure-store at runtime." });
     } else {
-      passes.push("No secret-shaped keys found in Info.plist");
+      passes.push("No secret-shaped keys found in " + manifestName);
     }
     // Bearer/proxy tokens shipped in the binary (build-injected) — softer note,
     // but only for token keys the secret net above didn't already report.
     var tokRe = /<key>([A-Za-z0-9_]*(?:ProxyToken|AuthToken|BearerToken)[A-Za-z0-9_]*)<\/key>/g;
     var tokM: RegExpExecArray | null;
     var tokenKeys: string[] = [];
-    while ((tokM = tokRe.exec(info_plist)) !== null) { if (!caughtKeys[tokM[1]]) tokenKeys.push(tokM[1]); }
+    while ((tokM = tokRe.exec(info_plist_text)) !== null) { if (!caughtKeys[tokM[1]]) tokenKeys.push(tokM[1]); }
     if (tokenKeys.length > 0) {
       issues.push({ severity: "warning", rule: "ios-privacy/token-in-bundle", message: "Bearer/proxy token key(s) present in Info.plist (" + tokenKeys.join(", ") + "). Even if build-injected, anything in Info.plist ships in the binary and can be read from the IPA.", fix: "Don't ship a shared bearer token in the app. Mint short-lived per-device tokens, or require the user's own credentials." });
     }
     // Hardcoded keys in source.
     if (src && /(sk-[A-Za-z0-9]{20,}|AIza[A-Za-z0-9_\-]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN (?:RSA )?PRIVATE KEY-----)/.test(src)) {
-      issues.push({ severity: "error", rule: "ios-privacy/hardcoded-key", message: "A hardcoded API key / secret appears in the source.", fix: "Remove it from source. Load secrets at runtime from the Keychain or a server, never compile them into the app." });
+      issues.push({ severity: "error", rule: "ios-privacy/hardcoded-key", message: "A hardcoded API key / secret appears in the source.", fix: "Remove it from source. Load secrets at runtime from the Keychain / expo-secure-store or a server, never compile them into the app." });
+    }
+
+    // ── Android permissions (Expo) — flag dangerous perms not exercised in code
+    if (androidPerms.length > 0) {
+      var DANGEROUS = ["CAMERA", "RECORD_AUDIO", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "ACCESS_BACKGROUND_LOCATION", "READ_CONTACTS", "WRITE_CONTACTS", "READ_CALENDAR", "READ_SMS", "READ_EXTERNAL_STORAGE", "BODY_SENSORS", "ACTIVITY_RECOGNITION"];
+      var dangerousRequested = androidPerms.map(function (p) { return p.split(".").pop() || p; }).filter(function (p) { return DANGEROUS.indexOf(p) >= 0; });
+      if (dangerousRequested.length > 0) {
+        issues.push({ severity: "warning", rule: "ios-privacy/android-permissions", message: "app.json requests Android runtime permission(s): " + dangerousRequested.join(", ") + ". Each must be justified to the user at request time and have a matching disclosure.", fix: "Request each permission only when the feature is used, with an in-context rationale; remove any the app doesn't actually exercise." });
+      } else {
+        passes.push("Android permissions are limited to non-dangerous ones");
+      }
+    }
+
+    // ── Expo: reward secure secret storage
+    if (isExpo) {
+      if (expoPlugins.indexOf("expo-secure-store") >= 0 || /expo-secure-store|SecureStore\./.test(src)) {
+        passes.push("Uses expo-secure-store (Keychain/Keystore) for token storage");
+      }
     }
 
     // ── Default data-egress not disclosed at the point of choice
@@ -3299,6 +3375,154 @@ server.tool(
       passes: passes,
       errors: errors,
       warnings: warnings,
+      fix_priority: errors.concat(warnings).map(function (i) { return i.rule + ": " + i.fix; })
+    };
+
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ════════════════════════════════════════════════════════════════════
+// React Native / Expo audit. Additive. RN authors JSX that renders to
+// native iOS + Android widgets, so audit_ios_screen already scores its
+// *rendered* output (an accessibility snapshot is platform-level, not
+// framework-level). This tool covers the JSX/StyleSheet *source* layer —
+// the RN analog of audit_swiftui — graded against the iOS HIG + Android
+// Material conventions RN has to satisfy on both platforms.
+// ════════════════════════════════════════════════════════════════════
+
+var RN_TOUCHABLES = ["TouchableOpacity", "TouchableHighlight", "TouchableWithoutFeedback", "Pressable", "TouchableNativeFeedback"];
+
+// Walk from a JSX element's opening "<" to the ">" that closes its opening
+// tag, ignoring ">" that appears inside attribute braces (e.g. onPress={() =>
+// ...} or icon={<Foo/>}). Returns the opening-tag attribute span.
+function jsxOpenTag(src: string, tagStart: number): string {
+  var depth = 0;
+  for (var i = tagStart; i < src.length; i++) {
+    var ch = src[i];
+    if (ch === "{") depth++;
+    else if (ch === "}") depth--;
+    else if (ch === ">" && depth <= 0) return src.slice(tagStart, i + 1);
+  }
+  return src.slice(tagStart, Math.min(src.length, tagStart + 600));
+}
+
+// RN principles returned by get_principles({platform:"react-native"}).
+var RN_HIG_PRINCIPLES = [
+  { id: "rn-touch-targets", name: "44/48pt hit targets", summary: "Touchables must be ≥44pt (iOS) / 48dp (Android). Grow the hit area with padding or hitSlop, not just the glyph.", verify: ["Pressable/Touchable* render ≥44pt, or use hitSlop", "Icon-only buttons especially get an expanded hit area"] },
+  { id: "rn-accessibility", name: "Accessibility props", summary: "Every touchable and meaningful image needs accessibilityLabel + accessibilityRole so VoiceOver and TalkBack can announce it.", verify: ["Touchables have accessibilityRole=\"button\" + accessibilityLabel", "Decorative images set accessible={false}", "accessibilityState reflects disabled/selected"] },
+  { id: "rn-dynamic-type", name: "Dynamic Type / font scaling", summary: "Leave allowFontScaling on (the default) so text honors the OS text-size setting; never hardcode tiny font sizes.", verify: ["No allowFontScaling={false}", "No fontSize below ~13", "Layout survives the largest accessibility text size"] },
+  { id: "rn-safe-areas", name: "Safe areas", summary: "Wrap screens in SafeAreaView / useSafeAreaInsets so content clears the notch, Dynamic Island, status bar, and home indicator on both platforms.", verify: ["Screens use SafeAreaView or useSafeAreaInsets", "edges are scoped where a bar should bleed", "Android edge-to-edge handled"] },
+  { id: "rn-dark-mode", name: "Dark mode", summary: "Adapt to the OS appearance with useColorScheme()/Appearance and a theme — unless the app is intentionally single-mode.", verify: ["Colors come from a theme keyed on useColorScheme(), not scattered hex", "Both appearances verified — or userInterfaceStyle pins a single mode on purpose"] },
+  { id: "rn-platform-parity", name: "iOS + Android parity", summary: "RN ships to both platforms; respect each one's conventions with Platform.select and platform files.", verify: ["Platform.OS/Platform.select for divergent behavior", "Navigation/back gestures feel native on each", "Material ripple on Android, opacity on iOS"] },
+  { id: "rn-secrets", name: "Secrets & permissions", summary: "Keep API keys out of the JS bundle (it's shippable plaintext); store tokens in expo-secure-store / Keychain; request only the permissions you use.", verify: ["No API keys/secrets committed in source or app.json extra", "Tokens in expo-secure-store / Keychain at runtime", "app.json declares only the iOS usage strings + Android permissions actually used"] }
+];
+
+var RN_CHECKLIST = [
+  "Every touchable is ≥44pt (iOS) / 48dp (Android), or uses hitSlop to expand the hit area?",
+  "Touchables have accessibilityRole and accessibilityLabel; decorative images set accessible={false}?",
+  "No allowFontScaling={false}, and no fontSize below ~13?",
+  "Screens use SafeAreaView / useSafeAreaInsets so content clears the notch, status bar, and home indicator?",
+  "Colors adapt to light/dark via useColorScheme() + a theme — unless the app intentionally pins one mode?",
+  "Platform.select / platform files handle iOS vs Android differences (ripple vs opacity, navigation)?",
+  "VoiceOver (iOS) and TalkBack (Android) both announce every interactive element correctly?",
+  "No API keys/secrets in the JS bundle or app.json — tokens live in expo-secure-store / Keychain?",
+  "app.json declares only the iOS usage strings and Android permissions the app actually uses?",
+  "Tested on a real device on both platforms (Expo Go / dev build), not just one simulator?"
+];
+
+// ── Tool 14e: audit_rn ─────────────────────────────────────────────
+
+server.tool(
+  "audit_rn",
+  "Audit React Native / Expo source (JSX/TSX + StyleSheet) against the iOS HIG + Android Material conventions RN must satisfy. Flags touchables missing accessibilityLabel/accessibilityRole, touchables below 44pt without hitSlop, allowFontScaling={false}, fontSize below ~13, screens without SafeAreaView, and (for multi-mode apps) hardcoded colors with no useColorScheme/Appearance dark-mode handling. Rewards SafeAreaView, hitSlop, Platform-aware code, and a theme. RN-native checks only — no web/CSS or SwiftUI rules. Same return shape as audit_page. (RN renders to native widgets, so audit_ios_screen scores the rendered screen.)",
+  {
+    source: z.union([z.string(), z.array(z.string())]).describe("React Native source — a single screen/component as a string, or an array of file contents. Concatenated before analysis."),
+    color_scheme: z.enum(["light", "dark", "automatic"]).optional().describe("The app's declared appearance (Expo app.json userInterfaceStyle). 'light' or 'dark' means single-mode by design — the dark-mode adaptation check is then suppressed. Default: automatic."),
+    strict: z.boolean().optional().describe("Strict mode — also count warnings as failures for grading. Default: false")
+  },
+  async ({ source, color_scheme, strict }) => {
+    var src = Array.isArray(source) ? source.join("\n") : source;
+    var isStrict = strict || false;
+    var issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }> = [];
+    var passes: string[] = [];
+
+    // ── Touchables: accessibility + touch target
+    var touchableCount = 0, missingA11y = 0;
+    var tinyTargets: string[] = [];
+    var hasHitSlop = /hitSlop/.test(src);
+    for (var tname of RN_TOUCHABLES) {
+      var tre = new RegExp("<" + tname + "\\b", "g");
+      var tm: RegExpExecArray | null;
+      while ((tm = tre.exec(src)) !== null) {
+        touchableCount++;
+        var span = jsxOpenTag(src, tm.index);
+        if (!/accessibilityLabel|accessibilityRole|accessible\s*=/.test(span)) missingA11y++;
+        // Inline fixed frame under the minimum, with no hitSlop on this element.
+        var wMatch = span.match(/\bwidth:\s*(\d+(?:\.\d+)?)/);
+        var hMatch = span.match(/\bheight:\s*(\d+(?:\.\d+)?)/);
+        if (wMatch && hMatch && parseFloat(wMatch[1]) < 44 && parseFloat(hMatch[1]) < 44 && !/hitSlop/.test(span)) {
+          tinyTargets.push(wMatch[1] + "×" + hMatch[1]);
+        }
+      }
+    }
+    if (touchableCount > 0) {
+      if (missingA11y === 0) passes.push("All " + touchableCount + " touchables expose accessibilityLabel/Role");
+      else issues.push({ severity: "warning", rule: "rn-a11y/touchable-label", message: missingA11y + " of " + touchableCount + " touchables have no accessibilityLabel/accessibilityRole — VoiceOver and TalkBack can't announce them.", fix: "Add accessibilityRole=\"button\" and a descriptive accessibilityLabel to each Touchable/Pressable (or accessibilityState for disabled/selected)." });
+    }
+    if (tinyTargets.length > 0) {
+      issues.push({ severity: "error", rule: "rn-touch/min-target", message: tinyTargets.length + " touchable(s) with an inline frame below 44pt and no hitSlop: " + tinyTargets.join(", "), fix: "Grow the hit area to ≥44pt (iOS) / 48dp (Android) with padding, or add hitSlop={{top:8,bottom:8,left:8,right:8}}." });
+    }
+
+    // ── Font scaling + tiny sizes
+    if (/allowFontScaling\s*=\s*\{?\s*false/.test(src)) {
+      issues.push({ severity: "warning", rule: "rn-typography/font-scaling", message: "allowFontScaling={false} disables Dynamic Type — text won't grow for users who need larger sizes.", fix: "Remove allowFontScaling={false} (it defaults to true). If clipping is the worry, fix the layout, not the scaling." });
+    } else {
+      passes.push("Text honors Dynamic Type (no allowFontScaling={false})");
+    }
+    var fontSizes: number[] = [];
+    var fsRe = /fontSize:\s*(\d+(?:\.\d+)?)/g;
+    var fsm: RegExpExecArray | null;
+    while ((fsm = fsRe.exec(src)) !== null) fontSizes.push(parseFloat(fsm[1]));
+    var smallFonts = Array.from(new Set(fontSizes.filter(function (n) { return n < 13; })));
+    if (smallFonts.length === 0 && fontSizes.length > 0) passes.push("All " + fontSizes.length + " fontSize values ≥ 13");
+    else if (smallFonts.length > 0) issues.push({ severity: "warning", rule: "rn-typography/min-size", message: "fontSize below the ~13pt readability floor: " + smallFonts.join(", "), fix: "Raise small text to ≥13. Reserve the smallest sizes for incidental metadata, not labels users must read." });
+
+    // ── Safe areas
+    var hasSafe = /SafeAreaView|useSafeAreaInsets|SafeAreaProvider/.test(src);
+    var looksLikeScreen = /export default function|export default class|export const \w+ = \(\)/.test(src) && /<(View|ScrollView|KeyboardAvoidingView)\b/.test(src);
+    if (hasSafe) passes.push("Handles safe areas (SafeAreaView / useSafeAreaInsets)");
+    else if (looksLikeScreen) issues.push({ severity: "warning", rule: "rn-layout/safe-area", message: "Screen-level component with no SafeAreaView / useSafeAreaInsets — content can hide under the notch, status bar, or home indicator.", fix: "Wrap the screen in <SafeAreaView> (react-native-safe-area-context) or apply useSafeAreaInsets() padding." });
+
+    // ── Dark mode (suppressed for intentionally single-mode apps)
+    var hasScheme = /useColorScheme|Appearance\.|useTheme\s*\(|createTheme/.test(src);
+    var hexRe = /(?:color|backgroundColor|borderColor|tintColor|shadowColor)\s*:\s*['"]#[0-9a-fA-F]{3,8}['"]/g;
+    var hexCount = (src.match(hexRe) || []).length;
+    if (color_scheme === "light" || color_scheme === "dark") {
+      passes.push("App pins a single appearance (" + color_scheme + ") by design — dark-mode adaptation not required");
+    } else if (hasScheme) {
+      passes.push("Adapts to OS appearance (useColorScheme / Appearance)");
+    } else if (hexCount >= 6) {
+      issues.push({ severity: "warning", rule: "rn-color/dark-mode", message: hexCount + " hardcoded colors and no useColorScheme/Appearance — the UI won't adapt to light/dark.", fix: "Source colors from a theme keyed on useColorScheme(), or set userInterfaceStyle in app.json if single-mode is intended (pass color_scheme to silence this)." });
+    }
+
+    // ── Rewards
+    if (hasHitSlop) passes.push("Uses hitSlop to expand hit areas");
+    if (/Platform\.(OS|select)\b|\.ios\.|\.android\./.test(src)) passes.push("Handles iOS/Android differences (Platform)");
+
+    var errors = issues.filter(function (i) { return i.severity === "error"; });
+    var warnings = issues.filter(function (i) { return i.severity === "warning"; });
+    var totalChecks = passes.length + issues.length;
+    var failCount = isStrict ? issues.length : errors.length;
+
+    var result = {
+      platform: "react-native",
+      score: totalChecks > 0 ? Math.round(((totalChecks - failCount) / totalChecks) * 100) : 100,
+      grade: failCount === 0 ? "A" : failCount <= 2 ? "B" : failCount <= 4 ? "C" : "D",
+      summary: passes.length + "/" + totalChecks + " RN checks passed" + (failCount > 0 ? " — " + failCount + " issue(s) to fix" : " — all clear"),
+      passes: passes,
+      errors: errors,
+      warnings: isStrict ? warnings.map(function (w) { return Object.assign({}, w, { severity: "error" as const }); }) : warnings,
       fix_priority: errors.concat(warnings).map(function (i) { return i.rule + ": " + i.fix; })
     };
 
