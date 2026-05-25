@@ -499,7 +499,7 @@ cd raven-mcp && npm install && npm run build</code></pre>
 
     <!-- ── Tool Reference ── -->
     <h2 id="tools" class="reveal">Tool Reference</h2>
-    <p>Raven provides 27 tools across 8 knowledge layers. Claude calls them automatically based on what you're asking for. Below, the original 13 tools have full docs; the 14 newer tools from v1.2 and v1.3 are listed with summary descriptions.</p>
+    <p>Raven provides 31 tools across 8 knowledge layers. Claude calls them automatically based on what you're asking for. Below, the original 13 tools have full docs; the 18 newer tools from v1.2–v1.5 are listed with summary descriptions.</p>
 
     <h3>Principles Layer</h3>
 
@@ -809,6 +809,42 @@ cd raven-mcp && npm install && npm run build</code></pre>
     <div class="tool-card reveal">
       <h3>get_brand_trends</h3>
       <p class="tool-desc">Current 2026 brand &amp; visual-design trends with when-it-works / when-it-fails guidance — bento grids, monospace for tone, neon-on-dark-glass, generative patterns, brutalism rebound, AI-generated imagery, aggressive lowercase. Time-stamped (retire-before 2027-04) so it doesn't rot silently.</p>
+    </div>
+
+    <h3>Mobile &amp; Native Audit Layer <span style="color:var(--accent-blue);font-size:13px;letter-spacing:0.08em;font-weight:600;">v1.5</span></h3>
+
+    <div class="tool-card reveal">
+      <h3>audit_swiftui</h3>
+      <p class="tool-desc">Static-analyze SwiftUI source against Apple's HIG — flags hardcoded <code>.font(.system(size:))</code> below ~13pt and tiny semantic fonts, hardcoded <code>Color(red:green:blue:)</code>/hex vs semantic + asset-catalog colors, an empty/undefined AccentColor, interactive frames under 44×44pt, and spacing off the 4/8-pt grid. None of the web-only rules run on iOS input.</p>
+      <dl class="params">
+        <dt>source <span class="optional">required</span></dt>
+        <dd>SwiftUI source — a string or array of files</dd>
+        <dt>accent_color_contents <span class="optional">optional</span></dt>
+        <dd>Raw <code>AccentColor.colorset/Contents.json</code> — verifies the accent color actually defines components</dd>
+      </dl>
+      <pre><code>"Audit this SwiftUI screen against Apple's HIG"</code></pre>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>audit_ios_screen</h3>
+      <p class="tool-desc">Score a rendered iOS screen from a view-hierarchy / accessibility snapshot (<code>{elements:[{label,rect,role,fontPt,fgColor,bgColor}],viewport}</code>) — 44×44pt touch targets, contrast (iOS <code>secondaryLabel</code>/<code>tertiaryLabel</code> treated as platform-standard — warn, not fail), and alignment / gap-rhythm / optical balance, in points. RN renders native, so this scores RN screens too.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>audit_ios_privacy</h3>
+      <p class="tool-desc">The "no sketchy issues" gate. Reads a native <code>Info.plist</code> or an Expo <code>app.json</code> (+ optional PRIVACY.md, entitlements, source). Flags usage-string claims that contradict the code (e.g. a HealthKit write the app never performs), unused entitlements and Android permissions, ATS cleartext exceptions, secrets shipped in the bundle or <code>expo.extra</code>, and default data-egress not disclosed at the point of choice.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>audit_rn</h3>
+      <p class="tool-desc">Audit React Native / Expo source (JSX + StyleSheet) against the iOS HIG + Android Material conventions RN must satisfy — touchables missing <code>accessibilityLabel</code>/<code>accessibilityRole</code>, sub-44pt targets without <code>hitSlop</code>, <code>allowFontScaling={false}</code>, fontSize below ~13, screens with no <code>SafeAreaView</code>, and (multi-mode apps) hardcoded colors with no <code>useColorScheme</code>.</p>
+      <dl class="params">
+        <dt>source <span class="optional">required</span></dt>
+        <dd>RN source — a string or array of files</dd>
+        <dt>color_scheme <span class="optional">optional</span></dt>
+        <dd>"light" | "dark" | "automatic" — single-mode apps suppress the dark-mode check</dd>
+      </dl>
+      <pre><code>"Audit this Expo screen for accessibility and safe areas"</code></pre>
     </div>
 
     <h3>Reflection &amp; Registration</h3>
