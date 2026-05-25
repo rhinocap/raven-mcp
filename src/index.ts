@@ -900,6 +900,20 @@ function extractInsight(toolName: string, input: any, output: any): any {
         };
         break;
       }
+      case "audit_swiftui":
+      case "audit_ios_screen":
+      case "audit_ios_privacy": {
+        var textIos = output?.content?.[0]?.text || "";
+        var pIos = JSON.parse(textIos);
+        insight = {
+          platform: "ios",
+          score: pIos.score,
+          grade: pIos.grade,
+          warnings: (pIos.warnings || []).map(function (w: any) { return w.rule; }),
+          errors: (pIos.errors || []).map(function (e: any) { return e.rule; })
+        };
+        break;
+      }
       case "evaluate_design": {
         insight = { goals: input?.goals || [] };
         break;
@@ -1138,10 +1152,39 @@ server.tool(
   {
     context: z.string().describe("What you're designing (e.g. 'signup form', 'pricing page', 'mobile nav', 'dark dashboard')"),
     category: z.string().optional().describe("Filter to category: nielsen-heuristics, laws-of-ux, gestalt, accessibility, typography, color-theory, mobile-ux, d4d"),
+    platform: z.enum(["web", "ios"]).optional().describe("Platform context. Use 'ios' to get Apple HIG principles (Dynamic Type, 44pt targets, SF Symbols, safe areas, dark-mode parity, haptics, App Review privacy) instead of the web/CSS-oriented principle set. Default: web."),
     format: z.enum(["full", "checklist", "brief"]).optional().describe("Output format: full (all details), checklist (implications + violations), brief (just summary). Default: full")
   },
-  async ({ context, category, format }) => {
+  async ({ context, category, platform, format }) => {
     var fmt = format || "full";
+
+    // iOS: return curated HIG principles only. The generic principle bank is
+    // web/CSS-oriented, so we don't run its matcher here — keeps web artifacts
+    // out of native guidance entirely.
+    if (platform === "ios") {
+      var iosResults = IOS_HIG_PRINCIPLES.filter(function (p) {
+        return textSearch(p.id + " " + p.name + " " + p.summary + " " + p.verify.join(" "), context);
+      });
+      if (iosResults.length === 0) iosResults = IOS_HIG_PRINCIPLES.slice();
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            context: context,
+            platform: "ios",
+            source: "Apple Human Interface Guidelines",
+            count: iosResults.length,
+            principles: iosResults.map(function (p) {
+              return fmt === "brief"
+                ? { id: p.id, name: p.name, summary: p.summary }
+                : { id: p.id, name: p.name, summary: p.summary, what_to_verify: p.verify };
+            }),
+            note: "Universal heuristics (Nielsen, Gestalt, Fitts's/Hick's laws) still apply — call get_principles without platform:'ios' for those."
+          }, null, 2)
+        }]
+      };
+    }
+
     var results = allPrinciples.filter(p => {
       if (category && p.category !== category) return false;
       // Match on applies_to tags or text search across fields
@@ -1440,7 +1483,7 @@ server.tool(
   "Get a pre-publish checklist for a specific UI type. Returns actionable yes/no items to verify before shipping.",
   {
     type: z.string().describe("What you're shipping (e.g. 'signup form', 'pricing page', 'dashboard', 'landing page', 'modal')"),
-    platform: z.enum(["desktop", "mobile", "responsive"]).optional().describe("Platform context for platform-specific checks")
+    platform: z.enum(["desktop", "mobile", "responsive", "ios"]).optional().describe("Platform context for platform-specific checks. Use 'ios' for native SwiftUI/iOS apps — returns Apple HIG items (Dynamic Type, 44pt targets, SF Symbols, safe areas, dark-mode parity, App Review privacy) instead of web/mobile-web checks.")
   },
   async ({ type, platform }) => {
     // Gather checklists from matching patterns
@@ -1450,15 +1493,34 @@ server.tool(
 
     var checklists: Array<{ source: string; items: string[] }> = [];
 
+    // Web idioms that are meaningless on native iOS (px sizing, Mobile-Safari
+    // auto-zoom, hover, CSS grid/media queries). Pattern checklists are mostly
+    // platform-agnostic conversion/usability guidance, so we keep them but
+    // strip the web-only items when platform is ios.
+    var WEB_IDIOM = /\bpx\b|auto-zoom|grid-template|:hover|hover state|\bviewport\b|\bCSS\b|media quer|\bem\b|browser/i;
+
     for (var pattern of matchedPatterns) {
-      checklists.push({
-        source: pattern.name,
-        items: pattern.checklist
-      });
+      var items = pattern.checklist;
+      if (platform === "ios") items = items.filter(function (it: string) { return !WEB_IDIOM.test(it); });
+      if (items.length > 0) {
+        checklists.push({
+          source: pattern.name,
+          items: items
+        });
+      }
     }
 
-    // Add universal accessibility checks
-    var accessibilityChecklist = [
+    // Add universal accessibility checks (iOS gets a VoiceOver-flavored set so
+    // no web terms — alt text, focus rings, keyboard nav — leak into a native
+    // checklist).
+    var accessibilityChecklist = platform === "ios" ? [
+      "Text meets WCAG AA contrast (4.5:1 normal, 3:1 large) in both light and dark?",
+      "All interactive and image elements have a VoiceOver accessibilityLabel?",
+      "Decorative imagery is hidden from VoiceOver (.accessibilityHidden)?",
+      "Controls expose the right traits (.isButton, .isHeader) and grouped sensibly?",
+      "Reduce Motion is honored for non-essential animation?",
+      "Touch targets are at least 44×44 pt?"
+    ] : [
       "Text meets WCAG AA contrast ratio (4.5:1 for normal text, 3:1 for large text)?",
       "All interactive elements are keyboard accessible?",
       "All images have appropriate alt text?",
@@ -1469,7 +1531,11 @@ server.tool(
 
     // Add platform-specific checks
     var platformChecklist: string[] = [];
-    if (platform === "mobile" || platform === "responsive") {
+    if (platform === "ios") {
+      // Native iOS: return HIG items only — none of the web/mobile-web checks
+      // (16px iOS-zoom, CSS responsiveness) apply to a SwiftUI app.
+      platformChecklist = IOS_HIG_CHECKLIST.slice();
+    } else if (platform === "mobile" || platform === "responsive") {
       platformChecklist = [
         "Font size is at least 16px to prevent iOS auto-zoom?",
         "Touch targets are at least 44x44px?",
@@ -2684,6 +2750,559 @@ server.tool(
         }, null, 2)
       }]
     };
+  }
+);
+
+// ════════════════════════════════════════════════════════════════════
+// iOS / SwiftUI audit suite (HIG-graded). Purely additive — the web tools
+// above are untouched, and none of the web-only rules (lang/title/flex-wrap/
+// clamp/max-width/custom-properties/bare-hex) run on iOS input.
+// ════════════════════════════════════════════════════════════════════
+
+// Default point sizes for SwiftUI semantic text styles at the standard
+// Dynamic Type content size (UIContentSizeCategory.large). Used to flag
+// semantic fonts that sit below a comfortable reading floor (~13pt).
+var IOS_SEMANTIC_FONT_PT: Record<string, number> = {
+  largeTitle: 34, title: 28, title2: 22, title3: 20, headline: 17,
+  body: 17, callout: 16, subheadline: 15, footnote: 13, caption: 12, caption2: 11
+};
+
+// Light-mode effective hex for common iOS semantic colors (alpha flattened
+// over white). secondaryLabel / tertiaryLabel / quaternaryLabel are platform
+// standard — Apple ships them, so audit_ios_screen warns rather than hard-
+// failing when their contrast dips below WCAG AA.
+var IOS_SEMANTIC_COLORS: Record<string, { hex: string; secondary?: boolean }> = {
+  label: { hex: "#000000" },
+  secondarylabel: { hex: "#8A8A8E", secondary: true },
+  tertiarylabel: { hex: "#C4C4C7", secondary: true },
+  quaternarylabel: { hex: "#D6D6DA", secondary: true },
+  placeholdertext: { hex: "#C4C4C7", secondary: true },
+  systembackground: { hex: "#FFFFFF" },
+  secondarysystembackground: { hex: "#F2F2F7" },
+  tertiarysystembackground: { hex: "#FFFFFF" },
+  systemgroupedbackground: { hex: "#F2F2F7" },
+  secondarysystemgroupedbackground: { hex: "#FFFFFF" },
+  tertiarysystemgroupedbackground: { hex: "#F2F2F7" },
+  white: { hex: "#FFFFFF" },
+  black: { hex: "#000000" }
+};
+
+// Resolve a color field (hex like "#1c1c1e", "rgb(...)", or an iOS semantic
+// name like "secondaryLabel") to an effective light-mode hex. Returns null
+// when it can't be resolved (then contrast is skipped for that element).
+function resolveIosColor(raw: string): { hex: string | null; secondary: boolean } {
+  if (!raw || typeof raw !== "string") return { hex: null, secondary: false };
+  var c = raw.trim();
+  if (/^#[0-9a-fA-F]{3,8}$/.test(c)) return { hex: c, secondary: false };
+  var rgbm = c.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if (rgbm) return { hex: rgbToHex(parseInt(rgbm[1]), parseInt(rgbm[2]), parseInt(rgbm[3])), secondary: false };
+  var key = c.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (IOS_SEMANTIC_COLORS[key]) return { hex: IOS_SEMANTIC_COLORS[key].hex, secondary: !!IOS_SEMANTIC_COLORS[key].secondary };
+  return { hex: null, secondary: false };
+}
+
+// HIG-specific principles returned by get_principles({platform:"ios"}) — these
+// replace the web/CSS principle matcher entirely so no web artifacts leak in.
+var IOS_HIG_PRINCIPLES = [
+  { id: "hig-dynamic-type", name: "Dynamic Type", summary: "Use semantic text styles (.body, .headline…) so text scales with the user's chosen size and accessibility sizes.", verify: ["No hardcoded .font(.system(size:)) for body/label text", "Layout survives the largest accessibility text size", "Avoid .caption2/.caption (≈11–12pt) for anything the user must read"] },
+  { id: "hig-touch-targets", name: "44pt hit targets", summary: "Every tappable control is at least 44×44 pt, even if its glyph is smaller.", verify: ["Buttons, icons-as-buttons, list affordances ≥ 44×44pt", "Use padding/contentShape to grow the hit area, not just the glyph"] },
+  { id: "hig-sf-symbols", name: "SF Symbols", summary: "Prefer SF Symbols for iconography; they align to the text baseline and scale with Dynamic Type.", verify: ["Icons use Image(systemName:)/Label(_, systemImage:)", "Symbol weight/scale matches adjacent text", "Custom icons supplied as symbol images where possible"] },
+  { id: "hig-navigation", name: "Navigation & tab bars", summary: "Use standard NavigationStack and a TabView with 2–5 clearly-labelled destinations; don't reinvent system chrome.", verify: ["Tab bar has 2–5 items, each with a symbol + title", "Large titles used where they aid orientation", "Back navigation behaves like the system default"] },
+  { id: "hig-safe-areas", name: "Safe areas", summary: "Respect safe areas so content never hides under the notch, Dynamic Island, status bar, or home indicator.", verify: ["Backgrounds may bleed edge-to-edge, but interactive/legible content stays inside the safe area", ".ignoresSafeArea() is scoped to decorative layers only", "Use .safeAreaInset for bars pinned to edges"] },
+  { id: "hig-dark-mode", name: "Dark-mode parity", summary: "Source every color from the asset catalog or a semantic system color so the UI adapts to light and dark automatically.", verify: ["No hardcoded Color(red:green:blue:)/hex for surfaces and text", "AccentColor.colorset is defined for both appearances", "Verified visually in both light and dark"] },
+  { id: "hig-haptics", name: "Haptics", summary: "Use UIFeedbackGenerator haptics to confirm meaningful state changes — sparingly and consistently.", verify: ["Success/selection/impact haptics map to real events", "No haptics on routine scrolling or every tap"] },
+  { id: "hig-privacy", name: "Privacy & App Review", summary: "Be honest and specific about data use; never send personal data off-device by default without disclosing it at the point of choice.", verify: ["Each NS*UsageDescription is specific and matches actual behavior", "A pre-selected/'Recommended' option doesn't silently transmit personal data (App Review §5.1.1)", "No API keys/secrets in Info.plist or source — use the Keychain"] },
+  { id: "hig-accessibility", name: "VoiceOver & motion", summary: "Provide accessibility labels and honor Reduce Motion / Increase Contrast.", verify: ["Interactive and image elements have .accessibilityLabel", "Decorative imagery is hidden from VoiceOver", "Animations respect Reduce Motion"] }
+];
+
+// HIG-specific pre-publish checklist returned by get_checklist({platform:"ios"}).
+var IOS_HIG_CHECKLIST = [
+  "All text uses Dynamic Type (semantic fonts) and stays legible at the largest accessibility size?",
+  "No body/label text below ~13pt (avoid .caption2/.caption for must-read content)?",
+  "Every tappable control is at least 44×44 pt (grow the hit area, not just the glyph)?",
+  "Icons use SF Symbols with weight/scale matched to adjacent text?",
+  "Tab bar has 2–5 destinations, each with a symbol and a label?",
+  "Navigation uses standard NavigationStack / large titles where appropriate?",
+  "Content respects safe areas — nothing clipped under the notch, Dynamic Island, or home indicator?",
+  "Every color comes from the asset catalog or a semantic system color, verified in BOTH light and dark?",
+  "AccentColor.colorset is defined (with color components) for light and dark?",
+  "Haptics fire on meaningful state changes only, via UIFeedbackGenerator?",
+  "VoiceOver labels on all interactive/image elements; Reduce Motion honored?",
+  "Every Info.plist NS*UsageDescription is specific and matches what the code actually does?",
+  "No default option silently sends personal data off-device — egress is disclosed at the point of choice (App Review §5.1.1)?",
+  "No secrets/API keys shipped in Info.plist or source (keys live in the Keychain)?"
+];
+
+// Shared light-weight plist parser: pulls <key>→<string|true|false> pairs.
+// Good enough for usage strings, ATS flags, and secret-shaped keys without a
+// full XML dependency.
+function parsePlistKeys(xml: string): Record<string, string> {
+  var out: Record<string, string> = {};
+  var re = /<key>([^<]+)<\/key>\s*(?:<string>([\s\S]*?)<\/string>|<(true|false)\s*\/>)/g;
+  var m: RegExpExecArray | null;
+  while ((m = re.exec(xml)) !== null) {
+    out[m[1]] = m[2] !== undefined ? m[2] : (m[3] || "");
+  }
+  return out;
+}
+
+// ── Tool 14b: audit_swiftui ────────────────────────────────────────
+//
+// Static-analyzes SwiftUI source against Apple HIG. Same return shape as
+// audit_page (score/grade/passes/errors/warnings/fix_priority). Optionally
+// takes the AccentColor.colorset Contents.json so it can flag an empty/
+// undefined accent color — a real, ship-blocking bug.
+
+server.tool(
+  "audit_swiftui",
+  "Audit SwiftUI source against Apple's Human Interface Guidelines. Flags hardcoded .font(.system(size:)) below ~13pt and tiny semantic fonts (.caption/.caption2), hardcoded Color(red:green:blue:)/hex instead of asset-catalog or semantic system colors, an empty/undefined AccentColor, interactive frames below 44×44pt, and ad-hoc spacing off the 4/8-pt grid. Rewards semantic Dynamic Type fonts, semantic system colors, SF Symbols, and flexible frames. iOS-native checks only — no web/CSS rules. Returns pass/fail per check with fix instructions.",
+  {
+    source: z.union([z.string(), z.array(z.string())]).describe("SwiftUI source — a single file/view as a string, or an array of file contents. Concatenated before analysis."),
+    accent_color_contents: z.string().optional().describe("Optional raw Contents.json of AccentColor.colorset. When provided, the tool verifies AccentColor actually defines color components (flags an empty/undefined accent color as an error)."),
+    strict: z.boolean().optional().describe("Strict mode — also count warnings as failures for grading. Default: false")
+  },
+  async ({ source, accent_color_contents, strict }) => {
+    var src = Array.isArray(source) ? source.join("\n") : source;
+    var isStrict = strict || false;
+    var issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }> = [];
+    var passes: string[] = [];
+
+    // ── Typography: hardcoded fixed sizes
+    var sysFontRe = /\.font\(\s*\.system\(\s*size:\s*(\d+(?:\.\d+)?)/g;
+    var fm: RegExpExecArray | null;
+    var smallFixed: number[] = [];
+    var fixedNonIcon: number[] = [];
+    while ((fm = sysFontRe.exec(src)) !== null) {
+      var size = parseFloat(fm[1]);
+      // Is this fixed size attached to an icon? Icons commonly use fixed
+      // point sizes — that's idiomatic, not a Dynamic Type violation.
+      var ctx = src.slice(Math.max(0, fm.index - 160), fm.index);
+      var isIcon = /Image\(\s*systemName:|Image\(\s*"/.test(ctx);
+      if (size < 13) { if (!isIcon) smallFixed.push(size); }
+      else if (!isIcon) fixedNonIcon.push(size);
+    }
+    if (smallFixed.length === 0) passes.push("No text below 13pt fixed size");
+    else issues.push({ severity: "error", rule: "ios-typography/min-size", message: "Found " + smallFixed.length + " hardcoded font size(s) below 13pt: " + smallFixed.join(", ") + "pt", fix: "Raise to ≥13pt, and prefer a semantic style (.footnote, .subheadline, .body) so it scales with Dynamic Type." });
+    if (fixedNonIcon.length > 0) {
+      issues.push({ severity: "warning", rule: "ios-typography/dynamic-type", message: fixedNonIcon.length + " non-icon text element(s) use a fixed .system(size:) (" + fixedNonIcon.join(", ") + "pt) that won't scale with Dynamic Type", fix: "Use a semantic Font (.title, .headline, .body…) or .system(size:, relativeTo:) so the text honors the user's text-size setting." });
+    }
+
+    // ── Typography: tiny semantic styles (Dynamic-Type-aware but very small)
+    var smallSemantic: string[] = [];
+    var semanticUsed = new Set<string>();
+    for (var styleName of Object.keys(IOS_SEMANTIC_FONT_PT)) {
+      var styleRe = new RegExp("\\.font\\(\\s*\\." + styleName + "\\b", "g");
+      if (styleRe.test(src)) {
+        semanticUsed.add(styleName);
+        if (IOS_SEMANTIC_FONT_PT[styleName] < 13) smallSemantic.push(styleName + " (≈" + IOS_SEMANTIC_FONT_PT[styleName] + "pt)");
+      }
+    }
+    if (semanticUsed.size > 0) passes.push("Uses semantic Dynamic Type fonts (" + Array.from(semanticUsed).join(", ") + ")");
+    if (smallSemantic.length > 0) {
+      issues.push({ severity: "warning", rule: "ios-typography/small-semantic-font", message: "Uses very small semantic font(s) for visible text: " + smallSemantic.join(", ") + ". These scale with Dynamic Type but start below the ~13pt comfort floor.", fix: "Reserve .caption2/.caption for incidental metadata. For labels/badges users must read, use .footnote (≈13pt) or larger." });
+    }
+
+    // ── Color: hardcoded RGB / hex literals
+    var rgbLiterals = (src.match(/Color\(\s*(?:\.sRGB\s*,\s*)?red:\s*[\d.]+\s*,\s*green:\s*[\d.]+\s*,\s*blue:/g) || []).length;
+    var hexLiterals = (src.match(/Color\(\s*hex:|#colorLiteral\(/g) || []).length;
+    var hardColor = rgbLiterals + hexLiterals;
+    if (hardColor === 0) passes.push("No hardcoded Color(red:green:blue:)/hex literals");
+    else issues.push({ severity: "warning", rule: "ios-color/hardcoded-literal", message: "Found " + hardColor + " hardcoded color literal(s) (" + rgbLiterals + " RGB, " + hexLiterals + " hex). These won't adapt to dark mode or stay in sync with the design system.", fix: "Move colors into the asset catalog (Color(\"Name\") with light+dark) or use semantic system colors (Color(.label), Color(.systemBackground), Color.accentColor)." });
+
+    // ── Color: semantic system colors rewarded
+    var semanticColorHits = (src.match(/Color\(\s*\.(?:label|secondaryLabel|tertiaryLabel|systemBackground|secondarySystemBackground|systemGroupedBackground|secondarySystemGroupedBackground|tertiaryLabel|separator|tint)\b/g) || []).length;
+    if (semanticColorHits > 0) passes.push("Uses semantic system colors that adapt to dark mode (" + semanticColorHits + ")");
+
+    // ── Color: AccentColor defined?
+    var usesAccent = /Color\.accentColor|\.tint\(\s*\.accentColor|Color\(\s*"AccentColor"\s*\)|\.accentColor\b/.test(src);
+    if (usesAccent) {
+      if (typeof accent_color_contents === "string" && accent_color_contents.length > 0) {
+        var accentDefined = false;
+        try {
+          var parsedAccent = JSON.parse(accent_color_contents);
+          var cols = Array.isArray(parsedAccent.colors) ? parsedAccent.colors : [];
+          for (var ci = 0; ci < cols.length; ci++) {
+            var comp = cols[ci] && cols[ci].color && cols[ci].color.components;
+            if (comp && (comp.red !== undefined || comp.white !== undefined)) { accentDefined = true; break; }
+          }
+        } catch (_e) { accentDefined = false; }
+        if (accentDefined) passes.push("AccentColor is defined in the asset catalog");
+        else issues.push({ severity: "error", rule: "ios-color/empty-accent", message: "Source uses Color.accentColor but AccentColor.colorset defines no color components — the accent renders as the default system blue (a silent branding bug).", fix: "Open Assets.xcassets → AccentColor and set a color (Any + Dark appearance), or remove the accentColor usage." });
+      }
+      // If contents weren't supplied we stay silent — no speculative warning.
+    }
+
+    // ── Touch targets: interactive frames under 44×44pt
+    var frameRe = /\.frame\(\s*width:\s*(\d+(?:\.\d+)?)\s*,\s*height:\s*(\d+(?:\.\d+)?)\s*\)/g;
+    var hasInteractive = /Button\s*[\({]|\.onTapGesture|TapGesture|\.buttonStyle/.test(src);
+    var tinyTargets: string[] = [];
+    var frm: RegExpExecArray | null;
+    while ((frm = frameRe.exec(src)) !== null) {
+      var fw = parseFloat(frm[1]); var fh = parseFloat(frm[2]);
+      var fctx = src.slice(Math.max(0, frm.index - 160), frm.index);
+      var frameIsIcon = /Image\(\s*systemName:|Image\(\s*"/.test(fctx);
+      if (fw < 44 && fh < 44 && !frameIsIcon && hasInteractive) tinyTargets.push(fw + "×" + fh);
+    }
+    if (tinyTargets.length === 0) passes.push("No interactive frames below 44×44pt");
+    else issues.push({ severity: "error", rule: "ios-touch/min-target", message: "Found " + tinyTargets.length + " fixed frame(s) below the 44×44pt minimum hit target in an interactive view: " + tinyTargets.join(", "), fix: "Grow the hit area to ≥44×44pt with padding or .contentShape(Rectangle()).frame(minWidth:44,minHeight:44) — keep the glyph small if needed." });
+
+    // ── Spacing: 4/8-pt grid adherence + scale tightness
+    var spacingValues: number[] = [];
+    var spRe = /\bspacing:\s*(\d+(?:\.\d+)?)/g;
+    var sp: RegExpExecArray | null;
+    while ((sp = spRe.exec(src)) !== null) { var v0 = parseFloat(sp[1]); if (v0 > 0) spacingValues.push(v0); }
+    var padRe1 = /\.padding\(\s*(\d+(?:\.\d+)?)\s*\)/g;
+    while ((sp = padRe1.exec(src)) !== null) { var v1 = parseFloat(sp[1]); if (v1 > 0) spacingValues.push(v1); }
+    var padRe2 = /\.padding\(\s*\.(?:top|bottom|leading|trailing|horizontal|vertical)\s*,\s*(\d+(?:\.\d+)?)\s*\)/g;
+    while ((sp = padRe2.exec(src)) !== null) { var v2 = parseFloat(sp[1]); if (v2 > 0) spacingValues.push(v2); }
+
+    if (spacingValues.length >= 3) {
+      var onGrid4 = spacingValues.filter(function (n) { return n % 4 === 0; }).length;
+      var onGrid8 = spacingValues.filter(function (n) { return n % 8 === 0; }).length;
+      var bestGrid = onGrid8 >= onGrid4 * 0.7 ? { base: 8, count: onGrid8 } : { base: 4, count: onGrid4 };
+      var gridPct = bestGrid.count / spacingValues.length;
+      if (gridPct >= 0.9) passes.push("Spacing on a " + bestGrid.base + "pt grid (" + Math.round(gridPct * 100) + "% of " + spacingValues.length + ")");
+      else issues.push({ severity: "warning", rule: "ios-spacing/base-unit", message: "Only " + Math.round(gridPct * 100) + "% of spacing values land on a " + bestGrid.base + "pt grid (" + spacingValues.length + " sampled): " + Array.from(new Set(spacingValues)).sort(function (a, b) { return a - b; }).join(", ") + "pt", fix: "Snap spacing/padding to multiples of 4 or 8. Define a scale (4, 8, 12, 16, 24, 32) and reference it instead of ad-hoc values like 3, 6, 7, 14, 18." });
+
+      var uniqueSp = Array.from(new Set(spacingValues)).sort(function (a, b) { return a - b; });
+      if (uniqueSp.length <= 7) passes.push("Spacing scale is tight (" + uniqueSp.length + " unique values)");
+      else issues.push({ severity: "warning", rule: "ios-spacing/scale-count", message: uniqueSp.length + " unique spacing values: " + uniqueSp.join(", ") + "pt — visual rhythm frays past ~7", fix: "Consolidate to a 5–7 step spacing scale and round ad-hoc values to the nearest step." });
+    }
+
+    // ── Layout: safe areas + flexible frames
+    var managesSafeArea = /TabView|NavigationStack|NavigationView|NavigationSplitView|\.safeAreaInset/.test(src);
+    var ignoresSafeArea = /\.ignoresSafeArea\(\)/.test(src); // bare, unscoped
+    if (managesSafeArea) passes.push("Uses a standard container that manages safe areas (TabView/NavigationStack/safeAreaInset)");
+    if (ignoresSafeArea) {
+      issues.push({ severity: "warning", rule: "ios-layout/safe-area", message: "Found an unscoped .ignoresSafeArea() — interactive or legible content may slip under the notch, Dynamic Island, or home indicator.", fix: "Scope it to the decorative layer only, e.g. background.ignoresSafeArea(), and keep content inside the safe area (or use .safeAreaInset)." });
+    }
+    if (/\.frame\(\s*maxWidth:\s*\.infinity/.test(src)) passes.push("Uses flexible frames (maxWidth: .infinity)");
+    if (/Image\(\s*systemName:|systemImage:/.test(src)) passes.push("Uses SF Symbols for iconography");
+
+    var errors = issues.filter(function (i) { return i.severity === "error"; });
+    var warnings = issues.filter(function (i) { return i.severity === "warning"; });
+    var totalChecks = passes.length + issues.length;
+    var failCount = isStrict ? issues.length : errors.length;
+
+    var result = {
+      platform: "ios",
+      score: totalChecks > 0 ? Math.round(((totalChecks - failCount) / totalChecks) * 100) : 100,
+      grade: failCount === 0 ? "A" : failCount <= 2 ? "B" : failCount <= 4 ? "C" : "D",
+      summary: passes.length + "/" + totalChecks + " HIG checks passed" + (failCount > 0 ? " — " + failCount + " issue(s) to fix" : " — all clear"),
+      passes: passes,
+      errors: errors,
+      warnings: isStrict ? warnings.map(function (w) { return Object.assign({}, w, { severity: "error" as const }); }) : warnings,
+      fix_priority: errors.concat(warnings).map(function (i) { return i.rule + ": " + i.fix; })
+    };
+
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ── Tool 14c: audit_ios_screen ─────────────────────────────────────
+//
+// The iOS analog of audit_layout. Takes a view-hierarchy / accessibility
+// snapshot (the structured equivalent of DevTools rects) plus an optional
+// screenshot. Scores touch targets and contrast in points against HIG, and
+// runs the same alignment / gap-rhythm / optical-balance geometry checks —
+// but treats iOS secondary/tertiary label colors as platform-standard.
+
+server.tool(
+  "audit_ios_screen",
+  "Audit a rendered iOS screen from a view-hierarchy/accessibility snapshot (and optional screenshot). Call with no arguments for the expected snapshot shape and how to capture it. Call with {elements:[{label,rect:{x,y,w,h},role,fontPt,fgColor,bgColor}],viewport:{w,h}} to score 44×44pt touch targets, contrast (with iOS secondaryLabel/tertiaryLabel treated as platform-standard — warn not fail), and visual rhythm (alignment, gap consistency, optical balance) in points. Same return shape as audit_page.",
+  {
+    elements: z.array(z.object({
+      label: z.string().optional(),
+      rect: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
+      role: z.string().optional().describe("Accessibility role/trait, e.g. button, link, cell, staticText, image, tab, textField"),
+      fontPt: z.number().optional().describe("Effective font point size, if text"),
+      fgColor: z.string().optional().describe("Foreground color — hex (#1c1c1e), rgb(), or an iOS semantic name like 'secondaryLabel'"),
+      bgColor: z.string().optional().describe("Background color behind this element — hex, rgb(), or semantic name")
+    })).optional().describe("Elements captured from the rendered screen via an accessibility/view-hierarchy snapshot"),
+    viewport: z.object({ w: z.number(), h: z.number() }).optional().describe("Screen size in points at capture time, e.g. {w:393,h:852} for iPhone 15"),
+    screenshot: z.string().optional().describe("Optional base64 PNG of the screen, for the caller's reference. Geometry is scored from the snapshot, not decoded pixels.")
+  },
+  async ({ elements, viewport, screenshot }) => {
+    if (!elements || !viewport) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            instructions: "Provide a structured snapshot of the rendered screen. Capture it with the Accessibility Inspector, an XCUITest dumping the accessibility tree, or your own view-hierarchy walker — then call audit_ios_screen with the JSON below. rect units are points (pt). fgColor/bgColor accept hex, rgb(), or iOS semantic names (e.g. 'secondaryLabel'). role should carry the accessibility trait so interactive elements can be checked for 44×44pt hit targets.",
+            snapshot_shape: {
+              elements: [
+                { label: "Start", rect: { x: 24, y: 720, w: 345, h: 50 }, role: "button", fontPt: 17, fgColor: "#FFFFFF", bgColor: "#5B3FC4" },
+                { label: "You can change this anytime in Settings.", rect: { x: 24, y: 786, w: 345, h: 16 }, role: "staticText", fontPt: 13, fgColor: "secondaryLabel", bgColor: "#F2F2F7" }
+              ],
+              viewport: { w: 393, h: 852 }
+            },
+            example_call: "audit_ios_screen({ elements: [...], viewport: { w: 393, h: 852 } })"
+          }, null, 2)
+        }]
+      };
+    }
+
+    var issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }> = [];
+    var passes: string[] = [];
+    var interactiveRoles = ["button", "link", "cell", "tab", "tabbar", "menuitem", "switch", "slider", "stepper", "segmentedcontrol", "textfield", "searchfield", "tappable"];
+
+    // ── Touch targets (pt)
+    var smallTargets: string[] = [];
+    var interactiveCount = 0;
+    for (var el of elements) {
+      var role = (el.role || "").toLowerCase().replace(/[^a-z]/g, "");
+      var isInteractive = interactiveRoles.indexOf(role) >= 0;
+      if (!isInteractive) continue;
+      interactiveCount++;
+      if (el.rect.w < 44 || el.rect.h < 44) {
+        smallTargets.push((el.label ? "\"" + el.label + "\" " : "") + Math.round(el.rect.w) + "×" + Math.round(el.rect.h) + "pt");
+      }
+    }
+    if (interactiveCount === 0) passes.push("No interactive elements flagged for touch-target sizing");
+    else if (smallTargets.length === 0) passes.push("All " + interactiveCount + " interactive elements meet the 44×44pt minimum");
+    else issues.push({ severity: "error", rule: "ios-touch/min-target", message: smallTargets.length + " interactive element(s) below 44×44pt: " + smallTargets.join(", "), fix: "Expand the hit target to ≥44×44pt (padding or .contentShape + .frame(minWidth:44,minHeight:44))." });
+
+    // ── Contrast (pt-aware; secondary/tertiary labels are platform-standard)
+    var contrastChecked = 0;
+    var contrastFails = 0;
+    for (var el2 of elements) {
+      if (!el2.fgColor || !el2.bgColor) continue;
+      var fg = resolveIosColor(el2.fgColor);
+      var bg = resolveIosColor(el2.bgColor);
+      if (!fg.hex || !bg.hex) continue;
+      contrastChecked++;
+      var ratio = getContrastRatio(fg.hex, bg.hex);
+      var pt = el2.fontPt || 0;
+      var isLarge = pt >= 18; // ~24px; HIG/WCAG large-text threshold
+      var threshold = isLarge ? 3 : 4.5;
+      if (ratio >= threshold) continue;
+      contrastFails++;
+      var who = (el2.label ? "\"" + el2.label + "\"" : "element") + " (" + ratio + ":1, needs " + threshold + ":1)";
+      if (fg.secondary) {
+        issues.push({ severity: "warning", rule: "ios-contrast/secondary-label", message: who + " uses an iOS platform-standard secondary/tertiary label color — Apple ships this, so it's acceptable per HIG, but verify legibility for critical text.", fix: "For must-read text prefer Color(.label); reserve secondaryLabel/tertiaryLabel for de-emphasized metadata." });
+      } else {
+        issues.push({ severity: "error", rule: "ios-contrast/wcag", message: who + " falls below contrast minimum.", fix: "Increase contrast to ≥" + threshold + ":1 — darken the text or lighten the background. Verify in both light and dark." });
+      }
+    }
+    if (contrastChecked > 0 && contrastFails === 0) passes.push("All " + contrastChecked + " text/background pairs meet contrast minimums");
+    else if (contrastChecked === 0) passes.push("No fg/bg color pairs supplied to score contrast");
+
+    // ── Geometry: alignment / gap rhythm / optical balance (points)
+    var rects = elements.map(function (e) { return e.rect; });
+    var metrics: any = {};
+    if (rects.length >= 3) {
+      // Alignment: cluster left edges within 2pt.
+      var colCounts = new Map<number, number>();
+      for (var r of rects) {
+        var matched: number | null = null;
+        for (var c of Array.from(colCounts.keys())) { if (Math.abs(r.x - c) <= 2) { matched = c; break; } }
+        if (matched !== null) colCounts.set(matched, (colCounts.get(matched) || 0) + 1);
+        else colCounts.set(r.x, 1);
+      }
+      var sharedCols = Array.from(colCounts.values()).filter(function (n) { return n >= 2; }).length;
+      var aligned = 0; colCounts.forEach(function (n) { if (n >= 2) aligned += n; });
+      var alignRatio = aligned / rects.length;
+      metrics.alignment = { shared_columns: sharedCols, aligned_ratio: Number(alignRatio.toFixed(2)) };
+      if (alignRatio >= 0.6) passes.push(Math.round(alignRatio * 100) + "% of elements share an alignment column");
+      else issues.push({ severity: "warning", rule: "ios-layout/alignment", message: "Weak alignment — only " + Math.round(alignRatio * 100) + "% of elements share a left edge with a sibling.", fix: "Let a parent VStack/Grid dictate alignment; remove ad-hoc leading padding that pushes children off the column." });
+
+      // Gap rhythm.
+      var vGaps: number[] = [];
+      var byY = rects.slice().sort(function (a, b) { return a.y - b.y; });
+      for (var i = 1; i < byY.length; i++) {
+        var prev = byY[i - 1]; var cur = byY[i];
+        var xo = Math.min(prev.x + prev.w, cur.x + cur.w) - Math.max(prev.x, cur.x);
+        if (xo > 0) { var g = cur.y - (prev.y + prev.h); if (g > 0 && g < 200) vGaps.push(g); }
+      }
+      if (vGaps.length >= 3) {
+        var mean = vGaps.reduce(function (a, b) { return a + b; }, 0) / vGaps.length;
+        var variance = vGaps.reduce(function (a, b) { return a + (b - mean) * (b - mean); }, 0) / vGaps.length;
+        var cv = mean > 0 ? Math.sqrt(variance) / mean : 0;
+        metrics.gap_rhythm = { samples: vGaps.length, coef_variation: Number(cv.toFixed(2)) };
+        if (cv <= 0.5) passes.push("Vertical gaps are consistent (CV " + cv.toFixed(2) + ")");
+        else issues.push({ severity: "warning", rule: "ios-layout/gap-rhythm", message: "Inconsistent vertical rhythm — gap coefficient of variation " + cv.toFixed(2) + ".", fix: "Move per-child padding into a single VStack(spacing:) on the parent so siblings share one gap." });
+      }
+
+      // Optical balance about content midline.
+      var minX = Infinity, maxX = -Infinity;
+      for (var rb of rects) { if (rb.x < minX) minX = rb.x; if (rb.x + rb.w > maxX) maxX = rb.x + rb.w; }
+      var mid = (minX + maxX) / 2; var halfW = (maxX - minX) / 2;
+      var lT = 0, rT = 0, area = 0;
+      for (var r2 of rects) {
+        var a = r2.w * r2.h; var cx = r2.x + r2.w / 2; var d = Math.abs(cx - mid); area += a;
+        if (cx < mid) lT += a * d; else if (cx > mid) rT += a * d;
+      }
+      var maxT = area * halfW; var skew = maxT > 0 ? Math.abs(lT - rT) / maxT : 0;
+      metrics.balance = { skew_pct: Math.round(skew * 100) };
+      if (skew <= 0.2) passes.push("Horizontal weight is balanced (skew " + Math.round(skew * 100) + "%)");
+      else issues.push({ severity: "warning", rule: "ios-layout/optical-balance", message: "Layout is " + (lT > rT ? "left" : "right") + "-heavy — visual weight skewed " + Math.round(skew * 100) + "%.", fix: skew > 0.4 ? "Redistribute dense blocks toward center or add counterweight on the lighter side." : "Minor imbalance — confirm it's intentional." });
+    }
+
+    var errors = issues.filter(function (i) { return i.severity === "error"; });
+    var warnings = issues.filter(function (i) { return i.severity === "warning"; });
+    var totalChecks = passes.length + issues.length;
+    var failCount = errors.length;
+
+    var result = {
+      platform: "ios",
+      elements_analyzed: elements.length,
+      viewport: viewport,
+      screenshot_received: typeof screenshot === "string" ? screenshot.length + " base64 chars (not decoded — geometry scored from snapshot)" : false,
+      score: totalChecks > 0 ? Math.round(((totalChecks - failCount) / totalChecks) * 100) : 100,
+      grade: failCount === 0 ? "A" : failCount <= 2 ? "B" : failCount <= 4 ? "C" : "D",
+      summary: passes.length + "/" + totalChecks + " checks passed" + (failCount > 0 ? " — " + failCount + " issue(s) to fix" : " — all clear"),
+      passes: passes,
+      errors: errors,
+      warnings: warnings,
+      fix_priority: errors.concat(warnings).map(function (i) { return i.rule + ": " + i.fix; }),
+      metrics: metrics
+    };
+
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ── Tool 14d: audit_ios_privacy ────────────────────────────────────
+//
+// The "no sketchy issues" gate. Reads Info.plist (+ optional PRIVACY.md,
+// entitlements, and Swift source) and flags usage strings that are vague or
+// contradict the code, unused permissions, ATS/cleartext exceptions, secrets
+// shipped in the bundle, and default data-egress paths that aren't disclosed
+// at the point of choice. Same return shape as audit_page.
+
+server.tool(
+  "audit_ios_privacy",
+  "Audit an iOS app's privacy posture for App Review and user trust. Reads Info.plist (required) plus optional PRIVACY.md, entitlements, and Swift source. Flags: NS*UsageDescription strings that are vague/missing or contradict the code (e.g. a HealthKit write claim the code never fulfills), entitlements/permissions the app doesn't use, ATS cleartext exceptions and non-HTTPS endpoints, secrets/keys shipped in the bundle, and default data-egress paths not disclosed at the point of choice (a pre-selected 'Recommended' option that silently sends personal data to a server). Same return shape as audit_page.",
+  {
+    info_plist: z.string().describe("Raw Info.plist XML"),
+    privacy_md: z.string().optional().describe("Optional PRIVACY.md / privacy policy text to cross-reference against declared permissions and default behavior"),
+    entitlements: z.string().optional().describe("Optional .entitlements XML"),
+    source: z.string().optional().describe("Optional concatenated Swift source — enables code-vs-declaration contradiction checks and default-egress detection")
+  },
+  async ({ info_plist, privacy_md, entitlements, source }) => {
+    var issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }> = [];
+    var passes: string[] = [];
+    var plist = parsePlistKeys(info_plist);
+    var src = source || "";
+    var policy = privacy_md || "";
+    var ent = entitlements || "";
+
+    // ── Usage descriptions: present + specific
+    var usageKeys = Object.keys(plist).filter(function (k) { return /UsageDescription$/.test(k); });
+    var vague: string[] = [];
+    for (var uk of usageKeys) {
+      var val = (plist[uk] || "").trim();
+      if (val.length < 15 || /^\$\(/.test(val) || /\buse[sd]? your data\b/i.test(val)) vague.push(uk);
+    }
+    if (usageKeys.length > 0 && vague.length === 0) passes.push("All " + usageKeys.length + " usage description(s) are specific");
+    if (vague.length > 0) issues.push({ severity: "warning", rule: "ios-privacy/vague-usage", message: "Vague or placeholder usage description(s): " + vague.join(", "), fix: "Write a specific, user-facing reason for each permission that matches what the app actually does." });
+
+    // ── Code-vs-declaration contradiction: HealthKit write
+    var declaresHealthWrite = !!plist["NSHealthUpdateUsageDescription"];
+    // The authoritative signal for a HealthKit WRITE is a non-empty toShare:
+    // set in requestAuthorization — you can't write without requesting share
+    // authorization. (A bare .save( would false-positive on Core Data saves.)
+    var codeWritesHealth = /toShare:\s*\[\s*[A-Za-z.]/.test(src);
+    var codeSharesEmpty = /toShare:\s*\[\s*\]/.test(src);
+    if (declaresHealthWrite && src.length > 0 && !codeWritesHealth) {
+      issues.push({ severity: "error", rule: "ios-privacy/unfulfilled-claim", message: "Info.plist declares NSHealthUpdateUsageDescription (write to Health) but the code never writes to HealthKit" + (codeSharesEmpty ? " (requestAuthorization uses toShare: [])" : "") + ". This contradicts the permission prompt and risks App Review rejection.", fix: "Remove NSHealthUpdateUsageDescription, or implement the write the description promises." });
+    } else if (declaresHealthWrite) {
+      passes.push("HealthKit write permission declared (verify the code actually writes)");
+    }
+    if (codeWritesHealth && !declaresHealthWrite) {
+      issues.push({ severity: "error", rule: "ios-privacy/missing-usage", message: "Code writes to HealthKit (non-empty toShare:) but Info.plist has no NSHealthUpdateUsageDescription — this will crash on the authorization request.", fix: "Add a specific NSHealthUpdateUsageDescription string." });
+    }
+    if (plist["NSHealthShareUsageDescription"] && src.length > 0) {
+      if (/HKHealthStore|HealthKit|requestAuthorization\(/.test(src)) passes.push("HealthKit read permission matches HealthKit usage in code");
+    }
+
+    // ── Entitlements not exercised
+    if (/com\.apple\.developer\.healthkit/.test(ent) && !/HealthKit|HKHealthStore/.test(src) && src.length > 0) {
+      issues.push({ severity: "warning", rule: "ios-privacy/unused-entitlement", message: "HealthKit entitlement present but no HealthKit usage found in the supplied source.", fix: "Remove the entitlement if the app doesn't use HealthKit, or include the source that does." });
+    }
+
+    // ── ATS / cleartext
+    if (/<key>\s*NSAllowsArbitraryLoads\s*<\/key>\s*<true\s*\/>/.test(info_plist)) {
+      issues.push({ severity: "error", rule: "ios-privacy/ats-global", message: "NSAllowsArbitraryLoads = true disables App Transport Security app-wide — all cleartext HTTP is allowed.", fix: "Remove the global opt-out. Scope any necessary exception to a specific NSExceptionDomains entry over HTTPS, or justify it in the App Review notes." });
+    } else if (/NSExceptionAllowsInsecureHTTPLoads\s*<\/key>\s*<true\s*\/>/.test(info_plist)) {
+      var domMatch = info_plist.match(/<key>([\d.]+|[a-z0-9.-]+\.[a-z]{2,})<\/key>\s*<dict>[\s\S]*?NSExceptionAllowsInsecureHTTPLoads/i);
+      issues.push({ severity: "warning", rule: "ios-privacy/ats-exception", message: "Cleartext HTTP is allowed via an ATS exception" + (domMatch ? " for " + domMatch[1] : "") + ". Acceptable when scoped to a known host (e.g. a LAN/Tailscale IP), but confirm no personal data rides over plain HTTP.", fix: "Keep the exception scoped to the single host, document why in App Review notes, and prefer HTTPS even on the local network where possible." });
+    } else if (usageKeys.length > 0) {
+      passes.push("No global ATS opt-out (no NSAllowsArbitraryLoads)");
+    }
+
+    // ── Secrets / keys shipped in the bundle
+    var secretRe = /<key>([A-Za-z0-9_]*(?:SECRET|TOKEN|PASSWORD|APIKEY|API_KEY|PRIVATE_KEY|CLIENT_SECRET)[A-Za-z0-9_]*)<\/key>\s*<string>([\s\S]*?)<\/string>/gi;
+    var secM: RegExpExecArray | null;
+    var secretFindings: string[] = [];
+    var caughtKeys: Record<string, boolean> = {};
+    var realSecret = false;
+    while ((secM = secretRe.exec(info_plist)) !== null) {
+      var skey = secM[1]; var sval = (secM[2] || "").trim();
+      var isPlaceholder = sval === "" || sval === skey || /^\$\(/.test(sval) || /^[A-Z_]+$/.test(sval);
+      secretFindings.push(skey + (isPlaceholder ? " (placeholder)" : " (LOOKS REAL)"));
+      caughtKeys[skey] = true;
+      if (!isPlaceholder) realSecret = true;
+    }
+    if (secretFindings.length > 0) {
+      issues.push({ severity: realSecret ? "error" : "warning", rule: "ios-privacy/secret-in-bundle", message: "Secret-shaped key(s) in Info.plist ship inside the app bundle and are trivially extractable from the IPA: " + secretFindings.join(", ") + ". Client secrets in particular must never live in the app.", fix: "Remove secrets from Info.plist. Keep client secrets server-side (proxy the OAuth token exchange); store per-user tokens in the Keychain at runtime." });
+    } else {
+      passes.push("No secret-shaped keys found in Info.plist");
+    }
+    // Bearer/proxy tokens shipped in the binary (build-injected) — softer note,
+    // but only for token keys the secret net above didn't already report.
+    var tokRe = /<key>([A-Za-z0-9_]*(?:ProxyToken|AuthToken|BearerToken)[A-Za-z0-9_]*)<\/key>/g;
+    var tokM: RegExpExecArray | null;
+    var tokenKeys: string[] = [];
+    while ((tokM = tokRe.exec(info_plist)) !== null) { if (!caughtKeys[tokM[1]]) tokenKeys.push(tokM[1]); }
+    if (tokenKeys.length > 0) {
+      issues.push({ severity: "warning", rule: "ios-privacy/token-in-bundle", message: "Bearer/proxy token key(s) present in Info.plist (" + tokenKeys.join(", ") + "). Even if build-injected, anything in Info.plist ships in the binary and can be read from the IPA.", fix: "Don't ship a shared bearer token in the app. Mint short-lived per-device tokens, or require the user's own credentials." });
+    }
+    // Hardcoded keys in source.
+    if (src && /(sk-[A-Za-z0-9]{20,}|AIza[A-Za-z0-9_\-]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN (?:RSA )?PRIVATE KEY-----)/.test(src)) {
+      issues.push({ severity: "error", rule: "ios-privacy/hardcoded-key", message: "A hardcoded API key / secret appears in the source.", fix: "Remove it from source. Load secrets at runtime from the Keychain or a server, never compile them into the app." });
+    }
+
+    // ── Default data-egress not disclosed at the point of choice
+    if (src) {
+      var defaultHosted = /=\s*\.hosted\b|mode:\s*Mode\s*=\s*\.hosted|@State[^\n]*=\s*\.hosted/.test(src);
+      var recommendedBadge = /badge:\s*"Recommended"|"Recommended"/.test(src);
+      var hostedEgress = /cloud|hosted|proxy|server/i.test(src);
+      var weakInlineDisclosure = /change this anytime in Settings|change (?:it|this) (?:later|anytime)/i.test(src);
+      var policyConfirmsEgress = /transit our server|sent to .*hosted|hosted proxy|do transit/i.test(policy);
+      if (defaultHosted && recommendedBadge && hostedEgress) {
+        issues.push({ severity: "warning", rule: "ios-privacy/undisclosed-default-egress", message: "The default-selected onboarding option is a 'Recommended' cloud/hosted mode that sends personal data off-device" + (policyConfirmsEgress ? ", and PRIVACY.md confirms messages 'transit our server'" : "") + (weakInlineDisclosure ? ", yet the only inline disclosure is 'you can change this in Settings'" : "") + ". Defaulting users into off-device data transmission without disclosing it at the point of choice risks App Review §5.1.1 and erodes trust.", fix: "Disclose the data-egress consequence inline on the choice itself (a sentence under 'Just try it', or a 'what leaves your device' line), or don't pre-select the hosted option as the default." });
+      } else if (defaultHosted && hostedEgress) {
+        passes.push("Default mode sends data off-device — verify it's disclosed at the point of choice");
+      }
+    }
+
+    // ── Policy coverage sanity (light)
+    if (policy) {
+      if (plist["NSCameraUsageDescription"] && !/camera|photo|image/i.test(policy)) {
+        issues.push({ severity: "warning", rule: "ios-privacy/policy-gap", message: "Info.plist requests camera access but PRIVACY.md doesn't mention the camera or photos.", fix: "Add a line to the privacy policy describing what camera/photo data is used for and where it goes." });
+      } else if (plist["NSCameraUsageDescription"]) {
+        passes.push("Camera usage is reflected in the privacy policy");
+      }
+    }
+
+    var errors = issues.filter(function (i) { return i.severity === "error"; });
+    var warnings = issues.filter(function (i) { return i.severity === "warning"; });
+    var totalChecks = passes.length + issues.length;
+    var failCount = errors.length;
+
+    var result = {
+      platform: "ios",
+      score: totalChecks > 0 ? Math.round(((totalChecks - failCount) / totalChecks) * 100) : 100,
+      grade: failCount === 0 ? "A" : failCount <= 2 ? "B" : failCount <= 4 ? "C" : "D",
+      summary: passes.length + "/" + totalChecks + " privacy checks passed" + (failCount > 0 ? " — " + failCount + " issue(s) to fix" : " — all clear"),
+      passes: passes,
+      errors: errors,
+      warnings: warnings,
+      fix_priority: errors.concat(warnings).map(function (i) { return i.rule + ": " + i.fix; })
+    };
+
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
 

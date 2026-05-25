@@ -12,6 +12,8 @@
     "dist/",
     "src/data/",
     "scripts/postinstall.cjs",
+    "scripts/ios-audit.mjs",
+    "scripts/AccessibilitySnapshot.swift",
     "README.md",
     "LICENSE",
     "NOTICE",

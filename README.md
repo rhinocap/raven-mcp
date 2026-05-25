@@ -64,6 +64,9 @@ cd raven-mcp && npm install && npm run build
 | `get_brand_system` | Get a full system styled like a well-known brand |
 | `audit_page` | Audit HTML/CSS against Raven's quality standards |
 | `audit_layout` | Evaluate visual rhythm, alignment, and optical balance |
+| `audit_swiftui` | Audit SwiftUI source against Apple HIG — Dynamic Type, semantic colors, 44pt targets, 4/8pt spacing, AccentColor |
+| `audit_ios_screen` | Score a rendered iOS screen from an accessibility/view-hierarchy snapshot — 44pt targets + contrast + rhythm, in points |
+| `audit_ios_privacy` | Audit Info.plist/PRIVACY.md/entitlements/source — usage-string honesty, ATS, bundled secrets, undisclosed default data-egress |
 | `generate_design_system` | Generate a custom design system from a brand color |
 | `list_content_systems` | Browse brand voice & tone systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian) |
 | `get_content_system` | Get a brand's voice attributes, tone shifts, vocabulary, grammar, and content patterns |
@@ -77,6 +80,16 @@ cd raven-mcp && npm install && npm run build
 | `get_brand_principles` | Get brand/visual principles — logo, gradient, imagery, hierarchy, brand-as-system |
 | `get_brand_trends` | Get current (2026) brand and visual-design trends with usage guidance |
 | `raven_reflect` | Summarize your local Raven usage log to find patterns + gaps |
+
+## iOS / SwiftUI audits
+
+Raven audits native iOS apps against the **Apple Human Interface Guidelines**, not web/CSS conventions. None of the web-only rules (`lang`, `title`, `flex-wrap`, `clamp`, `max-width`, CSS custom properties, bare hex) run on iOS input — and `get_checklist`/`get_principles` take `platform: "ios"` to return HIG items (Dynamic Type, 44pt targets, SF Symbols, safe areas, dark-mode parity, App Review privacy) instead of the web set.
+
+- **`audit_swiftui`** — paste SwiftUI source (`source`: a string or array of files). Statically flags hardcoded `.font(.system(size:))` below ~13pt, tiny semantic fonts (`.caption`/`.caption2`), hardcoded `Color(red:green:blue:)`/hex literals (vs. asset-catalog or semantic system colors), interactive frames under 44×44pt, and ad-hoc spacing off the 4/8-pt grid. Rewards semantic Dynamic Type fonts, semantic system colors, SF Symbols, and flexible frames. Pass the optional `accent_color_contents` (the raw `AccentColor.colorset/Contents.json`) and it verifies the accent color actually defines components — catching an **empty/undefined AccentColor** that would silently fall back to system blue.
+- **`audit_ios_screen`** — the iOS analog of `audit_layout`. Call with no args for the expected snapshot shape and how to capture it (Accessibility Inspector / XCUITest). Call with `{ elements: [{ label, rect, role, fontPt, fgColor, bgColor }], viewport }` (plus an optional base64 `screenshot`) to score 44×44**pt** touch targets, contrast (with iOS `secondaryLabel`/`tertiaryLabel` treated as platform-standard — a warning, not a hard fail), and visual rhythm (alignment, gap consistency, optical balance).
+- **`audit_ios_privacy`** — the "no sketchy issues" gate. Reads `info_plist` (required) plus optional `privacy_md`, `entitlements`, and `source`. Flags `NS*UsageDescription` strings that are vague or **contradict the code** (e.g. an `NSHealthUpdateUsageDescription` write claim that `requestAuthorization(toShare: [])` never fulfills), unused entitlements, ATS cleartext exceptions, **secrets/keys shipped in the bundle**, and **default data-egress paths not disclosed at the point of choice** (a pre-selected "Recommended" option that silently sends personal data to a hosted server).
+
+All three return the same shape as `audit_page` — `score`, `grade`, `summary`, `passes`, `errors`, `warnings`, `fix_priority` (with `audit_ios_screen` adding a `metrics` block).
 
 ## Release updates
 
