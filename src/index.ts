@@ -2814,6 +2814,33 @@ function resolveIosColor(raw: string): { hex: string | null; secondary: boolean 
   return { hex: null, secondary: false };
 }
 
+// Material 3 light-scheme roles → effective hex. onSurfaceVariant / outline are
+// the Android analog of iOS secondaryLabel: Material ships them for de-emphasized
+// text, so audit_screen({platform:"android"}) warns rather than hard-failing when
+// their contrast dips below WCAG AA.
+var ANDROID_SEMANTIC_COLORS: Record<string, { hex: string; secondary?: boolean }> = {
+  onsurface: { hex: "#1C1B1F" },
+  onsurfacevariant: { hex: "#49454F", secondary: true },
+  outline: { hex: "#79747E", secondary: true },
+  outlinevariant: { hex: "#CAC4D0", secondary: true },
+  surface: { hex: "#FFFBFE" },
+  surfacevariant: { hex: "#E7E0EC" },
+  background: { hex: "#FFFBFE" },
+  onbackground: { hex: "#1C1B1F" },
+  white: { hex: "#FFFFFF" },
+  black: { hex: "#000000" }
+};
+
+// Platform-aware color resolver. For Android, Material semantic role names take
+// precedence; everything else (hex, rgb()) falls through to the shared resolver.
+function resolveScreenColor(raw: string, platform: string): { hex: string | null; secondary: boolean } {
+  if (platform === "android" && raw && typeof raw === "string") {
+    var akey = raw.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (ANDROID_SEMANTIC_COLORS[akey]) return { hex: ANDROID_SEMANTIC_COLORS[akey].hex, secondary: !!ANDROID_SEMANTIC_COLORS[akey].secondary };
+  }
+  return resolveIosColor(raw);
+}
+
 // HIG-specific principles returned by get_principles({platform:"ios"}) — these
 // replace the web/CSS principle matcher entirely so no web artifacts leak in.
 var IOS_HIG_PRINCIPLES = [
@@ -3020,159 +3047,185 @@ server.tool(
 // runs the same alignment / gap-rhythm / optical-balance geometry checks —
 // but treats iOS secondary/tertiary label colors as platform-standard.
 
+// Shared snapshot auditor behind both audit_ios_screen and audit_screen. The
+// geometry/contrast/touch logic is framework-agnostic; only the touch-target
+// minimum (44pt iOS vs 48dp Android), the muted-text color set, and the fix
+// wording differ by platform. iOS output is byte-identical to the original tool.
+function auditScreenSnapshot(elements: any, viewport: any, screenshot: any, platform: string) {
+  var isAndroid = platform === "android";
+  var P = isAndroid ? "android" : "ios";
+  var unit = isAndroid ? "dp" : "pt";
+  var minTarget = isAndroid ? 48 : 44;
+
+  if (!elements || !viewport) {
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({
+          instructions: "Provide a structured snapshot of the rendered screen. Capture it with " + (isAndroid ? "UI Automator / Espresso (uiautomator dump) or a Compose semantics tree" : "the Accessibility Inspector, an XCUITest dumping the accessibility tree, or your own view-hierarchy walker") + " — then call " + (isAndroid ? "audit_screen with platform:\"android\"" : "audit_ios_screen") + " with the JSON below. rect units are " + unit + ". fgColor/bgColor accept hex, rgb(), or " + (isAndroid ? "Material semantic role names (e.g. 'onSurfaceVariant')" : "iOS semantic names (e.g. 'secondaryLabel')") + ". role should carry the accessibility trait so interactive elements can be checked for " + minTarget + "×" + minTarget + unit + " hit targets.",
+          snapshot_shape: {
+            elements: [
+              { label: "Start", rect: { x: 24, y: 720, w: 345, h: 50 }, role: "button", fontPt: 17, fgColor: "#FFFFFF", bgColor: "#5B3FC4" },
+              { label: "You can change this anytime in Settings.", rect: { x: 24, y: 786, w: 345, h: 16 }, role: "staticText", fontPt: 13, fgColor: isAndroid ? "onSurfaceVariant" : "secondaryLabel", bgColor: "#F2F2F7" }
+            ],
+            viewport: isAndroid ? { w: 412, h: 915 } : { w: 393, h: 852 }
+          },
+          example_call: isAndroid ? "audit_screen({ platform: \"android\", elements: [...], viewport: { w: 412, h: 915 } })" : "audit_ios_screen({ elements: [...], viewport: { w: 393, h: 852 } })"
+        }, null, 2)
+      }]
+    };
+  }
+
+  var issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }> = [];
+  var passes: string[] = [];
+  var interactiveRoles = ["button", "link", "cell", "tab", "tabbar", "menuitem", "switch", "slider", "stepper", "segmentedcontrol", "textfield", "searchfield", "tappable"];
+
+  // ── Touch targets (44pt iOS / 48dp Android)
+  var smallTargets: string[] = [];
+  var interactiveCount = 0;
+  for (var el of elements) {
+    var role = (el.role || "").toLowerCase().replace(/[^a-z]/g, "");
+    var isInteractive = interactiveRoles.indexOf(role) >= 0;
+    if (!isInteractive) continue;
+    interactiveCount++;
+    if (el.rect.w < minTarget || el.rect.h < minTarget) {
+      smallTargets.push((el.label ? "\"" + el.label + "\" " : "") + Math.round(el.rect.w) + "×" + Math.round(el.rect.h) + unit);
+    }
+  }
+  if (interactiveCount === 0) passes.push("No interactive elements flagged for touch-target sizing");
+  else if (smallTargets.length === 0) passes.push("All " + interactiveCount + " interactive elements meet the " + minTarget + "×" + minTarget + unit + " minimum");
+  else issues.push({ severity: "error", rule: P + "-touch/min-target", message: smallTargets.length + " interactive element(s) below " + minTarget + "×" + minTarget + unit + ": " + smallTargets.join(", "), fix: isAndroid ? "Apply Modifier.minimumInteractiveComponentSize() or size the target ≥48×48dp — the visual glyph can stay smaller than the touch target." : "Expand the hit target to ≥44×44pt (padding or .contentShape + .frame(minWidth:44,minHeight:44))." });
+
+  // ── Contrast (muted platform text roles warn rather than hard-fail)
+  var contrastChecked = 0;
+  var contrastFails = 0;
+  for (var el2 of elements) {
+    if (!el2.fgColor || !el2.bgColor) continue;
+    var fg = resolveScreenColor(el2.fgColor, platform);
+    var bg = resolveScreenColor(el2.bgColor, platform);
+    if (!fg.hex || !bg.hex) continue;
+    contrastChecked++;
+    var ratio = getContrastRatio(fg.hex, bg.hex);
+    var pt = el2.fontPt || 0;
+    var isLarge = pt >= 18; // ~24px; HIG/Material/WCAG large-text threshold
+    var threshold = isLarge ? 3 : 4.5;
+    if (ratio >= threshold) continue;
+    contrastFails++;
+    var who = (el2.label ? "\"" + el2.label + "\"" : "element") + " (" + ratio + ":1, needs " + threshold + ":1)";
+    if (fg.secondary) {
+      issues.push({ severity: "warning", rule: P + "-contrast/secondary-label", message: isAndroid ? who + " uses a Material muted role (onSurfaceVariant/outline) — Material ships these for de-emphasized text, so it's acceptable, but verify legibility for critical content." : who + " uses an iOS platform-standard secondary/tertiary label color — Apple ships this, so it's acceptable per HIG, but verify legibility for critical text.", fix: isAndroid ? "For must-read text use onSurface; reserve onSurfaceVariant/outline for de-emphasized metadata." : "For must-read text prefer Color(.label); reserve secondaryLabel/tertiaryLabel for de-emphasized metadata." });
+    } else {
+      issues.push({ severity: "error", rule: P + "-contrast/wcag", message: who + " falls below contrast minimum.", fix: "Increase contrast to ≥" + threshold + ":1 — darken the text or lighten the background. Verify in both light and dark." });
+    }
+  }
+  if (contrastChecked > 0 && contrastFails === 0) passes.push("All " + contrastChecked + " text/background pairs meet contrast minimums");
+  else if (contrastChecked === 0) passes.push("No fg/bg color pairs supplied to score contrast");
+
+  // ── Geometry: alignment / gap rhythm / optical balance (pt or dp)
+  var rects = elements.map(function (e: any) { return e.rect; });
+  var metrics: any = {};
+  if (rects.length >= 3) {
+    // Alignment: cluster left edges within 2 units.
+    var colCounts = new Map<number, number>();
+    for (var r of rects) {
+      var matched: number | null = null;
+      for (var c of Array.from(colCounts.keys())) { if (Math.abs(r.x - c) <= 2) { matched = c; break; } }
+      if (matched !== null) colCounts.set(matched, (colCounts.get(matched) || 0) + 1);
+      else colCounts.set(r.x, 1);
+    }
+    var sharedCols = Array.from(colCounts.values()).filter(function (n) { return n >= 2; }).length;
+    var aligned = 0; colCounts.forEach(function (n) { if (n >= 2) aligned += n; });
+    var alignRatio = aligned / rects.length;
+    metrics.alignment = { shared_columns: sharedCols, aligned_ratio: Number(alignRatio.toFixed(2)) };
+    if (alignRatio >= 0.6) passes.push(Math.round(alignRatio * 100) + "% of elements share an alignment column");
+    else issues.push({ severity: "warning", rule: P + "-layout/alignment", message: "Weak alignment — only " + Math.round(alignRatio * 100) + "% of elements share a left edge with a sibling.", fix: isAndroid ? "Let a parent Column/LazyColumn dictate alignment; remove ad-hoc start padding that pushes children off the column." : "Let a parent VStack/Grid dictate alignment; remove ad-hoc leading padding that pushes children off the column." });
+
+    // Gap rhythm.
+    var vGaps: number[] = [];
+    var byY = rects.slice().sort(function (a: any, b: any) { return a.y - b.y; });
+    for (var i = 1; i < byY.length; i++) {
+      var prev = byY[i - 1]; var cur = byY[i];
+      var xo = Math.min(prev.x + prev.w, cur.x + cur.w) - Math.max(prev.x, cur.x);
+      if (xo > 0) { var g = cur.y - (prev.y + prev.h); if (g > 0 && g < 200) vGaps.push(g); }
+    }
+    if (vGaps.length >= 3) {
+      var mean = vGaps.reduce(function (a: number, b: number) { return a + b; }, 0) / vGaps.length;
+      var variance = vGaps.reduce(function (a: number, b: number) { return a + (b - mean) * (b - mean); }, 0) / vGaps.length;
+      var cv = mean > 0 ? Math.sqrt(variance) / mean : 0;
+      metrics.gap_rhythm = { samples: vGaps.length, coef_variation: Number(cv.toFixed(2)) };
+      if (cv <= 0.5) passes.push("Vertical gaps are consistent (CV " + cv.toFixed(2) + ")");
+      else issues.push({ severity: "warning", rule: P + "-layout/gap-rhythm", message: "Inconsistent vertical rhythm — gap coefficient of variation " + cv.toFixed(2) + ".", fix: isAndroid ? "Drive spacing from a single Arrangement.spacedBy() on the parent Column so siblings share one gap." : "Move per-child padding into a single VStack(spacing:) on the parent so siblings share one gap." });
+    }
+
+    // Optical balance about content midline.
+    var minX = Infinity, maxX = -Infinity;
+    for (var rb of rects) { if (rb.x < minX) minX = rb.x; if (rb.x + rb.w > maxX) maxX = rb.x + rb.w; }
+    var mid = (minX + maxX) / 2; var halfW = (maxX - minX) / 2;
+    var lT = 0, rT = 0, area = 0;
+    for (var r2 of rects) {
+      var a = r2.w * r2.h; var cx = r2.x + r2.w / 2; var d = Math.abs(cx - mid); area += a;
+      if (cx < mid) lT += a * d; else if (cx > mid) rT += a * d;
+    }
+    var maxT = area * halfW; var skew = maxT > 0 ? Math.abs(lT - rT) / maxT : 0;
+    metrics.balance = { skew_pct: Math.round(skew * 100) };
+    if (skew <= 0.2) passes.push("Horizontal weight is balanced (skew " + Math.round(skew * 100) + "%)");
+    else issues.push({ severity: "warning", rule: P + "-layout/optical-balance", message: "Layout is " + (lT > rT ? "left" : "right") + "-heavy — visual weight skewed " + Math.round(skew * 100) + "%.", fix: skew > 0.4 ? "Redistribute dense blocks toward center or add counterweight on the lighter side." : "Minor imbalance — confirm it's intentional." });
+  }
+
+  var errors = issues.filter(function (i) { return i.severity === "error"; });
+  var warnings = issues.filter(function (i) { return i.severity === "warning"; });
+  var totalChecks = passes.length + issues.length;
+  var failCount = errors.length;
+
+  var result = {
+    platform: platform,
+    elements_analyzed: elements.length,
+    viewport: viewport,
+    screenshot_received: typeof screenshot === "string" ? screenshot.length + " base64 chars (not decoded — geometry scored from snapshot)" : false,
+    score: totalChecks > 0 ? Math.round(((totalChecks - failCount) / totalChecks) * 100) : 100,
+    grade: failCount === 0 ? "A" : failCount <= 2 ? "B" : failCount <= 4 ? "C" : "D",
+    summary: passes.length + "/" + totalChecks + " checks passed" + (failCount > 0 ? " — " + failCount + " issue(s) to fix" : " — all clear"),
+    passes: passes,
+    errors: errors,
+    warnings: warnings,
+    fix_priority: errors.concat(warnings).map(function (i) { return i.rule + ": " + i.fix; }),
+    metrics: metrics
+  };
+
+  return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+}
+
+var screenElementSchema = {
+  elements: z.array(z.object({
+    label: z.string().optional(),
+    rect: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
+    role: z.string().optional().describe("Accessibility role/trait, e.g. button, link, cell, staticText, image, tab, textField"),
+    fontPt: z.number().optional().describe("Effective font point/dp size, if text"),
+    fgColor: z.string().optional().describe("Foreground color — hex (#1c1c1e), rgb(), or a platform semantic name ('secondaryLabel' iOS / 'onSurfaceVariant' Android)"),
+    bgColor: z.string().optional().describe("Background color behind this element — hex, rgb(), or semantic name")
+  })).optional().describe("Elements captured from the rendered screen via an accessibility/view-hierarchy snapshot"),
+  viewport: z.object({ w: z.number(), h: z.number() }).optional().describe("Screen size in pt (iOS) or dp (Android) at capture time, e.g. {w:393,h:852} iPhone 15, {w:412,h:915} Pixel"),
+  screenshot: z.string().optional().describe("Optional base64 PNG of the screen, for the caller's reference. Geometry is scored from the snapshot, not decoded pixels.")
+};
+
+// Canonical, framework-agnostic snapshot auditor. platform switches the touch
+// minimum (44pt iOS / 48dp Android) and the muted-text color semantics.
+server.tool(
+  "audit_screen",
+  "Audit a rendered mobile screen (iOS or Android) from a view-hierarchy/accessibility snapshot. Call with no arguments for the expected snapshot shape and how to capture it. Pass platform:\"android\" to score against the 48dp Material touch minimum and Material muted roles (onSurfaceVariant/outline = warn not fail); default platform:\"ios\" scores 44pt and treats secondaryLabel/tertiaryLabel as platform-standard. Both score touch targets, contrast, and visual rhythm (alignment, gap consistency, optical balance). Same return shape as audit_page.",
+  Object.assign({
+    platform: z.enum(["ios", "android"]).optional().describe("Target platform — 'ios' (default, 44pt minimum, iOS semantic colors) or 'android' (48dp minimum, Material semantic roles)")
+  }, screenElementSchema),
+  async ({ elements, viewport, screenshot, platform }) => auditScreenSnapshot(elements, viewport, screenshot, platform || "ios")
+);
+
+// Back-compat alias — predates audit_screen. Identical to audit_screen with
+// platform:"ios". Kept so existing iOS callers/scripts don't break.
 server.tool(
   "audit_ios_screen",
-  "Audit a rendered iOS screen from a view-hierarchy/accessibility snapshot (and optional screenshot). Call with no arguments for the expected snapshot shape and how to capture it. Call with {elements:[{label,rect:{x,y,w,h},role,fontPt,fgColor,bgColor}],viewport:{w,h}} to score 44×44pt touch targets, contrast (with iOS secondaryLabel/tertiaryLabel treated as platform-standard — warn not fail), and visual rhythm (alignment, gap consistency, optical balance) in points. Same return shape as audit_page.",
-  {
-    elements: z.array(z.object({
-      label: z.string().optional(),
-      rect: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
-      role: z.string().optional().describe("Accessibility role/trait, e.g. button, link, cell, staticText, image, tab, textField"),
-      fontPt: z.number().optional().describe("Effective font point size, if text"),
-      fgColor: z.string().optional().describe("Foreground color — hex (#1c1c1e), rgb(), or an iOS semantic name like 'secondaryLabel'"),
-      bgColor: z.string().optional().describe("Background color behind this element — hex, rgb(), or semantic name")
-    })).optional().describe("Elements captured from the rendered screen via an accessibility/view-hierarchy snapshot"),
-    viewport: z.object({ w: z.number(), h: z.number() }).optional().describe("Screen size in points at capture time, e.g. {w:393,h:852} for iPhone 15"),
-    screenshot: z.string().optional().describe("Optional base64 PNG of the screen, for the caller's reference. Geometry is scored from the snapshot, not decoded pixels.")
-  },
-  async ({ elements, viewport, screenshot }) => {
-    if (!elements || !viewport) {
-      return {
-        content: [{
-          type: "text" as const,
-          text: JSON.stringify({
-            instructions: "Provide a structured snapshot of the rendered screen. Capture it with the Accessibility Inspector, an XCUITest dumping the accessibility tree, or your own view-hierarchy walker — then call audit_ios_screen with the JSON below. rect units are points (pt). fgColor/bgColor accept hex, rgb(), or iOS semantic names (e.g. 'secondaryLabel'). role should carry the accessibility trait so interactive elements can be checked for 44×44pt hit targets.",
-            snapshot_shape: {
-              elements: [
-                { label: "Start", rect: { x: 24, y: 720, w: 345, h: 50 }, role: "button", fontPt: 17, fgColor: "#FFFFFF", bgColor: "#5B3FC4" },
-                { label: "You can change this anytime in Settings.", rect: { x: 24, y: 786, w: 345, h: 16 }, role: "staticText", fontPt: 13, fgColor: "secondaryLabel", bgColor: "#F2F2F7" }
-              ],
-              viewport: { w: 393, h: 852 }
-            },
-            example_call: "audit_ios_screen({ elements: [...], viewport: { w: 393, h: 852 } })"
-          }, null, 2)
-        }]
-      };
-    }
-
-    var issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }> = [];
-    var passes: string[] = [];
-    var interactiveRoles = ["button", "link", "cell", "tab", "tabbar", "menuitem", "switch", "slider", "stepper", "segmentedcontrol", "textfield", "searchfield", "tappable"];
-
-    // ── Touch targets (pt)
-    var smallTargets: string[] = [];
-    var interactiveCount = 0;
-    for (var el of elements) {
-      var role = (el.role || "").toLowerCase().replace(/[^a-z]/g, "");
-      var isInteractive = interactiveRoles.indexOf(role) >= 0;
-      if (!isInteractive) continue;
-      interactiveCount++;
-      if (el.rect.w < 44 || el.rect.h < 44) {
-        smallTargets.push((el.label ? "\"" + el.label + "\" " : "") + Math.round(el.rect.w) + "×" + Math.round(el.rect.h) + "pt");
-      }
-    }
-    if (interactiveCount === 0) passes.push("No interactive elements flagged for touch-target sizing");
-    else if (smallTargets.length === 0) passes.push("All " + interactiveCount + " interactive elements meet the 44×44pt minimum");
-    else issues.push({ severity: "error", rule: "ios-touch/min-target", message: smallTargets.length + " interactive element(s) below 44×44pt: " + smallTargets.join(", "), fix: "Expand the hit target to ≥44×44pt (padding or .contentShape + .frame(minWidth:44,minHeight:44))." });
-
-    // ── Contrast (pt-aware; secondary/tertiary labels are platform-standard)
-    var contrastChecked = 0;
-    var contrastFails = 0;
-    for (var el2 of elements) {
-      if (!el2.fgColor || !el2.bgColor) continue;
-      var fg = resolveIosColor(el2.fgColor);
-      var bg = resolveIosColor(el2.bgColor);
-      if (!fg.hex || !bg.hex) continue;
-      contrastChecked++;
-      var ratio = getContrastRatio(fg.hex, bg.hex);
-      var pt = el2.fontPt || 0;
-      var isLarge = pt >= 18; // ~24px; HIG/WCAG large-text threshold
-      var threshold = isLarge ? 3 : 4.5;
-      if (ratio >= threshold) continue;
-      contrastFails++;
-      var who = (el2.label ? "\"" + el2.label + "\"" : "element") + " (" + ratio + ":1, needs " + threshold + ":1)";
-      if (fg.secondary) {
-        issues.push({ severity: "warning", rule: "ios-contrast/secondary-label", message: who + " uses an iOS platform-standard secondary/tertiary label color — Apple ships this, so it's acceptable per HIG, but verify legibility for critical text.", fix: "For must-read text prefer Color(.label); reserve secondaryLabel/tertiaryLabel for de-emphasized metadata." });
-      } else {
-        issues.push({ severity: "error", rule: "ios-contrast/wcag", message: who + " falls below contrast minimum.", fix: "Increase contrast to ≥" + threshold + ":1 — darken the text or lighten the background. Verify in both light and dark." });
-      }
-    }
-    if (contrastChecked > 0 && contrastFails === 0) passes.push("All " + contrastChecked + " text/background pairs meet contrast minimums");
-    else if (contrastChecked === 0) passes.push("No fg/bg color pairs supplied to score contrast");
-
-    // ── Geometry: alignment / gap rhythm / optical balance (points)
-    var rects = elements.map(function (e) { return e.rect; });
-    var metrics: any = {};
-    if (rects.length >= 3) {
-      // Alignment: cluster left edges within 2pt.
-      var colCounts = new Map<number, number>();
-      for (var r of rects) {
-        var matched: number | null = null;
-        for (var c of Array.from(colCounts.keys())) { if (Math.abs(r.x - c) <= 2) { matched = c; break; } }
-        if (matched !== null) colCounts.set(matched, (colCounts.get(matched) || 0) + 1);
-        else colCounts.set(r.x, 1);
-      }
-      var sharedCols = Array.from(colCounts.values()).filter(function (n) { return n >= 2; }).length;
-      var aligned = 0; colCounts.forEach(function (n) { if (n >= 2) aligned += n; });
-      var alignRatio = aligned / rects.length;
-      metrics.alignment = { shared_columns: sharedCols, aligned_ratio: Number(alignRatio.toFixed(2)) };
-      if (alignRatio >= 0.6) passes.push(Math.round(alignRatio * 100) + "% of elements share an alignment column");
-      else issues.push({ severity: "warning", rule: "ios-layout/alignment", message: "Weak alignment — only " + Math.round(alignRatio * 100) + "% of elements share a left edge with a sibling.", fix: "Let a parent VStack/Grid dictate alignment; remove ad-hoc leading padding that pushes children off the column." });
-
-      // Gap rhythm.
-      var vGaps: number[] = [];
-      var byY = rects.slice().sort(function (a, b) { return a.y - b.y; });
-      for (var i = 1; i < byY.length; i++) {
-        var prev = byY[i - 1]; var cur = byY[i];
-        var xo = Math.min(prev.x + prev.w, cur.x + cur.w) - Math.max(prev.x, cur.x);
-        if (xo > 0) { var g = cur.y - (prev.y + prev.h); if (g > 0 && g < 200) vGaps.push(g); }
-      }
-      if (vGaps.length >= 3) {
-        var mean = vGaps.reduce(function (a, b) { return a + b; }, 0) / vGaps.length;
-        var variance = vGaps.reduce(function (a, b) { return a + (b - mean) * (b - mean); }, 0) / vGaps.length;
-        var cv = mean > 0 ? Math.sqrt(variance) / mean : 0;
-        metrics.gap_rhythm = { samples: vGaps.length, coef_variation: Number(cv.toFixed(2)) };
-        if (cv <= 0.5) passes.push("Vertical gaps are consistent (CV " + cv.toFixed(2) + ")");
-        else issues.push({ severity: "warning", rule: "ios-layout/gap-rhythm", message: "Inconsistent vertical rhythm — gap coefficient of variation " + cv.toFixed(2) + ".", fix: "Move per-child padding into a single VStack(spacing:) on the parent so siblings share one gap." });
-      }
-
-      // Optical balance about content midline.
-      var minX = Infinity, maxX = -Infinity;
-      for (var rb of rects) { if (rb.x < minX) minX = rb.x; if (rb.x + rb.w > maxX) maxX = rb.x + rb.w; }
-      var mid = (minX + maxX) / 2; var halfW = (maxX - minX) / 2;
-      var lT = 0, rT = 0, area = 0;
-      for (var r2 of rects) {
-        var a = r2.w * r2.h; var cx = r2.x + r2.w / 2; var d = Math.abs(cx - mid); area += a;
-        if (cx < mid) lT += a * d; else if (cx > mid) rT += a * d;
-      }
-      var maxT = area * halfW; var skew = maxT > 0 ? Math.abs(lT - rT) / maxT : 0;
-      metrics.balance = { skew_pct: Math.round(skew * 100) };
-      if (skew <= 0.2) passes.push("Horizontal weight is balanced (skew " + Math.round(skew * 100) + "%)");
-      else issues.push({ severity: "warning", rule: "ios-layout/optical-balance", message: "Layout is " + (lT > rT ? "left" : "right") + "-heavy — visual weight skewed " + Math.round(skew * 100) + "%.", fix: skew > 0.4 ? "Redistribute dense blocks toward center or add counterweight on the lighter side." : "Minor imbalance — confirm it's intentional." });
-    }
-
-    var errors = issues.filter(function (i) { return i.severity === "error"; });
-    var warnings = issues.filter(function (i) { return i.severity === "warning"; });
-    var totalChecks = passes.length + issues.length;
-    var failCount = errors.length;
-
-    var result = {
-      platform: "ios",
-      elements_analyzed: elements.length,
-      viewport: viewport,
-      screenshot_received: typeof screenshot === "string" ? screenshot.length + " base64 chars (not decoded — geometry scored from snapshot)" : false,
-      score: totalChecks > 0 ? Math.round(((totalChecks - failCount) / totalChecks) * 100) : 100,
-      grade: failCount === 0 ? "A" : failCount <= 2 ? "B" : failCount <= 4 ? "C" : "D",
-      summary: passes.length + "/" + totalChecks + " checks passed" + (failCount > 0 ? " — " + failCount + " issue(s) to fix" : " — all clear"),
-      passes: passes,
-      errors: errors,
-      warnings: warnings,
-      fix_priority: errors.concat(warnings).map(function (i) { return i.rule + ": " + i.fix; }),
-      metrics: metrics
-    };
-
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
-  }
+  "Audit a rendered iOS screen from a view-hierarchy/accessibility snapshot (and optional screenshot). Alias of audit_screen with platform:\"ios\". Call with no arguments for the expected snapshot shape. Call with {elements:[{label,rect:{x,y,w,h},role,fontPt,fgColor,bgColor}],viewport:{w,h}} to score 44×44pt touch targets, contrast (with iOS secondaryLabel/tertiaryLabel treated as platform-standard — warn not fail), and visual rhythm (alignment, gap consistency, optical balance) in points. Same return shape as audit_page.",
+  screenElementSchema,
+  async ({ elements, viewport, screenshot }) => auditScreenSnapshot(elements, viewport, screenshot, "ios")
 );
 
 // ── Tool 14d: audit_ios_privacy ────────────────────────────────────
@@ -3261,8 +3314,21 @@ server.tool(
     // authorization. (A bare .save( would false-positive on Core Data saves.)
     var codeWritesHealth = /toShare:\s*\[\s*[A-Za-z.]/.test(src);
     var codeSharesEmpty = /toShare:\s*\[\s*\]/.test(src);
+    var hasHealthKitEntitlement = /com\.apple\.developer\.healthkit/.test(ent);
     if (declaresHealthWrite && src.length > 0 && !codeWritesHealth) {
-      issues.push({ severity: "error", rule: "ios-privacy/unfulfilled-claim", message: "Info.plist declares NSHealthUpdateUsageDescription (write to Health) but the code never writes to HealthKit" + (codeSharesEmpty ? " (requestAuthorization uses toShare: [])" : "") + ". This contradicts the permission prompt and risks App Review rejection.", fix: "Remove NSHealthUpdateUsageDescription, or implement the write the description promises." });
+      if (hasHealthKitEntitlement) {
+        // CRITICAL: with the HealthKit entitlement present, Apple's upload
+        // validator REQUIRES NSHealthUpdateUsageDescription even when the app
+        // never writes (toShare: []). Removing it fails the upload with error
+        // 90683 ("Missing purpose string in Info.plist"). The contradiction is
+        // real, but deletion breaks the build — the real fix is to drop the
+        // write capability so the entitlement matches actual use, not to delete
+        // the string. Keep this a warning, never an error.
+        issues.push({ severity: "warning", rule: "ios-privacy/unfulfilled-claim", message: "Info.plist declares NSHealthUpdateUsageDescription (write to Health) but the code never writes to HealthKit" + (codeSharesEmpty ? " (requestAuthorization uses toShare: [])" : "") + ". The HealthKit entitlement is present, so Apple's upload validator REQUIRES this string — removing it fails the upload with error 90683 even though the app never writes. App Review (5.1.1) separately scrutinizes capabilities the app doesn't exercise.", fix: "Do NOT remove the usage string while the HealthKit entitlement is present (upload error 90683). The real fix is to drop the write capability so the entitlement matches actual use: stop requesting write authorization (don't pass a non-empty toShare:) and remove the HealthKit-write entitlement, OR implement the write the description promises. Since toShare: [] means the prompt never shows at runtime, you can also word the string conditionally to keep it honest." });
+      } else {
+        // No HealthKit entitlement: the orphan usage string is safe to remove.
+        issues.push({ severity: "error", rule: "ios-privacy/unfulfilled-claim", message: "Info.plist declares NSHealthUpdateUsageDescription (write to Health) but the code never writes to HealthKit" + (codeSharesEmpty ? " (requestAuthorization uses toShare: [])" : "") + ", and there is no HealthKit entitlement. This contradicts the permission prompt and risks App Review rejection.", fix: "Remove NSHealthUpdateUsageDescription — no HealthKit entitlement is present, so removal is safe and will not trigger upload error 90683 — or implement the write the description promises." });
+      }
     } else if (declaresHealthWrite) {
       passes.push("HealthKit write permission declared (verify the code actually writes)");
     }
