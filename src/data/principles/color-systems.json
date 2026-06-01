@@ -1,0 +1,41 @@
+[
+  {
+    "id": "color-systems",
+    "name": "Color Systems",
+    "category": "color",
+    "summary": "A production color palette is a small, role-based system of tokens — not a growing list of hex values picked per component.",
+    "description": "Color theory tells you which hues harmonise; a color system tells you how many colors you're allowed to ship and what each one is for. The failure mode in most generated and hand-built UIs is the same: designers pick a fresh hex whenever they need 'a slightly different gray' or 'a softer blue,' and the palette quietly grows past the point where hierarchy is legible. Mature systems cap themselves. A typical product UI uses no more than ~10 distinct colors total: one primary, one secondary or accent, a single neutral ramp of 5–7 grays, and 3–4 semantic colors (success, warning, error, info). Everything else — hovers, disabled states, surfaces, borders — is a tonal step derived from those base hues, not a new color. The discipline is enforced through tokens: once `--color-text-muted` exists, no component should ever inline `#6b7280` again. Mix that with one consistent neutral temperature (warm or cool grays, not both) and the palette stays coherent at any scale.",
+    "implications": [
+      "Define colors by role (primary, accent, neutral, semantic, surface) before picking hex values",
+      "Cap a product UI at ~10 distinct base colors; brand/marketing sites can stretch to ~12",
+      "Generate tonal ramps (5–9 steps) from each base hue instead of inventing new colors for hovers, borders, and backgrounds",
+      "Pick one neutral temperature — all warm grays or all cool grays — and never mix them accidentally",
+      "Every color in the codebase should be a token reference; raw hex in component styles is a smell",
+      "Semantic colors (success/warning/error/info) are reserved for meaning, not decoration — don't use the error red for a heading accent",
+      "Audit the rendered page: count distinct hex values in computed styles. If it exceeds 10–12, the palette has drifted"
+    ],
+    "violations": [
+      "A single page using 15+ distinct hex values across components",
+      "Three near-identical grays (#6b7280, #6c7280, #707070) coexisting because each component picked its own",
+      "Mixing warm grays (#78716c) and cool grays (#6b7280) in the same interface without intent",
+      "Inlining hex values in component styles instead of referencing a token",
+      "Using the semantic 'error' red as a decorative accent, breaking its signal value",
+      "Adding a new color every time a designer wants a 'slightly different' shade instead of using an existing tonal step",
+      "No defined neutral ramp — grays are picked ad hoc per component"
+    ],
+    "applies_to": [
+      "design-system",
+      "tokens",
+      "palette",
+      "branding",
+      "theming",
+      "visual-consistency"
+    ],
+    "sources": [
+      "Material Design 3 — Color system and tonal palettes (Google).",
+      "IBM Carbon Design System — Color tokens and role-based palette structure.",
+      "Refactoring UI — Adam Wathan & Steve Schoger (2018), chapter on building a color palette from tonal ramps.",
+      "Nathan Curtis — 'Color in Design Systems' (EightShapes, 2017)."
+    ]
+  }
+]
