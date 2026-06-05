@@ -40,7 +40,7 @@ Developer Tools
 - "Show me Mailchimp's voice and tone system, then rewrite this error message in that voice."
 - "Generate a service blueprint comparing current vs. ideal state for our onboarding."
 - "What are the 2026 brand and visual-design trends, and which fit a fintech audience?"
-- Tool: audit_page — Audit HTML/CSS against Raven's quality standards. Use after building any UI.
+- Tool: audit_page — Audit HTML/CSS against Raven's quality standards. Use after building any UI. Pass `containerMaxWidth` (your design system's canonical container width in px) to flag containers that diverge from your own token instead of a generic 1200px heuristic.
 - Tool: generate_design_system — Build a full design system (typography, color, spacing, motion) from one brand color.
 - Tool: get_content_system — Get a brand's voice attributes, tone shifts, vocabulary, grammar, and content patterns.
 - Tool: generate_service_blueprint — Render a service blueprint as standalone HTML, current-state or current-vs-ideal.
