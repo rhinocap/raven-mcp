@@ -94,7 +94,7 @@
     },
     {
       "name": "audit_page",
-      "description": "Audit HTML/CSS against Raven's design quality standards"
+      "description": "Audit HTML/CSS against Raven's design quality standards (pass containerMaxWidth to check container widths against your own design-system token)"
     },
     {
       "name": "generate_design_system",

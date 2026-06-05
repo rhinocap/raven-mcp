@@ -6,6 +6,7 @@ import { z } from "zod";
 import { readFileSync, readdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { auditContainerWidth } from "./audit-container.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -1808,12 +1809,13 @@ server.tool(
 
 server.tool(
   "audit_page",
-  "Audit HTML/CSS against Raven's design quality standards. Checks typography (min 13px, weight 400+, modular-scale heading ratios, line-height consistency), accessibility (WCAG touch targets, alt text, contrast), responsive patterns (flexbox over grid, clamp sizing, max-width containers), style guide compliance (CSS custom properties, no bare hex), and visual rhythm (4/8px spacing grid, tight spacing scale, palette size). Returns pass/fail per check with specific fix instructions.",
+  "Audit HTML/CSS against Raven's design quality standards. Checks typography (min 13px, weight 400+, modular-scale heading ratios, line-height consistency), accessibility (WCAG touch targets, alt text, contrast), responsive patterns (flexbox over grid, clamp sizing, max-width containers), style guide compliance (CSS custom properties, no bare hex), and visual rhythm (4/8px spacing grid, tight spacing scale, palette size). Pass containerMaxWidth (your design system's canonical container token, in px) to make the max-width check token-aware — it then flags containers that diverge from your system (too narrow OR too wide) instead of a generic 1200px heuristic. Returns pass/fail per check with specific fix instructions.",
   {
     html: z.string().describe("The full HTML content of the page to audit"),
-    strict: z.boolean().optional().describe("Strict mode — also flags warnings as failures. Default: false")
+    strict: z.boolean().optional().describe("Strict mode — also flags warnings as failures. Default: false"),
+    containerMaxWidth: z.number().optional().describe("Your design system's canonical content-container width in px (e.g. 1152). When set, the responsive/max-width check flags divergence from this token instead of using the generic 1200px heuristic.")
   },
-  async ({ html, strict }) => {
+  async ({ html, strict, containerMaxWidth }) => {
     var issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }> = [];
     var passes: string[] = [];
     var isStrict = strict || false;
@@ -1864,9 +1866,9 @@ server.tool(
     if (hasClamp) passes.push("Uses clamp() for fluid sizing");
     else issues.push({ severity: "warning", rule: "responsive/clamp", message: "No clamp() detected for fluid sizing", fix: "Use clamp(48px, 8vw, 128px) for section padding and clamp(16px, 4vw, 24px) for container padding" });
 
-    var hasMaxWidth = /max-width\s*:\s*(1[12]\d{2}|1200)\s*px/.test(html);
-    if (hasMaxWidth) passes.push("Content has max-width constraint");
-    else issues.push({ severity: "warning", rule: "responsive/max-width", message: "No 1200px max-width constraint detected on content containers", fix: "Add max-width: 1200px; margin: 0 auto to content containers" });
+    var containerAudit = auditContainerWidth(html, containerMaxWidth);
+    if (containerAudit.pass) passes.push(containerAudit.pass);
+    else if (containerAudit.issue) issues.push(containerAudit.issue);
 
     // ── Style guide checks
     var hasCustomProps = /var\s*\(\s*--/.test(html);

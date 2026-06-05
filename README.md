@@ -62,7 +62,7 @@ cd raven-mcp && npm install && npm run build
 | `get_design_system` | Get tokens for a specific design system |
 | `compose_system` | Mix tokens from different systems |
 | `get_brand_system` | Get a full system styled like a well-known brand |
-| `audit_page` | Audit HTML/CSS against Raven's quality standards |
+| `audit_page` | Audit HTML/CSS against Raven's quality standards (optional `containerMaxWidth` makes the container check token-aware) |
 | `audit_layout` | Evaluate visual rhythm, alignment, and optical balance |
 | `audit_swiftui` | Audit SwiftUI source against Apple HIG — Dynamic Type, semantic colors, 44pt targets, 4/8pt spacing, AccentColor |
 | `audit_ios_screen` | Score a rendered iOS screen from an accessibility/view-hierarchy snapshot — 44pt targets + contrast + rhythm, in points |

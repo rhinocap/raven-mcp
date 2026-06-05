@@ -4,6 +4,14 @@ All notable changes to Raven MCP are documented here. Format follows [Keep a Cha
 
 The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/changelog.html) is the authoritative source — this file mirrors it for offline reading and downstream packagers.
 
+## [Unreleased]
+
+### Changed
+- `audit_page` now accepts an optional `containerMaxWidth` (your design system's canonical content-container width, in px). When set, the `responsive/max-width` check flags content containers that **diverge** from your token — too narrow or too wide — instead of a generic 1200px heuristic. Catches an off-system page (e.g. a `max-w-3xl` 768px container in a 1152px system) that the old check passed clean. With no token passed, behavior is unchanged. (#9)
+
+### Added
+- `src/audit-container.ts` — side-effect-free container-width audit helper, unit-testable in isolation.
+
 ## [1.4.0] - 2026-05-19
 
 ### Changed
