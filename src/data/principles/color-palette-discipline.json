@@ -1,0 +1,38 @@
+[
+  {
+    "id": "color-palette-discipline",
+    "name": "Color Palette Discipline",
+    "category": "color-theory",
+    "summary": "A disciplined palette uses ~8-10 distinct color values maximum, organized as named tokens. More colors collapse hierarchy and dilute brand recognition.",
+    "description": "Color theory tells you which colors harmonize; palette discipline tells you how few you need. A working interface palette is small and structured: one primary, one accent, one or two neutrals (each with 3-5 tints/shades), and two or three semantic colors for success, warning, and error states. Past roughly ten distinct values, visual hierarchy collapses — users can no longer tell which color signals 'primary action' versus 'decoration' versus 'state change'. This compounds with Hick's law (more options slow decisions) and the Gestalt principle of similarity (objects sharing color read as related; too many colors break that grouping). Bloat usually creeps in through near-duplicate grays (#333, #353535, #3a3a3a), one-off tints embedded in SVG icons, hardcoded shadow colors, and hover/active states picked ad-hoc rather than derived from a base token. The discipline: every color in CSS maps back to a named token. If a value doesn't have a name, it shouldn't ship.",
+    "implications": [
+      "Cap distinct color values at ~8-10 per interface — count hex codes, not token names",
+      "Structure the palette: 1 primary, 1 accent, 1-2 neutrals (each with 3-5 tints/shades), 2-3 semantic colors",
+      "Derive hover, active, and disabled states from base tokens (e.g. primary-600 from primary-500) — never pick them ad-hoc",
+      "Audit SVG and icon assets for one-off fills that bypass the token system",
+      "Use a single shadow color (typically a tint of the darkest neutral) rather than hardcoded rgba values",
+      "Before shipping CSS, enumerate every color value and verify each maps to a named token"
+    ],
+    "violations": [
+      "11+ distinct hex codes in a single interface (common Raven demo failure mode)",
+      "Three near-identical grays (#333, #353535, #3a3a3a) that no user can distinguish",
+      "Hover state hand-picked as a random darker color instead of derived from the base token",
+      "SVG icons carrying their own fill colors that don't appear elsewhere in the palette",
+      "Hardcoded rgba(0,0,0,0.1) shadows scattered across components with slightly different alphas",
+      "Semantic colors (success green, error red) introduced inline without being added to the token system"
+    ],
+    "applies_to": [
+      "color",
+      "design-tokens",
+      "palette",
+      "brand-consistency",
+      "visual-hierarchy",
+      "css-architecture"
+    ],
+    "sources": [
+      "Frost, B. (2016). Atomic Design — on token systems and constrained palettes.",
+      "Material Design 3 color system — structured palette with primary, secondary, tertiary, neutral, and semantic roles.",
+      "Refactoring UI (Wathan & Schoger, 2018) — recommends 1 primary, 1 accent, 2 grays, plus semantic colors."
+    ]
+  }
+]
