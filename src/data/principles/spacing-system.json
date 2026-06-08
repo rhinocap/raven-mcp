@@ -1,0 +1,132 @@
+[
+  {
+    "id": "spacing-base-unit",
+    "name": "Spacing Base Unit",
+    "category": "spacing-system",
+    "summary": "Every margin, padding, and gap should be a multiple of a single base unit — almost always 4px or 8px.",
+    "description": "A base unit is the atomic increment from which every spatial decision derives. Pick 4px or 8px (8px is the most common industry default — used by Material, Apple HIG, Bootstrap, and most design systems) and require every spacing value to be a multiple of it. The base unit is what makes a layout feel intentional rather than improvised: equal-feeling gaps actually become equal, alignment falls out for free, and components composed from independent sources still rhyme. Off-grid values (2px, 6px, 10px, 14px, 18px) almost always signal a missing system decision — someone nudged a value visually instead of choosing from the scale. Map each one-off to the nearest base-unit multiple; the visual difference is imperceptible, the systemic gain is large.",
+    "implications": [
+      "Choose one base unit (8px recommended, 4px for dense UIs) and document it",
+      "Every spacing value — margin, padding, gap, position offset — must be a multiple of the base",
+      "Use 4px as a half-step only when 8px is genuinely too coarse (icon padding, tight inline gaps)",
+      "Encode the base unit as a CSS variable or token (--space-1: 8px) so it's referenced, not retyped",
+      "When auditing, list every unique spacing value and check each against the base multiple"
+    ],
+    "violations": [
+      "Mixing 6px, 10px, 14px, 18px alongside 8px, 16px, 24px — no consistent base",
+      "Pixel-pushing nudges (margin-top: 7px) instead of choosing the nearest scale value",
+      "Two base units coexisting in the same project (some components on 5px, others on 8px)",
+      "Using arbitrary percentages (margin: 3.5%) that don't resolve to base multiples at common widths"
+    ],
+    "applies_to": [
+      "spacing",
+      "layout",
+      "css",
+      "design-tokens",
+      "visual-rhythm"
+    ],
+    "sources": [
+      "Material Design 3 — Spacing (4dp/8dp grid)",
+      "Apple Human Interface Guidelines — Layout (8pt grid)",
+      "Refactoring UI, Adam Wathan & Steve Schoger (2018), Chapter on Spacing"
+    ]
+  },
+  {
+    "id": "spacing-scale-count",
+    "name": "Limited Spacing Scale",
+    "category": "spacing-system",
+    "summary": "Define a small set of allowed spacing steps — ideally ≤8 values — and reject anything outside it.",
+    "description": "Even if every value is on the 8px grid, using 15+ different multiples (8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 96, 112, 128…) destroys visual rhythm. Miller's law (7±2) and Gestalt grouping tell us that humans perceive equality and proportion through a small number of distinguishable steps; too many steps and nothing reads as deliberately the same or deliberately different. A good scale is non-linear (typically doubling or near-doubling: 4, 8, 16, 24, 32, 48, 64, 96, 128) because perceptual difference is logarithmic — the jump from 8 to 16 reads as similar to the jump from 48 to 96. Eight or fewer steps is the sweet spot: enough range to handle tight component padding through full section breaks, few enough that every choice feels intentional.",
+    "implications": [
+      "Define a canonical scale of ≤8 values, e.g., 4, 8, 16, 24, 32, 48, 64, 96 (with 128 as an optional ninth for hero sections)",
+      "Use a non-linear progression — doubling or near-doubling — not 8, 16, 24, 32, 40, 48 (linear feels muddy)",
+      "Name the steps semantically or by index (space-xs/sm/md/lg/xl or space-1…space-8) so usage is constrained",
+      "Distinguish intra-component spacing (4, 8, 12, 16) from layout spacing (32, 48, 64, 96) — they live on the same scale but cluster differently",
+      "When a needed value isn't on the scale, round to the nearest scale value rather than adding a new step",
+      "Audit by counting unique spacing values in the rendered CSS — more than ~8 is a smell"
+    ],
+    "violations": [
+      "15+ unique spacing values across a single page or demo",
+      "Linear scales (8, 16, 24, 32, 40, 48, 56, 64) where adjacent steps are visually indistinguishable",
+      "Adding a new spacing value every time a layout feels slightly off, instead of reusing an existing step",
+      "No semantic naming — raw pixel values scattered through CSS so the scale is implicit and unenforceable"
+    ],
+    "applies_to": [
+      "spacing",
+      "design-tokens",
+      "visual-rhythm",
+      "layout",
+      "component-design"
+    ],
+    "sources": [
+      "Miller, G. A. (1956). The Magical Number Seven, Plus or Minus Two. Psychological Review, 63(2).",
+      "Tailwind CSS spacing scale documentation",
+      "Refactoring UI, Adam Wathan & Steve Schoger (2018) — 'Define spacing and sizing systems early'"
+    ]
+  },
+  {
+    "id": "component-vs-layout-spacing",
+    "name": "Component vs. Layout Spacing",
+    "category": "spacing-system",
+    "summary": "Tight intra-component spacing (4–16px) and generous layout spacing (32–96px) should come from the same scale but cluster in different ranges.",
+    "description": "Spacing operates at two scales that the eye reads very differently. Inside a component — between a label and its input, an icon and its text, a button's edge and its glyph — you're working in the 4–16px range, where small differences matter and 4px is a meaningful step. Between components and sections — card-to-card gaps, section padding, hero whitespace — you're working in the 32–128px range, where the eye barely distinguishes 48 from 56, so steps must be larger to register as intentional difference. Pulling both from the same scale (e.g., 4, 8, 12, 16, 24, 32, 48, 64, 96) keeps the system coherent while giving each context the right granularity. A common failure is using layout-scale spacing inside components (huge gaps that break visual grouping per Gestalt proximity) or component-scale spacing between sections (cramped layouts that feel busy and unfinished).",
+    "implications": [
+      "Reserve the lower scale steps (4, 8, 12, 16) for spacing inside components",
+      "Reserve the upper scale steps (32, 48, 64, 96, 128) for layout, section, and page-level spacing",
+      "Use 24 as the natural bridge — works as generous component padding or tight layout gap",
+      "Section vertical padding should generally be 64–128px on desktop, scaling down responsively",
+      "Card and grid gaps typically sit at 16–32px",
+      "Apply Gestalt proximity: related elements should be visibly closer than unrelated ones — a single scale step of difference is usually enough"
+    ],
+    "violations": [
+      "48px gap between a label and its input (reads as unrelated)",
+      "8px padding around a hero section (feels cramped and amateurish)",
+      "Same spacing value used for both intra-component and section-level gaps",
+      "Section padding that doesn't scale down on mobile — 96px top/bottom on a 600px-tall phone viewport"
+    ],
+    "applies_to": [
+      "spacing",
+      "component-design",
+      "layout",
+      "gestalt",
+      "responsive-design"
+    ],
+    "sources": [
+      "Gestalt principles of proximity — Wertheimer, M. (1923)",
+      "Material Design — Spacing methods",
+      "Refactoring UI (2018) — 'Establish a spacing and sizing system'"
+    ]
+  },
+  {
+    "id": "vertical-rhythm",
+    "name": "Vertical Rhythm",
+    "category": "spacing-system",
+    "summary": "Section padding, line-height, and spacing scale should share a common base so vertical intervals feel related across the page.",
+    "description": "Vertical rhythm is the perceived 'beat' of a page as you scroll. It emerges when the spacing scale, the line-height of body text, and the padding of sections all derive from the same base unit. When a paragraph's line-height is 24px (1.5× a 16px body) and the spacing scale is on 8px, everything snaps to a shared 8px cadence and the page feels composed. When line-height is 22px and spacing is on 8px, every paragraph subtly breaks the grid and the page feels slightly off without an obvious reason. The fix: round line-heights to base-unit multiples (16px text → 24px line-height, not 22.4px), and let section padding be a generous multiple of the same base (typically 64–128px). This also makes section transitions read clearly: large vertical gaps signal 'new topic' the way paragraph breaks signal 'new thought,' but only if those gaps are distinctly larger than the in-text rhythm.",
+    "implications": [
+      "Round line-heights to base-unit multiples (with 8px base: 16px → 24px, 18px → 24px or 32px, 20px → 32px)",
+      "Section vertical padding should be at least 3× the largest in-section spacing, so sections read as separate",
+      "Use the spacing scale for vertical gaps between text blocks (headings, paragraphs, lists) — not arbitrary margins",
+      "Heading margin-top should usually exceed margin-bottom (heading belongs to the content that follows)",
+      "On mobile, scale section padding down proportionally (e.g., 96px desktop → 48px mobile) — same scale, lower step"
+    ],
+    "violations": [
+      "Body line-height like 1.4 (22.4px on 16px text) that doesn't land on the spacing grid",
+      "Section padding equal to or smaller than paragraph spacing — sections don't feel separated",
+      "Equal margin-top and margin-bottom on headings, breaking the 'belongs to what follows' grouping",
+      "Same vertical padding on desktop and mobile, creating either cramped desktop or wasted mobile space"
+    ],
+    "applies_to": [
+      "spacing",
+      "typography",
+      "layout",
+      "vertical-rhythm",
+      "responsive-design"
+    ],
+    "sources": [
+      "Bringhurst, R. (2004). The Elements of Typographic Style — on baseline grids",
+      "Rutter, R. (2017). Web Typography — vertical rhythm chapter",
+      "Material Design — Type system and baseline grid"
+    ]
+  }
+]
