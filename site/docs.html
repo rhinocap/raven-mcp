@@ -479,7 +479,7 @@
     <div class="install-card reveal">
       <div class="install-copy">
         <h4>Raven for Claude Desktop</h4>
-        <p>macOS &middot; Windows &middot; Linux &nbsp;•&nbsp; ~4 MB &middot; v1.1.1</p>
+        <p>macOS &middot; Windows &middot; Linux &nbsp;•&nbsp; ~4 MB &middot; v1.6.2</p>
       </div>
       <a href="/raven.mcpb" class="install-btn" download>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -499,7 +499,7 @@ cd raven-mcp && npm install && npm run build</code></pre>
 
     <!-- ── Tool Reference ── -->
     <h2 id="tools" class="reveal">Tool Reference</h2>
-    <p>Raven provides 32 tools across 8 knowledge layers. Claude calls them automatically based on what you're asking for. Below, the original 13 tools have full docs; the 19 newer tools from v1.2–v1.6 are listed with summary descriptions.</p>
+    <p>Raven provides 44 tools across 8 knowledge layers plus the local-first Creative Studio. Claude calls them automatically based on what you're asking for. Below, the original tools have full docs; newer tools from v1.2–v1.6 are listed with summary descriptions.</p>
 
     <h3>Principles Layer</h3>
 
@@ -847,6 +847,49 @@ cd raven-mcp && npm install && npm run build</code></pre>
       <pre><code>"Audit this Expo screen for accessibility and safe areas"</code></pre>
     </div>
 
+    <h3>Creative Studio Layer <span style="color:var(--accent-blue);font-size:13px;letter-spacing:0.08em;font-weight:600;">v1.6</span></h3>
+
+    <div class="tool-card reveal">
+      <h3>list_creative_models</h3>
+      <p class="tool-desc">Browse provider-agnostic model slots for image, video, 3D, audio, character consistency, and creative analysis. These are capability slots, not bundled provider accounts.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>list_creative_presets</h3>
+      <p class="tool-desc">Browse presets for product photoshoots, marketplace cards, UGC ads, TV spots, cinematic reveals, social launch packs, storyboards, and infographics.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>create_brand_profile / get_brand_profile / list_brand_profiles</h3>
+      <p class="tool-desc">Create, read, and list local brand profiles for brand-aware creative jobs. Profiles store colors, fonts, tone, audience, constraints, product notes, and asset references under <code>~/.raven/creative</code> by default.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>register_creative_asset</h3>
+      <p class="tool-desc">Register a local path or remote URL as a creative asset reference. Raven stores metadata and references; it does not upload file bytes on its own.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>create_character_profile</h3>
+      <p class="tool-desc">Create a character or identity reference profile for consistent image/video generation. Actual provider training only happens through your configured runner.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>create_generation_job / get_generation_job / list_generation_jobs</h3>
+      <p class="tool-desc">Create, read, and list provider-ready image, video, audio, 3D, campaign, or analysis job payloads. By default jobs are saved as drafts. Set <code>RAVEN_CREATIVE_RUNNER</code> to execute through your own renderer command.</p>
+      <pre><code>RAVEN_CREATIVE_RUNNER=/path/to/renderer raven-mcp</code></pre>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>plan_creative_campaign</h3>
+      <p class="tool-desc">Plan a multi-asset creative campaign and optionally create draft jobs across product photos, marketplace cards, UGC/video ads, TV spots, storyboards, social packs, and channel cutdowns.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>score_creative</h3>
+      <p class="tool-desc">Score prompts, scripts, and campaign concepts for hook strength, benefit clarity, product signal, CTA, channel fit, audience fit, and brand fit. The score is a transparent heuristic, not a proprietary prediction model.</p>
+    </div>
+
     <h3>Reflection &amp; Registration</h3>
 
     <div class="tool-card reveal">
@@ -856,7 +899,7 @@ cd raven-mcp && npm install && npm run build</code></pre>
 
     <div class="tool-card reveal">
       <h3>raven_register</h3>
-      <p class="tool-desc">Register an email to receive release updates from the Raven team. One email per minor/major release — patches stay silent.</p>
+      <p class="tool-desc">Register an email to receive Raven updates and give feedback to the Raven creator.</p>
     </div>
 
     <!-- ── Examples ── -->
@@ -1027,7 +1070,7 @@ get_design_system({ id: "stripe", format: "flat" })
     <h2 id="faq" class="reveal">FAQ</h2>
 
     <h3>Does Raven make API calls?</h3>
-    <p>No. All data is bundled locally in the npm package. No external API calls, no latency, no auth tokens needed. It's 272KB of curated JSON that runs on your machine.</p>
+    <p>Raven's knowledge tools and creative draft jobs run locally from bundled JSON and local files, with no provider keys required. The exceptions are explicit actions: <code>raven_register</code> submits your email to Raven's welcome endpoint, and a configured <code>RAVEN_CREATIVE_RUNNER</code> can call whatever media provider you choose.</p>
 
     <h3>Does it work with other AI coding tools?</h3>
     <p>Raven works with any MCP-compatible client. Claude Code and Claude Desktop have native MCP support. Other tools are adding MCP support — check your client's documentation.</p>
