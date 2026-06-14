@@ -3,8 +3,8 @@
   "name": "raven-mcp",
   "display_name": "Raven",
   "version": "1.6.2",
-  "description": "Design intelligence for Claude — principles, UI patterns, content systems, research methods, service design, brand, business strategy, and production design tokens.",
-  "long_description": "Raven gives Claude a design knowledge base it can query while generating UI. Eight layers: principles (Nielsen, Laws of UX, Gestalt, WCAG, typography, color, mobile UX, D4D, UX writing, service design, brand), patterns (signup, pricing, nav, forms, landing, dashboard, modals, empty/error/loading states, CTAs, social proof, mobile conversion, plus content patterns and service patterns), content design systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian voice & tone), research methods (qualitative, quantitative, usability) and metrics frameworks (HEART, AARRR, North Star, conversion funnel, RICE, OKRs), service design (service blueprinting with HTML blueprint generation, human handoff, signup-as-service, omnichannel continuity, moments of truth / recovery, GOV.UK service standard), brand & visual design (logo usage, gradient usage, imagery, visual hierarchy, brand-as-system, current trends), business strategy, and production design tokens (Stripe, Linear, and more). Claude calls Raven's tools automatically when you ask it to build, evaluate, or improve UI, design research, or design a service.",
+  "description": "Design intelligence and creative orchestration for Claude — principles, patterns, audits, brand guidance, creative jobs, campaign plans, and local brand profiles.",
+  "long_description": "Raven gives Claude a design knowledge base and creative orchestration layer it can query while generating UI and production briefs. Eight design layers cover principles (Nielsen, Laws of UX, Gestalt, WCAG, typography, color, mobile UX, D4D, UX writing, service design, brand), patterns (signup, pricing, nav, forms, landing, dashboard, modals, empty/error/loading states, CTAs, social proof, mobile conversion, plus content patterns and service patterns), content design systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian voice & tone), research methods (qualitative, quantitative, usability) and metrics frameworks (HEART, AARRR, North Star, conversion funnel, RICE, OKRs), service design (service blueprinting with HTML blueprint generation, human handoff, signup-as-service, omnichannel continuity, moments of truth / recovery, GOV.UK service standard), brand & visual design (logo usage, gradient usage, imagery, visual hierarchy, brand-as-system, current trends), business strategy, and production design tokens (Stripe, Linear, and more). The creative studio layer adds local brand profiles, asset references, character reference profiles, provider-agnostic image/video/3D/audio generation jobs, campaign plans, and transparent creative scoring. Claude calls Raven's tools automatically when you ask it to build, evaluate, improve UI, design research, design a service, or prepare creative production.",
   "author": {
     "name": "Andrew Cunliffe",
     "email": "cunliffeandrewc@gmail.com",
@@ -34,7 +34,11 @@
     "service-blueprint",
     "brand",
     "visual-design",
-    "branding"
+    "branding",
+    "creative-studio",
+    "image-generation",
+    "video-generation",
+    "campaigns"
   ],
   "icon": "icon.png",
   "server": {
@@ -147,6 +151,54 @@
     {
       "name": "get_brand_trends",
       "description": "Get current brand and visual-design trends (2026) — bento grids, monospace type, neon-on-glass, generative patterns, brutalism rebound, and more"
+    },
+    {
+      "name": "list_creative_models",
+      "description": "Browse Raven creative model slots for image, video, 3D, audio, character consistency, and analysis"
+    },
+    {
+      "name": "list_creative_presets",
+      "description": "Browse creative presets for product photoshoots, marketplace cards, UGC ads, TV spots, social packs, storyboards, and infographics"
+    },
+    {
+      "name": "create_brand_profile",
+      "description": "Create or update a local brand profile for brand-aware creative generation jobs"
+    },
+    {
+      "name": "get_brand_profile",
+      "description": "Read a local Raven creative brand profile"
+    },
+    {
+      "name": "list_brand_profiles",
+      "description": "List local Raven creative brand profiles"
+    },
+    {
+      "name": "register_creative_asset",
+      "description": "Register a local or remote creative asset reference for generation jobs"
+    },
+    {
+      "name": "create_character_profile",
+      "description": "Create a local character/identity reference profile for consistent generations"
+    },
+    {
+      "name": "create_generation_job",
+      "description": "Create a provider-agnostic image, video, audio, 3D, campaign, or analysis generation job"
+    },
+    {
+      "name": "get_generation_job",
+      "description": "Read a Raven creative generation job"
+    },
+    {
+      "name": "list_generation_jobs",
+      "description": "List local Raven creative generation jobs"
+    },
+    {
+      "name": "plan_creative_campaign",
+      "description": "Plan a multi-asset creative campaign and optionally create draft generation jobs"
+    },
+    {
+      "name": "score_creative",
+      "description": "Score creative prompts, scripts, and concepts for hook strength, benefit clarity, channel fit, and brand fit"
     },
     {
       "name": "raven_reflect",

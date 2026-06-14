@@ -2,7 +2,7 @@
   "name": "raven-mcp",
   "version": "1.6.2",
   "mcpName": "ai.ravenmcp/raven-mcp",
-  "description": "Design intelligence MCP server — principles, patterns, tokens, content systems, research methods, service design, and brand guidance for AI-generated UI. Now with research, service design (with HTML blueprint generation), and brand/visual design layers.",
+  "description": "Design intelligence and creative orchestration MCP server — principles, patterns, tokens, audits, brand guidance, local brand profiles, assets, campaign plans, and provider-agnostic image/video/3D/audio generation jobs.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -64,7 +64,11 @@
     "service-blueprint",
     "brand",
     "visual-design",
-    "branding"
+    "branding",
+    "creative-studio",
+    "image-generation",
+    "video-generation",
+    "campaigns"
   ],
   "author": "Andrew Cunliffe",
   "license": "MIT",

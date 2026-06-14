@@ -18,6 +18,7 @@ Raven gives Claude access to a comprehensive design knowledge base:
 - **Brand & visual** — Logo usage (clear space, min sizes, variants, placement, restraint), gradient usage (hierarchy, palette, contrast, trend vs signature), imagery (consistency, representation, purpose), visual hierarchy, brand-as-system, and current (2026) visual-design trends
 - **Business** — Monetization models, retention strategies, onboarding optimization, growth mechanics, and product metrics frameworks
 - **Tokens** — Design system tokens for Stripe, Linear, and more
+- **Creative studio** — Local-first brand profiles, asset references, character reference profiles, provider-agnostic image/video/3D/audio generation jobs, campaign plans, and transparent creative scoring. Raven does not ship media-provider credentials; set `RAVEN_CREATIVE_RUNNER` to route jobs to your own renderer.
 
 ## Install
 
@@ -80,7 +81,32 @@ cd raven-mcp && npm install && npm run build
 | `generate_service_blueprint` | Render a service blueprint as HTML — current state, or current vs. ideal side-by-side |
 | `get_brand_principles` | Get brand/visual principles — logo, gradient, imagery, hierarchy, brand-as-system |
 | `get_brand_trends` | Get current (2026) brand and visual-design trends with usage guidance |
+| `list_creative_models` | Browse provider-agnostic creative model slots for image, video, 3D, audio, character consistency, and analysis |
+| `list_creative_presets` | Browse creative presets: product photoshoot, marketplace cards, UGC ads, TV spots, social packs, storyboards, infographics |
+| `create_brand_profile` | Create or update a local brand profile for brand-aware creative jobs |
+| `get_brand_profile` | Read a local creative brand profile |
+| `list_brand_profiles` | List local creative brand profiles |
+| `register_creative_asset` | Register a local path or URL as a creative asset reference — no file bytes are uploaded by Raven |
+| `create_character_profile` | Create a local character/identity reference profile from registered assets |
+| `create_generation_job` | Create a provider-agnostic image, video, audio, 3D, campaign, or analysis job payload; optionally execute via `RAVEN_CREATIVE_RUNNER` |
+| `get_generation_job` | Read a creative generation job and its provider payload/output state |
+| `list_generation_jobs` | List local creative generation jobs |
+| `plan_creative_campaign` | Plan a multi-asset campaign and optionally create draft generation jobs |
+| `score_creative` | Score a prompt/script/concept for hook, benefit clarity, product signal, CTA, channel fit, audience fit, and brand fit |
 | `raven_reflect` | Summarize your local Raven usage log to find patterns + gaps |
+
+## Creative studio
+
+Raven now covers the creative-production workflow around media generation without copying or depending on any closed vendor. The tools are orchestration primitives:
+
+- Store brand kits locally with `create_brand_profile`.
+- Register product photos, logos, references, or URLs with `register_creative_asset`.
+- Create character/identity reference sets with `create_character_profile`.
+- Generate provider-ready payloads with `create_generation_job`.
+- Build full campaign shot lists with `plan_creative_campaign`.
+- Score creative concepts with `score_creative`.
+
+By default, jobs are saved as local draft payloads under `~/.raven/creative` (override with `RAVEN_CREATIVE_HOME`). To run real media generation, set `RAVEN_CREATIVE_RUNNER` to an executable that reads one job JSON object from stdin and returns JSON on stdout. That runner can call any provider you choose; Raven never stores API keys in source.
 
 ## iOS / SwiftUI audits
 

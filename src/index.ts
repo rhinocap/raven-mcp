@@ -863,8 +863,9 @@ async function checkForUpdate(): Promise<void> {
 //
 // Location: $RAVEN_USAGE_LOG or ~/.raven/usage.jsonl. Opt out: RAVEN_NO_USAGE_LOG=1.
 
-import { appendFileSync, mkdirSync, readFileSync as fsReadFile, existsSync as fsExists, statSync } from "fs";
+import { appendFileSync, mkdirSync, readFileSync as fsReadFile, existsSync as fsExists, statSync, writeFileSync } from "fs";
 import { homedir } from "os";
+import { spawnSync } from "child_process";
 
 var USAGE_LOG_ENABLED = process.env.RAVEN_NO_USAGE_LOG !== "1";
 var USAGE_LOG_PATH = process.env.RAVEN_USAGE_LOG || join(homedir(), ".raven", "usage.jsonl");
@@ -983,6 +984,44 @@ function extractInsight(toolName: string, input: any, output: any): any {
       case "get_brand_trends":
         insight = { action: "trends" };
         break;
+      case "list_creative_models":
+        insight = { media_type: input?.media_type, capability: safeStr(input?.capability, 32) };
+        break;
+      case "list_creative_presets":
+        insight = { media_type: input?.media_type, search: !!input?.search };
+        break;
+      case "create_brand_profile":
+      case "get_brand_profile":
+        insight = { brand: safeStr(input?.id || input?.name, 32) };
+        break;
+      case "list_brand_profiles":
+        insight = { action: "list-brands" };
+        break;
+      case "register_creative_asset":
+        insight = { asset_type: input?.type, tags: Array.isArray(input?.tags) ? input.tags.length : 0 };
+        break;
+      case "create_character_profile":
+        insight = { refs: Array.isArray(input?.reference_asset_ids) ? input.reference_asset_ids.length : 0 };
+        break;
+      case "create_generation_job":
+        insight = { media_type: input?.media_type, preset: input?.preset, execute: !!input?.execute };
+        break;
+      case "get_generation_job":
+        insight = { action: "get-job" };
+        break;
+      case "list_generation_jobs":
+        insight = { status: input?.status, media_type: input?.media_type };
+        break;
+      case "plan_creative_campaign":
+        insight = {
+          goal: input?.goal,
+          channels: Array.isArray(input?.channels) ? input.channels.length : 0,
+          create_jobs: input?.create_jobs !== false
+        };
+        break;
+      case "score_creative":
+        insight = { channel: safeStr(input?.channel, 32), has_brand: !!input?.brand_profile_id };
+        break;
       case "generate_design_system":
         insight = { style: input?.style, has_brand_color: !!input?.brand_color, format: input?.format };
         break;
@@ -1038,6 +1077,372 @@ function readUsageSince(daysBack: number): any[] {
   } catch (_err) {
     return [];
   }
+}
+
+// ── Creative studio orchestration ───────────────────────────────────
+// Provider-agnostic creative production records. Raven does not ship API
+// keys or call a media vendor by default; it prepares brand-aware payloads
+// and can hand them to a local runner if RAVEN_CREATIVE_RUNNER is configured.
+
+var CREATIVE_HOME = process.env.RAVEN_CREATIVE_HOME || join(homedir(), ".raven", "creative");
+
+var CREATIVE_MODEL_CATALOG: any[] = [
+  {
+    id: "raven-image-fast",
+    media_type: "image",
+    role: "Fast concept image",
+    capabilities: ["text-to-image", "reference-image", "brand-kit", "variant-batch"],
+    best_for: ["concepts", "social stills", "blog heroes", "moodboards"],
+    typical_inputs: ["prompt", "brand_profile_id", "reference_asset_ids"],
+    output: "image"
+  },
+  {
+    id: "raven-image-photoreal",
+    media_type: "image",
+    role: "Photoreal product and lifestyle image",
+    capabilities: ["product-photoshoot", "lifestyle-scene", "background-swap", "marketplace-card"],
+    best_for: ["product photography", "launch assets", "D2C stores", "ads"],
+    typical_inputs: ["prompt", "brand_profile_id", "reference_asset_ids", "aspect_ratio"],
+    output: "image"
+  },
+  {
+    id: "raven-video-cinematic",
+    media_type: "video",
+    role: "Cinematic short video",
+    capabilities: ["text-to-video", "image-to-video", "storyboard-to-video", "camera-direction"],
+    best_for: ["product reveals", "brand films", "launch reels", "storyboards"],
+    typical_inputs: ["prompt", "reference_asset_ids", "duration_seconds", "aspect_ratio"],
+    output: "video"
+  },
+  {
+    id: "raven-video-social",
+    media_type: "video",
+    role: "Short-form social and UGC video",
+    capabilities: ["ugc-ad", "hook-testing", "platform-cutdowns", "caption-briefs"],
+    best_for: ["TikTok", "Reels", "Shorts", "Meta ads", "UGC testing"],
+    typical_inputs: ["prompt", "brand_profile_id", "character_profile_id", "channel"],
+    output: "video"
+  },
+  {
+    id: "raven-character-consistency",
+    media_type: "image",
+    role: "Character-consistent generation profile",
+    capabilities: ["reference-set", "identity-notes", "provider-training-payload"],
+    best_for: ["recurring avatars", "founder-led content", "fictional spokespersons"],
+    typical_inputs: ["character_profile_id", "prompt", "reference_asset_ids"],
+    output: "image-or-video"
+  },
+  {
+    id: "raven-3d-asset",
+    media_type: "3d",
+    role: "3D object or scene brief",
+    capabilities: ["text-to-3d", "product-turntable", "environment-brief"],
+    best_for: ["product visualization", "game assets", "interactive prototypes"],
+    typical_inputs: ["prompt", "reference_asset_ids", "format"],
+    output: "3d"
+  },
+  {
+    id: "raven-audio-voiceover",
+    media_type: "audio",
+    role: "Audio or voiceover production brief",
+    capabilities: ["voiceover-script", "music-brief", "sound-design-brief"],
+    best_for: ["video scripts", "ads", "podcast cuts", "launch trailers"],
+    typical_inputs: ["prompt", "tone", "duration_seconds"],
+    output: "audio"
+  },
+  {
+    id: "raven-creative-analysis",
+    media_type: "analysis",
+    role: "Creative performance heuristic",
+    capabilities: ["hook-score", "channel-fit", "brand-fit", "risk-review"],
+    best_for: ["ad reviews", "variant selection", "launch readiness"],
+    typical_inputs: ["creative_text", "channel", "brand_profile_id"],
+    output: "analysis"
+  }
+];
+
+var CREATIVE_PRESETS: any[] = [
+  {
+    id: "product-photoshoot",
+    media_type: "image",
+    description: "Studio and lifestyle product stills with clear pack-shot, use-context, and detail variants.",
+    default_outputs: ["pack shot", "lifestyle scene", "detail macro", "hero banner"],
+    prompt_frame: "Show the product clearly, preserve brand colors, make the purchase benefit obvious, and avoid fake labels or claims."
+  },
+  {
+    id: "marketplace-cards",
+    media_type: "image",
+    description: "E-commerce marketplace card set for hero image, feature proof, comparison, and social proof.",
+    default_outputs: ["hero card", "feature card", "comparison card", "proof card"],
+    prompt_frame: "Use scannable hierarchy, large product signal, restrained copy areas, and platform-safe composition."
+  },
+  {
+    id: "ugc-ad",
+    media_type: "video",
+    description: "Short-form user-generated-style ad with hook, proof, product moment, and call to action.",
+    default_outputs: ["hook variant", "problem-solution variant", "testimonial variant"],
+    prompt_frame: "Start with a concrete pain or surprising outcome, show the product early, and keep scenes short."
+  },
+  {
+    id: "tv-spot",
+    media_type: "video",
+    description: "Polished brand spot with cinematic pacing, product benefit, and memorable closing frame.",
+    default_outputs: ["15-second spot", "30-second spot", "end card"],
+    prompt_frame: "Use a clean narrative arc: context, tension, reveal, benefit, brand lockup."
+  },
+  {
+    id: "cinematic-reveal",
+    media_type: "video",
+    description: "Premium product or logo reveal with controlled camera language and motion direction.",
+    default_outputs: ["wide reveal", "detail reveal", "closing pack shot"],
+    prompt_frame: "Specify camera move, material behavior, lighting, and final locked composition."
+  },
+  {
+    id: "social-pack",
+    media_type: "campaign",
+    description: "Cross-channel launch pack for LinkedIn, X, TikTok/Reels, YouTube Shorts, and blog/OG imagery.",
+    default_outputs: ["blog hero", "OG card", "short video", "launch post visual", "retargeting ad"],
+    prompt_frame: "Keep one campaign idea consistent while adapting format, pacing, and crop for each channel."
+  },
+  {
+    id: "storyboard",
+    media_type: "image",
+    description: "Sequential storyboard frames for a short video, ad, or product walkthrough.",
+    default_outputs: ["establishing frame", "problem frame", "product frame", "proof frame", "CTA frame"],
+    prompt_frame: "Each frame must communicate one beat and preserve visual continuity across the sequence."
+  },
+  {
+    id: "infographic",
+    media_type: "image",
+    description: "Visual data or explainable concept graphic for reports, posts, and product education.",
+    default_outputs: ["data hero", "process diagram", "comparison graphic"],
+    prompt_frame: "Make the information hierarchy legible first; decoration must support comprehension."
+  }
+];
+
+function creativeKindDir(kind: string): string {
+  var dir = join(CREATIVE_HOME, kind);
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function safeRecordId(id: string): string {
+  return id.toLowerCase().trim().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "record";
+}
+
+function makeRecordId(prefix: string, name?: string): string {
+  var stamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+  var rand = Math.random().toString(36).slice(2, 8);
+  var base = name ? "-" + safeRecordId(name).slice(0, 36) : "";
+  return safeRecordId(prefix + "-" + stamp + base + "-" + rand);
+}
+
+function recordPath(kind: string, id: string): string {
+  return join(creativeKindDir(kind), safeRecordId(id) + ".json");
+}
+
+function writeCreativeRecord(kind: string, record: any): any {
+  var id = safeRecordId(record.id || makeRecordId(kind));
+  var now = new Date().toISOString();
+  var existing = readCreativeRecord(kind, id, true);
+  var saved = {
+    ...record,
+    id: id,
+    created_at: record.created_at || (existing && existing.created_at) || now,
+    updated_at: now
+  };
+  writeFileSync(recordPath(kind, id), JSON.stringify(saved, null, 2) + "\n", "utf-8");
+  return saved;
+}
+
+function readCreativeRecord(kind: string, id: string, optional?: boolean): any {
+  var path = recordPath(kind, id);
+  if (!fsExists(path)) {
+    if (optional) return null;
+    throw new Error(kind + " record '" + id + "' not found");
+  }
+  return JSON.parse(fsReadFile(path, "utf-8"));
+}
+
+function listCreativeRecords(kind: string): any[] {
+  var dir = creativeKindDir(kind);
+  var files = readdirSync(dir).filter(function (f) { return f.endsWith(".json"); }).sort();
+  var out: any[] = [];
+  for (var file of files) {
+    try {
+      out.push(JSON.parse(fsReadFile(join(dir, file), "utf-8")));
+    } catch (_err) {
+      // Skip one corrupt local record; do not block the rest of the local library.
+    }
+  }
+  return out;
+}
+
+function summarizeCreativeRecord(r: any): any {
+  return {
+    id: r.id,
+    name: r.name,
+    type: r.type || r.media_type || r.status,
+    updated_at: r.updated_at,
+    tags: r.tags
+  };
+}
+
+function getCreativePreset(id?: string): any | null {
+  if (!id) return null;
+  var safe = safeRecordId(id);
+  return CREATIVE_PRESETS.find(function (p) { return p.id === safe; }) || null;
+}
+
+function getCreativeModel(id?: string): any | null {
+  if (!id) return null;
+  var safe = safeRecordId(id);
+  return CREATIVE_MODEL_CATALOG.find(function (m) { return m.id === safe; }) || null;
+}
+
+function loadOptionalCreativeRefs(kind: string, ids?: string[]): any[] {
+  if (!ids || ids.length === 0) return [];
+  var out: any[] = [];
+  for (var id of ids) {
+    var rec = readCreativeRecord(kind, id, true);
+    if (rec) out.push(rec);
+  }
+  return out;
+}
+
+function buildCreativePrompt(params: any, brand: any, character: any, preset: any): string {
+  var parts: string[] = [];
+  if (preset && preset.prompt_frame) parts.push("Preset guidance: " + preset.prompt_frame);
+  parts.push("Creative request: " + params.prompt);
+  if (params.objective) parts.push("Objective: " + params.objective);
+  if (brand) {
+    parts.push("Brand: " + brand.name);
+    if (brand.tone) parts.push("Tone: " + brand.tone);
+    if (brand.audience) parts.push("Audience: " + brand.audience);
+    if (Array.isArray(brand.colors) && brand.colors.length) parts.push("Brand colors: " + brand.colors.join(", "));
+    if (Array.isArray(brand.fonts) && brand.fonts.length) parts.push("Fonts: " + brand.fonts.join(", "));
+    if (Array.isArray(brand.constraints) && brand.constraints.length) parts.push("Brand constraints: " + brand.constraints.join("; "));
+  }
+  if (character) {
+    parts.push("Character profile: " + character.name);
+    if (character.description) parts.push("Character description: " + character.description);
+    if (character.consistency_notes) parts.push("Consistency notes: " + character.consistency_notes);
+  }
+  if (params.channel) parts.push("Channel: " + params.channel);
+  if (params.aspect_ratio) parts.push("Aspect ratio: " + params.aspect_ratio);
+  if (params.duration_seconds) parts.push("Duration: " + params.duration_seconds + " seconds");
+  return parts.join("\n");
+}
+
+function buildGenerationPayload(params: any): any {
+  var brand = params.brand_profile_id ? readCreativeRecord("brands", params.brand_profile_id, true) : null;
+  var character = params.character_profile_id ? readCreativeRecord("characters", params.character_profile_id, true) : null;
+  var assets = loadOptionalCreativeRefs("assets", params.reference_asset_ids);
+  var preset = getCreativePreset(params.preset);
+  var model = getCreativeModel(params.model);
+  var requestedModel = params.model || (preset ? "raven-" + preset.media_type : "raven-image-fast");
+
+  return {
+    media_type: params.media_type,
+    model: model ? model.id : requestedModel,
+    provider: params.provider || "configured-runner",
+    preset: preset ? preset.id : params.preset || null,
+    prompt: buildCreativePrompt(params, brand, character, preset),
+    raw_prompt: params.prompt,
+    objective: params.objective || null,
+    brand_profile: brand ? { id: brand.id, name: brand.name, colors: brand.colors, fonts: brand.fonts, tone: brand.tone } : null,
+    character_profile: character ? { id: character.id, name: character.name, reference_asset_ids: character.reference_asset_ids } : null,
+    references: assets.map(function (a) { return { id: a.id, name: a.name, type: a.type, uri: a.uri, tags: a.tags || [] }; }),
+    parameters: {
+      aspect_ratio: params.aspect_ratio || null,
+      duration_seconds: params.duration_seconds || null,
+      output_count: params.output_count || 1,
+      quality: params.quality || "standard",
+      channel: params.channel || null
+    }
+  };
+}
+
+function runCreativeRunner(job: any): any {
+  var runner = process.env.RAVEN_CREATIVE_RUNNER;
+  if (!runner) {
+    return {
+      status: "needs_runner",
+      runner_configured: false,
+      message: "Set RAVEN_CREATIVE_RUNNER to an executable that reads a job JSON object from stdin and returns JSON on stdout."
+    };
+  }
+  var timeoutMs = parseInt(process.env.RAVEN_CREATIVE_RUNNER_TIMEOUT_MS || "300000", 10);
+  var result = spawnSync(runner, [], {
+    input: JSON.stringify(job, null, 2),
+    encoding: "utf-8",
+    timeout: timeoutMs,
+    maxBuffer: 10 * 1024 * 1024,
+    env: process.env
+  });
+  if (result.error) {
+    return { status: "failed", runner_configured: true, error: result.error.message };
+  }
+  if (result.status !== 0) {
+    return {
+      status: "failed",
+      runner_configured: true,
+      exit_code: result.status,
+      stderr: safeStr(result.stderr, 2000)
+    };
+  }
+  var stdout = (result.stdout || "").trim();
+  if (!stdout) {
+    return { status: "submitted", runner_configured: true, result: null };
+  }
+  try {
+    var parsed = JSON.parse(stdout);
+    return { status: parsed.status || "submitted", runner_configured: true, result: parsed };
+  } catch (_err) {
+    return { status: "submitted", runner_configured: true, result_text: safeStr(stdout, 4000) };
+  }
+}
+
+function channelFormats(channels: string[]): string[] {
+  var formats: string[] = [];
+  for (var channel of channels) {
+    var c = channel.toLowerCase();
+    if (c.includes("tik") || c.includes("reel") || c.includes("short") || c.includes("youtube")) formats.push("ugc-ad");
+    if (c.includes("meta") || c.includes("facebook") || c.includes("instagram")) formats.push("social-pack");
+    if (c.includes("shop") || c.includes("amazon") || c.includes("marketplace")) formats.push("marketplace-cards");
+    if (c.includes("web") || c.includes("site") || c.includes("blog")) formats.push("product-photoshoot");
+    if (c.includes("tv") || c.includes("brand")) formats.push("tv-spot");
+  }
+  if (formats.length === 0) formats = ["product-photoshoot", "ugc-ad", "marketplace-cards"];
+  return Array.from(new Set(formats)).slice(0, 8);
+}
+
+function scoreCreativeText(text: string, channel?: string, brand?: any, audience?: string): any {
+  var lower = text.toLowerCase();
+  var words = text.trim().split(/\s+/).filter(Boolean);
+  var score = 40;
+  var components: any[] = [];
+
+  function add(name: string, points: number, passed: boolean, note: string) {
+    if (passed) score += points;
+    components.push({ name: name, points: passed ? points : 0, max: points, passed: passed, note: note });
+  }
+
+  add("hook clarity", 15, words.length > 0 && words.slice(0, 18).join(" ").length < 140 && /you|your|why|how|stop|before|after|without|finally|new|mistake|problem/.test(lower), "Lead with a concrete viewer-facing hook.");
+  add("specific benefit", 15, /\d|faster|save|reduce|increase|without|from|to|because|so that|for /.test(lower), "Make the benefit measurable or concrete.");
+  add("product signal", 10, /product|app|tool|service|brand|feature|demo|show|use/.test(lower), "Show what is being sold or explained early.");
+  add("action", 10, /try|buy|sign up|download|watch|learn|book|start|get|join|visit/.test(lower), "Include a clear next action.");
+  add("channel fit", 10, !channel || (channel.toLowerCase().includes("tik") ? words.length <= 120 : true), "Match length and pacing to the channel.");
+  add("audience fit", 10, !audience || lower.includes(audience.toLowerCase().split(/\s+/)[0]), "Name or imply the audience directly.");
+  add("brand fit", 10, !brand || !brand.tone || lower.includes(String(brand.tone).toLowerCase().split(/\s+/)[0]), "Use the saved brand voice cues.");
+
+  score = Math.max(0, Math.min(100, score));
+  return {
+    score: score,
+    grade: score >= 85 ? "A" : score >= 72 ? "B" : score >= 60 ? "C" : "D",
+    components: components,
+    recommendations: components.filter(function (c) { return !c.passed; }).map(function (c) { return c.note; }).slice(0, 5)
+  };
 }
 
 // ── Daily digest ────────────────────────────────────────────────────
@@ -3928,6 +4333,397 @@ server.tool(
   async () => {
     var trends = loadBrandTrends();
     return { content: [{ type: "text" as const, text: JSON.stringify({ count: trends.length, trends: trends }, null, 2) }] };
+  }
+);
+
+// ── Creative studio tools ───────────────────────────────────────────
+
+server.tool(
+  "list_creative_models",
+  "Browse Raven's provider-agnostic creative model catalog. These are capability slots for image, video, 3D, audio, character consistency, and creative analysis. Use a configured RAVEN_CREATIVE_RUNNER to route jobs to any local CLI or API wrapper.",
+  {
+    media_type: z.enum(["image", "video", "audio", "3d", "campaign", "analysis"]).optional().describe("Filter by media type."),
+    capability: z.string().optional().describe("Filter by capability, e.g. product-photoshoot, text-to-video, brand-kit, ugc-ad.")
+  },
+  async function (params: { media_type?: string; capability?: string }) {
+    var models = CREATIVE_MODEL_CATALOG.slice();
+    if (params.media_type) models = models.filter(function (m) { return m.media_type === params.media_type; });
+    if (params.capability) {
+      var q = params.capability.toLowerCase();
+      models = models.filter(function (m) {
+        return (m.capabilities || []).some(function (c: string) { return c.toLowerCase().includes(q); }) ||
+          (m.best_for || []).some(function (b: string) { return b.toLowerCase().includes(q); });
+      });
+    }
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({
+          count: models.length,
+          models: models,
+          execution: {
+            default: "draft payload only",
+            runner_env: "RAVEN_CREATIVE_RUNNER",
+            runner_contract: "Executable reads one job JSON object from stdin and returns JSON on stdout."
+          }
+        }, null, 2)
+      }]
+    };
+  }
+);
+
+server.tool(
+  "list_creative_presets",
+  "Browse Raven creative presets for product photoshoots, marketplace cards, UGC ads, TV spots, cinematic reveals, social launch packs, storyboards, and infographics.",
+  {
+    media_type: z.enum(["image", "video", "campaign"]).optional().describe("Filter presets by media type."),
+    search: z.string().optional().describe("Search preset name or description.")
+  },
+  async function (params: { media_type?: string; search?: string }) {
+    var presets = CREATIVE_PRESETS.slice();
+    if (params.media_type) presets = presets.filter(function (p) { return p.media_type === params.media_type; });
+    if (params.search) {
+      var q = params.search.toLowerCase();
+      presets = presets.filter(function (p) { return (p.id + " " + p.description + " " + p.prompt_frame).toLowerCase().includes(q); });
+    }
+    return { content: [{ type: "text" as const, text: JSON.stringify({ count: presets.length, presets: presets }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "create_brand_profile",
+  "Create or update a local brand profile used by Raven creative jobs. Stores colors, fonts, tone, audience, constraints, product notes, and asset references locally under ~/.raven/creative by default.",
+  {
+    name: z.string().describe("Brand or project name."),
+    id: z.string().optional().describe("Optional stable ID. If omitted, Raven creates one from the name."),
+    description: z.string().optional().describe("What the brand/product is."),
+    colors: z.array(z.string()).optional().describe("Brand colors, preferably hex or token names."),
+    fonts: z.array(z.string()).optional().describe("Brand fonts or type guidance."),
+    tone: z.string().optional().describe("Voice and tone guidance."),
+    audience: z.string().optional().describe("Primary audience/customer."),
+    product: z.string().optional().describe("Product or offer notes."),
+    constraints: z.array(z.string()).optional().describe("Rules to honor: no claims, legal notes, visual constraints."),
+    asset_ids: z.array(z.string()).optional().describe("Existing Raven creative asset IDs tied to this brand.")
+  },
+  async function (params: any) {
+    var id = params.id ? safeRecordId(params.id) : safeRecordId(params.name);
+    var record = writeCreativeRecord("brands", {
+      id: id,
+      name: params.name,
+      description: params.description || "",
+      colors: params.colors || [],
+      fonts: params.fonts || [],
+      tone: params.tone || "",
+      audience: params.audience || "",
+      product: params.product || "",
+      constraints: params.constraints || [],
+      asset_ids: params.asset_ids || []
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify({ brand_profile: record, storage: recordPath("brands", record.id) }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "get_brand_profile",
+  "Read a local Raven creative brand profile by ID.",
+  {
+    id: z.string().describe("Brand profile ID.")
+  },
+  async function (params: { id: string }) {
+    var record = readCreativeRecord("brands", params.id, true);
+    if (!record) {
+      return { content: [{ type: "text" as const, text: JSON.stringify({ error: "Brand profile not found", id: params.id }, null, 2) }] };
+    }
+    return { content: [{ type: "text" as const, text: JSON.stringify(record, null, 2) }] };
+  }
+);
+
+server.tool(
+  "list_brand_profiles",
+  "List local Raven creative brand profiles.",
+  {},
+  async function () {
+    var brands = listCreativeRecords("brands");
+    return { content: [{ type: "text" as const, text: JSON.stringify({ count: brands.length, brands: brands.map(summarizeCreativeRecord) }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "register_creative_asset",
+  "Register a local or remote creative asset for Raven jobs. This is the local-first analog of upload: Raven stores metadata and a URI/path, not the file bytes.",
+  {
+    uri: z.string().describe("Local path or URL to the asset."),
+    type: z.enum(["image", "video", "audio", "document", "3d", "url", "other"]).describe("Asset type."),
+    name: z.string().optional().describe("Human-readable name."),
+    description: z.string().optional().describe("What this asset should be used for."),
+    tags: z.array(z.string()).optional().describe("Search tags."),
+    metadata: z.record(z.any()).optional().describe("Optional non-secret metadata.")
+  },
+  async function (params: any) {
+    var isUrl = /^https?:\/\//i.test(params.uri);
+    var warnings: string[] = [];
+    if (!isUrl && !fsExists(params.uri)) {
+      warnings.push("Local path does not exist on this machine right now; record saved as a reference only.");
+    }
+    var record = writeCreativeRecord("assets", {
+      id: makeRecordId("asset", params.name || params.type),
+      name: params.name || params.uri.split("/").pop() || params.type,
+      uri: params.uri,
+      type: params.type,
+      description: params.description || "",
+      tags: params.tags || [],
+      metadata: params.metadata || {},
+      warnings: warnings
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify({ asset: record, storage: recordPath("assets", record.id) }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "create_character_profile",
+  "Create a local character/identity reference profile for consistent image or video generation. Raven stores reference asset IDs and provider-training payloads; actual identity training happens only through a configured provider runner.",
+  {
+    name: z.string().describe("Character, spokesperson, founder, avatar, or product persona name."),
+    reference_asset_ids: z.array(z.string()).min(1).describe("Raven creative asset IDs for reference images/videos."),
+    id: z.string().optional().describe("Optional stable ID."),
+    description: z.string().optional().describe("Visual/personality description."),
+    consistency_notes: z.string().optional().describe("What must stay consistent across generations."),
+    provider_training_id: z.string().optional().describe("External provider training/character ID if already trained."),
+    metadata: z.record(z.any()).optional().describe("Optional non-secret metadata.")
+  },
+  async function (params: any) {
+    var refs = loadOptionalCreativeRefs("assets", params.reference_asset_ids);
+    var missing = params.reference_asset_ids.filter(function (id: string) {
+      return !refs.some(function (r) { return r.id === safeRecordId(id); });
+    });
+    var id = params.id ? safeRecordId(params.id) : makeRecordId("character", params.name);
+    var record = writeCreativeRecord("characters", {
+      id: id,
+      name: params.name,
+      reference_asset_ids: params.reference_asset_ids.map(safeRecordId),
+      description: params.description || "",
+      consistency_notes: params.consistency_notes || "",
+      provider_training_id: params.provider_training_id || null,
+      status: params.provider_training_id ? "trained_external" : "reference_set_ready",
+      missing_reference_asset_ids: missing,
+      metadata: params.metadata || {},
+      training_payload: {
+        name: params.name,
+        reference_assets: refs.map(function (r) { return { id: r.id, uri: r.uri, type: r.type }; }),
+        description: params.description || "",
+        consistency_notes: params.consistency_notes || ""
+      }
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify({ character_profile: record, storage: recordPath("characters", record.id) }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "create_generation_job",
+  "Create a Raven creative generation job for image, video, 3D, audio, campaign, or analysis. Returns a brand-aware provider payload. If execute=true and RAVEN_CREATIVE_RUNNER is configured, Raven submits the job to that local runner.",
+  {
+    media_type: z.enum(["image", "video", "audio", "3d", "campaign", "analysis"]).describe("Output type."),
+    prompt: z.string().describe("Creative request."),
+    objective: z.string().optional().describe("Business or audience goal."),
+    model: z.string().optional().describe("Raven model slot or external provider model ID."),
+    provider: z.string().optional().describe("Provider label for the downstream runner."),
+    preset: z.string().optional().describe("Preset ID from list_creative_presets."),
+    brand_profile_id: z.string().optional().describe("Local Raven brand profile ID."),
+    character_profile_id: z.string().optional().describe("Local Raven character profile ID."),
+    reference_asset_ids: z.array(z.string()).optional().describe("Local Raven creative asset IDs."),
+    aspect_ratio: z.string().optional().describe("Target aspect ratio, e.g. 1:1, 16:9, 9:16."),
+    duration_seconds: z.number().positive().max(600).optional().describe("Video/audio duration."),
+    output_count: z.number().int().min(1).max(100).optional().describe("Number of variants to request."),
+    quality: z.enum(["draft", "standard", "high", "4k"]).optional().describe("Requested quality tier."),
+    channel: z.string().optional().describe("Target channel, e.g. TikTok, YouTube Shorts, blog, marketplace."),
+    execute: z.boolean().optional().describe("Submit through RAVEN_CREATIVE_RUNNER now. Default false.")
+  },
+  async function (params: any) {
+    var payload = buildGenerationPayload(params);
+    var job = writeCreativeRecord("jobs", {
+      id: makeRecordId("job", params.media_type),
+      status: params.execute ? "submitting" : "draft",
+      media_type: params.media_type,
+      prompt: params.prompt,
+      objective: params.objective || "",
+      model: payload.model,
+      provider: payload.provider,
+      preset: payload.preset,
+      brand_profile_id: params.brand_profile_id ? safeRecordId(params.brand_profile_id) : null,
+      character_profile_id: params.character_profile_id ? safeRecordId(params.character_profile_id) : null,
+      reference_asset_ids: (params.reference_asset_ids || []).map(safeRecordId),
+      provider_payload: payload,
+      outputs: []
+    });
+    if (params.execute) {
+      var runnerResult = runCreativeRunner(job);
+      job.status = runnerResult.status;
+      job.runner = runnerResult;
+      if (runnerResult.result && Array.isArray(runnerResult.result.outputs)) job.outputs = runnerResult.result.outputs;
+      job = writeCreativeRecord("jobs", job);
+    }
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({
+          job: job,
+          next_step: job.status === "draft"
+            ? "Review provider_payload or call create_generation_job with execute=true after configuring RAVEN_CREATIVE_RUNNER."
+            : "Check get_generation_job for status and outputs."
+        }, null, 2)
+      }]
+    };
+  }
+);
+
+server.tool(
+  "get_generation_job",
+  "Read a Raven creative generation job by ID.",
+  {
+    id: z.string().describe("Generation job ID.")
+  },
+  async function (params: { id: string }) {
+    var job = readCreativeRecord("jobs", params.id, true);
+    if (!job) return { content: [{ type: "text" as const, text: JSON.stringify({ error: "Generation job not found", id: params.id }, null, 2) }] };
+    return { content: [{ type: "text" as const, text: JSON.stringify(job, null, 2) }] };
+  }
+);
+
+server.tool(
+  "list_generation_jobs",
+  "List local Raven creative generation jobs.",
+  {
+    status: z.string().optional().describe("Filter by status: draft, needs_runner, submitted, completed, failed."),
+    media_type: z.enum(["image", "video", "audio", "3d", "campaign", "analysis"]).optional().describe("Filter by media type."),
+    limit: z.number().int().min(1).max(100).optional().describe("Max jobs to return. Default 25.")
+  },
+  async function (params: { status?: string; media_type?: string; limit?: number }) {
+    var jobs = listCreativeRecords("jobs").sort(function (a, b) { return String(b.updated_at).localeCompare(String(a.updated_at)); });
+    if (params.status) jobs = jobs.filter(function (j) { return j.status === params.status; });
+    if (params.media_type) jobs = jobs.filter(function (j) { return j.media_type === params.media_type; });
+    jobs = jobs.slice(0, params.limit || 25);
+    return { content: [{ type: "text" as const, text: JSON.stringify({ count: jobs.length, jobs: jobs.map(summarizeCreativeRecord) }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "plan_creative_campaign",
+  "Plan a multi-asset creative campaign and optionally create draft generation jobs. Covers Higgsfield-like workflows: product photos, UGC/video ads, marketplace cards, launch/social packs, storyboards, and channel cutdowns.",
+  {
+    campaign_name: z.string().describe("Campaign name."),
+    product_or_offer: z.string().describe("Product, service, feature, or offer."),
+    audience: z.string().describe("Target audience."),
+    goal: z.enum(["awareness", "conversion", "retention", "launch", "research", "sales"]).describe("Primary campaign goal."),
+    channels: z.array(z.string()).min(1).describe("Target channels: TikTok, Reels, YouTube Shorts, web, marketplace, LinkedIn, etc."),
+    brand_profile_id: z.string().optional().describe("Local Raven brand profile ID."),
+    source_asset_ids: z.array(z.string()).optional().describe("Raven creative asset IDs to use as source/reference."),
+    formats: z.array(z.string()).optional().describe("Preset IDs to force. Defaults inferred from channels."),
+    variants_per_format: z.number().int().min(1).max(5).optional().describe("How many draft job variants per format. Default 2."),
+    create_jobs: z.boolean().optional().describe("Create draft generation jobs. Default true.")
+  },
+  async function (params: any) {
+    var formats = params.formats && params.formats.length ? params.formats.map(safeRecordId) : channelFormats(params.channels);
+    var variants = params.variants_per_format || 2;
+    var createJobs = params.create_jobs !== false;
+    var brand = params.brand_profile_id ? readCreativeRecord("brands", params.brand_profile_id, true) : null;
+    var jobs: any[] = [];
+    var shotList: any[] = [];
+
+    for (var format of formats) {
+      var preset = getCreativePreset(format) || { id: format, media_type: "image", default_outputs: ["variant"], prompt_frame: "" };
+      var outputs = (preset.default_outputs || ["variant"]).slice(0, variants);
+      for (var i = 0; i < outputs.length; i++) {
+        var beat = outputs[i];
+        var prompt = params.product_or_offer + " for " + params.audience + ". Format: " + preset.id + ". Variant: " + beat + ". Goal: " + params.goal + ".";
+        var mediaType = preset.media_type === "campaign" ? "image" : preset.media_type;
+        var jobParams = {
+          media_type: mediaType,
+          prompt: prompt,
+          objective: params.goal,
+          preset: preset.id,
+          brand_profile_id: params.brand_profile_id,
+          reference_asset_ids: params.source_asset_ids || [],
+          channel: params.channels.join(", "),
+          output_count: 1,
+          quality: "standard"
+        };
+        var payload = buildGenerationPayload(jobParams);
+        var planned = {
+          format: preset.id,
+          variant: beat,
+          media_type: mediaType,
+          prompt: prompt,
+          provider_payload: payload
+        };
+        shotList.push(planned);
+        if (createJobs) {
+          var saved = writeCreativeRecord("jobs", {
+            id: makeRecordId("job", preset.id),
+            status: "draft",
+            media_type: mediaType,
+            prompt: prompt,
+            objective: params.goal,
+            model: payload.model,
+            provider: payload.provider,
+            preset: preset.id,
+            brand_profile_id: params.brand_profile_id ? safeRecordId(params.brand_profile_id) : null,
+            character_profile_id: null,
+            reference_asset_ids: (params.source_asset_ids || []).map(safeRecordId),
+            provider_payload: payload,
+            outputs: []
+          });
+          jobs.push(summarizeCreativeRecord(saved));
+        }
+      }
+    }
+
+    var campaign = writeCreativeRecord("campaigns", {
+      id: makeRecordId("campaign", params.campaign_name),
+      name: params.campaign_name,
+      product_or_offer: params.product_or_offer,
+      audience: params.audience,
+      goal: params.goal,
+      channels: params.channels,
+      brand_profile_id: params.brand_profile_id ? safeRecordId(params.brand_profile_id) : null,
+      brand_snapshot: brand ? { name: brand.name, tone: brand.tone, colors: brand.colors } : null,
+      formats: formats,
+      source_asset_ids: (params.source_asset_ids || []).map(safeRecordId),
+      shot_list: shotList,
+      job_ids: jobs.map(function (j) { return j.id; })
+    });
+
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({
+          campaign: campaign,
+          jobs_created: jobs,
+          coverage: {
+            product_photos: formats.includes("product-photoshoot") || formats.includes("marketplace-cards"),
+            short_video_ads: formats.includes("ugc-ad") || formats.includes("tv-spot") || formats.includes("cinematic-reveal"),
+            social_launch_pack: formats.includes("social-pack"),
+            brand_aware: !!brand
+          }
+        }, null, 2)
+      }]
+    };
+  }
+);
+
+server.tool(
+  "score_creative",
+  "Score a creative prompt, script, or ad concept for hook strength, benefit clarity, product signal, call-to-action, channel fit, audience fit, and brand fit. This is a transparent heuristic, not a proprietary prediction model.",
+  {
+    creative_text: z.string().describe("Prompt, script, ad copy, or creative concept to score."),
+    channel: z.string().optional().describe("Target channel."),
+    brand_profile_id: z.string().optional().describe("Local Raven brand profile ID."),
+    audience: z.string().optional().describe("Target audience if not in a brand profile.")
+  },
+  async function (params: any) {
+    var brand = params.brand_profile_id ? readCreativeRecord("brands", params.brand_profile_id, true) : null;
+    var audience = params.audience || (brand && brand.audience) || "";
+    var result = scoreCreativeText(params.creative_text, params.channel, brand, audience);
+    return { content: [{ type: "text" as const, text: JSON.stringify({ ...result, channel: params.channel || null, audience: audience || null, brand_profile_id: brand ? brand.id : null }, null, 2) }] };
   }
 );
 
