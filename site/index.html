@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#1a1a22">
-  <title>RavenMCP — Design Intelligence + Creative Studio MCP for Claude · Open Source</title>
-  <meta name="description" content="RavenMCP gives AI design intelligence and local-first creative orchestration: principles, patterns, audits, tokens, brand profiles, assets, generation jobs, campaign plans, and creative scoring.">
+  <title>RavenMCP — Design Intelligence MCP for Claude · Open Source</title>
+  <meta name="description" content="Odin's ravens brought back knowledge of the world. RavenMCP brings back design intelligence. A design knowledge MCP server for Claude.">
 
   <!-- Favicon & Icons -->
   <link rel="icon" href="/favicon.ico" sizes="32x32">
@@ -14,7 +14,7 @@
   <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:title" content="RavenMCP — Design Intelligence for AI">
-  <meta property="og:description" content="129 design principles · 22 UI patterns · 44 tools · 12 design systems · web, iOS, Android & React Native audits · content voice guides · research methods · service blueprints · creative studio orchestration.">
+  <meta property="og:description" content="129 design principles · 22 UI patterns · 32 tools · 12 design systems · web, iOS, Android & React Native audits · content voice guides · research methods · service blueprints. One install for design-literate AI.">
   <meta property="og:image" content="https://ravenmcp.ai/assets/og-image.jpg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -25,7 +25,7 @@
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="RavenMCP — Design Intelligence for AI">
-  <meta name="twitter:description" content="129 principles · 22 patterns · 44 tools · 12 design systems · audits · content voice · research · service blueprints · local-first creative studio orchestration.">
+  <meta name="twitter:description" content="129 principles · 22 patterns · 32 tools · 12 design systems · web, iOS, Android & React Native audits · content voice · research · service blueprints. Design intelligence for AI, in one install.">
   <meta name="twitter:image" content="https://ravenmcp.ai/assets/og-image.jpg">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1217,325 +1217,6 @@
     }
 
     /* ══════════════════════════════════════════
-       PRODUCT PROOF
-       ══════════════════════════════════════════ */
-
-    .proof-section {
-      position: relative;
-      padding: clamp(48px, 6vw, 80px) 0;
-      overflow: hidden;
-      scroll-margin-top: calc(var(--nav-height) + 32px);
-    }
-
-    .proof-section::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background:
-        radial-gradient(ellipse at 18% 18%, rgba(0, 191, 255, 0.12) 0%, transparent 36%),
-        radial-gradient(ellipse at 78% 54%, rgba(255, 171, 64, 0.08) 0%, transparent 34%),
-        linear-gradient(180deg, rgba(255,255,255,0.015), transparent 44%);
-      pointer-events: none;
-    }
-
-    .proof-section .container {
-      position: relative;
-    }
-
-    .proof-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.32fr) minmax(280px, 0.68fr);
-      gap: var(--space-5);
-      align-items: stretch;
-    }
-
-    .proof-card {
-      position: relative;
-      overflow: hidden;
-      background: var(--bg-surface);
-      border: 1px solid var(--border-strong);
-      border-radius: var(--radius-lg);
-      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.38);
-    }
-
-    .proof-card.featured {
-      grid-row: span 2;
-    }
-
-    .proof-media {
-      aspect-ratio: 16 / 9;
-      overflow: hidden;
-      background: var(--bg-alt);
-    }
-
-    .proof-card.featured .proof-media {
-      aspect-ratio: 16 / 10;
-    }
-
-    .proof-media img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      object-position: top center;
-      filter: saturate(0.86) contrast(1.04);
-      transform: scale(1.001);
-    }
-
-    .proof-caption {
-      padding: var(--space-5);
-      border-top: 1px solid var(--border);
-      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.005));
-    }
-
-    .proof-kicker {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--accent-cyan);
-      margin-bottom: var(--space-2);
-    }
-
-    .proof-caption h3 {
-      font-size: clamp(20px, 2.4vw, 30px);
-      letter-spacing: -0.02em;
-      margin-bottom: var(--space-2);
-    }
-
-    .proof-caption p {
-      font-size: 16px;
-      line-height: 1.55;
-      color: var(--text-secondary);
-    }
-
-    .proof-strip {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: var(--space-4);
-      margin-top: var(--space-5);
-    }
-
-    .proof-thumb {
-      overflow: hidden;
-      background: var(--bg-surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-    }
-
-    .proof-thumb img {
-      width: 100%;
-      aspect-ratio: 16 / 10;
-      object-fit: cover;
-      object-position: top center;
-      filter: saturate(0.8) contrast(1.05);
-    }
-
-    .proof-thumb span {
-      display: block;
-      padding: var(--space-3) var(--space-4);
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-primary);
-      border-top: 1px solid var(--border);
-    }
-
-    /* ══════════════════════════════════════════
-       CREATIVE STUDIO
-       ══════════════════════════════════════════ */
-
-    .creative-section {
-      position: relative;
-      padding: clamp(48px, 6vw, 80px) 0;
-      background: var(--bg-alt);
-      overflow: hidden;
-      scroll-margin-top: calc(var(--nav-height) + 32px);
-    }
-
-    .creative-section::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background:
-        radial-gradient(ellipse at 14% 20%, rgba(255, 64, 129, 0.08) 0%, transparent 36%),
-        radial-gradient(ellipse at 84% 70%, rgba(0, 230, 118, 0.08) 0%, transparent 38%);
-      pointer-events: none;
-    }
-
-    .creative-section .container {
-      position: relative;
-    }
-
-    .creative-layout {
-      display: grid;
-      grid-template-columns: minmax(280px, 0.82fr) minmax(0, 1.18fr);
-      gap: var(--space-8);
-      align-items: start;
-    }
-
-    .creative-copy h2 {
-      margin: var(--space-3) 0 var(--space-4);
-    }
-
-    .creative-copy p {
-      font-size: 18px;
-      line-height: 1.65;
-      color: var(--text-secondary);
-      margin-bottom: var(--space-5);
-    }
-
-    .creative-stats {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: var(--space-3);
-      margin-top: var(--space-6);
-    }
-
-    .creative-stat {
-      padding: var(--space-4);
-      background: rgba(255,255,255,0.03);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-    }
-
-    .creative-stat strong {
-      display: block;
-      font-size: 24px;
-      line-height: 1;
-      color: var(--text-primary);
-      margin-bottom: var(--space-2);
-    }
-
-    .creative-stat span {
-      display: block;
-      font-size: 12px;
-      line-height: 1.4;
-      color: var(--text-tertiary);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
-    .creative-flow {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: var(--space-4);
-    }
-
-    .creative-step {
-      min-height: 190px;
-      padding: var(--space-5);
-      background: var(--bg-surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .creative-step::after {
-      content: "";
-      position: absolute;
-      inset: auto -40px -80px auto;
-      width: 160px;
-      height: 160px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(0,191,255,0.08), transparent 68%);
-      pointer-events: none;
-    }
-
-    .creative-step:nth-child(2)::after { background: radial-gradient(circle, rgba(255,171,64,0.1), transparent 68%); }
-    .creative-step:nth-child(3)::after { background: radial-gradient(circle, rgba(255,64,129,0.09), transparent 68%); }
-    .creative-step:nth-child(4)::after { background: radial-gradient(circle, rgba(0,230,118,0.09), transparent 68%); }
-
-    .creative-chip {
-      display: inline-flex;
-      align-items: center;
-      min-height: 28px;
-      padding: 4px 10px;
-      margin-bottom: var(--space-4);
-      border-radius: var(--radius-full);
-      background: rgba(0, 191, 255, 0.08);
-      border: 1px solid rgba(0, 191, 255, 0.18);
-      color: var(--accent-cyan);
-      font-family: var(--font-mono);
-      font-size: 12px;
-    }
-
-    .creative-step h3 {
-      margin-bottom: var(--space-2);
-    }
-
-    .creative-step p {
-      font-size: 15px;
-      line-height: 1.55;
-      color: var(--text-secondary);
-    }
-
-    .creative-terminal {
-      margin-top: var(--space-6);
-      padding: var(--space-5);
-      background: #101018;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: var(--radius-md);
-      font-family: var(--font-mono);
-      font-size: 13px;
-      line-height: 1.8;
-      color: var(--text-secondary);
-      overflow-x: auto;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
-    }
-
-    .creative-terminal .term-accent { color: var(--accent-cyan); }
-    .creative-terminal .term-ok { color: var(--accent-green); }
-    .creative-terminal .term-warn { color: var(--accent-orange); }
-
-    .mini-creative {
-      padding: 18px;
-      background: #101018;
-      font-family: var(--font-body);
-    }
-    .mini-creative-head {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 14px;
-    }
-    .mini-creative-title {
-      font-size: 14px;
-      color: var(--text-primary);
-      font-weight: 700;
-    }
-    .mini-creative-status {
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--accent-green);
-    }
-    .mini-creative-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-    }
-    .mini-creative-tile {
-      min-height: 58px;
-      padding: 10px;
-      border-radius: 8px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.07);
-    }
-    .mini-creative-tile strong {
-      display: block;
-      font-size: 11px;
-      color: var(--text-primary);
-      margin-bottom: 4px;
-    }
-    .mini-creative-tile span {
-      display: block;
-      font-size: 10px;
-      line-height: 1.35;
-      color: var(--text-tertiary);
-    }
-
-    /* ══════════════════════════════════════════
        HOW IT WORKS
        ══════════════════════════════════════════ */
 
@@ -1898,24 +1579,6 @@
       .step { padding: var(--space-6); }
       .tool-card { padding: var(--space-5); }
 
-      .proof-grid,
-      .creative-layout {
-        grid-template-columns: 1fr;
-      }
-      .proof-card.featured {
-        grid-row: auto;
-      }
-      .proof-strip {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-      .creative-flow,
-      .creative-stats {
-        grid-template-columns: 1fr;
-      }
-      .creative-step {
-        min-height: 0;
-      }
-
       .quote-inner { padding: var(--space-6) var(--space-4); }
       .quote-text { font-size: 18px !important; }
 
@@ -1939,15 +1602,6 @@
       .hero-cta .btn { font-size: 14px; padding: 12px 20px; }
       .demo-card-industry { font-size: 16px; }
       .demo-card-name { font-size: 13px; }
-      .proof-strip {
-        grid-template-columns: 1fr;
-      }
-      .proof-caption {
-        padding: var(--space-4);
-      }
-      .creative-terminal {
-        font-size: 12px;
-      }
 
     }
   </style>
@@ -1972,8 +1626,8 @@
       <div class="hero-badge reveal">
         Open-source MCP Server · MIT
       </div>
-      <h1 class="reveal reveal-delay-1">Design intelligence<br>and <span class="gradient">creative memory</span></h1>
-      <p class="subtitle reveal reveal-delay-2">Forty-four tools that give AI the design knowledge, brand context, audit discipline, and creative-production scaffolding once locked in expert heads.</p>
+      <h1 class="reveal reveal-delay-1">Design intelligence<br>for <span class="gradient">every prompt</span></h1>
+      <p class="subtitle reveal reveal-delay-2">Twenty-seven tools that give AI the design knowledge once locked in expert heads — principles, patterns, tokens, voice, brand, and more.</p>
       <div class="hero-cta reveal reveal-delay-3">
         <button class="cta-install" aria-label="Copy install command to clipboard" onclick="navigator.clipboard.writeText('claude mcp add raven -- npx -y raven-mcp').then(()=>{this.querySelector('.copy-label').textContent='Copied!'; this.setAttribute('aria-label', 'Install command copied'); document.getElementById('copy-status').textContent='Install command copied to clipboard.'})">
           <span class="copy-label">claude mcp add raven -- npx -y raven-mcp</span>
@@ -1982,7 +1636,6 @@
       </div>
       <div class="hero-text-links reveal reveal-delay-3">
         <a href="/docs.html" class="btn-text-link">Docs →</a>
-        <a href="#creative-studio" class="btn-text-link">Creative Studio →</a>
         <a href="https://github.com/rhinocap/raven-mcp" class="btn-text-link">View on GitHub →</a>
       </div>
       <div role="status" aria-live="polite" id="copy-status" class="sr-only"></div>
@@ -2083,124 +1736,7 @@
           <span class="sizzle-dot" data-scene="4"></span>
           <span class="sizzle-dot" data-scene="5"></span>
           <span class="sizzle-dot" data-scene="6"></span>
-          <span class="sizzle-dot" data-scene="7"></span>
         </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- RAVEN IN ACTION -->
-  <section id="action" class="proof-section">
-    <div class="container">
-      <div class="section-header">
-        <p class="label reveal">Raven In Action</p>
-        <h2 class="reveal reveal-delay-1">A working design copilot, not another docs site</h2>
-        <p class="subtitle reveal reveal-delay-2">These are the same product frames from the portfolio case study: terminal audits, before/after fixes, the live homepage, token registry, and tool surface.</p>
-      </div>
-
-      <div class="proof-grid">
-        <figure class="proof-card featured reveal">
-          <div class="proof-media">
-            <img src="assets/ravenmcp/terminal-audit.jpg" alt="Terminal screenshot of RavenMCP auditing andrewcunliffe.ai with search_knowledge, get_principles, get_checklist, audit_page, and evaluate_design tool calls.">
-          </div>
-          <figcaption class="proof-caption">
-            <div class="proof-kicker">Live MCP session</div>
-            <h3>Claude asks Raven for the design canon while it works.</h3>
-            <p>Named tools return scoped principles, checklists, audit scores, and specific fixes. The model does not have to browse a haystack or invent a heuristic from memory.</p>
-          </figcaption>
-        </figure>
-
-        <figure class="proof-card reveal reveal-delay-1">
-          <div class="proof-media">
-            <img src="assets/ravenmcp/audit-before.jpg" alt="Before frame showing a mobile fitness UI beside a Raven design evaluation with issues to fix.">
-          </div>
-          <figcaption class="proof-caption">
-            <div class="proof-kicker">Before</div>
-            <h3>Raven flags the drift.</h3>
-            <p>Spacing, typography, hierarchy, touch targets, and token violations come back as concrete work, not vibes.</p>
-          </figcaption>
-        </figure>
-
-        <figure class="proof-card reveal reveal-delay-2">
-          <div class="proof-media">
-            <img src="assets/ravenmcp/audit-after.jpg" alt="After frame showing the same mobile UI improved and a terminal diff applying Raven's fixes.">
-          </div>
-          <figcaption class="proof-caption">
-            <div class="proof-kicker">After</div>
-            <h3>The assistant fixes what it can prove.</h3>
-            <p>Raven turns critique into implementation guidance, then the next audit pass verifies the result.</p>
-          </figcaption>
-        </figure>
-      </div>
-
-      <div class="proof-strip reveal reveal-delay-3" aria-label="Additional RavenMCP product screenshots">
-        <div class="proof-thumb">
-          <img src="assets/ravenmcp/homepage-hero.jpg" alt="RavenMCP homepage hero showing the install command, live npm stats, and terminal demo.">
-          <span>Live site surface</span>
-        </div>
-        <div class="proof-thumb">
-          <img src="assets/ravenmcp/eight-disciplines.jpg" alt="RavenMCP Eight Knowledge Layers section.">
-          <span>Knowledge graph</span>
-        </div>
-        <div class="proof-thumb">
-          <img src="assets/ravenmcp/tools.jpg" alt="RavenMCP tools grid screenshot from the portfolio case study.">
-          <span>Tool registry</span>
-        </div>
-        <div class="proof-thumb">
-          <img src="assets/ravenmcp/tokens.jpg" alt="RavenMCP design token sheet showing color, typography, spacing, radius, shadow, motion, and layout tokens.">
-          <span>Design tokens</span>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- CREATIVE STUDIO -->
-  <section id="creative-studio" class="creative-section">
-    <div class="container">
-      <div class="creative-layout">
-        <div class="creative-copy reveal">
-          <p class="label">New: Creative Studio</p>
-          <h2>Brand-aware image, video, 3D, audio, and campaign jobs</h2>
-          <p>Raven now covers the planning layer around modern media generation: brand profiles, asset references, character profiles, provider-ready generation jobs, campaign plans, and transparent creative scoring.</p>
-          <p>It stays local-first by default. Raven stores structured job payloads under <code>~/.raven/creative</code>; if you want real rendering, point <code>RAVEN_CREATIVE_RUNNER</code> at your own provider wrapper.</p>
-          <div class="creative-stats">
-            <div class="creative-stat"><strong>12</strong><span>Creative tools</span></div>
-            <div class="creative-stat"><strong>8</strong><span>Preset families</span></div>
-            <div class="creative-stat"><strong>0</strong><span>Bundled API keys</span></div>
-            <div class="creative-stat"><strong>Any</strong><span>Runner provider</span></div>
-          </div>
-        </div>
-
-        <div class="creative-flow">
-          <div class="creative-step reveal reveal-delay-1">
-            <div class="creative-chip">create_brand_profile</div>
-            <h3>Save the brand once</h3>
-            <p>Colors, fonts, tone, audience, constraints, product notes, and asset references become reusable context for every job.</p>
-          </div>
-          <div class="creative-step reveal reveal-delay-2">
-            <div class="creative-chip">register_creative_asset</div>
-            <h3>Reference real materials</h3>
-            <p>Register product shots, logos, URLs, or local paths. Raven records metadata and references, not raw file uploads.</p>
-          </div>
-          <div class="creative-step reveal reveal-delay-3">
-            <div class="creative-chip">create_generation_job</div>
-            <h3>Create provider-ready jobs</h3>
-            <p>Image, video, audio, 3D, analysis, and campaign payloads carry the same brand, channel, and format constraints.</p>
-          </div>
-          <div class="creative-step reveal reveal-delay-4">
-            <div class="creative-chip">plan_creative_campaign</div>
-            <h3>Ship complete creative sets</h3>
-            <p>Plan product photos, marketplace cards, UGC ads, TV spots, social launch packs, storyboards, and channel cutdowns together.</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="creative-terminal reveal reveal-delay-3" aria-label="Creative Studio example workflow">
-        <span class="term-accent">claude</span> "Create a Raven brand profile, register this product image, and plan a launch campaign for web, TikTok, and marketplace."<br>
-        <span class="term-ok">✓</span> create_brand_profile → local brand memory saved<br>
-        <span class="term-ok">✓</span> register_creative_asset → source image referenced<br>
-        <span class="term-ok">✓</span> plan_creative_campaign → 3 draft jobs created<br>
-        <span class="term-warn">!</span> execute=false until RAVEN_CREATIVE_RUNNER is configured
       </div>
     </div>
   </section>
@@ -2355,7 +1891,7 @@
       <div class="section-header">
         <p class="label reveal">Forty-Four Tools</p>
         <h2 class="reveal reveal-delay-1">The full flight across all realms</h2>
-        <p class="subtitle reveal reveal-delay-2">Each tool is a focused query. Claude calls them automatically for design intelligence, audits, tokens, brand guidance, service design, and creative production.</p>
+        <p class="subtitle reveal reveal-delay-2">Each tool is a focused query. Claude calls them automatically&mdash;no special syntax, no configuration beyond install.</p>
       </div>
 
       <div class="tools-grid">
@@ -2763,7 +2299,7 @@
         <div class="glow-card pricing-open-card">
           <div class="pricing-open-stats">
             <div class="pricing-open-stat">
-              <span class="pricing-open-num">44</span>
+              <span class="pricing-open-num">31</span>
               <span class="pricing-open-label">Tools</span>
             </div>
             <div class="pricing-open-stat">
@@ -2779,13 +2315,13 @@
               <span class="pricing-open-label">Patterns</span>
             </div>
           </div>
-          <p class="pricing-open-desc">Design intelligence and creative orchestration for every AI-generated interface and launch asset &mdash; accessibility audits, token systems, evaluation scoring, brand profiles, generation jobs, campaign plans, and more. Install in 30 seconds.</p>
+          <p class="pricing-open-desc">Design intelligence for every AI-generated interface &mdash; accessibility audits, token systems, evaluation scoring, and more. Install in 30 seconds.</p>
         </div>
 
         <div class="glow-card pricing-services-card">
           <p class="pricing-services-label">Need something custom?</p>
-          <h3 class="pricing-services-title">Custom Design + Creative Systems</h3>
-          <p class="pricing-services-desc">Get a bespoke Raven-compatible system for your brand &mdash; tokens, principles, evaluation rules, creative presets, and campaign scaffolds tailored to your product.</p>
+          <h3 class="pricing-services-title">Custom Design Systems</h3>
+          <p class="pricing-services-desc">Get a bespoke Raven-compatible design system built for your brand &mdash; tokens, principles, evaluation rules, all tailored to your product.</p>
           <a href="mailto:andrew@ravenmcp.ai" class="pricing-services-link">Get in touch &rarr;</a>
         </div>
       </div>
@@ -2894,16 +2430,6 @@
       + '<div class="mini-brand-fonts"><span>Circular Std</span><span>dark-first</span><span>4px radius</span></div>'
       + '</div>');
 
-    var uiCreative = chrome('~/.raven/creative/campaigns',
-      '<div class="mini-creative">'
-      + '<div class="mini-creative-head"><div class="mini-creative-title">Raven Launch Pack</div><div class="mini-creative-status">Drafted</div></div>'
-      + '<div class="mini-creative-grid">'
-      + '<div class="mini-creative-tile"><strong>Brand profile</strong><span>RavenMCP voice, colors, constraints</span></div>'
-      + '<div class="mini-creative-tile"><strong>Assets</strong><span>Logo, product screen, terminal proof</span></div>'
-      + '<div class="mini-creative-tile"><strong>Jobs</strong><span>Web hero, TikTok cut, marketplace card</span></div>'
-      + '<div class="mini-creative-tile"><strong>Runner</strong><span>execute=false until configured</span></div>'
-      + '</div></div>');
-
     var uiA11y = chrome('app.acme.io/accessibility',
       '<div class="mini-a11y">'
       + '<div class="mini-a11y-header"><h4>Accessibility Report</h4><span class="mini-a11y-badge">WCAG AA</span></div>'
@@ -2985,17 +2511,6 @@
           { fn: 'compose_system', result: 'Spotify tokens + custom overrides \u2192 CSS vars', color: 'val' }
         ],
         ui: uiDash
-      },
-      {
-        prompt: 'claude "plan a launch campaign from this product screenshot"',
-        comment: '# Raven builds local creative context before generation:',
-        tools: [
-          { fn: 'create_brand_profile', result: 'brand memory saved locally', color: 'key' },
-          { fn: 'register_creative_asset', result: 'product screenshot referenced, not uploaded', color: 'fn' },
-          { fn: 'plan_creative_campaign', result: 'web hero, TikTok cut, marketplace card', color: 'val' },
-          { fn: 'create_generation_job', result: 'draft payloads ready for RAVEN_CREATIVE_RUNNER', color: 'fn' }
-        ],
-        ui: uiCreative
       },
       {
         prompt: 'claude "design the tab bar and navigation for our iOS app"',
