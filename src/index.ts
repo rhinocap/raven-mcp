@@ -7,9 +7,11 @@ import { readFileSync, readdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { auditContainerWidth } from "./audit-container.js";
-import { capturePage, CaptureUnavailableError, annotateVideoArtifacts } from "./capture.js";
+import { capturePage, CaptureUnavailableError, annotateVideoArtifacts, verifyFindings } from "./capture.js";
+import type { VerifiableFinding } from "./capture.js";
 import { captureResponsiveVisibility } from "./responsive.js";
 import { auditContrastUrl, auditContrastSnapshot } from "./contrast.js";
+import { diffScreenshots } from "./image-diff.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -1756,49 +1758,69 @@ server.tool(
   "evaluate_design",
   "Evaluate a design description against UX principles. Returns relevant principles, potential violations, and improvement suggestions.",
   {
-    description: z.string().describe("Description of the design to evaluate"),
+    description: z.string().optional().describe("Description of the design to evaluate"),
+    before_screenshot: z.string().optional().describe("Base64 PNG of the BEFORE state"),
+    after_screenshot: z.string().optional().describe("Base64 PNG of the AFTER state. When both before+after are provided, returns a structured pixel diff with fix_confirmed."),
     goals: z.array(z.string()).optional().describe("What to evaluate for (e.g. ['conversion', 'accessibility', 'mobile-usability'])"),
     context: z.string().optional().describe("What the design is (e.g. 'pricing page for SaaS product')")
   },
-  async ({ description, goals, context }) => {
-    var searchText = description + " " + (context || "") + " " + (goals || []).join(" ");
+  async function({ description, before_screenshot, after_screenshot, goals, context }) {
+    var hasDescription = description !== undefined && description !== null;
+    var hasBeforeAfterScreenshots = before_screenshot !== undefined && before_screenshot !== null && after_screenshot !== undefined && after_screenshot !== null;
+    var designDescription = description;
+    var relevant: Principle[] = [];
+    var relevantPatterns: Pattern[] = [];
 
-    // Find relevant principles
-    var relevant = allPrinciples.filter(p => {
-      var tagMatch = p.applies_to ? matchesTags(p.applies_to, searchText) : false;
-      var textMatch = textSearch(
-        p.name + " " + p.summary + " " + p.description + " " + p.violations.join(" "),
-        searchText
-      );
-      return tagMatch || textMatch;
-    });
+    if (!hasDescription && hasBeforeAfterScreenshots) {
+      designDescription = "(screenshot diff only)";
+    }
 
-    // Find relevant patterns
-    var relevantPatterns = allPatterns.filter(p =>
-      textSearch(p.id + " " + p.name + " " + p.summary, searchText)
-    );
+    if (hasDescription) {
+      var searchText = description + " " + (context || "") + " " + (goals || []).join(" ");
+
+      // Find relevant principles
+      relevant = allPrinciples.filter(function(p) {
+        var tagMatch = p.applies_to ? matchesTags(p.applies_to, searchText) : false;
+        var textMatch = textSearch(
+          p.name + " " + p.summary + " " + p.description + " " + p.violations.join(" "),
+          searchText
+        );
+        return tagMatch || textMatch;
+      });
+
+      // Find relevant patterns
+      relevantPatterns = allPatterns.filter(function(p) {
+        return textSearch(p.id + " " + p.name + " " + p.summary, searchText);
+      });
+    }
 
     // Build evaluation
-    var evaluation = {
-      design_description: description,
+    var evaluation: any = {
+      design_description: designDescription,
       context: context || "Not specified",
       goals: goals || ["general usability"],
-      principles_to_check: relevant.map(p => ({
+      principles_to_check: relevant.map(function(p) { return {
         id: p.id,
         name: p.name,
         summary: p.summary,
         common_violations: p.violations,
         what_to_verify: p.implications
-      })),
-      applicable_patterns: relevantPatterns.map(p => ({
+      }; }),
+      applicable_patterns: relevantPatterns.map(function(p) { return {
         id: p.id,
         name: p.name,
         checklist: p.checklist
-      })),
+      }; }),
       evaluation_guidance: "Review the design against each principle's common violations and each pattern's checklist. Flag any items that the current design may violate.",
       total_principles: relevant.length,
       total_patterns: relevantPatterns.length
     };
+
+    if (hasBeforeAfterScreenshots) {
+      var diffResult = await diffScreenshots(before_screenshot as string, after_screenshot as string);
+      evaluation.before_after_diff = diffResult;
+      evaluation.fix_confirmed = diffResult.fix_confirmed;
+    }
 
     return {
       content: [{
@@ -2224,9 +2246,10 @@ server.tool(
     scroll_settle: z.boolean().optional().describe("Before capturing, scroll to bottom and settle IntersectionObserver/whileInView reveals (300ms), and play preload=none videos. Prevents blank-section false positives."),
     viewport: z.object({ w: z.number(), h: z.number() }).optional(),
     strict: z.boolean().optional().describe("Strict mode — also flags warnings as failures. Default: false"),
-    containerMaxWidth: z.number().optional().describe("Your design system's canonical content-container width in px (e.g. 1152). When set, the responsive/max-width check flags divergence from this token instead of using the generic 1200px heuristic.")
+    containerMaxWidth: z.number().optional().describe("Your design system's canonical content-container width in px (e.g. 1152). When set, the responsive/max-width check flags divergence from this token instead of using the generic 1200px heuristic."),
+    adversarial_verify: z.boolean().optional().describe("After generating findings, independently re-check each against the live DOM/network and tag it confirmed / likely-artifact / inconclusive. Surfaces a debunked_count.")
   },
-  async function({ html, url, scroll_settle, viewport, strict, containerMaxWidth }) {
+  async function({ html, url, scroll_settle, viewport, strict, containerMaxWidth, adversarial_verify }) {
     var issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }> = [];
     var passes: string[] = [];
     var capMeta: any = null;
@@ -2456,6 +2479,115 @@ server.tool(
         }
         result.notes = notes;
       }
+    }
+
+    if (adversarial_verify === true) {
+      var findings: VerifiableFinding[] = [];
+      var findingTargets: any[] = [];
+
+      for (var errorIndex = 0; errorIndex < result.errors.length; errorIndex++) {
+        var errorIssue = result.errors[errorIndex];
+        findings.push({
+          key: errorIssue.rule + ":" + errorIndex,
+          kind: "issue",
+          rule: errorIssue.rule,
+          message: errorIssue.message
+        });
+        findingTargets.push(errorIssue);
+      }
+
+      for (var warningIndex = 0; warningIndex < result.warnings.length; warningIndex++) {
+        var warningIssue = result.warnings[warningIndex];
+        findings.push({
+          key: warningIssue.rule + ":" + warningIndex,
+          kind: "issue",
+          rule: warningIssue.rule,
+          message: warningIssue.message
+        });
+        findingTargets.push(warningIssue);
+      }
+
+      if (result.unloaded_video_artifacts !== undefined && result.unloaded_video_artifacts !== null) {
+        for (var artifactIndex = 0; artifactIndex < result.unloaded_video_artifacts.length; artifactIndex++) {
+          var videoArtifactForVerify = result.unloaded_video_artifacts[artifactIndex];
+          var videoSelector = "video";
+          if (videoArtifactForVerify.selector !== undefined && videoArtifactForVerify.selector !== null) {
+            videoSelector = videoArtifactForVerify.selector;
+          }
+          findings.push({
+            key: "video:" + videoSelector,
+            kind: "video-artifact",
+            rule: "video",
+            message: "Video rendered blank (preload=none — unloaded-video-artifact)",
+            selector: videoSelector
+          });
+          findingTargets.push(videoArtifactForVerify);
+        }
+      }
+
+      var verificationResults: any[] = [];
+      try {
+        verificationResults = await verifyFindings(
+          { url: url, html: (url !== undefined && url !== null ? undefined : html) },
+          findings,
+          { viewport: viewport }
+        );
+      } catch (verifyError) {
+        var verifyErrorMessage = verifyError instanceof Error ? verifyError.message : String(verifyError);
+        for (var unavailableIndex = 0; unavailableIndex < findings.length; unavailableIndex++) {
+          verificationResults.push({
+            key: findings[unavailableIndex].key,
+            verdict: "inconclusive",
+            evidence: "adversarial verification unavailable: " + verifyErrorMessage
+          });
+        }
+      }
+
+      if (!Array.isArray(verificationResults)) {
+        verificationResults = [];
+      }
+
+      var debunkedCount = 0;
+      var confirmedCount = 0;
+      var inconclusiveCount = 0;
+
+      for (var verifyIndex = 0; verifyIndex < findings.length; verifyIndex++) {
+        var verification = verificationResults[verifyIndex];
+        var verdict = "inconclusive";
+        var evidence = "";
+        if (verification !== undefined && verification !== null) {
+          if (verification.verdict === "confirmed" || verification.verdict === "likely-artifact" || verification.verdict === "inconclusive") {
+            verdict = verification.verdict;
+          }
+          if (verification.evidence !== undefined && verification.evidence !== null) {
+            evidence = verification.evidence;
+          }
+        }
+
+        var findingTarget = findingTargets[verifyIndex];
+        if (findingTarget !== undefined && findingTarget !== null) {
+          findingTarget.verdict = verdict;
+          if (findings[verifyIndex].kind === "issue") {
+            findingTarget.verification_evidence = evidence;
+          }
+        }
+
+        if (verdict === "likely-artifact") {
+          debunkedCount++;
+        } else if (verdict === "confirmed") {
+          confirmedCount++;
+        } else {
+          inconclusiveCount++;
+        }
+      }
+
+      result.adversarial_verification = {
+        debunked_count: debunkedCount,
+        confirmed_count: confirmedCount,
+        inconclusive_count: inconclusiveCount,
+        total: findings.length
+      };
+      result.summary = result.summary + " — " + debunkedCount + " likely artifacts (adversarially debunked)";
     }
 
     return {

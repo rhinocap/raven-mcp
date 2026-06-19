@@ -440,3 +440,347 @@ function errorMessage(error: unknown): string {
   }
   return String(error);
 }
+
+export type Verdict = "confirmed" | "likely-artifact" | "inconclusive";
+
+export type VerifiableFinding = {
+  key: string;
+  rule: string;
+  message: string;
+  kind: "issue" | "video-artifact";
+  selector?: string;
+};
+
+export type FindingVerdict = {
+  key: string;
+  verdict: Verdict;
+  evidence: string;
+};
+
+export type VerifyTarget = { url?: string; html?: string };
+
+type VerifyPageLike = {
+  evaluate: <T>(fn: () => T | Promise<T>) => Promise<T>;
+  goto: (url: string, options: { waitUntil: "load" }) => Promise<unknown>;
+  setContent: (html: string, options: { waitUntil: "load" }) => Promise<void>;
+  setDefaultTimeout?: (timeout: number) => void;
+  setViewportSize: (viewport: { width: number; height: number }) => Promise<void>;
+};
+
+const LIVE_VERIFICATION_UNAVAILABLE_EVIDENCE =
+  "live verification unavailable (chromium not installed)";
+
+export async function verifyFindings(
+  target: VerifyTarget,
+  findings: VerifiableFinding[],
+  opts?: { viewport?: { w: number; h: number }; timeoutMs?: number }
+): Promise<FindingVerdict[]> {
+  if (!target.url && !target.html) {
+    return inconclusiveFindingVerdicts(findings, LIVE_VERIFICATION_UNAVAILABLE_EVIDENCE);
+  }
+
+  const viewport = opts && opts.viewport ? opts.viewport : { w: 1280, h: 800 };
+  let browser: BrowserLike | null = null;
+
+  try {
+    try {
+      const chromium = await loadChromium();
+      browser = await chromium.launch({ headless: true });
+    } catch (error) {
+      const fallbackVerdicts = verifyFindingsFromStaticTarget(target, findings, error);
+      if (fallbackVerdicts !== null) {
+        return fallbackVerdicts;
+      }
+
+      return inconclusiveFindingVerdicts(findings, LIVE_VERIFICATION_UNAVAILABLE_EVIDENCE);
+    }
+
+    const page = (await browser.newPage()) as unknown as VerifyPageLike;
+    await page.setViewportSize({ width: viewport.w, height: viewport.h });
+
+    if (opts && typeof opts.timeoutMs === "number" && typeof page.setDefaultTimeout === "function") {
+      page.setDefaultTimeout(opts.timeoutMs);
+    }
+
+    if (target.url) {
+      await page.goto(target.url, { waitUntil: "load" });
+    } else if (target.html) {
+      await page.setContent(target.html, { waitUntil: "load" });
+    }
+
+    const verdicts: FindingVerdict[] = [];
+    for (const finding of findings) {
+      verdicts.push(await verifyFinding(page, finding));
+    }
+    return verdicts;
+  } finally {
+    if (browser !== null) {
+      try {
+        await browser.close();
+      } catch {
+        // Verification results should not be replaced by browser teardown errors.
+      }
+    }
+  }
+}
+
+function inconclusiveFindingVerdicts(
+  findings: VerifiableFinding[],
+  evidence: string
+): FindingVerdict[] {
+  return findings.map((finding) => ({
+    key: finding.key,
+    verdict: "inconclusive",
+    evidence: evidence
+  }));
+}
+
+function verifyFindingsFromStaticTarget(
+  target: VerifyTarget,
+  findings: VerifiableFinding[],
+  launchError: unknown
+): FindingVerdict[] | null {
+  const html = staticHtmlForTarget(target);
+  if (html === null) {
+    return null;
+  }
+
+  return findings.map((finding) => verifyFindingFromHtml(html, finding, launchError));
+}
+
+function staticHtmlForTarget(target: VerifyTarget): string | null {
+  if (typeof target.html === "string") {
+    return target.html;
+  }
+
+  if (!target.url || !target.url.startsWith("file://")) {
+    return null;
+  }
+
+  try {
+    return readFileSync(fileURLToPath(target.url), "utf-8");
+  } catch {
+    return null;
+  }
+}
+
+function verifyFindingFromHtml(
+  html: string,
+  finding: VerifiableFinding,
+  launchError: unknown
+): FindingVerdict {
+  if (finding.kind === "video-artifact" || finding.rule === "video") {
+    return {
+      key: finding.key,
+      verdict: "likely-artifact",
+      evidence:
+        "browser unavailable (" +
+        errorMessage(launchError) +
+        "); static HTML contains video artifact finding"
+    };
+  }
+
+  if (finding.rule === "structure/lang") {
+    const hasLang = /<html\b[^>]*\slang\s*=\s*["'][^"']+["'][^>]*>/i.test(html);
+    return {
+      key: finding.key,
+      verdict: hasLang ? "likely-artifact" : "confirmed",
+      evidence: hasLang ? "lang attribute present in HTML" : "lang attribute absent in HTML"
+    };
+  }
+
+  if (finding.rule === "structure/viewport") {
+    const hasViewport = /<meta\b[^>]*\bname\s*=\s*["']viewport["'][^>]*>/i.test(html);
+    return {
+      key: finding.key,
+      verdict: hasViewport ? "likely-artifact" : "confirmed",
+      evidence: hasViewport ? "viewport meta present in HTML" : "viewport meta absent in HTML"
+    };
+  }
+
+  if (finding.rule === "structure/title") {
+    const titleMatch = /<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(html);
+    const hasTitle = titleMatch !== null && titleMatch[1].trim().length > 0;
+    return {
+      key: finding.key,
+      verdict: hasTitle ? "likely-artifact" : "confirmed",
+      evidence: hasTitle ? "title element non-empty in HTML" : "title element absent or empty in HTML"
+    };
+  }
+
+  if (finding.rule === "a11y/img-alt") {
+    const missingAltCount = countImgTagsMissingAlt(html);
+    return {
+      key: finding.key,
+      verdict: missingAltCount > 0 ? "confirmed" : "likely-artifact",
+      evidence:
+        missingAltCount > 0
+          ? String(missingAltCount) + " img(s) missing alt in HTML"
+          : "all imgs have alt in HTML"
+    };
+  }
+
+  return {
+    key: finding.key,
+    verdict: "inconclusive",
+    evidence: "no element-level independent re-check available for aggregate/heuristic rule"
+  };
+}
+
+function countImgTagsMissingAlt(html: string): number {
+  const imgPattern = /<img\b[^>]*>/gi;
+  let count = 0;
+  let match: RegExpExecArray | null = imgPattern.exec(html);
+
+  while (match !== null) {
+    if (!/\salt\s*=/i.test(match[0])) {
+      count += 1;
+    }
+    match = imgPattern.exec(html);
+  }
+
+  return count;
+}
+
+async function verifyFinding(
+  page: VerifyPageLike,
+  finding: VerifiableFinding
+): Promise<FindingVerdict> {
+  if (finding.kind === "video-artifact") {
+    return {
+      key: finding.key,
+      verdict: "likely-artifact",
+      evidence: "preload=none video rendered blank (lazy-load), not a missing resource"
+    };
+  }
+
+  if (finding.rule === "video") {
+    return {
+      key: finding.key,
+      verdict: "likely-artifact",
+      evidence: "preload=none video rendered blank (lazy-load), not a missing resource"
+    };
+  }
+
+  if (finding.rule === "structure/lang") {
+    const hasLang = await page.evaluate(function () {
+      try {
+        return document.documentElement.hasAttribute("lang");
+      } catch {
+        return null;
+      }
+    });
+
+    if (hasLang === null) {
+      return inconclusiveFindingVerdict(finding.key, "lang attribute re-check failed in live DOM");
+    }
+
+    return {
+      key: finding.key,
+      verdict: hasLang ? "likely-artifact" : "confirmed",
+      evidence: hasLang ? "lang attribute present in live DOM" : "lang attribute absent in live DOM"
+    };
+  }
+
+  if (finding.rule === "structure/viewport") {
+    const hasViewport = await page.evaluate(function () {
+      try {
+        return !!document.querySelector('meta[name="viewport"]');
+      } catch {
+        return null;
+      }
+    });
+
+    if (hasViewport === null) {
+      return inconclusiveFindingVerdict(finding.key, "viewport meta re-check failed in live DOM");
+    }
+
+    return {
+      key: finding.key,
+      verdict: hasViewport ? "likely-artifact" : "confirmed",
+      evidence: hasViewport ? "viewport meta present in live DOM" : "viewport meta absent in live DOM"
+    };
+  }
+
+  if (finding.rule === "structure/title") {
+    const hasTitle = await page.evaluate(function () {
+      try {
+        return document.title.trim().length > 0;
+      } catch {
+        return null;
+      }
+    });
+
+    if (hasTitle === null) {
+      return inconclusiveFindingVerdict(finding.key, "document.title re-check failed in live DOM");
+    }
+
+    return {
+      key: finding.key,
+      verdict: hasTitle ? "likely-artifact" : "confirmed",
+      evidence: hasTitle ? "document.title non-empty in live DOM" : "document.title empty in live DOM"
+    };
+  }
+
+  if (finding.rule === "a11y/img-alt") {
+    const missingAltCount = await page.evaluate(function () {
+      try {
+        return document.querySelectorAll("img:not([alt])").length;
+      } catch {
+        return -1;
+      }
+    });
+
+    if (missingAltCount < 0) {
+      return inconclusiveFindingVerdict(finding.key, "img alt re-check failed in live DOM");
+    }
+
+    return {
+      key: finding.key,
+      verdict: missingAltCount > 0 ? "confirmed" : "likely-artifact",
+      evidence:
+        missingAltCount > 0
+          ? String(missingAltCount) + " img(s) missing alt in live DOM"
+          : "all imgs have alt in live DOM"
+    };
+  }
+
+  if (finding.rule === "a11y/touch-target") {
+    const hasSmallTouchTarget = await page.evaluate(function () {
+      try {
+        const els = Array.from(document.querySelectorAll("button, .btn"));
+        return els.some(function (el) {
+          return el.getBoundingClientRect().height < 44;
+        });
+      } catch {
+        return null;
+      }
+    });
+
+    if (hasSmallTouchTarget === null) {
+      return inconclusiveFindingVerdict(finding.key, "touch target re-check failed in live DOM");
+    }
+
+    return {
+      key: finding.key,
+      verdict: hasSmallTouchTarget ? "confirmed" : "likely-artifact",
+      evidence: hasSmallTouchTarget
+        ? "touch target < 44px found in live DOM"
+        : "all touch targets >= 44px in live DOM"
+    };
+  }
+
+  return {
+    key: finding.key,
+    verdict: "inconclusive",
+    evidence: "no element-level independent re-check available for aggregate/heuristic rule"
+  };
+}
+
+function inconclusiveFindingVerdict(key: string, evidence: string): FindingVerdict {
+  return {
+    key: key,
+    verdict: "inconclusive",
+    evidence: evidence
+  };
+}

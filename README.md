@@ -55,7 +55,7 @@ cd raven-mcp && npm install && npm run build
 | `get_principles` | Get design principles relevant to a UI context |
 | `get_pattern` | Get proven patterns for a specific UI type |
 | `get_business_strategy` | Get business/monetization strategies |
-| `evaluate_design` | Evaluate a design description against principles |
+| `evaluate_design` | Evaluate a design description against principles. Pass base64 PNG screenshots (`before_screenshot`/`after_screenshot`) for a structured before/after pixel diff with `fix_confirmed`, `changed_ratio`, and changed region. |
 | `search_knowledge` | Search across all principles, patterns, and strategies |
 | `get_checklist` | Get a pre-publish checklist for a UI type |
 | `get_d4d_framework` | Get Design for Delight framework templates |
@@ -166,7 +166,27 @@ Returns all text elements scored, failures highlighted with delta-to-pass, and a
 
 **Video artifacts detection:** If any `<video>` with `preload="none"` (or missing preload) renders with `readyState < 2` (i.e. would show a black box in a screenshot), Raven flags it as an `unloaded-video-artifact` in the result. This is **informational** — not a pass/fail — since preload=none is often intentional. On cookie-protected hosts, video requests may fail because iOS/Android media daemons don't send cookies; Raven notes this to help you troubleshoot (e.g. disable deployment protection, use a token-based bypass).
 
+**Adversarial verification:** Set `adversarial_verify: true` to independently re-check each finding against the live DOM using a different method. Findings are tagged:
+- `confirmed` — the finding is real on the live page (e.g. missing `<title>` in the rendered DOM)
+- `likely-artifact` — the finding is an artifact of the static audit method (e.g. a `<video preload="none">` rendered blank, which is expected behavior, not a missing resource)
+- `inconclusive` — the finding cannot be independently verified (e.g. aggregate rules like color-palette size)
+
+The result includes `adversarial_verification: { debunked_count, confirmed_count, inconclusive_count }`, where debunked_count is the number of likely-artifacts. This surfaces false positives so you only fix real issues. Backwards-compatible: when `adversarial_verify` is absent or false, the output is identical to prior versions.
+
 **Setup:** First time only, run `npx playwright install chromium` to download the browser binary. If the binary is missing when you call audit_page with `url`, you'll see a clear instruction to run the install command.
+
+## Before/after design diffs
+
+`evaluate_design` can now accept base64-encoded PNG screenshots to measure whether a fix actually changed the rendered output.
+
+**Usage:**
+- Pass `before_screenshot` and `after_screenshot` (both base64 PNGs, with or without the `data:image/png;base64,` prefix).
+- Raven returns `fix_confirmed: true` if the images differ by > 0.1% of pixels (accounting for jpeg/PNG decode variance).
+- `changed_ratio` — exact fraction of pixels that changed (0–1).
+- `changed_region` — bounding box `{ x, y, w, h }` of the changed pixels (null if no changes detected).
+- `dimensions` — image-derived measurements (canvas size, brightness, color shift) as context, with the caveat that these are pixel-level proxies, not Raven principle scores.
+
+When before/after screenshots are provided alongside a `description`, `evaluate_design` returns both the principle-based evaluation and the pixel diff. When screenshots are provided without a description, the evaluation gracefully skips the principle search and returns the diff only. Backwards-compatible: without screenshots, the tool behaves identically to prior versions.
 
 ## Release updates
 
