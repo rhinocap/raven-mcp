@@ -6,6 +6,8 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-06-18
+
 ### Changed
 - `audit_page` now accepts an optional `containerMaxWidth` (your design system's canonical content-container width, in px). When set, the `responsive/max-width` check flags content containers that **diverge** from your token — too narrow or too wide — instead of a generic 1200px heuristic. Catches an off-system page (e.g. a `max-w-3xl` 768px container in a 1152px system) that the old check passed clean. With no token passed, behavior is unchanged. (#9)
 
@@ -19,6 +21,9 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 - `audit_page` — `adversarial_verify` optional boolean. When true, each finding is independently re-checked against the live DOM using a different method and tagged `confirmed` / `likely-artifact` / `inconclusive` with evidence. Returns `adversarial_verification: { debunked_count, confirmed_count, inconclusive_count }` so you only fix real issues, not artifacts of the audit method. Backwards-compatible: absent or false preserves byte-identical prior output.
 - `src/image-diff.ts` — pixel-level before/after screenshot comparison. Detects changed regions, changed ratio, and image-derived dimensions (canvas size, brightness, color shift).
 - `evaluate_design` — new optional parameters `before_screenshot` and `after_screenshot` (base64 PNGs). When both are provided, returns `before_after_diff: { fix_confirmed, changed_ratio, changed_region, dimensions }` indicating whether the fix actually changed the rendered output. When provided without `description`, gracefully returns the diff only. Backwards-compatible: without screenshots, output is identical to prior versions.
+- `audit_page` — `interactions` optional array of `{ selector, event, delay_ms }`. Before capturing, Raven fires each interaction in order (`hover`/`click`/`focus` via native Playwright, so real CSS `:hover`/`:focus` pseudo-classes trigger) and waits `delay_ms`, then screenshots the resulting state. Makes transient/dynamic visual defects — e.g. an on-hover theme-toggle white-wash filter — visible in the capture, where a settled static screenshot showed nothing. Backwards-compatible: absent ⇒ byte-identical prior behavior. (#18)
+- `audit_asset_integrity` — given PNG file paths, measures per-pixel luminance variance in the bottom strip (5% of height, min 20px) and flags high-variance bottom rows as `likely-sliced`. Catches content cut off **inside** a correctly-sized export (e.g. a Figma export that ended mid-form) — which dimension/ratio checks cannot detect. Returns path / `bottom_variance` / verdict / confidence per image. (#18)
+- `src/asset-integrity.ts` — pure luminance-variance analysis of a PNG's bottom strip, decoded via the optional `pngjs` dependency (graceful no-op when absent), unit-testable in isolation.
 
 ## [1.4.0] - 2026-05-19
 
