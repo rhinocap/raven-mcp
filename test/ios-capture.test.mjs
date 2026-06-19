@@ -227,3 +227,112 @@ test('xcodebuildTestArgs returns the expected argv including -only-testing path'
     ]
   );
 });
+
+const { describe } = await import('node:test');
+const {
+  parseInteractions,
+  freezeLaunchArgs,
+  buildLaunchArgs,
+  captureEnv,
+} = await import(distIosCapture);
+
+describe('parseInteractions', () => {
+  test('valid JSON array of typed items returns typed items', () => {
+    const raw = JSON.stringify([
+      { id: 'tap-login', event: 'tap', delay_ms: 125 },
+      { id: 'freeze', event: 'freeze_animation', delay_ms: 0, t_seconds: 1.66 },
+    ]);
+
+    assert.deepStrictEqual(parseInteractions(raw), [
+      { id: 'tap-login', event: 'tap', delay_ms: 125 },
+      { id: 'freeze', event: 'freeze_animation', delay_ms: 0, t_seconds: 1.66 },
+    ]);
+  });
+
+  test('malformed JSON string returns []', () => {
+    assert.deepStrictEqual(parseInteractions('{ not json'), []);
+  });
+
+  test('item with an unrecognised event field is dropped', () => {
+    const raw = JSON.stringify([
+      { id: 'good', event: 'focus', delay_ms: 10 },
+      { id: 'bad', event: 'press_and_hold', delay_ms: 10 },
+    ]);
+
+    assert.deepStrictEqual(parseInteractions(raw), [
+      { id: 'good', event: 'focus', delay_ms: 10 },
+    ]);
+  });
+
+  test('item with negative delay_ms is clamped to 0', () => {
+    const raw = JSON.stringify([
+      { id: 'early', event: 'tap', delay_ms: -250 },
+    ]);
+
+    assert.deepStrictEqual(parseInteractions(raw), [
+      { id: 'early', event: 'tap', delay_ms: 0 },
+    ]);
+  });
+
+  test('non-array JSON returns []', () => {
+    assert.deepStrictEqual(parseInteractions(JSON.stringify({ id: 'tap' })), []);
+    assert.deepStrictEqual(parseInteractions(JSON.stringify(1)), []);
+    assert.deepStrictEqual(parseInteractions(JSON.stringify('tap')), []);
+  });
+});
+
+describe('freezeLaunchArgs', () => {
+  test('freeze_animation with t_seconds 1.66 returns freeze launch args', () => {
+    assert.deepStrictEqual(
+      freezeLaunchArgs([
+        { id: 'freeze', event: 'freeze_animation', delay_ms: 0, t_seconds: 1.66 },
+      ]),
+      ['-RAVENFreezeAnimation', '1', '-RAVENFreezeT', '1.66']
+    );
+  });
+
+  test('array with no freeze_animation interaction returns []', () => {
+    assert.deepStrictEqual(
+      freezeLaunchArgs([
+        { id: 'tap', event: 'tap', delay_ms: 0 },
+      ]),
+      []
+    );
+  });
+});
+
+describe('buildLaunchArgs', () => {
+  test('base args are followed by de-duped freeze args', () => {
+    const result = buildLaunchArgs(
+      ['-x'],
+      [{ id: 'freeze', event: 'freeze_animation', delay_ms: 0, t_seconds: 1.66 }]
+    );
+
+    assert.deepStrictEqual(result, [
+      '-x',
+      '-RAVENFreezeAnimation',
+      '1',
+      '-RAVENFreezeT',
+      '1.66',
+    ]);
+    assert.strictEqual(new Set(result).size, result.length);
+  });
+});
+
+describe('captureEnv', () => {
+  test('empty interactions array and empty extra args returns no RAVEN keys', () => {
+    assert.deepStrictEqual(captureEnv([], []), {});
+  });
+
+  test('non-empty interactions and launch args return JSON-parseable round-trip env', () => {
+    const interactions = [
+      { id: 'tap', event: 'tap', delay_ms: 10 },
+      { id: 'freeze', event: 'freeze_animation', delay_ms: 0, t_seconds: 1.66 },
+    ];
+    const launchArgs = ['-x', '-RAVENFreezeAnimation', '1'];
+    const env = captureEnv(interactions, launchArgs);
+
+    assert.deepStrictEqual(JSON.parse(env.RAVEN_INTERACTIONS), interactions);
+    assert.deepStrictEqual(JSON.parse(env.RAVEN_LAUNCH_ARGS), launchArgs);
+  });
+});

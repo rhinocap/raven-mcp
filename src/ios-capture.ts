@@ -11,6 +11,13 @@ export type CaptureTarget = {
   testTarget?: string;
 };
 
+export type IosInteraction = {
+  id: string;
+  event: "tap" | "swipe" | "focus" | "freeze_animation" | "hover";
+  delay_ms: number;
+  t_seconds?: number;
+};
+
 export type DestinationResult = {
   kind: "device" | "simulator";
   destination: string;
@@ -48,6 +55,14 @@ const BUILD_VERSION_KEYS = [
   "bundle_version",
   "version"
 ];
+
+const IOS_INTERACTION_EVENTS = new Set<IosInteraction["event"]>([
+  "tap",
+  "swipe",
+  "focus",
+  "freeze_animation",
+  "hover"
+]);
 
 /**
  * Build the xcodebuild destination string. Device UDIDs always win.
@@ -204,6 +219,130 @@ export function xcodebuildTestArgs(
     "-only-testing",
     testTarget + "/AccessibilitySnapshot/testCaptureCurrentScreen"
   ];
+}
+
+/**
+ * Parse interaction JSON for the XCUITest env contract.
+ */
+export function parseInteractions(json: string | undefined): IosInteraction[] {
+  const raw = nonEmptyString(json);
+  if (!raw) {
+    return [];
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  const interactions: IosInteraction[] = [];
+  for (const item of parsed) {
+    const interaction = parseInteractionItem(item);
+    if (interaction) {
+      interactions.push(interaction);
+    }
+  }
+
+  return interactions;
+}
+
+/**
+ * Convert the first freeze_animation marker with t_seconds into launch args.
+ */
+export function freezeLaunchArgs(interactions: IosInteraction[]): string[] {
+  for (const interaction of interactions) {
+    if (interaction.event !== "freeze_animation") {
+      continue;
+    }
+    if (typeof interaction.t_seconds !== "number" || !Number.isFinite(interaction.t_seconds)) {
+      continue;
+    }
+
+    return [
+      "-RAVENFreezeAnimation",
+      "1",
+      "-RAVENFreezeT",
+      String(interaction.t_seconds)
+    ];
+  }
+
+  return [];
+}
+
+/**
+ * Merge caller launch args with deterministic freeze args, preserving first wins.
+ */
+export function buildLaunchArgs(
+  baseArgs: string[],
+  interactions: IosInteraction[]
+): string[] {
+  const seen = new Set<string>();
+  const launchArgs: string[] = [];
+
+  for (const arg of [...baseArgs, ...freezeLaunchArgs(interactions)]) {
+    if (seen.has(arg)) {
+      continue;
+    }
+    seen.add(arg);
+    launchArgs.push(arg);
+  }
+
+  return launchArgs;
+}
+
+/**
+ * Build xcodebuild child env additions for the shared XCUITest contract.
+ */
+export function captureEnv(
+  interactions: IosInteraction[],
+  finalLaunchArgs: string[]
+): Record<string, string> {
+  const env: Record<string, string> = {};
+
+  if (interactions.length > 0) {
+    env.RAVEN_INTERACTIONS = JSON.stringify(interactions);
+  }
+  if (finalLaunchArgs.length > 0) {
+    env.RAVEN_LAUNCH_ARGS = JSON.stringify(finalLaunchArgs);
+  }
+
+  return env;
+}
+
+function parseInteractionItem(value: unknown): IosInteraction | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const id = nonEmptyString(value.id);
+  if (!id || !isIosInteractionEvent(value.event)) {
+    return null;
+  }
+  if (typeof value.delay_ms !== "number" || !Number.isFinite(value.delay_ms)) {
+    return null;
+  }
+
+  const interaction: IosInteraction = {
+    id,
+    event: value.event,
+    delay_ms: Math.max(0, value.delay_ms)
+  };
+
+  if (typeof value.t_seconds === "number" && Number.isFinite(value.t_seconds)) {
+    interaction.t_seconds = value.t_seconds;
+  }
+
+  return interaction;
+}
+
+function isIosInteractionEvent(value: unknown): value is IosInteraction["event"] {
+  return typeof value === "string" && IOS_INTERACTION_EVENTS.has(value as IosInteraction["event"]);
 }
 
 function nonEmptyString(value: unknown): string | null {

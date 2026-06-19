@@ -7,6 +7,9 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   buildDestination,
+  buildLaunchArgs,
+  captureEnv,
+  parseInteractions,
   parseInstalledBuildVersion,
   parseSimRuntimes,
   shouldBlock,
@@ -22,10 +25,17 @@ const osVersion = optionValue("--os");
 const bundleId = optionValue("--bundle-id");
 const outPath = optionValue("--out") || join(tmpdir(), "raven-snapshot.json");
 const requireDevice = argv.includes("--require-device");
+const interactionsInput = optionValue("--interactions");
+const launchArgsInput = optionValue("--launch-args", { allowOptionLikeValue: true });
+const interactions = parseInteractions(interactionsInput || undefined);
+const baseLaunchArgs = parseLaunchArgs(launchArgsInput);
+const finalLaunchArgs = buildLaunchArgs(baseLaunchArgs, interactions);
+const shouldReportCaptureInputs =
+  argv.includes("--interactions") || argv.includes("--launch-args");
 
 if (!scheme || !testTarget) {
   console.error(
-    "Usage: node scripts/ios-capture.mjs --scheme <S> --test-target <T> [--device <udid>] [--require-device] [--os <ver>] [--bundle-id <id>] [--out <path>] [--md]"
+    "Usage: node scripts/ios-capture.mjs --scheme <S> --test-target <T> [--device <udid>] [--require-device] [--os <ver>] [--bundle-id <id>] [--out <path>] [--interactions <json>] [--launch-args <json-or-space-list>] [--md]"
   );
   process.exit(2);
 }
@@ -96,7 +106,11 @@ const xcodebuildArgs = xcodebuildTestArgs(scheme, destination.destination, testT
 mkdirSync(dirname(outPath), { recursive: true });
 
 const captureResult = await runCommand("xcodebuild", xcodebuildArgs, {
-  env: { ...process.env, RAVEN_SNAPSHOT_OUT: outPath },
+  env: {
+    ...process.env,
+    RAVEN_SNAPSHOT_OUT: outPath,
+    ...captureEnv(interactions, finalLaunchArgs)
+  },
   stream: true
 });
 
@@ -112,13 +126,13 @@ if (captureResult.status !== 0) {
   });
 }
 
-const result = {
+const result = withCaptureInputs({
   captured: true,
   target_kind: destination.kind,
   destination: destination.destination,
   snapshot_path: outPath,
   sim_runtime_available: simRuntimeIsAvailable
-};
+});
 
 if (installedBuild !== null) {
   result.installed_build = installedBuild;
@@ -126,18 +140,59 @@ if (installedBuild !== null) {
 
 printJson(result);
 
-function optionValue(name) {
+function optionValue(name, opts = {}) {
   const index = argv.indexOf(name);
   if (index < 0) {
     return null;
   }
 
   const value = argv[index + 1];
-  if (!value || value.startsWith("--")) {
+  if (!value || (value.startsWith("--") && opts.allowOptionLikeValue !== true)) {
     return null;
   }
 
   return value;
+}
+
+function parseLaunchArgs(value) {
+  if (!value || typeof value !== "string") {
+    return [];
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((arg) => typeof arg === "string");
+    }
+    if (typeof parsed === "string") {
+      return splitLaunchArgs(parsed);
+    }
+  } catch {
+    return splitLaunchArgs(trimmed);
+  }
+
+  return [];
+}
+
+function splitLaunchArgs(value) {
+  return value.split(/\s+/).filter((arg) => arg.length > 0);
+}
+
+function withCaptureInputs(value) {
+  if (!shouldReportCaptureInputs) {
+    return value;
+  }
+
+  return {
+    ...value,
+    interactions_fired: interactions.length,
+    launch_args: finalLaunchArgs
+  };
 }
 
 function printJson(value) {
@@ -145,7 +200,7 @@ function printJson(value) {
 }
 
 function fail(value) {
-  printJson(value);
+  printJson(withCaptureInputs(value));
   process.exit(1);
 }
 
