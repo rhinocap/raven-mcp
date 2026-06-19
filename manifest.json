@@ -66,7 +66,7 @@
     },
     {
       "name": "evaluate_design",
-      "description": "Evaluate a design description against principles"
+      "description": "Evaluate a design description against principles. Pass before_screenshot and after_screenshot (base64 PNGs) to get a structured pixel diff with fix_confirmed, changed_ratio, and changed_region."
     },
     {
       "name": "search_knowledge",
@@ -98,7 +98,7 @@
     },
     {
       "name": "audit_page",
-      "description": "Audit HTML/CSS against Raven's design quality standards — pass html for static audit, or url to render the page headless with optional scroll_settle and viewport parameters (containerMaxWidth checks container widths against your design-system token)"
+      "description": "Audit HTML/CSS against Raven's design quality standards — pass html for static audit, or url to render the page headless with optional scroll_settle and viewport parameters (containerMaxWidth checks container widths against your design-system token). Set adversarial_verify to independently re-check findings against the live DOM, tagging each confirmed/likely-artifact/inconclusive with evidence."
     },
     {
       "name": "generate_design_system",
