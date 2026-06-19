@@ -10,8 +10,12 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 - `audit_page` now accepts an optional `containerMaxWidth` (your design system's canonical content-container width, in px). When set, the `responsive/max-width` check flags content containers that **diverge** from your token — too narrow or too wide — instead of a generic 1200px heuristic. Catches an off-system page (e.g. a `max-w-3xl` 768px container in a 1152px system) that the old check passed clean. With no token passed, behavior is unchanged. (#9)
 
 ### Added
-- `src/audit-container.ts` — side-effect-free container-width audit helper, unit-testable in isolation.
+- `audit_responsive_visibility` — render a page at multiple breakpoints (default: 390/768/1440/2160px) and flag content elements visible on desktop but hidden on mobile. Categorises each flagged element as likely-oversight (content vanishing on mobile) vs intentional (decorative). Catches responsive-hiding bugs that only surface on real devices. Detects hiding via computed styles (display:none/visibility:hidden/opacity:0/zero-size) and Tailwind responsive classes (hidden md:block). Reports selector, hiding class, visibility per breakpoint, and category for each flagged row.
+- `audit_contrast` — compute WCAG 2.1 contrast ratios for every text element on a rendered page and report AA/AAA pass-fail. Returns per-element ratio, delta-to-pass for failures, and aggregated failure count. WCAG math is exact: linearised luminance, 21 for black-on-white, 4.5:1 / 3:1 large for AA, 7:1 / 4.5:1 large for AAA. Replaces manual eyedropper + ratio calculation.
+- `src/responsive.ts` — headless renderer and categoriser for responsive-visibility audits.
+- `src/contrast.ts` — pure WCAG math (parseColor, relativeLuminance, contrastRatio) plus headless renderer for contrast audits. Exports testable functions so contrast scoring can be unit-tested in isolation.
 - `src/capture.ts` — headless Chromium renderer for `audit_page`. New `url` parameter (optional) enables live rendering with Playwright: render the page, optionally scroll to bottom and settle IntersectionObserver / whileInView reveals, play preload=none videos, then audit the live DOM. Includes video-artifact detection: flags `<video preload="none">` elements that render blank (readyState < 2), helping catch unloaded media without false positives on reveal-on-scroll pages. Backwards-compatible: calling `audit_page` with `html` only (no `url`) behaves identically to prior versions. Playwright binary is optional; if missing, a clear instruction guides setup via `npx playwright install chromium`.
+- `src/audit-container.ts` — side-effect-free container-width audit helper, unit-testable in isolation.
 
 ## [1.4.0] - 2026-05-19
 

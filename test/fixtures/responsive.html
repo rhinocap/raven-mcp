@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Responsive Visibility Fixture</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; background: #fff; color: #111; }
+
+    /* Base: hidden elements are display:none */
+    .hidden { display: none; }
+
+    /* At md (768px+): hidden md:block elements become block */
+    @media (min-width: 768px) {
+      .hidden.md\:block { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Always-visible heading — should NOT be flagged -->
+  <h1 data-testid="heading">Page Heading</h1>
+
+  <!--
+    CONTENT lede: hidden on mobile (390px → display:none), visible at desktop (1440px → display:block).
+    This is a likely-oversight: real text content invisible on mobile.
+  -->
+  <p class="hidden md:block" data-testid="lede" data-lede>Serif lede copy</p>
+
+  <!--
+    DECORATIVE element: same responsive hiding pattern, but aria-hidden and empty.
+    This should be categorised as "intentional" (decorative hidden on mobile is fine).
+  -->
+  <div class="hidden md:block" aria-hidden="true" data-testid="decoration"></div>
+</body>
+</html>
