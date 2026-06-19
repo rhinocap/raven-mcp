@@ -6,6 +6,8 @@
 
 import { CaptureUnavailableError } from "./capture.js";
 
+export { CaptureUnavailableError };
+
 export type VisibilityRow = {
   selector: string;
   hidingClass: string | null;
