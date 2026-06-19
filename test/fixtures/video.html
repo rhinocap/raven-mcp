@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Video Preload None Fixture</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; padding: 40px; }
+  </style>
+</head>
+<body>
+  <h1>Video fixture — preload=none</h1>
+  <p>The video below uses preload="none" and points to a nonexistent source, so it will remain blank (readyState &lt; 2) even after a play attempt.</p>
+
+  <video
+    data-testid="lazyvid"
+    id="lazyvid"
+    preload="none"
+    src="nonexistent.mp4"
+    width="640"
+    height="360"
+    controls
+  ></video>
+</body>
+</html>

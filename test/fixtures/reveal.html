@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Scroll Reveal Fixture</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    .spacer { height: 2000px; background: linear-gradient(to bottom, #f0f0f0, #e0e0e0); display: flex; align-items: center; justify-content: center; }
+    #reveal-target { opacity: 0; transition: opacity 0.2s; padding: 40px; background: #fff; border: 2px solid #333; text-align: center; }
+    #reveal-target.revealed { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="spacer">
+    <p>Scroll down to reveal the target below</p>
+  </div>
+
+  <div
+    id="reveal-target"
+    data-testid="reveal-target"
+    aria-label="Revealed element"
+  >
+    This element is revealed when scrolled into view.
+  </div>
+
+  <script>
+    (function () {
+      var target = document.getElementById('reveal-target');
+      if (!target) return;
+
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            target.classList.add('revealed');
+            target.style.opacity = '1';
+            observer.unobserve(target);
+          }
+        });
+      }, { threshold: 0.1 });
+
+      observer.observe(target);
+    })();
+  </script>
+</body>
+</html>

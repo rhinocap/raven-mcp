@@ -63,7 +63,7 @@ cd raven-mcp && npm install && npm run build
 | `get_design_system` | Get tokens for a specific design system |
 | `compose_system` | Mix tokens from different systems |
 | `get_brand_system` | Get a full system styled like a well-known brand |
-| `audit_page` | Audit HTML/CSS against Raven's quality standards (optional `containerMaxWidth` makes the container check token-aware) |
+| `audit_page` | Audit HTML/CSS against Raven's quality standards — pass `html` for static audit, or `url` to render headless with optional `scroll_settle` (scroll to bottom + settle reveals) and `viewport` parameters; `containerMaxWidth` makes container checks token-aware |
 | `audit_layout` | Evaluate visual rhythm, alignment, and optical balance |
 | `audit_swiftui` | Audit SwiftUI source against Apple HIG — Dynamic Type, semantic colors, 44pt targets, 4/8pt spacing, AccentColor |
 | `audit_ios_screen` | Score a rendered iOS screen from an accessibility/view-hierarchy snapshot — 44pt targets + contrast + rhythm, in points |
@@ -128,6 +128,20 @@ Anyone building a React Native or Expo app gets the same treatment. RN renders t
 - **`audit_ios_privacy`** also accepts an Expo **`app_json`** — it audits `expo.ios.infoPlist`, Android permissions, plugins, and scans `expo.extra`/config for secrets and Google API keys.
 
 **One command:** `node scripts/rn-audit.mjs <app-dir> [--snapshot snap.json] [--md report.md]` discovers screens + `app.json` (reading `userInterfaceStyle` so dark-only apps aren't false-flagged) and runs everything.
+
+## Headless browser audits
+
+`audit_page` can render a live URL in headless Chromium, scroll to settle reveal-on-scroll elements, and play preload=none videos before capturing — preventing false "blank section" reports caused by whileInView states that haven't fired yet.
+
+**Usage:**
+- **Static HTML mode** — pass `html` string for immediate static analysis (existing behavior, no change).
+- **Rendered URL mode** — pass `url` (full HTTP/HTTPS URL). Raven launches Chromium, renders the page, optionally scrolls, and audits the live DOM.
+  - `scroll_settle: true` — scroll from top to bottom in viewport-height steps, then wait 300ms for `IntersectionObserver` / whileInView reveals to fire. Unloaded videos (preload="none") are played to detect if they render blank. This surfaces the real rendered state and avoids false positives on reveal-on-scroll or lazy-loaded content.
+  - `viewport: { w, h }` — set the render viewport (default: `{ w: 1440, h: 900 }`).
+
+**Video artifacts detection:** If any `<video>` with `preload="none"` (or missing preload) renders with `readyState < 2` (i.e. would show a black box in a screenshot), Raven flags it as an `unloaded-video-artifact` in the result. This is **informational** — not a pass/fail — since preload=none is often intentional. On cookie-protected hosts, video requests may fail because iOS/Android media daemons don't send cookies; Raven notes this to help you troubleshoot (e.g. disable deployment protection, use a token-based bypass).
+
+**Setup:** First time only, run `npx playwright install chromium` to download the browser binary. If the binary is missing when you call audit_page with `url`, you'll see a clear instruction to run the install command.
 
 ## Release updates
 

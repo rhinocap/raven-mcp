@@ -11,6 +11,7 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ### Added
 - `src/audit-container.ts` — side-effect-free container-width audit helper, unit-testable in isolation.
+- `src/capture.ts` — headless Chromium renderer for `audit_page`. New `url` parameter (optional) enables live rendering with Playwright: render the page, optionally scroll to bottom and settle IntersectionObserver / whileInView reveals, play preload=none videos, then audit the live DOM. Includes video-artifact detection: flags `<video preload="none">` elements that render blank (readyState < 2), helping catch unloaded media without false positives on reveal-on-scroll pages. Backwards-compatible: calling `audit_page` with `html` only (no `url`) behaves identically to prior versions. Playwright binary is optional; if missing, a clear instruction guides setup via `npx playwright install chromium`.
 
 ## [1.4.0] - 2026-05-19
 
