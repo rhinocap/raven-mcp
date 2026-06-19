@@ -2,6 +2,7 @@
 
 ## Innovations shipped
 
+- **MacroUITests + AccessibilitySnapshot target** (2026-06-18, HighLvl) — hosted unit-test target wired in Macro.xcodeproj with AccessibilitySnapshot 0.11.0 + SnapshotTesting 1.19.2; dedicated MacroUITests.xcscheme; `scripts/run-accessibility-snapshots.sh`. Resolves Xcode 26.5 explicit-modules incompatibility via `SWIFT_ENABLE_EXPLICIT_MODULES = NO` at invocation level. Commit `06133c3`. Unlocks e2e a11y-snapshot verification for Raven iOS Phase 1–2 capture.
 - **iOS audit roadmap (Phases 1–4)** (2026-06-18, v1.8.0) — device-capable iOS capture orchestrator + interactions/freeze-frame + `audit_parity` + `audit_ios_a11y` + `audit_contract` + `audit_api_contract`. 12 new source files, 85/85 tests, all verified on real hardware.
 - **`audit_page interactions[]`** (2026-06-18, v1.7.0) — native Playwright hover/click/focus before screenshot; the theme-toggle white-wash bug class is now photographable. Verified eyes-on: 99.8% wash captured.
 - **`audit_asset_integrity`** (2026-06-18, v1.7.0) — bottom-strip luminance variance detects sliced PNG exports that pass ratio math. Catches the "Figma export ended mid-form" failure class.
@@ -37,6 +38,13 @@
 - `raven_reflect` could suggest its own follow-up issues based on recurring audit warnings, not just surface them
 
 ## Session retrospectives
+
+### 2026-06-18 (follow-up: two-followups)
+- **Biggest win:** MacroUITests target fully wired and building under Xcode 26.5 — unlocks e2e a11y-snapshot verification for Raven iOS capture. Both stale-rule and wiring follow-ups closed in one session.
+- **Biggest lesson:** AccessibilitySnapshot renders views in-process — it can never run in a `ui-testing` bundle (out-of-process). Always spec the test-host topology before wiring any in-process renderer (AccessibilitySnapshot, ViewInspector, SwiftUI preview-based test libs). The `_Testing_Unavailable` alias is a direct Xcode signal: UI-test bundles have Swift Testing force-disabled.
+- **Shell lesson:** `EXIT=$?` before ANY subsequent command — `echo $?` resets the value and will lie.
+- **SPM inheritance lesson:** `SWIFT_ENABLE_EXPLICIT_MODULES`, `ENABLE_TESTING_SEARCH_PATHS`, and similar build settings in pbxproj do NOT reach SPM package targets. They require invocation-level CLI overrides.
+- **False-negative pattern:** In a multi-target build, if TargetA fails early, all following targets silently have "no errors" in the log — they never compiled. Confirm by checking for produced artifacts, not log silence.
 
 ### 2026-06-18
 - **Biggest wins:** 4 autonomous Raven phases built via Codex fan-out, all first-attempt — the workflow pattern proved out end-to-end. The Phase 4 test agent even caught a production bug it wasn't asked to find. Automation token unlocks frictionless future releases. Eyes-on device verification (real paired iPhone) for Phase 1.
