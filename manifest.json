@@ -109,6 +109,14 @@
       "description": "Evaluate visual rhythm, alignment, and optical balance of a rendered page"
     },
     {
+      "name": "audit_responsive_visibility",
+      "description": "Render a URL at multiple breakpoints and flag content elements that are visible on desktop but hidden on mobile"
+    },
+    {
+      "name": "audit_contrast",
+      "description": "Compute WCAG contrast ratios for every text element on a rendered page and report AA/AAA pass-fail"
+    },
+    {
       "name": "list_content_systems",
       "description": "Browse available brand voice & tone systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian)"
     },

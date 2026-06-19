@@ -8,6 +8,8 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { auditContainerWidth } from "./audit-container.js";
 import { capturePage, CaptureUnavailableError, annotateVideoArtifacts } from "./capture.js";
+import { captureResponsiveVisibility } from "./responsive.js";
+import { auditContrastUrl, auditContrastSnapshot } from "./contrast.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -2462,6 +2464,66 @@ server.tool(
         text: JSON.stringify(result, null, 2)
       }]
     };
+  }
+);
+
+// ── Tool 11b: audit_responsive_visibility ──────────────────────────
+
+server.tool(
+  "audit_responsive_visibility",
+  "Render a URL at multiple breakpoints and flag content elements that are visible on desktop but hidden on mobile (display:none / opacity:0 / visibility:hidden / zero-size). Categorises each flag as 'likely-oversight' (content that vanishes on mobile — the hidden-on-mobile content bug) vs 'intentional' (decorative). Returns a table of selector / hiding-class / mobile-visible / desktop-visible / category. Requires headless chromium.",
+  {
+    url: z.string().describe("URL to render (http/https or file://)"),
+    breakpoints: z.array(z.number()).optional().describe("Viewport widths in px. Default [390, 768, 1440, 2160]"),
+    viewportHeight: z.number().optional().describe("Render height in px. Default 900")
+  },
+  async function({ url, breakpoints, viewportHeight }) {
+    try {
+      var rv = await captureResponsiveVisibility(url, breakpoints, { viewportHeight: viewportHeight });
+      return { content: [{ type: "text" as const, text: JSON.stringify(rv, null, 2) }] };
+    } catch (error) {
+      if (error instanceof CaptureUnavailableError) {
+        return { content: [{ type: "text" as const, text: "audit_responsive_visibility needs headless chromium. Run: npx playwright install chromium" }] };
+      }
+      throw error;
+    }
+  }
+);
+
+// ── Tool 11c: audit_contrast ───────────────────────────────────────
+
+server.tool(
+  "audit_contrast",
+  "Compute WCAG contrast ratios for every text element on a rendered page (pass url) or from a supplied dom_snapshot. Reports AA (4.5:1 normal, 3:1 large) and AAA pass/fail per element and surfaces failing pairs with selector, ratio, and delta-to-pass — replacing manual eyedropper + ratio math.",
+  {
+    url: z.string().optional().describe("URL to render and measure (http/https or file://)"),
+    dom_snapshot: z.array(z.object({
+      selector: z.string(),
+      color: z.string(),
+      bgColor: z.string(),
+      fontPx: z.number().optional(),
+      bold: z.boolean().optional(),
+      text: z.string().optional()
+    })).optional().describe("Pre-collected text elements to score without rendering"),
+    screenshot: z.string().optional().describe("Optional base64 PNG for caller reference; ratios are computed from the DOM, not pixels")
+  },
+  async function({ url, dom_snapshot, screenshot }) {
+    if (url !== undefined && url !== null) {
+      try {
+        var ct = await auditContrastUrl(url);
+        return { content: [{ type: "text" as const, text: JSON.stringify(ct, null, 2) }] };
+      } catch (error) {
+        if (error instanceof CaptureUnavailableError) {
+          return { content: [{ type: "text" as const, text: "audit_contrast url mode needs headless chromium. Run: npx playwright install chromium — or pass a dom_snapshot instead." }] };
+        }
+        throw error;
+      }
+    }
+    if (dom_snapshot !== undefined && dom_snapshot !== null) {
+      var ctSnap = auditContrastSnapshot(dom_snapshot);
+      return { content: [{ type: "text" as const, text: JSON.stringify(ctSnap, null, 2) }] };
+    }
+    return { content: [{ type: "text" as const, text: "Provide either url (render + measure) or dom_snapshot (score supplied elements). Each dom_snapshot element: { selector, color, bgColor, fontPx?, bold?, text? }." }] };
   }
 );
 

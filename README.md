@@ -65,6 +65,8 @@ cd raven-mcp && npm install && npm run build
 | `get_brand_system` | Get a full system styled like a well-known brand |
 | `audit_page` | Audit HTML/CSS against Raven's quality standards — pass `html` for static audit, or `url` to render headless with optional `scroll_settle` (scroll to bottom + settle reveals) and `viewport` parameters; `containerMaxWidth` makes container checks token-aware |
 | `audit_layout` | Evaluate visual rhythm, alignment, and optical balance |
+| `audit_responsive_visibility` | Render a URL at multiple breakpoints and flag content elements that are visible on desktop but hidden on mobile (display:none/opacity:0/zero-size) — categorises each as likely-oversight (content vanishing on mobile) vs intentional (decorative) |
+| `audit_contrast` | Compute WCAG contrast ratios for every text element on a rendered page and report AA (4.5:1 / 3:1 large) and AAA pass-fail per element, with delta-to-pass for failures |
 | `audit_swiftui` | Audit SwiftUI source against Apple HIG — Dynamic Type, semantic colors, 44pt targets, 4/8pt spacing, AccentColor |
 | `audit_ios_screen` | Score a rendered iOS screen from an accessibility/view-hierarchy snapshot — 44pt targets + contrast + rhythm, in points |
 | `audit_ios_privacy` | Audit Info.plist (or Expo app.json) /PRIVACY.md/entitlements/source — usage-string honesty, ATS, Android permissions, bundled secrets, undisclosed default data-egress |
@@ -128,6 +130,29 @@ Anyone building a React Native or Expo app gets the same treatment. RN renders t
 - **`audit_ios_privacy`** also accepts an Expo **`app_json`** — it audits `expo.ios.infoPlist`, Android permissions, plugins, and scans `expo.extra`/config for secrets and Google API keys.
 
 **One command:** `node scripts/rn-audit.mjs <app-dir> [--snapshot snap.json] [--md report.md]` discovers screens + `app.json` (reading `userInterfaceStyle` so dark-only apps aren't false-flagged) and runs everything.
+
+## Responsive visibility audits
+
+`audit_responsive_visibility` renders a page at multiple breakpoints (default: 390px mobile, 768px tablet, 1440px desktop, 2160px ultra-wide) and flags content elements that are visible on desktop but hidden on mobile — catching the "vanishes on mobile" bug class. Each flagged element is categorised as **likely-oversight** (content that shouldn't be hidden) or **intentional** (decorative elements). Detects hiding via CSS (`hidden`, `display:none`, `opacity:0`, `visibility:hidden`) and responsive Tailwind classes (`hidden md:block`, etc.).
+
+**Usage:**
+- `audit_responsive_visibility(url)` — render at default breakpoints and flag mismatches.
+- `audit_responsive_visibility(url, [390, 768, 1440])` — custom breakpoints.
+- Optional `viewportHeight` (default: 900px) for tall content.
+
+Returns flagged elements with selector, hiding class, visibility at each breakpoint, and category.
+
+## Contrast audits
+
+`audit_contrast` computes WCAG contrast ratios for every text element on a rendered page, reporting AA (4.5:1 normal text, 3:1 large) and AAA (7:1 normal, 4.5:1 large) pass-fail. Useful for catching small-text / low-contrast pairs that a screenshot eyedropper would catch manually — Raven replaces the math.
+
+**Usage:**
+- `audit_contrast(url)` — render a live page and audit all text.
+- `audit_contrast(dom_snapshot: [{ selector, color, bgColor, fontPx?, bold?, text? }])` — audit a pre-captured snapshot (useful for dynamic or cookie-protected pages).
+
+Returns all text elements scored, failures highlighted with delta-to-pass, and a summary of AA/AAA failure count.
+
+**WCAG math:** Contrast ratio uses linearised luminance (WCAG 2.1 § 1.4.3) — black-on-white is exactly 21, white-on-black is exactly 21. Large text (18.66pt+ bold or 24pt+) needs only 3:1 / 4.5:1 AAA; regular text needs 4.5:1 / 7:1.
 
 ## Headless browser audits
 
