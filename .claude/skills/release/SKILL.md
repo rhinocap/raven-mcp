@@ -79,6 +79,27 @@ scripts/release.sh                      # or: scripts/release.sh minor
 ```
 This bumps `package.json`, syncs `manifest.json` + `server.json`, rebuilds `site/raven.mcpb`, `npm publish`es, commits, tags `vX.Y.Z`, and pushes (incl. tags).
 
+**2FA gate (`EOTP`) — this account uses a passkey/WebAuthn, NOT a TOTP code:** `--otp=` does not apply. `release.sh` runs `npm publish` non-interactively, which fails `EOTP` after the script has already bumped + rebuilt. The script stops there — no commit, no tag, no push. This is a HALF-DONE release; recover with Step 3a (do NOT re-run `release.sh` — it would `npm version` again and double-bump).
+
+### Step 3a — Recover a half-done release (publish failed at EOTP, version already bumped)
+
+State after an `EOTP` failure: `package.json`/`manifest.json`/`server.json`/`site/raven.mcpb` are modified to the new version but uncommitted; npm still shows the OLD version; no tag exists. Finish it manually:
+
+1. **Publish via the passkey web flow** — Andrew runs, from the repo:
+   ```
+   ! npm publish
+   ```
+   npm prints `Open this URL in your browser to authenticate: https://www.npmjs.com/auth/cli/…`. Open that URL, approve with the passkey; npm then completes the publish in the same command. (No code to type. If it times out waiting for browser auth, just run `npm publish` again and re-approve.) Confirm with `npm view raven-mcp version`.
+2. **Then do the commit/tag/push `release.sh` would have done** (the bumped files are already on disk):
+   ```bash
+   git add package.json package-lock.json manifest.json server.json site/raven.mcpb
+   git commit -m "Release vX.Y.Z"
+   git tag "vX.Y.Z"
+   git push origin main && git push --tags
+   ```
+
+> To avoid the interactive passkey gate on future releases, use an npm **automation token** (`//registry.npmjs.org/:_authToken=` of type "Automation", which bypasses 2FA for publish) in `~/.npmrc` — Andrew sets this himself; never paste the token into chat.
+
 ### Step 4 — Verify the publish (eyes-on the real registry)
 
 ```bash
