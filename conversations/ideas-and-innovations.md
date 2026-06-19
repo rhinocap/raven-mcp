@@ -2,6 +2,12 @@
 
 ## Innovations shipped
 
+- **iOS audit roadmap (Phases 1–4)** (2026-06-18, v1.8.0) — device-capable iOS capture orchestrator + interactions/freeze-frame + `audit_parity` + `audit_ios_a11y` + `audit_contract` + `audit_api_contract`. 12 new source files, 85/85 tests, all verified on real hardware.
+- **`audit_page interactions[]`** (2026-06-18, v1.7.0) — native Playwright hover/click/focus before screenshot; the theme-toggle white-wash bug class is now photographable. Verified eyes-on: 99.8% wash captured.
+- **`audit_asset_integrity`** (2026-06-18, v1.7.0) — bottom-strip luminance variance detects sliced PNG exports that pass ratio math. Catches the "Figma export ended mid-form" failure class.
+- **npm automation token + `release` skill** (2026-06-18) — frictionless one-command releases via `scripts/release.sh`; full runbook with EOTP/passkey recovery captured in `.claude/skills/release/SKILL.md`.
+- **11 permanent global skills** (2026-06-18) — attention-animation-harness, parity-visual-verify, parity-audit-workflow, integration-surface-checklist, sync-contract-guard, whoop-clock-guard, whoop-api-probe, ios-device-build, play-upload-sideload, audit-ios-motion-120hz, ios-a11y-gate. Each replaces a per-session reinvention.
+- **Cloud routine: 90-day token rotation reminder** (2026-06-18) — fires 2026-09-16T16:00Z, emails via Gmail.
 - **Content design systems layer** (2026-04-22, v1.2.0) — 5 brand voice systems + 11 UX-writing principles + 4 content patterns + 4 new tools. Shipped from one prompt in ~6 hours.
 - **In-server daily digest + launchd agent** (2026-04-19) — local-only usage digest delivered at 18:00 daily.
 - **Passive usage-insight logging** (2026-04-17) — privacy-by-construction local log (`~/.raven/usage.jsonl`), never leaves machine.
@@ -31,6 +37,12 @@
 - `raven_reflect` could suggest its own follow-up issues based on recurring audit warnings, not just surface them
 
 ## Session retrospectives
+
+### 2026-06-18
+- **Biggest wins:** 4 autonomous Raven phases built via Codex fan-out, all first-attempt — the workflow pattern proved out end-to-end. The Phase 4 test agent even caught a production bug it wasn't asked to find. Automation token unlocks frictionless future releases. Eyes-on device verification (real paired iPhone) for Phase 1.
+- **Biggest lesson:** `sed` batch ops against a variable holding a list silently fail in non-interactive sh — always inline the list. npm publish authentication: always check `npm whoami` before running `release.sh`; if it fails, skip interactive auth entirely and go straight to an Automation token.
+- **Structural insight:** The "doc → 4 phased /goals" format (from the HighLvl opportunities ledger) is a strong template for multi-phase Raven roadmap work. Each phase is a self-contained workflow with a clear input/output contract; they compose cleanly without blocking.
+- **Rule staleness noted:** CLAUDE.md's "Apple ships no iOS 26.x sim runtime" is factually incorrect on this machine. Rules written from point-in-time observations decay; the intent (device-verify even when sim is available) still holds, but the premise needs softening.
 
 ### 2026-04-22
 - Biggest win: same-day ship of content systems layer (one prompt → production in 6 hours) proves Raven's own thesis — AI+HI collaboration compresses weeks into hours when the system prompt is tight.

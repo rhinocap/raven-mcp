@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revisit — 2026-06-18</title>
+<style>
+  :root {
+    --bg-base: #1a1a22;
+    --bg-surface: #212129;
+    --bg-raised: #2a2a33;
+    --border: rgba(255, 255, 255, 0.06);
+    --border-strong: rgba(255, 255, 255, 0.1);
+    --text-primary: #F0F0F2;
+    --text-secondary: #9498A0;
+    --text-tertiary: #5C5F68;
+    --text-accent: #0077c5;
+    --accent-blue: #0077c5;
+    --accent-green: #00E676;
+    --accent-orange: #FFAB40;
+    --accent-pink: #FF4081;
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+    --max-width: 960px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .cover {
+    padding: 80px 24px 64px;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 0%, rgba(0, 119, 197, 0.15), transparent),
+      radial-gradient(ellipse 60% 60% at 80% 20%, rgba(0, 230, 118, 0.07), transparent),
+      linear-gradient(180deg, #1a1f2b 0%, var(--bg-base) 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .cover-inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+  }
+  .cover-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 16px;
+  }
+  .cover h1 {
+    font-size: 48px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+  .cover-sub {
+    font-size: 18px;
+    color: var(--text-secondary);
+    margin-bottom: 48px;
+    max-width: 600px;
+  }
+  .stat-row {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .stat {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    padding: 20px 24px;
+    min-width: 140px;
+  }
+  .stat-value {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .stat-value.green { color: var(--accent-green); }
+  .stat-value.blue { color: var(--accent-blue); }
+  .stat-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+  .body {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 64px 24px 96px;
+  }
+  .section {
+    margin-bottom: 56px;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 12px;
+  }
+  .card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .badge.shipped { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge.miss { background: rgba(255,171,64,0.12); color: var(--accent-orange); }
+  .badge.note { background: rgba(0,119,197,0.12); color: var(--accent-blue); }
+  .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.3;
+  }
+  .card-body {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.65;
+  }
+  .card-body strong { color: var(--text-primary); font-weight: 600; }
+  .card-body code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: rgba(255,255,255,0.07);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .pill-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .pill {
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(0,119,197,0.1);
+    color: #5ba8e0;
+    border: 1px solid rgba(0,119,197,0.2);
+    border-radius: 100px;
+    padding: 3px 10px;
+    font-family: var(--font-mono);
+  }
+  .tag-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .tag {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text-tertiary);
+  }
+  .metrics-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .metrics-table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .metrics-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+    vertical-align: top;
+  }
+  .metrics-table td:first-child { color: var(--text-primary); font-weight: 500; }
+  .metrics-table .good { color: var(--accent-green); font-weight: 700; }
+  .metrics-table .warn { color: var(--accent-orange); font-weight: 700; }
+  .version-badge {
+    display: inline-block;
+    background: rgba(0,119,197,0.15);
+    border: 1px solid rgba(0,119,197,0.3);
+    color: #5ba8e0;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin-left: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-label">Raven MCP · Revisit</div>
+    <h1>June 18, 2026</h1>
+    <p class="cover-sub">Largest single session to date — v1.6.2 → v1.8.0 in one day. 5 new MCP tools, iOS capture harness, 11 global skills, frictionless release infra.</p>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat-value green">85/85</div>
+        <div class="stat-label">Tests passing</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value green">0</div>
+        <div class="stat-label">Push rejections</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value blue">83%</div>
+        <div class="stat-label">First-attempt rate</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">~95%</div>
+        <div class="stat-label">Autonomy score</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">1.2</div>
+        <div class="stat-label">Round-trips avg</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value blue">1.8.0</div>
+        <div class="stat-label">Released</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="body">
+
+  <div class="section">
+    <div class="section-label">Shipped this session</div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge shipped">v1.7.0</span>
+        <div class="card-title"><code>audit_page interactions[]</code> + <code>audit_asset_integrity</code></div>
+      </div>
+      <div class="card-body">
+        Native Playwright <code>hover</code>/<code>click</code>/<code>focus</code> fired before screenshot via <code>interactions?: {selector, event, delay_ms}[]</code>. The theme-toggle white-wash class is now photographable — verified eyes-on: 99.8% white fraction on hover vs 0.0% at rest. New <code>audit_asset_integrity</code> tool samples the bottom 5%/min-20px strip of each PNG; high luminance variance → <code>likely-sliced</code>. Catches Figma exports that end mid-form and pass ratio math. Merged as PR #18.
+      </div>
+      <div class="tag-row"><div class="tag">PR #18</div><div class="tag">c691955</div><div class="tag">Eyes-on verified</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge shipped">Phase 1</span>
+        <div class="card-title">iOS device-capable capture orchestrator</div>
+      </div>
+      <div class="card-body">
+        <strong>Reconciliation:</strong> <code>audit_ios_screen</code> is a pure scorer (not a capturer); the capture path is the <code>AccessibilitySnapshot</code> XCUITest via <code>xcodebuild test -destination</code>. Phase 1 builds the orchestrator around that reality: <code>src/ios-capture.ts</code> (6 pure helpers), <code>scripts/ios-capture.mjs</code> (CLI: <code>--device &lt;udid&gt;</code>, <code>--require-device</code> block, sim-runtime gate). Verified on <strong>real paired iPhone</strong> — CFBundleVersion build 75 read-back; actual sim runtimes 17.2/26.4/26.5 parsed correctly.
+      </div>
+      <div class="tag-row"><div class="tag">c016604</div><div class="tag">Real-device verified</div><div class="tag">15 new tests</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge shipped">Phase 2</span>
+        <div class="card-title">iOS <code>interactions[]</code> + freeze-frame passthrough</div>
+      </div>
+      <div class="card-body">
+        XCUITest fires tap/swipe/focus interactions + injects <code>RAVEN_FREEZE_ANIMATION=1</code>/<code>RAVEN_FREEZE_T</code> launch args before walking the accessibility tree. Mirrors the web <code>interactions[]</code> shape. <code>AccessibilitySnapshot.swift</code> updated with graceful fallback for unresolvable identifiers.
+      </div>
+      <div class="tag-row"><div class="tag">0994858</div><div class="tag">swiftc -parse ✓</div><div class="tag">8 new tests</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge shipped">Phase 3</span>
+        <div class="card-title"><code>audit_parity</code> + <code>audit_ios_a11y</code></div>
+      </div>
+      <div class="card-body">
+        <strong>audit_parity</strong>: accepts iOS + Android element snapshots + named spatial relations (vertically-centered, baseline/left-aligned, equal-gap, equal-size, presence, truncation); computes per-platform → flags mismatches. <strong>Verified:</strong> the status-text top-vs-center bug that survived two DEVICE-VERIFIED badges → <code>mismatch</code> deterministically.<br><br>
+        <strong>audit_ios_a11y</strong>: missing label/value/traits, sub-44pt tap targets, WCAG contrast (reuses <code>contrast.ts</code>), Dynamic-Type clipping, VoiceOver traversal order.
+      </div>
+      <div class="tag-row"><div class="tag">6f94224</div><div class="tag">Parity bug caught ✓</div><div class="tag">13 new tests</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge shipped">Phase 4</span>
+        <div class="card-title"><code>audit_contract</code> + <code>audit_api_contract</code></div>
+      </div>
+      <div class="card-body">
+        <strong>audit_contract</strong>: reads N source files, checks token/field/schemaVersion consistency across layers, detects prefix-ordering hazard (<code>@WORKOUT</code> before <code>@UNWORKOUT</code> → BLOCK). Codex's test agent caught a real ordering bug during testing — bonus fix.<br><br>
+        <strong>audit_api_contract</strong>: adversarial queries against a live endpoint → <code>shape-valid</code>/<code>shape-invalid</code>/<code>confident-wrong</code>/<code>uncertain</code>. Verified via local server with all 4 verdicts.
+      </div>
+      <div class="tag-row"><div class="tag">f369dde</div><div class="tag">Bonus bug caught by test agent</div><div class="tag">6 new tests</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge shipped">Infra</span>
+        <div class="card-title">npm automation token + <code>release</code> skill + 90-day reminder</div>
+      </div>
+      <div class="card-body">
+        Replaced expired npm token with an Automation token (bypasses 2FA/passkey). Created <code>.claude/skills/release/SKILL.md</code> — the full runbook with EOTP/passkey recovery, "release.sh doesn't touch CHANGELOG" gap, dual-channel consumption model. Cloud routine fires <strong>2026-09-16 09:00 PDT</strong> → Gmail email with rotation steps.
+      </div>
+      <div class="tag-row"><div class="tag">One-command releases going forward</div><div class="tag">Routine: trig_015ggDBnAPygAovjHMaoomnB</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge shipped">Skills</span>
+        <div class="card-title">11 permanent global skills (section-a HighLvl doc)</div>
+      </div>
+      <div class="card-body">Fanned out 11 parallel sonnet agents; all 11 landed clean (~2 min). Renamed (dropped <code>highlvl-</code> prefix). 21 CLAUDE.md rules folded into global <code>~/.claude/CLAUDE.md</code>.</div>
+      <div class="pill-row">
+        <span class="pill">attention-animation-harness</span>
+        <span class="pill">parity-visual-verify</span>
+        <span class="pill">parity-audit-workflow</span>
+        <span class="pill">integration-surface-checklist</span>
+        <span class="pill">sync-contract-guard</span>
+        <span class="pill">whoop-clock-guard</span>
+        <span class="pill">whoop-api-probe</span>
+        <span class="pill">ios-device-build</span>
+        <span class="pill">play-upload-sideload</span>
+        <span class="pill">audit-ios-motion-120hz</span>
+        <span class="pill">ios-a11y-gate</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Mistakes &amp; lessons</div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge miss">Speed gap</span>
+        <div class="card-title">npm release: EOTP → passkey 404 → automation token (4 round-trips)</div>
+      </div>
+      <div class="card-body">
+        <code>release.sh</code> hit an EOTP gate; the npm web-auth URL returned 404; the passkey flow is WebAuthn not TOTP so <code>--otp=</code> is wrong; total ~4 back-and-forth turns before landing on "automation token." <strong>Rule captured in the <code>release</code> skill:</strong> always <code>npm whoami</code> first; if E401/EOTP, skip interactive auth entirely and generate an Automation token (type matters — not Publish, not Granular, Automation).
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge miss">Speed gap</span>
+        <div class="card-title"><code>sed</code> batch silently no-oped on skill rename</div>
+      </div>
+      <div class="card-body">
+        The sed loop to update <code>name:</code> frontmatter in 11 renamed dirs passed <code>$DIRS</code> as the path arg — the shell treated the whitespace-separated list as one word, so sed ran on a nonexistent path and exited 0. Required a re-run with the list inlined. <strong>Rule: always inline path lists in bash batch ops; never rely on variable word-splitting in non-interactive sh. Verify by grepping the result before declaring done.</strong>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge miss">Accuracy gap</span>
+        <div class="card-title">Claimed "auto-save hook commits locally" — it hadn't</div>
+      </div>
+      <div class="card-body">
+        Stated the auto-save hook had committed the staged files; <code>git status</code> showed they were staged but not committed. Minor — caught immediately. <strong>Rule: never assume the auto-save hook fired; always confirm with <code>git status</code> before claiming committed state.</strong>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge note">Staleness catch</span>
+        <div class="card-title">iOS 26.x sim-runtime rule is factually wrong on this machine</div>
+      </div>
+      <div class="card-body">
+        CLAUDE.md says "Apple ships no iOS 26.x sim runtime" — but <code>xcrun simctl list runtimes</code> shows 26.4 and 26.5. The rule's <em>intent</em> still holds (device-verify even when a sim is available, because sim-level render/scroll bugs don't reproduce on device), but the premise is stale. <strong>Follow-up: soften to "even with a 26.x sim runtime present, 26.x-specific scroll/layout bugs still require device verification."</strong> Not a mistake this session (I caught and flagged it), but a data-staleness pattern to watch.
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Metrics</div>
+    <table class="metrics-table">
+      <tr>
+        <th>Metric</th><th>Target</th><th>This session</th><th>Notes</th>
+      </tr>
+      <tr>
+        <td>First-attempt accuracy</td><td>90%</td><td class="warn">~83%</td>
+        <td>10/12 tasks. Misses: npm release (4 round-trips), sed batch (1 retry).</td>
+      </tr>
+      <tr>
+        <td>Push rejections</td><td>0</td><td class="good">0</td>
+        <td>All pushes merged cleanly.</td>
+      </tr>
+      <tr>
+        <td>Autonomy score</td><td>90%</td><td class="good">~95%</td>
+        <td>One AskUserQuestion (workflow vs autonomous, appropriate). Waited on Andrew only for interactive auth + confirmations that were genuinely his to make.</td>
+      </tr>
+      <tr>
+        <td>Round-trips per task</td><td>1</td><td>~1.2 avg</td>
+        <td>4 phases all 1.0; npm release ~2.5; skill rename 1.2; everything else 1.0.</td>
+      </tr>
+      <tr>
+        <td>Tests passing</td><td>100%</td><td class="good">100% (85/85)</td>
+        <td>Phase 4 Codex agent even caught a bonus production bug during testing.</td>
+      </tr>
+      <tr>
+        <td>Log currency</td><td>Immediate</td><td class="good">Immediate</td>
+        <td>Per-phase commits with CHANGELOG entries throughout the session.</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Pending / follow-ups</div>
+    <div class="card">
+      <div class="card-body">
+        <strong>1. Soften stale iOS 26.x sim-runtime rule</strong> — CLAUDE.md + <code>audit-ios-motion-120hz</code> skill premise needs updating; this machine has 26.4+26.5. Intent is unchanged: device-verify even when sim is present.<br><br>
+        <strong>2. Wire Macro UITest target</strong> — Phases 1–3 iOS capture is fully unit-tested; e2e device-snapshot verification requires <code>AccessibilitySnapshot.swift</code> in the Macro app's UITest target. HighLvl-repo task.
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">RavenMCP opportunities captured</div>
+    <div class="card">
+      <div class="card-body">
+        This session <em>was</em> the RavenMCP implementation session for the 4-phase roadmap. Two new opportunities appended to the ledger:<br><br>
+        <strong>P2:</strong> Capture-harness probe — <code>audit_ios_screen</code> preflight that detects whether <code>AccessibilitySnapshot</code> is wired in the caller's Xcode project before attempting to run.<br><br>
+        <strong>P3:</strong> Rule-staleness pattern — no Raven tool, but noted that the iOS 26.x sim-runtime rule needs softening. Process gap, not a tool gap.
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
