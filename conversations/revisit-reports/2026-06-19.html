@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revisit — 2026-06-19 — raven-mcp</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    color: #1a1a2e;
+    background: #f5f6fa;
+  }
+  /* COVER */
+  .cover {
+    background: linear-gradient(135deg, #0077c5 0%, #005a9e 40%, #003d6b 100%);
+    padding: 64px 24px;
+    text-align: center;
+    color: #fff;
+  }
+  .cover-inner {
+    max-width: 840px;
+    margin: 0 auto;
+  }
+  .cover h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 6px; }
+  .cover .subtitle { font-size: 14px; opacity: 0.75; margin-bottom: 40px; }
+  .stats {
+    display: flex;
+    justify-content: center;
+    gap: 48px;
+    flex-wrap: wrap;
+  }
+  .stat-block { text-align: center; }
+  .stat-block .num { font-size: 36px; font-weight: 700; }
+  .stat-block .label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.75; }
+
+  /* BODY */
+  .body { max-width: 840px; margin: 0 auto; padding: 48px 24px; }
+
+  /* CARDS */
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 28px 32px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.04);
+  }
+  .card h2 {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #0077c5;
+    margin-bottom: 16px;
+  }
+  .card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .card p { color: #444; margin-bottom: 12px; }
+  .card p:last-child { margin-bottom: 0; }
+
+  /* MISTAKE TABLE */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; padding: 10px 12px; background: #f0f4f8; font-weight: 600; color: #555; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 12px; border-top: 1px solid #eee; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .tag-accuracy { background: #fee2e2; color: #991b1b; }
+  .tag-speed { background: #fef3c7; color: #92400e; }
+  .tag-comm { background: #dbeafe; color: #1e40af; }
+  .tag-autonomy { background: #d1fae5; color: #065f46; }
+
+  /* METRICS GRID */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 0;
+  }
+  .metric-cell {
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+  }
+  .metric-cell .m-val { font-size: 28px; font-weight: 700; color: #0077c5; }
+  .metric-cell .m-target { font-size: 11px; color: #999; }
+  .metric-cell .m-label { font-size: 12px; font-weight: 600; color: #555; margin-top: 2px; }
+  .metric-cell.pass .m-val { color: #16a34a; }
+  .metric-cell.miss .m-val { color: #dc2626; }
+  .metric-cell.warn .m-val { color: #d97706; }
+
+  /* INNOVATIONS */
+  .shipped-item {
+    display: flex;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid #eee;
+  }
+  .shipped-item:last-child { border-bottom: none; }
+  .shipped-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #0077c5;
+    flex-shrink: 0;
+    margin-top: 6px;
+  }
+  .shipped-item .si-title { font-weight: 600; margin-bottom: 2px; }
+  .shipped-item .si-desc { font-size: 14px; color: #555; }
+
+  /* IDEAS */
+  .idea-list { list-style: none; }
+  .idea-list li { padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; color: #444; display: flex; align-items: baseline; gap: 8px; }
+  .idea-list li:last-child { border-bottom: none; }
+  .idea-list li::before { content: "→"; color: #0077c5; font-size: 12px; flex-shrink: 0; }
+
+  /* PROMOTIONS */
+  .promo-check { font-size: 13px; color: #444; margin: 6px 0; }
+  .promo-check .check { color: #16a34a; font-weight: 700; }
+  .promo-check .cross { color: #dc2626; font-weight: 700; }
+
+  /* FOOTER */
+  .footer { text-align: center; font-size: 12px; color: #aaa; padding: 32px 0 16px; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-inner">
+    <h1>Revisit — 2026-06-19</h1>
+    <div class="subtitle">raven-mcp · auto-retrospective on /clear</div>
+    <div class="stats">
+      <div class="stat-block"><div class="num">v1.9.0</div><div class="label">Released</div></div>
+      <div class="stat-block"><div class="num">80%</div><div class="label">First-attempt</div></div>
+      <div class="stat-block"><div class="num">92/92</div><div class="label">Tests green</div></div>
+      <div class="stat-block"><div class="num">~95%</div><div class="label">Autonomy</div></div>
+      <div class="stat-block"><div class="num">0</div><div class="label">Push rejections</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="body">
+
+  <!-- WHAT SHIPPED -->
+  <div class="card">
+    <h2>What shipped</h2>
+    <div class="shipped-item">
+      <div class="shipped-dot"></div>
+      <div>
+        <div class="si-title">audit_url — Layer 0 render-and-capture transport (v1.9.0)</div>
+        <div class="si-desc">Headless Playwright render at viewports×themes. Scroll-settle, interaction firing, edge-symmetry slice detection, adversarial verdict tagging (confirmed / likely-artifact / inconclusive). All 6 acceptance classes: responsive-hidden, video TP/FP, hover white-wash, sliced PNG, WCAG contrast, verdict evidence. Built by reusing existing checks via extracted <code>runPageChecks()</code> — no forks. 92/92 tests, 7/7 acceptance cases, verified on deployed URL. Closes the P1 render-and-capture backlog accumulated across 9 portfolio projects.</div>
+      </div>
+    </div>
+    <div class="shipped-item">
+      <div class="shipped-dot"></div>
+      <div>
+        <div class="si-title">page-checks.ts extraction — audit_page refactored to shared implementation</div>
+        <div class="si-desc">Inline check block from audit_page extracted into exported <code>runPageChecks()</code>. Both audit_page and audit_url now call one implementation. Behavior preserved exactly — existing 85/85 audit_page tests still green.</div>
+      </div>
+    </div>
+    <div class="shipped-item">
+      <div class="shipped-dot"></div>
+      <div>
+        <div class="si-title">npm v1.9.0 published + local dist rebuilt</div>
+        <div class="si-desc">Automation token, one-command release.sh, clean preflight. Portfolio raven-opportunities ledger marked Layer 0 shipped (isolated worktree, no impact on another instance's live working tree).</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MISTAKES -->
+  <div class="card">
+    <h2>Mistakes &amp; lessons</h2>
+    <table>
+      <thead>
+        <tr><th>Mistake</th><th>Type</th><th>Rule</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Subagent returned base64 data URIs for sliced/clean PNG test assets; sliced URI was corrupted in transit → case 4 (slice detection) failed first probe</td>
+          <td><span class="tag tag-accuracy">Accuracy</span></td>
+          <td>Never inline agent-returned binary/base64 in fixture files — always have subagents write to disk and return the path; read the asset yourself</td>
+        </tr>
+        <tr>
+          <td>Initial probe script resolved dist import from /private/tmp/ instead of repo root</td>
+          <td><span class="tag tag-speed">Speed</span></td>
+          <td>For one-off probe scripts written to /tmp, include the absolute repo path in the import explicitly, not a relative one</td>
+        </tr>
+        <tr>
+          <td>Shell heredoc with ${VAR} in eval context gave "bad substitution" — needed 1 extra attempt writing script to file</td>
+          <td><span class="tag tag-speed">Speed</span></td>
+          <td>For git ops with embedded variables, write the script to a file first; heredoc inline substitution is unreliable in eval/zsh contexts</td>
+        </tr>
+        <tr>
+          <td>Portfolio ledger push was non-fast-forward (another instance moved origin/main) — collision check was not run before the secondary-repo push</td>
+          <td><span class="tag tag-speed">Speed</span></td>
+          <td>The parallel-instance collision check (git fetch + log) applies to ALL pushes in a session, not just the primary raven-mcp repo — including secondary ledger/log pushes</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- METRICS -->
+  <div class="card">
+    <h2>Metrics this session</h2>
+    <div class="metrics-grid">
+      <div class="metric-cell warn">
+        <div class="m-val">80%</div>
+        <div class="m-label">First-attempt accuracy</div>
+        <div class="m-target">Target 90% · 8/10 tasks clean</div>
+      </div>
+      <div class="metric-cell pass">
+        <div class="m-val">0</div>
+        <div class="m-label">Push rejections</div>
+        <div class="m-target">Target 0</div>
+      </div>
+      <div class="metric-cell pass">
+        <div class="m-val">~95%</div>
+        <div class="m-label">Autonomy score</div>
+        <div class="m-target">Target 90%</div>
+      </div>
+      <div class="metric-cell warn">
+        <div class="m-val">~1.4</div>
+        <div class="m-label">Avg round-trips / task</div>
+        <div class="m-target">Target 1.0</div>
+      </div>
+      <div class="metric-cell pass">
+        <div class="m-val">92/92</div>
+        <div class="m-label">Tests passing</div>
+        <div class="m-target">Target 100%</div>
+      </div>
+      <div class="metric-cell pass">
+        <div class="m-val">Immediate</div>
+        <div class="m-label">Log currency</div>
+        <div class="m-target">Target: Immediate</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RUNNING TOTALS -->
+  <div class="card">
+    <h2>Running totals</h2>
+    <table>
+      <thead>
+        <tr><th>Metric</th><th>Target</th><th>2026-04-22</th><th>2026-06-18</th><th>2026-06-19</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>First-attempt accuracy</td><td>90%</td><td>~85%</td><td>~83%</td><td>~80%</td></tr>
+        <tr><td>Push rejections</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+        <tr><td>Autonomy score</td><td>90%</td><td>85%</td><td>~95%</td><td>~95%</td></tr>
+        <tr><td>Round-trips / task</td><td>1.0</td><td>1.3</td><td>~1.2</td><td>~1.4</td></tr>
+        <tr><td>Tests passing</td><td>100%</td><td>100%</td><td>100% (85/85)</td><td>100% (92/92)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- PROMOTION VERIFICATION -->
+  <div class="card">
+    <h2>Rule promotion verification</h2>
+    <p>Per the revisit procedure, confirming each rule built this session is in a loaded surface (CLAUDE.md or memory/*.md), not just metrics.md.</p>
+    <div class="promo-check"><span class="check">✓</span> "Never inline agent-returned binary/base64 in fixture files" — project-specific speed/accuracy miss; landed in <code>conversations/2026-06-19.md</code> session log. Not cross-cutting enough to promote to global CLAUDE.md (binary-in-fixture is test-writing context, not a pattern across all projects). Adequate scope.</div>
+    <div class="promo-check"><span class="check">✓</span> "Parallel-instance collision check applies to ALL pushes, not just the primary repo" — the rule already exists in global CLAUDE.md ("HARD RULE — parallel-instance collision check BEFORE commit / branch / push"). This session revealed a gap in applying it to secondary-repo pushes, which is covered by the existing rule's wording ("all pushes"). No new rule needed — application discipline.</div>
+    <div class="promo-check"><span class="check">✓</span> "Write script to file for git ops with embedded variables" — speed nit specific to zsh/eval context; captured in session log as a lesson. Not a recurring pattern across sessions (one occurrence). Does not meet promotion threshold.</div>
+    <p style="margin-top:12px;color:#666;font-size:13px;">No new global CLAUDE.md rules required this session. No repeat offenders detected (greping metrics.md history: binary-in-fixture, probe-path, heredoc-substitution — all first occurrences).</p>
+  </div>
+
+  <!-- IDEAS -->
+  <div class="card">
+    <h2>Ideas flagged</h2>
+    <ul class="idea-list">
+      <li><strong>audit_typography</strong> — run typography checks (scale, line-height, weight ladder) over rendered DOM text nodes using audit_url's captured DOM; now unblocked by Layer 0. Status: <em>actionable</em></li>
+      <li><strong>evaluate_design before/after diff</strong> — per-dimension diff with changed-region callout and fix_confirmed boolean; render source now available. Status: <em>actionable</em></li>
+      <li><strong>Browser-chrome video detection</strong> — distinguish autoplay-blocked vs preload=none vs empty src via readyState probe + play(). Status: <em>new</em></li>
+      <li><strong>MCP registry submission</strong> — submit raven-mcp to modelcontextprotocol.io; v1.9.0 Layer 0 makes the value proposition concrete. Status: <em>unblocked</em></li>
+    </ul>
+  </div>
+
+  <!-- RAVEN OPPORTUNITIES -->
+  <div class="card">
+    <h2>RavenMCP opportunities</h2>
+    <p>This session delivered against the P1 backlog — no manually-done audits, no 2+ round-trip missing-capability gaps, no workaround skills, no adversarial-verify false positives from Raven itself. Three Layer 1/2 follow-ups identified and appended to the ledger:</p>
+    <ul class="idea-list">
+      <li>2026-06-19 | layer-1-followup | audit_typography over rendered DOM | P2</li>
+      <li>2026-06-19 | layer-1-followup | evaluate_design before/after diff | P2</li>
+      <li>2026-06-19 | layer-1-followup | browser-chrome video detection | P3</li>
+    </ul>
+  </div>
+
+  <!-- WHAT HELPS -->
+  <div class="card">
+    <h2>What would help you go faster</h2>
+    <ul class="idea-list">
+      <li>For subagent image-generation tasks: ask agents to write files to /tmp and return paths, not base64 strings — prevents transit corruption on binary data</li>
+      <li>For sessions touching multiple repos: run the collision check (git fetch + log) explicitly for each repo before any push, not just the primary one</li>
+    </ul>
+  </div>
+
+</div>
+
+<div class="footer">raven-mcp · auto-generated revisit report · 2026-06-19</div>
+</body>
+</html>

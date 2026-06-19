@@ -2,6 +2,7 @@
 
 ## Innovations shipped
 
+- **`audit_url` — Layer 0 render-and-capture transport** (2026-06-19, v1.9.0) — headless Playwright render at viewports×themes with scroll-settle, interaction firing, edge symmetry scoring, adversarial verdict tagging (`confirmed | likely-artifact | inconclusive`). Catches: responsive-hidden elements, video TP/FP, hover white-wash, sliced PNG exports, WCAG contrast failures. All built by reusing existing checks via extracted `runPageChecks()` — no forks. 92/92 tests, 7/7 acceptance cases, verified on deployed URL. Closes the P1 "render-and-capture" backlog accumulated across 9 portfolio projects.
 - **MacroUITests + AccessibilitySnapshot target** (2026-06-18, HighLvl) — hosted unit-test target wired in Macro.xcodeproj with AccessibilitySnapshot 0.11.0 + SnapshotTesting 1.19.2; dedicated MacroUITests.xcscheme; `scripts/run-accessibility-snapshots.sh`. Resolves Xcode 26.5 explicit-modules incompatibility via `SWIFT_ENABLE_EXPLICIT_MODULES = NO` at invocation level. Commit `06133c3`. Unlocks e2e a11y-snapshot verification for Raven iOS Phase 1–2 capture.
 - **iOS audit roadmap (Phases 1–4)** (2026-06-18, v1.8.0) — device-capable iOS capture orchestrator + interactions/freeze-frame + `audit_parity` + `audit_ios_a11y` + `audit_contract` + `audit_api_contract`. 12 new source files, 85/85 tests, all verified on real hardware.
 - **`audit_page interactions[]`** (2026-06-18, v1.7.0) — native Playwright hover/click/focus before screenshot; the theme-toggle white-wash bug class is now photographable. Verified eyes-on: 99.8% wash captured.
@@ -38,6 +39,12 @@
 - `raven_reflect` could suggest its own follow-up issues based on recurring audit warnings, not just surface them
 
 ## Session retrospectives
+
+### 2026-06-19
+- **Biggest win:** `audit_url` + v1.9.0 ships the entire Layer 0 backlog in one session — the P1 render-and-capture gap that was structurally invisible to all prior Raven audits is now closed. Seven acceptance cases covering every escape class pass, including a real deployed URL run.
+- **Biggest lesson:** Subagents returning binary data (base64 data URIs for PNG test assets) are unreliable — the base64 gets corrupted in transit. Always have subagents write files to disk and return the path; read the asset yourself. The "agent wrote the data → paste it inline" pattern is a failure mode for anything binary.
+- **Fan-out pattern:** The `/goal` → 5 parallel Explore/image-gen subagents → coupled core on main loop → verify pattern worked well. Subagents (index.ts map, test harness map, deployed-URL finder, clip.webm generator, image generator) all completed correctly on first request. The main loop owned all file writes and the verify gate.
+- **Layer 1/2 follow-ups identified:** `audit_typography` (text rhythm, scale ratios over rendered DOM), `evaluate_design(before, after)` (before/after diff per dimension), browser-chrome video detection (for in-tab autoplay policies vs preload=none) — all now have a render-and-capture source to consume.
 
 ### 2026-06-18 (follow-up: two-followups)
 - **Biggest win:** MacroUITests target fully wired and building under Xcode 26.5 — unlocks e2e a11y-snapshot verification for Raven iOS capture. Both stale-rule and wiring follow-ups closed in one session.

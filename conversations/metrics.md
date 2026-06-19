@@ -2,16 +2,24 @@
 
 Tracking collaboration quality across sessions. Updated every Revisit.
 
-| Metric | Target | 2026-04-22 | 2026-06-18 |
-|---|---|---|---|
-| First-attempt accuracy | 90% | ~85% | ~83% (10/12 tasks) |
-| Push rejections | 0 | 0 | 0 |
-| Autonomy score | 90% | 85% | ~95% |
-| Round-trips per task | 1 | 1.3 avg | ~1.2 avg |
-| Tests passing | 100% | 100% (smoke tests for content tools) | 100% (85/85 pass) |
-| Log currency | Immediate | Delayed — logged only at end of day | Immediate (per-phase commits) |
+| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 |
+|---|---|---|---|---|
+| First-attempt accuracy | 90% | ~85% | ~83% (10/12 tasks) | ~80% (8/10 tasks) |
+| Push rejections | 0 | 0 | 0 | 0 |
+| Autonomy score | 90% | 85% | ~95% | ~95% |
+| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg |
+| Tests passing | 100% | 100% (smoke tests for content tools) | 100% (85/85 pass) | 100% (92/92 pass) |
+| Log currency | Immediate | Delayed — logged only at end of day | Immediate (per-phase commits) | Immediate |
 
 ## Notes per session
+
+### 2026-06-19
+- **Session scale:** Large — Layer 0 `audit_url` full build + v1.9.0 release.
+- **First-attempt accuracy ~80% (8/10):** Core build (extraction, orchestrator, capture changes, registration) all tsc-clean on first attempt. Two failures: (1) sliced-image fixture — base64 from subagent was corrupted in transit, case 4 failed first probe; fixed by re-deriving from disk via script. (2) Portfolio ledger push — collision from another instance moving origin/main; resolved via isolated worktree but needed 2 extra round-trips + one heredoc retry (shell variable expansion issue).
+- **Speed misses:** Probe script import path (1 extra round-trip, trivial). Shell heredoc variable expansion in eval context ("bad substitution") required writing script to file.
+- **Wins:** Fan-out Explore agents (index.ts map, test-harness map, deployed-URL finder, image generator) all delivered on first request. `page-checks.ts` extraction preserved exact `audit_page` behavior — full suite 92/92 green unchanged. All 6 acceptance classes caught; real-world run confirmed. Release ran clean (automation token, one-command).
+- **Autonomy score ~95%:** Zero AskUserQuestion calls; single "keep going" from user when session paused (not an autonomy failure — session paused correctly while subagents settled).
+- **Round-trips:** ~1.4 avg. Driven by the two failure cases above; core build was 1 round-trip each.
 
 ### 2026-06-18 (follow-up: two-followups)
 - **Session scale:** Small — 2 follow-up tasks from the morning session.
