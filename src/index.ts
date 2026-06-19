@@ -15,6 +15,8 @@ import { diffScreenshots } from "./image-diff.js";
 import { auditAssetIntegrity } from "./asset-integrity.js";
 import { auditParity } from "./parity.js";
 import { auditIosA11y } from "./ios-a11y.js";
+import { auditContract } from "./contract.js";
+import { runApiContract } from "./api-contract.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -2614,6 +2616,65 @@ server.tool(
   async function({ image_paths }) {
     var results = await auditAssetIntegrity(image_paths || []);
     return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "audit_asset_integrity", results: results }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "audit_contract",
+  "Verify a wire contract (token list / field set / schemaVersion) is identical across N independent source files (iOS Swift, proxy JS, Android Kotlin). Flags missing/inconsistent tokens, schemaVersion drift, and prefix-ordering bugs (a contained token matched before the longer one). BLOCK/PASS verdict.",
+  {
+    contract_spec: z.object({
+      mode: z.enum(["tokens", "envelope"]).optional(),
+      tokens: z.array(z.string()).optional(),
+      fields: z.array(z.string()).optional(),
+      schemaVersionPattern: z.string().optional()
+    }),
+    file_paths: z.array(z.string())
+  },
+  async function({ contract_spec, file_paths }) {
+    var files: Array<{ path: string; content: string }> = [];
+    var read_warnings: string[] = [];
+
+    for (var i = 0; i < file_paths.length; i++) {
+      var path = file_paths[i];
+      var content = "";
+      try {
+        content = readFileSync(path, "utf8");
+      } catch (error) {
+        read_warnings.push(path + ": " + (error as Error).message);
+      }
+      files.push({ path: path, content: content });
+    }
+
+    var result = auditContract(contract_spec, files);
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "audit_contract", ...result, read_warnings }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "audit_api_contract",
+  "Run adversarial queries against a live endpoint and return per-query verdict (shape-valid / shape-invalid / confident-wrong / uncertain) vs an expected shape schema + per-query expectations. Catches responses that are shape-valid but wrong.",
+  {
+    endpoint_url: z.string(),
+    queries: z.array(z.object({
+      name: z.string(),
+      method: z.enum(["GET", "POST"]).optional(),
+      path: z.string().optional(),
+      headers: z.record(z.string()).optional(),
+      body: z.any().optional(),
+      expect: z.object({
+        contains: z.array(z.string()).optional(),
+        equals: z.record(z.any()).optional()
+      }).optional()
+    })),
+    expected_shape_schema: z.object({
+      required: z.array(z.string()).optional(),
+      types: z.record(z.enum(["string", "number", "boolean", "object", "array"])).optional()
+    })
+  },
+  async function({ endpoint_url, queries, expected_shape_schema }) {
+    var result = await runApiContract(endpoint_url, queries || [], expected_shape_schema || {});
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "audit_api_contract", ...result }, null, 2) }] };
   }
 );
 
