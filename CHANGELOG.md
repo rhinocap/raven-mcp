@@ -6,6 +6,8 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-06-18
+
 ### Added
 - `audit_contract` — new tool (Phase 4). Verifies a wire contract (an ordered token list / field set / `schemaVersion`) is identical across N independent source files (iOS Swift, proxy JS, Android Kotlin). Flags tokens present in some layers but missing in others, `schemaVersion` drift across layers, and the **prefix-ordering bug** — a contained token (e.g. `@WORKOUT`) matched before the longer token that contains it (`@UNWORKOUT`), which silently corrupts directive parsing. Returns a per-layer report + `BLOCK`/`PASS` verdict with enumerated reasons. `src/contract.ts` is pure + unit-tested.
 - `audit_api_contract` — new tool (Phase 4). Runs adversarial queries against a live endpoint and returns a per-query verdict — `shape-valid` / `shape-invalid` / `confident-wrong` (shape valid but a declared expectation failed) / `uncertain` (network/non-JSON) — against an expected shape schema (required dot-paths + types) plus per-query `contains`/`equals` expectations. Catches responses that pass shape but are wrong. `src/api-contract.ts` exposes a pure `validateShape`/`getPath` core (unit-tested against a local HTTP server) + a thin `fetch` runner.
