@@ -6,6 +6,10 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+### Added
+- iOS device-capable capture orchestration (Phase 1 of the iOS audit roadmap). `scripts/ios-capture.mjs` drives the `AccessibilitySnapshot` XCUITest against a chosen `xcodebuild -destination` — a real device (`--device <udid>` → `platform=iOS,id=…`) or a booted simulator — runs it exactly once (no relaunch loop), reports `sim_runtime_available` for the target OS, and reads back the installed app's CFBundleVersion via `xcrun devicectl device info apps` so the caller can confirm build identity. `--require-device` returns a BLOCKED verdict instead of silently falling back to the simulator. `audit_ios_screen` itself is unchanged — it remains the pure snapshot scorer; this adds the capture step that produces its input.
+- `src/ios-capture.ts` — pure, unit-tested helpers for the above (destination construction, `simctl` runtime parsing + availability match, real-device block logic, `devicectl` CFBundleVersion extraction, xcodebuild arg construction). No process spawning; verified against real `xcrun`/`devicectl` output.
+
 ## [1.7.0] - 2026-06-18
 
 ### Changed
