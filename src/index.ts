@@ -7,6 +7,7 @@ import { readFileSync, readdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { auditContainerWidth } from "./audit-container.js";
+import { capturePage, CaptureUnavailableError, annotateVideoArtifacts } from "./capture.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -2216,14 +2217,49 @@ server.tool(
   "audit_page",
   "Audit HTML/CSS against Raven's design quality standards. Checks typography (min 13px, weight 400+, modular-scale heading ratios, line-height consistency), accessibility (WCAG touch targets, alt text, contrast), responsive patterns (flexbox over grid, clamp sizing, max-width containers), style guide compliance (CSS custom properties, no bare hex), and visual rhythm (4/8px spacing grid, tight spacing scale, palette size). Pass containerMaxWidth (your design system's canonical container token, in px) to make the max-width check token-aware — it then flags containers that diverge from your system (too narrow OR too wide) instead of a generic 1200px heuristic. Returns pass/fail per check with specific fix instructions.",
   {
-    html: z.string().describe("The full HTML content of the page to audit"),
+    html: z.string().optional().describe("The full HTML content of the page to audit"),
+    url: z.string().optional().describe("If set, Raven launches headless chromium, renders the page, and audits the RENDERED DOM."),
+    scroll_settle: z.boolean().optional().describe("Before capturing, scroll to bottom and settle IntersectionObserver/whileInView reveals (300ms), and play preload=none videos. Prevents blank-section false positives."),
+    viewport: z.object({ w: z.number(), h: z.number() }).optional(),
     strict: z.boolean().optional().describe("Strict mode — also flags warnings as failures. Default: false"),
     containerMaxWidth: z.number().optional().describe("Your design system's canonical content-container width in px (e.g. 1152). When set, the responsive/max-width check flags divergence from this token instead of using the generic 1200px heuristic.")
   },
-  async ({ html, strict, containerMaxWidth }) => {
+  async function({ html, url, scroll_settle, viewport, strict, containerMaxWidth }) {
     var issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }> = [];
     var passes: string[] = [];
+    var capMeta: any = null;
+    var videoArtifacts: any[] = [];
     var isStrict = strict || false;
+
+    if (url !== undefined && url !== null) {
+      try {
+        var cap = await capturePage(url, { scroll_settle: scroll_settle, viewport: viewport });
+        html = cap.renderedHtml;
+        capMeta = { url: url, viewport: cap.viewport, scrolledToBottom: cap.scrolledToBottom, screenshot_bytes: cap.screenshotBase64 };
+        if (cap.videoArtifacts !== undefined && cap.videoArtifacts !== null) {
+          videoArtifacts = cap.videoArtifacts;
+        }
+      } catch (e) {
+        if (e instanceof CaptureUnavailableError) {
+          return {
+            content: [{
+              type: "text" as const,
+              text: "Playwright chromium not available. Run: npx playwright install chromium"
+            }]
+          };
+        }
+        throw e;
+      }
+    }
+
+    if (html === undefined || html === null) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: "Provide either html or url"
+        }]
+      };
+    }
 
     // ── Structure checks
     if (/<html[^>]*lang=/.test(html)) passes.push("html[lang] attribute present");
@@ -2394,7 +2430,7 @@ server.tool(
     var totalChecks = passes.length + issues.length;
     var failCount = isStrict ? issues.length : errors.length;
 
-    var result = {
+    var result: any = {
       score: Math.round(((totalChecks - failCount) / totalChecks) * 100),
       grade: failCount === 0 ? "A" : failCount <= 2 ? "B" : failCount <= 4 ? "C" : "D",
       summary: passes.length + "/" + totalChecks + " checks passed" + (failCount > 0 ? " — " + failCount + " issues to fix" : " — all clear"),
@@ -2403,6 +2439,22 @@ server.tool(
       warnings: isStrict ? warnings.map(function(w) { return Object.assign({}, w, { severity: "error" as const }); }) : warnings,
       fix_priority: errors.concat(warnings).map(function(i) { return i.rule + ": " + i.fix; })
     };
+
+    if (capMeta !== null) {
+      result.capture = capMeta;
+      result.unloaded_video_artifacts = videoArtifacts;
+      if (videoArtifacts.length > 0) {
+        var notes: string[] = [];
+        for (var videoArtifact of videoArtifacts) {
+          var artifactSelector = "video";
+          if (videoArtifact.selector !== undefined && videoArtifact.selector !== null) {
+            artifactSelector = videoArtifact.selector;
+          }
+          notes.push("unloaded-video-artifact: " + artifactSelector + " rendered blank because preload=none; not a visual defect");
+        }
+        result.notes = notes;
+      }
+    }
 
     return {
       content: [{
@@ -3458,7 +3510,7 @@ server.tool(
 // geometry/contrast/touch logic is framework-agnostic; only the touch-target
 // minimum (44pt iOS vs 48dp Android), the muted-text color set, and the fix
 // wording differ by platform. iOS output is byte-identical to the original tool.
-function auditScreenSnapshot(elements: any, viewport: any, screenshot: any, platform: string) {
+function auditScreenSnapshot(elements: any, viewport: any, screenshot: any, platform: string, scroll_settle?: boolean) {
   var isAndroid = platform === "android";
   var P = isAndroid ? "android" : "ios";
   var unit = isAndroid ? "dp" : "pt";
@@ -3483,6 +3535,7 @@ function auditScreenSnapshot(elements: any, viewport: any, screenshot: any, plat
     };
   }
 
+  var videoArtifacts = annotateVideoArtifacts(elements);
   var issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }> = [];
   var passes: string[] = [];
   var interactiveRoles = ["button", "link", "cell", "tab", "tabbar", "menuitem", "switch", "slider", "stepper", "segmentedcontrol", "textfield", "searchfield", "tappable"];
@@ -3584,7 +3637,7 @@ function auditScreenSnapshot(elements: any, viewport: any, screenshot: any, plat
   var totalChecks = passes.length + issues.length;
   var failCount = errors.length;
 
-  var result = {
+  var result: any = {
     platform: platform,
     elements_analyzed: elements.length,
     viewport: viewport,
@@ -3598,6 +3651,13 @@ function auditScreenSnapshot(elements: any, viewport: any, screenshot: any, plat
     fix_priority: errors.concat(warnings).map(function (i) { return i.rule + ": " + i.fix; }),
     metrics: metrics
   };
+
+  if (videoArtifacts.length > 0) {
+    result.unloaded_video_artifacts = videoArtifacts;
+  }
+  if (scroll_settle) {
+    result.capture_guidance = "Scroll to bottom, wait 300ms for IntersectionObserver reveals, then call play() on preload=none videos before snapshotting.";
+  }
 
   return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
 }
@@ -3621,9 +3681,12 @@ server.tool(
   "audit_screen",
   "Audit a rendered mobile screen (iOS or Android) from a view-hierarchy/accessibility snapshot. Call with no arguments for the expected snapshot shape and how to capture it. Pass platform:\"android\" to score against the 48dp Material touch minimum and Material muted roles (onSurfaceVariant/outline = warn not fail); default platform:\"ios\" scores 44pt and treats secondaryLabel/tertiaryLabel as platform-standard. Both score touch targets, contrast, and visual rhythm (alignment, gap consistency, optical balance). Same return shape as audit_page.",
   Object.assign({
-    platform: z.enum(["ios", "android"]).optional().describe("Target platform — 'ios' (default, 44pt minimum, iOS semantic colors) or 'android' (48dp minimum, Material semantic roles)")
+    platform: z.enum(["ios", "android"]).optional().describe("Target platform — 'ios' (default, 44pt minimum, iOS semantic colors) or 'android' (48dp minimum, Material semantic roles)"),
+    scroll_settle: z.boolean().optional()
   }, screenElementSchema),
-  async ({ elements, viewport, screenshot, platform }) => auditScreenSnapshot(elements, viewport, screenshot, platform || "ios")
+  async function({ elements, viewport, screenshot, platform, scroll_settle }) {
+    return auditScreenSnapshot(elements, viewport, screenshot, platform || "ios", scroll_settle);
+  }
 );
 
 // Back-compat alias — predates audit_screen. Identical to audit_screen with
