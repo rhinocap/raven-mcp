@@ -161,3 +161,113 @@ function errorMessage(error: unknown): string {
   }
   return String(error);
 }
+
+// ---------------------------------------------------------------------------
+// Edge-symmetry analysis — flags rendered <img> whose content is cut at a frame
+// edge. A finished image has uniform (low-variance) pixels along every edge
+// (background/margin). A sliced export has HIGH-variance content running into
+// one edge while the opposite edge stays uniform — an asymmetry no width/height
+// ratio check can see. Edge luminance variances are collected in-page (canvas);
+// this scorer turns the four numbers into a verdict.
+// ---------------------------------------------------------------------------
+
+export type ImageEdgeSample = {
+  selector: string;
+  width: number;
+  height: number;
+  edges: { top: number; bottom: number; left: number; right: number };
+  tainted: boolean;
+};
+
+export type ImageEdgeVerdict = {
+  selector: string;
+  verdict: "clean" | "likely-sliced" | "inconclusive";
+  cut_edge: "top" | "bottom" | "left" | "right" | null;
+  confidence: number;
+  edges: { top: number; bottom: number; left: number; right: number };
+  reason: string;
+};
+
+export type ImageEdgeOptions = {
+  highVarianceThreshold?: number;
+  uniformRatio?: number;
+};
+
+export function auditImageEdges(
+  samples: ImageEdgeSample[],
+  opts: ImageEdgeOptions = {}
+): ImageEdgeVerdict[] {
+  const highVar = opts.highVarianceThreshold ?? 200;
+  const uniformRatio = opts.uniformRatio ?? 0.25;
+
+  return (samples || []).map(function (sample): ImageEdgeVerdict {
+    const e = sample.edges;
+
+    if (sample.tainted) {
+      return {
+        selector: sample.selector,
+        verdict: "inconclusive",
+        cut_edge: null,
+        confidence: 0,
+        edges: e,
+        reason: "image pixels unreadable (cross-origin canvas taint) — could not sample edges"
+      };
+    }
+
+    // Opposite-edge pairs: an edge "looks cut" when it carries high-variance
+    // content while the edge facing it is near-uniform.
+    const pairs: Array<{ edge: "top" | "bottom" | "left" | "right"; v: number; opposite: number }> = [
+      { edge: "bottom", v: e.bottom, opposite: e.top },
+      { edge: "top", v: e.top, opposite: e.bottom },
+      { edge: "right", v: e.right, opposite: e.left },
+      { edge: "left", v: e.left, opposite: e.right }
+    ];
+
+    let worst: { edge: "top" | "bottom" | "left" | "right"; v: number; opposite: number } | null = null;
+    for (const p of pairs) {
+      const asymmetric = p.v > highVar && p.opposite < highVar * uniformRatio;
+      if (asymmetric && (worst === null || p.v > worst.v)) {
+        worst = p;
+      }
+    }
+
+    if (worst === null) {
+      return {
+        selector: sample.selector,
+        verdict: "clean",
+        cut_edge: null,
+        confidence: clamp(1 - maxEdge(e) / highVar, 0, 1),
+        edges: e,
+        reason: "all edges uniform — no content running into a frame edge"
+      };
+    }
+
+    // Confidence grows with how far the cut edge exceeds the threshold and how
+    // uniform the opposite edge is.
+    const overshoot = clamp(worst.v / (highVar * 4), 0, 1);
+    const oppositeUniformity = clamp(1 - worst.opposite / (highVar * uniformRatio), 0, 1);
+    const confidence = Math.max(0.5, (overshoot + oppositeUniformity) / 2);
+
+    return {
+      selector: sample.selector,
+      verdict: "likely-sliced",
+      cut_edge: worst.edge,
+      confidence: Math.round(confidence * 100) / 100,
+      edges: e,
+      reason:
+        "high-variance content at the " +
+        worst.edge +
+        " edge (variance " +
+        Math.round(worst.v) +
+        ") with a uniform opposite edge (variance " +
+        Math.round(worst.opposite) +
+        ") — content appears cut off at the " +
+        worst.edge +
+        " frame edge"
+    };
+  });
+}
+
+function maxEdge(e: { top: number; bottom: number; left: number; right: number }): number {
+  return Math.max(e.top, e.bottom, e.left, e.right);
+}

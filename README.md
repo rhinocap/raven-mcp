@@ -67,6 +67,7 @@ cd raven-mcp && npm install && npm run build
 | `audit_layout` | Evaluate visual rhythm, alignment, and optical balance |
 | `audit_responsive_visibility` | Render a URL at multiple breakpoints and flag content elements that are visible on desktop but hidden on mobile (display:none/opacity:0/zero-size) — categorises each as likely-oversight (content vanishing on mobile) vs intentional (decorative) |
 | `audit_contrast` | Compute WCAG contrast ratios for every text element on a rendered page and report AA (4.5:1 / 3:1 large) and AAA pass-fail per element, with delta-to-pass for failures |
+| `audit_url` | Render a live URL at each viewport×theme, scroll-settle, fire interactions, capture real pixels + DOM, then run the page/contrast/responsive/blank-media checks **plus** sliced-image edge-symmetry and hover-state white-wash detection over the captures — every finding tagged confirmed/likely-artifact/inconclusive, ranked by severity |
 | `audit_swiftui` | Audit SwiftUI source against Apple HIG — Dynamic Type, semantic colors, 44pt targets, 4/8pt spacing, AccentColor |
 | `audit_ios_screen` | Score a rendered iOS screen from an accessibility/view-hierarchy snapshot — 44pt targets + contrast + rhythm, in points |
 | `audit_ios_privacy` | Audit Info.plist (or Expo app.json) /PRIVACY.md/entitlements/source — usage-string honesty, ATS, Android permissions, bundled secrets, undisclosed default data-egress |

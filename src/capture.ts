@@ -1,5 +1,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import type { ImageEdgeSample } from "./asset-integrity.js";
+
+export type { ImageEdgeSample } from "./asset-integrity.js";
 
 const CAPTURE_UNAVAILABLE_MESSAGE =
   "Playwright chromium not available. Run: npx playwright install chromium";
@@ -24,6 +27,7 @@ type ElementHandleLike = {
 type PageLike = {
   content: () => Promise<string>;
   evaluate: <T>(fn: (arg?: any) => T | Promise<T>, arg?: any) => Promise<T>;
+  emulateMedia?: (options: { colorScheme?: "light" | "dark" | "no-preference" }) => Promise<void>;
   goto: (url: string, options: { waitUntil: "load"; timeout: number }) => Promise<unknown>;
   hover: (selector: string, options?: { timeout?: number }) => Promise<void>;
   click: (selector: string, options?: { timeout?: number }) => Promise<void>;
@@ -38,6 +42,8 @@ type PageLike = {
   waitForTimeout: (timeout: number) => Promise<void>;
   $$: (selector: string) => Promise<ElementHandleLike[]>;
 };
+
+export type Theme = "light" | "dark";
 
 export class CaptureUnavailableError extends Error {
   constructor(message: string = CAPTURE_UNAVAILABLE_MESSAGE) {
@@ -58,8 +64,10 @@ export type CaptureResult = {
   renderedHtml: string;
   screenshotBase64: string;
   viewport: { w: number; h: number };
+  theme?: Theme;
   scrolledToBottom: boolean;
   videoArtifacts: VideoArtifact[];
+  imageEdges?: ImageEdgeSample[];
   warnings: string[];
 };
 
@@ -69,6 +77,8 @@ export type CaptureOptions = {
   interactions?: Interaction[];
   scroll_settle?: boolean;
   viewport?: { w: number; h: number };
+  theme?: Theme;
+  collectImageEdges?: boolean;
   timeoutMs?: number;
 };
 
@@ -76,6 +86,8 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
   const viewport = opts && opts.viewport ? opts.viewport : { w: 1440, h: 900 };
   const timeoutMs = opts && typeof opts.timeoutMs === "number" ? opts.timeoutMs : 30000;
   const scrollSettle = opts ? opts.scroll_settle === true : false;
+  const theme = opts && opts.theme ? opts.theme : undefined;
+  const collectImageEdges = opts ? opts.collectImageEdges === true : false;
   let browser: BrowserLike | null = null;
   const warnings: string[] = [];
 
@@ -100,7 +112,32 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
 
     const page = await browser.newPage();
     await page.setViewportSize({ width: viewport.w, height: viewport.h });
+
+    if (theme && typeof page.emulateMedia === "function") {
+      try {
+        await page.emulateMedia({ colorScheme: theme });
+      } catch (error) {
+        warnings.push("Failed to emulate color scheme " + theme + ": " + errorMessage(error));
+      }
+    }
+
     await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
+
+    if (theme) {
+      // Many sites toggle dark mode via a documentElement attribute/class rather
+      // than (or in addition to) prefers-color-scheme. Set both so the captured
+      // DOM reflects the requested theme regardless of the site's toggle scheme.
+      try {
+        await page.evaluate(function (t: string) {
+          document.documentElement.setAttribute("data-theme", t);
+          document.documentElement.classList.toggle("dark", t === "dark");
+          document.documentElement.classList.toggle("light", t === "light");
+        }, theme);
+        await page.waitForTimeout(120);
+      } catch (error) {
+        warnings.push("Failed to apply theme attribute " + theme + ": " + errorMessage(error));
+      }
+    }
 
     let scrolledToBottom = false;
     let videoArtifacts: VideoArtifact[] = [];
@@ -154,6 +191,11 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
       await page.waitForTimeout(delayMs);
     }
 
+    let imageEdges: ImageEdgeSample[] | undefined = undefined;
+    if (collectImageEdges) {
+      imageEdges = await sampleImageEdges(page, warnings);
+    }
+
     const renderedHtml = await page.content();
     const screenshotBuffer = await page.screenshot({ fullPage: true });
     const screenshotBase64 = screenshotBuffer.toString("base64");
@@ -163,8 +205,10 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
       renderedHtml: renderedHtml,
       screenshotBase64: screenshotBase64,
       viewport: viewport,
+      theme: theme,
       scrolledToBottom: scrolledToBottom,
       videoArtifacts: videoArtifacts,
+      imageEdges: imageEdges,
       warnings: warnings
     };
   } finally {
@@ -425,6 +469,123 @@ async function detectVideoArtifacts(
   }
 
   return artifacts;
+}
+
+async function sampleImageEdges(
+  page: PageLike,
+  warnings: string[]
+): Promise<ImageEdgeSample[]> {
+  try {
+    return await page.evaluate(function () {
+      function buildSel(el: Element): string {
+        var testid = el.getAttribute("data-testid");
+        if (testid) return '[data-testid="' + testid + '"]';
+        var id = el.getAttribute("id");
+        if (id) return "#" + id;
+        var tag = el.tagName.toLowerCase();
+        var parent = el.parentElement;
+        if (parent) {
+          var siblings = Array.prototype.slice.call(parent.children).filter(function (c: Element) {
+            return c.tagName === el.tagName;
+          });
+          var idx = siblings.indexOf(el) + 1;
+          return tag + ":nth-of-type(" + idx + ")";
+        }
+        return tag;
+      }
+
+      function luma(r: number, g: number, b: number): number {
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      }
+
+      function variance(values: number[]): number {
+        if (values.length === 0) return 0;
+        var total = 0;
+        for (var i = 0; i < values.length; i++) total += values[i];
+        var mean = total / values.length;
+        var sq = 0;
+        for (var j = 0; j < values.length; j++) {
+          var d = values[j] - mean;
+          sq += d * d;
+        }
+        return sq / values.length;
+      }
+
+      var out: Array<{
+        selector: string;
+        width: number;
+        height: number;
+        edges: { top: number; bottom: number; left: number; right: number };
+        tainted: boolean;
+      }> = [];
+
+      var imgs = document.querySelectorAll("img");
+      var MAX = 400;
+
+      for (var i = 0; i < imgs.length; i++) {
+        var img = imgs[i] as HTMLImageElement;
+        var nw = img.naturalWidth;
+        var nh = img.naturalHeight;
+        if (!nw || !nh) continue; // not loaded — nothing to sample
+
+        var scale = Math.min(1, MAX / Math.max(nw, nh));
+        var w = Math.max(1, Math.round(nw * scale));
+        var h = Math.max(1, Math.round(nh * scale));
+
+        var canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        var ctx = canvas.getContext("2d");
+        if (!ctx) continue;
+
+        var tainted = false;
+        var top: number[] = [];
+        var bottom: number[] = [];
+        var left: number[] = [];
+        var right: number[] = [];
+
+        try {
+          ctx.drawImage(img, 0, 0, w, h);
+          var data = ctx.getImageData(0, 0, w, h).data;
+          var idx = function (x: number, y: number): number {
+            return (y * w + x) * 4;
+          };
+          for (var x = 0; x < w; x++) {
+            var tIdx = idx(x, 0);
+            var bIdx = idx(x, h - 1);
+            top.push(luma(data[tIdx], data[tIdx + 1], data[tIdx + 2]));
+            bottom.push(luma(data[bIdx], data[bIdx + 1], data[bIdx + 2]));
+          }
+          for (var y = 0; y < h; y++) {
+            var lIdx = idx(0, y);
+            var rIdx = idx(w - 1, y);
+            left.push(luma(data[lIdx], data[lIdx + 1], data[lIdx + 2]));
+            right.push(luma(data[rIdx], data[rIdx + 1], data[rIdx + 2]));
+          }
+        } catch (e) {
+          tainted = true;
+        }
+
+        out.push({
+          selector: buildSel(img),
+          width: nw,
+          height: nh,
+          edges: {
+            top: tainted ? 0 : variance(top),
+            bottom: tainted ? 0 : variance(bottom),
+            left: tainted ? 0 : variance(left),
+            right: tainted ? 0 : variance(right)
+          },
+          tainted: tainted
+        });
+      }
+
+      return out;
+    });
+  } catch (error) {
+    warnings.push("Failed to sample image edges: " + errorMessage(error));
+    return [];
+  }
 }
 
 async function stableVideoSelector(el: ElementHandleLike, index: number): Promise<string> {

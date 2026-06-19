@@ -226,7 +226,7 @@ const ELEMENT_CAP = 600;
  */
 export async function auditContrastUrl(
   url: string,
-  opts?: { viewport?: { w: number; h: number }; timeoutMs?: number }
+  opts?: { viewport?: { w: number; h: number }; timeoutMs?: number; theme?: "light" | "dark" }
 ): Promise<ContrastResult> {
   let chromium: import("playwright").BrowserType;
   try {
@@ -255,10 +255,29 @@ export async function auditContrastUrl(
       width: opts?.viewport?.w ?? 1440,
       height: opts?.viewport?.h ?? 900,
     });
+    if (opts?.theme) {
+      try {
+        await page.emulateMedia({ colorScheme: opts.theme });
+      } catch {
+        // emulateMedia is best-effort; contrast still measured under default scheme
+      }
+    }
     await page.goto(url, {
       waitUntil: "load",
       timeout: opts?.timeoutMs ?? 30000,
     });
+    if (opts?.theme) {
+      try {
+        await page.evaluate((t: string) => {
+          document.documentElement.setAttribute("data-theme", t);
+          document.documentElement.classList.toggle("dark", t === "dark");
+          document.documentElement.classList.toggle("light", t === "light");
+        }, opts.theme);
+        await page.waitForTimeout(120);
+      } catch {
+        // theme-attribute application is best-effort
+      }
+    }
 
     // Collect raw element data from the page
     type RawEl = {

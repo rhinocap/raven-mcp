@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>audit_url acceptance fixture</title>
+  <style>
+    :root { --bg: #101014; --card: #ffffff; }
+    body {
+      margin: 0;
+      padding: 24px;
+      background: var(--bg);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--card);
+      padding: 16px;
+      border-radius: 8px;
+      min-width: 280px;
+    }
+
+    /* CASE 5 — contrast: #111 on #fff passes AA; #aaa on #fff fails AA */
+    .passes-aa { color: #111111; background-color: #ffffff; font-size: 16px; font-weight: 400; }
+    .fails-aa  { color: #aaaaaa; background-color: #ffffff; font-size: 16px; font-weight: 400; }
+
+    /* CASE 1 — responsive: hidden on mobile, visible at >=768px */
+    .hidden { display: none; }
+    @media (min-width: 768px) {
+      .hidden.md\:block { display: block; }
+    }
+
+    /* CASE 3 — hover white-wash: hovering the FAB pulls a full-bleed white overlay
+       to opacity 1, washing the (dark) page. Invisible in a static/no-hover capture. */
+    .theme-fab {
+      appearance: none;
+      border: 1px solid #5f5f70;
+      border-radius: 999px;
+      background: #242430;
+      color: #f4f4ff;
+      cursor: pointer;
+      font: inherit;
+      padding: 12px 24px;
+      position: relative;
+      z-index: 2;
+    }
+    .theme-fab:hover ~ .wash { opacity: 1; }
+    .wash {
+      position: fixed;
+      inset: 0;
+      background: #ffffff;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+  </style>
+</head>
+<body>
+  <!-- CASE 5: contrast -->
+  <div class="card">
+    <p class="passes-aa" data-testid="passes-aa">High contrast text — passes AA</p>
+    <p class="fails-aa" data-testid="fails-aa">Low contrast text — fails AA</p>
+  </div>
+
+  <!-- CASE 1: responsive visibility -->
+  <div class="card">
+    <h1 data-testid="heading">Heading (always visible)</h1>
+    <!-- content lede: hidden on mobile, shown on desktop → likely-oversight -->
+    <p class="hidden md:block" data-testid="lede" data-lede>Serif lede copy that disappears on mobile</p>
+    <!-- decorative: same hiding pattern, but empty + aria-hidden → intentional -->
+    <div class="hidden md:block" aria-hidden="true" data-testid="decoration"></div>
+  </div>
+
+  <!-- CASE 2a: a settled, playing looping video → must NOT be flagged blank -->
+  <div class="card">
+    <video data-testid="playingvid" src="clip.webm" autoplay muted loop playsinline width="160" height="160"></video>
+  </div>
+
+  <!-- CASE 2b: a genuinely empty/broken media container → must be flagged -->
+  <div class="card">
+    <video data-testid="emptyvid" preload="none" src="nonexistent.webm" width="160" height="160" controls></video>
+  </div>
+
+  <!-- CASE 4: sliced image (content cut at bottom edge) → likely-sliced -->
+  <div class="card">
+    <img data-testid="sliced" alt="sliced export" width="120" height="120"
+      src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAABxElEQVR4Ae3BAREDQRDDMHcxxPwBHog+j0yk33vvz9Q6ptox1Y6pdky1Y6odU+2YasdUO6baMdWOqXZMtWOqHVPtmGrHVDum2jHVjql2TLVjqh1T7Zhqx1Q7ptox1Y6pdky1Y6odU+2YasdUO6baMdWOqXZMtWOqHVPtmGrHVDum2jHVjql2TLVjqh1T7Zhqx1Q7ptox1Y6pdky1Y6odU+2YasdUO6baMdWOqXZMtWOqHVPtmGrHVDum2jHVjql2TLVjqh1T7Zhqx1Q7ptox1Y6pdky1Y6odU+2YasdUO6baMdWOqXZMtWOqHVPtmGrHVDum2jHVjql2TLVjqh1T7Zhqx1Q7ptox1Y6pdky1Y6qdShQNSVCJoiEJKlE0JEElioYkqETRkASVKBqSoBJFQxJUomhIgkoUDUlQiaIhCSpRNCRBJYqGJKhE0ZAElSgakqASRUMSVKJoSIJKFA1JUImiIQkqUTQkQSWKhiSoRNGQBJUoGpKgEkVDElSiaEiCShQNSVCJoiEJKlE0JEElioYkqETRkASVKBqScEy1Y6odU+2YasdUO6baMdWOqXZMtWOqHVPtmGrHVDum2jHVjql2TLUPSYohomE3wGsAAAAASUVORK5CYII=" />
+  </div>
+
+  <!-- CASE 4 control: clean image (uniform margins) → must NOT be flagged -->
+  <div class="card">
+    <img data-testid="clean" alt="clean export" width="120" height="120"
+      src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAACQklEQVR4Ae3BwY3dVgBD0Rvi98aaWZOLSDCLgRcGnEVi6YniOX/9+PHjb6aWmGpiqompJqaamGpiqompJqaamGpiqompJqaamGpiqompJqaamGpiqompJqaamGpiqompJqaaeBnbvMmHMrb5N7b5nSS0+FDANv8n23xLwpN9eCjbXME235LwNB8exjZ3sc2XJDzFh4ewzSls8yUJpxMPYJsT2eZ0Hw5mm9PZ5ksSTiQOZZsnsc2JxIFs80S2OY04jG2ezDYnEQexTQPbnEIcwjZNbHMCcQDbNLLN3cTNbNPMNncSU03cyDZvYJu7iJvY5k1scwcx1cQNbPNGtrmamGriYrZ5M9tcSUw1MdXEhWwzYJuriKkmppq4iG3mJ9tcQUw1MdXEVBNTTUw1MdXEVBMXsM38yjZ/mrhAEuZXSfjTxFQTU01MNTHVxFQTU01MNXGRJMxPSbiCmGpiqokLJWEgCVcRU01MNXGxJLxZEq4kppq4QRLeKAlXE1NN3CQJb5KEO4gbJeENknAXMdXEzZLQLAl3EgdIQqMk3E0cIglNknACcZAkNEjCKcRhkvBkSTiJOFASnigJpxGHSsKTJOFEHw6WhC+2OVUSTiYeIAknSsLpPjxEEr7Y5m5JeIoPD5OEL7a5WhKe5sNDJeGbbf6UJDzZhwJJ+Gab/yoJLT6UScLv2CYJbyFeJglvIqaamGpiqompJqaamGpiqompJqaamGpiqompJqaamGpiqompJqaamGpiqompJqaamGpiqv0DWVGXyMBmhiQAAAAASUVORK5CYII=" />
+  </div>
+
+  <!-- CASE 3: hover trigger + wash overlay -->
+  <button class="theme-fab" data-testid="theme-fab">theme</button>
+  <div class="wash" aria-hidden="true"></div>
+</body>
+</html>

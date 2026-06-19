@@ -6,6 +6,18 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-06-19
+
+### Added
+- `audit_url` — Layer 0 render-and-capture audit transport. Renders a **live URL** at each viewport×theme (default: iphone 393×852, desktop 1440×900, wide 2160×1200 × light/dark), scroll-settles (fires whileInView/IntersectionObserver reveals and plays videos), fires `hover`/`click`/`focus` interactions, and captures real pixels + the rendered DOM. Then it runs the existing checks over the captures — the shared `audit_page` rule engine, per-element WCAG contrast, responsive-visibility (desktop-shown/mobile-hidden), blank-media detection — **plus** new pixel checks: sliced-image **edge-symmetry** detection and **hover-state white-wash** detection (baseline-vs-interaction screenshot diff). Every finding is tagged `confirmed` / `likely-artifact` / `inconclusive` with its evidence and ranked by severity. This is the tool that catches real-world visual nits invisible to HTML-string/geometry audits: cropped images, blank videos, hover white-wash, sliced exports, and hidden-on-mobile content. Requires headless chromium.
+- `src/audit-url.ts` — the orchestrator (viewport×theme loop, finding aggregation, verdict tagging, severity ranking). Reuses the existing capture/check functions rather than forking them.
+- `src/page-checks.ts` — the `audit_page` rule engine extracted verbatim into a shared, pure `runPageChecks(html, opts)` so `audit_page` **and** `audit_url` run the exact same checks over (rendered) HTML, one implementation. `audit_page` behavior is unchanged.
+- `auditImageEdges` in `src/asset-integrity.ts` — scores per-edge luminance variance of rendered `<img>` elements (collected in-page via canvas) to flag content cut off at a frame edge (asymmetric edge → `likely-sliced`); pure + unit-coverable.
+
+### Changed
+- `src/capture.ts` — `capturePage` gains optional `theme` (emulates `prefers-color-scheme` + sets `data-theme`/class) and `collectImageEdges` (returns per-`<img>` edge-variance samples); `CaptureResult` gains optional `theme` and `imageEdges`. Backwards-compatible — existing callers are unaffected.
+- `auditContrastUrl` (`src/contrast.ts`) gains an optional `theme` so contrast can be measured under each color scheme. Backwards-compatible.
+
 ## [1.8.0] - 2026-06-18
 
 ### Added
