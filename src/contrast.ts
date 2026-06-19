@@ -6,6 +6,8 @@
 
 import { CaptureUnavailableError } from "./capture.js";
 
+export { CaptureUnavailableError };
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -236,10 +238,18 @@ export async function auditContrastUrl(
     );
   }
 
-  const browser = await chromium.launch({ headless: true });
+  let browser: import("playwright").Browser | null = null;
   const warnings: string[] = [];
 
   try {
+    try {
+      browser = await chromium.launch({ headless: true });
+    } catch {
+      throw new CaptureUnavailableError(
+        "Playwright chromium not available. Run: npx playwright install chromium"
+      );
+    }
+
     const page = await browser.newPage();
     await page.setViewportSize({
       width: opts?.viewport?.w ?? 1440,
@@ -361,6 +371,8 @@ export async function auditContrastUrl(
     result.warnings.push(...warnings);
     return result;
   } finally {
-    await browser.close();
+    if (browser) {
+      await browser.close();
+    }
   }
 }

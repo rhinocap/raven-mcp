@@ -12,6 +12,7 @@ import type { VerifiableFinding } from "./capture.js";
 import { captureResponsiveVisibility } from "./responsive.js";
 import { auditContrastUrl, auditContrastSnapshot } from "./contrast.js";
 import { diffScreenshots } from "./image-diff.js";
+import { auditAssetIntegrity } from "./asset-integrity.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -2244,12 +2245,17 @@ server.tool(
     html: z.string().optional().describe("The full HTML content of the page to audit"),
     url: z.string().optional().describe("If set, Raven launches headless chromium, renders the page, and audits the RENDERED DOM."),
     scroll_settle: z.boolean().optional().describe("Before capturing, scroll to bottom and settle IntersectionObserver/whileInView reveals (300ms), and play preload=none videos. Prevents blank-section false positives."),
+    interactions: z.array(z.object({
+      selector: z.string(),
+      event: z.enum(["hover", "click", "focus"]),
+      delay_ms: z.number()
+    })).optional().describe("Before capturing, fire each interaction in order (hover/click/focus the selector, then wait delay_ms). Captures the resulting dynamic state — e.g. an on-hover theme-toggle wash invisible to a static screenshot."),
     viewport: z.object({ w: z.number(), h: z.number() }).optional(),
     strict: z.boolean().optional().describe("Strict mode — also flags warnings as failures. Default: false"),
     containerMaxWidth: z.number().optional().describe("Your design system's canonical content-container width in px (e.g. 1152). When set, the responsive/max-width check flags divergence from this token instead of using the generic 1200px heuristic."),
     adversarial_verify: z.boolean().optional().describe("After generating findings, independently re-check each against the live DOM/network and tag it confirmed / likely-artifact / inconclusive. Surfaces a debunked_count.")
   },
-  async function({ html, url, scroll_settle, viewport, strict, containerMaxWidth, adversarial_verify }) {
+  async function({ html, url, scroll_settle, interactions, viewport, strict, containerMaxWidth, adversarial_verify }) {
     var issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }> = [];
     var passes: string[] = [];
     var capMeta: any = null;
@@ -2258,7 +2264,7 @@ server.tool(
 
     if (url !== undefined && url !== null) {
       try {
-        var cap = await capturePage(url, { scroll_settle: scroll_settle, viewport: viewport });
+        var cap = await capturePage(url, { scroll_settle: scroll_settle, interactions: interactions, viewport: viewport });
         html = cap.renderedHtml;
         capMeta = { url: url, viewport: cap.viewport, scrolledToBottom: cap.scrolledToBottom, screenshot_bytes: cap.screenshotBase64 };
         if (cap.videoArtifacts !== undefined && cap.videoArtifacts !== null) {
@@ -2596,6 +2602,16 @@ server.tool(
         text: JSON.stringify(result, null, 2)
       }]
     };
+  }
+);
+
+server.tool(
+  "audit_asset_integrity",
+  "Detect PNG exports whose content is sliced/cut off at the bottom edge (e.g. a Figma export that ended mid-form). Dimension/ratio checks cannot catch cut content inside a correctly-sized file; this measures per-pixel luminance variance in the bottom strip — uniform background = clean, high-variance UI content running into the edge = likely-sliced. Accepts filesystem paths to PNGs.",
+  { image_paths: z.array(z.string()).describe("Filesystem paths to PNG files to check for sliced/cut-off bottom content.") },
+  async function({ image_paths }) {
+    var results = await auditAssetIntegrity(image_paths || []);
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "audit_asset_integrity", results: results }, null, 2) }] };
   }
 );
 

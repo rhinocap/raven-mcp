@@ -25,6 +25,9 @@ type PageLike = {
   content: () => Promise<string>;
   evaluate: <T>(fn: (arg?: any) => T | Promise<T>, arg?: any) => Promise<T>;
   goto: (url: string, options: { waitUntil: "load"; timeout: number }) => Promise<unknown>;
+  hover: (selector: string, options?: { timeout?: number }) => Promise<void>;
+  click: (selector: string, options?: { timeout?: number }) => Promise<void>;
+  focus: (selector: string, options?: { timeout?: number }) => Promise<void>;
   screenshot: (options: { fullPage: boolean }) => Promise<Buffer>;
   setViewportSize: (viewport: { width: number; height: number }) => Promise<void>;
   waitForFunction: (
@@ -60,7 +63,10 @@ export type CaptureResult = {
   warnings: string[];
 };
 
+export type Interaction = { selector: string; event: "hover" | "click" | "focus"; delay_ms: number };
+
 export type CaptureOptions = {
+  interactions?: Interaction[];
   scroll_settle?: boolean;
   viewport?: { w: number; h: number };
   timeoutMs?: number;
@@ -78,7 +84,14 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
       const chromium = await loadChromium();
       browser = await chromium.launch({ headless: true });
     } catch (error) {
-      const fallback = captureFileUrlWithoutBrowser(url, viewport, scrollSettle, warnings, error);
+      const fallback = captureFileUrlWithoutBrowser(
+        url,
+        viewport,
+        scrollSettle,
+        opts && Array.isArray(opts.interactions) ? opts.interactions : [],
+        warnings,
+        error
+      );
       if (fallback !== null) {
         return fallback;
       }
@@ -114,6 +127,31 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
       await page.waitForTimeout(300);
       scrolledToBottom = true;
       videoArtifacts = await detectVideoArtifacts(page, warnings);
+    }
+
+    const interactions = opts && Array.isArray(opts.interactions) ? opts.interactions : [];
+    for (const interaction of interactions) {
+      const selector = interaction.selector;
+      const event = interaction.event;
+      const delayMs = typeof interaction.delay_ms === "number" ? interaction.delay_ms : 0;
+
+      try {
+        if (event === "hover") {
+          await page.hover(selector, { timeout: timeoutMs });
+        } else if (event === "click") {
+          await page.click(selector, { timeout: timeoutMs });
+        } else if (event === "focus") {
+          await page.focus(selector, { timeout: timeoutMs });
+        } else {
+          warnings.push("Unknown interaction event: " + event);
+          await page.waitForTimeout(delayMs);
+          continue;
+        }
+      } catch (error) {
+        warnings.push("Interaction failed (" + event + " " + selector + "): " + errorMessage(error));
+      }
+
+      await page.waitForTimeout(delayMs);
     }
 
     const renderedHtml = await page.content();
@@ -195,6 +233,7 @@ function captureFileUrlWithoutBrowser(
   url: string,
   viewport: { w: number; h: number },
   scrollSettle: boolean,
+  interactions: Interaction[],
   warnings: string[],
   launchError: unknown
 ): CaptureResult | null {
@@ -211,6 +250,9 @@ function captureFileUrlWithoutBrowser(
   }
 
   warnings.push("Browser launch failed; used file URL fallback: " + errorMessage(launchError));
+  if (interactions.length > 0) {
+    warnings.push("Interactions skipped: browser unavailable (file:// fallback)");
+  }
 
   const renderedHtml = scrollSettle ? applyScrollSettleFallback(html) : html;
   return {

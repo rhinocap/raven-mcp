@@ -1,0 +1,163 @@
+import { Buffer } from "node:buffer";
+import { readFileSync } from "node:fs";
+
+export type AssetIntegrityResult = {
+  path: string;
+  bottom_variance: number;
+  verdict: "clean" | "likely-sliced";
+  confidence: number;
+  warnings: string[];
+};
+
+export type AssetIntegrityOptions = {
+  bottomFraction?: number;
+  minRows?: number;
+  varianceThreshold?: number;
+};
+
+type DecodedPng = {
+  width: number;
+  height: number;
+  data: Uint8Array;
+};
+
+type PngModule = {
+  PNG?: {
+    sync?: {
+      read?: (buffer: Buffer) => DecodedPng;
+    };
+  };
+};
+
+const DATA_URL_PREFIX = /^data:image\/png;base64,/i;
+
+export async function auditAssetIntegrity(
+  imagePaths: string[],
+  opts: AssetIntegrityOptions = {}
+): Promise<AssetIntegrityResult[]> {
+  // @ts-ignore pngjs is intentionally optional; absence falls back to clean-with-warning.
+  const pngMod = (await import("pngjs").catch(() => null)) as PngModule | null;
+  const PNG = pngMod?.PNG;
+  const readPng = PNG?.sync?.read;
+
+  return imagePaths.map(function (imagePath) {
+    let buffer: Buffer;
+
+    try {
+      buffer = readFileSync(imagePath);
+    } catch (error) {
+      return fallbackResult(imagePath, [
+        "Could not read file: " + errorMessage(error)
+      ]);
+    }
+
+    if (!readPng) {
+      return fallbackResult(imagePath, [
+        "pngjs not installed — cannot analyze asset integrity"
+      ]);
+    }
+
+    try {
+      return auditPng(imagePath, readPng(buffer), opts);
+    } catch (error) {
+      return fallbackResult(imagePath, [
+        "Failed to decode PNG: " + errorMessage(error)
+      ]);
+    }
+  });
+}
+
+function stripPngPrefix(base64: string): string {
+  return base64.replace(DATA_URL_PREFIX, "");
+}
+
+function fallbackResult(path: string, warnings: string[]): AssetIntegrityResult {
+  return {
+    path,
+    bottom_variance: 0,
+    verdict: "clean",
+    confidence: 0,
+    warnings
+  };
+}
+
+function auditPng(
+  path: string,
+  png: DecodedPng,
+  opts: AssetIntegrityOptions
+): AssetIntegrityResult {
+  const threshold = opts.varianceThreshold ?? 100;
+  const bottomFraction = opts.bottomFraction ?? 0.05;
+  const minRows = opts.minRows ?? 20;
+  const stripHeight = Math.min(
+    png.height,
+    Math.max(minRows, Math.round(png.height * bottomFraction))
+  );
+  const bottomVariance = bottomLuminanceVariance(png, stripHeight);
+  const verdict = bottomVariance > threshold ? "likely-sliced" : "clean";
+
+  // Confidence is monotonic around the variance threshold: clean approaches 1 as
+  // variance approaches 0; likely-sliced starts at 0.5 and approaches 1 by 4x threshold.
+  const confidence =
+    verdict === "clean"
+      ? clamp(1 - bottomVariance / threshold, 0, 1)
+      : Math.max(0.5, clamp(bottomVariance / (threshold * 4), 0, 1));
+
+  return {
+    path,
+    bottom_variance: bottomVariance,
+    verdict,
+    confidence,
+    warnings: []
+  };
+}
+
+function bottomLuminanceVariance(png: DecodedPng, stripHeight: number): number {
+  const startY = png.height - stripHeight;
+  const pixelCount = png.width * stripHeight;
+
+  if (pixelCount <= 0) {
+    return 0;
+  }
+
+  let lumaTotal = 0;
+  const luminances: number[] = [];
+
+  for (let y = startY; y < png.height; y += 1) {
+    for (let x = 0; x < png.width; x += 1) {
+      const index = (y * png.width + x) * 4;
+      const r = png.data[index];
+      const g = png.data[index + 1];
+      const b = png.data[index + 2];
+      const luminance = pixelLuminance(r, g, b);
+
+      luminances.push(luminance);
+      lumaTotal += luminance;
+    }
+  }
+
+  const mean = lumaTotal / pixelCount;
+  let squaredDeltaTotal = 0;
+
+  for (let i = 0; i < luminances.length; i += 1) {
+    const delta = luminances[i] - mean;
+    squaredDeltaTotal += delta * delta;
+  }
+
+  return squaredDeltaTotal / pixelCount;
+}
+
+function pixelLuminance(r: number, g: number, b: number): number {
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
