@@ -70,6 +70,27 @@ final class AccessibilitySnapshot: XCTestCase {
             ]
             let label = el.label.trimmingCharacters(in: .whitespacesAndNewlines)
             if !label.isEmpty { entry["label"] = label }
+            if let rawValue = el.value as? String {
+                let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !value.isEmpty { entry["value"] = value }
+            }
+            // accessibilityHint is not exposed by XCUITest's public API; omitted.
+            var traits: [String] = []
+            switch el.elementType {
+            case .button:
+                traits.append("button")
+            case .link:
+                traits.append("link")
+            case .image:
+                traits.append("image")
+            case .staticText:
+                traits.append("staticText")
+            default:
+                break
+            }
+            if el.isSelected { traits.append("selected") }
+            if !el.isEnabled { traits.append("disabled") }
+            if !traits.isEmpty { entry["traits"] = traits }
             elements.append(entry)
         }
 

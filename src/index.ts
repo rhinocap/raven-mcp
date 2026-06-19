@@ -13,6 +13,8 @@ import { captureResponsiveVisibility } from "./responsive.js";
 import { auditContrastUrl, auditContrastSnapshot } from "./contrast.js";
 import { diffScreenshots } from "./image-diff.js";
 import { auditAssetIntegrity } from "./asset-integrity.js";
+import { auditParity } from "./parity.js";
+import { auditIosA11y } from "./ios-a11y.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -2612,6 +2614,26 @@ server.tool(
   async function({ image_paths }) {
     var results = await auditAssetIntegrity(image_paths || []);
     return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "audit_asset_integrity", results: results }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "audit_parity",
+  "Compare iOS vs Android element snapshots against a checklist of named spatial relationships (vertical centering, baseline/left alignment, equal gap/size, presence, truncation) and flag per-relation match/mismatch/uncertain — catches cross-platform layout drift like status text centered on one platform but top-aligned on the other. Provide ios+android {elements,viewport} snapshots and a checklist[].",
+  { ios: z.object({ elements: z.array(z.object({ label: z.string().optional(), id: z.string().optional(), role: z.string().optional(), rect: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }) })), viewport: z.object({ w: z.number(), h: z.number() }) }), android: z.object({ elements: z.array(z.object({ label: z.string().optional(), id: z.string().optional(), role: z.string().optional(), rect: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }) })), viewport: z.object({ w: z.number(), h: z.number() }) }), checklist: z.array(z.object({ name: z.string(), a: z.string(), b: z.string().optional(), relation: z.enum(["present", "vertically-centered", "baseline-aligned", "left-aligned", "equal-gap", "equal-size", "same-truncation"]), tolerance: z.number().optional() })) },
+  async function({ ios, android, checklist }) {
+    var r = auditParity(ios, android, checklist || []);
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "audit_parity", ...r }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "audit_ios_a11y",
+  "Score an accessibility-enriched iOS element snapshot — missing accessibilityLabel/value/traits, sub-44pt tap targets, per-text WCAG contrast, Dynamic Type clipping, and VoiceOver reading order. Provide {elements:[{label,value,hint,traits,role,rect,fontPt,fgColor,bgColor,dynamicTypeClipped}],viewport}. Capture via the AccessibilitySnapshot XCUITest / ios-capture harness.",
+  { elements: z.array(z.object({ label: z.string().optional(), value: z.string().optional(), hint: z.string().optional(), traits: z.array(z.string()).optional(), role: z.string().optional(), rect: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }), fontPt: z.number().optional(), fgColor: z.string().optional(), bgColor: z.string().optional(), dynamicTypeClipped: z.boolean().optional() })), viewport: z.object({ w: z.number(), h: z.number() }), options: z.object({ minTarget: z.number().optional() }).optional() },
+  async function({ elements, viewport, options }) {
+    var r = auditIosA11y({ elements: elements || [], viewport, options });
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "audit_ios_a11y", ...r }, null, 2) }] };
   }
 );
 
