@@ -212,7 +212,142 @@
       <p>We ship a new release every Friday with fresh design knowledge, new patterns, and fixes. Follow along here.</p>
     </header>
 
-    
+
+    <article class="release">
+      <header class="release-head">
+        <h2>v1.10.0</h2>
+        <span class="badge badge-minor">minor</span>
+        <time datetime="2026-06-19T20:32:08-07:00">Jun 19, 2026</time>
+      </header>
+      <div class="release-body">
+        <p>Raven v1.10.0 — content, typography &amp; tap-target audits</p>
+
+<h3>Added</h3>
+<ul>
+<li><code>audit_content</code> — per-item content evaluation with a pass/warn/fail verdict, matched UX-writing principles, and a before&rarr;after rewrite for each heading, CTA, label, metric, caption, or prose block.</li>
+<li><code>audit_typography</code> — detects the dominant modular scale over rendered text and flags off-scale sizes, inconsistent line-heights, and bloated weight ladders.</li>
+<li><code>audit_tap_targets</code> — WCAG 2.5.5 / Apple 44pt web tap-target audit; emits a per-element fix table with the exact CSS to reach the minimum, worst-first.</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>Blank-video detection now classifies each case (preload-none, autoplay-blocked, empty-src, decode-error) so a genuinely broken video is no longer rubber-stamped as a lazy-load artifact.</li>
+<li>iOS capture gains a snapshot-wiring preflight that catches setup gaps before build iterations are spent.</li>
+</ul>
+
+<p><strong>Install:</strong></p>
+<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
+
+
+      </div>
+      <footer class="release-foot">
+        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.10.0" target="_blank" rel="noopener">View on GitHub &rarr;</a>
+      </footer>
+    </article>
+
+    <article class="release">
+      <header class="release-head">
+        <h2>v1.9.0</h2>
+        <span class="badge badge-minor">minor</span>
+        <time datetime="2026-06-19T00:42:49-07:00">Jun 19, 2026</time>
+      </header>
+      <div class="release-body">
+        <p>Raven v1.9.0 — live render-and-capture audits</p>
+
+<h3>Added</h3>
+<ul>
+<li><code>audit_url</code> — Layer 0 render-and-capture audit. Renders a live URL at each viewport &times; theme, scroll-settles (firing whileInView reveals and playing videos), fires hover/click/focus, then runs the full check engine plus new pixel checks: sliced-image edge-symmetry and hover-state white-wash detection. Every finding is tagged confirmed / likely-artifact / inconclusive with its evidence. This is the tool that catches real-world visual nits invisible to HTML-string audits: cropped images, blank videos, hover white-wash, and hidden-on-mobile content.</li>
+</ul>
+
+<p><strong>Install:</strong></p>
+<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
+
+
+      </div>
+      <footer class="release-foot">
+        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.9.0" target="_blank" rel="noopener">View on GitHub &rarr;</a>
+      </footer>
+    </article>
+
+    <article class="release">
+      <header class="release-head">
+        <h2>v1.8.0</h2>
+        <span class="badge badge-minor">minor</span>
+        <time datetime="2026-06-18T21:03:47-07:00">Jun 18, 2026</time>
+      </header>
+      <div class="release-body">
+        <p>Raven v1.8.0 — iOS audit roadmap (contract, parity &amp; a11y)</p>
+
+<h3>Added</h3>
+<ul>
+<li><code>audit_contract</code> — verify a wire contract (token list / field set / schemaVersion) is identical across iOS, proxy, and Android source; catches the prefix-ordering bug that silently corrupts directive parsing.</li>
+<li><code>audit_api_contract</code> — runs adversarial queries against a live endpoint and returns shape-valid / shape-invalid / confident-wrong / uncertain per query.</li>
+<li><code>audit_parity</code> — compares iOS and Android snapshots against named spatial relationships and reports per-relation match/mismatch with measured deltas.</li>
+<li><code>audit_ios_a11y</code> — scores an iOS snapshot for missing labels/traits, sub-44pt targets, contrast, Dynamic-Type clipping, and VoiceOver order.</li>
+<li>Device-capable iOS capture orchestration with freeze-frame interactions for pixel-stable animation states.</li>
+</ul>
+
+<p><strong>Install:</strong></p>
+<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
+
+
+      </div>
+      <footer class="release-foot">
+        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.8.0" target="_blank" rel="noopener">View on GitHub &rarr;</a>
+      </footer>
+    </article>
+
+    <article class="release">
+      <header class="release-head">
+        <h2>v1.7.0</h2>
+        <span class="badge badge-minor">minor</span>
+        <time datetime="2026-06-18T20:03:58-07:00">Jun 18, 2026</time>
+      </header>
+      <div class="release-body">
+        <p>Raven v1.7.0 — contrast, responsive &amp; asset-integrity audits</p>
+
+<h3>Added</h3>
+<ul>
+<li><code>audit_contrast</code> — exact WCAG 2.1 contrast ratios for every text element on a rendered page, with delta-to-pass for each failure.</li>
+<li><code>audit_responsive_visibility</code> — renders a page at multiple breakpoints and flags content shown on desktop but hidden on mobile, categorised as likely-oversight vs intentional.</li>
+<li><code>audit_asset_integrity</code> — detects content cut off inside a correctly-sized export, which dimension/ratio checks cannot catch.</li>
+<li><code>audit_page</code> gains live-URL rendering, scripted interactions, an <code>adversarial_verify</code> pass, and a <code>containerMaxWidth</code> token check.</li>
+<li><code>evaluate_design</code> gains before/after screenshot diffing to confirm a fix actually changed the rendered output.</li>
+</ul>
+
+<p><strong>Install:</strong></p>
+<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
+
+
+      </div>
+      <footer class="release-foot">
+        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.7.0" target="_blank" rel="noopener">View on GitHub &rarr;</a>
+      </footer>
+    </article>
+
+    <article class="release">
+      <header class="release-head">
+        <h2>v1.6.2</h2>
+        <span class="badge badge-patch">patch</span>
+        <time datetime="2026-06-12T19:15:01Z">Jun 12, 2026</time>
+      </header>
+      <div class="release-body">
+        <p>Raven v1.6.2 — maintenance release</p>
+
+<h3>Changed</h3>
+<ul>
+<li>Tightened native-audit detectors and dependency/CI maintenance.</li>
+</ul>
+
+<p><strong>Install:</strong></p>
+<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
+
+
+      </div>
+      <footer class="release-foot">
+        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.6.2" target="_blank" rel="noopener">View on GitHub &rarr;</a>
+      </footer>
+    </article>
+
     <article class="release">
       <header class="release-head">
         <h2>v1.6.1</h2>
