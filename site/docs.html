@@ -499,7 +499,7 @@ cd raven-mcp && npm install && npm run build</code></pre>
 
     <!-- ── Tool Reference ── -->
     <h2 id="tools" class="reveal">Tool Reference</h2>
-    <p>Raven provides 32 tools across 8 knowledge layers. Claude calls them automatically based on what you're asking for. Below, the original 13 tools have full docs; the 19 newer tools from v1.2–v1.6 are listed with summary descriptions.</p>
+    <p>Raven provides 55 tools across 9 knowledge layers. Claude calls them automatically based on what you're asking for. Below, the original 13 tools have full docs; the newer tools from v1.2–v1.10 are listed with summary descriptions.</p>
 
     <h3>Principles Layer</h3>
 
@@ -845,6 +845,64 @@ cd raven-mcp && npm install && npm run build</code></pre>
         <dd>"light" | "dark" | "automatic" — single-mode apps suppress the dark-mode check</dd>
       </dl>
       <pre><code>"Audit this Expo screen for accessibility and safe areas"</code></pre>
+    </div>
+
+    <h3>Render &amp; Audit Layer <span style="color:var(--accent-blue);font-size:13px;letter-spacing:0.08em;font-weight:600;">v1.7–v1.10</span></h3>
+
+    <div class="tool-card reveal">
+      <h3>audit_url</h3>
+      <p class="tool-desc">Layer 0 render-and-capture audit. Renders a live URL at every viewport &amp; theme, scroll-settles reveals and plays videos, fires hover/click/focus, then runs the page-check engine plus pixel checks — sliced-image edge symmetry and hover-state white-wash — tagging each finding <code>confirmed</code> / <code>likely-artifact</code> / <code>inconclusive</code>. Requires headless Chromium.</p>
+      <pre><code>"Render and audit https://example.com on mobile and desktop, light and dark"</code></pre>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>audit_contrast</h3>
+      <p class="tool-desc">Compute WCAG 2.1 contrast ratios for every text element on a rendered page. Returns per-element ratio, AA/AAA pass-fail, and delta-to-pass for failures. Replaces the manual eyedropper + ratio math.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>audit_responsive_visibility</h3>
+      <p class="tool-desc">Render a page at multiple breakpoints and flag content visible on desktop but hidden on mobile — detecting <code>display:none</code> / zero-size and Tailwind <code>hidden md:block</code> patterns. Categorizes each as likely-oversight vs intentional-decorative.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>audit_tap_targets</h3>
+      <p class="tool-desc">WCAG 2.5.5 / Apple 44pt web tap-target audit. Collects every interactive element and emits a per-element fix table for any below the minimum — selector, role, measured w/h, per-axis pixel deficit, and a concrete CSS fix, sorted worst-first.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>audit_typography</h3>
+      <p class="tool-desc">Typographic-scale report over rendered DOM text. Detects the dominant modular-scale ratio, flags off-scale sizes, checks line-height consistency against the body rhythm, and flags weight ladders with &gt;4 weights or non-standard values.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>audit_content</h3>
+      <p class="tool-desc">Per-item content evaluation for UX writing. Each item (heading/prose/cta/label/caption/metric) returns a pass/warn/fail verdict with the matched principle, concrete issues, and a before→after rewrite — metrics need a number+unit, CTAs stay action-led ≤4 words, prose loses passive voice, jargon, and hedging.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>audit_asset_integrity</h3>
+      <p class="tool-desc">Given PNG file paths, measures per-pixel luminance variance in the bottom strip and flags high-variance rows as <code>likely-sliced</code> — catching content cut off inside a correctly-sized export that dimension checks cannot detect.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>audit_ios_a11y</h3>
+      <p class="tool-desc">Score an accessibility-enriched iOS snapshot — missing <code>accessibilityLabel</code>/value/traits on interactive elements, sub-44pt targets, per-text WCAG contrast, Dynamic-Type clipping, and VoiceOver reading order. Returns grade, score, errors, warnings, and <code>voiceover_order</code>.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>audit_parity</h3>
+      <p class="tool-desc">Compare an iOS element snapshot to an Android one against a checklist of named spatial relationships (vertically-centered, baseline-aligned, equal-gap, equal-size, present…) and return per-relation match / mismatch / uncertain with measured deltas — catching cross-platform drift past device-verified parity claims.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>audit_contract</h3>
+      <p class="tool-desc">Verify a wire contract (ordered token list / field set / <code>schemaVersion</code>) is identical across N source files — iOS Swift, proxy JS, Android Kotlin. Flags tokens missing in some layers, schemaVersion drift, and the prefix-ordering bug that silently corrupts directive parsing. Returns a per-layer report + BLOCK/PASS verdict.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>audit_api_contract</h3>
+      <p class="tool-desc">Run adversarial queries against a live endpoint and return a per-query verdict — shape-valid / shape-invalid / confident-wrong / uncertain — against an expected shape schema plus per-query contains/equals expectations. Catches responses that pass shape but are wrong.</p>
     </div>
 
     <h3>Reflection &amp; Registration</h3>
