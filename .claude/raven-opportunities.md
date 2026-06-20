@@ -33,3 +33,8 @@ Format: `- YYYY-MM-DD | [pain category] | [what happened] | [proposed Raven capa
 - 2026-06-19 | SHIPPED video-artifact reason classification (empty-src/decode-error=confirmed vs preload-none/autoplay-blocked=likely-artifact) in capture.ts — was 2026-06-19 layer-1-followup P3 + 2026-06-18 capture-artifact P1
 - 2026-06-19 | SHIPPED `checkSnapshotWiring` ios-capture preflight + ios-audit.mjs guidance — was 2026-06-18 capture-harness-probe/integration P2 (×2)
 - 2026-06-19 | ALREADY-SHIPPED (v1.9.0, verified this session): `audit_page adversarial_verify` (P1), `evaluate_design` before/after→fix_confirmed (P2), `audit_page`/`audit_url` `interactions[]` hover/click/focus (P2). No rebuild needed.
+
+---
+
+## Session scan — 2026-06-19 (v1.10.0) — 0 net-new opportunities
+Session was pure implementation (building the 5 missing Raven tools from the existing ledger). No design audits were done manually, no round-trips cost missing Raven capabilities, no new skills were written as workarounds, and no false positives were produced. All 6 open ledger items were consumed (shipped or verified-as-already-shipped).

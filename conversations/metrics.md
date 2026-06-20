@@ -2,18 +2,28 @@
 
 Tracking collaboration quality across sessions. Updated every Revisit.
 
-| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 |
-|---|---|---|---|---|
-| First-attempt accuracy | 90% | ~85% | ~83% (10/12 tasks) | ~80% (8/10 tasks) |
-| Push rejections | 0 | 0 | 0 | 0 |
-| Autonomy score | 90% | 85% | ~95% | ~95% |
-| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg |
-| Tests passing | 100% | 100% (smoke tests for content tools) | 100% (85/85 pass) | 100% (92/92 pass) |
-| Log currency | Immediate | Delayed — logged only at end of day | Immediate (per-phase commits) | Immediate |
+| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 (v1.9.0) | 2026-06-19 (v1.10.0) |
+|---|---|---|---|---|---|
+| First-attempt accuracy | 90% | ~85% | ~83% (10/12) | ~80% (8/10) | ~82% (14/17) |
+| Push rejections | 0 | 0 | 0 | 0 | 0 |
+| Autonomy score | 90% | 85% | ~95% | ~95% | ~99% |
+| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg | ~1.2 avg |
+| Tests passing | 100% | 100% (smoke) | 100% (85/85) | 100% (92/92) | 100% (185/185) |
+| Log currency | Immediate | Delayed | Immediate | Immediate | Immediate |
 
 ## Notes per session
 
-### 2026-06-19
+### 2026-06-19 (v1.10.0) — Layer 1 gap-fill
+- **Session scale:** Large — 8 backlog items triaged (3 verified-as-already-shipped, 5 built), v1.10.0 released. Net: 185/185 tests (+29 from 156).
+- **First-attempt accuracy ~82% (14/17):** Five new modules + ios preflight fix + release all clean first attempt. Three misses: (1) Workflow output parsed `d['results']` — actual key was `result` (REPEAT: third consecutive session; rule exists in CLAUDE.md but habit compliance fails). (2) Edit without prior Read on `index.ts` and `manifest.json` (each rejected once). (3) Subagent-authored `checkSnapshotWiring` returned `ready:false` with empty `guidance[]` for no-test-targets boundary case — required follow-up fix + test.
+- **REPEAT-OFFENDER flag:** Workflow key mismatch (`results` vs `result`) has now fired in 3 consecutive sessions. Rule "Probe workflow/agent output shape before parsing" IS in CLAUDE.md (loaded surface). This is habit compliance, not rule-gap — no re-promotion needed; flagged here for awareness.
+- **Major win:** Gap analysis prevented rebuilding 3 already-shipped tools — upfront code-read (index.ts + image-diff.ts + grep) proved adversarial_verify, before/after diff, and interactions[] were all shipped in v1.9.0. Saved ~3 agents + avoided duplicate registrations.
+- **New pattern:** When a subagent authors a gating function (`ready`, `passed`, `ok`), always probe the boundary case where the gate fires but the human-facing output (`guidance[]`, `issues[]`) is empty — that's the silent-failure mode.
+- **MCP smoke /tmp lesson:** ESM bare imports (e.g. `@modelcontextprotocol/sdk/...`) don't resolve from `/tmp` (no `node_modules` on lookup path). Write smoke scripts inside the project repo dir.
+- **Autonomy score ~99%:** Zero AskUserQuestion calls. Andrew's only input was "Push it and release" — a one-line human gate for an outbound action, not an autonomy failure.
+- **Round-trips:** ~1.2 avg. Workflow key error + empty-guidance fix each cost 1 extra; everything else was 1 round-trip.
+
+### 2026-06-19 (v1.9.0) — Layer 0 audit_url
 - **Session scale:** Large — Layer 0 `audit_url` full build + v1.9.0 release.
 - **First-attempt accuracy ~80% (8/10):** Core build (extraction, orchestrator, capture changes, registration) all tsc-clean on first attempt. Two failures: (1) sliced-image fixture — base64 from subagent was corrupted in transit, case 4 failed first probe; fixed by re-deriving from disk via script. (2) Portfolio ledger push — collision from another instance moving origin/main; resolved via isolated worktree but needed 2 extra round-trips + one heredoc retry (shell variable expansion issue).
 - **Speed misses:** Probe script import path (1 extra round-trip, trivial). Shell heredoc variable expansion in eval context ("bad substitution") required writing script to file.

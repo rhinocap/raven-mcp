@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revisit — 2026-06-19 (v1.10.0)</title>
+<style>
+  :root {
+    --bg-base: #1a1a22;
+    --bg-surface: #212129;
+    --bg-raised: #2a2a33;
+    --border: rgba(255, 255, 255, 0.06);
+    --border-strong: rgba(255, 255, 255, 0.1);
+    --text-primary: #F0F0F2;
+    --text-secondary: #9498A0;
+    --text-tertiary: #5C5F68;
+    --text-accent: #0077c5;
+    --accent-blue: #0077c5;
+    --accent-green: #00E676;
+    --accent-orange: #FFAB40;
+    --accent-pink: #FF4081;
+    --accent-yellow: #FFD740;
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+    --max-width: 960px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .cover {
+    padding: 80px 24px 64px;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 0%, rgba(0, 119, 197, 0.15), transparent),
+      radial-gradient(ellipse 60% 60% at 80% 20%, rgba(0, 230, 118, 0.07), transparent),
+      linear-gradient(180deg, #1f1f2b 0%, var(--bg-base) 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .cover-inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+  }
+  .cover-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 16px;
+  }
+  .cover h1 {
+    font-size: 48px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+  .cover .subtitle {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 640px;
+    margin-bottom: 48px;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .stat {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .stat-value {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .stat-value.green { color: var(--accent-green); }
+  .stat-value.blue { color: var(--accent-blue); }
+  .stat-value.orange { color: var(--accent-orange); }
+  .stat-value.yellow { color: var(--accent-yellow); }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+  .body {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+  .section {
+    margin-bottom: 48px;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .badge-shipped { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-verified { background: rgba(0,119,197,0.15); color: var(--accent-blue); }
+  .badge-miss { background: rgba(255,171,64,0.12); color: var(--accent-orange); }
+  .badge-repeat { background: rgba(255,64,129,0.12); color: var(--accent-pink); }
+  .badge-win { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .card p {
+    color: var(--text-secondary);
+    margin-top: 4px;
+    line-height: 1.65;
+  }
+  .card code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: rgba(255,255,255,0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-primary);
+  }
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 32px 0;
+  }
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .table-wrap {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    padding: 14px 20px;
+    text-align: left;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 14px 20px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  td:first-child { color: var(--text-primary); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  .highlight {
+    background: rgba(0,119,197,0.08);
+    border: 1px solid rgba(0,119,197,0.2);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .highlight p { color: var(--text-primary); }
+  .tag-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .tag {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-label">Revisit · 2026-06-19 · Session 2</div>
+    <h1>Layer 1 Gap-Fill<br>v1.10.0</h1>
+    <p class="subtitle">8 backlog items triaged — 3 already shipped (verified), 5 built and released. Ledger emptied. 185/185 tests.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value green">185/185</div>
+        <div class="stat-label">Tests passing</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value blue">~82%</div>
+        <div class="stat-label">First-attempt accuracy</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value green">~99%</div>
+        <div class="stat-label">Autonomy score</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value orange">~1.2×</div>
+        <div class="stat-label">Round-trips/task</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="body">
+
+  <div class="section">
+    <div class="section-label">Headline finding</div>
+    <div class="highlight">
+      <p><strong>Gap analysis first, build second.</strong> Reading <code>index.ts</code> + <code>image-diff.ts</code> + grep before launching any agent proved 3 of 8 backlog items were already shipped in v1.9.0 — <code>adversarial_verify</code>, <code>evaluate_design</code> before/after, and <code>interactions[]</code>. The 20-minute recon cost less than one duplicate agent build and prevented registration conflicts.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">What shipped</div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-shipped">Shipped</span> audit_content</div>
+      <p>Per-item UX-writing verdicts (pass/warn/fail) against principles. Accepts prose, headings, captions, CTAs, metrics, outcomes, labels → returns matched principle IDs, concrete issues, before→after rewrites, and aggregate summary. Pure offline — no browser. 32 tests.</p>
+      <div class="tag-row">
+        <span class="tag">content-verdicts</span>
+        <span class="tag">P2 → closed</span>
+        <span class="tag">32 tests</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-shipped">Shipped</span> audit_typography</div>
+      <p>Modular-scale, line-height consistency, and weight-ladder audit over rendered DOM text nodes — not HTML strings. Consumes the v1.9.0 render source directly. 20 tests including live Chromium URL tests.</p>
+      <div class="tag-row">
+        <span class="tag">typography</span>
+        <span class="tag">layer-1-followup</span>
+        <span class="tag">P2 → closed</span>
+        <span class="tag">20 tests</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-shipped">Shipped</span> audit_tap_targets</div>
+      <p>DOM-enumerated 44×44pt per-element fix table across all viewports. Returns class, actual size, and delta for every failing element. 12 tests.</p>
+      <div class="tag-row">
+        <span class="tag">tap-targets</span>
+        <span class="tag">P3 → closed</span>
+        <span class="tag">12 tests</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-shipped">Shipped</span> Video artifact reason classification</div>
+      <p><code>capture.ts</code> now distinguishes <code>empty-src</code> / <code>decode-error</code> (= confirmed finding) from <code>preload-none</code> / <code>autoplay-blocked</code> (= likely-artifact). Previously the same visual rendered by two entirely different root causes got one label.</p>
+      <div class="tag-row">
+        <span class="tag">video detection</span>
+        <span class="tag">P3 + P1 → closed</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-shipped">Shipped</span> audit_ios_screen preflight + guidance</div>
+      <p><code>checkSnapshotWiring</code> emits actionable <code>guidance[]</code> for all false-ready paths, including the no-test-targets-known boundary case (was returning <code>ready:false</code> with empty guidance — a silent failure mode). Harness (<code>ios-audit.mjs</code>) surfaces it when no snapshot target is found. 11 tests.</p>
+      <div class="tag-row">
+        <span class="tag">ios preflight</span>
+        <span class="tag">P2 × 2 → closed</span>
+        <span class="tag">11 tests</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-verified">Verified</span> 3 already-shipped tools confirmed working</div>
+      <p><code>audit_page adversarial_verify</code> (P1), <code>evaluate_design</code> before/after → <code>fix_confirmed</code> (P2), <code>interactions[]</code> hover/click/focus (P2) — all live and correct in v1.9.0. No rebuild. Live smoke confirmed: interactions detected 0.9975 near-white on hover vs 0.0001 baseline.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Mistakes &amp; lessons</div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-repeat">Repeat</span> Workflow output key mismatch (3rd session)</div>
+      <p>Tried to parse <code>d['results']</code> from the Workflow result. Actual shape: <code>{'summary', 'agentCount', 'logs', 'result'}</code>. Required a second <code>jq keys</code> probe.</p>
+      <p style="margin-top:10px;"><strong>Status:</strong> Rule already in <code>~/.claude/CLAUDE.md</code> ("Probe workflow/agent output shape before parsing — ALWAYS"). This is habit compliance, not a rule gap. The self-check must happen BEFORE the parse, not after the KeyError. No re-promotion needed; flagged as chronic execution gap.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-miss">Speed gap</span> Edit without prior Read (×2)</div>
+      <p>Attempted Edit on <code>index.ts</code> and <code>manifest.json</code> without a prior Read. Tool rejected both with "File has not been read yet." Standard process, immediate recovery.</p>
+      <p style="margin-top:10px;"><strong>Rule:</strong> Read the target file before any Edit, especially import sections and JSON files only touched at the end of a build.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-miss">Accuracy gap</span> Subagent preflight: boolean-false with empty guidance</div>
+      <p>Subagent-authored <code>checkSnapshotWiring</code> returned <code>ready:false</code> with empty <code>guidance[]</code> for the <code>testTargets=[]</code> boundary case. The harness would have printed a header with no bullets — technically not wrong, but useless to the caller. Required a follow-up fix + test.</p>
+      <p style="margin-top:10px;"><strong>Rule:</strong> When reviewing a subagent-authored gating function (<code>ready</code>, <code>passed</code>, <code>ok</code>), explicitly test the boundary case where the gate fires but the human-facing output (<code>guidance[]</code>, <code>issues[]</code>, <code>suggestions[]</code>) is empty. A <code>false</code> with no explanation is a silent-failure mode worse than not running.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-miss">Speed gap</span> MCP smoke script in /tmp</div>
+      <p>Wrote <code>/tmp/raven-smoke.mjs</code>; ESM bare imports (<code>@modelcontextprotocol/sdk/...</code>) failed because there's no <code>node_modules</code> in <code>/tmp</code>. ESM resolution walks up from the script file's location.</p>
+      <p style="margin-top:10px;"><strong>Rule:</strong> MCP SDK smoke scripts must live inside the project directory, not <code>/tmp</code>. Write to the repo, delete after.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Metrics</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Target</th>
+            <th>This session</th>
+            <th>Trend</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>First-attempt accuracy</td>
+            <td>90%</td>
+            <td>~82% (14/17)</td>
+            <td>↑ vs v1.9.0 (80%)</td>
+          </tr>
+          <tr>
+            <td>Push rejections</td>
+            <td>0</td>
+            <td>0</td>
+            <td>Clean streak</td>
+          </tr>
+          <tr>
+            <td>Autonomy score</td>
+            <td>90%</td>
+            <td>~99%</td>
+            <td>↑ best session to date</td>
+          </tr>
+          <tr>
+            <td>Round-trips per task</td>
+            <td>1</td>
+            <td>~1.2 avg</td>
+            <td>↑ vs v1.9.0 (1.4)</td>
+          </tr>
+          <tr>
+            <td>Tests passing</td>
+            <td>100%</td>
+            <td>185/185 ✓</td>
+            <td>+29 new tests</td>
+          </tr>
+          <tr>
+            <td>Log currency</td>
+            <td>Immediate</td>
+            <td>Immediate</td>
+            <td>Maintained</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Raven opportunities — session scan</div>
+    <div class="card">
+      <div class="card-title">0 net-new opportunities</div>
+      <p>Session was pure implementation — building the 5 missing Raven tools from the existing ledger. No design audits done manually, no round-trips cost missing Raven capabilities, no new skills written as workarounds, no false positives produced. All 6 open ledger items consumed (shipped or verified-as-already-shipped). Ledger is effectively empty.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">What would help next time</div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-title">Pre-tag ledger items as shipped/built</div>
+        <p>When adding items to the raven-opportunities ledger, note whether each one has already shipped in an intermediate release. Would eliminate the gap-analysis recon phase (~20 min of reads) from the start of every backlog-fill session.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Subagent prompt: boundary-case test template</div>
+        <p>Add to all agent prompts for new gating functions: "Include an explicit test for the boundary case where the gate returns false but the guidance[] / issues[] output is empty. That is the silent-failure mode." One line in the prompt prevents a follow-up fix round-trip.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
