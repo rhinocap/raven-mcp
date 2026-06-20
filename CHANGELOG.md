@@ -6,6 +6,8 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-06-19
+
 ### Added
 - `audit_content` — per-item content evaluation. Takes an array of content items (`heading`/`prose`/`cta`/`label`/`caption`/`metric`/`outcome`) and returns a per-item verdict (`pass`/`warn`/`fail`) with matched UX-writing principle ids, concrete issues grounded in principle text, and a before→after rewrite suggestion, plus an aggregate summary. Deterministic heuristics per type: metrics must carry a number+unit; CTAs/labels must be action-led and ≤4 words; prose flags passive voice, jargon, and hedging; headings flag filler openers and buzzwords; captions flag duplication of any heading in the batch. Pure offline — no network or browser. Use it instead of `evaluate_design` when you need per-item verdicts rather than the principle library. `src/content-audit.ts` is unit-tested (32 cases).
 - `audit_typography` — typographic-scale report over rendered DOM text nodes (`url` mode) or a supplied `nodes` snapshot. Detects the dominant modular-scale ratio (~1.2/1.25/1.333/1.5) and flags off-scale sizes, checks line-height consistency against the body rhythm, and flags weight ladders with >4 weights or non-standard CSS values. Returns `scale`, `line_height`, `weight_ladder`, `nodes_analyzed`, and `findings[]`. Complements `audit_page`'s pass/fail typography checks with a focused scale analysis. `src/typography.ts` is unit-tested (20 cases incl. live-chromium). Requires headless chromium for `url` mode.
