@@ -65,6 +65,21 @@ npm whoami                               # MUST print your npm user
    git push origin main
    ```
 
+### Step 1b — Mirror the entry into the web changelog (`site/changelog.html`) — MANDATORY
+
+`site/changelog.html` is the **public** changelog at https://ravenmcp.ai/changelog.html and is a **hand-maintained static file** — nothing in `release.sh` or Step 1 regenerates it. Skipping this is exactly how the site stalled at v1.6.1 while npm/`.mcpb`/`CHANGELOG.md` shipped v1.6.2–v1.10.0 (caught 2026-06-19).
+
+1. In `site/changelog.html`, add a new `<article class="release">` block at the **top of the release list** (immediately above the current newest entry, after the `<header class="hero">`), newest-first. Copy the shape of the existing top entry:
+   - `<h2>vX.Y.Z</h2>`
+   - badge: `badge-major` / `badge-minor` / `badge-patch` to match the bump
+   - `<time datetime="<ISO>">Mon D, YYYY</time>` (the tag/commit date)
+   - `release-body`: an `<h3>Added</h3>` / `<h3>Changed</h3>` list summarising the same changes you wrote into `CHANGELOG.md` (human-readable, `<code>tool_name</code>` for new tools), the Install block, and a `release-foot` link to `https://github.com/rhinocap/raven-mcp/releases/tag/vX.Y.Z`.
+2. Commit it (can ride the same `Changelog: vX.Y.Z` commit, or its own). It deploys automatically — Vercel serves `site/` (`outputDirectory: site`) on push to `main`.
+3. **Verify the deploy on the live URL** (cache-bust, don't trust WebFetch's 15-min cache):
+   ```bash
+   curl -s "https://ravenmcp.ai/changelog.html?cb=$RANDOM" | grep -o '<h2>v[0-9.]*</h2>' | head -1   # must show vX.Y.Z
+   ```
+
 ### Step 2 — Dry run
 
 ```bash
@@ -124,8 +139,9 @@ A release is done only when ALL hold:
 1. `npm view raven-mcp version` returns the new version.
 2. Tag `vX.Y.Z` is pushed and the Release commit is on `origin/main`.
 3. `CHANGELOG.md` has a dated `[X.Y.Z]` section covering every shipped change.
-4. The local `dist/` is rebuilt (CLI instances) — and the Desktop `.mcpb` reinstalled if that surface is in use.
-5. You stated the npm URL `https://www.npmjs.com/package/raven-mcp/v/X.Y.Z` as the verification link.
+4. `site/changelog.html` has a matching `vX.Y.Z` entry **and the live page at https://ravenmcp.ai/changelog.html shows it** (Step 1b verify).
+5. The local `dist/` is rebuilt (CLI instances) — and the Desktop `.mcpb` reinstalled if that surface is in use.
+6. You stated the npm URL `https://www.npmjs.com/package/raven-mcp/v/X.Y.Z` as the verification link.
 
 ## Gotchas (learned 2026-06-18)
 
