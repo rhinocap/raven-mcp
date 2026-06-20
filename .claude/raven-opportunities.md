@@ -38,3 +38,6 @@ Format: `- YYYY-MM-DD | [pain category] | [what happened] | [proposed Raven capa
 
 ## Session scan — 2026-06-19 (v1.10.0) — 0 net-new opportunities
 Session was pure implementation (building the 5 missing Raven tools from the existing ledger). No design audits were done manually, no round-trips cost missing Raven capabilities, no new skills were written as workarounds, and no false positives were produced. All 6 open ledger items were consumed (shipped or verified-as-already-shipped).
+
+## Session scan — 2026-06-20 — 0 net-new opportunities
+Session was pure maintenance (site changelog catch-up, release skill gap closure). No design audits done, no missing Raven capabilities surfaced, no workaround skills written, no false positives produced. The missing step was in the release skill, not a Raven tool gap.

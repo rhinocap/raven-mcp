@@ -2,16 +2,24 @@
 
 Tracking collaboration quality across sessions. Updated every Revisit.
 
-| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 (v1.9.0) | 2026-06-19 (v1.10.0) |
-|---|---|---|---|---|---|
-| First-attempt accuracy | 90% | ~85% | ~83% (10/12) | ~80% (8/10) | ~82% (14/17) |
-| Push rejections | 0 | 0 | 0 | 0 | 0 |
-| Autonomy score | 90% | 85% | ~95% | ~95% | ~99% |
-| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg | ~1.2 avg |
-| Tests passing | 100% | 100% (smoke) | 100% (85/85) | 100% (92/92) | 100% (185/185) |
-| Log currency | Immediate | Delayed | Immediate | Immediate | Immediate |
+| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 (v1.9.0) | 2026-06-19 (v1.10.0) | 2026-06-20 |
+|---|---|---|---|---|---|---|
+| First-attempt accuracy | 90% | ~85% | ~83% (10/12) | ~80% (8/10) | ~82% (14/17) | ~85% (5/6) |
+| Push rejections | 0 | 0 | 0 | 0 | 0 | 0 |
+| Autonomy score | 90% | 85% | ~95% | ~95% | ~99% | ~99% |
+| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg | ~1.2 avg | ~1.2 avg |
+| Tests passing | 100% | 100% (smoke) | 100% (85/85) | 100% (92/92) | 100% (185/185) | N/A |
+| Log currency | Immediate | Delayed | Immediate | Immediate | Immediate | Immediate |
 
 ## Notes per session
+
+### 2026-06-20 — Changelog catch-up + release skill fix
+- **Session scale:** Small — 1 task (site changelog catch-up, release skill gap closure).
+- **First-attempt accuracy ~85% (5/6):** Diagnosis, HTML entry authoring, collision check, push, live-URL verify all clean on first attempt. One miss: initial render script (inline ESM) failed with `ERR_MODULE_NOT_FOUND`; recovered in 1 step via project-installed `playwright`. Follows the "/tmp ESM import" lesson from Jun 19 but in a slightly different context (inline script rather than `/tmp`).
+- **Root cause found + fixed:** `site/changelog.html` lagged 5 releases behind (stuck at v1.6.1/May 29) because the release skill had no step to update it. The manual "Update changelog" commit was dropped during the rapid Jun 18–19 burst. Fixed by: (1) adding the 5 missing entries, (2) adding mandatory Step 1b + done-gate to the release skill.
+- **Wins:** Live URL verified (`curl` polling loop until `v1.10.0` appeared); collision check (1 commit ahead of origin, no parallel instance conflict); release skill now has a structural gate so this can't silently drift again.
+- **Autonomy score ~99%:** Andrew asked one question, assistant diagnosed and fixed everything autonomously.
+- **Round-trips:** ~1.2 avg. Only the render-script failure cost an extra step; everything else was 1 round-trip.
 
 ### 2026-06-19 (v1.10.0) — Layer 1 gap-fill
 - **Session scale:** Large — 8 backlog items triaged (3 verified-as-already-shipped, 5 built), v1.10.0 released. Net: 185/185 tests (+29 from 156).
