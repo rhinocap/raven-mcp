@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Typography Fixture</title>
+  <style>
+    /*
+     * Scale: base 12px, ratio ~1.333 (perfect fourth)
+     *   12 → 16 → 21.3 → 28.4 → 37.9 → ~50.5
+     * Weights: 400 (body), 600 (subheading), 700 (heading)
+     * Line-height: dominant ratio 1.5 (body), 1.2 (headings)
+     */
+    body {
+      margin: 0;
+      padding: 24px;
+      background: #ffffff;
+      font-family: sans-serif;
+    }
+    h1 {
+      font-size: 37.9px;
+      font-weight: 700;
+      line-height: 1.2em; /* ~45.5px */
+    }
+    h2 {
+      font-size: 28.4px;
+      font-weight: 700;
+      line-height: 1.2em; /* ~34px */
+    }
+    h3 {
+      font-size: 21.3px;
+      font-weight: 600;
+      line-height: 1.2em; /* ~25.6px */
+    }
+    p.body {
+      font-size: 16px;
+      font-weight: 400;
+      line-height: 1.5em; /* 24px */
+    }
+    small.caption {
+      font-size: 12px;
+      font-weight: 400;
+      line-height: 1.5em; /* 18px */
+    }
+    /* Off-scale: 20px is not on the ~1.333 scale from 12 */
+    p.off-scale {
+      font-size: 20px;
+      font-weight: 400;
+      line-height: 1.5em;
+    }
+    /* Odd line-height outlier */
+    p.lh-outlier {
+      font-size: 16px;
+      font-weight: 400;
+      line-height: 3em; /* ratio 3.0 — far from dominant 1.5 */
+    }
+    /* Non-standard weight */
+    p.odd-weight {
+      font-size: 16px;
+      font-weight: 450;
+      line-height: 1.5em;
+    }
+  </style>
+</head>
+<body>
+  <h1 data-testid="h1">Heading Level 1</h1>
+  <h2 data-testid="h2">Heading Level 2</h2>
+  <h3 data-testid="h3">Heading Level 3</h3>
+  <p class="body" data-testid="body">Body paragraph text with standard 16px font and 1.5 line-height.</p>
+  <small class="caption" data-testid="caption">Caption text at 12px.</small>
+  <p class="off-scale" data-testid="off-scale">Off-scale 20px text — not on the 1.333 ladder from 12px.</p>
+  <p class="lh-outlier" data-testid="lh-outlier">Line-height outlier — ratio 3.0 vs dominant 1.5.</p>
+  <p class="odd-weight" data-testid="odd-weight">Non-standard font-weight 450.</p>
+</body>
+</html>

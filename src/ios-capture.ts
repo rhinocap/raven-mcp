@@ -3,6 +3,174 @@
  * The exported functions do not spawn processes; scripts wire them to xcrun/xcodebuild.
  */
 
+// ---------------------------------------------------------------------------
+// AccessibilitySnapshot wiring preflight
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape of a single Xcode test target as gathered from the .pbxproj.
+ * All booleans must be resolved by the harness before calling checkSnapshotWiring;
+ * this module stays pure and unit-testable offline.
+ */
+export type SnapshotTestTarget = {
+  /** Display name of the target (e.g. "CaptureHostUITests") */
+  name: string;
+  /**
+   * CFBundleProductType value from the pbxproj.
+   * UITest target:  "com.apple.product-type.bundle.ui-testing"
+   * Unit-test target: "com.apple.product-type.bundle.unit-test"
+   */
+  productType: string;
+  /** True iff AccessibilitySnapshot.swift appears in the target's compile-sources build phase */
+  hasSnapshotDependency: boolean;
+  /**
+   * True iff the target has a TEST_HOST set (hosted unit-test) OR is a UITest target
+   * whose TEST_HOST / host application bundle ref is set to the app under test.
+   * Must be pre-resolved by the harness from build settings.
+   */
+  isHosted: boolean;
+};
+
+export type SnapshotWiringInput = {
+  /** True iff scripts/AccessibilitySnapshot.swift is present anywhere in the project dir */
+  hasSnapshotSwift: boolean;
+  testTargets: SnapshotTestTarget[];
+  /** Full version string from `xcodebuild -version`, e.g. "Xcode 16.2" or "Xcode 26.0" */
+  xcodeVersion?: string;
+};
+
+export type SnapshotWiringResult = {
+  ready: boolean;
+  missing: string[];
+  guidance: string[];
+};
+
+/**
+ * Pure preflight — resolves whether the Xcode project is correctly wired for
+ * AccessibilitySnapshot-based capture WITHOUT shelling out.
+ *
+ * Callers supply already-gathered facts (file-existence + pbxproj parse),
+ * keeping this function fully unit-testable offline.
+ *
+ * ready = hasSnapshotSwift && at least one testTarget where both
+ *         hasSnapshotDependency === true && isHosted === true.
+ */
+export const checkSnapshotWiring = (input: SnapshotWiringInput): SnapshotWiringResult => {
+  const missing: string[] = [];
+  const guidance: string[] = [];
+
+  if (!input.hasSnapshotSwift) {
+    missing.push("AccessibilitySnapshot.swift");
+    guidance.push(
+      "Add scripts/AccessibilitySnapshot.swift to a UITest target's compile sources. " +
+      "Copy it from the raven-mcp scripts/ directory into your Xcode project."
+    );
+  }
+
+  const uiTestingProductType = "com.apple.product-type.bundle.ui-testing";
+  const unitTestProductType = "com.apple.product-type.bundle.unit-test";
+
+  // No test targets known (none parsed/provided): we cannot confirm wiring, so
+  // emit the actionable setup step rather than a silent not-ready verdict.
+  if (input.testTargets.length === 0) {
+    missing.push("No test target with the AccessibilitySnapshot dependency");
+    guidance.push(
+      "No hosted test target was found. Add a UITest (or hosted unit-test) target " +
+      "that compiles scripts/AccessibilitySnapshot.swift and whose TEST_HOST points " +
+      "at the app under test, then re-run."
+    );
+  }
+
+  // Identify targets that lack hasSnapshotDependency
+  const targetsWithoutDep = input.testTargets.filter((t) => !t.hasSnapshotDependency);
+  for (const target of targetsWithoutDep) {
+    missing.push(`AccessibilitySnapshot compile source missing from target "${target.name}"`);
+    guidance.push(
+      `Add AccessibilitySnapshot.swift to the compile sources build phase of target "${target.name}".`
+    );
+  }
+
+  // Identify ui-testing targets that are not hosted
+  const unhostedUITestTargets = input.testTargets.filter(
+    (t) => t.productType === uiTestingProductType && !t.isHosted
+  );
+  for (const target of unhostedUITestTargets) {
+    missing.push(`Target "${target.name}" has no host application set`);
+    guidance.push(
+      `Target "${target.name}" is a UITest target without a host application. ` +
+      "Either set its TEST_HOST to the app under test, or convert it to a " +
+      "hosted unit-test target (product type com.apple.product-type.bundle.unit-test) " +
+      "with TEST_HOST pointing to the app binary."
+    );
+  }
+
+  // Identify unit-test targets that are not hosted
+  const unhostedUnitTargets = input.testTargets.filter(
+    (t) => t.productType === unitTestProductType && !t.isHosted
+  );
+  for (const target of unhostedUnitTargets) {
+    missing.push(`Target "${target.name}" has no TEST_HOST set`);
+    guidance.push(
+      `Target "${target.name}" is a unit-test target but TEST_HOST is not set. ` +
+      "Set TEST_HOST = $(BUILT_PRODUCTS_DIR)/YourApp.app/YourApp in its build settings " +
+      "so AccessibilitySnapshot can introspect the live view hierarchy."
+    );
+  }
+
+  // Xcode 26+ needs SWIFT_ENABLE_EXPLICIT_MODULES=NO to avoid build failures
+  // with SwiftUI-introspection helpers used by AccessibilitySnapshot
+  if (input.xcodeVersion) {
+    const major = parseXcodeMajorVersion(input.xcodeVersion);
+    if (major !== null && major >= 26) {
+      guidance.push(
+        "Xcode 26+ detected: pass SWIFT_ENABLE_EXPLICIT_MODULES=NO at the " +
+        "xcodebuild invocation level to avoid module-map build failures with " +
+        "AccessibilitySnapshot's UIKit/SwiftUI bridging headers. " +
+        "Example: xcodebuild test … SWIFT_ENABLE_EXPLICIT_MODULES=NO"
+      );
+    }
+  }
+
+  const ready =
+    input.hasSnapshotSwift &&
+    input.testTargets.some((t) => t.hasSnapshotDependency && t.isHosted);
+
+  return { ready, missing, guidance };
+};
+
+/**
+ * Stub documenting WHERE the harness should read the facts that
+ * checkSnapshotWiring() expects.  The heavy pbxproj parsing lives in the
+ * harness (scripts/ios-audit.mjs); this stub is the typed contract between
+ * the two so callers know exactly what to gather before invoking the pure check.
+ *
+ * Concretely, the harness should:
+ *   1. hasSnapshotSwift  — fs.existsSync(path.join(projectDir, 'scripts/AccessibilitySnapshot.swift'))
+ *   2. testTargets       — parse <project>.xcodeproj/project.pbxproj with a pbxproj
+ *                          library (e.g. xcode-pbxproj or a simple regex pass) and,
+ *                          for each PBXNativeTarget whose productType is ui-testing or
+ *                          unit-test, resolve:
+ *                            - hasSnapshotDependency: the PBXSourcesBuildPhase for that
+ *                              target contains a file ref whose path ends in
+ *                              "AccessibilitySnapshot.swift"
+ *                            - isHosted: build settings resolve TEST_HOST to a non-empty
+ *                              string (or the UITest target has a "host" application ref)
+ *   3. xcodeVersion      — stdout of `xcodebuild -version` (first line, e.g. "Xcode 16.2")
+ *
+ * @param projectDir - Root directory of the Xcode project (the folder containing
+ *                     *.xcodeproj and the scripts/ subdirectory).
+ */
+export const gatherWiringFacts = async (projectDir: string): Promise<SnapshotWiringInput> => {
+  // NOTE: Implementation intentionally lives in scripts/ios-audit.mjs, which
+  // has access to the filesystem, child_process, and pbxproj parsing libraries.
+  // This stub exists solely to document the shape and keep TypeScript honest.
+  void projectDir;
+  throw new Error(
+    "gatherWiringFacts is a harness-level concern — implement in scripts/ios-audit.mjs. " +
+    "Call checkSnapshotWiring(facts) with the gathered facts instead."
+  );
+};
+
 export type CaptureTarget = {
   device_id?: string;
   real_device_required?: boolean;
@@ -542,4 +710,19 @@ function directBuildVersion(record: JsonRecord): string | null {
   }
 
   return null;
+}
+
+/**
+ * Extract the Xcode major version number from the first line of
+ * `xcodebuild -version` output (e.g. "Xcode 16.2" → 16, "Xcode 26.0" → 26).
+ * Returns null for unrecognised strings.
+ */
+function parseXcodeMajorVersion(xcodeVersion: string): number | null {
+  // Matches "Xcode 16.2", "Xcode 26", "xcode 16.2 beta" etc.
+  const match = xcodeVersion.match(/xcode\s+(\d+)/i);
+  if (!match) {
+    return null;
+  }
+  const major = parseInt(match[1], 10);
+  return Number.isFinite(major) ? major : null;
 }

@@ -117,6 +117,18 @@
       "description": "Compute WCAG contrast ratios for every text element on a rendered page and report AA/AAA pass-fail"
     },
     {
+      "name": "audit_content",
+      "description": "Per-item content verdicts (pass/warn/fail) for headings, prose, CTAs, labels, captions, metrics against UX-writing principles + heuristics, with before→after suggestions"
+    },
+    {
+      "name": "audit_typography",
+      "description": "Typographic-scale report over rendered text nodes — modular-scale ratio detection + off-scale outliers, line-height consistency, and weight-ladder checks"
+    },
+    {
+      "name": "audit_tap_targets",
+      "description": "WCAG 2.5.5 / Apple 44pt web tap-target audit — per-element fix table with measured size, per-axis pixel deficit, and a concrete CSS fix"
+    },
+    {
       "name": "list_content_systems",
       "description": "Browse available brand voice & tone systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian)"
     },

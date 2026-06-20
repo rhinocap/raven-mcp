@@ -52,11 +52,35 @@ export class CaptureUnavailableError extends Error {
   }
 }
 
+export type VideoArtifactReason =
+  | "preload-none"
+  | "autoplay-blocked"
+  | "empty-src"
+  | "decode-error"
+  | "unknown";
+
 export type VideoArtifact = {
   selector: string;
+  /** The `preload` attribute value on the element (e.g. "none", "auto", "metadata"). */
   preload: string;
   renderedBlank: boolean;
-  reason: "unloaded-video-artifact";
+  /**
+   * Discriminated reason for the blank-video detection.
+   *
+   * - `"preload-none"`: element has preload=none and never buffered (lazy-load pattern — likely not a real defect)
+   * - `"autoplay-blocked"`: play() was rejected with NotAllowedError (browser autoplay policy — likely not a real defect)
+   * - `"empty-src"`: currentSrc is empty or networkState is NETWORK_NO_SOURCE — genuine missing/broken source
+   * - `"decode-error"`: video.error.code is set (MEDIA_ERR_*) — genuine decode/network failure
+   * - `"unknown"`: did not match any specific classification
+   *
+   * @deprecated The legacy value `"unloaded-video-artifact"` is no longer emitted by this library but
+   *   may appear in data produced by older versions. Callers should treat it as `"unknown"`.
+   */
+  reason: VideoArtifactReason | "unloaded-video-artifact";
+  /** Raw HTMLMediaElement.error.code value (1–4, MEDIA_ERR_* constants), if an error is set. */
+  errorCode?: number;
+  /** Raw HTMLMediaElement.networkState value at probe time. */
+  networkState?: number;
 };
 
 export type CaptureResult = {
@@ -245,11 +269,78 @@ export function annotateVideoArtifacts(elements: any[]): VideoArtifact[] {
       selector: String(element.selector || element.label || "video"),
       preload: String(element.preload || "none"),
       renderedBlank: true,
-      reason: "unloaded-video-artifact"
+      reason: "unknown"
     });
   }
 
   return artifacts;
+}
+
+/** Input shape consumed by {@link classifyVideoArtifact}. All fields are optional so that
+ *  partial probe data (e.g. from older code paths or static-HTML fallbacks) is still classifiable.
+ */
+export type VideoProbeData = {
+  /** `HTMLMediaElement.currentSrc` — empty string when no source is resolved. */
+  currentSrc?: string;
+  /** `HTMLMediaElement.networkState` — 0=EMPTY, 1=IDLE, 2=LOADING, 3=NO_SOURCE. */
+  networkState?: number;
+  /** `HTMLMediaElement.error?.code` — set when a media error occurred (MEDIA_ERR_* 1–4). */
+  errorCode?: number;
+  /**
+   * Name of the DOMException thrown by the play() promise (if any).
+   * "NotAllowedError" → autoplay policy; "NotSupportedError" → unsupported source.
+   */
+  playRejection?: string;
+  /** Value of the `preload` attribute. */
+  preload?: string;
+  /** `HTMLMediaElement.readyState` — 0=HAVE_NOTHING … 4=HAVE_ENOUGH_DATA. */
+  readyState?: number;
+};
+
+/**
+ * Pure, synchronous classifier that maps raw video probe data to a {@link VideoArtifactReason}.
+ *
+ * Priority (first match wins):
+ * 1. `empty-src`    — currentSrc is empty OR networkState === NETWORK_NO_SOURCE (3)
+ * 2. `decode-error` — errorCode is set (1–4)
+ * 3. `autoplay-blocked` — play() rejected with NotAllowedError
+ * 4. `preload-none` — preload attribute is "none" and readyState < 2
+ * 5. `unknown`      — none of the above
+ *
+ * This is exported so it can be unit-tested in isolation without a browser.
+ */
+export function classifyVideoArtifact(probe: VideoProbeData): VideoArtifactReason {
+  const NETWORK_NO_SOURCE = 3;
+
+  // 1. No source resolved or network reports no source
+  if (
+    probe.currentSrc === "" ||
+    probe.networkState === NETWORK_NO_SOURCE
+  ) {
+    return "empty-src";
+  }
+
+  // 2. A media error code is set
+  if (typeof probe.errorCode === "number" && probe.errorCode > 0) {
+    return "decode-error";
+  }
+
+  // 3. Autoplay was blocked by the browser
+  if (probe.playRejection === "NotAllowedError") {
+    return "autoplay-blocked";
+  }
+
+  // 4. Lazy-load pattern: preload=none and video never buffered
+  if (
+    typeof probe.preload === "string" &&
+    probe.preload.toLowerCase() === "none" &&
+    typeof probe.readyState === "number" &&
+    probe.readyState < 2
+  ) {
+    return "preload-none";
+  }
+
+  return "unknown";
 }
 
 async function loadChromium(): Promise<ChromiumLike> {
@@ -351,12 +442,21 @@ function extractVideoArtifactsFromHtml(html: string): VideoArtifact[] {
   while (match !== null) {
     const tag = match[0];
     const preload = attributeValue(tag, "preload") || "";
-    if (preload.toLowerCase() === "none") {
+    const src = attributeValue(tag, "src") || "";
+    // Static HTML can only determine preload=none and missing src.
+    // Richer signals (networkState, error.code, play rejection) require a live browser.
+    const reason: VideoArtifactReason = src === "" && preload.toLowerCase() !== "none"
+      ? "empty-src"
+      : preload.toLowerCase() === "none"
+      ? "preload-none"
+      : "unknown";
+
+    if (preload.toLowerCase() === "none" || src === "") {
       artifacts.push({
         selector: videoSelectorFromTag(tag, artifacts.length),
         preload: preload,
         renderedBlank: true,
-        reason: "unloaded-video-artifact"
+        reason: reason
       });
     }
 
@@ -423,13 +523,16 @@ async function detectVideoArtifacts(
       warnings.push("Failed to scroll video into view: " + errorMessage(error));
     }
 
+    let playRejectionName: string | undefined = undefined;
     try {
       await el.evaluate(function (video) {
         return video.play();
       });
-    } catch {
-      // Autoplay or media policy failures are expected; readiness polling below
-      // determines whether the element still rendered enough to avoid a blank.
+    } catch (playErr) {
+      // Capture whether autoplay or source-support was the rejection cause.
+      if (playErr instanceof Error) {
+        playRejectionName = playErr.name;
+      }
     }
 
     try {
@@ -444,27 +547,66 @@ async function detectVideoArtifacts(
       // Timeout means the video may still be unloaded; read readyState directly.
     }
 
+    // Collect the full probe bundle in a single evaluate to avoid multiple round-trips.
+    type VideoProbeResult = {
+      readyState: number;
+      networkState: number;
+      currentSrc: string;
+      errorCode: number | null;
+      preload: string;
+    };
+    let probeResult: VideoProbeResult = {
+      readyState: 0,
+      networkState: 0,
+      currentSrc: "",
+      errorCode: null,
+      preload: ""
+    };
+
     try {
-      readyState = await el.evaluate(function (video) {
-        return video.readyState;
+      probeResult = await el.evaluate(function (video) {
+        return {
+          readyState: video.readyState,
+          networkState: video.networkState,
+          currentSrc: video.currentSrc || "",
+          errorCode: video.error ? video.error.code : null,
+          preload: video.getAttribute("preload") || ""
+        };
       });
     } catch (error) {
-      warnings.push("Failed to read video readyState: " + errorMessage(error));
+      warnings.push("Failed to probe video element: " + errorMessage(error));
+      // Fallback: try getAttribute for preload only.
+      try {
+        preload = (await el.getAttribute("preload")) || "";
+        probeResult = { readyState, networkState: 0, currentSrc: "", errorCode: null, preload };
+      } catch {
+        // Ignore secondary error.
+      }
     }
 
-    try {
-      preload = (await el.getAttribute("preload")) || "";
-    } catch (error) {
-      warnings.push("Failed to read video preload: " + errorMessage(error));
-    }
+    readyState = probeResult.readyState;
+    preload = probeResult.preload;
 
     if (readyState < 2) {
-      artifacts.push({
+      const reason = classifyVideoArtifact({
+        currentSrc: probeResult.currentSrc,
+        networkState: probeResult.networkState,
+        errorCode: typeof probeResult.errorCode === "number" ? probeResult.errorCode : undefined,
+        playRejection: playRejectionName,
+        preload: probeResult.preload,
+        readyState: probeResult.readyState
+      });
+      const artifact: VideoArtifact = {
         selector: selector,
         preload: preload,
         renderedBlank: true,
-        reason: "unloaded-video-artifact"
-      });
+        reason: reason,
+        networkState: probeResult.networkState
+      };
+      if (typeof probeResult.errorCode === "number") {
+        artifact.errorCode = probeResult.errorCode;
+      }
+      artifacts.push(artifact);
     }
   }
 
@@ -652,6 +794,11 @@ export type VerifiableFinding = {
   message: string;
   kind: "issue" | "video-artifact";
   selector?: string;
+  /**
+   * When `kind` is `"video-artifact"`, the discriminated reason from the probe.
+   * Used by `verifyFinding` to decide `confirmed` vs `likely-artifact`.
+   */
+  videoReason?: VideoArtifactReason | "unloaded-video-artifact";
 };
 
 export type FindingVerdict = {
@@ -773,13 +920,16 @@ function verifyFindingFromHtml(
   launchError: unknown
 ): FindingVerdict {
   if (finding.kind === "video-artifact" || finding.rule === "video") {
+    const reason = finding.videoReason;
+    const isRealDefect = reason === "empty-src" || reason === "decode-error";
     return {
       key: finding.key,
-      verdict: "likely-artifact",
-      evidence:
-        "browser unavailable (" +
-        errorMessage(launchError) +
-        "); static HTML contains video artifact finding"
+      verdict: isRealDefect ? "confirmed" : "likely-artifact",
+      evidence: isRealDefect
+        ? "video has " + reason + " (browser unavailable — static analysis; " + errorMessage(launchError) + ")"
+        : "browser unavailable (" +
+          errorMessage(launchError) +
+          "); video artifact reason '" + (reason || "unknown") + "' is a likely false positive"
     };
   }
 
@@ -849,19 +999,41 @@ async function verifyFinding(
   page: VerifyPageLike,
   finding: VerifiableFinding
 ): Promise<FindingVerdict> {
-  if (finding.kind === "video-artifact") {
+  if (finding.kind === "video-artifact" || finding.rule === "video") {
+    const reason = finding.videoReason;
+    if (reason === "empty-src") {
+      return {
+        key: finding.key,
+        verdict: "confirmed",
+        evidence: "video currentSrc is empty or networkState is NETWORK_NO_SOURCE — source is missing or unresolvable"
+      };
+    }
+    if (reason === "decode-error") {
+      return {
+        key: finding.key,
+        verdict: "confirmed",
+        evidence: "video.error.code is set (MEDIA_ERR_* decode/network failure)"
+      };
+    }
+    if (reason === "autoplay-blocked") {
+      return {
+        key: finding.key,
+        verdict: "likely-artifact",
+        evidence: "video play() rejected with NotAllowedError (browser autoplay policy), not a missing resource"
+      };
+    }
+    if (reason === "preload-none") {
+      return {
+        key: finding.key,
+        verdict: "likely-artifact",
+        evidence: "video has preload=none — blank frame is expected lazy-load behaviour, not a missing resource"
+      };
+    }
+    // Legacy "unloaded-video-artifact" or "unknown" — default to prior conservative behaviour
     return {
       key: finding.key,
       verdict: "likely-artifact",
-      evidence: "preload=none video rendered blank (lazy-load), not a missing resource"
-    };
-  }
-
-  if (finding.rule === "video") {
-    return {
-      key: finding.key,
-      verdict: "likely-artifact",
-      evidence: "preload=none video rendered blank (lazy-load), not a missing resource"
+      evidence: "video rendered blank (reason: " + (reason || "unknown") + "); treating as likely lazy-load artifact"
     };
   }
 

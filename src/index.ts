@@ -19,6 +19,9 @@ import { auditParity } from "./parity.js";
 import { auditIosA11y } from "./ios-a11y.js";
 import { auditContract } from "./contract.js";
 import { runApiContract } from "./api-contract.js";
+import { auditContent } from "./content-audit.js";
+import { auditTypographyUrl, auditTypographySnapshot } from "./typography.js";
+import { auditTapTargetsUrl, auditTapTargetsSnapshot } from "./tap-targets.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -2642,6 +2645,100 @@ server.tool(
       }
       throw error;
     }
+  }
+);
+
+// ── Tool 11e: audit_content ────────────────────────────────────────
+
+server.tool(
+  "audit_content",
+  "Evaluate an array of content items (headings, prose, CTAs, labels, captions, metrics, outcomes) against UX-writing principles and deterministic heuristics. Returns a per-item verdict (pass/warn/fail) with matched principle ids, concrete issues grounded in principle text, a before→after rewrite suggestion, and an aggregate summary. Heuristics: metric items must carry a number+unit; cta/label must be action-led and ≤4 words; prose flags passive voice, jargon, and hedging; headings flag filler openers and buzzwords; captions flag duplication of any heading in the batch. Pure offline — no network or browser. Use this instead of evaluate_design when you need per-item content verdicts rather than the principle library.",
+  {
+    items: z.array(z.object({
+      id: z.string().optional().describe("Optional stable id; auto-generated (item_N) if omitted."),
+      type: z.enum(["prose", "caption", "heading", "outcome", "metric", "cta", "label"]).describe("Content type — selects which heuristics apply."),
+      text: z.string().describe("The raw content string to evaluate.")
+    })).describe("Array of content items to audit."),
+    system: z.string().optional().describe("Optional content-system id (e.g. 'ux-writing'); recorded for traceability."),
+    goals: z.array(z.string()).optional().describe("Optional content goals (e.g. ['clarity','conversion']); recorded for traceability.")
+  },
+  async function({ items, system, goals }) {
+    var result = auditContent(items || [], { system: system, goals: goals });
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "audit_content", ...result }, null, 2) }] };
+  }
+);
+
+// ── Tool 11f: audit_typography ─────────────────────────────────────
+
+server.tool(
+  "audit_typography",
+  "Audit the typographic SCALE of a rendered page (pass url) or a pre-collected snapshot of text nodes. Emits a focused report: (a) MODULAR SCALE — detects the dominant ratio (~1.2/1.25/1.333/1.5) across distinct font sizes and flags off-scale outliers; (b) LINE-HEIGHT CONSISTENCY — unitless lh/fs ratio per node, identifies the body rhythm and flags outliers; (c) WEIGHT LADDER — distinct weights, flags >4 weights or non-standard CSS values. Returns scale, line_height, weight_ladder, nodes_analyzed, and findings[{rule,severity,selector,message,fix}]. Goes beyond audit_page's pass/fail typography checks. url mode requires headless chromium.",
+  {
+    url: z.string().optional().describe("URL to render and measure (http/https or file://). Requires headless chromium."),
+    nodes: z.array(z.object({
+      selector: z.string(),
+      fontPx: z.number(),
+      lineHeightPx: z.number().optional(),
+      fontWeight: z.number().optional(),
+      tag: z.string().optional(),
+      text: z.string().optional()
+    })).optional().describe("Pre-collected text nodes to analyze without rendering.")
+  },
+  async function({ url, nodes }) {
+    if (url !== undefined && url !== null) {
+      try {
+        var typo = await auditTypographyUrl(url);
+        return { content: [{ type: "text" as const, text: JSON.stringify(typo, null, 2) }] };
+      } catch (error) {
+        if (error instanceof CaptureUnavailableError) {
+          return { content: [{ type: "text" as const, text: "audit_typography url mode needs headless chromium. Run: npx playwright install chromium — or pass a nodes snapshot instead." }] };
+        }
+        throw error;
+      }
+    }
+    if (nodes !== undefined && nodes !== null) {
+      var typoSnap = auditTypographySnapshot(nodes);
+      return { content: [{ type: "text" as const, text: JSON.stringify(typoSnap, null, 2) }] };
+    }
+    return { content: [{ type: "text" as const, text: "Provide either url (render + measure) or nodes (score supplied text nodes). Each node: { selector, fontPx, lineHeightPx?, fontWeight?, tag?, text? }." }] };
+  }
+);
+
+// ── Tool 11g: audit_tap_targets ────────────────────────────────────
+
+server.tool(
+  "audit_tap_targets",
+  "WCAG 2.5.5 / Apple 44pt tap-target audit for the web. Collects every interactive element (a, button, [role=button], input[type=submit/button/checkbox/radio], select, summary, label[for], [onclick], [tabindex>=0]) and emits a PER-ELEMENT fix table for any whose rendered width or height is below the minimum (default 44px): selector, role, visible text, measured w/h, pixel deficit per axis, and a concrete CSS fix. Sorted worst-first. Two modes: pass url (renders in headless chromium, measures real getBoundingClientRect) or pass elements[] snapshot (pure, no browser).",
+  {
+    url: z.string().optional().describe("URL to render and measure. Requires headless chromium."),
+    elements: z.array(z.object({
+      selector: z.string(),
+      w: z.number(),
+      h: z.number(),
+      x: z.number().optional(),
+      y: z.number().optional(),
+      role: z.string().optional(),
+      text: z.string().optional()
+    })).optional().describe("Pre-collected interactive elements to score without rendering."),
+    minSize: z.number().optional().describe("Minimum tap-target size in px on each axis. Default 44.")
+  },
+  async function({ url, elements, minSize }) {
+    if (url !== undefined && url !== null) {
+      try {
+        var tt = await auditTapTargetsUrl(url, { minSize: minSize });
+        return { content: [{ type: "text" as const, text: JSON.stringify(tt, null, 2) }] };
+      } catch (error) {
+        if (error instanceof CaptureUnavailableError) {
+          return { content: [{ type: "text" as const, text: "audit_tap_targets url mode needs headless chromium. Run: npx playwright install chromium — or pass an elements snapshot instead." }] };
+        }
+        throw error;
+      }
+    }
+    if (elements !== undefined && elements !== null) {
+      var ttSnap = auditTapTargetsSnapshot(elements, minSize === undefined || minSize === null ? 44 : minSize);
+      return { content: [{ type: "text" as const, text: JSON.stringify(ttSnap, null, 2) }] };
+    }
+    return { content: [{ type: "text" as const, text: "Provide either url (render + measure) or elements (score supplied targets). Each element: { selector, w, h, x?, y?, role?, text? }." }] };
   }
 );
 

@@ -22,3 +22,14 @@ Format: `- YYYY-MM-DD | [pain category] | [what happened] | [proposed Raven capa
 - 2026-06-19 | layer-1-followup | audit_url shipped Layer 0 (v1.9.0); render+capture now available but no tool consumes rendered text for rhythm/scale audit | audit_typography: run typography checks (modular scale, line-height consistency, weight ladder) over rendered DOM text nodes, not just HTML strings | P2
 - 2026-06-19 | layer-1-followup | every visual fix still requires manually comparing two screenshots; no "fix confirmed" structured artifact from Raven | evaluate_design before_screenshot/after_screenshot: per-dimension diff with changed-region callout and fix_confirmed boolean — now unblocked by audit_url render source | P2
 - 2026-06-19 | layer-1-followup | blank-video detection uses preload=none DOM heuristic but can't distinguish browser-chrome autoplay suppression from a genuinely empty src | browser-chrome video detection: attempt readyState probe + play() and distinguish autoplay-blocked (MEDIA_ERR_SRC_NOT_SUPPORTED) from preload=none (readyState 0) from empty src | P3
+
+---
+
+## Consumed — 2026-06-19 (raven-mcp instance)
+
+- 2026-06-19 | SHIPPED `audit_content` (per-item content verdicts) — was 2026-06-17 content-verdicts P2
+- 2026-06-19 | SHIPPED `audit_typography` (modular-scale/line-height/weight-ladder over rendered text nodes) — was 2026-06-19 layer-1-followup P2
+- 2026-06-19 | SHIPPED `audit_tap_targets` (web DOM 44×44 per-element fix table) — was 2026-06-17 tap-targets P3
+- 2026-06-19 | SHIPPED video-artifact reason classification (empty-src/decode-error=confirmed vs preload-none/autoplay-blocked=likely-artifact) in capture.ts — was 2026-06-19 layer-1-followup P3 + 2026-06-18 capture-artifact P1
+- 2026-06-19 | SHIPPED `checkSnapshotWiring` ios-capture preflight + ios-audit.mjs guidance — was 2026-06-18 capture-harness-probe/integration P2 (×2)
+- 2026-06-19 | ALREADY-SHIPPED (v1.9.0, verified this session): `audit_page adversarial_verify` (P1), `evaluate_design` before/after→fix_confirmed (P2), `audit_page`/`audit_url` `interactions[]` hover/click/focus (P2). No rebuild needed.

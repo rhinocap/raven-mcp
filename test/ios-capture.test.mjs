@@ -26,6 +26,8 @@ let parseSimRuntimes;
 let simRuntimeAvailable;
 let parseInstalledBuildVersion;
 let xcodebuildTestArgs;
+let checkSnapshotWiring;
+let gatherWiringFacts;
 
 try {
   const mod = await import(distIosCapture);
@@ -35,6 +37,8 @@ try {
   simRuntimeAvailable = mod.simRuntimeAvailable;
   parseInstalledBuildVersion = mod.parseInstalledBuildVersion;
   xcodebuildTestArgs = mod.xcodebuildTestArgs;
+  checkSnapshotWiring = mod.checkSnapshotWiring;
+  gatherWiringFacts = mod.gatherWiringFacts;
 } catch (err) {
   const msg = `dist/ios-capture.js not found — run \`npm run build\` first. (${err.message})`;
   test('ios-capture module available', (t) => { t.skip(msg); });
@@ -48,6 +52,8 @@ const requiredExports = {
   simRuntimeAvailable,
   parseInstalledBuildVersion,
   xcodebuildTestArgs,
+  checkSnapshotWiring,
+  gatherWiringFacts,
 };
 
 for (const [name, fn] of Object.entries(requiredExports)) {
@@ -334,5 +340,212 @@ describe('captureEnv', () => {
 
     assert.deepStrictEqual(JSON.parse(env.RAVEN_INTERACTIONS), interactions);
     assert.deepStrictEqual(JSON.parse(env.RAVEN_LAUNCH_ARGS), launchArgs);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkSnapshotWiring — AccessibilitySnapshot preflight
+// ---------------------------------------------------------------------------
+
+/** Minimal fully-wired input — everything correct, hosted unit-test target */
+const FULLY_WIRED_INPUT = {
+  hasSnapshotSwift: true,
+  testTargets: [
+    {
+      name: 'CaptureHostTests',
+      productType: 'com.apple.product-type.bundle.unit-test',
+      hasSnapshotDependency: true,
+      isHosted: true,
+    },
+  ],
+};
+
+describe('checkSnapshotWiring', () => {
+  test('returns ready=true when everything is wired correctly', () => {
+    const result = checkSnapshotWiring(FULLY_WIRED_INPUT);
+    assert.strictEqual(result.ready, true, 'should be ready');
+    assert.deepStrictEqual(result.missing, [], 'missing should be empty');
+    // No SWIFT_ENABLE_EXPLICIT_MODULES guidance expected at Xcode 16
+    const hasExplicitModulesGuidance = result.guidance.some((g) =>
+      g.includes('SWIFT_ENABLE_EXPLICIT_MODULES')
+    );
+    assert.strictEqual(hasExplicitModulesGuidance, false,
+      'should not emit SWIFT_ENABLE_EXPLICIT_MODULES guidance for Xcode 16');
+  });
+
+  test('returns ready=false when hasSnapshotSwift is false', () => {
+    const result = checkSnapshotWiring({
+      ...FULLY_WIRED_INPUT,
+      hasSnapshotSwift: false,
+    });
+    assert.strictEqual(result.ready, false, 'should not be ready');
+    assert.ok(
+      result.missing.some((m) => m.includes('AccessibilitySnapshot.swift')),
+      'missing should mention AccessibilitySnapshot.swift'
+    );
+    assert.ok(
+      result.guidance.some((g) => g.includes('Add scripts/AccessibilitySnapshot.swift')),
+      'guidance should tell caller to add the swift file'
+    );
+  });
+
+  test('returns ready=false when testTargets is empty', () => {
+    const result = checkSnapshotWiring({
+      hasSnapshotSwift: true,
+      testTargets: [],
+    });
+    assert.strictEqual(result.ready, false, 'no test targets → not ready');
+    assert.ok(result.guidance.length > 0, 'empty testTargets must still emit actionable guidance');
+    assert.ok(
+      result.guidance.some((g) => g.includes('hosted') && g.includes('AccessibilitySnapshot')),
+      'guidance should tell the user to add a hosted target compiling AccessibilitySnapshot'
+    );
+  });
+
+  test('returns ready=false when target lacks hasSnapshotDependency', () => {
+    const result = checkSnapshotWiring({
+      hasSnapshotSwift: true,
+      testTargets: [
+        {
+          name: 'MyUITests',
+          productType: 'com.apple.product-type.bundle.ui-testing',
+          hasSnapshotDependency: false,
+          isHosted: true,
+        },
+      ],
+    });
+    assert.strictEqual(result.ready, false, 'missing compile source → not ready');
+    assert.ok(
+      result.missing.some((m) => m.includes('AccessibilitySnapshot compile source missing') &&
+        m.includes('"MyUITests"')),
+      'missing should name the target and the missing source'
+    );
+    assert.ok(
+      result.guidance.some((g) => g.includes('compile sources build phase') &&
+        g.includes('"MyUITests"')),
+      'guidance should tell caller to add to compile sources'
+    );
+  });
+
+  test('UITest target without a host application emits Convert guidance', () => {
+    const result = checkSnapshotWiring({
+      hasSnapshotSwift: true,
+      testTargets: [
+        {
+          name: 'MyUITests',
+          productType: 'com.apple.product-type.bundle.ui-testing',
+          hasSnapshotDependency: true,
+          isHosted: false,          // <-- no host set
+        },
+      ],
+    });
+    assert.strictEqual(result.ready, false, 'unhosted UITest → not ready');
+    assert.ok(
+      result.missing.some((m) => m.includes('no host application set') &&
+        m.includes('"MyUITests"')),
+      'missing should name the unhosted target'
+    );
+    assert.ok(
+      result.guidance.some((g) =>
+        (g.includes('TEST_HOST') || g.includes('hosted unit-test')) &&
+        g.includes('"MyUITests"')),
+      'guidance should mention TEST_HOST or hosted unit-test conversion'
+    );
+  });
+
+  test('unit-test target without TEST_HOST emits TEST_HOST guidance', () => {
+    const result = checkSnapshotWiring({
+      hasSnapshotSwift: true,
+      testTargets: [
+        {
+          name: 'MyHostedTests',
+          productType: 'com.apple.product-type.bundle.unit-test',
+          hasSnapshotDependency: true,
+          isHosted: false,          // TEST_HOST missing
+        },
+      ],
+    });
+    assert.strictEqual(result.ready, false, 'unhosted unit-test → not ready');
+    assert.ok(
+      result.missing.some((m) => m.includes('no TEST_HOST set') &&
+        m.includes('"MyHostedTests"')),
+      'missing should name the target'
+    );
+    assert.ok(
+      result.guidance.some((g) => g.includes('TEST_HOST') &&
+        g.includes('"MyHostedTests"')),
+      'guidance should mention TEST_HOST'
+    );
+  });
+
+  test('Xcode 26 emits SWIFT_ENABLE_EXPLICIT_MODULES=NO guidance', () => {
+    const result = checkSnapshotWiring({
+      ...FULLY_WIRED_INPUT,
+      xcodeVersion: 'Xcode 26.0\nBuild version 26A5000a',
+    });
+    assert.strictEqual(result.ready, true, 'should still be ready');
+    assert.ok(
+      result.guidance.some((g) => g.includes('SWIFT_ENABLE_EXPLICIT_MODULES=NO')),
+      'Xcode 26 should emit SWIFT_ENABLE_EXPLICIT_MODULES guidance'
+    );
+  });
+
+  test('Xcode 25 does NOT emit SWIFT_ENABLE_EXPLICIT_MODULES=NO guidance', () => {
+    const result = checkSnapshotWiring({
+      ...FULLY_WIRED_INPUT,
+      xcodeVersion: 'Xcode 25.0',
+    });
+    assert.strictEqual(result.ready, true, 'should be ready');
+    const hasExplicitModulesGuidance = result.guidance.some((g) =>
+      g.includes('SWIFT_ENABLE_EXPLICIT_MODULES')
+    );
+    assert.strictEqual(hasExplicitModulesGuidance, false,
+      'Xcode 25 should not emit SWIFT_ENABLE_EXPLICIT_MODULES guidance');
+  });
+
+  test('result shape is complete', () => {
+    const result = checkSnapshotWiring(FULLY_WIRED_INPUT);
+    assert.ok('ready' in result, 'result must have ready');
+    assert.ok('missing' in result, 'result must have missing');
+    assert.ok('guidance' in result, 'result must have guidance');
+    assert.ok(typeof result.ready === 'boolean', 'ready is boolean');
+    assert.ok(Array.isArray(result.missing), 'missing is an array');
+    assert.ok(Array.isArray(result.guidance), 'guidance is an array');
+  });
+
+  test('multiple issues accumulate into missing and guidance arrays', () => {
+    const result = checkSnapshotWiring({
+      hasSnapshotSwift: false,
+      testTargets: [
+        {
+          name: 'BadTests',
+          productType: 'com.apple.product-type.bundle.unit-test',
+          hasSnapshotDependency: false,
+          isHosted: false,
+        },
+      ],
+    });
+    assert.strictEqual(result.ready, false, 'should not be ready');
+    // Expects at least: missing swift + missing dep + no TEST_HOST → ≥3 missing items
+    assert.ok(result.missing.length >= 3,
+      `expected ≥3 missing items, got ${result.missing.length}: ${JSON.stringify(result.missing)}`);
+    assert.ok(result.guidance.length >= 3,
+      `expected ≥3 guidance items, got ${result.guidance.length}`);
+  });
+});
+
+describe('gatherWiringFacts stub', () => {
+  test('throws with an actionable message so callers implement in the harness', async () => {
+    await assert.rejects(
+      () => gatherWiringFacts('/some/project/dir'),
+      (err) => {
+        assert.ok(err instanceof Error, 'should throw an Error');
+        assert.ok(
+          err.message.includes('harness') || err.message.includes('ios-audit.mjs'),
+          `error message should mention the harness or ios-audit.mjs, got: ${err.message}`
+        );
+        return true;
+      }
+    );
   });
 });

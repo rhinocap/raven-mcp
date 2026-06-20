@@ -31,11 +31,13 @@ function fixtureUrl(name) {
 
 let capturePage;
 let CaptureUnavailableError;
+let classifyVideoArtifact;
 
 try {
   const mod = await import(distCapture);
   capturePage = mod.capturePage;
   CaptureUnavailableError = mod.CaptureUnavailableError;
+  classifyVideoArtifact = mod.classifyVideoArtifact;
 } catch (err) {
   // Module missing means `npm run build` hasn't run — skip all tests.
   const msg = `dist/capture.js not found — run \`npm run build\` first. (${err.message})`;
@@ -105,7 +107,17 @@ test('scroll_settle:true — reveal target HAS class "revealed"', async (t) => {
   });
 });
 
-test('video.html with scroll_settle:true — videoArtifacts contains one unloaded-video-artifact entry', async (t) => {
+const VALID_VIDEO_ARTIFACT_REASONS = new Set([
+  'preload-none',
+  'autoplay-blocked',
+  'empty-src',
+  'decode-error',
+  'unknown',
+  // legacy value — may appear in data produced by older versions
+  'unloaded-video-artifact',
+]);
+
+test('video.html with scroll_settle:true — videoArtifacts contains a discriminated-reason entry', async (t) => {
   await runOrSkip(t, async () => {
     const result = await capturePage(fixtureUrl('video.html'), {
       scroll_settle: true,
@@ -116,10 +128,9 @@ test('video.html with scroll_settle:true — videoArtifacts contains one unloade
     assert.ok(result.videoArtifacts.length >= 1, 'at least one video artifact detected');
 
     const artifact = result.videoArtifacts[0];
-    assert.strictEqual(
-      artifact.reason,
-      'unloaded-video-artifact',
-      'artifact reason must be "unloaded-video-artifact"'
+    assert.ok(
+      VALID_VIDEO_ARTIFACT_REASONS.has(artifact.reason),
+      `artifact.reason "${artifact.reason}" must be one of the known VideoArtifactReason values`
     );
     assert.ok(
       typeof artifact.selector === 'string' && artifact.selector.length > 0,
@@ -173,4 +184,173 @@ test('CaptureResult shape is complete for a simple page', async (t) => {
     assert.ok(typeof result.viewport.h === 'number', 'viewport.h is a number');
     assert.ok(Array.isArray(result.warnings), 'warnings is an array');
   });
+});
+
+// ── classifyVideoArtifact — pure offline unit tests ──────────────────────────
+//
+// These tests never touch the browser or filesystem. They exercise the
+// exported classifier function directly so the classification logic can be
+// verified without playwright installed.
+
+test('classifyVideoArtifact — empty currentSrc → "empty-src"', () => {
+  assert.strictEqual(
+    classifyVideoArtifact({ currentSrc: '', networkState: 1, readyState: 0, preload: 'auto' }),
+    'empty-src',
+    'empty currentSrc must classify as empty-src'
+  );
+});
+
+test('classifyVideoArtifact — networkState NETWORK_NO_SOURCE (3) → "empty-src"', () => {
+  assert.strictEqual(
+    classifyVideoArtifact({ currentSrc: 'https://example.com/v.mp4', networkState: 3, readyState: 0, preload: 'auto' }),
+    'empty-src',
+    'NETWORK_NO_SOURCE must classify as empty-src'
+  );
+});
+
+test('classifyVideoArtifact — errorCode set → "decode-error"', () => {
+  // MEDIA_ERR_SRC_NOT_SUPPORTED = 4; any positive errorCode should classify as decode-error
+  // provided currentSrc is non-empty and networkState is not 3
+  assert.strictEqual(
+    classifyVideoArtifact({
+      currentSrc: 'https://example.com/v.mp4',
+      networkState: 1,
+      errorCode: 4,
+      readyState: 0,
+      preload: 'auto',
+    }),
+    'decode-error',
+    'errorCode=4 must classify as decode-error'
+  );
+});
+
+test('classifyVideoArtifact — MEDIA_ERR_NETWORK (2) → "decode-error"', () => {
+  assert.strictEqual(
+    classifyVideoArtifact({
+      currentSrc: 'https://example.com/v.mp4',
+      networkState: 2,
+      errorCode: 2,
+      readyState: 0,
+      preload: 'auto',
+    }),
+    'decode-error',
+    'errorCode=2 (MEDIA_ERR_NETWORK) must classify as decode-error'
+  );
+});
+
+test('classifyVideoArtifact — errorCode 0 is NOT a decode-error', () => {
+  // errorCode 0 is the sentinel for "no error" — should not trigger decode-error
+  const result = classifyVideoArtifact({
+    currentSrc: 'https://example.com/v.mp4',
+    networkState: 1,
+    errorCode: 0,
+    preload: 'none',
+    readyState: 0,
+  });
+  assert.notStrictEqual(result, 'decode-error', 'errorCode=0 must NOT classify as decode-error');
+});
+
+test('classifyVideoArtifact — playRejection NotAllowedError → "autoplay-blocked"', () => {
+  assert.strictEqual(
+    classifyVideoArtifact({
+      currentSrc: 'https://example.com/v.mp4',
+      networkState: 1,
+      playRejection: 'NotAllowedError',
+      preload: 'auto',
+      readyState: 0,
+    }),
+    'autoplay-blocked',
+    'NotAllowedError play rejection must classify as autoplay-blocked'
+  );
+});
+
+test('classifyVideoArtifact — preload=none + readyState<2 → "preload-none"', () => {
+  assert.strictEqual(
+    classifyVideoArtifact({
+      currentSrc: 'https://example.com/v.mp4',
+      networkState: 0,
+      preload: 'none',
+      readyState: 0,
+    }),
+    'preload-none',
+    'preload=none with readyState<2 must classify as preload-none'
+  );
+});
+
+test('classifyVideoArtifact — preload=none but readyState>=2 is NOT preload-none', () => {
+  // If the video somehow buffered despite preload=none it should not be flagged.
+  const result = classifyVideoArtifact({
+    currentSrc: 'https://example.com/v.mp4',
+    networkState: 1,
+    preload: 'none',
+    readyState: 2,
+  });
+  assert.notStrictEqual(result, 'preload-none', 'preload=none with readyState>=2 must NOT be preload-none');
+});
+
+test('classifyVideoArtifact — empty-src takes priority over decode-error', () => {
+  // Both signals present — empty-src should win (checked first).
+  assert.strictEqual(
+    classifyVideoArtifact({
+      currentSrc: '',
+      networkState: 3,
+      errorCode: 4,
+      preload: 'auto',
+      readyState: 0,
+    }),
+    'empty-src',
+    'empty-src must take priority over decode-error'
+  );
+});
+
+test('classifyVideoArtifact — empty-src takes priority over autoplay-blocked', () => {
+  assert.strictEqual(
+    classifyVideoArtifact({
+      currentSrc: '',
+      networkState: 1,
+      playRejection: 'NotAllowedError',
+      preload: 'auto',
+      readyState: 0,
+    }),
+    'empty-src',
+    'empty-src must take priority over autoplay-blocked'
+  );
+});
+
+test('classifyVideoArtifact — decode-error takes priority over autoplay-blocked', () => {
+  // No currentSrc issue but both an error code and a play rejection present.
+  assert.strictEqual(
+    classifyVideoArtifact({
+      currentSrc: 'https://example.com/v.mp4',
+      networkState: 1,
+      errorCode: 3,
+      playRejection: 'NotAllowedError',
+      preload: 'auto',
+      readyState: 0,
+    }),
+    'decode-error',
+    'decode-error must take priority over autoplay-blocked'
+  );
+});
+
+test('classifyVideoArtifact — no signals → "unknown"', () => {
+  assert.strictEqual(
+    classifyVideoArtifact({
+      currentSrc: 'https://example.com/v.mp4',
+      networkState: 1,
+      preload: 'auto',
+      readyState: 0,
+    }),
+    'unknown',
+    'no matching signals must classify as unknown'
+  );
+});
+
+test('classifyVideoArtifact — handles missing/undefined fields gracefully', () => {
+  // Minimal probe — should not throw.
+  const result = classifyVideoArtifact({});
+  assert.ok(
+    VALID_VIDEO_ARTIFACT_REASONS.has(result),
+    `empty probe must still return a valid reason; got "${result}"`
+  );
 });

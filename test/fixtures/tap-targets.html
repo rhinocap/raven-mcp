@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tap Targets Fixture</title>
+  <style>
+    body { margin: 0; padding: 24px; font-family: sans-serif; background: #fff; }
+
+    /* 48x48 — passes 44pt minimum */
+    .big-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 48px;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+    }
+
+    /* 24x24 — fails on BOTH axes */
+    .tiny-icon-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      background: #ef4444;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+    }
+
+    /* 100x20 — fails height only */
+    .flat-link {
+      display: inline-block;
+      width: 100px;
+      height: 20px;
+      line-height: 20px;
+      color: #2563eb;
+    }
+
+    /* 44x44 — passes exactly */
+    .exact-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      background: #16a34a;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <!-- passes (48x48) -->
+  <button class="big-button" data-testid="big-button">OK</button>
+
+  <!-- passes exactly (44x44) -->
+  <button class="exact-button" data-testid="exact-button">Go</button>
+
+  <!-- fails both axes (24x24) -->
+  <button class="tiny-icon-button" data-testid="tiny-button">×</button>
+
+  <!-- fails height only (100x20) -->
+  <a class="flat-link" href="#" data-testid="flat-link">Read more</a>
+</body>
+</html>

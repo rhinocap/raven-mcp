@@ -6,6 +6,15 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+### Added
+- `audit_content` — per-item content evaluation. Takes an array of content items (`heading`/`prose`/`cta`/`label`/`caption`/`metric`/`outcome`) and returns a per-item verdict (`pass`/`warn`/`fail`) with matched UX-writing principle ids, concrete issues grounded in principle text, and a before→after rewrite suggestion, plus an aggregate summary. Deterministic heuristics per type: metrics must carry a number+unit; CTAs/labels must be action-led and ≤4 words; prose flags passive voice, jargon, and hedging; headings flag filler openers and buzzwords; captions flag duplication of any heading in the batch. Pure offline — no network or browser. Use it instead of `evaluate_design` when you need per-item verdicts rather than the principle library. `src/content-audit.ts` is unit-tested (32 cases).
+- `audit_typography` — typographic-scale report over rendered DOM text nodes (`url` mode) or a supplied `nodes` snapshot. Detects the dominant modular-scale ratio (~1.2/1.25/1.333/1.5) and flags off-scale sizes, checks line-height consistency against the body rhythm, and flags weight ladders with >4 weights or non-standard CSS values. Returns `scale`, `line_height`, `weight_ladder`, `nodes_analyzed`, and `findings[]`. Complements `audit_page`'s pass/fail typography checks with a focused scale analysis. `src/typography.ts` is unit-tested (20 cases incl. live-chromium). Requires headless chromium for `url` mode.
+- `audit_tap_targets` — WCAG 2.5.5 / Apple 44pt web tap-target audit. Collects every interactive element (`a`, `button`, `[role=button]`, form controls, `summary`, `label[for]`, `[onclick]`, `[tabindex>=0]`) from a rendered URL or a supplied `elements` snapshot and emits a per-element fix table for any below the minimum (default 44px): selector, role, text, measured w/h, per-axis pixel deficit, and a concrete CSS fix — sorted worst-first. `src/tap-targets.ts` is unit-tested.
+
+### Changed
+- `src/capture.ts` — blank-video detection now classifies each artifact with a `reason` (`preload-none` / `autoplay-blocked` / `empty-src` / `decode-error` / `unknown`) plus raw `errorCode`/`networkState` evidence, via a unit-tested pure `classifyVideoArtifact` helper. Adversarial verification now tags `empty-src` and `decode-error` as **confirmed** defects while `preload-none`/`autoplay-blocked` stay `likely-artifact` — so a genuinely broken video is no longer rubber-stamped as a lazy-load artifact. Backwards-compatible (existing `preload` field unchanged).
+- `src/ios-capture.ts` — added `checkSnapshotWiring`, a pure, unit-tested preflight that verifies the `AccessibilitySnapshot.swift` + hosted-UITest-target wiring required for e2e iOS capture and returns actionable `missing`/`guidance` (including the Xcode 26+ `SWIFT_ENABLE_EXPLICIT_MODULES=NO` recommendation). `scripts/ios-audit.mjs` surfaces this guidance (warn-only) when run without a captured snapshot, so setup gaps are caught before build iterations are spent.
+
 ## [1.9.0] - 2026-06-19
 
 ### Added

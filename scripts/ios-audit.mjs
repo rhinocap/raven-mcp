@@ -21,6 +21,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { dirname, join, relative, basename } from "node:path";
 import { fileURLToPath } from "node:url";
+import { checkSnapshotWiring } from "../dist/ios-capture.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SERVER = join(ROOT, "dist", "index.js");
@@ -137,6 +138,24 @@ if (snapshotPath && existsSync(snapshotPath)) {
 } else {
   console.log("   ⏭  no --snapshot supplied — needs a captured accessibility/view-hierarchy JSON (see scripts/AccessibilitySnapshot.swift)");
   md.push("_No snapshot supplied. Capture one with an XCUITest (scripts/AccessibilitySnapshot.swift) and re-run with `--snapshot`._", "");
+
+  // Preflight: surface AccessibilitySnapshot/UITest wiring gaps before the user
+  // burns build iterations setting up e2e capture. Warn-only — never bricks the
+  // harness. We can cheaply resolve hasSnapshotSwift; full pbxproj parsing for
+  // testTargets is deferred (gatherWiringFacts), so we pass [] and let
+  // checkSnapshotWiring emit the actionable "wire into a hosted UITest target" guidance.
+  try {
+    const hasSnapshotSwift = existsSync(join(projectDir, "scripts/AccessibilitySnapshot.swift")) ||
+      allFiles.some((f) => basename(f) === "AccessibilitySnapshot.swift");
+    const pre = checkSnapshotWiring({ hasSnapshotSwift, testTargets: [] });
+    if (!pre.ready) {
+      console.log("   🔧 e2e-capture preflight (not yet wired):");
+      for (const g of pre.guidance) console.log(`      • ${g}`);
+      md.push("**e2e-capture preflight** — to run live AccessibilitySnapshot capture, wire:", "", ...pre.guidance.map((g) => `- ${g}`), "");
+    }
+  } catch (e) {
+    console.log(`   ⚠  preflight skipped: ${e.message}`);
+  }
 }
 
 // ── summary ─────────────────────────────────────────────────────────
