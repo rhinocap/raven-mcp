@@ -943,7 +943,7 @@
        ══════════════════════════════════════════ */
 
     .stats-section {
-      padding: clamp(96px, 11vw, 156px) 0;
+      padding: clamp(80px, 9vw, 144px) 0;
     }
     .stats-grid {
       display: flex;
@@ -990,7 +990,7 @@
 
     .pricing-section {
       position: relative;
-      padding: clamp(96px, 11vw, 156px) 0;
+      padding: clamp(80px, 9vw, 144px) 0;
       background: var(--bg-alt);
       overflow: hidden;
     }
@@ -1127,27 +1127,28 @@
 
     .layers {
       position: relative;
-      padding: clamp(96px, 11vw, 156px) 0;
+      padding: clamp(80px, 9vw, 144px) 0;
       background: var(--bg-alt);
     }
 
     .section-header {
       text-align: center;
-      margin-bottom: clamp(56px, 7vw, 104px);
+      margin-bottom: clamp(48px, 6vw, 96px);
     }
     .section-header .label { margin-bottom: var(--space-3); }
     .section-header h2 { margin-bottom: var(--space-4); }
     .section-header .subtitle { margin: 0 auto; }
 
     .layers-grid {
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: 1fr;
       gap: var(--space-5);
     }
+    @media (min-width: 640px)  { .layers-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (min-width: 1000px) { .layers-grid { grid-template-columns: repeat(3, 1fr); } }
 
     .layer-card {
-      flex: 1 1 280px;
-      min-width: 280px;
+      min-width: 0;
       padding: var(--space-8) var(--space-6);
     }
 
@@ -1191,7 +1192,7 @@
 
     .tools-section {
       position: relative;
-      padding: clamp(96px, 11vw, 156px) 0;
+      padding: clamp(80px, 9vw, 144px) 0;
     }
 
     /* Locked column count: 1 on mobile, 3 on desktop — never an even count
@@ -1268,7 +1269,7 @@
 
     .how-section {
       position: relative;
-      padding: clamp(96px, 11vw, 156px) 0;
+      padding: clamp(80px, 9vw, 144px) 0;
       background: var(--bg-alt);
     }
 
@@ -1316,7 +1317,7 @@
 
     .systems-section {
       position: relative;
-      padding: clamp(96px, 11vw, 156px) 0;
+      padding: clamp(80px, 9vw, 144px) 0;
     }
 
     .systems-grid {
@@ -1364,7 +1365,7 @@
 
     .quote-section {
       position: relative;
-      padding: clamp(96px, 11vw, 156px) 0;
+      padding: clamp(80px, 9vw, 144px) 0;
       overflow: hidden;
     }
 
@@ -1411,7 +1412,7 @@
 
     .mythology-section {
       position: relative;
-      padding: clamp(96px, 11vw, 156px) 0;
+      padding: clamp(80px, 9vw, 144px) 0;
       overflow: hidden;
     }
 
@@ -1475,7 +1476,7 @@
     .cta-section {
       position: relative;
       text-align: center;
-      padding: clamp(96px, 11vw, 156px) 0;
+      padding: clamp(80px, 9vw, 144px) 0;
       background: var(--bg-alt);
       overflow: hidden;
     }
@@ -1521,7 +1522,7 @@
        ══════════════════════════════════════════ */
     .signup-section {
       position: relative;
-      padding: clamp(96px, 11vw, 156px) 0;
+      padding: clamp(80px, 9vw, 144px) 0;
       text-align: center;
     }
     .signup-section .container {
@@ -1661,36 +1662,30 @@
     .watch-rows {
       display: flex;
       flex-direction: column;
-      gap: clamp(104px, 13vw, 168px);
-      /* Full-bleed: break out of the nav-width container to ~viewport width so
-         the MacBooks can run large on big displays (XDR). html/body already
-         clip overflow-x, so the 100vw breakout never adds a horizontal scroll. */
-      width: 100vw;
-      max-width: 100vw;
-      margin-left: calc(50% - 50vw);
-      margin-right: calc(50% - 50vw);
-      padding: 0 clamp(20px, 5vw, 88px);
+      gap: clamp(96px, 11vw, 160px);
+      /* Bounded, centered width — wide enough for large devices, capped so the
+         copy never strands on ultra-wide (XDR) displays. Sits at section level
+         (outside .container) so it can exceed the 1200px text column. */
+      width: min(100% - 48px, 1840px);
+      margin-inline: auto;
     }
     .watch-row {
       display: grid;
       grid-template-columns: 1fr;
-      gap: clamp(28px, 5vw, 48px);
+      gap: clamp(24px, 4vw, 40px);
       align-items: center;
     }
     .watch-media { display: flex; justify-content: center; }
-    /* Device dominates: fills its (larger) track up to a generous cap so on an
-       XDR each MacBook lands ~1300px (≈2× the old 620px), proportional below. */
-    .watch-media .mb { max-width: min(100%, 1320px); width: 100%; }
+    .watch-media .mb { width: 100%; max-width: 1080px; }
     @media (min-width: 900px) {
-      /* The MacBook column is always the larger track; the copy is secondary.
-         Track weights swap with the side so the device stays the bigger one.
-         DOM order stays text-first for reading order; sides flip visually. */
-      .watch-row { grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr); gap: clamp(48px, 6vw, 96px); }
-      .watch-row:nth-child(odd) { grid-template-columns: minmax(0, 1.22fr) minmax(0, 0.78fr); }
+      /* Balanced editorial row — device ~59%, copy ~41%, both substantial.
+         Track weights swap with the side so the MacBook is always the larger
+         column; DOM stays text-first for reading order. */
+      .watch-row { grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr); gap: clamp(48px, 5vw, 80px); }
+      .watch-row:nth-child(odd) { grid-template-columns: minmax(0, 1.18fr) minmax(0, 0.82fr); }
       .watch-row:nth-child(odd) .watch-text  { order: 2; }
       .watch-row:nth-child(odd) .watch-media { order: 1; }
-      /* Copy gravitates toward the device (inner edge) so wide tracks don't
-         strand the text against the outer margin. */
+      /* Copy hugs the inner (device) edge, vertically centered against it. */
       .watch-text { justify-self: end; }
       .watch-row:nth-child(odd) .watch-text { justify-self: start; }
     }
@@ -1756,24 +1751,24 @@
       border-radius: 2px;
     }
 
-    .watch-text { max-width: 30rem; }
+    .watch-text { max-width: 34rem; }
     .watch-text .wc-tool {
       display: block;
       font-family: var(--font-mono);
-      font-size: 13px;
+      font-size: 14px;
       letter-spacing: 0.02em;
       color: var(--text-accent);
       margin-bottom: var(--space-3);
     }
     .watch-text h3 {
-      font-size: clamp(22px, 2.6vw, 30px);
-      line-height: 1.2;
-      letter-spacing: -0.01em;
+      font-size: clamp(24px, 2.4vw, 34px);
+      line-height: 1.18;
+      letter-spacing: -0.02em;
       margin: 0 0 var(--space-4);
       color: var(--text-primary);
     }
     .watch-text p {
-      font-size: clamp(15px, 1.3vw, 18px);
+      font-size: clamp(17px, 1.4vw, 21px);
       line-height: 1.6;
       margin: 0;
       color: var(--text-secondary);
@@ -1890,7 +1885,7 @@
   </section>
 
   <!-- SIZZLE REEL -->
-  <section style="padding: clamp(96px, 11vw, 156px) 0 clamp(24px, 3vw, 40px);">
+  <section style="padding: clamp(80px, 9vw, 144px) 0 clamp(24px, 3vw, 40px);">
     <div class="container" style="display:flex;flex-direction:column;align-items:center;">
       <div class="hero-visual reveal" style="margin-top:0;">
         <div class="terminal">
@@ -2389,15 +2384,16 @@
   </section>
 
   <!-- WATCH IT WORK — MacBook feature grid -->
-  <section id="watch" class="watch-section" style="padding: clamp(96px, 11vw, 156px) 0;">
+  <section id="watch" class="watch-section" style="padding: clamp(80px, 9vw, 144px) 0;">
     <div class="container">
       <div class="section-header">
         <p class="label reveal">Watch it work</p>
         <h2 class="reveal reveal-delay-1">No Figma file. No designer.</h2>
         <p class="subtitle reveal reveal-delay-2">One prompt builds a real SwiftUI app&mdash;then Raven audits every screen against 73 principles and 13 patterns, flags the issues, and guides the fixes. Recorded live on the iPhone 17 Pro simulator.</p>
       </div>
+    </div>
 
-      <div class="watch-rows">
+    <div class="watch-rows">
         <div class="watch-row reveal">
           <div class="watch-text">
             <span class="wc-tool">get_principles &middot; evaluate_design</span>
@@ -2409,7 +2405,6 @@
               <div class="mb-lid"><div class="mb-bezel"><div class="mb-screen">
                 <video class="watch-video" muted loop playsinline preload="none"
                   poster="assets/video/clips/01-build.jpg"
-                  data-webm="assets/video/clips/01-build.webm"
                   data-mp4="assets/video/clips/01-build.mp4"
                   aria-label="Claude Code scaffolding a SwiftUI fitness app from a prompt with Raven design guidance"></video>
                 <div class="mb-gloss"></div><div class="mb-notch"></div>
@@ -2430,7 +2425,6 @@
               <div class="mb-lid"><div class="mb-bezel"><div class="mb-screen">
                 <video class="watch-video" muted loop playsinline preload="none"
                   poster="assets/video/clips/02-layout.jpg"
-                  data-webm="assets/video/clips/02-layout.webm"
                   data-mp4="assets/video/clips/02-layout.mp4"
                   aria-label="The built home screen with activity rings and KPI cards, with Raven's applied principles listed"></video>
                 <div class="mb-gloss"></div><div class="mb-notch"></div>
@@ -2451,7 +2445,6 @@
               <div class="mb-lid"><div class="mb-bezel"><div class="mb-screen">
                 <video class="watch-video" muted loop playsinline preload="none"
                   poster="assets/video/clips/03-screen.jpg"
-                  data-webm="assets/video/clips/03-screen.webm"
                   data-mp4="assets/video/clips/03-screen.mp4"
                   aria-label="The Workouts screen built and verified end to end"></video>
                 <div class="mb-gloss"></div><div class="mb-notch"></div>
@@ -2472,7 +2465,6 @@
               <div class="mb-lid"><div class="mb-bezel"><div class="mb-screen">
                 <video class="watch-video" muted loop playsinline preload="none"
                   poster="assets/video/clips/04-pattern.jpg"
-                  data-webm="assets/video/clips/04-pattern.webm"
                   data-mp4="assets/video/clips/04-pattern.mp4"
                   aria-label="An AI coach detail view alongside Raven returning a dashboard pattern"></video>
                 <div class="mb-gloss"></div><div class="mb-notch"></div>
@@ -2493,7 +2485,6 @@
               <div class="mb-lid"><div class="mb-bezel"><div class="mb-screen">
                 <video class="watch-video" muted loop playsinline preload="none"
                   poster="assets/video/clips/05-a11y.jpg"
-                  data-webm="assets/video/clips/05-a11y.webm"
                   data-mp4="assets/video/clips/05-a11y.mp4"
                   aria-label="Raven running a full accessibility audit across the app's screens"></video>
                 <div class="mb-gloss"></div><div class="mb-notch"></div>
@@ -2514,7 +2505,6 @@
               <div class="mb-lid"><div class="mb-bezel"><div class="mb-screen">
                 <video class="watch-video" muted loop playsinline preload="none"
                   poster="assets/video/clips/06-evaluate.jpg"
-                  data-webm="assets/video/clips/06-evaluate.webm"
                   data-mp4="assets/video/clips/06-evaluate.mp4"
                   aria-label="Raven evaluating the finished app against 73 principles and 13 patterns"></video>
                 <div class="mb-gloss"></div><div class="mb-notch"></div>
@@ -2524,11 +2514,10 @@
           </div>
         </div>
       </div>
-    </div>
   </section>
 
   <!-- EXAMPLES -->
-  <section id="examples" class="examples-section" style="padding: clamp(96px, 11vw, 156px) 0;">
+  <section id="examples" class="examples-section" style="padding: clamp(80px, 9vw, 144px) 0;">
     <div class="container" style="display:flex;flex-direction:column;align-items:center;">
       <div class="section-header">
         <p class="label reveal">Real Outputs</p>
@@ -3137,27 +3126,40 @@
     // Watch-it-work grid: lazy-attach + autoplay clips as each MacBook nears view.
     (function () {
       var vids = document.querySelectorAll('.watch-video');
-      if (!vids.length || !('IntersectionObserver' in window)) return;
+      if (!vids.length) return;
+      // Poster as a background behind each screen so a clip never shows pure
+      // black while it buffers or if autoplay is deferred.
+      vids.forEach(function (v) {
+        var screen = v.parentElement;
+        var poster = v.getAttribute('poster');
+        if (screen && poster) {
+          screen.style.backgroundImage = "url('" + poster + "')";
+          screen.style.backgroundSize = 'cover';
+          screen.style.backgroundPosition = 'top center';
+        }
+      });
+      if (!('IntersectionObserver' in window)) return;
+      function attachAndPlay(v) {
+        if (v.dataset.loaded !== '1') {
+          // h264 mp4 only — hardware-decoded everywhere, reliable muted autoplay
+          // in Safari and Chrome. (VP9/webm-first was the black-screen culprit.)
+          if (v.dataset.mp4) {
+            var s = document.createElement('source');
+            s.src = v.dataset.mp4; s.type = 'video/mp4'; v.appendChild(s);
+          }
+          v.dataset.loaded = '1';
+          v.load();
+        }
+        var p = v.play();
+        if (p && p.catch) p.catch(function () { /* autoplay deferred; poster bg stays */ });
+      }
       var io = new IntersectionObserver(function (entries) {
         entries.forEach(function (e) {
           if (!e.isIntersecting) return;
-          var v = e.target;
-          if (v.dataset.loaded !== '1') {
-            if (v.dataset.webm) {
-              var sw = document.createElement('source');
-              sw.src = v.dataset.webm; sw.type = 'video/webm'; v.appendChild(sw);
-            }
-            if (v.dataset.mp4) {
-              var sm = document.createElement('source');
-              sm.src = v.dataset.mp4; sm.type = 'video/mp4'; v.appendChild(sm);
-            }
-            v.dataset.loaded = '1';
-            v.load();
-          }
-          v.play().catch(function () { /* autoplay can be blocked; poster stays */ });
-          io.unobserve(v);
+          attachAndPlay(e.target);
+          io.unobserve(e.target);
         });
-      }, { rootMargin: '200px' });
+      }, { rootMargin: '300px' });
       vids.forEach(function (v) { io.observe(v); });
     })();
 

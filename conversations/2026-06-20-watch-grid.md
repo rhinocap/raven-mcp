@@ -40,6 +40,22 @@ Open thread from prior session was the audit_ios_privacy 90683 bug; this session
 **Deploy:** https://site-3sw3f817c-cunliffeandrewc-8712s-projects.vercel.app · **Pushed:** branch raven-feedback-site-polish (005b243).
 **Open:** clip playback needs real browser; header centered vs rows left/right (offered left-align).
 
+### Watch — full-bleed + 2x MacBooks + full-res clips (commit f1edea2)
+**What:** Andrew on a Studio Display XDR couldn't read the terminal text; MacBooks too small, sims looked cropped. (a) `.watch-rows` full-bleed (100vw breakout; html/body clip overflow-x), media-weighted tracks 0.78fr/1.22fr that swap with the side (device always larger), `.mb` cap 620→1320px, copy hugs inner edge via justify-self. (b) Re-encoded all 6 clips from the 1920×1080 master at full res (were 1280×720 — the real legibility killer, not the cut points). Mapped the reel's title cards (~18/28/40/52/62/66/96s) via contact sheet; trimmed 02-layout to 20.0–26.3s to clear the 28s card. Diagnosed "sims cut off" as the small device + object-fit cover sliver, not a bad window.
+**Verified (deployed URL @2560):** device=1320px (≈2.1×) ✓; no horizontal overflow @2560/1440/390 (mobile 390==390) ✓; terminal commands legible at 1:1 ✓; sims fully shown ✓; clips ffprobe 1920×1080 + live 206/accept-ranges ✓.
+**Deploy:** https://site-oegysd6wk-cunliffeandrewc-8712s-projects.vercel.app · **Pushed:** branch raven-feedback-site-polish (f1edea2).
+**Open:** clip motion-playback still needs a real (non-automation) browser; Watch header still centered above the alternating rows.
+
+### Watch redesign #2 + layers grid + rhythm + video playback (RavenMCP-grounded)
+**What:** Andrew (XDR) flagged 4 hard failures from real screenshots: (1) most videos black/don't play, (2) layers grid 4-wide with a stretched orphan card, (3) Watch rows "willy nilly" — giant device + tiny stranded copy, (4) vertical rhythm still bad; asked "did you use RavenMCP or eyeball it?" Ran `audit_page` (deployed URL @2436, scroll_settle) + `get_pattern(landing-page)` + `get_principles`. Raven confirmed: spacing **25 unique values** ("rhythm breaks past ~7"), 740px container off the 1200 token. Fixes:
+- **Videos:** lazy-loader was webm/VP9-first → `v.load()` cleared poster while the big file buffered → black. Now **mp4-only (h264)** + **poster set as CSS background** behind every `.mb-screen` (never pure black). Removed `data-webm` attrs, deleted 6 webm files (clips dir 60M→26M). NOTE: neither Playwright nor claude-in-chrome can decode video (play() freezes the renderer) — playback motion must be confirmed in Andrew's real browser; poster-bg guarantees real content shows regardless (verified 5/6 in headless; 6th was a decode-artifact, poster luma 39 = fine).
+- **Layers grid:** `.layers-grid` was the same `flex: 1 1 280px` bug as tools-grid (never fixed) → CSS grid `repeat(3,1fr)` desktop / 2 / 1. 9 cards = clean 3+3+3.
+- **Watch layout:** killed the 100vw bleed + 1320 device cap that stranded the copy. Moved `.watch-rows` to section level (outside `.container`), bounded `width: min(100% - 48px, 1840px)` centered, balanced tracks 0.82/1.18fr that swap by side, device max 1080, copy sized up (h3 clamp(24,34), body clamp(17,21)) + hugs inner edge. Device ~1040px on XDR (≈1.67×), text 544px — alternation LEFT/RIGHT/LEFT/RIGHT/LEFT/RIGHT verified deterministically.
+- **Rhythm:** snapped ad-hoc clamps to 8px grid — section pad clamp(96,156)→clamp(80,144) (×13), header margin →clamp(48,96), watch gap →clamp(96,160). Raven re-audit: scale-count **25→22**, oddballs 56/88/104/156/168 gone.
+**Verified:** deployed URL @2436/1840/1440/390 — device 1040/1010/779px, no overflow any width, layers 3 cols, alternation clean, posters show content; Raven re-audit confirms spacing improved.
+**Deploy:** https://site-673utcovf-cunliffeandrewc-8712s-projects.vercel.app · **Pushed:** branch raven-feedback-site-polish.
+**Open:** video MOTION still needs Andrew's real browser (automation can't decode); 740px sub-container + 38 sub-13px font-sizes are pre-existing Raven warnings (not today's scope).
+
 ## State at end of session
 - Watch-grid build + structural verification: done ✓
 - RavenMCP analysis + brand profile + P1–P3 fixes: done & verified ✓
