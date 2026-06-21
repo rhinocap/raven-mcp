@@ -47,6 +47,12 @@
 
 ## Session retrospectives
 
+### 2026-06-21 — Watch grid cut-off fix (phones + terminals)
+- **Biggest win:** Re-cut all 6 clips from the 4K master (`~/Movies/RavenReelRawmp4.mp4`) with a union crop (`3680:2070:160:78 → 1920×1080`) that works for every beat despite the simulator window varying. Three-level verification (old-vs-new edge compare, poster contact sheet, deployed-URL AR measurement) done before calling it complete. A/B/C demo test picked exact-16:9 fill (C) over letterbox (B) — the right craft call.
+- **Biggest lesson:** The PENDING item in the 06-20 session log said "re-cut from raw source." I didn't read the log before diagnosing — so I spent ~30 min on an AR fix that was real but incomplete, then got "still cut off." A 2-min log read would have collapsed the whole session to one pass. **Rule to promote to `~/.claude/CLAUDE.md` (next interactive session):** "Read the ongoing-feature session log before starting any diagnosis — PENDING items are the unresolved root causes."
+- **Second lesson:** macOS screenshot access pattern needs to live in GLOBAL memory, not just the raven-mcp project memory. U+202F narrow-space + HEIC-as-.png + Bash sandbox from ~/Pictures affects every project where Andrew shares captures.
+- **There were actually two root causes, not one:** (1) `.mb-screen` AR 1.82 vs 16:9 content → `object-fit:cover` sliced the bottom; (2) source clips were cut from a sizzle-reel export with baked-in Ken Burns zoom — exactly the PENDING from 06-20. Both real; only #2 was the user-visible symptom.
+
 ### 2026-06-20 — Watch-it-work grid + site audit
 - **Biggest lesson: rules exist; execution doesn't.** Every failure this session violated an existing CLAUDE.md rule. Ken Burns re-introduced = "reuse what worked." Layers orphan = "audit full CSS scope." No Raven before building = "MCP first." Wrong viewport = "reproduce on user's surface." Five separate violations of five separate loaded rules in one session. The rules are not the problem; the habit of checking them before acting is.
 - **Ken Burns re-regression root cause:** two independent clip-cutting passes happened in the session. The first (correctly) identified and fixed the wrong source file. The second (legibility pass) re-derived the approach from scratch instead of reusing the first pass, and silently picked up the bad source. Write the source file into any recut script as a comment so it's impossible to pick the wrong one.

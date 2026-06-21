@@ -2,16 +2,24 @@
 
 Tracking collaboration quality across sessions. Updated every Revisit.
 
-| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 (v1.9.0) | 2026-06-19 (v1.10.0) | 2026-06-20 (changelog) | 2026-06-20 (site) |
-|---|---|---|---|---|---|---|---|
-| First-attempt accuracy | 90% | ~85% | ~83% (10/12) | ~80% (8/10) | ~82% (14/17) | ~85% (5/6) | ~70% (14/20) |
-| Push rejections | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| Autonomy score | 90% | 85% | ~95% | ~95% | ~99% | ~99% | ~99% |
-| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg | ~1.2 avg | ~1.2 avg | ~2.1 avg |
+| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 (v1.9.0) | 2026-06-19 (v1.10.0) | 2026-06-20 (changelog) | 2026-06-20 (site) | 2026-06-21 (cut-off fix) |
+|---|---|---|---|---|---|---|---|---|
+| First-attempt accuracy | 90% | ~85% | ~83% (10/12) | ~80% (8/10) | ~82% (14/17) | ~85% (5/6) | ~70% (14/20) | ~70% (screenshot 3×; AR fix partial) |
+| Push rejections | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Autonomy score | 90% | 85% | ~95% | ~95% | ~99% | ~99% | ~99% | ~99% |
+| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg | ~1.2 avg | ~1.2 avg | ~2.1 avg | ~1.8 avg |
 | Tests passing | 100% | 100% (smoke) | 100% (85/85) | 100% (92/92) | 100% (185/185) | N/A |
 | Log currency | Immediate | Delayed | Immediate | Immediate | Immediate | Immediate | Immediate |
 
 ## Notes per session
+
+### 2026-06-21 — Watch grid cut-off fix
+- **Session scale:** Small-medium — 1 goal (phones + terminals cut off in #watch grid), 2 commits.
+- **First-attempt accuracy ~70%:** Three misses: (1) macOS screenshot access: U+202F narrow-space + HEIC-as-.png + Bash sandbox → 3 attempts to read the capture. (2) AR fix (d81cc98): the `.mb-screen` 1.82 → 16:9 edit was real and needed, but was incomplete — didn't fix the source clips. Andrew returned "still cut off." (3) Fade band-aid prototyped before discovering the session-log PENDING item.
+- **Root cause of accuracy misses:** Did not read the prior session log before starting. The 06-20 session log explicitly had "re-cut clips from raw source" as PENDING — the complete answer. A 2-minute read would have collapsed the entire session to one pass.
+- **Wins:** Once directed to the source, re-cut all 6 clips from 4K master in one clean pass. Union crop works across all 6 beats despite varied simulator layout. A/B/C demo page chose right craft call. Three-level verification. Proactively flagged personal email in terminal. Queued spacing task in 3 persistent places.
+- **Rule to promote (next interactive session):** "Read the ongoing-feature session log before any diagnosis — PENDING items are the unresolved root causes." → `~/.claude/CLAUDE.md` near "reuse what worked."
+- **macOS screenshot pattern:** Memory written (project-scoped). Needs to move to global `~/.claude/memory/`.
 
 ### 2026-06-20 — Watch-it-work grid + RavenMCP site audit
 - **Session scale:** Very large — `/goal` to update marketing site with all new tools + build a feature grid matching portfolio+HighLvl references. Full brand audit via Raven. Multiple full redesigns of the Watch section.
