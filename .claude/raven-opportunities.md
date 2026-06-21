@@ -43,6 +43,9 @@ Format: `- YYYY-MM-DD | [pain category] | [what happened] | [proposed Raven capa
 ## Session scan — 2026-06-19 (v1.10.0) — 0 net-new opportunities
 Session was pure implementation (building the 5 missing Raven tools from the existing ledger). No design audits were done manually, no round-trips cost missing Raven capabilities, no new skills were written as workarounds, and no false positives were produced. All 6 open ledger items were consumed (shipped or verified-as-already-shipped).
 
+## Session scan — 2026-06-21 (spacing + audit_device_frame) — 0 net-new opportunities
+Session was pure implementation (watch-grid spacing CSS bump + building the `audit_device_frame` tool from the existing ledger). The scroll-settle/opacity:0 capture-artifact is already P1 in the ledger. The `/tmp` import failure and Vercel branch-alias communication gap are process/tooling issues, not Raven tool gaps. `audit_device_frame` consumed the 2026-06-21 device-frame-crop P2 ledger item (already marked above under Consumed — 2026-06-21). 0 net-new Raven opportunities.
+
 ## Session scan — 2026-06-20 — 0 net-new opportunities
 Session was pure maintenance (site changelog catch-up, release skill gap closure). No design audits done, no missing Raven capabilities surfaced, no workaround skills written, no false positives produced. The missing step was in the release skill, not a Raven tool gap.
 - 2026-06-20 | audit false-positive | audit_contrast/audit_page composite rgba() backgrounds over a LIGHT canvas, not the real dark ancestor chain — reported 78 AA fails (incl. install pill at 1.08, sub-labels at 3.46) when true parent-chain compositing showed 0–20. I had to re-derive correct contrast by hand in the browser to trust it. | Composite each text node's background over its actual rendered ancestor stack (walk parents, alpha-over) before computing WCAG ratio; expose true effective bg in the row. | P1

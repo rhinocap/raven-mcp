@@ -2,16 +2,27 @@
 
 Tracking collaboration quality across sessions. Updated every Revisit.
 
-| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 (v1.9.0) | 2026-06-19 (v1.10.0) | 2026-06-20 (changelog) | 2026-06-20 (site) | 2026-06-21 (cut-off fix) |
-|---|---|---|---|---|---|---|---|---|
-| First-attempt accuracy | 90% | ~85% | ~83% (10/12) | ~80% (8/10) | ~82% (14/17) | ~85% (5/6) | ~70% (14/20) | ~70% (screenshot 3×; AR fix partial) |
-| Push rejections | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| Autonomy score | 90% | 85% | ~95% | ~95% | ~99% | ~99% | ~99% | ~99% |
-| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg | ~1.2 avg | ~1.2 avg | ~2.1 avg | ~1.8 avg |
-| Tests passing | 100% | 100% (smoke) | 100% (85/85) | 100% (92/92) | 100% (185/185) | N/A |
-| Log currency | Immediate | Delayed | Immediate | Immediate | Immediate | Immediate | Immediate |
+| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 (v1.9.0) | 2026-06-19 (v1.10.0) | 2026-06-20 (changelog) | 2026-06-20 (site) | 2026-06-21 (cut-off fix) | 2026-06-21 (spacing + device-frame) |
+|---|---|---|---|---|---|---|---|---|---|
+| First-attempt accuracy | 90% | ~85% | ~83% (10/12) | ~80% (8/10) | ~82% (14/17) | ~85% (5/6) | ~70% (14/20) | ~70% (screenshot 3×; AR fix partial) | ~75% (6/8 — screenshot blind + /tmp import) |
+| Push rejections | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Autonomy score | 90% | 85% | ~95% | ~95% | ~99% | ~99% | ~99% | ~99% | ~99% |
+| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg | ~1.2 avg | ~1.2 avg | ~2.1 avg | ~1.8 avg | ~1.3 avg |
+| Tests passing | 100% | 100% (smoke) | 100% (85/85) | 100% (92/92) | 100% (185/185) | N/A | | 100% (191/191) |
+| Log currency | Immediate | Delayed | Immediate | Immediate | Immediate | Immediate | Immediate | | Immediate |
 
 ## Notes per session
+
+### 2026-06-21 — Watch-grid spacing + audit_device_frame
+- **Session scale:** Small-medium — 2 tasks via `/goal`→Workflow, 2 commits.
+- **First-attempt accuracy ~75% (6/8):** Two misses: (1) Screenshot captures blank — `opacity:0` reveal-on-scroll + headless non-autoplay video → forced `.reveal` visible + killed transitions. Known capture-artifact class, re-confirmed. (2) `/tmp/df-smoke.mjs` failed importing `../../dist/device-frame.js` — `ERR_MODULE_NOT_FOUND`. Fixed in 1 step (absolute path + project-root run). **This is the 3rd consecutive session** this exact failure fires (2026-06-19 `@mcp` imports, 2026-06-20 playwright ESM, 2026-06-21 dist/ path). Rule exists in session notes only — NEVER reached CLAUDE.md or a loaded memory.
+- **Communication gap:** Shared the immutable deploy URL but not the stable `-git-<branch>-` branch-alias URL after pushing. Andrew had to ask "Is the grid vertical spacing live on the previous Vercel link?" — proactive one-liner at completion would have prevented this.
+- **⚠️ REPEAT OFFENDER — MUST PROMOTE in next interactive session (blocked in headless):**
+  1. **`/tmp smoke script import` → CLAUDE.md Testing rules.** Rule: Node.js scripts that import project `dist/` or local packages must run from the project root, not `/tmp`. ESM module resolution walks up from the script file — `/tmp/foo.mjs` importing a relative path to `dist/` or a bare `@pkg` has no `node_modules` on the lookup chain. Use absolute dist/ path OR run from project dir.
+  2. **Vercel branch-alias URL → CLAUDE.md + project memory.** Rule: After any Vercel push for review, always include the `-git-<branch>-` alias URL (stable, auto-updates each push) alongside the immutable deploy URL. The alias is the bookmark to share; the immutable URL goes stale on the next push.
+- **Wins:** `/goal`→Workflow executed perfectly. Codex built `src/device-frame.ts` (761 lines) + tests (214 lines) first attempt; independent Claude verifier recomputed the geometry+motion math — guards against a self-consistent wrong impl+test pair. 191/191 tests (full suite, 0 regression). Real-data smoke: pre-fix geometry → "cropped" top+bottom 2.4% ✓; current 16:9 cutout → "fits" 0.1% ✓; real clip → ~3.7% composition drift ✓. Deployed-URL verification (served-value check + eyes-on) before claiming done.
+- **Autonomy score ~99%:** No AskUserQuestion calls. Andrew's only input was the Vercel link question (after completion).
+- **Round-trips:** ~1.3 avg. Screenshot-blind + /tmp import each cost 1 extra step; everything else 1 round-trip.
 
 ### 2026-06-21 — Watch grid cut-off fix
 - **Session scale:** Small-medium — 1 goal (phones + terminals cut off in #watch grid), 2 commits.
