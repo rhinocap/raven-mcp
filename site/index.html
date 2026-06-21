@@ -147,7 +147,9 @@
     img { display: block; max-width: 100%; }
     ul { list-style: none; }
 
-    .container { max-width: var(--max-width); margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
+    /* Body column is aligned to the nav pill: same max-width, same 16px gutter,
+       no extra side padding — so every section spans exactly the nav's width. */
+    .container { max-width: var(--max-width); width: calc(100% - 32px); margin: 0 auto; padding: 0; }
 
     /* ── Scroll Animations ── */
     .reveal {
@@ -437,7 +439,6 @@
     .demo-showcase {
       margin-top: var(--space-16);
       width: 100%;
-      max-width: 1080px;
     }
     .demo-showcase-header {
       text-align: center;
@@ -942,7 +943,7 @@
        ══════════════════════════════════════════ */
 
     .stats-section {
-      padding: clamp(72px, 9vw, 128px) 0;
+      padding: clamp(96px, 11vw, 156px) 0;
     }
     .stats-grid {
       display: flex;
@@ -989,7 +990,7 @@
 
     .pricing-section {
       position: relative;
-      padding: clamp(72px, 9vw, 128px) 0;
+      padding: clamp(96px, 11vw, 156px) 0;
       background: var(--bg-alt);
       overflow: hidden;
     }
@@ -1126,13 +1127,13 @@
 
     .layers {
       position: relative;
-      padding: clamp(72px, 9vw, 128px) 0;
+      padding: clamp(96px, 11vw, 156px) 0;
       background: var(--bg-alt);
     }
 
     .section-header {
       text-align: center;
-      margin-bottom: clamp(48px, 6vw, 88px);
+      margin-bottom: clamp(56px, 7vw, 104px);
     }
     .section-header .label { margin-bottom: var(--space-3); }
     .section-header h2 { margin-bottom: var(--space-4); }
@@ -1190,7 +1191,7 @@
 
     .tools-section {
       position: relative;
-      padding: clamp(72px, 9vw, 128px) 0;
+      padding: clamp(96px, 11vw, 156px) 0;
     }
 
     .tools-grid {
@@ -1263,7 +1264,7 @@
 
     .how-section {
       position: relative;
-      padding: clamp(72px, 9vw, 128px) 0;
+      padding: clamp(96px, 11vw, 156px) 0;
       background: var(--bg-alt);
     }
 
@@ -1311,7 +1312,7 @@
 
     .systems-section {
       position: relative;
-      padding: clamp(72px, 9vw, 128px) 0;
+      padding: clamp(96px, 11vw, 156px) 0;
     }
 
     .systems-grid {
@@ -1359,7 +1360,7 @@
 
     .quote-section {
       position: relative;
-      padding: clamp(72px, 9vw, 128px) 0;
+      padding: clamp(96px, 11vw, 156px) 0;
       overflow: hidden;
     }
 
@@ -1406,7 +1407,7 @@
 
     .mythology-section {
       position: relative;
-      padding: clamp(72px, 9vw, 128px) 0;
+      padding: clamp(96px, 11vw, 156px) 0;
       overflow: hidden;
     }
 
@@ -1470,7 +1471,7 @@
     .cta-section {
       position: relative;
       text-align: center;
-      padding: clamp(72px, 9vw, 128px) 0;
+      padding: clamp(96px, 11vw, 156px) 0;
       background: var(--bg-alt);
       overflow: hidden;
     }
@@ -1516,7 +1517,7 @@
        ══════════════════════════════════════════ */
     .signup-section {
       position: relative;
-      padding: clamp(72px, 9vw, 128px) 0;
+      padding: clamp(96px, 11vw, 156px) 0;
       text-align: center;
     }
     .signup-section .container {
@@ -1656,10 +1657,8 @@
     .watch-rows {
       display: flex;
       flex-direction: column;
-      gap: clamp(72px, 11vw, 128px);
+      gap: clamp(104px, 13vw, 168px);
       width: 100%;
-      max-width: 1080px;
-      margin: 0 auto;
     }
     .watch-row {
       display: grid;
@@ -1668,7 +1667,7 @@
       align-items: center;
     }
     .watch-media { display: flex; justify-content: center; }
-    .watch-media .mb { max-width: 560px; }
+    .watch-media .mb { max-width: 620px; }
     @media (min-width: 900px) {
       .watch-row { grid-template-columns: 1fr 1fr; gap: clamp(48px, 6vw, 80px); }
       /* Row 1 (and every odd row): MacBook on the left, copy on the right.
@@ -1872,7 +1871,7 @@
   </section>
 
   <!-- SIZZLE REEL -->
-  <section style="padding: clamp(72px, 9vw, 128px) 0 clamp(24px, 3vw, 40px);">
+  <section style="padding: clamp(96px, 11vw, 156px) 0 clamp(24px, 3vw, 40px);">
     <div class="container" style="display:flex;flex-direction:column;align-items:center;">
       <div class="hero-visual reveal" style="margin-top:0;">
         <div class="terminal">
@@ -2371,7 +2370,7 @@
   </section>
 
   <!-- WATCH IT WORK — MacBook feature grid -->
-  <section id="watch" class="watch-section" style="padding: clamp(72px, 9vw, 128px) 0;">
+  <section id="watch" class="watch-section" style="padding: clamp(96px, 11vw, 156px) 0;">
     <div class="container">
       <div class="section-header">
         <p class="label reveal">Watch it work</p>
@@ -2510,14 +2509,14 @@
   </section>
 
   <!-- EXAMPLES -->
-  <section id="examples" class="examples-section" style="padding: clamp(72px, 9vw, 128px) 0;">
+  <section id="examples" class="examples-section" style="padding: clamp(96px, 11vw, 156px) 0;">
     <div class="container" style="display:flex;flex-direction:column;align-items:center;">
       <div class="section-header">
         <p class="label reveal">Real Outputs</p>
         <h2 class="reveal reveal-delay-1">One tool. Every industry.</h2>
         <p class="subtitle reveal reveal-delay-2">Built entirely with Raven's design intelligence. Click any to explore.</p>
       </div>
-      <div class="demo-showcase reveal reveal-delay-3" style="margin-top: 0; max-width: 1080px; width: 100%;">
+      <div class="demo-showcase reveal reveal-delay-3" style="margin-top: 0; width: 100%;">
         <div class="demo-grid">
           <a href="/demos/law-firm.html" class="demo-card">
             <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=600&q=80');"></div>

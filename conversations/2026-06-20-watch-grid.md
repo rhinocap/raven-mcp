@@ -34,6 +34,12 @@ Open thread from prior session was the audit_ios_privacy 90683 bug; this session
 **Preview:** https://site-nl1atqbi9-cunliffeandrewc-8712s-projects.vercel.app
 **Pushed:** NOT pushed (auto-save hook commits locally; no remote push requested).
 
+### "Watch it work" rebuilt — alternating rows + global rhythm (commit 005b243)
+**What:** Andrew flagged the watch grid as cramped + "should be alternating; whole site cramped on all devices." Captured live side-by-sides (portfolio + HighLvl) at 1440/390 via Playwright (automation Chrome viewport locks at 500px — used headless instead) → confirmed neither reference is a uniform laptop grid; both are alternating editorial rows. Rebuilt `#watch` from 3×2 `.watch-grid` cards into **6 alternating `.watch-row`s** (big MacBook per beat, copy beside, sides flip `:nth-child(odd)` order-swap ≥900px; DOM text-first for a11y; mobile stacks). Opened global rhythm: container side-pad clamp(16,24)→clamp(20,48), section pad clamp(48,80)→clamp(72,128), section-header margin→clamp 88, --max-width 1140→1200.
+**Verified:** deployed-URL eyes-on at 1440+390 — alternating correct, big devices, airy; hero + tools grid unbroken; gutters 48px / section pad 128px measured.
+**Deploy:** https://site-3sw3f817c-cunliffeandrewc-8712s-projects.vercel.app · **Pushed:** branch raven-feedback-site-polish (005b243).
+**Open:** clip playback needs real browser; header centered vs rows left/right (offered left-align).
+
 ## State at end of session
 - Watch-grid build + structural verification: done ✓
 - RavenMCP analysis + brand profile + P1–P3 fixes: done & verified ✓
