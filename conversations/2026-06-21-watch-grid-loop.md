@@ -19,3 +19,11 @@
 - **Video playback on deploy:** preview is SSO-protection-gated, so `<video>` stalls (readyState 0) on the challenged media path while a credentialed `fetch()` returns real `video/mp4` bytes (206, accept-ranges). Environmental (all 6 clips, documented cookie-protected-host behavior), not a regression; resolves on the public/production deploy. File validity confirmed via ffprobe + range-serve.
 - **Deploy:** site-jwbv5vh5v · commit 5783557.
 - **Next:** substantive type/spacing/line-height consolidation in the *real* chrome (not the mockups) — where the audit's line-height ×12, spacing scale-count, and modular heading-ratio warnings are genuine and movable — then a real re-audit to measure a true delta.
+
+### Iter 3 (full desktop review → terminus, Andrew's call)
+- **Re-audit:** unchanged 94/B, 1 error + 8 warnings, all 8 **inconclusive** under adversarial-verify. Iter-2 changes had no audit delta (no-bare-hex counts CSS decls, not SVG attrs).
+- **Full desktop visual review** (hero, sizzle reel, layers, tools, watch grid) on localhost:8799 with vision: **genuinely award-grade throughout.** Hero (bold headline + cyan accent + glow, stat cards), terminal→pricing-mockup sizzle reel, watch grid (now 6 distinct legible clips) all strong.
+- **Key finding — remaining audit flags are intentional craft / naive heuristics, not defects:** line-heights vary *by font-size* (body 1.65, 24px quote 1.55, 19px desc 1.55 = correct leading); max-widths are deliberate reading measures (740px quote); min-size error = the intentional hero miniatures. Consolidating any would *degrade* the design.
+- **Mobile:** couldn't verify — remote Chrome wouldn't drop below 2560px viewport (resize_window moved the OS window, not the content viewport). Flagged as the one unverified surface.
+- **Andrew's decision (AskUserQuestion):** "**Preserve the craft**" — site is at its ceiling; iterate only on genuine non-regressing improvements; stop chasing audit metrics. → **Loop concluded.**
+- **Raven-opportunities logged:** min-size should exempt intentional miniatures; no-bare-hex should scan SVG attrs; need a per-category design *scorer*; audit tools need a compact output mode.
