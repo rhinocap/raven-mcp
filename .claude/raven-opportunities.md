@@ -36,6 +36,10 @@ Format: `- YYYY-MM-DD | [pain category] | [what happened] | [proposed Raven capa
 
 ---
 
+## Consumed — 2026-06-21 (raven-mcp instance)
+
+- 2026-06-21 | SHIPPED `audit_device_frame` — device-mockup crop audit with three checks: (1) object-fit:cover geometry crop loss (container AR vs media AR, names cropped edges + hidden fraction), (2) baked-in pan/zoom (Ken Burns) via block-matched displacement regressed onto radial position, (3) edge-truncation (reuses `auditImageEdges`). `src/device-frame.ts` + 6 tests; wired in index.ts; manifest/README/CHANGELOG updated. Verified end-to-end on the real watch grid (current 16:9 cutout → "fits"; pre-fix 1.82-AR cutout → "cropped" top+bottom 2.4%; real clip → ~3.7% drift). Was 2026-06-21 device-frame-crop P2. Branch `raven-feedback-site-polish`.
+
 ## Session scan — 2026-06-19 (v1.10.0) — 0 net-new opportunities
 Session was pure implementation (building the 5 missing Raven tools from the existing ledger). No design audits were done manually, no round-trips cost missing Raven capabilities, no new skills were written as workarounds, and no false positives were produced. All 6 open ledger items were consumed (shipped or verified-as-already-shipped).
 
