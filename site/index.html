@@ -83,7 +83,7 @@
       --duration-normal: 300ms;
       --duration-slow: 600ms;
 
-      --max-width: 1140px;
+      --max-width: 1200px;
       --nav-height: 64px;
     }
 
@@ -147,7 +147,7 @@
     img { display: block; max-width: 100%; }
     ul { list-style: none; }
 
-    .container { max-width: var(--max-width); margin: 0 auto; padding: 0 clamp(16px, 4vw, 24px); }
+    .container { max-width: var(--max-width); margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
 
     /* ── Scroll Animations ── */
     .reveal {
@@ -942,7 +942,7 @@
        ══════════════════════════════════════════ */
 
     .stats-section {
-      padding: clamp(48px, 6vw, 80px) 0;
+      padding: clamp(72px, 9vw, 128px) 0;
     }
     .stats-grid {
       display: flex;
@@ -989,7 +989,7 @@
 
     .pricing-section {
       position: relative;
-      padding: clamp(48px, 6vw, 80px) 0;
+      padding: clamp(72px, 9vw, 128px) 0;
       background: var(--bg-alt);
       overflow: hidden;
     }
@@ -1126,13 +1126,13 @@
 
     .layers {
       position: relative;
-      padding: clamp(48px, 6vw, 80px) 0;
+      padding: clamp(72px, 9vw, 128px) 0;
       background: var(--bg-alt);
     }
 
     .section-header {
       text-align: center;
-      margin-bottom: var(--space-16);
+      margin-bottom: clamp(48px, 6vw, 88px);
     }
     .section-header .label { margin-bottom: var(--space-3); }
     .section-header h2 { margin-bottom: var(--space-4); }
@@ -1190,7 +1190,7 @@
 
     .tools-section {
       position: relative;
-      padding: clamp(48px, 6vw, 80px) 0;
+      padding: clamp(72px, 9vw, 128px) 0;
     }
 
     .tools-grid {
@@ -1263,7 +1263,7 @@
 
     .how-section {
       position: relative;
-      padding: clamp(48px, 6vw, 80px) 0;
+      padding: clamp(72px, 9vw, 128px) 0;
       background: var(--bg-alt);
     }
 
@@ -1311,7 +1311,7 @@
 
     .systems-section {
       position: relative;
-      padding: clamp(48px, 6vw, 80px) 0;
+      padding: clamp(72px, 9vw, 128px) 0;
     }
 
     .systems-grid {
@@ -1359,7 +1359,7 @@
 
     .quote-section {
       position: relative;
-      padding: clamp(48px, 6vw, 80px) 0;
+      padding: clamp(72px, 9vw, 128px) 0;
       overflow: hidden;
     }
 
@@ -1406,7 +1406,7 @@
 
     .mythology-section {
       position: relative;
-      padding: clamp(48px, 6vw, 80px) 0;
+      padding: clamp(72px, 9vw, 128px) 0;
       overflow: hidden;
     }
 
@@ -1470,7 +1470,7 @@
     .cta-section {
       position: relative;
       text-align: center;
-      padding: clamp(48px, 6vw, 80px) 0;
+      padding: clamp(72px, 9vw, 128px) 0;
       background: var(--bg-alt);
       overflow: hidden;
     }
@@ -1516,7 +1516,7 @@
        ══════════════════════════════════════════ */
     .signup-section {
       position: relative;
-      padding: clamp(48px, 6vw, 80px) 0;
+      padding: clamp(72px, 9vw, 128px) 0;
       text-align: center;
     }
     .signup-section .container {
@@ -1646,29 +1646,36 @@
       .demo-card-industry { font-size: 16px; }
       .demo-card-name { font-size: 13px; }
 
-      .watch-grid { gap: var(--space-10); }
+      .watch-row { gap: var(--space-7); }
     }
 
     /* ── Watch it work — MacBook feature grid ─────────────────────────
        MacBook chrome geometry ported from the portfolio DeviceFrame
        (Figma node 32:2 canvas, 860 × 498). Every value is a % of the
        outer footprint so the chassis scales fluidly. */
-    .watch-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: var(--space-12);
+    .watch-rows {
+      display: flex;
+      flex-direction: column;
+      gap: clamp(72px, 11vw, 128px);
       width: 100%;
       max-width: 1080px;
       margin: 0 auto;
     }
-    @media (min-width: 640px) {
-      .watch-grid { grid-template-columns: repeat(2, 1fr); gap: var(--space-8); }
+    .watch-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: clamp(28px, 5vw, 48px);
+      align-items: center;
     }
-    @media (min-width: 1000px) {
-      .watch-grid { grid-template-columns: repeat(3, 1fr); }
+    .watch-media { display: flex; justify-content: center; }
+    .watch-media .mb { max-width: 560px; }
+    @media (min-width: 900px) {
+      .watch-row { grid-template-columns: 1fr 1fr; gap: clamp(48px, 6vw, 80px); }
+      /* Row 1 (and every odd row): MacBook on the left, copy on the right.
+         DOM order stays text-first for reading order; sides flip visually. */
+      .watch-row:nth-child(odd) .watch-text  { order: 2; }
+      .watch-row:nth-child(odd) .watch-media { order: 1; }
     }
-
-    .watch-card { display: flex; flex-direction: column; margin: 0; }
 
     .mb {
       position: relative;
@@ -1676,7 +1683,7 @@
       aspect-ratio: 860 / 498;
       transition: transform var(--duration-normal) var(--ease-out);
     }
-    .watch-card:hover .mb { transform: translateY(-4px); }
+    .watch-media:hover .mb { transform: translateY(-4px); }
 
     .mb-lid {
       position: absolute;
@@ -1731,23 +1738,25 @@
       border-radius: 2px;
     }
 
-    .watch-cap { margin-top: var(--space-5); }
-    .watch-cap .wc-tool {
+    .watch-text { max-width: 30rem; }
+    .watch-text .wc-tool {
       display: block;
       font-family: var(--font-mono);
-      font-size: 12px;
-      letter-spacing: -0.01em;
+      font-size: 13px;
+      letter-spacing: 0.02em;
       color: var(--text-accent);
+      margin-bottom: var(--space-3);
     }
-    .watch-cap h3 {
-      font-size: 17px;
-      line-height: 1.3;
-      margin: var(--space-2) 0 var(--space-2);
+    .watch-text h3 {
+      font-size: clamp(22px, 2.6vw, 30px);
+      line-height: 1.2;
+      letter-spacing: -0.01em;
+      margin: 0 0 var(--space-4);
       color: var(--text-primary);
     }
-    .watch-cap p {
-      font-size: 14px;
-      line-height: 1.55;
+    .watch-text p {
+      font-size: clamp(15px, 1.3vw, 18px);
+      line-height: 1.6;
       margin: 0;
       color: var(--text-secondary);
     }
@@ -1863,7 +1872,7 @@
   </section>
 
   <!-- SIZZLE REEL -->
-  <section style="padding: clamp(48px, 6vw, 80px) 0 clamp(24px, 3vw, 40px);">
+  <section style="padding: clamp(72px, 9vw, 128px) 0 clamp(24px, 3vw, 40px);">
     <div class="container" style="display:flex;flex-direction:column;align-items:center;">
       <div class="hero-visual reveal" style="margin-top:0;">
         <div class="terminal">
@@ -2362,7 +2371,7 @@
   </section>
 
   <!-- WATCH IT WORK — MacBook feature grid -->
-  <section id="watch" class="watch-section" style="padding: clamp(48px, 6vw, 80px) 0;">
+  <section id="watch" class="watch-section" style="padding: clamp(72px, 9vw, 128px) 0;">
     <div class="container">
       <div class="section-header">
         <p class="label reveal">Watch it work</p>
@@ -2370,126 +2379,138 @@
         <p class="subtitle reveal reveal-delay-2">One prompt builds a real SwiftUI app&mdash;then Raven audits every screen against 73 principles and 13 patterns, flags the issues, and guides the fixes. Recorded live on the iPhone 17 Pro simulator.</p>
       </div>
 
-      <div class="watch-grid">
-        <figure class="watch-card reveal">
-          <div class="mb">
-            <div class="mb-lid"><div class="mb-bezel"><div class="mb-screen">
-              <video class="watch-video" muted loop playsinline preload="none"
-                poster="assets/video/clips/01-build.jpg"
-                data-webm="assets/video/clips/01-build.webm"
-                data-mp4="assets/video/clips/01-build.mp4"
-                aria-label="Claude Code scaffolding a SwiftUI fitness app from a prompt with Raven design guidance"></video>
-              <div class="mb-gloss"></div><div class="mb-notch"></div>
-            </div></div></div>
-            <div class="mb-hinge"><div class="mb-groove"></div></div>
-          </div>
-          <figcaption class="watch-cap">
+      <div class="watch-rows">
+        <div class="watch-row reveal">
+          <div class="watch-text">
             <span class="wc-tool">get_principles &middot; evaluate_design</span>
             <h3>Build from a prompt, design-guided</h3>
             <p>A single prompt scaffolds a full SwiftUI app&mdash;Raven's principles steer layout, color, and type from the first line of code.</p>
-          </figcaption>
-        </figure>
-
-        <figure class="watch-card reveal reveal-delay-1">
-          <div class="mb">
-            <div class="mb-lid"><div class="mb-bezel"><div class="mb-screen">
-              <video class="watch-video" muted loop playsinline preload="none"
-                poster="assets/video/clips/02-layout.jpg"
-                data-webm="assets/video/clips/02-layout.webm"
-                data-mp4="assets/video/clips/02-layout.mp4"
-                aria-label="The built home screen with activity rings and KPI cards, with Raven's applied principles listed"></video>
-              <div class="mb-gloss"></div><div class="mb-notch"></div>
-            </div></div></div>
-            <div class="mb-hinge"><div class="mb-groove"></div></div>
           </div>
-          <figcaption class="watch-cap">
+          <div class="watch-media">
+            <div class="mb">
+              <div class="mb-lid"><div class="mb-bezel"><div class="mb-screen">
+                <video class="watch-video" muted loop playsinline preload="none"
+                  poster="assets/video/clips/01-build.jpg"
+                  data-webm="assets/video/clips/01-build.webm"
+                  data-mp4="assets/video/clips/01-build.mp4"
+                  aria-label="Claude Code scaffolding a SwiftUI fitness app from a prompt with Raven design guidance"></video>
+                <div class="mb-gloss"></div><div class="mb-notch"></div>
+              </div></div></div>
+              <div class="mb-hinge"><div class="mb-groove"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="watch-row reveal">
+          <div class="watch-text">
             <span class="wc-tool">get_design_system &middot; get_pattern</span>
             <h3>Design system applied, not guessed</h3>
             <p>Activity rings, KPI cards, dark-theme elevation&mdash;every choice traced to a principle: 44px targets, 60/30/10 color, Miller's Law.</p>
-          </figcaption>
-        </figure>
-
-        <figure class="watch-card reveal reveal-delay-2">
-          <div class="mb">
-            <div class="mb-lid"><div class="mb-bezel"><div class="mb-screen">
-              <video class="watch-video" muted loop playsinline preload="none"
-                poster="assets/video/clips/03-screen.jpg"
-                data-webm="assets/video/clips/03-screen.webm"
-                data-mp4="assets/video/clips/03-screen.mp4"
-                aria-label="The Workouts screen built and verified end to end"></video>
-              <div class="mb-gloss"></div><div class="mb-notch"></div>
-            </div></div></div>
-            <div class="mb-hinge"><div class="mb-groove"></div></div>
           </div>
-          <figcaption class="watch-cap">
+          <div class="watch-media">
+            <div class="mb">
+              <div class="mb-lid"><div class="mb-bezel"><div class="mb-screen">
+                <video class="watch-video" muted loop playsinline preload="none"
+                  poster="assets/video/clips/02-layout.jpg"
+                  data-webm="assets/video/clips/02-layout.webm"
+                  data-mp4="assets/video/clips/02-layout.mp4"
+                  aria-label="The built home screen with activity rings and KPI cards, with Raven's applied principles listed"></video>
+                <div class="mb-gloss"></div><div class="mb-notch"></div>
+              </div></div></div>
+              <div class="mb-hinge"><div class="mb-groove"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="watch-row reveal">
+          <div class="watch-text">
             <span class="wc-tool">audit_ios_screen &middot; audit_screen</span>
             <h3>Real screens, audited live</h3>
             <p>The Workouts tab built and verified end-to-end&mdash;progressive disclosure, smart defaults, and 44pt targets checked against the HIG.</p>
-          </figcaption>
-        </figure>
-
-        <figure class="watch-card reveal">
-          <div class="mb">
-            <div class="mb-lid"><div class="mb-bezel"><div class="mb-screen">
-              <video class="watch-video" muted loop playsinline preload="none"
-                poster="assets/video/clips/04-pattern.jpg"
-                data-webm="assets/video/clips/04-pattern.webm"
-                data-mp4="assets/video/clips/04-pattern.mp4"
-                aria-label="An AI coach detail view alongside Raven returning a dashboard pattern"></video>
-              <div class="mb-gloss"></div><div class="mb-notch"></div>
-            </div></div></div>
-            <div class="mb-hinge"><div class="mb-groove"></div></div>
           </div>
-          <figcaption class="watch-cap">
+          <div class="watch-media">
+            <div class="mb">
+              <div class="mb-lid"><div class="mb-bezel"><div class="mb-screen">
+                <video class="watch-video" muted loop playsinline preload="none"
+                  poster="assets/video/clips/03-screen.jpg"
+                  data-webm="assets/video/clips/03-screen.webm"
+                  data-mp4="assets/video/clips/03-screen.mp4"
+                  aria-label="The Workouts screen built and verified end to end"></video>
+                <div class="mb-gloss"></div><div class="mb-notch"></div>
+              </div></div></div>
+              <div class="mb-hinge"><div class="mb-groove"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="watch-row reveal">
+          <div class="watch-text">
             <span class="wc-tool">get_pattern &middot; audit_typography</span>
             <h3>Patterns with evidence</h3>
             <p>Need a dashboard or streak system? Raven returns the proven pattern&mdash;do's, don'ts, and the research behind it&mdash;before a pixel is drawn.</p>
-          </figcaption>
-        </figure>
-
-        <figure class="watch-card reveal reveal-delay-1">
-          <div class="mb">
-            <div class="mb-lid"><div class="mb-bezel"><div class="mb-screen">
-              <video class="watch-video" muted loop playsinline preload="none"
-                poster="assets/video/clips/05-a11y.jpg"
-                data-webm="assets/video/clips/05-a11y.webm"
-                data-mp4="assets/video/clips/05-a11y.mp4"
-                aria-label="Raven running a full accessibility audit across the app's screens"></video>
-              <div class="mb-gloss"></div><div class="mb-notch"></div>
-            </div></div></div>
-            <div class="mb-hinge"><div class="mb-groove"></div></div>
           </div>
-          <figcaption class="watch-cap">
+          <div class="watch-media">
+            <div class="mb">
+              <div class="mb-lid"><div class="mb-bezel"><div class="mb-screen">
+                <video class="watch-video" muted loop playsinline preload="none"
+                  poster="assets/video/clips/04-pattern.jpg"
+                  data-webm="assets/video/clips/04-pattern.webm"
+                  data-mp4="assets/video/clips/04-pattern.mp4"
+                  aria-label="An AI coach detail view alongside Raven returning a dashboard pattern"></video>
+                <div class="mb-gloss"></div><div class="mb-notch"></div>
+              </div></div></div>
+              <div class="mb-hinge"><div class="mb-groove"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="watch-row reveal">
+          <div class="watch-text">
             <span class="wc-tool">audit_ios_a11y &middot; audit_contrast &middot; audit_tap_targets</span>
             <h3>Accessible by default</h3>
             <p>Raven runs a full accessibility pass&mdash;VoiceOver labels, Dynamic Type, contrast ratios, tap-target sizes&mdash;and scores every screen.</p>
-          </figcaption>
-        </figure>
-
-        <figure class="watch-card reveal reveal-delay-2">
-          <div class="mb">
-            <div class="mb-lid"><div class="mb-bezel"><div class="mb-screen">
-              <video class="watch-video" muted loop playsinline preload="none"
-                poster="assets/video/clips/06-evaluate.jpg"
-                data-webm="assets/video/clips/06-evaluate.webm"
-                data-mp4="assets/video/clips/06-evaluate.mp4"
-                aria-label="Raven evaluating the finished app against 73 principles and 13 patterns"></video>
-              <div class="mb-gloss"></div><div class="mb-notch"></div>
-            </div></div></div>
-            <div class="mb-hinge"><div class="mb-groove"></div></div>
           </div>
-          <figcaption class="watch-cap">
+          <div class="watch-media">
+            <div class="mb">
+              <div class="mb-lid"><div class="mb-bezel"><div class="mb-screen">
+                <video class="watch-video" muted loop playsinline preload="none"
+                  poster="assets/video/clips/05-a11y.jpg"
+                  data-webm="assets/video/clips/05-a11y.webm"
+                  data-mp4="assets/video/clips/05-a11y.mp4"
+                  aria-label="Raven running a full accessibility audit across the app's screens"></video>
+                <div class="mb-gloss"></div><div class="mb-notch"></div>
+              </div></div></div>
+              <div class="mb-hinge"><div class="mb-groove"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="watch-row reveal">
+          <div class="watch-text">
             <span class="wc-tool">evaluate_design</span>
             <h3>Evaluated against 73 principles</h3>
             <p>The finished app scored against 73 principles and 13 patterns. Raven flags pure-black backgrounds, color-only indicators, and motion gaps&mdash;then fixes them.</p>
-          </figcaption>
-        </figure>
+          </div>
+          <div class="watch-media">
+            <div class="mb">
+              <div class="mb-lid"><div class="mb-bezel"><div class="mb-screen">
+                <video class="watch-video" muted loop playsinline preload="none"
+                  poster="assets/video/clips/06-evaluate.jpg"
+                  data-webm="assets/video/clips/06-evaluate.webm"
+                  data-mp4="assets/video/clips/06-evaluate.mp4"
+                  aria-label="Raven evaluating the finished app against 73 principles and 13 patterns"></video>
+                <div class="mb-gloss"></div><div class="mb-notch"></div>
+              </div></div></div>
+              <div class="mb-hinge"><div class="mb-groove"></div></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
 
   <!-- EXAMPLES -->
-  <section id="examples" class="examples-section" style="padding: clamp(48px, 6vw, 80px) 0;">
+  <section id="examples" class="examples-section" style="padding: clamp(72px, 9vw, 128px) 0;">
     <div class="container" style="display:flex;flex-direction:column;align-items:center;">
       <div class="section-header">
         <p class="label reveal">Real Outputs</p>
