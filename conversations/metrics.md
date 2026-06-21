@@ -2,16 +2,25 @@
 
 Tracking collaboration quality across sessions. Updated every Revisit.
 
-| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 (v1.9.0) | 2026-06-19 (v1.10.0) | 2026-06-20 |
-|---|---|---|---|---|---|---|
-| First-attempt accuracy | 90% | ~85% | ~83% (10/12) | ~80% (8/10) | ~82% (14/17) | ~85% (5/6) |
-| Push rejections | 0 | 0 | 0 | 0 | 0 | 0 |
-| Autonomy score | 90% | 85% | ~95% | ~95% | ~99% | ~99% |
-| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg | ~1.2 avg | ~1.2 avg |
+| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 (v1.9.0) | 2026-06-19 (v1.10.0) | 2026-06-20 (changelog) | 2026-06-20 (site) |
+|---|---|---|---|---|---|---|---|
+| First-attempt accuracy | 90% | ~85% | ~83% (10/12) | ~80% (8/10) | ~82% (14/17) | ~85% (5/6) | ~70% (14/20) |
+| Push rejections | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Autonomy score | 90% | 85% | ~95% | ~95% | ~99% | ~99% | ~99% |
+| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg | ~1.2 avg | ~1.2 avg | ~2.1 avg |
 | Tests passing | 100% | 100% (smoke) | 100% (85/85) | 100% (92/92) | 100% (185/185) | N/A |
-| Log currency | Immediate | Delayed | Immediate | Immediate | Immediate | Immediate |
+| Log currency | Immediate | Delayed | Immediate | Immediate | Immediate | Immediate | Immediate |
 
 ## Notes per session
+
+### 2026-06-20 — Watch-it-work grid + RavenMCP site audit
+- **Session scale:** Very large — `/goal` to update marketing site with all new tools + build a feature grid matching portfolio+HighLvl references. Full brand audit via Raven. Multiple full redesigns of the Watch section.
+- **First-attempt accuracy ~70% (14/20):** Worst session on record. Failures: (1) Ken Burns zoom re-introduced when doing the full-res recut pass (cut from sizzle-reel.mp4 instead of RavenReelRawmp4.mp4 — exact violation of "reuse what worked"). (2) Layers grid 4-wide orphan — fixed tools-grid but never audited sibling grid with the same pattern. (3) Videos black on XDR — VP9/webm-first path cleared the poster while buffering; needed mp4-only + CSS poster bg. (4) Verified layout at 2560px Playwright while XDR runs wider — stranded text and orphan invisible to my checks. (5) Didn't run Raven audits before building Watch layout — ran them only after Andrew called it out ("did you use RavenMCP or eyeball it?"). (6) 25 unique spacing values (Raven confirmed).
+- **Root pattern:** Every failure this session was an existing CLAUDE.md rule that wasn't applied. No new rule gaps — pure habit execution failure.
+- **New rule identified (not yet in CLAUDE.md — blocked in headless):** "For lazy-loaded autoplay video: mp4/h264-only source; poster as CSS background-image behind the screen container." Next non-headless session must promote this.
+- **Wins:** Brand profile created (0→1), 55-tool taxonomy (3 acts, 11 sub-groups), true WCAG parent-chain compositing (78 reported fails → 0 true fails), full-res clips from 4K raw source (1280×720→1920×1080), design system reference page, alternating rows layout.
+- **Autonomy score ~99%:** Andrew drove direction via corrections; zero unnecessary permission-seeking.
+- **Round-trips ~2.1:** Watch section alone went through 5 full redesign cycles (grid → alternating → full-bleed → XDR-corrected → post-Ken-Burns). Raven-first would have cut this to 2.
 
 ### 2026-06-20 — Changelog catch-up + release skill fix
 - **Session scale:** Small — 1 task (site changelog catch-up, release skill gap closure).

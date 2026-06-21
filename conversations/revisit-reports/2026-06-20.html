@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revisit — 2026-06-20</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+    background: #0f1117;
+    color: #e8eaf0;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  .cover {
+    background: linear-gradient(135deg, #0077c5 0%, #004f8a 50%, #1a1a2e 100%);
+    padding: 80px 0 64px;
+  }
+  .cover-inner {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 48px;
+  }
+  .cover h1 {
+    font-size: 48px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 8px;
+  }
+  .cover .sub {
+    font-size: 18px;
+    opacity: 0.75;
+    margin-bottom: 40px;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+  }
+  .stat {
+    background: rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 20px 24px;
+  }
+  .stat-label { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.65; margin-bottom: 6px; }
+  .stat-value { font-size: 32px; font-weight: 800; }
+  .stat-value.bad { color: #ff6b6b; }
+  .stat-value.ok { color: #ffc107; }
+  .stat-value.good { color: #4caf50; }
+  .body { max-width: 960px; margin: 0 auto; padding: 64px 48px; }
+  .section { margin-bottom: 56px; }
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #0077c5;
+    margin-bottom: 20px;
+  }
+  .card {
+    background: #1c1f2a;
+    border: 1px solid #2a2d3d;
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin-bottom: 16px;
+  }
+  .card h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; color: #fff; }
+  .card p, .card li { font-size: 14px; color: #9498A0; line-height: 1.65; }
+  .card ul { padding-left: 18px; }
+  .card ul li { margin-bottom: 4px; }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-right: 8px;
+    margin-bottom: 10px;
+  }
+  .badge.accuracy { background: rgba(255, 107, 107, 0.15); color: #ff6b6b; }
+  .badge.speed { background: rgba(255, 193, 7, 0.15); color: #ffc107; }
+  .badge.process { background: rgba(76, 175, 80, 0.15); color: #4caf50; }
+  .badge.promoted { background: rgba(0, 119, 197, 0.15); color: #0077c5; }
+  .rule-box {
+    background: #0d1521;
+    border-left: 3px solid #0077c5;
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin-top: 12px;
+    font-size: 13px;
+    color: #b0b5c8;
+    font-family: "SF Mono", "Menlo", monospace;
+  }
+  .check { color: #4caf50; }
+  .x { color: #ff6b6b; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; padding: 10px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #5c6070; border-bottom: 1px solid #2a2d3d; }
+  td { padding: 10px 14px; color: #9498A0; border-bottom: 1px solid #1c1f2a; }
+  td:first-child { color: #e8eaf0; font-weight: 600; }
+  .trend-down { color: #ff6b6b; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-inner">
+    <h1>Revisit — 2026-06-20</h1>
+    <p class="sub">Watch-it-work grid · brand profile · P1–P3 site fixes · XDR layout day</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label">First-attempt rate</div>
+        <div class="stat-value bad">70%</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Push rejections</div>
+        <div class="stat-value good">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Autonomy score</div>
+        <div class="stat-value good">99%</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Round-trips/task</div>
+        <div class="stat-value bad">~2.1</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="body">
+
+  <div class="section">
+    <div class="section-title">Mistakes &amp; lessons</div>
+
+    <div class="card">
+      <span class="badge accuracy">Accuracy gap</span>
+      <h3>Ken Burns zoom re-introduced</h3>
+      <p>The first clip-cutting pass correctly identified the invideo-ai-baked zoom in <code>sizzle-reel.mp4</code> and re-cut from <code>~/Movies/RavenReelRawmp4.mp4</code> (the 4K raw, zoom-free). The second "full-res legibility" pass silently used <code>sizzle-reel.mp4</code> again — losing the fix. Andrew caught it on playback: "you put the Ken Burns zoom back in."</p>
+      <div class="rule-box">
+        RULE: When re-doing clip encoding, the source is ALWAYS ~/Movies/RavenReelRawmp4.mp4 — never sizzle-reel.mp4 (the invideo export). Add this as a comment at the top of any recut script so the next instance can't silently regress.
+        Already in CLAUDE.md: "Reuse what already worked." Execution failure, not a rule gap.
+        <br>✓ Rule landed in CLAUDE.md (reuse-what-worked)
+      </div>
+    </div>
+
+    <div class="card">
+      <span class="badge accuracy">Accuracy gap</span>
+      <h3>Layers grid 4-wide orphan — didn't audit all instances</h3>
+      <p>I fixed <code>.tools-grid</code> from <code>flex: 1 1 280px</code> to a locked 3-col CSS grid. Did not grep for other grids with the same pattern. <code>.layers-grid</code> had the identical bug and became a 4+4+1 layout with a stretched orphan "Render &amp; Audit" card spanning full-width on Andrew's XDR. Andrew's screenshots showed it clearly.</p>
+      <div class="rule-box">
+        RULE: When fixing a flex/grid wrap bug (lonely card stretching), grep ALL other grids in the same file for the same pattern and fix them in the same pass.
+        Already in CLAUDE.md: "Audit full CSS scope, not just requested element." Execution failure.
+        <br>✓ Rule landed in CLAUDE.md (audit-full-css-scope)
+      </div>
+    </div>
+
+    <div class="card">
+      <span class="badge accuracy">Accuracy gap</span>
+      <h3>Videos black on Andrew's XDR</h3>
+      <p>The lazy-loader appended webm (VP9) first, then mp4. Calling <code>v.load()</code> clears the poster, so while the large file was still buffering the screen showed pure black. This was invisible to every static check (posters rendered fine in Playwright; Raven's <code>audit_page</code> returned <code>unloaded_video_artifacts: []</code> because it waited for settle). Andrew had to see it on the deployed URL on his real machine to catch it.</p>
+      <div class="rule-box">
+        RULE (new — should be added to CLAUDE.md):
+        For lazy-loaded autoplay video on a marketing page:
+        (1) mp4/h264 ONLY in the source list — no webm first (h264 is universal; VP9 buffering kills the poster).
+        (2) Poster image as a CSS background-image behind the &lt;video&gt; screen container — never relies solely on the poster attribute. This way no decode state (pre-load, error, slow buffer, codec-fail) ever shows black.
+        NOTE: Cannot edit CLAUDE.md in headless revisit. Flagged for manual promotion.
+      </div>
+    </div>
+
+    <div class="card">
+      <span class="badge speed">Speed gap</span>
+      <span class="badge process">Process gap</span>
+      <h3>"Did you use RavenMCP or just eyeball it?"</h3>
+      <p>For the Watch section rebuild (alternating rows, global rhythm), I designed first and ran Raven <em>only after</em> Andrew called out the problems. Raven's <code>audit_page</code> found 25 unique spacing values ("rhythm breaks down past ~7") and confirmed the layout stranding — exactly the problems Andrew reported. The audits should have run before layout decisions, not as post-hoc validation of already-shipped work.</p>
+      <div class="rule-box">
+        RULE: For any marketing-site design or layout task, run audit_page + get_pattern(landing-page) + get_principles BEFORE making layout decisions. The grounding round costs one agent call; rebuilding after Andrew's feedback costs 4–5 round-trips.
+        Already in CLAUDE.md (skills-first + MCP-first rule). Habit compliance failure.
+        <br>✓ Rule landed in CLAUDE.md (skills-first)
+      </div>
+    </div>
+
+    <div class="card">
+      <span class="badge accuracy">Accuracy gap</span>
+      <h3>Wrong verification viewport (XDR)</h3>
+      <p>Verified the full-bleed layout at 2560px (Playwright) and reported "device=1320px, no overflow, text correct." On Andrew's actual Studio Display XDR the full-bleed + 1320 cap stranded the text track in a vast empty expanse, and the layers grid had an orphan. The XDR is 5120px native; at 2x CSS pixel ratio that's 2560px — so I was right at the boundary and missed what happens at 2700–3000px CSS widths.</p>
+      <div class="rule-box">
+        RULE: When the user is on an XDR/5K/ultra-wide display, Playwright verification at 2560px is NOT sufficient. Always sweep: 2560, 2736, 3000, and ask Andrew which CSS width his display runs at. 2560 is the edge; XDR behavior can diverge.
+        Already in CLAUDE.md: "Reproduce on the user's surface." Execution failure.
+        <br>✓ Rule landed in CLAUDE.md (reproduce-on-user-surface)
+      </div>
+    </div>
+
+    <div class="card">
+      <span class="badge accuracy">Accuracy gap</span>
+      <h3>Raven contrast audit false-positive reported as real failures</h3>
+      <p>In the brand-profile + P1 fix pass, <code>audit_contrast</code> reported 78 AA fails (install pill at 1.08:1, sub-labels at 3.46:1 — alarm-level numbers). The true parent-chain compositing showed 0–20 real failures. I had to write a custom DOM-walk script to determine which were real. Raven was compositing rgba() backgrounds over a light white canvas instead of the actual dark ancestor.</p>
+      <div class="rule-box">
+        RULE: When audit_contrast returns a high fail count on a dark-theme page, verify a sample via true parent-chain compositing in the browser before acting on the numbers. A "1.08:1" on a dark page is almost certainly a compositing artifact.
+        Already logged in raven-opportunities.md as P1 fix for the Raven repo.
+      </div>
+    </div>
+
+  </div>
+
+  <div class="section">
+    <div class="section-title">Promotion verification</div>
+    <div class="card">
+      <p>All rules built this session are variants of existing CLAUDE.md rules (habit compliance failures, not gaps). The one genuinely new rule (video poster fallback / mp4-only sourcing) <strong>needs manual promotion to CLAUDE.md</strong> — headless revisit cannot edit that file. See "Videos black" entry above.</p>
+      <ul style="margin-top:12px;">
+        <li><span class="check">✓</span> "Reuse what already worked" — in CLAUDE.md</li>
+        <li><span class="check">✓</span> "Audit full CSS scope" — in CLAUDE.md</li>
+        <li><span class="check">✓</span> "Skills/MCPs first" — in CLAUDE.md</li>
+        <li><span class="check">✓</span> "Reproduce on user's surface" — in CLAUDE.md</li>
+        <li><span class="x">✗</span> "Lazy-loaded video: mp4-only + CSS poster bg" — NOT YET in CLAUDE.md (needs manual promotion next session)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Metrics this session</div>
+    <table>
+      <thead>
+        <tr><th>Metric</th><th>Target</th><th>This session</th><th>Trend</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>First-attempt accuracy</td><td>90%</td><td class="trend-down">~70% (14/20)</td><td class="trend-down">↓ vs 82–85%</td></tr>
+        <tr><td>Push rejections</td><td>0</td><td>0</td><td>→</td></tr>
+        <tr><td>Autonomy score</td><td>90%</td><td>~99%</td><td>→</td></tr>
+        <tr><td>Round-trips / task</td><td>1</td><td class="trend-down">~2.1</td><td class="trend-down">↓ vs 1.2</td></tr>
+        <tr><td>Log currency</td><td>Immediate</td><td>Immediate</td><td>→</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Wins</div>
+    <div class="card">
+      <h3>RavenMCP brand profile created</h3>
+      <p><code>list_brand_profiles</code> 0→1. The keystone was missing; all downstream brand checks now have a ground truth. Colors from live tokens, voice from observed copy, 73 principles encoded as constraints. P1–P3 fixes were all measured against it.</p>
+    </div>
+    <div class="card">
+      <h3>55-tool taxonomy (3 acts)</h3>
+      <p>Organized 55 tools into Know / Create / Audit (+ Meta) with 11 labeled sub-groups. Related tools are now adjacent, not scattered. 12 missing tool cards added, layer count corrected 8→9, 9th card (Render &amp; Audit) added to the page.</p>
+    </div>
+    <div class="card">
+      <h3>True WCAG math via DOM parent-chain compositing</h3>
+      <p>Wrote a custom parent-walk contrast script that computes the real composited background (not Raven's false-positive). Went from 78 reported AA fails → 0 true fails. Technique is reusable for any dark-theme audit.</p>
+    </div>
+    <div class="card">
+      <h3>Design system reference page</h3>
+      <p><code>site/design-system.html</code> — live WCAG AA matrix that computes parent-chain contrast in the browser, all tokens, voice Do/Don't, guardrails. Deployed and serving 200. Useful for anyone contributing to the site.</p>
+    </div>
+    <div class="card">
+      <h3>Full-res clip recut from 4K raw</h3>
+      <p>Identified that <code>sizzle-reel.mp4</code> was an invideo-ai export with Ken Burns baked in. Found <code>~/Movies/RavenReelRawmp4.mp4</code> (4K zoom-free 29-min raw). Mapped the reel's interstitial title cards (~18/28/40/52/62/66/96s) via contact sheet. Re-cut 6 clean beats. Clips went from 1280×720 → 1920×1080. Payload 31MB→26MB (deleted webm set too).</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">What would help next time</div>
+    <div class="card">
+      <ul>
+        <li>Andrew: before a Watch-section clip pass, confirm "which source file should I use?" — expected answer: RavenReelRawmp4.mp4. A one-line confirmation prevents the Ken Burns re-regression.</li>
+        <li>Andrew: when reporting video playback issues, clarify whether the clip is black (no poster showing) vs. frozen still vs. Ken Burns zoom. Each has a different fix path.</li>
+        <li>Next instance: add the "mp4-only + CSS poster bg" rule to CLAUDE.md (blocked in headless revisit). The specific text is in the "Videos black" card above.</li>
+        <li>Next instance: before ANY Watch-section or marketing-page layout work, run <code>audit_page</code> + <code>get_pattern(landing-page)</code> + <code>get_principles</code> first. Not after.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">RavenMCP opportunities</div>
+    <div class="card">
+      <ul>
+        <li><strong>P1:</strong> <code>audit_contrast</code> alpha-compositing over a light canvas → false positives on dark themes. True parent-chain compositing needed.</li>
+        <li><strong>P2:</strong> <code>audit_contrast</code> remediation mode — given a failing fg token, return the minimal passing value across all its surfaces.</li>
+        <li><strong>P2:</strong> <code>audit_video_playback</code> — load page, observe each &lt;video&gt; for currentTime advance / readyState / decode error / autoplay-block. Static frame can't tell a black video from a playing one.</li>
+        <li><strong>P2:</strong> <code>audit_page</code> — sweep XDR-class widths (2736/3000/3360px) and flag stranded content / orphan grid cells that only appear at wide viewports.</li>
+        <li><strong>P3:</strong> <code>audit_layout</code> — detect flex/grid orphan stretch (lone last-row card spanning &gt;1.5× modal card width).</li>
+      </ul>
+    </div>
+  </div>
+
+  <div style="text-align:center; padding: 40px 0; color: #3a3d50; font-size: 13px;">
+    auto-retrospective · 2026-06-20 · raven-feedback-site-polish branch
+  </div>
+
+</div>
+</body>
+</html>

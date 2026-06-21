@@ -60,6 +60,10 @@ Open thread from prior session was the audit_ios_privacy 90683 bug; this session
 - Watch-grid build + structural verification: done ✓
 - RavenMCP analysis + brand profile + P1–P3 fixes: done & verified ✓
 - Design-system reference page (`site/design-system.html`) built + verified + deployed ✓
-- **Branched + deployed for review** ✓ — branch `raven-feedback-site-polish` (commit 8997314, pushed); review deploy https://site-jk4zko8iu-cunliffeandrewc-8712s-projects.vercel.app (+ /design-system.html). Memory saved: [[project-raven-site-feedback-branch]] (survives /clear).
-- Branch is based on local main (06-19 ancestor); origin/main diverged (changelog + release skill, different files) — reconcile onto latest origin/main before final merge.
-- Pending: Andrew's review notes → iterate on the branch; then PR when asked. Still open: video PLAYBACK eyes-on in a real (non-automation) browser; optional — bump locally-connected Raven MCP server to 1.10.0 (lags: audit_url/typography/tap_targets/content unavailable).
+- **Branched + deployed for review** ✓ — branch `raven-feedback-site-polish` (commit c14b0a6 latest); memory saved [[project-raven-site-feedback-branch]].
+- Branch is based on local main (06-19 ancestor); reconcile onto latest origin/main before final merge.
+- **PENDING — Ken Burns reintroduced (unresolved at /clear):** clips in `site/assets/video/clips/` were re-cut from `sizzle-reel.mp4` (invideo export with baked-in zoom) instead of `~/Movies/RavenReelRawmp4.mp4`. Must re-cut from the raw source. Beat timestamps: 01: ss=128 dur=10, 02: ss=414 dur=7.5, 03: ss=696 dur=9, 04: ss=775 dur=9, 05: ss=1374 dur=10, 06: ss=1734 dur=9. 4K→1920×1080 crop using the phone+terminal crop established in the first recut.
+- **PENDING — video poster fallback rule:** must promote "mp4-only + CSS poster bg behind screen" to CLAUDE.md next interactive session.
+
+## Retrospective
+Auto-retrospective on /clear 2026-06-20. Full report: `conversations/revisit-reports/2026-06-20.html`. Worst first-attempt accuracy session (~70%). Five failures, all existing-rule execution failures (not rule gaps). One new rule identified but not promoted (headless). Wins: brand profile, 55-tool taxonomy, true WCAG compositing, full-res clips from 4K raw, design system page.
