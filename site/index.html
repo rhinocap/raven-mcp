@@ -1662,7 +1662,14 @@
       display: flex;
       flex-direction: column;
       gap: clamp(104px, 13vw, 168px);
-      width: 100%;
+      /* Full-bleed: break out of the nav-width container to ~viewport width so
+         the MacBooks can run large on big displays (XDR). html/body already
+         clip overflow-x, so the 100vw breakout never adds a horizontal scroll. */
+      width: 100vw;
+      max-width: 100vw;
+      margin-left: calc(50% - 50vw);
+      margin-right: calc(50% - 50vw);
+      padding: 0 clamp(20px, 5vw, 88px);
     }
     .watch-row {
       display: grid;
@@ -1671,13 +1678,21 @@
       align-items: center;
     }
     .watch-media { display: flex; justify-content: center; }
-    .watch-media .mb { max-width: 620px; }
+    /* Device dominates: fills its (larger) track up to a generous cap so on an
+       XDR each MacBook lands ~1300px (≈2× the old 620px), proportional below. */
+    .watch-media .mb { max-width: min(100%, 1320px); width: 100%; }
     @media (min-width: 900px) {
-      .watch-row { grid-template-columns: 1fr 1fr; gap: clamp(48px, 6vw, 80px); }
-      /* Row 1 (and every odd row): MacBook on the left, copy on the right.
+      /* The MacBook column is always the larger track; the copy is secondary.
+         Track weights swap with the side so the device stays the bigger one.
          DOM order stays text-first for reading order; sides flip visually. */
+      .watch-row { grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr); gap: clamp(48px, 6vw, 96px); }
+      .watch-row:nth-child(odd) { grid-template-columns: minmax(0, 1.22fr) minmax(0, 0.78fr); }
       .watch-row:nth-child(odd) .watch-text  { order: 2; }
       .watch-row:nth-child(odd) .watch-media { order: 1; }
+      /* Copy gravitates toward the device (inner edge) so wide tracks don't
+         strand the text against the outer margin. */
+      .watch-text { justify-self: end; }
+      .watch-row:nth-child(odd) .watch-text { justify-self: start; }
     }
 
     .mb {
