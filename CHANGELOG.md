@@ -6,6 +6,9 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+### Added
+- `audit_device_frame` — flags cropped content in device-mockup frames (phone/MacBook screenshots, app-preview clips). Three checks: (1) **geometry** — given a frame's container box + the intrinsic media size + `object-fit`/`object-position` (or call with no args for a DevTools snippet), it computes `object-fit:cover` crop loss when the frame's aspect ratio diverges from the media's, naming the cropped edges and the hidden fraction; (2) **motion** — given a clip's first/last frame PNGs, it estimates baked-in pan/zoom (Ken Burns) via block-matched displacement regressed onto radial position, so a zoom that drifts content out of frame is caught; (3) **edge** — given frame PNGs, it reuses the edge-symmetry scorer to flag content truncated at a frame edge. Catches the exact failure where a 16:9 clip in a ~1.82-AR screen cutout silently slices the bottom. `src/device-frame.ts` is unit-tested (6 cases). The geometry leg is pure/offline; the motion + edge legs require `pngjs`.
+
 ## [1.10.0] - 2026-06-19
 
 ### Added

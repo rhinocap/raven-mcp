@@ -20,6 +20,7 @@ import { auditIosA11y } from "./ios-a11y.js";
 import { auditContract } from "./contract.js";
 import { runApiContract } from "./api-contract.js";
 import { auditContent } from "./content-audit.js";
+import { auditDeviceFrames, auditClipMotion, auditFrameEdges } from "./device-frame.js";
 import { auditTypographyUrl, auditTypographySnapshot } from "./typography.js";
 import { auditTapTargetsUrl, auditTapTargetsSnapshot } from "./tap-targets.js";
 
@@ -2462,6 +2463,106 @@ server.tool(
   async function({ image_paths }) {
     var results = await auditAssetIntegrity(image_paths || []);
     return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "audit_asset_integrity", results: results }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "audit_device_frame",
+  "Detect cropped content in device-mockup frames (phone/MacBook screenshots, app-preview clips). Three checks: (1) GEOMETRY — call with `frames` (container box + intrinsic media size + object-fit/position; call with NO args for a DevTools snippet) to flag object-fit:cover crop loss when the frame's aspect ratio ≠ the media's; (2) MOTION — pass `clips` (first/last frame PNG paths) to detect baked-in pan/zoom (Ken Burns) that drifts the composition; (3) EDGE — pass `edge_frames` (PNG paths) to flag content truncated at a frame edge. Catches the exact failure where a 16:9 clip in a 1.82-AR screen cutout silently slices the bottom, or a Ken-Burns-zoomed source crops content.",
+  {
+    frames: z.array(z.object({
+      selector: z.string(),
+      container: z.object({ w: z.number(), h: z.number() }),
+      media: z.object({ w: z.number(), h: z.number() }),
+      objectFit: z.enum(["fill", "cover", "contain", "none", "scale-down"]).optional(),
+      objectPosition: z.object({ x: z.number(), y: z.number() }).optional()
+    })).optional().describe("Device-frame geometry samples (from the DevTools snippet): container box + intrinsic media size + computed object-fit/position. Flags object-fit:cover crop loss."),
+    clips: z.array(z.object({
+      label: z.string(),
+      first_frame: z.string(),
+      last_frame: z.string()
+    })).optional().describe("Per-clip first/last frame PNG file paths — detects baked-in pan/zoom (Ken Burns)."),
+    edge_frames: z.array(z.object({
+      label: z.string(),
+      frame: z.string()
+    })).optional().describe("Frame PNG file paths to check for content truncated at a frame edge (reuses edge-symmetry).")
+  },
+  async ({ frames, clips, edge_frames }) => {
+    var hasFrames = Array.isArray(frames) && frames.length > 0;
+    var hasClips = Array.isArray(clips) && clips.length > 0;
+    var hasEdges = Array.isArray(edge_frames) && edge_frames.length > 0;
+
+    if (!hasFrames && !hasClips && !hasEdges) {
+      var snippet = "// Paste into DevTools console on the page whose device frames you want to audit.\n" +
+        "// Copies {frames} JSON to clipboard — pass it back to audit_device_frame.\n" +
+        "(() => {\n" +
+        "  const frac = (v) => {\n" +
+        "    if (!v) return 0.5;\n" +
+        "    if (v.endsWith('%')) return parseFloat(v) / 100;\n" +
+        "    if (v === 'left' || v === 'top') return 0;\n" +
+        "    if (v === 'right' || v === 'bottom') return 1;\n" +
+        "    return 0.5;\n" +
+        "  };\n" +
+        "  const pick = el => {\n" +
+        "    const r = el.getBoundingClientRect();\n" +
+        "    const cs = getComputedStyle(el);\n" +
+        "    const isVideo = el.tagName === 'VIDEO';\n" +
+        "    const mw = isVideo ? el.videoWidth : el.naturalWidth;\n" +
+        "    const mh = isVideo ? el.videoHeight : el.naturalHeight;\n" +
+        "    const op = (cs.objectPosition || '50% 50%').split(/\\s+/);\n" +
+        "    const cls = (el.className && typeof el.className === 'string') ? el.className.trim().split(/\\s+/).slice(0,2).join('.') : '';\n" +
+        "    const sel = el.id ? '#' + el.id : el.tagName.toLowerCase() + (cls ? '.' + cls : '');\n" +
+        "    return {\n" +
+        "      selector: sel,\n" +
+        "      container: { w: Math.round(r.width), h: Math.round(r.height) },\n" +
+        "      media: { w: mw, h: mh },\n" +
+        "      objectFit: cs.objectFit || 'fill',\n" +
+        "      objectPosition: { x: frac(op[0]), y: frac(op[1] || op[0]) }\n" +
+        "    };\n" +
+        "  };\n" +
+        "  const all = [...document.querySelectorAll('img, video')]\n" +
+        "    .filter(el => { const r = el.getBoundingClientRect(); return r.width > 8 && r.height > 8; })\n" +
+        "    .map(pick)\n" +
+        "    .filter(f => f.media.w > 0 && f.media.h > 0);\n" +
+        "  const out = { frames: all };\n" +
+        "  try { copy(JSON.stringify(out)); console.log('\\u2713 copied to clipboard \\u2014 ' + all.length + ' device frames'); } catch (_) { console.log(JSON.stringify(out)); }\n" +
+        "  return out;\n" +
+        "})();";
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            instructions: "Paste the snippet below into DevTools console on your rendered page. It copies a {frames} JSON blob (every <img>/<video> with its container box, intrinsic media size, and object-fit/position) to your clipboard. Call audit_device_frame again with that JSON to flag object-fit:cover crop loss. For pan/zoom and edge-truncation checks, pass `clips`/`edge_frames` with PNG frame paths instead.",
+            snippet: snippet,
+            example_call: "audit_device_frame({ frames: [...] })  // or { clips: [{label, first_frame, last_frame}] } / { edge_frames: [{label, frame}] }"
+          }, null, 2)
+        }]
+      };
+    }
+
+    var frameVerdicts = hasFrames ? auditDeviceFrames(frames as any) : [];
+    var clipVerdicts = hasClips
+      ? await auditClipMotion((clips as any[]).map(function (c) { return { label: c.label, firstFramePath: c.first_frame, lastFramePath: c.last_frame }; }))
+      : [];
+    var edgeVerdicts = hasEdges
+      ? await auditFrameEdges((edge_frames as any[]).map(function (e) { return { label: e.label, framePath: e.frame }; }))
+      : [];
+
+    var croppedCount = frameVerdicts.filter(function (v) { return v.verdict === "cropped" || v.verdict === "distorted" || v.verdict === "letterboxed"; }).length;
+    var movingCount = clipVerdicts.filter(function (v) { return v.verdict !== "static" && v.verdict !== "inconclusive"; }).length;
+    var slicedCount = edgeVerdicts.filter(function (v) { return v.verdict === "likely-sliced"; }).length;
+
+    var summary = "audit_device_frame — " +
+      croppedCount + "/" + frameVerdicts.length + " frames cropped/distorted, " +
+      movingCount + "/" + clipVerdicts.length + " clips with baked-in motion, " +
+      slicedCount + "/" + edgeVerdicts.length + " frames edge-truncated";
+
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({ tool: "audit_device_frame", frames: frameVerdicts, clips: clipVerdicts, edge_frames: edgeVerdicts, summary }, null, 2)
+      }]
+    };
   }
 );
 

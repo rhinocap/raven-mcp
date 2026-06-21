@@ -129,6 +129,10 @@
       "description": "WCAG 2.5.5 / Apple 44pt web tap-target audit — per-element fix table with measured size, per-axis pixel deficit, and a concrete CSS fix"
     },
     {
+      "name": "audit_device_frame",
+      "description": "Flag cropped content in device-mockup frames: object-fit:cover crop loss (container AR vs media AR), baked-in pan/zoom (Ken Burns) from first/last clip frames, and content truncated at a frame edge"
+    },
+    {
       "name": "list_content_systems",
       "description": "Browse available brand voice & tone systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian)"
     },
