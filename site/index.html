@@ -49,7 +49,7 @@
 
       --text-primary: #F0F0F2;
       --text-secondary: #9498A0;
-      --text-tertiary: #5C5F68;
+      --text-tertiary: #8E929C;
       --text-accent: #00BFFF;
 
       /* Neon blue primary, supporting accents */
@@ -60,6 +60,11 @@
       --accent-pink: #FF4081;
 
       --text-on-accent: #0a0a12;
+
+      /* MacBook chrome — device illustration only, not part of the brand palette */
+      --mb-lid-top: #3c3c3f; --mb-lid-bottom: #252528; --mb-edge: #525257;
+      --mb-bezel: #0b0b0d; --mb-screen: #050508; --mb-groove: #1a1a1c;
+      --mb-hinge-top: #454547; --mb-hinge-bottom: #2b2b2e;
 
       --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
@@ -104,10 +109,13 @@
 
     /* Tertiary text-link CTA (less weight than .btn-secondary) */
     .btn-text-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
       color: var(--text-secondary, #9498A0);
       font-size: 14px;
       font-weight: 500;
-      padding: 8px 4px;
+      padding: 10px 8px;
       transition: color 200ms;
       text-decoration: none;
     }
@@ -1068,6 +1076,9 @@
       margin-bottom: var(--space-6);
     }
     .pricing-services-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
       font-size: 15px;
       font-weight: 600;
       color: var(--accent-blue);
@@ -1167,7 +1178,7 @@
     }
     .tag {
       padding: 4px 10px;
-      background: rgba(255,255,255,0.03);
+      background: rgba(0,0,0,0.2);
       border: 1px solid var(--border);
       border-radius: var(--radius-full);
       font-size: 13px; font-weight: 500; color: var(--text-tertiary);
@@ -1328,7 +1339,7 @@
     .system-tags { display: flex; flex-wrap: wrap; gap: var(--space-1); }
     .system-tags span {
       font-size: 13px; padding: 2px 8px;
-      background: rgba(255,255,255,0.03); border-radius: var(--radius-full);
+      background: rgba(0,0,0,0.2); border-radius: var(--radius-full);
       color: var(--text-tertiary);
     }
     .system-status {
@@ -1484,18 +1495,20 @@
 
     .cta-install {
       display: flex; align-items: center; gap: var(--space-3);
+      min-height: 44px;
       padding: var(--space-3) var(--space-5);
-      background: var(--bg-surface);
-      border: 1px solid var(--border-strong);
+      background: var(--bg-accent-subtle);
+      border: 1px solid var(--border-accent);
       border-radius: var(--radius-full);
       font-family: var(--font-mono); font-size: 13px;
-      color: var(--text-secondary);
+      color: var(--text-primary);
       cursor: pointer;
       transition: all var(--duration-fast) var(--ease-out);
     }
+    .cta-install svg { color: var(--accent-blue); flex-shrink: 0; }
     .cta-install:hover {
-      border-color: rgba(255,255,255,0.15);
-      color: var(--text-primary);
+      border-color: var(--accent-blue);
+      background: rgba(0, 191, 255, 0.1);
     }
 
     /* ══════════════════════════════════════════
@@ -1669,8 +1682,8 @@
       position: absolute;
       left: 1.3256%; top: 0;
       width: 97.3488%; height: 96.5281%;
-      background: linear-gradient(to bottom, #3c3c3f, #252528);
-      border: 1px solid #525257;
+      background: linear-gradient(to bottom, var(--mb-lid-top), var(--mb-lid-bottom));
+      border: 1px solid var(--mb-edge);
       border-radius: 2.34%;
       box-shadow: 0 18px 38px rgba(0, 0, 0, 0.35);
     }
@@ -1678,7 +1691,7 @@
       position: absolute;
       left: 1.6029%; top: 2.7896%;
       width: 96.7940%; height: 94.4209%;
-      background: #0b0b0d;
+      background: var(--mb-bezel);
       border-radius: 10px;
     }
     .mb-screen {
@@ -1686,7 +1699,7 @@
       left: 1.1588%; top: 2.0666%;
       width: 97.6826%; height: 95.8646%;
       border-radius: 4px;
-      background: #050508;
+      background: var(--mb-screen);
       overflow: hidden;
     }
     .mb-screen video {
@@ -1702,19 +1715,19 @@
     .mb-notch {
       position: absolute; top: 0;
       left: 43.6452%; width: 12.7110%; height: 3.0819%;
-      background: #0b0b0d;
+      background: var(--mb-bezel);
       border-radius: 0 0 6px 6px;
     }
     .mb-hinge {
       position: absolute; left: 0; top: 96.5%;
       width: 100%; height: 3.5%;
-      background: linear-gradient(to bottom, #454547, #2b2b2e);
+      background: linear-gradient(to bottom, var(--mb-hinge-top), var(--mb-hinge-bottom));
       border-radius: 5px;
     }
     .mb-groove {
       position: absolute; top: 0;
       left: 44.1140%; width: 11.7%; height: 1.2108%;
-      background: #1a1a1c;
+      background: var(--mb-groove);
       border-radius: 2px;
     }
 
@@ -1761,7 +1774,7 @@
         Open-source MCP Server · MIT
       </div>
       <h1 class="reveal reveal-delay-1">Design intelligence<br>for <span class="gradient">every prompt</span></h1>
-      <p class="subtitle reveal reveal-delay-2">Twenty-seven tools that give AI the design knowledge once locked in expert heads — principles, patterns, tokens, voice, brand, and more.</p>
+      <p class="subtitle reveal reveal-delay-2">Fifty-five tools that give your AI agent the design knowledge once locked in expert heads — principles, patterns, tokens, voice, brand, and more.</p>
       <div class="hero-cta reveal reveal-delay-3">
         <button class="cta-install" aria-label="Copy install command to clipboard" onclick="navigator.clipboard.writeText('claude mcp add raven -- npx -y raven-mcp').then(()=>{this.querySelector('.copy-label').textContent='Copied!'; this.setAttribute('aria-label', 'Install command copied'); document.getElementById('copy-status').textContent='Install command copied to clipboard.'})">
           <span class="copy-label">claude mcp add raven -- npx -y raven-mcp</span>
@@ -1880,8 +1893,8 @@
     <div class="grid-bg"></div>
     <div class="container">
       <div class="section-header">
-        <p class="label reveal">Eight Knowledge Layers</p>
-        <h2 class="reveal reveal-delay-1">Eight disciplines, one MCP server</h2>
+        <p class="label reveal">Nine Knowledge Layers</p>
+        <h2 class="reveal reveal-delay-1">Nine layers, one MCP server</h2>
         <p class="subtitle reveal reveal-delay-2">Design, content, brand, research, service, business &mdash; every layer your AI is missing, structured for machines to query and apply.</p>
       </div>
 
@@ -2015,6 +2028,22 @@
             <span class="tag">Figma</span>
           </div>
         </div>
+
+        <div class="glow-card layer-card reveal reveal-delay-2">
+          <div class="layer-icon blue">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6"/><path d="M13.5 13.5l4 4"/><path d="M6.5 9l2 2 4-4"/></svg>
+          </div>
+          <div class="stat">20</div>
+          <div class="stat-label">Audit tools</div>
+          <h3>Render &amp; Audit</h3>
+          <p>Render any live URL or screen and grade it&mdash;contrast, typography, tap targets, responsive visibility, asset integrity. Native SwiftUI and React Native, plus parity and API-contract checks.</p>
+          <div class="layer-tags">
+            <span class="tag">Web</span>
+            <span class="tag">SwiftUI</span>
+            <span class="tag">Contrast</span>
+            <span class="tag">Parity</span>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -2024,7 +2053,7 @@
     <div class="container">
       <div class="section-header">
         <p class="label reveal">Fifty-Five Tools</p>
-        <h2 class="reveal reveal-delay-1">The full flight across all realms</h2>
+        <h2 class="reveal reveal-delay-1">Fifty-five tools, organized by job</h2>
         <p class="subtitle reveal reveal-delay-2">Fifty-five focused queries, grouped by what they do&mdash;<strong>know</strong>, <strong>create</strong>, <strong>audit</strong>. Claude calls them automatically, with no special syntax.</p>
       </div>
 
@@ -2047,7 +2076,7 @@
           </div>
           <div class="tool-card reveal">
             <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" stroke-width="1.5" stroke-linecap="round"><path d="M3 3h10v10H3z"/><path d="M3 7h10M7 3v10"/></svg></div>
-            <div><div class="tool-name">get_checklist</div><div class="tool-desc">Pre-publish quality checklist for any UI type&mdash;raise the raven banner</div></div>
+            <div><div class="tool-name">get_checklist</div><div class="tool-desc">Pre-publish quality checklist for any UI type&mdash;forms, dashboards, landing pages, mobile</div></div>
           </div>
           <div class="tool-card reveal reveal-delay-1">
             <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" stroke-width="1.5" stroke-linecap="round"><path d="M8 2v4l3 2"/><circle cx="8" cy="8" r="6"/></svg></div>
@@ -2847,7 +2876,7 @@
     var scenes = [
       {
         prompt: 'claude "add a pricing section to the landing page"',
-        comment: '# Raven auto-queries across 8 knowledge layers:',
+        comment: '# Raven auto-queries across 9 knowledge layers:',
         tools: [
           { fn: 'get_principles', result: 'Hick\'s Law, Anchoring, Von Restorff', color: 'fn' },
           { fn: 'get_pattern', result: '3-tier, feature comparison, social proof', color: 'fn' },

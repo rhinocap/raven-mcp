@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>RavenMCP — Design System</title>
+<style>
+  :root {
+    /* Surfaces — dark grey base, NOT black */
+    --bg-base: #1a1a22; --bg-surface: #212129; --bg-raised: #2a2a33;
+    --bg-overlay: #32323d; --bg-alt: #16161e;
+    /* Accents — neon blue primary + supporting */
+    --accent-blue: #00BFFF; --accent-cyan: #00E5FF; --accent-green: #00E676;
+    --accent-orange: #FFAB40; --accent-pink: #FF4081;
+    /* Text */
+    --text-primary: #F0F0F2; --text-secondary: #9498A0; --text-tertiary: #8E929C;
+    --text-accent: #00BFFF; --text-on-accent: #0a0a12;
+    /* Borders */
+    --border: rgba(255,255,255,0.06); --border-strong: rgba(255,255,255,0.1);
+    --border-accent: rgba(0,191,255,0.3);
+    /* Type */
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+    /* Spacing */
+    --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px;
+    --space-6:24px; --space-8:32px; --space-10:40px; --space-12:48px; --space-16:64px;
+    --space-20:80px; --space-24:96px; --space-32:128px;
+    /* Radius */
+    --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-xl:20px; --radius-2xl:24px; --radius-full:9999px;
+    /* Motion */
+    --ease-out: cubic-bezier(0.16,1,0.3,1); --ease-in-out: cubic-bezier(0.65,0,0.35,1);
+    --duration-fast:150ms; --duration-normal:300ms; --duration-slow:600ms;
+    --max-width: 1140px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg-base); color: var(--text-primary);
+    font-family: var(--font-body); line-height:1.55;
+    -webkit-font-smoothing: antialiased;
+    background-image: radial-gradient(1200px 600px at 80% -10%, rgba(0,191,255,0.06), transparent 60%);
+  }
+  .wrap { max-width: var(--max-width); margin:0 auto; padding: var(--space-20) var(--space-6); }
+  .mono { font-family: var(--font-mono); }
+  .eyebrow {
+    font-family: var(--font-mono); font-size:12px; letter-spacing:0.14em;
+    text-transform:uppercase; color: var(--text-accent); margin-bottom: var(--space-4);
+  }
+  header.hero { margin-bottom: var(--space-20); }
+  header.hero h1 { font-size: clamp(40px,6vw,68px); font-weight:700; letter-spacing:-0.02em; line-height:1.05; }
+  header.hero h1 .g { background: linear-gradient(120deg,#00BFFF,#00E5FF); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  header.hero p { color: var(--text-secondary); font-size:18px; max-width:62ch; margin-top: var(--space-5); }
+  .meta-row { display:flex; flex-wrap:wrap; gap: var(--space-3); margin-top: var(--space-6); }
+  .pill {
+    font-family: var(--font-mono); font-size:12px; color: var(--text-primary);
+    background: var(--bg-accent-subtle, rgba(0,191,255,0.06)); border:1px solid var(--border-accent);
+    padding:6px 12px; border-radius: var(--radius-full);
+  }
+  section { margin-bottom: var(--space-24); }
+  .sec-head { display:flex; align-items:baseline; gap: var(--space-4); border-bottom:1px solid var(--border-strong); padding-bottom: var(--space-4); margin-bottom: var(--space-8); }
+  .sec-num { font-family: var(--font-mono); color: var(--text-accent); font-size:14px; }
+  .sec-head h2 { font-size: clamp(24px,3vw,32px); font-weight:700; letter-spacing:-0.01em; }
+  .sec-head .desc { color: var(--text-tertiary); font-size:14px; margin-left:auto; max-width:40ch; text-align:right; }
+
+  /* Cards / grids */
+  .grid { display:grid; gap: var(--space-4); }
+  .g-surfaces { grid-template-columns: repeat(auto-fill,minmax(220px,1fr)); }
+  .g-accents { grid-template-columns: repeat(auto-fill,minmax(180px,1fr)); }
+  .swatch { border:1px solid var(--border); border-radius: var(--radius-lg); overflow:hidden; }
+  .swatch .chip { height:96px; display:flex; align-items:flex-end; padding: var(--space-3); }
+  .swatch .body { padding: var(--space-4); background: var(--bg-surface); }
+  .swatch .name { font-family: var(--font-mono); font-size:13px; color: var(--text-primary); }
+  .swatch .hex { font-family: var(--font-mono); font-size:12px; color: var(--text-tertiary); margin-top:2px; }
+  .swatch .role { font-size:12px; color: var(--text-secondary); margin-top: var(--space-2); }
+
+  /* AA matrix */
+  table.aa { width:100%; border-collapse:collapse; font-size:13px; }
+  table.aa th, table.aa td { padding: var(--space-3) var(--space-4); text-align:left; border-bottom:1px solid var(--border); }
+  table.aa th { font-family: var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color: var(--text-tertiary); }
+  table.aa td.sample { font-family: var(--font-mono); }
+  .badge { font-family: var(--font-mono); font-size:11px; padding:2px 8px; border-radius: var(--radius-full); border:1px solid var(--border-strong); }
+  .badge.pass { color:#00E676; border-color: rgba(0,230,118,0.4); }
+  .badge.fail { color:#FF4081; border-color: rgba(255,64,129,0.4); }
+  .badge.aaa { color:#00BFFF; border-color: rgba(0,191,255,0.4); }
+  .ratio { font-family: var(--font-mono); color: var(--text-secondary); }
+
+  /* Type scale */
+  .type-row { display:flex; align-items:baseline; gap: var(--space-6); padding: var(--space-4) 0; border-bottom:1px solid var(--border); }
+  .type-row .tok { font-family: var(--font-mono); font-size:12px; color: var(--text-tertiary); width:120px; flex-shrink:0; }
+  .type-row .spec { font-family: var(--font-mono); font-size:12px; color: var(--text-secondary); margin-left:auto; flex-shrink:0; }
+
+  /* Spacing */
+  .space-row { display:flex; align-items:center; gap: var(--space-4); padding: var(--space-2) 0; }
+  .space-row .tok { font-family: var(--font-mono); font-size:12px; color: var(--text-tertiary); width:120px; }
+  .space-row .bar { height:14px; background: linear-gradient(90deg,#00BFFF,#00E5FF); border-radius:3px; }
+  .space-row .val { font-family: var(--font-mono); font-size:12px; color: var(--text-secondary); }
+
+  /* Radius */
+  .g-radius { grid-template-columns: repeat(auto-fill,minmax(140px,1fr)); }
+  .radius-card { background: var(--bg-raised); border:1px solid var(--border-strong); padding: var(--space-5); text-align:center; }
+  .radius-card .box { height:64px; background: linear-gradient(135deg, rgba(0,191,255,0.25), rgba(0,229,255,0.12)); border:1px solid var(--border-accent); margin-bottom: var(--space-3); }
+  .radius-card .tok { font-family: var(--font-mono); font-size:12px; color: var(--text-primary); }
+  .radius-card .val { font-family: var(--font-mono); font-size:11px; color: var(--text-tertiary); }
+
+  /* Motion */
+  .g-motion { grid-template-columns: repeat(auto-fill,minmax(220px,1fr)); }
+  .motion-card { background: var(--bg-surface); border:1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); cursor:pointer; }
+  .motion-card .tok { font-family: var(--font-mono); font-size:13px; color: var(--text-primary); }
+  .motion-card .val { font-family: var(--font-mono); font-size:11px; color: var(--text-tertiary); margin:4px 0 var(--space-4); }
+  .motion-card .track { height:10px; background: var(--bg-overlay); border-radius: var(--radius-full); position:relative; overflow:hidden; }
+  .motion-card .dot { position:absolute; top:0; left:0; height:10px; width:10px; border-radius:50%; background: var(--accent-blue); }
+  .motion-card.run .ease-out .dot { animation: slide var(--duration-normal) var(--ease-out) forwards; }
+  @keyframes slide { to { left: calc(100% - 10px); } }
+
+  /* Voice */
+  .voice-grid { display:grid; grid-template-columns:1fr 1fr; gap: var(--space-4); }
+  .voice-card { border:1px solid var(--border-strong); border-radius: var(--radius-lg); padding: var(--space-6); background: var(--bg-surface); }
+  .voice-card h3 { font-size:15px; margin-bottom: var(--space-4); display:flex; align-items:center; gap: var(--space-2); }
+  .voice-card.do h3 { color:#00E676; } .voice-card.dont h3 { color:#FF4081; }
+  .voice-card ul { list-style:none; display:flex; flex-direction:column; gap: var(--space-3); }
+  .voice-card li { font-size:14px; color: var(--text-secondary); padding-left: var(--space-5); position:relative; }
+  .voice-card li::before { position:absolute; left:0; }
+  .voice-card.do li::before { content:"✓"; color:#00E676; }
+  .voice-card.dont li::before { content:"✕"; color:#FF4081; }
+  .voice-card li b { color: var(--text-primary); font-weight:600; }
+  .attrs { display:flex; flex-wrap:wrap; gap: var(--space-2); margin-top: var(--space-5); }
+  .attr { font-family: var(--font-mono); font-size:12px; color: var(--text-primary); background: rgba(0,0,0,0.2); border:1px solid var(--border); padding:4px 10px; border-radius: var(--radius-full); }
+
+  .guard { display:flex; flex-direction:column; gap: var(--space-3); }
+  .guard-item { display:flex; gap: var(--space-4); padding: var(--space-4); background: var(--bg-surface); border:1px solid var(--border); border-left:2px solid var(--accent-blue); border-radius: var(--radius-md); }
+  .guard-item .k { font-family: var(--font-mono); font-size:12px; color: var(--text-accent); width:160px; flex-shrink:0; }
+  .guard-item .v { font-size:14px; color: var(--text-secondary); }
+  .guard-item .v b { color: var(--text-primary); }
+
+  footer { border-top:1px solid var(--border-strong); padding-top: var(--space-6); color: var(--text-tertiary); font-size:13px; font-family: var(--font-mono); }
+  @media (max-width:680px){ .voice-grid{grid-template-columns:1fr;} .sec-head .desc{display:none;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">RavenMCP · Design System</div>
+    <h1>The system behind <span class="g">every prompt</span></h1>
+    <p>The tokens, type, motion, and voice that define RavenMCP — generated from the live site <span class="mono">:root</span> and the canonical brand profile. Every text/surface pairing below is scored for WCAG AA in your browser, live.</p>
+    <div class="meta-row">
+      <span class="pill">brand: ravenmcp</span>
+      <span class="pill">dark · neon-on-glass</span>
+      <span class="pill" id="aa-summary">AA: scoring…</span>
+    </div>
+  </header>
+
+  <!-- 01 COLOR -->
+  <section>
+    <div class="sec-head"><span class="sec-num">01</span><h2>Color</h2><span class="desc">Dark grey base — never pure black. Neon blue is the single primary; the rest are accents, not a rainbow.</span></div>
+
+    <div class="eyebrow" style="color:var(--text-tertiary)">Surfaces</div>
+    <div class="grid g-surfaces" id="surfaces"></div>
+
+    <div class="eyebrow" style="color:var(--text-tertiary); margin-top:var(--space-10)">Accents</div>
+    <div class="grid g-accents" id="accents"></div>
+
+    <div class="eyebrow" style="color:var(--text-tertiary); margin-top:var(--space-10)">Text on surfaces — live WCAG AA</div>
+    <table class="aa"><thead><tr><th>Text token</th><th>On surface</th><th>Sample</th><th>Ratio</th><th>AA</th></tr></thead><tbody id="aa-body"></tbody></table>
+    <p style="color:var(--text-tertiary); font-size:13px; margin-top:var(--space-4); max-width:72ch;">Raw token pairings. <b style="color:var(--text-primary)">Red = avoid this combination</b> — muted text on the lightest <span class="mono">--bg-overlay</span> dips below AA, so keep secondary/tertiary text on base/surface/raised. The live site composites these correctly and ships <b style="color:#00E676">0</b> real AA failures.</p>
+  </section>
+
+  <!-- 02 TYPOGRAPHY -->
+  <section>
+    <div class="sec-head"><span class="sec-num">02</span><h2>Typography</h2><span class="desc">Inter for product UI; monospace carries the technical tone in eyebrows, tool names, and code.</span></div>
+    <div id="type-scale"></div>
+    <div style="margin-top:var(--space-8); display:flex; gap:var(--space-6); flex-wrap:wrap;">
+      <div style="flex:1; min-width:240px;"><div class="eyebrow" style="color:var(--text-tertiary)">--font-body</div><div style="font-size:28px; font-weight:700;">Inter</div><div style="color:var(--text-secondary)">The quick brown fox jumps over the lazy dog. 0123456789</div></div>
+      <div style="flex:1; min-width:240px;"><div class="eyebrow" style="color:var(--text-tertiary)">--font-mono</div><div class="mono" style="font-size:28px; font-weight:700;">SF Mono</div><div class="mono" style="color:var(--text-secondary)">claude mcp add raven 0123456789</div></div>
+    </div>
+  </section>
+
+  <!-- 03 SPACING -->
+  <section>
+    <div class="sec-head"><span class="sec-num">03</span><h2>Spacing</h2><span class="desc">A 4 / 8 px rhythm. Whitespace is a signal, not leftover.</span></div>
+    <div id="spacing"></div>
+  </section>
+
+  <!-- 04 RADIUS -->
+  <section>
+    <div class="sec-head"><span class="sec-num">04</span><h2>Radius</h2><span class="desc">Soft, consistent corners; full-round for pills and chips.</span></div>
+    <div class="grid g-radius" id="radius"></div>
+  </section>
+
+  <!-- 05 MOTION -->
+  <section>
+    <div class="sec-head"><span class="sec-num">05</span><h2>Motion</h2><span class="desc">One spring easing, three durations. Click a card to replay.</span></div>
+    <div class="grid g-motion" id="motion"></div>
+  </section>
+
+  <!-- 06 VOICE -->
+  <section>
+    <div class="sec-head"><span class="sec-num">06</span><h2>Voice &amp; Tone</h2><span class="desc">Bold but clear. Lead with the noun or verb that matters; never trade clarity for cleverness.</span></div>
+    <div class="voice-grid">
+      <div class="voice-card do"><h3>Do</h3><ul>
+        <li><b>Front-load meaning.</b> "Fifty-five tools, organized by job."</li>
+        <li><b>Be specific.</b> "Render a live URL at every viewport" beats "powerful auditing."</li>
+        <li><b>Speak to "you,"</b> the developer driving the agent.</li>
+        <li><b>Punchy is fine.</b> "No Figma file. No designer."</li>
+      </ul></div>
+      <div class="voice-card dont"><h3>Don't</h3><ul>
+        <li><b>No clever-over-clear.</b> Not "The full flight across all realms."</li>
+        <li><b>No mythology in functional labels.</b> Keep "realms / banner" to the story section.</li>
+        <li><b>No drifting terms.</b> Groupings are "layers" — not disciplines / realms / acts.</li>
+        <li><b>No "the user."</b> Say "you."</li>
+      </ul></div>
+    </div>
+    <div class="attrs">
+      <span class="attr">Bold</span><span class="attr">Clear</span><span class="attr">Technical</span>
+      <span class="attr">Precise</span><span class="attr">Confident — no hype</span>
+    </div>
+  </section>
+
+  <!-- 07 GUARDRAILS -->
+  <section>
+    <div class="sec-head"><span class="sec-num">07</span><h2>Guardrails</h2><span class="desc">Constraints from the brand profile that every surface must honor.</span></div>
+    <div class="guard">
+      <div class="guard-item"><span class="k">contrast</span><span class="v">Body text <b>≥ 4.5:1</b>, large <b>≥ 3:1</b>. Never sacrifice contrast for a neon-on-dark gradient.</span></div>
+      <div class="guard-item"><span class="k">one primary focus</span><span class="v">Exactly <b>one</b> high-contrast primary CTA (a real verb — Install / Get started). Everything else is ghost/secondary.</span></div>
+      <div class="guard-item"><span class="k">consistent terms</span><span class="v">One word per concept. Groupings are <b>layers</b>. Keep counts current — <b>55 tools, 9 layers</b>.</span></div>
+      <div class="guard-item"><span class="k">tap targets</span><span class="v">Every interactive target <b>≥ 44px</b>.</span></div>
+      <div class="guard-item"><span class="k">limit the palette</span><span class="v">Five supporting accents are <b>accents</b>, not a rainbow.</span></div>
+      <div class="guard-item"><span class="k">logo restraint</span><span class="v">The brand shows through <b>type, color, and voice</b> without leaning on the mark.</span></div>
+    </div>
+  </section>
+
+  <footer id="footer">RavenMCP design system · generated from site/index.html :root + ~/.raven/creative/brands/ravenmcp.json</footer>
+
+</div>
+
+<script>
+  // ---- token data ----
+  const SURFACES = [
+    ["--bg-base","#1a1a22","Page base — dark grey, not black"],
+    ["--bg-surface","#212129","Cards, panels"],
+    ["--bg-raised","#2a2a33","Raised / featured cards"],
+    ["--bg-overlay","#32323d","Overlays, popovers"],
+    ["--bg-alt","#16161e","Alternating / deepest"],
+  ];
+  const ACCENTS = [
+    ["--accent-blue","#00BFFF","Primary"],
+    ["--accent-cyan","#00E5FF","Secondary accent"],
+    ["--accent-green","#00E676","Success / pass"],
+    ["--accent-orange","#FFAB40","Warning / highlight"],
+    ["--accent-pink","#FF4081","Error / fail"],
+  ];
+  const TEXTS = [
+    ["--text-primary","#F0F0F2"],
+    ["--text-secondary","#9498A0"],
+    ["--text-tertiary","#8E929C"],
+    ["--text-accent","#00BFFF"],
+  ];
+  const TYPE = [
+    ["display","clamp(40,72)px","700","-0.02em","Hero headlines"],
+    ["h2","clamp(24,32)px","700","-0.01em","Section titles"],
+    ["h3","20px","600","0","Card titles"],
+    ["body","16–18px","400","0","Paragraphs"],
+    ["small","13–14px","400–500","0","Captions, descriptions"],
+    ["mono-label","12px","500","0.14em ↑","Eyebrows, tool names"],
+  ];
+  const SPACING = [["--space-1",4],["--space-2",8],["--space-3",12],["--space-4",16],["--space-5",20],["--space-6",24],["--space-8",32],["--space-10",40],["--space-12",48],["--space-16",64],["--space-20",80],["--space-24",96],["--space-32",128]];
+  const RADIUS = [["--radius-sm","8px"],["--radius-md","12px"],["--radius-lg","16px"],["--radius-xl","20px"],["--radius-2xl","24px"],["--radius-full","9999px"]];
+  const MOTION = [["--duration-fast","150ms"],["--duration-normal","300ms"],["--duration-slow","600ms"]];
+
+  // ---- WCAG contrast ----
+  function hexToRgb(h){h=h.replace('#','');return [0,2,4].map(i=>parseInt(h.substr(i,2),16));}
+  function lin(v){v/=255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4);}
+  function L(rgb){return 0.2126*lin(rgb[0])+0.7152*lin(rgb[1])+0.0722*lin(rgb[2]);}
+  function ratio(a,b){const l1=L(hexToRgb(a)),l2=L(hexToRgb(b));return (Math.max(l1,l2)+0.05)/(Math.min(l1,l2)+0.05);}
+
+  // ---- render surfaces / accents ----
+  function swatchHTML(tok,hex,role,textOn){
+    return `<div class="swatch"><div class="chip" style="background:${hex}"><span class="mono" style="color:${textOn};font-size:12px">${hex}</span></div><div class="body"><div class="name">${tok}</div><div class="hex">${hex}</div><div class="role">${role}</div></div></div>`;
+  }
+  document.getElementById('surfaces').innerHTML = SURFACES.map(([t,h,r])=>swatchHTML(t,h,r,'#F0F0F2')).join('');
+  document.getElementById('accents').innerHTML = ACCENTS.map(([t,h,r])=>swatchHTML(t,h,r,'#0a0a12')).join('');
+
+  // ---- AA matrix: each text token on each surface ----
+  let aaRows='', total=0, passes=0;
+  const SURF_FOR_AA = SURFACES.slice(0,4); // base, surface, raised, overlay
+  for(const [tt,th] of TEXTS){
+    for(const [st,sh] of SURF_FOR_AA){
+      const r = ratio(th,sh);
+      const pass = r>=4.5, aaa = r>=7;
+      total++; if(pass) passes++;
+      const badge = aaa? '<span class="badge aaa">AAA</span>' : pass? '<span class="badge pass">AA</span>' : '<span class="badge fail">FAIL</span>';
+      aaRows += `<tr><td class="mono">${tt}</td><td class="mono" style="color:var(--text-tertiary)">${st}</td><td class="sample" style="color:${th};background:${sh};border-radius:6px">The quick brown fox</td><td class="ratio">${r.toFixed(2)}:1</td><td>${badge}</td></tr>`;
+    }
+  }
+  document.getElementById('aa-body').innerHTML = aaRows;
+  const sum = document.getElementById('aa-summary');
+  sum.textContent = `AA: ${passes}/${total} pass`;
+  sum.style.borderColor = passes===total ? 'rgba(0,230,118,0.5)' : 'rgba(255,64,129,0.5)';
+
+  // ---- type scale ----
+  document.getElementById('type-scale').innerHTML = TYPE.map(([tok,size,wt,ls,role])=>{
+    const px = tok==='display'?40 : tok==='h2'?30 : tok==='h3'?20 : tok==='body'?17 : tok==='small'?14 : 12;
+    const mono = tok==='mono-label';
+    const upper = mono?'text-transform:uppercase;letter-spacing:0.14em;':'';
+    return `<div class="type-row"><span class="tok">${tok}</span><span style="font-family:${mono?'var(--font-mono)':'var(--font-body)'};font-size:${px}px;font-weight:${wt.split('–')[0]};${upper}color:var(--text-primary)">${mono?'get_principles':'Design intelligence'}</span><span class="spec">${size} · ${wt}${ls!=='0'?' · '+ls:''}</span></div>`;
+  }).join('');
+
+  // ---- spacing ----
+  document.getElementById('spacing').innerHTML = SPACING.map(([tok,px])=>
+    `<div class="space-row"><span class="tok">${tok}</span><span class="bar" style="width:${px}px"></span><span class="val">${px}px</span></div>`).join('');
+
+  // ---- radius ----
+  document.getElementById('radius').innerHTML = RADIUS.map(([tok,val])=>
+    `<div class="radius-card"><div class="box" style="border-radius:${val==='9999px'?'9999px':val}"></div><div class="tok">${tok.replace('--radius-','')}</div><div class="val">${val}</div></div>`).join('');
+
+  // ---- motion ----
+  const mEl = document.getElementById('motion');
+  mEl.innerHTML = MOTION.map(([tok,val])=>
+    `<div class="motion-card" data-dur="${val}"><div class="tok">${tok.replace('--duration-','duration-')}</div><div class="val">${val} · ease-out spring</div><div class="track"><div class="dot"></div></div></div>`).join('');
+  function play(card){
+    const dot = card.querySelector('.dot'); const dur = card.dataset.dur;
+    dot.style.transition='none'; dot.style.left='0';
+    void dot.offsetWidth;
+    dot.style.transition=`left ${dur} cubic-bezier(0.16,1,0.3,1)`;
+    dot.style.left='calc(100% - 10px)';
+  }
+  [...mEl.children].forEach(c=>{ c.addEventListener('click',()=>play(c)); setTimeout(()=>play(c), 300); });
+</script>
+</body>
+</html>

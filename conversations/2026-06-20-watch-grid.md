@@ -18,6 +18,23 @@ Open thread from prior session was the audit_ios_privacy 90683 bug; this session
 
 **Pushed:** NOT pushed. Working tree: `site/index.html`, `site/docs.html` modified; `site/assets/video/clips/` new (31MB). Local range-capable server at http://127.0.0.1:8799 for real-browser check.
 
+### RavenMCP analysis of homepage → brand profile + P1–P3 fixes
+**What:**
+- Ran ~15 Raven tools across audit/brand/content/knowledge layers on the homepage (audit_contrast, audit_page, get_brand_principles, get_brand_trends, get_content_principles, get_content_system, list_brand_profiles).
+- **(a)** Created the canonical RavenMCP brand profile (`create_brand_profile` → `~/.raven/creative/brands/ravenmcp.json`; `list_brand_profiles` 0→1) — colors from live tokens, voice from observed copy, principles encoded as constraints.
+- **(b)** Fixed P1–P3 against it:
+  - **P1 contrast:** `--text-tertiary` #5C5F68→#8E929C; `.tag` + `.system-tags span` bg flipped from `rgba(255,255,255,.03)` (lightens) to `rgba(0,0,0,.2)` (darkens chip). True parent-chain composite AA fails: **0**.
+  - **P1 tap targets:** `.btn-text-link`, `.cta-install`, `.pricing-services-link` → min-height:44px. Sub-44px targets: **0**.
+  - **P2 voice/CTA:** tools H2 "The full flight across all realms"→"Fifty-five tools, organized by job"; `get_checklist` desc dropped "raise the raven banner"; elevated install pill to the one high-contrast primary (accent border + blue copy icon). Mythology *story* section left intact (intentional brand voice).
+  - **P2 counts/terminology:** hero "Twenty-seven"→"Fifty-five tools…your AI agent"; "Eight"→"Nine" layers (label+H2+terminal); unified groupings to "layers"; **added the 9th layer card (Render & Audit, 20 audit tools)** so Nine is shown, not just claimed.
+  - **P3 hygiene:** MacBook chrome bare hex → `--mb-*` device tokens (kept out of the brand palette).
+- Caught Raven audit false-positive: audit_contrast/audit_page composite rgba bgs over a light canvas → 78 inflated AA fails; true compositing = 0. Logged to `.claude/raven-opportunities.md` (P1 + P2).
+
+**Verified:** brand profile exists (list_brand_profiles=1) ✓; true-composite contrast sweep 0 fails ✓; tap-target sweep 0 fails ✓; eyes-on hero/layers/tools/9th-card/tag-chips ✓; deployed preview 200 + key strings present ✓.
+**Preview:** https://site-nl1atqbi9-cunliffeandrewc-8712s-projects.vercel.app
+**Pushed:** NOT pushed (auto-save hook commits locally; no remote push requested).
+
 ## State at end of session
-- Build + structural verification: done ✓
-- Pending: playback eyes-on in a real browser; optional Vercel preview deploy; commit/push (not yet requested).
+- Watch-grid build + structural verification: done ✓
+- RavenMCP analysis + brand profile + P1–P3 fixes: done & verified ✓
+- Pending: video PLAYBACK eyes-on in a real (non-automation) browser; commit/push to remote (not yet requested); optional — update the locally-connected Raven MCP server to 1.10.0 (it lags: audit_url/typography/tap_targets/content unavailable).
