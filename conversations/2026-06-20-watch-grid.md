@@ -37,4 +37,7 @@ Open thread from prior session was the audit_ios_privacy 90683 bug; this session
 ## State at end of session
 - Watch-grid build + structural verification: done ✓
 - RavenMCP analysis + brand profile + P1–P3 fixes: done & verified ✓
-- Pending: video PLAYBACK eyes-on in a real (non-automation) browser; commit/push to remote (not yet requested); optional — update the locally-connected Raven MCP server to 1.10.0 (it lags: audit_url/typography/tap_targets/content unavailable).
+- Design-system reference page (`site/design-system.html`) built + verified + deployed ✓
+- **Branched + deployed for review** ✓ — branch `raven-feedback-site-polish` (commit 8997314, pushed); review deploy https://site-jk4zko8iu-cunliffeandrewc-8712s-projects.vercel.app (+ /design-system.html). Memory saved: [[project-raven-site-feedback-branch]] (survives /clear).
+- Branch is based on local main (06-19 ancestor); origin/main diverged (changelog + release skill, different files) — reconcile onto latest origin/main before final merge.
+- Pending: Andrew's review notes → iterate on the branch; then PR when asked. Still open: video PLAYBACK eyes-on in a real (non-automation) browser; optional — bump locally-connected Raven MCP server to 1.10.0 (lags: audit_url/typography/tap_targets/content unavailable).
