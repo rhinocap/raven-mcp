@@ -26,3 +26,6 @@ https://site-383s0d8o1-cunliffeandrewc-8712s-projects.vercel.app · branch raven
 ## State
 - Cut-off fix: done & verified on deployed URL ✓
 - PENDING from 06-20 "re-cut clips from raw source": now DONE ✓
+
+## Pending (carried forward to next session)
+- **Increase vertical spacing between the MacBook rows** in the watch grid: `.watch-rows { gap: clamp(96px, 11vw, 160px); }` (site/index.html:1666). Branch raven-feedback-site-polish. Suggested start: clamp(140px,14vw,220px); verify on deployed URL @~2436 + 8px grid. (Andrew queued at /clear 2026-06-21.) See memory project-raven-watch-spacing-todo.
