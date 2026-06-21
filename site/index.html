@@ -1194,15 +1194,19 @@
       padding: clamp(96px, 11vw, 156px) 0;
     }
 
+    /* Locked column count: 1 on mobile, 3 on desktop — never an even count
+       (no 2-wide or 4-wide rows). Cards widen to fill the 3 tracks. */
     .tools-grid {
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: 1fr;
       gap: var(--space-4);
+    }
+    @media (min-width: 860px) {
+      .tools-grid { grid-template-columns: repeat(3, 1fr); }
     }
 
     .tool-card {
-      flex: 1 1 280px;
-      min-width: 280px;
+      min-width: 0;
       display: flex; align-items: flex-start; gap: var(--space-4);
       padding: var(--space-5) var(--space-6);
       background: var(--bg-surface);
