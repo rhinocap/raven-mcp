@@ -1,3 +1,21 @@
+# Session: 2026-06-21/22 — autonomous backlog /loop + release prep
+
+## Where we left off
+v1.12.0 staged on local `main` awaiting Andrew's "go" to publish; backlog `/loop` self-pacing via ScheduleWakeup (~30min, does NOT survive /clear). Durable record: memory `project_v1_12_0_staged_and_parked_branches.md`.
+
+## This session — backlog /loop (each: spec → 4-agent fan-out → reviewer → test → commit, all UNPUSHED off origin/main)
+### Run N+3: orphan-stretch detection for `audit_layout` (#1, ledger P3)
+- `feat/layout-orphan-stretch` (`d34919b`) — extends EXISTING `audit_layout` (no new tool, no browser): from the rects it already ingests, finds the ≥3-card group (width W, height H) and flags any same-height element ≥1.5×W (the lonely last-row `flex:1 1 280px` orphan on .tools-grid/.layers-grid). New pure `src/layout-orphans.ts`; wired additively as `orphan_stretch` key — existing alignment/gap/balance byte-identical. 8 tests; suite **218/218**. Reviewer PASS (fixed NIT: fresh result obj per early-return vs shared singleton). Eyes-on: orphan flagged 3.14×, diff-height footer correctly ignored.
+
+### Run N+2: `audit_video_playback` (#1, ledger P2 — "videos don't play")
+- `feat/audit-video-playback` (`f57f41a`) — renders page, observes `<video>` currentTime advance → playing|paused|stalled|empty|error. Pure classifier + pure `auditVideoPlaybackSnapshot` (shared) + browser observer; url OR dom_snapshot. 23 tests; 233/233. Reviewer FAIL→fixed.
+
+### Run N+1: `audit_consistency` (#1, open issue #9 — now fully addressed)
+- `feat/audit-consistency` (`1db1af1`) — cross-page corpus audit (container width + hero tier). 14 tests; 224/224.
+
+### Run N: `score_page` (#1, ledger P1)
+- `feat/score-page` (`118a0ed`) — per-category 0-10 design scores. 38 tests; 248/248 on that branch.
+
 # Session: 2026-06-21 — autonomous backlog /loop + release prep
 
 # Session: 2026-06-21/22 — autonomous backlog /loop + release prep
@@ -48,11 +66,18 @@ v1.12.0 staged on local `main` awaiting Andrew's "go" to publish; backlog `/loop
 
 ### Release prep (Andrew chose "Prepare, then ask me")
 - v1.12.0 staged on local `main` (`7c2f40e`): merged first 3 branches, CHANGELOG → `## [1.12.0] - 2026-06-21`, dry-run OK. **Awaiting "go"** to run `scripts/release.sh minor`.
+
+
 - Reusable: `.claude/loops/release-readiness.md` + `.claude/loops/marketing-site-sync.md`.
 
 ## State at end of session
 - v1.12.0: STAGED on main, NOT pushed — awaiting "go" ✓
 - npm: still 1.11.0; origin/main: still b51d570 (nothing pushed)
+- Post-v1.12.0 unpushed feature branches (6): svg-color-compliance, dropdown-menu-pattern, score-page, audit-consistency, audit-video-playback, layout-orphan-stretch
+- Open-issue backlog EMPTY (#9 + #1 handled on branches; close on land)
+- **Backlog now drained of cheap/high-value items.** Remaining ledger candidates are all higher-effort/lower-value: intentional-miniature exemption (P2; hard — flat-regex min-size engine isn't container-aware), ultra-wide XDR sweep (P2; browser), Ken-Burns video-content (P3; ffmpeg frame extraction). Diminishing returns — highest-value action is now landing v1.12.0 + the 6 parked branches, gated on Andrew's "go".
+- Pending (carried forward): publish v1.12.0 on "go"; land parked branches; close GH #9 + #1.
+
 - Post-v1.12.0 unpushed feature branches: svg-color-compliance, dropdown-menu-pattern, score-page, audit-consistency, audit-video-playback
 - Open-issue backlog now EMPTY (#9 + #1 handled on branches; close on land)
 - Pending (carried forward):
