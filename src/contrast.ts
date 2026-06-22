@@ -473,3 +473,168 @@ export async function auditContrastUrl(
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// Remediation — minimal WCAG-passing color suggestion (pure)
+// ---------------------------------------------------------------------------
+
+export type ContrastFixDetail = {
+  color: string;
+  ratio: number;
+  direction: "lighter" | "darker";
+};
+
+export type SuggestContrastFix = {
+  fg: string;
+  bg: string;
+  currentRatio: number;
+  targetRatio: number;
+  passes: boolean;
+  fgFix: ContrastFixDetail | null;
+  bgFix: ContrastFixDetail | null;
+  reachable: boolean;
+  recommendation: string;
+};
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function rgbStr(c: [number, number, number]): string {
+  return "rgb(" + c[0] + ", " + c[1] + ", " + c[2] + ")";
+}
+
+function toOpaque(css: string, over: [number, number, number]): [number, number, number] {
+  const [r, g, b, a] = parseColor(css);
+  if (a >= 1) return [r, g, b];
+  return [
+    Math.round(r * a + over[0] * (1 - a)),
+    Math.round(g * a + over[1] * (1 - a)),
+    Math.round(b * a + over[2] * (1 - a)),
+  ];
+}
+
+function lerpRgb(
+  c: [number, number, number],
+  pole: [number, number, number],
+  t: number
+): [number, number, number] {
+  return [
+    Math.round(c[0] + (pole[0] - c[0]) * t),
+    Math.round(c[1] + (pole[1] - c[1]) * t),
+    Math.round(c[2] + (pole[2] - c[2]) * t),
+  ];
+}
+
+function rgbDistance(a: [number, number, number], b: [number, number, number]): number {
+  return Math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2);
+}
+
+// Adjust `color` toward the higher-contrast pole vs the fixed color until target met.
+function solveAdjust(
+  color: [number, number, number],
+  fixed: [number, number, number],
+  target: number
+): { detail: ContrastFixDetail; reachable: boolean } {
+  const black: [number, number, number] = [0, 0, 0];
+  const white: [number, number, number] = [255, 255, 255];
+  const useBlack = contrastRatio(black, fixed) >= contrastRatio(white, fixed);
+  const pole = useBlack ? black : white;
+  const direction: "lighter" | "darker" = useBlack ? "darker" : "lighter";
+  const poleRatio = contrastRatio(pole, fixed);
+  if (poleRatio < target) {
+    return { detail: { color: rgbStr(pole), ratio: round2(poleRatio), direction }, reachable: false };
+  }
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2;
+    if (contrastRatio(lerpRgb(color, pole, mid), fixed) >= target) hi = mid;
+    else lo = mid;
+  }
+  let c = lerpRgb(color, pole, hi);
+  let guard = 0;
+  // rounding to ints may dip just under target — nudge toward the pole until cleared
+  while (contrastRatio(c, fixed) < target && guard < 24) {
+    hi = hi + (1 - hi) / 2 + 0.0005;
+    if (hi > 1) hi = 1;
+    c = lerpRgb(color, pole, hi);
+    guard++;
+  }
+  return { detail: { color: rgbStr(c), ratio: round2(contrastRatio(c, fixed)), direction }, reachable: true };
+}
+
+export function suggestContrastFix(
+  fg: string,
+  bg: string,
+  opts?: { targetRatio?: number; level?: "AA" | "AAA"; fontPx?: number; bold?: boolean }
+): SuggestContrastFix {
+  const options = opts || {};
+  const bgOpaque = toOpaque(bg, [255, 255, 255]);
+  const fgOpaque = toOpaque(fg, bgOpaque);
+
+  // target derivation
+  let target: number;
+  if (typeof options.targetRatio === "number") {
+    target = options.targetRatio;
+  } else {
+    const level = options.level || "AA";
+    const fontPx = typeof options.fontPx === "number" ? options.fontPx : 0;
+    const isLarge = fontPx >= 24 || (fontPx >= 18.66 && options.bold === true);
+    if (level === "AAA") target = isLarge ? 4.5 : 7.0;
+    else target = isLarge ? 3.0 : 4.5;
+  }
+
+  const currentRatio = contrastRatio(fgOpaque, bgOpaque);
+  const fgStr = rgbStr(fgOpaque);
+  const bgStr = rgbStr(bgOpaque);
+
+  if (currentRatio >= target) {
+    return {
+      fg: fgStr,
+      bg: bgStr,
+      currentRatio: round2(currentRatio),
+      targetRatio: target,
+      passes: true,
+      fgFix: null,
+      bgFix: null,
+      reachable: true,
+      recommendation: "Already passes — contrast " + round2(currentRatio) + " meets the " + target + " target.",
+    };
+  }
+
+  const fgSolved = solveAdjust(fgOpaque, bgOpaque, target);
+  const bgSolved = solveAdjust(bgOpaque, fgOpaque, target);
+  const reachable = fgSolved.reachable || bgSolved.reachable;
+
+  // recommend the smaller perceptual change among reachable fixes
+  const fgDist = rgbDistance(fgOpaque, toOpaque(fgSolved.detail.color, bgOpaque));
+  const bgDist = rgbDistance(bgOpaque, toOpaque(bgSolved.detail.color, fgOpaque));
+  let recommendation: string;
+  if (!reachable) {
+    const best = fgSolved.detail.ratio >= bgSolved.detail.ratio ? fgSolved.detail : bgSolved.detail;
+    recommendation =
+      "Target " + target + " cannot be reached by adjusting one color alone. Best achievable ratio " +
+      best.ratio + " (foreground " + best.color + "). Consider changing both colors or lowering the target.";
+  } else if (fgSolved.reachable && (!bgSolved.reachable || fgDist <= bgDist)) {
+    recommendation =
+      "Set foreground to " + fgSolved.detail.color + " (" + fgSolved.detail.direction + ", ratio " +
+      fgSolved.detail.ratio + ")." + (bgSolved.reachable ? " Alternatively set background to " + bgSolved.detail.color + " (ratio " + bgSolved.detail.ratio + ")." : "");
+  } else {
+    recommendation =
+      "Set background to " + bgSolved.detail.color + " (" + bgSolved.detail.direction + ", ratio " +
+      bgSolved.detail.ratio + ")." + (fgSolved.reachable ? " Alternatively set foreground to " + fgSolved.detail.color + " (ratio " + fgSolved.detail.ratio + ")." : "");
+  }
+
+  return {
+    fg: fgStr,
+    bg: bgStr,
+    currentRatio: round2(currentRatio),
+    targetRatio: target,
+    passes: false,
+    fgFix: fgSolved.detail,
+    bgFix: bgSolved.detail,
+    reachable,
+    recommendation,
+  };
+}

@@ -12,7 +12,7 @@ import type { VerifiableFinding } from "./capture.js";
 import { runPageChecks } from "./page-checks.js";
 import { auditUrl } from "./audit-url.js";
 import { captureResponsiveVisibility } from "./responsive.js";
-import { auditContrastUrl, auditContrastSnapshot } from "./contrast.js";
+import { auditContrastUrl, auditContrastSnapshot, suggestContrastFix } from "./contrast.js";
 import { diffScreenshots } from "./image-diff.js";
 import { auditAssetIntegrity } from "./asset-integrity.js";
 import { auditParity } from "./parity.js";
@@ -2707,6 +2707,42 @@ server.tool(
       return { content: [{ type: "text" as const, text: JSON.stringify(ctSnap, null, 2) }] };
     }
     return { content: [{ type: "text" as const, text: "Provide either url (render + measure) or dom_snapshot (score supplied elements). Each dom_snapshot element: { selector, color, bgColor, fontPx?, bold?, text? }." }] };
+  }
+);
+
+// ── Tool 11c-r: suggest_contrast_fix ──────────────────────────────
+
+server.tool(
+  "suggest_contrast_fix",
+  "Given failing WCAG color pairs, return the MINIMAL color change that clears the target ratio. For each {fg,bg} pair, computes the smallest foreground adjustment (and an alternative background adjustment) that reaches AA/AAA — with the achieved ratio and direction. Feeds directly from audit_contrast's failing pairs: pass them here to get concrete passing values instead of brute-forcing colors by hand. Pure offline math.",
+  {
+    pairs: z.array(z.object({
+      selector: z.string().optional(),
+      fg: z.string(),
+      bg: z.string(),
+      fontPx: z.number().optional(),
+      bold: z.boolean().optional(),
+      targetRatio: z.number().optional()
+    })).optional().describe("Color pairs to remediate. Each: { selector?, fg, bg, fontPx?, bold?, targetRatio? }. fontPx/bold pick the large-text threshold; targetRatio overrides the level."),
+    level: z.enum(["AA", "AAA"]).optional().describe("WCAG level when targetRatio is not given per-pair. Default AA.")
+  },
+  async function({ pairs, level }) {
+    if (pairs === undefined || pairs === null || pairs.length === 0) {
+      return { content: [{ type: "text" as const, text: "Provide pairs: [{ selector?, fg, bg, fontPx?, bold?, targetRatio? }]. Returns the minimal fg/bg change that clears the WCAG target for each pair. Set level to 'AA' (default) or 'AAA'." }] };
+    }
+    var lvl = level || "AA";
+    var results = pairs.map(function(p) {
+      var fix = suggestContrastFix(p.fg, p.bg, { targetRatio: p.targetRatio, level: lvl, fontPx: p.fontPx, bold: p.bold });
+      if (p.selector !== undefined && p.selector !== null) {
+        return Object.assign({ selector: p.selector }, fix);
+      }
+      return fix;
+    });
+    var alreadyPassing = results.filter(function(r) { return r.passes; }).length;
+    var unreachable = results.filter(function(r) { return !r.passes && !r.reachable; }).length;
+    var fixed = results.length - alreadyPassing - unreachable;
+    var summary = "suggest_contrast_fix — " + fixed + " fixable, " + alreadyPassing + " already passing, " + unreachable + " unreachable (need both colors changed)";
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "suggest_contrast_fix", level: lvl, results: results, summary: summary }, null, 2) }] };
   }
 );
 

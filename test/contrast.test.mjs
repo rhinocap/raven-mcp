@@ -35,6 +35,7 @@ let auditContrastSnapshot;
 let auditContrastUrl;
 let CaptureUnavailableError;
 let compositeBackground;
+let suggestContrastFix;
 
 try {
   const mod = await import(distContrast);
@@ -46,6 +47,7 @@ try {
   compositeBackground = mod.compositeBackground;
   // CaptureUnavailableError may be re-exported from contrast.ts or the error class itself
   CaptureUnavailableError = mod.CaptureUnavailableError;
+  suggestContrastFix = mod.suggestContrastFix;
 } catch (err) {
   const msg = `dist/contrast.js not found — run \`npm run build\` first. (${err.message})`;
   test('contrast module available', (t) => { t.skip(msg); });
@@ -426,4 +428,194 @@ test('auditContrastUrl: result shape from live page', async (t) => {
       assert.ok(row.ratio <= 21.1, 'ratio must be <= 21');
     }
   });
+});
+
+// ── suggestContrastFix tests ─────────────────────────────────────────────────
+
+/**
+ * Helper: recompute the contrast ratio between two CSS color strings using the
+ * same underlying math as the module under test, so ground-truth assertions are
+ * objective rather than hard-coded magic numbers.
+ */
+function ratioOf(colorStr, bgStr) {
+  const f = parseColor(colorStr).slice(0, 3);
+  const b = parseColor(bgStr).slice(0, 3);
+  return contrastRatio(f, b);
+}
+
+// AC 1 — Already-passing pair ─────────────────────────────────────────────────
+
+test('suggestContrastFix: already-passing — #000 on #fff', () => {
+  const result = suggestContrastFix('#000', '#fff');
+  assert.equal(result.passes, true, 'passes should be true for black on white');
+  assert.equal(result.fgFix, null, 'fgFix should be null when already passing');
+  assert.equal(result.bgFix, null, 'bgFix should be null when already passing');
+  assert.equal(result.reachable, true, 'reachable should be true for already-passing pair');
+});
+
+test('suggestContrastFix: already-passing — rgb(0,0,0) on rgb(255,255,255)', () => {
+  const result = suggestContrastFix('rgb(0,0,0)', 'rgb(255,255,255)');
+  assert.equal(result.passes, true, 'passes should be true for black on white (rgb form)');
+  assert.equal(result.fgFix, null, 'fgFix should be null when already passing');
+  assert.equal(result.bgFix, null, 'bgFix should be null when already passing');
+});
+
+// AC 2 — Fix actually passes (ground-truth ratio check) ──────────────────────
+
+test('suggestContrastFix: fix actually passes — mid-gray on white (AA normal 4.5)', () => {
+  const fg = 'rgb(150,150,150)';
+  const bg = 'rgb(255,255,255)';
+  const result = suggestContrastFix(fg, bg);
+
+  assert.equal(result.passes, false, 'rgb(150,150,150) on white should fail AA normal');
+
+  // fgFix.color should clear the 4.5 target
+  assert.ok(result.fgFix !== null, 'fgFix should be non-null for a failing pair');
+  const fgFixRatio = ratioOf(result.fgFix.color, result.bg);
+  assert.ok(
+    fgFixRatio >= 4.5,
+    `fgFix.color="${result.fgFix.color}" should yield ratio >= 4.5 against bg, got ${fgFixRatio}`
+  );
+  assert.ok(
+    result.fgFix.ratio >= 4.5,
+    `fgFix.ratio (${result.fgFix.ratio}) should be >= 4.5`
+  );
+
+  // bgFix.color should also clear the 4.5 target
+  assert.ok(result.bgFix !== null, 'bgFix should be non-null for a failing pair');
+  const bgFixRatio = ratioOf(result.fg, result.bgFix.color);
+  assert.ok(
+    bgFixRatio >= 4.5,
+    `bgFix.color="${result.bgFix.color}" should yield ratio >= 4.5 with fg, got ${bgFixRatio}`
+  );
+});
+
+// AC 3 — Minimality (within 2 RGB units) ─────────────────────────────────────
+
+test('suggestContrastFix: minimality — two steps back toward original fails (AA 4.5)', () => {
+  const fg = 'rgb(150,150,150)';
+  const bg = 'rgb(255,255,255)';
+  const result = suggestContrastFix(fg, bg);
+
+  assert.ok(result.fgFix !== null, 'fgFix must exist for minimality test');
+
+  // Parse the fixed color
+  const fixed = parseColor(result.fgFix.color).slice(0, 3);
+  const original = parseColor(fg).slice(0, 3);
+
+  // Determine the step direction: "darker" means fixed is closer to black (lower values)
+  // so stepping back toward original means increasing channel values by +2.
+  // "lighter" means fixed is closer to white, so stepping back means decreasing by -2.
+  const delta = result.fgFix.direction === 'darker' ? 2 : -2;
+
+  const twoBack = fixed.map((c) => Math.min(255, Math.max(0, c + delta)));
+  const twoBackStr = `rgb(${twoBack[0]},${twoBack[1]},${twoBack[2]})`;
+  const twoBackRatio = ratioOf(twoBackStr, result.bg);
+
+  assert.ok(
+    twoBackRatio < 4.5,
+    `two steps back (${twoBackStr}) should fail 4.5, got ${twoBackRatio} — fix is not near-minimal`
+  );
+});
+
+// AC 4 — Direction correctness ────────────────────────────────────────────────
+
+test('suggestContrastFix: direction — dark bg → fgFix.direction is "lighter"', () => {
+  // Dark fg on very dark bg — must go lighter to gain contrast
+  const result = suggestContrastFix('rgb(80,80,80)', 'rgb(10,10,10)');
+  assert.ok(result.fgFix !== null, 'fgFix should exist for dark-bg failing pair');
+  assert.equal(
+    result.fgFix.direction,
+    'lighter',
+    `expected "lighter" direction on dark bg, got "${result.fgFix.direction}"`
+  );
+});
+
+test('suggestContrastFix: direction — light bg → fgFix.direction is "darker"', () => {
+  // Light fg on white bg — must go darker to gain contrast
+  const result = suggestContrastFix('rgb(180,180,180)', 'rgb(255,255,255)');
+  assert.ok(result.fgFix !== null, 'fgFix should exist for light-bg failing pair');
+  assert.equal(
+    result.fgFix.direction,
+    'darker',
+    `expected "darker" direction on light bg, got "${result.fgFix.direction}"`
+  );
+});
+
+// AC 5 — Target derivation ────────────────────────────────────────────────────
+
+test('suggestContrastFix: target derivation — large text (fontPx 24) uses AA target 3.0', () => {
+  const result = suggestContrastFix('rgb(150,150,150)', 'rgb(255,255,255)', { fontPx: 24 });
+  assert.equal(
+    result.targetRatio,
+    3,
+    `expected targetRatio 3 for large text (24px), got ${result.targetRatio}`
+  );
+});
+
+test('suggestContrastFix: target derivation — AAA normal text uses target 7.0 (passes for black on white)', () => {
+  const result = suggestContrastFix('rgb(0,0,0)', 'rgb(255,255,255)', { level: 'AAA' });
+  assert.equal(
+    result.targetRatio,
+    7,
+    `expected targetRatio 7 for AAA normal, got ${result.targetRatio}`
+  );
+  // Black on white ratio is ~21, well above 7 — should pass
+  assert.equal(result.passes, true, 'black on white should pass AAA (ratio ≈ 21)');
+});
+
+test('suggestContrastFix: target derivation — explicit targetRatio overrides level+fontPx', () => {
+  const result = suggestContrastFix('rgb(150,150,150)', 'rgb(255,255,255)', {
+    targetRatio: 7,
+    fontPx: 24,
+  });
+  assert.equal(
+    result.targetRatio,
+    7,
+    `explicit targetRatio:7 should override large-text 3.0 default, got ${result.targetRatio}`
+  );
+});
+
+// AC 6 — Unreachable ──────────────────────────────────────────────────────────
+
+test('suggestContrastFix: unreachable — mid-gray on same mid-gray with target 21', () => {
+  // No single-color adjustment from mid-gray can reach ratio 21 (max is black/white ≈ 21,
+  // but against a mid-gray bg the pole ratio is well below 21)
+  let result;
+  assert.doesNotThrow(() => {
+    result = suggestContrastFix('rgb(120,120,120)', 'rgb(120,120,120)', { targetRatio: 21 });
+  }, 'suggestContrastFix must not throw for unreachable pairs');
+
+  assert.equal(result.passes, false, 'identical mid-gray pair should not pass target 21');
+  assert.equal(result.reachable, false, 'reachable should be false when target 21 is impossible');
+
+  // Best-effort fix should still be returned (the pole)
+  assert.ok(result.fgFix !== null, 'fgFix should be non-null (best-effort pole) when unreachable');
+
+  // Recommendation must be a non-empty string describing the situation
+  assert.ok(
+    typeof result.recommendation === 'string' && result.recommendation.length > 0,
+    `recommendation must be a non-empty string, got: ${JSON.stringify(result.recommendation)}`
+  );
+});
+
+// AC 7 — No mutation / purity ─────────────────────────────────────────────────
+
+test('suggestContrastFix: purity — identical calls return deep-equal results', () => {
+  const a = suggestContrastFix('rgb(150,150,150)', 'rgb(255,255,255)');
+  const b = suggestContrastFix('rgb(150,150,150)', 'rgb(255,255,255)');
+  assert.deepEqual(
+    a,
+    b,
+    'Two calls with the same arguments must return deep-equal results (pure function)'
+  );
+});
+
+test('suggestContrastFix: purity — each call returns a fresh object', () => {
+  const a = suggestContrastFix('rgb(150,150,150)', 'rgb(255,255,255)');
+  const b = suggestContrastFix('rgb(150,150,150)', 'rgb(255,255,255)');
+  assert.ok(a !== b, 'Each call should return a distinct object reference');
+  if (a.fgFix !== null && b.fgFix !== null) {
+    assert.ok(a.fgFix !== b.fgFix, 'Each call should return a distinct fgFix object reference');
+  }
 });
