@@ -7,6 +7,7 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 ## [Unreleased]
 
 ### Added
+- `audit_video_playback` — renders a page and observes whether each `<video>` actually advances (samples currentTime, readyState, decode errors, autoplay-block), classifying each clip playing | paused | stalled | empty | error — catching black/non-playing videos that static frame-capture audits miss.
 - `score_page` — returns a per-category (0–10) design score for a page (typography, accessibility, spacing, color, responsive, tokens, structure) derived from the same checks as `audit_page`, plus the overall score/grade, the weakest category, and the categories Raven does not mechanically assess (brand, conversion, motion).
 
 ## [1.12.0] - 2026-06-21

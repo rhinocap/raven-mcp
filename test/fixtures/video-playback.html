@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Video Playback Audit Fixture</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; padding: 40px; }
+    video { display: block; margin-bottom: 24px; background: #000; }
+  </style>
+</head>
+<body>
+  <h1>Video playback fixture</h1>
+
+  <!-- Good video: autoplay + muted → headless chromium advances currentTime → playing/advancing -->
+  <video
+    id="good"
+    src="clip.webm"
+    autoplay
+    muted
+    loop
+    playsinline
+    width="640"
+    height="360"
+  ></video>
+
+  <!-- Broken video: nonexistent source → error or empty -->
+  <video
+    id="broken"
+    src="does-not-exist.mp4"
+    muted
+    playsinline
+    width="640"
+    height="360"
+  ></video>
+</body>
+</html>

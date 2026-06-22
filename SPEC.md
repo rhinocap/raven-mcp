@@ -1,117 +1,120 @@
-# SPEC — `score_page` tool (per-category design scoring)
+# SPEC — `audit_video_playback` tool (detect non-playing / broken `<video>`)
 
-**Date:** 2026-06-21
-**Branch:** `feat/score-page` (off `origin/main` @ b51d570)
-**Backlog source:** `.claude/raven-opportunities.md` — `2026-06-21 | missing capability | no Raven tool produces a per-category "award" SCORE for a full page … add a score_page/score_design tool that returns 0-10 per design category … | **P1**`
-**Backlog rank this run:** #1 by (impact × reach) ÷ effort — P1, broadest reach (every page audit), low effort (pure function reusing `runPageChecks` output, no browser), fully deterministic + unit-testable, no collision with the 5 parked branches.
+**Date:** 2026-06-22
+**Branch:** `feat/audit-video-playback` (off `origin/main` @ b51d570)
+**Backlog source:** `.claude/raven-opportunities.md` — `2026-06-20 | dynamic-state audit gap | audit_page renders a static frame so it cannot tell a black/non-playing <video> from a playing one … Andrew's #1 complaint "videos don't play" was invisible to every static check | New audit: audit_video_playback … report per-clip playing|paused|black|error | P2`
+**Backlog rank this run:** #1 by (impact × reach) ÷ effort — addresses the user's repeatedly-cited #1 complaint (videos rendering black / not playing), invisible to every static audit; broad reach (every page with video); chromium is installed so it is verifiable this run.
 
 ---
 
 ## Problem statement
 
-`audit_page` already returns a flat overall score (0–100 + A–D grade) plus a list of passes/errors/warnings, but it does **not** break that score down per design category. A caller who wants "how is this page doing on typography vs accessibility vs spacing?" has to bucket the raw `fix_priority` rule strings by hand. There is no Raven tool that emits a per-category 0–10 design score for a full page (`evaluate_design` is a 129-principle checklist, not a scorer; `score_creative` scores ad copy only). This was logged P1.
+Every existing Raven audit captures a single static frame, so it cannot distinguish a `<video>` that is actually **playing** from one that renders a **black box** (never buffered, autoplay-blocked, empty/broken src, or decode error). `audit_page`'s current video handling only inspects `preload`/`readyState`/`error` heuristically and does **not** observe whether playback actually advances. The result: "videos don't play" — the single most-cited real defect on the user's marketing sites — passes every audit clean.
 
 ## Goal / intent
 
-Add a new MCP tool **`score_page`** that consumes a block of HTML/CSS and returns a **per-category 0–10 score** derived deterministically from the existing `runPageChecks` rule engine — plus the same overall 0–100/grade `audit_page` produces, the weakest category, and an honest list of categories Raven does **not** mechanically assess. Reuse `runPageChecks` verbatim; **do not modify `src/page-checks.ts`** (it is shared by `audit_page` + `audit_url` and must not regress).
+Add a new MCP tool **`audit_video_playback`** that, given a URL, renders the page in headless chromium, locates every `<video>`, and **observes whether playback advances** (samples `currentTime` before/after a short play attempt) alongside `readyState`/`networkState`/`error`/`paused`, then classifies each clip into a constrained state with a reason. Mirror the proven dual-export shape of `src/contrast.ts`: a **pure, unit-testable classifier** plus a **browser observer**, with a `dom_snapshot` escape hatch for deterministic use without rendering. Reuse `loadChromium`/`CaptureUnavailableError` conventions from `src/capture.ts`/`src/contrast.ts`; do **not** modify `capture.ts`, `contrast.ts`, or `page-checks.ts`.
 
 ## Scope
 
 **In:**
-- `src/score-page.ts` — NEW pure module: `scorePage(html, opts?) → ScorePageResult`.
-- `src/index.ts` — register the `score_page` tool (import, Zod input schema, handler, tool description). Tool count 56 → 57.
-- `test/score-page.test.mjs` — NEW deterministic unit tests against the acceptance criteria (no browser).
-- Docs: `CHANGELOG.md` `[Unreleased] > Added`; `README.md` tool list + count.
+- `src/video-playback.ts` — NEW module: pure `classifyVideoPlayback(obs)` + browser `auditVideoPlaybackUrl(url, opts?)` + result/observation types.
+- `src/index.ts` — register the `audit_video_playback` tool (import, Zod schema, handler, description). Tool count 56 → 57.
+- `test/video-playback.test.mjs` — NEW: deterministic unit tests for the classifier (no browser) + a browser integration test (graceful skip via `CaptureUnavailableError`, but runs here since chromium is present).
+- `test/fixtures/video-playback.html` — NEW fixture: one autoplaying `<video src="clip.webm" muted>` (existing fixture file) + one broken-src `<video src="does-not-exist.mp4">`.
+- Docs: `CHANGELOG.md` `[Unreleased] > Added`; `README.md` tool list.
 
 **Out (not this run):**
-- No change to `src/page-checks.ts`, `audit_page`, `audit_url`, or any other tool.
-- No new rule/check (scores derive only from existing checks).
-- No browser/render path (pure HTML-string analysis).
-- No version bump / publish / push. Joins `feat/svg-color-compliance` + `feat/dropdown-menu-pattern` as a post-v1.12.0 `[Unreleased]` item.
+- No change to `capture.ts`, `contrast.ts`, `page-checks.ts`, `audit_page`, or any other tool.
+- No Ken-Burns / motion-content analysis (separate P3 ledger item).
+- No version bump / publish / push.
 
 ## Constrained valid values (the contract)
 
-### Category enum — EXACTLY these 7 assessed categories (the tagged rule namespaces `runPageChecks` emits), in this canonical order:
-`structure`, `typography`, `color`, `spacing`, `a11y`, `responsive`, `tokens`
-
-Display labels (1:1):
-- `structure` → "Structure"
-- `typography` → "Typography"
-- `color` → "Color & palette"
-- `spacing` → "Spacing & rhythm"
-- `a11y` → "Accessibility"
-- `responsive` → "Responsive layout"
-- `tokens` → "Design tokens"
-
-A category's issues are those whose `issue.rule` starts with `"<category>/"`.
-
-### Not-assessed enum — EXACTLY these 3 (named in the ledger, no mechanical signal exists):
-`brand`, `conversion`, `motion` — surfaced with a note steering callers to `evaluate_design` / `score_creative`. These carry NO numeric score.
-
-### Per-category score formula (deterministic):
-```
-penalty = (errors_in_category × 4) + (warnings_in_category × 2)
-score   = clamp(10 − penalty, 0, 10)   // integer
-```
-Truth table (must hold): 0 issues → 10; 1 warning → 8; 1 error → 6; 1 error+1 warning → 4; 2 errors → 2; 3+ errors → 0.
-
-### Overall (mirrors `audit_page` exactly — reuse the same arithmetic):
-```
-totalChecks = passes.length + issues.length
-failCount   = strict ? issues.length : errors.length   // strict default false
-score       = totalChecks > 0 ? round((totalChecks − failCount) / totalChecks × 100) : 100
-grade       = failCount === 0 ? "A" : failCount <= 2 ? "B" : failCount <= 4 ? "C" : "D"
-```
-
-### Tool input (Zod), mirroring `audit_page`:
-- `html` (string, required, non-empty)
-- `strict` (boolean, optional, default false) — count warnings as failures in the overall score
-- `containerMaxWidth` (number, optional) — forwarded to `runPageChecks` for the `responsive/max-width` check
-
-### `ScorePageResult` shape (the contract the test asserts):
+### Observation object (`VideoObservation`) — input to the pure classifier:
 ```ts
 {
-  overall: { score: number /*0-100*/, grade: "A"|"B"|"C"|"D", summary: string },
-  categories: Array<{            // length === 7, canonical order above
-    category: string,            // one of the 7 enum keys
-    label: string,               // matching display label
-    score: number,               // integer 0-10
-    errors: number,
-    warnings: number,
-    rationale: string            // one line; e.g. "2 errors, 1 warning" or "all checks passed"
-  }>,
-  weakest_category: string,      // category key with the lowest score (ties → first in canonical order)
-  not_assessed: { categories: string[] /* exactly ["brand","conversion","motion"] */, note: string }
+  selector: string,
+  hasSource: boolean,          // currentSrc non-empty OR a <source>/src present
+  readyState: number,          // 0..4 (HTMLMediaElement.readyState)
+  networkState: number,        // 0..3 (3 = NETWORK_NO_SOURCE)
+  errorCode: number,           // 0 = none, 1..4 = MEDIA_ERR_* 
+  paused: boolean,
+  autoplayBlocked: boolean,    // play() rejected with NotAllowedError
+  currentTimeStart: number,
+  currentTimeEnd: number
 }
 ```
 
+### State enum (EXACTLY these 5) and the classification order (first match wins):
+1. `error` — `errorCode > 0`. reason by code: 1→`aborted`, 2→`network-error`, 3→`decode-error`, 4→`src-not-supported`.
+2. `empty` — `hasSource === false` OR `networkState === 3`. reason `empty-src`.
+3. `playing` — `currentTimeEnd > currentTimeStart` (advanced past a 1e-3 epsilon) AND `paused === false`. reason `advancing`.
+4. `paused` — `readyState >= 3` (HAVE_FUTURE_DATA) AND not advancing. reason `autoplay-blocked` if `autoplayBlocked` else `paused`.
+5. `stalled` — fallthrough (has source, no error, `readyState < 3`, not advancing). reason `buffering-or-stalled`.
+
+"Renders black" (the user complaint) = any of `error` / `empty` / `stalled`. `playing` is the only fully-healthy state; `paused` is a soft state (loaded but not advancing — often autoplay policy).
+
+### `classifyVideoPlayback(obs)` returns:
+```ts
+{ selector, state: "playing"|"paused"|"stalled"|"empty"|"error", reason: string, advanced: boolean }
+```
+
+### `auditVideoPlaybackUrl(url, opts?)` (browser) returns `VideoPlaybackResult`:
+```ts
+{
+  url: string,
+  total_videos: number,
+  rows: Array<ReturnType<classify> & { readyState:number, errorCode:number, paused:boolean, currentTimeStart:number, currentTimeEnd:number }>,
+  playing_count: number,
+  not_playing_count: number,          // rows whose state !== "playing"
+  not_playing: Array<row>,            // the rows where state !== "playing"
+  summary: string
+}
+```
+- `opts.observeMs` (number, default 1000) — dwell time between `currentTime` samples after attempting play().
+- Throws `CaptureUnavailableError` when chromium is unavailable (same as contrast/capture).
+- For each `<video>`: record `currentTimeStart`, call `.play()` (catch NotAllowedError → `autoplayBlocked=true`), wait `observeMs`, record `currentTimeEnd`, read `readyState`/`networkState`/`error?.code`/`paused`/`currentSrc`, build the observation, classify.
+
+### Tool input (Zod):
+- `url` (string, optional) — render + observe.
+- `dom_snapshot` (array of `VideoObservation`, optional) — classify pre-collected observations without rendering (deterministic path; mirrors `audit_contrast`).
+- `observeMs` (number, optional) — forwarded to the browser path.
+- Exactly one of `url` / `dom_snapshot` required; if neither → a clear message.
+
 ## Acceptance criteria
 
-1. `src/score-page.ts` exports a pure `scorePage(html: string, opts?: { strict?: boolean; containerMaxWidth?: number }): ScorePageResult`; no I/O, no browser, no `page-checks.ts` edit.
-2. `categories` always has **exactly 7** entries in the canonical order, each with all keys present and `score` an integer in `[0,10]`.
-3. Per-category score obeys the penalty formula + truth table above.
-4. `overall.score`/`overall.grade` for a given `html`+`strict` are **byte-identical** to what `audit_page` computes for the same input (verified by computing both in the test from `runPageChecks`).
-5. `weakest_category` equals the category with the minimum score (first in canonical order on ties).
-6. `not_assessed.categories` deep-equals `["brand","conversion","motion"]`.
-7. A clean HTML fixture (no issues) → every category score 10, grade "A". An HTML fixture with a known a11y error (img missing alt) AND a known typography error (font < 13px) → `a11y` and `typography` scores drop per the formula while unrelated categories stay 10.
-8. `score_page` is registered in `src/index.ts` (importable tool), tool count 56 → 57; the handler returns the `ScorePageResult` as JSON text.
-9. `npm run build` clean; `npm test` fully green (existing suite + new `score-page.test.mjs`).
-10. `CHANGELOG.md` `[Unreleased] > Added` documents `score_page`; `README.md` lists it and bumps the count to 57.
+1. `src/video-playback.ts` exports a **pure** `classifyVideoPlayback(obs)` (no I/O/browser) and an async `auditVideoPlaybackUrl(url, opts?)`; imports the chromium loader the way `contrast.ts` does and throws `CaptureUnavailableError` (imported/re-used, not redefined) when chromium is absent. Does NOT edit `capture.ts`/`contrast.ts`/`page-checks.ts`.
+2. The classifier obeys the 5-state enum and the first-match-wins order above. Unit tests assert every state + reason path:
+   - errorCode 1/2/3/4 → `error` + the right reason;
+   - `hasSource:false` and `networkState:3` → `empty`/`empty-src`;
+   - currentTime advanced + not paused → `playing`/`advancing`;
+   - readyState≥3 not advancing + autoplayBlocked → `paused`/`autoplay-blocked`; without autoplayBlocked → `paused`/`paused`;
+   - has source, readyState<3, no advance, no error → `stalled`/`buffering-or-stalled`.
+3. Ordering guard: an observation that is BOTH `errorCode>0` AND advanced classifies as `error` (error wins over playing); an observation with `hasSource:false` but readyState 4 classifies as `empty` (empty wins over paused/playing).
+4. `advanced === (currentTimeEnd - currentTimeStart > 1e-3)` in the returned row.
+5. Browser path (`auditVideoPlaybackUrl`) over `test/fixtures/video-playback.html`: `total_videos === 2`; the broken-src `<video>` appears in `not_playing` classified `error` or `empty`; the result shape has all `VideoPlaybackResult` keys; `not_playing_count === not_playing.length`. (This test uses the `CaptureUnavailableError` graceful-skip guard like `contrast.test.mjs`; chromium is installed so it executes.)
+6. `dom_snapshot` path: the tool/handler classifies supplied observations without launching a browser and returns the same row/count shape.
+7. `audit_video_playback` registered in `index.ts`; tool count 56 → 57; handler returns the result as JSON text; requires exactly one of `url`/`dom_snapshot`.
+8. `npm run build` clean; `npm test` fully green (existing suite + new `video-playback.test.mjs`).
+9. `CHANGELOG.md` `[Unreleased] > Added` documents `audit_video_playback`; `README.md` lists it.
 
 ## File-level change plan
 
 | File | Change | Owner |
 |---|---|---|
-| `src/score-page.ts` | NEW — `scorePage()` pure module reusing `runPageChecks` | implementer |
-| `src/index.ts` | register `score_page` tool (import, Zod schema, handler, description); count 56→57 | implementer |
-| `test/score-page.test.mjs` | NEW — deterministic unit tests for AC 1–8 (no browser, no skip-guard exit pitfalls) | test-author |
-| `CHANGELOG.md` | `[Unreleased] > Added` entry for `score_page` | doc-updater |
-| `README.md` | add `score_page` to tool list; bump tool count to 57 | doc-updater |
+| `src/video-playback.ts` | NEW — pure `classifyVideoPlayback` + browser `auditVideoPlaybackUrl` | implementer |
+| `src/index.ts` | register `audit_video_playback` tool (import, Zod, handler, description); count 56→57 | implementer |
+| `test/fixtures/video-playback.html` | NEW — autoplay `clip.webm` + broken-src video | test-author |
+| `test/video-playback.test.mjs` | NEW — classifier unit tests (AC2–4) + browser test (AC5) + dom_snapshot (AC6) | test-author |
+| `CHANGELOG.md` | `[Unreleased] > Added` entry | doc-updater |
+| `README.md` | add `audit_video_playback` to the tools list | doc-updater |
 
 ## Verification plan
 
-- **Unit:** `node --test test/score-page.test.mjs` → all pass (proves AC 1–8). Test imports `dist/score-page.js` (after build) and also `dist/page-checks.js` to cross-check AC 4; assert exactly-7 categories, the penalty truth table, weakest-category, not_assessed deep-equal, and the clean/dirty fixtures.
-- **Full suite:** `npm run build && npm test` → 0 fail (AC 9), confirming no regression to audit_page/audit_url (page-checks.ts untouched).
-- **Eyes-on:** main loop calls `scorePage` on a real fixture and reads the JSON to confirm scores are sane (not just that it ran).
-- **Reviewer:** diff vs this SPEC; flag any `page-checks.ts` edit (out of scope), category-count/order drift, formula drift, missing AC, or overall-score divergence from audit_page.
+- **Unit (no browser):** `node --test test/video-playback.test.mjs` classifier cases prove AC 2–4 deterministically (the state machine is the load-bearing logic).
+- **Browser:** the `auditVideoPlaybackUrl` test over the new fixture proves AC 5 (finds both videos, broken one is not-playing) — runs because chromium is present; would skip gracefully otherwise.
+- **Full suite:** `npm run build && npm test` → 0 fail (AC 8), confirming no regression (capture.ts/contrast.ts/page-checks.ts untouched).
+- **Eyes-on:** main loop runs `auditVideoPlaybackUrl` on the fixture and reads the JSON — confirms `clip.webm` is `playing` (currentTime advanced) and the broken src is `error`/`empty`, not a false "playing".
+- **Reviewer:** diff vs this SPEC; flag any edit to capture.ts/contrast.ts/page-checks.ts (out of scope), classifier order/enum drift, the advanced-epsilon, or a tool other than the new one being altered.
 - **Main loop (me):** read the result, run the suite, parallel-instance collision re-check, then commit referencing SPEC.md (no push).

@@ -25,6 +25,7 @@ import { auditDeviceFrames, auditClipMotion, auditFrameEdges } from "./device-fr
 import { auditTypographyUrl, auditTypographySnapshot } from "./typography.js";
 import { auditTapTargetsUrl, auditTapTargetsSnapshot } from "./tap-targets.js";
 import { compactAuditPage, compactEvaluation, compactAuditUrl } from "./compact.js";
+import { auditVideoPlaybackUrl, auditVideoPlaybackSnapshot } from "./video-playback.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -5367,6 +5368,48 @@ server.tool(
         }]
       };
     }
+  }
+);
+
+// ── Tool 57: audit_video_playback ─────────────────────────────────
+
+server.tool(
+  "audit_video_playback",
+  "Render a page in headless Chromium and observe whether each <video> actually advances (samples currentTime before/after a play attempt), classifying every clip into playing|paused|stalled|empty|error with a reason. Catches black/non-playing videos that static audits miss — the most common real-world defect on marketing sites with video backgrounds. Pass url to render + observe, or dom_snapshot to classify pre-collected observations without a browser.",
+  {
+    url: z.string().optional().describe("URL to render and observe (http/https or file://). Requires headless chromium."),
+    dom_snapshot: z.array(z.object({
+      selector: z.string().describe("CSS selector identifying the video element"),
+      hasSource: z.boolean().describe("True if currentSrc is non-empty OR the element has a src attribute or <source> child"),
+      readyState: z.number().describe("HTMLMediaElement.readyState (0..4)"),
+      networkState: z.number().describe("HTMLMediaElement.networkState (0..3; 3=NETWORK_NO_SOURCE)"),
+      errorCode: z.number().describe("MediaError.code (0=none, 1=aborted, 2=network, 3=decode, 4=src-not-supported)"),
+      paused: z.boolean().describe("True if the element is paused"),
+      autoplayBlocked: z.boolean().describe("True if play() was rejected with NotAllowedError"),
+      currentTimeStart: z.number().describe("currentTime recorded before the play attempt"),
+      currentTimeEnd: z.number().describe("currentTime recorded after the observe window")
+    })).optional().describe("Pre-collected video observations to classify without rendering (deterministic path)"),
+    observeMs: z.number().optional().describe("Milliseconds to wait between currentTime samples after play() attempt. Default: 1000")
+  },
+  async function({ url, dom_snapshot, observeMs }) {
+    if (url !== undefined && url !== null) {
+      try {
+        var vr = await auditVideoPlaybackUrl(url, { observeMs: observeMs });
+        return { content: [{ type: "text" as const, text: JSON.stringify(vr, null, 2) }] };
+      } catch (error) {
+        if (error instanceof CaptureUnavailableError) {
+          return { content: [{ type: "text" as const, text: "audit_video_playback url mode needs headless chromium. Run: npx playwright install chromium — or pass a dom_snapshot instead." }] };
+        }
+        throw error;
+      }
+    }
+    if (dom_snapshot !== undefined && dom_snapshot !== null) {
+      // Same aggregator the browser path uses → identical VideoPlaybackResult
+      // shape (url is null since no page was rendered).
+      var snapResult = auditVideoPlaybackSnapshot(dom_snapshot, null);
+      return { content: [{ type: "text" as const, text: JSON.stringify(snapResult, null, 2) }] };
+    }
+    return { content: [{ type: "text" as const, text: "Provide either url (render + observe) or dom_snapshot (classify supplied observations). See tool schema for dom_snapshot field shapes." }] };
   }
 );
 
