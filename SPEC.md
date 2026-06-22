@@ -1,79 +1,83 @@
-# SPEC — SVG icon-color compliance check (tokens/svg-hardcoded-color)
+# SPEC — dropdown-menu pattern (closes GitHub #1)
 
 **Date:** 2026-06-21
-**Branch:** `feat/svg-color-compliance` (off `origin/main`)
-**Backlog rank this run:** #1 by (impact × reach) ÷ effort — low effort, deterministic (HTML-string, no browser), broad reach (inline SVG icons are ubiquitous). Closes a measurement blind spot in a shipped audit.
-**Source:** raven-opportunities ledger 2026-06-21 (P3): "audit_page tokens/no-bare-hex counts CSS declarations only, ignores SVG presentation attributes (stroke=/fill=); converting icons to currentColor is correct but invisible to the metric → extend no-bare-hex (and palette-size) to scan inline SVG stroke/fill attrs so design-system icon compliance is measured."
+**Branch:** `feat/dropdown-menu-pattern` (off `origin/main`)
+**Closes:** GitHub issue #1 (`knowledge-request`, open since 2026-04-19)
+**Backlog rank this run:** #1 by (impact × reach) ÷ effort — closes a long-open, fully-specified user issue; low effort (one auto-loaded JSON, no code change); broad reach (dropdowns/selects/menus are a core UI pattern the library currently lacks); deterministic verification.
 
 ---
 
 ## Problem statement
 
-The `audit_page` rule engine (`src/page-checks.ts`, shared by `audit_page` and `audit_url`) cannot see hardcoded colors in inline SVG icons:
-
-1. `tokens/no-bare-hex` (page-checks.ts:92–105) scans **only `<style>` blocks** and explicitly `continue`s on any line matching `/stroke|fill/` (line 99). Inline SVG presentation attributes like `<path fill="#3b82f6">` are never examined.
-
-So a design-system icon set converted to `fill="currentColor"` (the correct pattern — icons inherit text color and theme automatically) earns no credit, and an icon set that hardcodes `fill="#3b82f6"` (breaks theming, duplicates the palette) is never flagged. Icon-color compliance is invisible to the audit.
-
-(Note: `color/palette-size` at line 179 already scans the whole HTML for `#hex`, so SVG **hex** colors already count toward the palette — no change needed there. This run adds the missing **icon-compliance** signal, not a palette change.)
+Raven's pattern library (`src/data/patterns/*.json`, surfaced via `get_pattern`, `search_knowledge`, `get_checklist`) has **no coverage of dropdown / select menus** — one of the most common interactive components. Issue #1 requests a `dropdown-menu.json` pattern covering keyboard nav, focus management, ARIA semantics, mobile behavior, visual specifics, and do/don't lists grounded in NN/g, Baymard, and the WAI-ARIA Authoring Practices Guide.
 
 ## Goal / intent
 
-Add a new, deterministic `tokens/svg-hardcoded-color` check to `runPageChecks` that scans inline SVG presentation attributes (`fill`/`stroke`, including `style="fill:…"`) for **bare hardcoded colors** (hex / rgb() / hsl()) and warns when icons hardcode color instead of using `currentColor` or a token (`var(--…)`). Exempt the non-color and themeable keywords. No browser; pure HTML-string analysis. No change to existing rules or their thresholds.
+Author `src/data/patterns/dropdown-menu.json` to the existing pattern schema so dropdown/select/menu guidance becomes first-class and queryable. The loader (`loadJsonDir(PATTERNS_DIR)`, `src/index.ts:136`) auto-discovers it — **no code change**. Content must be accurate (correct ARIA role distinctions, real keyboard-interaction conventions) and grounded in cited sources without fabricating precise statistics.
 
 ## Scope
 
 **In:**
-- `src/page-checks.ts` — add the `tokens/svg-hardcoded-color` check inside `runPageChecks` (after the existing `tokens/no-bare-hex` block). Pure; appends to `passes`/`issues`.
-- `test/page-checks.test.mjs` — NEW test file importing `runPageChecks` from `dist/page-checks.js` (no existing page-checks test file).
-- Docs: README `audit_page` description note; CHANGELOG `[Unreleased] > Added`.
+- `src/data/patterns/dropdown-menu.json` — NEW pattern file (one pattern object with sub-patterns).
+- `test/patterns-data.test.mjs` — NEW data-integrity test (schema, load, dropdown-menu present, no-dup-id, topic coverage).
+- Docs: CHANGELOG `[Unreleased] > Added`; README patterns line mentions dropdown/menu.
 
 **Out (not this run):**
-- No change to `tokens/no-bare-hex` (CSS scan stays as-is — line 99 skip preserved), `color/palette-size`, or any other rule/threshold.
-- No new MCP tool, no param, no `index.ts` change (the rule flows through `audit_page`/`audit_url` automatically).
+- No `index.ts`/loader change (auto-discovered).
+- No new audit rule, no other pattern file edited.
 - No version bump / publish / push.
-- Named CSS colors (`red`, `white`) are NOT treated as violations this run (only numeric bare colors: hex/rgb/hsl) — keeps it precise and deterministic.
 
 ## Constrained valid values (the contract)
 
-### The check
-- **Where it scans:** only inside `<svg …>…</svg>` blocks (case-insensitive). Match each SVG block, then within it find every `fill` / `stroke` presentation attribute value AND any `fill:`/`stroke:` inside an inline `style="…"`.
-- **Counted as a hardcoded color** (a violation) iff the value matches one of:
-  - hex: `#[0-9a-fA-F]{3,8}`
-  - `rgb(` / `rgba(`
-  - `hsl(` / `hsla(`
-- **Exempt** (NOT counted), case-insensitive: `currentColor`, `none`, `transparent`, `inherit`, `unset`, `initial`, any `url(...)` reference (gradients/patterns), and any `var(--…)` token.
-- **Result:**
-  - 0 hardcoded → `passes.push("SVG icons use currentColor/tokens (N color attrs, 0 hardcoded)")` when at least one SVG color attr exists; if no SVG/color attrs exist at all, add nothing (silent — like the other conditional checks).
-  - ≥1 hardcoded → `issues.push({ severity: "warning", rule: "tokens/svg-hardcoded-color", message: "<count> inline SVG fill/stroke attribute(s) hardcode a color (" + uniqueValues.slice(0,8).join(", ") + ") instead of currentColor/token", fix: "Use fill=\"currentColor\" (or stroke=\"currentColor\") so icons inherit text color and theme; for multi-color brand logos that must keep fixed colors, this warning is expected." })`.
-- **Severity:** `warning` (never `error`) — multi-color brand logos legitimately hardcode colors, so this must not fail a strict audit's error count by default. (It WILL surface as an error only under `audit_page`'s existing `strict:true`, consistent with every other warning — acceptable and documented in the fix text.)
-- **Purity/safety:** operate on the `html` string already in scope; no mutation of shared state beyond `passes`/`issues`; no network/FS.
+### Pattern object schema (MUST match existing `src/data/patterns/*.json`, e.g. `modals-dialogs.json`)
+Top-level object (NOT an array — pattern files are a single object) with exactly these keys, all present and non-empty:
+- `id` (string, kebab-case) — MUST be `"dropdown-menu"`
+- `name` (string) — e.g. `"Dropdown and Select Menus"`
+- `category` (string) — use `"usability"` (matches modals-dialogs/navigation)
+- `summary` (string, one sentence)
+- `principles_referenced` (string[], ≥3) — reference real principle ids where possible (e.g. `recognition-rather-than-recall`, `consistency-and-standards`, `user-control-freedom`, `flexibility-efficiency`); non-resolving ids are non-fatal (used for search text) but prefer real ones.
+- `patterns` (array, ≥5 objects) — each object has: `name` (string), `description` (string), `do` (string[], ≥4), `dont` (string[], ≥4), `evidence` (string, non-empty).
+- `checklist` (string[], ≥10) — actionable yes/no pre-ship items.
+
+### Required topic coverage (from issue #1) — must be substantively addressed across `patterns[]` / `checklist`
+1. **Keyboard navigation** — arrow keys to move, type-ahead to jump, Escape to close, Tab/Shift-Tab to move focus out, Enter/Space to select/open.
+2. **Focus management** — on open (first/selected item vs trigger-retained) and on close (return focus to trigger).
+3. **ARIA semantics** — the distinction between `role="listbox"` (single/multi select of values), `role="menu"`/`menuitem` (action commands), and `role="combobox"` (text input + popup), and **when to use each** (selecting a value → listbox/combobox; firing a command → menu).
+4. **Mobile touch** — native `<select>` vs custom; when a bottom-sheet overlay beats an inline dropdown.
+5. **Visual** — min-width matching the trigger, max-height with internal scroll, a selected-item indicator, hover vs active/focus states.
+6. **Evidence/do-don't** — cite NN/g, Baymard, and/or WAI-ARIA APG. Use directional/qualitative findings; do NOT invent precise percentages that can't be attributed.
+
+### Suggested `patterns[]` decomposition (author may refine, must keep ≥5 and cover all 6 topics)
+- "Select menu (choosing a value)" — listbox/combobox semantics, selected indicator, min-width.
+- "Action menu (commands)" — menu/menuitem semantics, not for value selection.
+- "Keyboard interaction & type-ahead" — full key map.
+- "Focus management" — open/close focus rules, focus trap vs roving tabindex.
+- "Mobile dropdowns" — native select vs custom vs bottom sheet.
+- "Overflow & sizing" — max-height/scroll, min-width match, placement/flip.
 
 ## Acceptance criteria
 
-1. A new `tokens/svg-hardcoded-color` check exists in `runPageChecks` and runs for both `audit_page` and `audit_url` (shared engine) with no other rule changed.
-2. `<svg><path fill="#3b82f6"/></svg>` → a `tokens/svg-hardcoded-color` warning; message includes `#3b82f6` and count 1.
-3. `<svg><path fill="currentColor"/><circle stroke="var(--icon)"/></svg>` → NO warning; a pass string is present mentioning 0 hardcoded.
-4. Exemptions: `fill="none"`, `stroke="none"`, `fill="transparent"`, `fill="inherit"`, `fill="url(#grad)"`, `stroke="var(--c)"` → none counted (no warning).
-5. `stroke="rgb(0,0,0)"` and inline `style="fill:#fff"` inside an SVG → counted (warning, count reflects both).
-6. A `fill="#fff"` that appears **outside** any `<svg>` block (e.g. coincidental text) is NOT counted by this rule.
-7. Multiple hardcoded values are de-duplicated in the message and counted correctly; `>8` distinct values are truncated in the message but the count is the full total.
-8. Existing behavior intact: a page with no SVG produces no new finding; `tokens/no-bare-hex`, `color/palette-size`, and all other rule outputs are unchanged (existing checks’ pass/issue strings byte-identical).
-9. `npm run build` clean; `npm test` fully green — existing suite + the new `page-checks.test.mjs`.
-10. CHANGELOG `[Unreleased] > Added` + README `audit_page` note document the new check.
+1. `src/data/patterns/dropdown-menu.json` exists and is **valid JSON** (a single object, not an array) parseable by `JSON.parse`.
+2. Schema: all keys above present & non-empty; `patterns` has ≥5 entries each with `name`/`description`/non-empty `do[]`(≥4)/`dont[]`(≥4)/`evidence`; `checklist` has ≥10 items; `principles_referenced` ≥3.
+3. `id === "dropdown-menu"`; no duplicate `id` across `src/data/patterns/*.json`.
+4. **Topic coverage (drift/quality guard):** the concatenated text of the file contains evidence of every required topic — case-insensitive matches for: `listbox`, `menu`, `combobox`, `type-ahead` (or `typeahead`/`type ahead`), `escape`, `bottom sheet` (or `bottom-sheet`), `max-height` (or `max height`), and `currentColor`-free (n/a). Concretely the test asserts presence of: `/listbox/i`, `/role="?menu/i` or `/\bmenu(item)?\b/i`, `/combobox/i`, `/type[- ]?ahead/i`, `/escape/i`, `/bottom[- ]?sheet/i`, `/max-?height/i`, `/native\s+(<)?select/i`.
+5. The pattern is reachable through the live loader: after `npm run build`, a `search_knowledge`-style scan / `allPatterns` load includes a pattern with `id === "dropdown-menu"` (verified by reading the file the loader reads + asserting it parses; if `allPatterns` is exported/importable, assert membership, else assert the file is in `PATTERNS_DIR` and valid).
+6. Content accuracy: ARIA section correctly distinguishes listbox vs menu vs combobox and says when to use each (the test checks all three role terms co-occur; reviewer checks correctness).
+7. `npm run build` clean; `npm test` fully green — existing suite + new `patterns-data.test.mjs`.
+8. CHANGELOG `[Unreleased] > Added` documents the pattern (mention "Closes #1"); README patterns line mentions dropdown/select menus.
 
 ## File-level change plan
 
 | File | Change | Owner |
 |---|---|---|
-| `src/page-checks.ts` | add `tokens/svg-hardcoded-color` check after the `no-bare-hex` block; no other rule touched | implementer |
-| `test/page-checks.test.mjs` | NEW — warn/pass/exemptions/scope/dedup/no-svg cases via `runPageChecks` | test-author |
-| `CHANGELOG.md` | `[Unreleased] > Added` entry | doc-updater |
-| `README.md` | extend the `audit_page` row to mention inline-SVG icon-color compliance | doc-updater |
+| `src/data/patterns/dropdown-menu.json` | NEW — dropdown/select/menu pattern, ≥5 sub-patterns, ≥10 checklist, all 6 topics | implementer |
+| `test/patterns-data.test.mjs` | NEW — schema + load + no-dup-id + topic-coverage tests over `src/data/patterns/*.json` | test-author |
+| `CHANGELOG.md` | `[Unreleased] > Added` entry (Closes #1) | doc-updater |
+| `README.md` | extend the patterns bullet to name dropdown/select menus | doc-updater |
 
 ## Verification plan
 
-- **Targeted:** `node --test test/page-checks.test.mjs` → all pass (proves AC 1–8).
-- **Full suite:** `npm run build && npm test` → 0 fail (AC 9), confirming no existing check regressed (esp. no-bare-hex / palette-size).
-- **Reviewer:** diff vs this SPEC; flag any change to an existing rule/threshold, any non-SVG-scoped match (AC 6), any value mis-classified (exempt list), severity != warning, or any index.ts/tool change (should be none).
-- **Main loop (me):** read merged diff, run suite, parallel-instance collision re-check, then commit referencing SPEC.md (no push/PR). This becomes a post-v1.12.0 `[Unreleased]` item (will ride the next release after v1.12.0).
+- **Schema/load/coverage:** `node --test test/patterns-data.test.mjs` → all pass (proves AC 1–6).
+- **Full suite:** `npm run build && npm test` → 0 fail (AC 7), confirming the new file loads cleanly with the others (a malformed JSON would be silently skipped by `loadJsonDir`, so the test parses it explicitly to catch that).
+- **Reviewer:** diff vs SPEC; flag schema drift, missing topic coverage, ARIA inaccuracy (listbox vs menu vs combobox misuse), fabricated statistics, or any out-of-scope edit (no code/loader/other-pattern change).
+- **Main loop (me):** read the file, run the suite, parallel-instance collision re-check, then commit referencing SPEC.md + "Closes #1" (no push). Post-v1.12.0 `[Unreleased]` item.

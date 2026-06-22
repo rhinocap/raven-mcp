@@ -1,0 +1,150 @@
+{
+  "id": "dropdown-menu",
+  "name": "Dropdown and Select Menus",
+  "category": "usability",
+  "summary": "Patterns for dropdown and select menus — covering ARIA role distinctions (listbox, menu, combobox), keyboard navigation, focus management, mobile behaviour, and visual sizing — so interactive menus are accessible, predictable, and reliable across devices.",
+  "principles_referenced": [
+    "hicks-law",
+    "millers-law",
+    "fitts-law",
+    "jakobs-law",
+    "user-control-freedom",
+    "doherty-threshold"
+  ],
+  "patterns": [
+    {
+      "name": "Select menu (choosing a value)",
+      "description": "A control that expands a list of options so the user can pick one value. Use role=\"listbox\" (with role=\"option\" on each item) for a custom single- or multi-select, or the native <select> element for the simplest case. A combobox (text input + popup) is appropriate when the list is long enough to need filtering. The selected item must be visually marked (checkmark, bold, or highlight) and reflected in the trigger label. The popup's min-width should match or exceed the trigger's width so options never feel cramped.",
+      "do": [
+        "Use role=\"listbox\" + role=\"option\" on each item for custom single- or multi-select of a value; set aria-selected=\"true\" on the chosen option",
+        "Use a native <select> when no custom styling or filtering is required — it is fully accessible and reliable on all platforms by default",
+        "Use role=\"combobox\" (with aria-haspopup=\"listbox\" and aria-expanded) when a text input filters the list, reflecting the ARIA combobox pattern",
+        "Reflect the currently selected value in the trigger button label so users know what is chosen without opening the popup",
+        "Set the popup min-width to at least the trigger width so short options do not feel misaligned",
+        "Mark the selected option with a visible indicator (checkmark icon, bold weight, or contrasting background) inside the open list"
+      ],
+      "dont": [
+        "Do not use role=\"menu\"/role=\"menuitem\" for a value-selection control — menu is for commands, not for choosing among options that persist as state",
+        "Do not leave the trigger label unchanged after selection — users cannot tell what they picked without re-opening the dropdown",
+        "Do not set the popup to a fixed width narrower than the trigger — long option text will clip invisibly",
+        "Do not omit aria-selected on options in a listbox — screen readers cannot report which item is chosen",
+        "Do not open the popup on hover without a click/keyboard trigger — hover-open is unreliable on touch devices and conflicts with keyboard access",
+        "Do not use a listbox to fire commands or navigate to pages — that is the role of a menu"
+      ],
+      "evidence": "WAI-ARIA Authoring Practices Guide (APG) specifies the listbox pattern as the correct role for selecting among a set of values, with aria-selected to reflect the chosen state. The APG combobox pattern is specified for a text input that controls a popup list. Baymard Institute research finds custom select controls that break the native keyboard/type-ahead experience cause measurable form-abandonment increases on long option lists, particularly in checkout flows."
+    },
+    {
+      "name": "Action menu (commands)",
+      "description": "A popup that exposes a list of commands or actions — not a list of selectable values. Use role=\"menu\" on the container and role=\"menuitem\" (or role=\"menuitemcheckbox\" / role=\"menuitemradio\" for toggles) on each item. Action menus are triggered from buttons (e.g. a 'More options' or '...' button). The key distinction: a menu fires commands; a listbox/combobox picks a value. Conflating the two breaks screen-reader announcement and keyboard expectations.",
+      "do": [
+        "Use role=\"menu\" + role=\"menuitem\" exclusively for commands that perform an action (delete, share, rename, export) — not for choosing a setting value",
+        "Set aria-haspopup=\"menu\" on the trigger button so assistive technology announces it as a menu button",
+        "Set aria-expanded=\"true\"/\"false\" on the trigger to reflect open/closed state",
+        "Use role=\"menuitemcheckbox\" or role=\"menuitemradio\" (within a role=\"group\") when a menu item toggles or represents a radio-style option within an action context",
+        "Keep menu items to single, clearly-named actions — avoid vague labels like 'More' inside a menu"
+      ],
+      "dont": [
+        "Do not use role=\"menu\" to select a value that persists as form state — use listbox or combobox instead",
+        "Do not use role=\"option\" inside a menu — options belong to listboxes; menus use menuitems",
+        "Do not mix value-selection and command-triggering in the same popup without a clear visual separator — it confuses the semantic contract",
+        "Do not place navigation links (anchor elements that change the route) inside a role=\"menu\" without considering that screen readers announce menu items differently from links",
+        "Do not omit aria-haspopup on the trigger — users of assistive technology have no signal that a menu will appear"
+      ],
+      "evidence": "WAI-ARIA APG defines the menu button pattern specifically for triggering commands, distinguishing it from the listbox and combobox patterns used for value selection. Nielsen Norman Group notes that conflating command menus with select controls creates confusion because keyboard behaviour and screen-reader announcements differ between the two patterns."
+    },
+    {
+      "name": "Keyboard interaction and type-ahead",
+      "description": "Dropdowns must be fully operable by keyboard. The key map differs slightly between listbox and menu patterns, but the core expectations are shared: arrow keys navigate items, type-ahead jumps to a matching item, Enter/Space activates, and Escape closes.",
+      "do": [
+        "Move focus to the next/previous item with ArrowDown/ArrowUp; jump to first/last item with Home/End",
+        "Implement type-ahead: when the user presses a printable character, advance focus to the next item whose visible label starts with that character (or matches a buffered multi-character string within a ~500 ms window)",
+        "Activate the focused option with Enter (listbox/combobox: selects the value; menu: triggers the command)",
+        "Allow Space to open a closed select/combobox trigger and to activate a focused menuitem; in a listbox Space toggles multi-select",
+        "Close the popup and return focus to the trigger on Escape — this is a firm user expectation across all dropdown variants",
+        "Allow Tab / Shift+Tab to move focus out of the popup and close it, moving to the next/previous focusable element in the page"
+      ],
+      "dont": [
+        "Do not require a mouse to operate the dropdown — every interaction must be achievable by keyboard alone",
+        "Do not trap focus inside the popup so that Tab can never leave — dropdowns are not dialogs and must not be focus-trapped",
+        "Do not ignore type-ahead — omitting it forces keyboard users to arrow through every option in a long list, which Baymard research identifies as a leading cause of abandonment on long select menus",
+        "Do not let Escape perform a destructive or irreversible action — it must only close the popup",
+        "Do not move focus to a random or unpredictable item on open — predictability is essential for screen reader users"
+      ],
+      "evidence": "WAI-ARIA APG specifies full keyboard interaction for listbox, combobox, and menu patterns including ArrowDown/Up, Home/End, type-ahead, Enter/Space, and Escape as normative requirements. Nielsen Norman Group's keyboard-navigation research shows that type-ahead support is expected by keyboard-primary users and its absence is a meaningful accessibility barrier on selects with more than 10 options."
+    },
+    {
+      "name": "Focus management",
+      "description": "When a dropdown opens, focus must move in a predictable way; when it closes, focus must return to the trigger. Two valid strategies exist for open-state focus: (1) focus moves into the list — each item is focusable via roving tabindex (one item in the tab sequence at a time, updated as the user arrows through); (2) focus stays on the trigger — the trigger uses aria-activedescendant referencing the id of the currently active option, and items are not individually focusable. Both are valid per the APG; choose one consistently.",
+      "do": [
+        "On open, move focus to the first item or the previously selected item in the list (roving-tabindex strategy), OR keep focus on the trigger and set aria-activedescendant to the active option's id (activedescendant strategy) — pick one and apply it consistently",
+        "On close (Escape, selection, or clicking outside), return focus to the trigger element that opened the popup",
+        "If using roving tabindex, only one item should be in the tab sequence at a time (tabindex=\"0\" on the active item, tabindex=\"-1\" on all others); update as the user moves through the list",
+        "If using aria-activedescendant, ensure the referenced element has a unique id and that the popup container has aria-owns or the items are DOM children of the container",
+        "Scroll the active item into view when it changes via keyboard — do not let items go out of sight within the scrollable list"
+      ],
+      "dont": [
+        "Do not leave focus behind on a page element when the dropdown opens — keyboard users cannot see or reach the list",
+        "Do not fail to return focus to the trigger on close — users lose their place in the page",
+        "Do not trap Tab inside the dropdown — pressing Tab should exit the popup and advance through the page",
+        "Do not give every list item tabindex=\"0\" simultaneously — this puts all items in the tab order and forces users to Tab through the entire list to exit",
+        "Do not rely on CSS :focus-visible alone to communicate the active item in a list — use aria-activedescendant or actual focus movement so screen readers track the selection"
+      ],
+      "evidence": "WAI-ARIA APG documents both the roving tabindex and aria-activedescendant strategies as valid focus-management approaches for composite widgets including listbox and menu. Nielsen Norman Group's accessibility research identifies broken focus return (focus lost after close) as one of the most common and disorienting keyboard-access failures in dropdown components."
+    },
+    {
+      "name": "Mobile dropdowns",
+      "description": "On touch devices, custom dropdown controls frequently fail because they rely on hover states, require precise tapping of small targets, or lack the type-ahead and keyboard shortcuts native controls provide. A native <select> is the most reliable choice on mobile. When a custom experience is required (e.g. multi-select with checkboxes, or items with icons and descriptions), a bottom-sheet overlay is almost always a better mobile pattern than an inline dropdown that opens downward from a small trigger.",
+      "do": [
+        "Use a native <select> element on mobile whenever the options are a simple flat list — it surfaces the platform's native picker (iOS wheel picker, Android dialog), which is optimised for touch",
+        "When custom UI is necessary, trigger a bottom-sheet (modal sheet anchored to the bottom of the viewport) on mobile breakpoints instead of a small inline dropdown — the larger surface is easier to tap and scroll",
+        "Ensure all interactive items in a custom mobile dropdown have a minimum touch target of 44×44 points (iOS HIG) / 48×48 dp (Android) — smaller targets lead to mis-taps",
+        "Provide a clear dismiss affordance for bottom-sheet dropdowns (a drag handle, a close button, or tapping the scrim) so users can easily exit",
+        "Test tap target sizes and scroll behaviour on a real device — emulators do not accurately reproduce touch precision or momentum scrolling"
+      ],
+      "dont": [
+        "Do not build a custom dropdown on mobile that relies on hover states or fine pointer precision — touch does not have hover and finger precision varies",
+        "Do not open a small inline dropdown that clips the viewport — options below the fold become unreachable without an internal scroll that users may not discover",
+        "Do not leave touch targets below 44pt/44dp — undersized targets cause mis-taps and frustrate users, especially on one-handed use",
+        "Do not remove the native <select> and replace it with a custom control on mobile unless the custom control provides a demonstrably better experience — native is accessible, familiar, and zero-maintenance",
+        "Do not overlay a bottom sheet on top of another modal without a clear navigation stack — stacked overlays disorient mobile users"
+      ],
+      "evidence": "Nielsen Norman Group research finds that native <select> elements on mobile are preferred by users because they leverage platform-native pickers optimised for touch interaction. Baymard Institute usability testing of e-commerce forms identifies custom select controls that do not adapt for mobile as a consistent friction point, particularly when options are long or numerous and the dropdown clips the screen."
+    },
+    {
+      "name": "Overflow, sizing, and placement",
+      "description": "A dropdown that clips its own content, extends off-screen, or repositions unexpectedly on open destroys usability. The popup needs a defined max-height with internal scroll for long lists, a min-width that matches or exceeds the trigger, and placement logic that flips or repositions when the popup would overflow the viewport.",
+      "do": [
+        "Set max-height on the popup with overflow-y: auto so long lists scroll internally rather than extending off-screen — a common guideline is to cap at roughly half the viewport height",
+        "Set min-width to at least the trigger's computed width so short option text does not look misaligned under a wide trigger",
+        "Implement flip/reposition logic: if the popup would extend below the viewport when opening downward, open it upward instead; for horizontal overflow, shift the popup inward from the viewport edge",
+        "Show a visual scroll affordance (a subtle shadow or fade at the bottom of the list) when the list is scrollable, so users know there are more options",
+        "Keep the popup's z-index high enough to appear above all page content, including sticky headers and other positioned elements"
+      ],
+      "dont": [
+        "Do not let the popup extend off the bottom or side of the viewport without repositioning — off-screen options are completely inaccessible",
+        "Do not set a fixed width narrower than the trigger — if the trigger says 'United States' and the popup is 80px wide, the option text clips",
+        "Do not set max-height so small that only 2-3 options are visible without scrolling — provide at least 5-6 visible options before scrolling begins",
+        "Do not rely on overflow: visible on a parent container — it will allow the popup to escape scroll containers and display incorrectly relative to the trigger",
+        "Do not forget to reposition when the viewport is resized or when the trigger is near the edge — placement should be computed at open time, not hardcoded"
+      ],
+      "evidence": "Nielsen Norman Group dropdown usability guidelines recommend a visible list of 5-8 items before scrolling and min-width matching the trigger as best practice for readable, predictable dropdowns. WAI-ARIA APG notes that the popup must remain within the visual viewport to be usable; repositioning ('flip') logic is cited as a standard implementation requirement for production dropdown components."
+    }
+  ],
+  "checklist": [
+    "Is role=\"listbox\" + role=\"option\" used for value-selection, and role=\"menu\" + role=\"menuitem\" used for commands — not interchanged?",
+    "Does the trigger have aria-haspopup (\"listbox\", \"menu\", or \"dialog\" as appropriate) and aria-expanded reflecting open/closed state?",
+    "Is the selected option marked with aria-selected=\"true\" (listbox) or aria-checked (menuitemcheckbox)?",
+    "On open, does focus move to the first/selected item (roving-tabindex) or does aria-activedescendant reference the active item (activedescendant strategy)?",
+    "On close (Escape, selection, or outside click), does focus return to the trigger element?",
+    "Do ArrowDown/ArrowUp navigate items, and do Home/End jump to first/last?",
+    "Is type-ahead implemented so pressing a letter advances focus to the next matching option?",
+    "Does Escape close the popup without any destructive side effect?",
+    "Does Tab/Shift+Tab exit the popup and close it, moving to the next page element?",
+    "Does the popup have a max-height with overflow-y: auto so long lists scroll internally?",
+    "Is the popup min-width at least the trigger width?",
+    "Does the popup flip or reposition when it would overflow the viewport edge?",
+    "On mobile, is a native <select> used for simple flat lists, or a bottom-sheet for custom controls?",
+    "Are all touch targets in a custom mobile dropdown at least 44×44 points / 48×48 dp?",
+    "Is the currently selected value reflected in the trigger label after selection?"
+  ]
+}
