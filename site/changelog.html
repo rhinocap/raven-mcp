@@ -215,6 +215,36 @@
 
     <article class="release">
       <header class="release-head">
+        <h2>v1.12.0</h2>
+        <span class="badge badge-minor">minor</span>
+        <time datetime="2026-06-21T18:00:00-07:00">Jun 21, 2026</time>
+      </header>
+      <div class="release-body">
+        <p>Raven v1.12.0 — compact audit responses + truer contrast measurement</p>
+
+<h3>Added</h3>
+<ul>
+<li><code>compact</code> response mode for <code>audit_page</code>, <code>evaluate_design</code>, and <code>audit_url</code> — pass <code>compact: true</code> to get back just the scores, violations, and fix priorities, dropping embedded screenshots and full principle bodies for a far lighter payload. Off by default.</li>
+<li><code>suggest_contrast_fix</code> — given failing WCAG color pairs, returns the minimal foreground (or background) change that clears the AA/AAA target, with the achieved ratio. Pairs directly with <code>audit_contrast</code>.</li>
+</ul>
+
+<h3>Changed</h3>
+<ul>
+<li><code>audit_contrast</code> now composites each text element's background over its full ancestor stack instead of a single layer over white — eliminating false AA failures on dark and layered UIs (e.g. a translucent pill over a dark hero) and reporting the true effective background. Existing single-background callers are unchanged.</li>
+</ul>
+
+<p><strong>Install:</strong></p>
+<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
+
+
+      </div>
+      <footer class="release-foot">
+        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.12.0" target="_blank" rel="noopener">View on GitHub &rarr;</a>
+      </footer>
+    </article>
+
+    <article class="release">
+      <header class="release-head">
         <h2>v1.11.0</h2>
         <span class="badge badge-minor">minor</span>
         <time datetime="2026-06-21T17:45:00-07:00">Jun 21, 2026</time>
