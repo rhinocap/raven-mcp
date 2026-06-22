@@ -6,6 +6,9 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+### Added
+- `suggest_contrast_fix` tool — given failing WCAG color pairs, returns the minimal foreground (or background) change that clears the AA/AAA target ratio, with the achieved ratio and direction. Pairs directly with `audit_contrast` output.
+
 ## [1.11.0] - 2026-06-21
 
 ### Added

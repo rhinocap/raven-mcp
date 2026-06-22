@@ -1,104 +1,106 @@
-# SPEC — Palette-size & spacing-scale discipline principles
+# SPEC — suggest_contrast_fix: minimal WCAG-passing color remediation
 
 **Date:** 2026-06-21
-**Branch:** `knowledge/palette-spacing-principles` (off `origin/main`)
-**Closes:** GitHub issues #3, #4, #7, #8, #11, #12, #13, #14, #19 (nine open `knowledge-request` issues)
-**Backlog rank this run:** #1 by (impact × reach) ÷ effort — two knowledge files close up to nine issues that have recurred monthly since 2026-04-19.
+**Branch:** `feat/contrast-remediation` (off `origin/main`)
+**Backlog rank this run:** #1 by (impact × reach) ÷ effort. Natural follow-on to this session's contrast compositing fix — and unlike the other P1 contender (score_page), it has **objective WCAG ground truth**, so acceptance criteria are deterministic, not a self-defined rubric.
+**Source:** raven-opportunities ledger 2026-06-20 (P2): "No tool to find the MINIMAL token lift that clears AA across every surface a token touches — I brute-forced candidate greys live in the browser. → audit_contrast 'remediation mode': given a failing fg token + its surfaces, return the minimal passing value (and/or suggest darkening the chip bg) with margin."
 
 ---
 
 ## Problem statement
 
-Raven's weekly self-audit repeatedly fires three rules on Raven's own generated demos:
-
-- `color/palette-size` — pages ship 11+ distinct hex colors (hierarchy breaks down past ~10).
-- `spacing/base-unit` — only ~80% of spacing values sit on a 4/8px grid.
-- `spacing/scale-count` — pages use 15–19 unique spacing values (rhythm breaks down past ~7).
-
-The **audit rules already exist and fire** (`src/page-checks.ts`). What is missing is the **principle knowledge** that `get_principles`, `search_knowledge`, and `evaluate_design` surface — so the generator/planner can reference the discipline, and findings can be grounded. Each auto-filed issue explicitly requests a principle file under `src/data/principles/`. Because the knowledge does not exist, the self-audit re-files the same request every cycle (six palette issues, three spacing issues).
+`audit_contrast` reports *which* text fails WCAG and the delta-to-pass, but not *what value to use instead*. When a foreground token fails against one or more surfaces, the designer currently brute-forces candidate colors by hand in the browser until the ratio clears. There is no tool that, given a failing fg/bg pair and a target level, returns the **minimal color change** that reaches the target ratio.
 
 ## Goal / intent
 
-Add two principle JSON files to the knowledge base so palette-size and spacing-scale discipline become first-class, queryable principles whose guidance **exactly matches the thresholds the audit rules enforce**. No new audit rules; no code changes needed (loader auto-discovers files).
+Add a pure, deterministic remediation helper + a thin MCP tool that, for each failing `{fg, bg}` pair, returns the **smallest adjustment** to the foreground (and, as an alternative, to the background) that meets the WCAG target ratio — with the achieved ratio and margin. Ground truth is the existing `contrastRatio`/`relativeLuminance` math, so every result is objectively verifiable.
 
 ## Scope
 
 **In:**
-- `src/data/principles/color-systems.json` — palette-size + role-based color discipline (1 principle).
-- `src/data/principles/spacing-systems.json` — spacing base-unit + limited-scale discipline (2 principles).
-- A data-integrity test that validates both files (schema, load, threshold alignment).
-- Docs: CHANGELOG `[Unreleased]`, README principle line, `get_principles` category enumeration in the tool description.
+- **`src/contrast.ts`** — NEW pure exported `suggestContrastFix(fg, bg, opts?)`. Reuses existing `parseColor`, `relativeLuminance`, `contrastRatio`. No change to any existing function.
+- **`src/index.ts`** — NEW tool `suggest_contrast_fix` (takes an array of pairs, returns per-pair fixes + a summary). Tool count 56 → 57.
+- **`test/contrast.test.mjs`** — extend with `suggestContrastFix` cases (deterministic).
+- **Docs:** README tool list + CHANGELOG `[Unreleased] > Added`.
 
-**Out (explicitly not this run):**
-- No new audit rules or changes to `src/page-checks.ts` logic.
-- No `index.ts` loader changes (it already auto-loads every `.json` in the dir via `loadJsonDir`).
-- No demo-page regeneration, no fixing the demos that trip the rules.
-- No version bump / npm publish / push / PR (commit only).
-
-## Reuse note
-
-Adapt the high-quality draft principle text already authored on the stale branches `origin/knowledge/issue-13-*` (`spacing-systems.json`) and `origin/knowledge/issue-14-*` (`color-palette-discipline.json`) — do **not** reinvent the prose. Reconcile to the final filenames/categories/thresholds below.
+**Out (not this run):**
+- No change to `audit_contrast` itself, the contrast math, or any other tool.
+- No marketing-site edit (the separate marketing-site-sync loop owns the 56→57 site bump).
+- No version bump / publish / push beyond the commit.
+- No multi-surface solver across N backgrounds in one call beyond what falls out of calling per pair (the tool accepts many pairs; "minimal lift across every surface a token touches" is the caller feeding all that token's failing pairs and taking the darkest/lightest returned fg — documented, not a new solver this run).
 
 ## Constrained valid values (the contract)
 
-### Principle object schema (must match existing `src/data/principles/*.json`)
-Every principle object MUST have exactly these keys, all present and non-empty:
-- `id` (string, kebab-case)
-- `name` (string)
-- `category` (string — see below)
-- `summary` (string, one sentence)
-- `description` (string, paragraph)
-- `implications` (string[], ≥4 items)
-- `violations` (string[], ≥3 items)
-- `applies_to` (string[], ≥3 items)
-- `sources` (string[], ≥1 item)
+### `suggestContrastFix(fg: string, bg: string, opts?): SuggestContrastFix`
+- `fg`, `bg`: any CSS color string `parseColor` accepts. Both are reduced to opaque before solving: if `fg` alpha < 1, composite `fg` over `bg`; if `bg` alpha < 1, composite `bg` over white. Reuse `parseColor`.
+- `opts.targetRatio?: number` — explicit target; when set, overrides the level/size-derived target.
+- `opts.level?: "AA" | "AAA"` — default `"AA"`.
+- `opts.fontPx?: number`, `opts.bold?: boolean` — used only to pick the large-text threshold when `targetRatio` is not given.
+- **Target derivation** (when `targetRatio` absent): text is "large" if `fontPx >= 24` OR (`fontPx >= 18.66` AND `bold`). Targets: AA → large `3.0`, normal `4.5`; AAA → large `4.5`, normal `7.0`.
 
-### File 1 — `src/data/principles/color-systems.json`
-JSON array with **one** principle:
-- `id`: `"color-palette-discipline"`
-- `category`: `"color-systems"`
-- Threshold alignment (MUST appear verbatim-as-numbers in `summary`/`description`/`implications`):
-  - Page-level cap: **≤10 distinct colors** (matches `color/palette-size`: passes when `uniqueHex.length <= 10`). Target ~6–8 core + neutrals.
-  - Role-based token set to name explicitly (satisfies #4/#8): `surface`, `surface-raised`, `border`, `text`, `text-muted`, `accent`, `accent-hover`, `success`, `warning`, `danger`.
-  - Variation via opacity/alpha/HSL shifts, NOT new hues; near-duplicate hexes still count.
-- `applies_to` MUST include: `"color"`, `"design-tokens"`, `"design-system"`, `"visual-hierarchy"`.
+Return shape (`SuggestContrastFix`):
+```
+{
+  fg: string,                 // normalized opaque "rgb(r, g, b)"
+  bg: string,                 // normalized opaque "rgb(r, g, b)"
+  currentRatio: number,       // rounded to 2 decimals
+  targetRatio: number,
+  passes: boolean,            // currentRatio >= targetRatio (already OK)
+  fgFix: {                    // present only when !passes
+    color: string,            // "rgb(r, g, b)", minimal fg change reaching target
+    ratio: number,            // achieved ratio (>= targetRatio when reachable), 2 dp
+    direction: "lighter" | "darker"
+  } | null,
+  bgFix: {                    // present only when !passes
+    color: string,
+    ratio: number,
+    direction: "lighter" | "darker"
+  } | null,
+  reachable: boolean,         // true if a fix reaching target exists (else best-effort returned)
+  recommendation: string
+}
+```
 
-### File 2 — `src/data/principles/spacing-systems.json`
-JSON array with **two** principles:
-- Principle A: `id`: `"spacing-base-unit"`, `category`: `"spacing-systems"`
-  - Threshold: every margin/padding/gap is a **multiple of 8px (4px half-step)** (matches `spacing/base-unit`: ≥90% on a 4 or 8px grid). Off-grid offenders to name: 6, 10, 14, 18, 36, 80, 120px.
-- Principle B: `id`: `"spacing-scale-count"`, `category`: `"spacing-systems"`
-  - Threshold: expose a **≤7-token scale** (matches `spacing/scale-count`: passes when `uniqueSpacings.length <= 7`); recommend the 5–7 token scale `4, 8, 12, 16, 24, 32, 48`.
-- `applies_to` for both MUST include: `"spacing"`, `"design-tokens"`, `"layout"`.
+### Algorithm (deterministic)
+- Compute `currentRatio`. If `>= targetRatio` → `passes:true`, `fgFix:null`, `bgFix:null`, `reachable:true`, recommendation "already passes".
+- Otherwise, to increase contrast, move the adjusted channel toward the pole whose contrast against the fixed color is larger:
+  - `fgFix`: choose the pole (`[0,0,0]` or `[255,255,255]`) whose `contrastRatio(pole, bg)` is larger; `direction` = "darker" for black pole, "lighter" for white pole. Binary-search the sRGB interpolation `t∈[0,1]` from `fg`→pole for the **smallest `t`** whose rounded color yields `contrastRatio >= targetRatio` (≥ ~20 iterations, then round to int RGB and, if rounding dipped below target, step one unit further toward the pole). If even the pole < target → `reachable:false`, return the pole as best-effort.
+  - `bgFix`: same procedure adjusting `bg` toward its best pole with `fg` fixed.
+- `recommendation`: prefer whichever fix is smaller in perceptual change (smaller RGB-space distance from original); mention the other as the alternative; if `!reachable`, say the pair cannot reach the target by adjusting one color alone and give the best achievable ratio.
+- **Purity:** no mutation of inputs; no I/O.
 
-### Allowed new `category` values
-`"color-systems"`, `"spacing-systems"` — these are net-new categories. The `get_principles` tool-description category enumeration MUST be updated to list them.
+### Tool `suggest_contrast_fix`
+- Input: `{ pairs: Array<{ selector?: string, fg: string, bg: string, fontPx?: number, bold?: boolean, targetRatio?: number }>, level?: "AA"|"AAA" }`.
+- Output JSON: `{ tool: "suggest_contrast_fix", level, results: Array<{ selector?, ...SuggestContrastFix }>, summary }`. `summary` counts pairs already-passing / fixed / unreachable.
+- Empty/missing `pairs` → a usage message describing the shape (mirror how audit_contrast handles missing input).
 
 ## Acceptance criteria
 
-1. Both files exist at the paths above and are **valid JSON arrays** (loader silently skips invalid JSON — so a malformed file is a silent failure; the test must catch it).
-2. Every principle object has all 9 required keys, non-empty, with array fields meeting the minimum counts above.
-3. `id`s and `category`s exactly match the contract; no duplicate `id` across the whole `principles/` dir.
-4. **Threshold alignment:** the palette principle text contains "10"; the spacing-scale principle text contains "7"; the base-unit principle references "8" and "4". (Guards principle↔rule drift.)
-5. The new principles are reachable through the live loader: a `get_principles`-style query for `"color palette"` returns `color-palette-discipline`, and one for `"spacing scale"` returns the two spacing principles (verify via `allPrinciples` load path / built `dist`).
-6. `npm run build` clean; `npm test` fully green (existing 191 tests + new ones).
-7. CHANGELOG `[Unreleased]` documents both files; README principle line mentions palette/spacing discipline; `get_principles` category list updated.
+1. `suggestContrastFix` is pure, exported, reuses existing contrast math, mutates nothing.
+2. **Already-passing** pair (e.g. `#000` on `#fff`) → `passes:true`, `fgFix===null`, `bgFix===null`.
+3. **Fix actually passes:** for a failing pair (e.g. `fg=rgb(150,150,150)` on `bg=rgb(255,255,255)`, AA normal target 4.5), `fgFix.color` satisfies `contrastRatio(parse(fgFix.color), bg) >= 4.5` and `fgFix.ratio >= 4.5`.
+4. **Minimality (within rounding):** a color one step *less* adjusted than `fgFix.color` (one RGB unit back toward the original fg along the pole direction) yields `contrastRatio < targetRatio`. (Tolerance: assert the fix is within 2 RGB units of the true minimum.)
+5. **Direction correctness:** dark bg → `fgFix.direction==="lighter"`; light bg → `fgFix.direction==="darker"`.
+6. **Target derivation:** large text (fontPx 24) uses 3.0 under AA; AAA normal uses 7.0; explicit `targetRatio` overrides both.
+7. **Unreachable:** a pair where neither pole reaches target (e.g. target 21 on a mid-gray bg) → `reachable:false` with a best-effort fgFix at the pole and a clear recommendation; never throws.
+8. **Tool** returns one result per input pair with the `selector` echoed, plus a correct `summary` count; empty pairs → usage message.
+9. `npm run build` clean; `npm test` fully green — all existing contrast/other tests still pass plus the new ones.
+10. CHANGELOG `[Unreleased] > Added` + README document the new tool.
 
 ## File-level change plan
 
 | File | Change | Owner |
 |---|---|---|
-| `src/data/principles/color-systems.json` | NEW — 1 principle (adapt issue-14 draft) | implementer |
-| `src/data/principles/spacing-systems.json` | NEW — 2 principles (adapt issue-13 draft) | implementer |
-| `test/principles-data.test.mjs` | NEW — schema + load + threshold-alignment + no-dup-id tests | test-author |
-| `CHANGELOG.md` | `[Unreleased] > Added` entry for both files | doc-updater |
-| `README.md` | extend the principles line (~L13) to name palette/spacing discipline | doc-updater |
-| `src/index.ts` | `get_principles` `category` description: append `color-systems, spacing-systems` (description string only — no logic change) | doc-updater |
+| `src/contrast.ts` | add `SuggestContrastFix` type + pure `suggestContrastFix(fg,bg,opts?)`; reuse parseColor/relativeLuminance/contrastRatio; no existing fn changed | implementer |
+| `src/index.ts` | add `suggest_contrast_fix` tool (array of pairs → per-pair fixes + summary); import from `./contrast.js` | implementer |
+| `test/contrast.test.mjs` | add: already-passing, fix-passes, minimality, direction, target-derivation, unreachable, no-mutation | test-author |
+| `CHANGELOG.md` | `[Unreleased] > Added` entry | doc-updater |
+| `README.md` | new tool line; bump tool count if README states one | doc-updater |
 
 ## Verification plan
 
-- **Schema/load/threshold:** `node --test test/principles-data.test.mjs` → all pass (proves AC 1–5).
-- **Drift guard:** test asserts the principle text carries the same numeric thresholds the audit rule enforces (proves AC 4).
-- **Full suite:** `npm run build && npm test` → 0 fail (proves AC 6).
-- **Reviewer:** diff working tree against this SPEC, flag any drift (filenames, ids, categories, thresholds, out-of-scope edits).
-- **Main loop (me):** read the merged diff, run the suite, do the parallel-instance collision re-check, then commit (no push).
+- **Targeted:** `node --test test/contrast.test.mjs` → all pass (proves AC 1–7).
+- **Ground-truth assertions:** every "fix" test recomputes `contrastRatio` on the returned color and asserts `>= target` (objective, not self-defined) — AC 3; minimality via one-step-back failing — AC 4.
+- **Full suite:** `npm run build && npm test` → 0 fail (AC 9); confirms no existing contrast test regressed (existing functions untouched).
+- **Reviewer:** diff vs this SPEC; flag any change to existing contrast functions, any non-pure helper, any returned fix that does NOT actually clear the target, missing direction/unreachable handling.
+- **Main loop (me):** read merged diff, run suite, parallel-instance collision re-check, then commit referencing SPEC.md (no push/PR).
