@@ -27,6 +27,7 @@ import { auditTapTargetsUrl, auditTapTargetsSnapshot } from "./tap-targets.js";
 import { compactAuditPage, compactEvaluation, compactAuditUrl } from "./compact.js";
 import { auditVideoPlaybackUrl, auditVideoPlaybackSnapshot } from "./video-playback.js";
 import { auditConsistency } from "./audit-consistency.js";
+import { detectOrphanStretch } from "./layout-orphans.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -3660,6 +3661,8 @@ server.tool(
       findings.push({ check: "optical-balance", status: "warn", message: "Layout is " + (leftWeight > rightWeight ? "left-heavy" : "right-heavy") + " — visual weight skewed by " + Math.round(balanceSkew * 100) + "%", fix: balanceSkew > 0.4 ? "Redistribute dense blocks (images, tables) toward center, or add counterweight on the lighter side." : "Minor imbalance — review whether it's intentional asymmetry or accidental." });
     }
 
+    var orphanStretch = detectOrphanStretch(elements);
+
     return {
       content: [{
         type: "text" as const,
@@ -3671,7 +3674,8 @@ server.tool(
             alignment: { total_columns: colCounts.size, shared_columns: sharedCols, singleton_columns: singletonCols, aligned_ratio: Number(alignmentRatio.toFixed(2)) },
             gap_rhythm: vGaps.length >= 3 ? { samples: vGaps.length, median_px: Math.round(gapMedian), stdev_px: Math.round(gapStdev), coef_variation: Number(gapCV.toFixed(2)) } : { samples: vGaps.length, note: "not enough horizontally-overlapping vertical sibling pairs" },
             balance: { left_weight: Math.round(leftWeight), right_weight: Math.round(rightWeight), skew_pct: Math.round(balanceSkew * 100) }
-          }
+          },
+          orphan_stretch: orphanStretch
         }, null, 2)
       }]
     };

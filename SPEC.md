@@ -1,121 +1,91 @@
-# SPEC — `audit_consistency` tool (cross-page / corpus consistency audit)
+# SPEC — `audit_layout` orphan-stretch detection (lonely last-row card)
 
-**Date:** 2026-06-21
-**Branch:** `feat/audit-consistency` (off `origin/main` @ b51d570)
-**Addresses:** GitHub issue **#9** ("Audits miss cross-page consistency + per-system container width — single-blob audit blind spot"; labels: bug, enhancement; open since 2026-06-05), requested fix **#1 ("Multi-page / corpus audit mode")**.
-**Backlog rank this run:** #1 by (impact × reach) ÷ effort — the only open *bug* issue, filed about defects that shipped to prod; broad reach (every multi-page site); deterministic + unit-testable (pure HTML-string analysis, no browser).
+**Date:** 2026-06-22
+**Branch:** `feat/layout-orphan-stretch` (off `origin/main` @ b51d570)
+**Backlog source:** `.claude/raven-opportunities.md` — `2026-06-20 | grid orphan detector | Two separate grids (.tools-grid, .layers-grid) shipped flex:1 1 280px that stretches a lone last-row card full-width on wide screens. No audit flagged the lonely-stretched-orphan pattern. | audit_layout: detect flex/grid wrap rows where the final row has 1 item spanning >1.5× the modal card width (orphan stretch) and recommend fixed-column grid | P3`
+**Backlog rank this run:** #1 by (impact × reach) ÷ effort among remaining items — the high-value/open-issue backlog is drained; this is a pure, deterministic, unit-testable extension to the EXISTING `audit_layout` tool (no new tool, no browser), catching a real layout defect that shipped on the user's site.
 
 ---
 
 ## Problem statement
 
-Every Raven audit (`audit_page`, `audit_url`, …) evaluates a **single HTML blob in isolation**, so it is blind to *relational* defects that only exist across routes. Issue #9 documents two such defects that shipped to a production landing site with no audit flagging them:
-
-1. **Hero inconsistency across pages.** `/changelog` used a small custom header (`text-display-md`) while the sibling `/get-started` uses a large hero (`text-display-xl`). Same site, two hero systems. Each page passed `audit_page` clean.
-2. **Container width diverging across pages.** `/changelog` throttled its body to `max-w-3xl` (768px) while every other page sits on `container-wide` (1152px). The content rail was ~384px off-system.
-
-Single-page container grounding for defect #2 already shipped (`auditContainerWidth` + the `containerMaxWidth` param on `audit_page`) — but it requires the caller to KNOW and pass the canonical token, and it cannot see defect #1 (hero tier) at all. There is **no corpus mode** that takes several pages and asserts they agree.
+A flex grid declared `flex: 1 1 280px` (or `grid` with `auto-fit`/`minmax`) wraps cards neatly until the **last row has a single item** — which then **stretches to fill the entire row width**, producing a lonely, oversized "orphan" card that looks broken on wide screens. This shipped on two real grids (`.tools-grid`, `.layers-grid`). `audit_layout` already ingests rendered element geometry (`{elements:[{selector,rect}], viewport}`) and scores alignment / gap-rhythm / optical-balance, but it has **no detector for the orphan-stretch pattern**, so the defect passed clean.
 
 ## Goal / intent
 
-Add a new MCP tool **`audit_consistency`** that accepts multiple pages and flags cross-page divergence in (a) content-container width and (b) hero heading tier — inferring the canonical (modal) value from the corpus when no token is supplied, so the caller need not know it in advance. Pure HTML-string analysis (no browser). Reuse `extractDeclaredMaxWidths`/`containerScaleWidths` from `src/audit-container.ts`; do **not** modify `audit-container.ts` or `page-checks.ts`.
+Add an **orphan-stretch detector** to `audit_layout`: from the element rects it already receives, identify a repeated "card" group (same width & height) and flag any same-height element whose width is ≥1.5× the modal card width (the stretched orphan), recommending a fixed-column grid. Implement as a NEW pure module so it is unit-testable in isolation; wire it into `audit_layout` as an **additive** result key (`orphan_stretch`) that does NOT change the existing `alignment`/`gap_rhythm`/`optical_balance` output.
 
 ## Scope
 
 **In:**
-- `src/audit-consistency.ts` — NEW pure module: `auditConsistency(pages, opts?) → ConsistencyResult`.
-- `src/index.ts` — register the `audit_consistency` tool (import, Zod schema, handler, description). Tool count 56 → 57.
-- `test/audit-consistency.test.mjs` — NEW deterministic unit tests (no browser).
-- Docs: `CHANGELOG.md` `[Unreleased] > Added`; `README.md` tool list.
+- `src/layout-orphans.ts` — NEW pure module: `detectOrphanStretch(elements, opts?) → OrphanStretchResult`.
+- `src/index.ts` — call it inside the `audit_layout` handler (the branch that already has `elements`+`viewport`) and add the `orphan_stretch` key to the returned JSON. No change to the snippet branch, no change to existing metric computations.
+- `test/layout-orphans.test.mjs` — NEW deterministic unit tests (synthetic rects; no browser).
+- Docs: `CHANGELOG.md` `[Unreleased] > Added`; `README.md` (`audit_layout` description mentions orphan-stretch).
 
 **Out (not this run):**
-- No change to `src/audit-container.ts`, `src/page-checks.ts`, `audit_page`, `audit_url`, or any other tool.
-- No URL-fetching/crawling (input is pre-collected HTML per route; a URL-fetch variant is a later run).
-- No heading-scale-across-pages check beyond hero tier (kept out to bound this run; can extend later).
-- No version bump / publish / push. Joins the post-v1.12.0 `[Unreleased]` queue.
+- No NEW tool registration (extends `audit_layout`).
+- No change to alignment/gap-rhythm/optical-balance logic, the DevTools snippet, or any other tool.
+- No browser/render path (operates on supplied rects).
+- No tool-count change (still 56 on this base; no new tool).
+- No version bump / publish / push.
 
 ## Constrained valid values (the contract)
 
-### Tool input (Zod):
-- `pages` (array, **min length 2**) of `{ name: string (non-empty), html: string (non-empty) }`.
-- `container_token` (number, optional) — the project's canonical container width in px. When given, container divergence is measured against it; when omitted, the **modal** container width across `pages` is the reference.
-- `hero_token` (string, optional) — the canonical hero heading class signature (e.g. `"text-display-xl"`). When given, hero divergence is measured against it; when omitted, the **modal** hero signature across pages is the reference.
+### Input element shape (already produced by the audit_layout DevTools snippet):
+`elements: Array<{ selector: string, rect: { x:number, y:number, w:number, h:number }, computed?: {...} }>`. The detector uses only `selector` + `rect`.
 
-### Per-page extraction (deterministic rules):
-- **`container_px`**: `max(containerScaleWidths(html))` (declared `max-width:Npx` ≥ 700px) or `null` if none. (Reuse `containerScaleWidths` from audit-container.ts.)
-- **`container_classes`**: sorted unique set of class tokens in the page matching `/\b(max-w-[a-z0-9.]+|container[a-z0-9-]*|w-screen|w-full)\b/gi`.
-- **`container_signature`**: if `container_px !== null` → `String(container_px)`; else the `container_classes` joined by `" "` (or `""` if none).
-- **`hero_size_px`**: the largest declared heading `font-size:Npx` among `h1/h2` rules, or `null`.
-- **`hero_classes`**: the class attribute of the FIRST `<h1 …>` in the page (string, `""` if none/no class).
-- **`hero_signature`**: if `hero_size_px !== null` → `String(hero_size_px)`; else the first type-scale class token in `hero_classes` matching `/\btext-(display-[a-z0-9]+|[0-9]?xl|xs|sm|base|lg|xl)\b/i` (full match), or `""`.
+### Detection algorithm (deterministic):
+1. **Card group:** find the modal **width cluster** among all rects — group widths within ±12% of a representative; the largest group with **count ≥ 3** is the card group. Its representative width = **W** (median of the group), representative height = **H** (median height of that same group). If no width cluster has count ≥ 3 → **no card grid** → no finding (return `has_orphan:false`, empty `orphans`).
+2. **Card height band:** define H-band = H ±15%.
+3. **Orphan:** any element whose **height is within the H-band** AND whose **width ≥ `widthRatio` × W** (default `widthRatio = 1.5`) is an orphan-stretch candidate. (Same height as the cards, but stretched much wider — the flex-orphan signature.) Exclude elements that ARE in the card group (width within ±12% of W).
+4. Sort orphans by `rect.y` descending (last-row orphan first). Each orphan: `{ selector, width, height, card_width: W, ratio: round(width/W, 2), row_y: rect.y }`.
 
-### Consistency logic (the "modal" rule):
-- The reference for a dimension = the supplied token if given, else the **modal** (most frequent non-empty) signature across pages. On a frequency tie among ≥2 distinct values (e.g. exactly 2 pages that differ), there is **no modal**: emit a `divergence` finding listing all distinct values, and mark **all** differing pages as outliers (since none can be declared canonical without a token).
-- A page is an **outlier** on a dimension if its signature is non-empty and differs from the reference.
-- Empty/`null` signatures are reported as `unknown` for that page and are NOT counted as outliers (absence of declared value ≠ divergence).
+### `widthRatio` valid range: a positive number > 1; default **1.5**. (Threaded from `opts.widthRatio`; the tool does not expose it as a param this run — fixed at 1.5.)
 
-### Issue rules (constrained enum) emitted in `issues[]`:
-- `consistency/container-width` (severity `warning`) — when container outliers exist.
-- `consistency/hero-tier` (severity `warning`) — when hero outliers exist.
-Each issue: `{ severity, rule, message, fix }` (same shape as PageIssue).
-
-### `ConsistencyResult` shape (the contract the test asserts):
+### `OrphanStretchResult` shape (the contract the test asserts):
 ```ts
 {
-  page_count: number,                       // === pages.length
-  pages: Array<{
-    name: string,
-    container: { px: number|null, classes: string[], signature: string },
-    hero:      { size_px: number|null, classes: string, signature: string }
-  }>,
-  consistency: {
-    container: { reference: string|null, source: "token"|"modal"|"none", outliers: string[] /* page names */ },
-    hero:      { reference: string|null, source: "token"|"modal"|"none", outliers: string[] /* page names */ }
-  },
-  issues: Array<{ severity: "warning", rule: string, message: string, fix: string }>,
-  score: number /* 0-100 */,
-  grade: "A"|"B"|"C"|"D",
-  summary: string
+  has_orphan: boolean,
+  card_width: number | null,   // W, or null when no card grid detected
+  card_height: number | null,  // H, or null
+  card_count: number,          // size of the detected card group (0 if none)
+  orphans: Array<{ selector: string, width: number, height: number, card_width: number, ratio: number, row_y: number }>,
+  issues: Array<{ severity: "warning", rule: "layout/orphan-stretch", message: string, fix: string }>  // one issue per orphan; empty when none
 }
 ```
+- Issue `message`: names the selector, its width, and W (e.g. `"<selector> spans 880px — 3.1× the 280px card width (lonely last-row orphan)."`).
+- Issue `fix`: recommend a fixed-column grid / `max-width` on items so a lone last-row card keeps the card width instead of stretching (e.g. `"Use grid-template-columns: repeat(auto-fill, 280px) (auto-FILL, not auto-fit) or cap item max-width:280px so a lone final-row card stays card-width."`).
 
-### Scoring (mirror the audit_page idiom):
-```
-totalDimensions = 2 (container, hero)
-failCount       = number of dimensions with ≥1 outlier   // 0, 1, or 2
-score           = round((totalDimensions - failCount) / totalDimensions * 100)   // 100 / 50 / 0
-grade           = failCount === 0 ? "A" : failCount === 1 ? "C" : "D"
-```
+### audit_layout result integration:
+The existing returned object (with `alignment`, `gap_rhythm`, `optical_balance`, …) gains one key `orphan_stretch: OrphanStretchResult`. All existing keys/values are byte-identical to before for the same input.
 
 ## Acceptance criteria
 
-1. `src/audit-consistency.ts` exports a pure `auditConsistency(pages, opts?)`; no I/O, no browser; imports `containerScaleWidths` (or `extractDeclaredMaxWidths`) from `./audit-container.js` and does NOT edit that file or `page-checks.ts`.
-2. Input guard: `pages.length < 2` → the handler returns a clear "need ≥2 pages" message (tool layer); the pure fn may assume ≥2 but must not throw on exactly 2.
-3. Per-page extraction matches the rules above (container_px, container_classes sorted-unique, hero_classes from first h1, signatures).
-4. **Issue #9 defect-1 fixture (hero):** two pages — `get-started` `<h1 class="font-display text-display-xl">` and `changelog` `<h1 class="text-display-md">` — produce a `consistency/hero-tier` warning and list `changelog` (or both, per the no-modal tie rule) as an outlier.
-5. **Issue #9 defect-2 fixture (container):** two pages whose containers are `container-wide` vs `container-wide max-w-3xl` (class-token path) AND a px variant (`max-width:1152px` vs `max-width:768px`) each produce a `consistency/container-width` warning naming the divergent page.
-6. **Consistent corpus:** ≥3 pages all sharing the same hero signature and container signature → `issues` empty, `score` 100, `grade` "A", both `outliers` empty.
-7. **Modal inference:** 3 pages where 2 share a hero signature and 1 differs → the lone page is the only hero outlier; `consistency.hero.source === "modal"`; reference = the shared signature.
-8. **Token override:** when `container_token`/`hero_token` are supplied, the reference equals the token (`source==="token"`) and pages diverging from it are flagged even if they are the majority.
-9. `unknown`/empty signatures are not counted as outliers (a page with no declared container and no container class is not a container outlier).
-10. `score`/`grade` follow the scoring formula (100/50/0 ↔ A/C/D); `audit_consistency` registered in `index.ts`, tool count 56 → 57, handler returns the result as JSON text.
-11. `npm run build` clean; `npm test` fully green (existing suite + new `audit-consistency.test.mjs`).
-12. `CHANGELOG.md` `[Unreleased] > Added` documents `audit_consistency` (reference issue #9); `README.md` lists it.
+1. `src/layout-orphans.ts` exports a **pure** `detectOrphanStretch(elements, opts?)` (no I/O/browser); does not import or modify page-checks/audit-container/any tool logic.
+2. **Card grid + orphan fixture:** 3 cards at `w:280,h:200` in a row + 1 element at `w:880,h:200` below → `has_orphan:true`, `card_width:280`, `card_count:3`, exactly one orphan (the 880 element) with `ratio` ≈ 3.14, one `layout/orphan-stretch` issue.
+3. **No-orphan fixture:** 4 cards all `w:280,h:200` (a full last row) → `has_orphan:false`, `orphans:[]`, `issues:[]`, but `card_width:280`/`card_count:4` reported.
+4. **No-grid fixture:** fewer than 3 same-width elements (e.g. a heading + 2 differently-sized blocks) → `has_orphan:false`, `card_width:null`, `card_count:0`, no issues (does NOT false-positive on arbitrary wide elements).
+5. **Height-band guard:** an element that is wider than 1.5×W but a DIFFERENT height than the cards (e.g. a full-width footer `w:1200,h:80` under `h:200` cards) is NOT flagged (different height ⇒ not a stretched card).
+6. **widthRatio threshold:** an element at exactly `1.49×W` same height is NOT an orphan; at `1.5×W` it IS (boundary uses `>=`). Cards themselves (width ≈ W) are never orphans.
+7. `audit_layout` returns the new `orphan_stretch` key when called with `{elements, viewport}`; the existing `alignment`/`gap_rhythm`/`optical_balance` keys and values are unchanged for the same input (additive only); the no-args snippet branch is unchanged.
+8. `npm run build` clean; `npm test` fully green (existing suite + new `layout-orphans.test.mjs`).
+9. `CHANGELOG.md` `[Unreleased] > Added` documents the orphan-stretch detection; `README.md`'s `audit_layout` line mentions it.
 
 ## File-level change plan
 
 | File | Change | Owner |
 |---|---|---|
-| `src/audit-consistency.ts` | NEW — `auditConsistency()` pure module reusing audit-container helpers | implementer |
-| `src/index.ts` | register `audit_consistency` tool (import, Zod schema, handler, description); count 56→57 | implementer |
-| `test/audit-consistency.test.mjs` | NEW — deterministic unit tests for AC 1–10, fixtures mirroring issue #9 | test-author |
-| `CHANGELOG.md` | `[Unreleased] > Added` entry (reference #9) | doc-updater |
-| `README.md` | add `audit_consistency` to the tools list | doc-updater |
+| `src/layout-orphans.ts` | NEW — `detectOrphanStretch()` pure detector | implementer |
+| `src/index.ts` | import + call in `audit_layout` handler; add `orphan_stretch` result key (additive) | implementer |
+| `test/layout-orphans.test.mjs` | NEW — deterministic unit tests for AC 1–6 | test-author |
+| `CHANGELOG.md` | `[Unreleased] > Added` entry | doc-updater |
+| `README.md` | extend the `audit_layout` description to mention orphan-stretch | doc-updater |
 
 ## Verification plan
 
-- **Unit:** `node --test test/audit-consistency.test.mjs` → all pass (proves AC 1–10), with fixtures that mirror issue #9's exact `text-display-xl`/`text-display-md` + `container-wide`/`max-w-3xl` examples, plus a px-based container variant, a consistent 3-page corpus, modal inference, and token override.
-- **Full suite:** `npm run build && npm test` → 0 fail (AC 11), confirming no regression (audit-container.ts / page-checks.ts untouched).
-- **Eyes-on:** main loop calls `auditConsistency` on the issue-#9 fixtures and reads the JSON to confirm the changelog page is flagged on BOTH dimensions and a consistent corpus scores 100.
-- **Reviewer:** diff vs this SPEC; flag any edit to audit-container.ts/page-checks.ts (out of scope), extraction-rule drift, scoring drift, missing AC, the no-modal tie-handling, or a tool other than the new one being altered.
-- **Main loop (me):** read the result, run the suite, parallel-instance collision re-check, then commit referencing SPEC.md + issue #9 (no push).
+- **Unit:** `node --test test/layout-orphans.test.mjs` → all pass (proves AC 1–6) with synthetic rects (card-grid+orphan, full-last-row, no-grid, height-band guard, ratio boundary).
+- **Integration/eyes-on:** main loop calls the `audit_layout` handler logic (or `detectOrphanStretch` directly) on a synthetic `.tools-grid`-style rect set and reads the JSON to confirm the orphan is flagged AND the existing alignment/gap/balance keys still appear unchanged.
+- **Full suite:** `npm run build && npm test` → 0 fail (AC 8), confirming no regression to audit_layout's existing metrics.
+- **Reviewer:** diff vs this SPEC; flag any change to the existing audit_layout metric math or snippet, the detector firing on non-grids / different-height wide elements (false positives), threshold drift, or out-of-scope edits.
+- **Main loop (me):** read the result, run the suite, parallel-instance collision re-check, then commit referencing SPEC.md (no push).
