@@ -6,6 +6,9 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+### Changed
+- `audit_contrast` now composites each text element's background over its full ancestor stack (alpha-over to the first opaque layer) instead of compositing a lone translucent layer over white — eliminating false AA failures on dark/layered UIs (e.g. a translucent pill over a dark hero) and reporting the true effective background. Backwards-compatible (single-`bgColor` callers unchanged; a new optional `bgColors[]` drives the corrected path).
+
 ## [1.11.0] - 2026-06-21
 
 ### Added
