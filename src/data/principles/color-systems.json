@@ -1,0 +1,32 @@
+[
+  {
+    "id": "color-palette-discipline",
+    "name": "Color Palette Discipline",
+    "category": "color-systems",
+    "summary": "A single page should use ~6–8 core colors plus neutrals and stay at or under 10 distinct values total; every additional hue dilutes hierarchy and signals nothing new.",
+    "description": "Color is a signal. When a page contains more than ~10 distinct hex values, the eye can no longer tell which colors mean something (brand, action, error) and which are incidental. A disciplined palette is role-based: 1 primary brand color, 1 accent for CTAs and emphasis, 3–4 neutrals (text, muted text, border, background, surface), and 1–2 semantic colors (success, warning/error). Hover, active, disabled, and decorative variants are derived from this small set via opacity/alpha or HSL adjustments — not introduced as new hexes. Near-duplicate values (#333 vs #363636) still count against the budget because they add cognitive noise without adding meaning. The discipline isn't aesthetic minimalism; it's making sure every color the user sees is doing a job. Map every color to a named token role: surface, surface-raised, border, text, text-muted, accent, accent-hover, success, warning, danger.",
+    "implications": [
+      "Define a role-based token set before generating any UI and reuse it everywhere: surface, surface-raised, border, text, text-muted, accent, accent-hover, success, warning, danger",
+      "Keep the page at or under 10 distinct rendered colors; target ~6–8 core hues plus neutrals",
+      "Derive hover/active/disabled states with opacity/alpha (e.g. 0.8, 0.6) or lightness shifts from existing tokens, not new hexes",
+      "Express shadows as rgba() from a neutral token, not as standalone hex colors",
+      "Treat gradient stops as variations of existing tokens, not license to add new hues",
+      "Collapse near-duplicate hexes (within ~5% lightness) into a single token — #333 and #363636 are noise, not two colors",
+      "Audit generated pages by counting distinct hex values — anything over 10 has drifted"
+    ],
+    "violations": [
+      "A landing page with 11+ distinct hex values where several are visually indistinguishable",
+      "Introducing a new gray (#363636) when #333 is already in the palette",
+      "Hardcoding hover states as new hexes instead of deriving them from the base token",
+      "Decorative tints and gradient stops that don't map to any defined token",
+      "Shadow colors written as opaque hex values rather than rgba from a neutral",
+      "Every component author picking a slightly different gray"
+    ],
+    "applies_to": ["color", "design-tokens", "design-system", "visual-hierarchy", "branding", "generated-ui"],
+    "sources": [
+      "Material Design 3 — Color roles and tonal palettes (https://m3.material.io/styles/color/roles)",
+      "Complements color-theory principles (which colors work together) with a constraint on how many should appear at once.",
+      "Raven self-audit (2026-06): generated demos repeatedly landed at 11 distinct hexes, exceeding the ~10-color hierarchy threshold (rule color/palette-size)."
+    ]
+  }
+]

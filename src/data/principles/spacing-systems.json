@@ -1,0 +1,55 @@
+[
+  {
+    "id": "spacing-base-unit",
+    "name": "Spacing Base Unit",
+    "category": "spacing-systems",
+    "summary": "Every margin, padding, and gap should be a multiple of a single base unit — almost always 8px, with 4px as a half-step for fine adjustments.",
+    "description": "A base-unit grid is the quiet backbone of visual rhythm. When every space in the interface is a multiple of 8 (or 4 for finer work), elements align without effort, components compose cleanly across contexts, and the eye registers the layout as 'designed' rather than 'arranged'. The 8px grid is the de facto standard because it divides cleanly across common screen densities (1x, 1.5x, 2x, 3x) and matches the spacing primitives used by Material Design, Apple's HIG, IBM Carbon, and Atlassian's design system. Off-grid values (6, 10, 14, 18, 36, 80, 120px) are the most common smell in generated or hand-tuned designs — they look 'almost right' but break the rhythm and force every downstream component to compensate. Raven's audit (rule spacing/base-unit) flags a page when fewer than 90% of its spacing values sit on a 4 or 8px grid.",
+    "implications": [
+      "Pick one base unit (8px is the default; 4px if you need finer control) and make every spacing value a multiple of it",
+      "Allow 4px as a half-step only for tight component-internal spacing (icon gaps, inline padding)",
+      "Audit generated CSS for off-grid values: 6, 10, 14, 18, 22, 36, 80, 120px are the usual offenders",
+      "Express spacing as tokens (--space-1:4px, --space-2:8px, --space-3:12px, --space-4:16px, --space-5:24px, --space-6:32px, --space-7:48px) not raw pixels, so the grid is enforced at the source",
+      "When integrating third-party components, normalize their spacing to your grid rather than absorbing their values"
+    ],
+    "violations": [
+      "Section padding of 36px next to gaps of 24px and 32px — visually similar, rhythmically broken",
+      "Mixing 10px and 12px gaps in the same component (a 2px difference no user can perceive but the grid pays for)",
+      "Hero padding of 80px or 120px chosen for 'feel' instead of 64px or 128px",
+      "Using raw pixel values in CSS instead of spacing tokens, allowing drift over time"
+    ],
+    "applies_to": ["spacing", "design-tokens", "layout", "visual-rhythm", "component-design"],
+    "sources": [
+      "Material Design — Spacing methods (8dp grid) (https://m3.material.io/foundations/layout/understanding-layout/spacing)",
+      "Bravo Company — The 8-Point Grid (Spec, 2015).",
+      "IBM Carbon Design System — Spacing tokens.",
+      "Atlassian Design System — Spacing foundations."
+    ]
+  },
+  {
+    "id": "spacing-scale-count",
+    "name": "Limited Spacing Scale",
+    "category": "spacing-systems",
+    "summary": "Expose a tight scale of 5–7 spacing tokens (at most 7). Past that, users stop perceiving a system and designers start picking values at random.",
+    "description": "A spacing system only works if it's small enough to hold in your head. Miller's classic ~7±2 bound on working memory applies to the designer choosing a value as much as it does to the user reading the page: when there are 15–20 unique spacing values in play, no one — human or generator — can pick consistently, and the resulting layout reads as noisy even when every value is grid-aligned. Raven's audit (rule spacing/scale-count) passes a page only when it uses 7 or fewer unique spacing values. A canonical scale of 5–7 tokens (4, 8, 12, 16, 24, 32, 48; optionally extended with 64/96/128 for section-level spacing) is enough to express dense component interiors, comfortable stack gaps, and generous section breaks without ambiguity. The constraint forces meaningful choices: 'is this a 16 or a 24?' is a design decision; 'is this an 18 or a 20?' is noise.",
+    "implications": [
+      "Define at most 7 spacing tokens and resist adding more — every new token weakens the others",
+      "Use the canonical scale 4, 8, 12, 16, 24, 32, 48 so adjacent steps are visually distinguishable; extend with 64/96/128 only for section-level spacing",
+      "Name tokens by scale position (space-1…space-7) or t-shirt size (xs, sm, md, lg, xl), not by use case — uses change, the scale shouldn't",
+      "If a component needs a value not on the scale, the scale is probably right and the component is wrong",
+      "Audit unique spacing-value count per page; keep it at 7 or fewer and treat 12+ as a smell"
+    ],
+    "violations": [
+      "A page using 15+ distinct spacing values, each subtly different from the next",
+      "Adding a new token every time a designer wants a slightly different gap, until the scale is meaningless",
+      "Naming tokens by use case ('card-padding', 'hero-gap') so the same value gets duplicated under different names",
+      "Linear scales (4, 8, 12, 16, 20, 24, 28, 32) where adjacent steps are too close to read as distinct"
+    ],
+    "applies_to": ["spacing", "design-tokens", "layout", "cognitive-load", "consistency"],
+    "sources": [
+      "Miller, G. A. (1956). The Magical Number Seven, Plus or Minus Two. Psychological Review, 63(2).",
+      "Frost, B. — Atomic Design (2016), on token scale design.",
+      "Lyft Product Language, Shopify Polaris, and IBM Carbon — all ship spacing scales of 7–9 tokens."
+    ]
+  }
+]

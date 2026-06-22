@@ -1573,7 +1573,7 @@ server.tool(
   "Get design principles relevant to a UI context. Returns usability heuristics, laws of UX, Gestalt principles, accessibility requirements, typography rules, and color theory — matched to what you're designing.",
   {
     context: z.string().describe("What you're designing (e.g. 'signup form', 'pricing page', 'mobile nav', 'dark dashboard')"),
-    category: z.string().optional().describe("Filter to category: nielsen-heuristics, laws-of-ux, gestalt, accessibility, typography, color-theory, mobile-ux, d4d"),
+    category: z.string().optional().describe("Filter to category: nielsen-heuristics, laws-of-ux, gestalt, accessibility, typography, color-theory, mobile-ux, d4d, color-systems, spacing-systems"),
     platform: z.enum(["web", "ios", "react-native"]).optional().describe("Platform context. 'ios' returns Apple HIG principles (Dynamic Type, 44pt targets, SF Symbols, safe areas, dark-mode, haptics, App Review privacy); 'react-native' returns RN principles (44/48pt+hitSlop, accessibilityLabel/Role, font scaling, SafeAreaView, dark mode, iOS+Android parity, secrets). Both replace the web/CSS-oriented set. Default: web."),
     format: z.enum(["full", "checklist", "brief"]).optional().describe("Output format: full (all details), checklist (implications + violations), brief (just summary). Default: full")
   },
