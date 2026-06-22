@@ -6,6 +6,9 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+### Added
+- `compact` response mode for `audit_page`, `evaluate_design`, and `audit_url` — pass `compact: true` to return only scores, violations, and fix_priority, dropping embedded base64 screenshots and full principle/pattern bodies. Backwards-compatible (default off).
+
 ## [1.11.0] - 2026-06-21
 
 ### Added

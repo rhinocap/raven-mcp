@@ -23,6 +23,7 @@ import { auditContent } from "./content-audit.js";
 import { auditDeviceFrames, auditClipMotion, auditFrameEdges } from "./device-frame.js";
 import { auditTypographyUrl, auditTypographySnapshot } from "./typography.js";
 import { auditTapTargetsUrl, auditTapTargetsSnapshot } from "./tap-targets.js";
+import { compactAuditPage, compactEvaluation, compactAuditUrl } from "./compact.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -1773,9 +1774,10 @@ server.tool(
     before_screenshot: z.string().optional().describe("Base64 PNG of the BEFORE state"),
     after_screenshot: z.string().optional().describe("Base64 PNG of the AFTER state. When both before+after are provided, returns a structured pixel diff with fix_confirmed."),
     goals: z.array(z.string()).optional().describe("What to evaluate for (e.g. ['conversion', 'accessibility', 'mobile-usability'])"),
-    context: z.string().optional().describe("What the design is (e.g. 'pricing page for SaaS product')")
+    context: z.string().optional().describe("What the design is (e.g. 'pricing page for SaaS product')"),
+    compact: z.boolean().optional().describe("Return only ids+names for matched principles/patterns (drop their full bodies) plus counts and any before/after diff. Default false. Use when the full principle library payload would blow the tool-result budget.")
   },
-  async function({ description, before_screenshot, after_screenshot, goals, context }) {
+  async function({ description, before_screenshot, after_screenshot, goals, context, compact }) {
     var hasDescription = description !== undefined && description !== null;
     var hasBeforeAfterScreenshots = before_screenshot !== undefined && before_screenshot !== null && after_screenshot !== undefined && after_screenshot !== null;
     var designDescription = description;
@@ -1833,10 +1835,11 @@ server.tool(
       evaluation.fix_confirmed = diffResult.fix_confirmed;
     }
 
+    var evalPayload = compact === true ? compactEvaluation(evaluation) : evaluation;
     return {
       content: [{
         type: "text" as const,
-        text: JSON.stringify(evaluation, null, 2)
+        text: JSON.stringify(evalPayload, null, 2)
       }]
     };
   }
@@ -2263,9 +2266,10 @@ server.tool(
     viewport: z.object({ w: z.number(), h: z.number() }).optional(),
     strict: z.boolean().optional().describe("Strict mode — also flags warnings as failures. Default: false"),
     containerMaxWidth: z.number().optional().describe("Your design system's canonical content-container width in px (e.g. 1152). When set, the responsive/max-width check flags divergence from this token instead of using the generic 1200px heuristic."),
-    adversarial_verify: z.boolean().optional().describe("After generating findings, independently re-check each against the live DOM/network and tag it confirmed / likely-artifact / inconclusive. Surfaces a debunked_count.")
+    adversarial_verify: z.boolean().optional().describe("After generating findings, independently re-check each against the live DOM/network and tag it confirmed / likely-artifact / inconclusive. Surfaces a debunked_count."),
+    compact: z.boolean().optional().describe("Return only the decision-grade signal — score, grade, summary, errors, warnings, fix_priority — and drop the embedded base64 screenshot and the passes list (replaced by passes_count). Default false. Use when the full payload would blow the tool-result budget.")
   },
-  async function({ html, url, scroll_settle, interactions, viewport, strict, containerMaxWidth, adversarial_verify }) {
+  async function({ html, url, scroll_settle, interactions, viewport, strict, containerMaxWidth, adversarial_verify, compact }) {
     var issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }> = [];
     var passes: string[] = [];
     var capMeta: any = null;
@@ -2447,10 +2451,11 @@ server.tool(
       result.summary = result.summary + " — " + debunkedCount + " likely artifacts (adversarially debunked)";
     }
 
+    const payload = compact === true ? compactAuditPage(result) : result;
     return {
       content: [{
         type: "text" as const,
-        text: JSON.stringify(result, null, 2)
+        text: JSON.stringify(payload, null, 2)
       }]
     };
   }
@@ -2726,9 +2731,10 @@ server.tool(
     })).optional().describe("Fire each interaction before capture; the resulting state is diffed against baseline to catch hover/click white-wash and obscured content."),
     containerMaxWidth: z.number().optional().describe("Your design system's canonical container width in px — makes the max-width check token-aware."),
     includeScreenshots: z.boolean().optional().describe("Include the base64 full-page PNG per capture in the result. Default: false (screenshots are large)."),
-    timeoutMs: z.number().optional().describe("Per-navigation timeout in ms. Default: 30000")
+    timeoutMs: z.number().optional().describe("Per-navigation timeout in ms. Default: 30000"),
+    compact: z.boolean().optional().describe("Drop per-capture base64 screenshots; keep findings, counts, and summary. Default false. Use when screenshots would blow the tool-result budget.")
   },
-  async function({ url, viewports, themes, scroll_settle, interactions, containerMaxWidth, includeScreenshots, timeoutMs }) {
+  async function({ url, viewports, themes, scroll_settle, interactions, containerMaxWidth, includeScreenshots, timeoutMs, compact }) {
     try {
       var result = await auditUrl(url, {
         viewports: viewports,
@@ -2739,7 +2745,8 @@ server.tool(
         includeScreenshots: includeScreenshots,
         timeoutMs: timeoutMs
       });
-      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      const urlPayload = compact === true ? compactAuditUrl(result) : result;
+      return { content: [{ type: "text" as const, text: JSON.stringify(urlPayload, null, 2) }] };
     } catch (error) {
       if (error instanceof CaptureUnavailableError) {
         return { content: [{ type: "text" as const, text: "audit_url needs headless chromium. Run: npx playwright install chromium" }] };

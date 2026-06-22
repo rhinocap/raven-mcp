@@ -55,7 +55,7 @@ cd raven-mcp && npm install && npm run build
 | `get_principles` | Get design principles relevant to a UI context |
 | `get_pattern` | Get proven patterns for a specific UI type |
 | `get_business_strategy` | Get business/monetization strategies |
-| `evaluate_design` | Evaluate a design description against principles. Pass base64 PNG screenshots (`before_screenshot`/`after_screenshot`) for a structured before/after pixel diff with `fix_confirmed`, `changed_ratio`, and changed region. |
+| `evaluate_design` | Evaluate a design description against principles. Pass base64 PNG screenshots (`before_screenshot`/`after_screenshot`) for a structured before/after pixel diff with `fix_confirmed`, `changed_ratio`, and changed region. Pass `compact: true` to return only scores and violations (drops full principle/pattern bodies) when the full payload is too large. |
 | `search_knowledge` | Search across all principles, patterns, and strategies |
 | `get_checklist` | Get a pre-publish checklist for a UI type |
 | `get_d4d_framework` | Get Design for Delight framework templates |
@@ -63,11 +63,11 @@ cd raven-mcp && npm install && npm run build
 | `get_design_system` | Get tokens for a specific design system |
 | `compose_system` | Mix tokens from different systems |
 | `get_brand_system` | Get a full system styled like a well-known brand |
-| `audit_page` | Audit HTML/CSS against Raven's quality standards — pass `html` for static audit, or `url` to render headless with optional `scroll_settle` (scroll to bottom + settle reveals) and `viewport` parameters; `containerMaxWidth` makes container checks token-aware |
+| `audit_page` | Audit HTML/CSS against Raven's quality standards — pass `html` for static audit, or `url` to render headless with optional `scroll_settle` (scroll to bottom + settle reveals) and `viewport` parameters; `containerMaxWidth` makes container checks token-aware. Pass `compact: true` to return only scores, violations, and fix_priority (drops embedded base64 screenshots) when the full payload is too large. |
 | `audit_layout` | Evaluate visual rhythm, alignment, and optical balance |
 | `audit_responsive_visibility` | Render a URL at multiple breakpoints and flag content elements that are visible on desktop but hidden on mobile (display:none/opacity:0/zero-size) — categorises each as likely-oversight (content vanishing on mobile) vs intentional (decorative) |
 | `audit_contrast` | Compute WCAG contrast ratios for every text element on a rendered page and report AA (4.5:1 / 3:1 large) and AAA pass-fail per element, with delta-to-pass for failures |
-| `audit_url` | Render a live URL at each viewport×theme, scroll-settle, fire interactions, capture real pixels + DOM, then run the page/contrast/responsive/blank-media checks **plus** sliced-image edge-symmetry and hover-state white-wash detection over the captures — every finding tagged confirmed/likely-artifact/inconclusive, ranked by severity |
+| `audit_url` | Render a live URL at each viewport×theme, scroll-settle, fire interactions, capture real pixels + DOM, then run the page/contrast/responsive/blank-media checks **plus** sliced-image edge-symmetry and hover-state white-wash detection over the captures — every finding tagged confirmed/likely-artifact/inconclusive, ranked by severity. Pass `compact: true` to return only findings and summary (drops per-capture base64 screenshots) when the full payload is too large. |
 | `audit_content` | Per-item content verdicts (pass/warn/fail) for headings, prose, CTAs, labels, captions, metrics & outcomes against UX-writing principles + deterministic heuristics (metric needs number+unit; CTA action-led ≤4 words; prose flags passive/jargon/hedging; caption-vs-heading duplication) — with a before→after rewrite suggestion per item. Pure offline |
 | `audit_typography` | Typographic-**scale** report over rendered DOM text nodes (or a supplied snapshot) — detects the dominant modular-scale ratio and flags off-scale sizes, checks line-height consistency vs the body rhythm, and flags weight ladders >4 weights or non-standard values. Goes beyond `audit_page`'s pass/fail typography checks |
 | `audit_tap_targets` | WCAG 2.5.5 / Apple 44pt **web** tap-target audit — enumerates every interactive element (rendered URL or snapshot) and emits a per-element fix table: selector, role, text, measured w/h, per-axis pixel deficit, and a concrete CSS fix, sorted worst-first |
