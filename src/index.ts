@@ -26,6 +26,7 @@ import { auditTypographyUrl, auditTypographySnapshot } from "./typography.js";
 import { auditTapTargetsUrl, auditTapTargetsSnapshot } from "./tap-targets.js";
 import { compactAuditPage, compactEvaluation, compactAuditUrl } from "./compact.js";
 import { auditVideoPlaybackUrl, auditVideoPlaybackSnapshot } from "./video-playback.js";
+import { auditConsistency } from "./audit-consistency.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -5239,6 +5240,47 @@ server.tool(
     var audience = params.audience || (brand && brand.audience) || "";
     var result = scoreCreativeText(params.creative_text, params.channel, brand, audience);
     return { content: [{ type: "text" as const, text: JSON.stringify({ ...result, channel: params.channel || null, audience: audience || null, brand_profile_id: brand ? brand.id : null }, null, 2) }] };
+  }
+);
+
+// ── Cross-page consistency audit ─────────────────────────────────────
+// audit_consistency: takes ≥2 pages ({name, html}) and flags divergence in
+// content-container width and hero heading tier across the corpus. Addresses
+// GitHub issue #9 — the single-blob audit blind spot where each page passes
+// audit_page clean but the pages disagree with each other.
+
+server.tool(
+  "audit_consistency",
+  "Audit multiple pages for cross-page consistency of content-container width and hero heading tier. Pass ≥2 pages ({name, html}) collected from different routes on the same site. Infers the canonical (modal) value from the corpus when no token is supplied, so you need not know the project's design token in advance. Flags the issue #9 single-blob blind spot: pages that each pass audit_page but silently disagree with each other on container width or hero size class. Returns per-page extraction (container_px, container_classes, hero_classes, signatures), consistency dimensions with reference values, outlier page names, issues[], score (100/50/0 → A/C/D), and a plain-text summary. Pure offline — no browser, no network.",
+  {
+    pages: z.array(
+      z.object({
+        name: z.string().min(1).describe("Page route or label (e.g. \"/\", \"/changelog\", \"get-started\")."),
+        html: z.string().min(1).describe("Full HTML source for the page, including any <style> blocks.")
+      })
+    ).min(2).describe("At least 2 pages to compare. Each entry is {name, html}."),
+    container_token: z.number().optional().describe("Project's canonical container width in px (e.g. 1152). When supplied, container divergence is measured against this token rather than the corpus modal."),
+    hero_token: z.string().optional().describe("Canonical hero heading class signature (e.g. \"text-display-xl\" or \"64\"). When supplied, hero divergence is measured against this token rather than the corpus modal.")
+  },
+  async function(params: { pages: Array<{ name: string; html: string }>; container_token?: number; hero_token?: string }) {
+    if (!params.pages || params.pages.length < 2) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: "Provide at least 2 pages ({name, html}) to compare for cross-page consistency."
+        }]
+      };
+    }
+    var result = auditConsistency(params.pages, {
+      container_token: params.container_token,
+      hero_token: params.hero_token
+    });
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(result, null, 2)
+      }]
+    };
   }
 );
 
