@@ -1,106 +1,117 @@
-# SPEC — suggest_contrast_fix: minimal WCAG-passing color remediation
+# SPEC — `score_page` tool (per-category design scoring)
 
 **Date:** 2026-06-21
-**Branch:** `feat/contrast-remediation` (off `origin/main`)
-**Backlog rank this run:** #1 by (impact × reach) ÷ effort. Natural follow-on to this session's contrast compositing fix — and unlike the other P1 contender (score_page), it has **objective WCAG ground truth**, so acceptance criteria are deterministic, not a self-defined rubric.
-**Source:** raven-opportunities ledger 2026-06-20 (P2): "No tool to find the MINIMAL token lift that clears AA across every surface a token touches — I brute-forced candidate greys live in the browser. → audit_contrast 'remediation mode': given a failing fg token + its surfaces, return the minimal passing value (and/or suggest darkening the chip bg) with margin."
+**Branch:** `feat/score-page` (off `origin/main` @ b51d570)
+**Backlog source:** `.claude/raven-opportunities.md` — `2026-06-21 | missing capability | no Raven tool produces a per-category "award" SCORE for a full page … add a score_page/score_design tool that returns 0-10 per design category … | **P1**`
+**Backlog rank this run:** #1 by (impact × reach) ÷ effort — P1, broadest reach (every page audit), low effort (pure function reusing `runPageChecks` output, no browser), fully deterministic + unit-testable, no collision with the 5 parked branches.
 
 ---
 
 ## Problem statement
 
-`audit_contrast` reports *which* text fails WCAG and the delta-to-pass, but not *what value to use instead*. When a foreground token fails against one or more surfaces, the designer currently brute-forces candidate colors by hand in the browser until the ratio clears. There is no tool that, given a failing fg/bg pair and a target level, returns the **minimal color change** that reaches the target ratio.
+`audit_page` already returns a flat overall score (0–100 + A–D grade) plus a list of passes/errors/warnings, but it does **not** break that score down per design category. A caller who wants "how is this page doing on typography vs accessibility vs spacing?" has to bucket the raw `fix_priority` rule strings by hand. There is no Raven tool that emits a per-category 0–10 design score for a full page (`evaluate_design` is a 129-principle checklist, not a scorer; `score_creative` scores ad copy only). This was logged P1.
 
 ## Goal / intent
 
-Add a pure, deterministic remediation helper + a thin MCP tool that, for each failing `{fg, bg}` pair, returns the **smallest adjustment** to the foreground (and, as an alternative, to the background) that meets the WCAG target ratio — with the achieved ratio and margin. Ground truth is the existing `contrastRatio`/`relativeLuminance` math, so every result is objectively verifiable.
+Add a new MCP tool **`score_page`** that consumes a block of HTML/CSS and returns a **per-category 0–10 score** derived deterministically from the existing `runPageChecks` rule engine — plus the same overall 0–100/grade `audit_page` produces, the weakest category, and an honest list of categories Raven does **not** mechanically assess. Reuse `runPageChecks` verbatim; **do not modify `src/page-checks.ts`** (it is shared by `audit_page` + `audit_url` and must not regress).
 
 ## Scope
 
 **In:**
-- **`src/contrast.ts`** — NEW pure exported `suggestContrastFix(fg, bg, opts?)`. Reuses existing `parseColor`, `relativeLuminance`, `contrastRatio`. No change to any existing function.
-- **`src/index.ts`** — NEW tool `suggest_contrast_fix` (takes an array of pairs, returns per-pair fixes + a summary). Tool count 56 → 57.
-- **`test/contrast.test.mjs`** — extend with `suggestContrastFix` cases (deterministic).
-- **Docs:** README tool list + CHANGELOG `[Unreleased] > Added`.
+- `src/score-page.ts` — NEW pure module: `scorePage(html, opts?) → ScorePageResult`.
+- `src/index.ts` — register the `score_page` tool (import, Zod input schema, handler, tool description). Tool count 56 → 57.
+- `test/score-page.test.mjs` — NEW deterministic unit tests against the acceptance criteria (no browser).
+- Docs: `CHANGELOG.md` `[Unreleased] > Added`; `README.md` tool list + count.
 
 **Out (not this run):**
-- No change to `audit_contrast` itself, the contrast math, or any other tool.
-- No marketing-site edit (the separate marketing-site-sync loop owns the 56→57 site bump).
-- No version bump / publish / push beyond the commit.
-- No multi-surface solver across N backgrounds in one call beyond what falls out of calling per pair (the tool accepts many pairs; "minimal lift across every surface a token touches" is the caller feeding all that token's failing pairs and taking the darkest/lightest returned fg — documented, not a new solver this run).
+- No change to `src/page-checks.ts`, `audit_page`, `audit_url`, or any other tool.
+- No new rule/check (scores derive only from existing checks).
+- No browser/render path (pure HTML-string analysis).
+- No version bump / publish / push. Joins `feat/svg-color-compliance` + `feat/dropdown-menu-pattern` as a post-v1.12.0 `[Unreleased]` item.
 
 ## Constrained valid values (the contract)
 
-### `suggestContrastFix(fg: string, bg: string, opts?): SuggestContrastFix`
-- `fg`, `bg`: any CSS color string `parseColor` accepts. Both are reduced to opaque before solving: if `fg` alpha < 1, composite `fg` over `bg`; if `bg` alpha < 1, composite `bg` over white. Reuse `parseColor`.
-- `opts.targetRatio?: number` — explicit target; when set, overrides the level/size-derived target.
-- `opts.level?: "AA" | "AAA"` — default `"AA"`.
-- `opts.fontPx?: number`, `opts.bold?: boolean` — used only to pick the large-text threshold when `targetRatio` is not given.
-- **Target derivation** (when `targetRatio` absent): text is "large" if `fontPx >= 24` OR (`fontPx >= 18.66` AND `bold`). Targets: AA → large `3.0`, normal `4.5`; AAA → large `4.5`, normal `7.0`.
+### Category enum — EXACTLY these 7 assessed categories (the tagged rule namespaces `runPageChecks` emits), in this canonical order:
+`structure`, `typography`, `color`, `spacing`, `a11y`, `responsive`, `tokens`
 
-Return shape (`SuggestContrastFix`):
+Display labels (1:1):
+- `structure` → "Structure"
+- `typography` → "Typography"
+- `color` → "Color & palette"
+- `spacing` → "Spacing & rhythm"
+- `a11y` → "Accessibility"
+- `responsive` → "Responsive layout"
+- `tokens` → "Design tokens"
+
+A category's issues are those whose `issue.rule` starts with `"<category>/"`.
+
+### Not-assessed enum — EXACTLY these 3 (named in the ledger, no mechanical signal exists):
+`brand`, `conversion`, `motion` — surfaced with a note steering callers to `evaluate_design` / `score_creative`. These carry NO numeric score.
+
+### Per-category score formula (deterministic):
 ```
+penalty = (errors_in_category × 4) + (warnings_in_category × 2)
+score   = clamp(10 − penalty, 0, 10)   // integer
+```
+Truth table (must hold): 0 issues → 10; 1 warning → 8; 1 error → 6; 1 error+1 warning → 4; 2 errors → 2; 3+ errors → 0.
+
+### Overall (mirrors `audit_page` exactly — reuse the same arithmetic):
+```
+totalChecks = passes.length + issues.length
+failCount   = strict ? issues.length : errors.length   // strict default false
+score       = totalChecks > 0 ? round((totalChecks − failCount) / totalChecks × 100) : 100
+grade       = failCount === 0 ? "A" : failCount <= 2 ? "B" : failCount <= 4 ? "C" : "D"
+```
+
+### Tool input (Zod), mirroring `audit_page`:
+- `html` (string, required, non-empty)
+- `strict` (boolean, optional, default false) — count warnings as failures in the overall score
+- `containerMaxWidth` (number, optional) — forwarded to `runPageChecks` for the `responsive/max-width` check
+
+### `ScorePageResult` shape (the contract the test asserts):
+```ts
 {
-  fg: string,                 // normalized opaque "rgb(r, g, b)"
-  bg: string,                 // normalized opaque "rgb(r, g, b)"
-  currentRatio: number,       // rounded to 2 decimals
-  targetRatio: number,
-  passes: boolean,            // currentRatio >= targetRatio (already OK)
-  fgFix: {                    // present only when !passes
-    color: string,            // "rgb(r, g, b)", minimal fg change reaching target
-    ratio: number,            // achieved ratio (>= targetRatio when reachable), 2 dp
-    direction: "lighter" | "darker"
-  } | null,
-  bgFix: {                    // present only when !passes
-    color: string,
-    ratio: number,
-    direction: "lighter" | "darker"
-  } | null,
-  reachable: boolean,         // true if a fix reaching target exists (else best-effort returned)
-  recommendation: string
+  overall: { score: number /*0-100*/, grade: "A"|"B"|"C"|"D", summary: string },
+  categories: Array<{            // length === 7, canonical order above
+    category: string,            // one of the 7 enum keys
+    label: string,               // matching display label
+    score: number,               // integer 0-10
+    errors: number,
+    warnings: number,
+    rationale: string            // one line; e.g. "2 errors, 1 warning" or "all checks passed"
+  }>,
+  weakest_category: string,      // category key with the lowest score (ties → first in canonical order)
+  not_assessed: { categories: string[] /* exactly ["brand","conversion","motion"] */, note: string }
 }
 ```
 
-### Algorithm (deterministic)
-- Compute `currentRatio`. If `>= targetRatio` → `passes:true`, `fgFix:null`, `bgFix:null`, `reachable:true`, recommendation "already passes".
-- Otherwise, to increase contrast, move the adjusted channel toward the pole whose contrast against the fixed color is larger:
-  - `fgFix`: choose the pole (`[0,0,0]` or `[255,255,255]`) whose `contrastRatio(pole, bg)` is larger; `direction` = "darker" for black pole, "lighter" for white pole. Binary-search the sRGB interpolation `t∈[0,1]` from `fg`→pole for the **smallest `t`** whose rounded color yields `contrastRatio >= targetRatio` (≥ ~20 iterations, then round to int RGB and, if rounding dipped below target, step one unit further toward the pole). If even the pole < target → `reachable:false`, return the pole as best-effort.
-  - `bgFix`: same procedure adjusting `bg` toward its best pole with `fg` fixed.
-- `recommendation`: prefer whichever fix is smaller in perceptual change (smaller RGB-space distance from original); mention the other as the alternative; if `!reachable`, say the pair cannot reach the target by adjusting one color alone and give the best achievable ratio.
-- **Purity:** no mutation of inputs; no I/O.
-
-### Tool `suggest_contrast_fix`
-- Input: `{ pairs: Array<{ selector?: string, fg: string, bg: string, fontPx?: number, bold?: boolean, targetRatio?: number }>, level?: "AA"|"AAA" }`.
-- Output JSON: `{ tool: "suggest_contrast_fix", level, results: Array<{ selector?, ...SuggestContrastFix }>, summary }`. `summary` counts pairs already-passing / fixed / unreachable.
-- Empty/missing `pairs` → a usage message describing the shape (mirror how audit_contrast handles missing input).
-
 ## Acceptance criteria
 
-1. `suggestContrastFix` is pure, exported, reuses existing contrast math, mutates nothing.
-2. **Already-passing** pair (e.g. `#000` on `#fff`) → `passes:true`, `fgFix===null`, `bgFix===null`.
-3. **Fix actually passes:** for a failing pair (e.g. `fg=rgb(150,150,150)` on `bg=rgb(255,255,255)`, AA normal target 4.5), `fgFix.color` satisfies `contrastRatio(parse(fgFix.color), bg) >= 4.5` and `fgFix.ratio >= 4.5`.
-4. **Minimality (within rounding):** a color one step *less* adjusted than `fgFix.color` (one RGB unit back toward the original fg along the pole direction) yields `contrastRatio < targetRatio`. (Tolerance: assert the fix is within 2 RGB units of the true minimum.)
-5. **Direction correctness:** dark bg → `fgFix.direction==="lighter"`; light bg → `fgFix.direction==="darker"`.
-6. **Target derivation:** large text (fontPx 24) uses 3.0 under AA; AAA normal uses 7.0; explicit `targetRatio` overrides both.
-7. **Unreachable:** a pair where neither pole reaches target (e.g. target 21 on a mid-gray bg) → `reachable:false` with a best-effort fgFix at the pole and a clear recommendation; never throws.
-8. **Tool** returns one result per input pair with the `selector` echoed, plus a correct `summary` count; empty pairs → usage message.
-9. `npm run build` clean; `npm test` fully green — all existing contrast/other tests still pass plus the new ones.
-10. CHANGELOG `[Unreleased] > Added` + README document the new tool.
+1. `src/score-page.ts` exports a pure `scorePage(html: string, opts?: { strict?: boolean; containerMaxWidth?: number }): ScorePageResult`; no I/O, no browser, no `page-checks.ts` edit.
+2. `categories` always has **exactly 7** entries in the canonical order, each with all keys present and `score` an integer in `[0,10]`.
+3. Per-category score obeys the penalty formula + truth table above.
+4. `overall.score`/`overall.grade` for a given `html`+`strict` are **byte-identical** to what `audit_page` computes for the same input (verified by computing both in the test from `runPageChecks`).
+5. `weakest_category` equals the category with the minimum score (first in canonical order on ties).
+6. `not_assessed.categories` deep-equals `["brand","conversion","motion"]`.
+7. A clean HTML fixture (no issues) → every category score 10, grade "A". An HTML fixture with a known a11y error (img missing alt) AND a known typography error (font < 13px) → `a11y` and `typography` scores drop per the formula while unrelated categories stay 10.
+8. `score_page` is registered in `src/index.ts` (importable tool), tool count 56 → 57; the handler returns the `ScorePageResult` as JSON text.
+9. `npm run build` clean; `npm test` fully green (existing suite + new `score-page.test.mjs`).
+10. `CHANGELOG.md` `[Unreleased] > Added` documents `score_page`; `README.md` lists it and bumps the count to 57.
 
 ## File-level change plan
 
 | File | Change | Owner |
 |---|---|---|
-| `src/contrast.ts` | add `SuggestContrastFix` type + pure `suggestContrastFix(fg,bg,opts?)`; reuse parseColor/relativeLuminance/contrastRatio; no existing fn changed | implementer |
-| `src/index.ts` | add `suggest_contrast_fix` tool (array of pairs → per-pair fixes + summary); import from `./contrast.js` | implementer |
-| `test/contrast.test.mjs` | add: already-passing, fix-passes, minimality, direction, target-derivation, unreachable, no-mutation | test-author |
-| `CHANGELOG.md` | `[Unreleased] > Added` entry | doc-updater |
-| `README.md` | new tool line; bump tool count if README states one | doc-updater |
+| `src/score-page.ts` | NEW — `scorePage()` pure module reusing `runPageChecks` | implementer |
+| `src/index.ts` | register `score_page` tool (import, Zod schema, handler, description); count 56→57 | implementer |
+| `test/score-page.test.mjs` | NEW — deterministic unit tests for AC 1–8 (no browser, no skip-guard exit pitfalls) | test-author |
+| `CHANGELOG.md` | `[Unreleased] > Added` entry for `score_page` | doc-updater |
+| `README.md` | add `score_page` to tool list; bump tool count to 57 | doc-updater |
 
 ## Verification plan
 
-- **Targeted:** `node --test test/contrast.test.mjs` → all pass (proves AC 1–7).
-- **Ground-truth assertions:** every "fix" test recomputes `contrastRatio` on the returned color and asserts `>= target` (objective, not self-defined) — AC 3; minimality via one-step-back failing — AC 4.
-- **Full suite:** `npm run build && npm test` → 0 fail (AC 9); confirms no existing contrast test regressed (existing functions untouched).
-- **Reviewer:** diff vs this SPEC; flag any change to existing contrast functions, any non-pure helper, any returned fix that does NOT actually clear the target, missing direction/unreachable handling.
-- **Main loop (me):** read merged diff, run suite, parallel-instance collision re-check, then commit referencing SPEC.md (no push/PR).
+- **Unit:** `node --test test/score-page.test.mjs` → all pass (proves AC 1–8). Test imports `dist/score-page.js` (after build) and also `dist/page-checks.js` to cross-check AC 4; assert exactly-7 categories, the penalty truth table, weakest-category, not_assessed deep-equal, and the clean/dirty fixtures.
+- **Full suite:** `npm run build && npm test` → 0 fail (AC 9), confirming no regression to audit_page/audit_url (page-checks.ts untouched).
+- **Eyes-on:** main loop calls `scorePage` on a real fixture and reads the JSON to confirm scores are sane (not just that it ran).
+- **Reviewer:** diff vs this SPEC; flag any `page-checks.ts` edit (out of scope), category-count/order drift, formula drift, missing AC, or overall-score divergence from audit_page.
+- **Main loop (me):** read the result, run the suite, parallel-instance collision re-check, then commit referencing SPEC.md (no push).

@@ -6,6 +6,9 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+### Added
+- `score_page` — returns a per-category (0–10) design score for a page (typography, accessibility, spacing, color, responsive, tokens, structure) derived from the same checks as `audit_page`, plus the overall score/grade, the weakest category, and the categories Raven does not mechanically assess (brand, conversion, motion).
+
 ## [1.12.0] - 2026-06-21
 
 ### Added

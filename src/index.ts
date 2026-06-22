@@ -10,6 +10,7 @@ import { auditContainerWidth } from "./audit-container.js";
 import { capturePage, CaptureUnavailableError, annotateVideoArtifacts, verifyFindings } from "./capture.js";
 import type { VerifiableFinding } from "./capture.js";
 import { runPageChecks } from "./page-checks.js";
+import { scorePage } from "./score-page.js";
 import { auditUrl } from "./audit-url.js";
 import { captureResponsiveVisibility } from "./responsive.js";
 import { auditContrastUrl, auditContrastSnapshot, suggestContrastFix } from "./contrast.js";
@@ -2456,6 +2457,35 @@ server.tool(
       content: [{
         type: "text" as const,
         text: JSON.stringify(payload, null, 2)
+      }]
+    };
+  }
+);
+
+// ── Tool 11b: score_page ───────────────────────────────────────────────────
+
+server.tool(
+  "score_page",
+  "Score an HTML/CSS page across 7 design categories (Structure, Typography, Color & palette, Spacing & rhythm, Accessibility, Responsive layout, Design tokens), each rated 0–10. Scores are derived deterministically from the same checks as audit_page — no browser required. Also returns the same overall 0–100 score and A–D grade audit_page produces, the weakest category, and the three categories Raven does not mechanically assess (brand, conversion, motion) with guidance on which tools to use for those.",
+  {
+    html: z.string().min(1).describe("The full HTML content of the page to score."),
+    strict: z.boolean().optional().describe("Strict mode — count warnings as failures in the overall score. Default: false."),
+    containerMaxWidth: z.number().optional().describe("Your design system's canonical content-container width in px (e.g. 1152). Forwarded to the responsive/max-width check.")
+  },
+  async function({ html, strict, containerMaxWidth }) {
+    if (html === undefined || html === null || html.trim() === "") {
+      return {
+        content: [{
+          type: "text" as const,
+          text: "Provide html (the page's HTML/CSS) to score."
+        }]
+      };
+    }
+    const result = scorePage(html, { strict, containerMaxWidth });
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(result, null, 2)
       }]
     };
   }
