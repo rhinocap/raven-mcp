@@ -1,7 +1,37 @@
+# Session: 2026-06-21 — autonomous backlog /loop + release prep
+
 # Session: 2026-06-21/22 — autonomous backlog /loop + release prep
 
 ## Where we left off
 v1.12.0 staged on local `main` awaiting Andrew's "go" to publish; backlog `/loop` running via session ScheduleWakeup (does NOT survive /clear). Durable record: memory `project_v1_12_0_staged_and_parked_branches.md`.
+
+## This session
+### Backlog /loop — run N+1: shipped `audit_consistency` (#1 this run, open issue #9)
+- `feat/audit-consistency` (`1db1af1`, off `origin/main`) — NEW `audit_consistency` MCP tool: takes ≥2 pages, flags cross-page divergence in container width + hero heading tier (the relational defects single-blob audits miss). Infers modal canonical value or honors `container_token`/`hero_token`; handles Tailwind classes (`text-display-xl`, `container-wide max-w-3xl`) AND declared px. Pure, reuses `audit-container.ts` `containerScaleWidths`; **audit-container.ts + page-checks.ts untouched**. Tool 56→57. 14 tests (issue-#9 fixtures); suite **224/224 green**. Reviewer PASS. Fixed 1 NIT (no-modal tie → `source:"none"` for field consistency) + 1 message bug (class signature no longer rendered as `container-widepx`). Eyes-on: changelog flagged on BOTH dimensions, consistent corpus → 100/A.
+  - **Issue #9 now fully addressed**: fix-1 (corpus mode) shipped THIS run; fix-2 (project-token grounding) + fix-3 (reframe responsive/max-width) already shipped earlier via `auditContainerWidth`/`containerMaxWidth`. #9 is closeable once these land on `origin/main` (NOT closing the GH issue now — branch unpushed).
+
+### Backlog /loop — run N (post-/compact): shipped `score_page`
+- `feat/score-page` (`118a0ed`, off `origin/main`) — NEW `score_page` MCP tool: per-category 0-10 design scores (7 namespaces) from `runPageChecks`, no browser, **page-checks.ts untouched**; mirrors audit_page overall score/grade; weakest_category; honest not_assessed [brand,conversion,motion]. 38 tests; suite 248/248 green on that branch. Reviewer PASS. UNPUSHED. (Session log for that run committed on the feat/score-page branch @ 9d34cd2.)
+
+### Backlog /loop — earlier: shipped 4 items (each spec → fan-out → reviewer → test → commit), all UNPUSHED branches
+- `fix/contrast-ancestor-composite` (`263046b`) — audit_contrast composites the true ancestor bg stack (P1 false-AA-fail bug)
+- `feat/compact-response-mode` (`247734e`) — `compact:true` on audit_page/evaluate_design/audit_url
+- `feat/contrast-remediation` (`1148c2b`) — new `suggest_contrast_fix` tool
+- `feat/svg-color-compliance` (`e9dfa5e`) — new `tokens/svg-hardcoded-color` page-check
+- `feat/dropdown-menu-pattern` (`201d2f5`) — `dropdown-menu.json` pattern, **Closes #1**
+
+### Release prep (Andrew chose "Prepare, then ask me")
+- v1.12.0 staged on local `main` (`7c2f40e`), merged first 3 branches, CHANGELOG → `## [1.12.0] - 2026-06-21`, dry-run confirms 1.12.0. **Awaiting "go"** to run `scripts/release.sh minor`.
+- Reusable loop prompts: `.claude/loops/release-readiness.md` (prepare-then-ask) + `.claude/loops/marketing-site-sync.md`.
+
+## State at end of session
+- v1.12.0: STAGED on main, NOT pushed — awaiting Andrew's "go" ✓
+- Post-v1.12.0 unpushed feature branches: `feat/svg-color-compliance`, `feat/dropdown-menu-pattern`, `feat/score-page`, `feat/audit-consistency`
+- npm: still 1.11.0; origin/main: still b51d570 (nothing pushed)
+- Pending (carried forward):
+  - Publish v1.12.0 on Andrew's "go"
+  - Land the post-v1.12.0 branches; close GH #9 (fully addressed) and #1 (dropdown) when they reach origin/main
+  - Backlog loop continues (re-fire /loop, or convert to /schedule for durability)
 
 ## This session — backlog /loop (each: spec → 4-agent fan-out → reviewer → test → commit, all UNPUSHED off origin/main)
 ### Run N+2: `audit_video_playback` (#1, ledger P2 — "videos don't play")
