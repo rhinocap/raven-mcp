@@ -215,6 +215,32 @@
 
     <article class="release">
       <header class="release-head">
+        <h2>v1.11.0</h2>
+        <span class="badge badge-minor">minor</span>
+        <time datetime="2026-06-21T17:45:00-07:00">Jun 21, 2026</time>
+      </header>
+      <div class="release-body">
+        <p>Raven v1.11.0 — device-frame crop audit + palette &amp; spacing discipline principles</p>
+
+<h3>Added</h3>
+<ul>
+<li><code>audit_device_frame</code> — flags cropped content in device-mockup frames (phone/MacBook screenshots, app-preview clips): <code>object-fit:cover</code> aspect-ratio crop loss, baked-in pan/zoom (Ken Burns) drift, and content truncated at a frame edge. Catches the case where a 16:9 clip in a ~1.82-aspect screen cutout silently slices the bottom.</li>
+<li><code>color-systems</code> principle — palette-size discipline: keep a page at or under 10 distinct colors with a role-based token set (surface, border, text, accent, semantic), surfaced through <code>get_principles</code>, <code>search_knowledge</code>, and <code>evaluate_design</code>.</li>
+<li><code>spacing-systems</code> principles — an 8px base-unit grid (4px half-step) and a limited &le;7-token spacing scale, aligned to the <code>spacing/base-unit</code> and <code>spacing/scale-count</code> audit rules.</li>
+</ul>
+
+<p><strong>Install:</strong></p>
+<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
+
+
+      </div>
+      <footer class="release-foot">
+        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.11.0" target="_blank" rel="noopener">View on GitHub &rarr;</a>
+      </footer>
+    </article>
+
+    <article class="release">
+      <header class="release-head">
         <h2>v1.10.0</h2>
         <span class="badge badge-minor">minor</span>
         <time datetime="2026-06-19T20:32:08-07:00">Jun 19, 2026</time>
