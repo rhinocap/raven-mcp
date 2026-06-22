@@ -1,3 +1,34 @@
+# Session: 2026-06-21/22 — autonomous backlog /loop + release prep
+
+## Where we left off
+v1.12.0 staged on local `main` awaiting Andrew's "go" to publish; backlog `/loop` running via session ScheduleWakeup (does NOT survive /clear). Durable record: memory `project_v1_12_0_staged_and_parked_branches.md`.
+
+## This session — backlog /loop (each: spec → 4-agent fan-out → reviewer → test → commit, all UNPUSHED off origin/main)
+### Run N+2: `audit_video_playback` (#1, ledger P2 — "videos don't play")
+- `feat/audit-video-playback` (`f57f41a`) — NEW `audit_video_playback`: renders page in chromium, observes whether each `<video>` currentTime ADVANCES (+readyState/networkState/error/paused), classifies playing|paused|stalled|empty|error. Catches black/non-playing videos static audits miss. Mirrors contrast.ts: pure `classifyVideoPlayback` + pure `auditVideoPlaybackSnapshot` (shared by both paths) + browser `auditVideoPlaybackUrl`; `url` OR `dom_snapshot`. capture/contrast/page-checks untouched. Tool 56→57. 23 tests; suite **233/233**. Reviewer FAIL→fixed (dom_snapshot missing `url` field + no test for that path → extracted shared aggregator + 3 tests). Eyes-on: clip.webm→playing (Δt 0.2s), broken src→error.
+
+### Run N+1: `audit_consistency` (#1, open issue #9)
+- `feat/audit-consistency` (`1db1af1`) — cross-page corpus audit (container width + hero tier divergence). 14 tests; 224/224. **Issue #9 fully addressed** (corpus mode this run; token-grounding + max-width-reframe already shipped earlier). Closeable once landed.
+
+### Run N: `score_page`
+- `feat/score-page` (`118a0ed`) — per-category 0-10 design scores from runPageChecks. 38 tests; 248/248 on that branch.
+
+### Earlier runs: 5 items (all UNPUSHED)
+- `fix/contrast-ancestor-composite` (`263046b`), `feat/compact-response-mode` (`247734e`), `feat/contrast-remediation` (`1148c2b`), `feat/svg-color-compliance` (`e9dfa5e`), `feat/dropdown-menu-pattern` (`201d2f5`, Closes #1)
+
+### Release prep (Andrew chose "Prepare, then ask me")
+- v1.12.0 staged on local `main` (`7c2f40e`): merged first 3 branches, CHANGELOG → `## [1.12.0] - 2026-06-21`, dry-run OK. **Awaiting "go"** to run `scripts/release.sh minor`.
+- Reusable: `.claude/loops/release-readiness.md` + `.claude/loops/marketing-site-sync.md`.
+
+## State at end of session
+- v1.12.0: STAGED on main, NOT pushed — awaiting "go" ✓
+- npm: still 1.11.0; origin/main: still b51d570 (nothing pushed)
+- Post-v1.12.0 unpushed feature branches: svg-color-compliance, dropdown-menu-pattern, score-page, audit-consistency, audit-video-playback
+- Open-issue backlog now EMPTY (#9 + #1 handled on branches; close on land)
+- Pending (carried forward):
+  - Publish v1.12.0 on Andrew's "go"; then land post-v1.12.0 branches; close GH #9 + #1
+  - Backlog loop continues (re-fire /loop, or convert to /schedule for durability). Remaining ledger candidates: ultra-wide XDR sweep (P2), grid-orphan detector (P3), intentional-miniature exemption (P2), Ken-Burns video-content (P3)
+
 # Session: 2026-06-21 — autonomous backlog /loop + release prep
 
 ## Where we left off
