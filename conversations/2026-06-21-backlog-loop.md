@@ -1,3 +1,37 @@
+# Session: 2026-06-21 — autonomous backlog /loop + release prep
+
+## Where we left off
+v1.12.0 staged on `main` awaiting Andrew's "go" to publish; backlog loop running via session ScheduleWakeup (does NOT survive /clear).
+
+## This session
+### Backlog /loop — run N (post-/compact): shipped `score_page` (#1 this run)
+- `feat/score-page` (`118a0ed`, off `origin/main`) — NEW `score_page` MCP tool: per-category 0-10 design scores (7 namespaces: structure/typography/color/spacing/a11y/responsive/tokens) from `runPageChecks`, no browser, **page-checks.ts untouched**; mirrors audit_page overall score/grade; weakest_category; honest not_assessed [brand,conversion,motion]. Tool 56→57. `src/score-page.ts` + 38 tests; full suite **248/248 green**. Reviewer: OVERALL PASS. Backlog source: raven-opportunities.md P1 (2026-06-21). Fan-out: implementer+test-author(sonnet), doc-updater(haiku), reviewer(sonnet). UNPUSHED.
+  - Note: `scroll_settle`, custom viewport sweep, decorative/intentional categorization all found ALREADY-SHIPPED during the scan (ledger rows predate shipment) — not redone.
+
+### Backlog /loop — shipped 4 items (each spec → fan-out → reviewer → test → commit), all UNPUSHED branches
+- `fix/contrast-ancestor-composite` (`263046b`) — audit_contrast composites the true ancestor bg stack (was a P1 false-AA-fail bug)
+- `feat/compact-response-mode` (`247734e`) — `compact:true` on audit_page/evaluate_design/audit_url (strips screenshots/principle bodies)
+- `feat/contrast-remediation` (`1148c2b`) — new `suggest_contrast_fix` tool (minimal WCAG-passing color), 56→57 tools
+- `feat/svg-color-compliance` (`e9dfa5e`) — new `tokens/svg-hardcoded-color` page-check (inline SVG icons hardcoding color)
+- `feat/dropdown-menu-pattern` (`201d2f5`) — `dropdown-menu.json` pattern, **Closes #1** (grafted real UX-law refs from stale raven-bot draft `origin/knowledge/issue-1-*`)
+
+### Release prep (Andrew chose "Prepare, then ask me")
+- Merged the first 3 branches into local `main` (`7c2f40e`, ahead 6), combined CHANGELOG → `## [1.12.0] - 2026-06-21`, dry-run confirms 1.12.0, `npm whoami`=accunliffe. **Awaiting "go"** to run `scripts/release.sh minor` (passkey EOTP → `! npm publish` recovery, then marketing-site-sync).
+- Created reusable `.claude/loops/release-readiness.md` (prepare-then-ask) — pairs with `marketing-site-sync.md`.
+
+## Mistakes & lessons
+| Mistake | Type | Rule added |
+|---------|------|-----------|
+| Authored dropdown-menu.json fresh instead of checking for the `knowledge/issue-1-*` draft branch first | reuse-miss | Check stale `knowledge/issue-*` draft branches BEFORE authoring a knowledge file (caught at collision gate, grafted the draft's correct UX-law refs) |
+
+## State at end of session
+- v1.12.0: STAGED on main, NOT pushed — awaiting Andrew's "go" ✓
+- npm: still 1.11.0; origin/main: still b51d570 (nothing pushed)
+- All 5 branches committed in git (durable across /clear)
+- Pending (carried forward):
+  - Publish v1.12.0 on Andrew's "go"
+  - After v1.12.0 ships: svg-color-compliance + dropdown-menu become the next [Unreleased]
+  - Backlog loop continues (re-fire /loop, or convert to /schedule for durability)
 
 ### Run +release (2026-06-22): v1.12.0 PUBLISHED
 Andrew: "let's /release" = the go. Ran the release skill end-to-end on `main`:
