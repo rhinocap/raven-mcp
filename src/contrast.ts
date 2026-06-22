@@ -144,6 +144,43 @@ function compositeOverWhite(
   return [rOut, gOut, bOut];
 }
 
+/**
+ * Composite an ordered stack of CSS color strings onto an opaque white base.
+ *
+ * @param layers - CSS color strings ordered **nearest ancestor first → furthest last**.
+ *   Each is parsed with parseColor. Fully-transparent layers (a === 0) are skipped.
+ *   The stack is composited alpha-over from furthest→nearest onto white [255,255,255].
+ * @returns An opaque [r, g, b] triple. Empty or all-transparent input → [255,255,255].
+ */
+export function compositeBackground(layers: string[]): [number, number, number] {
+  // Start with an opaque white base
+  let baseR = 255;
+  let baseG = 255;
+  let baseB = 255;
+
+  // Parse all layers, skipping fully transparent ones
+  const parsed: Array<[number, number, number, number]> = [];
+  for (const layer of layers) {
+    const [r, g, b, a] = parseColor(layer);
+    if (a === 0) continue; // skip transparent
+    parsed.push([r, g, b, a]);
+  }
+
+  if (parsed.length === 0) {
+    return [255, 255, 255];
+  }
+
+  // Composite furthest→nearest (reverse order) onto the base
+  for (let i = parsed.length - 1; i >= 0; i--) {
+    const [r, g, b, a] = parsed[i];
+    baseR = Math.round(r * a + baseR * (1 - a));
+    baseG = Math.round(g * a + baseG * (1 - a));
+    baseB = Math.round(b * a + baseB * (1 - a));
+  }
+
+  return [baseR, baseG, baseB];
+}
+
 // ---------------------------------------------------------------------------
 // Snapshot audit (pure — no Playwright needed)
 // ---------------------------------------------------------------------------
@@ -156,6 +193,7 @@ export function auditContrastSnapshot(
     selector: string;
     color: string;
     bgColor: string;
+    bgColors?: string[];
     fontPx?: number;
     bold?: boolean;
     text?: string;
@@ -166,15 +204,25 @@ export function auditContrastSnapshot(
 
   for (const el of elements) {
     const [fr, fg, fb, fa] = parseColor(el.color);
-    const [br, bg, bb, ba] = parseColor(el.bgColor);
 
     // Composite fg over white if semi-transparent
     const fgRgb: [number, number, number] =
       fa < 1 ? compositeOverWhite(fr, fg, fb, fa) : [fr, fg, fb];
 
-    // Composite bg over white if semi-transparent
-    const bgRgb: [number, number, number] =
-      ba < 1 ? compositeOverWhite(br, bg, bb, ba) : [br, bg, bb];
+    // Background: use ancestor stack when available, else fall back to single bgColor path
+    let bgRgb: [number, number, number];
+    let bgDisplay: string;
+    if (el.bgColors && el.bgColors.length > 0) {
+      bgRgb = compositeBackground(el.bgColors);
+      bgDisplay = `rgb(${bgRgb[0]}, ${bgRgb[1]}, ${bgRgb[2]})`;
+    } else {
+      const [br, bg, bb, ba] = parseColor(el.bgColor);
+      // Composite bg over white if semi-transparent (existing path, unchanged)
+      bgRgb = ba < 1 ? compositeOverWhite(br, bg, bb, ba) : [br, bg, bb];
+      // Report the effective opaque color the ratio was computed against, not
+      // the raw translucent input (AC4). Opaque inputs are reported verbatim.
+      bgDisplay = ba < 1 ? `rgb(${bgRgb[0]}, ${bgRgb[1]}, ${bgRgb[2]})` : el.bgColor;
+    }
 
     const fontPx = el.fontPx ?? 16;
     const bold = el.bold ?? false;
@@ -191,7 +239,7 @@ export function auditContrastSnapshot(
       selector: el.selector,
       text: el.text ?? "",
       foreground: el.color,
-      background: el.bgColor,
+      background: bgDisplay,
       fontPx,
       bold,
       large,
@@ -284,6 +332,7 @@ export async function auditContrastUrl(
       selector: string;
       color: string;
       bgColor: string;
+      bgColors: string[];
       fontPx: number;
       bold: boolean;
       text: string;
@@ -314,24 +363,38 @@ export async function auditContrastUrl(
       }
 
       /**
-       * Walk ancestors to find the effective opaque background colour.
-       * Returns a CSS colour string.
+       * Walk ancestors and collect the ordered background color stack.
+       * Returns CSS color strings ordered nearest ancestor first → furthest last.
+       * Includes each non-transparent background up to and including the first
+       * fully-opaque background (alpha === 1), or to the root if none opaque.
        */
-      function effectiveBgColor(el: Element): string {
+      function effectiveBgColors(el: Element): string[] {
+        const stack: string[] = [];
         let node: Element | null = el;
         while (node) {
           const style = window.getComputedStyle(node);
           const bg = style.backgroundColor;
           if (bg && bg !== "transparent" && bg !== "rgba(0, 0, 0, 0)") {
-            // Check if it has meaningful alpha
-            const m = bg.match(/rgba?\([\d.,\s]+,\s*([\d.]+)\)/);
-            if (!m || parseFloat(m[1]) > 0) {
-              return bg;
+            // Check alpha: rgba(..., alpha) or rgb(...) which is fully opaque
+            const rgbaMatch = bg.match(/rgba\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*([\d.]+)\s*\)/);
+            if (rgbaMatch) {
+              const alpha = parseFloat(rgbaMatch[1]);
+              if (alpha > 0) {
+                stack.push(bg);
+                if (alpha >= 1) {
+                  break; // stop at the first fully-opaque background
+                }
+              }
+              // alpha === 0: skip (fully transparent)
+            } else {
+              // rgb(...) form — fully opaque
+              stack.push(bg);
+              break; // stop at the first fully-opaque background
             }
           }
           node = node.parentElement;
         }
-        return "rgb(255, 255, 255)"; // default white
+        return stack;
       }
 
       /**
@@ -366,14 +429,16 @@ export async function auditContrastUrl(
 
         const style = window.getComputedStyle(el);
         const color = style.color || "rgb(0,0,0)";
-        const bgColor = effectiveBgColor(el);
+        const bgColors = effectiveBgColors(el);
+        // Back-compat: bgColor is the first (nearest) entry, or white if empty
+        const bgColor = bgColors.length > 0 ? bgColors[0] : "rgb(255, 255, 255)";
         const fontPx = parseFloat(style.fontSize) || 16;
         const fw = style.fontWeight;
         const bold = parseInt(fw) >= 600 || fw === "bold";
         const text = (el.textContent || "").trim().slice(0, 60);
         const selector = stableSelector(el);
 
-        results.push({ selector, color, bgColor, fontPx, bold, text });
+        results.push({ selector, color, bgColor, bgColors, fontPx, bold, text });
       }
 
       return results;
@@ -385,7 +450,20 @@ export async function auditContrastUrl(
       );
     }
 
-    const result = auditContrastSnapshot(raw);
+    // Back-compat contract: each element's single `bgColor` must be the
+    // composited OPAQUE result of its ancestor stack (not the raw nearest,
+    // possibly-translucent layer) — so any consumer reading `bgColor` alone
+    // gets the true effective background instead of re-running the over-white
+    // path. (compositeBackground isn't reachable inside the page.evaluate
+    // browser context, so we resolve it here on the Node side.)
+    const normalized = raw.map((el) => {
+      if (el.bgColors && el.bgColors.length > 0) {
+        const [r, g, b] = compositeBackground(el.bgColors);
+        return { ...el, bgColor: `rgb(${r}, ${g}, ${b})` };
+      }
+      return el;
+    });
+    const result = auditContrastSnapshot(normalized);
     result.url = url;
     result.warnings.push(...warnings);
     return result;

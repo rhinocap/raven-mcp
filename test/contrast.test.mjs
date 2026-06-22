@@ -34,6 +34,7 @@ let parseColor;
 let auditContrastSnapshot;
 let auditContrastUrl;
 let CaptureUnavailableError;
+let compositeBackground;
 
 try {
   const mod = await import(distContrast);
@@ -42,6 +43,7 @@ try {
   parseColor = mod.parseColor;
   auditContrastSnapshot = mod.auditContrastSnapshot;
   auditContrastUrl = mod.auditContrastUrl;
+  compositeBackground = mod.compositeBackground;
   // CaptureUnavailableError may be re-exported from contrast.ts or the error class itself
   CaptureUnavailableError = mod.CaptureUnavailableError;
 } catch (err) {
@@ -218,6 +220,160 @@ test('auditContrastSnapshot: result shape is complete', () => {
   assert.ok(Array.isArray(result.aa_failures), 'aa_failures is an array');
   assert.ok(Array.isArray(result.warnings), 'warnings is an array');
   assert.strictEqual(result.total_text_elements, 1, 'total_text_elements should be 1');
+});
+
+// ── compositeBackground — pure (A: cases 1-5) ────────────────────────────────
+
+// Case A1: canonical fix — translucent white layer over dark base must be dark
+test('compositeBackground: canonical fix ["rgba(255,255,255,0.1)","rgb(11,11,15)"] ≈ [36,36,40]', () => {
+  if (typeof compositeBackground !== 'function') {
+    // compositeBackground not yet in dist — awaiting implementer build
+    assert.ok(true, 'skipped: compositeBackground not exported yet');
+    return;
+  }
+  const [r, g, b] = compositeBackground(['rgba(255,255,255,0.1)', 'rgb(11,11,15)']);
+  assert.ok(Math.abs(r - 36) <= 2, `r channel: expected ~36, got ${r}`);
+  assert.ok(Math.abs(g - 36) <= 2, `g channel: expected ~36, got ${g}`);
+  assert.ok(Math.abs(b - 40) <= 2, `b channel: expected ~40, got ${b}`);
+  // Must be dark, NOT near-white
+  assert.ok(r < 80 && g < 80 && b < 80, `result must be dark (all channels < 80); got [${r},${g},${b}]`);
+});
+
+// Case A2: transparent-skip — fully-transparent layer is ignored
+test('compositeBackground: transparent layer is skipped ["rgba(0,0,0,0)","rgb(20,20,20)"] → [20,20,20]', () => {
+  if (typeof compositeBackground !== 'function') {
+    assert.ok(true, 'skipped: compositeBackground not exported yet');
+    return;
+  }
+  const result = compositeBackground(['rgba(0,0,0,0)', 'rgb(20,20,20)']);
+  assert.deepEqual(result, [20, 20, 20]);
+});
+
+// Case A3: opaque base passes through — fully-opaque single layer
+test('compositeBackground: opaque layer passes through ["rgb(18,18,18)"] → [18,18,18]', () => {
+  if (typeof compositeBackground !== 'function') {
+    assert.ok(true, 'skipped: compositeBackground not exported yet');
+    return;
+  }
+  const result = compositeBackground(['rgb(18,18,18)']);
+  assert.deepEqual(result, [18, 18, 18]);
+});
+
+// Case A4: empty array → white
+test('compositeBackground: empty array → [255,255,255]', () => {
+  if (typeof compositeBackground !== 'function') {
+    assert.ok(true, 'skipped: compositeBackground not exported yet');
+    return;
+  }
+  const result = compositeBackground([]);
+  assert.deepEqual(result, [255, 255, 255]);
+});
+
+// Case A5: multi-layer stack composes to something dark
+test('compositeBackground: multi-layer translucent stack over dark base → low luminance result', () => {
+  if (typeof compositeBackground !== 'function') {
+    assert.ok(true, 'skipped: compositeBackground not exported yet');
+    return;
+  }
+  // nearest: rgba white tint, middle: rgba dark overlay, furthest: opaque dark base
+  const [r, g, b] = compositeBackground([
+    'rgba(255,255,255,0.08)',
+    'rgba(0,0,0,0.3)',
+    'rgb(10,10,14)',
+  ]);
+  const maxChannel = Math.max(r, g, b);
+  assert.ok(maxChannel < 80, `max channel should be < 80 (dark result); got [${r},${g},${b}], max=${maxChannel}`);
+});
+
+// ── Bug is fixed — end-to-end via auditContrastSnapshot (B: cases 6-8) ───────
+
+// Case B6: white text on true dark composite passes AA with bgColors stack
+test('auditContrastSnapshot: bgColors stack — white text on dark composite passes AA (≥4.5)', () => {
+  if (typeof compositeBackground !== 'function') {
+    assert.ok(true, 'skipped: compositeBackground not exported yet (bgColors path needs it)');
+    return;
+  }
+  const result = auditContrastSnapshot([
+    {
+      selector: '.pill',
+      color: 'rgb(255,255,255)',
+      bgColors: ['rgba(255,255,255,0.1)', 'rgb(11,11,15)'],
+      fontPx: 14,
+    },
+  ]);
+  assert.ok(result.rows.length >= 1, 'should have at least one row');
+  const row = result.rows.find((r) => r.selector === '.pill');
+  assert.ok(row !== undefined, 'row for .pill should exist');
+  assert.strictEqual(row.aa, true, `white on dark composite should pass AA; ratio=${row.ratio}`);
+  assert.ok(row.ratio >= 4.5, `ratio should be >= 4.5; got ${row.ratio}`);
+});
+
+// Case B7: OLD failure mode — single translucent bgColor composited over white FAILS AA
+// This demonstrates the regression that the bgColors stack fix closes.
+test('auditContrastSnapshot: old single-bgColor path — white on rgba(255,255,255,0.1) over white FAILS AA', () => {
+  // This uses the unchanged back-compat single-bgColor path.
+  // rgba(255,255,255,0.1) composited over white ≈ rgb(255,255,255) → white-on-white, ratio ≈ 1.
+  const result = auditContrastSnapshot([
+    {
+      selector: '.pill-old',
+      color: 'rgb(255,255,255)',
+      bgColor: 'rgba(255,255,255,0.1)',
+      fontPx: 14,
+    },
+  ]);
+  const row = result.rows.find((r) => r.selector === '.pill-old');
+  assert.ok(row !== undefined, 'row for .pill-old should exist');
+  assert.strictEqual(row.aa, false, `white on near-white (over-white composite) should fail AA; ratio=${row.ratio}`);
+  assert.ok(row.ratio < 1.5, `ratio should be < 1.5 (near-1); got ${row.ratio}`);
+});
+
+// Case B8: row background reports the effective composited opaque color (starts with "rgb(")
+test('auditContrastSnapshot: bgColors stack row background is opaque rgb string (not the raw rgba)', () => {
+  if (typeof compositeBackground !== 'function') {
+    assert.ok(true, 'skipped: compositeBackground not exported yet');
+    return;
+  }
+  const result = auditContrastSnapshot([
+    {
+      selector: '.pill-bg',
+      color: 'rgb(255,255,255)',
+      bgColors: ['rgba(255,255,255,0.1)', 'rgb(11,11,15)'],
+      fontPx: 14,
+    },
+  ]);
+  const row = result.rows.find((r) => r.selector === '.pill-bg');
+  assert.ok(row !== undefined, 'row for .pill-bg should exist');
+  assert.ok(
+    typeof row.background === 'string' && row.background.startsWith('rgb('),
+    `background should be an opaque rgb(...) string; got "${row.background}"`
+  );
+  assert.notStrictEqual(
+    row.background,
+    'rgba(255,255,255,0.1)',
+    'background should NOT equal the raw translucent layer string'
+  );
+});
+
+// ── Back-compat — single bgColor path unchanged (C: case 9) ──────────────────
+
+// Case C9: element with only bgColor (no bgColors) works exactly as before
+test('auditContrastSnapshot: back-compat — bgColor-only with dark bg + light text passes', () => {
+  // rgb(17,17,17) background + white text → high contrast, clearly AA-passing
+  const result = auditContrastSnapshot([
+    {
+      selector: 'p.compat',
+      color: 'rgb(255,255,255)',
+      bgColor: 'rgb(17,17,17)',
+      fontPx: 16,
+      bold: false,
+      text: 'Back compat',
+    },
+  ]);
+  assert.ok(result.rows.length >= 1, 'should have at least one row');
+  const row = result.rows.find((r) => r.selector === 'p.compat');
+  assert.ok(row !== undefined, 'row for p.compat should exist');
+  assert.strictEqual(row.aa, true, `white on dark (#111) should pass AA; ratio=${row.ratio}`);
+  assert.ok(row.ratio >= 4.5, `ratio should be >= 4.5; got ${row.ratio}`);
 });
 
 // ── Browser-dependent tests ──────────────────────────────────────────────────

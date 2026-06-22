@@ -149,7 +149,7 @@ Returns flagged elements with selector, hiding class, visibility at each breakpo
 
 ## Contrast audits
 
-`audit_contrast` computes WCAG contrast ratios for every text element on a rendered page, reporting AA (4.5:1 normal text, 3:1 large) and AAA (7:1 normal, 4.5:1 large) pass-fail. Useful for catching small-text / low-contrast pairs that a screenshot eyedropper would catch manually — Raven replaces the math.
+`audit_contrast` computes WCAG contrast ratios for every text element on a rendered page, reporting AA (4.5:1 normal text, 3:1 large) and AAA (7:1 normal, 4.5:1 large) pass-fail. Useful for catching small-text / low-contrast pairs that a screenshot eyedropper would catch manually — Raven replaces the math. The background color is composited from the full ancestor stack (nearest opaque layer onward) for accurate contrast on layered UIs.
 
 **Usage:**
 - `audit_contrast(url)` — render a live page and audit all text.
