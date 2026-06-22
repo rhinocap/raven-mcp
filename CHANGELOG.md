@@ -7,6 +7,7 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 ## [Unreleased]
 
 ### Added
+- `audit_page`/`audit_url` now check inline SVG icon-color compliance (`tokens/svg-hardcoded-color`) — warns when an icon `fill`/`stroke` hardcodes a hex/rgb/hsl color instead of `currentColor` or a token; exempts `currentColor`/`none`/`url(...)`/`var()`. Surfaces design-system icon-theming gaps that were previously invisible.
 - `audit_layout` now flags orphan-stretch — a lonely last-row grid/flex card that stretches far wider (≥1.5×) than its sibling cards (the `flex: 1 1 280px` orphan), with a fixed-column-grid fix.
 - `audit_consistency` — corpus/multi-page audit: compares ≥2 pages and flags cross-page divergence in content-container width and hero heading tier (inferring the canonical value from the corpus or a supplied token), catching relational defects single-blob audits miss (#9).
 - `audit_video_playback` — renders a page and observes whether each `<video>` actually advances (samples currentTime, readyState, decode errors, autoplay-block), classifying each clip playing | paused | stalled | empty | error — catching black/non-playing videos that static frame-capture audits miss.

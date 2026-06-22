@@ -104,6 +104,48 @@ export function runPageChecks(html: string, opts?: PageChecksOptions): PageCheck
   if (bareHexCount <= 5) passes.push("Minimal bare hex colors (" + bareHexCount + ")");
   else issues.push({ severity: "warning", rule: "tokens/no-bare-hex", message: bareHexCount + " bare hex color values found outside custom property definitions", fix: "Define colors as --color-name: #hex in :root, then use var(--color-name) throughout" });
 
+  // ── SVG icon color compliance (design-system icons should use currentColor/token)
+  var svgBlocks = html.match(/<svg[\s\S]*?<\/svg>/gi) || [];
+  var svgColorValues: string[] = [];          // all fill/stroke color values seen
+  var svgHardcoded: string[] = [];            // the subset that hardcode a color
+  function isHardcodedColor(v: string): boolean {
+    var s = v.trim().toLowerCase();
+    if (s === "currentcolor" || s === "none" || s === "transparent" || s === "inherit" || s === "unset" || s === "initial") return false;
+    if (/^url\(/.test(s) || /var\(\s*--/.test(s)) return false;
+    return /#[0-9a-fA-F]{3,8}\b/.test(s) || /\brgba?\(/.test(s) || /\bhsla?\(/.test(s);
+  }
+  for (var svg of svgBlocks) {
+    // presentation attributes: fill="..." / stroke="..."
+    var attrRe = /\b(?:fill|stroke)\s*=\s*"([^"]*)"/gi;
+    var attrM;
+    while ((attrM = attrRe.exec(svg)) !== null) {
+      svgColorValues.push(attrM[1]);
+      if (isHardcodedColor(attrM[1])) svgHardcoded.push(attrM[1].trim());
+    }
+    // inline style fill:/stroke:
+    var styleRe = /style\s*=\s*"([^"]*)"/gi;
+    var styleM;
+    while ((styleM = styleRe.exec(svg)) !== null) {
+      var declRe = /\b(?:fill|stroke)\s*:\s*([^;"]+)/gi;
+      var declM;
+      while ((declM = declRe.exec(styleM[1])) !== null) {
+        svgColorValues.push(declM[1]);
+        if (isHardcodedColor(declM[1])) svgHardcoded.push(declM[1].trim());
+      }
+    }
+  }
+  if (svgHardcoded.length > 0) {
+    var uniqHardcoded = Array.from(new Set(svgHardcoded.map(function(v){ return v.toLowerCase(); })));
+    issues.push({
+      severity: "warning",
+      rule: "tokens/svg-hardcoded-color",
+      message: svgHardcoded.length + " inline SVG fill/stroke attribute(s) hardcode a color (" + uniqHardcoded.slice(0, 8).join(", ") + ") instead of currentColor/token",
+      fix: "Use fill=\"currentColor\" (or stroke=\"currentColor\") so icons inherit text color and theme; for multi-color brand logos that must keep fixed colors, this warning is expected."
+    });
+  } else if (svgColorValues.length > 0) {
+    passes.push("SVG icons use currentColor/tokens (" + svgColorValues.length + " color attrs, 0 hardcoded)");
+  }
+
   // ── Rhythm & scale checks
   var spacingRegex = /\b(?:gap|padding(?:-(?:top|right|bottom|left|inline|block))?|margin(?:-(?:top|right|bottom|left|inline|block))?)\s*:\s*([^;}\n]+)/g;
   var spacingValues: number[] = [];
