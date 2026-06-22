@@ -499,7 +499,7 @@ cd raven-mcp && npm install && npm run build</code></pre>
 
     <!-- ── Tool Reference ── -->
     <h2 id="tools" class="reveal">Tool Reference</h2>
-    <p>Raven provides 55 tools across 9 knowledge layers. Claude calls them automatically based on what you're asking for. Below, the original 13 tools have full docs; the newer tools from v1.2–v1.10 are listed with summary descriptions.</p>
+    <p>Raven provides 56 tools across 9 knowledge layers. Claude calls them automatically based on what you're asking for. Below, the original 13 tools have full docs; the newer tools from v1.2–v1.11 are listed with summary descriptions.</p>
 
     <h3>Principles Layer</h3>
 
@@ -883,6 +883,11 @@ cd raven-mcp && npm install && npm run build</code></pre>
     <div class="tool-card reveal">
       <h3>audit_asset_integrity</h3>
       <p class="tool-desc">Given PNG file paths, measures per-pixel luminance variance in the bottom strip and flags high-variance rows as <code>likely-sliced</code> — catching content cut off inside a correctly-sized export that dimension checks cannot detect.</p>
+    </div>
+
+    <div class="tool-card reveal">
+      <h3>audit_device_frame</h3>
+      <p class="tool-desc">Flags content cropped inside a device-mockup frame: <code>object-fit:cover</code> aspect-ratio crop loss (names the cropped edges and hidden fraction), baked-in pan/zoom (Ken Burns) drift via block-matched displacement, and content truncated at a frame edge. Catches a 16:9 clip silently sliced inside a ~1.82-aspect screen cutout.</p>
     </div>
 
     <div class="tool-card reveal">
