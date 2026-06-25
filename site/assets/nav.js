@@ -5,7 +5,6 @@
     { label: 'Open Source', href: '/#pricing' },
     { label: 'Docs', href: '/docs.html' },
     { label: 'Changelog', href: '/changelog.html' },
-    { label: 'Updates', href: '/#updates' },
     { label: 'About', href: '/about.html' }
   ];
 
