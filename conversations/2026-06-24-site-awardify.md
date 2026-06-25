@@ -18,3 +18,8 @@ site/previews/: layout-1-editorial, layout-2-cinematic, layout-3-terminal, butto
 - index.html edits: local only, NOT committed/pushed (v1.12.0 staged work parked).
 - Preview: site-6lf9vkujr-cunliffeandrewc-8712s-projects.vercel.app
 - Pending: Andrew picks layout + button -> implement winner.
+
+## State at end of session
+- Shipped to prod (ravenmcp.ai), commit c316623 pushed to origin/main, deploy site-eq395gr7r promoted — Andrew confirmed "the site is good now" ✓
+- 3x2 duotone grid, hero retypeset (descenders intact), header Get Started button, robust video, HighLvl-style changelog @1140, unified container width — all live & verified (curl 200/206 + vision on prod)
+- Pending (carried forward, optional): Image #4 softer hero gradient swap; pick a full-page layout from /previews/* if desired
