@@ -87,17 +87,17 @@
     .nav-page-links a.active { color: var(--text-accent, #00BFFF); }\
     .btn {\
       display: inline-flex; align-items: center; gap: var(--space-2, 8px);\
-      padding: 12px 24px; font-family: var(--font-body, "Inter", -apple-system, BlinkMacSystemFont, sans-serif);\
-      font-size: 18px; font-weight: 600; border-radius: 9999px; border: none; cursor: pointer;\
-      transition: all 300ms cubic-bezier(0.16, 1, 0.3, 1); white-space: nowrap; text-decoration: none;\
+      padding: 12px 28px; font-family: var(--font-body, "Inter", -apple-system, BlinkMacSystemFont, sans-serif);\
+      font-size: 14px; font-weight: 700; letter-spacing: -0.01em; border-radius: 9999px; border: none; cursor: pointer;\
+      transition: all 250ms cubic-bezier(0.16, 1, 0.3, 1); white-space: nowrap; text-decoration: none;\
     }\
     .btn-primary {\
-      background: var(--bg-accent, #00BFFF); color: #0a0a12; font-weight: 700;\
-      box-shadow: 0 0 0 1px rgba(0, 191, 255, 0.6), 0 4px 16px rgba(0, 191, 255, 0.35), 0 0 40px rgba(0, 191, 255, 0.15);\
+      background: linear-gradient(135deg, #00BFFF 0%, #00E5FF 100%); color: #0a0a12;\
+      box-shadow: 0 4px 24px rgba(0, 191, 255, 0.3), 0 0 60px rgba(0, 191, 255, 0.15);\
     }\
     .btn-primary:hover {\
-      background: var(--bg-accent-hover, #33CFFF); transform: translateY(-2px);\
-      box-shadow: 0 0 0 1px rgba(0, 191, 255, 0.8), 0 8px 32px rgba(0, 191, 255, 0.45), 0 0 60px rgba(0, 191, 255, 0.2);\
+      transform: translateY(-1px);\
+      box-shadow: 0 8px 32px rgba(0, 191, 255, 0.45), 0 0 80px rgba(0, 191, 255, 0.2);\
     }\
     .nav-hamburger {\
       display: none; width: 44px; height: 44px;\

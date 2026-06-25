@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raven — Get Started CTA Concepts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-base: #1a1a22;
+    --bg-surface: #212129;
+    --bg-raised: #2a2a33;
+    --bg-overlay: #32323d;
+    --bg-alt: #16161e;
+    --accent-cyan: #00BFFF;
+    --accent-cyan-e: #00E5FF;
+    --accent-green: #00E676;
+    --accent-orange: #FFAB40;
+    --accent-pink: #FF4081;
+    --text-primary: #F0F0F2;
+    --text-secondary: #9498A0;
+    --text-tertiary: #8E929C;
+    --text-on-accent: #0a0a12;
+    --border: rgba(255,255,255,.06);
+    --border-strong: rgba(255,255,255,.1);
+    --border-accent: rgba(0,191,255,.3);
+    --ease-out: cubic-bezier(.16,1,.3,1);
+    --r-sm: 8px;
+    --r-md: 12px;
+    --r-lg: 16px;
+    --r-xl: 20px;
+    --r-full: 9999px;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg-base);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── Page header ─── */
+  .page-header {
+    padding: 64px 40px 48px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .wordmark {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -.02em;
+    color: var(--text-primary);
+    margin-bottom: 32px;
+  }
+  .wordmark-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    box-shadow: 0 0 10px var(--accent-cyan);
+  }
+  .page-title {
+    font-size: clamp(28px, 5vw, 40px);
+    font-weight: 700;
+    letter-spacing: -.03em;
+    line-height: 1.1;
+    margin-bottom: 12px;
+  }
+  .page-subtitle {
+    font-size: 16px;
+    color: var(--text-secondary);
+    max-width: 480px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  /* ─── Concept sections ─── */
+  .concepts-wrap {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 40px 120px;
+  }
+
+  .concept-card {
+    margin-top: 80px;
+    padding: 56px 64px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-xl);
+    position: relative;
+    overflow: hidden;
+  }
+  .concept-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+  }
+
+  .concept-meta {
+    margin-bottom: 48px;
+  }
+  .concept-label {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--accent-cyan);
+    background: rgba(0,191,255,.08);
+    border: 1px solid var(--border-accent);
+    border-radius: var(--r-full);
+    padding: 4px 12px;
+    margin-bottom: 16px;
+  }
+  .concept-name {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -.025em;
+    margin-bottom: 8px;
+  }
+  .concept-rationale {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    max-width: 520px;
+  }
+  .concept-stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+    padding: 40px 0;
+    border-top: 1px solid var(--border);
+    margin-top: 40px;
+  }
+
+  /* ════════════════════════════════════════
+     CONCEPT A — Command-first
+  ════════════════════════════════════════ */
+  .concept-a-card::before {
+    background: radial-gradient(ellipse at 50% 0%, rgba(0,191,255,.04) 0%, transparent 60%);
+  }
+
+  .cmd-pill-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .cmd-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--bg-raised);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-full);
+    padding: 14px 24px 14px 20px;
+    cursor: pointer;
+    transition:
+      border-color .25s var(--ease-out),
+      background .25s var(--ease-out),
+      box-shadow .25s var(--ease-out),
+      transform .2s var(--ease-out);
+    position: relative;
+    outline: none;
+    user-select: none;
+    max-width: 520px;
+    width: 100%;
+  }
+  .cmd-pill:hover {
+    border-color: var(--border-accent);
+    background: var(--bg-overlay);
+    box-shadow: 0 0 0 1px rgba(0,191,255,.12), 0 8px 32px rgba(0,0,0,.3);
+    transform: translateY(-1px);
+  }
+  .cmd-pill:focus-visible {
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 0 3px rgba(0,191,255,.25);
+  }
+  .cmd-pill:active { transform: translateY(0); }
+  .cmd-pill.copied {
+    border-color: rgba(0,230,118,.4);
+    background: rgba(0,230,118,.05);
+  }
+
+  .cmd-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: rgba(0,191,255,.1);
+    border: 1px solid rgba(0,191,255,.2);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: background .25s, border-color .25s;
+  }
+  .cmd-pill.copied .cmd-icon {
+    background: rgba(0,230,118,.1);
+    border-color: rgba(0,230,118,.25);
+  }
+  .cmd-icon svg { width: 15px; height: 15px; }
+
+  .cmd-text {
+    font-family: ui-monospace, 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    color: var(--text-primary);
+    letter-spacing: .01em;
+    flex: 1;
+    text-align: left;
+    transition: color .2s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cmd-pill.copied .cmd-text { color: var(--accent-green); }
+
+  .cmd-copy-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+    transition: color .2s;
+    white-space: nowrap;
+  }
+  .cmd-pill:hover .cmd-copy-label { color: var(--accent-cyan); }
+  .cmd-pill.copied .cmd-copy-label { color: var(--accent-green); }
+
+  .cmd-secondary {
+    font-size: 13px;
+    color: var(--text-tertiary);
+  }
+  .cmd-secondary a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-bottom: 1px solid var(--border-strong);
+    padding-bottom: 1px;
+    transition: color .2s, border-color .2s;
+  }
+  .cmd-secondary a:hover { color: var(--text-primary); border-color: var(--border-accent); }
+
+  /* ════════════════════════════════════════
+     CONCEPT B — Segmented split
+  ════════════════════════════════════════ */
+  .concept-b-card::before {
+    background: radial-gradient(ellipse at 80% 0%, rgba(0,229,255,.03) 0%, transparent 60%);
+  }
+
+  .seg-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .seg-capsule {
+    display: inline-flex;
+    align-items: stretch;
+    border-radius: var(--r-full);
+    overflow: hidden;
+    border: 1px solid rgba(0,191,255,.25);
+    box-shadow: 0 4px 24px rgba(0,0,0,.25), 0 0 0 1px rgba(0,191,255,.06) inset;
+    transition: box-shadow .3s var(--ease-out), transform .2s var(--ease-out);
+  }
+  .seg-capsule:hover {
+    box-shadow: 0 8px 40px rgba(0,0,0,.35), 0 0 32px rgba(0,191,255,.08), 0 0 0 1px rgba(0,191,255,.1) inset;
+    transform: translateY(-1px);
+  }
+
+  .seg-primary {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 13px 24px;
+    background: var(--accent-cyan);
+    color: var(--text-on-accent);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+    cursor: pointer;
+    border: none;
+    outline: none;
+    transition: background .2s, filter .2s;
+    white-space: nowrap;
+  }
+  .seg-primary:hover { background: var(--accent-cyan-e); filter: brightness(1.05); }
+  .seg-primary:focus-visible { outline: 3px solid rgba(0,191,255,.5); outline-offset: 2px; }
+  .seg-primary svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+  .seg-divider {
+    width: 1px;
+    background: rgba(0,0,0,.25);
+    flex-shrink: 0;
+  }
+
+  .seg-secondary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 13px 18px;
+    background: rgba(0,191,255,.12);
+    border: none;
+    cursor: pointer;
+    outline: none;
+    position: relative;
+    transition: background .2s;
+    white-space: nowrap;
+  }
+  .seg-secondary:hover { background: rgba(0,191,255,.2); }
+  .seg-secondary:focus-visible { outline: 3px solid rgba(0,191,255,.5); outline-offset: 2px; }
+
+  .seg-secondary-icon {
+    color: var(--accent-cyan);
+    display: flex; align-items: center;
+    transition: transform .2s var(--ease-out);
+  }
+  .seg-secondary:hover .seg-secondary-icon { transform: scale(1.1); }
+  .seg-secondary-icon svg { width: 14px; height: 14px; }
+
+  .seg-secondary-text {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    color: var(--accent-cyan);
+    transition: color .2s;
+  }
+  .seg-secondary.copied .seg-secondary-text { color: var(--accent-green); }
+  .seg-secondary.copied .seg-secondary-icon { color: var(--accent-green); }
+
+  /* Tooltip command reveal */
+  .seg-cmd-tooltip {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    right: 0;
+    background: var(--bg-overlay);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-md);
+    padding: 10px 16px;
+    font-family: ui-monospace, 'SF Mono', monospace;
+    font-size: 12px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(4px) scale(.97);
+    transition: opacity .2s var(--ease-out), transform .2s var(--ease-out);
+    box-shadow: 0 8px 32px rgba(0,0,0,.4);
+  }
+  .seg-cmd-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%; right: 24px;
+    border: 5px solid transparent;
+    border-top-color: var(--border-strong);
+  }
+  .seg-secondary.revealed .seg-cmd-tooltip {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  .seg-hint {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    letter-spacing: .01em;
+  }
+
+  /* ════════════════════════════════════════
+     CONCEPT C — Aurora capsule
+  ════════════════════════════════════════ */
+  .concept-c-card::before {
+    background: radial-gradient(ellipse at 50% 100%, rgba(0,191,255,.06) 0%, transparent 60%);
+  }
+
+  .aurora-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .aurora-outer {
+    position: relative;
+    border-radius: var(--r-full);
+    padding: 2px;
+    background: conic-gradient(
+      from 0deg,
+      #00BFFF 0deg,
+      #00E5FF 60deg,
+      #00E676 120deg,
+      #00BFFF 180deg,
+      #00E5FF 240deg,
+      #00E676 300deg,
+      #00BFFF 360deg
+    );
+    animation: aurora-spin 4s linear infinite;
+  }
+  @keyframes aurora-spin {
+    to { --aurora-angle: 360deg; }
+  }
+
+  .aurora-outer::before {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: var(--r-full);
+    background: conic-gradient(
+      from 0deg,
+      rgba(0,191,255,.35) 0deg,
+      rgba(0,229,255,.2) 60deg,
+      rgba(0,230,118,.3) 120deg,
+      transparent 180deg,
+      rgba(0,191,255,.2) 240deg,
+      transparent 300deg,
+      rgba(0,191,255,.35) 360deg
+    );
+    filter: blur(12px);
+    animation: aurora-glow-spin 4s linear infinite;
+    z-index: -1;
+  }
+  @keyframes aurora-glow-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .aurora-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 28px;
+    background: var(--bg-surface);
+    border-radius: var(--r-full);
+    border: none;
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+    cursor: pointer;
+    outline: none;
+    position: relative;
+    overflow: hidden;
+    transition: background .2s;
+    white-space: nowrap;
+  }
+  .aurora-btn:hover { background: var(--bg-raised); }
+  .aurora-btn:focus-visible {
+    outline: 3px solid rgba(0,191,255,.5);
+    outline-offset: 4px;
+  }
+
+  .aurora-btn-text {
+    position: relative;
+    z-index: 1;
+    transition: opacity .25s;
+  }
+  .aurora-btn-text-alt {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity .25s;
+    white-space: nowrap;
+    color: var(--accent-cyan);
+  }
+  .aurora-btn.copied .aurora-btn-text { opacity: 0; }
+  .aurora-btn.copied .aurora-btn-text-alt { opacity: 1; }
+
+  /* Arrow icon with slide animation */
+  .aurora-arrow {
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    width: 20px;
+  }
+  .aurora-arrow-inner {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    transition: transform .35s var(--ease-out);
+  }
+  .aurora-btn:hover .aurora-arrow-inner {
+    transform: translateX(4px);
+  }
+  .aurora-btn.copied .aurora-arrow-inner {
+    transform: translateX(0);
+  }
+  .aurora-arrow svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  /* Checkmark appears on copy */
+  .aurora-check {
+    position: absolute;
+    right: 28px;
+    opacity: 0;
+    transform: scale(.6);
+    transition: opacity .3s var(--ease-out), transform .3s var(--ease-out);
+    color: var(--accent-green);
+    display: flex; align-items: center;
+  }
+  .aurora-check svg { width: 18px; height: 18px; }
+  .aurora-btn.copied .aurora-check {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .aurora-btn.copied .aurora-arrow { opacity: 0; }
+
+  /* Ripple shimmer on click */
+  .aurora-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(circle at var(--rx, 50%) var(--ry, 50%), rgba(0,191,255,.18) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity .4s;
+  }
+  .aurora-btn.ripple::after { opacity: 1; }
+
+  .aurora-spin-anim {
+    animation: aurora-border-rotate 4s linear infinite;
+  }
+  @keyframes aurora-border-rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* Rotating gradient border trick */
+  .aurora-outer {
+    position: relative;
+    display: inline-block;
+  }
+  .aurora-border-track {
+    position: absolute;
+    inset: -1px;
+    border-radius: var(--r-full);
+    padding: 2px;
+    background: linear-gradient(135deg, #00BFFF, #00E5FF, #00E676, #00BFFF);
+    background-size: 300% 300%;
+    animation: aurora-gradient-shift 3s ease infinite;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+  @keyframes aurora-gradient-shift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  .aurora-cmd {
+    font-family: ui-monospace, 'SF Mono', monospace;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    letter-spacing: .01em;
+    transition: color .2s;
+  }
+  .aurora-cmd:hover { color: var(--text-secondary); cursor: default; }
+
+  /* ─── Dividers between concepts ─── */
+  .concept-divider {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 0;
+    margin-top: 80px;
+  }
+  .concept-divider::before,
+  .concept-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .concept-divider-text {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+
+  /* ─── Focus reset ─── */
+  button:focus { outline: none; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div class="wordmark">
+    <div class="wordmark-dot"></div>
+    Raven
+  </div>
+  <h1 class="page-title">Get Started — CTA Concepts</h1>
+  <p class="page-subtitle">Three distinct directions for the primary install call-to-action. Each fully interactive. Compare, then pick.</p>
+</div>
+
+<div class="concepts-wrap">
+
+  <!-- ══════════════════════════════════
+       CONCEPT A — Command-first
+  ══════════════════════════════════ -->
+  <div class="concept-card concept-a-card">
+    <div class="concept-meta">
+      <div class="concept-label">Concept A</div>
+      <h2 class="concept-name">Command-first</h2>
+      <p class="concept-rationale">The command IS the CTA. Developers reach for the terminal, not a button — so make the command the primary affordance: large, copyable, instantly confirming. Docs take a back seat.</p>
+    </div>
+
+    <div class="concept-stage">
+      <div class="cmd-pill-wrap">
+        <button
+          class="cmd-pill"
+          id="cmd-pill-a"
+          onclick="copyCmd(this, 'claude mcp add raven -- npx -y raven-mcp', 'cmd-pill-a')"
+          aria-label="Copy install command"
+        >
+          <span class="cmd-icon" id="cmd-icon-a">
+            <!-- terminal icon -->
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:#00BFFF">
+              <path d="M2 4l4 4-4 4M8 12h6"/>
+            </svg>
+          </span>
+          <span class="cmd-text">claude mcp add raven -- npx -y raven-mcp</span>
+          <span class="cmd-copy-label" id="cmd-label-a">Copy</span>
+        </button>
+        <p class="cmd-secondary">
+          New to Raven? <a href="#">Read the docs →</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       CONCEPT B — Segmented split
+  ══════════════════════════════════ -->
+  <div class="concept-card concept-b-card">
+    <div class="concept-meta">
+      <div class="concept-label">Concept B</div>
+      <h2 class="concept-name">Segmented Split</h2>
+      <p class="concept-rationale">One unified capsule, two intentions: a bold primary action and an attached command-copy. Premium, compact, decisive — the command is accessible without dominating the visual hierarchy.</p>
+    </div>
+
+    <div class="concept-stage">
+      <div class="seg-wrap">
+        <div class="seg-capsule">
+          <button class="seg-primary" onclick="window.open('#', '_blank')">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 3v10M3 8l5 5 5-5"/>
+            </svg>
+            Install Raven
+          </button>
+          <div class="seg-divider"></div>
+          <button
+            class="seg-secondary"
+            id="seg-sec-b"
+            onclick="segCopy(this)"
+            onmouseenter="segReveal(this)"
+            onmouseleave="segHide(this)"
+            aria-label="Copy install command"
+          >
+            <span class="seg-secondary-icon" id="seg-icon-b">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="5" y="5" width="8" height="8" rx="1.5"/>
+                <path d="M11 5V4a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h1"/>
+              </svg>
+            </span>
+            <span class="seg-secondary-text" id="seg-text-b">Copy</span>
+            <span class="seg-cmd-tooltip">claude mcp add raven -- npx -y raven-mcp</span>
+          </button>
+        </div>
+        <p class="seg-hint">Hover the copy button to preview the command</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       CONCEPT C — Aurora capsule
+  ══════════════════════════════════ -->
+  <div class="concept-card concept-c-card">
+    <div class="concept-meta">
+      <div class="concept-label">Concept C</div>
+      <h2 class="concept-name">Aurora Capsule</h2>
+      <p class="concept-rationale">Maximum polish. An animated cyan aurora border signals energy and precision — the button invites the click, copies the command, and rewards with a satisfying checkmark. Award-bait craft.</p>
+    </div>
+
+    <div class="concept-stage">
+      <div class="aurora-wrap">
+        <div style="position:relative; display:inline-block;">
+          <!-- Animated border -->
+          <div class="aurora-border-track"></div>
+          <!-- Glow halo -->
+          <div style="
+            position: absolute;
+            inset: -12px;
+            border-radius: 9999px;
+            background: radial-gradient(ellipse, rgba(0,191,255,.18) 0%, transparent 70%);
+            filter: blur(8px);
+            animation: aurora-pulse 3s ease-in-out infinite;
+            pointer-events: none;
+          "></div>
+          <button
+            class="aurora-btn"
+            id="aurora-btn-c"
+            onclick="auroraCopy(this)"
+            aria-label="Copy install command to get started"
+            style="min-width: 220px; justify-content: center;"
+          >
+            <span class="aurora-btn-text">Get started free</span>
+            <span class="aurora-btn-text-alt">Copied ✓</span>
+            <span class="aurora-arrow" id="aurora-arrow-c">
+              <span class="aurora-arrow-inner">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="color:#00BFFF">
+                  <path d="M3 8h10M9 4l4 4-4 4"/>
+                </svg>
+              </span>
+            </span>
+            <span class="aurora-check" id="aurora-check-c">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2.5 8l4 4 7-7"/>
+              </svg>
+            </span>
+          </button>
+        </div>
+        <p class="aurora-cmd" id="aurora-cmd-label">claude mcp add raven -- npx -y raven-mcp copied to clipboard</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+@keyframes aurora-pulse {
+  0%, 100% { opacity: .6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+</style>
+
+<script>
+// ─── Concept A — Command pill copy ───
+function copyCmd(el, cmd, id) {
+  navigator.clipboard.writeText(cmd).then(function() {
+    el.classList.add('copied');
+    var label = document.getElementById('cmd-label-a');
+    var icon = document.getElementById('cmd-icon-a');
+    label.textContent = 'Copied ✓';
+    icon.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#00E676"><path d="M2.5 8l4 4 7-7"/></svg>';
+    setTimeout(function() {
+      el.classList.remove('copied');
+      label.textContent = 'Copy';
+      icon.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:#00BFFF"><path d="M2 4l4 4-4 4M8 12h6"/></svg>';
+    }, 2200);
+  });
+}
+
+// ─── Concept B — Segmented reveal + copy ───
+function segReveal(el) {
+  el.classList.add('revealed');
+}
+function segHide(el) {
+  if (!el.classList.contains('copied')) {
+    el.classList.remove('revealed');
+  }
+}
+function segCopy(el) {
+  navigator.clipboard.writeText('claude mcp add raven -- npx -y raven-mcp').then(function() {
+    el.classList.add('copied', 'revealed');
+    document.getElementById('seg-text-b').textContent = 'Copied!';
+    var icon = document.getElementById('seg-icon-b');
+    icon.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8l4 4 7-7"/></svg>';
+    setTimeout(function() {
+      el.classList.remove('copied', 'revealed');
+      document.getElementById('seg-text-b').textContent = 'Copy';
+      icon.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V4a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h1"/></svg>';
+    }, 2200);
+  });
+}
+
+// ─── Concept C — Aurora copy ───
+function auroraCopy(el) {
+  var rect = el.getBoundingClientRect();
+  var rx = ((rect.left + rect.width / 2 - rect.left) / rect.width * 100).toFixed(0) + '%';
+  var ry = '50%';
+  el.style.setProperty('--rx', rx);
+  el.style.setProperty('--ry', ry);
+
+  navigator.clipboard.writeText('claude mcp add raven -- npx -y raven-mcp').then(function() {
+    el.classList.add('copied', 'ripple');
+    document.getElementById('aurora-cmd-label').style.color = 'var(--accent-green)';
+    document.getElementById('aurora-cmd-label').textContent = '✓ Copied to clipboard — paste in your terminal';
+    setTimeout(function() { el.classList.remove('ripple'); }, 400);
+    setTimeout(function() {
+      el.classList.remove('copied');
+      document.getElementById('aurora-cmd-label').style.color = '';
+      document.getElementById('aurora-cmd-label').textContent = 'claude mcp add raven -- npx -y raven-mcp copied to clipboard';
+    }, 2400);
+  });
+}
+</script>
+
+</body>
+</html>

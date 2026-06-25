@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raven — Design Intelligence for AI Agents</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-base: #1a1a22;
+    --bg-surface: #212129;
+    --bg-raised: #2a2a33;
+    --bg-overlay: #32323d;
+    --bg-alt: #16161e;
+    --accent: #00BFFF;
+    --cyan: #00E5FF;
+    --green: #00E676;
+    --orange: #FFAB40;
+    --pink: #FF4081;
+    --text-primary: #F0F0F2;
+    --text-secondary: #9498A0;
+    --text-tertiary: #8E929C;
+    --text-on-accent: #0a0a12;
+    --border: rgba(255,255,255,.06);
+    --border-strong: rgba(255,255,255,.1);
+    --border-accent: rgba(0,191,255,.3);
+    --ease: cubic-bezier(.16,1,.3,1);
+    --font: 'Inter', system-ui, sans-serif;
+    --mono: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+  }
+
+  html { font-size: 16px; scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg-base);
+    color: var(--text-primary);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  /* ─── GRID ─────────────────────────────────────────────── */
+  .container {
+    width: 100%;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 48px;
+  }
+
+  /* ─── NAV ──────────────────────────────────────────────── */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(26, 26, 34, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+    padding: 0 48px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  .wordmark {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    text-decoration: none;
+  }
+
+  .wordmark span {
+    color: var(--accent);
+  }
+
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 36px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.2s var(--ease);
+  }
+
+  .nav-links a:hover { color: var(--text-primary); }
+
+  .nav-cta {
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent) !important;
+    border: 1px solid var(--border-accent);
+    padding: 7px 16px;
+    border-radius: 4px;
+    transition: background 0.2s var(--ease), color 0.2s var(--ease) !important;
+  }
+
+  .nav-cta:hover {
+    background: var(--accent) !important;
+    color: var(--text-on-accent) !important;
+  }
+
+  /* ─── SECTION MARKER ───────────────────────────────────── */
+  .section-marker {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .section-marker::before {
+    content: '';
+    display: block;
+    width: 32px;
+    height: 1px;
+    background: var(--accent);
+    opacity: 0.6;
+  }
+
+  /* ─── HAIRLINE RULE ────────────────────────────────────── */
+  .rule {
+    width: 100%;
+    height: 1px;
+    background: var(--border);
+    margin: 0;
+  }
+
+  /* ─── HERO ─────────────────────────────────────────────── */
+  .hero {
+    padding: 140px 0 120px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -200px;
+    right: -100px;
+    width: 700px;
+    height: 700px;
+    background: radial-gradient(ellipse, rgba(0,191,255,0.04) 0%, transparent 65%);
+    pointer-events: none;
+  }
+
+  .hero-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: start;
+  }
+
+  .hero-left {}
+
+  .hero-headline {
+    font-size: clamp(52px, 6vw, 88px);
+    font-weight: 300;
+    line-height: 1.0;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+    margin-bottom: 32px;
+  }
+
+  .hero-headline em {
+    font-style: normal;
+    color: var(--accent);
+  }
+
+  .hero-subhead {
+    font-size: 17px;
+    font-weight: 300;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    max-width: 440px;
+    margin-bottom: 52px;
+  }
+
+  .install-block {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .install-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+
+  .install-cmd {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: var(--bg-alt);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    padding: 16px 20px;
+    cursor: pointer;
+    transition: border-color 0.2s var(--ease);
+  }
+
+  .install-cmd:hover { border-color: var(--border-accent); }
+
+  .install-cmd code {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-primary);
+    letter-spacing: 0;
+  }
+
+  .copy-btn {
+    flex-shrink: 0;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: color 0.2s var(--ease), border-color 0.2s var(--ease);
+  }
+
+  .copy-btn:hover {
+    color: var(--accent);
+    border-color: var(--border-accent);
+  }
+
+  .hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    margin-top: 32px;
+  }
+
+  .btn-primary {
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-on-accent);
+    background: var(--accent);
+    border: none;
+    border-radius: 6px;
+    padding: 13px 28px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+  }
+
+  .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+
+  .btn-ghost {
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 2px;
+    transition: color 0.2s var(--ease), border-color 0.2s var(--ease);
+  }
+
+  .btn-ghost:hover {
+    color: var(--text-primary);
+    border-color: var(--text-tertiary);
+  }
+
+  .hero-right {
+    padding-top: 16px;
+  }
+
+  .hero-stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .hero-stat {
+    background: var(--bg-surface);
+    padding: 32px 28px;
+    transition: background 0.2s var(--ease);
+  }
+
+  .hero-stat:hover { background: var(--bg-raised); }
+
+  .hero-stat-number {
+    font-size: 40px;
+    font-weight: 300;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .hero-stat-number span {
+    color: var(--accent);
+  }
+
+  .hero-stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    letter-spacing: 0.02em;
+    line-height: 1.5;
+  }
+
+  /* ─── WATCH IT WORK ────────────────────────────────────── */
+  .watch {
+    padding: 120px 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .watch-header {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 80px;
+    align-items: end;
+    margin-bottom: 64px;
+  }
+
+  .watch-title {
+    font-size: clamp(36px, 4vw, 56px);
+    font-weight: 300;
+    line-height: 1.1;
+    letter-spacing: -0.025em;
+  }
+
+  .watch-desc {
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    max-width: 480px;
+  }
+
+  .device-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+
+  .device-card {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    cursor: pointer;
+  }
+
+  .device-frame {
+    position: relative;
+    aspect-ratio: 16/10;
+    background: var(--bg-alt);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.3s var(--ease), transform 0.3s var(--ease);
+  }
+
+  .device-card:hover .device-frame {
+    border-color: var(--border-accent);
+    transform: translateY(-3px);
+  }
+
+  .device-poster {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, var(--bg-overlay) 0%, var(--bg-raised) 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .play-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid var(--border-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s var(--ease), transform 0.2s var(--ease);
+  }
+
+  .device-card:hover .play-btn {
+    background: rgba(0,191,255,0.1);
+    transform: scale(1.08);
+  }
+
+  .play-btn svg {
+    width: 14px;
+    height: 14px;
+    fill: var(--accent);
+    margin-left: 2px;
+  }
+
+  .device-poster-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+
+  .device-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .device-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+  }
+
+  .device-tools {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+  }
+
+  /* ─── EXAMPLES ─────────────────────────────────────────── */
+  .examples {
+    padding: 120px 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .examples-header {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: end;
+    margin-bottom: 64px;
+  }
+
+  .examples-title {
+    font-size: clamp(36px, 4vw, 56px);
+    font-weight: 300;
+    line-height: 1.1;
+    letter-spacing: -0.025em;
+  }
+
+  .examples-desc {
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+  }
+
+  .demo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 2px;
+    background: var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .demo-card {
+    position: relative;
+    aspect-ratio: 4/3;
+    background: var(--bg-surface);
+    overflow: hidden;
+    cursor: pointer;
+  }
+
+  /* Duotone cyan/blue treatment */
+  .demo-card-inner {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 24px;
+    background:
+      linear-gradient(to top, rgba(0,10,30,0.92) 0%, rgba(0,40,80,0.4) 50%, rgba(0,20,60,0.2) 100%),
+      linear-gradient(135deg, rgba(0,191,255,0.08) 0%, rgba(0,100,200,0.15) 100%);
+    transition: background 0.3s var(--ease);
+  }
+
+  .demo-card:nth-child(1) .demo-card-inner {
+    background:
+      linear-gradient(to top, rgba(0,8,24,0.94) 0%, rgba(0,32,80,0.45) 50%, rgba(0,16,50,0.18) 100%),
+      linear-gradient(120deg, rgba(0,191,255,0.09) 0%, rgba(0,80,180,0.18) 100%);
+  }
+
+  .demo-card:nth-child(2) .demo-card-inner {
+    background:
+      linear-gradient(to top, rgba(0,10,28,0.93) 0%, rgba(0,36,84,0.42) 50%, rgba(0,18,55,0.17) 100%),
+      linear-gradient(145deg, rgba(0,180,255,0.07) 0%, rgba(0,90,190,0.17) 100%);
+  }
+
+  .demo-card:nth-child(3) .demo-card-inner {
+    background:
+      linear-gradient(to top, rgba(0,12,30,0.92) 0%, rgba(0,38,88,0.44) 50%, rgba(0,20,58,0.19) 100%),
+      linear-gradient(110deg, rgba(0,200,255,0.08) 0%, rgba(0,70,175,0.16) 100%);
+  }
+
+  .demo-card:nth-child(4) .demo-card-inner {
+    background:
+      linear-gradient(to top, rgba(0,8,26,0.93) 0%, rgba(0,34,82,0.43) 50%, rgba(0,17,52,0.18) 100%),
+      linear-gradient(130deg, rgba(0,185,255,0.07) 0%, rgba(0,85,185,0.17) 100%);
+  }
+
+  .demo-card:nth-child(5) .demo-card-inner {
+    background:
+      linear-gradient(to top, rgba(0,10,28,0.94) 0%, rgba(0,38,86,0.46) 50%, rgba(0,19,56,0.2) 100%),
+      linear-gradient(125deg, rgba(0,195,255,0.08) 0%, rgba(0,75,182,0.18) 100%);
+  }
+
+  .demo-card:nth-child(6) .demo-card-inner {
+    background:
+      linear-gradient(to top, rgba(0,9,27,0.92) 0%, rgba(0,35,84,0.42) 50%, rgba(0,18,54,0.17) 100%),
+      linear-gradient(140deg, rgba(0,188,255,0.07) 0%, rgba(0,82,188,0.17) 100%);
+  }
+
+  /* Simulated site screenshot texture */
+  .demo-card-inner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 18px,
+        rgba(0,191,255,0.025) 18px,
+        rgba(0,191,255,0.025) 19px
+      ),
+      repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 40px,
+        rgba(0,191,255,0.015) 40px,
+        rgba(0,191,255,0.015) 41px
+      );
+    pointer-events: none;
+  }
+
+  .demo-card:hover .demo-card-inner {
+    background:
+      linear-gradient(to top, rgba(0,10,30,0.96) 0%, rgba(0,40,90,0.55) 50%, rgba(0,20,65,0.28) 100%),
+      linear-gradient(135deg, rgba(0,191,255,0.12) 0%, rgba(0,100,200,0.22) 100%);
+  }
+
+  .demo-card-content {
+    position: relative;
+    z-index: 1;
+  }
+
+  .demo-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid var(--border-accent);
+    border-radius: 3px;
+    padding: 3px 8px;
+    margin-bottom: 10px;
+  }
+
+  .demo-name {
+    font-size: 18px;
+    font-weight: 300;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+    line-height: 1.2;
+  }
+
+  .demo-score {
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    letter-spacing: 0.06em;
+  }
+
+  .demo-score-val {
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* ─── DESIGN SYSTEMS ───────────────────────────────────── */
+  .design-systems {
+    padding: 120px 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .systems-header {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 80px;
+    align-items: end;
+    margin-bottom: 64px;
+  }
+
+  .systems-title {
+    font-size: clamp(36px, 4vw, 56px);
+    font-weight: 300;
+    line-height: 1.1;
+    letter-spacing: -0.025em;
+  }
+
+  .systems-desc {
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    max-width: 520px;
+  }
+
+  .systems-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .system-card {
+    background: var(--bg-surface);
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    cursor: pointer;
+    transition: background 0.2s var(--ease);
+  }
+
+  .system-card:hover { background: var(--bg-raised); }
+
+  .system-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+  }
+
+  .system-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+  }
+
+  .system-tokens {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-tertiary);
+    letter-spacing: 0.06em;
+  }
+
+  .system-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: rgba(0,191,255,0.06);
+    border-radius: 3px;
+    padding: 2px 7px;
+    align-self: flex-start;
+  }
+
+  /* ─── TOOLS ─────────────────────────────────────────────── */
+  .tools {
+    padding: 120px 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .tools-header {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 80px;
+    align-items: end;
+    margin-bottom: 80px;
+  }
+
+  .tools-title {
+    font-size: clamp(36px, 4vw, 56px);
+    font-weight: 300;
+    line-height: 1.1;
+    letter-spacing: -0.025em;
+  }
+
+  .tools-desc {
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    max-width: 500px;
+  }
+
+  .tools-categories {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 48px 80px;
+  }
+
+  .tools-category {}
+
+  .cat-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .cat-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .cat-name {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+
+  .tools-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .tool-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: padding-left 0.2s var(--ease);
+    group: true;
+  }
+
+  .tool-item:hover { padding-left: 4px; }
+
+  .tool-item-left {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .tool-name {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-primary);
+    letter-spacing: 0.02em;
+  }
+
+  .tool-desc {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    letter-spacing: 0.01em;
+  }
+
+  .tool-arrow {
+    color: var(--text-tertiary);
+    font-size: 14px;
+    transition: color 0.2s var(--ease), transform 0.2s var(--ease);
+  }
+
+  .tool-item:hover .tool-arrow {
+    color: var(--accent);
+    transform: translateX(3px);
+  }
+
+  /* ─── CTA ───────────────────────────────────────────────── */
+  .cta {
+    padding: 160px 0;
+    border-top: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cta::before {
+    content: '';
+    position: absolute;
+    bottom: -200px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 900px;
+    height: 500px;
+    background: radial-gradient(ellipse, rgba(0,191,255,0.05) 0%, transparent 65%);
+    pointer-events: none;
+  }
+
+  .cta-inner {
+    text-align: center;
+    max-width: 680px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  .cta-headline {
+    font-size: clamp(44px, 5.5vw, 80px);
+    font-weight: 300;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+    margin-bottom: 28px;
+  }
+
+  .cta-headline em {
+    font-style: normal;
+    color: var(--accent);
+  }
+
+  .cta-sub {
+    font-size: 16px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    margin-bottom: 52px;
+  }
+
+  .cta-install {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--bg-alt);
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    padding: 18px 24px;
+    margin-bottom: 28px;
+    cursor: pointer;
+    transition: border-color 0.2s var(--ease);
+    width: 100%;
+    max-width: 560px;
+    justify-content: space-between;
+  }
+
+  .cta-install:hover { border-color: var(--border-accent); }
+
+  .cta-install code {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--text-primary);
+  }
+
+  .cta-install .copy-btn {
+    font-size: 10px;
+  }
+
+  .cta-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+  }
+
+  /* ─── FOOTER ────────────────────────────────────────────── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 52px 0;
+  }
+
+  .footer-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .footer-left {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+
+  .footer-word {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+
+  .footer-word span { color: var(--accent); }
+
+  .footer-copy {
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 28px;
+    list-style: none;
+  }
+
+  .footer-links a {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    text-decoration: none;
+    transition: color 0.2s var(--ease);
+  }
+
+  .footer-links a:hover { color: var(--text-secondary); }
+
+  /* ─── FADE-IN ANIMATION ─────────────────────────────────── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .fade-in {
+    opacity: 0;
+    animation: fadeUp 0.7s var(--ease) forwards;
+  }
+
+  .fade-in-1 { animation-delay: 0.05s; }
+  .fade-in-2 { animation-delay: 0.15s; }
+  .fade-in-3 { animation-delay: 0.25s; }
+  .fade-in-4 { animation-delay: 0.35s; }
+
+  /* ─── SCROLLED-INTO-VIEW (Intersection Observer) ─────────── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.8s var(--ease), transform 0.8s var(--ease);
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- ══ NAV ══════════════════════════════════════════════════ -->
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="wordmark">RAVEN<span>.</span></a>
+    <ul class="nav-links">
+      <li><a href="#">Docs</a></li>
+      <li><a href="#">Design Systems</a></li>
+      <li><a href="#">Changelog</a></li>
+      <li><a href="#" class="nav-cta">Install</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ══ HERO ═════════════════════════════════════════════════ -->
+<section class="hero">
+  <div class="container">
+    <div class="section-marker fade-in fade-in-1">01 / Design Intelligence</div>
+    <div class="hero-layout">
+      <div class="hero-left">
+        <h1 class="hero-headline fade-in fade-in-2">
+          Give your AI<br><em>design</em><br>intelligence.
+        </h1>
+        <p class="hero-subhead fade-in fade-in-3">
+          Raven is an MCP server that gives AI coding agents world-class design judgment — audits, design systems, brand, content, and creative scoring, all in one tool.
+        </p>
+        <div class="install-block fade-in fade-in-4">
+          <span class="install-label">Install command</span>
+          <div class="install-cmd" onclick="copyInstall(this)">
+            <code>claude mcp add raven -- npx -y raven-mcp</code>
+            <button class="copy-btn">Copy</button>
+          </div>
+        </div>
+        <div class="hero-actions fade-in fade-in-4">
+          <a href="#" class="btn-primary">Read the docs</a>
+          <a href="#" class="btn-ghost">See it in action →</a>
+        </div>
+      </div>
+      <div class="hero-right fade-in fade-in-3">
+        <div class="hero-stat-grid">
+          <div class="hero-stat">
+            <div class="hero-stat-number">12<span>+</span></div>
+            <div class="hero-stat-label">World-class design systems<br>in W3C DTCG format</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat-number">20<span>+</span></div>
+            <div class="hero-stat-label">Audit and intelligence<br>tools out of the box</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat-number"><span style="font-size:28px">zero</span></div>
+            <div class="hero-stat-label">Runtime dependencies.<br>Fully open source.</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat-number">1<span style="font-size:28px; color:var(--text-secondary)"> cmd</span></div>
+            <div class="hero-stat-label">Away from design-aware<br>AI in your project</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="rule"></div>
+
+<!-- ══ WATCH IT WORK ════════════════════════════════════════ -->
+<section class="watch">
+  <div class="container">
+    <div class="section-marker reveal">02 / In Action</div>
+    <div class="watch-header reveal">
+      <h2 class="watch-title">Watch it work.</h2>
+      <p class="watch-desc">See Raven give Claude the same design judgment a senior designer would bring — catching contrast failures, layout drift, and brand inconsistency before they ship.</p>
+    </div>
+    <div class="device-grid reveal">
+      <div class="device-card">
+        <div class="device-frame">
+          <div class="device-poster">
+            <div class="play-btn">
+              <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M4 2l10 6-10 6V2z"/></svg>
+            </div>
+            <span class="device-poster-label">Page Audit</span>
+          </div>
+        </div>
+        <div class="device-info">
+          <span class="device-title">Full page design audit</span>
+          <span class="device-tools">audit_page · audit_layout</span>
+        </div>
+      </div>
+      <div class="device-card">
+        <div class="device-frame">
+          <div class="device-poster">
+            <div class="play-btn">
+              <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M4 2l10 6-10 6V2z"/></svg>
+            </div>
+            <span class="device-poster-label">Contrast Check</span>
+          </div>
+        </div>
+        <div class="device-info">
+          <span class="device-title">WCAG contrast enforcement</span>
+          <span class="device-tools">audit_contrast · suggest_contrast_fix</span>
+        </div>
+      </div>
+      <div class="device-card">
+        <div class="device-frame">
+          <div class="device-poster">
+            <div class="play-btn">
+              <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M4 2l10 6-10 6V2z"/></svg>
+            </div>
+            <span class="device-poster-label">Design Tokens</span>
+          </div>
+        </div>
+        <div class="device-info">
+          <span class="device-title">Token registry queries</span>
+          <span class="device-tools">get_design_system · list_design_systems</span>
+        </div>
+      </div>
+      <div class="device-card">
+        <div class="device-frame">
+          <div class="device-poster">
+            <div class="play-btn">
+              <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M4 2l10 6-10 6V2z"/></svg>
+            </div>
+            <span class="device-poster-label">iOS A11y</span>
+          </div>
+        </div>
+        <div class="device-info">
+          <span class="device-title">Mobile accessibility audit</span>
+          <span class="device-tools">audit_ios_a11y · audit_tap_targets</span>
+        </div>
+      </div>
+      <div class="device-card">
+        <div class="device-frame">
+          <div class="device-poster">
+            <div class="play-btn">
+              <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M4 2l10 6-10 6V2z"/></svg>
+            </div>
+            <span class="device-poster-label">Brand Scoring</span>
+          </div>
+        </div>
+        <div class="device-info">
+          <span class="device-title">Creative brand scoring</span>
+          <span class="device-tools">score_creative · evaluate_design</span>
+        </div>
+      </div>
+      <div class="device-card">
+        <div class="device-frame">
+          <div class="device-poster">
+            <div class="play-btn">
+              <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M4 2l10 6-10 6V2z"/></svg>
+            </div>
+            <span class="device-poster-label">Parity Audit</span>
+          </div>
+        </div>
+        <div class="device-info">
+          <span class="device-title">Cross-platform parity check</span>
+          <span class="device-tools">audit_parity · audit_rn · audit_swiftui</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ EXAMPLES ═════════════════════════════════════════════ -->
+<section class="examples">
+  <div class="container">
+    <div class="section-marker reveal">03 / Examples</div>
+    <div class="examples-header reveal">
+      <h2 class="examples-title">One tool. Every industry.</h2>
+      <p class="examples-desc">Raven has audited everything from SaaS dashboards to wedding sites. Its design judgment adapts to your domain — Stripe-level precision wherever you build.</p>
+    </div>
+    <div class="demo-grid reveal">
+      <div class="demo-card">
+        <div class="demo-card-inner">
+          <div class="demo-card-content">
+            <span class="demo-tag">Legal</span>
+            <div class="demo-name">Meridian<br>Law Group</div>
+            <div class="demo-score">Audit score: <span class="demo-score-val">96/100</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="demo-card">
+        <div class="demo-card-inner">
+          <div class="demo-card-content">
+            <span class="demo-tag">Wedding</span>
+            <div class="demo-name">Céleste &amp;<br>James</div>
+            <div class="demo-score">Audit score: <span class="demo-score-val">94/100</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="demo-card">
+        <div class="demo-card-inner">
+          <div class="demo-card-content">
+            <span class="demo-tag">Food &amp; Beverage</span>
+            <div class="demo-name">Folio<br>Roasters</div>
+            <div class="demo-score">Audit score: <span class="demo-score-val">98/100</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="demo-card">
+        <div class="demo-card-inner">
+          <div class="demo-card-content">
+            <span class="demo-tag">SaaS</span>
+            <div class="demo-name">Orbit<br>Analytics</div>
+            <div class="demo-score">Audit score: <span class="demo-score-val">95/100</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="demo-card">
+        <div class="demo-card-inner">
+          <div class="demo-card-content">
+            <span class="demo-tag">Fitness</span>
+            <div class="demo-name">Apex<br>Performance</div>
+            <div class="demo-score">Audit score: <span class="demo-score-val">97/100</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="demo-card">
+        <div class="demo-card-inner">
+          <div class="demo-card-content">
+            <span class="demo-tag">Real Estate</span>
+            <div class="demo-name">Harbor<br>Properties</div>
+            <div class="demo-score">Audit score: <span class="demo-score-val">93/100</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ DESIGN SYSTEMS ════════════════════════════════════════ -->
+<section class="design-systems">
+  <div class="container">
+    <div class="section-marker reveal">04 / Token Registry</div>
+    <div class="systems-header reveal">
+      <h2 class="systems-title">Every great system, queryable.</h2>
+      <p class="systems-desc">12 world-class design systems in W3C DTCG format. Ask Raven for Apple HIG spacing tokens, Material color roles, or Stripe's type scale — in any project, instantly.</p>
+    </div>
+    <div class="systems-grid reveal">
+      <div class="system-card">
+        <div class="system-icon">🍎</div>
+        <div class="system-name">Apple HIG</div>
+        <div class="system-tokens">380 tokens</div>
+        <span class="system-tag">iOS · macOS</span>
+      </div>
+      <div class="system-card">
+        <div class="system-icon">🎨</div>
+        <div class="system-name">Material 3</div>
+        <div class="system-tokens">520 tokens</div>
+        <span class="system-tag">Android · Web</span>
+      </div>
+      <div class="system-card">
+        <div class="system-icon">💳</div>
+        <div class="system-name">Stripe</div>
+        <div class="system-tokens">290 tokens</div>
+        <span class="system-tag">SaaS · Fintech</span>
+      </div>
+      <div class="system-card">
+        <div class="system-icon">⚡</div>
+        <div class="system-name">Linear</div>
+        <div class="system-tokens">210 tokens</div>
+        <span class="system-tag">Productivity</span>
+      </div>
+      <div class="system-card">
+        <div class="system-icon">🏠</div>
+        <div class="system-name">Airbnb</div>
+        <div class="system-tokens">340 tokens</div>
+        <span class="system-tag">Marketplace</span>
+      </div>
+      <div class="system-card">
+        <div class="system-icon">🎵</div>
+        <div class="system-name">Spotify</div>
+        <div class="system-tokens">260 tokens</div>
+        <span class="system-tag">Media · Audio</span>
+      </div>
+      <div class="system-card">
+        <div class="system-icon">🔷</div>
+        <div class="system-name">Microsoft Fluent</div>
+        <div class="system-tokens">430 tokens</div>
+        <span class="system-tag">Enterprise</span>
+      </div>
+      <div class="system-card">
+        <div class="system-icon">🌊</div>
+        <div class="system-name">Salesforce SLDS</div>
+        <div class="system-tokens">510 tokens</div>
+        <span class="system-tag">Enterprise · CRM</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ TOOLS ═════════════════════════════════════════════════ -->
+<section class="tools">
+  <div class="container">
+    <div class="section-marker reveal">05 / Tools</div>
+    <div class="tools-header reveal">
+      <h2 class="tools-title">Every tool your AI needs.</h2>
+      <p class="tools-desc">Audits, design systems, brand intelligence, content, and creative scoring — all exposed as clean MCP tools any agent can call.</p>
+    </div>
+    <div class="tools-categories reveal">
+      <div class="tools-category">
+        <div class="cat-header">
+          <div class="cat-dot"></div>
+          <span class="cat-name">Audits</span>
+        </div>
+        <div class="tools-list">
+          <div class="tool-item">
+            <div class="tool-item-left">
+              <span class="tool-name">audit_page</span>
+              <span class="tool-desc">Full visual design audit of any URL</span>
+            </div>
+            <span class="tool-arrow">→</span>
+          </div>
+          <div class="tool-item">
+            <div class="tool-item-left">
+              <span class="tool-name">audit_layout</span>
+              <span class="tool-desc">Spacing, hierarchy, and grid analysis</span>
+            </div>
+            <span class="tool-arrow">→</span>
+          </div>
+          <div class="tool-item">
+            <div class="tool-item-left">
+              <span class="tool-name">audit_contrast</span>
+              <span class="tool-desc">WCAG AA/AAA contrast enforcement</span>
+            </div>
+            <span class="tool-arrow">→</span>
+          </div>
+          <div class="tool-item">
+            <div class="tool-item-left">
+              <span class="tool-name">audit_typography</span>
+              <span class="tool-desc">Type scale, leading, and hierarchy</span>
+            </div>
+            <span class="tool-arrow">→</span>
+          </div>
+          <div class="tool-item">
+            <div class="tool-item-left">
+              <span class="tool-name">audit_tap_targets</span>
+              <span class="tool-desc">Mobile tap target size validation</span>
+            </div>
+            <span class="tool-arrow">→</span>
+          </div>
+          <div class="tool-item">
+            <div class="tool-item-left">
+              <span class="tool-name">audit_ios_a11y</span>
+              <span class="tool-desc">iOS VoiceOver and accessibility audit</span>
+            </div>
+            <span class="tool-arrow">→</span>
+          </div>
+        </div>
+      </div>
+      <div class="tools-category">
+        <div class="cat-header">
+          <div class="cat-dot"></div>
+          <span class="cat-name">Design Systems</span>
+        </div>
+        <div class="tools-list">
+          <div class="tool-item">
+            <div class="tool-item-left">
+              <span class="tool-name">get_design_system</span>
+              <span class="tool-desc">Query tokens from any registered system</span>
+            </div>
+            <span class="tool-arrow">→</span>
+          </div>
+          <div class="tool-item">
+            <div class="tool-item-left">
+              <span class="tool-name">generate_design_system</span>
+              <span class="tool-desc">Create a token system from scratch</span>
+            </div>
+            <span class="tool-arrow">→</span>
+          </div>
+          <div class="tool-item">
+            <div class="tool-item-left">
+              <span class="tool-name">get_pattern</span>
+              <span class="tool-desc">Retrieve UI patterns and guidelines</span>
+            </div>
+            <span class="tool-arrow">→</span>
+          </div>
+        </div>
+      </div>
+      <div class="tools-category">
+        <div class="cat-header">
+          <div class="cat-dot"></div>
+          <span class="cat-name">Brand &amp; Content</span>
+        </div>
+        <div class="tools-list">
+          <div class="tool-item">
+            <div class="tool-item-left">
+              <span class="tool-name">create_brand_profile</span>
+              <span class="tool-desc">Define and persist brand identity</span>
+            </div>
+            <span class="tool-arrow">→</span>
+          </div>
+          <div class="tool-item">
+            <div class="tool-item-left">
+              <span class="tool-name">get_content_system</span>
+              <span class="tool-desc">Voice, tone, and content principles</span>
+            </div>
+            <span class="tool-arrow">→</span>
+          </div>
+          <div class="tool-item">
+            <div class="tool-item-left">
+              <span class="tool-name">audit_content</span>
+              <span class="tool-desc">Copy quality and brand alignment audit</span>
+            </div>
+            <span class="tool-arrow">→</span>
+          </div>
+          <div class="tool-item">
+            <div class="tool-item-left">
+              <span class="tool-name">get_brand_trends</span>
+              <span class="tool-desc">Current visual design trend intelligence</span>
+            </div>
+            <span class="tool-arrow">→</span>
+          </div>
+        </div>
+      </div>
+      <div class="tools-category">
+        <div class="cat-header">
+          <div class="cat-dot"></div>
+          <span class="cat-name">Creative &amp; Scoring</span>
+        </div>
+        <div class="tools-list">
+          <div class="tool-item">
+            <div class="tool-item-left">
+              <span class="tool-name">score_creative</span>
+              <span class="tool-desc">Multi-dimensional creative quality score</span>
+            </div>
+            <span class="tool-arrow">→</span>
+          </div>
+          <div class="tool-item">
+            <div class="tool-item-left">
+              <span class="tool-name">evaluate_design</span>
+              <span class="tool-desc">Holistic design quality evaluation</span>
+            </div>
+            <span class="tool-arrow">→</span>
+          </div>
+          <div class="tool-item">
+            <div class="tool-item-left">
+              <span class="tool-name">plan_creative_campaign</span>
+              <span class="tool-desc">AI-led campaign concept and planning</span>
+            </div>
+            <span class="tool-arrow">→</span>
+          </div>
+          <div class="tool-item">
+            <div class="tool-item-left">
+              <span class="tool-name">get_d4d_framework</span>
+              <span class="tool-desc">Design for Delight customer empathy system</span>
+            </div>
+            <span class="tool-arrow">→</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ CTA ═══════════════════════════════════════════════════ -->
+<section class="cta">
+  <div class="container">
+    <div class="cta-inner reveal">
+      <div class="section-marker" style="justify-content:center; margin-bottom:40px;">06 / Get Started</div>
+      <h2 class="cta-headline">Give your AI<br><em>design</em> intelligence.</h2>
+      <p class="cta-sub">One command. Zero dependencies. World-class design judgment for every AI agent you build.</p>
+      <div class="cta-install" onclick="copyInstall(this)">
+        <code>claude mcp add raven -- npx -y raven-mcp</code>
+        <button class="copy-btn">Copy</button>
+      </div>
+      <div class="cta-actions">
+        <a href="#" class="btn-primary">Read the docs</a>
+        <a href="#" class="btn-ghost">View on GitHub →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ FOOTER ════════════════════════════════════════════════ -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <span class="footer-word">RAVEN<span>.</span></span>
+        <span class="footer-copy">© 2025 Raven. Open source.</span>
+      </div>
+      <ul class="footer-links">
+        <li><a href="#">GitHub</a></li>
+        <li><a href="#">npm</a></li>
+        <li><a href="#">Docs</a></li>
+        <li><a href="#">Changelog</a></li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Copy install command
+  function copyInstall(el) {
+    const code = el.querySelector('code');
+    const btn = el.querySelector('.copy-btn');
+    if (!code || !btn) return;
+    navigator.clipboard.writeText(code.textContent).then(function() {
+      btn.textContent = 'Copied';
+      btn.style.color = 'var(--accent)';
+      btn.style.borderColor = 'var(--border-accent)';
+      setTimeout(function() {
+        btn.textContent = 'Copy';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+      }, 2000);
+    });
+  }
+
+  // Scroll-reveal
+  var reveals = document.querySelectorAll('.reveal');
+  var observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+  reveals.forEach(function(el) { observer.observe(el); });
+</script>
+</body>
+</html>

@@ -1,0 +1,1644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raven — Give your AI design intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-base: #1a1a22;
+    --bg-surface: #212129;
+    --bg-raised: #2a2a33;
+    --bg-overlay: #32323d;
+    --bg-alt: #16161e;
+    --accent-blue: #00BFFF;
+    --accent-cyan: #00E5FF;
+    --accent-green: #00E676;
+    --accent-orange: #FFAB40;
+    --accent-pink: #FF4081;
+    --text-primary: #F0F0F2;
+    --text-secondary: #9498A0;
+    --text-tertiary: #8E929C;
+    --text-on-accent: #0a0a12;
+    --border: rgba(255,255,255,.06);
+    --border-strong: rgba(255,255,255,.1);
+    --border-accent: rgba(0,191,255,.3);
+    --ease-out: cubic-bezier(.16,1,.3,1);
+    --font: 'Inter', -apple-system, sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg-base);
+    color: var(--text-primary);
+    overflow-x: hidden;
+    line-height: 1.5;
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg-alt); }
+  ::-webkit-scrollbar-thumb { background: rgba(0,191,255,.3); border-radius: 2px; }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 40px;
+    height: 64px;
+    background: rgba(22,22,30,.7);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-wordmark {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    background: linear-gradient(135deg, #00E5FF 0%, #00BFFF 50%, #7c3aed 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-decoration: none;
+  }
+
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    transition: color 0.2s var(--ease-out);
+  }
+
+  .nav-links a:hover { color: var(--text-primary); }
+
+  .nav-cta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, rgba(0,191,255,.15) 0%, rgba(0,229,255,.1) 100%);
+    border: 1px solid var(--border-accent);
+    border-radius: 9999px;
+    padding: 8px 20px;
+    color: var(--accent-cyan) !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    transition: all 0.25s var(--ease-out) !important;
+  }
+
+  .nav-cta:hover {
+    background: linear-gradient(135deg, rgba(0,191,255,.25) 0%, rgba(0,229,255,.2) 100%) !important;
+    border-color: var(--accent-blue) !important;
+    color: var(--text-primary) !important;
+    box-shadow: 0 0 20px rgba(0,191,255,.2);
+  }
+
+  /* ── HERO ── */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 120px 40px 100px;
+    overflow: hidden;
+  }
+
+  /* Aurora background layers */
+  .hero-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: var(--bg-alt);
+  }
+
+  .hero-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 0%, rgba(0,191,255,.18) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 80% 10%, rgba(124,58,237,.2) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 40% at 50% 100%, rgba(0,229,255,.08) 0%, transparent 50%);
+    animation: aurora-drift 12s ease-in-out infinite alternate;
+  }
+
+  .hero-bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 40% 30% at 65% 40%, rgba(0,191,255,.08) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 10% 60%, rgba(124,58,237,.1) 0%, transparent 50%);
+    animation: aurora-drift 16s ease-in-out infinite alternate-reverse;
+  }
+
+  /* Grid overlay */
+  .hero-grid {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, black 30%, transparent 80%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, black 30%, transparent 80%);
+  }
+
+  /* Vignette */
+  .hero-vignette {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: radial-gradient(ellipse 100% 100% at 50% 50%, transparent 40%, rgba(22,22,30,.6) 100%);
+  }
+
+  @keyframes aurora-drift {
+    0% { transform: translate(0,0) scale(1); }
+    100% { transform: translate(2%,3%) scale(1.05); }
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 2;
+    max-width: 840px;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,191,255,.08);
+    border: 1px solid var(--border-accent);
+    border-radius: 9999px;
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-cyan);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 32px;
+    animation: fade-up 0.8s var(--ease-out) both;
+  }
+
+  .hero-badge .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    box-shadow: 0 0 8px var(--accent-cyan);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .hero h1 {
+    font-size: clamp(52px, 7vw, 88px);
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 0.95;
+    margin-bottom: 28px;
+    animation: fade-up 0.8s var(--ease-out) 0.1s both;
+  }
+
+  .hero h1 .line-glow {
+    display: block;
+    background: linear-gradient(135deg, #F0F0F2 0%, rgba(240,240,242,.7) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero h1 .line-accent {
+    display: block;
+    background: linear-gradient(135deg, #00E5FF 0%, #00BFFF 40%, #7c3aed 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 40px rgba(0,191,255,.4));
+  }
+
+  .hero-sub {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 560px;
+    margin: 0 auto 48px;
+    font-weight: 400;
+    line-height: 1.65;
+    animation: fade-up 0.8s var(--ease-out) 0.2s both;
+  }
+
+  .hero-install {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    padding: 14px 20px;
+    max-width: 420px;
+    margin: 0 auto 24px;
+    font-family: ui-monospace, 'SF Mono', monospace;
+    font-size: 13px;
+    color: var(--accent-cyan);
+    cursor: pointer;
+    position: relative;
+    animation: fade-up 0.8s var(--ease-out) 0.3s both;
+    transition: all 0.25s var(--ease-out);
+  }
+
+  .hero-install:hover {
+    border-color: var(--border-accent);
+    background: rgba(0,191,255,.06);
+    box-shadow: 0 0 30px rgba(0,191,255,.12);
+  }
+
+  .hero-install .prompt { color: var(--text-tertiary); user-select: none; }
+
+  .copy-icon {
+    margin-left: auto;
+    opacity: 0;
+    color: var(--text-tertiary);
+    transition: opacity 0.2s;
+  }
+
+  .hero-install:hover .copy-icon { opacity: 1; }
+
+  .hero-cta-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    animation: fade-up 0.8s var(--ease-out) 0.4s both;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #00BFFF 0%, #00E5FF 100%);
+    color: var(--text-on-accent);
+    font-size: 14px;
+    font-weight: 700;
+    border-radius: 9999px;
+    padding: 12px 28px;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    letter-spacing: -0.01em;
+    transition: all 0.25s var(--ease-out);
+    box-shadow: 0 4px 24px rgba(0,191,255,.3), 0 0 60px rgba(0,191,255,.15);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 32px rgba(0,191,255,.45), 0 0 80px rgba(0,191,255,.2);
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 9999px;
+    padding: 12px 24px;
+    text-decoration: none;
+    border: 1px solid var(--border-strong);
+    cursor: pointer;
+    transition: all 0.25s var(--ease-out);
+  }
+
+  .btn-secondary:hover {
+    color: var(--text-primary);
+    border-color: rgba(255,255,255,.2);
+    background: rgba(255,255,255,.04);
+  }
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── SECTION BASE ── */
+  section {
+    position: relative;
+    padding: 120px 40px;
+  }
+
+  .section-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent-cyan);
+    margin-bottom: 20px;
+  }
+
+  .section-label::before {
+    content: '';
+    width: 20px;
+    height: 1px;
+    background: var(--accent-cyan);
+    opacity: 0.6;
+  }
+
+  .section-heading {
+    font-size: clamp(32px, 4vw, 52px);
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+    margin-bottom: 16px;
+  }
+
+  .section-sub {
+    font-size: 17px;
+    color: var(--text-secondary);
+    line-height: 1.65;
+    max-width: 540px;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  /* ── DIVIDER ── */
+  .section-divider {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, var(--border-strong) 20%, var(--border-accent) 50%, var(--border-strong) 80%, transparent 100%);
+  }
+
+  /* ── VIDEO SECTION ── */
+  .videos-section {
+    background: var(--bg-alt);
+    padding: 120px 40px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .videos-section::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-accent), transparent);
+  }
+
+  .videos-section::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-accent), transparent);
+  }
+
+  .videos-bg-glow {
+    position: absolute;
+    top: -20%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 800px;
+    height: 600px;
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0,191,255,.1) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .videos-header {
+    text-align: center;
+    margin-bottom: 72px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .video-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .device-frame {
+    position: relative;
+    border-radius: 20px;
+    overflow: hidden;
+    background: var(--bg-raised);
+    border: 1px solid var(--border-strong);
+    aspect-ratio: 16/10;
+    cursor: pointer;
+    transition: all 0.4s var(--ease-out);
+    group: true;
+  }
+
+  .device-frame::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 20px;
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,.08),
+      0 0 0 1px rgba(0,0,0,.5);
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .device-frame:hover {
+    transform: translateY(-6px) scale(1.02);
+    border-color: var(--border-accent);
+    box-shadow: 0 24px 60px rgba(0,0,0,.5), 0 0 60px rgba(0,191,255,.15);
+  }
+
+  .video-poster {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, var(--bg-raised) 0%, var(--bg-overlay) 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+  }
+
+  .video-poster-lines {
+    position: absolute;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 19px, rgba(255,255,255,.02) 20px),
+      repeating-linear-gradient(90deg, transparent, transparent 19px, rgba(255,255,255,.02) 20px);
+  }
+
+  .play-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(0,191,255,.15);
+    border: 1px solid var(--border-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s var(--ease-out);
+    backdrop-filter: blur(8px);
+    position: relative;
+    z-index: 1;
+  }
+
+  .device-frame:hover .play-btn {
+    background: rgba(0,191,255,.3);
+    box-shadow: 0 0 30px rgba(0,191,255,.3);
+    transform: scale(1.1);
+  }
+
+  .play-btn svg { margin-left: 2px; }
+
+  .video-label {
+    text-align: center;
+    position: relative;
+    z-index: 1;
+  }
+
+  .video-label-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+  }
+
+  .video-label-tools {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-top: 3px;
+    font-family: ui-monospace, 'SF Mono', monospace;
+  }
+
+  /* Glow on featured frame */
+  .device-frame.featured {
+    grid-column: span 1;
+  }
+
+  .device-frame.featured::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: 21px;
+    background: linear-gradient(135deg, rgba(0,191,255,.3) 0%, rgba(0,229,255,.15) 50%, transparent 100%);
+    z-index: -1;
+    filter: blur(8px);
+    opacity: 0;
+    transition: opacity 0.4s var(--ease-out);
+  }
+
+  .device-frame.featured:hover::after { opacity: 1; }
+
+  /* ── EXAMPLES ── */
+  .examples-section {
+    padding: 120px 40px;
+    position: relative;
+  }
+
+  .examples-header {
+    margin-bottom: 56px;
+  }
+
+  .examples-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .example-card {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    aspect-ratio: 4/3;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.35s var(--ease-out);
+  }
+
+  .example-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--border-accent);
+    box-shadow: 0 20px 48px rgba(0,0,0,.4), 0 0 32px rgba(0,191,255,.1);
+  }
+
+  /* Duotone treatment — all cards same cyan/blue tone */
+  .example-card-bg {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, #0e2a38 0%, #0a1a2e 50%, #0d1f35 100%);
+  }
+
+  .example-card-overlay {
+    position: absolute;
+    inset: 0;
+    /* Unique pattern per card but all in the cyan/blue family */
+    opacity: 0.9;
+  }
+
+  .example-card:nth-child(1) .example-card-overlay {
+    background:
+      linear-gradient(145deg, rgba(0,191,255,.25) 0%, rgba(0,100,160,.3) 50%, rgba(0,50,80,.2) 100%),
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(0,191,255,.05) 40px);
+  }
+
+  .example-card:nth-child(2) .example-card-overlay {
+    background:
+      linear-gradient(135deg, rgba(0,150,200,.2) 0%, rgba(0,191,255,.15) 40%, rgba(50,0,120,.2) 100%),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(0,229,255,.04) 40px);
+  }
+
+  .example-card:nth-child(3) .example-card-overlay {
+    background:
+      linear-gradient(160deg, rgba(0,229,255,.2) 0%, rgba(0,120,180,.25) 60%, rgba(0,60,100,.15) 100%),
+      repeating-linear-gradient(45deg, transparent, transparent 39px, rgba(0,191,255,.04) 40px);
+  }
+
+  .example-card:nth-child(4) .example-card-overlay {
+    background:
+      linear-gradient(125deg, rgba(0,100,180,.3) 0%, rgba(0,191,255,.2) 50%, rgba(0,150,220,.15) 100%),
+      repeating-linear-gradient(135deg, transparent, transparent 39px, rgba(0,229,255,.04) 40px);
+  }
+
+  .example-card:nth-child(5) .example-card-overlay {
+    background:
+      linear-gradient(150deg, rgba(0,180,220,.2) 0%, rgba(0,100,170,.25) 50%, rgba(0,191,255,.15) 100%),
+      repeating-linear-gradient(0deg, transparent, transparent 29px, rgba(0,191,255,.05) 30px);
+  }
+
+  .example-card:nth-child(6) .example-card-overlay {
+    background:
+      linear-gradient(120deg, rgba(0,191,255,.15) 0%, rgba(0,80,150,.3) 50%, rgba(0,200,240,.1) 100%),
+      repeating-linear-gradient(90deg, transparent, transparent 29px, rgba(0,229,255,.05) 30px);
+  }
+
+  .example-card-mock {
+    position: absolute;
+    inset: 20px;
+    border-radius: 8px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(0,191,255,.15);
+    overflow: hidden;
+  }
+
+  .example-card-mock-header {
+    height: 28px;
+    background: rgba(0,191,255,.08);
+    border-bottom: 1px solid rgba(0,191,255,.1);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 10px;
+  }
+
+  .mock-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgba(0,191,255,.3);
+  }
+
+  .example-card-mock-body {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .mock-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(0,191,255,.15);
+  }
+
+  .mock-bar.w-full { width: 100%; }
+  .mock-bar.w-3q { width: 75%; }
+  .mock-bar.w-half { width: 50%; }
+  .mock-bar.w-2q { width: 60%; }
+
+  .mock-block {
+    height: 40px;
+    border-radius: 6px;
+    background: rgba(0,191,255,.08);
+    border: 1px solid rgba(0,191,255,.1);
+    margin-top: 4px;
+  }
+
+  .example-card-info {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 20px;
+    background: linear-gradient(to top, rgba(10,18,28,.95) 0%, transparent 100%);
+    z-index: 2;
+  }
+
+  .example-industry {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+    margin-bottom: 2px;
+  }
+
+  .example-score {
+    font-size: 11px;
+    color: var(--accent-cyan);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* ── DESIGN SYSTEMS ── */
+  .systems-section {
+    padding: 120px 40px;
+    background: var(--bg-alt);
+    position: relative;
+  }
+
+  .systems-section::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-accent), transparent);
+  }
+
+  .systems-header {
+    margin-bottom: 56px;
+  }
+
+  .systems-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .system-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    cursor: pointer;
+    transition: all 0.3s var(--ease-out);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .system-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent-blue), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .system-card:hover {
+    border-color: var(--border-accent);
+    background: var(--bg-raised);
+    transform: translateY(-3px);
+    box-shadow: 0 16px 40px rgba(0,0,0,.3), 0 0 24px rgba(0,191,255,.08);
+  }
+
+  .system-card:hover::before { opacity: 1; }
+
+  .system-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(0,191,255,.15) 0%, rgba(0,229,255,.08) 100%);
+    border: 1px solid rgba(0,191,255,.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    font-size: 18px;
+  }
+
+  .system-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+
+  .system-meta {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    font-family: ui-monospace, 'SF Mono', monospace;
+    margin-bottom: 16px;
+  }
+
+  .system-tokens {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .token-pill {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(0,191,255,.08);
+    color: var(--accent-cyan);
+    border: 1px solid rgba(0,191,255,.15);
+    text-transform: uppercase;
+  }
+
+  /* ── TOOLS ── */
+  .tools-section {
+    padding: 120px 40px;
+    position: relative;
+  }
+
+  .tools-header {
+    margin-bottom: 56px;
+  }
+
+  .tools-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+
+  .tool-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.3s var(--ease-out);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .tool-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0,191,255,.05) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .tool-card:hover {
+    border-color: var(--border-accent);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,.25), 0 0 16px rgba(0,191,255,.06);
+  }
+
+  .tool-card:hover::after { opacity: 1; }
+
+  .tool-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: rgba(0,191,255,.1);
+    border: 1px solid rgba(0,191,255,.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+
+  .tool-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+    font-family: ui-monospace, 'SF Mono', monospace;
+  }
+
+  .tool-desc {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    line-height: 1.5;
+  }
+
+  .tool-category {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-cyan);
+    margin-bottom: 16px;
+    opacity: 0.7;
+  }
+
+  /* ── GET STARTED ── */
+  .cta-section {
+    padding: 120px 40px;
+    text-align: center;
+    background: var(--bg-alt);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cta-section::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-accent), transparent);
+  }
+
+  .cta-bg {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 70% 80% at 50% 100%, rgba(0,191,255,.12) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 50% at 20% 50%, rgba(124,58,237,.08) 0%, transparent 50%),
+      radial-gradient(ellipse 50% 50% at 80% 50%, rgba(0,229,255,.06) 0%, transparent 50%);
+  }
+
+  .cta-content {
+    position: relative;
+    z-index: 1;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  .cta-heading {
+    font-size: clamp(36px, 5vw, 60px);
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 1.0;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #F0F0F2 0%, rgba(240,240,242,.8) 60%, #00E5FF 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .cta-sub {
+    font-size: 17px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 48px;
+  }
+
+  .cta-install {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--border-accent);
+    border-radius: 12px;
+    padding: 16px 24px;
+    font-family: ui-monospace, 'SF Mono', monospace;
+    font-size: 14px;
+    color: var(--accent-cyan);
+    margin-bottom: 24px;
+    cursor: pointer;
+    transition: all 0.25s var(--ease-out);
+  }
+
+  .cta-install:hover {
+    background: rgba(0,191,255,.08);
+    box-shadow: 0 0 40px rgba(0,191,255,.15);
+  }
+
+  .cta-install .prompt { color: var(--text-tertiary); }
+
+  .cta-buttons {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    padding: 48px 40px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-alt);
+  }
+
+  .footer-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .footer-wordmark {
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    background: linear-gradient(135deg, #00E5FF, #00BFFF);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 24px;
+    list-style: none;
+  }
+
+  .footer-links a {
+    color: var(--text-tertiary);
+    text-decoration: none;
+    font-size: 13px;
+    transition: color 0.2s;
+  }
+
+  .footer-links a:hover { color: var(--text-secondary); }
+
+  .footer-copy {
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+
+  /* ── REVEAL ANIMATIONS ── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(32px);
+    transition: opacity 0.8s var(--ease-out), transform 0.8s var(--ease-out);
+  }
+
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .reveal-delay-1 { transition-delay: 0.1s; }
+  .reveal-delay-2 { transition-delay: 0.2s; }
+  .reveal-delay-3 { transition-delay: 0.3s; }
+  .reveal-delay-4 { transition-delay: 0.4s; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    nav { padding: 0 20px; }
+    .nav-links { display: none; }
+    section, .videos-section, .systems-section, .examples-section, .cta-section { padding: 80px 20px; }
+    .hero { padding: 100px 20px 80px; }
+    .video-grid { grid-template-columns: 1fr 1fr; }
+    .video-grid .device-frame:last-child { grid-column: span 2; }
+    .examples-grid { grid-template-columns: 1fr 1fr; }
+    .systems-grid { grid-template-columns: 1fr 1fr; }
+    .tools-grid { grid-template-columns: 1fr 1fr; }
+    footer { padding: 32px 20px; }
+    .footer-inner { flex-direction: column; align-items: flex-start; gap: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── STICKY NAV ── -->
+<nav>
+  <a href="#" class="nav-wordmark">Raven</a>
+  <ul class="nav-links">
+    <li><a href="#docs">Docs</a></li>
+    <li><a href="#systems">Design System</a></li>
+    <li><a href="#changelog">Changelog</a></li>
+    <li><a href="#install" class="nav-cta">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M2 7h10M7 2l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Install
+    </a></li>
+  </ul>
+</nav>
+
+<!-- ── HERO ── -->
+<section class="hero" id="install">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+  <div class="hero-vignette"></div>
+
+  <div class="hero-content">
+    <div class="hero-badge">
+      <span class="dot"></span>
+      Design Intelligence for AI Agents
+    </div>
+
+    <h1>
+      <span class="line-glow">Give your AI</span>
+      <span class="line-accent">design intelligence.</span>
+    </h1>
+
+    <p class="hero-sub">
+      Raven is an open-source MCP server that gives Claude and other coding agents world-class design judgment — audits, design systems, brand, content, and creative scoring.
+    </p>
+
+    <div class="hero-install" onclick="navigator.clipboard.writeText('claude mcp add raven -- npx -y raven-mcp').then(()=>{this.querySelector('.copy-icon').textContent='✓'})">
+      <span class="prompt">$</span>
+      <span>claude mcp add raven -- npx -y raven-mcp</span>
+      <span class="copy-icon">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="4" y="4" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M10 4V3a1 1 0 00-1-1H3a1 1 0 00-1 1v6a1 1 0 001 1h1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </span>
+    </div>
+
+    <div class="hero-cta-row">
+      <a href="#docs" class="btn-primary">
+        Read the docs
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M2 7h10M7 2l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+      <a href="#watch" class="btn-secondary">
+        Watch it work
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M5.5 5l3 2-3 2V5z" fill="currentColor"/>
+        </svg>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ── WATCH IT WORK ── -->
+<section class="videos-section" id="watch">
+  <div class="videos-bg-glow"></div>
+  <div class="container">
+    <div class="videos-header reveal">
+      <div class="section-label">In action</div>
+      <h2 class="section-heading">Watch it work.</h2>
+      <p class="section-sub">Six tools. Six problems solved. See how Raven turns your agent into a design expert in seconds.</p>
+    </div>
+
+    <div class="video-grid">
+
+      <div class="device-frame reveal reveal-delay-1">
+        <div class="video-poster">
+          <div class="video-poster-lines"></div>
+          <div class="play-btn">
+            <svg width="14" height="16" viewBox="0 0 14 16" fill="none">
+              <path d="M1.5 1.5l11 6.5-11 6.5V1.5z" fill="#00E5FF"/>
+            </svg>
+          </div>
+          <div class="video-label">
+            <div class="video-label-title">Page Audit</div>
+            <div class="video-label-tools">audit_page · audit_layout</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="device-frame reveal reveal-delay-2">
+        <div class="video-poster">
+          <div class="video-poster-lines"></div>
+          <div class="play-btn">
+            <svg width="14" height="16" viewBox="0 0 14 16" fill="none">
+              <path d="M1.5 1.5l11 6.5-11 6.5V1.5z" fill="#00E5FF"/>
+            </svg>
+          </div>
+          <div class="video-label">
+            <div class="video-label-title">Contrast Check</div>
+            <div class="video-label-tools">audit_contrast · audit_typography</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="device-frame reveal reveal-delay-3">
+        <div class="video-poster">
+          <div class="video-poster-lines"></div>
+          <div class="play-btn">
+            <svg width="14" height="16" viewBox="0 0 14 16" fill="none">
+              <path d="M1.5 1.5l11 6.5-11 6.5V1.5z" fill="#00E5FF"/>
+            </svg>
+          </div>
+          <div class="video-label">
+            <div class="video-label-title">Design System Query</div>
+            <div class="video-label-tools">get_design_system · list_design_systems</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="device-frame reveal reveal-delay-1">
+        <div class="video-poster">
+          <div class="video-poster-lines"></div>
+          <div class="play-btn">
+            <svg width="14" height="16" viewBox="0 0 14 16" fill="none">
+              <path d="M1.5 1.5l11 6.5-11 6.5V1.5z" fill="#00E5FF"/>
+            </svg>
+          </div>
+          <div class="video-label">
+            <div class="video-label-title">Mobile A11y</div>
+            <div class="video-label-tools">audit_ios_a11y · audit_tap_targets</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="device-frame reveal reveal-delay-2">
+        <div class="video-poster">
+          <div class="video-poster-lines"></div>
+          <div class="play-btn">
+            <svg width="14" height="16" viewBox="0 0 14 16" fill="none">
+              <path d="M1.5 1.5l11 6.5-11 6.5V1.5z" fill="#00E5FF"/>
+            </svg>
+          </div>
+          <div class="video-label">
+            <div class="video-label-title">Brand Scoring</div>
+            <div class="video-label-tools">score_creative · evaluate_design</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="device-frame reveal reveal-delay-3">
+        <div class="video-poster">
+          <div class="video-poster-lines"></div>
+          <div class="play-btn">
+            <svg width="14" height="16" viewBox="0 0 14 16" fill="none">
+              <path d="M1.5 1.5l11 6.5-11 6.5V1.5z" fill="#00E5FF"/>
+            </svg>
+          </div>
+          <div class="video-label">
+            <div class="video-label-title">Screen Parity</div>
+            <div class="video-label-tools">audit_parity · audit_rn</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── EXAMPLES ── -->
+<section class="examples-section">
+  <div class="container">
+    <div class="examples-header reveal">
+      <div class="section-label">Examples</div>
+      <h2 class="section-heading">One tool. Every industry.</h2>
+      <p class="section-sub">Raven audits any product against world-class design standards — no matter the domain.</p>
+    </div>
+
+    <div class="examples-grid">
+
+      <div class="example-card reveal reveal-delay-1">
+        <div class="example-card-bg"></div>
+        <div class="example-card-overlay"></div>
+        <div class="example-card-mock">
+          <div class="example-card-mock-header"><div class="mock-dot"></div><div class="mock-dot"></div><div class="mock-dot"></div></div>
+          <div class="example-card-mock-body">
+            <div class="mock-bar w-3q"></div>
+            <div class="mock-bar w-full"></div>
+            <div class="mock-bar w-half"></div>
+            <div class="mock-block"></div>
+            <div class="mock-bar w-2q"></div>
+            <div class="mock-bar w-3q"></div>
+          </div>
+        </div>
+        <div class="example-card-info">
+          <div class="example-industry">Legal</div>
+          <div class="example-score">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1l1.12 2.27L9 3.63 7 5.57l.47 2.74L5 7l-2.47 1.3L3 5.57 1 3.63l2.88-.36L5 1z" fill="currentColor"/></svg>
+            Score: 91 · 14 issues found
+          </div>
+        </div>
+      </div>
+
+      <div class="example-card reveal reveal-delay-2">
+        <div class="example-card-bg"></div>
+        <div class="example-card-overlay"></div>
+        <div class="example-card-mock">
+          <div class="example-card-mock-header"><div class="mock-dot"></div><div class="mock-dot"></div><div class="mock-dot"></div></div>
+          <div class="example-card-mock-body">
+            <div class="mock-bar w-half"></div>
+            <div class="mock-bar w-full"></div>
+            <div class="mock-block"></div>
+            <div class="mock-bar w-2q"></div>
+            <div class="mock-bar w-3q"></div>
+          </div>
+        </div>
+        <div class="example-card-info">
+          <div class="example-industry">Wedding</div>
+          <div class="example-score">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1l1.12 2.27L9 3.63 7 5.57l.47 2.74L5 7l-2.47 1.3L3 5.57 1 3.63l2.88-.36L5 1z" fill="currentColor"/></svg>
+            Score: 88 · 9 issues found
+          </div>
+        </div>
+      </div>
+
+      <div class="example-card reveal reveal-delay-3">
+        <div class="example-card-bg"></div>
+        <div class="example-card-overlay"></div>
+        <div class="example-card-mock">
+          <div class="example-card-mock-header"><div class="mock-dot"></div><div class="mock-dot"></div><div class="mock-dot"></div></div>
+          <div class="example-card-mock-body">
+            <div class="mock-bar w-full"></div>
+            <div class="mock-bar w-3q"></div>
+            <div class="mock-block"></div>
+            <div class="mock-bar w-half"></div>
+            <div class="mock-bar w-full"></div>
+          </div>
+        </div>
+        <div class="example-card-info">
+          <div class="example-industry">Food &amp; Beverage</div>
+          <div class="example-score">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1l1.12 2.27L9 3.63 7 5.57l.47 2.74L5 7l-2.47 1.3L3 5.57 1 3.63l2.88-.36L5 1z" fill="currentColor"/></svg>
+            Score: 94 · 6 issues found
+          </div>
+        </div>
+      </div>
+
+      <div class="example-card reveal reveal-delay-1">
+        <div class="example-card-bg"></div>
+        <div class="example-card-overlay"></div>
+        <div class="example-card-mock">
+          <div class="example-card-mock-header"><div class="mock-dot"></div><div class="mock-dot"></div><div class="mock-dot"></div></div>
+          <div class="example-card-mock-body">
+            <div class="mock-bar w-2q"></div>
+            <div class="mock-bar w-full"></div>
+            <div class="mock-block"></div>
+            <div class="mock-bar w-3q"></div>
+            <div class="mock-bar w-half"></div>
+          </div>
+        </div>
+        <div class="example-card-info">
+          <div class="example-industry">SaaS</div>
+          <div class="example-score">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1l1.12 2.27L9 3.63 7 5.57l.47 2.74L5 7l-2.47 1.3L3 5.57 1 3.63l2.88-.36L5 1z" fill="currentColor"/></svg>
+            Score: 96 · 4 issues found
+          </div>
+        </div>
+      </div>
+
+      <div class="example-card reveal reveal-delay-2">
+        <div class="example-card-bg"></div>
+        <div class="example-card-overlay"></div>
+        <div class="example-card-mock">
+          <div class="example-card-mock-header"><div class="mock-dot"></div><div class="mock-dot"></div><div class="mock-dot"></div></div>
+          <div class="example-card-mock-body">
+            <div class="mock-bar w-full"></div>
+            <div class="mock-bar w-half"></div>
+            <div class="mock-block"></div>
+            <div class="mock-bar w-3q"></div>
+            <div class="mock-bar w-2q"></div>
+          </div>
+        </div>
+        <div class="example-card-info">
+          <div class="example-industry">Fitness</div>
+          <div class="example-score">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1l1.12 2.27L9 3.63 7 5.57l.47 2.74L5 7l-2.47 1.3L3 5.57 1 3.63l2.88-.36L5 1z" fill="currentColor"/></svg>
+            Score: 89 · 11 issues found
+          </div>
+        </div>
+      </div>
+
+      <div class="example-card reveal reveal-delay-3">
+        <div class="example-card-bg"></div>
+        <div class="example-card-overlay"></div>
+        <div class="example-card-mock">
+          <div class="example-card-mock-header"><div class="mock-dot"></div><div class="mock-dot"></div><div class="mock-dot"></div></div>
+          <div class="example-card-mock-body">
+            <div class="mock-bar w-3q"></div>
+            <div class="mock-bar w-full"></div>
+            <div class="mock-block"></div>
+            <div class="mock-bar w-half"></div>
+            <div class="mock-bar w-full"></div>
+          </div>
+        </div>
+        <div class="example-card-info">
+          <div class="example-industry">Real Estate</div>
+          <div class="example-score">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1l1.12 2.27L9 3.63 7 5.57l.47 2.74L5 7l-2.47 1.3L3 5.57 1 3.63l2.88-.36L5 1z" fill="currentColor"/></svg>
+            Score: 92 · 7 issues found
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── DESIGN SYSTEMS ── -->
+<section class="systems-section" id="systems">
+  <div class="container">
+    <div class="systems-header reveal">
+      <div class="section-label">Token Registry</div>
+      <h2 class="section-heading">12 world-class design systems.</h2>
+      <p class="section-sub">Query Apple HIG, Material 3, Stripe, Linear, and more — all in W3C DTCG token format — right inside your agent.</p>
+    </div>
+
+    <div class="systems-grid">
+
+      <div class="system-card reveal reveal-delay-1">
+        <div class="system-icon">🍎</div>
+        <div class="system-name">Apple HIG</div>
+        <div class="system-meta">apple-hig · W3C DTCG</div>
+        <div class="system-tokens">
+          <span class="token-pill">Color</span>
+          <span class="token-pill">Typography</span>
+          <span class="token-pill">Spacing</span>
+          <span class="token-pill">Motion</span>
+        </div>
+      </div>
+
+      <div class="system-card reveal reveal-delay-2">
+        <div class="system-icon">◼</div>
+        <div class="system-name">Material 3</div>
+        <div class="system-meta">material-3 · W3C DTCG</div>
+        <div class="system-tokens">
+          <span class="token-pill">Color</span>
+          <span class="token-pill">Shape</span>
+          <span class="token-pill">Elevation</span>
+        </div>
+      </div>
+
+      <div class="system-card reveal reveal-delay-3">
+        <div class="system-icon">💳</div>
+        <div class="system-name">Stripe</div>
+        <div class="system-meta">stripe · W3C DTCG</div>
+        <div class="system-tokens">
+          <span class="token-pill">Color</span>
+          <span class="token-pill">Typography</span>
+          <span class="token-pill">Border</span>
+        </div>
+      </div>
+
+      <div class="system-card reveal reveal-delay-1">
+        <div class="system-icon">◈</div>
+        <div class="system-name">Linear</div>
+        <div class="system-meta">linear · W3C DTCG</div>
+        <div class="system-tokens">
+          <span class="token-pill">Color</span>
+          <span class="token-pill">Radius</span>
+          <span class="token-pill">Shadow</span>
+        </div>
+      </div>
+
+      <div class="system-card reveal reveal-delay-2">
+        <div class="system-icon">✦</div>
+        <div class="system-name">Airbnb</div>
+        <div class="system-meta">airbnb · W3C DTCG</div>
+        <div class="system-tokens">
+          <span class="token-pill">Color</span>
+          <span class="token-pill">Spacing</span>
+          <span class="token-pill">Typography</span>
+        </div>
+      </div>
+
+      <div class="system-card reveal reveal-delay-3">
+        <div class="system-icon">🎵</div>
+        <div class="system-name">Spotify</div>
+        <div class="system-meta">spotify · W3C DTCG</div>
+        <div class="system-tokens">
+          <span class="token-pill">Color</span>
+          <span class="token-pill">Motion</span>
+          <span class="token-pill">Type Scale</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── TOOLS ── -->
+<section class="tools-section" id="docs">
+  <div class="container">
+    <div class="tools-header reveal">
+      <div class="section-label">MCP Tools</div>
+      <h2 class="section-heading">Every tool your agent needs.</h2>
+      <p class="section-sub">Audits, systems, brand, content, creative — a complete design intelligence layer for any AI coding agent.</p>
+    </div>
+
+    <div class="tools-grid">
+
+      <div class="tool-card reveal">
+        <div class="tool-category">Audit</div>
+        <div class="tool-icon">🔍</div>
+        <div class="tool-name">audit_page</div>
+        <div class="tool-desc">Full design audit of any URL. Layout, hierarchy, contrast, spacing, and more.</div>
+      </div>
+
+      <div class="tool-card reveal reveal-delay-1">
+        <div class="tool-category">Audit</div>
+        <div class="tool-icon">📐</div>
+        <div class="tool-name">audit_layout</div>
+        <div class="tool-desc">Deep layout analysis — grid alignment, whitespace, visual rhythm.</div>
+      </div>
+
+      <div class="tool-card reveal reveal-delay-2">
+        <div class="tool-category">Audit</div>
+        <div class="tool-icon">🎨</div>
+        <div class="tool-name">audit_contrast</div>
+        <div class="tool-desc">WCAG-compliant contrast checking with fix suggestions.</div>
+      </div>
+
+      <div class="tool-card reveal reveal-delay-3">
+        <div class="tool-category">Audit</div>
+        <div class="tool-icon">📱</div>
+        <div class="tool-name">audit_screen</div>
+        <div class="tool-desc">Mobile screen audit — tap targets, density, native patterns.</div>
+      </div>
+
+      <div class="tool-card reveal">
+        <div class="tool-category">Audit</div>
+        <div class="tool-icon">♿</div>
+        <div class="tool-name">audit_ios_a11y</div>
+        <div class="tool-desc">iOS accessibility audit: VoiceOver, Dynamic Type, tap targets.</div>
+      </div>
+
+      <div class="tool-card reveal reveal-delay-1">
+        <div class="tool-category">Audit</div>
+        <div class="tool-icon">Aa</div>
+        <div class="tool-name">audit_typography</div>
+        <div class="tool-desc">Type scale, weight hierarchy, line-height, and readability audit.</div>
+      </div>
+
+      <div class="tool-card reveal reveal-delay-2">
+        <div class="tool-category">Systems</div>
+        <div class="tool-icon">🗂</div>
+        <div class="tool-name">get_design_system</div>
+        <div class="tool-desc">Query any of 12 registered design systems in W3C DTCG format.</div>
+      </div>
+
+      <div class="tool-card reveal reveal-delay-3">
+        <div class="tool-category">Systems</div>
+        <div class="tool-icon">✨</div>
+        <div class="tool-name">generate_design_system</div>
+        <div class="tool-desc">Generate a custom design system from brand inputs and strategy.</div>
+      </div>
+
+      <div class="tool-card reveal">
+        <div class="tool-category">Brand</div>
+        <div class="tool-icon">◐</div>
+        <div class="tool-name">create_brand_profile</div>
+        <div class="tool-desc">Build a brand profile: voice, values, positioning, visual direction.</div>
+      </div>
+
+      <div class="tool-card reveal reveal-delay-1">
+        <div class="tool-category">Creative</div>
+        <div class="tool-icon">⭐</div>
+        <div class="tool-name">score_creative</div>
+        <div class="tool-desc">Score any design against craft, clarity, emotion, and brand fit.</div>
+      </div>
+
+      <div class="tool-card reveal reveal-delay-2">
+        <div class="tool-category">Creative</div>
+        <div class="tool-icon">🧪</div>
+        <div class="tool-name">evaluate_design</div>
+        <div class="tool-desc">Multi-axis design evaluation with ranked improvement actions.</div>
+      </div>
+
+      <div class="tool-card reveal reveal-delay-3">
+        <div class="tool-category">Content</div>
+        <div class="tool-icon">✍</div>
+        <div class="tool-name">get_content_system</div>
+        <div class="tool-desc">Content principles, patterns, and voice guidelines for your product.</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── GET STARTED CTA ── -->
+<section class="cta-section" id="changelog">
+  <div class="cta-bg"></div>
+  <div class="cta-content">
+    <div class="section-label" style="justify-content:center;">Open Source · Zero Dependencies</div>
+    <h2 class="cta-heading">Give your AI design intelligence.</h2>
+    <p class="cta-sub">
+      One command. Instant access to audits, design systems, brand intelligence, and creative scoring — all inside Claude Code, Claude Desktop, or any MCP-compatible agent.
+    </p>
+
+    <div>
+      <div class="cta-install" onclick="navigator.clipboard.writeText('claude mcp add raven -- npx -y raven-mcp')">
+        <span class="prompt">$</span>
+        <span>claude mcp add raven -- npx -y raven-mcp</span>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="color:var(--text-tertiary)">
+          <rect x="4" y="4" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M10 4V3a1 1 0 00-1-1H3a1 1 0 00-1 1v6a1 1 0 001 1h1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="cta-buttons">
+      <a href="https://github.com/raven-mcp/raven" class="btn-primary">
+        View on GitHub
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M7 1.5C3.91 1.5 1.5 3.91 1.5 7c0 2.43 1.57 4.48 3.75 5.21.27.05.37-.12.37-.26v-.93c-1.52.33-1.84-.73-1.84-.73-.25-.63-.61-.8-.61-.8-.5-.34.04-.33.04-.33.55.04.84.57.84.57.49.84 1.28.6 1.6.46.05-.36.19-.6.35-.74-1.21-.14-2.49-.61-2.49-2.7 0-.6.21-1.09.57-1.47-.06-.14-.25-.7.05-1.45 0 0 .47-.15 1.53.57.44-.12.92-.18 1.39-.18.47 0 .95.06 1.39.18 1.06-.72 1.53-.57 1.53-.57.3.75.11 1.31.05 1.45.36.38.57.87.57 1.47 0 2.1-1.28 2.56-2.5 2.69.2.17.37.51.37 1.03v1.52c0 .14.09.32.37.26C11.93 11.48 13.5 9.43 13.5 7c0-3.09-2.41-5.5-5.5-5.5H7z" fill="currentColor"/>
+        </svg>
+      </a>
+      <a href="#docs" class="btn-secondary">Browse docs</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="footer-inner">
+    <span class="footer-wordmark">Raven</span>
+    <ul class="footer-links">
+      <li><a href="#docs">Docs</a></li>
+      <li><a href="#systems">Design Systems</a></li>
+      <li><a href="https://github.com/raven-mcp/raven">GitHub</a></li>
+      <li><a href="#changelog">Changelog</a></li>
+    </ul>
+    <span class="footer-copy">Open source. MIT license.</span>
+  </div>
+</footer>
+
+<script>
+  // Reveal on scroll
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+  reveals.forEach(el => observer.observe(el));
+
+  // Copy to clipboard for install commands
+  document.querySelectorAll('.hero-install, .cta-install').forEach(el => {
+    el.addEventListener('click', function() {
+      navigator.clipboard.writeText('claude mcp add raven -- npx -y raven-mcp').catch(() => {});
+    });
+  });
+</script>
+
+</body>
+</html>

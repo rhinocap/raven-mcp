@@ -83,7 +83,7 @@
       --duration-normal: 300ms;
       --duration-slow: 600ms;
 
-      --max-width: 1200px;
+      --max-width: 1140px;
       --nav-height: 64px;
     }
 
@@ -409,7 +409,36 @@
     .stat-number { transition: color 0.3s; }
     .stat-number.counting { color: var(--accent-cyan); }
 
-    .hero h1 { max-width: 760px; }
+    /* Layout-2 headline: bold glow line + cyan→purple accent line */
+    .hero h1 {
+      max-width: 900px;
+      font-size: clamp(52px, 7vw, 88px);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      line-height: 1.04;
+    }
+    .hero h1 .line-glow,
+    .hero h1 .line-accent {
+      display: block;
+      /* room below the baseline so background-clip:text still paints the
+         descenders on g / y / p — never clip the hangers */
+      padding-bottom: 0.1em;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero h1 .line-glow {
+      /* background-clip MUST come after the background shorthand, or the
+         shorthand resets clip back to border-box (renders a solid bar) */
+      background: linear-gradient(135deg, #F0F0F2 0%, rgba(240, 240, 242, 0.72) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+    }
+    .hero h1 .line-accent {
+      background: linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-blue) 40%, #7c3aed 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      filter: drop-shadow(0 0 40px rgba(0, 191, 255, 0.4));
+    }
+    /* keep the old single-gradient helper working anywhere else it's used */
     .hero h1 .gradient {
       background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-blue) 40%, var(--accent-cyan) 100%);
       -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
@@ -455,52 +484,69 @@
       font-size: 17px;
       color: var(--text-secondary);
     }
+    /* Locked 3x2 grid */
     .demo-grid {
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
       gap: var(--space-5);
+      width: 100%;
     }
     .demo-card {
-      flex: 1 1 280px;
-      min-width: 280px;
       display: flex;
       flex-direction: column;
       border-radius: var(--radius-xl);
-      transition: all var(--duration-normal) var(--ease-out);
+      border: 1px solid var(--border);
+      transition: transform var(--duration-normal) var(--ease-out), box-shadow var(--duration-normal) var(--ease-out), border-color var(--duration-normal) var(--ease-out);
       text-decoration: none;
       overflow: hidden;
       position: relative;
+      background: var(--bg-surface);
     }
     .demo-card:hover {
       transform: translateY(-6px);
-      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5), 0 0 24px rgba(0, 191, 255, 0.1);
+      border-color: var(--border-accent);
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5), 0 0 24px rgba(0, 191, 255, 0.12);
     }
+    /* Uniform cyan duotone — every card reads as ONE cohesive color */
     .demo-card-thumb {
       width: 100%;
       aspect-ratio: 3 / 2;
-      background-size: cover;
-      background-position: center;
       position: relative;
-      filter: saturate(0.35) brightness(0.85);
-      transition: filter var(--duration-normal) var(--ease-out);
+      overflow: hidden;
+      background: var(--bg-alt);
     }
-    .demo-card:hover .demo-card-thumb {
-      filter: saturate(0.55) brightness(0.95);
+    .demo-card-thumb video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      /* flatten footage to a grayscale base so the tint lands identically on all 6 */
+      filter: grayscale(1) contrast(1.05) brightness(0.6);
+      transition: filter var(--duration-slow) var(--ease-out), transform var(--duration-slow) var(--ease-out);
+      z-index: 0;
     }
+    .demo-card:hover .demo-card-thumb video {
+      filter: grayscale(1) contrast(1.05) brightness(0.82);
+      transform: scale(1.04);
+    }
+    /* the single brand color, applied over the grayscale base */
     .demo-card-thumb::before {
       content: '';
       position: absolute;
       inset: 0;
-      background: rgba(0, 30, 60, 0.25);
-      mix-blend-mode: multiply;
-      z-index: 0;
+      background: var(--accent-blue);
+      mix-blend-mode: color;
+      opacity: 0.92;
+      z-index: 1;
     }
+    /* depth + label legibility */
     .demo-card-thumb::after {
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(to top, rgba(10,15,30,0.85) 0%, rgba(10,15,30,0.15) 50%, transparent 100%);
-      z-index: 0;
+      background: linear-gradient(to top, rgba(10,15,30,0.92) 0%, rgba(10,15,30,0.30) 48%, rgba(0,191,255,0.04) 100%);
+      z-index: 2;
     }
     .demo-card-overlay {
       position: absolute;
@@ -552,6 +598,7 @@
       transform: scale(1.1);
     }
     @media (max-width: 540px) {
+      .demo-grid { grid-template-columns: 1fr; }
       .demo-card-thumb { aspect-ratio: 16 / 10; }
     }
 
@@ -1598,6 +1645,7 @@
 
       .hero { padding: calc(var(--nav-height) + var(--space-12) + 12px) 0 var(--space-10); }
 
+      .demo-grid { grid-template-columns: repeat(2, 1fr); }
       .demo-card-thumb { aspect-ratio: 16 / 9; }
       .demo-card-industry { font-size: 18px; }
       .demo-showcase { margin-top: var(--space-8); }
@@ -1799,7 +1847,7 @@
       <div class="hero-badge reveal">
         Open-source MCP Server · MIT
       </div>
-      <h1 class="reveal reveal-delay-1">Design intelligence<br>for <span class="gradient">every prompt</span></h1>
+      <h1 class="reveal reveal-delay-1"><span class="line-glow">Design intelligence</span><span class="line-accent">for every prompt</span></h1>
       <p class="subtitle reveal reveal-delay-2">Fifty-five tools that give your AI agent the design knowledge once locked in expert heads — principles, patterns, tokens, voice, brand, and more.</p>
       <div class="hero-cta reveal reveal-delay-3">
         <button class="cta-install" aria-label="Copy install command to clipboard" onclick="navigator.clipboard.writeText('claude mcp add raven -- npx -y raven-mcp').then(()=>{this.querySelector('.copy-label').textContent='Copied!'; this.setAttribute('aria-label', 'Install command copied'); document.getElementById('copy-status').textContent='Install command copied to clipboard.'})">
@@ -2535,7 +2583,7 @@
       <div class="demo-showcase reveal reveal-delay-3" style="margin-top: 0; width: 100%;">
         <div class="demo-grid">
           <a href="/demos/law-firm.html" class="demo-card">
-            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=600&q=80');"></div>
+            <div class="demo-card-thumb"><video class="demo-video" muted loop playsinline preload="none" poster="assets/video/demos/law-firm.jpg" data-mp4="assets/video/demos/law-firm.mp4" aria-label="Harrison & Cole, a litigation-firm site built with Raven"></video></div>
             <div class="demo-card-overlay">
               <div class="demo-card-industry">Legal</div>
               <div class="demo-card-name">Harrison &amp; Cole</div>
@@ -2546,7 +2594,7 @@
             </div>
           </a>
           <a href="/demos/wedding.html" class="demo-card">
-            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1606800052052-a08af7148866?w=600&q=80');"></div>
+            <div class="demo-card-thumb"><video class="demo-video" muted loop playsinline preload="none" poster="assets/video/demos/wedding.jpg" data-mp4="assets/video/demos/wedding.mp4" aria-label="Elara & Co., a luxury wedding-planning site built with Raven"></video></div>
             <div class="demo-card-overlay">
               <div class="demo-card-industry">Wedding</div>
               <div class="demo-card-name">Elara &amp; Co.</div>
@@ -2557,7 +2605,7 @@
             </div>
           </a>
           <a href="/demos/coffee-shop.html" class="demo-card">
-            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=600&q=80');"></div>
+            <div class="demo-card-thumb"><video class="demo-video" muted loop playsinline preload="none" poster="assets/video/demos/coffee-shop.jpg" data-mp4="assets/video/demos/coffee-shop.mp4" aria-label="Ember & Grain, a specialty coffee-roaster site built with Raven"></video></div>
             <div class="demo-card-overlay">
               <div class="demo-card-industry">Food &amp; Beverage</div>
               <div class="demo-card-name">Ember &amp; Grain</div>
@@ -2568,7 +2616,7 @@
             </div>
           </a>
           <a href="/demos/saas.html" class="demo-card">
-            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&q=80');"></div>
+            <div class="demo-card-thumb"><video class="demo-video" muted loop playsinline preload="none" poster="assets/video/demos/saas.jpg" data-mp4="assets/video/demos/saas.mp4" aria-label="Flux, a real-time analytics SaaS site built with Raven"></video></div>
             <div class="demo-card-overlay">
               <div class="demo-card-industry">SaaS</div>
               <div class="demo-card-name">Flux</div>
@@ -2579,7 +2627,7 @@
             </div>
           </a>
           <a href="/demos/fitness.html" class="demo-card">
-            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=600&q=80');"></div>
+            <div class="demo-card-thumb"><video class="demo-video" muted loop playsinline preload="none" poster="assets/video/demos/fitness.jpg" data-mp4="assets/video/demos/fitness.mp4" aria-label="FORGE, a performance training-studio site built with Raven"></video></div>
             <div class="demo-card-overlay">
               <div class="demo-card-industry">Fitness</div>
               <div class="demo-card-name">FORGE</div>
@@ -2590,7 +2638,7 @@
             </div>
           </a>
           <a href="/demos/real-estate.html" class="demo-card">
-            <div class="demo-card-thumb" style="background-image: url('https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=600&q=80');"></div>
+            <div class="demo-card-thumb"><video class="demo-video" muted loop playsinline preload="none" poster="assets/video/demos/real-estate.jpg" data-mp4="assets/video/demos/real-estate.mp4" aria-label="Oleander Residence, a luxury real-estate listing site built with Raven"></video></div>
             <div class="demo-card-overlay">
               <div class="demo-card-industry">Real Estate</div>
               <div class="demo-card-name">Oleander Residence</div>
@@ -3133,11 +3181,14 @@
 
     // Watch-it-work grid: lazy-attach + autoplay clips as each MacBook nears view.
     (function () {
-      var vids = document.querySelectorAll('.watch-video');
+      var vids = document.querySelectorAll('.watch-video, .demo-video');
       if (!vids.length) return;
       // Poster as a background behind each screen so a clip never shows pure
       // black while it buffers or if autoplay is deferred.
       vids.forEach(function (v) {
+        // Demo cards render their poster through the filtered <video> itself,
+        // so the cyan duotone stays uniform — only the device clips need a bg.
+        if (v.classList.contains('demo-video')) return;
         var screen = v.parentElement;
         var poster = v.getAttribute('poster');
         if (screen && poster) {
@@ -3147,6 +3198,10 @@
         }
       });
       if (!('IntersectionObserver' in window)) return;
+      function tryPlay(v) {
+        var p = v.play();
+        if (p && p.catch) p.catch(function () { /* deferred; poster stays */ });
+      }
       function attachAndPlay(v) {
         if (v.dataset.loaded !== '1') {
           // h264 mp4 only — hardware-decoded everywhere, reliable muted autoplay
@@ -3156,10 +3211,13 @@
             s.src = v.dataset.mp4; s.type = 'video/mp4'; v.appendChild(s);
           }
           v.dataset.loaded = '1';
+          // play() called before data is buffered can reject and never retry;
+          // play once the clip is actually ready to render.
+          v.addEventListener('canplay', function () { tryPlay(v); });
+          v.addEventListener('loadeddata', function () { tryPlay(v); });
           v.load();
         }
-        var p = v.play();
-        if (p && p.catch) p.catch(function () { /* autoplay deferred; poster bg stays */ });
+        tryPlay(v);
       }
       var io = new IntersectionObserver(function (entries) {
         entries.forEach(function (e) {
@@ -3169,6 +3227,20 @@
         });
       }, { rootMargin: '300px' });
       vids.forEach(function (v) { io.observe(v); });
+
+      // Battery/Energy-Saver and strict autoplay settings can block muted
+      // autoplay entirely. Kick every already-loaded, paused clip on the first
+      // user gesture and whenever the tab returns to the foreground — so a
+      // single scroll or tap starts them even when the browser refused.
+      function resumeLoaded() {
+        vids.forEach(function (v) { if (v.dataset.loaded === '1' && v.paused) tryPlay(v); });
+      }
+      ['pointerdown', 'touchstart', 'scroll', 'keydown', 'wheel'].forEach(function (ev) {
+        window.addEventListener(ev, resumeLoaded, { passive: true });
+      });
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) resumeLoaded();
+      });
     })();
 
   </script>

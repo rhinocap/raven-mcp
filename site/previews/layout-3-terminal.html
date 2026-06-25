@@ -1,0 +1,1621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raven — Design Intelligence for AI Agents</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-base: #1a1a22;
+    --bg-surface: #212129;
+    --bg-raised: #2a2a33;
+    --bg-overlay: #32323d;
+    --bg-alt: #16161e;
+    --accent-blue: #00BFFF;
+    --accent-cyan: #00E5FF;
+    --accent-green: #00E676;
+    --accent-orange: #FFAB40;
+    --accent-pink: #FF4081;
+    --text-primary: #F0F0F2;
+    --text-secondary: #9498A0;
+    --text-tertiary: #8E929C;
+    --text-on-accent: #0a0a12;
+    --border: rgba(255,255,255,.06);
+    --border-strong: rgba(255,255,255,.1);
+    --border-accent: rgba(0,191,255,.3);
+    --font-body: 'Inter', system-ui, sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Fira Code', monospace;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --radius-2xl: 24px;
+    --ease-out: cubic-bezier(.16,1,.3,1);
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg-base);
+    color: var(--text-primary);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(26,26,34,.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 40px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .nav-wordmark {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+  }
+
+  .nav-logo-mark {
+    width: 28px;
+    height: 28px;
+    background: var(--accent-blue);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .nav-logo-mark svg { display: block; }
+
+  .nav-wordmark-text {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -.01em;
+  }
+
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    transition: color .15s, background .15s;
+  }
+
+  .nav-links a:hover {
+    color: var(--text-primary);
+    background: var(--bg-raised);
+  }
+
+  .nav-cta {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-on-accent);
+    background: var(--accent-blue);
+    padding: 7px 16px;
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    transition: opacity .15s;
+    letter-spacing: .01em;
+  }
+
+  .nav-cta:hover { opacity: .88; }
+
+  /* ── HERO ── */
+  .hero {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    min-height: calc(100vh - 56px);
+    align-items: center;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 80px 40px;
+  }
+
+  .hero-left {
+    padding-right: 64px;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--accent-cyan);
+    background: rgba(0,229,255,.08);
+    border: 1px solid rgba(0,229,255,.2);
+    padding: 5px 12px;
+    border-radius: 9999px;
+    margin-bottom: 28px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--accent-green);
+    border-radius: 9999px;
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .4; }
+  }
+
+  .hero-headline {
+    font-size: 52px;
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: -.03em;
+    color: var(--text-primary);
+    margin-bottom: 20px;
+  }
+
+  .hero-headline .accent-word {
+    color: var(--accent-blue);
+  }
+
+  .hero-subhead {
+    font-size: 17px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    margin-bottom: 40px;
+    max-width: 440px;
+  }
+
+  .install-block {
+    background: var(--bg-alt);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    margin-bottom: 32px;
+  }
+
+  .install-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .terminal-dots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .terminal-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 9999px;
+  }
+
+  .dot-red { background: #FF5F56; }
+  .dot-yellow { background: #FFBD2E; }
+  .dot-green { background: #27C93F; }
+
+  .install-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-tertiary);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  .copy-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--bg-raised);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: color .15s, background .15s;
+  }
+
+  .copy-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-overlay);
+  }
+
+  .install-command {
+    padding: 18px 20px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    overflow-x: auto;
+  }
+
+  .install-prompt {
+    color: var(--accent-green);
+    flex-shrink: 0;
+  }
+
+  .install-cmd-text {
+    color: var(--accent-cyan);
+  }
+
+  .install-cmd-arg {
+    color: var(--accent-orange);
+  }
+
+  .install-cmd-pkg {
+    color: var(--text-primary);
+  }
+
+  .hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-on-accent);
+    background: var(--accent-blue);
+    padding: 11px 24px;
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    transition: opacity .15s var(--ease-out);
+    letter-spacing: -.01em;
+  }
+
+  .btn-primary:hover { opacity: .88; }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-raised);
+    border: 1px solid var(--border-strong);
+    padding: 11px 24px;
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+
+  .btn-secondary:hover {
+    color: var(--text-primary);
+    border-color: var(--border-accent);
+    background: var(--bg-overlay);
+  }
+
+  /* Hero Console Panel */
+  .hero-right {
+    position: relative;
+  }
+
+  .console-panel {
+    background: var(--bg-alt);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: 0 32px 80px rgba(0,0,0,.5), 0 0 0 1px rgba(0,191,255,.05);
+  }
+
+  .console-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .console-title {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-tertiary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .console-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent-green);
+  }
+
+  .console-body {
+    padding: 20px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    overflow: hidden;
+  }
+
+  .c-line { display: flex; gap: 10px; }
+  .c-prefix { color: var(--accent-green); flex-shrink: 0; }
+  .c-tool { color: var(--accent-blue); }
+  .c-arg { color: var(--accent-orange); }
+  .c-str { color: #E8C98A; }
+  .c-key { color: var(--accent-cyan); }
+  .c-val { color: var(--accent-green); }
+  .c-num { color: var(--accent-orange); }
+  .c-comment { color: var(--text-tertiary); }
+  .c-ok { color: var(--accent-green); font-weight: 600; }
+  .c-warn { color: var(--accent-orange); }
+  .c-error { color: var(--accent-pink); }
+  .c-dim { color: var(--text-tertiary); }
+  .c-indent { padding-left: 20px; }
+  .c-indent2 { padding-left: 40px; }
+
+  .console-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 14px 0;
+  }
+
+  .console-cursor {
+    display: inline-block;
+    width: 8px;
+    height: 14px;
+    background: var(--accent-blue);
+    margin-left: 2px;
+    animation: blink .9s step-end infinite;
+    vertical-align: middle;
+    border-radius: 1px;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* ── SECTION BASE ── */
+  section { padding: 100px 40px; }
+
+  .section-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent-blue);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .section-label::before {
+    content: '';
+    display: block;
+    width: 16px;
+    height: 1px;
+    background: var(--accent-blue);
+  }
+
+  .section-heading {
+    font-size: 38px;
+    font-weight: 700;
+    letter-spacing: -.025em;
+    line-height: 1.12;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+  }
+
+  .section-subheading {
+    font-size: 16px;
+    line-height: 1.65;
+    color: var(--text-secondary);
+    max-width: 560px;
+    margin-bottom: 56px;
+  }
+
+  /* ── VIDEOS ── */
+  .videos-section { background: var(--bg-surface); }
+
+  .videos-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+
+  .video-card {
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: border-color .2s var(--ease-out), transform .2s var(--ease-out);
+    cursor: pointer;
+  }
+
+  .video-card:hover {
+    border-color: var(--border-accent);
+    transform: translateY(-2px);
+  }
+
+  .video-frame {
+    aspect-ratio: 16/9;
+    background: var(--bg-alt);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .video-bg-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,191,255,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,191,255,.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .video-play {
+    width: 44px;
+    height: 44px;
+    background: rgba(0,191,255,.12);
+    border: 1px solid var(--border-accent);
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+    transition: background .15s;
+  }
+
+  .video-card:hover .video-play {
+    background: rgba(0,191,255,.22);
+  }
+
+  .video-play svg {
+    margin-left: 2px;
+  }
+
+  .video-info {
+    padding: 16px 18px;
+    border-top: 1px solid var(--border);
+  }
+
+  .video-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+  }
+
+  .video-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .video-tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--accent-cyan);
+    background: rgba(0,229,255,.07);
+    border: 1px solid rgba(0,229,255,.15);
+    padding: 3px 8px;
+    border-radius: 4px;
+    letter-spacing: .02em;
+  }
+
+  /* ── EXAMPLES ── */
+  .examples-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .example-card {
+    aspect-ratio: 4/3;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    position: relative;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    transition: border-color .2s var(--ease-out), transform .2s var(--ease-out);
+    cursor: pointer;
+  }
+
+  .example-card:hover {
+    border-color: rgba(0,229,255,.25);
+    transform: translateY(-2px);
+  }
+
+  /* Unified cyan/blue duotone treatment */
+  .example-card-bg {
+    position: absolute;
+    inset: 0;
+    filter: grayscale(100%);
+    transition: filter .3s;
+  }
+
+  .example-card:hover .example-card-bg {
+    filter: grayscale(80%);
+  }
+
+  /* Duotone overlay: dark shadow = --bg-alt (#16161e), highlights = cyan */
+  .example-card-duotone {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg,
+      rgba(22,22,30,.7) 0%,
+      rgba(0,191,255,.18) 100%
+    );
+    mix-blend-mode: color;
+  }
+
+  .example-card-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(22,22,30,.9) 0%, rgba(22,22,30,.2) 60%, transparent 100%);
+  }
+
+  .example-card-content {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 18px 20px;
+  }
+
+  .example-industry {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--accent-cyan);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .example-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+
+  .example-score {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .score-bar {
+    height: 3px;
+    width: 48px;
+    background: var(--border-strong);
+    border-radius: 9999px;
+    overflow: hidden;
+  }
+
+  .score-fill {
+    height: 100%;
+    background: var(--accent-cyan);
+    border-radius: 9999px;
+  }
+
+  /* Example card fake screenshots */
+  .ex-legal { background: linear-gradient(135deg, #1e2430 0%, #252d3a 100%); }
+  .ex-wedding { background: linear-gradient(135deg, #2a1e2e 0%, #3a2d35 100%); }
+  .ex-food { background: linear-gradient(135deg, #1e2a1e 0%, #2d3a25 100%); }
+  .ex-saas { background: linear-gradient(135deg, #1a1e2e 0%, #252a3d 100%); }
+  .ex-fitness { background: linear-gradient(135deg, #2a1e1e 0%, #3a2525 100%); }
+  .ex-realestate { background: linear-gradient(135deg, #1e261e 0%, #2d3a2d 100%); }
+
+  .ex-mocklines {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    opacity: .4;
+  }
+
+  .ex-line {
+    height: 10px;
+    background: rgba(255,255,255,.12);
+    border-radius: 4px;
+  }
+
+  .ex-line-short { width: 60%; }
+  .ex-line-med { width: 80%; }
+  .ex-line-full { width: 100%; }
+  .ex-line-tall { height: 48px; }
+
+  /* ── DESIGN SYSTEMS ── */
+  .design-systems-section { background: var(--bg-surface); }
+
+  .ds-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+  }
+
+  .ds-card {
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    transition: border-color .2s, transform .2s var(--ease-out);
+    cursor: pointer;
+    text-align: center;
+  }
+
+  .ds-card:hover {
+    border-color: var(--border-accent);
+    transform: translateY(-2px);
+  }
+
+  .ds-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+
+  .ds-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.3;
+  }
+
+  .ds-token-count {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-tertiary);
+  }
+
+  /* ── TOOLS ── */
+  .tools-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+
+  .tool-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    transition: border-color .2s var(--ease-out), background .2s;
+    cursor: pointer;
+  }
+
+  .tool-card:hover {
+    border-color: var(--border-accent);
+    background: var(--bg-raised);
+  }
+
+  .tool-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+
+  .tool-icon-wrap {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-raised);
+    border: 1px solid var(--border-strong);
+    flex-shrink: 0;
+  }
+
+  .tool-category {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-tertiary);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  .tool-name {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent-blue);
+    margin-bottom: 8px;
+  }
+
+  .tool-desc {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+
+  .tool-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .tool-chip {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-tertiary);
+    background: var(--bg-overlay);
+    border: 1px solid var(--border);
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+
+  /* ── CTA ── */
+  .cta-section {
+    background: var(--bg-alt);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    text-align: center;
+    padding: 100px 40px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cta-bg-glow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(ellipse at center,
+      rgba(0,191,255,.07) 0%,
+      transparent 70%
+    );
+    pointer-events: none;
+  }
+
+  .cta-inner {
+    max-width: 640px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+  }
+
+  .cta-headline {
+    font-size: 44px;
+    font-weight: 700;
+    letter-spacing: -.03em;
+    line-height: 1.1;
+    margin-bottom: 16px;
+    color: var(--text-primary);
+  }
+
+  .cta-headline span { color: var(--accent-blue); }
+
+  .cta-sub {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin-bottom: 40px;
+    line-height: 1.6;
+  }
+
+  .cta-install {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    margin-bottom: 24px;
+    text-align: left;
+  }
+
+  .cta-install-inner {
+    padding: 16px 20px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow-x: auto;
+  }
+
+  .cta-actions { display: flex; align-items: center; justify-content: center; gap: 12px; }
+
+  /* ── FOOTER ── */
+  footer {
+    background: var(--bg-alt);
+    border-top: 1px solid var(--border);
+    padding: 48px 40px;
+  }
+
+  .footer-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .footer-left {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .footer-wordmark {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+  }
+
+  .footer-wordmark-text {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .footer-tagline {
+    font-size: 13px;
+    color: var(--text-tertiary);
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 28px;
+  }
+
+  .footer-links a {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    text-decoration: none;
+    transition: color .15s;
+  }
+
+  .footer-links a:hover { color: var(--text-secondary); }
+
+  .footer-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+  }
+
+  .footer-badge {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-tertiary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .footer-version {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-tertiary);
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    padding: 3px 10px;
+    border-radius: 4px;
+  }
+
+  /* ── DIVIDER ── */
+  .section-divider {
+    height: 1px;
+    background: var(--border);
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: 1fr; min-height: auto; }
+    .hero-left { padding-right: 0; margin-bottom: 48px; }
+    .hero-headline { font-size: 36px; }
+    .videos-grid { grid-template-columns: 1fr 1fr; }
+    .examples-grid { grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, 1fr); }
+    .ds-grid { grid-template-columns: repeat(3, 1fr); }
+    .tools-grid { grid-template-columns: 1fr 1fr; }
+    nav { padding: 0 20px; }
+    section { padding: 64px 20px; }
+    .cta-section { padding: 64px 20px; }
+    .cta-headline { font-size: 32px; }
+  }
+
+  @media (max-width: 600px) {
+    .nav-links { display: none; }
+    .videos-grid { grid-template-columns: 1fr; }
+    .examples-grid { grid-template-columns: 1fr; }
+    .ds-grid { grid-template-columns: repeat(2, 1fr); }
+    .tools-grid { grid-template-columns: 1fr; }
+    .hero-headline { font-size: 30px; }
+    .section-heading { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav>
+  <a href="#" class="nav-wordmark">
+    <div class="nav-logo-mark">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M3 3h4v4H3zM9 3h4v4H9zM3 9h4v4H3zM9 9l4 4M13 9l-4 4" stroke="#0a0a12" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <span class="nav-wordmark-text">raven</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#tools">Docs</a></li>
+    <li><a href="#systems">Design Systems</a></li>
+    <li><a href="#changelog">Changelog</a></li>
+  </ul>
+  <a href="#install" class="nav-cta">$ install</a>
+</nav>
+
+<!-- ── HERO ── -->
+<section style="padding: 0;">
+  <div class="hero">
+    <div class="hero-left">
+      <div class="hero-badge">
+        <span class="status-dot"></span>
+        v1.12.0 · 12 design systems · open source
+      </div>
+      <h1 class="hero-headline">
+        Give your AI<br><span class="accent-word">design</span><br>intelligence.
+      </h1>
+      <p class="hero-subhead">
+        Raven is a design-intelligence MCP server. Connect it to Claude Code or Claude Desktop and get world-class design judgment — audits, token systems, brand, content — in every AI session.
+      </p>
+      <div class="install-block" id="install">
+        <div class="install-block-header">
+          <div class="terminal-dots">
+            <div class="terminal-dot dot-red"></div>
+            <div class="terminal-dot dot-yellow"></div>
+            <div class="terminal-dot dot-green"></div>
+          </div>
+          <span class="install-label">Terminal</span>
+          <button class="copy-btn" onclick="navigator.clipboard.writeText('claude mcp add raven -- npx -y raven-mcp'); this.textContent = '✓ copied'">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="3" width="7" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M4 3V2a1 1 0 011-1h5a1 1 0 011 1v7a1 1 0 01-1 1H9" stroke="currentColor" stroke-width="1.2"/></svg>
+            copy
+          </button>
+        </div>
+        <div class="install-command">
+          <span class="install-prompt">$</span>
+          <span>
+            <span class="install-cmd-text">claude</span>
+            <span class="install-cmd-text"> mcp add</span>
+            <span class="install-cmd-arg"> raven</span>
+            <span class="c-dim"> -- </span>
+            <span class="install-cmd-text">npx</span>
+            <span class="install-cmd-arg"> -y</span>
+            <span class="install-cmd-pkg"> raven-mcp</span>
+          </span>
+        </div>
+      </div>
+      <div class="hero-actions">
+        <a href="#tools" class="btn-primary">
+          Explore tools
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M7 2l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+        <a href="https://github.com/raven-mcp/raven-mcp" class="btn-secondary">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1a6 6 0 00-1.897 11.692c.3.055.41-.13.41-.29v-1.015C3.673 11.72 3.311 10.37 3.311 10.37c-.273-.694-.667-1-.667-1-.546-.373.041-.365.041-.365.604.042.922.62.922.62.537.92 1.41.654 1.752.5.054-.389.21-.654.382-.804-1.337-.152-2.742-.668-2.742-2.975 0-.657.234-1.194.618-1.615-.062-.152-.268-.764.058-1.593 0 0 .503-.161 1.65.615A5.742 5.742 0 017 4.095c.51.003 1.023.069 1.502.202 1.145-.776 1.647-.615 1.647-.615.327.83.121 1.44.06 1.593.385.421.617.958.617 1.615 0 2.314-1.408 2.82-2.75 2.968.216.188.41.557.41 1.122v1.663c0 .162.108.348.413.29A6 6 0 007 1z" fill="currentColor"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+    <div class="hero-right">
+      <div class="console-panel">
+        <div class="console-header">
+          <div class="console-title">
+            <div class="terminal-dots" style="margin-right:4px;">
+              <div class="terminal-dot dot-red"></div>
+              <div class="terminal-dot dot-yellow"></div>
+              <div class="terminal-dot dot-green"></div>
+            </div>
+            raven — mcp audit session
+          </div>
+          <div class="console-status">
+            <span class="status-dot"></span>
+            connected
+          </div>
+        </div>
+        <div class="console-body">
+          <div class="c-line"><span class="c-prefix">→</span><span><span class="c-tool">mcp__raven__audit_page</span><span class="c-dim">(</span><span class="c-arg">url</span><span class="c-dim">: </span><span class="c-str">"https://acme.io/pricing"</span><span class="c-dim">)</span></span></div>
+          <br>
+          <div class="c-line c-indent"><span class="c-key">score</span><span class="c-dim">: </span><span class="c-num">78</span></div>
+          <div class="c-line c-indent"><span class="c-key">grade</span><span class="c-dim">: </span><span class="c-str">"C+"</span></div>
+          <div class="c-line c-indent"><span class="c-key">findings</span><span class="c-dim">: [</span></div>
+          <div class="c-line c-indent2"><span class="c-warn">⚠</span><span class="c-dim"> </span><span class="c-str">"Contrast ratio 3.1:1 on CTA — fails WCAG AA"</span></div>
+          <div class="c-line c-indent2"><span class="c-warn">⚠</span><span class="c-dim"> </span><span class="c-str">"Pricing cards lack visible focus ring"</span></div>
+          <div class="c-line c-indent2"><span class="c-error">✕</span><span class="c-dim"> </span><span class="c-str">"H1 not found — page has 2 H2 roots"</span></div>
+          <div class="c-line c-indent"><span class="c-dim">]</span></div>
+          <div class="c-line c-indent"><span class="c-key">recommendations</span><span class="c-dim">: [</span></div>
+          <div class="c-line c-indent2"><span class="c-ok">✓</span><span class="c-dim"> </span><span class="c-str">"Bump CTA to #0099CC → 4.7:1 contrast"</span></div>
+          <div class="c-line c-indent2"><span class="c-ok">✓</span><span class="c-dim"> </span><span class="c-str">"Add :focus-visible outline 2px offset"</span></div>
+          <div class="c-line c-indent"><span class="c-dim">]</span></div>
+          <hr class="console-divider">
+          <div class="c-line"><span class="c-prefix">→</span><span><span class="c-tool">mcp__raven__get_design_system</span><span class="c-dim">(</span><span class="c-arg">system</span><span class="c-dim">: </span><span class="c-str">"material-3"</span><span class="c-dim">)</span></span></div>
+          <br>
+          <div class="c-line c-indent"><span class="c-key">tokens</span><span class="c-dim">: </span><span class="c-num">340</span><span class="c-dim"> (W3C DTCG format)</span></div>
+          <div class="c-line c-indent"><span class="c-key">categories</span><span class="c-dim">: [color, typography, spacing, elevation]</span></div>
+          <div class="c-line c-indent"><span class="c-key">status</span><span class="c-dim">: </span><span class="c-ok">ready</span></div>
+          <hr class="console-divider">
+          <div class="c-line"><span class="c-prefix">$</span><span class="c-dim"> _</span><span class="console-cursor"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── VIDEOS ── -->
+<section class="videos-section" id="watch">
+  <div class="section-inner">
+    <span class="section-label">Watch it work</span>
+    <h2 class="section-heading">See Raven in action</h2>
+    <p class="section-subheading">Six tools, one install. Watch Raven run live audits, pull design tokens, and give your AI agent a designer's eye in real codebases.</p>
+    <div class="videos-grid">
+      <div class="video-card">
+        <div class="video-frame">
+          <div class="video-bg-grid"></div>
+          <div class="video-play">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 2.5l8 4.5-8 4.5V2.5z" fill="#00BFFF"/></svg>
+          </div>
+        </div>
+        <div class="video-info">
+          <div class="video-title">Page Audit end-to-end</div>
+          <div class="video-tags">
+            <span class="video-tag">audit_page</span>
+            <span class="video-tag">audit_layout</span>
+          </div>
+        </div>
+      </div>
+      <div class="video-card">
+        <div class="video-frame">
+          <div class="video-bg-grid"></div>
+          <div class="video-play">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 2.5l8 4.5-8 4.5V2.5z" fill="#00BFFF"/></svg>
+          </div>
+        </div>
+        <div class="video-info">
+          <div class="video-title">Contrast & Accessibility</div>
+          <div class="video-tags">
+            <span class="video-tag">audit_contrast</span>
+            <span class="video-tag">audit_tap_targets</span>
+            <span class="video-tag">audit_typography</span>
+          </div>
+        </div>
+      </div>
+      <div class="video-card">
+        <div class="video-frame">
+          <div class="video-bg-grid"></div>
+          <div class="video-play">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 2.5l8 4.5-8 4.5V2.5z" fill="#00BFFF"/></svg>
+          </div>
+        </div>
+        <div class="video-info">
+          <div class="video-title">Mobile Screen Audit</div>
+          <div class="video-tags">
+            <span class="video-tag">audit_screen</span>
+            <span class="video-tag">audit_ios_a11y</span>
+          </div>
+        </div>
+      </div>
+      <div class="video-card">
+        <div class="video-frame">
+          <div class="video-bg-grid"></div>
+          <div class="video-play">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 2.5l8 4.5-8 4.5V2.5z" fill="#00BFFF"/></svg>
+          </div>
+        </div>
+        <div class="video-info">
+          <div class="video-title">Design System Tokens</div>
+          <div class="video-tags">
+            <span class="video-tag">get_design_system</span>
+            <span class="video-tag">generate_design_system</span>
+          </div>
+        </div>
+      </div>
+      <div class="video-card">
+        <div class="video-frame">
+          <div class="video-bg-grid"></div>
+          <div class="video-play">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 2.5l8 4.5-8 4.5V2.5z" fill="#00BFFF"/></svg>
+          </div>
+        </div>
+        <div class="video-info">
+          <div class="video-title">Brand & Creative Scoring</div>
+          <div class="video-tags">
+            <span class="video-tag">score_creative</span>
+            <span class="video-tag">evaluate_design</span>
+          </div>
+        </div>
+      </div>
+      <div class="video-card">
+        <div class="video-frame">
+          <div class="video-bg-grid"></div>
+          <div class="video-play">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 2.5l8 4.5-8 4.5V2.5z" fill="#00BFFF"/></svg>
+          </div>
+        </div>
+        <div class="video-info">
+          <div class="video-title">SwiftUI & RN Audits</div>
+          <div class="video-tags">
+            <span class="video-tag">audit_swiftui</span>
+            <span class="video-tag">audit_rn</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── EXAMPLES ── -->
+<section id="examples">
+  <div class="section-inner">
+    <span class="section-label">Examples</span>
+    <h2 class="section-heading">One tool. Every industry.</h2>
+    <p class="section-subheading">Raven audits any site or app — regardless of stack, industry, or design system. Here's what it found on six live demo properties.</p>
+    <div class="examples-grid">
+
+      <!-- Legal -->
+      <div class="example-card">
+        <div class="example-card-bg ex-legal">
+          <div class="ex-mocklines">
+            <div class="ex-line ex-line-short" style="height:16px;background:rgba(255,255,255,.15)"></div>
+            <div class="ex-line ex-line-full ex-line-tall"></div>
+            <div class="ex-line ex-line-med"></div>
+            <div class="ex-line ex-line-full"></div>
+            <div class="ex-line ex-line-short"></div>
+          </div>
+        </div>
+        <div class="example-card-duotone"></div>
+        <div class="example-card-overlay"></div>
+        <div class="example-card-content">
+          <div class="example-industry">Legal</div>
+          <div class="example-name">Meridian Law Group</div>
+          <div class="example-score">
+            <div class="score-bar"><div class="score-fill" style="width:71%"></div></div>
+            71 / 100
+          </div>
+        </div>
+      </div>
+
+      <!-- Wedding -->
+      <div class="example-card">
+        <div class="example-card-bg ex-wedding">
+          <div class="ex-mocklines">
+            <div class="ex-line ex-line-full ex-line-tall"></div>
+            <div class="ex-line ex-line-short"></div>
+            <div class="ex-line ex-line-med"></div>
+            <div class="ex-line ex-line-full"></div>
+          </div>
+        </div>
+        <div class="example-card-duotone"></div>
+        <div class="example-card-overlay"></div>
+        <div class="example-card-content">
+          <div class="example-industry">Wedding</div>
+          <div class="example-name">Willow & Bloom Studio</div>
+          <div class="example-score">
+            <div class="score-bar"><div class="score-fill" style="width:84%"></div></div>
+            84 / 100
+          </div>
+        </div>
+      </div>
+
+      <!-- Food & Beverage -->
+      <div class="example-card">
+        <div class="example-card-bg ex-food">
+          <div class="ex-mocklines">
+            <div class="ex-line ex-line-full" style="height:64px;background:rgba(255,255,255,.08)"></div>
+            <div class="ex-line ex-line-med"></div>
+            <div class="ex-line ex-line-full"></div>
+            <div class="ex-line ex-line-short"></div>
+          </div>
+        </div>
+        <div class="example-card-duotone"></div>
+        <div class="example-card-overlay"></div>
+        <div class="example-card-content">
+          <div class="example-industry">Food &amp; Beverage</div>
+          <div class="example-name">Ember & Salt Kitchen</div>
+          <div class="example-score">
+            <div class="score-bar"><div class="score-fill" style="width:68%"></div></div>
+            68 / 100
+          </div>
+        </div>
+      </div>
+
+      <!-- SaaS -->
+      <div class="example-card">
+        <div class="example-card-bg ex-saas">
+          <div class="ex-mocklines">
+            <div class="ex-line ex-line-short" style="height:14px;background:rgba(255,255,255,.18)"></div>
+            <div class="ex-line ex-line-full ex-line-tall"></div>
+            <div class="ex-line ex-line-med"></div>
+            <div class="ex-line ex-line-short"></div>
+          </div>
+        </div>
+        <div class="example-card-duotone"></div>
+        <div class="example-card-overlay"></div>
+        <div class="example-card-content">
+          <div class="example-industry">SaaS</div>
+          <div class="example-name">Helix Analytics</div>
+          <div class="example-score">
+            <div class="score-bar"><div class="score-fill" style="width:91%"></div></div>
+            91 / 100
+          </div>
+        </div>
+      </div>
+
+      <!-- Fitness -->
+      <div class="example-card">
+        <div class="example-card-bg ex-fitness">
+          <div class="ex-mocklines">
+            <div class="ex-line ex-line-full" style="height:80px;background:rgba(255,255,255,.08)"></div>
+            <div class="ex-line ex-line-med"></div>
+            <div class="ex-line ex-line-full"></div>
+          </div>
+        </div>
+        <div class="example-card-duotone"></div>
+        <div class="example-card-overlay"></div>
+        <div class="example-card-content">
+          <div class="example-industry">Fitness</div>
+          <div class="example-name">Forge Training Co.</div>
+          <div class="example-score">
+            <div class="score-bar"><div class="score-fill" style="width:76%"></div></div>
+            76 / 100
+          </div>
+        </div>
+      </div>
+
+      <!-- Real Estate -->
+      <div class="example-card">
+        <div class="example-card-bg ex-realestate">
+          <div class="ex-mocklines">
+            <div class="ex-line ex-line-full ex-line-tall"></div>
+            <div class="ex-line ex-line-short"></div>
+            <div class="ex-line ex-line-med"></div>
+            <div class="ex-line ex-line-full"></div>
+          </div>
+        </div>
+        <div class="example-card-duotone"></div>
+        <div class="example-card-overlay"></div>
+        <div class="example-card-content">
+          <div class="example-industry">Real Estate</div>
+          <div class="example-name">Summit Property Group</div>
+          <div class="example-score">
+            <div class="score-bar"><div class="score-fill" style="width:82%"></div></div>
+            82 / 100
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── DESIGN SYSTEMS ── -->
+<section class="design-systems-section" id="systems">
+  <div class="section-inner">
+    <span class="section-label">Design Systems</span>
+    <h2 class="section-heading">12 world-class token registries</h2>
+    <p class="section-subheading">Pull tokens from Apple HIG, Material 3, Stripe, Linear, and more — in W3C DTCG format, ready for any codebase. Zero runtime dependencies.</p>
+    <div class="ds-grid">
+      <div class="ds-card">
+        <div class="ds-icon" style="background:#1a1a22;border:1px solid var(--border-strong);">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="#F0F0F2" stroke-width="1.5"/><path d="M7 10a3 3 0 006 0" stroke="#F0F0F2" stroke-width="1.5"/></svg>
+        </div>
+        <div class="ds-name">Apple HIG</div>
+        <div class="ds-token-count">284 tokens</div>
+      </div>
+      <div class="ds-card">
+        <div class="ds-icon" style="background:#1565C0;">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="4" y="4" width="5" height="5" rx="1" fill="white"/><rect x="11" y="4" width="5" height="5" rx="1" fill="white"/><rect x="4" y="11" width="5" height="5" rx="1" fill="white"/><rect x="11" y="11" width="5" height="5" rx="1" fill="white"/></svg>
+        </div>
+        <div class="ds-name">Material 3</div>
+        <div class="ds-token-count">340 tokens</div>
+      </div>
+      <div class="ds-card">
+        <div class="ds-icon" style="background:#6259FF;">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 10h10M10 5v10" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="ds-name">Stripe</div>
+        <div class="ds-token-count">212 tokens</div>
+      </div>
+      <div class="ds-card">
+        <div class="ds-icon" style="background:#5E6AD2;">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" fill="white"/><path d="M10 4v2M10 14v2M4 10h2M14 10h2" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <div class="ds-name">Linear</div>
+        <div class="ds-token-count">198 tokens</div>
+      </div>
+      <div class="ds-card">
+        <div class="ds-icon" style="background:#FF5A5F;">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 4C6.686 4 4 6.686 4 10s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6z" fill="white" opacity=".3"/><path d="M10 7v3l2 2" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <div class="ds-name">Airbnb</div>
+        <div class="ds-token-count">176 tokens</div>
+      </div>
+      <div class="ds-card">
+        <div class="ds-icon" style="background:#1DB954;">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="6" stroke="#0a0a12" stroke-width="1.5"/><path d="M7 10.5c1.5-.5 3.5-.5 6 0M7 8c2-.667 4.5-.667 7 0M7 13c1.5-.333 3-.333 5 0" stroke="#0a0a12" stroke-width="1.2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="ds-name">Spotify</div>
+        <div class="ds-token-count">163 tokens</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── TOOLS ── -->
+<section id="tools">
+  <div class="section-inner">
+    <span class="section-label">Tools</span>
+    <h2 class="section-heading">Every design capability, one command.</h2>
+    <p class="section-subheading">Raven exposes 40+ tools across audits, design systems, brand, content, and service design — all callable directly from your AI coding agent.</p>
+    <div class="tools-grid">
+      <!-- Audits -->
+      <div class="tool-card">
+        <div class="tool-header">
+          <div class="tool-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 3h12v12H3z" stroke="#00BFFF" stroke-width="1.3" stroke-linecap="round"/><path d="M6 9l2 2 4-4" stroke="#00E676" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="tool-category">audits</span>
+        </div>
+        <div class="tool-name">audit_page</div>
+        <div class="tool-desc">Full-page design audit: layout, hierarchy, contrast, tap targets, typography — scored and explained.</div>
+        <div class="tool-chips">
+          <span class="tool-chip">audit_layout</span>
+          <span class="tool-chip">audit_typography</span>
+          <span class="tool-chip">audit_contrast</span>
+        </div>
+      </div>
+      <!-- Screen -->
+      <div class="tool-card">
+        <div class="tool-header">
+          <div class="tool-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="3" y="2" width="8" height="14" rx="2" stroke="#00E5FF" stroke-width="1.3"/><path d="M6 14h2" stroke="#00E5FF" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </div>
+          <span class="tool-category">mobile</span>
+        </div>
+        <div class="tool-name">audit_screen</div>
+        <div class="tool-desc">Mobile screen design audit. SwiftUI, React Native, and iOS a11y surfaces — real layout analysis.</div>
+        <div class="tool-chips">
+          <span class="tool-chip">audit_swiftui</span>
+          <span class="tool-chip">audit_rn</span>
+          <span class="tool-chip">audit_ios_a11y</span>
+        </div>
+      </div>
+      <!-- Design Systems -->
+      <div class="tool-card">
+        <div class="tool-header">
+          <div class="tool-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="3" stroke="#FFAB40" stroke-width="1.3"/><path d="M9 3v2M9 13v2M3 9h2M13 9h2" stroke="#FFAB40" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </div>
+          <span class="tool-category">systems</span>
+        </div>
+        <div class="tool-name">get_design_system</div>
+        <div class="tool-desc">Query 12 world-class design systems by name. Returns W3C DTCG tokens: color, type, spacing, motion.</div>
+        <div class="tool-chips">
+          <span class="tool-chip">generate_design_system</span>
+          <span class="tool-chip">list_design_systems</span>
+        </div>
+      </div>
+      <!-- Brand -->
+      <div class="tool-card">
+        <div class="tool-header">
+          <div class="tool-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 14L9 4l5 10H4z" stroke="#FF4081" stroke-width="1.3" stroke-linejoin="round"/><path d="M6 10h6" stroke="#FF4081" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </div>
+          <span class="tool-category">brand</span>
+        </div>
+        <div class="tool-name">create_brand_profile</div>
+        <div class="tool-desc">Build a complete brand profile — voice, visual principles, and content standards — from a brief.</div>
+        <div class="tool-chips">
+          <span class="tool-chip">get_brand_system</span>
+          <span class="tool-chip">get_brand_trends</span>
+        </div>
+      </div>
+      <!-- Content -->
+      <div class="tool-card">
+        <div class="tool-header">
+          <div class="tool-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 6h10M4 9h8M4 12h6" stroke="#00E5FF" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </div>
+          <span class="tool-category">content</span>
+        </div>
+        <div class="tool-name">get_content_system</div>
+        <div class="tool-desc">Retrieve editorial standards, content patterns, and voice guidelines for world-class content design.</div>
+        <div class="tool-chips">
+          <span class="tool-chip">get_content_principles</span>
+          <span class="tool-chip">get_content_pattern</span>
+        </div>
+      </div>
+      <!-- Creative -->
+      <div class="tool-card">
+        <div class="tool-header">
+          <div class="tool-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 3l1.5 4h4l-3.5 2.5 1.5 4L9 11l-3.5 2.5 1.5-4L3.5 7h4z" stroke="#FFAB40" stroke-width="1.3" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="tool-category">creative</span>
+        </div>
+        <div class="tool-name">score_creative</div>
+        <div class="tool-desc">Score any creative asset — ad, landing page, campaign — against brand principles and design quality rubrics.</div>
+        <div class="tool-chips">
+          <span class="tool-chip">evaluate_design</span>
+          <span class="tool-chip">plan_creative_campaign</span>
+        </div>
+      </div>
+      <!-- Service Design -->
+      <div class="tool-card">
+        <div class="tool-header">
+          <div class="tool-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 9h2l2-4 2 8 2-4 2 2h2" stroke="#00E676" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="tool-category">service</span>
+        </div>
+        <div class="tool-name">generate_service_blueprint</div>
+        <div class="tool-desc">Build a complete service blueprint — frontstage/backstage, touchpoints, failure points — from a product brief.</div>
+        <div class="tool-chips">
+          <span class="tool-chip">get_service_pattern</span>
+          <span class="tool-chip">get_service_standard</span>
+        </div>
+      </div>
+      <!-- D4D -->
+      <div class="tool-card">
+        <div class="tool-header">
+          <div class="tool-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="6" stroke="#00BFFF" stroke-width="1.3"/><path d="M9 6v3l2 2" stroke="#00BFFF" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </div>
+          <span class="tool-category">frameworks</span>
+        </div>
+        <div class="tool-name">get_d4d_framework</div>
+        <div class="tool-desc">Access the Design for Delight framework: D4D loop, LOFA assumptions, customer problem statements, hypothesis templates.</div>
+        <div class="tool-chips">
+          <span class="tool-chip">get_principles</span>
+          <span class="tool-chip">get_checklist</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ── -->
+<section class="cta-section" id="get-started">
+  <div class="cta-bg-glow"></div>
+  <div class="cta-inner">
+    <h2 class="cta-headline">Give your AI<br><span>design intelligence.</span></h2>
+    <p class="cta-sub">One command. Zero runtime dependencies. World-class design judgment in every AI session.</p>
+    <div class="cta-install">
+      <div class="install-block-header" style="background:var(--bg-raised);">
+        <div class="terminal-dots">
+          <div class="terminal-dot dot-red"></div>
+          <div class="terminal-dot dot-yellow"></div>
+          <div class="terminal-dot dot-green"></div>
+        </div>
+        <span class="install-label">Install Raven</span>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('claude mcp add raven -- npx -y raven-mcp'); this.textContent = '✓ copied'">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="3" width="7" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M4 3V2a1 1 0 011-1h5a1 1 0 011 1v7a1 1 0 01-1 1H9" stroke="currentColor" stroke-width="1.2"/></svg>
+          copy
+        </button>
+      </div>
+      <div class="cta-install-inner">
+        <span class="install-prompt">$</span>
+        <span class="install-cmd-text">claude</span>
+        <span class="install-cmd-text"> mcp add</span>
+        <span class="install-cmd-arg"> raven</span>
+        <span class="c-dim"> -- </span>
+        <span class="install-cmd-text">npx</span>
+        <span class="install-cmd-arg"> -y</span>
+        <span class="install-cmd-pkg"> raven-mcp</span>
+      </div>
+    </div>
+    <div class="cta-actions">
+      <a href="https://github.com/raven-mcp/raven-mcp" class="btn-primary">
+        View on GitHub
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M7 2l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+      <a href="#watch" class="btn-secondary">Watch it work</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer id="changelog">
+  <div class="footer-inner">
+    <div class="footer-left">
+      <a href="#" class="footer-wordmark">
+        <div class="nav-logo-mark" style="width:22px;height:22px;border-radius:5px;">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 3h4v4H3zM9 3h4v4H9zM3 9h4v4H3zM9 9l4 4M13 9l-4 4" stroke="#0a0a12" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <span class="footer-wordmark-text">Raven</span>
+      </a>
+      <span class="footer-tagline">Design intelligence for AI coding agents.</span>
+    </div>
+    <div style="display:flex;gap:56px;align-items:flex-start;">
+      <div class="footer-links" style="flex-direction:column;gap:12px;">
+        <a href="#tools">Documentation</a>
+        <a href="#systems">Design Systems</a>
+        <a href="#watch">Examples</a>
+      </div>
+      <div class="footer-links" style="flex-direction:column;gap:12px;">
+        <a href="https://github.com/raven-mcp/raven-mcp">GitHub</a>
+        <a href="#changelog">Changelog</a>
+        <a href="mailto:raven@example.com">Contact</a>
+      </div>
+    </div>
+    <div class="footer-right">
+      <div class="footer-version">v1.12.0</div>
+      <div class="footer-badge">
+        <span class="status-dot"></span>
+        MIT License · Zero dependencies
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -27,6 +27,7 @@
       --text-tertiary: #5C5F68;
       --text-accent: #00BFFF;
       --accent-blue: #00BFFF;
+      --accent-cyan: #00E5FF;
       --accent-green: #00E676;
       --accent-orange: #FFAB40;
       --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -34,9 +35,9 @@
       --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
       --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
       --space-12: 48px; --space-16: 64px; --space-20: 80px;
-      --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+      --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px; --radius-xl: 20px;
       --nav-height: 64px;
-      --max-width: 880px;
+      --max-width: 1140px;
     }
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -49,81 +50,153 @@
     .wrap {
       max-width: var(--max-width);
       margin: 0 auto;
-      padding: calc(var(--nav-height) + var(--space-16)) clamp(16px, 4vw, 24px) var(--space-20);
+      padding: calc(var(--nav-height) + var(--space-20)) clamp(16px, 4vw, 24px) var(--space-20);
+      position: relative;
+    }
+
+    /* ── Hero ── */
+    .hero { position: relative; margin-bottom: var(--space-12); }
+    .hero::before {
+      content: ""; position: absolute; inset: -120px 0 auto 0; height: 360px; z-index: -1;
+      background: radial-gradient(50% 60% at 30% 0%, rgba(0,191,255,0.16) 0%, rgba(0,191,255,0) 70%);
+      pointer-events: none;
+    }
+    .eyebrow {
+      display: inline-block; font-family: var(--font-mono);
+      font-size: 13px; font-weight: 600; letter-spacing: 0.18em;
+      text-transform: uppercase; color: var(--text-accent); margin-bottom: var(--space-6);
     }
     .hero h1 {
-      font-size: clamp(32px, 5vw, 48px);
+      font-size: clamp(40px, 6vw, 76px);
       font-weight: 800;
-      letter-spacing: -0.02em;
-      margin-bottom: var(--space-3);
+      letter-spacing: -0.035em;
+      line-height: 1.02;
     }
-    .hero .accent { color: var(--text-accent); }
-    .hero p {
-      font-size: 17px;
+    .hero h1 .accent { display: block; color: var(--text-accent); }
+    .hero .lede {
+      margin-top: var(--space-8);
+      font-size: clamp(17px, 2vw, 20px);
       color: var(--text-secondary);
-      max-width: 560px;
-      margin-bottom: var(--space-16);
+      max-width: 660px;
+      line-height: 1.6;
+    }
+
+    /* ── Filter pills ── */
+    .filters { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-10) 0 var(--space-12); }
+    .filter {
+      min-height: 40px; padding: 0 18px; border-radius: 9999px;
+      border: 1px solid var(--border-strong); background: transparent;
+      color: var(--text-secondary); font-family: inherit; font-size: 14px; font-weight: 500;
+      cursor: pointer; transition: color .2s, border-color .2s, background .2s;
+    }
+    .filter:hover { color: var(--text-primary); border-color: var(--border-accent); }
+    .filter.active { border-color: var(--accent-blue); background: var(--bg-accent-subtle); color: var(--text-accent); }
+
+    /* ── Timeline feed: a left rail with a node per release ── */
+    .feed { position: relative; padding-left: 44px; }
+    .feed::before {
+      content: ""; position: absolute; left: 8px; top: 8px; bottom: 8px; width: 1px;
+      background: linear-gradient(var(--border-strong), var(--border) 92%, transparent);
     }
     .release {
+      position: relative;
       background: var(--bg-surface);
       border: 1px solid var(--border-strong);
-      border-radius: var(--radius-lg);
+      border-radius: var(--radius-xl);
       padding: var(--space-8);
-      margin-bottom: var(--space-6);
+      margin-bottom: var(--space-8);
+      transition: border-color .2s var(--ease, ease), transform .2s ease;
     }
+    .release:hover { border-color: var(--border-accent); transform: translateY(-2px); }
+    .release::before {
+      content: ""; position: absolute; top: 34px; left: -43px;
+      width: 15px; height: 15px; border-radius: 50%;
+      background: var(--accent-blue);
+      box-shadow: 0 0 0 4px var(--bg-base), 0 0 16px rgba(0,191,255,0.5);
+    }
+    /* node colour cue by release kind (mirrors the badge) */
+    .release.is-patch::before, .release.is-maintenance::before { background: var(--text-tertiary); box-shadow: 0 0 0 4px var(--bg-base); }
+    .release.is-major::before { background: var(--accent-orange); box-shadow: 0 0 0 4px var(--bg-base), 0 0 16px rgba(255,171,64,0.5); }
+    .release.is-initial::before { background: var(--accent-green); box-shadow: 0 0 0 4px var(--bg-base), 0 0 16px rgba(0,230,118,0.5); }
+    .release.hide { display: none; }
+    @media (max-width: 640px) {
+      .feed { padding-left: 28px; }
+      .feed::before { left: 4px; }
+      .release { padding: var(--space-6); }
+      .release::before { left: -27px; top: 30px; width: 13px; height: 13px; }
+    }
+
     .release-head {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: var(--space-3);
       flex-wrap: wrap;
       margin-bottom: var(--space-5);
-      padding-bottom: var(--space-5);
-      border-bottom: 1px solid var(--border);
     }
     .release-head h2 {
-      font-size: 24px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
       font-family: var(--font-mono);
+      color: var(--text-secondary);
+      order: 1;
     }
+    .badge { order: 2; }
     .release-head time {
       color: var(--text-tertiary);
-      font-size: 14px;
+      font-size: 13px;
       margin-left: auto;
+      order: 3;
     }
     .badge {
       display: inline-flex;
       align-items: center;
-      padding: 2px 10px;
-      border-radius: 100px;
+      padding: 3px 11px;
+      border-radius: 9999px;
       font-size: 11px;
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
     }
     .badge-major {
-      background: rgba(255, 171, 64, 0.12);
+      background: rgba(255, 171, 64, 0.1);
       color: var(--accent-orange);
-      border: 1px solid rgba(255, 171, 64, 0.3);
+      border: 1px solid rgba(255, 171, 64, 0.4);
     }
     .badge-minor {
-      background: rgba(0, 230, 118, 0.1);
-      color: var(--accent-green);
-      border: 1px solid rgba(0, 230, 118, 0.3);
-    }
-    .badge-patch, .badge-initial {
-      background: var(--bg-accent-subtle);
-      color: var(--text-accent);
+      background: rgba(0, 191, 255, 0.08);
+      color: var(--accent-blue);
       border: 1px solid var(--border-accent);
     }
-    .release-body h3 {
-      font-size: 15px;
-      font-weight: 700;
+    .badge-initial {
+      background: rgba(0, 230, 118, 0.1);
+      color: var(--accent-green);
+      border: 1px solid rgba(0, 230, 118, 0.4);
+    }
+    .badge-patch {
+      background: var(--bg-raised);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-strong);
+    }
+    /* first line of the body is the release headline */
+    .release-body > p:first-child {
+      font-size: clamp(18px, 2vw, 21px);
+      font-weight: 600;
+      letter-spacing: -0.01em;
       color: var(--text-primary);
-      margin-top: var(--space-5);
+      line-height: 1.35;
+      margin-bottom: var(--space-5);
+    }
+    .release-body h3 {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-family: var(--font-mono);
+      margin-top: var(--space-6);
       margin-bottom: var(--space-3);
     }
-    .release-body h3:first-child { margin-top: 0; }
     .release-body h4 {
       font-size: 13px;
       font-weight: 700;
@@ -145,25 +218,27 @@
     .release-body li {
       color: var(--text-secondary);
       font-size: 15px;
-      padding: 4px 0 4px 18px;
+      line-height: 1.65;
+      padding: 4px 0 4px 20px;
       position: relative;
     }
     .release-body li::before {
       content: "";
       position: absolute;
-      left: 4px;
+      left: 2px;
       top: 14px;
-      width: 4px;
-      height: 4px;
+      width: 5px;
+      height: 5px;
       border-radius: 50%;
-      background: var(--text-tertiary);
+      background: var(--accent-blue);
+      opacity: 0.6;
     }
     .release-body code {
       font-family: var(--font-mono);
       font-size: 13px;
       background: var(--bg-raised);
       padding: 2px 6px;
-      border-radius: 4px;
+      border-radius: 5px;
       color: var(--text-accent);
     }
     .release-body a {
@@ -172,34 +247,41 @@
     }
     .release-body a:hover { text-decoration: underline; }
     .release-foot {
-      margin-top: var(--space-5);
+      margin-top: var(--space-6);
       padding-top: var(--space-5);
       border-top: 1px solid var(--border);
     }
     .release-foot a {
       font-size: 13px;
+      font-weight: 500;
       color: var(--text-tertiary);
       text-decoration: none;
       transition: color 0.2s;
     }
     .release-foot a:hover { color: var(--text-accent); }
+
+    /* ── Page foot links ── */
+    .page-foot {
+      max-width: var(--max-width);
+      margin: var(--space-16) auto 0;
+      padding: var(--space-12) clamp(16px, 4vw, 24px) 0;
+      border-top: 1px solid var(--border);
+      display: flex; flex-wrap: wrap; gap: var(--space-6) var(--space-8); align-items: center;
+      font-size: 14px;
+    }
+    .page-foot a.primary { color: var(--text-accent); text-decoration: none; font-weight: 500; }
+    .page-foot a.primary:hover { color: var(--accent-cyan); }
+    .page-foot a.muted { color: var(--text-secondary); text-decoration: none; }
+    .page-foot a.muted:hover { color: var(--text-primary); }
+
     .empty {
       background: var(--bg-surface);
       border: 1px solid var(--border-strong);
-      border-radius: var(--radius-lg);
+      border-radius: var(--radius-xl);
       padding: var(--space-16) var(--space-8);
       text-align: center;
     }
-    .empty h2 {
-      font-size: 22px;
-      font-weight: 700;
-      margin-bottom: var(--space-3);
-    }
-    .empty p {
-      color: var(--text-secondary);
-      max-width: 420px;
-      margin: 0 auto;
-    }
+    .empty p { color: var(--text-secondary); max-width: 420px; margin: 0 auto; }
   </style>
 </head>
 <body>
@@ -208,10 +290,18 @@
 
   <main class="wrap">
     <header class="hero">
-      <h1>What's new in <span class="accent">Raven</span></h1>
-      <p>We ship a new release every Friday with fresh design knowledge, new patterns, and fixes. Follow along here.</p>
+      <p class="eyebrow">Changelog</p>
+      <h1>Everything<span class="accent">we&rsquo;re shipping.</span></h1>
+      <p class="lede">New audit tools, design principles, patterns, and fixes land constantly &mdash; every release in one place. Raven ships weekly.</p>
     </header>
 
+    <div class="filters" role="tablist" aria-label="Filter releases">
+      <button class="filter active" role="tab" aria-selected="true" data-filter="all">All updates</button>
+      <button class="filter" role="tab" aria-selected="false" data-filter="features">Features</button>
+      <button class="filter" role="tab" aria-selected="false" data-filter="maintenance">Maintenance</button>
+    </div>
+
+    <div class="feed" id="feed">
 
     <article class="release">
       <header class="release-head">
@@ -744,7 +834,49 @@
         <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.2.0" target="_blank" rel="noopener">View on GitHub &rarr;</a>
       </footer>
     </article>
+
+    </div><!-- /feed -->
+
+    <nav class="page-foot" aria-label="Changelog links">
+      <a class="primary" href="/">&larr; Back to RavenMCP</a>
+      <a class="muted" href="/docs.html">Get started</a>
+      <a class="muted" href="https://github.com/rhinocap/raven-mcp/releases" target="_blank" rel="noopener">All releases on GitHub</a>
+    </nav>
   </main>
+
+  <script>
+    (function () {
+      var feed = document.getElementById('feed');
+      if (!feed) return;
+      var releases = [].slice.call(feed.querySelectorAll('.release'));
+      // Tag each release by kind from its badge — drives node colour + filter group.
+      releases.forEach(function (r) {
+        var badge = r.querySelector('.badge');
+        var kind = 'minor';
+        if (badge) {
+          if (badge.classList.contains('badge-major')) kind = 'major';
+          else if (badge.classList.contains('badge-patch')) kind = 'patch';
+          else if (badge.classList.contains('badge-initial')) kind = 'initial';
+        }
+        r.classList.add('is-' + kind);
+        r.dataset.group = (kind === 'patch') ? 'maintenance' : 'features';
+      });
+      var pills = [].slice.call(document.querySelectorAll('.filter'));
+      pills.forEach(function (p) {
+        p.addEventListener('click', function () {
+          var f = p.dataset.filter;
+          pills.forEach(function (x) {
+            var on = x === p;
+            x.classList.toggle('active', on);
+            x.setAttribute('aria-selected', on ? 'true' : 'false');
+          });
+          releases.forEach(function (r) {
+            r.classList.toggle('hide', !(f === 'all' || r.dataset.group === f));
+          });
+        });
+      });
+    })();
+  </script>
 
   <script src="assets/footer.js"></script>
   <raven-footer></raven-footer>
