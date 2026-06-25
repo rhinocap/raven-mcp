@@ -2,16 +2,27 @@
 
 Tracking collaboration quality across sessions. Updated every Revisit.
 
-| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 (v1.9.0) | 2026-06-19 (v1.10.0) | 2026-06-20 (changelog) | 2026-06-20 (site) | 2026-06-21 (cut-off fix) | 2026-06-21 (spacing + device-frame) |
-|---|---|---|---|---|---|---|---|---|---|
-| First-attempt accuracy | 90% | ~85% | ~83% (10/12) | ~80% (8/10) | ~82% (14/17) | ~85% (5/6) | ~70% (14/20) | ~70% (screenshot 3×; AR fix partial) | ~75% (6/8 — screenshot blind + /tmp import) |
-| Push rejections | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| Autonomy score | 90% | 85% | ~95% | ~95% | ~99% | ~99% | ~99% | ~99% | ~99% |
-| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg | ~1.2 avg | ~1.2 avg | ~2.1 avg | ~1.8 avg | ~1.3 avg |
-| Tests passing | 100% | 100% (smoke) | 100% (85/85) | 100% (92/92) | 100% (185/185) | N/A | | 100% (191/191) |
-| Log currency | Immediate | Delayed | Immediate | Immediate | Immediate | Immediate | Immediate | | Immediate |
+| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 (v1.9.0) | 2026-06-19 (v1.10.0) | 2026-06-20 (changelog) | 2026-06-20 (site) | 2026-06-21 (cut-off fix) | 2026-06-21 (spacing + device-frame) | 2026-06-25 (site award) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| First-attempt accuracy | 90% | ~85% | ~83% (10/12) | ~80% (8/10) | ~82% (14/17) | ~85% (5/6) | ~70% (14/20) | ~70% (screenshot 3×; AR fix partial) | ~75% (6/8 — screenshot blind + /tmp import) | ~82% (9/11 — bg-clip bug + video debug) |
+| Push rejections | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Autonomy score | 90% | 85% | ~95% | ~95% | ~99% | ~99% | ~99% | ~99% | ~99% | ~88% (stop hook friction) |
+| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg | ~1.2 avg | ~1.2 avg | ~2.1 avg | ~1.8 avg | ~1.3 avg | ~1.5 avg |
+| Tests passing | 100% | 100% (smoke) | 100% (85/85) | 100% (92/92) | 100% (185/185) | N/A | | 100% (191/191) | N/A (site work) |
+| Log currency | Immediate | Delayed | Immediate | Immediate | Immediate | Immediate | Immediate | | Immediate | Immediate |
 
 ## Notes per session
+
+### 2026-06-25 — Site award-grade pass (homepage + changelog)
+- **Session scale:** Large — full-day `/goal` overhaul: 3×2 duotone video grid, Layout-2 hero typography, header CTA button, HighLvl-style changelog rebuild, container width unification, section-seam removal. 3 commits to prod (c316623, 1fb7f19, a221cef).
+- **First-attempt accuracy ~82% (9/11):** Two misses: (1) `background:` shorthand reset `background-clip: text` → gradient text rendered as solid bars on first verify; fixed 1 round-trip. (2) Video `readyState:0` in backgrounded automation tab → ~3 rounds of diagnosis before Playwright `currentTime` probe definitively confirmed 12/12 playing. Both caught in the verify loop before any broken state shipped to prod.
+- **⚠️ PENDING PROMOTION (blocked in headless):**
+  1. **`background-clip` shorthand gotcha → CLAUDE.md Coding rules.** Rule: always declare `background-clip: text; -webkit-background-clip: text;` AFTER `background:` in gradient-text CSS. `background:` shorthand resets the clip to `border-box`, turning gradient text into solid bars.
+  2. **Video playback verification → CLAUDE.md Testing rules.** Rule: Chrome suspends ALL media in backgrounded tabs (`document.hidden:true`). `readyState:0` in that context proves nothing — identical for playing and broken clips. Correct verification surface: Playwright in a real (non-backgrounded) page, reading `currentTime` after 2s wait. `gstack browse` backgrounded automation is not a valid video verification surface.
+- **Autonomy gap:** Stop hook fired repeatedly because assistant offered layout/button options and waited for a pick rather than making a recommendation and implementing the non-pick-gated piece. Root cause: `/goal` said "interview for questions" — interview was done but the implementation loop re-entered an interview posture. Fix: once `/goal` interview answers are locked, make a recommendation with rationale and ship the highest-impact pick-independent piece immediately.
+- **Wins:** `audit_content` used proactively and returned actionable result (14/14 pass → correctly did NOT over-edit clean copy). Background-clip bug and video readyState confusion both caught in the verify loop, never shipped broken. HighLvl changelog pattern ported in one pass (filter JS correct on first impl, confirmed programmatically). Section seam fix identified all 3 affected sections in one grep pass — no partial fix. Push rejections: 0.
+- **Autonomy score ~88%:** Stop hook fired multiple times due to layout-pick hesitation; once recommendation was made + shipped, no further friction.
+- **Round-trips:** ~1.5 avg. Video debug ~3, bg-clip fix ~2, all others 1.
 
 ### 2026-06-21 — Watch-grid spacing + audit_device_frame
 - **Session scale:** Small-medium — 2 tasks via `/goal`→Workflow, 2 commits.
