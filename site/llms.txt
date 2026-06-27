@@ -1,0 +1,39 @@
+# RavenMCP
+
+> RavenMCP (Raven) is an open-source [Model Context Protocol](https://modelcontextprotocol.io) server that gives AI agents like Claude design intelligence — the design knowledge once locked in expert heads. It exposes 55 tools across nine knowledge layers: design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, and multi-platform design audits (web, iOS, Android, React Native). It is free, MIT-licensed, and installs in one command.
+
+Install with one command:
+
+```
+claude mcp add raven -- npx -y raven-mcp
+```
+
+Key facts:
+- 55 focused tools, grouped by job (query, audit, generate, score).
+- 129 design principles: Nielsen's heuristics, Laws of UX, Gestalt, WCAG accessibility, typography, color theory, mobile UX, responsive layout, and the D4D framework — each with violations and checklists.
+- 22 reusable UI patterns.
+- 12 world-class design systems with production tokens in W3C DTCG format.
+- Audits for web pages, layouts, SwiftUI/iOS screens, Android, and React Native — checking principles, patterns, contrast, tap targets, typography, and accessibility.
+- Content voice guides, brand profiles, research methods, and service blueprints.
+- 100% free and open source. No tiers, no limits, no account required.
+
+## Documentation
+
+- [Documentation](https://ravenmcp.ai/docs.html): Full tool reference, installation, and usage for every Raven tool.
+- [Design systems](https://ravenmcp.ai/design-system.html): The 12 queryable design systems and their token coverage.
+- [Changelog](https://ravenmcp.ai/changelog.html): Release history and what changed in each version.
+
+## About
+
+- [Homepage](https://ravenmcp.ai/): Overview of the nine knowledge layers, the 55 tools, and live examples.
+- [About](https://ravenmcp.ai/about.html): The project, its creator, and the story behind the name.
+- [GitHub](https://github.com/rhinocap/raven-mcp): Source code, issues, and contribution guide (MIT license).
+
+## Examples
+
+- [SaaS demo](https://ravenmcp.ai/demos/saas.html): A site built entirely with Raven's design intelligence.
+- [Coffee shop demo](https://ravenmcp.ai/demos/coffee-shop.html): Local-business landing page built with Raven.
+- [Fitness demo](https://ravenmcp.ai/demos/fitness.html): Fitness brand site built with Raven.
+- [Law firm demo](https://ravenmcp.ai/demos/law-firm.html): Professional-services site built with Raven.
+- [Real estate demo](https://ravenmcp.ai/demos/real-estate.html): Property listing site built with Raven.
+- [Wedding demo](https://ravenmcp.ai/demos/wedding.html): Event site built with Raven.
