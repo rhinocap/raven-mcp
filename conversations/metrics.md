@@ -2,16 +2,24 @@
 
 Tracking collaboration quality across sessions. Updated every Revisit.
 
-| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 (v1.9.0) | 2026-06-19 (v1.10.0) | 2026-06-20 (changelog) | 2026-06-20 (site) | 2026-06-21 (cut-off fix) | 2026-06-21 (spacing + device-frame) | 2026-06-25 (site award) |
-|---|---|---|---|---|---|---|---|---|---|---|
-| First-attempt accuracy | 90% | ~85% | ~83% (10/12) | ~80% (8/10) | ~82% (14/17) | ~85% (5/6) | ~70% (14/20) | ~70% (screenshot 3×; AR fix partial) | ~75% (6/8 — screenshot blind + /tmp import) | ~82% (9/11 — bg-clip bug + video debug) |
-| Push rejections | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| Autonomy score | 90% | 85% | ~95% | ~95% | ~99% | ~99% | ~99% | ~99% | ~99% | ~88% (stop hook friction) |
-| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg | ~1.2 avg | ~1.2 avg | ~2.1 avg | ~1.8 avg | ~1.3 avg | ~1.5 avg |
-| Tests passing | 100% | 100% (smoke) | 100% (85/85) | 100% (92/92) | 100% (185/185) | N/A | | 100% (191/191) | N/A (site work) |
-| Log currency | Immediate | Delayed | Immediate | Immediate | Immediate | Immediate | Immediate | | Immediate | Immediate |
+| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 (v1.9.0) | 2026-06-19 (v1.10.0) | 2026-06-20 (changelog) | 2026-06-20 (site) | 2026-06-21 (cut-off fix) | 2026-06-21 (spacing + device-frame) | 2026-06-25 (site award) | 2026-06-26 (deck narrative) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| First-attempt accuracy | 90% | ~85% | ~83% (10/12) | ~80% (8/10) | ~82% (14/17) | ~85% (5/6) | ~70% (14/20) | ~70% (screenshot 3×; AR fix partial) | ~75% (6/8 — screenshot blind + /tmp import) | ~82% (9/11 — bg-clip bug + video debug) | ~87% (13/15 — edit collision + Figma metadata overflow) |
+| Push rejections | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Autonomy score | 90% | 85% | ~95% | ~95% | ~99% | ~99% | ~99% | ~99% | ~99% | ~88% (stop hook friction) | ~99% |
+| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg | ~1.2 avg | ~1.2 avg | ~2.1 avg | ~1.8 avg | ~1.3 avg | ~1.5 avg | ~1.1 avg |
+| Tests passing | 100% | 100% (smoke) | 100% (85/85) | 100% (92/92) | 100% (185/185) | N/A | | 100% (191/191) | N/A (site work) | N/A (writing) |
+| Log currency | Immediate | Delayed | Immediate | Immediate | Immediate | Immediate | Immediate | | Immediate | Immediate | Immediate |
 
 ## Notes per session
+
+### 2026-06-26 — Deck narrative dictation (Digital Help + IEP)
+- **Session scale:** Small/medium — writing-only session. No code or site changes; output in `/tmp/drafts/`.
+- **First-attempt accuracy ~87% (13/15):** Two minor misses: (1) Edit collision — searched for a string already overwritten by an earlier in-turn edit to the same file; "string not found" required re-reading and re-anchoring. (2) `get_metadata` on full Figma deck page → 83K chars, exceeded tool limit; needed a second query at the slide-frame level. Both recovered in 1 step.
+- **Autonomy score ~99%:** Zero AskUserQuestion calls. All decisions (Figma read-only pass, IP/NDA advisory, video inventory, /tmp durability warning) made autonomously.
+- **Round-trips ~1.1 avg:** Nearly all moves were 1 pass; the two misses above each cost 1 extra step.
+- **IP advisory win:** Correctly flagged NDA risk before Andrew could copy internal Intuit source to personal machine. He agreed and chose the video path instead.
+- **Open items carried forward:** $1.8M vs $900K–$1M TurboTax revenue figure; IEP acronym; QB service names; QVL; IEP impact numbers; `/tmp/drafts/` durability (files will be lost on reboot — offered to move but session ended).
 
 ### 2026-06-25 — Site award-grade pass (homepage + changelog)
 - **Session scale:** Large — full-day `/goal` overhaul: 3×2 duotone video grid, Layout-2 hero typography, header CTA button, HighLvl-style changelog rebuild, container width unification, section-seam removal. 3 commits to prod (c316623, 1fb7f19, a221cef).

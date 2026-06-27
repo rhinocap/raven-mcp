@@ -64,3 +64,6 @@ Session was pure maintenance (site changelog catch-up, release skill gap closure
 
 ## Session scan — 2026-06-25 (site award-grade pass) — 2 net-new opportunities
 Session was site design work (not Raven tool implementation). Two gaps surfaced: video playback verification (no Raven tool confirms autoplay/currentTime; costs manual Playwright probe), and section-seam detection (hard color-band between adjacent sections invisible to existing audits). Both captured above.
+
+## Session scan — 2026-06-26 (deck narrative dictation) — 0 net-new opportunities
+Session was pure writing/dictation (portfolio deck narrative + slide layout for Digital Help and IEP Studio). No design audits were performed, no Raven tools were invoked in a way that exposed gaps, no workaround skills written, no false positives produced. The Figma pass was read-only metadata extraction, not a Raven audit. 0 net-new Raven opportunities.

@@ -51,6 +51,13 @@
 
 ## Session retrospectives
 
+### 2026-06-26 — Deck narrative dictation (Digital Help + IEP Studio)
+- **Biggest win:** Captured two full portfolio case-study narratives from in-car dictation and structured each into a story spine + slide-by-slide layout (20 slides for Digital Help, 14 for IEP). Reconciled Digital Help against the live Figma deck (read-only) — corrected shipped scope, pulled exact metric values from source, added customer-quote rationale. IP/NDA risk on IEP live demo caught and redirected before any action was taken.
+- **Biggest lesson #1 — Edit collisions within a single response:** When making multiple sequential edits to the same file within one response turn, the anchor string for the second edit must account for text already changed by the first edit. The "string not found" failure is invisible until the tool call is made — mental-model the file state after each prior edit before writing the next `old_string`.
+- **Biggest lesson #2 — Figma full-page metadata is always too large:** A full Figma page tree for a deck (many 1920×1080 frames with hundreds of nodes each) reliably exceeds the tool result limit. Default to querying a named sub-tree or filtering for top-level frame dimensions first; never request the full page tree.
+- **Open threads still live:** Two revenue figure versions for Digital Help ($1.8M vs $900K–$1M in `slides.ts`). IEP factual confirms (acronym, QB service names, QVL, impact numbers). Files in `/tmp/drafts/` are non-durable — need to be moved to the portfolio repo.
+- **No new Raven opportunities:** Session was pure writing/dictation. No design audits, no missing Raven capabilities surfaced, no workaround skills written.
+
 ### 2026-06-25 — Site award-grade pass
 - **Biggest win:** Full homepage + changelog overhaul shipped to prod in one session with 0 push rejections and verified on the live domain (curl 200/206 + eyes-on). The `background-clip:text` shorthand bug was caught and fixed in the verify loop before anything broken reached prod — exactly the right behavior for a visual-verify gate. HighLvl changelog pattern ported cleanly; filter JS correct on first impl.
 - **Biggest lesson #1 — `background:` shorthand resets `background-clip: text`:** Gradient text went solid bars on first render. The `background:` shorthand resets `background-clip` to `border-box`. Fix: always declare `background-clip: text; -webkit-background-clip: text;` AFTER `background:`. **Must promote to CLAUDE.md Coding rules** — blocked in headless.
