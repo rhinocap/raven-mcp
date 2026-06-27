@@ -93,7 +93,7 @@ export default function Home() {
                 <div className="stat">129</div>
                 <div className="stat-label">Design principles</div>
                 <h3>Principles</h3>
-                <p>Nielsen's Heuristics, Laws of UX, Gestalt, WCAG accessibility, typography, color theory, mobile UX, responsive layout, and D4D&mdash;with violations and checklists.</p>
+                <p><a href="https://www.nngroup.com/articles/ten-usability-heuristics/" target="_blank" rel="noopener noreferrer">Nielsen's Heuristics</a>, <a href="https://lawsofux.com/" target="_blank" rel="noopener noreferrer">Laws of UX</a>, Gestalt, <a href="https://www.w3.org/WAI/standards-guidelines/wcag/" target="_blank" rel="noopener noreferrer">WCAG accessibility</a>, typography, color theory, mobile UX, responsive layout, and D4D&mdash;with violations and checklists.</p>
                 <div className="layer-tags">
                   <span className="tag">Accessibility</span>
                   <span className="tag">Nielsen</span>
@@ -924,7 +924,7 @@ export default function Home() {
             <div className="faq-list reveal reveal-delay-3">
               <div className="faq-item">
                 <h3>What is RavenMCP?</h3>
-                <p>RavenMCP (Raven) is an open-source Model Context Protocol (MCP) server that gives AI agents like Claude design intelligence &mdash; the design knowledge once locked in expert heads. It exposes 55 tools across nine knowledge layers: design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, and multi-platform design audits.</p>
+                <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server that gives AI agents like Claude design intelligence &mdash; the design knowledge once locked in expert heads. It exposes 55 tools across nine knowledge layers: design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, and multi-platform design audits.</p>
               </div>
               <div className="faq-item">
                 <h3>How do I install RavenMCP?</h3>
