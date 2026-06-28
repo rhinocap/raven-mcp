@@ -175,12 +175,16 @@ export default async function handler(req, res) {
 
     // Fire-and-forget: subscribe to the release-notification audience.
     // Release emails go here on every minor/major bump.
-    if (process.env.RESEND_AUDIENCE_ID) {
+    // Prefer the correctly-named var; fall back to the legacy misspelled one
+    // (RESEND_AUDIENCE_I) that holds the live value, so the subscribe works
+    // whether or not the env var has been renamed yet.
+    var audienceId = process.env.RESEND_AUDIENCE_ID || process.env.RESEND_AUDIENCE_I;
+    if (audienceId) {
       resend.contacts
         .create({
           email: email,
           firstName: firstName !== "there" ? firstName : undefined,
-          audienceId: process.env.RESEND_AUDIENCE_ID,
+          audienceId: audienceId,
           unsubscribed: false
         })
         .catch(function (err) {
