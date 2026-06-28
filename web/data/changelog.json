@@ -1,0 +1,173 @@
+{
+  "_comment": "Single source of truth for the RavenMCP changelog. Consumed by web/app/changelog/ChangelogFeed.tsx (Next port) AND scripts/gen-changelog-html.mjs (static site/changelog.html). Entries are curated, user-facing notes synthesized from CHANGELOG.md — not raw commit messages. category drives the filter pills (audits/knowledge/tooling); kind drives the badge (new/feature/improvement/fix). Newest first.",
+  "categories": [
+    { "id": "all", "label": "All updates" },
+    { "id": "audits", "label": "Audits" },
+    { "id": "knowledge", "label": "Knowledge" },
+    { "id": "tooling", "label": "Tooling" }
+  ],
+  "kinds": {
+    "new": "New",
+    "feature": "Feature",
+    "improvement": "Improvement",
+    "fix": "Fix"
+  },
+  "releases": [
+    {
+      "version": "v1.12.1",
+      "date": "2026-06-26",
+      "category": "tooling",
+      "kind": "improvement",
+      "title": "Award-grade site refresh",
+      "changes": [
+        "Rebuilt the homepage to an award-grade standard and gave this changelog its own timeline.",
+        "Removed the hard seams between sections so the page reads as one continuous surface.",
+        "Cleaned dead navigation links out of the header."
+      ]
+    },
+    {
+      "version": "v1.12.0",
+      "date": "2026-06-21",
+      "category": "tooling",
+      "kind": "feature",
+      "title": "Compact responses and one-step contrast fixes",
+      "changes": [
+        "New compact response mode for audit_page, evaluate_design, and audit_url — return just scores, violations, and fix priority, dropping embedded screenshots and full principle bodies.",
+        "New suggest_contrast_fix tool — hand it a failing WCAG color pair and it returns the minimal color change that clears the AA/AAA target, with the achieved ratio.",
+        "audit_contrast now composites text over its full ancestor stack, eliminating false AA failures on dark, layered UIs."
+      ]
+    },
+    {
+      "version": "v1.11.0",
+      "date": "2026-06-21",
+      "category": "audits",
+      "kind": "feature",
+      "title": "Catch cropped device mockups before they ship",
+      "changes": [
+        "New audit_device_frame — flags content sliced off inside phone and laptop mockups, checking frame geometry, baked-in pan/zoom drift, and edge truncation.",
+        "Added color-systems principles — palette discipline of ten or fewer page colors on a role-based token set.",
+        "Added spacing-systems principles — an 8px base grid and a tight, limited spacing scale."
+      ]
+    },
+    {
+      "version": "v1.10.0",
+      "date": "2026-06-19",
+      "category": "audits",
+      "kind": "feature",
+      "title": "Content, typography, and tap-target audits",
+      "changes": [
+        "New audit_content — per-item verdicts for headings, prose, CTAs, labels, and metrics, each with the principle it matched and a before-to-after rewrite.",
+        "New audit_typography — detects your modular scale and flags off-scale sizes, inconsistent line-height, and bloated weight ladders.",
+        "New audit_tap_targets — finds every interactive element below the 44px minimum and returns a concrete CSS fix, worst-first.",
+        "Blank-video detection now names the real reason and only confirms genuinely broken media."
+      ]
+    },
+    {
+      "version": "v1.9.0",
+      "date": "2026-06-19",
+      "category": "audits",
+      "kind": "new",
+      "title": "Raven now renders and looks at real pixels",
+      "changes": [
+        "New audit_url — renders a live URL at every viewport and theme, scroll-settles reveals, plays videos, and fires hover, click, and focus before capturing.",
+        "Catches the real-world nits that HTML-only audits miss: cropped images, blank videos, hover white-wash, sliced exports, and content hidden on mobile.",
+        "Every finding is tagged confirmed, likely-artifact, or inconclusive and ranked by severity — so you only fix what's real."
+      ]
+    },
+    {
+      "version": "v1.8.0",
+      "date": "2026-06-18",
+      "category": "audits",
+      "kind": "feature",
+      "title": "Contract, parity, and iOS accessibility audits",
+      "changes": [
+        "New audit_contract and audit_api_contract — verify a wire contract is identical across iOS, proxy, and Android source, and catch live responses that pass shape but are wrong.",
+        "New audit_parity — compares an iOS screen to its Android counterpart against named spatial relationships and reports cross-platform drift.",
+        "New audit_ios_a11y — scores an iOS snapshot for labels, traits, tap targets, contrast, Dynamic Type clipping, and VoiceOver order.",
+        "iOS capture can now fire interactions and freeze animations for pixel-stable shots."
+      ]
+    },
+    {
+      "version": "v1.7.0",
+      "date": "2026-06-18",
+      "category": "audits",
+      "kind": "feature",
+      "title": "Contrast, responsive, and interaction-state audits",
+      "changes": [
+        "New audit_contrast — exact WCAG 2.1 ratios for every text element, with the delta needed to pass.",
+        "New audit_responsive_visibility — renders at multiple breakpoints and flags content shown on desktop but hidden on mobile.",
+        "audit_page can now fire hover, click, and focus before the screenshot — so transient defects like a theme-toggle white-wash become visible.",
+        "Optional adversarial_verify re-checks each finding a second way and tags it confirmed or likely-artifact."
+      ]
+    },
+    {
+      "version": "v1.6.2",
+      "date": "2026-06-12",
+      "category": "audits",
+      "kind": "fix",
+      "title": "Token-aware container widths",
+      "changes": [
+        "audit_page's max-width check now flags containers that diverge from your design system's canonical content width, instead of a generic heuristic."
+      ]
+    },
+    {
+      "version": "v1.6.0",
+      "date": "2026-05-25",
+      "category": "audits",
+      "kind": "feature",
+      "title": "One audit_screen across every platform",
+      "changes": [
+        "Cross-platform audit_screen routes web, iOS, Android, and React Native through one entry point.",
+        "Android screens join the native audit lineup.",
+        "The mobile and native audit tools are now surfaced directly on the site."
+      ]
+    },
+    {
+      "version": "v1.5.0",
+      "date": "2026-05-25",
+      "category": "audits",
+      "kind": "new",
+      "title": "iOS, SwiftUI, and React Native audits",
+      "changes": [
+        "New iOS and SwiftUI audit suite — audit_swiftui, audit_ios_screen, and audit_ios_privacy.",
+        "New React Native and Expo audit — audit_rn plus Expo privacy checks."
+      ]
+    },
+    {
+      "version": "v1.4.0",
+      "date": "2026-05-19",
+      "category": "knowledge",
+      "kind": "improvement",
+      "title": "Sharper sources and clearer attribution",
+      "changes": [
+        "Content design systems tightened to four canonical references: Mailchimp, GOV.UK, Shopify Polaris, and Atlassian.",
+        "Laws of UX entries now cite their primary academic sources (Fitts 1954, Hick 1952, Miller 1956, and others).",
+        "Added a NOTICE file with full third-party attribution, plus CONTRIBUTING, CODE_OF_CONDUCT, and CODEOWNERS."
+      ]
+    },
+    {
+      "version": "v1.3.0",
+      "date": "2026-04-23",
+      "category": "knowledge",
+      "kind": "feature",
+      "title": "Research, service design, and brand layers",
+      "changes": [
+        "Added research methods, service-design blueprints, and a brand and visual knowledge layer.",
+        "Two-actor, human-in-the-loop service blueprints with persona avatars beside each lane.",
+        "Rebranded the site and metadata to RavenMCP."
+      ]
+    },
+    {
+      "version": "v1.2.0",
+      "date": "2026-04-22",
+      "category": "knowledge",
+      "kind": "new",
+      "title": "Content systems and on-device learning",
+      "changes": [
+        "Added content design systems — voice, writing principles, and copy patterns.",
+        "Raven now learns from local usage, insight-only and never leaving your machine, with an optional daily digest.",
+        "Shipped Claude Desktop Extension (.mcpb) packaging and end-to-end release automation."
+      ]
+    }
+  ]
+}

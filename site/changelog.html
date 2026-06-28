@@ -3,17 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Changelog — Raven MCP</title>
-  <meta name="description" content="What's new in Raven MCP. Weekly releases with new design principles, patterns, tokens, and fixes.">
+  <title>Changelog — RavenMCP</title>
+  <meta name="description" content="Everything shipping to RavenMCP — new tools, audits, design-system knowledge, and fixes, in one stream.">
+  <link rel="canonical" href="https://ravenmcp.ai/changelog.html">
   <link rel="icon" href="/favicon.ico" sizes="32x32">
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
-  <meta property="og:title" content="Changelog — Raven MCP">
-  <meta property="og:description" content="Every release. Every new principle. Every fix.">
+  <meta property="og:title" content="Changelog — RavenMCP">
+  <meta property="og:description" content="Everything we're shipping — every RavenMCP release, in one stream.">
   <meta property="og:image" content="https://ravenmcp.ai/assets/og-image.jpg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
+    /* Page base — the Next port gets this from globals.css; the standalone
+       static page must set it itself so translucent cards composite over dark. */
+    html { background: #1a1a22; }
+    body { margin: 0; background: #1a1a22; color: #F0F0F2; font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    *, *::before, *::after { box-sizing: border-box; }
+/* Changelog — RavenMCP. Mirrors highlvl.fit/changelog (eyebrow + display
+       headline, filter pills, left-rail timeline with node dots, release cards)
+       reskinned in Raven's design language. All rules scoped under .cl-* so this
+       sheet never leaks into other routes. */
+    
     :root {
       --bg-base: #1a1a22;
       --bg-surface: #212129;
@@ -36,169 +47,251 @@
       --space-12: 48px; --space-16: 64px; --space-20: 80px;
       --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
       --nav-height: 64px;
-      --max-width: 880px;
+      --cl-max: 1040px;
     }
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: var(--font-body);
-      background: var(--bg-base);
-      color: var(--text-primary);
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-    }
-    .wrap {
-      max-width: var(--max-width);
+    
+    .cl-wrap {
+      max-width: var(--cl-max);
       margin: 0 auto;
-      padding: calc(var(--nav-height) + var(--space-16)) clamp(16px, 4vw, 24px) var(--space-20);
+      padding: 0 clamp(20px, 5vw, 40px) var(--space-20);
+      font-family: var(--font-body);
+      color: var(--text-primary);
     }
-    .hero h1 {
-      font-size: clamp(32px, 5vw, 48px);
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      margin-bottom: var(--space-3);
+    
+    /* ─────────────────────────── Hero ─────────────────────────── */
+    .cl-hero {
+      position: relative;
+      isolation: isolate;
+      padding-top: calc(var(--nav-height) + clamp(72px, 12vw, 128px));
+      padding-bottom: clamp(40px, 6vw, 64px);
     }
-    .hero .accent { color: var(--text-accent); }
-    .hero p {
-      font-size: 17px;
-      color: var(--text-secondary);
-      max-width: 560px;
-      margin-bottom: var(--space-16);
+    .cl-hero-glow {
+      pointer-events: none;
+      position: absolute;
+      inset: -96px 0 auto 0;
+      height: 60vh;
+      z-index: -1;
+      background: radial-gradient(50% 60% at 30% 0%, rgba(0, 191, 255, 0.16) 0%, rgba(0, 191, 255, 0) 70%);
     }
-    .release {
-      background: var(--bg-surface);
-      border: 1px solid var(--border-strong);
-      border-radius: var(--radius-lg);
-      padding: var(--space-8);
+    .cl-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
       margin-bottom: var(--space-6);
     }
-    .release-head {
-      display: flex;
-      align-items: baseline;
-      gap: var(--space-3);
-      flex-wrap: wrap;
-      margin-bottom: var(--space-5);
-      padding-bottom: var(--space-5);
-      border-bottom: 1px solid var(--border);
-    }
-    .release-head h2 {
-      font-size: 24px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      font-family: var(--font-mono);
-    }
-    .release-head time {
-      color: var(--text-tertiary);
-      font-size: 14px;
-      margin-left: auto;
-    }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 2px 10px;
-      border-radius: 100px;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-    .badge-major {
-      background: rgba(255, 171, 64, 0.12);
-      color: var(--accent-orange);
-      border: 1px solid rgba(255, 171, 64, 0.3);
-    }
-    .badge-minor {
-      background: rgba(0, 230, 118, 0.1);
-      color: var(--accent-green);
-      border: 1px solid rgba(0, 230, 118, 0.3);
-    }
-    .badge-patch, .badge-initial {
-      background: var(--bg-accent-subtle);
-      color: var(--text-accent);
-      border: 1px solid var(--border-accent);
-    }
-    .release-body h3 {
-      font-size: 15px;
-      font-weight: 700;
+    .cl-headline {
+      font-size: clamp(44px, 8vw, 88px);
+      font-weight: 800;
+      line-height: 1.02;
+      letter-spacing: -0.02em;
       color: var(--text-primary);
-      margin-top: var(--space-5);
-      margin-bottom: var(--space-3);
     }
-    .release-body h3:first-child { margin-top: 0; }
-    .release-body h4 {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-tertiary);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-top: var(--space-5);
-      margin-bottom: var(--space-3);
+    .cl-headline-accent {
+      display: block;
+      color: var(--text-accent);
     }
-    .release-body p {
+    .cl-lede {
+      margin-top: var(--space-8);
+      max-width: 46rem;
+      font-size: clamp(17px, 2vw, 20px);
+      line-height: 1.6;
       color: var(--text-secondary);
-      margin-bottom: var(--space-3);
-      font-size: 15px;
     }
-    .release-body ul {
+    
+    /* ─────────────────────────── Filter pills ─────────────────────────── */
+    .cl-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      margin-bottom: var(--space-10);
+    }
+    .cl-pill {
+      min-height: 40px;
+      padding: 0 var(--space-4);
+      border-radius: 999px;
+      border: 1px solid var(--border-strong);
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s, background 0.2s;
+    }
+    .cl-pill:hover {
+      color: var(--text-primary);
+      border-color: var(--border-accent);
+    }
+    .cl-pill.is-active {
+      border-color: var(--text-accent);
+      background: rgba(0, 191, 255, 0.1);
+      color: var(--text-accent);
+    }
+    
+    /* ─────────────────────────── Timeline ─────────────────────────── */
+    .cl-timeline {
+      position: relative;
       list-style: none;
+      border-left: 1px solid var(--border-strong);
+      margin-left: 7px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+    }
+    .cl-item {
+      position: relative;
+      padding-left: clamp(28px, 4vw, 40px);
+    }
+    .cl-node {
+      position: absolute;
+      left: -7px;
+      top: 28px;
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      background: var(--text-tertiary);
+      box-shadow: 0 0 0 4px var(--bg-base);
+    }
+    /* Quiet per-area color cue so the eye can group the stream at a glance. */
+    .cl-node.cat-audits, .cl-dot.cat-audits { background: var(--accent-blue); }
+    .cl-node.cat-knowledge, .cl-dot.cat-knowledge { background: var(--accent-green); }
+    .cl-node.cat-tooling, .cl-dot.cat-tooling { background: var(--accent-orange); }
+    
+    .cl-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: rgba(33, 33, 41, 0.6);
+      padding: clamp(20px, 3vw, 28px);
+      transition: border-color 0.2s;
+    }
+    .cl-card:hover { border-color: var(--border-accent); }
+    
+    .cl-card-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2) var(--space-3);
       margin-bottom: var(--space-4);
     }
-    .release-body li {
-      color: var(--text-secondary);
-      font-size: 15px;
-      padding: 4px 0 4px 18px;
-      position: relative;
+    .cl-surface {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
     }
-    .release-body li::before {
-      content: "";
-      position: absolute;
-      left: 4px;
-      top: 14px;
-      width: 4px;
-      height: 4px;
-      border-radius: 50%;
+    .cl-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
       background: var(--text-tertiary);
     }
-    .release-body code {
+    .cl-version {
       font-family: var(--font-mono);
       font-size: 13px;
-      background: var(--bg-raised);
-      padding: 2px 6px;
-      border-radius: 4px;
-      color: var(--text-accent);
+      letter-spacing: 0.12em;
+      color: var(--text-secondary);
     }
-    .release-body a {
+    .cl-badge {
+      padding: 2px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border-strong);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .cl-badge.kind-new {
+      color: var(--accent-blue);
+      border-color: rgba(0, 191, 255, 0.4);
+      background: rgba(0, 191, 255, 0.08);
+    }
+    .cl-badge.kind-feature {
+      color: var(--accent-green);
+      border-color: rgba(0, 230, 118, 0.4);
+      background: rgba(0, 230, 118, 0.08);
+    }
+    .cl-date {
+      margin-left: auto;
+      font-size: 14px;
+      color: var(--text-tertiary);
+    }
+    .cl-title {
+      font-size: clamp(18px, 2.2vw, 22px);
+      font-weight: 600;
+      line-height: 1.3;
+      color: var(--text-primary);
+      margin-bottom: var(--space-4);
+    }
+    .cl-changes {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+    .cl-changes li {
+      position: relative;
+      padding-left: var(--space-5);
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+    .cl-changes li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.62em;
+      width: 4px;
+      height: 4px;
+      border-radius: 999px;
+      background: var(--text-tertiary);
+    }
+    
+    .cl-empty {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: rgba(33, 33, 41, 0.6);
+      padding: var(--space-12);
+      text-align: center;
+      color: var(--text-secondary);
+    }
+    
+    /* ─────────────────────────── Footer ─────────────────────────── */
+    .cl-foot {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-3) var(--space-6);
+      margin-top: var(--space-16);
+      padding-top: var(--space-12);
+      border-top: 1px solid var(--border);
+      font-size: 14px;
+    }
+    .cl-foot-primary {
       color: var(--text-accent);
       text-decoration: none;
+      transition: opacity 0.2s;
     }
-    .release-body a:hover { text-decoration: underline; }
-    .release-foot {
-      margin-top: var(--space-5);
-      padding-top: var(--space-5);
-      border-top: 1px solid var(--border);
-    }
-    .release-foot a {
-      font-size: 13px;
-      color: var(--text-tertiary);
+    .cl-foot-primary:hover { opacity: 0.8; }
+    .cl-foot-secondary {
+      color: var(--text-secondary);
       text-decoration: none;
       transition: color 0.2s;
     }
-    .release-foot a:hover { color: var(--text-accent); }
-    .empty {
-      background: var(--bg-surface);
-      border: 1px solid var(--border-strong);
-      border-radius: var(--radius-lg);
-      padding: var(--space-16) var(--space-8);
-      text-align: center;
-    }
-    .empty h2 {
-      font-size: 22px;
-      font-weight: 700;
-      margin-bottom: var(--space-3);
-    }
-    .empty p {
-      color: var(--text-secondary);
-      max-width: 420px;
-      margin: 0 auto;
+    .cl-foot-secondary:hover { color: var(--text-primary); }
+    
+    /* Honor reduced-motion across both surfaces (this sheet is inlined into the
+       static page by gen-changelog-html.mjs, so one clamp covers Next + static). */
+    @media (prefers-reduced-motion: reduce) {
+      .cl-pill, .cl-card, .cl-foot-primary, .cl-foot-secondary {
+        transition-duration: 0.001ms;
+      }
     }
   </style>
 </head>
@@ -206,378 +299,274 @@
   <script src="assets/nav.js"></script>
   <raven-nav></raven-nav>
 
-  <main class="wrap">
-    <header class="hero">
-      <h1>What's new in <span class="accent">Raven</span></h1>
-      <p>We ship a new release every Friday with fresh design knowledge, new patterns, and fixes. Follow along here.</p>
-    </header>
+  <main id="main" class="cl-wrap">
+    <section class="cl-hero" aria-labelledby="cl-hero-heading">
+      <div class="cl-hero-glow" aria-hidden="true"></div>
+      <p class="cl-eyebrow">Changelog</p>
+      <h1 id="cl-hero-heading" class="cl-headline">Everything<span class="cl-headline-accent">we&rsquo;re shipping.</span></h1>
+      <p class="cl-lede">We ship a new release every Friday. New tools, sharper audits, fresh design knowledge, and fixes land constantly — here&rsquo;s every update, in one place.</p>
+    </section>
 
-    
-    <article class="release">
-      <header class="release-head">
-        <h2>v1.6.2</h2>
-        <span class="badge badge-patch">patch</span>
-        <time datetime="2026-06-12T19:15:05Z">June 12, 2026</time>
-      </header>
-      <div class="release-body">
-        <p>Raven v1.6.2 — patch release</p>
-
-<h3>Changes</h3>
-<ul>
-<li>audit_page: token-aware container-width check (#9, part 1) (#10)</li>
-</ul>
-
-<p><strong>Install:</strong></p>
-<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
-
-
+    <section class="cl-feed">
+      <div role="tablist" aria-label="Filter updates by area" class="cl-filters">
+        <button role="tab" class="cl-pill is-active" aria-selected="true" data-filter="all">All updates</button>
+        <button role="tab" class="cl-pill" aria-selected="false" data-filter="audits">Audits</button>
+        <button role="tab" class="cl-pill" aria-selected="false" data-filter="knowledge">Knowledge</button>
+        <button role="tab" class="cl-pill" aria-selected="false" data-filter="tooling">Tooling</button>
       </div>
-      <footer class="release-foot">
-        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.6.2" target="_blank" rel="noopener">View on GitHub &rarr;</a>
+
+      <ol class="cl-timeline">
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v1.12.1</span>
+              <span class="cl-badge kind-improvement">Improvement</span>
+              <time datetime="2026-06-26" class="cl-date">June 26, 2026</time>
+            </header>
+            <h2 class="cl-title">Award-grade site refresh</h2>
+            <ul class="cl-changes">
+              <li>Rebuilt the homepage to an award-grade standard and gave this changelog its own timeline.</li>
+              <li>Removed the hard seams between sections so the page reads as one continuous surface.</li>
+              <li>Cleaned dead navigation links out of the header.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="audits">
+          <span aria-hidden="true" class="cl-node cat-audits"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
+              <span class="cl-version">v1.11.0</span>
+              <span class="cl-badge kind-feature">Feature</span>
+              <time datetime="2026-06-21" class="cl-date">June 21, 2026</time>
+            </header>
+            <h2 class="cl-title">Catch cropped device mockups before they ship</h2>
+            <ul class="cl-changes">
+              <li>New audit_device_frame — flags content sliced off inside phone and laptop mockups, checking frame geometry, baked-in pan/zoom drift, and edge truncation.</li>
+              <li>Added color-systems principles — palette discipline of ten or fewer page colors on a role-based token set.</li>
+              <li>Added spacing-systems principles — an 8px base grid and a tight, limited spacing scale.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v1.12.0</span>
+              <span class="cl-badge kind-feature">Feature</span>
+              <time datetime="2026-06-21" class="cl-date">June 21, 2026</time>
+            </header>
+            <h2 class="cl-title">Compact responses and one-step contrast fixes</h2>
+            <ul class="cl-changes">
+              <li>New compact response mode for audit_page, evaluate_design, and audit_url — return just scores, violations, and fix priority, dropping embedded screenshots and full principle bodies.</li>
+              <li>New suggest_contrast_fix tool — hand it a failing WCAG color pair and it returns the minimal color change that clears the AA/AAA target, with the achieved ratio.</li>
+              <li>audit_contrast now composites text over its full ancestor stack, eliminating false AA failures on dark, layered UIs.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="audits">
+          <span aria-hidden="true" class="cl-node cat-audits"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
+              <span class="cl-version">v1.9.0</span>
+              <span class="cl-badge kind-new">New</span>
+              <time datetime="2026-06-19" class="cl-date">June 19, 2026</time>
+            </header>
+            <h2 class="cl-title">Raven now renders and looks at real pixels</h2>
+            <ul class="cl-changes">
+              <li>New audit_url — renders a live URL at every viewport and theme, scroll-settles reveals, plays videos, and fires hover, click, and focus before capturing.</li>
+              <li>Catches the real-world nits that HTML-only audits miss: cropped images, blank videos, hover white-wash, sliced exports, and content hidden on mobile.</li>
+              <li>Every finding is tagged confirmed, likely-artifact, or inconclusive and ranked by severity — so you only fix what's real.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="audits">
+          <span aria-hidden="true" class="cl-node cat-audits"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
+              <span class="cl-version">v1.10.0</span>
+              <span class="cl-badge kind-feature">Feature</span>
+              <time datetime="2026-06-19" class="cl-date">June 19, 2026</time>
+            </header>
+            <h2 class="cl-title">Content, typography, and tap-target audits</h2>
+            <ul class="cl-changes">
+              <li>New audit_content — per-item verdicts for headings, prose, CTAs, labels, and metrics, each with the principle it matched and a before-to-after rewrite.</li>
+              <li>New audit_typography — detects your modular scale and flags off-scale sizes, inconsistent line-height, and bloated weight ladders.</li>
+              <li>New audit_tap_targets — finds every interactive element below the 44px minimum and returns a concrete CSS fix, worst-first.</li>
+              <li>Blank-video detection now names the real reason and only confirms genuinely broken media.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="audits">
+          <span aria-hidden="true" class="cl-node cat-audits"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
+              <span class="cl-version">v1.7.0</span>
+              <span class="cl-badge kind-feature">Feature</span>
+              <time datetime="2026-06-18" class="cl-date">June 18, 2026</time>
+            </header>
+            <h2 class="cl-title">Contrast, responsive, and interaction-state audits</h2>
+            <ul class="cl-changes">
+              <li>New audit_contrast — exact WCAG 2.1 ratios for every text element, with the delta needed to pass.</li>
+              <li>New audit_responsive_visibility — renders at multiple breakpoints and flags content shown on desktop but hidden on mobile.</li>
+              <li>audit_page can now fire hover, click, and focus before the screenshot — so transient defects like a theme-toggle white-wash become visible.</li>
+              <li>Optional adversarial_verify re-checks each finding a second way and tags it confirmed or likely-artifact.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="audits">
+          <span aria-hidden="true" class="cl-node cat-audits"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
+              <span class="cl-version">v1.8.0</span>
+              <span class="cl-badge kind-feature">Feature</span>
+              <time datetime="2026-06-18" class="cl-date">June 18, 2026</time>
+            </header>
+            <h2 class="cl-title">Contract, parity, and iOS accessibility audits</h2>
+            <ul class="cl-changes">
+              <li>New audit_contract and audit_api_contract — verify a wire contract is identical across iOS, proxy, and Android source, and catch live responses that pass shape but are wrong.</li>
+              <li>New audit_parity — compares an iOS screen to its Android counterpart against named spatial relationships and reports cross-platform drift.</li>
+              <li>New audit_ios_a11y — scores an iOS snapshot for labels, traits, tap targets, contrast, Dynamic Type clipping, and VoiceOver order.</li>
+              <li>iOS capture can now fire interactions and freeze animations for pixel-stable shots.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="audits">
+          <span aria-hidden="true" class="cl-node cat-audits"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
+              <span class="cl-version">v1.6.2</span>
+              <span class="cl-badge kind-fix">Fix</span>
+              <time datetime="2026-06-12" class="cl-date">June 12, 2026</time>
+            </header>
+            <h2 class="cl-title">Token-aware container widths</h2>
+            <ul class="cl-changes">
+              <li>audit_page's max-width check now flags containers that diverge from your design system's canonical content width, instead of a generic heuristic.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="audits">
+          <span aria-hidden="true" class="cl-node cat-audits"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
+              <span class="cl-version">v1.5.0</span>
+              <span class="cl-badge kind-new">New</span>
+              <time datetime="2026-05-25" class="cl-date">May 25, 2026</time>
+            </header>
+            <h2 class="cl-title">iOS, SwiftUI, and React Native audits</h2>
+            <ul class="cl-changes">
+              <li>New iOS and SwiftUI audit suite — audit_swiftui, audit_ios_screen, and audit_ios_privacy.</li>
+              <li>New React Native and Expo audit — audit_rn plus Expo privacy checks.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="audits">
+          <span aria-hidden="true" class="cl-node cat-audits"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
+              <span class="cl-version">v1.6.0</span>
+              <span class="cl-badge kind-feature">Feature</span>
+              <time datetime="2026-05-25" class="cl-date">May 25, 2026</time>
+            </header>
+            <h2 class="cl-title">One audit_screen across every platform</h2>
+            <ul class="cl-changes">
+              <li>Cross-platform audit_screen routes web, iOS, Android, and React Native through one entry point.</li>
+              <li>Android screens join the native audit lineup.</li>
+              <li>The mobile and native audit tools are now surfaced directly on the site.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="knowledge">
+          <span aria-hidden="true" class="cl-node cat-knowledge"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-knowledge"></span>Knowledge</span>
+              <span class="cl-version">v1.4.0</span>
+              <span class="cl-badge kind-improvement">Improvement</span>
+              <time datetime="2026-05-19" class="cl-date">May 19, 2026</time>
+            </header>
+            <h2 class="cl-title">Sharper sources and clearer attribution</h2>
+            <ul class="cl-changes">
+              <li>Content design systems tightened to four canonical references: Mailchimp, GOV.UK, Shopify Polaris, and Atlassian.</li>
+              <li>Laws of UX entries now cite their primary academic sources (Fitts 1954, Hick 1952, Miller 1956, and others).</li>
+              <li>Added a NOTICE file with full third-party attribution, plus CONTRIBUTING, CODE_OF_CONDUCT, and CODEOWNERS.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="knowledge">
+          <span aria-hidden="true" class="cl-node cat-knowledge"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-knowledge"></span>Knowledge</span>
+              <span class="cl-version">v1.3.0</span>
+              <span class="cl-badge kind-feature">Feature</span>
+              <time datetime="2026-04-23" class="cl-date">April 23, 2026</time>
+            </header>
+            <h2 class="cl-title">Research, service design, and brand layers</h2>
+            <ul class="cl-changes">
+              <li>Added research methods, service-design blueprints, and a brand and visual knowledge layer.</li>
+              <li>Two-actor, human-in-the-loop service blueprints with persona avatars beside each lane.</li>
+              <li>Rebranded the site and metadata to RavenMCP.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="knowledge">
+          <span aria-hidden="true" class="cl-node cat-knowledge"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-knowledge"></span>Knowledge</span>
+              <span class="cl-version">v1.2.0</span>
+              <span class="cl-badge kind-new">New</span>
+              <time datetime="2026-04-22" class="cl-date">April 22, 2026</time>
+            </header>
+            <h2 class="cl-title">Content systems and on-device learning</h2>
+            <ul class="cl-changes">
+              <li>Added content design systems — voice, writing principles, and copy patterns.</li>
+              <li>Raven now learns from local usage, insight-only and never leaving your machine, with an optional daily digest.</li>
+              <li>Shipped Claude Desktop Extension (.mcpb) packaging and end-to-end release automation.</li>
+            </ul>
+          </article>
+        </li>
+      </ol>
+
+      <footer class="cl-foot">
+        <a href="/" class="cl-foot-primary">&larr; Back to RavenMCP</a>
+        <a href="/docs.html" class="cl-foot-secondary">Get started</a>
       </footer>
-    </article>
-
-    <article class="release">
-      <header class="release-head">
-        <h2>v1.6.1</h2>
-        <span class="badge badge-patch">patch</span>
-        <time datetime="2026-05-29T19:37:31Z">May 29, 2026</time>
-      </header>
-      <div class="release-body">
-        <p>Raven v1.6.1 — patch release</p>
-
-<h3>Changes</h3>
-<ul>
-<li>46f0fc7 Update changelog for v1.6.0</li>
-</ul>
-
-<p><strong>Install:</strong></p>
-<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
-
-
-      </div>
-      <footer class="release-foot">
-        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.6.1" target="_blank" rel="noopener">View on GitHub &rarr;</a>
-      </footer>
-    </article>
-
-    <article class="release">
-      <header class="release-head">
-        <h2>v1.6.0</h2>
-        <span class="badge badge-minor">minor</span>
-        <time datetime="2026-05-25T21:43:49Z">May 25, 2026</time>
-      </header>
-      <div class="release-body">
-        <p>Raven v1.6.0 — minor release</p>
-
-<h3>Changes</h3>
-<ul>
-<li>9f59589 docs: audit_compose spec; handoff; gitignore .gstack/</li>
-<li>d55d083 site: 32 tools, cross-platform audit_screen, Android in audits list</li>
-<li>b5ecffe Fix ios-privacy HealthKit advice; add cross-platform audit_screen</li>
-<li>06363bf site: surface the mobile/native audit tools</li>
-<li>dbdd2c2 CI: bump checkout/setup-node to v5 (Node 24)</li>
-<li>484e013 Update changelog for v1.5.0</li>
-</ul>
-
-<p><strong>Install:</strong></p>
-<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
-
-
-      </div>
-      <footer class="release-foot">
-        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.6.0" target="_blank" rel="noopener">View on GitHub &rarr;</a>
-      </footer>
-    </article>
-
-    <article class="release">
-      <header class="release-head">
-        <h2>v1.5.0</h2>
-        <span class="badge badge-minor">minor</span>
-        <time datetime="2026-05-25T19:05:45Z">May 25, 2026</time>
-      </header>
-      <div class="release-body">
-        <p>Raven v1.5.0 — minor release</p>
-
-<h3>Changes</h3>
-<ul>
-<li>fe69624 Add React Native / Expo audit (audit_rn + Expo privacy)</li>
-<li>01e003a Add iOS/SwiftUI audit suite (audit_swiftui, audit_ios_screen, audit_ios_privacy)</li>
-</ul>
-
-<p><strong>Install:</strong></p>
-<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
-
-
-      </div>
-      <footer class="release-foot">
-        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.5.0" target="_blank" rel="noopener">View on GitHub &rarr;</a>
-      </footer>
-    </article>
-
-    <article class="release">
-      <header class="release-head">
-        <h2>v1.4.1</h2>
-        <span class="badge badge-patch">patch</span>
-        <time datetime="2026-05-22T18:58:41Z">May 22, 2026</time>
-      </header>
-      <div class="release-body">
-        <p>Raven v1.4.1 — patch release</p>
-
-<h3>Changes</h3>
-<ul>
-<li>cc81189 Refresh site changelog from GitHub release notes</li>
-<li>a9d8937 Reword v1.4.0 changelog entry</li>
-<li>823a04b Update changelog for v1.4.0</li>
-</ul>
-
-<p><strong>Install:</strong></p>
-<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
-
-
-      </div>
-      <footer class="release-foot">
-        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.4.1" target="_blank" rel="noopener">View on GitHub &rarr;</a>
-      </footer>
-    </article>
-
-    <article class="release">
-      <header class="release-head">
-        <h2>v1.4.0</h2>
-        <span class="badge badge-minor">minor</span>
-        <time datetime="2026-05-19T18:43:45Z">May 19, 2026</time>
-      </header>
-      <div class="release-body">
-        <p>Raven v1.4.0 — minor release</p>
-
-<h3>Changes</h3>
-<ul>
-<li>Content design systems registry tightened to four canonical references: Mailchimp, GOV.UK, Shopify Polaris, Atlassian. <code>list_content_systems</code> now returns 4 systems.</li>
-<li>Refreshed Laws of UX entries — descriptions tightened and source citations point to primary academic references (Fitts 1954, Hick 1952, Miller 1956, Doherty &amp; Thadani 1982, and others).</li>
-<li>Refreshed Mailchimp content system — original commentary on the publicly documented voice with an explicit attribution field.</li>
-<li>Added <code>NOTICE</code> file at repo root — third-party attribution for every upstream source referenced in <code>src/data/</code>.</li>
-<li>Added <code>CONTRIBUTING.md</code>, <code>CODE_OF_CONDUCT.md</code>, <code>CODEOWNERS</code>, <code>CHANGELOG.md</code>.</li>
-<li>New &quot;License &amp; attribution&quot; section in README pointing to <code>NOTICE</code>.</li>
-</ul>
-
-<p><strong>Install:</strong> <code>claude mcp add raven -- npx -y raven-mcp@latest</code></p>
-<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
-
-      </div>
-      <footer class="release-foot">
-        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.4.0" target="_blank" rel="noopener">View on GitHub &rarr;</a>
-      </footer>
-    </article>
-
-    <article class="release">
-      <header class="release-head">
-        <h2>v1.3.6</h2>
-        <span class="badge badge-patch">patch</span>
-        <time datetime="2026-05-15T18:26:18Z">May 15, 2026</time>
-      </header>
-      <div class="release-body">
-        <p>Raven v1.3.6 — patch release</p>
-
-<h3>Changes</h3>
-<ul>
-<li>Sync server.json to v1.3.5 + auto-sync in release.sh (#6)</li>
-</ul>
-
-<p><strong>Install:</strong></p>
-<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
-
-
-      </div>
-      <footer class="release-foot">
-        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.3.6" target="_blank" rel="noopener">View on GitHub &rarr;</a>
-      </footer>
-    </article>
-
-    <article class="release">
-      <header class="release-head">
-        <h2>v1.3.5</h2>
-        <span class="badge badge-patch">patch</span>
-        <time datetime="2026-05-08T18:20:40Z">May 8, 2026</time>
-      </header>
-      <div class="release-body">
-        <p>Raven v1.3.5 — patch release</p>
-
-<h3>Changes</h3>
-<ul>
-<li>Security: bump @modelcontextprotocol/sdk + @anthropic-ai/sdk, harden data loading (#5)</li>
-</ul>
-
-<p><strong>Install:</strong></p>
-<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
-
-
-      </div>
-      <footer class="release-foot">
-        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.3.5" target="_blank" rel="noopener">View on GitHub &rarr;</a>
-      </footer>
-    </article>
-
-    <article class="release">
-      <header class="release-head">
-        <h2>v1.3.3</h2>
-        <span class="badge badge-patch">patch</span>
-        <time datetime="2026-05-04T17:25:01Z">May 4, 2026</time>
-      </header>
-      <div class="release-body">
-        <p>Raven v1.3.3 — patch release</p>
-
-<h3>Changes</h3>
-<ul>
-<li>32e730c Add MCP Registry metadata (mcpName + server.json)</li>
-<li>92165a1 Update changelog for v1.3.2</li>
-</ul>
-
-<p><strong>Install:</strong></p>
-<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
-
-
-      </div>
-      <footer class="release-foot">
-        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.3.3" target="_blank" rel="noopener">View on GitHub &rarr;</a>
-      </footer>
-    </article>
-
-    <article class="release">
-      <header class="release-head">
-        <h2>v1.3.2</h2>
-        <span class="badge badge-patch">patch</span>
-        <time datetime="2026-05-01T18:04:25Z">May 1, 2026</time>
-      </header>
-      <div class="release-body">
-        <p>Raven v1.3.2 — patch release</p>
-
-<h3>Changes</h3>
-<ul>
-<li>51feb07 Equal-height pricing cards</li>
-<li>ca21b81 Full terminal/video swap: terminal at hero, video lower</li>
-<li>a0116ce Swap terminal and video positions — terminal now comes first, before mythology section</li>
-<li>7638a41 Audit fixes + live install stats card</li>
-<li>0f13f6f Session log — 2026-04-24</li>
-<li>636a8c8 Update changelog for v1.3.1</li>
-</ul>
-
-<p><strong>Install:</strong></p>
-<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
-
-
-      </div>
-      <footer class="release-foot">
-        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.3.2" target="_blank" rel="noopener">View on GitHub &rarr;</a>
-      </footer>
-    </article>
-
-    <article class="release">
-      <header class="release-head">
-        <h2>v1.3.1</h2>
-        <span class="badge badge-patch">patch</span>
-        <time datetime="2026-04-24T17:54:51Z">April 24, 2026</time>
-      </header>
-      <div class="release-body">
-        <p>Raven v1.3.1 — patch release</p>
-
-<h3>Changes</h3>
-<ul>
-<li>a6303e3 Site content refresh for v1.2 + v1.3</li>
-<li>9201bdd Update changelog for v1.3.0</li>
-</ul>
-
-<p><strong>Install:</strong></p>
-<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
-
-
-      </div>
-      <footer class="release-foot">
-        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.3.1" target="_blank" rel="noopener">View on GitHub &rarr;</a>
-      </footer>
-    </article>
-
-    <article class="release">
-      <header class="release-head">
-        <h2>v1.3.0</h2>
-        <span class="badge badge-minor">minor</span>
-        <time datetime="2026-04-23T20:53:01Z">April 23, 2026</time>
-      </header>
-      <div class="release-body">
-        <p>Raven v1.3.0 — minor release</p>
-
-<h3>Changes</h3>
-<ul>
-<li>e6a70fd Blueprint: match row order across both lanes</li>
-<li>3709cec Blueprint: let row-type colors carry the row semantics in both lanes</li>
-<li>0110fdf Blueprint: stronger actor differentiation</li>
-<li>dc1ff35 Blueprint: persona avatars next to lane labels</li>
-<li>ed7ac55 Blueprint: render empty cells as blank, not em-dash placeholders</li>
-<li>aa3bc76 Two-actor / HI-loop service blueprints</li>
-<li>3c00624 v1.3 knowledge: research, service design, brand/visual layers</li>
-<li>9373cbe Session log + revisit — 2026-04-22</li>
-<li>6ed5071 Docs H1 + meta to RavenMCP wordmark</li>
-<li>6b4930b Rebrand site header + metadata to RavenMCP</li>
-<li>89b6914 Nav link to Updates section</li>
-<li>9620cf4 Mailing list CTAs on the three surfaces users see</li>
-<li>dae1d81 Add --debug flag to dump logs.list/logs.get shape</li>
-<li>8478d8b Backfill script — walk logs.list instead of emails.list</li>
-<li>959a76a Resend audience backfill script</li>
-<li>d494403 Update changelog for v1.2.0</li>
-</ul>
-
-<p><strong>Install:</strong></p>
-<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
-
-
-      </div>
-      <footer class="release-foot">
-        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.3.0" target="_blank" rel="noopener">View on GitHub &rarr;</a>
-      </footer>
-    </article>
-
-    <article class="release">
-      <header class="release-head">
-        <h2>v1.2.0</h2>
-        <span class="badge badge-initial">initial</span>
-        <time datetime="2026-04-22T22:39:50Z">April 22, 2026</time>
-      </header>
-      <div class="release-body">
-        <p>Raven v1.2.0 — minor release</p>
-
-<h3>Changes</h3>
-<ul>
-<li>6e98d29 Release via npm OIDC trusted publishing</li>
-<li>6e5fafc Content design systems — voice, writing principles, copy patterns</li>
-<li>a51eb76 Session logs — 2026-04-11 and 2026-04-17</li>
-<li>b5dbd65 OG card + wallpaper design experiments</li>
-<li>5046f6e Welcome email — dark-mode hardening for Gmail/Outlook</li>
-<li>4c59ac6 Daily digest — in-server injection + launchd agent at 18:00 local</li>
-<li>ed23f42 Raven learns from local usage — passive, insight-only, never leaves the machine</li>
-<li>c79fece End-to-end release automation</li>
-<li>26107e0 Route gh/git content through tmpfiles to avoid shell interpretation</li>
-<li>91a63e5 Map RAVEN_KNOWLEDGE_PR secret to ANTHROPIC_API_KEY env var</li>
-<li>86609b1 Bump workflow runtime to Node.js 24</li>
-<li>92692ce Add weekly knowledge-PR pipeline + release script</li>
-<li>f53f8b9 Lead docs install with npm/CLI, keep .mcpb as secondary</li>
-<li>d137355 Package Raven as a Claude Desktop Extension (.mcpb)</li>
-<li>0f06086 Add build prompt clip to sizzle reel</li>
-<li>35f5c5f Test Vercel auto-deploy from git push</li>
-<li>0c71445 Re-render sizzle reel with OffthreadVideo for smooth playback</li>
-<li>2ee3a6c Add sizzle reel video to homepage</li>
-<li>9005f8a Switch OG image to compressed JPEG (827KB→80KB), add dimension meta tags</li>
-<li>3b7db99 Add missing --space-7 token, use tokens not hardcoded values</li>
-</ul>
-
-<p><strong>Install:</strong></p>
-<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
-
-
-      </div>
-      <footer class="release-foot">
-        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.2.0" target="_blank" rel="noopener">View on GitHub &rarr;</a>
-      </footer>
-    </article>
+    </section>
   </main>
+
+  <script>
+    // Filter pills — show only releases whose data-category matches (or 'all').
+    (function () {
+      var pills = document.querySelectorAll('.cl-pill');
+      var items = document.querySelectorAll('.cl-item');
+      pills.forEach(function (pill) {
+        pill.addEventListener('click', function () {
+          var f = pill.getAttribute('data-filter');
+          pills.forEach(function (p) {
+            var on = p === pill;
+            p.classList.toggle('is-active', on);
+            p.setAttribute('aria-selected', on ? 'true' : 'false');
+          });
+          items.forEach(function (it) {
+            var show = f === 'all' || it.getAttribute('data-category') === f;
+            it.style.display = show ? '' : 'none';
+          });
+        });
+      });
+    })();
+  </script>
 
   <script src="assets/footer.js"></script>
   <raven-footer></raven-footer>

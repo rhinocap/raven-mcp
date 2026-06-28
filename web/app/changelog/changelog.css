@@ -1,3 +1,8 @@
+/* Changelog — RavenMCP. Mirrors highlvl.fit/changelog (eyebrow + display
+   headline, filter pills, left-rail timeline with node dots, release cards)
+   reskinned in Raven's design language. All rules scoped under .cl-* so this
+   sheet never leaks into other routes. */
+
 :root {
   --bg-base: #1a1a22;
   --bg-surface: #212129;
@@ -20,167 +25,249 @@
   --space-12: 48px; --space-16: 64px; --space-20: 80px;
   --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
   --nav-height: 64px;
-  --max-width: 880px;
+  --cl-max: 1040px;
 }
-*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  font-family: var(--font-body);
-  background: var(--bg-base);
-  color: var(--text-primary);
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-}
-.wrap {
-  max-width: var(--max-width);
+
+.cl-wrap {
+  max-width: var(--cl-max);
   margin: 0 auto;
-  padding: calc(var(--nav-height) + var(--space-16)) clamp(16px, 4vw, 24px) var(--space-20);
+  padding: 0 clamp(20px, 5vw, 40px) var(--space-20);
+  font-family: var(--font-body);
+  color: var(--text-primary);
 }
-.hero h1 {
-  font-size: clamp(32px, 5vw, 48px);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  margin-bottom: var(--space-3);
+
+/* ─────────────────────────── Hero ─────────────────────────── */
+.cl-hero {
+  position: relative;
+  isolation: isolate;
+  padding-top: calc(var(--nav-height) + clamp(72px, 12vw, 128px));
+  padding-bottom: clamp(40px, 6vw, 64px);
 }
-.hero .accent { color: var(--text-accent); }
-.hero p {
-  font-size: 17px;
-  color: var(--text-secondary);
-  max-width: 560px;
-  margin-bottom: var(--space-16);
+.cl-hero-glow {
+  pointer-events: none;
+  position: absolute;
+  inset: -96px 0 auto 0;
+  height: 60vh;
+  z-index: -1;
+  background: radial-gradient(50% 60% at 30% 0%, rgba(0, 191, 255, 0.16) 0%, rgba(0, 191, 255, 0) 70%);
 }
-.release {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  padding: var(--space-8);
+.cl-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
   margin-bottom: var(--space-6);
 }
-.release-head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-5);
-  padding-bottom: var(--space-5);
-  border-bottom: 1px solid var(--border);
-}
-.release-head h2 {
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  font-family: var(--font-mono);
-}
-.release-head time {
-  color: var(--text-tertiary);
-  font-size: 14px;
-  margin-left: auto;
-}
-.badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 10px;
-  border-radius: 100px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.badge-major {
-  background: rgba(255, 171, 64, 0.12);
-  color: var(--accent-orange);
-  border: 1px solid rgba(255, 171, 64, 0.3);
-}
-.badge-minor {
-  background: rgba(0, 230, 118, 0.1);
-  color: var(--accent-green);
-  border: 1px solid rgba(0, 230, 118, 0.3);
-}
-.badge-patch, .badge-initial {
-  background: var(--bg-accent-subtle);
-  color: var(--text-accent);
-  border: 1px solid var(--border-accent);
-}
-.release-body h3 {
-  font-size: 15px;
-  font-weight: 700;
+.cl-headline {
+  font-size: clamp(44px, 8vw, 88px);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
   color: var(--text-primary);
-  margin-top: var(--space-5);
-  margin-bottom: var(--space-3);
 }
-.release-body h3:first-child { margin-top: 0; }
-.release-body h4 {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-top: var(--space-5);
-  margin-bottom: var(--space-3);
+.cl-headline-accent {
+  display: block;
+  color: var(--text-accent);
 }
-.release-body p {
+.cl-lede {
+  margin-top: var(--space-8);
+  max-width: 46rem;
+  font-size: clamp(17px, 2vw, 20px);
+  line-height: 1.6;
   color: var(--text-secondary);
-  margin-bottom: var(--space-3);
-  font-size: 15px;
 }
-.release-body ul {
+
+/* ─────────────────────────── Filter pills ─────────────────────────── */
+.cl-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-10);
+}
+.cl-pill {
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+.cl-pill:hover {
+  color: var(--text-primary);
+  border-color: var(--border-accent);
+}
+.cl-pill.is-active {
+  border-color: var(--text-accent);
+  background: rgba(0, 191, 255, 0.1);
+  color: var(--text-accent);
+}
+
+/* ─────────────────────────── Timeline ─────────────────────────── */
+.cl-timeline {
+  position: relative;
   list-style: none;
+  border-left: 1px solid var(--border-strong);
+  margin-left: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+.cl-item {
+  position: relative;
+  padding-left: clamp(28px, 4vw, 40px);
+}
+.cl-node {
+  position: absolute;
+  left: -7px;
+  top: 28px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--text-tertiary);
+  box-shadow: 0 0 0 4px var(--bg-base);
+}
+/* Quiet per-area color cue so the eye can group the stream at a glance. */
+.cl-node.cat-audits, .cl-dot.cat-audits { background: var(--accent-blue); }
+.cl-node.cat-knowledge, .cl-dot.cat-knowledge { background: var(--accent-green); }
+.cl-node.cat-tooling, .cl-dot.cat-tooling { background: var(--accent-orange); }
+
+.cl-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: rgba(33, 33, 41, 0.6);
+  padding: clamp(20px, 3vw, 28px);
+  transition: border-color 0.2s;
+}
+.cl-card:hover { border-color: var(--border-accent); }
+
+.cl-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
   margin-bottom: var(--space-4);
 }
-.release-body li {
-  color: var(--text-secondary);
-  font-size: 15px;
-  padding: 4px 0 4px 18px;
-  position: relative;
+.cl-surface {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
-.release-body li::before {
-  content: "";
-  position: absolute;
-  left: 4px;
-  top: 14px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
+.cl-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
   background: var(--text-tertiary);
 }
-.release-body code {
+.cl-version {
   font-family: var(--font-mono);
   font-size: 13px;
-  background: var(--bg-raised);
-  padding: 2px 6px;
-  border-radius: 4px;
-  color: var(--text-accent);
+  letter-spacing: 0.12em;
+  color: var(--text-secondary);
 }
-.release-body a {
+.cl-badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+}
+.cl-badge.kind-new {
+  color: var(--accent-blue);
+  border-color: rgba(0, 191, 255, 0.4);
+  background: rgba(0, 191, 255, 0.08);
+}
+.cl-badge.kind-feature {
+  color: var(--accent-green);
+  border-color: rgba(0, 230, 118, 0.4);
+  background: rgba(0, 230, 118, 0.08);
+}
+.cl-date {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--text-tertiary);
+}
+.cl-title {
+  font-size: clamp(18px, 2.2vw, 22px);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-primary);
+  margin-bottom: var(--space-4);
+}
+.cl-changes {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.cl-changes li {
+  position: relative;
+  padding-left: var(--space-5);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.cl-changes li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--text-tertiary);
+}
+
+.cl-empty {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: rgba(33, 33, 41, 0.6);
+  padding: var(--space-12);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+/* ─────────────────────────── Footer ─────────────────────────── */
+.cl-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-6);
+  margin-top: var(--space-16);
+  padding-top: var(--space-12);
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+.cl-foot-primary {
   color: var(--text-accent);
   text-decoration: none;
+  transition: opacity 0.2s;
 }
-.release-body a:hover { text-decoration: underline; }
-.release-foot {
-  margin-top: var(--space-5);
-  padding-top: var(--space-5);
-  border-top: 1px solid var(--border);
-}
-.release-foot a {
-  font-size: 13px;
-  color: var(--text-tertiary);
+.cl-foot-primary:hover { opacity: 0.8; }
+.cl-foot-secondary {
+  color: var(--text-secondary);
   text-decoration: none;
   transition: color 0.2s;
 }
-.release-foot a:hover { color: var(--text-accent); }
-.empty {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  padding: var(--space-16) var(--space-8);
-  text-align: center;
-}
-.empty h2 {
-  font-size: 22px;
-  font-weight: 700;
-  margin-bottom: var(--space-3);
-}
-.empty p {
-  color: var(--text-secondary);
-  max-width: 420px;
-  margin: 0 auto;
+.cl-foot-secondary:hover { color: var(--text-primary); }
+
+/* Honor reduced-motion across both surfaces (this sheet is inlined into the
+   static page by gen-changelog-html.mjs, so one clamp covers Next + static). */
+@media (prefers-reduced-motion: reduce) {
+  .cl-pill, .cl-card, .cl-foot-primary, .cl-foot-secondary {
+    transition-duration: 0.001ms;
+  }
 }

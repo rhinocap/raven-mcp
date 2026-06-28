@@ -23,8 +23,11 @@ Andrew re-scanned Framer AEO: **63 → 96** (top 5%). Findable/Quotable/Understa
 ### 5. Next.js port — COMPLETE
 All 5 pages ported (Codex workflow), build clean (10 static routes), every page verified faithful eyes-on + clean consoles. Fixed: DocsScripts nav-null guard + nav/footer beforeInteractive; per-page metadata added. Committed+pushed `1c8aef0`. Deployed to "web" Vercel project (prj_zg075…).
 
-### 6. Subdomain staging — needs Andrew's DNS
-Per Andrew's choice, staging on next.ravenmcp.ai. Domain ADDED to web project (verified). web project protection = `all_except_custom_domains` → custom domain is PUBLIC (no settings change needed). **BLOCKED on one DNS record** (ravenmcp.ai DNS is third-party): CNAME `next` → `cname.vercel-dns.com`. Once set, next.ravenmcp.ai serves the Next port publicly.
+### 6. Subdomain staging — LIVE
+Per Andrew's choice, staging on next.ravenmcp.ai. Domain ADDED to web project (verified). web project protection = `all_except_custom_domains` → custom domain is PUBLIC (no settings change needed). DNS is GoDaddy (registrar confirmed via WHOIS: GoDaddy.com LLC, Domains By Proxy privacy; nameservers ns57/ns58.domaincontrol.com). Andrew couldn't find it at first — was signed into the wrong GoDaddy account (jiu-jitsu/surf acct genuinely doesn't own it). **DONE (2026-06-28):** cowork instance added ONE record — CNAME `next` → `cname.vercel-dns.com` (1hr TTL), nothing else touched (apex A 76.76.21.21, www, improvmx MX/DKIM, _domainconnect, NS all intact). All 4 bars pass: DNS resolves to Vercel anycast (66.33.60.193/76.76.21.241), HTTPS 200 + valid cert (after ~2min cert issuance), homepage renders (dark theme, raven-nav, hero, v1.12.1 stats), Vercel Domains shows configured. Amber "DNS Change Recommended" nudge (per-project …vercel-dns-017.com target) intentionally left — cname.vercel-dns.com keeps working.
+
+### Drafted DNS /goal
+`/tmp/drafts/2026-06-28-dns-next-cname-goal.md` (2114 chars) — handed to cowork to make the GoDaddy CNAME change. Executed successfully.
 
 ## State at end of session
 - AEO fix (static prod): ✓ live, 63→96, citation fix deployed → expect ~100 on re-scan
