@@ -17,7 +17,18 @@ Andrew showed a Framer AEO audit (ravenmcp.ai = 63/100), wanted 100; then `/goal
 ### 3. Deck — NOT this instance
 Andrew's deck lives in andrewcunliffe-portfolio (different instance, ~140 agents). I only VIEWED it (RAVEN MCP = slides 23–27). Wrote a deck `/goal` prompt for him to hand to that instance: `/tmp/drafts/2026-06-27-deck-goal-prompt.md` (2259 chars).
 
+### 4. AEO score result + citation fix
+Andrew re-scanned Framer AEO: **63 → 96** (top 5%). Findable/Quotable/Understandable 25/25; only gap = Trustworthy 21/25 → "External citation links 0/7". Fixed: added 4 outbound citations (NN/g Nielsen heuristics, Laws of UX, W3C WCAG, modelcontextprotocol.io) in the principles card + FAQ. Live on prod (commit `518adc9`), verified crawler-visible. Mirrored into the port (`5992df9`). Should now hit ~100.
+
+### 5. Next.js port — COMPLETE
+All 5 pages ported (Codex workflow), build clean (10 static routes), every page verified faithful eyes-on + clean consoles. Fixed: DocsScripts nav-null guard + nav/footer beforeInteractive; per-page metadata added. Committed+pushed `1c8aef0`. Deployed to "web" Vercel project (prj_zg075…).
+
+### 6. Subdomain staging — needs Andrew's DNS
+Per Andrew's choice, staging on next.ravenmcp.ai. Domain ADDED to web project (verified). web project protection = `all_except_custom_domains` → custom domain is PUBLIC (no settings change needed). **BLOCKED on one DNS record** (ravenmcp.ai DNS is third-party): CNAME `next` → `cname.vercel-dns.com`. Once set, next.ravenmcp.ai serves the Next port publicly.
+
 ## State at end of session
-- AEO fix: ✓ live on prod
-- Deck /goal prompt: ✓ drafted, in Zed
-- Next.js port: ⏳ shell done + builds; page bodies in flight (Workflow). Pending: integrate + build + verify + Raven audit + Vercel cutover.
+- AEO fix (static prod): ✓ live, 63→96, citation fix deployed → expect ~100 on re-scan
+- Next.js port: ✓ complete, committed/pushed, builds, all pages verified, deployed to web project
+- next.ravenmcp.ai staging: ⏳ domain added, awaiting Andrew's CNAME record
+- Deck /goal prompt: ✓ in Zed (for the deck instance)
+- Apex cutover (ravenmcp.ai → Next): not done (staging-first per Andrew)
