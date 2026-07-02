@@ -585,3 +585,69 @@ test('mixed fence markers, cross-sentence cue leaks, and abbreviation boundaries
     assert.equal(abbrev.findings[0].rule_id, 'VOICE-abbrev');
   });
 });
+
+test('raven-rule folding rejects unrelated issues and caps advisory severity (clean page stays clean)', async () => {
+  await withTasteHome(async () => {
+    const profile = taste.createTasteProfile({
+      name: 'fold-guard',
+      rules: [
+        {
+          rule_id: 'TOKEN-no-bare-literals',
+          clause_text: 'Every visual value uses var(--token, fallback) — no bare hex, px, or font literals in component CSS.',
+          category: 'tokens',
+          severity_default: 'block',
+          negative_prompt: 'Do NOT author bare literal values.',
+          owner: 'raven',
+          delegate_to: 'audit_page'
+        },
+        {
+          rule_id: 'LAYOUT-no-bare-modals',
+          clause_text: 'No bare modals, no cramped layouts, no floating buttons without context.',
+          category: 'layout',
+          severity_default: 'block',
+          negative_prompt: 'Do NOT ship unstyled bare modals.',
+          owner: 'raven',
+          delegate_to: 'evaluate_design'
+        }
+      ]
+    });
+
+    // An unrelated advisory issue must NOT attach to either rule: its rule name shares
+    // no vocabulary with them ("responsive/clamp" vs tokens/modals).
+    const unrelated = taste.auditTaste({
+      profile,
+      html: '<style>body{color:var(--fg)}</style><main>clean</main>',
+      page_issues: [
+        { rule: 'responsive/clamp', severity: 'warning', message: 'No clamp() detected for fluid sizing', fix: 'Use clamp()' }
+      ]
+    });
+    assert.equal(unrelated.findings.length, 0);
+    assert.equal(unrelated.verdict, 'PASS');
+
+    // A rule-name token alone ("bare" in tokens/no-bare-hex vs LAYOUT-no-bare-modals)
+    // is not enough — total overlap must clear the threshold, so the issue lands only
+    // under the genuinely-matching TOKEN rule.
+    const genuine = taste.auditTaste({
+      profile,
+      html: '<style>body{color:#333}</style><main>x</main>',
+      page_issues: [
+        { rule: 'tokens/no-bare-hex', severity: 'error', message: '3 bare hex color values found outside custom property definitions', fix: 'Move to tokens' }
+      ]
+    });
+    assert.deepEqual(genuine.findings.map((f) => f.rule_id), ['TOKEN-no-bare-literals']);
+    assert.equal(genuine.findings[0].severity, 'block');
+
+    // An advisory ("warning") issue folding into a block-severity rule caps at warn —
+    // a suggestion can never produce a BLOCK verdict on its own.
+    const advisory = taste.auditTaste({
+      profile,
+      html: '<style>body{color:#333}</style><main>x</main>',
+      page_issues: [
+        { rule: 'tokens/no-bare-hex', severity: 'warning', message: '1 bare hex color value found outside custom property definitions', fix: 'Move to tokens' }
+      ]
+    });
+    assert.equal(advisory.findings.length, 1);
+    assert.equal(advisory.findings[0].severity, 'warn');
+    assert.match(advisory.verdict, /^WARN/);
+  });
+});

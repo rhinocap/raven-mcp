@@ -417,21 +417,40 @@ function parseMarkdownRules(markdown: string, existingRuleIds: Set<string>): Tas
   return rules;
 }
 
+function singular(token: string): string {
+  return token.length > 3 && token.endsWith("s") ? token.slice(0, -1) : token;
+}
+
+function normalizedTokens(value: string): Set<string> {
+  const tokens = new Set<string>();
+  for (const token of tokenize(value)) tokens.add(singular(token));
+  return tokens;
+}
+
 function foldRavenRule(
   rule: TasteRule,
   pageIssues: PageIssueInput[],
   attachedIssueIndexes: Set<number>,
   findings: TasteFinding[]
 ): void {
-  const ruleTokens = tokenize(rule.clause_text + " " + rule.negative_prompt + " " + rule.delegate_to);
+  const ruleTokens = normalizedTokens(
+    rule.rule_id + " " + rule.clause_text + " " + rule.negative_prompt + " " + rule.delegate_to
+  );
   let bestIndex = -1;
   let bestScore = 0;
   for (let i = 0; i < pageIssues.length; i += 1) {
     if (attachedIssueIndexes.has(i)) continue;
     const issue = pageIssues[i];
-    const issueTokens = tokenize(issue.rule + " " + issue.message);
+    // The issue's rule name (e.g. "tokens/no-bare-hex") must share vocabulary with the
+    // taste rule itself — overlap on message words alone is not evidence the issue
+    // belongs to this rule, and a misattributed issue is a false positive (prefer silence).
+    let ruleNameMatches = false;
+    for (const nameToken of normalizedTokens(issue.rule)) {
+      if (ruleTokens.has(nameToken)) { ruleNameMatches = true; break; }
+    }
+    if (!ruleNameMatches) continue;
     let score = 0;
-    for (const token of issueTokens) {
+    for (const token of normalizedTokens(issue.rule + " " + issue.message)) {
       if (ruleTokens.has(token)) score += 1;
     }
     if (score > bestScore) {
@@ -439,14 +458,17 @@ function foldRavenRule(
       bestIndex = i;
     }
   }
-  if (bestIndex < 0 || bestScore === 0) return;
+  if (bestIndex < 0 || bestScore < 2) return;
 
   attachedIssueIndexes.add(bestIndex);
   const issue = pageIssues[bestIndex];
+  // An advisory page issue must not surface as a block: cap at the issue's own weight.
+  const severity: TasteSeverity =
+    issue.severity === "warning" && rule.severity_default === "block" ? "warn" : rule.severity_default;
   findings.push({
     rule_id: rule.rule_id,
     clause_cited: rule.clause_text,
-    severity: rule.severity_default,
+    severity,
     owner: rule.owner,
     source: "raven",
     evidence: issue.rule + ": " + issue.message,
