@@ -21,10 +21,17 @@ Fresh `/goal`: land 6 parked feature branches, then build the Taste Engine (5 ne
 | Mistake | Type | Rule added |
 |---------|------|-----------|
 | `node smoke | tee | head` SIGPIPE-killed the smoke mid-run (suppression section silently missing) | verification | Never pipe a live smoke through `head`; write to file, then inspect slices |
+| Dogfood step 2 sent Andrew to BRAND.md for profile creation — mythology doc yielded 11 noise rules; parser also produced stopword categories ("The"/"Why") and would ingest bullets inside code fences | Accuracy gap | Before recommending a doc for markdown ingestion, always confirm it is rules-shaped (actionable bullets under category headings); parser must skip stopwords in headings and fenced code blocks |
+
+### Post-dogfood fixes (Andrew's BRAND.md ingest feedback)
+**What:** parseMarkdownRules skips fenced code blocks + categoryFromHeading skips stopwords ("### Why it works" → category "works", not "why"); extractBannedTerms gated behind a vocabulary-cue check so descriptive example lists ("facts (counts, scope)") no longer become banned-word scans (was false-firing on "counts"/"video" against real pages); create_taste_profile description now warns markdown ingest needs rules-shaped docs. Rebuilt ~/.raven/taste/andrew.json from design-judge DESIGN-RULES.json (37 rules) + design-corpus.jsonl (31 precedents), replacing the 12-rule mythology-noise profile.
+**Why:** Andrew's dogfood step 2 pointed at BRAND.md (story doc) and exposed all three parser weaknesses at once.
+**Pushed:** NOT pushed — staged on local main.
 
 ## State at end of session
 - Part A: 6 branches landed + deduped docs ✓ (staged on local main, unpushed)
 - Taste Engine: implemented, wired, tested, smoked ✓ (staged, unpushed)
+- Post-dogfood parser fixes + andrew profile rebuild ✓ (369/369 tests)
 - Handoff: conversations/2026-07-01-taste-engine.md ✓
 - Pending (carried forward):
   - `/release` (suggest v1.13.0 — 7 [Unreleased] bullets) after Andrew's go

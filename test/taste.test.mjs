@@ -473,3 +473,115 @@ test('accept-suppression is evidence-scoped: a different violation of the same r
     assert.equal(result.verdict, 'BLOCK');
   });
 });
+
+test('markdown ingestion skips fenced code blocks and stopword-led headings do not become categories', async () => {
+  await withTasteHome(async () => {
+    const markdown = [
+      '## The Mythology',
+      '- Ravens carry knowledge across realms. (warn)',
+      '### Why it works',
+      '- Low-poly facets read as tech. (nit)',
+      '## Color',
+      '```',
+      '- this bullet is a code example, not a rule (block)',
+      '```',
+      '- Flat color only — never gradient fills. (block)',
+    ].join('\n');
+    const profile = taste.createTasteProfile({ name: 'fenced', markdown });
+    // The fenced bullet must not ingest: 3 real bullets only.
+    assert.equal(profile.rules.length, 3);
+    assert.ok(!profile.rules.some((r) => r.clause_text.includes('code example')));
+    // Stopword-led headings pick the first content word, never "the"/"why".
+    assert.deepEqual(profile.rules.map((r) => r.category), ['mythology', 'works', 'color']);
+    assert.ok(profile.rules.every((r) => r.rule_id !== '' && !/^(THE|WHY)-/.test(r.rule_id)));
+  });
+});
+
+test('banned-word lists only extract from vocabulary sentences, not descriptive example lists', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({
+      name: 'vocab-gate',
+      rules: [
+        {
+          rule_id: 'VOICE-no-hype',
+          clause_text: 'Restrained voice.',
+          category: 'voice',
+          severity_default: 'warn',
+          negative_prompt: 'Do NOT use persuasion verbs (proven, shipped, unlock).',
+          owner: 'taste',
+          delegate_to: ''
+        },
+        {
+          rule_id: 'FACTS-read-source',
+          clause_text: 'Read the canonical source before asserting project facts (counts, descriptions, outcomes).',
+          category: 'content',
+          severity_default: 'block',
+          negative_prompt: 'Do NOT assert project facts (counts, descriptions, outcomes) without reading the source.',
+          owner: 'taste',
+          delegate_to: ''
+        }
+      ]
+    });
+    const text = 'We shipped a proven system. It counts outcomes across descriptions and video.';
+    const result = taste.auditTaste({ profile: 'vocab-gate', text });
+    const ruleIdsHit = new Set(result.findings.map((f) => f.rule_id));
+    // "proven"/"shipped" are real banned vocabulary; "counts"/"descriptions" are examples, not bans.
+    assert.ok(ruleIdsHit.has('VOICE-no-hype'));
+    assert.ok(!ruleIdsHit.has('FACTS-read-source'));
+    // The descriptive-list rule has no detector left, so it lands in not_assessed.
+    assert.ok(result.not_assessed.some((row) => row.rule_id === 'FACTS-read-source'));
+  });
+});
+
+test('mixed fence markers, cross-sentence cue leaks, and abbreviation boundaries are handled', async () => {
+  await withTasteHome(async () => {
+    // 1. A ~~~ inside a ``` fence must NOT close it.
+    const markdown = [
+      '## Color',
+      '```css',
+      '- code bullet',
+      '~~~',
+      '- still inside the backtick fence',
+      '```',
+      '- Real rule after the fence. (block)',
+    ].join('\n');
+    const profile = taste.createTasteProfile({ name: 'fence-mix', markdown });
+    assert.equal(profile.rules.length, 1);
+    assert.ok(profile.rules[0].clause_text.startsWith('Real rule'));
+
+    // 2. A vocabulary cue in a PREVIOUS sentence (ending in "!") must not gate in
+    //    a descriptive list from the next sentence.
+    taste.createTasteProfile({
+      name: 'cue-leak',
+      rules: [{
+        rule_id: 'FACTS-leak',
+        clause_text: 'Facts need sources.',
+        category: 'content',
+        severity_default: 'block',
+        negative_prompt: 'Never use hype words! Assert project facts (counts, descriptions, outcomes) only from sources.',
+        owner: 'taste',
+        delegate_to: ''
+      }]
+    });
+    const leak = taste.auditTaste({ profile: 'cue-leak', text: 'It counts outcomes and descriptions.' });
+    assert.equal(leak.findings.length, 0);
+    assert.ok(leak.not_assessed.some((row) => row.rule_id === 'FACTS-leak'));
+
+    // 3. "e.g." must not break the sentence before a genuine vocabulary list.
+    taste.createTasteProfile({
+      name: 'abbrev',
+      rules: [{
+        rule_id: 'VOICE-abbrev',
+        clause_text: 'Restrained voice.',
+        category: 'voice',
+        severity_default: 'warn',
+        negative_prompt: 'Do NOT use hype terms e.g. (proven, shipped, unlock).',
+        owner: 'taste',
+        delegate_to: ''
+      }]
+    });
+    const abbrev = taste.auditTaste({ profile: 'abbrev', text: 'We shipped a proven system.' });
+    assert.ok(abbrev.findings.length >= 1);
+    assert.equal(abbrev.findings[0].rule_id, 'VOICE-abbrev');
+  });
+});

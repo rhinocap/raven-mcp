@@ -5489,7 +5489,7 @@ server.tool(
 
 server.tool(
   "create_taste_profile",
-  "Create (or overwrite) a named taste profile — a portable design-judgment ruleset + precedent corpus persisted locally under ~/.raven/taste/<name>.json (override dir with RAVEN_TASTE_HOME). Pass explicit rules[] (rule_id, clause_text, category, severity_default block|warn|nit, negative_prompt, owner taste|raven, delegate_to), and/or a DESIGN.md-style markdown doc to ingest (## headings = categories; '- ' bullets = rules; '(block)'/'(warn)'/'(nit)' severity markers; '(raven:<tool>)' delegates a rule to an existing Raven audit tool; 'Do NOT …' sentences become the rule's negative prompt). Local-first: nothing leaves the machine.",
+  "Create (or overwrite) a named taste profile — a portable design-judgment ruleset + precedent corpus persisted locally under ~/.raven/taste/<name>.json (override dir with RAVEN_TASTE_HOME). Pass explicit rules[] (rule_id, clause_text, category, severity_default block|warn|nit, negative_prompt, owner taste|raven, delegate_to), and/or a DESIGN.md-style markdown doc to ingest (## headings = categories; '- ' bullets = rules; '(block)'/'(warn)'/'(nit)' severity markers; '(raven:<tool>)' delegates a rule to an existing Raven audit tool; 'Do NOT …' sentences become the rule's negative prompt). Ingest RULES-SHAPED docs only (actionable design constraints under category headings) — brand-story/mythology docs produce noise rules, not judgment. Local-first: nothing leaves the machine.",
   {
     name: z.string().min(1).describe("Profile name (becomes <name>.json; lowercase alnum/dash/underscore)."),
     rules: z.array(z.object({
@@ -5497,7 +5497,7 @@ server.tool(
       clause_text: z.string().describe("The rule stated as a positive clause."),
       category: z.string().describe("color | typography | layout | spacing | voice | tokens | motion | …"),
       severity_default: z.enum(["block", "warn", "nit"]),
-      negative_prompt: z.string().optional().describe("'Do NOT …' phrasing; parenthesized comma-lists become deterministic banned-word scans."),
+      negative_prompt: z.string().optional().describe("'Do NOT …' phrasing. A parenthesized comma-list becomes a deterministic banned-word scan ONLY when its sentence is about vocabulary (use/say/write/words/verbs/phrases…), e.g. 'Do NOT use persuasion verbs (proven, shipped, unlock)'. Descriptive example lists ('project facts (counts, scope)') are ignored."),
       owner: z.enum(["taste", "raven"]).optional().describe("raven = measured by an existing Raven audit tool named in delegate_to."),
       delegate_to: z.string().optional().describe("Raven tool that owns the measurement (required when owner is raven).")
     })).optional().describe("Explicit rule objects."),

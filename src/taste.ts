@@ -360,12 +360,23 @@ function parseMarkdownRules(markdown: string, existingRuleIds: Set<string>): Tas
   const rules: TasteRule[] = [];
   const localIds = new Set(existingRuleIds);
   let category = "general";
+  let fenceMarker: "" | "```" | "~~~" = "";
   const lines = markdown.split(/\r?\n/);
 
   for (const line of lines) {
+    // Bullets inside fenced code blocks are examples, not rules.
+    // A fence only closes on the same marker family that opened it.
+    const fence = /^\s*(```|~~~)/.exec(line);
+    if (fence) {
+      const marker = fence[1] as "```" | "~~~";
+      if (fenceMarker === "") fenceMarker = marker;
+      else if (fenceMarker === marker) fenceMarker = "";
+      continue;
+    }
+    if (fenceMarker !== "") continue;
     const heading = /^(#{2,3})\s+(.+?)\s*$/.exec(line);
     if (heading) {
-      category = firstAlnumWord(heading[2]) || "general";
+      category = categoryFromHeading(heading[2]);
       continue;
     }
     const bullet = /^\s*-\s+(.+?)\s*$/.exec(line);
@@ -633,11 +644,28 @@ function hueDistance(a: number, b: number): number {
   return Math.min(diff, 360 - diff);
 }
 
+// A comma-list is only a banned-word list when the sentence introducing it is about
+// vocabulary ("Never use persuasion verbs (proven, shipped)"). Lists that merely
+// enumerate what a prohibition applies to ("project facts (counts, scope)") are
+// descriptive examples — scanning a page for those words is a false-positive storm.
+const VOCAB_CUE_RE = /\b(use|using|say|saying|write|writing|word|words|term|terms|verb|verbs|phrase|phrases|language|copy|vocabulary)\b/i;
+
+function isVocabularyList(text: string, listIndex: number): boolean {
+  // Dots inside abbreviations are not sentence boundaries.
+  const before = text.slice(0, listIndex).replace(/\b(e\.g\.|i\.e\.|etc\.|vs\.)/gi, function(abbr) {
+    return abbr.replace(/\./g, " ");
+  });
+  const boundary = Math.max(before.lastIndexOf("."), before.lastIndexOf("!"), before.lastIndexOf("?"));
+  const sentence = before.slice(boundary + 1);
+  return VOCAB_CUE_RE.test(sentence);
+}
+
 function extractBannedTerms(text: string): string[] {
   const terms: string[] = [];
   const parenList = /\(([^()]*,[^()]*)\)/g;
   let parenMatch: RegExpExecArray | null;
   while ((parenMatch = parenList.exec(text)) !== null) {
+    if (!isVocabularyList(text, parenMatch.index)) continue;
     const pieces = parenMatch[1].split(",").map(cleanTerm).filter(function(term) { return term.length >= 3; });
     if (pieces.length >= 2) terms.push(...pieces);
   }
@@ -645,6 +673,7 @@ function extractBannedTerms(text: string): string[] {
   const quotedList = /["“]([^"”]*,[^"”]*)["”]/g;
   let quoteMatch: RegExpExecArray | null;
   while ((quoteMatch = quotedList.exec(text)) !== null) {
+    if (!isVocabularyList(text, quoteMatch.index)) continue;
     const pieces = quoteMatch[1].split(",").map(cleanTerm).filter(function(term) { return term.length >= 3; });
     if (pieces.length >= 2) terms.push(...pieces);
   }
@@ -706,9 +735,20 @@ function tokenize(value: string): Set<string> {
   return tokens;
 }
 
-function firstAlnumWord(value: string): string {
-  const match = /[a-z0-9]+/i.exec(value.toLowerCase());
-  return match ? match[0] : "";
+const HEADING_STOPWORDS = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "but", "by", "can", "for", "from", "has", "have",
+  "how", "in", "into", "is", "it", "its", "not", "of", "on", "or", "our", "the", "then", "there",
+  "these", "this", "that", "those", "to", "use", "we", "what", "when", "where", "who", "why",
+  "with", "you", "your",
+]);
+
+function categoryFromHeading(heading: string): string {
+  // "### Why it works" must not become category "why" — take the first content word.
+  const words = heading.toLowerCase().match(/[a-z0-9]+/g) || [];
+  for (const word of words) {
+    if (!HEADING_STOPWORDS.has(word)) return word;
+  }
+  return "general";
 }
 
 function slugFromSignificantWords(value: string): string {
