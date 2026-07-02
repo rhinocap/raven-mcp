@@ -28,7 +28,7 @@ import { compactAuditPage, compactEvaluation, compactAuditUrl } from "./compact.
 import { auditVideoPlaybackUrl, auditVideoPlaybackSnapshot } from "./video-playback.js";
 import { auditConsistency } from "./audit-consistency.js";
 import { detectOrphanStretch } from "./layout-orphans.js";
-import { createTasteProfile, getTasteProfile, listTasteProfiles, labelFinding, auditTaste } from "./taste.js";
+import { createTasteProfile, getTasteProfile, listTasteProfiles, labelFinding, auditTaste, ruleInScope } from "./taste.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -5489,7 +5489,7 @@ server.tool(
 
 server.tool(
   "create_taste_profile",
-  "Create (or overwrite) a named taste profile — a portable design-judgment ruleset + precedent corpus persisted locally under ~/.raven/taste/<name>.json (override dir with RAVEN_TASTE_HOME). Pass explicit rules[] (rule_id, clause_text, category, severity_default block|warn|nit, negative_prompt, owner taste|raven, delegate_to), and/or a DESIGN.md-style markdown doc to ingest (## headings = categories; '- ' bullets = rules; '(block)'/'(warn)'/'(nit)' severity markers; '(raven:<tool>)' delegates a rule to an existing Raven audit tool; 'Do NOT …' sentences become the rule's negative prompt). Ingest RULES-SHAPED docs only (actionable design constraints under category headings) — brand-story/mythology docs produce noise rules, not judgment. Local-first: nothing leaves the machine.",
+  "Create (or overwrite) a named taste profile — a portable design-judgment ruleset + precedent corpus persisted locally under ~/.raven/taste/<name>.json (override dir with RAVEN_TASTE_HOME). Pass explicit rules[] (rule_id, clause_text, category, severity_default block|warn|nit, negative_prompt, owner taste|raven, delegate_to), and/or a DESIGN.md-style markdown doc to ingest (## headings = categories; '- ' bullets = rules; '(block)'/'(warn)'/'(nit)' severity markers; '(raven:<tool>)' delegates a rule to an existing Raven audit tool; '(scope:<surface>)' scopes a rule to one surface; 'Do NOT …' sentences become the rule's negative prompt). Ingest RULES-SHAPED docs only (actionable design constraints under category headings) — brand-story/mythology docs produce noise rules, not judgment. Local-first: nothing leaves the machine.",
   {
     name: z.string().min(1).describe("Profile name (becomes <name>.json; lowercase alnum/dash/underscore)."),
     rules: z.array(z.object({
@@ -5499,7 +5499,8 @@ server.tool(
       severity_default: z.enum(["block", "warn", "nit"]),
       negative_prompt: z.string().optional().describe("'Do NOT …' phrasing. A parenthesized comma-list becomes a deterministic banned-word scan ONLY when its sentence is about vocabulary (use/say/write/words/verbs/phrases…), e.g. 'Do NOT use persuasion verbs (proven, shipped, unlock)'. Descriptive example lists ('project facts (counts, scope)') are ignored."),
       owner: z.enum(["taste", "raven"]).optional().describe("raven = measured by an existing Raven audit tool named in delegate_to."),
-      delegate_to: z.string().optional().describe("Raven tool that owns the measurement (required when owner is raven).")
+      delegate_to: z.string().optional().describe("Raven tool that owns the measurement (required when owner is raven)."),
+      scope: z.string().optional().describe("Surface this rule applies to (e.g. portfolio-monochrome). Omit or 'global' = applies everywhere. Scoped rules activate when audit_taste is called with a matching surface, are skipped on a non-matching one, and warn (never block) when surface is omitted.")
     })).optional().describe("Explicit rule objects."),
     corpus: z.array(z.object({
       artifact: z.string(),
@@ -5555,14 +5556,15 @@ server.tool(
 
 server.tool(
   "audit_taste",
-  "Judge a target against a taste profile. Pass html (static page/CSS), text (a copy block), or url (rendered headless; also runs delegated WCAG-contrast/tap-target measurements for owner:raven rules). owner:taste rules run deterministic detectors — gradients, glow/neon (large-blur colored shadows), second accent hue, banned-word lists from the rule's negative prompt; clauses with no deterministic detector are reported honestly under not_assessed instead of guessed. owner:raven rules route through Raven's existing audit engines (page checks, contrast, tap targets) and fold results in under the delegating rule_id. Every finding cites an existing rule_id + concrete evidence — the engine prefers silence over a speculative nit. accept-verdict corpus precedents suppress previously-approved patterns. Verdict: BLOCK (any block finding) / WARN (any warn) / PASS.",
+  "Judge a target against a taste profile. Pass html (static page/CSS), text (a copy block), or url (rendered headless; also runs delegated WCAG-contrast/tap-target measurements for owner:raven rules). owner:taste rules run deterministic detectors — gradients, glow/neon (large-blur colored shadows), second accent hue, banned-word lists from the rule's negative prompt; clauses with no deterministic detector are reported honestly under not_assessed instead of guessed. owner:raven rules route through Raven's existing audit engines (page checks, contrast, tap targets) and fold results in under the delegating rule_id. Every finding cites an existing rule_id + concrete evidence — the engine prefers silence over a speculative nit. accept-verdict corpus precedents suppress previously-approved patterns. Rules may carry a scope (e.g. portfolio-monochrome); pass surface to say what you're judging — scoped rules run at full severity on a matching surface, are skipped (reported under skipped_out_of_scope) on a non-matching one, and can warn but never block when surface is omitted. Verdict: BLOCK (any block finding) / WARN (any warn) / PASS.",
   {
     profile: z.string().min(1).describe("Taste profile name (see list_taste_profiles)."),
     html: z.string().optional().describe("Full HTML/CSS of the page to judge."),
     text: z.string().optional().describe("A copy/text block to judge (voice/banned-word rules)."),
-    url: z.string().optional().describe("Live URL — rendered headless with scroll-settle; enables delegated contrast/tap-target measurement.")
+    url: z.string().optional().describe("Live URL — rendered headless with scroll-settle; enables delegated contrast/tap-target measurement."),
+    surface: z.string().optional().describe("What surface is being judged (e.g. 'portfolio', 'product-site', 'deck') — activates/skips scope-tagged rules by token match. Omit if unsure: scoped rules then warn instead of block.")
   },
-  async function ({ profile, html, text, url }) {
+  async function ({ profile, html, text, url, surface }) {
     if (typeof url === "string" && url.trim() === "") url = undefined;
     var providedInputs = [html !== undefined, text !== undefined, url !== undefined].filter(Boolean).length;
     if (providedInputs !== 1) {
@@ -5571,7 +5573,9 @@ server.tool(
     var prof = getTasteProfile(profile);
     var targetHtml = html;
     var pageIssues: { rule: string; severity: string; message: string; fix?: string }[] = [];
-    var delegates = new Set(prof.rules.filter(function (r) { return r.owner === "raven"; }).map(function (r) { return r.delegate_to; }));
+    // Out-of-scope raven rules must not trigger delegated audits: their issues
+    // would otherwise fold into unrelated in-scope rules by name overlap.
+    var delegates = new Set(prof.rules.filter(function (r) { return r.owner === "raven" && ruleInScope(r, surface); }).map(function (r) { return r.delegate_to; }));
 
     if (url) {
       try {
@@ -5596,7 +5600,7 @@ server.tool(
       var pc = runPageChecks(targetHtml);
       for (var iss of pc.issues) pageIssues.push({ rule: iss.rule, severity: iss.severity, message: iss.message, fix: iss.fix });
     }
-    var result = auditTaste({ profile: prof, html: targetHtml, text: targetHtml === undefined ? text : undefined, page_issues: pageIssues.length > 0 ? pageIssues : undefined });
+    var result = auditTaste({ profile: prof, html: targetHtml, text: targetHtml === undefined ? text : undefined, page_issues: pageIssues.length > 0 ? pageIssues : undefined, surface: surface });
     var out: any = result;
     if (url) out = Object.assign({}, result, { target: "url", url: url });
     return { content: [{ type: "text" as const, text: JSON.stringify(out, null, 2) }] };

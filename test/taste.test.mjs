@@ -686,3 +686,102 @@ test('delegate-domain match folds a terse real-shape contrast issue that overlap
     assert.equal(folded.findings[0].severity, 'block');
   });
 });
+
+test('per-surface scoping: scoped rule blocks on matching surface, skips on mismatch, warns without surface', async () => {
+  await withTasteHome(async () => {
+    const scopedRule = {
+      rule_id: 'GRADIENT-SCOPED',
+      clause_text: 'Avoid gradient backgrounds on the portfolio.',
+      category: 'color',
+      severity_default: 'block',
+      negative_prompt: 'Do NOT use gradients.',
+      owner: 'taste',
+      delegate_to: '',
+      scope: 'portfolio-monochrome'
+    };
+    taste.createTasteProfile({ name: 'scoped', rules: [scopedRule, baseRules()[1]] });
+    const html = '<style>.x{background:linear-gradient(red, blue)}</style>';
+
+    const onPortfolio = taste.auditTaste({ profile: 'scoped', html, surface: 'portfolio' });
+    assert.equal(onPortfolio.verdict, 'BLOCK');
+    assert.equal(onPortfolio.findings[0].rule_id, 'GRADIENT-SCOPED');
+    assert.equal(onPortfolio.findings[0].severity, 'block');
+    assert.equal(onPortfolio.skipped_out_of_scope.length, 0);
+
+    const onProduct = taste.auditTaste({ profile: 'scoped', html, surface: 'product-site' });
+    assert.equal(onProduct.findings.filter((f) => f.rule_id === 'GRADIENT-SCOPED').length, 0);
+    assert.deepEqual(onProduct.skipped_out_of_scope, [{ rule_id: 'GRADIENT-SCOPED', scope: 'portfolio-monochrome' }]);
+    assert.equal(onProduct.verdict, 'PASS');
+
+    const noSurface = taste.auditTaste({ profile: 'scoped', html });
+    const capped = noSurface.findings.find((f) => f.rule_id === 'GRADIENT-SCOPED');
+    assert.equal(capped.severity, 'warn');
+    assert.equal(noSurface.verdict, 'WARN');
+    assert.equal(noSurface.skipped_out_of_scope.length, 0);
+  });
+});
+
+test('scope global and unscoped rules ignore surface; scope survives disk round-trip and (scope:) markdown annotation', async () => {
+  await withTasteHome(async (home) => {
+    const globalScoped = Object.assign({}, baseRules()[0], { scope: 'global' });
+    taste.createTasteProfile({ name: 'globals', rules: [globalScoped, baseRules()[1]] });
+    const r = taste.auditTaste({
+      profile: 'globals',
+      html: '<style>.x{background:linear-gradient(red, blue)}</style>',
+      surface: 'anything-else'
+    });
+    assert.equal(r.verdict, 'BLOCK');
+    assert.equal(r.skipped_out_of_scope.length, 0);
+
+    taste.createTasteProfile({
+      name: 'roundtrip',
+      rules: [Object.assign({}, baseRules()[0], { scope: 'portfolio-monochrome' })]
+    });
+    const onDisk = JSON.parse(await readFile(path.join(home, 'roundtrip.json'), 'utf8'));
+    assert.equal(onDisk.rules[0].scope, 'portfolio-monochrome');
+    const reloaded = taste.getTasteProfile('roundtrip');
+    assert.equal(reloaded.rules[0].scope, 'portfolio-monochrome');
+
+    const md = '## Color\n- Do NOT use gradients. (block) (scope:portfolio)\n- Avoid bare hex.';
+    const profile = taste.createTasteProfile({ name: 'mdscope', markdown: md });
+    const scoped = profile.rules.find((rule) => rule.negative_prompt.includes('gradients'));
+    assert.equal(scoped.scope, 'portfolio');
+    assert.equal(scoped.clause_text.includes('(scope:'), false);
+    const unscoped = profile.rules.find((rule) => rule.clause_text.includes('bare hex'));
+    assert.equal(unscoped.scope, '');
+  });
+});
+
+test('short scope tokens ("ui") match by exact raw word — never substring — instead of being unmatchable', async () => {
+  await withTasteHome(async () => {
+    const shortScoped = Object.assign({}, baseRules()[0], { rule_id: 'GRADIENT-UI', scope: 'ui' });
+    taste.createTasteProfile({ name: 'shortscope', rules: [shortScoped] });
+    const html = '<style>.x{background:linear-gradient(red, blue)}</style>';
+
+    const onUi = taste.auditTaste({ profile: 'shortscope', html, surface: 'ui' });
+    assert.equal(onUi.verdict, 'BLOCK');
+    assert.equal(onUi.skipped_out_of_scope.length, 0);
+
+    const onAppUi = taste.auditTaste({ profile: 'shortscope', html, surface: 'app-ui' });
+    assert.equal(onAppUi.verdict, 'BLOCK');
+    assert.equal(onAppUi.skipped_out_of_scope.length, 0);
+
+    // substring containment must NOT match: "ui" ⊄ words of "guidelines"/"build-system"
+    for (const surface of ['guidelines', 'build-system', 'docs']) {
+      const r = taste.auditTaste({ profile: 'shortscope', html, surface });
+      assert.equal(r.verdict, 'PASS', surface);
+      assert.deepEqual(r.skipped_out_of_scope, [{ rule_id: 'GRADIENT-UI', scope: 'ui' }], surface);
+    }
+  });
+});
+
+test('ruleInScope: exported helper used by url-mode delegate filtering', async () => {
+  const scoped = Object.assign({}, baseRules()[0], { scope: 'portfolio-monochrome' });
+  assert.equal(taste.ruleInScope(scoped, 'portfolio'), true);
+  assert.equal(taste.ruleInScope(scoped, 'product-site'), false);
+  assert.equal(taste.ruleInScope(scoped, undefined), true);
+  assert.equal(taste.ruleInScope(scoped, '  '), true);
+  assert.equal(taste.ruleInScope(Object.assign({}, baseRules()[0], { scope: 'global' }), 'anything'), true);
+  assert.equal(taste.ruleInScope(Object.assign({}, baseRules()[0], { scope: '' }), 'anything'), true);
+  assert.equal(taste.ruleInScope(Object.assign({}, baseRules()[0], { scope: 'use' }), 'user-research'), false);
+});

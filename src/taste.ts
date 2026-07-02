@@ -11,6 +11,7 @@ export type TasteRule = {
   negative_prompt: string;
   owner: "taste" | "raven";
   delegate_to: string;
+  scope: string;
 };
 export type TasteCorpusRecord = {
   artifact: string;
@@ -46,6 +47,7 @@ export type TasteAuditResult = {
   findings: TasteFinding[];
   suppressed: { rule_id: string; corpus_id: string; evidence: string }[];
   not_assessed: { rule_id: string; reason: string }[];
+  skipped_out_of_scope: { rule_id: string; scope: string }[];
   verdict: "BLOCK" | "WARN" | "PASS";
   verdict_line: string;
 };
@@ -169,11 +171,40 @@ export function labelFinding(
   return { profile: profile.name, corpus_count: profile.corpus.length, record };
 }
 
+// True unless the rule carries a non-global scope AND a surface was stated
+// that doesn't match it. With no surface, scoped rules stay in (demoted later).
+// Matching is normalized-token overlap; scopes whose tokens are all short/stopwords
+// ("ui", "ds") fall back to exact raw-word equality — never substring containment,
+// so scope "ui" matches surface "app-ui" but not "guidelines".
+export function ruleInScope(rule: TasteRule, surface?: string): boolean {
+  const scope = rule.scope.trim().toLowerCase();
+  if (scope.length === 0 || scope === "global") return true;
+  if (typeof surface !== "string" || surface.trim().length === 0) return true;
+  const scopeTokens = normalizedTokens(scope);
+  if (scopeTokens.size === 0) {
+    const surfaceWords = rawWords(surface);
+    for (const word of rawWords(scope)) {
+      if (surfaceWords.has(word)) return true;
+    }
+    return false;
+  }
+  const surfaceTokens = normalizedTokens(surface);
+  for (const token of scopeTokens) {
+    if (surfaceTokens.has(token)) return true;
+  }
+  return false;
+}
+
+function rawWords(value: string): Set<string> {
+  return new Set(value.toLowerCase().match(/[a-z0-9]+/g) || []);
+}
+
 export function auditTaste(input: {
   profile: string | TasteProfile;
   html?: string;
   text?: string;
   page_issues?: PageIssueInput[];
+  surface?: string;
 }): TasteAuditResult {
   const supplied = [input.html !== undefined, input.text !== undefined].filter(Boolean).length;
   if (supplied !== 1) throw new Error("Exactly one of html or text is required");
@@ -183,9 +214,22 @@ export function auditTaste(input: {
   const target = input.html !== undefined ? input.html : input.text || "";
   const findings: TasteFinding[] = [];
   const notAssessed: { rule_id: string; reason: string }[] = [];
+  const skippedOutOfScope: { rule_id: string; scope: string }[] = [];
   const attachedIssueIndexes = new Set<number>();
+  const surfaceProvided = typeof input.surface === "string" && input.surface.trim().length > 0;
 
-  for (const rule of profile.rules) {
+  for (const originalRule of profile.rules) {
+    let rule = originalRule;
+    if (!ruleInScope(rule, input.surface)) {
+      skippedOutOfScope.push({ rule_id: rule.rule_id, scope: rule.scope });
+      continue;
+    }
+    const scope = rule.scope.trim().toLowerCase();
+    if (scope.length > 0 && scope !== "global" && !surfaceProvided && rule.severity_default === "block") {
+      // Surface unstated: a scoped rule still runs, but may not apply to
+      // whatever this artifact is — so it can nudge, never block.
+      rule = Object.assign({}, rule, { severity_default: "warn" as TasteSeverity });
+    }
     if (rule.owner === "raven") {
       if (input.page_issues === undefined) {
         notAssessed.push({
@@ -237,6 +281,7 @@ export function auditTaste(input: {
     findings: activeFindings,
     suppressed,
     not_assessed: notAssessed.filter(function(row) { return ruleIds.has(row.rule_id); }),
+    skipped_out_of_scope: skippedOutOfScope,
     verdict,
     verdict_line,
   };
@@ -272,6 +317,7 @@ function validateRule(rule: unknown, where: string): TasteRule {
   if (owner !== "taste" && owner !== "raven") throw new Error(where + ".owner must be taste or raven");
   const negativePrompt = optionalString(rule.negative_prompt);
   const delegateTo = optionalString(rule.delegate_to);
+  const scope = optionalString(rule.scope);
   if (owner === "raven" && delegateTo.trim().length === 0) {
     throw new Error(where + ".delegate_to is required when owner is raven");
   }
@@ -283,6 +329,7 @@ function validateRule(rule: unknown, where: string): TasteRule {
     negative_prompt: negativePrompt,
     owner,
     delegate_to: delegateTo,
+    scope,
   };
 }
 
@@ -399,6 +446,13 @@ function parseMarkdownRules(markdown: string, existingRuleIds: Set<string>): Tas
       clause = clause.replace(ownerMatch[0], "").replace(/\s+/g, " ").trim();
     }
 
+    let scope = "";
+    const scopeMatch = /\(scope:([a-z0-9_-]+)\)/i.exec(clause);
+    if (scopeMatch) {
+      scope = scopeMatch[1].toLowerCase();
+      clause = clause.replace(scopeMatch[0], "").replace(/\s+/g, " ").trim();
+    }
+
     const negativePrompt = extractNegativePrompt(clause);
     const baseId = category.toUpperCase() + "-" + slugFromSignificantWords(clause);
     const ruleId = uniqueRuleId(baseId, localIds);
@@ -411,6 +465,7 @@ function parseMarkdownRules(markdown: string, existingRuleIds: Set<string>): Tas
       negative_prompt: negativePrompt,
       owner,
       delegate_to: delegateTo,
+      scope,
     });
   }
 

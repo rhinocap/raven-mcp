@@ -6,6 +6,9 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+### Added
+- Taste rules can carry an optional `scope` (e.g. `portfolio-monochrome`), and `audit_taste` accepts an optional `surface` param — a scoped rule runs at full severity on a matching surface (token match; short scopes like `ui` match by exact word, never substring), is skipped and reported under the new `skipped_out_of_scope` result list on a non-matching surface, and can warn but never block when `surface` is omitted. Out-of-scope `owner: raven` rules also no longer trigger their delegated url-mode audits. `create_taste_profile` accepts `scope` on explicit rules and a `(scope:name)` bullet annotation in markdown ingestion. Backwards compatible: unscoped and `scope: "global"` rules behave exactly as before.
+
 ## [1.13.0] - 2026-07-01
 
 ### Added

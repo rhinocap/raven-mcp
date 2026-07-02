@@ -108,7 +108,7 @@ cd raven-mcp && npm install && npm run build
 | `get_taste_profile` | Load a stored taste profile's full rule catalog and precedent corpus |
 | `list_taste_profiles` | List locally stored taste profiles with rule/corpus counts |
 | `label_finding` | Append a human accept/revise/reject precedent to a profile's corpus — the growth loop; append-only, and accept-verdicts suppress that pattern in future audits |
-| `audit_taste` | Judge HTML, copy text, or a live URL against a taste profile — deterministic detectors for gradients, glow/neon, second accent hue, and banned words; `owner: raven` rules route through Raven's existing page/contrast/tap-target engines; every finding cites a rule_id + concrete evidence (undetectable clauses are reported as `not_assessed`, never guessed); verdict BLOCK / WARN / PASS |
+| `audit_taste` | Judge HTML, copy text, or a live URL against a taste profile — deterministic detectors for gradients, glow/neon, second accent hue, and banned words; `owner: raven` rules route through Raven's existing page/contrast/tap-target engines; every finding cites a rule_id + concrete evidence (undetectable clauses are reported as `not_assessed`, never guessed); scope-tagged rules activate per `surface` (skipped elsewhere, warn-only when surface is omitted); verdict BLOCK / WARN / PASS |
 | `raven_reflect` | Summarize your local Raven usage log to find patterns + gaps |
 
 ## Creative studio
