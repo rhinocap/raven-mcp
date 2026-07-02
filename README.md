@@ -213,6 +213,21 @@ Raven ships new principles, patterns, and brand systems regularly. For one email
 
 No marketing, unsubscribe anytime. Powered by Resend.
 
+## Start every project calibrated
+
+Taste is per-surface: the same designer wants monochrome one-accent rules enforced on their portfolio and *none* of them on a product site, with a slightly different voice on each. The Taste Engine handles this with a **short kickoff interview** (five questions, once per project) whose answers persist as a surface binding that every future audit applies automatically.
+
+Raven ships this flow in its MCP server instructions, so agents that honor server instructions (Claude Code, Claude Desktop) run the interview at project kickoff on their own: `get_taste_interview` → ask the user → `bind_taste_surface` → done. If your client doesn't surface server instructions — or you want the ritual to be non-negotiable — add one line to the project's `CLAUDE.md` / `AGENTS.md`:
+
+```markdown
+Before the first design/UI/copy work in this repo, run Raven's get_taste_interview
+(profile <name>, project <repo-name>); if existing_binding is null, ask me its
+questions and persist with bind_taste_surface. Pass project:'<repo-name>' on every
+audit_taste after that.
+```
+
+Already-calibrated projects cost one cheap call (`existing_binding` comes back non-null and the agent proceeds). Uncalibrated audits still work — scoped rules just demote to warn and the result carries a `calibration_hint` — so calibration is never a wall, only a sharpener.
+
 ## Learning loop
 
 Raven keeps a small **local-only** log of how you use it so you (and Claude) can spot which patterns you build most often and which gaps show up again and again.
