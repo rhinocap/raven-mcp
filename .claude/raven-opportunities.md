@@ -72,3 +72,4 @@ Session was pure writing/dictation (portfolio deck narrative + slide layout for 
 
 ## Session scan — 2026-07-01 (RavenMCP improvement proposal) — 1 net-new opportunity
 Session was competitive research + proposal-writing for Raven's own roadmap (not hands-on design audit work on a third-party artifact). The one real finding — design-judge's architecture as an un-generalized workaround skill — is captured above. Full proposal: `conversations/2026-07-01-ravenmcp-improvement-proposal.md`.
+- 2026-07-02 | rule-scoping | one-accent rule (portfolio-only) fired as BLOCK on ravenmcp.ai; only recourse was demoting severity_default globally + a per-evidence accept precedent | taste rules carry a scope/surface tag + audit_taste takes a context param so portfolio-scoped rules stay block on portfolio and stay silent elsewhere | P2

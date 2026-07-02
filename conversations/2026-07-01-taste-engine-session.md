@@ -58,3 +58,8 @@ Fresh `/goal`: land 6 parked feature branches, then build the Taste Engine (5 ne
   - `/release` (suggest v1.13.0 — 7 [Unreleased] bullets) after Andrew's go
   - faux-font detection via rendered metrics (currently not_assessed)
   - site/index.html violates BRAND.md monochrome rules heavily (smoke signal; site loop owns it)
+
+### 2026-07-02 — live-apex taste audit + one-accent rule rescoped
+**What:** Reconnected raven; audit_taste url-mode on https://ravenmcp.ai → BLOCK (2 block, 2 warn). Andrew ruled the multi-hue category tint system an approved exception (one-accent rule was portfolio-only). Recorded accept precedent rec_0032; rescoped COLOR-one-warm-orange-accent in ~/.raven/taste/andrew.json + DESIGN-RULES.json (clause states portfolio-monochrome scope, severity_default warn, catalog scope: portfolio-monochrome). Re-audit: hue finding suppressed by rec_0032, verdict BLOCK (1 block, 2 warn) — remaining block is a genuine FAQ tap-target (189×21px link); warns: 45 hardcoded SVG colors, "Proven" in Patterns copy (site loop owns those).
+**Why:** rule was over-scoped globally; engine has no per-surface scoping yet — captured as P2 in .claude/raven-opportunities.md (rule scope tag + audit_taste context param).
+**Pushed:** ledger + log commit.
