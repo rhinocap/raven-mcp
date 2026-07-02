@@ -28,6 +28,7 @@ import { compactAuditPage, compactEvaluation, compactAuditUrl } from "./compact.
 import { auditVideoPlaybackUrl, auditVideoPlaybackSnapshot } from "./video-playback.js";
 import { auditConsistency } from "./audit-consistency.js";
 import { detectOrphanStretch } from "./layout-orphans.js";
+import { createTasteProfile, getTasteProfile, listTasteProfiles, labelFinding, auditTaste } from "./taste.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -1050,6 +1051,31 @@ function extractInsight(toolName: string, input: any, output: any): any {
       case "raven_reflect":
         insight = { action: toolName };
         break;
+      case "create_taste_profile": {
+        var tasteText = output?.content?.[0]?.text || "";
+        var tasteOut = JSON.parse(tasteText);
+        insight = { name: safeStr(input?.name, 32), rules: tasteOut.rules, corpus: tasteOut.corpus };
+        break;
+      }
+      case "get_taste_profile":
+      case "list_taste_profiles":
+        insight = { action: toolName, name: safeStr(input?.name, 32) };
+        break;
+      case "label_finding":
+        insight = { profile: safeStr(input?.profile, 32), verdict: input?.verdict, rule: safeStr(input?.violated_rule, 48) };
+        break;
+      case "audit_taste": {
+        var atText = output?.content?.[0]?.text || "";
+        var atOut = JSON.parse(atText);
+        insight = {
+          profile: safeStr(input?.profile, 32),
+          verdict: atOut.verdict,
+          findings: (atOut.findings || []).map(function (f: any) { return f.rule_id; }),
+          suppressed: (atOut.suppressed || []).length,
+          not_assessed: (atOut.not_assessed || []).length
+        };
+        break;
+      }
       default:
         insight = {};
     }
@@ -5456,6 +5482,124 @@ server.tool(
       return { content: [{ type: "text" as const, text: JSON.stringify(snapResult, null, 2) }] };
     }
     return { content: [{ type: "text" as const, text: "Provide either url (render + observe) or dom_snapshot (classify supplied observations). See tool schema for dom_snapshot field shapes." }] };
+  }
+);
+
+// ── Taste Engine: profiles, growth loop, and taste audits ──────────────────
+
+server.tool(
+  "create_taste_profile",
+  "Create (or overwrite) a named taste profile — a portable design-judgment ruleset + precedent corpus persisted locally under ~/.raven/taste/<name>.json (override dir with RAVEN_TASTE_HOME). Pass explicit rules[] (rule_id, clause_text, category, severity_default block|warn|nit, negative_prompt, owner taste|raven, delegate_to), and/or a DESIGN.md-style markdown doc to ingest (## headings = categories; '- ' bullets = rules; '(block)'/'(warn)'/'(nit)' severity markers; '(raven:<tool>)' delegates a rule to an existing Raven audit tool; 'Do NOT …' sentences become the rule's negative prompt). Local-first: nothing leaves the machine.",
+  {
+    name: z.string().min(1).describe("Profile name (becomes <name>.json; lowercase alnum/dash/underscore)."),
+    rules: z.array(z.object({
+      rule_id: z.string().describe("Stable unique id, e.g. COLOR-no-gradient."),
+      clause_text: z.string().describe("The rule stated as a positive clause."),
+      category: z.string().describe("color | typography | layout | spacing | voice | tokens | motion | …"),
+      severity_default: z.enum(["block", "warn", "nit"]),
+      negative_prompt: z.string().optional().describe("'Do NOT …' phrasing; parenthesized comma-lists become deterministic banned-word scans."),
+      owner: z.enum(["taste", "raven"]).optional().describe("raven = measured by an existing Raven audit tool named in delegate_to."),
+      delegate_to: z.string().optional().describe("Raven tool that owns the measurement (required when owner is raven).")
+    })).optional().describe("Explicit rule objects."),
+    corpus: z.array(z.object({
+      artifact: z.string(),
+      verdict: z.enum(["accept", "revise", "reject"]),
+      violated_rule: z.string(),
+      severity: z.enum(["block", "warn", "nit"]).optional(),
+      wrong: z.string(),
+      right: z.string()
+    })).optional().describe("Seed precedent records."),
+    markdown: z.string().optional().describe("DESIGN.md-style markdown to ingest as rules.")
+  },
+  async function ({ name, rules, corpus, markdown }) {
+    var profile = createTasteProfile({ name: name, rules: rules, corpus: corpus, markdown: markdown });
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "create_taste_profile", name: profile.name, rules: profile.rules.length, corpus: profile.corpus.length, home: process.env.RAVEN_TASTE_HOME ? "RAVEN_TASTE_HOME" : "~/.raven/taste" }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "get_taste_profile",
+  "Load a locally stored taste profile by name — returns its full rule catalog and precedent corpus.",
+  { name: z.string().min(1).describe("Profile name.") },
+  async function ({ name }) {
+    return { content: [{ type: "text" as const, text: JSON.stringify(getTasteProfile(name), null, 2) }] };
+  }
+);
+
+server.tool(
+  "list_taste_profiles",
+  "List locally stored taste profiles with rule/corpus counts and last-updated timestamps.",
+  {},
+  async function () {
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "list_taste_profiles", profiles: listTasteProfiles() }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "label_finding",
+  "Append a labeled precedent to a taste profile's corpus — the growth loop. Use when a human accepts/revises/rejects an audit_taste finding or labels a new wrong→right example. Append-only: existing records are never rewritten. accept-verdict precedents suppress matching findings in future audit_taste runs.",
+  {
+    profile: z.string().min(1).describe("Profile name."),
+    artifact: z.string().describe("What was judged (path, URL, or short description)."),
+    verdict: z.enum(["accept", "revise", "reject"]).describe("accept = the flagged pattern is fine (suppresses future matches); revise/reject = confirmed wrong."),
+    violated_rule: z.string().describe("The rule_id the label concerns ('' if none). Must exist in the profile."),
+    severity: z.enum(["block", "warn", "nit"]).optional().describe("Severity the human assigns."),
+    wrong: z.string().describe("The wrong pattern — use a verbatim snippet so accept-suppression can match it."),
+    right: z.string().describe("What right looks like.")
+  },
+  async function ({ profile, artifact, verdict, violated_rule, severity, wrong, right }) {
+    var res = labelFinding(profile, { artifact: artifact, verdict: verdict, violated_rule: violated_rule, severity: severity || "", wrong: wrong, right: right });
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "label_finding", profile: res.profile, corpus_count: res.corpus_count, record: res.record }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "audit_taste",
+  "Judge a target against a taste profile. Pass html (static page/CSS), text (a copy block), or url (rendered headless; also runs delegated WCAG-contrast/tap-target measurements for owner:raven rules). owner:taste rules run deterministic detectors — gradients, glow/neon (large-blur colored shadows), second accent hue, banned-word lists from the rule's negative prompt; clauses with no deterministic detector are reported honestly under not_assessed instead of guessed. owner:raven rules route through Raven's existing audit engines (page checks, contrast, tap targets) and fold results in under the delegating rule_id. Every finding cites an existing rule_id + concrete evidence — the engine prefers silence over a speculative nit. accept-verdict corpus precedents suppress previously-approved patterns. Verdict: BLOCK (any block finding) / WARN (any warn) / PASS.",
+  {
+    profile: z.string().min(1).describe("Taste profile name (see list_taste_profiles)."),
+    html: z.string().optional().describe("Full HTML/CSS of the page to judge."),
+    text: z.string().optional().describe("A copy/text block to judge (voice/banned-word rules)."),
+    url: z.string().optional().describe("Live URL — rendered headless with scroll-settle; enables delegated contrast/tap-target measurement.")
+  },
+  async function ({ profile, html, text, url }) {
+    if (typeof url === "string" && url.trim() === "") url = undefined;
+    var providedInputs = [html !== undefined, text !== undefined, url !== undefined].filter(Boolean).length;
+    if (providedInputs !== 1) {
+      return { content: [{ type: "text" as const, text: "Provide exactly one of html, text, or url to judge (got " + providedInputs + ")." }] };
+    }
+    var prof = getTasteProfile(profile);
+    var targetHtml = html;
+    var pageIssues: { rule: string; severity: string; message: string; fix?: string }[] = [];
+    var delegates = new Set(prof.rules.filter(function (r) { return r.owner === "raven"; }).map(function (r) { return r.delegate_to; }));
+
+    if (url) {
+      try {
+        var cap = await capturePage(url, { scroll_settle: true });
+        targetHtml = cap.renderedHtml;
+        if (delegates.has("audit_contrast")) {
+          var c = await auditContrastUrl(url);
+          for (var row of c.aa_failures) pageIssues.push({ rule: "contrast/aa", severity: "error", message: row.selector + " \"" + row.text.slice(0, 40) + "\" contrast " + row.ratio + ":1 < required " + row.required_aa + ":1 (fg " + row.foreground + " on bg " + row.background + ")", fix: "Adjust fg/bg to clear " + row.required_aa + ":1 (delta " + row.delta_to_aa + ")." });
+        }
+        if (delegates.has("audit_tap_targets")) {
+          var t = await auditTapTargetsUrl(url);
+          for (var trow of t.fix_table) pageIssues.push({ rule: "tap-targets/min-size", severity: "error", message: trow.selector + " (" + trow.role + ") " + trow.w + "x" + trow.h + "px below minimum", fix: trow.fix });
+        }
+      } catch (error) {
+        if (error instanceof CaptureUnavailableError) {
+          return { content: [{ type: "text" as const, text: "audit_taste url mode needs headless chromium. Run: npx playwright install chromium — or pass the page's html instead." }] };
+        }
+        throw error;
+      }
+    }
+    if (targetHtml && delegates.has("audit_page")) {
+      var pc = runPageChecks(targetHtml);
+      for (var iss of pc.issues) pageIssues.push({ rule: iss.rule, severity: iss.severity, message: iss.message, fix: iss.fix });
+    }
+    var result = auditTaste({ profile: prof, html: targetHtml, text: targetHtml === undefined ? text : undefined, page_issues: pageIssues.length > 0 ? pageIssues : undefined });
+    var out: any = result;
+    if (url) out = Object.assign({}, result, { target: "url", url: url });
+    return { content: [{ type: "text" as const, text: JSON.stringify(out, null, 2) }] };
   }
 );
 
