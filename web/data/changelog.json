@@ -1,10 +1,22 @@
 {
   "_comment": "Single source of truth for the RavenMCP changelog. Consumed by web/app/changelog/ChangelogFeed.tsx (Next port) AND scripts/gen-changelog-html.mjs (static site/changelog.html). Entries are curated, user-facing notes synthesized from CHANGELOG.md — not raw commit messages. category drives the filter pills (audits/knowledge/tooling); kind drives the badge (new/feature/improvement/fix). Newest first.",
   "categories": [
-    { "id": "all", "label": "All updates" },
-    { "id": "audits", "label": "Audits" },
-    { "id": "knowledge", "label": "Knowledge" },
-    { "id": "tooling", "label": "Tooling" }
+    {
+      "id": "all",
+      "label": "All updates"
+    },
+    {
+      "id": "audits",
+      "label": "Audits"
+    },
+    {
+      "id": "knowledge",
+      "label": "Knowledge"
+    },
+    {
+      "id": "tooling",
+      "label": "Tooling"
+    }
   ],
   "kinds": {
     "new": "New",
@@ -13,6 +25,21 @@
     "fix": "Fix"
   },
   "releases": [
+    {
+      "version": "v1.13.0",
+      "date": "2026-07-01",
+      "category": "audits",
+      "kind": "feature",
+      "title": "A taste engine, and four new audits",
+      "changes": [
+        "Taste Engine — portable design judgment: build a taste profile from your own rules or a DESIGN.md, audit any page or copy block against it with audit_taste, and grow it with label_finding precedents that suppress approved patterns in future runs. Findings cite a rule and concrete evidence; unmeasurable clauses land in not_assessed instead of being guessed.",
+        "New score_page — a per-category 0–10 design score for any page, with the weakest category called out.",
+        "New audit_video_playback — observes whether each video actually plays, catching black or stalled clips that frame captures miss.",
+        "New audit_consistency — compares two or more pages and flags cross-page drift in container width and heading tier.",
+        "audit_page now checks inline SVG icon colors against the token system, and audit_layout flags the lonely stretched last-row card.",
+        "New dropdown-menu pattern — keyboard navigation, focus management, and the listbox-vs-menu distinction."
+      ]
+    },
     {
       "version": "v1.12.1",
       "date": "2026-06-26",
