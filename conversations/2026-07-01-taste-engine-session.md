@@ -28,10 +28,16 @@ Fresh `/goal`: land 6 parked feature branches, then build the Taste Engine (5 ne
 **Why:** Andrew's dogfood step 2 pointed at BRAND.md (story doc) and exposed all three parser weaknesses at once.
 **Pushed:** NOT pushed — staged on local main.
 
+### Qwen LoRA design-judge pre-filter — graded + wired (Andrew's ask)
+**What:** First on-record grade.py run on both adapters (venv + mlx-lm installed at training/.venv): final step-80 = recall 88.9% / FP 83.3% NOT READY; conservative-ck20 = recall 33.3% / FP 0% NOT READY. Results recorded in training/GRADE-RESULTS.md. Wired the only licensed mode into design-judge SKILL.md §3b: punt-only pre-pass via new training/judge.py (defaults to ck20) — trust BLOCK/WARN/NIT (0% FP), route DELEGATE_RAVEN, punt PASS/UNKNOWN to frontier; a local PASS never clears. Smoke: fresh artifact → UNKNOWN (punts); memorized artifact → PASS (punts). Honest state: near-zero savings until train.jsonl grows to ~150+ records.
+**Why:** Andrew: "WE should wire this model in" — trained 2026-06-28 but never graded or integrated.
+**Pushed:** lives in ~/.claude/skills/design-judge/ (not this repo).
+
 ## State at end of session
 - Part A: 6 branches landed + deduped docs ✓ (staged on local main, unpushed)
 - Taste Engine: implemented, wired, tested, smoked ✓ (staged, unpushed)
-- Post-dogfood parser fixes + andrew profile rebuild ✓ (369/369 tests)
+- Post-dogfood parser fixes + andrew profile rebuild ✓ (370/370 tests, commit 5869cdf)
+- Qwen LoRA pre-filter graded (NOT READY ×2) + wired punt-only into design-judge SKILL.md §3b ✓
 - Handoff: conversations/2026-07-01-taste-engine.md ✓
 - Pending (carried forward):
   - `/release` (suggest v1.13.0 — 7 [Unreleased] bullets) after Andrew's go
