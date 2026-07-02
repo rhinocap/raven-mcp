@@ -596,7 +596,9 @@ test('raven-rule folding rejects unrelated issues and caps advisory severity (cl
           clause_text: 'Every visual value uses var(--token, fallback) — no bare hex, px, or font literals in component CSS.',
           category: 'tokens',
           severity_default: 'block',
-          negative_prompt: 'Do NOT author bare literal values.',
+          // Verbatim from the real catalog rule: "sizing" here is the exact single-token
+          // overlap that let responsive/clamp attach under the pre-fix score>=1 logic.
+          negative_prompt: 'Do NOT author bare hex colors, raw px sizing, or font-family literals in component CSS. Every value must use var(--token, fallback).',
           owner: 'raven',
           delegate_to: 'audit_page'
         },
@@ -637,17 +639,50 @@ test('raven-rule folding rejects unrelated issues and caps advisory severity (cl
     assert.deepEqual(genuine.findings.map((f) => f.rule_id), ['TOKEN-no-bare-literals']);
     assert.equal(genuine.findings[0].severity, 'block');
 
-    // An advisory ("warning") issue folding into a block-severity rule caps at warn —
-    // a suggestion can never produce a BLOCK verdict on its own.
-    const advisory = taste.auditTaste({
-      profile,
-      html: '<style>body{color:#333}</style><main>x</main>',
-      page_issues: [
-        { rule: 'tokens/no-bare-hex', severity: 'warning', message: '1 bare hex color value found outside custom property definitions', fix: 'Move to tokens' }
+    // A non-"error" issue folding into a block-severity rule caps at warn — advisory
+    // "warning" and unrecognized severity strings alike can never produce a BLOCK.
+    for (const sev of ['warning', 'advisory']) {
+      const advisory = taste.auditTaste({
+        profile,
+        html: '<style>body{color:#333}</style><main>x</main>',
+        page_issues: [
+          { rule: 'tokens/no-bare-hex', severity: sev, message: '1 bare hex color value found outside custom property definitions', fix: 'Move to tokens' }
+        ]
+      });
+      assert.equal(advisory.findings.length, 1);
+      assert.equal(advisory.findings[0].severity, 'warn');
+      assert.match(advisory.verdict, /^WARN/);
+    }
+  });
+});
+
+test('delegate-domain match folds a terse real-shape contrast issue that overlap scoring alone would drop', async () => {
+  await withTasteHome(async () => {
+    const profile = taste.createTasteProfile({
+      name: 'delegate-domain',
+      rules: [
+        {
+          rule_id: 'COLOR-aa-floor',
+          clause_text: 'Dim foreground text must still clear the AA floor.',
+          category: 'color',
+          severity_default: 'block',
+          negative_prompt: 'Do NOT ship fg/bg pairs below 4.5:1.',
+          owner: 'raven',
+          delegate_to: 'audit_contrast'
+        }
       ]
     });
-    assert.equal(advisory.findings.length, 1);
-    assert.equal(advisory.findings[0].severity, 'warn');
-    assert.match(advisory.verdict, /^WARN/);
+    // Real url-mode message shape: selector + quoted snippet + ratios. Its only shared
+    // vocabulary with the rule is "contrast" via the issue rule name — the delegate_to
+    // domain ("audit_contrast" <- "contrast/aa") is what licenses the fold.
+    const folded = taste.auditTaste({
+      profile,
+      html: '<p class="muted">dim</p>',
+      page_issues: [
+        { rule: 'contrast/aa', severity: 'error', message: '.muted "dim" 3.1:1 below 4.5:1 (#777777 on #ffffff)', fix: 'Darken to #595959.' }
+      ]
+    });
+    assert.deepEqual(folded.findings.map((f) => f.rule_id), ['COLOR-aa-floor']);
+    assert.equal(folded.findings[0].severity, 'block');
   });
 });
