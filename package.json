@@ -1,6 +1,6 @@
 {
   "name": "raven-mcp",
-  "version": "1.13.0",
+  "version": "1.14.0",
   "mcpName": "ai.ravenmcp/raven-mcp",
   "description": "Design intelligence and creative orchestration MCP server — principles, patterns, tokens, audits, brand guidance, local brand profiles, assets, campaign plans, and provider-agnostic image/video/3D/audio generation jobs.",
   "type": "module",
