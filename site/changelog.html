@@ -316,6 +316,26 @@
       </div>
 
       <ol class="cl-timeline">
+        <li class="cl-item" data-category="audits">
+          <span aria-hidden="true" class="cl-node cat-audits"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
+              <span class="cl-version">v1.13.0</span>
+              <span class="cl-badge kind-feature">Feature</span>
+              <time datetime="2026-07-01" class="cl-date">July 1, 2026</time>
+            </header>
+            <h2 class="cl-title">A taste engine, and four new audits</h2>
+            <ul class="cl-changes">
+              <li>Taste Engine — five tools that make design judgment portable: build a taste profile from your own rules or a DESIGN.md, audit any page or copy block against it with audit_taste, and grow it with label_finding precedents that suppress approved patterns in future runs. Every finding cites a rule and concrete evidence; clauses the engine can't measure land in not_assessed instead of being guessed.</li>
+              <li>New score_page — a per-category 0–10 design score for any page, with the weakest category called out.</li>
+              <li>New audit_video_playback — observes whether each video actually plays, catching black or stalled clips that frame captures miss.</li>
+              <li>New audit_consistency — compares two or more pages and flags cross-page drift in container width and heading tier.</li>
+              <li>audit_page now checks inline SVG icon colors against the token system, and audit_layout flags the lonely stretched last-row card.</li>
+              <li>New dropdown-menu pattern — keyboard navigation, focus management, and the listbox-vs-menu distinction.</li>
+            </ul>
+          </article>
+        </li>
         <li class="cl-item" data-category="tooling">
           <span aria-hidden="true" class="cl-node cat-tooling"></span>
           <article class="cl-card">
