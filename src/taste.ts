@@ -208,11 +208,12 @@ export function auditTaste(input: {
   const activeFindings: TasteFinding[] = [];
   for (const finding of concreteFindings) {
     const record = profile.corpus.find(function(corpusRecord) {
+      // Evidence-scoped only: an accept suppresses the specific flagged pattern,
+      // never sibling findings of the same rule elsewhere on the page.
       return corpusRecord.verdict === "accept" &&
         corpusRecord.violated_rule === finding.rule_id &&
         corpusRecord.wrong.trim().length > 0 &&
-        (normalizeText(finding.evidence).includes(normalizeText(corpusRecord.wrong)) ||
-          normalizeText(target).includes(normalizeText(corpusRecord.wrong)));
+        normalizeText(finding.evidence).includes(normalizeText(corpusRecord.wrong));
     });
     if (record) {
       suppressed.push({ rule_id: finding.rule_id, corpus_id: record.id, evidence: finding.evidence });

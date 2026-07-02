@@ -72,6 +72,8 @@ Full raw smoke output (467 lines) archived at the session scratchpad `smoke-outp
    - Delegated page-issue folding uses greedy per-rule token-overlap; an issue attaches to at most one rule. Edge case: two raven rules with heavily overlapping vocabulary could contend — defensible spec interpretation, revisit if a real profile hits it.
 3. `audit_taste` faux-font detection needs rendered font metrics — candidate follow-up: wire it through the url/capture path (currently `not_assessed`).
 4. Marketing-site brand-compliance findings from the smoke (gradients/glow vs BRAND.md) — separate loop owns the site; parked here as signal only.
+5. **url mode is blind to external stylesheets** (found in live E2E vs ravenmcp.ai): taste detectors scan the rendered DOM string, so gradients/glows in external `.css` files (the Next.js port) are invisible — only inline `<style>`/style attributes are judged. Follow-up: fetch/inline stylesheets during capture before judging.
+6. ~~Suppression scope over-broad~~ **FIXED post-review** (protocol E2E caught it): an accept precedent used to suppress when `wrong` appeared anywhere in the target page, silencing *different* violations of the same rule. Now evidence-scoped only — an accept suppresses the specific flagged pattern, never siblings. Regression test added (367 total).
 
 ## Codex pass (final) — objections + dispositions
 

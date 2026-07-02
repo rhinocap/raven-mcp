@@ -440,3 +440,36 @@ test('create_taste_profile accepts minimal seed corpus records and defaults rule
     assert.equal(audited.suppressed.some((s) => s.corpus_id === 'rec_0001'), true);
   });
 });
+
+test('accept-suppression is evidence-scoped: a different violation of the same rule on the same page stays flagged', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({
+      name: 'scoped',
+      rules: [{
+        rule_id: 'COLOR-no-gradient',
+        clause_text: 'Never gradient fills.',
+        category: 'color',
+        severity_default: 'block',
+        negative_prompt: 'Do NOT use decorative gradients.',
+        owner: 'taste',
+        delegate_to: ''
+      }]
+    });
+    // Page contains TWO distinct gradients; the accept covers only the first.
+    const html = '<style>.approved{background:linear-gradient(180deg, #111, #222)}.rogue{background:linear-gradient(90deg, red, blue)}</style>';
+    taste.labelFinding('scoped', {
+      artifact: 'page',
+      verdict: 'accept',
+      violated_rule: 'COLOR-no-gradient',
+      severity: 'block',
+      wrong: 'linear-gradient(180deg, #111, #222)',
+      right: 'intentional brand exception',
+    });
+    const result = taste.auditTaste({ profile: 'scoped', html });
+    assert.equal(result.suppressed.length, 1);
+    assert.ok(result.suppressed[0].evidence.includes('180deg'));
+    assert.equal(result.findings.length, 1);
+    assert.ok(result.findings[0].evidence.includes('90deg, red, blue'));
+    assert.equal(result.verdict, 'BLOCK');
+  });
+});
