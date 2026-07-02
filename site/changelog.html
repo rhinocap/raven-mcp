@@ -316,6 +316,24 @@
       </div>
 
       <ol class="cl-timeline">
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v1.14.0</span>
+              <span class="cl-badge kind-feature">Feature</span>
+              <time datetime="2026-07-02" class="cl-date">July 2, 2026</time>
+            </header>
+            <h2 class="cl-title">Taste that knows which surface it's on</h2>
+            <ul class="cl-changes">
+              <li>Surface calibration — a short kickoff interview (get_taste_interview) plus per-project bindings (bind_taste_surface), so one taste profile shows up correctly everywhere: full-strength monochrome rules on a portfolio, none of them on a product site, a slightly different voice on each. audit_taste resolves bindings automatically by project name or URL host.</li>
+              <li>Per-surface rule scoping — taste rules can carry a scope (e.g. portfolio-monochrome); scoped rules run at full severity on a matching surface, are skipped and reported on a non-matching one, and warn rather than block when the surface is unknown.</li>
+              <li>Server instructions — Raven now briefs connecting agents at initialize time: calibrate taste before the first design work on a new project, when to reach for taste vs. mechanical audits, and how the label_finding learning loop works. Clients that honor MCP server instructions get this with zero setup; a copy-paste snippet for other clients is in the README.</li>
+              <li>Audits on uncalibrated projects with scoped rules return a calibration_hint, and get_taste_profile lists a profile's surface bindings.</li>
+            </ul>
+          </article>
+        </li>
         <li class="cl-item" data-category="audits">
           <span aria-hidden="true" class="cl-node cat-audits"></span>
           <article class="cl-card">

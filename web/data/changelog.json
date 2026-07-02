@@ -26,6 +26,19 @@
   },
   "releases": [
     {
+      "version": "v1.14.0",
+      "date": "2026-07-02",
+      "category": "tooling",
+      "kind": "feature",
+      "title": "Taste that knows which surface it's on",
+      "changes": [
+        "Surface calibration — a short kickoff interview (get_taste_interview) plus per-project bindings (bind_taste_surface), so one taste profile shows up correctly everywhere: full-strength monochrome rules on a portfolio, none of them on a product site, a slightly different voice on each. audit_taste resolves bindings automatically by project name or URL host.",
+        "Per-surface rule scoping — taste rules can carry a scope (e.g. portfolio-monochrome); scoped rules run at full severity on a matching surface, are skipped and reported on a non-matching one, and warn rather than block when the surface is unknown.",
+        "Server instructions — Raven now briefs connecting agents at initialize time: calibrate taste before the first design work on a new project, when to reach for taste vs. mechanical audits, and how the label_finding learning loop works. Clients that honor MCP server instructions get this with zero setup; a copy-paste snippet for other clients is in the README.",
+        "Audits on uncalibrated projects with scoped rules return a calibration_hint, and get_taste_profile lists a profile's surface bindings."
+      ]
+    },
+    {
       "version": "v1.13.0",
       "date": "2026-07-01",
       "category": "audits",
