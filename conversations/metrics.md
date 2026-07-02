@@ -2,16 +2,24 @@
 
 Tracking collaboration quality across sessions. Updated every Revisit.
 
-| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 (v1.9.0) | 2026-06-19 (v1.10.0) | 2026-06-20 (changelog) | 2026-06-20 (site) | 2026-06-21 (cut-off fix) | 2026-06-21 (spacing + device-frame) | 2026-06-25 (site award) | 2026-06-26 (deck narrative) |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| First-attempt accuracy | 90% | ~85% | ~83% (10/12) | ~80% (8/10) | ~82% (14/17) | ~85% (5/6) | ~70% (14/20) | ~70% (screenshot 3×; AR fix partial) | ~75% (6/8 — screenshot blind + /tmp import) | ~82% (9/11 — bg-clip bug + video debug) | ~87% (13/15 — edit collision + Figma metadata overflow) |
-| Push rejections | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| Autonomy score | 90% | 85% | ~95% | ~95% | ~99% | ~99% | ~99% | ~99% | ~99% | ~88% (stop hook friction) | ~99% |
-| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg | ~1.2 avg | ~1.2 avg | ~2.1 avg | ~1.8 avg | ~1.3 avg | ~1.5 avg | ~1.1 avg |
-| Tests passing | 100% | 100% (smoke) | 100% (85/85) | 100% (92/92) | 100% (185/185) | N/A | | 100% (191/191) | N/A (site work) | N/A (writing) |
-| Log currency | Immediate | Delayed | Immediate | Immediate | Immediate | Immediate | Immediate | | Immediate | Immediate | Immediate |
+| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 (v1.9.0) | 2026-06-19 (v1.10.0) | 2026-06-20 (changelog) | 2026-06-20 (site) | 2026-06-21 (cut-off fix) | 2026-06-21 (spacing + device-frame) | 2026-06-25 (site award) | 2026-06-26 (deck narrative) | 2026-07-01 (Raven improvement proposal) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| First-attempt accuracy | 90% | ~85% | ~83% (10/12) | ~80% (8/10) | ~82% (14/17) | ~85% (5/6) | ~70% (14/20) | ~70% (screenshot 3×; AR fix partial) | ~75% (6/8 — screenshot blind + /tmp import) | ~82% (9/11 — bg-clip bug + video debug) | ~87% (13/15 — edit collision + Figma metadata overflow) | ~80% (8/10 — ScheduleWakeup misuse + silent-fallback comm gap) |
+| Push rejections | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Autonomy score | 90% | 85% | ~95% | ~95% | ~99% | ~99% | ~99% | ~99% | ~99% | ~88% (stop hook friction) | ~99% | ~99% |
+| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg | ~1.2 avg | ~1.2 avg | ~2.1 avg | ~1.8 avg | ~1.3 avg | ~1.5 avg | ~1.1 avg | ~1.1 avg |
+| Tests passing | 100% | 100% (smoke) | 100% (85/85) | 100% (92/92) | 100% (185/185) | N/A | | 100% (191/191) | N/A (site work) | N/A (writing) | N/A (research/writing, no code) |
+| Log currency | Immediate | Delayed | Immediate | Immediate | Immediate | Immediate | Immediate | | Immediate | Immediate | Immediate | Immediate (headless /revisit) |
 
 ## Notes per session
+
+### 2026-07-01 — RavenMCP improvement proposal (design-judge model → Raven, competitive landscape)
+- **Session scale:** Medium — headless `/goal` research + synthesis session, no code changes. One deliverable file (`conversations/2026-07-01-ravenmcp-improvement-proposal.md`, auto-committed) plus a drafted-but-not-yet-launched follow-up `/goal`.
+- **First-attempt accuracy ~80% (8/10):** Two misses, both process rather than technical: (1) called `ScheduleWakeup` to wait on a background Workflow's completion notification — wrong tool (that's `/loop` dynamic-pacing only), failed immediately with a missing-param error, self-corrected same turn with zero downstream cost. (2) Perplexity MCP 401'd early in the research phase; WebSearch silently took over and the research succeeded, but the failure+fallback wasn't surfaced to Andrew until he independently asked whether search was broken — it should have been flagged the moment it was known, not buried as an end-of-turn aside.
+- **Both misses queued to `conversations/PROMOTION-QUEUE.md`** (headless run cannot write `~/.claude/CLAUDE.md` directly) — cross-cutting, not project-specific, so they need a manual `/revisit` to land in the loaded surface. Also queued: the expired Perplexity key itself (reference fact) and a correction to the existing `project_v1_12_0_staged_and_parked_branches` memory (6 parked branches confirmed this session, not 2).
+- **Wins:** Graphify-first orientation (per the standing HARD RULE) before any grep. `/goal` char-limit discipline held — measured the drafted follow-up `/goal` at 3,247/4,000 chars before handing it back, per the existing HARD RULE, instead of risking a silent rejection. 4-agent parallel Workflow for competitor research (Claude Design, Paper.design, Dessn, broader landscape) completed cleanly and its findings were cross-checked live via browser-Google search on the two most load-bearing claims before being treated as fact. Discovered 6 fully-built-but-unmerged Raven feature branches (not previously tracked at that count) — zero-risk backlog surfaced for free during the research pass.
+- **Autonomy score ~99%:** Zero AskUserQuestion calls; the only external interruption was Andrew manually stopping a live-browser search mid-flight (his action, not an autonomy gap).
+- **Round-trips ~1.1 avg:** Both misses resolved within the same turn they occurred in.
 
 ### 2026-06-26 — Deck narrative dictation (Digital Help + IEP)
 - **Session scale:** Small/medium — writing-only session. No code or site changes; output in `/tmp/drafts/`.
