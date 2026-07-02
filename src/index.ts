@@ -28,7 +28,7 @@ import { compactAuditPage, compactEvaluation, compactAuditUrl } from "./compact.
 import { auditVideoPlaybackUrl, auditVideoPlaybackSnapshot } from "./video-playback.js";
 import { auditConsistency } from "./audit-consistency.js";
 import { detectOrphanStretch } from "./layout-orphans.js";
-import { createTasteProfile, getTasteProfile, listTasteProfiles, labelFinding, auditTaste, ruleInScope } from "./taste.js";
+import { createTasteProfile, getTasteProfile, listTasteProfiles, labelFinding, auditTaste, ruleInScope, getTasteInterview, bindTasteSurface, listSurfaceBindings, resolveSurfaceBinding } from "./taste.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -5520,10 +5520,43 @@ server.tool(
 
 server.tool(
   "get_taste_profile",
-  "Load a locally stored taste profile by name — returns its full rule catalog and precedent corpus.",
+  "Load a locally stored taste profile by name — returns its full rule catalog, precedent corpus, and per-project surface bindings.",
   { name: z.string().min(1).describe("Profile name.") },
   async function ({ name }) {
-    return { content: [{ type: "text" as const, text: JSON.stringify(getTasteProfile(name), null, 2) }] };
+    var profileOut = Object.assign({}, getTasteProfile(name), { surfaces: listSurfaceBindings(name) });
+    return { content: [{ type: "text" as const, text: JSON.stringify(profileOut, null, 2) }] };
+  }
+);
+
+server.tool(
+  "get_taste_interview",
+  "START HERE on a NEW project: returns a short, deterministic calibration interview — built from the taste profile's own scope-tagged rules and voice/tone rules — asking how the taste should show up on THIS surface (e.g. a monochrome portfolio wants the one-accent rule at full block; a product site doesn't want monochrome suggestions at all, and may tolerate a warmer voice). Ask the user the returned questions conversationally, then persist the answers with bind_taste_surface. Run this BEFORE the first audit_taste on any project that has no binding yet — audit results include a calibration_hint when calibration is missing.",
+  {
+    profile: z.string().min(1).describe("Taste profile name (see list_taste_profiles)."),
+    project: z.string().optional().describe("Project identifier the binding will be saved under, e.g. 'raven-mcp' or 'portfolio'. Include it so the interview can show any existing binding.")
+  },
+  async function ({ profile, project }) {
+    return { content: [{ type: "text" as const, text: JSON.stringify(getTasteInterview(profile, project), null, 2) }] };
+  }
+);
+
+server.tool(
+  "bind_taste_surface",
+  "Persist a project's surface calibration for a taste profile — the answers from get_taste_interview. A binding records: the surface string scoped rules match against (e.g. 'product-site'), URL hosts that identify the project in url-mode audits, per-rule severity overrides (block|warn|nit|off — 'off' silences a rule on this surface), and an optional voice/tone note echoed in every audit result. Upserts by project name (~/.raven/taste/<profile>.surfaces.json). After binding, audit_taste with project:'<name>' or a bound url applies the calibration automatically: matching scoped rules run at full severity, non-matching ones are skipped, overrides re-tune the rest.",
+  {
+    profile: z.string().min(1).describe("Taste profile name."),
+    project: z.string().min(1).describe("Project identifier, e.g. 'raven-mcp', 'portfolio'."),
+    surface: z.string().min(1).describe("What this surface IS, in scope-matchable words: 'monochrome portfolio', 'product-site', 'developer docs'. Scoped rules activate when their scope tokens overlap this string."),
+    hosts: z.array(z.string()).optional().describe("URL hostnames that identify this project (e.g. ravenmcp.ai) — matched in url-mode audits, subdomains included."),
+    overrides: z.array(z.object({
+      rule_id: z.string().describe("Must exist in the profile."),
+      severity: z.enum(["block", "warn", "nit", "off"]).describe("Severity on this surface; off = rule never runs here.")
+    })).optional().describe("Per-rule re-tuning for this surface (e.g. relax a voice rule to nit on a product site)."),
+    voice_note: z.string().optional().describe("Short tone guidance for this surface (e.g. 'Product register: benefits may be stated plainly; still no hype verbs'). Echoed as voice_note in audit results.")
+  },
+  async function ({ profile, project, surface, hosts, overrides, voice_note }) {
+    var binding = bindTasteSurface(profile, { project: project, surface: surface, hosts: hosts, overrides: overrides, voice_note: voice_note });
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "bind_taste_surface", profile: profile, binding: binding }, null, 2) }] };
   }
 );
 
@@ -5556,15 +5589,16 @@ server.tool(
 
 server.tool(
   "audit_taste",
-  "Judge a target against a taste profile. Pass html (static page/CSS), text (a copy block), or url (rendered headless; also runs delegated WCAG-contrast/tap-target measurements for owner:raven rules). owner:taste rules run deterministic detectors — gradients, glow/neon (large-blur colored shadows), second accent hue, banned-word lists from the rule's negative prompt; clauses with no deterministic detector are reported honestly under not_assessed instead of guessed. owner:raven rules route through Raven's existing audit engines (page checks, contrast, tap targets) and fold results in under the delegating rule_id. Every finding cites an existing rule_id + concrete evidence — the engine prefers silence over a speculative nit. accept-verdict corpus precedents suppress previously-approved patterns. Rules may carry a scope (e.g. portfolio-monochrome); pass surface to say what you're judging — scoped rules run at full severity on a matching surface, are skipped (reported under skipped_out_of_scope) on a non-matching one, and can warn but never block when surface is omitted. Verdict: BLOCK (any block finding) / WARN (any warn) / PASS.",
+  "Judge a target against a taste profile. Pass html (static page/CSS), text (a copy block), or url (rendered headless; also runs delegated WCAG-contrast/tap-target measurements for owner:raven rules). owner:taste rules run deterministic detectors — gradients, glow/neon (large-blur colored shadows), second accent hue, banned-word lists from the rule's negative prompt; clauses with no deterministic detector are reported honestly under not_assessed instead of guessed. owner:raven rules route through Raven's existing audit engines (page checks, contrast, tap targets) and fold results in under the delegating rule_id. Every finding cites an existing rule_id + concrete evidence — the engine prefers silence over a speculative nit. accept-verdict corpus precedents suppress previously-approved patterns. Rules may carry a scope (e.g. portfolio-monochrome); pass surface to say what you're judging — scoped rules run at full severity on a matching surface, are skipped (reported under skipped_out_of_scope) on a non-matching one, and can warn but never block when surface is omitted. Better: pass project (or audit a bound url host) so a saved surface binding supplies the surface, per-rule overrides, and voice note automatically — on a NEW project with no binding, run get_taste_interview first (results carry a calibration_hint when calibration is missing). Verdict: BLOCK (any block finding) / WARN (any warn) / PASS.",
   {
     profile: z.string().min(1).describe("Taste profile name (see list_taste_profiles)."),
     html: z.string().optional().describe("Full HTML/CSS of the page to judge."),
     text: z.string().optional().describe("A copy/text block to judge (voice/banned-word rules)."),
     url: z.string().optional().describe("Live URL — rendered headless with scroll-settle; enables delegated contrast/tap-target measurement."),
-    surface: z.string().optional().describe("What surface is being judged (e.g. 'portfolio', 'product-site', 'deck') — activates/skips scope-tagged rules by token match. Omit if unsure: scoped rules then warn instead of block.")
+    surface: z.string().optional().describe("What surface is being judged (e.g. 'portfolio', 'product-site', 'deck') — activates/skips scope-tagged rules by token match. Omit if unsure: scoped rules then warn instead of block."),
+    project: z.string().optional().describe("Project identifier — resolves a saved surface binding (see get_taste_interview / bind_taste_surface) that supplies the surface and per-rule overrides automatically. url-mode audits also resolve bindings by hostname.")
   },
-  async function ({ profile, html, text, url, surface }) {
+  async function ({ profile, html, text, url, surface, project }) {
     if (typeof url === "string" && url.trim() === "") url = undefined;
     var providedInputs = [html !== undefined, text !== undefined, url !== undefined].filter(Boolean).length;
     if (providedInputs !== 1) {
@@ -5573,9 +5607,14 @@ server.tool(
     var prof = getTasteProfile(profile);
     var targetHtml = html;
     var pageIssues: { rule: string; severity: string; message: string; fix?: string }[] = [];
-    // Out-of-scope raven rules must not trigger delegated audits: their issues
-    // would otherwise fold into unrelated in-scope rules by name overlap.
-    var delegates = new Set(prof.rules.filter(function (r) { return r.owner === "raven" && ruleInScope(r, surface); }).map(function (r) { return r.delegate_to; }));
+    // Resolve any surface binding up front: delegate audits must be filtered by
+    // the same calibrated surface + off-overrides the rule loop will use.
+    var binding = resolveSurfaceBinding(prof.name, { project: project, url: url });
+    var effectiveSurface = typeof surface === "string" && surface.trim().length > 0 ? surface : binding ? binding.surface : undefined;
+    var offRuleIds = new Set((binding ? binding.overrides : []).filter(function (o) { return o.severity === "off"; }).map(function (o) { return o.rule_id; }));
+    // Out-of-scope and binding-silenced raven rules must not trigger delegated
+    // audits: their issues would otherwise fold into unrelated in-scope rules.
+    var delegates = new Set(prof.rules.filter(function (r) { return r.owner === "raven" && !offRuleIds.has(r.rule_id) && ruleInScope(r, effectiveSurface); }).map(function (r) { return r.delegate_to; }));
 
     if (url) {
       try {
@@ -5600,7 +5639,7 @@ server.tool(
       var pc = runPageChecks(targetHtml);
       for (var iss of pc.issues) pageIssues.push({ rule: iss.rule, severity: iss.severity, message: iss.message, fix: iss.fix });
     }
-    var result = auditTaste({ profile: prof, html: targetHtml, text: targetHtml === undefined ? text : undefined, page_issues: pageIssues.length > 0 ? pageIssues : undefined, surface: surface });
+    var result = auditTaste({ profile: prof, html: targetHtml, text: targetHtml === undefined ? text : undefined, page_issues: pageIssues.length > 0 ? pageIssues : undefined, surface: surface, binding: binding });
     var out: any = result;
     if (url) out = Object.assign({}, result, { target: "url", url: url });
     return { content: [{ type: "text" as const, text: JSON.stringify(out, null, 2) }] };

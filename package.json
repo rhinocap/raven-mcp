@@ -26,6 +26,7 @@
     "release": "bash scripts/release.sh",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
+    "pretest": "npm run build",
     "test": "node --test \"test/**/*.test.mjs\"",
     "postinstall": "node scripts/postinstall.cjs || true",
     "prepublishOnly": "npm run build"

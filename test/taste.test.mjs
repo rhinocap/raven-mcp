@@ -785,3 +785,211 @@ test('ruleInScope: exported helper used by url-mode delegate filtering', async (
   assert.equal(taste.ruleInScope(Object.assign({}, baseRules()[0], { scope: '' }), 'anything'), true);
   assert.equal(taste.ruleInScope(Object.assign({}, baseRules()[0], { scope: 'use' }), 'user-research'), false);
 });
+
+test('surface calibration interview is built from the profile’s own scopes and voice rules', async () => {
+  await withTasteHome(async () => {
+    const scoped = Object.assign({}, baseRules()[0], { scope: 'portfolio-monochrome' });
+    const voice = Object.assign({}, baseRules()[1], { category: 'voice' });
+    taste.createTasteProfile({ name: 'cal', rules: [scoped, voice, baseRules()[2]] });
+
+    const interview = taste.getTasteInterview('cal', 'raven-mcp');
+    assert.equal(interview.tool, 'get_taste_interview');
+    assert.equal(interview.project, 'raven-mcp');
+    assert.equal(interview.existing_binding, null);
+    assert.deepEqual(interview.scopes.map((s) => s.scope), ['portfolio-monochrome']);
+    assert.deepEqual(interview.scopes[0].rules.map((r) => r.rule_id), ['GRADIENT-BLOCK']);
+    assert.deepEqual(interview.voice_rules.map((r) => r.rule_id), ['BANNED-WARN']);
+    assert.deepEqual(interview.rule_ids, ['GRADIENT-BLOCK', 'BANNED-WARN', 'HUE-NIT']);
+    const ids = interview.questions.map((q) => q.id);
+    assert.deepEqual(ids, ['identity', 'scope:portfolio-monochrome', 'voice', 'exceptions', 'matchers']);
+    assert.ok(interview.questions[1].question.includes('GRADIENT-BLOCK'));
+    assert.ok(interview.then.includes('bind_taste_surface'));
+
+    // No voice rules and no scopes -> only the three generic questions.
+    taste.createTasteProfile({ name: 'plain', rules: [baseRules()[2]] });
+    const bare = taste.getTasteInterview('plain');
+    assert.deepEqual(bare.questions.map((q) => q.id), ['identity', 'exceptions', 'matchers']);
+
+    // After binding, the interview surfaces the existing calibration.
+    taste.bindTasteSurface('cal', { project: 'raven-mcp', surface: 'product-site' });
+    const again = taste.getTasteInterview('cal', 'raven-mcp');
+    assert.equal(again.existing_binding.surface, 'product-site');
+  });
+});
+
+test('bind_taste_surface validates, normalizes hosts, upserts by project, and round-trips from disk', async () => {
+  await withTasteHome(async (home) => {
+    taste.createTasteProfile({ name: 'bindings', rules: baseRules() });
+
+    assert.throws(() => taste.bindTasteSurface('bindings', { project: 'x', surface: '' }), /surface is required/);
+    assert.throws(() => taste.bindTasteSurface('bindings', { project: '/etc', surface: 's' }), /project must match/);
+    assert.throws(
+      () => taste.bindTasteSurface('bindings', { project: 'x', surface: 's', overrides: [{ rule_id: 'NOPE', severity: 'off' }] }),
+      /does not exist in profile.rules/
+    );
+    assert.throws(
+      () => taste.bindTasteSurface('bindings', { project: 'x', surface: 's', overrides: [{ rule_id: 'HUE-NIT', severity: 'loud' }] }),
+      /severity must be block, warn, nit, or off/
+    );
+
+    const bound = taste.bindTasteSurface('bindings', {
+      project: 'raven-mcp',
+      surface: 'product-site',
+      hosts: ['https://RavenMCP.ai/some/path', 'www.example.com:8080'],
+      overrides: [{ rule_id: 'BANNED-WARN', severity: 'nit' }],
+      voice_note: 'Product register.'
+    });
+    assert.deepEqual(bound.hosts, ['ravenmcp.ai', 'www.example.com']);
+
+    const onDisk = JSON.parse(await readFile(path.join(home, 'bindings.surfaces.json'), 'utf8'));
+    assert.equal(onDisk.version, 1);
+    assert.equal(onDisk.bindings.length, 1);
+
+    // Upsert: same project replaces, different project adds.
+    taste.bindTasteSurface('bindings', { project: 'raven-mcp', surface: 'developer docs' });
+    taste.bindTasteSurface('bindings', { project: 'portfolio', surface: 'monochrome portfolio' });
+    const all = taste.listSurfaceBindings('bindings');
+    assert.deepEqual(all.map((b) => [b.project, b.surface]), [
+      ['portfolio', 'monochrome portfolio'],
+      ['raven-mcp', 'developer docs']
+    ]);
+  });
+});
+
+test('resolveSurfaceBinding: explicit project beats url host; hosts match subdomains; unknown resolves null', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'res', rules: baseRules() });
+    assert.equal(taste.resolveSurfaceBinding('res', { project: 'anything' }), null);
+
+    taste.bindTasteSurface('res', { project: 'raven-mcp', surface: 'product-site', hosts: ['ravenmcp.ai'] });
+    taste.bindTasteSurface('res', { project: 'portfolio', surface: 'monochrome portfolio', hosts: ['andrew.design'] });
+
+    assert.equal(taste.resolveSurfaceBinding('res', { project: 'Portfolio' }).project, 'portfolio');
+    assert.equal(taste.resolveSurfaceBinding('res', { url: 'https://ravenmcp.ai/changelog' }).project, 'raven-mcp');
+    assert.equal(taste.resolveSurfaceBinding('res', { url: 'https://www.ravenmcp.ai/' }).project, 'raven-mcp');
+    // Explicit project wins even when the url points at another binding's host.
+    assert.equal(taste.resolveSurfaceBinding('res', { project: 'portfolio', url: 'https://ravenmcp.ai/' }).project, 'portfolio');
+    // Suffix matching is domain-boundary safe: notravenmcp.ai is a different host.
+    assert.equal(taste.resolveSurfaceBinding('res', { url: 'https://notravenmcp.ai/' }), null);
+    assert.equal(taste.resolveSurfaceBinding('res', { url: 'not a url' }), null);
+    assert.equal(taste.resolveSurfaceBinding('res', {}), null);
+  });
+});
+
+test('a resolved binding supplies the surface, applies overrides at full trust, and echoes the voice note', async () => {
+  await withTasteHome(async () => {
+    const scoped = Object.assign({}, baseRules()[0], { scope: 'portfolio-monochrome' });
+    taste.createTasteProfile({ name: 'proj', rules: [scoped, baseRules()[1]] });
+    taste.bindTasteSurface('proj', {
+      project: 'raven-mcp',
+      surface: 'product-site',
+      overrides: [{ rule_id: 'BANNED-WARN', severity: 'nit' }],
+      voice_note: 'Product register: plain benefits OK, still no hype verbs.'
+    });
+    taste.bindTasteSurface('proj', { project: 'portfolio', surface: 'monochrome portfolio' });
+    const html = '<style>.x{background:linear-gradient(red, blue)}</style><p>We have proven results.</p>';
+
+    // On raven-mcp: monochrome rule skipped, voice rule re-tuned to nit, note echoed.
+    const onRaven = taste.auditTaste({ profile: 'proj', html, project: 'raven-mcp' });
+    assert.equal(onRaven.binding, 'raven-mcp');
+    assert.equal(onRaven.surface_applied, 'product-site');
+    assert.deepEqual(onRaven.skipped_out_of_scope, [{ rule_id: 'GRADIENT-BLOCK', scope: 'portfolio-monochrome' }]);
+    assert.equal(onRaven.findings.find((f) => f.rule_id === 'BANNED-WARN').severity, 'nit');
+    assert.equal(onRaven.voice_note, 'Product register: plain benefits OK, still no hype verbs.');
+    assert.equal(onRaven.calibration_hint, undefined);
+    assert.equal(onRaven.verdict, 'PASS');
+
+    // On the portfolio: scoped rule runs at FULL block (binding surface counts as provided).
+    const onPortfolio = taste.auditTaste({ profile: 'proj', html, project: 'portfolio' });
+    assert.equal(onPortfolio.binding, 'portfolio');
+    assert.equal(onPortfolio.findings.find((f) => f.rule_id === 'GRADIENT-BLOCK').severity, 'block');
+    assert.equal(onPortfolio.verdict, 'BLOCK');
+
+    // Explicit surface beats the binding's surface; overrides still apply.
+    const explicit = taste.auditTaste({ profile: 'proj', html, project: 'raven-mcp', surface: 'portfolio' });
+    assert.equal(explicit.surface_applied, 'portfolio');
+    assert.equal(explicit.findings.find((f) => f.rule_id === 'GRADIENT-BLOCK').severity, 'block');
+    assert.equal(explicit.findings.find((f) => f.rule_id === 'BANNED-WARN').severity, 'nit');
+  });
+});
+
+test('an off override silences a rule on that surface and is reported under disabled_by_binding', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'silence', rules: baseRules() });
+    taste.bindTasteSurface('silence', {
+      project: 'raven-mcp',
+      surface: 'product-site',
+      overrides: [{ rule_id: 'GRADIENT-BLOCK', severity: 'off' }]
+    });
+    const html = '<style>.x{background:linear-gradient(red, blue)}</style>';
+    const r = taste.auditTaste({ profile: 'silence', html, project: 'raven-mcp' });
+    assert.deepEqual(r.disabled_by_binding, [{ rule_id: 'GRADIENT-BLOCK', severity: 'off' }]);
+    assert.equal(r.findings.filter((f) => f.rule_id === 'GRADIENT-BLOCK').length, 0);
+    assert.equal(r.verdict, 'PASS');
+  });
+});
+
+test('calibration_hint appears only when scoped rules exist and neither surface nor binding was given', async () => {
+  await withTasteHome(async () => {
+    const scoped = Object.assign({}, baseRules()[0], { scope: 'portfolio-monochrome' });
+    taste.createTasteProfile({ name: 'hint', rules: [scoped] });
+    const html = '<style>.x{background:linear-gradient(red, blue)}</style>';
+
+    const bare = taste.auditTaste({ profile: 'hint', html });
+    assert.ok(bare.calibration_hint.includes('get_taste_interview'));
+    assert.equal(bare.binding, '');
+    assert.equal(bare.findings[0].severity, 'warn');
+
+    const withSurface = taste.auditTaste({ profile: 'hint', html, surface: 'portfolio' });
+    assert.equal(withSurface.calibration_hint, undefined);
+
+    taste.createTasteProfile({ name: 'nohint', rules: [baseRules()[0]] });
+    const unscopedProfile = taste.auditTaste({ profile: 'nohint', html });
+    assert.equal(unscopedProfile.calibration_hint, undefined);
+  });
+});
+
+test('host binding hardening: single-label hosts rejected, userinfo/ports stripped, corrupt stored files refuse to load', async () => {
+  await withTasteHome(async (home) => {
+    taste.createTasteProfile({ name: 'hard', rules: baseRules() });
+
+    // A bare TLD would suffix-match every site under it.
+    assert.throws(() => taste.bindTasteSurface('hard', { project: 'x', surface: 's', hosts: ['ai'] }), /single label/);
+    assert.throws(() => taste.bindTasteSurface('hard', { project: 'x', surface: 's', hosts: ['   '] }), /empty/);
+
+    const bound = taste.bindTasteSurface('hard', {
+      project: 'x', surface: 's',
+      hosts: ['user:pass@ravenmcp.ai', 'localhost:3000', '127.0.0.1']
+    });
+    assert.deepEqual(bound.hosts, ['ravenmcp.ai', 'localhost', '127.0.0.1']);
+
+    // Stored files are validated as strictly as bind-time input.
+    const { writeFileSync } = await import('node:fs');
+    const file = path.join(home, 'hard.surfaces.json');
+    const good = JSON.parse(await readFile(file, 'utf8'));
+
+    const badHost = structuredClone(good);
+    badHost.bindings[0].hosts = ['AI'];
+    writeFileSync(file, JSON.stringify(badHost));
+    assert.throws(() => taste.listSurfaceBindings('hard'), /unnormalized|single label/);
+
+    const dupOverride = structuredClone(good);
+    dupOverride.bindings[0].overrides = [
+      { rule_id: 'HUE-NIT', severity: 'off' },
+      { rule_id: 'HUE-NIT', severity: 'warn' }
+    ];
+    writeFileSync(file, JSON.stringify(dupOverride));
+    assert.throws(() => taste.listSurfaceBindings('hard'), /duplicate rule_id/);
+
+    const badProject = structuredClone(good);
+    badProject.bindings[0].project = '../escape';
+    writeFileSync(file, JSON.stringify(badProject));
+    assert.throws(() => taste.listSurfaceBindings('hard'), /project must match/);
+
+    // Unknown override rule_ids stay loadable by design: bindings outlive rule renames.
+    const staleRule = structuredClone(good);
+    staleRule.bindings[0].overrides = [{ rule_id: 'REMOVED-RULE', severity: 'off' }];
+    writeFileSync(file, JSON.stringify(staleRule));
+    assert.equal(taste.listSurfaceBindings('hard')[0].overrides[0].rule_id, 'REMOVED-RULE');
+  });
+});

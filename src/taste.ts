@@ -48,8 +48,23 @@ export type TasteAuditResult = {
   suppressed: { rule_id: string; corpus_id: string; evidence: string }[];
   not_assessed: { rule_id: string; reason: string }[];
   skipped_out_of_scope: { rule_id: string; scope: string }[];
+  disabled_by_binding: { rule_id: string; severity: "off" }[];
+  binding: string;
+  surface_applied: string;
+  voice_note?: string;
+  calibration_hint?: string;
   verdict: "BLOCK" | "WARN" | "PASS";
   verdict_line: string;
+};
+
+export type SurfaceOverride = { rule_id: string; severity: TasteSeverity | "off" };
+export type SurfaceBinding = {
+  project: string;
+  surface: string;
+  hosts: string[];
+  overrides: SurfaceOverride[];
+  voice_note: string;
+  bound_at: string;
 };
 
 type PageIssueInput = { rule: string; severity: string; message: string; fix?: string };
@@ -199,12 +214,251 @@ function rawWords(value: string): Set<string> {
   return new Set(value.toLowerCase().match(/[a-z0-9]+/g) || []);
 }
 
+// ── Surface calibration: the kickoff interview + per-project bindings ───────
+// A binding records how a taste profile shows up on ONE project: which surface
+// string scoped rules match against, which rules are re-tuned or silenced, and
+// any voice/tone note. The interview is deterministic — built from the
+// profile's own scopes and voice rules — and is asked by the agent, not here.
+
+export function getTasteInterview(profileName: string, project?: string): {
+  tool: "get_taste_interview";
+  profile: string;
+  project: string;
+  existing_binding: SurfaceBinding | null;
+  scopes: { scope: string; rules: { rule_id: string; clause_text: string; severity_default: TasteSeverity }[] }[];
+  voice_rules: { rule_id: string; clause_text: string; severity_default: TasteSeverity }[];
+  rule_ids: string[];
+  questions: { id: string; question: string }[];
+  then: string;
+} {
+  const profile = getTasteProfile(profileName);
+  const projectName = typeof project === "string" && project.trim().length > 0 ? project.trim() : "";
+  const scopeMap = new Map<string, { rule_id: string; clause_text: string; severity_default: TasteSeverity }[]>();
+  for (const rule of profile.rules) {
+    const scope = rule.scope.trim().toLowerCase();
+    if (scope.length === 0 || scope === "global") continue;
+    if (!scopeMap.has(scope)) scopeMap.set(scope, []);
+    scopeMap.get(scope)!.push({ rule_id: rule.rule_id, clause_text: rule.clause_text, severity_default: rule.severity_default });
+  }
+  const scopes = Array.from(scopeMap.entries()).map(function(entry) { return { scope: entry[0], rules: entry[1] }; });
+  const voiceRules = profile.rules
+    .filter(function(rule) { return /voice|tone/.test(rule.category.toLowerCase()); })
+    .map(function(rule) { return { rule_id: rule.rule_id, clause_text: rule.clause_text, severity_default: rule.severity_default }; });
+
+  const label = projectName || "this project";
+  const questions: { id: string; question: string }[] = [
+    {
+      id: "identity",
+      question: "What is " + label + ", in a phrase — and what family is it (portfolio, product site, docs, app UI, deck, …)? The answer becomes the binding's surface string that scope-tagged rules match against.",
+    },
+  ];
+  for (const entry of scopes) {
+    questions.push({
+      id: "scope:" + entry.scope,
+      question: "Scope '" + entry.scope + "' carries: " +
+        entry.rules.map(function(rule) { return rule.rule_id + " (" + rule.severity_default + ") — " + rule.clause_text; }).join("; ") +
+        ". Does " + label + " belong to this scope? If no, these rules are skipped here.",
+    });
+  }
+  if (voiceRules.length > 0) {
+    questions.push({
+      id: "voice",
+      question: "Voice/tone rules: " +
+        voiceRules.map(function(rule) { return rule.rule_id + " (" + rule.severity_default + ") — " + rule.clause_text; }).join("; ") +
+        ". Should any read differently on " + label + " — relaxed (warn/nit), silenced (off), or stricter (block)? Add a short voice note if the register shifts here.",
+    });
+  }
+  questions.push({
+    id: "exceptions",
+    question: "Any other rules to override on " + label + "? Each override is {rule_id, severity: block|warn|nit|off}.",
+  });
+  questions.push({
+    id: "matchers",
+    question: "Which URL hosts identify " + label + " (for url-mode audits), e.g. ravenmcp.ai? The project name itself matches whenever audits pass project:'" + (projectName || "<name>") + "'.",
+  });
+
+  return {
+    tool: "get_taste_interview",
+    profile: profile.name,
+    project: projectName,
+    existing_binding: projectName ? resolveSurfaceBinding(profile.name, { project: projectName }) : null,
+    scopes,
+    voice_rules: voiceRules,
+    rule_ids: profile.rules.map(function(rule) { return rule.rule_id; }),
+    questions,
+    then: "Ask the user these questions conversationally, then persist the answers with bind_taste_surface. Future audit_taste calls with project:'" + (projectName || "<name>") + "' (or a matching url host) apply the binding automatically.",
+  };
+}
+
+export function bindTasteSurface(profileName: string, input: {
+  project: string;
+  surface: string;
+  hosts?: unknown;
+  overrides?: unknown;
+  voice_note?: unknown;
+}): SurfaceBinding {
+  const profile = getTasteProfile(profileName);
+  if (typeof input.project !== "string" || !/^[a-z0-9][a-z0-9-_.]{0,63}$/i.test(input.project)) {
+    throw new Error("project must match /^[a-z0-9][a-z0-9-_.]{0,63}$/i");
+  }
+  if (typeof input.surface !== "string" || input.surface.trim().length === 0) {
+    throw new Error("surface is required — the phrase scoped rules match against (e.g. 'product-site')");
+  }
+  const hosts: string[] = [];
+  if (input.hosts !== undefined) {
+    if (!Array.isArray(input.hosts)) throw new Error("hosts must be an array of hostnames");
+    for (const raw of input.hosts) {
+      if (typeof raw !== "string" || raw.trim().length === 0) throw new Error("hosts entries must be non-empty strings");
+      hosts.push(normalizeHost(raw));
+    }
+  }
+  const ruleIds = new Set(profile.rules.map(function(rule) { return rule.rule_id; }));
+  const overrides: SurfaceOverride[] = [];
+  if (input.overrides !== undefined) {
+    if (!Array.isArray(input.overrides)) throw new Error("overrides must be an array of {rule_id, severity}");
+    const seen = new Set<string>();
+    for (let i = 0; i < input.overrides.length; i += 1) {
+      const raw = input.overrides[i];
+      if (!isRecord(raw)) throw new Error("overrides[" + i + "] must be an object");
+      const ruleId = readNonEmptyString(raw, "rule_id", "overrides[" + i + "]");
+      if (!ruleIds.has(ruleId)) throw new Error("overrides[" + i + "].rule_id does not exist in profile.rules: " + ruleId);
+      if (seen.has(ruleId)) throw new Error("duplicate override for rule_id: " + ruleId);
+      seen.add(ruleId);
+      const severity = raw.severity;
+      if (severity !== "off" && !isSeverity(severity)) throw new Error("overrides[" + i + "].severity must be block, warn, nit, or off");
+      overrides.push({ rule_id: ruleId, severity: severity as TasteSeverity | "off" });
+    }
+  }
+  const voiceNote = optionalString(input.voice_note);
+
+  const binding: SurfaceBinding = {
+    project: input.project,
+    surface: input.surface.trim(),
+    hosts,
+    overrides,
+    voice_note: voiceNote,
+    bound_at: new Date().toISOString(),
+  };
+  const bindings = listSurfaceBindings(profile.name).filter(function(existing) {
+    return existing.project.toLowerCase() !== binding.project.toLowerCase();
+  });
+  bindings.push(binding);
+  bindings.sort(function(a, b) { return a.project.localeCompare(b.project); });
+  mkdirSync(tasteHome(), { recursive: true });
+  writeFileSync(surfacesPath(profile.name), JSON.stringify({ version: 1, bindings }, null, 2) + "\n", "utf8");
+  return binding;
+}
+
+export function listSurfaceBindings(profileName: string): SurfaceBinding[] {
+  const file = surfacesPath(validateProfileName(profileName));
+  if (!existsSync(file)) return [];
+  const raw = JSON.parse(readFileSync(file, "utf8"));
+  if (!isRecord(raw) || raw.version !== 1 || !Array.isArray(raw.bindings)) {
+    throw new Error("Stored surface bindings must be {version: 1, bindings: []}: " + file);
+  }
+  return raw.bindings.map(function(entry, index) { return validateStoredBinding(entry, "bindings[" + index + "]"); });
+}
+
+// Precedence: explicit project name beats url-host match; hosts match exactly
+// or as a parent domain (www.ravenmcp.ai matches a ravenmcp.ai binding).
+export function resolveSurfaceBinding(profileName: string, hints: { project?: string; url?: string }): SurfaceBinding | null {
+  const bindings = listSurfaceBindings(profileName);
+  if (bindings.length === 0) return null;
+  const project = typeof hints.project === "string" ? hints.project.trim().toLowerCase() : "";
+  if (project.length > 0) {
+    const byName = bindings.find(function(binding) { return binding.project.toLowerCase() === project; });
+    if (byName) return byName;
+  }
+  if (typeof hints.url === "string" && hints.url.trim().length > 0) {
+    let host = "";
+    try { host = new URL(hints.url).hostname.toLowerCase(); } catch { host = ""; }
+    if (host.length > 0) {
+      for (const binding of bindings) {
+        for (const bound of binding.hosts) {
+          if (host === bound || host.endsWith("." + bound)) return binding;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function surfacesPath(name: string): string {
+  return join(tasteHome(), name + ".surfaces.json");
+}
+
+// URL-parse the entry (handles userinfo, ports, paths, IPv6 brackets) so the
+// stored value is exactly what resolveSurfaceBinding compares URL.hostname
+// against. Single-label hosts ("ai") are rejected — a bare TLD would match
+// every site under it via the subdomain suffix rule.
+function normalizeHost(raw: string): string {
+  const trimmed = raw.trim().toLowerCase();
+  if (trimmed.length === 0) throw new Error("hosts entry is empty");
+  let host = "";
+  try { host = new URL(trimmed.includes("://") ? trimmed : "http://" + trimmed).hostname; } catch {
+    throw new Error("hosts entry is not a valid hostname: " + raw);
+  }
+  if (host.length === 0) throw new Error("hosts entry has no hostname: " + raw);
+  const isIpLiteral = (host.startsWith("[") && host.endsWith("]")) || /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+  if (!isIpLiteral && host !== "localhost" && !host.includes(".")) {
+    throw new Error("hosts entry must be a full hostname, not a single label: " + raw);
+  }
+  return host;
+}
+
+// Mirrors bind-time validation so a hand-edited or corrupt surfaces file can't
+// smuggle in what bind_taste_surface would reject. Override rule_ids are NOT
+// checked against the profile here: a binding legitimately outlives rule
+// renames/removals, and unknown ids are inert at audit time.
+function validateStoredBinding(raw: unknown, where: string): SurfaceBinding {
+  if (!isRecord(raw)) throw new Error(where + " must be an object");
+  const project = readNonEmptyString(raw, "project", where);
+  if (!/^[a-z0-9][a-z0-9-_.]{0,63}$/i.test(project)) {
+    throw new Error(where + ".project must match /^[a-z0-9][a-z0-9-_.]{0,63}$/i");
+  }
+  const surface = readNonEmptyString(raw, "surface", where);
+  if (!Array.isArray(raw.hosts) || raw.hosts.some(function(host) { return typeof host !== "string"; })) {
+    throw new Error(where + ".hosts must be an array of strings");
+  }
+  const hosts = raw.hosts.map(function(host) {
+    const normalized = normalizeHost(host as string);
+    if (normalized !== host) throw new Error(where + ".hosts contains an unnormalized entry: " + host);
+    return normalized;
+  });
+  if (!Array.isArray(raw.overrides)) throw new Error(where + ".overrides must be an array");
+  const seenOverrides = new Set<string>();
+  const overrides = raw.overrides.map(function(entry, index) {
+    if (!isRecord(entry)) throw new Error(where + ".overrides[" + index + "] must be an object");
+    const ruleId = readNonEmptyString(entry, "rule_id", where + ".overrides[" + index + "]");
+    if (seenOverrides.has(ruleId)) throw new Error(where + ".overrides has a duplicate rule_id: " + ruleId);
+    seenOverrides.add(ruleId);
+    const severity = entry.severity;
+    if (severity !== "off" && !isSeverity(severity)) {
+      throw new Error(where + ".overrides[" + index + "].severity must be block, warn, nit, or off");
+    }
+    return { rule_id: ruleId, severity: severity as TasteSeverity | "off" };
+  });
+  if (raw.voice_note !== undefined && typeof raw.voice_note !== "string") {
+    throw new Error(where + ".voice_note must be a string when present");
+  }
+  return {
+    project,
+    surface,
+    hosts,
+    overrides,
+    voice_note: optionalString(raw.voice_note),
+    bound_at: readNonEmptyString(raw, "bound_at", where),
+  };
+}
+
 export function auditTaste(input: {
   profile: string | TasteProfile;
   html?: string;
   text?: string;
   page_issues?: PageIssueInput[];
   surface?: string;
+  project?: string;
+  binding?: SurfaceBinding | null;
 }): TasteAuditResult {
   const supplied = [input.html !== undefined, input.text !== undefined].filter(Boolean).length;
   if (supplied !== 1) throw new Error("Exactly one of html or text is required");
@@ -215,20 +469,42 @@ export function auditTaste(input: {
   const findings: TasteFinding[] = [];
   const notAssessed: { rule_id: string; reason: string }[] = [];
   const skippedOutOfScope: { rule_id: string; scope: string }[] = [];
+  const disabledByBinding: { rule_id: string; severity: "off" }[] = [];
   const attachedIssueIndexes = new Set<number>();
-  const surfaceProvided = typeof input.surface === "string" && input.surface.trim().length > 0;
+  // undefined binding = "resolve from the project hint"; null = "already
+  // resolved upstream, none found" (the url-mode handler resolves early so
+  // delegate audits are filtered the same way).
+  const binding = input.binding !== undefined
+    ? input.binding
+    : resolveSurfaceBinding(profile.name, { project: input.project });
+  const explicitSurface = typeof input.surface === "string" && input.surface.trim().length > 0 ? input.surface : undefined;
+  const surface = explicitSurface !== undefined ? explicitSurface : binding ? binding.surface : undefined;
+  const surfaceProvided = surface !== undefined;
+  const overrideById = new Map<string, TasteSeverity | "off">();
+  if (binding) for (const override of binding.overrides) overrideById.set(override.rule_id, override.severity);
 
   for (const originalRule of profile.rules) {
     let rule = originalRule;
-    if (!ruleInScope(rule, input.surface)) {
+    const override = overrideById.get(rule.rule_id);
+    if (override === "off") {
+      disabledByBinding.push({ rule_id: rule.rule_id, severity: "off" });
+      continue;
+    }
+    if (!ruleInScope(rule, surface)) {
       skippedOutOfScope.push({ rule_id: rule.rule_id, scope: rule.scope });
       continue;
     }
-    const scope = rule.scope.trim().toLowerCase();
-    if (scope.length > 0 && scope !== "global" && !surfaceProvided && rule.severity_default === "block") {
-      // Surface unstated: a scoped rule still runs, but may not apply to
-      // whatever this artifact is — so it can nudge, never block.
-      rule = Object.assign({}, rule, { severity_default: "warn" as TasteSeverity });
+    if (override !== undefined) {
+      // Calibrated severity from the surface binding beats the default AND
+      // the no-surface demotion — the human already said how it reads here.
+      rule = Object.assign({}, rule, { severity_default: override });
+    } else {
+      const scope = rule.scope.trim().toLowerCase();
+      if (scope.length > 0 && scope !== "global" && !surfaceProvided && rule.severity_default === "block") {
+        // Surface unstated: a scoped rule still runs, but may not apply to
+        // whatever this artifact is — so it can nudge, never block.
+        rule = Object.assign({}, rule, { severity_default: "warn" as TasteSeverity });
+      }
     }
     if (rule.owner === "raven") {
       if (input.page_issues === undefined) {
@@ -274,7 +550,11 @@ export function auditTaste(input: {
     verdict === "WARN" ? "Verdict: WARN (0 block, " + warnCount + " warn)" :
     "Verdict: PASS (no findings)";
 
-  return {
+  const hasScopedRules = profile.rules.some(function(rule) {
+    const scope = rule.scope.trim().toLowerCase();
+    return scope.length > 0 && scope !== "global";
+  });
+  const result: TasteAuditResult = {
     tool: "audit_taste",
     profile: profile.name,
     target: targetKind,
@@ -282,9 +562,20 @@ export function auditTaste(input: {
     suppressed,
     not_assessed: notAssessed.filter(function(row) { return ruleIds.has(row.rule_id); }),
     skipped_out_of_scope: skippedOutOfScope,
+    disabled_by_binding: disabledByBinding,
+    binding: binding ? binding.project : "",
+    surface_applied: surface || "",
     verdict,
     verdict_line,
   };
+  if (binding && binding.voice_note.trim().length > 0) result.voice_note = binding.voice_note;
+  if (!surfaceProvided && !binding && hasScopedRules) {
+    result.calibration_hint =
+      "This profile has scope-tagged rules but no surface or binding was given — scoped block rules were demoted to warn. " +
+      "For a new project, run get_taste_interview, ask the user the questions, and persist with bind_taste_surface; " +
+      "then pass project:'<name>' (or audit a bound url host) so the calibration applies automatically.";
+  }
+  return result;
 }
 
 function validateProfileName(name: unknown): string {

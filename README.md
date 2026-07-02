@@ -105,10 +105,12 @@ cd raven-mcp && npm install && npm run build
 | `plan_creative_campaign` | Plan a multi-asset campaign and optionally create draft generation jobs |
 | `score_creative` | Score a prompt/script/concept for hook, benefit clarity, product signal, CTA, channel fit, audience fit, and brand fit |
 | `create_taste_profile` | Create a named taste profile — a portable design-judgment ruleset (rule_id, clause, category, severity, negative prompt, owner) + precedent corpus, from explicit rules and/or a DESIGN.md-style markdown doc — persisted locally under `~/.raven/taste/` (`RAVEN_TASTE_HOME` override) |
-| `get_taste_profile` | Load a stored taste profile's full rule catalog and precedent corpus |
+| `get_taste_profile` | Load a stored taste profile's full rule catalog, precedent corpus, and surface bindings |
 | `list_taste_profiles` | List locally stored taste profiles with rule/corpus counts |
 | `label_finding` | Append a human accept/revise/reject precedent to a profile's corpus — the growth loop; append-only, and accept-verdicts suppress that pattern in future audits |
-| `audit_taste` | Judge HTML, copy text, or a live URL against a taste profile — deterministic detectors for gradients, glow/neon, second accent hue, and banned words; `owner: raven` rules route through Raven's existing page/contrast/tap-target engines; every finding cites a rule_id + concrete evidence (undetectable clauses are reported as `not_assessed`, never guessed); scope-tagged rules activate per `surface` (skipped elsewhere, warn-only when surface is omitted); verdict BLOCK / WARN / PASS |
+| `get_taste_interview` | Kickoff calibration for a NEW project — a short deterministic interview (built from the profile's scoped + voice rules) asking how the taste should show up on this surface; answers persist via `bind_taste_surface` |
+| `bind_taste_surface` | Persist a project's surface calibration — surface string, URL hosts, per-rule severity overrides (incl. `off`), voice note — auto-applied by `audit_taste` via `project` or a bound url host |
+| `audit_taste` | Judge HTML, copy text, or a live URL against a taste profile — deterministic detectors for gradients, glow/neon, second accent hue, and banned words; `owner: raven` rules route through Raven's existing page/contrast/tap-target engines; every finding cites a rule_id + concrete evidence (undetectable clauses are reported as `not_assessed`, never guessed); scope-tagged rules activate per `surface` (skipped elsewhere, warn-only when surface is omitted); pass `project` to apply a saved surface binding automatically; verdict BLOCK / WARN / PASS |
 | `raven_reflect` | Summarize your local Raven usage log to find patterns + gaps |
 
 ## Creative studio
