@@ -33,6 +33,10 @@ Fresh `/goal`: land 6 parked feature branches, then build the Taste Engine (5 ne
 **Why:** Andrew: "WE should wire this model in" — trained 2026-06-28 but never graded or integrated.
 **Pushed:** lives in ~/.claude/skills/design-judge/ (not this repo).
 
+### Codex devil's-advocate pass #2 (Qwen wiring) — 6 MUST-FIX, all dispositioned
+**What:** (1) judge.py omitted the "Category hint:" line when --category absent (every training record has it) → default "other", line always emitted — fix improved real behavior: fresh gradient artifact now flags WARN/COLOR-no-gradient-no-glow instead of UNKNOWN; (2) load diagnostics polluted stdout → redirected to stderr, stdout is response + LOCAL_VERDICT only; (3) grade.py's lenient extract_verdict could promote malformed output ("BLOCKISH", "FINDING:…BLOCKED") into trusted verdicts → judge.py now uses strict whitelist-only strict_verdict (8/8 attack cases → UNKNOWN); (4) SKILL.md §3b guard didn't absorb inference errors → rewritten as OUT capture with `|| UNKNOWN` fallback, error path verified; (5) `source: "local-lora"` contradicted Step 5 schema → added to allowed sources; (6) "when it flags, it's right" / "never adds false alarms" overstated n=6 → softened with provisional caveat inline in SKILL.md + GRADE-RESULTS.md. Notes: README-distill stale counts fixed (90 records, 62/13/15 splits); smoke results now on record in GRADE-RESULTS.md.
+**Why:** required devil's-advocate gate before the done claim; all 6 were real.
+
 ## State at end of session
 - Part A: 6 branches landed + deduped docs ✓ (staged on local main, unpushed)
 - Taste Engine: implemented, wired, tested, smoked ✓ (staged, unpushed)
