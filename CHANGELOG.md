@@ -6,6 +6,9 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+### Added
+- Design-dimension questions in the taste interview — `get_taste_interview` now asks how typography, spacing, color, layout, motion, and imagery should read on the surface being bound, each question grounded in the profile's own rules for that category (it names the rule ids already enforced, or says the answer is the only guidance when none exist). `bind_taste_surface` accepts the answers as a `design_notes` object ({dimension: note}); the notes persist on the binding and are echoed in every `audit_taste` result that resolves it, so a connected agent sees the surface's type/spacing/color/layout/motion/imagery intent before its first design decision. Backwards compatible: bindings saved without `design_notes` remain valid.
+
 ## [1.14.0] - 2026-07-02
 
 ### Added

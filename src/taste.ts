@@ -52,6 +52,7 @@ export type TasteAuditResult = {
   binding: string;
   surface_applied: string;
   voice_note?: string;
+  design_notes?: Record<string, string>;
   calibration_hint?: string;
   verdict: "BLOCK" | "WARN" | "PASS";
   verdict_line: string;
@@ -64,8 +65,28 @@ export type SurfaceBinding = {
   hosts: string[];
   overrides: SurfaceOverride[];
   voice_note: string;
+  design_notes: Record<string, string>;
   bound_at: string;
 };
+
+// The per-dimension preference questions every interview asks. Each is
+// grounded in the profile's own rules for that dimension (matched by category)
+// so the user calibrates against what the profile already enforces; where the
+// profile has no rules yet, the answer is the only guidance and says so.
+const DESIGN_DIMENSIONS: { key: string; match: RegExp; ask: string }[] = [
+  { key: "typography", match: /typ|font/i,
+    ask: "Typeface family and feel (grotesque, humanist, geometric, serif, mono — or a named face), scale contrast (restrained editorial vs dramatic display), weight range, and anything type must never do here." },
+  { key: "spacing", match: /spac|density|rhythm|whitespace/i,
+    ask: "Density and rhythm: airy-editorial, balanced, or compact-utilitarian? Name the base unit and section rhythm if you have one (e.g. 8px grid, 64px+ section gaps)." },
+  { key: "color", match: /color|colour|palette/i,
+    ask: "Ground (light or dark), palette temperature (warm/cool/neutral), how many accents and which hues, and where accent may appear (punctuation only vs fills)." },
+  { key: "layout", match: /layout|grid|structure/i,
+    ask: "Structure: editorial single-column, marketing grid, dense app chrome? Max-width feel, card usage, and how sections divide." },
+  { key: "motion", match: /motion|animat|transition/i,
+    ask: "None, subtle (fades/reveals), or expressive? What may animate, what must never, and any duration/easing conventions." },
+  { key: "imagery", match: /asset|imag|icon|illustration|photo/i,
+    ask: "Photography, illustration, product screenshots, abstract shapes, or none? Icon style (stroke vs filled) and any treatments (duotone, borders, shadows)." },
+];
 
 type PageIssueInput = { rule: string; severity: string; message: string; fix?: string };
 
@@ -260,6 +281,18 @@ export function getTasteInterview(profileName: string, project?: string): {
         ". Does " + label + " belong to this scope? If no, these rules are skipped here.",
     });
   }
+  for (const dimension of DESIGN_DIMENSIONS) {
+    const dimensionRules = profile.rules.filter(function(rule) { return dimension.match.test(rule.category); });
+    const enforced = dimensionRules.length > 0
+      ? "Profile already enforces: " + dimensionRules.slice(0, 4).map(function(rule) { return rule.rule_id + " (" + rule.severity_default + ")"; }).join(", ") +
+        (dimensionRules.length > 4 ? " +" + (dimensionRules.length - 4) + " more" : "") + "."
+      : "The profile has no " + dimension.key + " rules yet — this answer is the only " + dimension.key + " guidance on " + label + ".";
+    questions.push({
+      id: "design:" + dimension.key,
+      question: "How should " + dimension.key + " read on " + label + "? " + dimension.ask + " " + enforced +
+        " The answer is stored as design_notes." + dimension.key + " and echoed in every audit.",
+    });
+  }
   if (voiceRules.length > 0) {
     questions.push({
       id: "voice",
@@ -286,7 +319,7 @@ export function getTasteInterview(profileName: string, project?: string): {
     voice_rules: voiceRules,
     rule_ids: profile.rules.map(function(rule) { return rule.rule_id; }),
     questions,
-    then: "Ask the user these questions conversationally, then persist the answers with bind_taste_surface. Future audit_taste calls with project:'" + (projectName || "<name>") + "' (or a matching url host) apply the binding automatically.",
+    then: "Ask the user these questions conversationally, then persist the answers with bind_taste_surface — dimension answers (design:*) go in design_notes as {typography, spacing, color, layout, motion, imagery}. Future audit_taste calls with project:'" + (projectName || "<name>") + "' (or a matching url host) apply the binding automatically and echo the notes.",
   };
 }
 
@@ -296,6 +329,7 @@ export function bindTasteSurface(profileName: string, input: {
   hosts?: unknown;
   overrides?: unknown;
   voice_note?: unknown;
+  design_notes?: unknown;
 }): SurfaceBinding {
   const profile = getTasteProfile(profileName);
   if (typeof input.project !== "string" || !/^[a-z0-9][a-z0-9-_.]{0,63}$/i.test(input.project)) {
@@ -330,6 +364,7 @@ export function bindTasteSurface(profileName: string, input: {
     }
   }
   const voiceNote = optionalString(input.voice_note);
+  const designNotes = validateDesignNotes(input.design_notes, "design_notes");
 
   const binding: SurfaceBinding = {
     project: input.project,
@@ -337,6 +372,7 @@ export function bindTasteSurface(profileName: string, input: {
     hosts,
     overrides,
     voice_note: voiceNote,
+    design_notes: designNotes,
     bound_at: new Date().toISOString(),
   };
   const bindings = listSurfaceBindings(profile.name).filter(function(existing) {
@@ -447,8 +483,31 @@ function validateStoredBinding(raw: unknown, where: string): SurfaceBinding {
     hosts,
     overrides,
     voice_note: optionalString(raw.voice_note),
+    // Missing on pre-design_notes bindings — default {} keeps them valid.
+    design_notes: validateDesignNotes(raw.design_notes, where + ".design_notes"),
     bound_at: readNonEmptyString(raw, "bound_at", where),
   };
+}
+
+function validateDesignNotes(raw: unknown, where: string): Record<string, string> {
+  if (raw === undefined) return {};
+  if (!isRecord(raw)) throw new Error(where + " must be an object of {dimension: note} strings");
+  const notes: Record<string, string> = {};
+  for (const key of Object.keys(raw)) {
+    const dimension = key.trim().toLowerCase();
+    if (!/^[a-z][a-z0-9_-]{0,31}$/.test(dimension)) {
+      throw new Error(where + " keys must be short dimension names (typography, spacing, color, …): " + key);
+    }
+    const value = raw[key];
+    if (typeof value !== "string" || value.trim().length === 0) {
+      throw new Error(where + "." + key + " must be a non-empty string");
+    }
+    if (Object.prototype.hasOwnProperty.call(notes, dimension)) {
+      throw new Error(where + " has two keys that normalize to the same dimension: " + dimension);
+    }
+    notes[dimension] = value.trim();
+  }
+  return notes;
 }
 
 export function auditTaste(input: {
@@ -569,6 +628,7 @@ export function auditTaste(input: {
     verdict_line,
   };
   if (binding && binding.voice_note.trim().length > 0) result.voice_note = binding.voice_note;
+  if (binding && Object.keys(binding.design_notes).length > 0) result.design_notes = binding.design_notes;
   if (!surfaceProvided && !binding && hasScopedRules) {
     result.calibration_hint =
       "This profile has scope-tagged rules but no surface or binding was given — scoped block rules were demoted to warn. " +

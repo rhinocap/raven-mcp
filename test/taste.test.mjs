@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir, homedir } from 'node:os';
 import path from 'node:path';
@@ -801,14 +801,29 @@ test('surface calibration interview is built from the profile’s own scopes and
     assert.deepEqual(interview.voice_rules.map((r) => r.rule_id), ['BANNED-WARN']);
     assert.deepEqual(interview.rule_ids, ['GRADIENT-BLOCK', 'BANNED-WARN', 'HUE-NIT']);
     const ids = interview.questions.map((q) => q.id);
-    assert.deepEqual(ids, ['identity', 'scope:portfolio-monochrome', 'voice', 'exceptions', 'matchers']);
+    assert.deepEqual(ids, [
+      'identity', 'scope:portfolio-monochrome',
+      'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
+      'voice', 'exceptions', 'matchers',
+    ]);
     assert.ok(interview.questions[1].question.includes('GRADIENT-BLOCK'));
     assert.ok(interview.then.includes('bind_taste_surface'));
+    // Dimension questions are grounded in the profile's own rules where they
+    // exist (GRADIENT-BLOCK is category color) and say so where they don't.
+    const colorQ = interview.questions.find((q) => q.id === 'design:color');
+    assert.ok(colorQ.question.includes('GRADIENT-BLOCK'));
+    const typeQ = interview.questions.find((q) => q.id === 'design:typography');
+    assert.ok(typeQ.question.includes('no typography rules yet'));
+    assert.ok(typeQ.question.includes('design_notes.typography'));
 
-    // No voice rules and no scopes -> only the three generic questions.
+    // No voice rules and no scopes -> generic + design-dimension questions.
     taste.createTasteProfile({ name: 'plain', rules: [baseRules()[2]] });
     const bare = taste.getTasteInterview('plain');
-    assert.deepEqual(bare.questions.map((q) => q.id), ['identity', 'exceptions', 'matchers']);
+    assert.deepEqual(bare.questions.map((q) => q.id), [
+      'identity',
+      'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
+      'exceptions', 'matchers',
+    ]);
 
     // After binding, the interview surfaces the existing calibration.
     taste.bindTasteSurface('cal', { project: 'raven-mcp', surface: 'product-site' });
@@ -832,18 +847,41 @@ test('bind_taste_surface validates, normalizes hosts, upserts by project, and ro
       /severity must be block, warn, nit, or off/
     );
 
+    assert.throws(
+      () => taste.bindTasteSurface('bindings', { project: 'x', surface: 's', design_notes: { typography: '' } }),
+      /design_notes.typography must be a non-empty string/
+    );
+    assert.throws(
+      () => taste.bindTasteSurface('bindings', { project: 'x', surface: 's', design_notes: { 'not a key!': 'x' } }),
+      /keys must be short dimension names/
+    );
+    assert.throws(
+      () => taste.bindTasteSurface('bindings', { project: 'x', surface: 's', design_notes: { Typography: 'A', typography: 'B' } }),
+      /two keys that normalize to the same dimension: typography/
+    );
+
     const bound = taste.bindTasteSurface('bindings', {
       project: 'raven-mcp',
       surface: 'product-site',
       hosts: ['https://RavenMCP.ai/some/path', 'www.example.com:8080'],
       overrides: [{ rule_id: 'BANNED-WARN', severity: 'nit' }],
-      voice_note: 'Product register.'
+      voice_note: 'Product register.',
+      design_notes: { Typography: '  Grotesque, restrained scale.  ', spacing: 'Airy, 8px grid.' }
     });
     assert.deepEqual(bound.hosts, ['ravenmcp.ai', 'www.example.com']);
+    // Keys lowercase, values trimmed; round-trips through disk validation.
+    assert.deepEqual(bound.design_notes, { typography: 'Grotesque, restrained scale.', spacing: 'Airy, 8px grid.' });
+    assert.deepEqual(taste.listSurfaceBindings('bindings')[0].design_notes, bound.design_notes);
 
     const onDisk = JSON.parse(await readFile(path.join(home, 'bindings.surfaces.json'), 'utf8'));
     assert.equal(onDisk.version, 1);
     assert.equal(onDisk.bindings.length, 1);
+
+    // Pre-design_notes bindings on disk (field absent) stay valid -> {}.
+    const legacy = JSON.parse(await readFile(path.join(home, 'bindings.surfaces.json'), 'utf8'));
+    delete legacy.bindings[0].design_notes;
+    await writeFile(path.join(home, 'bindings.surfaces.json'), JSON.stringify(legacy), 'utf8');
+    assert.deepEqual(taste.listSurfaceBindings('bindings')[0].design_notes, {});
 
     // Upsert: same project replaces, different project adds.
     taste.bindTasteSurface('bindings', { project: 'raven-mcp', surface: 'developer docs' });
@@ -884,7 +922,8 @@ test('a resolved binding supplies the surface, applies overrides at full trust, 
       project: 'raven-mcp',
       surface: 'product-site',
       overrides: [{ rule_id: 'BANNED-WARN', severity: 'nit' }],
-      voice_note: 'Product register: plain benefits OK, still no hype verbs.'
+      voice_note: 'Product register: plain benefits OK, still no hype verbs.',
+      design_notes: { typography: 'Grotesque, restrained scale.' }
     });
     taste.bindTasteSurface('proj', { project: 'portfolio', surface: 'monochrome portfolio' });
     const html = '<style>.x{background:linear-gradient(red, blue)}</style><p>We have proven results.</p>';
@@ -896,8 +935,12 @@ test('a resolved binding supplies the surface, applies overrides at full trust, 
     assert.deepEqual(onRaven.skipped_out_of_scope, [{ rule_id: 'GRADIENT-BLOCK', scope: 'portfolio-monochrome' }]);
     assert.equal(onRaven.findings.find((f) => f.rule_id === 'BANNED-WARN').severity, 'nit');
     assert.equal(onRaven.voice_note, 'Product register: plain benefits OK, still no hype verbs.');
+    assert.deepEqual(onRaven.design_notes, { typography: 'Grotesque, restrained scale.' });
     assert.equal(onRaven.calibration_hint, undefined);
     assert.equal(onRaven.verdict, 'PASS');
+
+    // No design_notes on the portfolio binding -> field absent, not {}.
+    assert.equal(taste.auditTaste({ profile: 'proj', html, project: 'portfolio' }).design_notes, undefined);
 
     // On the portfolio: scoped rule runs at FULL block (binding surface counts as provided).
     const onPortfolio = taste.auditTaste({ profile: 'proj', html, project: 'portfolio' });
