@@ -41,3 +41,7 @@ v1.14.0 live; design-dimension interview questions + design_notes shipped (c760d
 
 ### Next.js default build suggestion (Andrew)
 **What:** Raven now suggests building sites as a Next.js app by default, everywhere it guides a build: libraries interview question (plain-language, opt-out recorded in design_notes.libraries), kickoff `then` contract, get_taste_interview tool description, server instructions, README. libraries matcher extended (next.js/framework). New test asserts question + then carry the default. 395/395.
+
+### Dry-run diagnosis — "it didn't interview me automatically" (Andrew, 10:26 PM screenshots)
+**What:** Two causes. (1) Stale server: /clear does NOT restart MCP servers — all 5 live raven processes started 09:38 AM or earlier; the new-interview dist was built 8:41 PM, so his 10:16 PM /clear session was still on the old server. (2) Client bypassed the gate: the instance named "calibrate taste with Raven at kickoff," then committed a design direction ("terminal salvage editorial") while its concept panel ran, and after his complaint asked 4 hand-rolled questions instead of the interview. Hardened: kickoff `then` + server instructions now state the interview is a blocking gate — user answers before ANY direction/palette/type/name is committed, never self-answered. 395/395; pushed 5c34f81.
+**Lesson:** a server can't push an interview — the gate lives in the instructions the client reads; make the blocking semantics explicit in the contract text.
