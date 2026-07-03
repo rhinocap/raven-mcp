@@ -1268,3 +1268,16 @@ test('kickoff interview grows NEW questions from decision categories no standard
     assert.ok(interview.questions.findIndex((q) => q.id === 'design:iconography') < beforeVoice, 'learned questions sit with the design dimensions, before voice');
   });
 });
+
+test('listTasteProfiles skips sidecar surfaces/decisions stores', async () => {
+  await withTasteHome(async (home) => {
+    const profile = taste.createTasteProfile({ name: 'andrew', rules: baseRules().slice(0, 1) });
+    taste.bindTasteSurface('andrew', { project: 'demo', surface: 'product site', active_scopes: [], overrides: [], voice_note: '', url_hosts: [] });
+    taste.recordTasteDecision('andrew', { project: 'demo', dimension: 'color', decision: 'warm accent', rejected: [], why: 'fits' });
+    assert.ok((await readFile(path.join(home, 'andrew.surfaces.json'), 'utf8')).length > 0);
+    assert.ok((await readFile(path.join(home, 'andrew.decisions.json'), 'utf8')).length > 0);
+    assert.deepEqual(taste.listTasteProfiles(), [
+      { name: 'andrew', rules: 1, corpus: 0, updated_at: profile.updated_at }
+    ]);
+  });
+});

@@ -4781,7 +4781,6 @@ server.tool(
 server.tool(
   "get_service_standard",
   "Get the GOV.UK Service Standard — 14 points the UK government uses to assess whether a public service is ready to launch. Widely applicable as a rigorous service-quality checklist beyond government. Use when the user asks how to evaluate a whole service.",
-  {},
   async () => {
     var frameworks = loadServiceFrameworks();
     var govuk = frameworks.find((f: any) => f.id === "gov-uk-service-standard");
@@ -4877,7 +4876,6 @@ server.tool(
 server.tool(
   "get_brand_trends",
   "Get current brand and visual-design trends — what's working in 2026 and where each trend fits or fails. Includes bento grids, monospace type, neon-on-dark-glass, generative patterns, brutalism rebound, AI-generated imagery, lowercase/mixed case. Each trend is time-stamped — treat as a calibration signal, not a prescription.",
-  {},
   async () => {
     var trends = loadBrandTrends();
     return { content: [{ type: "text" as const, text: JSON.stringify({ count: trends.length, trends: trends }, null, 2) }] };
@@ -4989,7 +4987,6 @@ server.tool(
 server.tool(
   "list_brand_profiles",
   "List local Raven creative brand profiles.",
-  {},
   async function () {
     var brands = listCreativeRecords("brands");
     return { content: [{ type: "text" as const, text: JSON.stringify({ count: brands.length, brands: brands.map(summarizeCreativeRecord) }, null, 2) }] };
@@ -5603,7 +5600,6 @@ server.tool(
 server.tool(
   "list_taste_profiles",
   "List locally stored taste profiles with rule/corpus counts and last-updated timestamps.",
-  {},
   async function () {
     return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "list_taste_profiles", profiles: listTasteProfiles() }, null, 2) }] };
   }

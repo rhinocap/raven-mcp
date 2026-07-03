@@ -257,7 +257,10 @@ export function listTasteProfiles(): { name: string; rules: number; corpus: numb
   const home = tasteHome();
   if (!existsSync(home)) return [];
   return readdirSync(home)
-    .filter(function(file) { return file.endsWith(".json"); })
+    .filter(function(file) {
+      // Sidecar stores live alongside profiles: <name>.surfaces.json, <name>.decisions.json.
+      return file.endsWith(".json") && !file.endsWith(".surfaces.json") && !file.endsWith(".decisions.json");
+    })
     .map(function(file) {
       const raw = JSON.parse(readFileSync(join(home, file), "utf8"));
       const profile = validateStoredProfile(raw, file.slice(0, -5));
