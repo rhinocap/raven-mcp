@@ -5522,10 +5522,14 @@ server.tool(
 
 server.tool(
   "get_taste_profile",
-  "Load a locally stored taste profile by name — returns its full rule catalog, precedent corpus, and per-project surface bindings.",
+  "Load a locally stored taste profile by name — returns its full rule catalog, precedent corpus, and per-project surface bindings. NOT a calibration step: bindings are per-surface and do not transfer — for design work on a project without a binding, call get_taste_interview and ask the user its questions before committing any direction.",
   { name: z.string().min(1).describe("Profile name.") },
   async function ({ name }) {
-    var profileOut = Object.assign({}, getTasteProfile(name), { surfaces: listSurfaceBindings(name) });
+    var bindingsOut = listSurfaceBindings(name);
+    var profileOut = Object.assign({}, getTasteProfile(name), {
+      surfaces: bindingsOut,
+      kickoff_reminder: "Bindings are per-surface and do NOT transfer between projects. Starting design work on a project that is not in `surfaces`? Reading this profile does not calibrate it — call get_taste_interview with the new project name, ask the USER its questions, and bind_taste_surface the answers BEFORE committing any design direction, palette, type choice, or name."
+    });
     return { content: [{ type: "text" as const, text: JSON.stringify(profileOut, null, 2) }] };
   }
 );
