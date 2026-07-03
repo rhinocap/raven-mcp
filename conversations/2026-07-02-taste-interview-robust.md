@@ -14,7 +14,7 @@ v1.14.0 live; design-dimension interview questions + design_notes shipped (c760d
 - capture.ts: entrance-animation settle-before-capture (the ledger P1) — waitForFunction polls document.getAnimations() until no RUNNING FINITE animation (infinite spinners excluded), 3s cap, timeout swallowed, `animationsSettled` on CaptureResult; false on no-browser fallback. Real-Playwright fixtures entrance-animation.html + long-entrance-animation.html.
 **Why:** /goal — deeper upfront calibration, voice chosen by ear not adjective, dissatisfaction loops back into calibration; P1 capture gap from raven-opportunities ledger.
 **Notes:** Andrew added mid-flight: libraries question (three.js/GSAP/framer-motion/lottie/GraphQL in plain language), open-ended 'special' closer with suggestions learned from the profile's other bindings, and a 'references' question (feed examples, get interviewed on what specifically you like). Codex DA ran TWICE — round 1 caught animationsSettled missing from public audit metadata, stale README, fallback-vs-test conflict; round 2 caught unescaped suggestion interpolation, missing references key in bind docs, stale voice phrasing — all fixed. fenced-code-block ingest skip (ledger P2) was ALREADY implemented+tested by a prior instance — verified, not redone. Both ledger lines already captured. Built via Workflow (2 sonnet legs, disjoint files), verified in main loop: npm test 392/392 → 393 after libraries test extension; library-level smoke on dist; wire-level JSON-RPC tools/call with mode:refine against built server ✓; audit_taste on new copy PASS; Codex DA pass run.
-**Pushed:** (fill at push)
+**Pushed:** 78f7a93 → origin/main
 
 ## Mistakes & lessons
 | Mistake | Type | Rule added |
@@ -24,4 +24,4 @@ v1.14.0 live; design-dimension interview questions + design_notes shipped (c760d
 - Interview enhancement (11 dims + references + special closer w/ learned suggestions, options, voice examples, skippable, refine mode): implemented + tested ✓
 - Capture animation settle (P1): implemented + tested ✓
 - Fenced-code ingest (P2): pre-existing, verified ✓
-- Pending: commit + push after Codex devil's-advocate objections dispositioned; release rolls into next version cut.
+- Committed + pushed 78f7a93 ✓. Pending: rolls into next version cut (release skill) when Andrew wants it on npm/local instances.
