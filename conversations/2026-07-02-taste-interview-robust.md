@@ -25,3 +25,19 @@ v1.14.0 live; design-dimension interview questions + design_notes shipped (c760d
 - Capture animation settle (P1): implemented + tested ✓
 - Fenced-code ingest (P2): pre-existing, verified ✓
 - Committed + pushed 78f7a93 ✓. Pending: rolls into next version cut (release skill) when Andrew wants it on npm/local instances.
+
+### Live demo of the new interview on the nexus-ai prompt (Andrew's ask: "try it on the same prompt")
+**What:** Ran the full new 18-question interview from dist for nexus-ai — Andrew answered ALL dimensions live (initially carried over the old 6; he corrected "you didn't ask typography, colors" → re-asked everything). New answers moved the surface substantially: display+mono pair, airy 96px+, warm off-white + one warm accent, full-bleed scenes, cinematic choreography, 3D scenes + product UI, cinematic entrance, branded loader, hamburger nav, flat-white×glassmorphic, three.js/GSAP/framer-motion, warm-conversational voice (picked by ear from the 3 samples), dot-field texture, reference immersive-g.com (atmosphere/type-in-scene/transitions/3D — folded into type/motion/imagery notes). Rebound nexus-ai with 13 design_note keys; rebuilt demo page with-raven-v2.html in the prior session's demo dir (live at http://127.0.0.1:8787/with-raven-v2.html).
+**Verified:** auditTaste PASS (0 findings, 13 keys echoed); capturePage animationsSettled:true (new settle machinery waited out loader+entrance); eyes-on full-page render ✓; local-Codex DA report-only pass: 13/13 notes HONORED.
+**Lesson:** carrying over prior answers ≠ running the interview — when Andrew says "try it," ask every question.
+
+### Keep the old version (Andrew)
+**What:** Old cool-light/electric-blue calibration preserved as binding `nexus-ai-light` (6 keys, no hosts to avoid url-mode conflict); old with-raven.html untouched and still served. Family now: nexus-ai (new cinematic 13-key), nexus-ai-light, nexus-ai-dark. Verified: audit of old page vs nexus-ai-light → PASS 0 findings; http 200.
+
+### Immersive-g rebuild of v2 (Andrew: "I don't see any of the immersive g stuff")
+**What:** v2 rebuilt as scene-based page: 5 full-viewport scenes alternating filmic-dark/paper; 3D-projected particle field (depth-based size/brightness, fog stamps, canvas vignette) under AND over the type (type composited into scene); scroll-snap + per-scene cascade choreography + header glass retint dark↔paper; parallax product frame floating in the field; all off under reduced-motion. Old flat v2 backed up to my scratchpad (with-raven-v2-backup.html).
+**Bug caught by capture:** stage-gated content stayed hidden on instant programmatic scroll (IO never fires on jumps) — features/pricing blank for bots/capture/print. Fixed with scroll-position live fallback.
+**Verified:** audit_taste PASS 0 findings; animationsSettled:true; eyes-on full-page (all scenes populated, field over type visible); deterministic Playwright probe — scenes go live sequentially, hero line mid-entrance at t=1.6s, on-paper header retint toggles, cascade→opacity 1, parallax transform active, 6 field canvases.
+
+### Next.js default build suggestion (Andrew)
+**What:** Raven now suggests building sites as a Next.js app by default, everywhere it guides a build: libraries interview question (plain-language, opt-out recorded in design_notes.libraries), kickoff `then` contract, get_taste_interview tool description, server instructions, README. libraries matcher extended (next.js/framework). New test asserts question + then carry the default. 395/395.

@@ -125,8 +125,8 @@ const DESIGN_DIMENSIONS: { key: string; match: RegExp; ask: string; options?: st
       "glassmorphic: translucent layers, blur, depth",
       "retro-terminal: mono type, scanline/CRT cues",
     ] },
-  { key: "libraries", match: /librar|three\.?js|gsap|framer|lottie|graphql|webgl|stack|tech/i,
-    ask: "Some builds lean on specialty libraries you may not know by name — each described by what users would see. Want any? Pick any that fit, or keep it simple.",
+  { key: "libraries", match: /librar|three\.?js|gsap|framer|lottie|graphql|webgl|stack|tech|next\.?js|framework/i,
+    ask: "Some builds lean on specialty libraries you may not know by name — each described by what users would see. Want any? Pick any that fit, or keep it simple. (Sites built with Raven default to a Next.js app — a React framework with fast loading and good SEO out of the box; say so if you'd rather have something else, and it goes in this note.)",
     options: [
       "three-js: real 3D in the browser — spinning products, immersive scenes; heavy wow-factor, heavier pages",
       "gsap: precision scripted animation — timeline-choreographed motion sequences that fire exactly on cue",
@@ -488,7 +488,7 @@ export function getTasteInterview(profileName: string, project?: string, mode?: 
     voice_rules: voiceRules,
     rule_ids: ruleIds,
     questions,
-    then: "Ask the user these questions conversationally. If references were given, interview each example briefly — what specifically the person likes, mapped to a dimension — fold those specifics into the matching design_notes values, and store the example list itself as design_notes.references. Then persist with bind_taste_surface — dimension answers (design:*) go in design_notes as {typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries} and the open-ended closer as design_notes.special. Future audit_taste calls with project:'" + (projectName || "<name>") + "' (or a matching url host) apply the binding automatically and echo the notes. Skipped questions leave that dimension uncalibrated and audits stay silent on it — encourage answering, never force.",
+    then: "Ask the user these questions conversationally. If references were given, interview each example briefly — what specifically the person likes, mapped to a dimension — fold those specifics into the matching design_notes values, and store the example list itself as design_notes.references. When the surface is a website to be built, suggest building it as a Next.js app by default (record a different choice in design_notes.libraries if the user prefers one). Then persist with bind_taste_surface — dimension answers (design:*) go in design_notes as {typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries} and the open-ended closer as design_notes.special. Future audit_taste calls with project:'" + (projectName || "<name>") + "' (or a matching url host) apply the binding automatically and echo the notes. Skipped questions leave that dimension uncalibrated and audits stay silent on it — encourage answering, never force.",
   };
 }
 

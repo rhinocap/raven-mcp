@@ -857,6 +857,16 @@ test('the five new design dimensions carry non-empty multiple-choice options', a
   });
 });
 
+test('libraries question suggests Next.js as the default build target, and the kickoff contract carries it', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'nextdef', rules: baseRules() });
+    const interview = taste.getTasteInterview('nextdef', 'some-project');
+    const libQ = interview.questions.find((q) => q.id === 'design:libraries');
+    assert.ok(/Next\.js/.test(libQ.question), 'libraries question must name the Next.js default');
+    assert.ok(/Next\.js/.test(interview.then), 'kickoff then must carry the Next.js default suggestion');
+  });
+});
+
 test('voice question always carries exactly 3 distinct-register examples', async () => {
   await withTasteHome(async () => {
     taste.createTasteProfile({ name: 'voiceex', rules: baseRules() });
