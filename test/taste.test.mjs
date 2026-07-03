@@ -1215,3 +1215,56 @@ test('the references question invites examples right after identity and the then
     assert.ok(interview.then.includes('design_notes.references'));
   });
 });
+
+test('record_taste_decision: records, lists, filters, and validates', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'decider', rules: baseRules() });
+    const rec = taste.recordTasteDecision('decider', {
+      project: 'proj-a', dimension: 'Color ', decision: 'amber-phosphor accent, period-accurate',
+      rejected: ['electric blue'], why: 'matches CRT heritage', source: 'user-corrected',
+    });
+    assert.equal(rec.dimension, 'color', 'dimension normalizes to lowercase/trimmed');
+    assert.equal(rec.source, 'user-corrected');
+    taste.recordTasteDecision('decider', { project: 'proj-b', dimension: 'color', decision: 'warm off-white ground' });
+    const all = taste.listTasteDecisions('decider');
+    assert.equal(all.length, 2);
+    assert.equal(taste.listTasteDecisions('decider', { project: 'proj-a' }).length, 1);
+    assert.equal(taste.listTasteDecisions('decider', { dimension: 'color' }).length, 2);
+    assert.equal(all[1].source, 'user-directed', 'source defaults to user-directed');
+    assert.throws(() => taste.recordTasteDecision('decider', { project: 'proj-a', dimension: 'Bad Key!', decision: 'x' }), /dimension/);
+    assert.throws(() => taste.recordTasteDecision('decider', { project: 'proj-a', dimension: 'color', decision: '  ' }), /decision/);
+    assert.throws(() => taste.recordTasteDecision('decider', { project: 'proj-a', dimension: 'color', decision: 'x', source: 'guessed' }), /source/);
+  });
+});
+
+test('kickoff interview learns from decisions on OTHER projects — suggestions on standard dimensions', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'learner', rules: baseRules() });
+    taste.recordTasteDecision('learner', { project: 'proj-a', dimension: 'navigation', decision: 'hamburger at every breakpoint' });
+    const interview = taste.getTasteInterview('learner', 'proj-new');
+    const navQ = interview.questions.find((q) => q.id === 'design:navigation');
+    assert.deepEqual(navQ.suggestions, ['hamburger at every breakpoint']);
+    assert.ok(/On past projects you decided/.test(navQ.question), 'question text carries the learned decision');
+    const sameProject = taste.getTasteInterview('learner', 'proj-a');
+    const sameNavQ = sameProject.questions.find((q) => q.id === 'design:navigation');
+    assert.equal(sameNavQ.suggestions, undefined, 'decisions from the SAME project are excluded');
+    assert.ok(/record_taste_decision/.test(interview.then), 'kickoff then tells the client to keep recording decisions');
+  });
+});
+
+test('kickoff interview grows NEW questions from decision categories no standard dimension covers', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'grower', rules: baseRules() });
+    taste.recordTasteDecision('grower', { project: 'proj-a', dimension: 'iconography', decision: 'stroke icons only, 1.5px, no fills' });
+    taste.recordTasteDecision('grower', { project: 'proj-a', dimension: 'iconography', decision: 'stroke icons only, 1.5px, no fills' });
+    taste.recordTasteDecision('grower', { project: 'proj-b', dimension: 'iconography', decision: 'geometric, currentColor' });
+    const interview = taste.getTasteInterview('grower', 'proj-new');
+    const iconQ = interview.questions.find((q) => q.id === 'design:iconography');
+    assert.ok(iconQ, 'a learned iconography question is spawned');
+    assert.equal(iconQ.skippable, true);
+    assert.deepEqual(iconQ.suggestions.slice().sort(), ['geometric, currentColor', 'stroke icons only, 1.5px, no fills'], 'distinct decisions become suggestions');
+    assert.ok(/design_notes\.iconography/.test(iconQ.question));
+    const beforeVoice = interview.questions.findIndex((q) => q.id === 'voice');
+    assert.ok(interview.questions.findIndex((q) => q.id === 'design:iconography') < beforeVoice, 'learned questions sit with the design dimensions, before voice');
+  });
+});

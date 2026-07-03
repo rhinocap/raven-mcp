@@ -145,6 +145,18 @@ const VOICE_REGISTER_EXAMPLES: { register: string; sample: string }[] = [
   { register: "punchy-editorial", sample: "Three contrast misses. Pricing page. Fix them." },
 ];
 
+export type TasteDecisionSource = "user-directed" | "user-approved" | "user-corrected";
+export type TasteDecision = {
+  id: string;
+  project: string;
+  dimension: string;
+  decision: string;
+  rejected: string[];
+  why: string;
+  source: TasteDecisionSource;
+  recorded_at: string;
+};
+
 export type TasteInterviewQuestion = {
   id: string;
   question: string;
@@ -416,6 +428,31 @@ export function getTasteInterview(profileName: string, project?: string, mode?: 
       priority: "core",
     });
   }
+  // Learning loop: decisions recorded on OTHER projects feed this interview.
+  // Recurring choices return as suggestions on their dimension's question, and
+  // decision categories no standard dimension covers spawn NEW questions below
+  // — the interview evolves from decisions actually made, never invented.
+  const priorDecisions = listTasteDecisions(profile.name).filter(function(decision) {
+    return !projectName || decision.project.toLowerCase() !== projectName.toLowerCase();
+  });
+  const decisionsByDimension = new Map<string, TasteDecision[]>();
+  for (const decision of priorDecisions) {
+    if (!decisionsByDimension.has(decision.dimension)) decisionsByDimension.set(decision.dimension, []);
+    decisionsByDimension.get(decision.dimension)!.push(decision);
+  }
+  const learnedSuggestions = function(key: string): string[] {
+    const entries = decisionsByDimension.get(key) || [];
+    const distinct: string[] = [];
+    for (let i = entries.length - 1; i >= 0 && distinct.length < 3; i -= 1) {
+      const text = entries[i].decision;
+      if (distinct.indexOf(text) === -1) distinct.push(text);
+    }
+    return distinct;
+  };
+  const quoteLearned = function(items: string[]): string {
+    return items.map(function(s) { return "'" + s.replace(/\s+/g, " ").replace(/'/g, "’") + "'"; }).join("; ");
+  };
+
   for (const dimension of DESIGN_DIMENSIONS) {
     const dimensionRules = profile.rules.filter(function(rule) { return dimension.match.test(rule.category); });
     const enforced = dimensionRules.length > 0
@@ -430,7 +467,28 @@ export function getTasteInterview(profileName: string, project?: string, mode?: 
       priority: "extended",
     };
     if (dimension.options !== undefined) question.options = dimension.options;
+    const learned = learnedSuggestions(dimension.key);
+    if (learned.length > 0) {
+      question.question += " On past projects you decided: " + quoteLearned(learned) + " — still right here?";
+      question.suggestions = learned;
+    }
     questions.push(question);
+  }
+  // Dimensions the interview LEARNED: decision categories recorded during real
+  // work that no standard question covers become questions of their own.
+  const knownDimensionKeys = new Set(DESIGN_DIMENSIONS.map(function(d) { return d.key; }));
+  ["special", "references", "voice", "identity"].forEach(function(reserved) { knownDimensionKeys.add(reserved); });
+  const learnedDimensionKeys = Array.from(decisionsByDimension.keys()).filter(function(key) { return !knownDimensionKeys.has(key); }).sort();
+  for (const learnedKey of learnedDimensionKeys) {
+    const learned = learnedSuggestions(learnedKey);
+    questions.push({
+      id: "design:" + learnedKey,
+      question: "A question this interview learned from your past decisions — " + learnedKey + ": on other projects you decided " + quoteLearned(learned) +
+        ". How should " + learnedKey + " read on " + label + "? The answer is stored as design_notes." + learnedKey + " and echoed in every audit.",
+      skippable: true,
+      priority: "extended",
+      suggestions: learned,
+    });
   }
   questions.push({
     id: "voice",
@@ -488,7 +546,7 @@ export function getTasteInterview(profileName: string, project?: string, mode?: 
     voice_rules: voiceRules,
     rule_ids: ruleIds,
     questions,
-    then: "Ask the user these questions conversationally. This interview is a blocking gate: collect the user's answers BEFORE committing any design direction, palette, type choice, or name — never answer the questions yourself, and never proceed with design work 'while the interview runs.' If references were given, interview each example briefly — what specifically the person likes, mapped to a dimension — fold those specifics into the matching design_notes values, and store the example list itself as design_notes.references. When the surface is a website to be built, suggest building it as a Next.js app by default (record a different choice in design_notes.libraries if the user prefers one). Then persist with bind_taste_surface — dimension answers (design:*) go in design_notes as {typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries} and the open-ended closer as design_notes.special. Future audit_taste calls with project:'" + (projectName || "<name>") + "' (or a matching url host) apply the binding automatically and echo the notes. Skipped questions leave that dimension uncalibrated and audits stay silent on it — encourage answering, never force.",
+    then: "Ask the user these questions conversationally. This interview is a blocking gate: collect the user's answers BEFORE committing any design direction, palette, type choice, or name — never answer the questions yourself, and never proceed with design work 'while the interview runs.' If references were given, interview each example briefly — what specifically the person likes, mapped to a dimension — fold those specifics into the matching design_notes values, and store the example list itself as design_notes.references. When the surface is a website to be built, suggest building it as a Next.js app by default (record a different choice in design_notes.libraries if the user prefers one). Then persist with bind_taste_surface — dimension answers (design:*) go in design_notes as {typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries} and the open-ended closer as design_notes.special. Future audit_taste calls with project:'" + (projectName || "<name>") + "' (or a matching url host) apply the binding automatically and echo the notes. Skipped questions leave that dimension uncalibrated and audits stay silent on it — encourage answering, never force. From then on, whenever the user makes, approves, or corrects a taste/direction/design decision during the work (an accent chosen, a nav pattern rejected, a name direction, a type pairing), record it with record_taste_decision — recorded decisions evolve future kickoff interviews: recurring choices return as suggested defaults on their dimension's question, and decision categories no standard question covers become new interview questions.",
   };
 }
 
@@ -554,6 +612,100 @@ export function bindTasteSurface(profileName: string, input: {
   return binding;
 }
 
+const DECISION_SOURCES: TasteDecisionSource[] = ["user-directed", "user-approved", "user-corrected"];
+
+// The Taste Engine's learning loop: every taste/direction/design decision made
+// during real work — not just interview answers — is recorded here, and
+// getTasteInterview mines the ledger so future kickoffs propose the person's
+// own past choices back (and grow new questions for decision categories no
+// standard dimension covers).
+export function recordTasteDecision(profileName: string, input: {
+  project: string;
+  dimension: string;
+  decision: string;
+  rejected?: unknown;
+  why?: unknown;
+  source?: unknown;
+}): TasteDecision {
+  const profile = getTasteProfile(profileName);
+  if (typeof input.project !== "string" || !/^[a-z0-9][a-z0-9-_.]{0,63}$/i.test(input.project)) {
+    throw new Error("project must match /^[a-z0-9][a-z0-9-_.]{0,63}$/i");
+  }
+  const dimension = typeof input.dimension === "string" ? input.dimension.trim().toLowerCase() : "";
+  if (!/^[a-z][a-z0-9_-]{0,31}$/.test(dimension)) {
+    throw new Error("dimension must be a short lowercase name (color, navigation, iconography, …): " + String(input.dimension));
+  }
+  if (typeof input.decision !== "string" || input.decision.trim().length === 0) {
+    throw new Error("decision is required — what was chosen, in the user's words");
+  }
+  const rejected: string[] = [];
+  if (input.rejected !== undefined) {
+    if (!Array.isArray(input.rejected)) throw new Error("rejected must be an array of the alternatives passed over");
+    for (const raw of input.rejected) {
+      if (typeof raw !== "string" || raw.trim().length === 0) throw new Error("rejected entries must be non-empty strings");
+      rejected.push(raw.trim());
+    }
+  }
+  const source = input.source === undefined ? "user-directed" : input.source;
+  if (DECISION_SOURCES.indexOf(source as TasteDecisionSource) === -1) {
+    throw new Error("source must be user-directed, user-approved, or user-corrected");
+  }
+  const decisions = listTasteDecisions(profile.name);
+  const record: TasteDecision = {
+    id: "dec_" + (decisions.length + 1),
+    project: input.project,
+    dimension,
+    decision: input.decision.trim(),
+    rejected,
+    why: optionalString(input.why),
+    source: source as TasteDecisionSource,
+    recorded_at: new Date().toISOString(),
+  };
+  decisions.push(record);
+  mkdirSync(tasteHome(), { recursive: true });
+  writeFileSync(decisionsPath(profile.name), JSON.stringify({ version: 1, decisions }, null, 2) + "\n", "utf8");
+  return record;
+}
+
+export function listTasteDecisions(profileName: string, filter?: { project?: string; dimension?: string }): TasteDecision[] {
+  const file = decisionsPath(validateProfileName(profileName));
+  if (!existsSync(file)) return [];
+  const raw = JSON.parse(readFileSync(file, "utf8"));
+  if (!isRecord(raw) || raw.version !== 1 || !Array.isArray(raw.decisions)) {
+    throw new Error("Stored taste decisions must be {version: 1, decisions: []}: " + file);
+  }
+  const decisions = raw.decisions.map(function(entry, index) { return validateStoredDecision(entry, "decisions[" + index + "]"); });
+  return decisions.filter(function(decision) {
+    if (filter && typeof filter.project === "string" && decision.project.toLowerCase() !== filter.project.toLowerCase()) return false;
+    if (filter && typeof filter.dimension === "string" && decision.dimension !== filter.dimension.trim().toLowerCase()) return false;
+    return true;
+  });
+}
+
+function validateStoredDecision(entry: unknown, where: string): TasteDecision {
+  if (!isRecord(entry)) throw new Error(where + " must be an object");
+  const id = readNonEmptyString(entry, "id", where);
+  const project = readNonEmptyString(entry, "project", where);
+  const dimension = readNonEmptyString(entry, "dimension", where);
+  const decision = readNonEmptyString(entry, "decision", where);
+  if (!Array.isArray(entry.rejected) || entry.rejected.some(function(item) { return typeof item !== "string"; })) {
+    throw new Error(where + ".rejected must be an array of strings");
+  }
+  if (DECISION_SOURCES.indexOf(entry.source as TasteDecisionSource) === -1) {
+    throw new Error(where + ".source must be user-directed, user-approved, or user-corrected");
+  }
+  return {
+    id,
+    project,
+    dimension,
+    decision,
+    rejected: entry.rejected as string[],
+    why: optionalString(entry.why),
+    source: entry.source as TasteDecisionSource,
+    recorded_at: readNonEmptyString(entry, "recorded_at", where),
+  };
+}
+
 export function listSurfaceBindings(profileName: string): SurfaceBinding[] {
   const file = surfacesPath(validateProfileName(profileName));
   if (!existsSync(file)) return [];
@@ -590,6 +742,10 @@ export function resolveSurfaceBinding(profileName: string, hints: { project?: st
 
 function surfacesPath(name: string): string {
   return join(tasteHome(), name + ".surfaces.json");
+}
+
+function decisionsPath(name: string): string {
+  return join(tasteHome(), name + ".decisions.json");
 }
 
 // URL-parse the entry (handles userinfo, ports, paths, IPv6 brackets) so the
