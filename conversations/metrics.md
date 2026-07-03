@@ -2,16 +2,24 @@
 
 Tracking collaboration quality across sessions. Updated every Revisit.
 
-| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 (v1.9.0) | 2026-06-19 (v1.10.0) | 2026-06-20 (changelog) | 2026-06-20 (site) | 2026-06-21 (cut-off fix) | 2026-06-21 (spacing + device-frame) | 2026-06-25 (site award) | 2026-06-26 (deck narrative) | 2026-07-01 (Raven improvement proposal) |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| First-attempt accuracy | 90% | ~85% | ~83% (10/12) | ~80% (8/10) | ~82% (14/17) | ~85% (5/6) | ~70% (14/20) | ~70% (screenshot 3×; AR fix partial) | ~75% (6/8 — screenshot blind + /tmp import) | ~82% (9/11 — bg-clip bug + video debug) | ~87% (13/15 — edit collision + Figma metadata overflow) | ~80% (8/10 — ScheduleWakeup misuse + silent-fallback comm gap) |
-| Push rejections | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| Autonomy score | 90% | 85% | ~95% | ~95% | ~99% | ~99% | ~99% | ~99% | ~99% | ~88% (stop hook friction) | ~99% | ~99% |
-| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg | ~1.2 avg | ~1.2 avg | ~2.1 avg | ~1.8 avg | ~1.3 avg | ~1.5 avg | ~1.1 avg | ~1.1 avg |
-| Tests passing | 100% | 100% (smoke) | 100% (85/85) | 100% (92/92) | 100% (185/185) | N/A | | 100% (191/191) | N/A (site work) | N/A (writing) | N/A (research/writing, no code) |
-| Log currency | Immediate | Delayed | Immediate | Immediate | Immediate | Immediate | Immediate | | Immediate | Immediate | Immediate | Immediate (headless /revisit) |
+| Metric | Target | 2026-04-22 | 2026-06-18 | 2026-06-19 (v1.9.0) | 2026-06-19 (v1.10.0) | 2026-06-20 (changelog) | 2026-06-20 (site) | 2026-06-21 (cut-off fix) | 2026-06-21 (spacing + device-frame) | 2026-06-25 (site award) | 2026-06-26 (deck narrative) | 2026-07-01 (Raven improvement proposal) | 2026-07-02 (taste tools + judge diagnosis) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| First-attempt accuracy | 90% | ~85% | ~83% (10/12) | ~80% (8/10) | ~82% (14/17) | ~85% (5/6) | ~70% (14/20) | ~70% (screenshot 3×; AR fix partial) | ~75% (6/8 — screenshot blind + /tmp import) | ~82% (9/11 — bg-clip bug + video debug) | ~87% (13/15 — edit collision + Figma metadata overflow) | ~80% (8/10 — ScheduleWakeup misuse + silent-fallback comm gap) | ~90% (9/10 — pip externally-managed-env hiccup only) |
+| Push rejections | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Autonomy score | 90% | 85% | ~95% | ~95% | ~99% | ~99% | ~99% | ~99% | ~99% | ~88% (stop hook friction) | ~99% | ~99% | ~99% |
+| Round-trips per task | 1 | 1.3 avg | ~1.2 avg | ~1.4 avg | ~1.2 avg | ~1.2 avg | ~2.1 avg | ~1.8 avg | ~1.3 avg | ~1.5 avg | ~1.1 avg | ~1.1 avg | ~1.1 avg |
+| Tests passing | 100% | 100% (smoke) | 100% (85/85) | 100% (92/92) | 100% (185/185) | N/A | | 100% (191/191) | N/A (site work) | N/A (writing) | N/A (research/writing, no code) | N/A (diagnosis only, no code shipped by this transcript) |
+| Log currency | Immediate | Delayed | Immediate | Immediate | Immediate | Immediate | Immediate | | Immediate | Immediate | Immediate | Immediate (headless /revisit) | Immediate (headless /revisit) |
 
 ## Notes per session
+
+### 2026-07-02 — Taste tools overview + local judge diagnosis (headless /revisit)
+- **Session scale:** Small — headless diagnostic session, no code shipped from this transcript directly (the fix it spec'd was executed by a follow-on instance, logged separately in `2026-07-02-local-judge-retrain.md`).
+- **First-attempt accuracy ~90% (9/10):** One minor miss — `pip install mlx-lm` hit Homebrew's `externally-managed-environment` guard on the first attempt, resolved by using a project venv (1 extra round-trip, not promoted — too generic/common to be a durable rule).
+- **Wins:** Ran `create_taste_profile` against `BRAND.md` per direct instruction, then proactively flagged (before Andrew asked) that the doc was mythology/narrative, not a rules doc — the ingest heuristic had nothing real to grab onto. Confirmed decide-and-execute is still the right default even when the outcome is likely noise: execute, then flag quality issues immediately, don't pre-gate on a guess. Diagnosed the local Qwen LoRA judge's ship-bar failure by grading all 4 checkpoints, found the instability pattern (under-flag → catastrophic over-flag), and traced it to a real code bug (`map_verdict()` silent fallthrough) rather than accepting "small corpus noise" as the explanation — root cause confirmed by direct function calls before writing the fix spec.
+- **New pattern (queued to PROMOTION-QUEUE.md — cross-cutting, not raven-mcp-specific):** when auditing a categorical/verdict-mapping function fed by a corpus assembled from multiple schemes, grep for every scheme actually present in the source files and confirm the mapper has an explicit branch for each — a silent default-return doesn't throw and doesn't show up in totals, only as inexplicable downstream instability.
+- **Raven opportunity captured:** `create_taste_profile` has no ingest-quality signal — a narrative doc silently produces a "profile" that looks structurally valid (12 rules, non-zero) but is 100% noise; discovering that took a manual `get_taste_profile` + eyeball. Logged to `.claude/raven-opportunities.md`.
+- **Autonomy score ~99%:** Zero AskUserQuestion calls in this transcript; both investigations were driven to completion (or to a clean handoff spec) without seeking permission mid-stream.
 
 ### 2026-07-01 — RavenMCP improvement proposal (design-judge model → Raven, competitive landscape)
 - **Session scale:** Medium — headless `/goal` research + synthesis session, no code changes. One deliverable file (`conversations/2026-07-01-ravenmcp-improvement-proposal.md`, auto-committed) plus a drafted-but-not-yet-launched follow-up `/goal`.
