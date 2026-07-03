@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Entrance Animation Fixture</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+
+    /* Time-based entrance animation: animation-delay + backwards fill.
+       Runs on page load regardless of scroll position — this is the
+       class of animation scroll_settle does NOT cover. */
+    @keyframes fade-in-up {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    #hero {
+      padding: 40px;
+      background: #fff;
+      border: 2px solid #333;
+      text-align: center;
+      animation: fade-in-up 250ms ease-out 150ms both;
+    }
+
+    /* Infinite loop (spinner) — must NOT block animation-settle. */
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    #spinner {
+      width: 24px;
+      height: 24px;
+      margin: 20px auto 0;
+      border: 4px solid #ccc;
+      border-top-color: #333;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+  </style>
+</head>
+<body>
+  <div id="hero" data-testid="hero">Entrance content</div>
+  <div id="spinner" data-testid="spinner"></div>
+
+  <script>
+    (function () {
+      var hero = document.getElementById('hero');
+      if (!hero) return;
+      hero.addEventListener('animationend', function () {
+        hero.classList.add('animation-done');
+      });
+    })();
+  </script>
+</body>
+</html>

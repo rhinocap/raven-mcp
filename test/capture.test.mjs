@@ -63,6 +63,13 @@ async function runOrSkip(t, fn) {
   }
 }
 
+
+// The file:// no-browser fallback returns instead of throwing — detect it so
+// animation-settle assertions skip (no Animations API there) like runOrSkip does.
+function usedFileFallback(result) {
+  return result.warnings.some((w) => w.includes('file URL fallback'));
+}
+
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 test('scroll_settle:false — reveal target does NOT have class "revealed"', async (t) => {
@@ -104,6 +111,65 @@ test('scroll_settle:true — reveal target HAS class "revealed"', async (t) => {
       result.renderedHtml.includes('revealed'),
       'rendered HTML must contain "revealed" after scroll_settle:true'
     );
+  });
+});
+
+// ── animation-settle ─────────────────────────────────────────────────────────
+
+test('entrance-animation.html — finite entrance animation settles before capture (animationsSettled true)', async (t) => {
+  await runOrSkip(t, async () => {
+    const result = await capturePage(fixtureUrl('entrance-animation.html'), {
+      viewport: { w: 1440, h: 900 },
+    });
+
+    if (usedFileFallback(result)) { t.skip('browser unavailable — file:// fallback has no Animations API'); return; }
+    assert.strictEqual(result.animationsSettled, true, 'animationsSettled should be true once the finite entrance animation completes');
+
+    // The hero's `animationend` listener adds this class — if it is present in the
+    // captured HTML, capture genuinely waited for the animation to finish rather
+    // than firing immediately.
+    assert.ok(
+      result.renderedHtml.includes('animation-done'),
+      'rendered HTML must contain "animation-done" once the entrance animation has settled'
+    );
+  });
+});
+
+test('entrance-animation.html — infinite spinner does not block animation-settle', async (t) => {
+  await runOrSkip(t, async () => {
+    const result = await capturePage(fixtureUrl('entrance-animation.html'), {
+      viewport: { w: 1440, h: 900 },
+    });
+
+    // The page also contains an `infinite` spinner animation; settle must still
+    // report true (the spinner is excluded from the running/finite check) rather
+    // than hanging for the full 3s cap.
+    if (usedFileFallback(result)) { t.skip('browser unavailable — file:// fallback has no Animations API'); return; }
+    assert.strictEqual(result.animationsSettled, true, 'an infinite-loop animation must not block animation-settle');
+  });
+});
+
+test('long-entrance-animation.html — settle wait times out but capture still succeeds (animationsSettled false)', async (t) => {
+  await runOrSkip(t, async () => {
+    const result = await capturePage(fixtureUrl('long-entrance-animation.html'), {
+      viewport: { w: 1440, h: 900 },
+    });
+
+    assert.strictEqual(result.animationsSettled, false, 'animationsSettled should be false when a finite animation outlives the settle cap');
+    // Capture must not fail/throw — it should still return a full result.
+    assert.ok(typeof result.screenshotBase64 === 'string' && result.screenshotBase64.length > 0, 'screenshot is still produced after a settle timeout');
+    assert.ok(typeof result.renderedHtml === 'string' && result.renderedHtml.length > 0, 'rendered HTML is still produced after a settle timeout');
+  });
+});
+
+test('CaptureResult includes animationsSettled boolean alongside scrolledToBottom', async (t) => {
+  await runOrSkip(t, async () => {
+    const result = await capturePage(fixtureUrl('reveal.html'), {
+      scroll_settle: true,
+    });
+
+    assert.ok('animationsSettled' in result, 'CaptureResult missing key: animationsSettled');
+    assert.strictEqual(typeof result.animationsSettled, 'boolean', 'animationsSettled is a boolean');
   });
 });
 
@@ -172,6 +238,7 @@ test('CaptureResult shape is complete for a simple page', async (t) => {
       'screenshotBase64',
       'viewport',
       'scrolledToBottom',
+      'animationsSettled',
       'videoArtifacts',
       'warnings',
     ];

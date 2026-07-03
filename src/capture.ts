@@ -90,6 +90,12 @@ export type CaptureResult = {
   viewport: { w: number; h: number };
   theme?: Theme;
   scrolledToBottom: boolean;
+  /**
+   * True when all finite (non-looping) CSS animations/transitions on the page reached
+   * quiescence before capture; false when the settle wait timed out or the browser has
+   * no `document.getAnimations` support (older engines / the file:// no-browser fallback).
+   */
+  animationsSettled: boolean;
   videoArtifacts: VideoArtifact[];
   imageEdges?: ImageEdgeSample[];
   warnings: string[];
@@ -215,6 +221,8 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
       await page.waitForTimeout(delayMs);
     }
 
+    const animationsSettled = await waitForAnimationsToSettle(page, warnings);
+
     let imageEdges: ImageEdgeSample[] | undefined = undefined;
     if (collectImageEdges) {
       imageEdges = await sampleImageEdges(page, warnings);
@@ -231,6 +239,7 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
       viewport: viewport,
       theme: theme,
       scrolledToBottom: scrolledToBottom,
+      animationsSettled: animationsSettled,
       videoArtifacts: videoArtifacts,
       imageEdges: imageEdges,
       warnings: warnings
@@ -396,6 +405,8 @@ function captureFileUrlWithoutBrowser(
     screenshotBase64: EMPTY_PNG_BASE64,
     viewport: viewport,
     scrolledToBottom: scrollSettle,
+    // No live browser in this fallback path, so there is no Animations API to poll.
+    animationsSettled: false,
     videoArtifacts: scrollSettle ? extractVideoArtifactsFromHtml(renderedHtml) : [],
     warnings: warnings
   };
@@ -487,6 +498,75 @@ function attributeValue(tag: string, name: string): string | null {
     return null;
   }
   return match[2];
+}
+
+const ANIMATION_SETTLE_TIMEOUT_MS = 3000;
+
+/**
+ * Waits for time-based CSS entrance animations/transitions (animation-delay + backwards
+ * fill, transitions fired on load, etc.) to reach quiescence before capture — the same
+ * problem `scroll_settle` solves for scroll-driven reveals, but for animations that are
+ * simply running on a timer rather than gated on scroll position.
+ *
+ * Polls `document.getAnimations()` until no RUNNING animation has a FINITE iteration
+ * count. Infinite-iteration animations (spinners, loading loops) are deliberately
+ * excluded from the check so they never block capture. Capped at
+ * {@link ANIMATION_SETTLE_TIMEOUT_MS}; a timeout — or the absence of the Animations
+ * API on older engines — never fails the capture, it only reports `false`.
+ */
+async function waitForAnimationsToSettle(
+  page: PageLike,
+  warnings: string[],
+  timeoutMs: number = ANIMATION_SETTLE_TIMEOUT_MS
+): Promise<boolean> {
+  let hasAnimationsApi = false;
+  try {
+    hasAnimationsApi = await page.evaluate(function () {
+      return typeof document.getAnimations === "function";
+    });
+  } catch (error) {
+    warnings.push("Failed to check for Animations API support: " + errorMessage(error));
+    return false;
+  }
+
+  if (!hasAnimationsApi) {
+    return false;
+  }
+
+  try {
+    await page.waitForFunction(
+      function () {
+        var animations = document.getAnimations();
+        for (var i = 0; i < animations.length; i += 1) {
+          var animation = animations[i];
+          if (animation.playState !== "running") {
+            continue;
+          }
+
+          var effect = animation.effect;
+          var timing =
+            effect && typeof effect.getComputedTiming === "function"
+              ? effect.getComputedTiming()
+              : null;
+          var iterations = timing ? timing.iterations : undefined;
+
+          if (iterations === Infinity) {
+            // Loops (spinners, loading indicators) must never block settle.
+            continue;
+          }
+
+          return false;
+        }
+        return true;
+      },
+      undefined,
+      { timeout: timeoutMs }
+    );
+    return true;
+  } catch {
+    // Timed out with a finite animation still running — proceed with capture anyway.
+    return false;
+  }
 }
 
 async function detectVideoArtifacts(

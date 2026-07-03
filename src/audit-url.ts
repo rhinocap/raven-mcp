@@ -53,6 +53,7 @@ export type AuditUrlCapture = {
   viewport: string;
   theme: Theme;
   scrolledToBottom: boolean;
+  animationsSettled: boolean;
   screenshot_bytes: number;
   screenshot?: string;
 };
@@ -174,6 +175,7 @@ export async function auditUrl(url: string, opts: AuditUrlOptions = {}): Promise
         viewport: vpLabel,
         theme,
         scrolledToBottom: cap.scrolledToBottom,
+        animationsSettled: cap.animationsSettled,
         screenshot_bytes: cap.screenshotBase64 ? cap.screenshotBase64.length : 0,
         screenshot: includeScreenshots ? cap.screenshotBase64 : undefined
       });

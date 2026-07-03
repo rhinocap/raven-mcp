@@ -73,7 +73,9 @@ export type SurfaceBinding = {
 // grounded in the profile's own rules for that dimension (matched by category)
 // so the user calibrates against what the profile already enforces; where the
 // profile has no rules yet, the answer is the only guidance and says so.
-const DESIGN_DIMENSIONS: { key: string; match: RegExp; ask: string }[] = [
+// Dimensions may carry multiple-choice options so the user can pick instead
+// of composing prose — the options are advisory, not exhaustive.
+const DESIGN_DIMENSIONS: { key: string; match: RegExp; ask: string; options?: string[] }[] = [
   { key: "typography", match: /typ|font/i,
     ask: "Typeface family and feel (grotesque, humanist, geometric, serif, mono — or a named face), scale contrast (restrained editorial vs dramatic display), weight range, and anything type must never do here." },
   { key: "spacing", match: /spac|density|rhythm|whitespace/i,
@@ -86,7 +88,72 @@ const DESIGN_DIMENSIONS: { key: string; match: RegExp; ask: string }[] = [
     ask: "None, subtle (fades/reveals), or expressive? What may animate, what must never, and any duration/easing conventions." },
   { key: "imagery", match: /asset|imag|icon|illustration|photo/i,
     ask: "Photography, illustration, product screenshots, abstract shapes, or none? Icon style (stroke vs filled) and any treatments (duotone, borders, shadows)." },
+  { key: "entrance", match: /entrance|hero.?anim|launch|intro|reveal/i,
+    ask: "How should the hero/first screen enter — on a website hero and on a mobile app launch?",
+    options: [
+      "none-instant: content is just there, zero entrance motion",
+      "subtle: single fade/rise, under 400ms",
+      "staged: orchestrated per-element reveal (headline, then sub, then art)",
+      "cinematic: expressive full-scene entrance, motion is part of the brand",
+    ] },
+  { key: "loading", match: /load(ing|er)|skeleton|spinner|progress/i,
+    ask: "What do users see while content loads (web + mobile app)?",
+    options: [
+      "none: never show intermediate state, hold until ready",
+      "skeleton: grey placeholder blocks in final layout",
+      "spinner: minimal indeterminate spinner",
+      "progress: determinate progress bar/percentage",
+      "branded: custom branded loader animation",
+    ] },
+  { key: "navigation", match: /nav|menu|header|tab.?bar/i,
+    ask: "What is the primary navigation pattern?",
+    options: [
+      "centered: horizontal links centered in header",
+      "right-aligned: logo left, links right",
+      "hamburger: collapsed behind a menu icon",
+      "tabs: top or bottom tab bar",
+      "side-panel: persistent vertical side panel",
+      "fab: floating action button anchoring key actions",
+    ] },
+  { key: "aesthetic", match: /aesthetic|style.?preset|brutal|neon|flat|minimal/i,
+    ask: "Which aesthetic family is this surface closest to? Pick one or blend two.",
+    options: [
+      "brutalist: raw, hard edges, exposed structure, system fonts",
+      "neon: dark ground, glow accents, saturated highlights",
+      "flat-white: white ground, minimal ornament, generous whitespace",
+      "editorial: type-led, magazine rhythm, restrained palette",
+      "glassmorphic: translucent layers, blur, depth",
+      "retro-terminal: mono type, scanline/CRT cues",
+    ] },
+  { key: "libraries", match: /librar|three\.?js|gsap|framer|lottie|graphql|webgl|stack|tech/i,
+    ask: "Some builds lean on specialty libraries you may not know by name — each described by what users would see. Want any? Pick any that fit, or keep it simple.",
+    options: [
+      "three-js: real 3D in the browser — spinning products, immersive scenes; heavy wow-factor, heavier pages",
+      "gsap: precision scripted animation — timeline-choreographed motion sequences that fire exactly on cue",
+      "framer-motion: springy, physical-feeling UI transitions (React apps)",
+      "lottie: designer-made vector animations exported straight from After Effects",
+      "graphql: a data layer for apps juggling lots of interrelated data — invisible to users, shapes engineering",
+      "none-vanilla: standard CSS/JS only — simplest, lightest, fastest to load",
+    ] },
 ];
+
+// The voice question always shows the same message rendered in
+// three registers, so the user picks by ear instead of by adjective.
+const VOICE_REGISTER_EXAMPLES: { register: string; sample: string }[] = [
+  { register: "formal-technical", sample: "Three contrast violations were detected on the pricing page and require remediation." },
+  { register: "warm-conversational", sample: "Heads up — I found three contrast issues on your pricing page. All quick fixes." },
+  { register: "punchy-editorial", sample: "Three contrast misses. Pricing page. Fix them." },
+];
+
+export type TasteInterviewQuestion = {
+  id: string;
+  question: string;
+  skippable: boolean;
+  priority: "core" | "extended";
+  options?: string[];
+  examples?: { register: string; sample: string }[];
+  suggestions?: string[];
+};
 
 type PageIssueInput = { rule: string; severity: string; message: string; fix?: string };
 
@@ -241,7 +308,7 @@ function rawWords(value: string): Set<string> {
 // any voice/tone note. The interview is deterministic — built from the
 // profile's own scopes and voice rules — and is asked by the agent, not here.
 
-export function getTasteInterview(profileName: string, project?: string): {
+export function getTasteInterview(profileName: string, project?: string, mode?: "kickoff" | "refine"): {
   tool: "get_taste_interview";
   profile: string;
   project: string;
@@ -249,9 +316,10 @@ export function getTasteInterview(profileName: string, project?: string): {
   scopes: { scope: string; rules: { rule_id: string; clause_text: string; severity_default: TasteSeverity }[] }[];
   voice_rules: { rule_id: string; clause_text: string; severity_default: TasteSeverity }[];
   rule_ids: string[];
-  questions: { id: string; question: string }[];
+  questions: TasteInterviewQuestion[];
   then: string;
 } {
+  const interviewMode = mode === "refine" ? "refine" : "kickoff";
   const profile = getTasteProfile(profileName);
   const projectName = typeof project === "string" && project.trim().length > 0 ? project.trim() : "";
   const scopeMap = new Map<string, { rule_id: string; clause_text: string; severity_default: TasteSeverity }[]>();
@@ -267,18 +335,85 @@ export function getTasteInterview(profileName: string, project?: string): {
     .map(function(rule) { return { rule_id: rule.rule_id, clause_text: rule.clause_text, severity_default: rule.severity_default }; });
 
   const label = projectName || "this project";
-  const questions: { id: string; question: string }[] = [
+  const ruleIds = profile.rules.map(function(rule) { return rule.rule_id; });
+  const existingBinding = projectName ? resolveSurfaceBinding(profile.name, { project: projectName }) : null;
+
+  if (interviewMode === "refine") {
+    if (!existingBinding) {
+      throw new Error(
+        "No existing surface binding for project '" + (projectName || "<none>") +
+        "' — run get_taste_interview with mode:'kickoff' first to calibrate this project before refining it."
+      );
+    }
+    const questions: TasteInterviewQuestion[] = [
+      {
+        id: "complaint",
+        question: "What specifically fell short — name the element/section and what you expected instead of what you got.",
+        skippable: false,
+        priority: "core",
+      },
+    ];
+    for (const key of Object.keys(existingBinding.design_notes)) {
+      const storedNote = existingBinding.design_notes[key];
+      questions.push({
+        id: "revise:" + key,
+        question: "For " + key + " you said: '" + storedNote + "'. Keep, tighten, or replace? If the output followed the note but still felt wrong, say what the note should have said.",
+        skippable: true,
+        priority: "core",
+      });
+    }
+    questions.push({
+      id: "revise:voice",
+      question: (existingBinding.voice_note.length > 0
+        ? "Your voice note says: '" + existingBinding.voice_note + "'. "
+        : "No voice note is set yet. ") +
+        "Which register fits " + label + " now, or how does it deviate?",
+      skippable: true,
+      priority: "core",
+      examples: VOICE_REGISTER_EXAMPLES,
+    });
+    questions.push({
+      id: "precedent",
+      question: "Should the rejected output be recorded as a reject precedent so audits flag this pattern next time? Name the pattern in one line.",
+      skippable: true,
+      priority: "extended",
+    });
+
+    return {
+      tool: "get_taste_interview",
+      profile: profile.name,
+      project: projectName,
+      existing_binding: existingBinding,
+      scopes,
+      voice_rules: voiceRules,
+      rule_ids: ruleIds,
+      questions,
+      then: "Ask the user these questions conversationally, then persist the updated answers with bind_taste_surface (it upserts by project, so revised design_notes/voice_note replace the stale ones) and, if a precedent answer was given, record it with label_finding (verdict:'reject', citing the complaint). Skipped questions leave that item's prior calibration unchanged — encourage answering, never force.",
+    };
+  }
+
+  const questions: TasteInterviewQuestion[] = [
     {
       id: "identity",
       question: "What is " + label + ", in a phrase — and what family is it (portfolio, product site, docs, app UI, deck, …)? The answer becomes the binding's surface string that scope-tagged rules match against.",
+      skippable: false,
+      priority: "core",
     },
   ];
+  questions.push({
+    id: "references",
+    question: "Have examples? Share links, screenshots, or file paths of work that feels right for " + label + " — sites, apps, posters, anything. Each example gets a short follow-up interview: what specifically draws you — the type, the color, the spacing, the motion, the voice? Name the element and the quality; the specifics fold into the matching design notes.",
+    skippable: true,
+    priority: "core",
+  });
   for (const entry of scopes) {
     questions.push({
       id: "scope:" + entry.scope,
       question: "Scope '" + entry.scope + "' carries: " +
         entry.rules.map(function(rule) { return rule.rule_id + " (" + rule.severity_default + ") — " + rule.clause_text; }).join("; ") +
         ". Does " + label + " belong to this scope? If no, these rules are skipped here.",
+      skippable: true,
+      priority: "core",
     });
   }
   for (const dimension of DESIGN_DIMENSIONS) {
@@ -287,39 +422,73 @@ export function getTasteInterview(profileName: string, project?: string): {
       ? "Profile already enforces: " + dimensionRules.slice(0, 4).map(function(rule) { return rule.rule_id + " (" + rule.severity_default + ")"; }).join(", ") +
         (dimensionRules.length > 4 ? " +" + (dimensionRules.length - 4) + " more" : "") + "."
       : "The profile has no " + dimension.key + " rules yet — this answer is the only " + dimension.key + " guidance on " + label + ".";
-    questions.push({
+    const question: TasteInterviewQuestion = {
       id: "design:" + dimension.key,
       question: "How should " + dimension.key + " read on " + label + "? " + dimension.ask + " " + enforced +
         " The answer is stored as design_notes." + dimension.key + " and echoed in every audit.",
-    });
+      skippable: true,
+      priority: "extended",
+    };
+    if (dimension.options !== undefined) question.options = dimension.options;
+    questions.push(question);
   }
-  if (voiceRules.length > 0) {
-    questions.push({
-      id: "voice",
-      question: "Voice/tone rules: " +
+  questions.push({
+    id: "voice",
+    question: (voiceRules.length > 0
+      ? "Voice/tone rules: " +
         voiceRules.map(function(rule) { return rule.rule_id + " (" + rule.severity_default + ") — " + rule.clause_text; }).join("; ") +
-        ". Should any read differently on " + label + " — relaxed (warn/nit), silenced (off), or stricter (block)? Add a short voice note if the register shifts here.",
-    });
-  }
+        ". Should any read differently on " + label + " — relaxed (warn/nit), silenced (off), or stricter (block)? Add a short voice note if the register shifts here."
+      : "The profile has no voice/tone rules yet — which register fits " + label + ", or how does it deviate? Add a short voice note either way.") +
+      " The same message rendered three ways — formal-technical / warm-conversational / punchy-editorial — is given below — pick by ear, not by adjective.",
+    skippable: true,
+    priority: "core",
+    examples: VOICE_REGISTER_EXAMPLES,
+  });
   questions.push({
     id: "exceptions",
     question: "Any other rules to override on " + label + "? Each override is {rule_id, severity: block|warn|nit|off}.",
+    skippable: true,
+    priority: "extended",
   });
   questions.push({
     id: "matchers",
     question: "Which URL hosts identify " + label + " (for url-mode audits), e.g. ravenmcp.ai? The project name itself matches whenever audits pass project:'" + (projectName || "<name>") + "'.",
+    skippable: true,
+    priority: "core",
   });
+  // Open-ended closer. Suggestions are learned, not invented: distinct
+  // design_notes.special values the same person chose on their OTHER bound
+  // surfaces — the interview starts proposing their own signatures back.
+  const specialSuggestions: string[] = [];
+  for (const binding of listSurfaceBindings(profile.name)) {
+    if (projectName && binding.project.toLowerCase() === projectName.toLowerCase()) continue;
+    const note = binding.design_notes.special;
+    if (typeof note === "string" && note.trim().length > 0 && specialSuggestions.indexOf(note.trim()) === -1) {
+      specialSuggestions.push(note.trim());
+    }
+  }
+  const specialQuestion: TasteInterviewQuestion = {
+    id: "special",
+    question: "Last one, open-ended: anything special you want " + label + " to have that nothing above asked about — a texture (a field of tiny dots, faint grid lines), a signature detail, a recurring motif, an easter egg? Describe it in your own words; it is stored as design_notes.special and echoed in every audit." +
+      (specialSuggestions.length > 0
+        ? " On your other surfaces you asked for: " + specialSuggestions.map(function(s) { return "'" + s.replace(/\s+/g, " ").replace(/'/g, "\u2019") + "'"; }).join("; ") + " — want anything similar here?"
+        : ""),
+    skippable: true,
+    priority: "extended",
+  };
+  if (specialSuggestions.length > 0) specialQuestion.suggestions = specialSuggestions;
+  questions.push(specialQuestion);
 
   return {
     tool: "get_taste_interview",
     profile: profile.name,
     project: projectName,
-    existing_binding: projectName ? resolveSurfaceBinding(profile.name, { project: projectName }) : null,
+    existing_binding: existingBinding,
     scopes,
     voice_rules: voiceRules,
-    rule_ids: profile.rules.map(function(rule) { return rule.rule_id; }),
+    rule_ids: ruleIds,
     questions,
-    then: "Ask the user these questions conversationally, then persist the answers with bind_taste_surface — dimension answers (design:*) go in design_notes as {typography, spacing, color, layout, motion, imagery}. Future audit_taste calls with project:'" + (projectName || "<name>") + "' (or a matching url host) apply the binding automatically and echo the notes.",
+    then: "Ask the user these questions conversationally. If references were given, interview each example briefly — what specifically the person likes, mapped to a dimension — fold those specifics into the matching design_notes values, and store the example list itself as design_notes.references. Then persist with bind_taste_surface — dimension answers (design:*) go in design_notes as {typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries} and the open-ended closer as design_notes.special. Future audit_taste calls with project:'" + (projectName || "<name>") + "' (or a matching url host) apply the binding automatically and echo the notes. Skipped questions leave that dimension uncalibrated and audits stay silent on it — encourage answering, never force.",
   };
 }
 

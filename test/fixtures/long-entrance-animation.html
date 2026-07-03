@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Long Entrance Animation Fixture</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+
+    /* Finite animation whose total run time (delay + duration) exceeds the
+       3000ms animation-settle cap, so the settle wait must time out rather
+       than hang the capture. */
+    @keyframes fade-in-up {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    #hero {
+      padding: 40px;
+      background: #fff;
+      border: 2px solid #333;
+      text-align: center;
+      animation: fade-in-up 6000ms ease-out both;
+    }
+  </style>
+</head>
+<body>
+  <div id="hero" data-testid="hero">Entrance content</div>
+</body>
+</html>

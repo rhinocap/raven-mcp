@@ -802,11 +802,12 @@ test('surface calibration interview is built from the profile’s own scopes and
     assert.deepEqual(interview.rule_ids, ['GRADIENT-BLOCK', 'BANNED-WARN', 'HUE-NIT']);
     const ids = interview.questions.map((q) => q.id);
     assert.deepEqual(ids, [
-      'identity', 'scope:portfolio-monochrome',
+      'identity', 'references', 'scope:portfolio-monochrome',
       'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
-      'voice', 'exceptions', 'matchers',
+      'design:entrance', 'design:loading', 'design:navigation', 'design:aesthetic', 'design:libraries',
+      'voice', 'exceptions', 'matchers', 'special',
     ]);
-    assert.ok(interview.questions[1].question.includes('GRADIENT-BLOCK'));
+    assert.ok(interview.questions[2].question.includes('GRADIENT-BLOCK'));
     assert.ok(interview.then.includes('bind_taste_surface'));
     // Dimension questions are grounded in the profile's own rules where they
     // exist (GRADIENT-BLOCK is category color) and say so where they don't.
@@ -816,19 +817,124 @@ test('surface calibration interview is built from the profile’s own scopes and
     assert.ok(typeQ.question.includes('no typography rules yet'));
     assert.ok(typeQ.question.includes('design_notes.typography'));
 
-    // No voice rules and no scopes -> generic + design-dimension questions.
+    // No voice rules and no scopes -> generic + design-dimension questions,
+    // and the voice question still appears (asked even with zero voice rules).
     taste.createTasteProfile({ name: 'plain', rules: [baseRules()[2]] });
     const bare = taste.getTasteInterview('plain');
     assert.deepEqual(bare.questions.map((q) => q.id), [
-      'identity',
+      'identity', 'references',
       'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
-      'exceptions', 'matchers',
+      'design:entrance', 'design:loading', 'design:navigation', 'design:aesthetic', 'design:libraries',
+      'voice', 'exceptions', 'matchers', 'special',
     ]);
+    const bareVoiceQ = bare.questions.find((q) => q.id === 'voice');
+    assert.ok(bareVoiceQ);
+    assert.ok(bareVoiceQ.question.includes('no voice/tone rules yet'));
 
     // After binding, the interview surfaces the existing calibration.
     taste.bindTasteSurface('cal', { project: 'raven-mcp', surface: 'product-site' });
     const again = taste.getTasteInterview('cal', 'raven-mcp');
     assert.equal(again.existing_binding.surface, 'product-site');
+  });
+});
+
+test('the five new design dimensions carry non-empty multiple-choice options', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'dims', rules: baseRules() });
+    const interview = taste.getTasteInterview('dims', 'some-project');
+    for (const key of ['entrance', 'loading', 'navigation', 'aesthetic', 'libraries']) {
+      const q = interview.questions.find((question) => question.id === 'design:' + key);
+      assert.ok(q, 'missing design:' + key);
+      assert.ok(Array.isArray(q.options), key + ' options must be an array');
+      assert.ok(q.options.length > 0, key + ' options must be non-empty');
+      assert.ok(q.options.every((opt) => typeof opt === 'string' && opt.length > 0));
+    }
+    // Pre-existing six dimensions carry no options.
+    for (const key of ['typography', 'spacing', 'color', 'layout', 'motion', 'imagery']) {
+      const q = interview.questions.find((question) => question.id === 'design:' + key);
+      assert.equal(q.options, undefined);
+    }
+  });
+});
+
+test('voice question always carries exactly 3 distinct-register examples', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'voiceex', rules: baseRules() });
+    const interview = taste.getTasteInterview('voiceex', 'some-project');
+    const voiceQ = interview.questions.find((q) => q.id === 'voice');
+    assert.ok(voiceQ);
+    assert.equal(voiceQ.examples.length, 3);
+    const registers = new Set(voiceQ.examples.map((e) => e.register));
+    assert.equal(registers.size, 3);
+    for (const example of voiceQ.examples) {
+      assert.equal(typeof example.sample, 'string');
+      assert.ok(example.sample.length > 0);
+    }
+  });
+});
+
+test('every question carries skippable + priority; identity is required', async () => {
+  await withTasteHome(async () => {
+    const scoped = Object.assign({}, baseRules()[0], { scope: 'portfolio-monochrome' });
+    taste.createTasteProfile({ name: 'flags', rules: [scoped, baseRules()[1], baseRules()[2]] });
+    const interview = taste.getTasteInterview('flags', 'some-project');
+    for (const q of interview.questions) {
+      assert.equal(typeof q.skippable, 'boolean', q.id + ' must have boolean skippable');
+      assert.ok(q.priority === 'core' || q.priority === 'extended', q.id + ' must have core|extended priority');
+    }
+    const identityQ = interview.questions.find((q) => q.id === 'identity');
+    assert.equal(identityQ.skippable, false);
+    assert.equal(identityQ.priority, 'core');
+    for (const key of ['typography', 'spacing', 'color', 'layout', 'motion', 'imagery', 'entrance', 'loading', 'navigation', 'aesthetic']) {
+      const q = interview.questions.find((question) => question.id === 'design:' + key);
+      assert.equal(q.skippable, true);
+      assert.equal(q.priority, 'extended');
+    }
+    assert.ok(interview.then.includes('uncalibrated'));
+  });
+});
+
+test('mode:"refine" requires an existing binding and errors naming kickoff', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'norefine', rules: baseRules() });
+    assert.throws(
+      () => taste.getTasteInterview('norefine', 'unbound-project', 'refine'),
+      /kickoff/
+    );
+  });
+});
+
+test('mode:"refine" builds a re-interview from the stored binding: complaint first, revise:<key> quoting the stored note, and revise:voice', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'refineme', rules: baseRules() });
+    taste.bindTasteSurface('refineme', {
+      project: 'some-project',
+      surface: 'product-site',
+      voice_note: 'Plainer than the portfolio register.',
+      design_notes: { color: 'dark ground, cyan accent' },
+    });
+
+    const refine = taste.getTasteInterview('refineme', 'some-project', 'refine');
+    assert.equal(refine.tool, 'get_taste_interview');
+    assert.equal(refine.existing_binding.surface, 'product-site');
+    const ids = refine.questions.map((q) => q.id);
+    assert.equal(ids[0], 'complaint');
+    assert.ok(ids.includes('revise:color'));
+    assert.ok(ids.includes('revise:voice'));
+    assert.ok(ids.includes('precedent'));
+
+    const complaintQ = refine.questions[0];
+    assert.equal(complaintQ.skippable, false);
+
+    const reviseColorQ = refine.questions.find((q) => q.id === 'revise:color');
+    assert.ok(reviseColorQ.question.includes('dark ground, cyan accent'));
+
+    const reviseVoiceQ = refine.questions.find((q) => q.id === 'revise:voice');
+    assert.ok(reviseVoiceQ.question.includes('Plainer than the portfolio register.'));
+    assert.equal(reviseVoiceQ.examples.length, 3);
+
+    assert.ok(refine.then.includes('bind_taste_surface'));
+    assert.ok(refine.then.includes('label_finding'));
   });
 });
 
@@ -1034,5 +1140,68 @@ test('host binding hardening: single-label hosts rejected, userinfo/ports stripp
     staleRule.bindings[0].overrides = [{ rule_id: 'REMOVED-RULE', severity: 'off' }];
     writeFileSync(file, JSON.stringify(staleRule));
     assert.equal(taste.listSurfaceBindings('hard')[0].overrides[0].rule_id, 'REMOVED-RULE');
+  });
+});
+
+test('the interview closes with an open-ended special question that learns suggestions from other bindings', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'sig', rules: baseRules() });
+
+    // First surface: no other bindings yet -> open-ended, no suggestions.
+    const first = taste.getTasteInterview('sig', 'portfolio');
+    const firstSpecial = first.questions[first.questions.length - 1];
+    assert.equal(firstSpecial.id, 'special');
+    assert.equal(firstSpecial.skippable, true);
+    assert.equal(firstSpecial.priority, 'extended');
+    assert.ok(/open-ended/i.test(firstSpecial.question));
+    assert.ok(/texture/i.test(firstSpecial.question));
+    assert.equal(firstSpecial.suggestions, undefined);
+    assert.ok(first.then.includes('design_notes.special'));
+
+    // Bind a special note on one surface; the NEXT project's interview
+    // proposes it back as a learned suggestion.
+    taste.bindTasteSurface('sig', {
+      project: 'portfolio', surface: 'monochrome portfolio',
+      design_notes: { special: 'faint grid lines texture behind hero' },
+    });
+    const second = taste.getTasteInterview('sig', 'raven-mcp');
+    const secondSpecial = second.questions[second.questions.length - 1];
+    assert.deepEqual(secondSpecial.suggestions, ['faint grid lines texture behind hero']);
+    assert.ok(secondSpecial.question.includes('faint grid lines texture behind hero'));
+
+    // Quotes and newlines in a stored note are neutralized in the question text.
+    taste.bindTasteSurface('sig', {
+      project: 'quoted', surface: 'app-ui',
+      design_notes: { special: "it's a\ndotted 'grain' texture" },
+    });
+    const third = taste.getTasteInterview('sig', 'raven-mcp');
+    const thirdSpecial = third.questions[third.questions.length - 1];
+    assert.ok(!/it's/.test(thirdSpecial.question), 'raw single quotes must not reach the question text');
+    assert.ok(!thirdSpecial.question.includes('\n'), 'newlines must be collapsed in the question text');
+    assert.ok(thirdSpecial.suggestions.length === 2, 'raw suggestion values still carried in the suggestions field');
+
+    // Same project is excluded from its own suggestions (only the other binding's note remains).
+    const samePrj = taste.getTasteInterview('sig', 'portfolio');
+    const sameSpecial = samePrj.questions[samePrj.questions.length - 1];
+    assert.deepEqual(sameSpecial.suggestions, ["it's a\ndotted 'grain' texture"]);
+
+    // Refine mode revisits the stored special note like any other dimension.
+    const refine = taste.getTasteInterview('sig', 'portfolio', 'refine');
+    const revise = refine.questions.find((q) => q.id === 'revise:special');
+    assert.ok(revise);
+    assert.ok(revise.question.includes('faint grid lines texture behind hero'));
+  });
+});
+
+test('the references question invites examples right after identity and the then-contract folds them into notes', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'refs', rules: baseRules() });
+    const interview = taste.getTasteInterview('refs', 'demo');
+    assert.equal(interview.questions[1].id, 'references');
+    assert.equal(interview.questions[1].skippable, true);
+    assert.equal(interview.questions[1].priority, 'core');
+    assert.ok(/examples/i.test(interview.questions[1].question));
+    assert.ok(/what specifically draws you/i.test(interview.questions[1].question));
+    assert.ok(interview.then.includes('design_notes.references'));
   });
 });
