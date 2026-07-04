@@ -16,7 +16,10 @@ Diagnosis complete: taste-calibrated builds came out WORSE than uncalibrated one
 1. **Bind consistency (real binding):** vision-app-raven notes vs fresh mont-fort/igloo captures → flagged "color note reads dark, but every captured reference renders LIGHT (mont-fort lum=1.00, igloo 0.65)". ✓
 2. **Live audit (odd-lot.vercel.app):** honest per-note statuses + webgl:true detection; surfaced a Times/serif false positive → fixed with SERIF_FACE_RE/MONO_FACE_RE recognized-face vocabularies + regression test. ✓
 3. **HEADLINE:** the deployed vision-app-raven build (previously "13/13 honored") now returns **Verdict: BLOCK (1 block, 4 warn)** — NOTE-motion missing (animation_count=0, scroll_effects=false at 5 scroll depths), NOTE-aesthetic (renders dark vs flat-white note), NOTE-libraries block, REF-scheme-mismatch + REF-motion-missing vs references, with build_hints attached. Live traits probed via claude-in-chrome through the SSO wall. ✓
-**Pushed:** (fill at ship)
+**Pushed:** `4b33923` (main)
+
+### Codex devil's-advocate pass — 10 findings, all dispositioned
+Fixed (7): bare-word "three" recipe trigger (three-column layout → WebGL recipe); checkBindingConsistency ignored scroll_effects (scroll-driven refs flagged still); stored reference traits unsanitized (.toFixed crash on corrupt store); unbounded PNG decode (32MB byte cap + 8192px IHDR pre-check); body-only luminance walk missed dark full-viewport wrappers (dominant-overlay composite, live-proven via fixture); commented-out mobile APIs counted as present (comment strip); non-scroll cinematic notes falsely "missing" post-settle (capped at partial). Accepted as documented limitations (3): finite typography vocabularies (deliberate conservatism, hedged evidence wording); text_density viewport sensitivity (fixed capture viewport, warn-only); tests-import-dist (moot — pretest runs build). +7 regression tests → 464 total.
 
 ## Mistakes & lessons
 | Mistake | Type | Rule added |
@@ -25,10 +28,10 @@ Diagnosis complete: taste-calibrated builds came out WORSE than uncalibrated one
 | Heavy in-page scroll loop froze the WebGL page's renderer (CDP timeout) | browser probing | Sample few depths with short waits on canvas-heavy pages |
 
 ## State at end of session
-- 5 legs implemented + built + 457/457 green ✓
-- 3 acid tests passed ✓
-- Codex devil's-advocate pass: running
-- Commit/push: pending DA
+- 5 legs implemented + built + 464/464 green ✓
+- 3 acid tests passed, re-verified post-DA-fixes (verdict unchanged: BLOCK) ✓
+- Codex DA: 10 findings → 7 fixed with regression tests, 3 accepted-documented ✓
+- SHIPPED `4b33923` to main ✓
 - Pending (carried forward):
   - MCP servers serve stale dist until restarted (tell Andrew)
   - Release/version cut on Andrew's go
