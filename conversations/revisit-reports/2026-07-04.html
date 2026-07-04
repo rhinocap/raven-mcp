@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revisit — 2026-07-04 (Taste fidelity ship + vision handoff)</title>
+<style>
+  :root {
+    --bg-base: #1a1a22;
+    --bg-surface: #212129;
+    --bg-raised: #2a2a33;
+    --border: rgba(255, 255, 255, 0.06);
+    --border-strong: rgba(255, 255, 255, 0.1);
+    --text-primary: #F0F0F2;
+    --text-secondary: #9498A0;
+    --text-tertiary: #5C5F68;
+    --text-accent: #0077c5;
+    --accent-blue: #0077c5;
+    --accent-green: #00E676;
+    --accent-orange: #FFAB40;
+    --accent-pink: #FF4081;
+    --accent-yellow: #FFD740;
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+    --max-width: 960px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .cover {
+    padding: 80px 24px 64px;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 0%, rgba(0, 119, 197, 0.15), transparent),
+      radial-gradient(ellipse 60% 60% at 80% 20%, rgba(0, 230, 118, 0.07), transparent),
+      linear-gradient(180deg, #1f1f2b 0%, var(--bg-base) 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .cover-inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+  }
+  .cover-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 16px;
+  }
+  .cover h1 {
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+  .cover .subtitle {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 680px;
+    margin-bottom: 48px;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .stat {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .stat-value {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .stat-value.green { color: var(--accent-green); }
+  .stat-value.blue { color: var(--accent-blue); }
+  .stat-value.orange { color: var(--accent-orange); }
+  .stat-value.yellow { color: var(--accent-yellow); }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+  .body {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+  .section {
+    margin-bottom: 48px;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .badge-shipped { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-verified { background: rgba(0,119,197,0.15); color: var(--accent-blue); }
+  .badge-miss { background: rgba(255,171,64,0.12); color: var(--accent-orange); }
+  .badge-repeat { background: rgba(255,64,129,0.12); color: var(--accent-pink); }
+  .badge-win { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-fixed { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .card p {
+    color: var(--text-secondary);
+    margin-top: 4px;
+    line-height: 1.65;
+  }
+  .card code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: rgba(255,255,255,0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-primary);
+  }
+  .card blockquote {
+    margin-top: 10px;
+    padding: 10px 16px;
+    border-left: 3px solid var(--accent-orange);
+    background: rgba(255,171,64,0.06);
+    color: var(--text-primary);
+    font-style: italic;
+  }
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 32px 0;
+  }
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .table-wrap {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    padding: 14px 20px;
+    text-align: left;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 14px 20px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  td:first-child { color: var(--text-primary); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  .highlight {
+    background: rgba(0,119,197,0.08);
+    border: 1px solid rgba(0,119,197,0.2);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .highlight p { color: var(--text-primary); }
+  .tag-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .tag {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-label">Revisit · 2026-07-03/04 · Manual (highest-priority arc)</div>
+    <h1>The Taste Engine stops taking<br>the builder's word for it</h1>
+    <p class="subtitle">design_notes became verified acceptance criteria and the build that claimed "13/13 honored" now audits BLOCK with cited evidence. Then the very first fresh session to use it bypassed the interview gate — and the taste store itself caught it.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value green">464/464</div>
+        <div class="stat-label">Tests passing</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value blue">~85%</div>
+        <div class="stat-label">First-attempt accuracy</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value green">~99%</div>
+        <div class="stat-label">Autonomy score</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value orange">0</div>
+        <div class="stat-label">Push rejections</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="body">
+
+  <div class="section">
+    <div class="section-label">Headline finding</div>
+    <div class="highlight">
+      <p><strong>Prose gates don't enforce — engines do.</strong> The rebuilt goal prompt said, in bold, GATE 0: interview Andrew before any design or code. The fresh session re-bound <code>vision-app-raven</code> anyway — no interview, no structured references — which silently evaded <code>checkBindingConsistency</code> and re-baked the exact dark-note-vs-light-references contradiction the engine was built to catch. The bypass was caught not by the session but by reading the taste store on disk the moment Andrew said <em>"NO interview yet."</em> The fix belongs in the engine: <code>bind_taste_surface</code> should refuse (or demand a <code>force</code> flag) when a re-bind omits structured references. Logged P1.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">What shipped — 4b33923 on main</div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-shipped">Shipped</span> Five legs: design_notes are now verified acceptance criteria</div>
+      <p><strong>A · PageTraits</strong> — a measurable page fingerprint (scheme/luminance, text density, canvas/WebGL, backdrop-filter, animation count, scroll effects, fonts, max heading px, gradients, loader hint) via live in-page probe with a static-HTML fallback. <strong>B · References first-class</strong> — bindings store <code>ReferenceCapture[]</code> with live traits; <code>checkBindingConsistency</code> flags note-vs-reference contradictions at bind time. <strong>C · Presence audit</strong> — <code>assessDesignNotes</code> returns present/partial/missing/unverifiable per note, every status citing trait numbers; reference deltas and a restraint-as-deletion guard count toward the verdict. <strong>D · TECHNIQUE_RECIPES</strong> — ten recipes with canonical public sources (threejs.org, gsap.com, Codrops) attached as <code>build_hints</code>; contract text: an expensive note is never license to drop it. <strong>E · Mobile parity</strong> — screenshot traits via border-ring luminance, source-level note verification for SwiftUI/RN/Compose, opt-in on all four mobile audits.</p>
+      <div class="tag-row">
+        <span class="tag">taste-fidelity.ts (new)</span>
+        <span class="tag">capture.ts traits</span>
+        <span class="tag">references + consistency</span>
+        <span class="tag">build_hints</span>
+        <span class="tag">mobile parity</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-verified">Acid test</span> "13/13 honored" → BLOCK, with numbers</div>
+      <p>The deployed vision-app build whose builder self-reported honoring all 13 design notes now returns <strong>Verdict: BLOCK (1 block, 4 warn)</strong>: motion missing (animation_count=0, no scroll effects at 5 depths), aesthetic contradiction (renders near-black vs a flat-white note), the named-libraries block, plus scheme-mismatch and motion-missing deltas against fresh mont-fort/igloo captures — with build_hints attached telling the next builder exactly how to close each gap. Live traits were probed through the Vercel SSO wall via Chrome. <strong>This before/after is the Apple (Mon) / OpenAI (Tue) demo artifact.</strong></p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-win">Adversarial pass</span> Codex devil's advocate: 10 findings, 7 fixed, 3 documented</div>
+      <p>Fixed with regression tests: bare-word "three" triggering the WebGL recipe on "three-column layout"; scroll-driven references flagged as still; unsanitized stored traits crashing consistency checks; unbounded PNG decode (32MB + 8192px caps); dark full-viewport overlays reading as light (dominant-overlay compositing, live-proven via fixture); commented-out mobile animation APIs counting as present; non-scroll cinematic notes falsely "missing" post-settle (capped at partial). Accepted as documented limitations: finite typography vocabularies (deliberate conservatism), text-density viewport sensitivity (warn-only), tests-import-dist (moot — pretest builds). 457 → 464 tests.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">The handoff — and what it exposed</div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-shipped">Delivered</span> Two rebuild prompts, one per executor</div>
+      <p>A <code>/goal</code> for a fresh Fable session (2,616 chars, measured against the 4,000 cap) and a Codex/GPT-5.5 variant (no <code>/goal</code> prefix, plain tool names, no circular subagent routing). Both lead with Gate 0: run the refine interview first, because the stored binding's notes contradict its references — executing the wrong spec harder was the original failure mode. Also answered the fleet question: only contradicted bindings need re-interviewing; healthy ones just re-execute against the new audit, plus one structured-ref re-bind to unlock reference deltas.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-repeat">Gate bypassed</span> The fresh session self-answered the interview</div>
+      <p>The taste store showed <code>vision-app-raven</code> re-bound at 04:13Z with <code>references: null</code> and a rewritten color note — still dark, claiming to be "guided by the reference sites" that render light. A corrective STOP message was handed to Andrew: re-run the refine interview, re-bind with the structured reference array, resolve every consistency warning with him, record decisions.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-miss">UX finding</span> The refine interview is hard to answer</div>
+      <p>When the interview finally ran, it rendered as a wall-of-text binding dump plus generic "revise X — tell me in Other/notes" checkboxes.</p>
+      <blockquote>"This is hard to understand"</blockquote>
+      <p style="margin-top:10px;">The load-bearing question — keep the dark note or follow the light references — wasn't even an option on screen. Advice given: use "Chat about this" and answer in words. Logged P1: refine mode should emit one short question per dimension quoting the current value with concrete choices, and surface consistency contradictions as the <em>first</em> question.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Mistakes &amp; lessons</div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-miss">Comm gap · promoted</span> One draft for a two-executor ask</div>
+      <p>Andrew asked for a prompt "for a completely fresh GPT 5.5 <em>and</em> Fable 5" — and got a Claude-only <code>/goal</code>. He had to ask "can I paste that into codex?" before the Codex variant existed. The <code>/goal</code> contract, Workflow tool, and <code>mcp__*</code> prefixes don't transfer to Codex.</p>
+      <p style="margin-top:10px;"><strong>Promoted:</strong> one-variant-per-named-executor bullet added to the <code>/goal</code>-writing HARD RULE in <code>~/.claude/CLAUDE.md</code>. ✓ grep-confirmed.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-fixed">Caught live</span> Serif detection matched the substring "serif"</div>
+      <p>Times, Georgia, and Playfair all read as "no serif present" because the checker looked for the literal substring — a trust-destroying false positive class, caught during acid test 2 before shipping. Fixed with recognized-face vocabularies (SERIF_FACE_RE / MONO_FACE_RE) plus a regression test. Sibling lesson: a heavy in-page scroll loop froze a WebGL page's renderer (CDP timeout) — canvas-heavy pages get 5 sampled depths with short waits.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Promotion queue — cleared (manual run)</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Disposition</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>ScheduleWakeup not for background waits</td>
+            <td>✓ Promoted — new HARD RULE in <code>~/.claude/CLAUDE.md</code> (loop self-pacing only; harness auto-notifies)</td>
+          </tr>
+          <tr>
+            <td>Surface tool failure + silent fallback immediately</td>
+            <td>✓ Promoted — new HARD RULE in <code>~/.claude/CLAUDE.md</code> (say it in the next visible message, with the fix path)</td>
+          </tr>
+          <tr>
+            <td>Verdict mappers: explicit branch per scheme</td>
+            <td>✓ Promoted — new HARD RULE in <code>~/.claude/CLAUDE.md</code> Coding rules (silent default-returns surface as downstream instability)</td>
+          </tr>
+          <tr>
+            <td>Perplexity MCP key expired (401 since 07-01)</td>
+            <td>✓ Promoted — project memory <code>reference_perplexity_key_expired.md</code> + MEMORY.md index; WebSearch is the fallback until rotated</td>
+          </tr>
+          <tr>
+            <td>Parked-branches count correction</td>
+            <td>Dropped — superseded: all 6 branches landed in v1.13.0 (2026-07-01)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Metrics</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Session</th>
+            <th>First-attempt accuracy</th>
+            <th>Autonomy</th>
+            <th>Round-trips/task</th>
+            <th>Tests</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Taste-fidelity ship + vision handoff</td>
+            <td>~85% (17/20)</td>
+            <td>~99%</td>
+            <td>~1.2 avg</td>
+            <td>464/464</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Raven opportunities — 2 new, both P1</div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-title">bind_taste_surface refusal guard</div>
+        <p>Re-binding an existing project without the structured <code>references</code> array should warn or refuse (absent an explicit <code>force</code>), and bindings should carry an interview-provenance marker so self-answered binds are distinguishable from user-answered ones. From a live bypass, not a hypothetical.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Per-dimension refine interview</div>
+        <p>One short question per dimension quoting the stored value with concrete choices; consistency contradictions (dark note vs light refs) surface as their own first question instead of hiding behind "tell me in Other/notes."</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">What would help next time</div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-title">Paste the re-bind consistency output here</div>
+        <p>When the vision session finishes the interview, its <code>bind_taste_surface</code> response's <code>consistency_warnings</code> is the fastest proof Gate 0 ran clean the second time — one paste beats re-probing the store.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Rotate the Perplexity key</div>
+        <p>401 since 07-01; WebSearch has been silently covering. One key rotation restores the research lane and retires the fallback memory.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
