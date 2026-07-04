@@ -116,6 +116,36 @@ test('libraries: multi-technique note takes the worst status; vanilla/none is un
   assert.equal(lottieMissing.status, 'missing');
 });
 
+test('libraries: anime.js note — unverifiable static, partial when animating, missing when still', () => {
+  const note = { libraries: 'anime.js staggered reveals and SVG timelines' };
+  // A static capture cannot count running animations -> unverifiable, never a guess.
+  assert.equal(one(note, makeTraits({ animation_count: null })).status, 'unverifiable');
+  // A live animation surface exists, but anime.js is not deterministically
+  // identifiable (like lottie) -> partial at best, whether via count or scroll.
+  assert.equal(one(note, makeTraits({ animation_count: 4 })).status, 'partial');
+  assert.equal(one(note, makeTraits({ animation_count: 0, scroll_effects: true })).status, 'partial');
+  // Nothing runs -> the anime.js note is missing, with citable trait numbers.
+  const missing = one(note, makeTraits({ animation_count: 0, scroll_effects: false }));
+  assert.equal(missing.status, 'missing');
+  assert.match(missing.evidence, /animation_count=0/);
+  assert.match(missing.evidence, /scroll_effects=false/);
+});
+
+test('libraries: an anime.js note that also says "choreography" is not mis-graded by the greedy GSAP branch', () => {
+  // GSAP_WORDS matches bare "choreograph…"/"scroll…" vocabulary. Before the
+  // guard, a note naming anime.js + choreography ran BOTH branches: at
+  // animation_count=2/scroll=false the GSAP branch returned `missing`
+  // (needs >3 anims or scroll), and combine()'s worst-status pulled the whole
+  // note to missing DESPITE live animation. The anime.js branch alone grades
+  // this `partial`. A specifically-named engine must own its own motion vocab.
+  const animeChoreo = { libraries: 'anime.js staggered entrance choreography and SVG timelines' };
+  assert.equal(one(animeChoreo, makeTraits({ animation_count: 2, scroll_effects: false })).status, 'partial');
+  // The guard is precise: a note that LITERALLY names gsap still gets the GSAP
+  // branch, so at 2 anims / no scroll the GSAP `missing` still dominates.
+  const bothNamed = { libraries: 'gsap + anime.js choreography' };
+  assert.equal(one(bothNamed, makeTraits({ animation_count: 2, scroll_effects: false })).status, 'missing');
+});
+
 // ---- motion ----
 
 test('motion: none-note and cinematic-note against animation evidence', () => {
@@ -428,6 +458,50 @@ test('buildHints: lottie, kinetic type, shader, particle, and parallax triggers 
   assert.equal(buildHints({ imagery: 'parallax floating device frame' })[0].technique, 'parallax product frame');
 });
 
+test('buildHints: an anime.js note gets the anime.js recipe with the v4 module API and animejs.com examples', () => {
+  const hints = buildHints({ libraries: 'anime.js staggered reveals and SVG timelines' });
+  assert.equal(hints.length, 1, 'exactly one deduped hint — no collision with the scroll/scene recipes');
+  assert.equal(hints[0].technique, 'anime.js motion');
+  assert.equal(hints[0].note_key, 'libraries');
+  assert.ok(hints[0].examples.every((e) => /https?:\/\//.test(e)), 'each example carries a URL');
+  assert.ok(hints[0].examples.some((e) => /animejs\.com/.test(e)), 'names the canonical animejs.com source');
+  // The recipe must teach the v4 ES-module API, not a stale global-script pattern.
+  assert.match(hints[0].recipe, /import \{[^}]*animate/, 'names the v4 module import');
+  assert.match(hints[0].recipe, /stagger/, 'names stagger for choreographed cascades');
+  assert.match(hints[0].recipe, /prefers-reduced-motion/, 'gates motion behind reduced-motion');
+});
+
+test('buildHints: the anime.js trigger is bounded — a substring like "xanime.js" gets no anime recipe', () => {
+  // Guards the Gap-3 boundary: an unbounded /anime\.?js/ would match "xanime.js"
+  // as a substring. The bounded trigger must reject it — this assertion FAILS if
+  // the boundary is reverted, which the happy-path test above does not.
+  const bogus = buildHints({ libraries: 'xanime.js fake and notanimejs' });
+  assert.ok(!bogus.some((h) => h.technique === 'anime.js motion'), 'no anime recipe for a mid-word substring');
+  // But the real separator variants people actually type all DO trigger it.
+  for (const spelling of ['anime.js', 'animejs', 'anime-js', 'anime js']) {
+    const h = buildHints({ libraries: spelling + ' staggered reveals' });
+    assert.ok(h.some((x) => x.technique === 'anime.js motion'), spelling + ' must trigger the anime.js recipe');
+  }
+});
+
+test('the anime.js interview option is self-consistent with the recognizers (no GSAP cross-contamination)', () => {
+  // The literal string a user picks in the libraries interview, stored verbatim
+  // as design_notes.libraries. It must NOT name gsap (which would flip the greedy
+  // GSAP branch) and MUST be caught by ANIME_WORDS — otherwise the user's anime.js
+  // pick grades as "missing GSAP choreography" and gets the wrong build recipe.
+  const optionText = 'anime.js: lightweight animation engine — crafted staggered reveals, SVG morphs, and motion timelines';
+  assert.doesNotMatch(optionText, /\bgsap\b/i, 'the option label must not name gsap');
+  assert.match(optionText, /\banime[.\-\s]?js\b/i, 'the option label must be caught by ANIME_WORDS');
+  // Graded with live-but-modest motion, it is the anime.js branch that owns it -> partial, never missing.
+  const graded = one({ libraries: optionText }, makeTraits({ animation_count: 2, scroll_effects: false }));
+  assert.equal(graded.status, 'partial');
+  assert.match(graded.evidence, /anime\.js/i, 'evidence cites the anime.js branch, not GSAP');
+  // And it draws the anime.js recipe, not the GSAP scroll recipe.
+  const hints = buildHints({ libraries: optionText });
+  assert.ok(hints.some((h) => h.technique === 'anime.js motion'), 'the option triggers the anime.js recipe');
+  assert.ok(!hints.some((h) => /gsap/i.test(h.technique)), 'the option does NOT trigger a GSAP recipe');
+});
+
 test('every recipe in the table is well-formed (concrete recipe + 2-4 URL examples)', () => {
   assert.ok(TECHNIQUE_RECIPES.length >= 10, 'at least ten recipes');
   for (const r of TECHNIQUE_RECIPES) {
@@ -718,6 +792,19 @@ test('noteIssuesFromAssessments: missing notes warn; named library / branded loa
   assert.equal(bySeverity['taste-note/motion'], 'warning');
   assert.equal(bySeverity['taste-note/libraries'], 'error');
   assert.equal(bySeverity['taste-note/loading'], 'error');
+  // anime.js is a named library on this shared/mobile path too — a wholly
+  // absent anime.js note escalates warn->error, at parity with the web path.
+  // Recognition parity: escalation must catch the same separator variants that
+  // grading (ANIME_WORDS) does — otherwise "anime-js" grades missing but never
+  // escalates. Every spelling a user might type escalates warn->error.
+  for (const spelling of ['anime.js', 'animejs', 'anime-js', 'anime js']) {
+    const animeIssues = noteIssuesFromAssessments(
+      { libraries: spelling + ' staggered reveals and SVG timelines' },
+      [{ key: 'libraries', status: 'missing', expectation: 'anime.js-driven motion', evidence: 'none found' }],
+    );
+    assert.equal(animeIssues.length, 1, spelling + ' produces one issue');
+    assert.equal(animeIssues[0].severity, 'error', spelling + ' escalates to error');
+  }
   // present/partial/unverifiable never become issues.
   assert.deepEqual(noteIssuesFromAssessments(notes, [
     { key: 'motion', status: 'present', expectation: 'x', evidence: 'y' },

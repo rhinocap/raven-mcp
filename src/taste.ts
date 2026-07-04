@@ -68,6 +68,16 @@ export type TasteAuditResult = {
   // the HOW next to the missing finding. Present only when a note triggers one.
   build_hints?: BuildHint[];
   calibration_hint?: string;
+  // Present only when the target contained data-taste-quote regions: quoted
+  // evidence (corpus wrong-examples, rule clause text rendered AS content) is
+  // excluded from deterministic detectors so a page is never convicted for
+  // quoting the law. Reported so the exemption is visible, never silent.
+  quoted_evidence_exempt?: { elements: number; chars: number };
+  // Present only when document_kind:'portrait' skipped note-fidelity: design_notes
+  // are acceptance criteria for artifacts OF a surface; a portrait is a document
+  // ABOUT the surface, so notes like "three.js scene" don't bind it. The skip is
+  // always announced here — never silent.
+  note_fidelity_skipped?: string;
   verdict: "BLOCK" | "WARN" | "PASS";
   verdict_line: string;
 };
@@ -144,11 +154,12 @@ const DESIGN_DIMENSIONS: { key: string; match: RegExp; ask: string; options?: st
       "glassmorphic: translucent layers, blur, depth",
       "retro-terminal: mono type, scanline/CRT cues",
     ] },
-  { key: "libraries", match: /librar|three\.?js|gsap|framer|lottie|graphql|webgl|stack|tech|next\.?js|framework/i,
+  { key: "libraries", match: /librar|three\.?js|gsap|framer|lottie|anime[.\-\s]?js|graphql|webgl|stack|tech|next\.?js|framework/i,
     ask: "Some builds lean on specialty libraries you may not know by name — each described by what users would see. Want any? Pick any that fit, or keep it simple. (Sites built with Raven default to a Next.js app — a React framework with fast loading and good SEO out of the box; say so if you'd rather have something else, and it goes in this note.)",
     options: [
       "three-js: real 3D in the browser — spinning products, immersive scenes; heavy wow-factor, heavier pages",
       "gsap: precision scripted animation — timeline-choreographed motion sequences that fire exactly on cue",
+      "anime.js: lightweight animation engine — crafted staggered reveals, SVG morphs, and motion timelines",
       "framer-motion: springy, physical-feeling UI transitions (React apps)",
       "lottie: designer-made vector animations exported straight from After Effects",
       "graphql: a data layer for apps juggling lots of interrelated data — invisible to users, shapes engineering",
@@ -568,7 +579,7 @@ export function getTasteInterview(profileName: string, project?: string, mode?: 
     voice_rules: voiceRules,
     rule_ids: ruleIds,
     questions,
-    then: "Ask the user these questions conversationally. This interview is a blocking gate: collect the user's answers BEFORE committing any design direction, palette, type choice, or name — never answer the questions yourself, and never proceed with design work 'while the interview runs.' If references were given, interview each example briefly — what specifically the person likes, mapped to a dimension — fold those specifics into the matching design_notes values, AND pass the examples as the structured `references` array to bind_taste_surface (a list of {url, liked?}), not only as prose in design_notes.references: Raven captures each reference's live traits and consistency-checks your design_notes against what the reference ACTUALLY is (a 'dark, cinematic' color note against two references that both render light is flagged back to you — surface such contradictions to the USER and re-ask, never silently keep both). When the surface is a website to be built, suggest building it as a Next.js app by default (record a different choice in design_notes.libraries if the user prefers one). Then persist with bind_taste_surface — dimension answers (design:*) go in design_notes as {typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries} and the open-ended closer as design_notes.special. design_notes are ACCEPTANCE CRITERIA for any build, not mood words: a build is not done until every note is visibly present in the rendered result, or the client reports to the user exactly which notes were dropped and why. When a note names an expensive technique (three.js/WebGL, GSAP scroll choreography, glassmorphism, a branded loader, lottie, kinetic display type…), bind_taste_surface and audit_taste return build_hints — a concrete recipe plus canonical public example sources (threejs.org, gsap.com, Codrops…) for that technique. An expensive note is NEVER license to drop it: the public corpus for these is vast, so consult the attached build_hints and their sources; if a technique is genuinely infeasible, say so to the USER before shipping without it. Future audit_taste calls with project:'" + (projectName || "<name>") + "' (or a matching url host) apply the binding automatically and echo the notes. Skipped questions leave that dimension uncalibrated and audits stay silent on it — encourage answering, never force. From then on, whenever the user makes, approves, or corrects a taste/direction/design decision during the work (an accent chosen, a nav pattern rejected, a name direction, a type pairing), record it with record_taste_decision — recorded decisions evolve future kickoff interviews: recurring choices return as suggested defaults on their dimension's question, and decision categories no standard question covers become new interview questions.",
+    then: "Ask the user these questions conversationally. This interview is a blocking gate: collect the user's answers BEFORE committing any design direction, palette, type choice, or name — never answer the questions yourself, and never proceed with design work 'while the interview runs.' If references were given, interview each example briefly — what specifically the person likes, mapped to a dimension — fold those specifics into the matching design_notes values, AND pass the examples as the structured `references` array to bind_taste_surface (a list of {url, liked?}), not only as prose in design_notes.references: Raven captures each reference's live traits and consistency-checks your design_notes against what the reference ACTUALLY is (a 'dark, cinematic' color note against two references that both render light is flagged back to you — surface such contradictions to the USER and re-ask, never silently keep both). When the surface is a website to be built, suggest building it as a Next.js app by default (record a different choice in design_notes.libraries if the user prefers one). Then persist with bind_taste_surface — dimension answers (design:*) go in design_notes as {typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries} and the open-ended closer as design_notes.special. design_notes are ACCEPTANCE CRITERIA for any build, not mood words: a build is not done until every note is visibly present in the rendered result, or the client reports to the user exactly which notes were dropped and why. When a note names an expensive technique (three.js/WebGL, GSAP scroll choreography, anime.js staggered motion, glassmorphism, a branded loader, lottie, kinetic display type…), bind_taste_surface and audit_taste return build_hints — a concrete recipe plus canonical public example sources (threejs.org, gsap.com, animejs.com, Codrops…) for that technique. An expensive note is NEVER license to drop it: the public corpus for these is vast, so consult the attached build_hints and their sources; if a technique is genuinely infeasible, say so to the USER before shipping without it. Future audit_taste calls with project:'" + (projectName || "<name>") + "' (or a matching url host) apply the binding automatically and echo the notes. Skipped questions leave that dimension uncalibrated and audits stay silent on it — encourage answering, never force. From then on, whenever the user makes, approves, or corrects a taste/direction/design decision during the work (an accent chosen, a nav pattern rejected, a name direction, a type pairing), record it with record_taste_decision — recorded decisions evolve future kickoff interviews: recurring choices return as suggested defaults on their dimension's question, and decision categories no standard question covers become new interview questions.",
   };
 }
 
@@ -1059,13 +1070,23 @@ export function auditTaste(input: {
   // design_notes presence verification. In html mode, traits are extracted
   // statically from the html when this is omitted.
   traits?: PageTraits;
+  // 'artifact' (default): the target IS a build of the surface — design_notes
+  // bind it as acceptance criteria. 'portrait': the target is a document ABOUT
+  // the surface (a taste portrait/spec sheet) — note-fidelity is skipped and
+  // the skip is reported on the result. Profile rules still run in full.
+  document_kind?: "artifact" | "portrait";
 }): TasteAuditResult {
   const supplied = [input.html !== undefined, input.text !== undefined].filter(Boolean).length;
   if (supplied !== 1) throw new Error("Exactly one of html or text is required");
 
   const profile = typeof input.profile === "string" ? getTasteProfile(input.profile) : validateStoredProfile(input.profile, input.profile.name);
   const targetKind: "html" | "text" = input.html !== undefined ? "html" : "text";
-  const target = input.html !== undefined ? input.html : input.text || "";
+  const rawTarget = input.html !== undefined ? input.html : input.text || "";
+  // Quoted evidence (marked data-taste-quote) is content ABOUT taste — corpus
+  // wrong-examples, rule clauses — not the page's own voice or CSS. Detectors
+  // scan the stripped target; the exemption is reported on the result.
+  const quotedEvidence = targetKind === "html" ? stripQuotedEvidence(rawTarget) : { stripped: rawTarget, elements: 0, chars: 0 };
+  const target = quotedEvidence.stripped;
   const findings: TasteFinding[] = [];
   const notAssessed: { rule_id: string; reason: string }[] = [];
   const skippedOutOfScope: { rule_id: string; scope: string }[] = [];
@@ -1150,7 +1171,8 @@ export function auditTaste(input: {
   // COUNT toward the verdict.
   let noteAssessments: NoteAssessment[] | undefined = undefined;
   let fidelityFindings: TasteFinding[] | undefined = undefined;
-  if (binding && Object.keys(binding.design_notes).length > 0) {
+  const isPortrait = input.document_kind === "portrait";
+  if (!isPortrait && binding && Object.keys(binding.design_notes).length > 0) {
     let fidelityTraits = input.traits;
     if (fidelityTraits === undefined && targetKind === "html") fidelityTraits = extractStaticTraits(target);
     if (fidelityTraits !== undefined) {
@@ -1160,10 +1182,10 @@ export function auditTaste(input: {
         if (noteAssessment.status !== "missing") continue;
         const noteText = binding.design_notes[noteAssessment.key] || "";
         // warn by default; block only when a NAMED library (three.js/gsap/
-        // lottie) or a branded loader is wholly absent — those are the notes
-        // builders silently drop.
+        // lottie/anime.js) or a branded loader is wholly absent — those are the
+        // notes builders silently drop.
         const escalate =
-          (noteAssessment.key === "libraries" && /\b(three(\.?js)?|3js|gsap|lottie)\b/i.test(noteText)) ||
+          (noteAssessment.key === "libraries" && /\b(three(\.?js)?|3js|gsap|lottie|anime[.\-\s]?js)\b/i.test(noteText)) ||
           (noteAssessment.key === "loading" && /\bbranded\b/i.test(noteText));
         generated.push({
           rule_id: "NOTE-" + noteAssessment.key,
@@ -1219,9 +1241,19 @@ export function auditTaste(input: {
   if (fidelityFindings !== undefined) result.fidelity_findings = fidelityFindings;
   // Attach build recipes for any expensive technique named in the notes — this
   // does not need traits, so a failing audit ALWAYS carries the fix ammunition.
-  if (binding && Object.keys(binding.design_notes).length > 0) {
+  // Portraits skip them: with note-fidelity off there is no missing finding to fix.
+  if (!isPortrait && binding && Object.keys(binding.design_notes).length > 0) {
     const hints = buildHints(binding.design_notes);
     if (hints.length > 0) result.build_hints = hints;
+  }
+  if (isPortrait && binding && Object.keys(binding.design_notes).length > 0) {
+    result.note_fidelity_skipped =
+      "document_kind:'portrait' — the target is a document ABOUT this surface, not a build OF it, " +
+      "so design_notes were not verified as acceptance criteria (no note_assessments/fidelity_findings/build_hints). " +
+      "Profile rules ran in full.";
+  }
+  if (quotedEvidence.elements > 0) {
+    result.quoted_evidence_exempt = { elements: quotedEvidence.elements, chars: quotedEvidence.chars };
   }
   if (!surfaceProvided && !binding && hasScopedRules) {
     result.calibration_hint =
@@ -1758,6 +1790,55 @@ function stripHtml(target: string): string {
 
 function normalizeText(value: string): string {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+// Removes the inner content of every element carrying data-taste-quote so
+// deterministic detectors never convict a page for QUOTING taste evidence
+// (corpus wrong-examples, rule clause text, banned-word lists rendered as
+// content). The element's own tags survive; only its contents are dropped.
+// Balanced same-tag scanning handles nested children of the same tag name.
+export function stripQuotedEvidence(html: string): { stripped: string; elements: number; chars: number } {
+  const openRe = /<([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*\bdata-taste-quote\b[^>]*>/g;
+  let stripped = "";
+  let cursor = 0;
+  let elements = 0;
+  let chars = 0;
+  let match: RegExpExecArray | null;
+  while ((match = openRe.exec(html)) !== null) {
+    if (match.index < cursor) continue; // inside a region we already removed
+    const tag = match[1].toLowerCase();
+    const contentStart = match.index + match[0].length;
+    const tagRe = new RegExp("<(/?)" + tag + "\\b[^>]*>", "gi");
+    tagRe.lastIndex = contentStart;
+    let depth = 1;
+    let contentEnd = -1;
+    let closeEnd = -1;
+    let tagMatch: RegExpExecArray | null;
+    while ((tagMatch = tagRe.exec(html)) !== null) {
+      if (tagMatch[1] === "/") depth -= 1; else depth += 1;
+      if (depth === 0) {
+        contentEnd = tagMatch.index;
+        closeEnd = tagMatch.index + tagMatch[0].length;
+        break;
+      }
+    }
+    if (contentEnd === -1) {
+      // Unclosed element: drop everything after the open tag — safer than
+      // letting quoted evidence leak into the detectors.
+      stripped += html.slice(cursor, contentStart);
+      chars += html.length - contentStart;
+      elements += 1;
+      cursor = html.length;
+      break;
+    }
+    stripped += html.slice(cursor, contentStart) + html.slice(contentEnd, closeEnd);
+    chars += contentEnd - contentStart;
+    elements += 1;
+    cursor = closeEnd;
+    openRe.lastIndex = closeEnd;
+  }
+  stripped += html.slice(cursor);
+  return { stripped, elements, chars };
 }
 
 function tokenize(value: string): Set<string> {

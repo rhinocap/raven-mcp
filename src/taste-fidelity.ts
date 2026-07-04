@@ -27,6 +27,9 @@ const LIGHT_WORDS = /\b(bone|white|cream|paper|airy-light)\b/i;
 const THREE_WORDS = /\b(three(\.?js)?|3js|3d|webgl)\b/i;
 const GSAP_WORDS = /\b(gsap|choreograph\w*|scroll\w*)\b/i;
 const LOTTIE_WORDS = /\blottie\b/i;
+// Bounded but separator-tolerant: matches animejs / anime.js / anime-js /
+// anime js (how people actually write it), never a substring like "xanimejs".
+const ANIME_WORDS = /\banime[.\-\s]?js\b/i;
 const VANILLA_WORDS = /\b(none|vanilla)\b/i;
 const MOTION_STATIC_WORDS = /\b(none|minimal|static)\b/i;
 const MOTION_DYNAMIC_WORDS = /\b(cinematic|immersive|choreograph\w*|scroll)\b/i;
@@ -159,7 +162,14 @@ function assessLibraries(note: string, traits: PageTraits): NoteAssessment {
         "canvas exists but no WebGL context was confirmed (" + cite + ")"));
     }
   }
-  if (GSAP_WORDS.test(note)) {
+  // GSAP_WORDS is greedy — it matches bare "choreograph…"/"scroll…" vocabulary,
+  // not just the literal "gsap" token. When a note names a SPECIFIC engine
+  // (anime.js) and does NOT literally name gsap, that vocabulary describes the
+  // named engine's own motion, not a separate GSAP-scroll requirement — so let
+  // the anime.js branch own the grade instead of double-counting it as a missing
+  // GSAP requirement. A note that literally names gsap still gets the GSAP branch.
+  const gsapClaimsVocab = GSAP_WORDS.test(note) && (/\bgsap\b/i.test(note) || !ANIME_WORDS.test(note));
+  if (gsapClaimsVocab) {
     const cite = "scroll_effects=" + String(traits.scroll_effects) + ", animation_count=" + num(traits.animation_count);
     if (traits.scroll_effects === null && traits.animation_count === null) {
       parts.push(assessment("libraries", "unverifiable", "scroll choreography (gsap/scroll named)", STATIC_REASON));
@@ -181,6 +191,22 @@ function assessLibraries(note: string, traits: PageTraits): NoteAssessment {
     } else {
       parts.push(assessment("libraries", "missing", "a lottie animation surface",
         "no canvas and no running animations for a lottie player (" + cite + ")"));
+    }
+  }
+  if (ANIME_WORDS.test(note)) {
+    // anime.js is a general JS animation engine (DOM/CSS/SVG timelines + stagger
+    // + scroll observers) — like lottie/gsap it produces running animations but
+    // isn't deterministically identifiable, so animation-present is partial, not
+    // present. Its floor is a live animation surface; none at all is missing.
+    const cite = "animation_count=" + num(traits.animation_count) + ", scroll_effects=" + String(traits.scroll_effects);
+    if (traits.animation_count === null) {
+      parts.push(assessment("libraries", "unverifiable", "anime.js-driven motion", STATIC_REASON));
+    } else if (traits.animation_count > 0 || traits.scroll_effects === true) {
+      parts.push(assessment("libraries", "partial", "anime.js-driven motion",
+        "animation surface exists but anime.js itself is not deterministically identifiable (" + cite + ")"));
+    } else {
+      parts.push(assessment("libraries", "missing", "anime.js-driven motion",
+        "no running animations for an anime.js-driven surface (" + cite + ")"));
     }
   }
   if (parts.length > 0) return combine("libraries", parts);
@@ -495,8 +521,9 @@ function refFinding(ruleId: string, clause: string, evidence: string, fix: strin
 }
 
 // ── Technique recipes (build hints) ─────────────────────────────────────
-// Expensive design_notes (three.js, GSAP scroll choreography, glassmorphism,
-// branded loaders…) are dropped partly because nothing hands the builder the
+// Expensive design_notes (three.js, GSAP scroll choreography, anime.js
+// staggered motion, glassmorphism, branded loaders…) are dropped partly
+// because nothing hands the builder the
 // HOW. When a note names an expensive technique, Raven attaches a concrete,
 // named recipe plus canonical PUBLIC example sources so an expensive note is
 // never license to silently drop it — the reference corpus for these is vast.
@@ -584,6 +611,21 @@ export const TECHNIQUE_RECIPES: TechniqueRecipe[] = [
       "LottieFiles — https://lottiefiles.com/",
       "lottie-web (Airbnb) — https://github.com/airbnb/lottie-web",
       "dotLottie player — https://dotlottie.io/",
+    ],
+  },
+  {
+    technique: "anime.js motion",
+    // anime.js v4 is a lightweight general animation engine — good when the
+    // brief wants crafted DOM/SVG/CSS motion (staggered reveals, morphs, timelines)
+    // without GSAP's weight or lottie's AE pipeline. "anime" alone is ambiguous;
+    // require the library name.
+    trigger: ["\\banime[.\\-\\s]?js\\b"],
+    recipe:
+      "Install anime.js v4 and pull only what you use from the ES module: import { animate, createTimeline, stagger, onScroll } from 'animejs'. Drive one element or a selector with animate('.el', { translateY: [24, 0], opacity: [0, 1], duration: 700, ease: 'out(3)' }), and cascade groups with delay: stagger(80). Sequence multi-beat moments on a createTimeline() (add() calls with relative offsets) so entrances read as choreography, not N independent tweens. For scroll-tied motion use autoplay: onScroll({ enter, leave, sync }) instead of a manual IntersectionObserver. Gate the whole thing behind matchMedia('(prefers-reduced-motion: reduce)') and resolve to the final state instantly when it matches; lazy-init below-the-fold timelines so they don't cost on first paint. anime.js targets CSS transforms/SVG attributes — keep it off layout-triggering properties and prefer transform/opacity.",
+    examples: [
+      "anime.js v4 documentation — https://animejs.com/documentation/",
+      "anime.js homepage + live demos — https://animejs.com/",
+      "Codrops anime.js tutorials — https://tympanus.net/codrops/",
     ],
   },
   {
@@ -1077,7 +1119,7 @@ export function noteIssuesFromAssessments(
     if (a.status !== "missing") continue;
     const noteText = notes[a.key] || "";
     const escalate =
-      (a.key === "libraries" && /\b(three(\.?js)?|3js|gsap|lottie)\b/i.test(noteText)) ||
+      (a.key === "libraries" && /\b(three(\.?js)?|3js|gsap|lottie|anime[.\-\s]?js)\b/i.test(noteText)) ||
       (a.key === "loading" && /\bbranded\b/i.test(noteText));
     out.push({
       severity: escalate ? "error" : "warning",
