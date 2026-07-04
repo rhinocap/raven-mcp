@@ -33,6 +33,13 @@ Fixed (7): bare-word "three" recipe trigger (three-column layout → WebGL recip
 - Codex DA: 10 findings → 7 fixed with regression tests, 3 accepted-documented ✓
 - SHIPPED `4b33923` to main ✓
 - Pending (carried forward):
-  - MCP servers serve stale dist until restarted (tell Andrew)
+  - MCP servers serve stale dist until restarted (told Andrew: Codex = quit+relaunch; Claude Code = new session)
   - Release/version cut on Andrew's go
   - Interview demo artifact: the before/after acid test (vision-app "13/13" → BLOCK with cited evidence) is the story
+
+## Post-ship window (2026-07-03 late → 07-04)
+- **Re-interview vs re-execute answered:** vision-app-raven = refine interview (binding self-contradicted); all other bindings = re-execute against the new audit_taste; keepers get one structured-ref re-bind to unlock REF-* deltas.
+- **Two goal prompts delivered:** `/tmp/drafts/2026-07-02-goal-vision-taste-rebuild.md` (Claude `/goal`, 2616 chars) + `/tmp/drafts/2026-07-03-codex-vision-taste-rebuild.md` (Codex variant). Lesson promoted to the global `/goal`-writing rule: one variant per named executor, up front.
+- **Gate-0 bypass caught from the taste store:** the fresh Fable session re-bound vision-app-raven (04:13Z) with no interview + no structured references — corrective STOP message handed to Andrew. Engine gap logged P1 (bind refusal guard).
+- **Refine-interview UX confusion:** binding-dump + generic checkboxes; advised "Chat about this" + explicit dark-vs-light answer. Logged P1 (per-dimension questions, contradiction first).
+- **Revisit run (07-04):** promotion queue cleared (4 promoted → CLAUDE.md/memory, 1 dropped superseded); metrics + ideas updated; 2 new raven-opportunity P1s.
