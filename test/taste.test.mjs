@@ -1281,3 +1281,509 @@ test('listTasteProfiles skips sidecar surfaces/decisions stores', async () => {
     ]);
   });
 });
+
+// ---- LEG B: references first-class + consistency ----
+
+function makeTraits(over) {
+  return Object.assign({
+    source: 'live', scheme: 'light', bg_luminance: 0.98, text_density: 0.4,
+    section_count: 5, image_count: 3, video_count: 0, canvas_count: 0,
+    webgl: false, backdrop_filter: false, animation_count: 0, scroll_effects: false,
+    font_families: ['Inter'], max_heading_px: 48, gradient_count: 0,
+    loader_hint: false, viewport_fill: 0.6
+  }, over || {});
+}
+
+test('bindTasteSurface persists references (with and without traits) and round-trips from disk', async () => {
+  await withTasteHome(async (home) => {
+    taste.createTasteProfile({ name: 'refs', rules: baseRules() });
+    const bound = taste.bindTasteSurface('refs', {
+      project: 'vision-app', surface: 'product-site',
+      design_notes: { color: 'Dark, cinematic palette.' },
+      references: [
+        { url: 'https://mont-fort.com', liked: '  the type  ', traits: makeTraits({ scheme: 'light', bg_luminance: 0.97 }), captured_at: '2026-07-03T00:00:00.000Z' },
+        { url: 'https://igloo.inc' } // no traits (capture failed)
+      ]
+    });
+    assert.equal(bound.references.length, 2);
+    assert.equal(bound.references[0].url, 'https://mont-fort.com');
+    assert.equal(bound.references[0].liked, 'the type'); // trimmed
+    assert.equal(bound.references[0].traits.scheme, 'light');
+    assert.equal(bound.references[0].captured_at, '2026-07-03T00:00:00.000Z');
+    assert.equal(bound.references[1].url, 'https://igloo.inc');
+    assert.equal(bound.references[1].traits, undefined);
+
+    // Persists and reloads through disk validation.
+    const reloaded = taste.listSurfaceBindings('refs')[0];
+    assert.deepEqual(reloaded.references, bound.references);
+    const onDisk = JSON.parse(await readFile(path.join(home, 'refs.surfaces.json'), 'utf8'));
+    assert.equal(onDisk.bindings[0].references.length, 2);
+  });
+});
+
+test('bindTasteSurface validates reference shape and requires http(s) urls', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'refval', rules: baseRules() });
+    assert.throws(
+      () => taste.bindTasteSurface('refval', { project: 'x', surface: 's', references: 'nope' }),
+      /references must be an array/
+    );
+    assert.throws(
+      () => taste.bindTasteSurface('refval', { project: 'x', surface: 's', references: [{ liked: 'no url' }] }),
+      /references\[0\]\.url must be a string/
+    );
+    assert.throws(
+      () => taste.bindTasteSurface('refval', { project: 'x', surface: 's', references: [{ url: 'ftp://x.com' }] }),
+      /must be an http\(s\) URL/
+    );
+    assert.throws(
+      () => taste.bindTasteSurface('refval', { project: 'x', surface: 's', references: [{ url: 'not a url' }] }),
+      /must be a valid http\(s\) URL/
+    );
+    assert.throws(
+      () => taste.bindTasteSurface('refval', { project: 'x', surface: 's', references: [{ url: 'https://x.com', liked: 42 }] }),
+      /liked must be a string/
+    );
+    // Empty binding stores no references key at all (disk format unchanged).
+    const plain = taste.bindTasteSurface('refval', { project: 'plain', surface: 's' });
+    assert.equal(plain.references, undefined);
+  });
+});
+
+test('validateStoredBinding backward compat: old binding JSON without references loads', async () => {
+  await withTasteHome(async (home) => {
+    taste.createTasteProfile({ name: 'compat', rules: baseRules() });
+    taste.bindTasteSurface('compat', { project: 'legacy', surface: 'product-site', design_notes: { color: 'Bone white.' } });
+    const raw = JSON.parse(await readFile(path.join(home, 'compat.surfaces.json'), 'utf8'));
+    assert.equal(raw.bindings[0].references, undefined, 'no references key written when none given');
+    // Simulate a pre-references store (field absent entirely) — still loads.
+    delete raw.bindings[0].references;
+    await writeFile(path.join(home, 'compat.surfaces.json'), JSON.stringify(raw), 'utf8');
+    const loaded = taste.listSurfaceBindings('compat')[0];
+    assert.equal(loaded.references, undefined);
+    assert.equal(loaded.design_notes.color, 'Bone white.');
+  });
+});
+
+test('checkBindingConsistency flags dark-note/light-refs and stays silent on agreement', async () => {
+  // The exact vision-app-raven failure: notes say dark, both refs render light.
+  const darkVsLight = taste.checkBindingConsistency(
+    { color: 'Dark, cinematic palette.' },
+    [
+      { url: 'https://mont-fort.com', traits: makeTraits({ scheme: 'light', bg_luminance: 0.97 }) },
+      { url: 'https://igloo.inc', traits: makeTraits({ scheme: 'light', bg_luminance: 0.94 }) }
+    ]
+  );
+  assert.equal(darkVsLight.length, 1);
+  assert.match(darkVsLight[0], /reads dark/);
+  assert.match(darkVsLight[0], /mont-fort\.com/);
+  assert.match(darkVsLight[0], /igloo\.inc/);
+  assert.match(darkVsLight[0], /luminance=0\.97/);
+
+  // Agreement: dark note + dark refs => silent.
+  const agree = taste.checkBindingConsistency(
+    { color: 'Dark, cinematic palette.' },
+    [{ url: 'https://a.com', traits: makeTraits({ scheme: 'dark', bg_luminance: 0.08 }) }]
+  );
+  assert.deepEqual(agree, []);
+
+  // No traits on any ref => silent (nothing citable).
+  const noTraits = taste.checkBindingConsistency(
+    { color: 'Dark palette.' },
+    [{ url: 'https://a.com' }]
+  );
+  assert.deepEqual(noTraits, []);
+
+  // light-words vs all-dark refs.
+  const lightVsDark = taste.checkBindingConsistency(
+    { color: 'Bone white, airy.' },
+    [{ url: 'https://a.com', traits: makeTraits({ scheme: 'dark', bg_luminance: 0.06 }) }]
+  );
+  assert.equal(lightVsDark.length, 1);
+  assert.match(lightVsDark[0], /reads light/);
+});
+
+test('checkBindingConsistency flags motion and spacing contradictions with citable numbers', async () => {
+  // static note vs animated reference.
+  const motionStatic = taste.checkBindingConsistency(
+    { motion: 'Minimal, static — no motion.' },
+    [{ url: 'https://a.com', traits: makeTraits({ animation_count: 12, scroll_effects: true }) }]
+  );
+  assert.equal(motionStatic.length, 1);
+  assert.match(motionStatic[0], /reads static\/minimal/);
+  assert.match(motionStatic[0], /animations=12/);
+
+  // choreography note vs all-still references.
+  const motionDynamic = taste.checkBindingConsistency(
+    { motion: 'Cinematic scroll choreography.' },
+    [{ url: 'https://a.com', traits: makeTraits({ animation_count: 0, scroll_effects: false }) }]
+  );
+  assert.equal(motionDynamic.length, 1);
+  assert.match(motionDynamic[0], /choreography\/scroll motion/);
+
+  // null animation_count => not counted as still => silent for dynamic note.
+  const motionNull = taste.checkBindingConsistency(
+    { motion: 'Cinematic scroll.' },
+    [{ url: 'https://a.com', traits: makeTraits({ animation_count: null }) }]
+  );
+  assert.deepEqual(motionNull, []);
+
+  // airy note vs text-dense references.
+  const airy = taste.checkBindingConsistency(
+    { spacing: 'Airy, generous whitespace.' },
+    [{ url: 'https://a.com', traits: makeTraits({ text_density: 3.4 }) }]
+  );
+  assert.equal(airy.length, 1);
+  assert.match(airy[0], /reads airy\/sparse/);
+  assert.match(airy[0], /text_density=3\.40/);
+
+  // dense note vs sparse references.
+  const dense = taste.checkBindingConsistency(
+    { spacing: 'Compact, dense grid.' },
+    [{ url: 'https://a.com', traits: makeTraits({ text_density: 0.3 }) }]
+  );
+  assert.equal(dense.length, 1);
+  assert.match(dense[0], /reads compact\/dense/);
+
+  // spacing with null density => silent.
+  const spacingNull = taste.checkBindingConsistency(
+    { spacing: 'Airy.' },
+    [{ url: 'https://a.com', traits: makeTraits({ text_density: null }) }]
+  );
+  assert.deepEqual(spacingNull, []);
+});
+
+// ---- LEG C: design_notes presence verification in auditTaste ----
+
+test('auditTaste verifies design_notes against traits: the vision-app-raven failure shape now BLOCKS', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'fidelity', rules: baseRules() });
+    taste.bindTasteSurface('fidelity', {
+      project: 'vision-app-raven',
+      surface: 'product-site',
+      design_notes: {
+        color: 'Dark, cinematic palette.',
+        libraries: 'three.js hero + GSAP scroll choreography',
+        motion: 'cinematic scroll choreography',
+        aesthetic: 'glassmorphic panels',
+        imagery: 'story-driven scene sequences'
+      }
+    });
+    // The build that "passed 13/13": light, still, canvas-less, one image.
+    const traits = makeTraits({
+      scheme: 'light', bg_luminance: 0.97, canvas_count: 0, webgl: false,
+      scroll_effects: false, animation_count: 0, backdrop_filter: false,
+      image_count: 1, video_count: 0
+    });
+    const result = taste.auditTaste({
+      profile: 'fidelity',
+      html: '<main><p>Raven vision app.</p></main>',
+      project: 'vision-app-raven',
+      traits
+    });
+
+    // Every note assessed; the dropped ones read missing with cited numbers.
+    assert.equal(result.note_assessments.length, 5);
+    const byKey = Object.fromEntries(result.note_assessments.map((a) => [a.key, a]));
+    assert.equal(byKey.color.status, 'missing');
+    assert.equal(byKey.libraries.status, 'missing');
+    assert.equal(byKey.motion.status, 'missing');
+    assert.equal(byKey.aesthetic.status, 'missing');
+    assert.equal(byKey.imagery.status, 'partial'); // one image: partial, not invented as missing
+    const missing = result.note_assessments.filter((a) => a.status === 'missing');
+    assert.ok(missing.length >= 3, 'expected >=3 missing, got ' + missing.length);
+    for (const row of missing) assert.match(row.evidence, /[0-9]|false/, row.key + ' must cite trait numbers');
+
+    // Missing notes became findings; a named library wholly absent escalates to block.
+    const libFinding = result.fidelity_findings.find((f) => f.rule_id === 'NOTE-libraries');
+    assert.equal(libFinding.severity, 'block');
+    assert.equal(libFinding.clause_cited, 'three.js hero + GSAP scroll choreography');
+    assert.match(libFinding.evidence, /canvas_count=0/);
+    assert.equal(result.fidelity_findings.find((f) => f.rule_id === 'NOTE-color').severity, 'warn');
+    // Sparse-and-empty page also trips the restraint guard.
+    assert.ok(result.fidelity_findings.some((f) => f.rule_id === 'TASTE-restraint-earned'));
+
+    // Fidelity findings COUNT toward the verdict.
+    assert.equal(result.verdict, 'BLOCK');
+    assert.match(result.verdict_line, /^Verdict: BLOCK \(\d+ block, \d+ warn\)$/);
+    // ...but never leak into the profile-rule findings array.
+    assert.equal(result.findings.some((f) => f.rule_id.startsWith('NOTE-')), false);
+  });
+});
+
+test('auditTaste carries build_hints for expensive notes, alongside the missing findings', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'hints', rules: baseRules() });
+    taste.bindTasteSurface('hints', {
+      project: 'vision-app-raven',
+      surface: 'product-site',
+      design_notes: {
+        libraries: 'three.js hero + GSAP scroll choreography',
+        aesthetic: 'glassmorphic panels'
+      }
+    });
+    // Dropped-everything build: canvas-less, still, no backdrop-filter.
+    const traits = makeTraits({
+      scheme: 'light', canvas_count: 0, webgl: false, scroll_effects: false,
+      animation_count: 0, backdrop_filter: false, image_count: 1
+    });
+    const result = taste.auditTaste({ profile: 'hints', html: '<main><p>App.</p></main>', project: 'vision-app-raven', traits });
+
+    // The audit hands the fix ammunition next to the missing finding.
+    assert.ok(Array.isArray(result.build_hints), 'build_hints present when a note names an expensive technique');
+    const techniques = result.build_hints.map((h) => h.technique);
+    assert.ok(techniques.includes('three.js hero scene'));
+    assert.ok(techniques.includes('GSAP scroll choreography'));
+    assert.ok(techniques.includes('glassmorphism'));
+    const three = result.build_hints.find((h) => h.technique === 'three.js hero scene');
+    assert.ok(three.examples.some((e) => /threejs\.org/.test(e)), 'recipe names a canonical public source');
+    // Still counts the notes as missing — hints do not paper over the failure.
+    assert.ok(result.fidelity_findings.some((f) => f.rule_id === 'NOTE-libraries'));
+    assert.equal(result.verdict, 'BLOCK');
+  });
+});
+
+test('auditTaste omits build_hints when no note names an expensive technique', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'nohints', rules: baseRules() });
+    taste.bindTasteSurface('nohints', {
+      project: 'plain-app',
+      surface: 'product-site',
+      design_notes: { typography: 'restrained grotesque', libraries: 'none — vanilla JS' }
+    });
+    const result = taste.auditTaste({ profile: 'nohints', html: '<main><p>Hi.</p></main>', project: 'plain-app', traits: makeTraits({}) });
+    assert.equal(result.build_hints, undefined, 'no expensive technique -> no build_hints field');
+  });
+});
+
+test('auditTaste html mode extracts static traits when none are passed', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'staticfid', rules: baseRules() });
+    taste.bindTasteSurface('staticfid', {
+      project: 'static-app',
+      surface: 'product-site',
+      design_notes: { color: 'Dark, cinematic.', aesthetic: 'glassmorphic', motion: 'cinematic scroll' }
+    });
+    const html = '<html><body style="background:#ffffff"><main><p>Hello.</p></main></body></html>';
+    const result = taste.auditTaste({ profile: 'staticfid', html, project: 'static-app' });
+    const byKey = Object.fromEntries(result.note_assessments.map((a) => [a.key, a]));
+    // Statically observable: white body -> the dark note is missing; no backdrop-filter -> glass missing.
+    assert.equal(byKey.color.status, 'missing');
+    assert.equal(byKey.aesthetic.status, 'missing');
+    // Live-only: motion is honestly unverifiable from static HTML, never guessed missing.
+    assert.equal(byKey.motion.status, 'unverifiable');
+    assert.match(byKey.motion.evidence, /static HTML/);
+    assert.equal(result.verdict, 'WARN');
+  });
+});
+
+test('auditTaste folds reference deltas from the binding into fidelity_findings', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'refdelta', rules: baseRules() });
+    taste.bindTasteSurface('refdelta', {
+      project: 'vision-app',
+      surface: 'product-site',
+      design_notes: { color: 'Dark, cinematic.' },
+      references: [
+        { url: 'https://mont-fort.com', traits: makeTraits({ scheme: 'light', bg_luminance: 0.97, animation_count: 20, scroll_effects: true }) },
+        { url: 'https://igloo.inc', traits: makeTraits({ scheme: 'light', bg_luminance: 0.94 }) }
+      ]
+    });
+    const target = makeTraits({ scheme: 'dark', bg_luminance: 0.05, animation_count: 0, scroll_effects: false });
+    const result = taste.auditTaste({ profile: 'refdelta', html: '<main><p>Hi.</p></main>', project: 'vision-app', traits: target });
+    const scheme = result.fidelity_findings.filter((f) => f.rule_id === 'REF-scheme-mismatch');
+    assert.equal(scheme.length, 1, 'deduped across refs');
+    assert.match(scheme[0].evidence, /mont-fort\.com/);
+    assert.match(scheme[0].evidence, /igloo\.inc/);
+    const motion = result.fidelity_findings.find((f) => f.rule_id === 'REF-motion-missing');
+    assert.match(motion.evidence, /mont-fort\.com/);
+    // The color note itself agrees with the target (dark on dark) -> no NOTE-color finding.
+    assert.equal(result.fidelity_findings.some((f) => f.rule_id === 'NOTE-color'), false);
+    assert.equal(result.verdict, 'WARN');
+  });
+});
+
+test('fidelity backward compat: no design_notes, no traits, or text mode leaves the result shape unchanged', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'fidcompat', rules: baseRules() });
+    // Binding without design_notes: nothing to verify even with traits.
+    taste.bindTasteSurface('fidcompat', { project: 'plain', surface: 'product-site' });
+    const withTraits = taste.auditTaste({ profile: 'fidcompat', html: '<p>Hi.</p>', project: 'plain', traits: makeTraits({}) });
+    assert.equal(withTraits.note_assessments, undefined);
+    assert.equal(withTraits.fidelity_findings, undefined);
+
+    // No binding at all.
+    const unbound = taste.auditTaste({ profile: 'fidcompat', html: '<p>Hi.</p>' });
+    assert.equal(unbound.note_assessments, undefined);
+    assert.equal(unbound.fidelity_findings, undefined);
+
+    // design_notes bound, but text mode has no traits and nothing to extract.
+    taste.bindTasteSurface('fidcompat', { project: 'noted', surface: 'product-site', design_notes: { color: 'dark' } });
+    const textMode = taste.auditTaste({ profile: 'fidcompat', text: 'Some copy.', project: 'noted' });
+    assert.equal(textMode.note_assessments, undefined);
+    assert.equal(textMode.fidelity_findings, undefined);
+    assert.equal(textMode.verdict, 'PASS');
+  });
+});
+
+test('restraint guard alone escalates a clean PASS to WARN with the standard verdict line', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'restraint', rules: baseRules() });
+    taste.bindTasteSurface('restraint', {
+      project: 'sparse-app',
+      surface: 'product-site',
+      design_notes: { typography: 'Grotesque, restrained.' } // unverifiable note: no NOTE- finding
+    });
+    const sparseEmpty = makeTraits({
+      text_density: 0.3, image_count: 0, video_count: 0, canvas_count: 0,
+      animation_count: 0, backdrop_filter: false, font_families: ['Inter'],
+      max_heading_px: 40, gradient_count: 0
+    });
+    const result = taste.auditTaste({ profile: 'restraint', html: '<main><p>Hi.</p></main>', project: 'sparse-app', traits: sparseEmpty });
+    assert.deepEqual(result.fidelity_findings.map((f) => f.rule_id), ['TASTE-restraint-earned']);
+    assert.equal(result.verdict, 'WARN');
+    assert.equal(result.verdict_line, 'Verdict: WARN (0 block, 1 warn)');
+    // The unverifiable note is still reported honestly in note_assessments.
+    assert.equal(result.note_assessments[0].status, 'unverifiable');
+
+    // Same page with earned sparseness (craft present): guard is silent, PASS.
+    const crafted = taste.auditTaste({
+      profile: 'restraint', html: '<main><p>Hi.</p></main>', project: 'sparse-app',
+      traits: makeTraits(Object.assign({}, sparseEmpty, { canvas_count: 1, animation_count: 6 }))
+    });
+    assert.deepEqual(crafted.fidelity_findings, []);
+    assert.equal(crafted.verdict, 'PASS');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// LEG E — mobile parity: image-path references + the mobile-audit chain
+// (bind -> resolveSurfaceBinding -> assessDesignNotesSource -> issues).
+// ═══════════════════════════════════════════════════════════════════
+
+const distFidelityMobile = path.resolve(__dirname, '../dist/taste-fidelity.js');
+const fidelityMobile = await import(distFidelityMobile);
+
+test('references accept local .png image paths alongside http(s) URLs', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'mobrefs', rules: baseRules() });
+    // isPngPathReference is the routing predicate the bind handler uses.
+    assert.equal(taste.isPngPathReference('/tmp/screen.png'), true);
+    assert.equal(taste.isPngPathReference('shots/Home.PNG'), true);
+    assert.equal(taste.isPngPathReference('https://a.com/shot.png'), false, 'http urls stay on the live-capture path');
+    assert.equal(taste.isPngPathReference('/tmp/screen.jpg'), false);
+
+    const bound = taste.bindTasteSurface('mobrefs', {
+      project: 'vision-app-ios', surface: 'mobile app',
+      design_notes: { color: 'Dark, cinematic palette.' },
+      references: [
+        { url: '/tmp/home-screen.png', liked: 'the depth', traits: makeTraits({ source: 'static', scheme: 'dark', bg_luminance: 0.04, webgl: null, animation_count: null, scroll_effects: null, text_density: null, viewport_fill: null, max_heading_px: null }) },
+        { url: 'https://mont-fort.com' }
+      ]
+    });
+    assert.equal(bound.references.length, 2);
+    assert.equal(bound.references[0].url, '/tmp/home-screen.png');
+    assert.equal(bound.references[0].traits.scheme, 'dark');
+    // Round-trips through disk validation.
+    const reloaded = taste.listSurfaceBindings('mobrefs')[0];
+    assert.equal(reloaded.references[0].url, '/tmp/home-screen.png');
+    // Non-png non-url paths are still rejected.
+    assert.throws(
+      () => taste.bindTasteSurface('mobrefs', { project: 'x', surface: 's', references: [{ url: '/tmp/notes.txt' }] }),
+      /must be a valid http\(s\) URL or a \.png image path/
+    );
+  });
+});
+
+test('checkBindingConsistency works on the pixel-trait subset from an image reference', async () => {
+  // A dark color note against a LIGHT screenshot reference must contradict —
+  // using only the scheme/luminance subset screenTraitsFromImage can supply.
+  const imageTraits = makeTraits({
+    source: 'static', scheme: 'light', bg_luminance: 0.96,
+    webgl: null, animation_count: null, scroll_effects: null,
+    text_density: null, viewport_fill: null, max_heading_px: null
+  });
+  const warnings = taste.checkBindingConsistency(
+    { color: 'Dark, cinematic.', motion: 'minimal' },
+    [{ url: '/tmp/light-screen.png', traits: imageTraits }]
+  );
+  assert.equal(warnings.length, 1, 'only the color contradiction fires; null motion traits stay silent');
+  assert.match(warnings[0], /renders LIGHT/);
+  assert.match(warnings[0], /light-screen\.png/);
+});
+
+test('mobile audit integration: bound design_notes verified against source fold into issues; no binding -> unchanged', async () => {
+  await withTasteHome(async () => {
+    // The exact chain audit_swiftui runs when passed project: resolve the
+    // binding, assess the notes against the source, fold missing into issues.
+    taste.createTasteProfile({ name: 'andrew-mobile', rules: baseRules() });
+    taste.bindTasteSurface('andrew-mobile', {
+      project: 'vision-app-ios', surface: 'mobile app',
+      design_notes: { aesthetic: 'glassmorphic frosted panels', motion: 'cinematic choreographed transitions', loading: 'branded loader' }
+    });
+
+    const binding = taste.resolveSurfaceBinding('andrew-mobile', { project: 'vision-app-ios' });
+    assert.ok(binding, 'project hint must resolve the binding');
+
+    const bareSource = 'struct ListView: View { var body: some View { VStack { Text("one") } } }';
+    const assessments = fidelityMobile.assessDesignNotesSource(binding.design_notes, bareSource, 'swiftui');
+    const issues = fidelityMobile.noteIssuesFromAssessments(binding.design_notes, assessments);
+    // All three notes are missing from the bare list; branded loader escalates.
+    assert.equal(issues.length, 3);
+    const bySeverity = Object.fromEntries(issues.map((i) => [i.rule, i.severity]));
+    assert.equal(bySeverity['taste-note/aesthetic'], 'warning');
+    assert.equal(bySeverity['taste-note/motion'], 'warning');
+    assert.equal(bySeverity['taste-note/loading'], 'error');
+    for (const issue of issues) assert.ok(issue.fix.length > 10, issue.rule + ' carries a fix');
+
+    // Backward compat: an unbound project resolves nothing -> no note issues,
+    // the audit result is byte-identical to the pre-taste behavior.
+    assert.equal(taste.resolveSurfaceBinding('andrew-mobile', { project: 'some-other-app' }), null);
+  });
+});
+
+// ---- devil's-advocate regressions (2026-07-03 Codex DA pass) ----
+
+test('checkBindingConsistency: scroll-driven references (animation_count=0, scroll_effects=true) are NOT flagged still', async () => {
+  const warnings = taste.checkBindingConsistency(
+    { motion: 'immersive scroll choreography' },
+    [
+      { url: 'https://mont-fort.com', traits: makeTraits({ animation_count: 0, scroll_effects: true }) },
+      { url: 'https://igloo.inc', traits: makeTraits({ animation_count: 0, scroll_effects: true }) }
+    ]
+  );
+  assert.ok(!warnings.some((w) => w.includes('motion note')), 'a reference idling between scroll inputs is motion evidence, not stillness: ' + JSON.stringify(warnings));
+
+  // Genuinely still references DO warn.
+  const still = taste.checkBindingConsistency(
+    { motion: 'immersive scroll choreography' },
+    [{ url: 'https://a.com', traits: makeTraits({ animation_count: 0, scroll_effects: false }) }]
+  );
+  assert.ok(still.some((w) => w.includes('motion note')));
+});
+
+test('stored reference traits are sanitized: corrupt fields degrade to null/unknown, never crash later audits', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'corrupt', rules: baseRules() });
+    taste.bindTasteSurface('corrupt', {
+      project: 'p',
+      surface: 'product-site',
+      design_notes: { color: 'Dark, cinematic.', spacing: 'airy' },
+      references: [{
+        url: 'https://x.com',
+        traits: { scheme: 'neon', bg_luminance: 'very dark', text_density: '0.5', animation_count: NaN, font_families: ['Inter', 42], section_count: -3 }
+      }]
+    });
+    const loaded = taste.listSurfaceBindings('corrupt')[0];
+    const t = loaded.references[0].traits;
+    assert.equal(t.scheme, 'unknown');
+    assert.equal(t.bg_luminance, null);
+    assert.equal(t.text_density, null);
+    assert.equal(t.animation_count, null);
+    assert.deepEqual(t.font_families, ['Inter']);
+    assert.equal(t.section_count, 0);
+    // The consistency check runs over the sanitized traits without throwing.
+    const warnings = taste.checkBindingConsistency(loaded.design_notes, loaded.references);
+    assert.ok(Array.isArray(warnings));
+  });
+});

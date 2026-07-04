@@ -1,6 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { extractStaticTraits, type PageTraits } from "./capture.js";
+import { assessDesignNotes, referenceDeltas, restraintGuard, buildHints, type NoteAssessment, type BuildHint } from "./taste-fidelity.js";
 
 export type TasteSeverity = "block" | "warn" | "nit";
 export type TasteRule = {
@@ -53,12 +55,28 @@ export type TasteAuditResult = {
   surface_applied: string;
   voice_note?: string;
   design_notes?: Record<string, string>;
+  // Present only when a binding with design_notes was applied AND traits were
+  // available (live capture or static extraction from html) — each note is
+  // VERIFIED against the artifact, not just echoed.
+  note_assessments?: NoteAssessment[];
+  // Engine findings from note verification (NOTE-<key>), the restraint guard
+  // (TASTE-restraint-earned), and reference deltas (REF-*). They count toward
+  // the verdict but never pass through corpus suppression or rule filtering.
+  fidelity_findings?: TasteFinding[];
+  // Concrete build recipes + canonical public example sources for any expensive
+  // technique named in the design_notes — so a failing audit hands the builder
+  // the HOW next to the missing finding. Present only when a note triggers one.
+  build_hints?: BuildHint[];
   calibration_hint?: string;
   verdict: "BLOCK" | "WARN" | "PASS";
   verdict_line: string;
 };
 
 export type SurfaceOverride = { rule_id: string; severity: TasteSeverity | "off" };
+// A reference (an example site the person pointed to) is a first-class captured
+// artifact, not lossy prose in design_notes: its live PageTraits are stored so
+// the notes can be consistency-checked against what the reference actually is.
+export type ReferenceCapture = { url: string; liked?: string; traits?: PageTraits; captured_at?: string };
 export type SurfaceBinding = {
   project: string;
   surface: string;
@@ -66,6 +84,7 @@ export type SurfaceBinding = {
   overrides: SurfaceOverride[];
   voice_note: string;
   design_notes: Record<string, string>;
+  references?: ReferenceCapture[];
   bound_at: string;
 };
 
@@ -549,7 +568,7 @@ export function getTasteInterview(profileName: string, project?: string, mode?: 
     voice_rules: voiceRules,
     rule_ids: ruleIds,
     questions,
-    then: "Ask the user these questions conversationally. This interview is a blocking gate: collect the user's answers BEFORE committing any design direction, palette, type choice, or name — never answer the questions yourself, and never proceed with design work 'while the interview runs.' If references were given, interview each example briefly — what specifically the person likes, mapped to a dimension — fold those specifics into the matching design_notes values, and store the example list itself as design_notes.references. When the surface is a website to be built, suggest building it as a Next.js app by default (record a different choice in design_notes.libraries if the user prefers one). Then persist with bind_taste_surface — dimension answers (design:*) go in design_notes as {typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries} and the open-ended closer as design_notes.special. Future audit_taste calls with project:'" + (projectName || "<name>") + "' (or a matching url host) apply the binding automatically and echo the notes. Skipped questions leave that dimension uncalibrated and audits stay silent on it — encourage answering, never force. From then on, whenever the user makes, approves, or corrects a taste/direction/design decision during the work (an accent chosen, a nav pattern rejected, a name direction, a type pairing), record it with record_taste_decision — recorded decisions evolve future kickoff interviews: recurring choices return as suggested defaults on their dimension's question, and decision categories no standard question covers become new interview questions.",
+    then: "Ask the user these questions conversationally. This interview is a blocking gate: collect the user's answers BEFORE committing any design direction, palette, type choice, or name — never answer the questions yourself, and never proceed with design work 'while the interview runs.' If references were given, interview each example briefly — what specifically the person likes, mapped to a dimension — fold those specifics into the matching design_notes values, AND pass the examples as the structured `references` array to bind_taste_surface (a list of {url, liked?}), not only as prose in design_notes.references: Raven captures each reference's live traits and consistency-checks your design_notes against what the reference ACTUALLY is (a 'dark, cinematic' color note against two references that both render light is flagged back to you — surface such contradictions to the USER and re-ask, never silently keep both). When the surface is a website to be built, suggest building it as a Next.js app by default (record a different choice in design_notes.libraries if the user prefers one). Then persist with bind_taste_surface — dimension answers (design:*) go in design_notes as {typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries} and the open-ended closer as design_notes.special. design_notes are ACCEPTANCE CRITERIA for any build, not mood words: a build is not done until every note is visibly present in the rendered result, or the client reports to the user exactly which notes were dropped and why. When a note names an expensive technique (three.js/WebGL, GSAP scroll choreography, glassmorphism, a branded loader, lottie, kinetic display type…), bind_taste_surface and audit_taste return build_hints — a concrete recipe plus canonical public example sources (threejs.org, gsap.com, Codrops…) for that technique. An expensive note is NEVER license to drop it: the public corpus for these is vast, so consult the attached build_hints and their sources; if a technique is genuinely infeasible, say so to the USER before shipping without it. Future audit_taste calls with project:'" + (projectName || "<name>") + "' (or a matching url host) apply the binding automatically and echo the notes. Skipped questions leave that dimension uncalibrated and audits stay silent on it — encourage answering, never force. From then on, whenever the user makes, approves, or corrects a taste/direction/design decision during the work (an accent chosen, a nav pattern rejected, a name direction, a type pairing), record it with record_taste_decision — recorded decisions evolve future kickoff interviews: recurring choices return as suggested defaults on their dimension's question, and decision categories no standard question covers become new interview questions.",
   };
 }
 
@@ -560,6 +579,7 @@ export function bindTasteSurface(profileName: string, input: {
   overrides?: unknown;
   voice_note?: unknown;
   design_notes?: unknown;
+  references?: unknown;
 }): SurfaceBinding {
   const profile = getTasteProfile(profileName);
   if (typeof input.project !== "string" || !/^[a-z0-9][a-z0-9-_.]{0,63}$/i.test(input.project)) {
@@ -595,6 +615,7 @@ export function bindTasteSurface(profileName: string, input: {
   }
   const voiceNote = optionalString(input.voice_note);
   const designNotes = validateDesignNotes(input.design_notes, "design_notes");
+  const references = validateReferences(input.references, "references");
 
   const binding: SurfaceBinding = {
     project: input.project,
@@ -605,6 +626,7 @@ export function bindTasteSurface(profileName: string, input: {
     design_notes: designNotes,
     bound_at: new Date().toISOString(),
   };
+  if (references !== undefined) binding.references = references;
   const bindings = listSurfaceBindings(profile.name).filter(function(existing) {
     return existing.project.toLowerCase() !== binding.project.toLowerCase();
   });
@@ -805,7 +827,7 @@ function validateStoredBinding(raw: unknown, where: string): SurfaceBinding {
   if (raw.voice_note !== undefined && typeof raw.voice_note !== "string") {
     throw new Error(where + ".voice_note must be a string when present");
   }
-  return {
+  const binding: SurfaceBinding = {
     project,
     surface,
     hosts,
@@ -815,6 +837,193 @@ function validateStoredBinding(raw: unknown, where: string): SurfaceBinding {
     design_notes: validateDesignNotes(raw.design_notes, where + ".design_notes"),
     bound_at: readNonEmptyString(raw, "bound_at", where),
   };
+  // references is absent on all pre-references bindings — undefined keeps them
+  // valid and unchanged on disk.
+  const references = validateReferences(raw.references, where + ".references");
+  if (references !== undefined) binding.references = references;
+  return binding;
+}
+
+// Shared validation for reference arrays — used for both bindTasteSurface input
+// (url required, must parse as http(s)) and stored bindings loaded from disk.
+// undefined -> undefined (backward compat); traits/captured_at pass through so
+// the index.ts handler can enrich each reference with its captured PageTraits
+// before persisting.
+// A reference entry pointing at a screenshot file rather than a live site:
+// ends in .png and is not an http(s) URL. Exported so the bind handler routes
+// these through screenTraitsFromImage instead of a live page capture.
+export function isPngPathReference(url: string): boolean {
+  return /\.png$/i.test(url.trim()) && !/^https?:\/\//i.test(url.trim());
+}
+
+function validateReferences(raw: unknown, where: string): ReferenceCapture[] | undefined {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) throw new Error(where + " must be an array of {url, liked?} references");
+  const refs: ReferenceCapture[] = [];
+  for (let i = 0; i < raw.length; i += 1) {
+    const entry = raw[i];
+    if (!isRecord(entry)) throw new Error(where + "[" + i + "] must be an object");
+    const url = readNonEmptyString(entry, "url", where + "[" + i + "]");
+    // Mobile bindings may reference screenshots instead of sites: a local .png
+    // file path is accepted alongside http(s) URLs (its traits come from
+    // screenTraitsFromImage at bind time instead of a live capture).
+    if (!isPngPathReference(url)) {
+      let parsed: URL;
+      try {
+        parsed = new URL(url);
+      } catch {
+        throw new Error(where + "[" + i + "].url must be a valid http(s) URL or a .png image path: " + url);
+      }
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        throw new Error(where + "[" + i + "].url must be an http(s) URL or a .png image path: " + url);
+      }
+    }
+    const ref: ReferenceCapture = { url };
+    if (entry.liked !== undefined) {
+      if (typeof entry.liked !== "string") throw new Error(where + "[" + i + "].liked must be a string when present");
+      const liked = entry.liked.trim();
+      if (liked.length > 0) ref.liked = liked;
+    }
+    if (entry.traits !== undefined) {
+      if (!isRecord(entry.traits)) throw new Error(where + "[" + i + "].traits must be an object when present");
+      ref.traits = sanitizeStoredTraits(entry.traits);
+    }
+    if (entry.captured_at !== undefined) {
+      if (typeof entry.captured_at !== "string") throw new Error(where + "[" + i + "].captured_at must be a string when present");
+      ref.captured_at = entry.captured_at;
+    }
+    refs.push(ref);
+  }
+  return refs;
+}
+
+// Stored/hand-edited traits are untrusted: coerce every field to its declared
+// shape (finite number or null, boolean or null, string[], enum'd scheme) so a
+// corrupted store degrades to "unknown" instead of crashing a later audit's
+// .toFixed()/arithmetic on a non-number.
+function sanitizeStoredTraits(raw: Record<string, unknown>): PageTraits {
+  const numOrNull = function (v: unknown): number | null {
+    return typeof v === "number" && Number.isFinite(v) ? v : null;
+  };
+  const boolOrNull = function (v: unknown): boolean | null {
+    return typeof v === "boolean" ? v : null;
+  };
+  const countOf = function (v: unknown): number {
+    return typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
+  };
+  const scheme = raw.scheme === "light" || raw.scheme === "dark" || raw.scheme === "mixed" ? raw.scheme : "unknown";
+  return {
+    source: raw.source === "live" ? "live" : "static",
+    scheme,
+    bg_luminance: numOrNull(raw.bg_luminance),
+    text_density: numOrNull(raw.text_density),
+    section_count: countOf(raw.section_count),
+    image_count: countOf(raw.image_count),
+    video_count: countOf(raw.video_count),
+    canvas_count: countOf(raw.canvas_count),
+    webgl: boolOrNull(raw.webgl),
+    backdrop_filter: raw.backdrop_filter === true,
+    animation_count: numOrNull(raw.animation_count),
+    scroll_effects: boolOrNull(raw.scroll_effects),
+    font_families: Array.isArray(raw.font_families) ? raw.font_families.filter(function (f): f is string { return typeof f === "string"; }) : [],
+    max_heading_px: numOrNull(raw.max_heading_px),
+    gradient_count: countOf(raw.gradient_count),
+    loader_hint: raw.loader_hint === true,
+    viewport_fill: numOrNull(raw.viewport_fill),
+  };
+}
+
+// Deterministic, high-confidence contradiction warnings between a binding's
+// design_notes and its captured references. ONLY fires when there are citable
+// numbers — prefers silence over speculation. Returns [] when no reference has
+// captured traits.
+export function checkBindingConsistency(
+  design_notes: Record<string, string>,
+  references: ReferenceCapture[]
+): string[] {
+  const withTraits = references.filter(function (r): r is ReferenceCapture & { traits: PageTraits } {
+    return !!r.traits;
+  });
+  if (withTraits.length === 0) return [];
+  const warnings: string[] = [];
+
+  const fmtScheme = function (): string {
+    return withTraits
+      .map(function (r) {
+        const lum = r.traits.bg_luminance === null ? "n/a" : r.traits.bg_luminance.toFixed(2);
+        return r.url + " (scheme=" + r.traits.scheme + ", luminance=" + lum + ")";
+      })
+      .join("; ");
+  };
+
+  const color = design_notes.color || "";
+  const darkWords = /\b(dark|black|cinematic|graphite|charcoal|noir|midnight)\b/i;
+  const lightWords = /\b(bone|white|cream|paper|airy-light)\b/i;
+  const allLight = withTraits.every(function (r) { return r.traits.scheme === "light"; });
+  const allDark = withTraits.every(function (r) { return r.traits.scheme === "dark"; });
+  if (color && darkWords.test(color) && allLight) {
+    warnings.push(
+      'color note "' + color + '" reads dark, but every captured reference renders LIGHT: ' + fmtScheme() + "."
+    );
+  }
+  if (color && lightWords.test(color) && allDark) {
+    warnings.push(
+      'color note "' + color + '" reads light, but every captured reference renders DARK: ' + fmtScheme() + "."
+    );
+  }
+
+  const motion = design_notes.motion || "";
+  const staticWords = /\b(none|minimal|static)\b/i;
+  const dynamicWords = /\b(choreograph|cinematic|immersive|scroll)\b/i;
+  if (motion && staticWords.test(motion)) {
+    const busy = withTraits.filter(function (r) {
+      return (r.traits.animation_count !== null && r.traits.animation_count > 5) || r.traits.scroll_effects === true;
+    });
+    if (busy.length > 0) {
+      const detail = busy
+        .map(function (r) {
+          const ac = r.traits.animation_count === null ? "n/a" : String(r.traits.animation_count);
+          return r.url + " (animations=" + ac + ", scroll_effects=" + String(r.traits.scroll_effects) + ")";
+        })
+        .join("; ");
+      warnings.push(
+        'motion note "' + motion + '" reads static/minimal, but references are animated: ' + detail + "."
+      );
+    }
+  }
+  if (motion && dynamicWords.test(motion)) {
+    // scroll_effects counts as motion evidence on BOTH branches: a scroll-driven
+    // reference legitimately idles at animation_count=0 between scroll inputs.
+    const allStill = withTraits.every(function (r) {
+      return r.traits.animation_count === 0 && r.traits.scroll_effects !== true;
+    });
+    if (allStill) {
+      warnings.push(
+        'motion note "' + motion + '" promises choreography/scroll motion, but every captured reference is still (animation_count=0, no scroll effects): ' +
+          withTraits.map(function (r) { return r.url; }).join("; ") + "."
+      );
+    }
+  }
+
+  const spacing = design_notes.spacing || "";
+  const airyWords = /\b(airy|sparse|generous)\b/i;
+  const denseWords = /\b(compact|dense)\b/i;
+  const withDensity = withTraits.filter(function (r) { return typeof r.traits.text_density === "number"; });
+  const fmtDensity = function (): string {
+    return withDensity
+      .map(function (r) { return r.url + " (text_density=" + (r.traits.text_density as number).toFixed(2) + ")"; })
+      .join("; ");
+  };
+  if (spacing && airyWords.test(spacing) && withDensity.length > 0 &&
+    withDensity.every(function (r) { return (r.traits.text_density as number) > 2.0; })) {
+    warnings.push('spacing note "' + spacing + '" reads airy/sparse, but references are text-dense: ' + fmtDensity() + ".");
+  }
+  if (spacing && denseWords.test(spacing) && withDensity.length > 0 &&
+    withDensity.every(function (r) { return (r.traits.text_density as number) < 0.5; })) {
+    warnings.push('spacing note "' + spacing + '" reads compact/dense, but references are sparse: ' + fmtDensity() + ".");
+  }
+
+  return warnings;
 }
 
 function validateDesignNotes(raw: unknown, where: string): Record<string, string> {
@@ -846,6 +1055,10 @@ export function auditTaste(input: {
   surface?: string;
   project?: string;
   binding?: SurfaceBinding | null;
+  // Live PageTraits from capturePage(url, {collectTraits:true}) — enables
+  // design_notes presence verification. In html mode, traits are extracted
+  // statically from the html when this is omitted.
+  traits?: PageTraits;
 }): TasteAuditResult {
   const supplied = [input.html !== undefined, input.text !== undefined].filter(Boolean).length;
   if (supplied !== 1) throw new Error("Exactly one of html or text is required");
@@ -929,8 +1142,53 @@ export function auditTaste(input: {
     }
   }
 
-  const blockCount = activeFindings.filter(function(finding) { return finding.severity === "block"; }).length;
-  const warnCount = activeFindings.filter(function(finding) { return finding.severity === "warn"; }).length;
+  // Fidelity verification: when a binding carries design_notes and traits are
+  // available (passed from a live capture, or extracted statically in html
+  // mode), each note is VERIFIED against the artifact instead of only echoed.
+  // The generated findings are engine findings — they skip the profile-rule
+  // filter and corpus suppression above, but keep the hedging discipline and
+  // COUNT toward the verdict.
+  let noteAssessments: NoteAssessment[] | undefined = undefined;
+  let fidelityFindings: TasteFinding[] | undefined = undefined;
+  if (binding && Object.keys(binding.design_notes).length > 0) {
+    let fidelityTraits = input.traits;
+    if (fidelityTraits === undefined && targetKind === "html") fidelityTraits = extractStaticTraits(target);
+    if (fidelityTraits !== undefined) {
+      noteAssessments = assessDesignNotes(binding.design_notes, fidelityTraits);
+      const generated: TasteFinding[] = [];
+      for (const noteAssessment of noteAssessments) {
+        if (noteAssessment.status !== "missing") continue;
+        const noteText = binding.design_notes[noteAssessment.key] || "";
+        // warn by default; block only when a NAMED library (three.js/gsap/
+        // lottie) or a branded loader is wholly absent — those are the notes
+        // builders silently drop.
+        const escalate =
+          (noteAssessment.key === "libraries" && /\b(three(\.?js)?|3js|gsap|lottie)\b/i.test(noteText)) ||
+          (noteAssessment.key === "loading" && /\bbranded\b/i.test(noteText));
+        generated.push({
+          rule_id: "NOTE-" + noteAssessment.key,
+          clause_cited: noteText,
+          severity: escalate ? "block" : "warn",
+          owner: "taste",
+          source: "raven",
+          evidence: noteAssessment.evidence,
+          fix: "Make the " + noteAssessment.key + " note visibly true in the artifact, or report to the user which notes were dropped and why — design_notes are acceptance criteria, not mood words.",
+        });
+      }
+      const restraint = restraintGuard(fidelityTraits);
+      if (restraint !== null) generated.push(restraint);
+      if (binding.references && binding.references.length > 0) {
+        for (const delta of referenceDeltas(fidelityTraits, binding.references)) generated.push(delta);
+      }
+      fidelityFindings = generated.filter(function(finding) {
+        return finding.evidence.trim().length > 0 && !HEDGING_RE.test(finding.evidence);
+      });
+    }
+  }
+
+  const countable = fidelityFindings === undefined ? activeFindings : activeFindings.concat(fidelityFindings);
+  const blockCount = countable.filter(function(finding) { return finding.severity === "block"; }).length;
+  const warnCount = countable.filter(function(finding) { return finding.severity === "warn"; }).length;
   const verdict: "BLOCK" | "WARN" | "PASS" = blockCount > 0 ? "BLOCK" : warnCount > 0 ? "WARN" : "PASS";
   const verdict_line =
     verdict === "BLOCK" ? "Verdict: BLOCK (" + blockCount + " block, " + warnCount + " warn)" :
@@ -957,6 +1215,14 @@ export function auditTaste(input: {
   };
   if (binding && binding.voice_note.trim().length > 0) result.voice_note = binding.voice_note;
   if (binding && Object.keys(binding.design_notes).length > 0) result.design_notes = binding.design_notes;
+  if (noteAssessments !== undefined) result.note_assessments = noteAssessments;
+  if (fidelityFindings !== undefined) result.fidelity_findings = fidelityFindings;
+  // Attach build recipes for any expensive technique named in the notes — this
+  // does not need traits, so a failing audit ALWAYS carries the fix ammunition.
+  if (binding && Object.keys(binding.design_notes).length > 0) {
+    const hints = buildHints(binding.design_notes);
+    if (hints.length > 0) result.build_hints = hints;
+  }
   if (!surfaceProvided && !binding && hasScopedRules) {
     result.calibration_hint =
       "This profile has scope-tagged rules but no surface or binding was given — scoped block rules were demoted to warn. " +

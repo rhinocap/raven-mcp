@@ -32,12 +32,14 @@ function fixtureUrl(name) {
 let capturePage;
 let CaptureUnavailableError;
 let classifyVideoArtifact;
+let extractStaticTraits;
 
 try {
   const mod = await import(distCapture);
   capturePage = mod.capturePage;
   CaptureUnavailableError = mod.CaptureUnavailableError;
   classifyVideoArtifact = mod.classifyVideoArtifact;
+  extractStaticTraits = mod.extractStaticTraits;
 } catch (err) {
   // Module missing means `npm run build` hasn't run — skip all tests.
   const msg = `dist/capture.js not found — run \`npm run build\` first. (${err.message})`;
@@ -253,6 +255,130 @@ test('CaptureResult shape is complete for a simple page', async (t) => {
   });
 });
 
+// ── PageTraits capture ───────────────────────────────────────────────────────
+
+test('collectTraits captures a dark WebGL-ish page with canvas, animation, and motion cues', async (t) => {
+  await runOrSkip(t, async () => {
+    const result = await capturePage(fixtureUrl('traits-dark-webgl.html'), {
+      scroll_settle: true,
+      collectTraits: true,
+      viewport: { w: 1440, h: 900 },
+    });
+
+    assert.ok(result.traits, 'traits should be attached when collectTraits:true');
+    if (usedFileFallback(result)) {
+      assert.strictEqual(result.traits.source, 'static');
+      assert.strictEqual(result.traits.scheme, 'dark');
+      assert.ok(result.traits.canvas_count >= 1, 'static fallback should count the canvas');
+      assert.strictEqual(result.traits.webgl, null, 'static fallback cannot prove WebGL');
+      assert.strictEqual(result.traits.backdrop_filter, true, 'static fallback should detect backdrop-filter');
+      assert.ok(result.traits.gradient_count >= 1, 'static fallback should detect CSS gradients');
+      return;
+    }
+
+    assert.strictEqual(result.traits.source, 'live');
+    assert.strictEqual(result.traits.scheme, 'dark');
+    assert.ok(result.traits.bg_luminance < 0.35, `dark background luminance expected; got ${result.traits.bg_luminance}`);
+    assert.ok(result.traits.canvas_count >= 1, 'canvas_count should include the WebGL canvas');
+    assert.strictEqual(result.traits.webgl, true, 'webgl should be detected from the canvas');
+    assert.strictEqual(result.traits.backdrop_filter, true, 'backdrop_filter should detect the glass panel');
+    assert.ok(result.traits.animation_count >= 1, 'animation_count should include the infinite canvas pulse');
+    assert.strictEqual(result.traits.scroll_effects, true, 'scroll_effects should detect offscreen transform/opacity cues');
+    assert.ok(result.traits.gradient_count >= 1, 'gradient_count should detect CSS gradients');
+    assert.ok(result.traits.max_heading_px >= 80, `max heading should be hero-sized; got ${result.traits.max_heading_px}`);
+    assert.ok(result.traits.viewport_fill > 0, 'viewport_fill should be computed for the first viewport');
+  });
+});
+
+test('collectTraits captures a light sparse page without canvas or animation', async (t) => {
+  await runOrSkip(t, async () => {
+    const result = await capturePage(fixtureUrl('traits-light-sparse.html'), {
+      collectTraits: true,
+      viewport: { w: 1440, h: 900 },
+    });
+
+    assert.ok(result.traits, 'traits should be attached when collectTraits:true');
+    if (usedFileFallback(result)) {
+      assert.strictEqual(result.traits.source, 'static');
+      assert.strictEqual(result.traits.scheme, 'light');
+      assert.strictEqual(result.traits.canvas_count, 0, 'static fallback should see no canvas');
+      assert.strictEqual(result.traits.webgl, null, 'static fallback cannot prove WebGL');
+      assert.strictEqual(result.traits.image_count, 0, 'static fallback should see no images');
+      assert.strictEqual(result.traits.video_count, 0, 'static fallback should see no videos');
+      assert.strictEqual(result.traits.backdrop_filter, false, 'static fallback should see no backdrop-filter');
+      return;
+    }
+
+    assert.strictEqual(result.traits.source, 'live');
+    assert.strictEqual(result.traits.scheme, 'light');
+    assert.ok(result.traits.bg_luminance > 0.6, `light background luminance expected; got ${result.traits.bg_luminance}`);
+    assert.strictEqual(result.traits.canvas_count, 0, 'light sparse fixture has no canvas');
+    assert.strictEqual(result.traits.webgl, false, 'webgl should be false when there are no canvases');
+    assert.strictEqual(result.traits.image_count, 0, 'light sparse fixture has no images');
+    assert.strictEqual(result.traits.video_count, 0, 'light sparse fixture has no videos');
+    assert.strictEqual(result.traits.backdrop_filter, false, 'light sparse fixture has no backdrop-filter');
+    assert.strictEqual(result.traits.scroll_effects, false, 'light sparse fixture has no offscreen motion cues');
+    assert.ok(result.traits.section_count >= 1, 'section_count should include semantic sections');
+    assert.ok(result.traits.text_density > 0, 'text_density should be computed from visible text');
+  });
+});
+
+test('extractStaticTraits detects static dark visual traits from an HTML string', () => {
+  const traits = extractStaticTraits(`
+    <html>
+      <head>
+        <style>
+          body { background: #050505; font-family: "IBM Plex Mono", monospace; }
+          .panel { backdrop-filter: blur(12px); background: linear-gradient(#111, #333); }
+        </style>
+      </head>
+      <body>
+        <div class="loader" role="progressbar"></div>
+        <main><section><img src="hero.png" alt=""><canvas></canvas><video src="clip.mp4"></video></section></main>
+      </body>
+    </html>
+  `);
+
+  assert.strictEqual(traits.source, 'static');
+  assert.strictEqual(traits.scheme, 'dark');
+  assert.ok(traits.bg_luminance < 0.35, `dark static luminance expected; got ${traits.bg_luminance}`);
+  assert.strictEqual(traits.section_count, 2, 'section_count should include main and section tags');
+  assert.strictEqual(traits.image_count, 1);
+  assert.strictEqual(traits.video_count, 1);
+  assert.strictEqual(traits.canvas_count, 1);
+  assert.strictEqual(traits.webgl, null, 'static extraction cannot prove WebGL');
+  assert.strictEqual(traits.backdrop_filter, true);
+  assert.strictEqual(traits.gradient_count, 1);
+  assert.strictEqual(traits.loader_hint, true);
+  assert.deepStrictEqual(traits.font_families, ['IBM Plex Mono']);
+  assert.strictEqual(traits.animation_count, null);
+  assert.strictEqual(traits.scroll_effects, null);
+  assert.strictEqual(traits.max_heading_px, null);
+  assert.strictEqual(traits.viewport_fill, null);
+});
+
+test('extractStaticTraits returns unknown scheme and safe defaults when static background is not parseable', () => {
+  const traits = extractStaticTraits(`
+    <html>
+      <head><style>.card { background: var(--surface); }</style></head>
+      <body><section><p>Plain content</p></section></body>
+    </html>
+  `);
+
+  assert.strictEqual(traits.source, 'static');
+  assert.strictEqual(traits.scheme, 'unknown');
+  assert.strictEqual(traits.bg_luminance, null);
+  assert.strictEqual(traits.section_count, 1);
+  assert.strictEqual(traits.image_count, 0);
+  assert.strictEqual(traits.video_count, 0);
+  assert.strictEqual(traits.canvas_count, 0);
+  assert.strictEqual(traits.backdrop_filter, false);
+  assert.strictEqual(traits.gradient_count, 0);
+  assert.strictEqual(traits.loader_hint, false);
+  assert.deepStrictEqual(traits.font_families, []);
+  assert.strictEqual(traits.webgl, null);
+});
+
 // ── classifyVideoArtifact — pure offline unit tests ──────────────────────────
 //
 // These tests never touch the browser or filesystem. They exercise the
@@ -420,4 +546,21 @@ test('classifyVideoArtifact — handles missing/undefined fields gracefully', ()
     VALID_VIDEO_ARTIFACT_REASONS.has(result),
     `empty probe must still return a valid reason; got "${result}"`
   );
+});
+
+test('collectTraits: full-viewport dark wrapper over a default-white body reads dark (DA regression)', async (t) => {
+  await runOrSkip(t, async () => {
+    const result = await capturePage(fixtureUrl('traits-dark-hero-light-body.html'), {
+      scroll_settle: true,
+      collectTraits: true,
+      viewport: { w: 1440, h: 900 },
+    });
+    assert.ok(result.traits, 'traits should be attached');
+    if (usedFileFallback(result)) {
+      // Static extraction cannot measure element geometry — no assertion on scheme.
+      return;
+    }
+    assert.strictEqual(result.traits.scheme, 'dark', 'the dominant opaque overlay is the ground the user sees');
+    assert.ok(result.traits.bg_luminance < 0.35, `expected dark luminance; got ${result.traits.bg_luminance}`);
+  });
 });

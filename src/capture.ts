@@ -45,6 +45,26 @@ type PageLike = {
 
 export type Theme = "light" | "dark";
 
+export type PageTraits = {
+  source: "live" | "static";
+  scheme: "light" | "dark" | "mixed" | "unknown";
+  bg_luminance: number | null;        // 0..1, body/hero effective background
+  text_density: number | null;        // visible text chars / total page height px
+  section_count: number;
+  image_count: number;
+  video_count: number;
+  canvas_count: number;
+  webgl: boolean | null;              // live only: WebGL context detectable on a canvas
+  backdrop_filter: boolean;
+  animation_count: number | null;     // live only: document.getAnimations().length incl. infinite
+  scroll_effects: boolean | null;     // live only: heuristic — elements with transform/opacity transitions gated off-viewport, or scroll listeners
+  font_families: string[];            // distinct families actually in use (live) / declared in CSS text (static)
+  max_heading_px: number | null;      // largest h1-h3 computed font-size (live)
+  gradient_count: number;
+  loader_hint: boolean;               // full-viewport fixed overlay early in DOM, or role=progressbar, or class/id matching load|spinner|progress
+  viewport_fill: number | null;       // live only: fraction of first viewport covered by content boxes
+};
+
 export class CaptureUnavailableError extends Error {
   constructor(message: string = CAPTURE_UNAVAILABLE_MESSAGE) {
     super(message);
@@ -98,6 +118,7 @@ export type CaptureResult = {
   animationsSettled: boolean;
   videoArtifacts: VideoArtifact[];
   imageEdges?: ImageEdgeSample[];
+  traits?: PageTraits;
   warnings: string[];
 };
 
@@ -109,6 +130,7 @@ export type CaptureOptions = {
   viewport?: { w: number; h: number };
   theme?: Theme;
   collectImageEdges?: boolean;
+  collectTraits?: boolean;
   timeoutMs?: number;
 };
 
@@ -118,6 +140,7 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
   const scrollSettle = opts ? opts.scroll_settle === true : false;
   const theme = opts && opts.theme ? opts.theme : undefined;
   const collectImageEdges = opts ? opts.collectImageEdges === true : false;
+  const collectTraits = opts ? opts.collectTraits === true : false;
   let browser: BrowserLike | null = null;
   const warnings: string[] = [];
 
@@ -131,6 +154,7 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
         viewport,
         scrollSettle,
         opts && Array.isArray(opts.interactions) ? opts.interactions : [],
+        collectTraits,
         warnings,
         error
       );
@@ -223,6 +247,11 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
 
     const animationsSettled = await waitForAnimationsToSettle(page, warnings);
 
+    let traits: PageTraits | undefined = undefined;
+    if (collectTraits) {
+      traits = await collectPageTraits(page, warnings);
+    }
+
     let imageEdges: ImageEdgeSample[] | undefined = undefined;
     if (collectImageEdges) {
       imageEdges = await sampleImageEdges(page, warnings);
@@ -242,6 +271,7 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
       animationsSettled: animationsSettled,
       videoArtifacts: videoArtifacts,
       imageEdges: imageEdges,
+      traits: traits,
       warnings: warnings
     };
   } finally {
@@ -352,6 +382,559 @@ export function classifyVideoArtifact(probe: VideoProbeData): VideoArtifactReaso
   return "unknown";
 }
 
+async function collectPageTraits(page: PageLike, warnings: string[]): Promise<PageTraits> {
+  try {
+    return await page.evaluate(function () {
+      type ProbeColor = { r: number; g: number; b: number; a: number };
+      type ProbeTraits = {
+        source: "live";
+        scheme: "light" | "dark" | "mixed" | "unknown";
+        bg_luminance: number | null;
+        text_density: number | null;
+        section_count: number;
+        image_count: number;
+        video_count: number;
+        canvas_count: number;
+        webgl: boolean | null;
+        backdrop_filter: boolean;
+        animation_count: number | null;
+        scroll_effects: boolean | null;
+        font_families: string[];
+        max_heading_px: number | null;
+        gradient_count: number;
+        loader_hint: boolean;
+        viewport_fill: number | null;
+      };
+
+      function defaults(): ProbeTraits {
+        return {
+          source: "live",
+          scheme: "unknown",
+          bg_luminance: null,
+          text_density: null,
+          section_count: 0,
+          image_count: 0,
+          video_count: 0,
+          canvas_count: 0,
+          webgl: null,
+          backdrop_filter: false,
+          animation_count: null,
+          scroll_effects: null,
+          font_families: [],
+          max_heading_px: null,
+          gradient_count: 0,
+          loader_hint: false,
+          viewport_fill: null
+        };
+      }
+
+      function count(selector: string): number {
+        try {
+          return document.querySelectorAll(selector).length;
+        } catch {
+          return 0;
+        }
+      }
+
+      function parseColor(value: string): ProbeColor | null {
+        var match = /rgba?\(\s*([0-9.]+)[,\s]+([0-9.]+)[,\s]+([0-9.]+)(?:[,\s/]+([0-9.]+))?\s*\)/i.exec(value);
+        if (!match) {
+          return null;
+        }
+
+        return {
+          r: Math.max(0, Math.min(255, Number(match[1]))),
+          g: Math.max(0, Math.min(255, Number(match[2]))),
+          b: Math.max(0, Math.min(255, Number(match[3]))),
+          a: match[4] === undefined ? 1 : Math.max(0, Math.min(1, Number(match[4])))
+        };
+      }
+
+      function composite(top: ProbeColor, bottom: ProbeColor): ProbeColor {
+        var alpha = top.a + bottom.a * (1 - top.a);
+        if (alpha <= 0) {
+          return { r: 255, g: 255, b: 255, a: 1 };
+        }
+        return {
+          r: (top.r * top.a + bottom.r * bottom.a * (1 - top.a)) / alpha,
+          g: (top.g * top.a + bottom.g * bottom.a * (1 - top.a)) / alpha,
+          b: (top.b * top.a + bottom.b * bottom.a * (1 - top.a)) / alpha,
+          a: alpha
+        };
+      }
+
+      function luminance(color: ProbeColor): number {
+        return (0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b) / 255;
+      }
+
+      function schemeFromLuminance(value: number | null): "light" | "dark" | "mixed" | "unknown" {
+        if (value === null) {
+          return "unknown";
+        }
+        if (value > 0.6) {
+          return "light";
+        }
+        if (value < 0.35) {
+          return "dark";
+        }
+        return "mixed";
+      }
+
+      // The body/html walk misses the common "default-white body, full-viewport
+      // dark wrapper div" pattern — the ground the user SEES is the deepest
+      // opaque element covering (nearly) the whole first viewport. Scan a
+      // bounded set of descendants for one and composite it over the ancestor
+      // ground; DOM order means later qualifying elements paint on top.
+      function dominantOverlayColor(): ProbeColor | null {
+        try {
+          var vw = window.innerWidth;
+          var vh = window.innerHeight;
+          if (!(vw > 0 && vh > 0) || !document.body) {
+            return null;
+          }
+          var all = document.body.querySelectorAll("*");
+          var limit = Math.min(all.length, 400);
+          var best: ProbeColor | null = null;
+          for (var i = 0; i < limit; i += 1) {
+            var rect = all[i].getBoundingClientRect();
+            var left = Math.max(rect.left, 0);
+            var top = Math.max(rect.top, 0);
+            var right = Math.min(rect.right, vw);
+            var bottom = Math.min(rect.bottom, vh);
+            var cover = (Math.max(0, right - left) * Math.max(0, bottom - top)) / (vw * vh);
+            if (cover < 0.85) {
+              continue;
+            }
+            var color = parseColor(window.getComputedStyle(all[i]).backgroundColor || "");
+            if (color && color.a >= 0.9) {
+              best = color;
+            }
+          }
+          return best;
+        } catch {
+          return null;
+        }
+      }
+
+      function backgroundLuminance(): number | null {
+        try {
+          var stack: ProbeColor[] = [];
+          var node: Element | null = document.body;
+          while (node) {
+            var color = parseColor(window.getComputedStyle(node).backgroundColor || "");
+            if (color && color.a > 0) {
+              stack.push(color);
+            }
+            node = node.parentElement;
+          }
+
+          var effective: ProbeColor = { r: 255, g: 255, b: 255, a: 1 };
+          for (var i = stack.length - 1; i >= 0; i -= 1) {
+            effective = composite(stack[i], effective);
+          }
+          var overlay = dominantOverlayColor();
+          if (overlay) {
+            effective = composite(overlay, effective);
+          }
+          return luminance(effective);
+        } catch {
+          return null;
+        }
+      }
+
+      function detectWebgl(canvases: NodeListOf<HTMLCanvasElement>): boolean | null {
+        if (canvases.length === 0) {
+          return false;
+        }
+        for (var i = 0; i < canvases.length; i += 1) {
+          try {
+            if (canvases[i].getContext("webgl2") || canvases[i].getContext("webgl")) {
+              return true;
+            }
+          } catch {
+            // Keep probing other canvases.
+          }
+        }
+        return null;
+      }
+
+      function inspectElements(): {
+        backdrop: boolean;
+        fonts: string[];
+        headingPx: number | null;
+        scrollEffects: boolean;
+        viewportFill: number | null;
+        loaderHint: boolean;
+      } {
+        var all = Array.prototype.slice.call(document.querySelectorAll("*")) as Element[];
+        var fonts: string[] = [];
+        var seenFonts: Record<string, true> = {};
+        var headingPx: number | null = null;
+        var backdrop = false;
+        var scrollEffects = false;
+        var loaderHint = false;
+        var viewportArea = Math.max(1, window.innerWidth * window.innerHeight);
+        var filled = 0;
+        var sampleLimit = Math.min(400, all.length);
+        var inspectLimit = Math.min(1200, all.length);
+
+        for (var i = 0; i < inspectLimit; i += 1) {
+          var el = all[i];
+          var style = window.getComputedStyle(el);
+          var backdropValue = style.backdropFilter || (style as any).webkitBackdropFilter || "";
+          if (backdropValue && backdropValue !== "none") {
+            backdrop = true;
+          }
+
+          if (i < sampleLimit) {
+            var family = (style.fontFamily || "").split(",")[0].replace(/^["']|["']$/g, "").trim();
+            if (family && !seenFonts[family]) {
+              seenFonts[family] = true;
+              fonts.push(family);
+            }
+          }
+
+          var rect = el.getBoundingClientRect();
+          var absoluteTop = rect.top + window.scrollY;
+          var absoluteBottom = rect.bottom + window.scrollY;
+          var visibleTop = Math.max(0, absoluteTop);
+          var visibleBottom = Math.min(window.innerHeight, absoluteBottom);
+          var visibleLeft = Math.max(0, rect.left);
+          var visibleRight = Math.min(window.innerWidth, rect.right);
+          if (visibleBottom > visibleTop && visibleRight > visibleLeft) {
+            filled += (visibleBottom - visibleTop) * (visibleRight - visibleLeft);
+          }
+
+          if (absoluteTop > window.innerHeight) {
+            var transition = style.transitionProperty || "";
+            var animationName = style.animationName || "";
+            var transitionTargetsMotion =
+              transition === "all" || transition.indexOf("transform") !== -1 || transition.indexOf("opacity") !== -1;
+            var animationTargetsMotion = animationName !== "" && animationName !== "none";
+            var gatedState =
+              Number(style.opacity) < 1 || (style.transform !== "" && style.transform !== "none");
+            if ((transitionTargetsMotion || animationTargetsMotion) && gatedState) {
+              scrollEffects = true;
+            }
+          }
+
+          if (i < 40) {
+            var classAndId = ((el.getAttribute("class") || "") + " " + (el.getAttribute("id") || "")).toLowerCase();
+            var role = (el.getAttribute("role") || "").toLowerCase();
+            var fixedFullViewport =
+              style.position === "fixed" &&
+              rect.width * rect.height >= window.innerWidth * window.innerHeight * 0.75;
+            if (
+              fixedFullViewport ||
+              role === "progressbar" ||
+              /load|spinner|progress/.test(classAndId)
+            ) {
+              loaderHint = true;
+            }
+          }
+        }
+
+        var headings = Array.prototype.slice.call(
+          document.querySelectorAll("h1,h2,h3,[class*='display' i],[class*='hero' i]")
+        ) as Element[];
+        for (var j = 0; j < headings.length; j += 1) {
+          if ((headings[j].textContent || "").trim().length === 0) {
+            continue;
+          }
+          var size = Number.parseFloat(window.getComputedStyle(headings[j]).fontSize || "");
+          if (Number.isFinite(size)) {
+            headingPx = headingPx === null ? size : Math.max(headingPx, size);
+          }
+        }
+
+        return {
+          backdrop: backdrop,
+          fonts: fonts,
+          headingPx: headingPx,
+          scrollEffects: scrollEffects,
+          viewportFill: Math.min(1, filled / viewportArea),
+          loaderHint: loaderHint
+        };
+      }
+
+      function countGradients(): number {
+        var total = 0;
+        var pattern = /(?:linear|radial|conic)-gradient\s*\(/gi;
+        try {
+          var styleNodes = document.querySelectorAll("style");
+          for (var i = 0; i < styleNodes.length; i += 1) {
+            total += (styleNodes[i].textContent || "").match(pattern)?.length || 0;
+          }
+        } catch {
+          // Keep the count from other sources.
+        }
+
+        try {
+          var styled = document.querySelectorAll("[style]");
+          for (var j = 0; j < styled.length; j += 1) {
+            total += (styled[j].getAttribute("style") || "").match(pattern)?.length || 0;
+          }
+        } catch {
+          // Keep the count from style nodes.
+        }
+
+        return total;
+      }
+
+      var traits = defaults();
+      var canvases = document.querySelectorAll("canvas");
+      var inspection = inspectElements();
+      var bg = backgroundLuminance();
+      traits.scheme = schemeFromLuminance(bg);
+      traits.bg_luminance = bg;
+      traits.section_count = count("section, main, article");
+      traits.image_count = count("img");
+      traits.video_count = count("video");
+      traits.canvas_count = canvases.length;
+      traits.webgl = detectWebgl(canvases);
+      traits.backdrop_filter = inspection.backdrop;
+      traits.animation_count = typeof document.getAnimations === "function" ? document.getAnimations().length : null;
+      traits.scroll_effects = inspection.scrollEffects;
+      traits.font_families = inspection.fonts;
+      traits.max_heading_px = inspection.headingPx;
+      traits.gradient_count = countGradients();
+      traits.loader_hint = inspection.loaderHint;
+      traits.viewport_fill = inspection.viewportFill;
+
+      try {
+        var body = document.body;
+        var text = body ? body.innerText || "" : "";
+        var height = body ? Math.max(1, body.scrollHeight) : 1;
+        traits.text_density = text.length / height;
+      } catch {
+        traits.text_density = null;
+      }
+
+      return traits;
+    });
+  } catch (error) {
+    warnings.push("Failed to collect page traits: " + errorMessage(error));
+    return defaultPageTraits("live");
+  }
+}
+
+function defaultPageTraits(source: "live" | "static"): PageTraits {
+  return {
+    source: source,
+    scheme: "unknown",
+    bg_luminance: null,
+    text_density: null,
+    section_count: 0,
+    image_count: 0,
+    video_count: 0,
+    canvas_count: 0,
+    webgl: null,
+    backdrop_filter: false,
+    animation_count: null,
+    scroll_effects: null,
+    font_families: [],
+    max_heading_px: null,
+    gradient_count: 0,
+    loader_hint: false,
+    viewport_fill: null
+  };
+}
+
+export function extractStaticTraits(html: string): PageTraits {
+  const traits = defaultPageTraits("static");
+  const safeHtml = typeof html === "string" ? html : "";
+  const styleText = extractStyleText(safeHtml);
+  const background = findStaticBackgroundColor(safeHtml, styleText);
+
+  traits.section_count = countTags(safeHtml, "section") + countTags(safeHtml, "main") + countTags(safeHtml, "article");
+  traits.image_count = countTags(safeHtml, "img");
+  traits.video_count = countTags(safeHtml, "video");
+  traits.canvas_count = countTags(safeHtml, "canvas");
+  traits.backdrop_filter = /\b-webkit-backdrop-filter\s*:|\bbackdrop-filter\s*:/i.test(styleText);
+  traits.gradient_count = countMatches(styleText, /(?:linear|radial|conic)-gradient\s*\(/gi);
+  traits.loader_hint = hasStaticLoaderHint(safeHtml);
+  traits.font_families = extractFontFamilies(styleText);
+  traits.bg_luminance = background === null ? null : colorLuminance(background);
+  traits.scheme = schemeFromLuminance(traits.bg_luminance);
+
+  return traits;
+}
+
+function extractStyleText(html: string): string {
+  const parts: string[] = [];
+  const styleTagPattern = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
+  let styleMatch: RegExpExecArray | null = styleTagPattern.exec(html);
+  while (styleMatch !== null) {
+    parts.push(styleMatch[1]);
+    styleMatch = styleTagPattern.exec(html);
+  }
+
+  const styleAttrPattern = /\sstyle\s*=\s*(["'])([\s\S]*?)\1/gi;
+  let attrMatch: RegExpExecArray | null = styleAttrPattern.exec(html);
+  while (attrMatch !== null) {
+    parts.push(attrMatch[2]);
+    attrMatch = styleAttrPattern.exec(html);
+  }
+
+  return parts.join("\n");
+}
+
+function countTags(html: string, tagName: string): number {
+  return countMatches(html, new RegExp("<" + escapeRegExp(tagName) + "\\b", "gi"));
+}
+
+function countMatches(value: string, pattern: RegExp): number {
+  const matches = value.match(pattern);
+  return matches ? matches.length : 0;
+}
+
+function findStaticBackgroundColor(html: string, styleText: string): { r: number; g: number; b: number; a: number } | null {
+  const bodyTag = /<body\b[^>]*>/i.exec(html);
+  const htmlTag = /<html\b[^>]*>/i.exec(html);
+  const candidates: string[] = [];
+
+  if (bodyTag) {
+    candidates.push(attributeValue(bodyTag[0], "style") || "");
+  }
+  if (htmlTag) {
+    candidates.push(attributeValue(htmlTag[0], "style") || "");
+  }
+
+  const rulePattern = /\b(?:body|html)\b[^{}]*\{([^}]*)\}/gi;
+  let ruleMatch: RegExpExecArray | null = rulePattern.exec(styleText);
+  while (ruleMatch !== null) {
+    candidates.push(ruleMatch[1]);
+    ruleMatch = rulePattern.exec(styleText);
+  }
+
+  for (let i = 0; i < candidates.length; i += 1) {
+    const declaration = backgroundDeclaration(candidates[i]);
+    if (!declaration) {
+      continue;
+    }
+    const color = parseStaticColor(declaration);
+    if (color !== null) {
+      return color;
+    }
+  }
+
+  return null;
+}
+
+function backgroundDeclaration(style: string): string | null {
+  const backgroundColor = /\bbackground-color\s*:\s*([^;]+)/i.exec(style);
+  if (backgroundColor) {
+    return backgroundColor[1].trim();
+  }
+
+  const background = /\bbackground\s*:\s*([^;]+)/i.exec(style);
+  if (background) {
+    return background[1].trim();
+  }
+
+  return null;
+}
+
+function parseStaticColor(value: string): { r: number; g: number; b: number; a: number } | null {
+  const trimmed = value.trim().toLowerCase();
+  const hex = /#([0-9a-f]{3}|[0-9a-f]{6})\b/i.exec(trimmed);
+  if (hex) {
+    const raw = hex[1];
+    if (raw.length === 3) {
+      return {
+        r: Number.parseInt(raw[0] + raw[0], 16),
+        g: Number.parseInt(raw[1] + raw[1], 16),
+        b: Number.parseInt(raw[2] + raw[2], 16),
+        a: 1
+      };
+    }
+    return {
+      r: Number.parseInt(raw.slice(0, 2), 16),
+      g: Number.parseInt(raw.slice(2, 4), 16),
+      b: Number.parseInt(raw.slice(4, 6), 16),
+      a: 1
+    };
+  }
+
+  const rgb = /rgba?\(\s*([0-9.]+)[,\s]+([0-9.]+)[,\s]+([0-9.]+)(?:[,\s/]+([0-9.]+))?\s*\)/i.exec(trimmed);
+  if (rgb) {
+    return {
+      r: Math.max(0, Math.min(255, Number(rgb[1]))),
+      g: Math.max(0, Math.min(255, Number(rgb[2]))),
+      b: Math.max(0, Math.min(255, Number(rgb[3]))),
+      a: rgb[4] === undefined ? 1 : Math.max(0, Math.min(1, Number(rgb[4])))
+    };
+  }
+
+  const named: Record<string, { r: number; g: number; b: number; a: number }> = {
+    black: { r: 0, g: 0, b: 0, a: 1 },
+    white: { r: 255, g: 255, b: 255, a: 1 },
+    transparent: { r: 255, g: 255, b: 255, a: 0 },
+    canvas: { r: 255, g: 255, b: 255, a: 1 },
+    snow: { r: 255, g: 250, b: 250, a: 1 },
+    ivory: { r: 255, g: 255, b: 240, a: 1 },
+    linen: { r: 250, g: 240, b: 230, a: 1 },
+    navy: { r: 0, g: 0, b: 128, a: 1 },
+    midnightblue: { r: 25, g: 25, b: 112, a: 1 }
+  };
+
+  return named[trimmed] || null;
+}
+
+function colorLuminance(color: { r: number; g: number; b: number; a: number }): number {
+  const composited = color.a < 1
+    ? {
+        r: color.r * color.a + 255 * (1 - color.a),
+        g: color.g * color.a + 255 * (1 - color.a),
+        b: color.b * color.a + 255 * (1 - color.a)
+      }
+    : color;
+  return (0.2126 * composited.r + 0.7152 * composited.g + 0.0722 * composited.b) / 255;
+}
+
+function schemeFromLuminance(value: number | null): "light" | "dark" | "mixed" | "unknown" {
+  if (value === null) {
+    return "unknown";
+  }
+  if (value > 0.6) {
+    return "light";
+  }
+  if (value < 0.35) {
+    return "dark";
+  }
+  return "mixed";
+}
+
+function hasStaticLoaderHint(html: string): boolean {
+  if (/\brole\s*=\s*["']progressbar["']/i.test(html)) {
+    return true;
+  }
+  if (/\b(?:class|id|aria-label)\s*=\s*["'][^"']*(?:load|spinner|progress)[^"']*["']/i.test(html)) {
+    return true;
+  }
+
+  const early = html.slice(0, 4000);
+  return /\bposition\s*:\s*fixed/i.test(early) && /(?:100vh|100dvh|inset\s*:\s*0|top\s*:\s*0)/i.test(early);
+}
+
+function extractFontFamilies(styleText: string): string[] {
+  const families: string[] = [];
+  const seen: Record<string, true> = {};
+  const familyPattern = /\bfont-family\s*:\s*([^;}{]+)/gi;
+  let match: RegExpExecArray | null = familyPattern.exec(styleText);
+
+  while (match !== null) {
+    const family = match[1].split(",")[0].replace(/^["']|["']$/g, "").trim();
+    if (family && !seen[family]) {
+      seen[family] = true;
+      families.push(family);
+    }
+    match = familyPattern.exec(styleText);
+  }
+
+  return families;
+}
+
 async function loadChromium(): Promise<ChromiumLike> {
   try {
     // @ts-ignore Playwright is an optional runtime dependency for this module.
@@ -378,6 +961,7 @@ function captureFileUrlWithoutBrowser(
   viewport: { w: number; h: number },
   scrollSettle: boolean,
   interactions: Interaction[],
+  collectTraits: boolean,
   warnings: string[],
   launchError: unknown
 ): CaptureResult | null {
@@ -399,6 +983,7 @@ function captureFileUrlWithoutBrowser(
   }
 
   const renderedHtml = scrollSettle ? applyScrollSettleFallback(html) : html;
+  const traits = collectTraits ? extractStaticTraits(renderedHtml) : undefined;
   return {
     url: url,
     renderedHtml: renderedHtml,
@@ -408,6 +993,7 @@ function captureFileUrlWithoutBrowser(
     // No live browser in this fallback path, so there is no Animations API to poll.
     animationsSettled: false,
     videoArtifacts: scrollSettle ? extractVideoArtifactsFromHtml(renderedHtml) : [],
+    traits: traits,
     warnings: warnings
   };
 }

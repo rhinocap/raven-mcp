@@ -8,7 +8,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { auditContainerWidth } from "./audit-container.js";
 import { capturePage, CaptureUnavailableError, annotateVideoArtifacts, verifyFindings } from "./capture.js";
-import type { VerifiableFinding } from "./capture.js";
+import type { VerifiableFinding, PageTraits } from "./capture.js";
 import { runPageChecks } from "./page-checks.js";
 import { scorePage } from "./score-page.js";
 import { auditUrl } from "./audit-url.js";
@@ -28,7 +28,11 @@ import { compactAuditPage, compactEvaluation, compactAuditUrl } from "./compact.
 import { auditVideoPlaybackUrl, auditVideoPlaybackSnapshot } from "./video-playback.js";
 import { auditConsistency } from "./audit-consistency.js";
 import { detectOrphanStretch } from "./layout-orphans.js";
-import { createTasteProfile, getTasteProfile, listTasteProfiles, labelFinding, auditTaste, ruleInScope, getTasteInterview, bindTasteSurface, listSurfaceBindings, resolveSurfaceBinding, recordTasteDecision, listTasteDecisions } from "./taste.js";
+import { createTasteProfile, getTasteProfile, listTasteProfiles, labelFinding, auditTaste, ruleInScope, getTasteInterview, bindTasteSurface, listSurfaceBindings, resolveSurfaceBinding, recordTasteDecision, listTasteDecisions, checkBindingConsistency, isPngPathReference } from "./taste.js";
+import type { ReferenceCapture, SurfaceBinding } from "./taste.js";
+import { buildHints, screenTraitsFromImage, assessDesignNotesSource, assessDesignNotesImage, noteIssuesFromAssessments } from "./taste-fidelity.js";
+import type { NoteAssessment, MobileSourceKind } from "./taste-fidelity.js";
+import { readFile } from "fs/promises";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -1558,7 +1562,7 @@ var server = new McpServer({
   name: "raven-mcp",
   version: PKG_VERSION
 }, {
-  instructions: "Raven is a design-intelligence server: audits (page/layout/screen/contrast/tap-targets/typography/consistency), design systems and tokens, brand/content/service-design knowledge, creative scoring, and a Taste Engine that makes a person's design judgment portable and growable.\n\nPROJECT KICKOFF — calibrate taste BEFORE the first design work. Taste is per-surface: the same person wants different rules on a monochrome portfolio than on a product site, and a different voice on each. At the START of a new project (or the first design/copy/UI work in any project), if a taste profile exists (list_taste_profiles), call get_taste_interview with the profile and a project name (mode defaults to 'kickoff'). If it returns existing_binding: null, ask the user its questions conversationally (what kind of surface this is, which rule scopes apply, how typography/spacing/color/layout/motion/imagery/entrance/loading/navigation/aesthetic/libraries should read here — most offer multiple-choice options — how the voice should read (three register examples are given so the user can pick by ear), any per-rule overrides, which URL hosts identify the project), then persist the answers with bind_taste_surface — dimension answers go in design_notes and are echoed in every audit. The interview is a blocking gate: collect the user's answers before committing any design direction, palette, type choice, or name — never answer its questions yourself or start design work while it is pending. Every question carries skippable + priority (core|extended); skipping is fine but leaves that item uncalibrated. A 'references' question takes example links/screenshots and interviews what specifically the person likes about each. The interview ends with an open-ended 'special' question (textures, signature details, motifs — stored as design_notes.special) that suggests the person's choices from their other bound surfaces once it has them. From then on pass project:'<name>' on every audit_taste — bindings also auto-match by URL hostname in url mode. When the surface is a website to be built, suggest building it as a Next.js app by default; if the user prefers another stack, record it in design_notes.libraries. Do NOT wait for an audit to return a calibration_hint; that is the reactive backstop, not the intended flow.\n\nWhen a user dislikes generated/designed output on an ALREADY-calibrated project, that dissatisfaction is a calibration signal, not a dead end — re-run get_taste_interview with mode:'refine' (it re-interviews against the stored binding: what fell short, then each stored design_notes value to keep/tighten/replace, then voice, then an optional reject precedent) and re-bind with bind_taste_surface.\n\nLEARNING LOOP — whenever the user makes, approves, or corrects a taste, direction, or design decision during work (not just at interview time), record it with record_taste_decision: the project, a short dimension name, what was chosen, what was rejected, why, and whether it was user-directed, user-approved, or user-corrected (a user overriding a generated choice is the highest-signal record). Recorded decisions evolve future kickoff interviews — recurring choices return as suggested defaults on their dimension's question, and decision categories no standard question covers become NEW interview questions. Record liberally; every committed decision is calibration data.\n\nJudging work: prefer audit_taste (with the profile + project) for matters of the owner's taste, and the mechanical audits (audit_page, audit_contrast, audit_tap_targets, audit_layout) for objective quality. When a human accepts or rejects a finding, record it with label_finding — accept-verdicts suppress that exact pattern in future audits, which is how the profile learns."
+  instructions: "Raven is a design-intelligence server: audits (page/layout/screen/contrast/tap-targets/typography/consistency), design systems and tokens, brand/content/service-design knowledge, creative scoring, and a Taste Engine that makes a person's design judgment portable and growable.\n\nPROJECT KICKOFF — calibrate taste BEFORE the first design work. Taste is per-surface: the same person wants different rules on a monochrome portfolio than on a product site, and a different voice on each. At the START of a new project (or the first design/copy/UI work in any project), if a taste profile exists (list_taste_profiles), call get_taste_interview with the profile and a project name (mode defaults to 'kickoff'). If it returns existing_binding: null, ask the user its questions conversationally (what kind of surface this is, which rule scopes apply, how typography/spacing/color/layout/motion/imagery/entrance/loading/navigation/aesthetic/libraries should read here — most offer multiple-choice options — how the voice should read (three register examples are given so the user can pick by ear), any per-rule overrides, which URL hosts identify the project), then persist the answers with bind_taste_surface — dimension answers go in design_notes and are echoed in every audit. The interview is a blocking gate: collect the user's answers before committing any design direction, palette, type choice, or name — never answer its questions yourself or start design work while it is pending. Every question carries skippable + priority (core|extended); skipping is fine but leaves that item uncalibrated. A 'references' question takes example links/screenshots and interviews what specifically the person likes about each. The interview ends with an open-ended 'special' question (textures, signature details, motifs — stored as design_notes.special) that suggests the person's choices from their other bound surfaces once it has them. From then on pass project:'<name>' on every audit_taste — bindings also auto-match by URL hostname in url mode. When the surface is a website to be built, suggest building it as a Next.js app by default; if the user prefers another stack, record it in design_notes.libraries. Do NOT wait for an audit to return a calibration_hint; that is the reactive backstop, not the intended flow.\n\nWhen a user dislikes generated/designed output on an ALREADY-calibrated project, that dissatisfaction is a calibration signal, not a dead end — re-run get_taste_interview with mode:'refine' (it re-interviews against the stored binding: what fell short, then each stored design_notes value to keep/tighten/replace, then voice, then an optional reject precedent) and re-bind with bind_taste_surface.\n\nLEARNING LOOP — whenever the user makes, approves, or corrects a taste, direction, or design decision during work (not just at interview time), record it with record_taste_decision: the project, a short dimension name, what was chosen, what was rejected, why, and whether it was user-directed, user-approved, or user-corrected (a user overriding a generated choice is the highest-signal record). Recorded decisions evolve future kickoff interviews — recurring choices return as suggested defaults on their dimension's question, and decision categories no standard question covers become NEW interview questions. Record liberally; every committed decision is calibration data.\n\nJudging work: prefer audit_taste (with the profile + project) for matters of the owner's taste, and the mechanical audits (audit_page, audit_contrast, audit_tap_targets, audit_layout) for objective quality. design_notes are ACCEPTANCE CRITERIA for any build, not mood words: audit_taste verifies each note against the rendered page (note_assessments: present/partial/missing/unverifiable, each with trait-number evidence), compares the target against the binding's captured references, and flags sparse-and-empty pages whose restraint is deletion rather than craft — a build is not done until every note is visibly present or the user is told exactly which notes were dropped and why. When a note names an expensive technique (three.js/WebGL, GSAP scroll choreography, glassmorphism, a branded loader, lottie, kinetic display type…), bind_taste_surface and audit_taste return build_hints — a concrete recipe + canonical public example sources (threejs.org, gsap.com, Codrops…). The public corpus for these is vast, so an expensive note is NEVER license to drop it: consult the attached build_hints and their sources, and if a technique is genuinely infeasible, tell the user before shipping without it. Prefer url mode for verification: live traits (WebGL, animations, scroll effects) cannot be measured from static html. When a human accepts or rejects a finding, record it with label_finding — accept-verdicts suppress that exact pattern in future audits, which is how the profile learns."
 });
 
 // Wrap every tool handler: log the call to the local usage log, then inject
@@ -3830,6 +3834,51 @@ function parsePlistKeys(xml: string): Record<string, string> {
   return out;
 }
 
+// ── Mobile taste fidelity (LEG E) ──────────────────────────────────
+//
+// Apps have no live browser probe, so the mobile audits get design_notes
+// verification through source-code presence checks (audit_swiftui/audit_rn)
+// and pixel-derived screenshot traits (audit_screen/audit_ios_screen).
+// Resolution is opt-in via a project hint and NEVER throws — a broken taste
+// store must not break a plain HIG audit.
+function resolveMobileTaste(project?: string, profile?: string): { profile: string; binding: SurfaceBinding } | null {
+  if (typeof project !== "string" || project.trim().length === 0) return null;
+  try {
+    var profileNames: string[];
+    if (typeof profile === "string" && profile.trim().length > 0) {
+      profileNames = [profile.trim()];
+    } else {
+      profileNames = listTasteProfiles().map(function (p: any) { return p.name; });
+    }
+    for (var pn of profileNames) {
+      try {
+        var binding = resolveSurfaceBinding(pn, { project: project });
+        if (binding) return { profile: pn, binding: binding };
+      } catch { /* skip unreadable profile */ }
+    }
+  } catch { /* taste store unavailable — audit proceeds without notes */ }
+  return null;
+}
+
+// Runs the source-code layer for audit_swiftui / audit_rn: resolves the
+// binding, assesses each design note against the source, and folds missing
+// notes into the audit's issues (warn by default, error when a named library
+// or branded loader is wholly absent) so they count toward score/grade the
+// same way web fidelity findings count toward audit_taste's verdict.
+function applySourceTasteNotes(
+  src: string,
+  kind: MobileSourceKind,
+  issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }>,
+  project?: string,
+  profile?: string
+): { profile: string; project: string; surface: string; note_assessments: NoteAssessment[] } | null {
+  var resolved = resolveMobileTaste(project, profile);
+  if (!resolved || Object.keys(resolved.binding.design_notes).length === 0) return null;
+  var assessments = assessDesignNotesSource(resolved.binding.design_notes, src, kind);
+  for (var ni of noteIssuesFromAssessments(resolved.binding.design_notes, assessments)) issues.push(ni);
+  return { profile: resolved.profile, project: resolved.binding.project, surface: resolved.binding.surface, note_assessments: assessments };
+}
+
 // ── Tool 14b: audit_swiftui ────────────────────────────────────────
 //
 // Static-analyzes SwiftUI source against Apple HIG. Same return shape as
@@ -3843,9 +3892,11 @@ server.tool(
   {
     source: z.union([z.string(), z.array(z.string())]).describe("SwiftUI source — a single file/view as a string, or an array of file contents. Concatenated before analysis."),
     accent_color_contents: z.string().optional().describe("Optional raw Contents.json of AccentColor.colorset. When provided, the tool verifies AccentColor actually defines color components (flags an empty/undefined accent color as an error)."),
-    strict: z.boolean().optional().describe("Strict mode — also count warnings as failures for grading. Default: false")
+    strict: z.boolean().optional().describe("Strict mode — also count warnings as failures for grading. Default: false"),
+    project: z.string().optional().describe("Project identifier — resolves a saved taste surface binding (see bind_taste_surface). When the binding carries design_notes, each note is verified against the source (animation/material/haptic/font APIs) and returned in note_assessments; missing notes count toward the grade."),
+    profile: z.string().optional().describe("Taste profile owning the binding. Omit to search all stored profiles for one bound to the project.")
   },
-  async ({ source, accent_color_contents, strict }) => {
+  async ({ source, accent_color_contents, strict, project, profile }) => {
     var src = Array.isArray(source) ? source.join("\n") : source;
     var isStrict = strict || false;
     var issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }> = [];
@@ -3963,12 +4014,15 @@ server.tool(
     if (/\.frame\(\s*maxWidth:\s*\.infinity/.test(src)) passes.push("Uses flexible frames (maxWidth: .infinity)");
     if (/Image\(\s*systemName:|systemImage:/.test(src)) passes.push("Uses SF Symbols for iconography");
 
+    // ── Taste fidelity: verify the binding's design_notes against the source
+    var taste = applySourceTasteNotes(src, "swiftui", issues, project, profile);
+
     var errors = issues.filter(function (i) { return i.severity === "error"; });
     var warnings = issues.filter(function (i) { return i.severity === "warning"; });
     var totalChecks = passes.length + issues.length;
     var failCount = isStrict ? issues.length : errors.length;
 
-    var result = {
+    var result: any = {
       platform: "ios",
       score: totalChecks > 0 ? Math.round(((totalChecks - failCount) / totalChecks) * 100) : 100,
       grade: failCount === 0 ? "A" : failCount <= 2 ? "B" : failCount <= 4 ? "C" : "D",
@@ -3978,6 +4032,10 @@ server.tool(
       warnings: isStrict ? warnings.map(function (w) { return Object.assign({}, w, { severity: "error" as const }); }) : warnings,
       fix_priority: errors.concat(warnings).map(function (i) { return i.rule + ": " + i.fix; })
     };
+    if (taste) {
+      result.taste_binding = { profile: taste.profile, project: taste.project, surface: taste.surface };
+      result.note_assessments = taste.note_assessments;
+    }
 
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
@@ -3995,7 +4053,7 @@ server.tool(
 // geometry/contrast/touch logic is framework-agnostic; only the touch-target
 // minimum (44pt iOS vs 48dp Android), the muted-text color set, and the fix
 // wording differ by platform. iOS output is byte-identical to the original tool.
-function auditScreenSnapshot(elements: any, viewport: any, screenshot: any, platform: string, scroll_settle?: boolean) {
+async function auditScreenSnapshot(elements: any, viewport: any, screenshot: any, platform: string, scroll_settle?: boolean, project?: string, profile?: string) {
   var isAndroid = platform === "android";
   var P = isAndroid ? "android" : "ios";
   var unit = isAndroid ? "dp" : "pt";
@@ -4117,6 +4175,26 @@ function auditScreenSnapshot(elements: any, viewport: any, screenshot: any, plat
     else issues.push({ severity: "warning", rule: P + "-layout/optical-balance", message: "Layout is " + (lT > rT ? "left" : "right") + "-heavy — visual weight skewed " + Math.round(skew * 100) + "%.", fix: skew > 0.4 ? "Redistribute dense blocks toward center or add counterweight on the lighter side." : "Minor imbalance — confirm it's intentional." });
   }
 
+  // ── Taste fidelity: pixel-derived screenshot traits vs the binding's
+  // design_notes. Only the scheme/luminance subset is verifiable from pixels;
+  // everything else answers unverifiable rather than guessed. No screenshot →
+  // every note is unverifiable with the reason (never silently skipped).
+  var tasteResolved = resolveMobileTaste(project, profile);
+  var noteAssessments: NoteAssessment[] | undefined = undefined;
+  var screenTraits: PageTraits | undefined = undefined;
+  if (tasteResolved && Object.keys(tasteResolved.binding.design_notes).length > 0) {
+    var notes = tasteResolved.binding.design_notes;
+    if (typeof screenshot === "string" && screenshot.length > 0) {
+      screenTraits = await screenTraitsFromImage(screenshot);
+      noteAssessments = assessDesignNotesImage(notes, screenTraits);
+      for (var noteIssue of noteIssuesFromAssessments(notes, noteAssessments)) issues.push(noteIssue);
+    } else {
+      noteAssessments = Object.keys(notes).map(function (key) {
+        return { key: key, status: "unverifiable" as const, expectation: "no screenshot to verify against", evidence: "binding has design_notes but no screenshot was provided — pass a base64 PNG screenshot to verify the color scheme, or audit the source with " + (platform === "android" ? "audit_screen/audit_rn" : "audit_swiftui") + " for API-level notes" };
+      });
+    }
+  }
+
   var errors = issues.filter(function (i) { return i.severity === "error"; });
   var warnings = issues.filter(function (i) { return i.severity === "warning"; });
   var totalChecks = passes.length + issues.length;
@@ -4126,7 +4204,7 @@ function auditScreenSnapshot(elements: any, viewport: any, screenshot: any, plat
     platform: platform,
     elements_analyzed: elements.length,
     viewport: viewport,
-    screenshot_received: typeof screenshot === "string" ? screenshot.length + " base64 chars (not decoded — geometry scored from snapshot)" : false,
+    screenshot_received: typeof screenshot === "string" ? screenshot.length + " base64 chars (" + (screenTraits ? "pixels decoded for taste-note scheme verification; geometry scored from snapshot" : "not decoded — geometry scored from snapshot") + ")" : false,
     score: totalChecks > 0 ? Math.round(((totalChecks - failCount) / totalChecks) * 100) : 100,
     grade: failCount === 0 ? "A" : failCount <= 2 ? "B" : failCount <= 4 ? "C" : "D",
     summary: passes.length + "/" + totalChecks + " checks passed" + (failCount > 0 ? " — " + failCount + " issue(s) to fix" : " — all clear"),
@@ -4137,6 +4215,11 @@ function auditScreenSnapshot(elements: any, viewport: any, screenshot: any, plat
     metrics: metrics
   };
 
+  if (tasteResolved && noteAssessments) {
+    result.taste_binding = { profile: tasteResolved.profile, project: tasteResolved.binding.project, surface: tasteResolved.binding.surface };
+    result.note_assessments = noteAssessments;
+    if (screenTraits) result.screen_traits = { scheme: screenTraits.scheme, bg_luminance: screenTraits.bg_luminance };
+  }
   if (videoArtifacts.length > 0) {
     result.unloaded_video_artifacts = videoArtifacts;
   }
@@ -4167,10 +4250,12 @@ server.tool(
   "Audit a rendered mobile screen (iOS or Android) from a view-hierarchy/accessibility snapshot. Call with no arguments for the expected snapshot shape and how to capture it. Pass platform:\"android\" to score against the 48dp Material touch minimum and Material muted roles (onSurfaceVariant/outline = warn not fail); default platform:\"ios\" scores 44pt and treats secondaryLabel/tertiaryLabel as platform-standard. Both score touch targets, contrast, and visual rhythm (alignment, gap consistency, optical balance). Same return shape as audit_page.",
   Object.assign({
     platform: z.enum(["ios", "android"]).optional().describe("Target platform — 'ios' (default, 44pt minimum, iOS semantic colors) or 'android' (48dp minimum, Material semantic roles)"),
-    scroll_settle: z.boolean().optional()
+    scroll_settle: z.boolean().optional(),
+    project: z.string().optional().describe("Project identifier — resolves a saved taste surface binding (see bind_taste_surface). When the binding carries design_notes and a screenshot is passed, the screenshot's pixels verify the color-scheme notes; results gain note_assessments."),
+    profile: z.string().optional().describe("Taste profile owning the binding. Omit to search all stored profiles for one bound to the project.")
   }, screenElementSchema),
-  async function({ elements, viewport, screenshot, platform, scroll_settle }) {
-    return auditScreenSnapshot(elements, viewport, screenshot, platform || "ios", scroll_settle);
+  async function({ elements, viewport, screenshot, platform, scroll_settle, project, profile }) {
+    return auditScreenSnapshot(elements, viewport, screenshot, platform || "ios", scroll_settle, project, profile);
   }
 );
 
@@ -4179,8 +4264,11 @@ server.tool(
 server.tool(
   "audit_ios_screen",
   "Audit a rendered iOS screen from a view-hierarchy/accessibility snapshot (and optional screenshot). Alias of audit_screen with platform:\"ios\". Call with no arguments for the expected snapshot shape. Call with {elements:[{label,rect:{x,y,w,h},role,fontPt,fgColor,bgColor}],viewport:{w,h}} to score 44×44pt touch targets, contrast (with iOS secondaryLabel/tertiaryLabel treated as platform-standard — warn not fail), and visual rhythm (alignment, gap consistency, optical balance) in points. Same return shape as audit_page.",
-  screenElementSchema,
-  async ({ elements, viewport, screenshot }) => auditScreenSnapshot(elements, viewport, screenshot, "ios")
+  Object.assign({
+    project: z.string().optional().describe("Project identifier — resolves a saved taste surface binding (see bind_taste_surface). When the binding carries design_notes and a screenshot is passed, the screenshot's pixels verify the color-scheme notes; results gain note_assessments."),
+    profile: z.string().optional().describe("Taste profile owning the binding. Omit to search all stored profiles for one bound to the project.")
+  }, screenElementSchema),
+  async ({ elements, viewport, screenshot, project, profile }) => auditScreenSnapshot(elements, viewport, screenshot, "ios", undefined, project, profile)
 );
 
 // ── Tool 14d: audit_ios_privacy ────────────────────────────────────
@@ -4460,9 +4548,11 @@ server.tool(
   {
     source: z.union([z.string(), z.array(z.string())]).describe("React Native source — a single screen/component as a string, or an array of file contents. Concatenated before analysis."),
     color_scheme: z.enum(["light", "dark", "automatic"]).optional().describe("The app's declared appearance (Expo app.json userInterfaceStyle). 'light' or 'dark' means single-mode by design — the dark-mode adaptation check is then suppressed. Default: automatic."),
-    strict: z.boolean().optional().describe("Strict mode — also count warnings as failures for grading. Default: false")
+    strict: z.boolean().optional().describe("Strict mode — also count warnings as failures for grading. Default: false"),
+    project: z.string().optional().describe("Project identifier — resolves a saved taste surface binding (see bind_taste_surface). When the binding carries design_notes, each note is verified against the source (Animated/Reanimated, BlurView, haptics, fonts) and returned in note_assessments; missing notes count toward the grade."),
+    profile: z.string().optional().describe("Taste profile owning the binding. Omit to search all stored profiles for one bound to the project.")
   },
-  async ({ source, color_scheme, strict }) => {
+  async ({ source, color_scheme, strict, project, profile }) => {
     var src = Array.isArray(source) ? source.join("\n") : source;
     var isStrict = strict || false;
     var issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }> = [];
@@ -4531,12 +4621,15 @@ server.tool(
     if (hasHitSlop) passes.push("Uses hitSlop to expand hit areas");
     if (/Platform\.(OS|select)\b|\.ios\.|\.android\./.test(src)) passes.push("Handles iOS/Android differences (Platform)");
 
+    // ── Taste fidelity: verify the binding's design_notes against the source
+    var taste = applySourceTasteNotes(src, "rn", issues, project, profile);
+
     var errors = issues.filter(function (i) { return i.severity === "error"; });
     var warnings = issues.filter(function (i) { return i.severity === "warning"; });
     var totalChecks = passes.length + issues.length;
     var failCount = isStrict ? issues.length : errors.length;
 
-    var result = {
+    var result: any = {
       platform: "react-native",
       score: totalChecks > 0 ? Math.round(((totalChecks - failCount) / totalChecks) * 100) : 100,
       grade: failCount === 0 ? "A" : failCount <= 2 ? "B" : failCount <= 4 ? "C" : "D",
@@ -4546,6 +4639,10 @@ server.tool(
       warnings: isStrict ? warnings.map(function (w) { return Object.assign({}, w, { severity: "error" as const }); }) : warnings,
       fix_priority: errors.concat(warnings).map(function (i) { return i.rule + ": " + i.fix; })
     };
+    if (taste) {
+      result.taste_binding = { profile: taste.profile, project: taste.project, surface: taste.surface };
+      result.note_assessments = taste.note_assessments;
+    }
 
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
@@ -5546,7 +5643,7 @@ server.tool(
 
 server.tool(
   "bind_taste_surface",
-  "Persist a project's surface calibration for a taste profile — the answers from get_taste_interview. A binding records: the surface string scoped rules match against (e.g. 'product-site'), URL hosts that identify the project in url-mode audits, per-rule severity overrides (block|warn|nit|off — 'off' silences a rule on this surface), an optional voice/tone note, and per-dimension design_notes (typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries, special, references — the interview's design:* answers), both echoed in every audit result. Upserts by project name (~/.raven/taste/<profile>.surfaces.json). After binding, audit_taste with project:'<name>' or a bound url applies the calibration automatically: matching scoped rules run at full severity, non-matching ones are skipped, overrides re-tune the rest.",
+  "Persist a project's surface calibration for a taste profile — the answers from get_taste_interview. A binding records: the surface string scoped rules match against (e.g. 'product-site'), URL hosts that identify the project in url-mode audits, per-rule severity overrides (block|warn|nit|off — 'off' silences a rule on this surface), an optional voice/tone note, per-dimension design_notes (typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries, special — the interview's design:* answers), and a first-class `references` array — the example sites the person pointed to. References are NOT lossy prose: each url is captured live and its PageTraits (scheme, luminance, animation/scroll motion, text density) are stored on the binding, then design_notes are consistency-checked against what the references ACTUALLY are. A 'dark, cinematic' color note against two references that both render light comes back as a consistency_warning to surface to the user. Upserts by project name (~/.raven/taste/<profile>.surfaces.json). When the design_notes name an expensive technique (three.js/WebGL, GSAP scroll choreography, glassmorphism, a branded loader, lottie, kinetic display type…), the result carries build_hints — a concrete recipe + canonical public example sources per technique, so the builder sees the HOW at kickoff, BEFORE building; an expensive note is not license to drop it. After binding, audit_taste with project:'<name>' or a bound url applies the calibration automatically: matching scoped rules run at full severity, non-matching ones are skipped, overrides re-tune the rest.",
   {
     profile: z.string().min(1).describe("Taste profile name."),
     project: z.string().min(1).describe("Project identifier, e.g. 'raven-mcp', 'portfolio'."),
@@ -5557,11 +5654,55 @@ server.tool(
       severity: z.enum(["block", "warn", "nit", "off"]).describe("Severity on this surface; off = rule never runs here.")
     })).optional().describe("Per-rule re-tuning for this surface (e.g. relax a voice rule to nit on a product site)."),
     voice_note: z.string().optional().describe("Short tone guidance for this surface (e.g. 'Product register: benefits may be stated plainly; still no hype verbs'). Echoed as voice_note in audit results."),
-    design_notes: z.record(z.string().min(1)).optional().describe("Per-dimension design preferences from the interview's design:* questions — keys are short dimension names (typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries, special, references; trimmed + lowercased, must match ^[a-z][a-z0-9_-]{0,31}$ after normalization, no two keys may collide), values are the user's non-empty answers. Echoed as design_notes in every audit so generation is shaped by them.")
+    design_notes: z.record(z.string().min(1)).optional().describe("Per-dimension design preferences from the interview's design:* questions — keys are short dimension names (typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries, special; trimmed + lowercased, must match ^[a-z][a-z0-9_-]{0,31}$ after normalization, no two keys may collide), values are the user's non-empty answers. Echoed as design_notes in every audit so generation is shaped by them, and treated as ACCEPTANCE CRITERIA a build must visibly satisfy."),
+    references: z.array(z.object({
+      url: z.string().describe("Example site URL (http/https), or a local .png screenshot file path for mobile references. URLs are captured live; .png paths are pixel-analyzed (scheme/luminance) — either way traits are stored so they can be consistency-checked against the design_notes."),
+      liked: z.string().optional().describe("What specifically the person likes about this reference, mapped to a dimension.")
+    })).optional().describe("First-class reference examples the person pointed to. Each url is captured live (traits stored on the binding), and design_notes are consistency-checked against them — contradictions come back as consistency_warnings.")
   },
-  async function ({ profile, project, surface, hosts, overrides, voice_note, design_notes }) {
-    var binding = bindTasteSurface(profile, { project: project, surface: surface, hosts: hosts, overrides: overrides, voice_note: voice_note, design_notes: design_notes });
-    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "bind_taste_surface", profile: profile, binding: binding }, null, 2) }] };
+  async function ({ profile, project, surface, hosts, overrides, voice_note, design_notes, references }) {
+    var warnings: string[] = [];
+    var capturedRefs: ReferenceCapture[] | undefined = undefined;
+    if (references && references.length > 0) {
+      capturedRefs = [];
+      for (var i = 0; i < references.length; i += 1) {
+        var refInput = references[i];
+        var entry: ReferenceCapture = { url: refInput.url };
+        if (refInput.liked !== undefined && refInput.liked.trim().length > 0) entry.liked = refInput.liked.trim();
+        try {
+          if (isPngPathReference(refInput.url)) {
+            // Screenshot reference (mobile): traits come from the pixels.
+            // Only the scheme/luminance subset is derivable from an image —
+            // the consistency check is null-safe over the rest.
+            var pngBuffer = await readFile(refInput.url);
+            entry.traits = await screenTraitsFromImage(pngBuffer);
+            entry.captured_at = new Date().toISOString();
+          } else {
+            var refCap = await capturePage(refInput.url, { scroll_settle: true, collectTraits: true });
+            if (refCap.traits) entry.traits = refCap.traits;
+            entry.captured_at = new Date().toISOString();
+          }
+        } catch (err) {
+          var reason = err instanceof Error ? err.message : String(err);
+          warnings.push("reference " + refInput.url + " stored uncaptured: " + reason);
+        }
+        capturedRefs.push(entry);
+      }
+    }
+    var binding = bindTasteSurface(profile, { project: project, surface: surface, hosts: hosts, overrides: overrides, voice_note: voice_note, design_notes: design_notes, references: capturedRefs });
+    var consistencyWarnings = binding.references ? checkBindingConsistency(binding.design_notes, binding.references) : [];
+    var payload: Record<string, unknown> = { tool: "bind_taste_surface", profile: profile, binding: binding };
+    if (warnings.length > 0) payload.warnings = warnings;
+    if (consistencyWarnings.length > 0) {
+      payload.consistency_warnings = consistencyWarnings;
+      payload.action_required = "The design_notes contradict what the captured references actually are. Surface each consistency_warning to the USER and re-ask — do not silently keep both the note and the reference. design_notes are acceptance criteria for the build.";
+    }
+    var hints = buildHints(binding.design_notes);
+    if (hints.length > 0) {
+      payload.build_hints = hints;
+      payload.build_guidance = "The design_notes name expensive techniques. Each build_hint carries a concrete recipe + canonical public example sources (threejs.org, gsap.com, Codrops…) — an expensive note is NOT license to drop it. Build to these at kickoff; if a technique is genuinely infeasible, tell the USER before shipping without it.";
+    }
+    return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }] };
   }
 );
 
@@ -5625,7 +5766,7 @@ server.tool(
 
 server.tool(
   "audit_taste",
-  "Judge a target against a taste profile. Pass html (static page/CSS), text (a copy block), or url (rendered headless; also runs delegated WCAG-contrast/tap-target measurements for owner:raven rules). owner:taste rules run deterministic detectors — gradients, glow/neon (large-blur colored shadows), second accent hue, banned-word lists from the rule's negative prompt; clauses with no deterministic detector are reported honestly under not_assessed instead of guessed. owner:raven rules route through Raven's existing audit engines (page checks, contrast, tap targets) and fold results in under the delegating rule_id. Every finding cites an existing rule_id + concrete evidence — the engine prefers silence over a speculative nit. accept-verdict corpus precedents suppress previously-approved patterns. Rules may carry a scope (e.g. portfolio-monochrome); pass surface to say what you're judging — scoped rules run at full severity on a matching surface, are skipped (reported under skipped_out_of_scope) on a non-matching one, and can warn but never block when surface is omitted. Better: pass project (or audit a bound url host) so a saved surface binding supplies the surface, per-rule overrides, and voice note automatically — on a NEW project with no binding, run get_taste_interview first (results carry a calibration_hint when calibration is missing). Verdict: BLOCK (any block finding) / WARN (any warn) / PASS.",
+  "Judge a target against a taste profile. Pass html (static page/CSS), text (a copy block), or url (rendered headless; also runs delegated WCAG-contrast/tap-target measurements for owner:raven rules). owner:taste rules run deterministic detectors — gradients, glow/neon (large-blur colored shadows), second accent hue, banned-word lists from the rule's negative prompt; clauses with no deterministic detector are reported honestly under not_assessed instead of guessed. owner:raven rules route through Raven's existing audit engines (page checks, contrast, tap targets) and fold results in under the delegating rule_id. Every finding cites an existing rule_id + concrete evidence — the engine prefers silence over a speculative nit. accept-verdict corpus precedents suppress previously-approved patterns. When the resolved binding carries design_notes, audit_taste VERIFIES each note against the artifact instead of only echoing it: url mode measures the rendered page's traits (scheme/luminance, canvas+WebGL, animations, scroll effects, text density, fonts, heading scale, loader, backdrop-filter), html mode extracts what it can statically, and every note comes back in note_assessments as present/partial/missing/unverifiable with trait-number evidence — design_notes are ACCEPTANCE CRITERIA for a build, not mood words. Missing notes become fidelity_findings (NOTE-<key>, warn — block when a named library like three.js/gsap/lottie or a branded loader is wholly absent), the target is compared against the binding's captured references (REF-* deltas on scheme, density, motion, type scale), and sparse-and-empty pages are flagged (TASTE-restraint-earned: sparseness must be earned by craft density, not achieved by deletion). fidelity_findings count toward the verdict. When a note names an expensive technique (three.js/WebGL, GSAP scroll choreography, glassmorphism, a branded loader, lottie, kinetic display type…), the result carries build_hints — a concrete recipe + canonical public example sources for that technique, so a failing audit hands the fix ammunition next to the missing finding; an expensive note is never license to drop it. Rules may carry a scope (e.g. portfolio-monochrome); pass surface to say what you're judging — scoped rules run at full severity on a matching surface, are skipped (reported under skipped_out_of_scope) on a non-matching one, and can warn but never block when surface is omitted. Better: pass project (or audit a bound url host) so a saved surface binding supplies the surface, per-rule overrides, and voice note automatically — on a NEW project with no binding, run get_taste_interview first (results carry a calibration_hint when calibration is missing). Verdict: BLOCK (any block finding) / WARN (any warn) / PASS.",
   {
     profile: z.string().min(1).describe("Taste profile name (see list_taste_profiles)."),
     html: z.string().optional().describe("Full HTML/CSS of the page to judge."),
@@ -5652,10 +5793,12 @@ server.tool(
     // audits: their issues would otherwise fold into unrelated in-scope rules.
     var delegates = new Set(prof.rules.filter(function (r) { return r.owner === "raven" && !offRuleIds.has(r.rule_id) && ruleInScope(r, effectiveSurface); }).map(function (r) { return r.delegate_to; }));
 
+    var liveTraits: PageTraits | undefined = undefined;
     if (url) {
       try {
-        var cap = await capturePage(url, { scroll_settle: true });
+        var cap = await capturePage(url, { scroll_settle: true, collectTraits: true });
         targetHtml = cap.renderedHtml;
+        liveTraits = cap.traits;
         if (delegates.has("audit_contrast")) {
           var c = await auditContrastUrl(url);
           for (var row of c.aa_failures) pageIssues.push({ rule: "contrast/aa", severity: "error", message: row.selector + " \"" + row.text.slice(0, 40) + "\" contrast " + row.ratio + ":1 < required " + row.required_aa + ":1 (fg " + row.foreground + " on bg " + row.background + ")", fix: "Adjust fg/bg to clear " + row.required_aa + ":1 (delta " + row.delta_to_aa + ")." });
@@ -5675,7 +5818,7 @@ server.tool(
       var pc = runPageChecks(targetHtml);
       for (var iss of pc.issues) pageIssues.push({ rule: iss.rule, severity: iss.severity, message: iss.message, fix: iss.fix });
     }
-    var result = auditTaste({ profile: prof, html: targetHtml, text: targetHtml === undefined ? text : undefined, page_issues: pageIssues.length > 0 ? pageIssues : undefined, surface: surface, binding: binding });
+    var result = auditTaste({ profile: prof, html: targetHtml, text: targetHtml === undefined ? text : undefined, page_issues: pageIssues.length > 0 ? pageIssues : undefined, surface: surface, binding: binding, traits: liveTraits });
     var out: any = result;
     if (url) out = Object.assign({}, result, { target: "url", url: url });
     return { content: [{ type: "text" as const, text: JSON.stringify(out, null, 2) }] };
