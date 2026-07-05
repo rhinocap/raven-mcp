@@ -96,6 +96,10 @@ export type SurfaceBinding = {
   design_notes: Record<string, string>;
   references?: ReferenceCapture[];
   bound_at: string;
+  // Set only when a NEW surface was bound with no calibration content, via the
+  // explicit uncalibrated_ack escape hatch — records that the interview was
+  // deliberately skipped and why, so the bypass is auditable rather than silent.
+  uncalibrated_ack?: string;
 };
 
 // The per-dimension preference questions every interview asks. Each is
@@ -591,6 +595,7 @@ export function bindTasteSurface(profileName: string, input: {
   voice_note?: unknown;
   design_notes?: unknown;
   references?: unknown;
+  uncalibrated_ack?: unknown;
 }): SurfaceBinding {
   const profile = getTasteProfile(profileName);
   if (typeof input.project !== "string" || !/^[a-z0-9][a-z0-9-_.]{0,63}$/i.test(input.project)) {
@@ -628,6 +633,38 @@ export function bindTasteSurface(profileName: string, input: {
   const designNotes = validateDesignNotes(input.design_notes, "design_notes");
   const references = validateReferences(input.references, "references");
 
+  // Interview-enforcement gate. A bind whose RESULT carries zero taste
+  // calibration — no design_notes, no non-blank voice_note, no references, no
+  // overrides — is the fingerprint of a skipped kickoff interview (a client
+  // rationalized past the advisory gate and bound a surface "with the optional
+  // taste questions uncalibrated"). It is refused unless the agent passes an
+  // explicit uncalibrated_ack: a non-blank rationale affirming the user WAS
+  // interviewed and chose to skip every dimension, recorded on the binding so
+  // the skip is auditable, never silent.
+  //
+  // This gates NEW surfaces and re-binds alike, on purpose: bind is an upsert
+  // that REPLACES every field, so an empty re-bind erases prior calibration
+  // exactly as a fresh identity-only bind never had it (keying the exemption on
+  // project would let `same-project, new surface, empty notes` silently wipe a
+  // calibrated binding). Hosts are identity/matching, not taste, so they do NOT
+  // satisfy the gate. Blank strings are trimmed before counting, so whitespace
+  // cannot smuggle a bind through. A meaningful design_note is trusted; a
+  // deliberately fabricated one is a lie no deterministic gate can detect.
+  const ack = optionalString(input.uncalibrated_ack).trim();
+  const hasCalibration =
+    Object.keys(designNotes).length > 0 ||
+    voiceNote.trim().length > 0 ||
+    overrides.length > 0 ||
+    (references !== undefined && references.length > 0);
+  if (!hasCalibration && ack.length === 0) {
+    throw new Error(
+      "Refusing to bind surface ('" + input.project + "') with no calibration content — this is the fingerprint of a skipped taste interview (and an empty re-bind would erase prior calibration). " +
+      "get_taste_interview is a BLOCKING gate: run it with mode:'kickoff', ASK THE USER its questions, and bind their answers as design_notes (and voice_note/references/overrides where given). " +
+      "Never answer the interview yourself or bind identity-only. " +
+      "If — and only if — the user was genuinely interviewed and chose to skip every optional dimension, re-call bind_taste_surface with uncalibrated_ack set to a one-line note stating that (e.g. 'user interviewed 2026-07-04, declined all dimension calibration'); the ack is recorded on the binding."
+    );
+  }
+
   const binding: SurfaceBinding = {
     project: input.project,
     surface: input.surface.trim(),
@@ -638,6 +675,7 @@ export function bindTasteSurface(profileName: string, input: {
     bound_at: new Date().toISOString(),
   };
   if (references !== undefined) binding.references = references;
+  if (!hasCalibration && ack.length > 0) binding.uncalibrated_ack = ack;
   const bindings = listSurfaceBindings(profile.name).filter(function(existing) {
     return existing.project.toLowerCase() !== binding.project.toLowerCase();
   });
@@ -838,6 +876,9 @@ function validateStoredBinding(raw: unknown, where: string): SurfaceBinding {
   if (raw.voice_note !== undefined && typeof raw.voice_note !== "string") {
     throw new Error(where + ".voice_note must be a string when present");
   }
+  if (raw.uncalibrated_ack !== undefined && typeof raw.uncalibrated_ack !== "string") {
+    throw new Error(where + ".uncalibrated_ack must be a string when present");
+  }
   const binding: SurfaceBinding = {
     project,
     surface,
@@ -852,6 +893,11 @@ function validateStoredBinding(raw: unknown, where: string): SurfaceBinding {
   // valid and unchanged on disk.
   const references = validateReferences(raw.references, where + ".references");
   if (references !== undefined) binding.references = references;
+  // Absent on all normal (calibrated) bindings — carried through only when the
+  // uncalibrated escape hatch was used, so the deliberate skip survives reload.
+  if (typeof raw.uncalibrated_ack === "string" && raw.uncalibrated_ack.length > 0) {
+    binding.uncalibrated_ack = raw.uncalibrated_ack;
+  }
   return binding;
 }
 

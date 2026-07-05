@@ -832,7 +832,7 @@ test('surface calibration interview is built from the profile’s own scopes and
     assert.ok(bareVoiceQ.question.includes('no voice/tone rules yet'));
 
     // After binding, the interview surfaces the existing calibration.
-    taste.bindTasteSurface('cal', { project: 'raven-mcp', surface: 'product-site' });
+    taste.bindTasteSurface('cal', { project: 'raven-mcp', surface: 'product-site', design_notes: { color: 'monochrome, one warm accent' } });
     const again = taste.getTasteInterview('cal', 'raven-mcp');
     assert.equal(again.existing_binding.surface, 'product-site');
   });
@@ -1000,8 +1000,8 @@ test('bind_taste_surface validates, normalizes hosts, upserts by project, and ro
     assert.deepEqual(taste.listSurfaceBindings('bindings')[0].design_notes, {});
 
     // Upsert: same project replaces, different project adds.
-    taste.bindTasteSurface('bindings', { project: 'raven-mcp', surface: 'developer docs' });
-    taste.bindTasteSurface('bindings', { project: 'portfolio', surface: 'monochrome portfolio' });
+    taste.bindTasteSurface('bindings', { project: 'raven-mcp', surface: 'developer docs', uncalibrated_ack: 'test fixture' });
+    taste.bindTasteSurface('bindings', { project: 'portfolio', surface: 'monochrome portfolio', uncalibrated_ack: 'test fixture' });
     const all = taste.listSurfaceBindings('bindings');
     assert.deepEqual(all.map((b) => [b.project, b.surface]), [
       ['portfolio', 'monochrome portfolio'],
@@ -1010,13 +1010,78 @@ test('bind_taste_surface validates, normalizes hosts, upserts by project, and ro
   });
 });
 
+test('bind_taste_surface REFUSES a new surface with no calibration content (interview-skip fingerprint), and the escape hatch is recorded', async () => {
+  await withTasteHome(async () => {
+    taste.createTasteProfile({ name: 'gate', rules: baseRules() });
+
+    // The exact failure this guard exists for: an agent binds a brand-new
+    // surface identity-only, having skipped the kickoff interview.
+    assert.throws(
+      () => taste.bindTasteSurface('gate', { project: 'ai-reader-raven', surface: 'product-site' }),
+      /Refusing to bind surface .*no calibration content.*get_taste_interview/s
+    );
+    // Hosts alone are identity/matching, not taste calibration -> still refused.
+    assert.throws(
+      () => taste.bindTasteSurface('gate', { project: 'ai-reader-raven', surface: 'product-site', hosts: ['aireader.ai'] }),
+      /Refusing to bind surface/
+    );
+    // Whitespace cannot smuggle a bind through: a blank voice_note is trimmed to
+    // empty and does NOT count as calibration.
+    assert.throws(
+      () => taste.bindTasteSurface('gate', { project: 'ai-reader-raven', surface: 'product-site', voice_note: '   ' }),
+      /Refusing to bind surface/
+    );
+    // A whitespace-only uncalibrated_ack is worthless (destroys auditability) ->
+    // trimmed to empty, still refused.
+    assert.throws(
+      () => taste.bindTasteSurface('gate', { project: 'ai-reader-raven', surface: 'product-site', uncalibrated_ack: '   ' }),
+      /Refusing to bind surface/
+    );
+    // Nothing was persisted by the refused calls.
+    assert.equal(taste.listSurfaceBindings('gate').length, 0);
+
+    // ANY real calibration signal satisfies the gate: design_notes...
+    taste.bindTasteSurface('gate', { project: 'with-notes', surface: 'product-site', design_notes: { color: 'monochrome' } });
+    // ...voice_note...
+    taste.bindTasteSurface('gate', { project: 'with-voice', surface: 'product-site', voice_note: 'Plain product register.' });
+    // ...an override...
+    taste.bindTasteSurface('gate', { project: 'with-override', surface: 'product-site', overrides: [{ rule_id: 'HUE-NIT', severity: 'off' }] });
+    // ...or a reference.
+    taste.bindTasteSurface('gate', { project: 'with-ref', surface: 'product-site', references: [{ url: 'https://example.com' }] });
+    assert.equal(taste.listSurfaceBindings('gate').length, 4);
+
+    // Escape hatch: an explicit ack (user interviewed, skipped every dimension)
+    // is allowed AND recorded on the binding so the skip is auditable.
+    const acked = taste.bindTasteSurface('gate', { project: 'declined-cal', surface: 'product-site', uncalibrated_ack: 'user interviewed 2026-07-04, declined all dimensions' });
+    assert.equal(acked.uncalibrated_ack, 'user interviewed 2026-07-04, declined all dimensions');
+    assert.equal(taste.listSurfaceBindings('gate').find((b) => b.project === 'declined-cal').uncalibrated_ack, acked.uncalibrated_ack);
+
+    // A re-bind that KEEPS calibration is fine (update path unbroken): pass the
+    // design_notes again while changing the surface string.
+    const rebound = taste.bindTasteSurface('gate', { project: 'with-notes', surface: 'product-site v2', design_notes: { color: 'monochrome' } });
+    assert.equal(rebound.surface, 'product-site v2');
+    assert.equal(rebound.uncalibrated_ack, undefined);
+
+    // But an EMPTY re-bind of an already-calibrated project is REFUSED — an
+    // upsert replaces all fields, so this would silently erase the calibration
+    // (the same-project/new-surface hole). It must not be exempt.
+    assert.throws(
+      () => taste.bindTasteSurface('gate', { project: 'with-notes', surface: 'product-site v3' }),
+      /Refusing to bind surface/
+    );
+    // The prior calibrated binding is untouched by the refused call.
+    assert.deepEqual(taste.listSurfaceBindings('gate').find((b) => b.project === 'with-notes').design_notes, { color: 'monochrome' });
+    assert.equal(taste.listSurfaceBindings('gate').find((b) => b.project === 'with-notes').surface, 'product-site v2');
+  });
+});
+
 test('resolveSurfaceBinding: explicit project beats url host; hosts match subdomains; unknown resolves null', async () => {
   await withTasteHome(async () => {
     taste.createTasteProfile({ name: 'res', rules: baseRules() });
     assert.equal(taste.resolveSurfaceBinding('res', { project: 'anything' }), null);
 
-    taste.bindTasteSurface('res', { project: 'raven-mcp', surface: 'product-site', hosts: ['ravenmcp.ai'] });
-    taste.bindTasteSurface('res', { project: 'portfolio', surface: 'monochrome portfolio', hosts: ['andrew.design'] });
+    taste.bindTasteSurface('res', { project: 'raven-mcp', surface: 'product-site', hosts: ['ravenmcp.ai'], uncalibrated_ack: 'test fixture' });
+    taste.bindTasteSurface('res', { project: 'portfolio', surface: 'monochrome portfolio', hosts: ['andrew.design'], uncalibrated_ack: 'test fixture' });
 
     assert.equal(taste.resolveSurfaceBinding('res', { project: 'Portfolio' }).project, 'portfolio');
     assert.equal(taste.resolveSurfaceBinding('res', { url: 'https://ravenmcp.ai/changelog' }).project, 'raven-mcp');
@@ -1041,7 +1106,7 @@ test('a resolved binding supplies the surface, applies overrides at full trust, 
       voice_note: 'Product register: plain benefits OK, still no hype verbs.',
       design_notes: { typography: 'Grotesque, restrained scale.' }
     });
-    taste.bindTasteSurface('proj', { project: 'portfolio', surface: 'monochrome portfolio' });
+    taste.bindTasteSurface('proj', { project: 'portfolio', surface: 'monochrome portfolio', uncalibrated_ack: 'test fixture' });
     const html = '<style>.x{background:linear-gradient(red, blue)}</style><p>We have proven results.</p>';
 
     // On raven-mcp: monochrome rule skipped, voice rule re-tuned to nit, note echoed.
@@ -1118,7 +1183,8 @@ test('host binding hardening: single-label hosts rejected, userinfo/ports stripp
 
     const bound = taste.bindTasteSurface('hard', {
       project: 'x', surface: 's',
-      hosts: ['user:pass@ravenmcp.ai', 'localhost:3000', '127.0.0.1']
+      hosts: ['user:pass@ravenmcp.ai', 'localhost:3000', '127.0.0.1'],
+      uncalibrated_ack: 'test fixture'
     });
     assert.deepEqual(bound.hosts, ['ravenmcp.ai', 'localhost', '127.0.0.1']);
 
@@ -1272,7 +1338,7 @@ test('kickoff interview grows NEW questions from decision categories no standard
 test('listTasteProfiles skips sidecar surfaces/decisions stores', async () => {
   await withTasteHome(async (home) => {
     const profile = taste.createTasteProfile({ name: 'andrew', rules: baseRules().slice(0, 1) });
-    taste.bindTasteSurface('andrew', { project: 'demo', surface: 'product site', active_scopes: [], overrides: [], voice_note: '', url_hosts: [] });
+    taste.bindTasteSurface('andrew', { project: 'demo', surface: 'product site', active_scopes: [], overrides: [], voice_note: '', url_hosts: [], uncalibrated_ack: 'test fixture' });
     taste.recordTasteDecision('andrew', { project: 'demo', dimension: 'color', decision: 'warm accent', rejected: [], why: 'fits' });
     assert.ok((await readFile(path.join(home, 'andrew.surfaces.json'), 'utf8')).length > 0);
     assert.ok((await readFile(path.join(home, 'andrew.decisions.json'), 'utf8')).length > 0);
@@ -1345,7 +1411,7 @@ test('bindTasteSurface validates reference shape and requires http(s) urls', asy
       /liked must be a string/
     );
     // Empty binding stores no references key at all (disk format unchanged).
-    const plain = taste.bindTasteSurface('refval', { project: 'plain', surface: 's' });
+    const plain = taste.bindTasteSurface('refval', { project: 'plain', surface: 's', uncalibrated_ack: 'test fixture' });
     assert.equal(plain.references, undefined);
   });
 });
@@ -1607,7 +1673,7 @@ test('fidelity backward compat: no design_notes, no traits, or text mode leaves 
   await withTasteHome(async () => {
     taste.createTasteProfile({ name: 'fidcompat', rules: baseRules() });
     // Binding without design_notes: nothing to verify even with traits.
-    taste.bindTasteSurface('fidcompat', { project: 'plain', surface: 'product-site' });
+    taste.bindTasteSurface('fidcompat', { project: 'plain', surface: 'product-site', uncalibrated_ack: 'test fixture' });
     const withTraits = taste.auditTaste({ profile: 'fidcompat', html: '<p>Hi.</p>', project: 'plain', traits: makeTraits({}) });
     assert.equal(withTraits.note_assessments, undefined);
     assert.equal(withTraits.fidelity_findings, undefined);
