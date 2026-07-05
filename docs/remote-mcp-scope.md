@@ -227,7 +227,7 @@ Across the ecosystem, **SSE is legacy/deprecated and Streamable HTTP is the reco
 
 **Phase 3 — Browser audits remote.** Add the 5 browser tools behind `playwright-core` + `@sparticuz/chromium` (or Browserbase), ideally an **isolated Function/project**. *Verify:* `audit_url` on a live URL returns from the deployed function; `/tmp` stays bounded across warm invocations under load.
 
-**Phase 4 (only if demanded) — Per-user cloud taste.** Full OAuth 2.1 + DCR, per-user keyed storage, async storage adapter replacing `fs`. Large effort — do only if cross-device taste is a real requirement. **If the Tier-2 API taste model (§exec) is live by then, model-backed audits fold in here for free** — the Function calls the model over HTTPS with a secret; Phase 4's real work is still the per-user state + auth, not the model call.
+**Phase 4 (only if demanded) — Per-user cloud taste.** Full OAuth 2.1 + DCR, per-user keyed storage, async storage adapter replacing `fs`. Large effort — do only if cross-device taste is a real requirement. **If the Tier-2 API taste model (§exec) is live by then, model-backed audits add only one outbound HTTPS call** — the Function reaches the model with a secret; Phase 4's real work stays the per-user state + auth, not the model call.
 
 ### Open decisions that need Andrew
 1. **Taste stays local-only for v1 remote?** ✅ **Decided 2026-07-05: yes — local-first, skip OAuth for now.** Taste model is Tier-1 on-device near-term; Tier-2 is a larger model behind a self-hosted/cloud **API** later. Neither is in v1 remote; both leave v1 model-free. Cross-device/remote taste is deferred to Phase 4 (gated on per-user state + auth, *not* on compute — see §exec/§5).
