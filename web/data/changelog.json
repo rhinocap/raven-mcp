@@ -26,6 +26,20 @@
   },
   "releases": [
     {
+      "version": "v1.15.0",
+      "date": "2026-07-04",
+      "category": "tooling",
+      "kind": "feature",
+      "title": "The kickoff interview, enforced",
+      "changes": [
+        "bind_taste_surface now refuses to bind a surface with no calibration content (no design notes, voice note, references, or overrides) — that empty shape is the fingerprint of a kickoff interview that was skipped. The refusal points the agent back to get_taste_interview and asking the user. An uncalibrated_ack note is the one escape hatch, for a surface a user was interviewed on and chose to leave uncalibrated — recorded on the binding so the skip is auditable.",
+        "generate_taste_portrait — renders any bound taste surface as a self-contained, designed HTML page built from its own rules, notes, voice, decisions, and wrong-right corpus. The page obeys the surface it describes, so it never violates the taste it's presenting. Render one binding or every binding plus a gallery index.",
+        "anime.js is now a first-class animation library in the Taste Engine, at parity with three.js, GSAP, and lottie — offered in the kickoff interview, assessed against a page's live motion, and returned as a build-hint recipe.",
+        "The kickoff interview now asks how typography, spacing, color, layout, motion, and imagery should read on the surface being bound — each question grounded in the profile's own rules for that category. The answers persist on the binding and are echoed in every audit, so a connected agent sees the surface's intent before its first design decision.",
+        "audit_taste is fairer to documents about a surface: a taste portrait is judged on the profile's rules without being convicted for not literally being the thing it describes, and a page is never flagged for quoting the rule it's illustrating."
+      ]
+    },
+    {
       "version": "v1.14.0",
       "date": "2026-07-02",
       "category": "tooling",
