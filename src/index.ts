@@ -31,6 +31,7 @@ import { detectOrphanStretch } from "./layout-orphans.js";
 import { createTasteProfile, getTasteProfile, listTasteProfiles, labelFinding, auditTaste, ruleInScope, getTasteInterview, bindTasteSurface, listSurfaceBindings, resolveSurfaceBinding, recordTasteDecision, listTasteDecisions, checkBindingConsistency, isPngPathReference } from "./taste.js";
 import type { ReferenceCapture, SurfaceBinding } from "./taste.js";
 import { generateTastePortrait } from "./taste-portrait.js";
+import { setRemoteRuntime, isRemoteRuntime } from "./remote-runtime.js";
 import { buildHints, screenTraitsFromImage, assessDesignNotesSource, assessDesignNotesImage, noteIssuesFromAssessments } from "./taste-fidelity.js";
 import type { NoteAssessment, MobileSourceKind } from "./taste-fidelity.js";
 import { readFile } from "fs/promises";
@@ -177,7 +178,17 @@ function loadRegistry() {
   return JSON.parse(raw);
 }
 
+// A valid system/content id is a bare basename (e.g. "material-3", "gov-uk").
+// Reject any id with a path separator or ".." so a caller cannot traverse out of
+// the data dir and read arbitrary .json (defense-in-depth for the no-auth remote
+// endpoint; provably no-op for every real id, which never contains "/" or "..").
+function isSafeDataId(id: string): boolean {
+  return typeof id === "string" && id.length > 0
+    && !id.includes("/") && !id.includes("\\") && !id.includes("..") && id.charAt(0) !== ".";
+}
+
 function loadSystem(id: string) {
+  if (!isSafeDataId(id)) return null;
   var filePath = join(SYSTEMS_DIR, id + ".json");
   if (!existsSync(filePath)) return null;
   var raw = readFileSync(filePath, "utf-8");
@@ -197,6 +208,7 @@ function loadContentRegistry() {
 }
 
 function loadContentSystem(id: string) {
+  if (!isSafeDataId(id)) return null;
   var filePath = join(CONTENT_SYSTEMS_DIR, id + ".json");
   if (!existsSync(filePath)) return null;
   var raw = readFileSync(filePath, "utf-8");
@@ -894,6 +906,12 @@ import { appendFileSync, mkdirSync, readFileSync as fsReadFile, existsSync as fs
 import { homedir } from "os";
 import { spawnSync } from "child_process";
 
+// Disabled on Vercel (process.env.VERCEL is set on every Vercel function
+// invocation, never in stdio contexts) so the per-request update/digest banner
+// module-state can't leak across concurrent requests on Fluid Compute, and so
+// no write is attempted against a read-only serverless home. This is purely
+// additive: locally (stdio) VERCEL is unset, so USAGE_LOG_ENABLED is unchanged
+// and the stdio wire contract stays byte-for-byte identical.
 var USAGE_LOG_ENABLED = process.env.RAVEN_NO_USAGE_LOG !== "1";
 var USAGE_LOG_PATH = process.env.RAVEN_USAGE_LOG || join(homedir(), ".raven", "usage.jsonl");
 
@@ -1294,6 +1312,10 @@ function recordPath(kind: string, id: string): string {
 }
 
 function writeCreativeRecord(kind: string, record: any): any {
+  // Hosted (remote) runtime: never write the local creative store. Fail closed.
+  // (All callers are already remote-gated tools; this is defense-in-depth so a
+  // future un-gated tool cannot mutate ~/.raven or the ephemeral serverless fs.)
+  if (isRemoteRuntime()) throw new Error("Creative records cannot be written on the hosted endpoint.");
   var id = safeRecordId(record.id || makeRecordId(kind));
   var now = new Date().toISOString();
   var existing = readCreativeRecord(kind, id, true);
@@ -1308,6 +1330,15 @@ function writeCreativeRecord(kind: string, record: any): any {
 }
 
 function readCreativeRecord(kind: string, id: string, optional?: boolean): any {
+  // Hosted (remote) runtime: the local creative store is per-machine state the
+  // no-auth endpoint must never read (it would be a store existence/data oracle).
+  // Fail closed as "not found" — guard BEFORE recordPath() so its creativeKindDir
+  // mkdirSync never touches the ephemeral serverless fs. Mirrors the not-found
+  // semantics below exactly, so optional callers get null and required ones throw.
+  if (isRemoteRuntime()) {
+    if (optional) return null;
+    throw new Error(kind + " record '" + id + "' not found");
+  }
   var path = recordPath(kind, id);
   if (!fsExists(path)) {
     if (optional) return null;
@@ -1317,6 +1348,9 @@ function readCreativeRecord(kind: string, id: string, optional?: boolean): any {
 }
 
 function listCreativeRecords(kind: string): any[] {
+  // Hosted (remote) runtime: fail empty — never enumerate the local store (guard
+  // BEFORE creativeKindDir() so its mkdirSync never runs on the serverless fs).
+  if (isRemoteRuntime()) return [];
   var dir = creativeKindDir(kind);
   var files = readdirSync(dir).filter(function (f) { return f.endsWith(".json"); }).sort();
   var out: any[] = [];
@@ -1559,13 +1593,93 @@ function maybeComputeDailyDigest(): void {
 
 // ── Server ──────────────────────────────────────────────────────────
 
+// The 30 tools NOT served on a shared remote server (buildServer({remote:true})).
+// 20 are stateful/local (per-user ~/.raven files, or the create_generation_job
+// subprocess), 5 are browser-heavy (headless Chromium — added back in Phase 3),
+// and 5 reach the filesystem/network or have an external side effect (see the
+// capability block below). Everything else (40 stateless CPU-only tools) is
+// remote-safe. Traced to docs/remote-mcp-scope.md §2; asserted at build time.
+const REMOTE_GATED_TOOLS = new Set<string>([
+  // stateful / local (20)
+  "create_taste_profile", "get_taste_profile", "list_taste_profiles",
+  "get_taste_interview", "bind_taste_surface", "record_taste_decision",
+  "list_taste_decisions", "generate_taste_portrait", "label_finding", "audit_taste",
+  "create_brand_profile", "get_brand_profile", "list_brand_profiles",
+  "register_creative_asset", "create_character_profile", "create_generation_job",
+  "get_generation_job", "list_generation_jobs", "plan_creative_campaign", "raven_reflect",
+  // browser-heavy (5) — need headless Chromium (Phase 3)
+  "audit_url", "audit_contrast", "audit_tap_targets",
+  "audit_responsive_visibility", "audit_video_playback",
+  // filesystem/network/side-effect capability tools (5) — read caller-supplied
+  // local paths (readFileSync), fetch caller-supplied URLs (SSRF), or trigger an
+  // external side effect. A no-auth remote endpoint must not expose a file-read
+  // oracle, an outbound-request proxy, or an unauthenticated action, so these are
+  // gated off entirely in remote mode. (audit_contract → readFileSync(file_paths);
+  // audit_asset_integrity → readFileSync(image_paths); audit_device_frame →
+  // readFileSync(frame paths); audit_api_contract → fetch(endpoint_url);
+  // raven_register → POSTs caller-controlled email/name to the welcome endpoint,
+  // which sends mail + subscribes via Resend with no rate limit/CAPTCHA/auth — a
+  // no-auth spam/abuse amplifier if left remote-exposed.)
+  "audit_contract", "audit_asset_integrity", "audit_device_frame", "audit_api_contract",
+  "raven_register"
+]);
+
+// Tools KEPT in remote mode for their safe pasted-content path, but whose `url`
+// argument reaches the local filesystem / network via headless capture (incl.
+// file:// → server-file oracle). In remote mode we reject the capture param so the
+// safe path (html / nodes snapshot) stays available with no local-surface exposure.
+// Browser url-capture is deferred to Phase 3, where it gets a sandboxed chromium.
+//
+// Also here: tools that accept a `project`/`profile`/`brand_profile_id` param
+// which resolves LOCAL per-machine store state (taste bindings / creative
+// records under ~/.raven). Per-user state on the hosted endpoint is a later
+// phase, so on the no-auth remote we reject those params with an explicit
+// message rather than silently returning an uncalibrated result that looks
+// calibrated-attempted. The store-layer latch (isRemoteRuntime) is the actual
+// security invariant that makes this arg-guard non-load-bearing; this layer is
+// honest API UX on top of it. The stateless audit runs when the param is omitted.
+//
+// Also here: evaluate_design's before/after screenshot params. Both flow into
+// diffScreenshots, which base64-decodes two PNGs and runs a per-pixel loop with
+// NO byte or dimension cap — an unbounded compute/memory sink on a no-auth
+// endpoint. Unlike the store guards, there is NO deeper latch behind this one, so
+// this arg-guard IS the only defense and must reject before the handler runs (the
+// wrapper below returns isError pre-handler). evaluate_design's description-based
+// principle-matching path is CPU-bounded and stays available when the screenshots
+// are omitted. A cap in diffScreenshots would also change the stdio path, so we
+// scope the block to remote via the guard rather than touch shared decode code.
+const REMOTE_ARG_GUARDS: { [tool: string]: { params: string[]; message: string } } = {
+  audit_page: { params: ["url"], message: "audit_page url-capture is disabled on the hosted (remote) endpoint. Pass the page HTML via the 'html' argument instead." },
+  audit_typography: { params: ["url"], message: "audit_typography url-capture is disabled on the hosted (remote) endpoint. Pass a 'nodes' snapshot instead of 'url'." },
+  audit_swiftui: { params: ["project", "profile"], message: "Taste-profile bindings are not available on the hosted (remote) endpoint (per-user state is a later phase). Omit 'project'/'profile' to run the stateless SwiftUI audit." },
+  audit_rn: { params: ["project", "profile"], message: "Taste-profile bindings are not available on the hosted (remote) endpoint (per-user state is a later phase). Omit 'project'/'profile' to run the stateless React Native audit." },
+  audit_screen: { params: ["project", "profile"], message: "Taste-profile bindings are not available on the hosted (remote) endpoint (per-user state is a later phase). Omit 'project'/'profile' to run the stateless screen audit." },
+  audit_ios_screen: { params: ["project", "profile"], message: "Taste-profile bindings are not available on the hosted (remote) endpoint (per-user state is a later phase). Omit 'project'/'profile' to run the stateless iOS screen audit." },
+  score_creative: { params: ["brand_profile_id"], message: "Local brand profiles are not available on the hosted (remote) endpoint (per-user state is a later phase). Omit 'brand_profile_id' to score the pasted creative statelessly." },
+  evaluate_design: { params: ["before_screenshot", "after_screenshot"], message: "Screenshot pixel-diff is disabled on the hosted (remote) endpoint (unbounded image decode). Omit 'before_screenshot'/'after_screenshot' and pass a 'description' to evaluate the design against UX principles statelessly." }
+};
+
 // buildServer() returns a FRESH McpServer with all 70 tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
-export function buildServer(): McpServer {
+export function buildServer(opts?: { remote?: boolean }): McpServer {
+// remote = serve only the 40 stateless remote-safe tools (gate off the 20
+// stateful/local + 5 browser + 5 fs/network/side-effect capability tools;
+// evaluate_design stays but its screenshot pixel-diff is arg-guarded off).
+// Defaults from RAVEN_REMOTE env so a serverless entry can set it
+// without threading opts. stdio callers pass nothing → remote=false → all 70.
+var remote: boolean = (opts && typeof opts.remote === "boolean")
+  ? opts.remote
+  : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
+// Latch the process as remote at the store-access choke point. One-way: stdio
+// (remote=false) never sets it, so the local store stays reachable and the
+// stdio wire contract is byte-for-byte unchanged; the hosted endpoint sets it
+// once (idempotent under Fluid-Compute instance reuse) and every ~/.raven read/
+// write below fails closed regardless of which tool or param reached it.
+if (remote) setRemoteRuntime();
 var server = new McpServer({
   name: "raven-mcp",
   version: PKG_VERSION
@@ -1579,29 +1693,56 @@ var originalTool: any = server.tool.bind(server);
 (server as any).tool = function () {
   var args = Array.prototype.slice.call(arguments);
   var toolName: string = args[0];
+  // Remote mode: silently skip registration of the stateful/local + browser
+  // tools. No registration statement uses the return value, so undefined is safe.
+  if (remote && REMOTE_GATED_TOOLS.has(toolName)) {
+    return undefined;
+  }
   var handler = args[args.length - 1];
   if (typeof handler === "function") {
     args[args.length - 1] = async function () {
       var start = Date.now();
       var input = arguments[0];
+      // Remote arg-guard: reject filesystem/network-reaching params (e.g. url →
+      // headless capture, incl. file://) for tools kept in remote mode only for
+      // their safe pasted-content path. Prevents a file/SSRF oracle without
+      // dropping the tool. No-op for stdio (remote=false).
+      if (remote) {
+        var guard = REMOTE_ARG_GUARDS[toolName];
+        if (guard && input) {
+          for (var gi = 0; gi < guard.params.length; gi++) {
+            var gv = input[guard.params[gi]];
+            if (gv !== undefined && gv !== null) {
+              return { content: [{ type: "text" as const, text: guard.message }], isError: true };
+            }
+          }
+        }
+      }
       var result = await handler.apply(null, arguments);
-      logUsage(toolName, input, result, Date.now() - start);
-      maybeComputeDailyDigest();
-      // Collect any notices to prepend — daily digest first, then update.
-      var notices: string[] = [];
-      if (pendingDailyDigest) {
-        notices.push(pendingDailyDigest);
-        pendingDailyDigest = null;
-      }
-      if (pendingUpdateNotice && !noticeShown) {
-        notices.push(pendingUpdateNotice);
-        noticeShown = true;
-      }
-      if (notices.length > 0 && result && Array.isArray(result.content)) {
-        for (var i = 0; i < result.content.length; i++) {
-          if (result.content[i] && result.content[i].type === "text") {
-            result.content[i].text = notices.join("\n") + "\n\n" + result.content[i].text;
-            break;
+      // Usage log + daily digest + update banner mutate module-global state and
+      // touch the local filesystem — stdio/local-only. Skipped entirely in remote
+      // mode so (a) concurrent Fluid-Compute requests never race on shared banner
+      // state and (b) stdio stays byte-for-byte identical without depending on any
+      // ambient env (VERCEL/RAVEN_NO_USAGE_LOG). remote=false → runs exactly as before.
+      if (!remote) {
+        logUsage(toolName, input, result, Date.now() - start);
+        maybeComputeDailyDigest();
+        // Collect any notices to prepend — daily digest first, then update.
+        var notices: string[] = [];
+        if (pendingDailyDigest) {
+          notices.push(pendingDailyDigest);
+          pendingDailyDigest = null;
+        }
+        if (pendingUpdateNotice && !noticeShown) {
+          notices.push(pendingUpdateNotice);
+          noticeShown = true;
+        }
+        if (notices.length > 0 && result && Array.isArray(result.content)) {
+          for (var i = 0; i < result.content.length; i++) {
+            if (result.content[i] && result.content[i].type === "text") {
+              result.content[i].text = notices.join("\n") + "\n\n" + result.content[i].text;
+              break;
+            }
           }
         }
       }
@@ -5855,7 +5996,10 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  const server = buildServer();
+  // Hardcode remote:false so stdio ALWAYS serves all 70 tools regardless of any
+  // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
+  // unchanged in every runtime condition (additive-only invariant).
+  const server = buildServer({ remote: false });
   var transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("raven-mcp v" + PKG_VERSION + " running on stdio — design intelligence ready");

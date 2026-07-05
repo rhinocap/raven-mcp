@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { extractStaticTraits, type PageTraits } from "./capture.js";
 import { assessDesignNotes, referenceDeltas, restraintGuard, buildHints, type NoteAssessment, type BuildHint } from "./taste-fidelity.js";
+import { isRemoteRuntime } from "./remote-runtime.js";
 
 export type TasteSeverity = "block" | "warn" | "nit";
 export type TasteRule = {
@@ -288,6 +289,10 @@ export function getTasteProfile(name: string): TasteProfile {
 }
 
 export function listTasteProfiles(): { name: string; rules: number; corpus: number; updated_at: string }[] {
+  // Hosted (remote) runtime: never enumerate the local taste store. Fail empty so
+  // callers (incl. resolveMobileTaste's search-all-profiles path) degrade to "no
+  // binding" — the store is per-machine state a no-auth endpoint must not read.
+  if (isRemoteRuntime()) return [];
   const home = tasteHome();
   if (!existsSync(home)) return [];
   return readdirSync(home)
@@ -791,6 +796,9 @@ export function listSurfaceBindings(profileName: string): SurfaceBinding[] {
 // Precedence: explicit project name beats url-host match; hosts match exactly
 // or as a parent domain (www.ravenmcp.ai matches a ravenmcp.ai binding).
 export function resolveSurfaceBinding(profileName: string, hints: { project?: string; url?: string }): SurfaceBinding | null {
+  // Hosted (remote) runtime: never resolve a local surface binding — fail closed
+  // to null so mobile audits run stateless with no ~/.raven access.
+  if (isRemoteRuntime()) return null;
   const bindings = listSurfaceBindings(profileName);
   if (bindings.length === 0) return null;
   const project = typeof hints.project === "string" ? hints.project.trim().toLowerCase() : "";
