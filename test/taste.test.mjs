@@ -801,13 +801,16 @@ test('surface calibration interview is built from the profile’s own scopes and
     assert.deepEqual(interview.voice_rules.map((r) => r.rule_id), ['BANNED-WARN']);
     assert.deepEqual(interview.rule_ids, ['GRADIENT-BLOCK', 'BANNED-WARN', 'HUE-NIT']);
     const ids = interview.questions.map((q) => q.id);
+    // No scope-membership question is emitted even though the profile carries a
+    // non-global scope — every kickoff starts fresh (does not presume the
+    // profile's pre-existing scopes apply). The scopes array is still returned.
     assert.deepEqual(ids, [
-      'identity', 'references', 'scope:portfolio-monochrome',
+      'identity', 'references',
       'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
       'design:entrance', 'design:loading', 'design:navigation', 'design:aesthetic', 'design:libraries',
       'voice', 'exceptions', 'matchers', 'special',
     ]);
-    assert.ok(interview.questions[2].question.includes('GRADIENT-BLOCK'));
+    assert.equal(ids.filter((id) => id.startsWith('scope:')).length, 0);
     assert.ok(interview.then.includes('bind_taste_surface'));
     // Dimension questions are grounded in the profile's own rules where they
     // exist (GRADIENT-BLOCK is category color) and say so where they don't.

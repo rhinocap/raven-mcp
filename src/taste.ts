@@ -455,16 +455,14 @@ export function getTasteInterview(profileName: string, project?: string, mode?: 
     skippable: true,
     priority: "core",
   });
-  for (const entry of scopes) {
-    questions.push({
-      id: "scope:" + entry.scope,
-      question: "Scope '" + entry.scope + "' carries: " +
-        entry.rules.map(function(rule) { return rule.rule_id + " (" + rule.severity_default + ") — " + rule.clause_text; }).join("; ") +
-        ". Does " + label + " belong to this scope? If no, these rules are skipped here.",
-      skippable: true,
-      priority: "core",
-    });
-  }
+  // No scope-membership questions. Every project is different — a fresh kickoff
+  // does not presume the profile's pre-existing non-global scopes (e.g. one
+  // surface's monochrome rules) apply here, which was noise for agency/freelance
+  // work that starts from scratch each time. A shared base still binds: it lives
+  // in the profile's global rules (always on) or is revisited via mode:'refine'.
+  // The `scopes` array stays in the return payload for any agent that wants to
+  // inspect them; a scoped rule still applies when the surface string a user
+  // gives in `identity` matches its scope tokens (see ruleInScope / audit_taste).
   // Learning loop: decisions recorded on OTHER projects feed this interview.
   // Recurring choices return as suggestions on their dimension's question, and
   // decision categories no standard dimension covers spawn NEW questions below
