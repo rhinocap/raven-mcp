@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revisit — 2026-07-04/05 (Interview robustness + engine guard + anime.js + v1.15.0)</title>
+<style>
+  :root {
+    --bg-base: #1a1a22;
+    --bg-surface: #212129;
+    --bg-raised: #2a2a33;
+    --border: rgba(255, 255, 255, 0.06);
+    --border-strong: rgba(255, 255, 255, 0.1);
+    --text-primary: #F0F0F2;
+    --text-secondary: #9498A0;
+    --text-tertiary: #5C5F68;
+    --text-accent: #0077c5;
+    --accent-blue: #0077c5;
+    --accent-green: #00E676;
+    --accent-orange: #FFAB40;
+    --accent-pink: #FF4081;
+    --accent-yellow: #FFD740;
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+    --max-width: 960px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .cover {
+    padding: 80px 24px 64px;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 0%, rgba(0, 119, 197, 0.15), transparent),
+      radial-gradient(ellipse 60% 60% at 80% 20%, rgba(0, 230, 118, 0.07), transparent),
+      linear-gradient(180deg, #1f1f2b 0%, var(--bg-base) 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .cover-inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+  }
+  .cover-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 16px;
+  }
+  .cover h1 {
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+  .cover .subtitle {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 680px;
+    margin-bottom: 48px;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .stat {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .stat-value {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .stat-value.green { color: var(--accent-green); }
+  .stat-value.blue { color: var(--accent-blue); }
+  .stat-value.orange { color: var(--accent-orange); }
+  .stat-value.yellow { color: var(--accent-yellow); }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+  .body {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+  .section {
+    margin-bottom: 48px;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .badge-shipped { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-verified { background: rgba(0,119,197,0.15); color: var(--accent-blue); }
+  .badge-miss { background: rgba(255,171,64,0.12); color: var(--accent-orange); }
+  .badge-repeat { background: rgba(255,64,129,0.12); color: var(--accent-pink); }
+  .badge-win { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-fixed { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .card p {
+    color: var(--text-secondary);
+    margin-top: 4px;
+    line-height: 1.65;
+  }
+  .card code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: rgba(255,255,255,0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-primary);
+  }
+  .card blockquote {
+    margin-top: 10px;
+    padding: 10px 16px;
+    border-left: 3px solid var(--accent-orange);
+    background: rgba(255,171,64,0.06);
+    color: var(--text-primary);
+    font-style: italic;
+  }
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 32px 0;
+  }
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .table-wrap {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    padding: 14px 20px;
+    text-align: left;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 14px 20px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  td:first-child { color: var(--text-primary); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  .highlight {
+    background: rgba(0,119,197,0.08);
+    border: 1px solid rgba(0,119,197,0.2);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .highlight p { color: var(--text-primary); }
+  .tag-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .tag {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-label">Revisit · 2026-07-04/05 · Headless (auto-fired on /clear)</div>
+    <h1>The interview stopped being<br>a suggestion</h1>
+    <p class="subtitle">A prose gate Codex bypassed became an engine that refuses to bind uncalibrated. anime.js earned full library parity across 8 code paths, needing two Codex adversarial rounds to actually close. v1.15.0 shipped clean, and a remote-hosting scope for the next session is drafted and waiting.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value green">481/481</div>
+        <div class="stat-label">Tests passing</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value blue">~79%</div>
+        <div class="stat-label">First-attempt accuracy</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value green">~96%</div>
+        <div class="stat-label">Autonomy score</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value orange">0</div>
+        <div class="stat-label">Push rejections</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="body">
+
+  <div class="section">
+    <div class="section-label">Headline finding</div>
+    <div class="highlight">
+      <p><strong>Prose gates don't enforce; the engine has to refuse.</strong> Codex called <code>get_taste_interview</code>, skipped asking the user, and bound a new surface identity-only — Andrew: "Codex did not do the interview." <code>bindTasteSurface</code> now REFUSES any bind whose result carries zero calibration (blank design_notes / voice_note / references / overrides) unless a non-blank <code>uncalibrated_ack</code> rationale is supplied and persisted for audit — gating both fresh binds and empty re-binds that would otherwise silently erase existing calibration. Two Codex adversarial rounds found real bypass holes before the guard shipped clean.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">What shipped — v1.15.0</div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-shipped">Shipped</span> Robust kickoff interview: 11 dimensions, options, voice examples, decision-learning loop</div>
+      <p>Grew from 6 to 11 dimensions (added entrance, loading, navigation, aesthetic, libraries), each now offering <code>options?</code> (multiple-choice — menu type: centered/hamburger/right-aligned/tabs/vertical-side-panel/FAB) and <code>examples?</code> (three voice-register samples of the SAME sentence, so the user picks by ear). <code>record_taste_decision</code>/<code>list_taste_decisions</code> persist every taste decision the user makes, approves, or corrects; the kickoff interview mines that ledger to suggest recurring choices as defaults and spawn new questions for uncovered categories. Andrew's exact ask: "we're learning from it so that we can continue to add and evolve the interview questions."</p>
+      <div class="tag-row">
+        <span class="tag">DESIGN_DIMENSIONS 6→11</span>
+        <span class="tag">options + examples</span>
+        <span class="tag">record_taste_decision</span>
+        <span class="tag">list_taste_decisions</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-shipped">Shipped</span> bind_taste_surface refusal guard (2 Codex rounds)</div>
+      <p>Engine-enforced instead of advisory. Round 1 of the adversarial pass found 4 real holes: whitespace-only bypass on <code>voice_note</code>, whitespace-only bypass on <code>uncalibrated_ack</code>, an <code>isNewSurface</code>-only check that let a same-project/different-surface empty rebind evade the guard entirely, and fabricated-but-nonblank notes as an accepted (documented) limitation of a deterministic gate. 3 of 4 fixed; the 4th is out of scope for code that can't judge authenticity. 481/481 tests, live runtime probe reproduced the exact bypass scenario → REFUSED.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-verified">Adversarial pass, 2 rounds</span> anime.js parity — a self-review miss caught only on round 2</div>
+      <p>Made anime.js first-class at parity with three.js/GSAP/lottie across all 8 recognition paths. Round 1 found 4 gaps (mis-branch, escalation parity, unbounded trigger, prose omission) — fixed. Round 2, meant as a confirmation pass, instead caught the severe one: the interview OPTION's own label text read <code>"anime-js: ... without GSAP's weight"</code> — the hyphen defeated the ANIME_WORDS matcher, and the literal word "GSAP" in that same label cross-contaminated the greedy GSAP_WORDS regex, so a user picking anime.js graded as <em>missing GSAP</em>. Fixed at the source label plus a broadened <code>anime[.\-\s]?js</code> pattern (dot/hyphen/space/none, rejects "xanime.js"). Confirms why a single self-review pass isn't enough — round 1 believed it was done.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-shipped">Shipped</span> generate_taste_portrait + document_kind genre distinction</div>
+      <p>Renders any bound surface as a self-contained designed HTML page from the local taste store; art direction routes by the surface's own color permissions (editorial-light / dark-product / atmosphere), never adjacent vocabulary. The killer gate — every portrait must pass <code>audit_taste</code> against its own surface — immediately surfaced a genre-mismatch false positive (missing three.js scene flagged on a document ABOUT the surface, not a build OF it), closed same-day with <code>document_kind:'artifact'|'portrait'</code>. All 10 of Andrew's bound surfaces pass.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Mistakes &amp; lessons</div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-miss">Editorial gap</span> A stored taste decision became a public headline, verbatim</div>
+      <p>A <code>blacksheep</code> decision — "Gym keeps its own palette" — got echoed as-is into a concept page's main headline, where it read oddly since the page's actual subject is per-surface scoping generally, not gyms.</p>
+      <blockquote>"I just think it's weird to have Gym in the title of the page"</blockquote>
+      <p style="margin-top:10px;">Fixed via a legitimate AskUserQuestion for the replacement line ("Every surface keeps its own palette"). Lesson: internal/stored strings need a "does this read sensibly standalone" check before they land on a page a stranger will read — quoting data verbatim isn't automatically correct copy.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-repeat">Compliance gap, not a new rule</span> Under-delegation recurred the same day it was promoted</div>
+      <p>Andrew's direct correction — "Why aren't you suing agents for htis?" — got the "Route heavy autonomous work to Codex" rule promoted to a HARD RULE with a bright-line ~50-line/2-file threshold, mid-session. Yet 3+ subsequent substantial legs the same session (the anime.js fix across 3 files, the interview-guard implementation, the surface-link injector) were still implemented via direct inline edits — only the adversarial-VERIFY step used Codex, not the implementation. The rule is correct and already loaded; the miss is execution discipline under time pressure, not a missing rule. Not re-queued — watching for recurrence in the next large session instead.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="badge badge-win">Proactive win</span> Caught a Vercel SSO wall before handing over the link</div>
+      <p>A new <code>taste-preview</code> Vercel project defaulted to deployment protection (302 → vercel.com/sso-api), which would have silently blocked Andrew's phone. Checked the response code before sharing, disabled via the REST API <code>ssoProtection:null</code> PATCH — caught before it needed to be reported as broken, the right shape for "verify before handoff."</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Promotion queue</div>
+    <div class="highlight">
+      <p>Queue was already empty at session start (a manual <code>/revisit</code> cleared it 2026-07-04). This run adds nothing new — the two candidate cross-cutting lessons above (repeat under-delegation, reactive-not-proactive design-judge gate) are execution-discipline misses against rules that are <em>already</em> promoted to <code>~/.claude/CLAUDE.md</code>. Queuing them again would duplicate an existing rule, not add one.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Metrics</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Session</th>
+            <th>First-attempt accuracy</th>
+            <th>Autonomy</th>
+            <th>Round-trips/task</th>
+            <th>Tests</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Interview robustness + engine guard + anime.js + v1.15.0</td>
+            <td>~79% (11/14)</td>
+            <td>~96%</td>
+            <td>~1.5 avg</td>
+            <td>481/481</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Raven opportunities — 2 new</div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-title">Mobile-viewport capture blind spot <span class="badge badge-miss" style="margin-left:6px;">P1</span></div>
+        <p>Browser tool's <code>resize_window</code> to 390px never produced a true mobile CSS viewport — Chrome enforces a minimum window width, so <code>innerWidth</code> stayed 1440 and "mobile" audits were secretly desktop-width. Only a hand-built 388px same-origin iframe got a real mobile viewport. Raven's own audits should drive a real device-metrics override, not a window resize.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Text-collision detector gap <span class="badge badge-miss" style="margin-left:6px;">P2</span></div>
+        <p>A taste-portrait row visually overlapped its own title in a screenshot while a numeric overflow check reported <code>overflow:false</code> — sibling elements can overlap without either individually overflowing its container. Caught only by eyes-on. Needs a bounding-rect-intersection check distinct from the existing overflow detector.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">What would help next time</div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-title">Land the remote-MCP scope decision</div>
+        <p>A scoped <code>/goal</code> for hosting Raven as a remote Streamable-HTTP MCP server (stateless tools first, Taste Engine kept local or redesigned for per-user cloud storage) is drafted and waiting to be pasted into the next session — Andrew's call on priority unlocks it.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Reinstall the Claude Desktop .mcpb</div>
+        <p>Found frozen at 1.3.3 against a shipped 1.15.0 — it's a separately-packaged copy that doesn't read working <code>dist/</code>. A manual reinstall via Settings → Extensions is the only way to sync it; worth checking drift on every release going forward.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
