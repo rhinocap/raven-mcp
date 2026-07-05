@@ -17,7 +17,8 @@ in place instead of duplicating.
 
 ## Open
 
-(empty)
+- [ ] 2026-07-05 | agent-output-placeholder-content-check | 3x | Subagent/tool results can pass schema/shape validation while the CONTENT is a stub/placeholder (literal "test" fields, example.com URLs, "waiting for background task" / "Task started in background as task-XXXX") — sanity-check content, not just shape; on detection, re-run the leg with a tightened/blocking prompt or fall back to a direct manual check immediately rather than polling passively or trusting it. | -> target: CLAUDE.md
+- [ ] 2026-07-05 | scope-doc-enumerate-capability-axes | 1x | When classifying tools/components for a hosting/architecture-scope doc, explicitly enumerate ALL blocking-capability axes (state/persistence, network/external-API, browser/headless-render, GPU/ML-inference/on-device-model) as a checklist rather than only the axes the prompt named — a missed axis (e.g. an on-device model dependency) surfaces as the user having to ask "did you account for X?" | -> target: CLAUDE.md
 
 ## Promoted
 

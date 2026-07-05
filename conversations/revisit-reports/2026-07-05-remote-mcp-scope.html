@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revisit — 2026-07-05 (Advisor rule + remote-MCP hosting scope doc)</title>
+<style>
+  :root {
+    --bg-base: #1a1a22;
+    --bg-surface: #212129;
+    --bg-raised: #2a2a33;
+    --border: rgba(255, 255, 255, 0.06);
+    --border-strong: rgba(255, 255, 255, 0.1);
+    --text-primary: #F0F0F2;
+    --text-secondary: #9498A0;
+    --text-tertiary: #5C5F68;
+    --text-accent: #0077c5;
+    --accent-blue: #0077c5;
+    --accent-green: #00E676;
+    --accent-orange: #FFAB40;
+    --accent-pink: #FF4081;
+    --accent-yellow: #FFD740;
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+    --max-width: 960px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .cover {
+    padding: 80px 24px 64px;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 0%, rgba(0, 119, 197, 0.15), transparent),
+      radial-gradient(ellipse 60% 60% at 80% 20%, rgba(0, 230, 118, 0.07), transparent),
+      linear-gradient(180deg, #1f1f2b 0%, var(--bg-base) 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .cover-inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+  }
+  .cover-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 16px;
+  }
+  .cover h1 {
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+  .cover .subtitle {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 680px;
+    margin-bottom: 48px;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .stat {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .stat-value {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .stat-value.green { color: var(--accent-green); }
+  .stat-value.blue { color: var(--accent-blue); }
+  .stat-value.orange { color: var(--accent-orange); }
+  .stat-value.yellow { color: var(--accent-yellow); }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+  .body {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+  .section {
+    margin-bottom: 48px;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .badge-shipped { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-verified { background: rgba(0,119,197,0.15); color: var(--accent-blue); }
+  .badge-miss { background: rgba(255,171,64,0.12); color: var(--accent-orange); }
+  .badge-repeat { background: rgba(255,64,129,0.12); color: var(--accent-pink); }
+  .badge-win { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-fixed { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .card p {
+    color: var(--text-secondary);
+    margin-top: 4px;
+    line-height: 1.65;
+  }
+  .card code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: rgba(255,255,255,0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-primary);
+  }
+  .card blockquote {
+    margin-top: 10px;
+    padding: 10px 16px;
+    border-left: 3px solid var(--accent-orange);
+    background: rgba(255,171,64,0.06);
+    color: var(--text-primary);
+    font-style: italic;
+  }
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 32px 0;
+  }
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .table-wrap {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    padding: 14px 20px;
+    text-align: left;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 14px 20px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  td:first-child { color: var(--text-primary); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  .highlight {
+    background: rgba(0,119,197,0.08);
+    border: 1px solid rgba(0,119,197,0.2);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .highlight p { color: var(--text-primary); }
+  .tag-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .tag {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-label">Revisit · 2026-07-05 · Headless (auto-fired on /clear)</div>
+    <h1>A scope doc that survived<br>its own adversarial pass</h1>
+    <p class="subtitle">The remote-MCP hosting plan handed off from the prior session shipped as a decision-ready doc — 70 tools bucketed and grep-verified, no-auth recommended after checking what Claude.ai's UI actually accepts, and a two-tier model axis folded in only after Andrew asked the one question the classification framework should have asked itself.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value blue">~75%</div>
+        <div class="stat-label">First-attempt accuracy</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value green">70/70</div>
+        <div class="stat-label">Tools bucketed, zero gaps</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value orange">3×</div>
+        <div class="stat-label">Placeholder-content repeat</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value green">0</div>
+        <div class="stat-label">Push rejections</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="body">
+
+  <div class="section">
+    <div class="section-label">What shipped</div>
+    <div class="card">
+      <div class="card-title">Advisor rule broadened <span class="badge badge-shipped">Shipped</span></div>
+      <p>Extended the Fable 5 planner/adviser HARD RULE in <code>~/.claude/CLAUDE.md</code> to cover Opus 4.8 sessions, not just Sonnet 5 — one clean edit, no round-trips.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><code>docs/remote-mcp-scope.md</code> <span class="badge badge-shipped">Shipped</span> <span class="badge badge-verified">Adversarially verified</span></div>
+      <p>Decision-ready 8-section build plan for hosting Raven MCP remotely, additively, alongside the existing stdio path. Transport (a <code>buildServer()</code> factory, since the module-level <code>McpServer</code> singleton at <code>index.ts:1562</code> can only <code>connect()</code> once), a 45/20/5 stateless/stateful/browser tool split grep-verified as a perfect partition, no-auth recommended for v1 after finding Claude.ai's UI connector flow rejects a pasted static bearer token, Vercel hosting limits vs. the five headless-browser tools, distribution paths, a client-support matrix, and a phased plan with six decisions flagged for Andrew.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Two-tier taste-model axis folded in <span class="badge badge-fixed">Fixed after being flagged</span></div>
+      <p>Andrew: <em>"did you take into account the local model we're training as well?"</em> — the answer was no. Folded in as a 4th blocking-capability axis: Tier 1 (near-term on-device LoRA, local by construction) and Tier 2 (eventual cloud/self-hosted API model, reached by an outbound HTTPS call — no GPU needed on Vercel in either tier). Andrew decided on-device/local-first, skip OAuth for v1.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><code>/loop</code> drafted for the build <span class="badge badge-shipped">Staged in Zed</span></div>
+      <p>2,500 characters (under the 4,000 cap), one phase per iteration (additive refactor → stateless-remote → browser-remote), each gated on a deployed-URL verify. Ready to paste after <code>/clear</code>.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Mistakes &amp; lessons</div>
+
+    <div class="card">
+      <div class="card-title">Subagent output can be schema-valid and content-garbage <span class="badge badge-repeat">Repeat — 3×</span></div>
+      <p>Twice this session, an agent call returned a result that passed shape validation while its content was a stub: a parallel research leg returned <code>{"section":"test","findings":[{"claim":"test","source_url":"https://example.com"}]}</code>, and the <code>codex:codex-rescue</code> adversarial-verify pass returned only "waiting for background task" instead of real findings. Combined with the 2026-07-04 session's 4-5 <code>codex-rescue</code> "Task started in background as task-XXXX" placeholders (logged then, not queued), this is a confirmed 3rd occurrence.</p>
+      <blockquote>Both times, fell back to a direct manual check (re-running the leg; grep-based self-verification) rather than polling passively or trusting the placeholder — the right recovery, just not yet a written rule.</blockquote>
+      <div class="tag-row">
+        <span class="tag">queued → PROMOTION-QUEUE.md</span>
+        <span class="tag">agent-output-placeholder-content-check</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Tool classification missed a blocking-capability axis <span class="badge badge-miss">User-caught</span></div>
+      <p>The scope doc's classification covered state (filesystem) and browser-dependency (Playwright) but had no bucket for on-device/ML-inference dependency until Andrew asked about the local model being trained. The framework should have enumerated all blocking-capability axes on its own, not just the ones the original prompt named.</p>
+      <div class="tag-row">
+        <span class="tag">queued → PROMOTION-QUEUE.md</span>
+        <span class="tag">scope-doc-enumerate-capability-axes</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Salesy language slipped past self-review, twice <span class="badge badge-miss">Habit, not a gap</span></div>
+      <p>The design-judge Stop-hook gate caught two persuasion-register phrases in the doc's prose — "the reach unlock" and "for free" (which also self-contradicted the very next sentence). The VOICE-editorial-restraint rule was already loaded and promoted 2026-06-29. Same recurring habit-execution gap already tracked in CLAUDE.md — no new rule needed, logged for trend-awareness only.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Minor, self-caught before shipping</div>
+      <p>A Workflow script's template literal contained backticks that broke JS parsing (one retry to fix). The <code>audit_url</code> browser-dependency citation initially pointed at an error-string line instead of the real <code>capture.js</code> chromium-launch call — caught during the self-run adversarial grep pass, fixed before Andrew ever saw the doc.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Verification that held</div>
+    <div class="card">
+      <div class="card-title">Bucket partition proven, not narrated <span class="badge badge-win">Win</span></div>
+      <p>Rather than trusting "70 tools, roughly 45/20/5," ran a from-scratch grep-diff: 45 + 20 + 5 = 70, zero duplicates, zero gaps — every canonical tool name accounted for in exactly one bucket. That check is what surfaced the bad <code>audit_url</code> citation before it shipped.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Didn't trust a degraded verifier <span class="badge badge-win">Win</span></div>
+      <p>When the Codex adversarial pass returned a placeholder instead of findings, didn't re-poll or accept it at face value — ran the falsification checks directly via grep (more reliable for these deterministic repo-grounded claims anyway) and said so plainly in the completion report instead of silently substituting.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Promotion queue (blocked in headless — needs a manual /revisit)</div>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Slug</th><th>Count</th><th>Rule</th></tr>
+        <tr><td>agent-output-placeholder-content-check</td><td>3×</td><td>Subagent/tool results can pass schema validation while the content is a stub — sanity-check content, not just shape.</td></tr>
+        <tr><td>scope-doc-enumerate-capability-axes</td><td>1× (cross-cutting)</td><td>Enumerate all blocking-capability axes (state, network, browser, GPU/ML-inference) explicitly when classifying tools for a hosting/architecture scope doc.</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">What would help go faster</div>
+    <div class="highlight">
+      <p>Naming the full dependency surface up front (including any in-flight local-model work) when scoping a hosting/architecture doc would have skipped the fold-in round-trip entirely — this is now captured as a queued rule rather than something to re-ask each time.</p>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
