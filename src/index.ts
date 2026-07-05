@@ -3,9 +3,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { readFileSync, readdirSync, existsSync } from "fs";
+import { readFileSync, readdirSync, existsSync, realpathSync } from "fs";
 import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import { auditContainerWidth } from "./audit-container.js";
 import { capturePage, CaptureUnavailableError, annotateVideoArtifacts, verifyFindings } from "./capture.js";
 import type { VerifiableFinding, PageTraits } from "./capture.js";
@@ -1559,6 +1559,13 @@ function maybeComputeDailyDigest(): void {
 
 // ── Server ──────────────────────────────────────────────────────────
 
+// buildServer() returns a FRESH McpServer with all 70 tools + the usage-log/
+// update-banner wrapper registered. A new instance is required per transport
+// connection (SDK #961: one McpServer connects to exactly one transport, ever).
+// The stdio entry calls this once; a future HTTP entry calls it per request.
+// NOTE: importing this module does NOT start a server — only calling buildServer()
+// registers the tools, and only main() (guarded to direct-run) connects stdio.
+export function buildServer(): McpServer {
 var server = new McpServer({
   name: "raven-mcp",
   version: PKG_VERSION
@@ -5842,9 +5849,13 @@ server.tool(
   }
 );
 
+  return server;
+}
+
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
+  const server = buildServer();
   var transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("raven-mcp v" + PKG_VERSION + " running on stdio — design intelligence ready");
@@ -5852,7 +5863,22 @@ async function main() {
   checkForUpdate();
 }
 
-main().catch(err => {
-  console.error("Fatal:", err);
-  process.exit(1);
-});
+// Only start the stdio server when this module is the direct entry point (the
+// npm bin, `node dist/index.js`, tsx dev, or the .mcpb `node .../dist/index.js`
+// launch). Importing the module (e.g. a future HTTP entry importing buildServer)
+// must NOT spawn stdio. process.argv[1] may be a bin symlink, so resolve it
+// through realpath before comparing to import.meta.url.
+let isDirectRun = false;
+try {
+  isDirectRun = !!process.argv[1] &&
+    import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+} catch {
+  isDirectRun = false;
+}
+
+if (isDirectRun) {
+  main().catch(err => {
+    console.error("Fatal:", err);
+    process.exit(1);
+  });
+}
