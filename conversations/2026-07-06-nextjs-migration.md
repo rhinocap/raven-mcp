@@ -25,11 +25,17 @@ Computer crashed mid site-update. Recovered: one staged, intact uncommitted edit
 **Phase 2 (content+CSS port):** delegated to Codex — hero subtitle, insert #judge (site 2360-2417) + #cinematic (2420-2450), rewrite tools section to 70 tools/4 groups (site 2613-3004), FAQ 55→70, layout.tsx metadata, llms.txt; + globals.css transplant (judge/cinematic/replay/eyebrow/static-term-body/syntax spans + hero-grid-canvas/scrim/frosted-CTA). Web already has terminal/tool/grid-bg classes (reuse).
 **Phase 3 (grid):** authored `web/components/HeroGrid.tsx` — Beacon-only React client component, StrictMode-safe (effect-local state + full cleanup), reduced-motion static draw. NOT yet wired into page.tsx (waits for Codex to finish editing page.tsx).
 
+### Port completed + verified (commits f5b5d37, 229375c)
+**What:** Reviewed Codex port; wired `<HeroGrid/>` into hero; fixed the JSX `<pre>` newline-collapse bug (both taste-quote terminals — audit_taste BLOCK verdict + build_hint recipe — via `dangerouslySetInnerHTML` template literals w/ raw `class=`). Build green.
+**Eyes-on (headless Chrome @ localhost:3200):** ✓ #judge audit_taste terminal renders multi-line w/ syntax spans; ✓ #cinematic build_hint terminal renders all 9 lines w/ spans + em-dash; ✓ tools section = 70 tools / 4 groups (Know/Create/Audit/Judge... actually 6 group cards w/ counts), headline "Seventy tools, organized by job"; ✓ hero subtitle "70 tools" copy.
+**audit_taste (raven-mcp binding, product-site):** caught 2 Codex persuasion-word infidelities — "Field-tested"→"Proven" (×2 spots). Restored source-verbatim → VOICE warn cleared. Remaining BLOCK (FAQ inline prose link 189×21 <44px) + WARN (60 brand-icon hardcoded colors) are BOTH inherited byte-identical from site/index.html — not port regressions, known-acceptable at site's 94/B floor.
+**Grid:** HeroGrid Beacon canvas wired; at-rest faint (baseGrid 0.02) so hover glow not visible in static shots — Andrew to judge brightness live at localhost:3200.
+
 ## State at end of session
 - Static-site grid dimming: committed on feat/nextjs-migration (2972de4)
-- Next.js migration: EXECUTING — Codex content+CSS port running; HeroGrid.tsx authored, not yet wired
+- Next.js content port: DONE + verified on feat/nextjs-migration (f5b5d37, 229375c)
+- Codex devil's-advocate full section-diff: running (background)
 - Pending (carried forward):
-  - Reconcile + review Codex port diff; wire <HeroGrid/> into hero (replace grid-bg div); npm build + eyes-on grid verify
-  - Phase 4: preview deploy + audit_taste/audit_page
-  - Phase 5–6 (HIGH RISK, needs P4 coord): MCP proxy rewrites in web/next.config.js + curl verify; domain flip with rollback
-  - design-judge + Codex devil's-advocate before any "done" claim
+  - Andrew judges grid brightness live @ localhost:3200 (may want dimmer)
+  - Phase 4: preview deploy + audit_taste/audit_page on Vercel URL
+  - Phase 5–6 (HIGH RISK, needs P4 coord): MCP proxy rewrites in web/next.config.js (/api/mcp, /api/mcp-user, /.well-known/*) + curl verify; domain flip with rollback
