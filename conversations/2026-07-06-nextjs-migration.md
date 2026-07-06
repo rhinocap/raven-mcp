@@ -31,11 +31,17 @@ Computer crashed mid site-update. Recovered: one staged, intact uncommitted edit
 **audit_taste (raven-mcp binding, product-site):** caught 2 Codex persuasion-word infidelities — "Field-tested"→"Proven" (×2 spots). Restored source-verbatim → VOICE warn cleared. Remaining BLOCK (FAQ inline prose link 189×21 <44px) + WARN (60 brand-icon hardcoded colors) are BOTH inherited byte-identical from site/index.html — not port regressions, known-acceptable at site's 94/B floor.
 **Grid:** HeroGrid Beacon canvas wired; at-rest faint (baseGrid 0.02) so hover glow not visible in static shots — Andrew to judge brightness live at localhost:3200.
 
+### Full-site grid (Andrew: "make the grid scroll for the entire site, not just the hero")
+**What:** Promoted the Beacon canvas from hero-only to a fixed full-site backdrop. HeroGrid moved OUT of .hero to a direct child of <main> (so z-index:-1 isn't trapped by hero overflow/reveal stacking contexts); listeners on window (clientX/Y map 1:1, no scroll math); touch guard; removed 4 static .grid-bg divs + the .grid-bg CSS rule (moiré against live 40px grid). .hero-grid-canvas: position:fixed; z-index:-1; mask dropped.
+**Why:** Andrew's exploratory ask — full-page interactive grid.
+**Verified:** canvas draws spotlight at scrollY 6000 (canvasCenterPixel cyan [0,170,255]); grid visible in gutters over the layers section, behind opaque cards (no card-text washout); hero scrim retained. Build green. design-judge PASS (0 new findings). Codex devil's-advocate: 1 flag ("grid hidden behind body bg") = FALSE POSITIVE (disproven by render; body bg propagates to viewport backdrop below negative-z) — closed with a background-propagation invariant comment in globals.css.
+**Committed:** cfba187 on feat/nextjs-migration (NOT pushed — feature branch, awaiting Andrew's live brightness judgment).
+
 ## State at end of session
 - Static-site grid dimming: committed on feat/nextjs-migration (2972de4)
 - Next.js content port: DONE + verified on feat/nextjs-migration (f5b5d37, 229375c)
-- Codex devil's-advocate full section-diff: running (background)
+- Full-site grid: DONE + verified, committed cfba187
 - Pending (carried forward):
-  - Andrew judges grid brightness live @ localhost:3200 (may want dimmer)
+  - Andrew judges grid brightness live @ localhost:3200 (opacity:0.72 = the dial; may want dimmer)
   - Phase 4: preview deploy + audit_taste/audit_page on Vercel URL
   - Phase 5–6 (HIGH RISK, needs P4 coord): MCP proxy rewrites in web/next.config.js (/api/mcp, /api/mcp-user, /.well-known/*) + curl verify; domain flip with rollback
