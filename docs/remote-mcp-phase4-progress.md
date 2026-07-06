@@ -19,10 +19,11 @@
 ## Phases
 
 ### P4.0 — Async `TasteStore` interface; fs adapter; stdio byte-identical
-- [ ] Built · commit: `______`
-- [ ] `npm test` green · [ ] zero `node:fs` in `taste.ts` outside `FsTasteStore` · [ ] `~/.raven/taste` files format-identical
-- [ ] Preview URL: `______` · anonymous tools/list == golden hash, gated tools absent
-- Verify evidence: `______`
+- [x] Built · commit: `5c0a80a`
+- [x] `npm test` green (492/492) · [x] zero `node:fs` in `taste.ts` outside `FsTasteStore` · [x] `~/.raven/taste` files format-identical (2-space indent, trailing `\n`, same keys — stdio smoke)
+- [x] Preview URL: `https://site-1ay3h31x8-cunliffeandrewc-8712s-projects.vercel.app` · anonymous tools/list == golden hash (45 tools, sha `f64bb18…2bb0a6`), gated taste tools absent
+- Verify evidence: live `/api/mcp` initialize+tools/list → 45 / golden / no-leak (p40-http-probe); local `buildServer({remote:true})` hash == golden; `FsTasteStore.describe` → absolute path (byte-identical corrupt-store error), `ClosedTasteStore` reads null/[] + writes throw.
+- Codex devil's-advocate (verdict FALSIFIED → dispositioned): **(C)** corrupt-sidecar error had drifted from absolute path to logical filename → **FIXED** via `store.describe()` (Fs = absolute path restores byte-identity; non-fs = logical name, since an absolute path is false for Redis). **(B)** `bind_taste_surface` reads `.png` references via `readFile` (`index.ts:5848`), bypassing the store — pre-existing, gated off remote → **deferred to P4.3** (make the image-ref read a store/injected capability, or disallow remote image refs). **(D)** read-modify-write races in bind/record (no atomicity) — benign under serial stdio + throwing remote store → **deferred to P4.2** (atomic mutation semantics before Redis un-gating).
 
 ### P4.1 — AuthKit AS + OAuth discovery + authed endpoint skeleton (still 45 tools)
 - [ ] Built · commit: `______`
@@ -61,3 +62,4 @@
 ## Iteration log
 
 - 2026-07-05 — Phase 4 scope + ledger created; owner decisions locked (free · mcp.ravenmcp.ai · ChatGPT hard). Plan of record: Fable. Next unstarted: **P4.0**.
+- 2026-07-05 — **P4.0 shipped** (commit `5c0a80a`, preview `site-1ay3h31x8`): async `TasteStore` + `FsTasteStore`/`ClosedTasteStore`, `taste.ts` fs-free, stdio byte-identical (`describe()` restores corrupt-store error text), 492/492 tests, anon 45/golden hash. Codex adversarial pass dispositioned (C fixed; B→P4.3; D→P4.2). Next unstarted: **P4.1** — blocked on Andrew's provisioning: WorkOS AuthKit account, Upstash Redis via Vercel Marketplace, `mcp.ravenmcp.ai` DNS.
