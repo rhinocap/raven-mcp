@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revisit — 2026-07-06 (Crash recovery + Next.js migration)</title>
+<style>
+  :root {
+    --bg-base: #1a1a22;
+    --bg-surface: #212129;
+    --bg-raised: #2a2a33;
+    --border: rgba(255, 255, 255, 0.06);
+    --border-strong: rgba(255, 255, 255, 0.1);
+    --text-primary: #F0F0F2;
+    --text-secondary: #9498A0;
+    --text-tertiary: #5C5F68;
+    --text-accent: #0077c5;
+    --accent-blue: #0077c5;
+    --accent-green: #00E676;
+    --accent-orange: #FFAB40;
+    --accent-pink: #FF4081;
+    --accent-yellow: #FFD740;
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+    --max-width: 960px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .cover {
+    padding: 80px 24px 64px;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 0%, rgba(0, 119, 197, 0.15), transparent),
+      radial-gradient(ellipse 60% 60% at 80% 20%, rgba(0, 230, 118, 0.07), transparent),
+      linear-gradient(180deg, #1f1f2b 0%, var(--bg-base) 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .cover-inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+  }
+  .cover-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 16px;
+  }
+  .cover h1 {
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+  .cover .subtitle {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 680px;
+    margin-bottom: 48px;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .stat {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .stat-value {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .stat-value.green { color: var(--accent-green); }
+  .stat-value.blue { color: var(--accent-blue); }
+  .stat-value.orange { color: var(--accent-orange); }
+  .stat-value.yellow { color: var(--accent-yellow); }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+  .body {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+  .section {
+    margin-bottom: 48px;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .badge-shipped { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-verified { background: rgba(0,119,197,0.15); color: var(--accent-blue); }
+  .badge-miss { background: rgba(255,171,64,0.12); color: var(--accent-orange); }
+  .badge-repeat { background: rgba(255,64,129,0.12); color: var(--accent-pink); }
+  .badge-win { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-fixed { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .card p {
+    color: var(--text-secondary);
+    margin-top: 4px;
+    line-height: 1.65;
+  }
+  .card code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: rgba(255,255,255,0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-primary);
+  }
+  .card blockquote {
+    margin-top: 10px;
+    padding: 10px 16px;
+    border-left: 3px solid var(--accent-orange);
+    background: rgba(255,171,64,0.06);
+    color: var(--text-primary);
+    font-style: italic;
+  }
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 32px 0;
+  }
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .table-wrap {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    padding: 14px 20px;
+    text-align: left;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 14px 20px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  td:first-child { color: var(--text-primary); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  .highlight {
+    background: rgba(0,119,197,0.08);
+    border: 1px solid rgba(0,119,197,0.2);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .highlight p { color: var(--text-primary); }
+  .tag-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .tag {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-label">Revisit · 2026-07-06 · Headless (auto-fired on /clear)</div>
+    <h1>Crashed, recovered,<br>then rebuilt the whole site</h1>
+    <p class="subtitle">A mid-edit crash cost nothing — the session reconstructed itself from git state and a transcript grep, then carried the ravenmcp.ai marketing site from static HTML across to Next.js: a dimmed hover-grid promoted to a full-site backdrop, a Codex-delegated content port that needed a fidelity fix, and a three-terminal "Taste Engine lifecycle" restructure that Fable 5 helped land correctly on the first real attempt.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value blue">~74%</div>
+        <div class="stat-label">First-attempt accuracy</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value orange">6×</div>
+        <div class="stat-label">codex-rescue mistaken for pollable, again</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value green">0</div>
+        <div class="stat-label">Work lost to the crash</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value green">0</div>
+        <div class="stat-label">Push rejections</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="body">
+
+  <div class="section">
+    <div class="section-label">What shipped — feat/nextjs-migration (not yet pushed)</div>
+    <div class="card">
+      <div class="card-title">Crash recovery <span class="badge badge-win">Zero loss</span></div>
+      <p>Reconstructed the interrupted "site update" task purely from git state plus a grep of the prior session's JSONL transcript — the Next.js-migration decision, the content-update plan, and the in-progress hero-grid dimming were all recovered intact, including one staged-but-uncommitted edit (opaque frosted install CTA).</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Branch + content port <span class="badge badge-shipped">Shipped</span> <span class="badge badge-fixed">Fidelity fix required</span></div>
+      <p>Created <code>feat/nextjs-migration</code> off <code>p4-remote-taste</code> HEAD (the actual source of current site content, not <code>main</code>). A Fable 5 plan guided the port; Codex executed the content+CSS transplant (hero copy, <code>#judge</code>/<code>#cinematic</code> sections, 70-tool taxonomy, FAQ, globals.css). <code>audit_taste</code> caught two silent persuasion-verb substitutions ("Field-tested"→"Proven") that the build never would have — restored verbatim.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">HeroGrid.tsx + full-site backdrop <span class="badge badge-shipped">Shipped</span> <span class="badge badge-verified">Codex false positive resolved</span></div>
+      <p>Hand-authored a StrictMode-safe React port of the Beacon hover-grid, then promoted it from hero-only to a fixed full-page backdrop per Andrew's ask ("make the grid scroll for the entire site"). A Codex devil's-advocate flag ("grid hidden behind body bg") was correctly disproven by rendering and closed with a documented invariant rather than "fixed" reflexively.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Copy trim + three-terminal Taste Engine lifecycle <span class="badge badge-shipped">Shipped</span> <span class="badge badge-verified">2 restructures</span></div>
+      <p>Cut ~175 words of redundant left-column copy, then rebuilt the single <code>#judge</code> terminal into three stacked terminals telling the calibrate → audit → kick-off story. Fable 5's layout plan caught and fixed its own truthfulness bug pre-implementation (would have interviewed an already-bound surface). DOM-measured pixel-identical at both desktop and mobile widths.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Mistakes &amp; lessons</div>
+
+    <div class="card">
+      <div class="card-title"><code>codex:codex-rescue</code> is not resumable <span class="badge badge-repeat">Repeat — bumped to 6×</span></div>
+      <p>Mistaken for a blocking/pollable agent again during the content-port task (agentId <code>af36109337d8f0bf5</code>) — the 6th recorded instance of the same confusion. The rescue agent is a pure single-invocation forwarder; the fix (poll the on-disk job-state JSON directly, never "resume" expecting a block) is well-established and this is now a pure habit-execution gap.</p>
+      <div class="tag-row">
+        <span class="tag">queued → PROMOTION-QUEUE.md</span>
+        <span class="tag">agent-output-placeholder-content-check (now 6×)</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Content port silently swapped in banned persuasion verbs <span class="badge badge-miss">New — queued</span></div>
+      <p>Codex's HTML→JSX port changed "Field-tested" to "Proven" and "the pattern that works" to "the proven pattern" — structurally identical, build stayed green, and only Raven's <code>audit_taste</code> VOICE check caught it. No build/structure check would have. Any future delegated content port needs a word-for-word verbatim diff against the source as a standing step.</p>
+      <div class="tag-row">
+        <span class="tag">queued → PROMOTION-QUEUE.md</span>
+        <span class="tag">content-port-verbatim-fidelity-diff (new, 1×)</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Browser automation reported success while state hadn't changed <span class="badge badge-miss">New — queued</span></div>
+      <p><code>resize_window</code> and programmatic <code>scrollTo</code> both returned success while the actual viewport/scroll position was unchanged — caught only via a follow-up JS read (<code>innerWidth</code>/<code>scrollY</code>). A <code>scroll-behavior:smooth</code> CSS rule also silently blocked an instant programmatic scroll until switched to <code>window.scroll({behavior:'instant'})</code>.</p>
+      <div class="tag-row">
+        <span class="tag">queued → PROMOTION-QUEUE.md</span>
+        <span class="tag">browser-automation-success-lies-about-state (new, 1×)</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Terminal-uniformity ask needed a second restructure</div>
+      <p>"All terminals should be uniform size" was first read as fixing <code>#judge</code>'s two-column layout to match <code>#cinematic</code>'s single-recipe shape — correct as far as it went, but Andrew's actual ask ("three terminals, one initial interview, then the one showing now, then kicking off a project") only surfaced on the next message and required a full rebuild into the three-stacked-terminal lifecycle.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Reactive design-judge gate, continuing trend <span class="badge badge-repeat">Logged, not re-queued</span></div>
+      <p>The Stop-hook pattern (claim "done" first, hook catches the missing gate second) fired twice more — after the content-port "done" claim and after the "grow terminals" "done" claim. Consistent with the already-established read: this is a habit-execution gap against an already-promoted rule, not a coverage gap, so it isn't re-queued.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Verification that held</div>
+    <div class="card">
+      <div class="card-title">Transcript-recovery rule worked exactly as designed <span class="badge badge-win">Win</span></div>
+      <p>Rather than reconstructing from a thinner memory of "what was I doing," the crash recovery grepped the prior session's actual JSONL transcript — recovering the precise in-flight state (including a staged-but-uncommitted CSS edit) instead of a lossy approximation.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Parallel-instance collision discipline held throughout <span class="badge badge-win">Win</span></div>
+      <p>Every commit's diff was checked against the parallel P4 workstream's files (zero overlap with <code>api/mcp*</code>, TasteStore, auth, next.config) and the session closed with an explicit, scoped cross-instance note about <code>p4-remote-taste</code>'s unpushed local commit rather than silently pushing someone else's WIP.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Fable 5 advisor consult self-corrected before implementation <span class="badge badge-win">Win</span></div>
+      <p>The three-terminal lifecycle plan caught its own truthfulness bug pre-build — the drafted plan would have had step ① interview the already-bound <code>raven-mcp</code> surface, making the demo's <code>existing_binding: null</code> untruthful. Fixed to interview the genuinely-unbound <code>fieldnotes</code> project before any code was written.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Promotion queue (blocked in headless — needs a manual /revisit)</div>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Slug</th><th>Count</th><th>Rule</th></tr>
+        <tr><td>agent-output-placeholder-content-check</td><td>6×</td><td>Subagent/tool results can pass schema validation while the content is a stub — including <code>codex:codex-rescue</code>'s own "task started" acknowledgment. Poll job-state JSON directly; never resume the rescue agent for a blocking result.</td></tr>
+        <tr><td>scope-doc-enumerate-capability-axes</td><td>5×</td><td>Enumerate all blocking-capability axes explicitly and up front when classifying tools for a hosting/architecture scope doc.</td></tr>
+        <tr><td>advisor-fork-inherits-and-drifts</td><td>1×</td><td>Never use a context-inheriting Agent <code>fork</code> for a fresh advisor/planner consult — use a clean, self-contained agent type instead.</td></tr>
+        <tr><td>browser-automation-success-lies-about-state</td><td>1× (new)</td><td><code>resize_window</code>/<code>scrollTo</code> can report success without effect — verify via a follow-up JS read (<code>innerWidth</code>/<code>scrollY</code>/<code>getBoundingClientRect</code>), never trust the tool's own success message.</td></tr>
+        <tr><td>content-port-verbatim-fidelity-diff</td><td>1× (new)</td><td>After any delegated content port/transplant, diff the ported text word-for-word against the source — a build/structure check will not catch a silent voice-rule-violating word substitution.</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">What would help go faster</div>
+    <div class="highlight">
+      <p>A standing "diff the port against the source, word for word" step on any delegated content-transplant task would have caught the Codex "Proven" substitution without needing a separate <code>audit_taste</code> pass. And a one-line reminder at the top of any Codex-delegated task — "codex-rescue never blocks; poll the job JSON" — would finally break the 6-session habit of expecting it to.</p>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
