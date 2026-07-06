@@ -824,6 +824,97 @@ test('buildHints: "three" as a plain word never triggers the three.js recipe', (
   assert.ok(medium.some((h) => h.technique === 'three.js hero scene'));
 });
 
+// ---- AI cinematic video hero + scroll-scrub cinematic sequence recipes ----
+
+test('buildHints: AI cinematic video hero recipe fires only on notes that name AI generation or the tool', () => {
+  const positives = [
+    { imagery: 'higgsfield' },
+    { imagery: 'seedance' },
+    { imagery: 'ai-cinematic-video' },
+    { imagery: 'ai cinematic film' },
+    { special: 'ai-cinematic clip' },
+    { entrance: 'ai cinematic hero' },
+    { imagery: 'ai-generated video' },
+    { motion: 'ai generated film' },
+  ];
+  for (const note of positives) {
+    const hints = buildHints(note);
+    assert.ok(hints.some((h) => h.technique.startsWith('AI cinematic video')), JSON.stringify(note) + ' must trigger the AI-video recipe');
+  }
+});
+
+test('buildHints: the full ai-cinematic-video imagery interview option triggers the AI-video recipe', () => {
+  const optionText = "ai-cinematic-video: a short AI-generated film clip as the hero — one consistent subject across shots, scrubbed or played as the page's opening move (produced via the paid Higgsfield MCP + Seedance credits — the one option here with an external cost)";
+  const hints = buildHints({ imagery: optionText });
+  assert.ok(hints.some((h) => h.technique.startsWith('AI cinematic video')), 'the full imagery option text must trigger the AI-video recipe');
+});
+
+test('buildHints: scroll-scrub cinematic sequence recipe fires on compound scroll-scrub notes', () => {
+  const positives = [
+    { libraries: 'scroll-scrub' },
+    { motion: 'scroll scrub' },
+    { motion: 'scrubbed by scroll' },
+    { motion: 'scrubbing on scroll' },
+    { special: '3d scroll' },
+    { imagery: 'frame-sequence' },
+    { imagery: 'frame sequence' },
+  ];
+  for (const note of positives) {
+    const hints = buildHints(note);
+    assert.ok(hints.some((h) => h.technique === 'scroll-scrub cinematic sequence'), JSON.stringify(note) + ' must trigger the scroll-scrub recipe');
+  }
+});
+
+test('buildHints: the full scroll-scrub libraries interview option triggers the scroll-scrub recipe', () => {
+  const optionText = "scroll-scrub: the hero film plays forward and backward under the visitor's scroll — the page feels like a camera move they control";
+  const hints = buildHints({ libraries: optionText });
+  assert.ok(hints.some((h) => h.technique === 'scroll-scrub cinematic sequence'), 'the full libraries option text must trigger the scroll-scrub recipe');
+});
+
+test('buildHints: a note naming both AI-video and scroll-scrub yields both hints, AI-video first, each once', () => {
+  const hints = buildHints({ motion: 'ai-generated video hero, scroll-scrubbed' });
+  const techniques = hints.map((h) => h.technique);
+  assert.ok(techniques.some((t) => t.startsWith('AI cinematic video')), 'AI-video hint present');
+  assert.ok(techniques.includes('scroll-scrub cinematic sequence'), 'scroll-scrub hint present');
+  const aiIndex = techniques.findIndex((t) => t.startsWith('AI cinematic video'));
+  const scrubIndex = techniques.indexOf('scroll-scrub cinematic sequence');
+  assert.ok(aiIndex < scrubIndex, 'AI-video hint precedes scroll-scrub hint (table order)');
+  assert.equal(new Set(techniques).size, techniques.length, 'no duplicate techniques');
+});
+
+test('buildHints: AI-video recipe does NOT fire on bare/unrelated video-adjacent notes', () => {
+  const negatives = [
+    { imagery: 'product demo video' },
+    { imagery: 'video testimonials' },
+    { imagery: 'background video loop' },
+    { layout: 'user journey map' },
+    { imagery: 'hero image' },
+    { imagery: 'film grain' },
+    // Ambiguous / explicitly non-AI video language must NOT steer toward paid credits:
+    { imagery: 'cinematic video' },
+    { imagery: 'cinematic film' },
+    { special: 'cinematic clip' },
+    { entrance: 'video-led hero' },
+    { imagery: 'cinematic video: use real product footage, no generative AI' },
+    { entrance: 'video-led hero: licensed documentary footage, not AI' },
+    { imagery: 'AI cinematic photography direction, no video' },
+  ];
+  for (const note of negatives) {
+    const hints = buildHints(note);
+    assert.ok(!hints.some((h) => h.technique.startsWith('AI cinematic video')), JSON.stringify(note) + ' must NOT trigger the AI-video recipe');
+  }
+  // Picking the cinematic-noir aesthetic (which itself names "film grain") must
+  // not force the paid-video recipe — an aesthetic choice is not a video request.
+  const noirOption = 'cinematic-noir: near-black ground, exactly one accent color, film grain, sparse confident copy';
+  const noirHints = buildHints({ aesthetic: noirOption });
+  assert.ok(!noirHints.some((h) => h.technique.startsWith('AI cinematic video')), 'the cinematic-noir aesthetic option must NOT trigger the AI-video recipe');
+});
+
+test('buildHints: scroll-scrub recipe does NOT fire on bare "scroll" motion notes', () => {
+  assert.ok(!buildHints({ motion: 'scrolling page' }).some((h) => h.technique === 'scroll-scrub cinematic sequence'));
+  assert.ok(!buildHints({ motion: 'scroll animation' }).some((h) => h.technique === 'scroll-scrub cinematic sequence'));
+});
+
 test('motion: cinematic-without-scroll note caps at partial post-settle; scroll note stays missing', () => {
   const stillTraits = makeTraits({ animation_count: 0, scroll_effects: false });
   const cinematicOnly = one({ motion: 'cinematic transitions between scenes' }, stillTraits);

@@ -6,19 +6,59 @@ import { tmpdir, homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// index.js reads RAVEN_NO_USAGE_LOG into a module-level const exactly once at
+// import time (never re-checked per call), so it must be set BEFORE index.js
+// is imported below. Without it, a non-remote buildServer() writes real usage
+// entries to ~/.raven/usage.jsonl and can prepend a "☕ Raven daily digest"
+// text banner ahead of a tool's JSON payload — polluting the user's real log
+// and breaking JSON.parse on the response in the same stroke.
+const previousNoUsageLog = process.env.RAVEN_NO_USAGE_LOG;
+process.env.RAVEN_NO_USAGE_LOG = '1';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distTaste = path.resolve(__dirname, '../dist/taste.js');
 const distTasteStore = path.resolve(__dirname, '../dist/taste-store.js');
+const distIndex = path.resolve(__dirname, '../dist/index.js');
 
 let taste;
 let tasteStoreMod;
+let indexMod;
 try {
   taste = await import(distTaste);
   tasteStoreMod = await import(distTasteStore);
+  indexMod = await import(distIndex);
 } catch (err) {
   const msg = `dist/taste.js not found - run \`npm run build\` first. (${err.message})`;
   test('taste module available', (t) => { t.skip(msg); });
   process.exit(0);
+} finally {
+  if (previousNoUsageLog === undefined) {
+    delete process.env.RAVEN_NO_USAGE_LOG;
+  } else {
+    process.env.RAVEN_NO_USAGE_LOG = previousNoUsageLog;
+  }
+}
+
+// Calls an MCP tool through the real server (buildServer from dist/index.js)
+// over an in-memory transport, backed by the given TasteStore — used only for
+// smokes that need the SERVER'S payload shape (e.g. bind_taste_surface's
+// build_hints/build_guidance), which the bare taste.ts library functions do
+// not construct themselves.
+async function callTasteTool(store, name, args) {
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const server = indexMod.buildServer({ tasteStore: store });
+  const client = new Client({ name: 'taste-test', version: '1.0.0' }, { capabilities: {} });
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  try {
+    const result = await client.callTool({ name, arguments: args });
+    return JSON.parse(result.content[0].text);
+  } finally {
+    await client.close();
+    await server.close();
+  }
 }
 
 async function withTasteHome(fn) {
@@ -846,22 +886,55 @@ test('surface calibration interview is built from the profile’s own scopes and
   });
 });
 
-test('the five new design dimensions carry non-empty multiple-choice options', async () => {
+test('the six new design dimensions carry non-empty multiple-choice options', async () => {
   await withTasteHome(async (_home, store) => {
     await taste.createTasteProfile(store, { name: 'dims', rules: baseRules() });
     const interview = await taste.getTasteInterview(store, 'dims', 'some-project');
-    for (const key of ['entrance', 'loading', 'navigation', 'aesthetic', 'libraries']) {
+    for (const key of ['imagery', 'entrance', 'loading', 'navigation', 'aesthetic', 'libraries']) {
       const q = interview.questions.find((question) => question.id === 'design:' + key);
       assert.ok(q, 'missing design:' + key);
       assert.ok(Array.isArray(q.options), key + ' options must be an array');
       assert.ok(q.options.length > 0, key + ' options must be non-empty');
       assert.ok(q.options.every((opt) => typeof opt === 'string' && opt.length > 0));
     }
-    // Pre-existing six dimensions carry no options.
-    for (const key of ['typography', 'spacing', 'color', 'layout', 'motion', 'imagery']) {
+    // Pre-existing five dimensions carry no options.
+    for (const key of ['typography', 'spacing', 'color', 'layout', 'motion']) {
       const q = interview.questions.find((question) => question.id === 'design:' + key);
       assert.equal(q.options, undefined);
     }
+  });
+});
+
+test('the AI-cinematic-video / scroll-scrub interview options are present, and the imagery question is otherwise unchanged', async () => {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'aivideo-opts', rules: baseRules() });
+    const interview = await taste.getTasteInterview(store, 'aivideo-opts', 'some-project');
+
+    const imageryQ = interview.questions.find((q) => q.id === 'design:imagery');
+    assert.ok(imageryQ.question.includes(
+      "Photography, illustration, product screenshots, abstract shapes, or none? Icon style (stroke vs filled) and any treatments (duotone, borders, shadows)."
+    ), 'the imagery question wording is unchanged (options are additive)');
+    const aiVideoOption = imageryQ.options.find((opt) => opt.includes('ai-cinematic-video'));
+    assert.ok(aiVideoOption, 'imagery options must include the ai-cinematic-video option');
+    assert.ok(aiVideoOption.includes('paid'), 'the ai-cinematic-video option must disclose it is paid');
+    assert.ok(aiVideoOption.includes('credits'), 'the ai-cinematic-video option must disclose credits');
+
+    const aestheticQ = interview.questions.find((q) => q.id === 'design:aesthetic');
+    assert.ok(aestheticQ.options.some((opt) => opt.includes('cinematic-noir')), 'aesthetic options must include cinematic-noir');
+
+    const entranceQ = interview.questions.find((q) => q.id === 'design:entrance');
+    assert.ok(entranceQ.options.some((opt) => opt.includes('video-first')), 'entrance options must include video-first');
+
+    const librariesQ = interview.questions.find((q) => q.id === 'design:libraries');
+    assert.ok(librariesQ.options.some((opt) => opt.includes('scroll-scrub')), 'libraries options must include scroll-scrub');
+
+    // The dimension/question count is unaffected by adding options to existing questions.
+    assert.deepEqual(interview.questions.map((q) => q.id), [
+      'identity', 'references',
+      'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
+      'design:entrance', 'design:loading', 'design:navigation', 'design:aesthetic', 'design:libraries',
+      'voice', 'exceptions', 'matchers', 'special',
+    ]);
   });
 });
 
@@ -1080,6 +1153,41 @@ test('bind_taste_surface REFUSES a new surface with no calibration content (inte
     // The prior calibrated binding is untouched by the refused call.
     assert.deepEqual((await taste.listSurfaceBindings(store, 'gate')).find((b) => b.project === 'with-notes').design_notes, { color: 'monochrome' });
     assert.equal((await taste.listSurfaceBindings(store, 'gate')).find((b) => b.project === 'with-notes').surface, 'product-site v2');
+  });
+});
+
+test('bind_taste_surface (server tool): an ai-cinematic-video imagery note yields build_hints + build_guidance naming Higgsfield and a fallback', async () => {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'aivideo-bind', rules: baseRules() });
+    const payload = await callTasteTool(store, 'bind_taste_surface', {
+      profile: 'aivideo-bind',
+      project: 'ai-hero-site',
+      surface: 'product-site',
+      design_notes: { imagery: 'ai-cinematic-video: a short AI-generated film clip as the hero' },
+    });
+    assert.ok(Array.isArray(payload.build_hints), 'build_hints must be present');
+    assert.ok(
+      payload.build_hints.some((h) => h.technique.startsWith('AI cinematic video')),
+      'build_hints must include the AI cinematic video technique'
+    );
+    assert.ok(typeof payload.build_guidance === 'string');
+    assert.ok(payload.build_guidance.includes('Higgsfield'), 'build_guidance must name Higgsfield');
+    assert.ok(payload.build_guidance.includes('fallback'), 'build_guidance must mention the fallback requirement');
+  });
+});
+
+test('bind_taste_surface (server tool): a non-video note (three.js only) gets no Higgsfield guidance', async () => {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'novideo-bind', rules: baseRules() });
+    const payload = await callTasteTool(store, 'bind_taste_surface', {
+      profile: 'novideo-bind',
+      project: 'plain-3d-site',
+      surface: 'product-site',
+      design_notes: { libraries: 'three.js WebGL hero' },
+    });
+    assert.ok(Array.isArray(payload.build_hints) && payload.build_hints.length > 0, 'three.js still names an expensive technique -> build_hints present');
+    assert.ok(typeof payload.build_guidance === 'string', 'build_guidance present for the three.js note');
+    assert.ok(!payload.build_guidance.includes('Higgsfield'), 'build_guidance must NOT name Higgsfield for a non-video note');
   });
 });
 

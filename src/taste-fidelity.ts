@@ -548,6 +548,40 @@ export const TECHNIQUE_RECIPES: TechniqueRecipe[] = [
     ],
   },
   {
+    technique: "AI cinematic video hero (Seedance via Higgsfield MCP)",
+    // Vendor-dependent + date-sensitive (Seedance params / Higgsfield MCP surface
+    // drift): phrase mechanics generically and re-check on the next content pass.
+    // AI-SIGNAL-REQUIRED triggers — this recipe steers toward a PAID dependency, so
+    // it must fire ONLY when the note actually asks for AI generation or names the
+    // tool. Bare "cinematic video" / "video-led hero" / "AI cinematic photography"
+    // are NOT AI-video requests and must NOT fire (a note can even say "cinematic
+    // video, real footage, no AI" — pushing paid credits there is exactly wrong).
+    // Known accepted edge: a bare tool name in a negation ("avoid Higgsfield") still
+    // matches — low-harm, since the recipe itself says confirm-or-fall-back, and
+    // negation-parsing in a trigger table is out of scope.
+    trigger: ["higgsfield", "seedance", "ai[- ]?cinematic[- ]?(video|film|clip|hero)", "ai[- ]?(generated )?(video|film)"],
+    recipe:
+      "Generate ONE hero image first, then pass it as the image reference to every video clip so the product, person, or place stays identical across shots — consistency across clips matters more than any single clip's polish. Build motion as chained clips: use each clip's final frame as the next clip's start frame so four or five ~8s clips scrub as one unbroken camera move. Match the shot grammar to the subject — a product wants an orbit plus a macro pass plus an exploded/assembly beat; a journey (property, drive, descent) wants one continuous move through space; a person keeps their uploaded photo as the identity reference in every shot. Generate at standard quality, 1080p, no audio, and reserve 4K for one final hero shot; then compress for web (target ~90% smaller) and serve the clip muted + autoplay + playsinline with a poster frame. Dependency: these clips come from the Higgsfield MCP running the Seedance model — a paid external service that needs its MCP connected and credits available; confirm that with the user before building the hero around it, and if they decline agree on a fallback hero (still photography or licensed film) rather than silently downgrading. Verify the hero actually plays (not a black poster frame) on localhost before calling it done.",
+    examples: [
+      "Higgsfield (AI video, Seedance) — https://higgsfield.ai/",
+      "Codrops scroll + video tutorials — https://tympanus.net/codrops/",
+      "Apple product pages (scroll-film reference) — https://www.apple.com/",
+    ],
+  },
+  {
+    technique: "scroll-scrub cinematic sequence",
+    // Compound-only: bare "scroll"/"scrub" must not fire. "3d scroll" may also match
+    // the three.js trigger — that double-hint is acceptable (both are relevant).
+    trigger: ["scroll[- ]?scrub", "scrub(bed|bing)?[- ]?(by|on|with) scroll", "3d scroll", "frame[- ]?sequence"],
+    recipe:
+      "Turn the hero clip into a scrubbable sequence: decode it to an ordered frame set (PNG/WebP, or a KTX2 texture atlas) and draw the current frame to a canvas, or bind a <video>.currentTime where decode allows — but iOS Safari's seek is janky, so pre-decoded canvas frames are the reliable path. Map scroll progress to the frame index (or currentTime) and smooth it with Lenis + a rAF lerp toward the target so scrubbing glides instead of stepping. Pin the hero section while the sequence plays through, and preload/decode the frames before first paint so the first scrub isn't a stall. Show a static poster (the first frame) for prefers-reduced-motion and on slow connections. Verify the scrub runs smoothly in both directions on localhost before calling it done.",
+    examples: [
+      "Lenis smooth scroll — https://github.com/darkroomengineering/lenis",
+      "Codrops image-sequence / scroll tutorials — https://tympanus.net/codrops/",
+      "Apple AirPods-style scroll sequence — https://www.apple.com/airpods-pro/",
+    ],
+  },
+  {
     technique: "GSAP scroll choreography",
     trigger: ["gsap", "scroll.?(choreograph|led|driven|trigger)", "cinematic scroll"],
     recipe:

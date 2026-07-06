@@ -119,7 +119,15 @@ const DESIGN_DIMENSIONS: { key: string; match: RegExp; ask: string; options?: st
   { key: "motion", match: /motion|animat|transition/i,
     ask: "None, subtle (fades/reveals), or expressive? What may animate, what must never, and any duration/easing conventions." },
   { key: "imagery", match: /asset|imag|icon|illustration|photo/i,
-    ask: "Photography, illustration, product screenshots, abstract shapes, or none? Icon style (stroke vs filled) and any treatments (duotone, borders, shadows)." },
+    ask: "Photography, illustration, product screenshots, abstract shapes, or none? Icon style (stroke vs filled) and any treatments (duotone, borders, shadows).",
+    options: [
+      "photography: real photographs, art-directed",
+      "illustration: drawn or vector illustration",
+      "product-screenshots: real UI/product captures",
+      "abstract-3d: rendered shapes, gradients, forms",
+      "ai-cinematic-video: a short AI-generated film clip as the hero — one consistent subject across shots, scrubbed or played as the page's opening move (produced via the paid Higgsfield MCP + Seedance credits — the one option here with an external cost)",
+      "none: no imagery, type and layout carry it",
+    ] },
   { key: "entrance", match: /entrance|hero.?anim|launch|intro|reveal/i,
     ask: "How should the hero/first screen enter — on a website hero and on a mobile app launch?",
     options: [
@@ -127,6 +135,7 @@ const DESIGN_DIMENSIONS: { key: string; match: RegExp; ask: string; options?: st
       "subtle: single fade/rise, under 400ms",
       "staged: orchestrated per-element reveal (headline, then sub, then art)",
       "cinematic: expressive full-scene entrance, motion is part of the brand",
+      "video-first: the page opens inside an already-playing film clip; UI reveals over it",
     ] },
   { key: "loading", match: /load(ing|er)|skeleton|spinner|progress/i,
     ask: "What do users see while content loads (web + mobile app)?",
@@ -156,6 +165,7 @@ const DESIGN_DIMENSIONS: { key: string; match: RegExp; ask: string; options?: st
       "editorial: type-led, magazine rhythm, restrained palette",
       "glassmorphic: translucent layers, blur, depth",
       "retro-terminal: mono type, scanline/CRT cues",
+      "cinematic-noir: near-black ground, exactly one accent color, film grain, sparse confident copy",
     ] },
   { key: "libraries", match: /librar|three\.?js|gsap|framer|lottie|anime[.\-\s]?js|graphql|webgl|stack|tech|next\.?js|framework/i,
     ask: "Some builds lean on specialty libraries you may not know by name — each described by what users would see. Want any? Pick any that fit, or keep it simple. (Sites built with Raven default to a Next.js app — a React framework with fast loading and good SEO out of the box; say so if you'd rather have something else, and it goes in this note.)",
@@ -166,6 +176,7 @@ const DESIGN_DIMENSIONS: { key: string; match: RegExp; ask: string; options?: st
       "framer-motion: springy, physical-feeling UI transitions (React apps)",
       "lottie: designer-made vector animations exported straight from After Effects",
       "graphql: a data layer for apps juggling lots of interrelated data — invisible to users, shapes engineering",
+      "scroll-scrub: the hero film plays forward and backward under the visitor's scroll — the page feels like a camera move they control",
       "none-vanilla: standard CSS/JS only — simplest, lightest, fastest to load",
     ] },
 ];
@@ -570,7 +581,7 @@ export async function getTasteInterview(store: TasteStore, profileName: string, 
     voice_rules: voiceRules,
     rule_ids: ruleIds,
     questions,
-    then: "Ask the user these questions conversationally. This interview is a blocking gate: collect the user's answers BEFORE committing any design direction, palette, type choice, or name — never answer the questions yourself, and never proceed with design work 'while the interview runs.' If references were given, interview each example briefly — what specifically the person likes, mapped to a dimension — fold those specifics into the matching design_notes values, AND pass the examples as the structured `references` array to bind_taste_surface (a list of {url, liked?}), not only as prose in design_notes.references: Raven captures each reference's live traits and consistency-checks your design_notes against what the reference ACTUALLY is (a 'dark, cinematic' color note against two references that both render light is flagged back to you — surface such contradictions to the USER and re-ask, never silently keep both). When the surface is a website to be built, suggest building it as a Next.js app by default (record a different choice in design_notes.libraries if the user prefers one). Then persist with bind_taste_surface — dimension answers (design:*) go in design_notes as {typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries} and the open-ended closer as design_notes.special. design_notes are ACCEPTANCE CRITERIA for any build, not mood words: a build is not done until every note is visibly present in the rendered result, or the client reports to the user exactly which notes were dropped and why. When a note names an expensive technique (three.js/WebGL, GSAP scroll choreography, anime.js staggered motion, glassmorphism, a branded loader, lottie, kinetic display type…), bind_taste_surface and audit_taste return build_hints — a concrete recipe plus canonical public example sources (threejs.org, gsap.com, animejs.com, Codrops…) for that technique. An expensive note is NEVER license to drop it: the public corpus for these is vast, so consult the attached build_hints and their sources; if a technique is genuinely infeasible, say so to the USER before shipping without it. Future audit_taste calls with project:'" + (projectName || "<name>") + "' (or a matching url host) apply the binding automatically and echo the notes. Skipped questions leave that dimension uncalibrated and audits stay silent on it — encourage answering, never force. From then on, whenever the user makes, approves, or corrects a taste/direction/design decision during the work (an accent chosen, a nav pattern rejected, a name direction, a type pairing), record it with record_taste_decision — recorded decisions evolve future kickoff interviews: recurring choices return as suggested defaults on their dimension's question, and decision categories no standard question covers become new interview questions.",
+    then: "Ask the user these questions conversationally. This interview is a blocking gate: collect the user's answers BEFORE committing any design direction, palette, type choice, or name — never answer the questions yourself, and never proceed with design work 'while the interview runs.' If references were given, interview each example briefly — what specifically the person likes, mapped to a dimension — fold those specifics into the matching design_notes values, AND pass the examples as the structured `references` array to bind_taste_surface (a list of {url, liked?}), not only as prose in design_notes.references: Raven captures each reference's live traits and consistency-checks your design_notes against what the reference ACTUALLY is (a 'dark, cinematic' color note against two references that both render light is flagged back to you — surface such contradictions to the USER and re-ask, never silently keep both). When the surface is a website to be built, suggest building it as a Next.js app by default (record a different choice in design_notes.libraries if the user prefers one). Then persist with bind_taste_surface — dimension answers (design:*) go in design_notes as {typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries} and the open-ended closer as design_notes.special. design_notes are ACCEPTANCE CRITERIA for any build, not mood words: a build is not done until every note is visibly present in the rendered result, or the client reports to the user exactly which notes were dropped and why. When a note names an expensive technique (three.js/WebGL, GSAP scroll choreography, anime.js staggered motion, glassmorphism, a branded loader, lottie, kinetic display type…), bind_taste_surface and audit_taste return build_hints — a concrete recipe plus canonical public example sources (threejs.org, gsap.com, animejs.com, Codrops…) for that technique. An expensive note is NEVER license to drop it: the public corpus for these is vast, so consult the attached build_hints and their sources; if a technique is genuinely infeasible, say so to the USER before shipping without it. If the user picks the ai-cinematic-video imagery option (an AI-generated film hero), confirm BEFORE building that they have the Higgsfield MCP connected and Seedance credits available — it is a paid external dependency — and record their yes/no in design_notes.imagery; if they decline, agree on a fallback hero (still photography or licensed film) rather than silently downgrading. Future audit_taste calls with project:'" + (projectName || "<name>") + "' (or a matching url host) apply the binding automatically and echo the notes. Skipped questions leave that dimension uncalibrated and audits stay silent on it — encourage answering, never force. From then on, whenever the user makes, approves, or corrects a taste/direction/design decision during the work (an accent chosen, a nav pattern rejected, a name direction, a type pairing), record it with record_taste_decision — recorded decisions evolve future kickoff interviews: recurring choices return as suggested defaults on their dimension's question, and decision categories no standard question covers become new interview questions.",
   };
 }
 

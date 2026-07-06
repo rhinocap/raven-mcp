@@ -5872,6 +5872,13 @@ server.tool(
     if (hints.length > 0) {
       payload.build_hints = hints;
       payload.build_guidance = "The design_notes name expensive techniques. Each build_hint carries a concrete recipe + canonical public example sources (threejs.org, gsap.com, animejs.com, Codrops…) — an expensive note is NOT license to drop it. Build to these at kickoff; if a technique is genuinely infeasible, tell the USER before shipping without it.";
+      var wantsAiVideo = false;
+      for (var hi = 0; hi < hints.length; hi++) {
+        if (hints[hi].technique.indexOf("AI cinematic video") === 0) wantsAiVideo = true;
+      }
+      if (wantsAiVideo) {
+        payload.build_guidance += " The AI-video hero is generated through the Higgsfield MCP running Seedance — a paid external service: confirm with the user that it is connected and has credits before building the hero around it, and if they decline agree on a fallback hero (still photography or licensed film) rather than silently downgrading.";
+      }
     }
     return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }] };
   }
