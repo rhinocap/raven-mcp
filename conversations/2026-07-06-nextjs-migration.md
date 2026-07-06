@@ -37,11 +37,20 @@ Computer crashed mid site-update. Recovered: one staged, intact uncommitted edit
 **Verified:** canvas draws spotlight at scrollY 6000 (canvasCenterPixel cyan [0,170,255]); grid visible in gutters over the layers section, behind opaque cards (no card-text washout); hero scrim retained. Build green. design-judge PASS (0 new findings). Codex devil's-advocate: 1 flag ("grid hidden behind body bg") = FALSE POSITIVE (disproven by render; body bg propagates to viewport backdrop below negative-z) — closed with a background-propagation invariant comment in globals.css.
 **Committed:** cfba187 on feat/nextjs-migration (NOT pushed — feature branch, awaiting Andrew's live brightness judgment).
 
+### Trim copy + unify terminals (Andrew: "way too much content for the new stuff… terminals are different sizes… all terminals should be uniform size")
+**What:** (Copy) #cinematic subtitle 65→27 words; #judge left text column (eyebrow pill + duplicate h2 + paragraph + 3 bullets, ~126 words) deleted entirely, keeping only the section-header subtitle; audit_taste terminal content unchanged. (Terminals) #judge was a 2-col `.judge-grid` (terminal rendered 668px, overflowed mobile) → restructured to a single centered `.recipe` wrapping the terminal, mirroring #cinematic; `.static-term-body` min-height:360px → #judge & #cinematic height-identical; `.hero-visual` max-width 900→760 so all three terminals share one width (760 desktop cap / full-width mobile). Deleted dead rules: `.judge-grid`(+@media cols), `.judge-text`(+h2,>p), `.eyebrow-tool`, `.judge-proof`(+li/strong/svg/code), `.recipe .static-term-body` override.
+**Why:** Editorial restraint (show, don't restate the terminal) + fix the awkward terminal size mismatch.
+**Verified:** build green; DOM-measured all 3 terminals 466px wide (mobile) + 2 static bodies 464×360 identical; eyes-on both terminals render clean (judge centered, no dup h2, new caption; cinematic build_hint identical box). Raven audit_taste PASS (raven-mcp binding, no hype verbs); design-judge PASS (net restraint win, −49 lines). Codex devil's-advocate (report-only): its "hero terminal not uniform" flag was a mobile-override conflation — on desktop hero/static share identical padding+line-height, hero only taller (620 vs 360) to hold the typing anim; word-count nit (27 not 26) noted. Collision check clean (feat/nextjs-migration local-only; P4 touches only backend).
+**Committed:** bb89e90 (NOT pushed — feature branch).
+**Open interpretive edge for Andrew:** the hero sizzle-reel is width-matched but stays taller than the two static terminals by design (animated showpiece). If he meant literally all-three-same-height, that's a follow-up (would compromise the hero animation's room).
+
 ## State at end of session
 - Static-site grid dimming: committed on feat/nextjs-migration (2972de4)
 - Next.js content port: DONE + verified on feat/nextjs-migration (f5b5d37, 229375c)
 - Full-site grid: DONE + verified, committed cfba187
+- Copy trim + terminal uniformity: DONE + verified + gated, committed bb89e90
 - Pending (carried forward):
   - Andrew judges grid brightness live @ localhost:3200 (opacity:0.72 = the dial; may want dimmer)
+  - Andrew: does "all terminals uniform" mean the hero sizzle-reel too? (currently width-matched but taller by design)
   - Phase 4: preview deploy + audit_taste/audit_page on Vercel URL
   - Phase 5–6 (HIGH RISK, needs P4 coord): MCP proxy rewrites in web/next.config.js (/api/mcp, /api/mcp-user, /.well-known/*) + curl verify; domain flip with rollback

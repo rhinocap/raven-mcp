@@ -1519,11 +1519,12 @@
     /* ── TASTE ENGINE (The Design Judge) ─────────────────── */
     .judge { padding: clamp(80px, 9vw, 144px) 0; position: relative; }
 
-    /* Static terminal (replay / recipe) — content-sized, no animation */
+    /* Static terminal (replay / recipe) — no animation, but sized to
+       match the hero sizzle-reel terminal so all three read as one size. */
     .static-term-body {
       padding: var(--space-6) var(--space-8);
       font-family: var(--font-mono); font-size: 13px; line-height: 2;
-      min-height: 360px;
+      min-height: 620px;
       overflow-x: auto;
     }
     .static-term-body pre { margin: 0; white-space: pre; color: var(--text-secondary); font: inherit; }
@@ -1695,6 +1696,7 @@
 
       .terminal { font-size: 11px; }
       .terminal-body { height: 480px; padding: var(--space-4) var(--space-4); line-height: 1.8; }
+      .static-term-body { min-height: 480px; padding: var(--space-4) var(--space-4); line-height: 1.8; }
       .browser-viewport { height: auto; min-height: 200px; }
 
       .hero-visual { max-width: 100%; }
