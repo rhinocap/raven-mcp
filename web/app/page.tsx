@@ -7,12 +7,16 @@ export default function Home() {
       {/* NAV (shared component) */}
       <main id="main">
 
+        {/* Full-site interactive backdrop — fixed canvas behind all content.
+            Rendered outside .hero so its z-index:-1 isn't trapped by the
+            hero's overflow:hidden / .reveal transform stacking contexts. */}
+        <HeroGrid />
+
         {/* HERO */}
         <section className="hero">
           <div className="glow glow-1"></div>
           <div className="glow glow-2"></div>
           <div className="glow glow-3"></div>
-          <HeroGrid />
           <div className="container">
             <div className="hero-badge reveal">
               Open-source MCP Server · MIT
@@ -77,7 +81,6 @@ export default function Home() {
         </section>
 
         <section id="judge" className="judge">
-          <div className="grid-bg"></div>
           <div className="container">
             <div className="section-header">
               <p className="label reveal">The Taste Engine</p>
@@ -169,7 +172,6 @@ export default function Home() {
 
         {/* KNOWLEDGE LAYERS */}
         <section id="layers" className="layers">
-          <div className="grid-bg"></div>
           <div className="container">
             <div className="section-header">
               <p className="label reveal">Nine Knowledge Layers</p>
@@ -1041,7 +1043,6 @@ export default function Home() {
 
         {/* PRICING */}
         <section id="pricing" className="pricing-section">
-          <div className="grid-bg"></div>
           <div className="container">
             <div className="section-header">
               <p className="label reveal">Open Source</p>
@@ -1121,7 +1122,6 @@ export default function Home() {
 
         <section id="get-started" className="cta-section">
           <div className="glow"></div>
-          <div className="grid-bg"></div>
           <div className="container">
             <p className="label reveal">Get Started</p>
             <h2 className="reveal reveal-delay-1">Give your AI<br />design intelligence</h2>

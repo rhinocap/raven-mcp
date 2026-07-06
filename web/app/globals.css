@@ -138,28 +138,31 @@
     .reveal-delay-4 { transition-delay: 320ms; }
 
     /* ── Grid Background Pattern ── */
-    .grid-bg {
-      position: absolute;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
-      background-size: 64px 64px;
-      mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
-      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
-      pointer-events: none;
-    }
+    /* .grid-bg (static 64px decorative grid) removed — the live full-site
+       HeroGrid canvas now covers these sections; overlapping a 64px static
+       grid on the 40px live grid produced doubling/moiré. */
 
     /* ── Interactive hero grid (cursor-follow silver grid, Higgsfield-style) ── */
+    /* Full-site interactive backdrop: a fixed viewport-sized canvas behind ALL
+       content. Content scrolls over it; the Beacon spotlight follows the cursor
+       anywhere on the page. opacity is the single global intensity dial.
+
+       VISIBILITY INVARIANT (do not break): the canvas sits at z-index:-1, and
+       `body` carries `background: var(--bg-base)` while `html`/`:root` carry NO
+       background. Per CSS background propagation (Backgrounds §2.11.2), a
+       background-less root means body's background paints the *viewport canvas
+       backdrop* at the root level — BELOW negative-z descendants — so this
+       fixed z-index:-1 canvas paints above it and shows through the transparent
+       sections. If a background is ever set on `html` or `:root`, propagation
+       stops, body's fill becomes an ordinary body-box paint ABOVE this canvas,
+       and the whole grid disappears. Keep the root background-less. */
     .hero-grid-canvas {
-      position: absolute;
+      position: fixed;
       inset: 0;
       width: 100%;
       height: 100%;
-      z-index: 0;
+      z-index: -1;
       pointer-events: none;
-      mask-image: radial-gradient(ellipse 82% 74% at 50% 44%, #000 52%, transparent 100%);
-      -webkit-mask-image: radial-gradient(ellipse 82% 74% at 50% 44%, #000 52%, transparent 100%);
       opacity: 0.72;
     }
     /* Readability scrim: darkens the grid + glow directly behind the hero content

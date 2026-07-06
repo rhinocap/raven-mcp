@@ -3,7 +3,12 @@
 import { useEffect, useRef } from 'react'
 
 /**
- * Interactive hero background grid — Beacon variant only.
+ * Interactive full-site background grid — Beacon variant only.
+ *
+ * A fixed viewport-sized canvas (see .hero-grid-canvas: position:fixed;
+ * z-index:-1) that sits behind the entire page. The cursor-following spotlight
+ * tracks the pointer across the whole document, not just the hero. Content
+ * scrolls over the fixed grid.
  *
  * Ported verbatim (constants + math) from the static site's canvas engine
  * (site/index.html), reduced to the single shipped variant: a soft
@@ -12,7 +17,7 @@ import { useEffect, useRef } from 'react'
  * toward its target and redraws.
  *
  * StrictMode-safe: every mutable value lives inside the effect, and the
- * cleanup cancels the RAF and removes all three listeners, so the dev
+ * cleanup cancels the RAF and removes all listeners, so the dev
  * mount→cleanup→mount double-invoke is harmless (no double-speed/ghost draw).
  */
 export default function HeroGrid() {
@@ -21,8 +26,6 @@ export default function HeroGrid() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const hero = canvas.closest('.hero') as HTMLElement | null
-    if (!hero) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
@@ -46,9 +49,11 @@ export default function HeroGrid() {
     }
 
     function onPointerMove(e: PointerEvent) {
-      const r = canvas!.getBoundingClientRect()
-      mouse.tx = e.clientX - r.left
-      mouse.ty = e.clientY - r.top
+      // Touch guard: don't let the spotlight chase thumbs during touch-scroll.
+      if (e.pointerType !== 'mouse') return
+      // Fixed canvas rect == viewport, so clientX/clientY map 1:1 (no scroll math).
+      mouse.tx = e.clientX
+      mouse.ty = e.clientY
       mouse.active = true
     }
     function onPointerLeave() {
@@ -157,15 +162,20 @@ export default function HeroGrid() {
       }
     }
 
-    hero.addEventListener('pointermove', onPointerMove)
-    hero.addEventListener('pointerleave', onPointerLeave)
+    // Track the pointer across the whole page. pointerleave on window is
+    // unreliable, so listen on documentElement (fires when the cursor exits
+    // the page) and also drop the spotlight when the window loses focus.
+    window.addEventListener('pointermove', onPointerMove)
+    document.documentElement.addEventListener('pointerleave', onPointerLeave)
+    window.addEventListener('blur', onPointerLeave)
     rafId = requestAnimationFrame(frame)
 
     return () => {
       cancelAnimationFrame(rafId)
       window.removeEventListener('resize', resize)
-      hero.removeEventListener('pointermove', onPointerMove)
-      hero.removeEventListener('pointerleave', onPointerLeave)
+      window.removeEventListener('pointermove', onPointerMove)
+      document.documentElement.removeEventListener('pointerleave', onPointerLeave)
+      window.removeEventListener('blur', onPointerLeave)
     }
   }, [])
 
