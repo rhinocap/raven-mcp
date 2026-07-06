@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { ImageEdgeSample } from "./asset-integrity.js";
+import { launchAuditChromium } from "./browser-launch.js";
 
 export type { ImageEdgeSample } from "./asset-integrity.js";
 
@@ -13,10 +14,6 @@ const EMPTY_PNG_BASE64 =
 type BrowserLike = {
   newPage: () => Promise<PageLike>;
   close: () => Promise<void>;
-};
-
-type ChromiumLike = {
-  launch: (options: { headless: boolean }) => Promise<BrowserLike>;
 };
 
 type ElementHandleLike = {
@@ -146,8 +143,7 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
 
   try {
     try {
-      const chromium = await loadChromium();
-      browser = await chromium.launch({ headless: true });
+      browser = await launchAuditChromium() as unknown as BrowserLike;
     } catch (error) {
       const fallback = captureFileUrlWithoutBrowser(
         url,
@@ -935,27 +931,6 @@ function extractFontFamilies(styleText: string): string[] {
   return families;
 }
 
-async function loadChromium(): Promise<ChromiumLike> {
-  try {
-    // @ts-ignore Playwright is an optional runtime dependency for this module.
-    const playwrightModule: { chromium?: ChromiumLike } | null = await import("playwright").catch(function () {
-      return null;
-    });
-
-    if (playwrightModule === null || !playwrightModule.chromium) {
-      throw new CaptureUnavailableError();
-    }
-
-    const { chromium } = playwrightModule;
-    return chromium;
-  } catch (error) {
-    if (error instanceof CaptureUnavailableError) {
-      throw error;
-    }
-    throw new CaptureUnavailableError();
-  }
-}
-
 function captureFileUrlWithoutBrowser(
   url: string,
   viewport: { w: number; h: number },
@@ -1500,8 +1475,7 @@ export async function verifyFindings(
 
   try {
     try {
-      const chromium = await loadChromium();
-      browser = await chromium.launch({ headless: true });
+      browser = await launchAuditChromium() as unknown as BrowserLike;
     } catch (error) {
       const fallbackVerdicts = verifyFindingsFromStaticTarget(target, findings, error);
       if (fallbackVerdicts !== null) {

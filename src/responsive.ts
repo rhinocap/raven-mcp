@@ -5,6 +5,7 @@
  */
 
 import { CaptureUnavailableError } from "./capture.js";
+import { launchAuditChromium } from "./browser-launch.js";
 
 export { CaptureUnavailableError };
 
@@ -95,21 +96,11 @@ export async function captureResponsiveVisibility(
 
   const warnings: string[] = [];
 
-  // Lazy playwright import
-  let playwright: typeof import("playwright");
-  try {
-    playwright = await import("playwright");
-  } catch {
-    throw new CaptureUnavailableError(
-      "Playwright chromium not available. Run: npx playwright install chromium"
-    );
-  }
-
   let browser: import("playwright").Browser | null = null;
 
   try {
     try {
-      browser = await playwright.chromium.launch({ headless: true });
+      browser = await launchAuditChromium();
     } catch {
       throw new CaptureUnavailableError(
         "Playwright chromium not available. Run: npx playwright install chromium"

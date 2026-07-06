@@ -32,6 +32,7 @@ import { createTasteProfile, getTasteProfile, listTasteProfiles, labelFinding, a
 import type { ReferenceCapture, SurfaceBinding } from "./taste.js";
 import { generateTastePortrait } from "./taste-portrait.js";
 import { setRemoteRuntime, isRemoteRuntime } from "./remote-runtime.js";
+import { remoteUrlGuardError } from "./remote-url-guard.js";
 import { buildHints, screenTraitsFromImage, assessDesignNotesSource, assessDesignNotesImage, noteIssuesFromAssessments } from "./taste-fidelity.js";
 import type { NoteAssessment, MobileSourceKind } from "./taste-fidelity.js";
 import { readFile } from "fs/promises";
@@ -1593,12 +1594,12 @@ function maybeComputeDailyDigest(): void {
 
 // ── Server ──────────────────────────────────────────────────────────
 
-// The 30 tools NOT served on a shared remote server (buildServer({remote:true})).
+// The 25 tools NOT served on a shared remote server (buildServer({remote:true})).
 // 20 are stateful/local (per-user ~/.raven files, or the create_generation_job
-// subprocess), 5 are browser-heavy (headless Chromium — added back in Phase 3),
-// and 5 reach the filesystem/network or have an external side effect (see the
-// capability block below). Everything else (40 stateless CPU-only tools) is
-// remote-safe. Traced to docs/remote-mcp-scope.md §2; asserted at build time.
+// subprocess), and 5 reach the filesystem/network or have an external side
+// effect (see the capability block below). Everything else (45 stateless tools,
+// including the 5 guarded browser URL audits added in Phase 3) is remote-safe.
+// Traced to docs/remote-mcp-scope.md §2; asserted at build time.
 const REMOTE_GATED_TOOLS = new Set<string>([
   // stateful / local (20)
   "create_taste_profile", "get_taste_profile", "list_taste_profiles",
@@ -1607,9 +1608,6 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   "create_brand_profile", "get_brand_profile", "list_brand_profiles",
   "register_creative_asset", "create_character_profile", "create_generation_job",
   "get_generation_job", "list_generation_jobs", "plan_creative_campaign", "raven_reflect",
-  // browser-heavy (5) — need headless Chromium (Phase 3)
-  "audit_url", "audit_contrast", "audit_tap_targets",
-  "audit_responsive_visibility", "audit_video_playback",
   // filesystem/network/side-effect capability tools (5) — read caller-supplied
   // local paths (readFileSync), fetch caller-supplied URLs (SSRF), or trigger an
   // external side effect. A no-auth remote endpoint must not expose a file-read
@@ -1628,7 +1626,9 @@ const REMOTE_GATED_TOOLS = new Set<string>([
 // argument reaches the local filesystem / network via headless capture (incl.
 // file:// → server-file oracle). In remote mode we reject the capture param so the
 // safe path (html / nodes snapshot) stays available with no local-surface exposure.
-// Browser url-capture is deferred to Phase 3, where it gets a sandboxed chromium.
+// Browser url-capture for the 5 Phase-3 tools gets the public-URL guard below.
+// Do NOT lift the audit_page/audit_typography url guards here; those tools are
+// outside Phase 3's declared 5-tool browser scope.
 //
 // Also here: tools that accept a `project`/`profile`/`brand_profile_id` param
 // which resolves LOCAL per-machine store state (taste bindings / creative
@@ -1659,6 +1659,14 @@ const REMOTE_ARG_GUARDS: { [tool: string]: { params: string[]; message: string }
   evaluate_design: { params: ["before_screenshot", "after_screenshot"], message: "Screenshot pixel-diff is disabled on the hosted (remote) endpoint (unbounded image decode). Omit 'before_screenshot'/'after_screenshot' and pass a 'description' to evaluate the design against UX principles statelessly." }
 };
 
+const REMOTE_URL_GUARDED_TOOLS: { [tool: string]: string } = {
+  audit_url: "url",
+  audit_contrast: "url",
+  audit_tap_targets: "url",
+  audit_responsive_visibility: "url",
+  audit_video_playback: "url"
+};
+
 // buildServer() returns a FRESH McpServer with all 70 tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
@@ -1666,9 +1674,9 @@ const REMOTE_ARG_GUARDS: { [tool: string]: { params: string[]; message: string }
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
 export function buildServer(opts?: { remote?: boolean }): McpServer {
-// remote = serve only the 40 stateless remote-safe tools (gate off the 20
-// stateful/local + 5 browser + 5 fs/network/side-effect capability tools;
-// evaluate_design stays but its screenshot pixel-diff is arg-guarded off).
+// remote = serve only the 45 stateless remote-safe tools (gate off the 20
+// stateful/local + 5 fs/network/side-effect capability tools; evaluate_design
+// stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
 // without threading opts. stdio callers pass nothing → remote=false → all 70.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
@@ -1693,8 +1701,9 @@ var originalTool: any = server.tool.bind(server);
 (server as any).tool = function () {
   var args = Array.prototype.slice.call(arguments);
   var toolName: string = args[0];
-  // Remote mode: silently skip registration of the stateful/local + browser
-  // tools. No registration statement uses the return value, so undefined is safe.
+  // Remote mode: silently skip registration of the stateful/local + fs/network/
+  // side-effect tools. No registration statement uses the return value, so
+  // undefined is safe.
   if (remote && REMOTE_GATED_TOOLS.has(toolName)) {
     return undefined;
   }
@@ -1715,6 +1724,13 @@ var originalTool: any = server.tool.bind(server);
             if (gv !== undefined && gv !== null) {
               return { content: [{ type: "text" as const, text: guard.message }], isError: true };
             }
+          }
+        }
+        var urlParam = REMOTE_URL_GUARDED_TOOLS[toolName];
+        if (urlParam && input && typeof input[urlParam] === "string" && input[urlParam] !== "") {
+          var urlGuardMessage = await remoteUrlGuardError(input[urlParam]);
+          if (urlGuardMessage !== null) {
+            return { content: [{ type: "text" as const, text: urlGuardMessage }], isError: true };
           }
         }
       }

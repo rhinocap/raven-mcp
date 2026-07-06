@@ -2,9 +2,8 @@
 //
 // Additive to the stdio server: this endpoint reuses the exact same
 // `buildServer()` factory from dist/index.js, but in REMOTE mode — which
-// registers only the 40 safe stateless tools. Gated off in remote mode:
-// 20 stateful/local taste+creative tools, 5 browser-heavy audit tools (Phase 3
-// via @sparticuz/chromium), and 5 filesystem/network/side-effect-capability
+// registers only the 45 safe stateless tools. Gated off in remote mode:
+// 20 stateful/local taste+creative tools and 5 filesystem/network/side-effect-capability
 // tools (audit_contract, audit_asset_integrity, audit_device_frame,
 // audit_api_contract — file-read/SSRF oracles; raven_register — a no-auth
 // email/subscribe side-effect) that a no-auth endpoint must not expose. Dual-mode
@@ -30,7 +29,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 // html); with no auth, an attacker can convert cheap bandwidth into sustained
 // BILLED CPU (Fluid Compute charges active CPU) by streaming large O(n²) bodies —
 // the 300s platform timeout doesn't help because burned CPU *is* the attack. One
-// pre-dispatch size cap here bounds the entire input-DoS class for all 40 tools
+// pre-dispatch size cap here bounds the entire input-DoS class for all 45 tools
 // (present and future) by construction — the structural analogue of the store
 // latch — instead of per-tool array/string caps (which drift and miss nested
 // params). The value is derived from the measured worst case, not a round number:

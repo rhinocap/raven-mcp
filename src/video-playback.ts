@@ -5,6 +5,7 @@
  */
 
 import { CaptureUnavailableError } from "./capture.js";
+import { launchAuditChromium } from "./browser-launch.js";
 
 export { CaptureUnavailableError };
 
@@ -155,23 +156,13 @@ export async function auditVideoPlaybackUrl(
   url: string,
   opts?: { observeMs?: number }
 ): Promise<VideoPlaybackResult> {
-  let chromium: import("playwright").BrowserType;
-  try {
-    const pw = await import("playwright");
-    chromium = pw.chromium;
-  } catch {
-    throw new CaptureUnavailableError(
-      "Playwright chromium not available. Run: npx playwright install chromium"
-    );
-  }
-
   const observeMs = opts?.observeMs ?? 1000;
 
   let browser: import("playwright").Browser | null = null;
 
   try {
     try {
-      browser = await chromium.launch({ headless: true });
+      browser = await launchAuditChromium();
     } catch {
       throw new CaptureUnavailableError(
         "Playwright chromium not available. Run: npx playwright install chromium"

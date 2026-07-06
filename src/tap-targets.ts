@@ -11,6 +11,7 @@
  */
 
 import { CaptureUnavailableError } from "./capture.js";
+import { launchAuditChromium } from "./browser-launch.js";
 
 export { CaptureUnavailableError };
 
@@ -158,16 +159,6 @@ export async function auditTapTargetsUrl(
   url: string,
   opts?: TapTargetOptions
 ): Promise<TapTargetResult> {
-  let chromium: import("playwright").BrowserType;
-  try {
-    const pw = await import("playwright");
-    chromium = pw.chromium;
-  } catch {
-    throw new CaptureUnavailableError(
-      "Playwright chromium not available. Run: npx playwright install chromium"
-    );
-  }
-
   const viewport = opts?.viewport ?? { w: 1440, h: 900 };
   const minSize = opts?.minSize ?? 44;
   let browser: import("playwright").Browser | null = null;
@@ -175,7 +166,7 @@ export async function auditTapTargetsUrl(
 
   try {
     try {
-      browser = await chromium.launch({ headless: true });
+      browser = await launchAuditChromium();
     } catch {
       throw new CaptureUnavailableError(
         "Playwright chromium not available. Run: npx playwright install chromium"

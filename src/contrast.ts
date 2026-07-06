@@ -5,6 +5,7 @@
  */
 
 import { CaptureUnavailableError } from "./capture.js";
+import { launchAuditChromium } from "./browser-launch.js";
 
 export { CaptureUnavailableError };
 
@@ -276,22 +277,12 @@ export async function auditContrastUrl(
   url: string,
   opts?: { viewport?: { w: number; h: number }; timeoutMs?: number; theme?: "light" | "dark" }
 ): Promise<ContrastResult> {
-  let chromium: import("playwright").BrowserType;
-  try {
-    const pw = await import("playwright");
-    chromium = pw.chromium;
-  } catch {
-    throw new CaptureUnavailableError(
-      "Playwright chromium not available. Run: npx playwright install chromium"
-    );
-  }
-
   let browser: import("playwright").Browser | null = null;
   const warnings: string[] = [];
 
   try {
     try {
-      browser = await chromium.launch({ headless: true });
+      browser = await launchAuditChromium();
     } catch {
       throw new CaptureUnavailableError(
         "Playwright chromium not available. Run: npx playwright install chromium"

@@ -3,7 +3,8 @@
   "outputDirectory": "site",
   "functions": {
     "api/mcp.js": {
-      "includeFiles": "src/data/**"
+      "includeFiles": "src/data/**",
+      "maxDuration": 300
     }
   },
   "headers": [
