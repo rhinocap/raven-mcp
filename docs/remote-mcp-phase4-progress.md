@@ -43,10 +43,12 @@
 - Provisioning note: Upstash store = existing team DB `upstash-kv-charcoal-book` (Upstash for Redis, Free plan) connected to project `site` (all envs), env `KV_REST_API_URL`/`KV_REST_API_TOKEN` injected by the integration — no new marketplace terms needed.
 
 ### P4.3 — Full taste subset un-gated for authenticated users
-- [ ] Built · commit: `______`
-- [ ] create→interview→bind→record_decision→audit_taste (binding echoed in `design_notes`)→label_finding→portrait inline
-- [ ] cross-user isolation re-run · [ ] anon == golden hash · [ ] stdio `npm test` green
-- Preview URL: `______` · Verify evidence: `______`
+- [x] Built · commit: `529b901` — ⚠ AUTO-SAVE commit whose diff MIXES the 4 real P4.3 code files with ~1020 lines of unrelated `site/` marketing content. Do NOT reword (already published via `origin/feat/nextjs-migration` ancestry). P4.3 files: `src/index.ts` (+47; `AUTHED_USER_TASTE_TOOLS` widened trio→all 10 taste tools), `src/taste-portrait.ts` (+60; inline no-fs portrait, size-capped), `test/taste-remote-full.test.mjs` (+157; gating/loop/isolation), `test/redis-taste-store.test.mjs` (+9; 10-tool authed assertion). Unrelated in the same commit: `site/index.html` (+493), `site/previews/hero-grid/index.html` (+527), `site/assets/nav.js` (+1), `site/llms.txt`.
+- [x] `stdio npm test` green — **516 pass / 0 fail** (worktree of `529b901`, 2026-07-06).
+- [x] local `buildServer` gating: anon `{remote:true}` → **45 tools, sha == golden `f64bb18…2bb0a6`**; authed `{remote:true, tasteStore}` → **55 tools** (45 + exactly the 10 taste tools).
+- [x] **preview tokenless legs GREEN** on live canonical `https://mcp.ravenmcp.ai` (serving branch deploy `site-gpzdrai81`): anon `/api/mcp` tools/list → **45 / golden**, zero taste tools leaked; PRM `/.well-known/oauth-protected-resource` → **200** (`resource=…/api/mcp-user`, `authorization_servers=[artistic-gold-76-staging.authkit.app]`); no-Bearer `/api/mcp-user` → **401 + `WWW-Authenticate: Bearer … resource_metadata`**; garbage-Bearer → **401 `error="invalid_token"`**.
+- [ ] **authed loop — PENDING (human token leg)**: create→interview→bind→record→audit_taste (binding echoed in `design_notes`)→label_finding→generate_taste_portrait inline; cross-user isolation re-run. Harness ready at `/tmp/verify-authed-loop.mjs` (runs the full loop given `RAVEN_TOKEN` / optional `RAVEN_TOKEN_B`). Awaiting Andrew's one AuthKit sign-in — see "Andrew session runbook" below. `______`
+- Preview URL: `https://site-git-p4-remote-taste-cunliffeandrewc-8712s-projects.vercel.app` (deployment `site-gpzdrai81`, Ready 2026-07-06 ~16:35 PT) · canonical `https://mcp.ravenmcp.ai` · Verify evidence: local suite + `buildServer` hash/count 2026-07-06; live tokenless transcript 2026-07-06 23:39Z. Authed-loop evidence: `______` (human leg).
 
 ### P4.4 — Real-client startup interview end-to-end (Claude.ai + Cursor + ChatGPT)
 - [ ] Built/instruction-tuned · commit: `______`
@@ -68,3 +70,45 @@
 - 2026-07-05 — **P4.0 shipped** (commit `5c0a80a`, preview `site-1ay3h31x8`): async `TasteStore` + `FsTasteStore`/`ClosedTasteStore`, `taste.ts` fs-free, stdio byte-identical (`describe()` restores corrupt-store error text), 492/492 tests, anon 45/golden hash. Codex adversarial pass dispositioned (C fixed; B→P4.3; D→P4.2). Next unstarted: **P4.1** — blocked on Andrew's provisioning: WorkOS AuthKit account, Upstash Redis via Vercel Marketplace, `mcp.ravenmcp.ai` DNS.
 - 2026-07-06 (overnight) — **P4.2 built + verified except the user-B leg** (commit `64633d0`, preview verified live; see P4.2 section — only B-token isolation + parallel-request checks pending, blocked on one morning sign-in; B identity already exists in AuthKit). **P4.3 pre-built locally** (uncommitted in the working tree, to be committed AFTER P4.2's verify closes): all 10 taste tools store-presence-un-gated; portrait inline (no fs) behind remote branch; remote bind refuses .png paths + public-URL-guards reference captures; `audit_taste` url mode added to REMOTE_URL_GUARDED_TOOLS; `home: "cloud:per-user"` on the authed create response. Local suite 516 pass / 0 fail; anon surface still golden 45. Morning order: (1) B sign-in → close P4.2 bar + ledger, (2) CLI agent commits P4.3, (3) preview verify P4.3.
 - 2026-07-05 — **P4.1 shipped** (commit `f050a13`, branch `p4-remote-taste`, preview `site-git-p4-remote-taste-…vercel.app`): WorkOS AuthKit provisioned (env `Staging`, tenant `artistic-gold-76-staging.authkit.app`; account created by Andrew; DCR+CIMD enabled; resource indicators = preview alias + `https://mcp.ravenmcp.ai/api/mcp-user`). New `api/_auth.js` + `api/mcp-user.js` + `api/well-known.js` + vercel.json rewrites/CORS — all additive; `api/mcp.js` byte-identical. `mcp.ravenmcp.ai` domain added to project `site` bound to the branch (GoDaddy CNAME live, propagation pending at verify time). Verify: full bar met on the deployed preview incl. real-token 45/golden and deployed wrong-`aud` 401 (see P4.1 section). Deviation from bar-as-written: MCP Inspector replaced by a scripted DCR+PKCE browser client (sandbox egress can't reach *.vercel.app); protocol-equivalent, real clients land in P4.4. Next unstarted: **P4.2** (Upstash Redis via Vercel Marketplace still to provision).
+- 2026-07-06 — **P4.3 machine-side CLOSED, human leg staged** (commit `529b901`, canonical `https://mcp.ravenmcp.ai` serving branch deploy `site-gpzdrai81`). ff-pushed `529b901` onto `p4-remote-taste` (was `64633d0`; collision-checked, no reword — already published via `origin/feat/nextjs-migration` ancestry). Verified: 516/0 stdio tests; `buildServer` anon 45/golden `f64bb18…`, authed 55; live tokenless legs green (anon 45/golden, PRM 200, no-Bearer 401 challenge, garbage 401 invalid_token). Only the authed loop + cross-user isolation remain — gated on ONE AuthKit sign-in; harness `/tmp/verify-authed-loop.mjs` runs it given a captured token. **P4.4 instruction-tuning staged (prepped-not-landed)** pending that loop. Handoff = the "Andrew session runbook" below (one sitting closes P4.3's human leg + all three P4.4 connects). Next: Andrew's batched session → paste-back → adversarial Codex pass + eyes-on → box P4.3 & P4.4; then **P4.5**.
+
+---
+
+## Andrew session runbook
+
+**Purpose:** the single handoff artifact for the next sitting — discharges P4.3's authed loop (one sign-in) and all three P4.4 client connects in ~15 min. Everything machine-runnable is already done; what's left needs your AuthKit login (the sandbox can't hold a browser session or reach the OAuth redirect).
+
+**Already done autonomously (no click):** `529b901` ff-pushed to `p4-remote-taste` · anon golden `f64bb18…` (45) + authed 55 reconfirmed on the live deploy · 516/0 stdio tests · tokenless preview legs green (PRM 200, no-Bearer/garbage-Bearer 401 challenges) · authed-loop harness (`/tmp/verify-authed-loop.mjs`) + P4.4 tuning patch staged.
+
+### Part A — P4.3 authed-loop verification (your action: sign in once, capture a token)
+
+**Endpoint:** `https://mcp.ravenmcp.ai/api/mcp-user` (canonical; branch-bound to this deploy).
+
+1. **You** open the AuthKit sign-in and authorize as identity **A** (the P4.1/P4.2 test account) — either via a client's connector flow (below) or MCP Inspector — and **copy the issued access token**. Hand it to the agent (or export it): `RAVEN_TOKEN=<paste>`.
+2. **Agent** runs `RAVEN_TOKEN=<A> node /tmp/verify-authed-loop.mjs` — executes the full loop as A, in order, asserting each: `create_taste_profile` (home == `cloud:per-user`, **not** `~/.raven`) → `get_taste_interview` (questions surface) → `bind_taste_surface` (design_note stored) → `record_taste_decision` → `audit_taste` (**the bound design_note is echoed back**, not a generic pass) → `label_finding` → `generate_taste_portrait` (**inline HTML, zero `fs`/disk/`.png` path**).
+3. **Optional cross-user isolation:** sign in as identity **B** (`cunliffeandrewc+ravenb@gmail.com`), capture its token, re-run with `RAVEN_TOKEN=<A> RAVEN_TOKEN_B=<B> node /tmp/verify-authed-loop.mjs` → asserts B cannot read A's profile (not-found, no A-name leak). If you skip B, the isolation leg is already covered by the P4.2 server-side test — note it as deferred.
+4. **Agent** re-confirms anon `tools/list` == golden (45) and authed == 55 on the same deploy; `npm test` stays green.
+
+Harness prints `=== N/N PASS ===`. Paste that block back and the agent fills the P4.3 evidence slot + boxes it (after the adversarial Codex pass + eyes-on).
+
+### Part B — Three client connects (P4.4). Same URL for all: `https://mcp.ravenmcp.ai/api/mcp-user`
+
+**B1. Claude.ai** — Settings → Connectors → **+ Add custom connector** → name "Raven MCP", paste URL, leave OAuth Client ID/Secret blank (DCR auto-registers) → **Add**. Expected hops: PRM fetch → AS `artistic-gold-76-staging.authkit.app` → DCR → AuthKit login (**you sign in + Authorize**) → PKCE exchange → badge "Connected". **Interview check:** new chat, enable the connector, ask anything touching taste → `get_taste_interview` fires with `existing_binding: null` on first contact. **Reconnect check:** 2nd new chat → **same** profile/binding returned, no fresh interview.
+
+**B2. Cursor** — Settings → MCP → Add server, or `.cursor/mcp.json`:
+```json
+{ "mcpServers": { "raven": { "url": "https://mcp.ravenmcp.ai/api/mcp-user" } } }
+```
+Save → Cursor hits 401 + `WWW-Authenticate` → auto-starts OAuth (PRM → AS → DCR) → opens browser (**sign in + Authorize**) → PKCE → panel goes green, **tool count == 55**. Interview + reconnect checks as B1.
+
+**B3. ChatGPT — LOCKED hard exit; do carefully.** **Pre-flight:** OpenAI gates full **write-capable** MCP connectors to Business/Enterprise/Edu; a personal Plus/Pro + Developer-mode connector may be **read/fetch-only**. Raven's taste tools are write-heavy — confirm your workspace tier first; if writes silently no-op that's the account tier, not a Raven bug, and it still fails the gate. **Personal:** Settings → Connectors → Advanced → enable **Developer mode** → Connectors → **Create**. **Workspace:** admin enables custom MCP connectors first. Paste URL → Connect → PRM → AS → CIMD/DCR → AuthKit (**sign in + Authorize**) → Connected. **Interview check** as above. **Write-capability check (don't skip):** have it actually call `create_taste_profile` or `record_taste_decision` and confirm the write persists (not a read echo). Reconnect check as B1.
+
+### Paste-back evidence slots
+```
+P4.3 authed loop — harness result: [N/N PASS] · home==cloud:per-user: [pass/fail] · audit echoes design_note: [pass/fail] · portrait inline no-fs: [pass/fail] · isolation (B): [pass/fail | deferred] · anon golden reconfirmed: [hash] · npm test: [516/0]
+Claude.ai — OAuth: [pass/fail] · interview surfaced: [pass/fail] · reconnect same profile: [pass/fail]
+Cursor   — OAuth: [pass/fail] · tool count: [N, expect 55] · interview: [pass/fail] · reconnect: [pass/fail]
+ChatGPT  — tier: [Plus/Pro | Business/Ent/Edu] · OAuth: [pass/fail] · interview: [pass/fail] · WRITE persisted (not no-op): [pass/fail] · reconnect: [pass/fail]
+```
+
+On paste-back the agent: fills the P4.3 + P4.4 ledger slots, runs the adversarial Codex devil's-advocate pass + eyes-on verify, **then** checks the boxes — never before. Next unstarted after that: **P4.5**.
