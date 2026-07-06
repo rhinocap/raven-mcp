@@ -11,6 +11,11 @@ export interface TasteStore {
   putSurfaces(name: string, bindings: SurfaceBinding[]): Promise<void>;
   getDecisions(name: string): Promise<unknown | null>;
   putDecisions(name: string, decisions: TasteDecision[]): Promise<void>;
+  // OPTIONAL atomic single-decision append. Stores that can append without a
+  // read-modify-write (Redis RPUSH) implement this; recordTasteDecision
+  // prefers it when present. FsTasteStore intentionally does NOT implement it,
+  // so the stdio path is byte-for-byte unchanged.
+  appendDecision?(name: string, decision: TasteDecision): Promise<void>;
   // Human label for a store slot, used only in corrupt-store error messages.
   // Fs returns the absolute path; non-fs stores return the logical file name
   // (an absolute path would be a lie for a Redis-backed store).

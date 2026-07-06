@@ -723,7 +723,12 @@ export async function recordTasteDecision(store: TasteStore, profileName: string
   }
   const decisions = await listTasteDecisions(store, profile.name);
   const record: TasteDecision = {
-    id: "dec_" + (decisions.length + 1),
+    // Stores with an atomic append (Redis) get a collision-free id — two
+    // concurrent sessions must not mint the same "dec_<n>". The fs path keeps
+    // the exact historical counter id, byte-for-byte.
+    id: store.appendDecision
+      ? "dec_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6)
+      : "dec_" + (decisions.length + 1),
     project: input.project,
     dimension,
     decision: input.decision.trim(),
@@ -732,8 +737,13 @@ export async function recordTasteDecision(store: TasteStore, profileName: string
     source: source as TasteDecisionSource,
     recorded_at: new Date().toISOString(),
   };
-  decisions.push(record);
-  await store.putDecisions(profile.name, decisions);
+  if (store.appendDecision) {
+    // Atomic append — no read-modify-write, no lost update under concurrency.
+    await store.appendDecision(profile.name, record);
+  } else {
+    decisions.push(record);
+    await store.putDecisions(profile.name, decisions);
+  }
   return record;
 }
 

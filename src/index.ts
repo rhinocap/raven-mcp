@@ -1623,6 +1623,16 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   "raven_register"
 ]);
 
+// Taste tools served to AUTHENTICATED remote users when a per-user store is
+// injected into buildServer (P4.2+: api/mcp-user.js passes a
+// RedisTasteStore(sub) per request). Gating is store-PRESENCE-based: the
+// anonymous endpoint never injects a store, so its 45-tool surface is
+// unchanged by construction. P4.2 un-gates exactly the profile trio; the
+// remaining 7 taste tools land in P4.3.
+const AUTHED_USER_TASTE_TOOLS = new Set<string>([
+  "create_taste_profile", "get_taste_profile", "list_taste_profiles"
+]);
+
 // Tools KEPT in remote mode for their safe pasted-content path, but whose `url`
 // argument reaches the local filesystem / network via headless capture (incl.
 // file:// → server-file oracle). In remote mode we reject the capture param so the
@@ -1689,6 +1699,10 @@ var remote: boolean = (opts && typeof opts.remote === "boolean")
 // once (idempotent under Fluid-Compute instance reuse) and every ~/.raven read/
 // write below fails closed regardless of which tool or param reached it.
 if (remote) setRemoteRuntime();
+// A caller-injected store (the authed endpoint's per-user RedisTasteStore)
+// un-gates the authed taste subset below. The anonymous endpoint and stdio
+// never inject one, so their tool surfaces are unchanged by construction.
+var hasUserStore: boolean = !!(opts && opts.tasteStore);
 var tasteStore: TasteStore = opts && opts.tasteStore
   ? opts.tasteStore
   : remote ? new ClosedTasteStore() : new FsTasteStore();
@@ -1707,8 +1721,10 @@ var originalTool: any = server.tool.bind(server);
   var toolName: string = args[0];
   // Remote mode: silently skip registration of the stateful/local + fs/network/
   // side-effect tools. No registration statement uses the return value, so
-  // undefined is safe.
-  if (remote && REMOTE_GATED_TOOLS.has(toolName)) {
+  // undefined is safe. Exception (P4.2+): when a per-user store was injected
+  // (authenticated endpoint), the authed taste subset registers and runs
+  // against that store.
+  if (remote && REMOTE_GATED_TOOLS.has(toolName) && !(hasUserStore && AUTHED_USER_TASTE_TOOLS.has(toolName))) {
     return undefined;
   }
   var handler = args[args.length - 1];

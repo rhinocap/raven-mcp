@@ -17,8 +17,24 @@
 // body cap. Comments explaining those choices live in api/mcp.js.
 
 import { buildServer } from "../dist/index.js";
+import { RedisTasteStore } from "../dist/taste-store-redis.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { Redis } from "@upstash/redis";
 import { verifyBearer, wwwAuthenticate } from "./_auth.js";
+
+// Upstash Redis REST client — module-level is safe: it is user-AGNOSTIC
+// config (URL + token from env). All per-user scoping lives in the
+// RedisTasteStore(sub) constructed per request below. Env names are the ones
+// the Vercel Marketplace Upstash integration injects.
+let redisClient = null;
+function redis() {
+  if (redisClient) return redisClient;
+  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  redisClient = new Redis({ url, token });
+  return redisClient;
+}
 
 const MAX_BODY_BYTES = 400_000;
 
@@ -90,10 +106,14 @@ export default async function handler(req, res) {
     return;
   }
 
-  // P4.1: identical tool surface to the anonymous endpoint. auth.claims.sub is
-  // established and verified here but not yet used — the per-user store lands
-  // in P4.2.
-  const server = buildServer({ remote: true });
+  // P4.2: per-request, per-user store injection. The verified JWT `sub` is the
+  // ONLY key namespace input — explicit parameter threading, no module-level
+  // "current user" (Fluid Compute concurrency). If Redis env is absent the
+  // endpoint degrades to the P4.1 45-tool surface rather than erroring.
+  const client = redis();
+  const server = client
+    ? buildServer({ remote: true, tasteStore: new RedisTasteStore(auth.claims.sub, client) })
+    : buildServer({ remote: true });
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true
