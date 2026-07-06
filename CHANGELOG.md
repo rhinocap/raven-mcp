@@ -6,6 +6,14 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-07-05
+
+### Added
+- Cinematic-website craft in the Taste Engine. The kickoff interview's design-dimension questions now offer cinematic options — an AI-generated video hero, a cinematic-noir aesthetic, a video-first entrance, and scroll-scrub motion — and `bind_taste_surface` / `audit_taste` return build-hint recipes for two techniques: an AI-generated video hero (generate one hero image first, chain short clips around a single consistent subject, reserve 4K for one final shot then web-compress, autoplay muted/inline over a poster) and a scroll-scrubbed frame sequence (the hero plays forward and backward under the visitor's scroll). The AI-video recipe fires only on notes that actually name AI generation or the tool, names its paid external dependency (the Higgsfield MCP running the Seedance model), and tells the builder to confirm that with the user and agree a still-photography or licensed-film fallback rather than assuming the cost — a note that opted out of AI is never pushed toward a paid dependency.
+
+### Changed
+- Server construction now runs through a `buildServer()` factory that returns a fresh MCP instance per connection. The stdio server and its full tool set are unchanged — internal groundwork with no observable difference for existing clients.
+
 ## [1.15.0] - 2026-07-04
 
 ### Added

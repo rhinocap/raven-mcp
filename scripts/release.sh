@@ -79,7 +79,8 @@ echo "→ Committing + tagging"
 git add package.json package-lock.json manifest.json server.json site/raven.mcpb
 git commit -m "Release v$NEW
 
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_019fq7bxWEQk8Q2Q4vaQsU7U"
 git tag "v$NEW"
 
 echo "→ Pushing"
