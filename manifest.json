@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "raven-mcp",
   "display_name": "Raven",
-  "version": "1.15.0",
+  "version": "1.16.0",
   "description": "Design intelligence and creative orchestration for Claude — principles, patterns, audits, brand guidance, creative jobs, campaign plans, and local brand profiles.",
   "long_description": "Raven gives Claude a design knowledge base and creative orchestration layer it can query while generating UI and production briefs. Eight design layers cover principles (Nielsen, Laws of UX, Gestalt, WCAG, typography, color, mobile UX, D4D, UX writing, service design, brand), patterns (signup, pricing, nav, forms, landing, dashboard, modals, empty/error/loading states, CTAs, social proof, mobile conversion, plus content patterns and service patterns), content design systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian voice & tone), research methods (qualitative, quantitative, usability) and metrics frameworks (HEART, AARRR, North Star, conversion funnel, RICE, OKRs), service design (service blueprinting with HTML blueprint generation, human handoff, signup-as-service, omnichannel continuity, moments of truth / recovery, GOV.UK service standard), brand & visual design (logo usage, gradient usage, imagery, visual hierarchy, brand-as-system, current trends), business strategy, and production design tokens (Stripe, Linear, and more). The creative studio layer adds local brand profiles, asset references, character reference profiles, provider-agnostic image/video/3D/audio generation jobs, campaign plans, and transparent creative scoring. Claude calls Raven's tools automatically when you ask it to build, evaluate, improve UI, design research, design a service, or prepare creative production.",
   "author": {
