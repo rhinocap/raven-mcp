@@ -1,9 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { extractStaticTraits, type PageTraits } from "./capture.js";
 import { assessDesignNotes, referenceDeltas, restraintGuard, buildHints, type NoteAssessment, type BuildHint } from "./taste-fidelity.js";
-import { isRemoteRuntime } from "./remote-runtime.js";
+import type { TasteStore } from "./taste-store.js";
+export { tasteHome } from "./taste-store.js";
 
 export type TasteSeverity = "block" | "warn" | "nit";
 export type TasteRule = {
@@ -213,16 +211,12 @@ const STOPWORDS = new Set([
   "this", "that", "then", "there", "these", "those", "use", "with", "your",
 ]);
 
-export function tasteHome(): string {
-  return process.env.RAVEN_TASTE_HOME || join(homedir(), ".raven", "taste");
-}
-
-export function createTasteProfile(input: {
+export async function createTasteProfile(store: TasteStore, input: {
   name: string;
   rules?: unknown[];
   corpus?: unknown[];
   markdown?: string;
-}): TasteProfile {
+}): Promise<TasteProfile> {
   const name = validateProfileName(input.name);
   const now = new Date().toISOString();
   const rules: TasteRule[] = [];
@@ -273,36 +267,25 @@ export function createTasteProfile(input: {
     rules,
     corpus,
   };
-  writeProfile(profile);
+  await writeProfile(store, profile);
   return profile;
 }
 
-export function getTasteProfile(name: string): TasteProfile {
+export async function getTasteProfile(store: TasteStore, name: string): Promise<TasteProfile> {
   const safeName = validateProfileName(name);
-  const file = profilePath(safeName);
-  if (!existsSync(file)) {
-    const available = listTasteProfiles().map(function(profile) { return profile.name; });
+  const raw = await store.getProfile(safeName);
+  if (raw === null) {
+    const available = (await listTasteProfiles(store)).map(function(profile) { return profile.name; });
     const suffix = available.length > 0 ? available.join(", ") : "(none)";
     throw new Error("Taste profile not found: " + safeName + ". Available profiles: " + suffix);
   }
-  return validateStoredProfile(JSON.parse(readFileSync(file, "utf8")), safeName);
+  return validateStoredProfile(raw, safeName);
 }
 
-export function listTasteProfiles(): { name: string; rules: number; corpus: number; updated_at: string }[] {
-  // Hosted (remote) runtime: never enumerate the local taste store. Fail empty so
-  // callers (incl. resolveMobileTaste's search-all-profiles path) degrade to "no
-  // binding" — the store is per-machine state a no-auth endpoint must not read.
-  if (isRemoteRuntime()) return [];
-  const home = tasteHome();
-  if (!existsSync(home)) return [];
-  return readdirSync(home)
-    .filter(function(file) {
-      // Sidecar stores live alongside profiles: <name>.surfaces.json, <name>.decisions.json.
-      return file.endsWith(".json") && !file.endsWith(".surfaces.json") && !file.endsWith(".decisions.json");
-    })
-    .map(function(file) {
-      const raw = JSON.parse(readFileSync(join(home, file), "utf8"));
-      const profile = validateStoredProfile(raw, file.slice(0, -5));
+export async function listTasteProfiles(store: TasteStore): Promise<{ name: string; rules: number; corpus: number; updated_at: string }[]> {
+  return (await store.listProfiles())
+    .map(function(entry) {
+      const profile = validateStoredProfile(entry.raw, entry.name);
       return {
         name: profile.name,
         rules: profile.rules.length,
@@ -313,17 +296,18 @@ export function listTasteProfiles(): { name: string; rules: number; corpus: numb
     .sort(function(a, b) { return a.name.localeCompare(b.name); });
 }
 
-export function labelFinding(
+export async function labelFinding(
+  store: TasteStore,
   profileName: string,
   rec: { artifact: string; verdict: string; violated_rule: string; severity: string; wrong: string; right: string }
-): { profile: string; corpus_count: number; record: TasteCorpusRecord } {
-  const profile = getTasteProfile(profileName);
+): Promise<{ profile: string; corpus_count: number; record: TasteCorpusRecord }> {
+  const profile = await getTasteProfile(store, profileName);
   const ruleIds = new Set(profile.rules.map(function(rule) { return rule.rule_id; }));
   const record = validateLabelInput(rec, ruleIds, profile.corpus.length + 1);
 
   profile.corpus.push(record);
   profile.updated_at = new Date().toISOString();
-  writeProfile(profile);
+  await writeProfile(store, profile);
 
   return { profile: profile.name, corpus_count: profile.corpus.length, record };
 }
@@ -362,7 +346,7 @@ function rawWords(value: string): Set<string> {
 // any voice/tone note. The interview is deterministic — built from the
 // profile's own scopes and voice rules — and is asked by the agent, not here.
 
-export function getTasteInterview(profileName: string, project?: string, mode?: "kickoff" | "refine"): {
+export async function getTasteInterview(store: TasteStore, profileName: string, project?: string, mode?: "kickoff" | "refine"): Promise<{
   tool: "get_taste_interview";
   profile: string;
   project: string;
@@ -372,9 +356,9 @@ export function getTasteInterview(profileName: string, project?: string, mode?: 
   rule_ids: string[];
   questions: TasteInterviewQuestion[];
   then: string;
-} {
+}> {
   const interviewMode = mode === "refine" ? "refine" : "kickoff";
-  const profile = getTasteProfile(profileName);
+  const profile = await getTasteProfile(store, profileName);
   const projectName = typeof project === "string" && project.trim().length > 0 ? project.trim() : "";
   const scopeMap = new Map<string, { rule_id: string; clause_text: string; severity_default: TasteSeverity }[]>();
   for (const rule of profile.rules) {
@@ -390,7 +374,7 @@ export function getTasteInterview(profileName: string, project?: string, mode?: 
 
   const label = projectName || "this project";
   const ruleIds = profile.rules.map(function(rule) { return rule.rule_id; });
-  const existingBinding = projectName ? resolveSurfaceBinding(profile.name, { project: projectName }) : null;
+  const existingBinding = projectName ? await resolveSurfaceBinding(store, profile.name, { project: projectName }) : null;
 
   if (interviewMode === "refine") {
     if (!existingBinding) {
@@ -472,7 +456,7 @@ export function getTasteInterview(profileName: string, project?: string, mode?: 
   // Recurring choices return as suggestions on their dimension's question, and
   // decision categories no standard dimension covers spawn NEW questions below
   // — the interview evolves from decisions actually made, never invented.
-  const priorDecisions = listTasteDecisions(profile.name).filter(function(decision) {
+  const priorDecisions = (await listTasteDecisions(store, profile.name)).filter(function(decision) {
     return !projectName || decision.project.toLowerCase() !== projectName.toLowerCase();
   });
   const decisionsByDimension = new Map<string, TasteDecision[]>();
@@ -558,7 +542,7 @@ export function getTasteInterview(profileName: string, project?: string, mode?: 
   // design_notes.special values the same person chose on their OTHER bound
   // surfaces — the interview starts proposing their own signatures back.
   const specialSuggestions: string[] = [];
-  for (const binding of listSurfaceBindings(profile.name)) {
+  for (const binding of await listSurfaceBindings(store, profile.name)) {
     if (projectName && binding.project.toLowerCase() === projectName.toLowerCase()) continue;
     const note = binding.design_notes.special;
     if (typeof note === "string" && note.trim().length > 0 && specialSuggestions.indexOf(note.trim()) === -1) {
@@ -590,7 +574,7 @@ export function getTasteInterview(profileName: string, project?: string, mode?: 
   };
 }
 
-export function bindTasteSurface(profileName: string, input: {
+export async function bindTasteSurface(store: TasteStore, profileName: string, input: {
   project: string;
   surface: string;
   hosts?: unknown;
@@ -599,8 +583,8 @@ export function bindTasteSurface(profileName: string, input: {
   design_notes?: unknown;
   references?: unknown;
   uncalibrated_ack?: unknown;
-}): SurfaceBinding {
-  const profile = getTasteProfile(profileName);
+}): Promise<SurfaceBinding> {
+  const profile = await getTasteProfile(store, profileName);
   if (typeof input.project !== "string" || !/^[a-z0-9][a-z0-9-_.]{0,63}$/i.test(input.project)) {
     throw new Error("project must match /^[a-z0-9][a-z0-9-_.]{0,63}$/i");
   }
@@ -679,13 +663,12 @@ export function bindTasteSurface(profileName: string, input: {
   };
   if (references !== undefined) binding.references = references;
   if (!hasCalibration && ack.length > 0) binding.uncalibrated_ack = ack;
-  const bindings = listSurfaceBindings(profile.name).filter(function(existing) {
+  const bindings = (await listSurfaceBindings(store, profile.name)).filter(function(existing) {
     return existing.project.toLowerCase() !== binding.project.toLowerCase();
   });
   bindings.push(binding);
   bindings.sort(function(a, b) { return a.project.localeCompare(b.project); });
-  mkdirSync(tasteHome(), { recursive: true });
-  writeFileSync(surfacesPath(profile.name), JSON.stringify({ version: 1, bindings }, null, 2) + "\n", "utf8");
+  await store.putSurfaces(profile.name, bindings);
   return binding;
 }
 
@@ -696,15 +679,15 @@ const DECISION_SOURCES: TasteDecisionSource[] = ["user-directed", "user-approved
 // getTasteInterview mines the ledger so future kickoffs propose the person's
 // own past choices back (and grow new questions for decision categories no
 // standard dimension covers).
-export function recordTasteDecision(profileName: string, input: {
+export async function recordTasteDecision(store: TasteStore, profileName: string, input: {
   project: string;
   dimension: string;
   decision: string;
   rejected?: unknown;
   why?: unknown;
   source?: unknown;
-}): TasteDecision {
-  const profile = getTasteProfile(profileName);
+}): Promise<TasteDecision> {
+  const profile = await getTasteProfile(store, profileName);
   if (typeof input.project !== "string" || !/^[a-z0-9][a-z0-9-_.]{0,63}$/i.test(input.project)) {
     throw new Error("project must match /^[a-z0-9][a-z0-9-_.]{0,63}$/i");
   }
@@ -727,7 +710,7 @@ export function recordTasteDecision(profileName: string, input: {
   if (DECISION_SOURCES.indexOf(source as TasteDecisionSource) === -1) {
     throw new Error("source must be user-directed, user-approved, or user-corrected");
   }
-  const decisions = listTasteDecisions(profile.name);
+  const decisions = await listTasteDecisions(store, profile.name);
   const record: TasteDecision = {
     id: "dec_" + (decisions.length + 1),
     project: input.project,
@@ -739,17 +722,16 @@ export function recordTasteDecision(profileName: string, input: {
     recorded_at: new Date().toISOString(),
   };
   decisions.push(record);
-  mkdirSync(tasteHome(), { recursive: true });
-  writeFileSync(decisionsPath(profile.name), JSON.stringify({ version: 1, decisions }, null, 2) + "\n", "utf8");
+  await store.putDecisions(profile.name, decisions);
   return record;
 }
 
-export function listTasteDecisions(profileName: string, filter?: { project?: string; dimension?: string }): TasteDecision[] {
-  const file = decisionsPath(validateProfileName(profileName));
-  if (!existsSync(file)) return [];
-  const raw = JSON.parse(readFileSync(file, "utf8"));
+export async function listTasteDecisions(store: TasteStore, profileName: string, filter?: { project?: string; dimension?: string }): Promise<TasteDecision[]> {
+  const safeName = validateProfileName(profileName);
+  const raw = await store.getDecisions(safeName);
+  if (raw === null) return [];
   if (!isRecord(raw) || raw.version !== 1 || !Array.isArray(raw.decisions)) {
-    throw new Error("Stored taste decisions must be {version: 1, decisions: []}: " + file);
+    throw new Error("Stored taste decisions must be {version: 1, decisions: []}: " + store.describe(safeName, "decisions"));
   }
   const decisions = raw.decisions.map(function(entry, index) { return validateStoredDecision(entry, "decisions[" + index + "]"); });
   return decisions.filter(function(decision) {
@@ -783,23 +765,20 @@ function validateStoredDecision(entry: unknown, where: string): TasteDecision {
   };
 }
 
-export function listSurfaceBindings(profileName: string): SurfaceBinding[] {
-  const file = surfacesPath(validateProfileName(profileName));
-  if (!existsSync(file)) return [];
-  const raw = JSON.parse(readFileSync(file, "utf8"));
+export async function listSurfaceBindings(store: TasteStore, profileName: string): Promise<SurfaceBinding[]> {
+  const safeName = validateProfileName(profileName);
+  const raw = await store.getSurfaces(safeName);
+  if (raw === null) return [];
   if (!isRecord(raw) || raw.version !== 1 || !Array.isArray(raw.bindings)) {
-    throw new Error("Stored surface bindings must be {version: 1, bindings: []}: " + file);
+    throw new Error("Stored surface bindings must be {version: 1, bindings: []}: " + store.describe(safeName, "surfaces"));
   }
   return raw.bindings.map(function(entry, index) { return validateStoredBinding(entry, "bindings[" + index + "]"); });
 }
 
 // Precedence: explicit project name beats url-host match; hosts match exactly
 // or as a parent domain (www.ravenmcp.ai matches a ravenmcp.ai binding).
-export function resolveSurfaceBinding(profileName: string, hints: { project?: string; url?: string }): SurfaceBinding | null {
-  // Hosted (remote) runtime: never resolve a local surface binding — fail closed
-  // to null so mobile audits run stateless with no ~/.raven access.
-  if (isRemoteRuntime()) return null;
-  const bindings = listSurfaceBindings(profileName);
+export async function resolveSurfaceBinding(store: TasteStore, profileName: string, hints: { project?: string; url?: string }): Promise<SurfaceBinding | null> {
+  const bindings = await listSurfaceBindings(store, profileName);
   if (bindings.length === 0) return null;
   const project = typeof hints.project === "string" ? hints.project.trim().toLowerCase() : "";
   if (project.length > 0) {
@@ -818,14 +797,6 @@ export function resolveSurfaceBinding(profileName: string, hints: { project?: st
     }
   }
   return null;
-}
-
-function surfacesPath(name: string): string {
-  return join(tasteHome(), name + ".surfaces.json");
-}
-
-function decisionsPath(name: string): string {
-  return join(tasteHome(), name + ".decisions.json");
 }
 
 // URL-parse the entry (handles userinfo, ports, paths, IPv6 brackets) so the
@@ -1110,7 +1081,7 @@ function validateDesignNotes(raw: unknown, where: string): Record<string, string
   return notes;
 }
 
-export function auditTaste(input: {
+export async function auditTaste(store: TasteStore, input: {
   profile: string | TasteProfile;
   html?: string;
   text?: string;
@@ -1127,11 +1098,11 @@ export function auditTaste(input: {
   // the surface (a taste portrait/spec sheet) — note-fidelity is skipped and
   // the skip is reported on the result. Profile rules still run in full.
   document_kind?: "artifact" | "portrait";
-}): TasteAuditResult {
+}): Promise<TasteAuditResult> {
   const supplied = [input.html !== undefined, input.text !== undefined].filter(Boolean).length;
   if (supplied !== 1) throw new Error("Exactly one of html or text is required");
 
-  const profile = typeof input.profile === "string" ? getTasteProfile(input.profile) : validateStoredProfile(input.profile, input.profile.name);
+  const profile = typeof input.profile === "string" ? await getTasteProfile(store, input.profile) : validateStoredProfile(input.profile, input.profile.name);
   const targetKind: "html" | "text" = input.html !== undefined ? "html" : "text";
   const rawTarget = input.html !== undefined ? input.html : input.text || "";
   // Quoted evidence (marked data-taste-quote) is content ABOUT taste — corpus
@@ -1149,7 +1120,7 @@ export function auditTaste(input: {
   // delegate audits are filtered the same way).
   const binding = input.binding !== undefined
     ? input.binding
-    : resolveSurfaceBinding(profile.name, { project: input.project });
+    : await resolveSurfaceBinding(store, profile.name, { project: input.project });
   const explicitSurface = typeof input.surface === "string" && input.surface.trim().length > 0 ? input.surface : undefined;
   const surface = explicitSurface !== undefined ? explicitSurface : binding ? binding.surface : undefined;
   const surfaceProvided = surface !== undefined;
@@ -1325,14 +1296,8 @@ function validateProfileName(name: unknown): string {
   return name;
 }
 
-function profilePath(name: string): string {
-  return join(tasteHome(), name + ".json");
-}
-
-function writeProfile(profile: TasteProfile): void {
-  const home = tasteHome();
-  mkdirSync(home, { recursive: true });
-  writeFileSync(profilePath(profile.name), JSON.stringify(profile, null, 2) + "\n", "utf8");
+async function writeProfile(store: TasteStore, profile: TasteProfile): Promise<void> {
+  await store.putProfile(profile);
 }
 
 function validateRule(rule: unknown, where: string): TasteRule {

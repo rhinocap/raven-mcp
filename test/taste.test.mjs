@@ -8,10 +8,13 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distTaste = path.resolve(__dirname, '../dist/taste.js');
+const distTasteStore = path.resolve(__dirname, '../dist/taste-store.js');
 
 let taste;
+let tasteStoreMod;
 try {
   taste = await import(distTaste);
+  tasteStoreMod = await import(distTasteStore);
 } catch (err) {
   const msg = `dist/taste.js not found - run \`npm run build\` first. (${err.message})`;
   test('taste module available', (t) => { t.skip(msg); });
@@ -23,7 +26,8 @@ async function withTasteHome(fn) {
   const home = await mkdtemp(path.join(tmpdir(), 'raven-taste-'));
   process.env.RAVEN_TASTE_HOME = home;
   try {
-    await fn(home);
+    const store = new tasteStoreMod.FsTasteStore();
+    await fn(home, store);
   } finally {
     if (previous === undefined) {
       delete process.env.RAVEN_TASTE_HOME;
@@ -77,20 +81,20 @@ function assertAllCitationsExist(profile, result) {
 }
 
 test('profile CRUD roundtrip', async () => {
-  await withTasteHome(async () => {
+  await withTasteHome(async (_home, store) => {
     const rules = baseRules().slice(0, 2);
-    const profile = taste.createTasteProfile({ name: 'staff-taste', rules });
-    const loaded = taste.getTasteProfile('staff-taste');
+    const profile = await taste.createTasteProfile(store, { name: 'staff-taste', rules });
+    const loaded = await taste.getTasteProfile(store, 'staff-taste');
     assert.deepEqual(loaded, profile);
 
-    assert.deepEqual(taste.listTasteProfiles(), [
+    assert.deepEqual(await taste.listTasteProfiles(store), [
       { name: 'staff-taste', rules: 2, corpus: 0, updated_at: profile.updated_at }
     ]);
   });
 });
 
 test('markdown ingestion parses categories, severities, raven owner, negative prompts, and unique ids', async () => {
-  await withTasteHome(async () => {
+  await withTasteHome(async (_home, store) => {
     const markdown = `
 ## Color Systems
 - (block) Avoid gradient hero chrome. Do NOT use linear-gradient as decoration.
@@ -98,7 +102,7 @@ test('markdown ingestion parses categories, severities, raven owner, negative pr
 ### Accessibility
 - (warn) Tap targets must meet sizing guidance. (raven:audit_page) Do NOT ship small buttons.
 `;
-    const profile = taste.createTasteProfile({
+    const profile = await taste.createTasteProfile(store, {
       name: 'markdown',
       rules: [{
         rule_id: 'EXPLICIT-RULE',
@@ -128,9 +132,9 @@ test('markdown ingestion parses categories, severities, raven owner, negative pr
 });
 
 test('label_finding append-only growth and rejects invented violated_rule', async () => {
-  await withTasteHome(async (home) => {
-    taste.createTasteProfile({ name: 'labels', rules: [baseRules()[0]] });
-    const first = taste.labelFinding('labels', {
+  await withTasteHome(async (home, store) => {
+    await taste.createTasteProfile(store, { name: 'labels', rules: [baseRules()[0]] });
+    const first = await taste.labelFinding(store, 'labels', {
       artifact: 'hero.html',
       verdict: 'revise',
       violated_rule: 'GRADIENT-BLOCK',
@@ -141,7 +145,7 @@ test('label_finding append-only growth and rejects invented violated_rule', asyn
     const file = path.join(home, 'labels.json');
     const firstRecordBefore = JSON.parse(await readFile(file, 'utf8')).corpus[0];
 
-    const second = taste.labelFinding('labels', {
+    const second = await taste.labelFinding(store, 'labels', {
       artifact: 'hero-2.html',
       verdict: 'reject',
       violated_rule: 'GRADIENT-BLOCK',
@@ -154,7 +158,7 @@ test('label_finding append-only growth and rejects invented violated_rule', asyn
     assert.equal(second.record.id, 'rec_0002');
     assert.equal(after.corpus.length, 2);
     assert.deepEqual(after.corpus[0], firstRecordBefore);
-    assert.throws(() => taste.labelFinding('labels', {
+    await assert.rejects(() => taste.labelFinding(store, 'labels', {
       artifact: 'bad.html',
       verdict: 'revise',
       violated_rule: 'INVENTED',
@@ -166,19 +170,19 @@ test('label_finding append-only growth and rejects invented violated_rule', asyn
 });
 
 test('verdict escalation excludes nit-only from verdict line', async () => {
-  await withTasteHome(async () => {
-    const profile = taste.createTasteProfile({ name: 'verdicts', rules: baseRules() });
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, { name: 'verdicts', rules: baseRules() });
 
-    const nitOnly = taste.auditTaste({ profile: 'verdicts', html: '<style>.a{color:#ff0000}.b{color:#0066ff}</style>' });
+    const nitOnly = await taste.auditTaste(store, { profile: 'verdicts', html: '<style>.a{color:#ff0000}.b{color:#0066ff}</style>' });
     assert.equal(nitOnly.verdict, 'PASS');
     assert.equal(nitOnly.verdict_line, 'Verdict: PASS (no findings)');
     assert.equal(nitOnly.findings.length, 1);
 
-    const warn = taste.auditTaste({ profile, text: 'This shipped feature will unlock growth. #ff0000 #0066ff' });
+    const warn = await taste.auditTaste(store, { profile, text: 'This shipped feature will unlock growth. #ff0000 #0066ff' });
     assert.equal(warn.verdict, 'WARN');
     assert.equal(warn.verdict_line, 'Verdict: WARN (0 block, 2 warn)');
 
-    const block = taste.auditTaste({
+    const block = await taste.auditTaste(store, {
       profile: 'verdicts',
       html: '<style>.hero{background:linear-gradient(red, blue);color:#ff0000}.cta{color:#0066ff}</style><p>unlock</p>'
     });
@@ -188,13 +192,13 @@ test('verdict escalation excludes nit-only from verdict line', async () => {
 });
 
 test('corpus suppression downgrades verdict and moves finding to suppressed', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'suppression', rules: [baseRules()[0]] });
-    const first = taste.auditTaste({ profile: 'suppression', html: '<style>.x{background:linear-gradient(red, blue)}</style>' });
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'suppression', rules: [baseRules()[0]] });
+    const first = await taste.auditTaste(store, { profile: 'suppression', html: '<style>.x{background:linear-gradient(red, blue)}</style>' });
     assert.equal(first.verdict, 'BLOCK');
     assert.equal(first.findings.length, 1);
 
-    taste.labelFinding('suppression', {
+    await taste.labelFinding(store, 'suppression', {
       artifact: 'accepted.html',
       verdict: 'accept',
       violated_rule: 'GRADIENT-BLOCK',
@@ -202,7 +206,7 @@ test('corpus suppression downgrades verdict and moves finding to suppressed', as
       wrong: 'linear-gradient',
       right: 'accepted exception'
     });
-    const second = taste.auditTaste({ profile: 'suppression', html: '<style>.x{background:linear-gradient(red, blue)}</style>' });
+    const second = await taste.auditTaste(store, { profile: 'suppression', html: '<style>.x{background:linear-gradient(red, blue)}</style>' });
     assert.equal(second.findings.length, 0);
     assert.equal(second.suppressed.length, 1);
     assert.equal(second.suppressed[0].corpus_id, 'rec_0001');
@@ -211,8 +215,8 @@ test('corpus suppression downgrades verdict and moves finding to suppressed', as
 });
 
 test('rule_id citation invariant across findings, suppressed, and not_assessed', async () => {
-  await withTasteHome(async () => {
-    const profile = taste.createTasteProfile({
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, {
       name: 'citations',
       rules: [
         ...baseRules().slice(0, 1),
@@ -227,7 +231,7 @@ test('rule_id citation invariant across findings, suppressed, and not_assessed',
         }
       ]
     });
-    taste.labelFinding('citations', {
+    await taste.labelFinding(store, 'citations', {
       artifact: 'accepted.html',
       verdict: 'accept',
       violated_rule: 'GRADIENT-BLOCK',
@@ -235,7 +239,7 @@ test('rule_id citation invariant across findings, suppressed, and not_assessed',
       wrong: 'linear-gradient',
       right: 'accepted exception'
     });
-    const result = taste.auditTaste({ profile: 'citations', html: '<style>.x{background:linear-gradient(red, blue)}</style>' });
+    const result = await taste.auditTaste(store, { profile: 'citations', html: '<style>.x{background:linear-gradient(red, blue)}</style>' });
     assertAllCitationsExist(profile, result);
     assert.equal(result.suppressed.length, 1);
     assert.equal(result.not_assessed.length, 1);
@@ -243,9 +247,9 @@ test('rule_id citation invariant across findings, suppressed, and not_assessed',
 });
 
 test('no invented rule_id and no hedging evidence', async () => {
-  await withTasteHome(async () => {
-    const profile = taste.createTasteProfile({ name: 'invariants', rules: baseRules() });
-    const result = taste.auditTaste({
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, { name: 'invariants', rules: baseRules() });
+    const result = await taste.auditTaste(store, {
       profile: 'invariants',
       html: '<style>.hero{background:linear-gradient(red, blue);box-shadow:0 0 24px #00ffcc;color:#ff0000}.alt{color:#0066ff}</style><p>proven</p>'
     });
@@ -261,14 +265,15 @@ test('RAVEN_TASTE_HOME isolation keeps profiles in env-var home', async () => {
   const previous = process.env.RAVEN_TASTE_HOME;
   const homeA = await mkdtemp(path.join(tmpdir(), 'raven-taste-a-'));
   const homeB = await mkdtemp(path.join(tmpdir(), 'raven-taste-b-'));
+  const store = new tasteStoreMod.FsTasteStore();
   try {
     process.env.RAVEN_TASTE_HOME = homeA;
-    taste.createTasteProfile({ name: 'isolated', rules: [baseRules()[0]] });
+    await taste.createTasteProfile(store, { name: 'isolated', rules: [baseRules()[0]] });
     await stat(path.join(homeA, 'isolated.json'));
 
     process.env.RAVEN_TASTE_HOME = homeB;
-    assert.deepEqual(taste.listTasteProfiles(), []);
-    assert.throws(() => taste.getTasteProfile('isolated'), /Available profiles: \(none\)/);
+    assert.deepEqual(await taste.listTasteProfiles(store), []);
+    await assert.rejects(() => taste.getTasteProfile(store, 'isolated'), /Available profiles: \(none\)/);
     assert.equal(existsSync(path.join(homeB, 'isolated.json')), false);
     assert.equal(existsSync(path.join(homedir(), '.raven', 'taste', 'isolated.json')), false);
   } finally {
@@ -281,8 +286,8 @@ test('RAVEN_TASTE_HOME isolation keeps profiles in env-var home', async () => {
 });
 
 test('raven-rule folding attaches delegated page issues once and marks missing delegation not_assessed', async () => {
-  await withTasteHome(async () => {
-    const profile = taste.createTasteProfile({
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, {
       name: 'raven',
       rules: [
         {
@@ -305,11 +310,11 @@ test('raven-rule folding attaches delegated page issues once and marks missing d
         }
       ]
     });
-    const missing = taste.auditTaste({ profile, html: '<button>Buy</button>' });
+    const missing = await taste.auditTaste(store, { profile, html: '<button>Buy</button>' });
     assert.equal(missing.not_assessed.length, 2);
     assert.match(missing.not_assessed[0].reason, /delegated to audit_page/);
 
-    const folded = taste.auditTaste({
+    const folded = await taste.auditTaste(store, {
       profile,
       html: '<button>Buy</button>',
       page_issues: [
@@ -325,9 +330,9 @@ test('raven-rule folding attaches delegated page issues once and marks missing d
 });
 
 test('detectors cover gradient, banned words, second hue positive and restrained PASS negative', async () => {
-  await withTasteHome(async () => {
-    const profile = taste.createTasteProfile({ name: 'detectors', rules: baseRules() });
-    const positive = taste.auditTaste({
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, { name: 'detectors', rules: baseRules() });
+    const positive = await taste.auditTaste(store, {
       profile,
       html: '<style>.x{background:radial-gradient(circle, red, blue);color:#ff0000}.y{color:#0066ff}</style><main>proven results</main>'
     });
@@ -335,7 +340,7 @@ test('detectors cover gradient, banned words, second hue positive and restrained
     assert.equal(positive.findings.some((finding) => finding.rule_id === 'BANNED-WARN'), true);
     assert.equal(positive.findings.some((finding) => finding.rule_id === 'HUE-NIT'), true);
 
-    const restrained = taste.auditTaste({
+    const restrained = await taste.auditTaste(store, {
       profile,
       html: '<style>.x{background:#ffffff;color:#222222}.y{border-color:#eeeeee}</style><main>Measured results</main>'
     });
@@ -346,8 +351,8 @@ test('detectors cover gradient, banned words, second hue positive and restrained
 });
 
 test('glow detector flags large-blur colored shadows and passes plain elevation shadows', async () => {
-  await withTasteHome(async () => {
-    const profile = taste.createTasteProfile({
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, {
       name: 'glow',
       rules: [{
         rule_id: 'GLOW-BLOCK',
@@ -359,14 +364,14 @@ test('glow detector flags large-blur colored shadows and passes plain elevation 
         delegate_to: ''
       }]
     });
-    const glowing = taste.auditTaste({
+    const glowing = await taste.auditTaste(store, {
       profile,
       html: '<style>.cta{box-shadow: 0 0 32px #ff00ff}</style><button class="cta">Go</button>'
     });
     assert.equal(glowing.findings.some((finding) => finding.rule_id === 'GLOW-BLOCK'), true);
     assert.equal(glowing.verdict, 'BLOCK');
 
-    const elevated = taste.auditTaste({
+    const elevated = await taste.auditTaste(store, {
       profile,
       html: '<style>.card{box-shadow: 0 2px 8px rgba(0,0,0,0.2)}</style><div class="card">Card</div>'
     });
@@ -376,8 +381,8 @@ test('glow detector flags large-blur colored shadows and passes plain elevation 
 });
 
 test('glow detector stays silent on colorless large-blur shadows (currentColor/var cannot be judged statically)', async () => {
-  await withTasteHome(async () => {
-    const profile = taste.createTasteProfile({
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, {
       name: 'glow-colorless',
       rules: [{
         rule_id: 'GLOW-BLOCK',
@@ -389,14 +394,14 @@ test('glow detector stays silent on colorless large-blur shadows (currentColor/v
         delegate_to: ''
       }]
     });
-    const colorless = taste.auditTaste({
+    const colorless = await taste.auditTaste(store, {
       profile,
       html: '<style>.a{box-shadow: 0 0 24px} .b{box-shadow: 0 8px 40px var(--elev)} .c{box-shadow: inset 0 0 20px currentColor}</style><div class="a">x</div>'
     });
     assert.equal(colorless.findings.length, 0);
     assert.equal(colorless.verdict, 'PASS');
 
-    const named = taste.auditTaste({
+    const named = await taste.auditTaste(store, {
       profile,
       html: '<style>.d{box-shadow: 0 0 24px rebeccapurple}</style><div class="d">x</div>'
     });
@@ -405,8 +410,8 @@ test('glow detector stays silent on colorless large-blur shadows (currentColor/v
 });
 
 test('create_taste_profile accepts minimal seed corpus records and defaults rule owner to taste', async () => {
-  await withTasteHome(async () => {
-    const profile = taste.createTasteProfile({
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, {
       name: 'seeded',
       rules: [{
         rule_id: 'COLOR-flat',
@@ -431,9 +436,9 @@ test('create_taste_profile accepts minimal seed corpus records and defaults rule
     assert.ok(profile.corpus[0].labeled_at.length > 0);
 
     // Round-trips through storage validation, and the seeded accept suppresses.
-    const loaded = taste.getTasteProfile('seeded');
+    const loaded = await taste.getTasteProfile(store, 'seeded');
     assert.equal(loaded.corpus[0].id, 'rec_0001');
-    const audited = taste.auditTaste({
+    const audited = await taste.auditTaste(store, {
       profile: 'seeded',
       html: '<style>.hero{background: linear-gradient(180deg, #111, #222)}</style>'
     });
@@ -442,8 +447,8 @@ test('create_taste_profile accepts minimal seed corpus records and defaults rule
 });
 
 test('accept-suppression is evidence-scoped: a different violation of the same rule on the same page stays flagged', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, {
       name: 'scoped',
       rules: [{
         rule_id: 'COLOR-no-gradient',
@@ -457,7 +462,7 @@ test('accept-suppression is evidence-scoped: a different violation of the same r
     });
     // Page contains TWO distinct gradients; the accept covers only the first.
     const html = '<style>.approved{background:linear-gradient(180deg, #111, #222)}.rogue{background:linear-gradient(90deg, red, blue)}</style>';
-    taste.labelFinding('scoped', {
+    await taste.labelFinding(store, 'scoped', {
       artifact: 'page',
       verdict: 'accept',
       violated_rule: 'COLOR-no-gradient',
@@ -465,7 +470,7 @@ test('accept-suppression is evidence-scoped: a different violation of the same r
       wrong: 'linear-gradient(180deg, #111, #222)',
       right: 'intentional brand exception',
     });
-    const result = taste.auditTaste({ profile: 'scoped', html });
+    const result = await taste.auditTaste(store, { profile: 'scoped', html });
     assert.equal(result.suppressed.length, 1);
     assert.ok(result.suppressed[0].evidence.includes('180deg'));
     assert.equal(result.findings.length, 1);
@@ -475,7 +480,7 @@ test('accept-suppression is evidence-scoped: a different violation of the same r
 });
 
 test('markdown ingestion skips fenced code blocks and stopword-led headings do not become categories', async () => {
-  await withTasteHome(async () => {
+  await withTasteHome(async (_home, store) => {
     const markdown = [
       '## The Mythology',
       '- Ravens carry knowledge across realms. (warn)',
@@ -487,7 +492,7 @@ test('markdown ingestion skips fenced code blocks and stopword-led headings do n
       '```',
       '- Flat color only — never gradient fills. (block)',
     ].join('\n');
-    const profile = taste.createTasteProfile({ name: 'fenced', markdown });
+    const profile = await taste.createTasteProfile(store, { name: 'fenced', markdown });
     // The fenced bullet must not ingest: 3 real bullets only.
     assert.equal(profile.rules.length, 3);
     assert.ok(!profile.rules.some((r) => r.clause_text.includes('code example')));
@@ -498,8 +503,8 @@ test('markdown ingestion skips fenced code blocks and stopword-led headings do n
 });
 
 test('banned-word lists only extract from vocabulary sentences, not descriptive example lists', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, {
       name: 'vocab-gate',
       rules: [
         {
@@ -523,7 +528,7 @@ test('banned-word lists only extract from vocabulary sentences, not descriptive 
       ]
     });
     const text = 'We shipped a proven system. It counts outcomes across descriptions and video.';
-    const result = taste.auditTaste({ profile: 'vocab-gate', text });
+    const result = await taste.auditTaste(store, { profile: 'vocab-gate', text });
     const ruleIdsHit = new Set(result.findings.map((f) => f.rule_id));
     // "proven"/"shipped" are real banned vocabulary; "counts"/"descriptions" are examples, not bans.
     assert.ok(ruleIdsHit.has('VOICE-no-hype'));
@@ -534,7 +539,7 @@ test('banned-word lists only extract from vocabulary sentences, not descriptive 
 });
 
 test('mixed fence markers, cross-sentence cue leaks, and abbreviation boundaries are handled', async () => {
-  await withTasteHome(async () => {
+  await withTasteHome(async (_home, store) => {
     // 1. A ~~~ inside a ``` fence must NOT close it.
     const markdown = [
       '## Color',
@@ -545,13 +550,13 @@ test('mixed fence markers, cross-sentence cue leaks, and abbreviation boundaries
       '```',
       '- Real rule after the fence. (block)',
     ].join('\n');
-    const profile = taste.createTasteProfile({ name: 'fence-mix', markdown });
+    const profile = await taste.createTasteProfile(store, { name: 'fence-mix', markdown });
     assert.equal(profile.rules.length, 1);
     assert.ok(profile.rules[0].clause_text.startsWith('Real rule'));
 
     // 2. A vocabulary cue in a PREVIOUS sentence (ending in "!") must not gate in
     //    a descriptive list from the next sentence.
-    taste.createTasteProfile({
+    await taste.createTasteProfile(store, {
       name: 'cue-leak',
       rules: [{
         rule_id: 'FACTS-leak',
@@ -563,12 +568,12 @@ test('mixed fence markers, cross-sentence cue leaks, and abbreviation boundaries
         delegate_to: ''
       }]
     });
-    const leak = taste.auditTaste({ profile: 'cue-leak', text: 'It counts outcomes and descriptions.' });
+    const leak = await taste.auditTaste(store, { profile: 'cue-leak', text: 'It counts outcomes and descriptions.' });
     assert.equal(leak.findings.length, 0);
     assert.ok(leak.not_assessed.some((row) => row.rule_id === 'FACTS-leak'));
 
     // 3. "e.g." must not break the sentence before a genuine vocabulary list.
-    taste.createTasteProfile({
+    await taste.createTasteProfile(store, {
       name: 'abbrev',
       rules: [{
         rule_id: 'VOICE-abbrev',
@@ -580,15 +585,15 @@ test('mixed fence markers, cross-sentence cue leaks, and abbreviation boundaries
         delegate_to: ''
       }]
     });
-    const abbrev = taste.auditTaste({ profile: 'abbrev', text: 'We shipped a proven system.' });
+    const abbrev = await taste.auditTaste(store, { profile: 'abbrev', text: 'We shipped a proven system.' });
     assert.ok(abbrev.findings.length >= 1);
     assert.equal(abbrev.findings[0].rule_id, 'VOICE-abbrev');
   });
 });
 
 test('raven-rule folding rejects unrelated issues and caps advisory severity (clean page stays clean)', async () => {
-  await withTasteHome(async () => {
-    const profile = taste.createTasteProfile({
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, {
       name: 'fold-guard',
       rules: [
         {
@@ -616,7 +621,7 @@ test('raven-rule folding rejects unrelated issues and caps advisory severity (cl
 
     // An unrelated advisory issue must NOT attach to either rule: its rule name shares
     // no vocabulary with them ("responsive/clamp" vs tokens/modals).
-    const unrelated = taste.auditTaste({
+    const unrelated = await taste.auditTaste(store, {
       profile,
       html: '<style>body{color:var(--fg)}</style><main>clean</main>',
       page_issues: [
@@ -629,7 +634,7 @@ test('raven-rule folding rejects unrelated issues and caps advisory severity (cl
     // A rule-name token alone ("bare" in tokens/no-bare-hex vs LAYOUT-no-bare-modals)
     // is not enough — total overlap must clear the threshold, so the issue lands only
     // under the genuinely-matching TOKEN rule.
-    const genuine = taste.auditTaste({
+    const genuine = await taste.auditTaste(store, {
       profile,
       html: '<style>body{color:#333}</style><main>x</main>',
       page_issues: [
@@ -642,7 +647,7 @@ test('raven-rule folding rejects unrelated issues and caps advisory severity (cl
     // A non-"error" issue folding into a block-severity rule caps at warn — advisory
     // "warning" and unrecognized severity strings alike can never produce a BLOCK.
     for (const sev of ['warning', 'advisory']) {
-      const advisory = taste.auditTaste({
+      const advisory = await taste.auditTaste(store, {
         profile,
         html: '<style>body{color:#333}</style><main>x</main>',
         page_issues: [
@@ -657,8 +662,8 @@ test('raven-rule folding rejects unrelated issues and caps advisory severity (cl
 });
 
 test('delegate-domain match folds a terse real-shape contrast issue that overlap scoring alone would drop', async () => {
-  await withTasteHome(async () => {
-    const profile = taste.createTasteProfile({
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, {
       name: 'delegate-domain',
       rules: [
         {
@@ -675,7 +680,7 @@ test('delegate-domain match folds a terse real-shape contrast issue that overlap
     // Real url-mode message shape: selector + quoted snippet + ratios. Its only shared
     // vocabulary with the rule is "contrast" via the issue rule name — the delegate_to
     // domain ("audit_contrast" <- "contrast/aa") is what licenses the fold.
-    const folded = taste.auditTaste({
+    const folded = await taste.auditTaste(store, {
       profile,
       html: '<p class="muted">dim</p>',
       page_issues: [
@@ -688,7 +693,7 @@ test('delegate-domain match folds a terse real-shape contrast issue that overlap
 });
 
 test('per-surface scoping: scoped rule blocks on matching surface, skips on mismatch, warns without surface', async () => {
-  await withTasteHome(async () => {
+  await withTasteHome(async (_home, store) => {
     const scopedRule = {
       rule_id: 'GRADIENT-SCOPED',
       clause_text: 'Avoid gradient backgrounds on the portfolio.',
@@ -699,21 +704,21 @@ test('per-surface scoping: scoped rule blocks on matching surface, skips on mism
       delegate_to: '',
       scope: 'portfolio-monochrome'
     };
-    taste.createTasteProfile({ name: 'scoped', rules: [scopedRule, baseRules()[1]] });
+    await taste.createTasteProfile(store, { name: 'scoped', rules: [scopedRule, baseRules()[1]] });
     const html = '<style>.x{background:linear-gradient(red, blue)}</style>';
 
-    const onPortfolio = taste.auditTaste({ profile: 'scoped', html, surface: 'portfolio' });
+    const onPortfolio = await taste.auditTaste(store, { profile: 'scoped', html, surface: 'portfolio' });
     assert.equal(onPortfolio.verdict, 'BLOCK');
     assert.equal(onPortfolio.findings[0].rule_id, 'GRADIENT-SCOPED');
     assert.equal(onPortfolio.findings[0].severity, 'block');
     assert.equal(onPortfolio.skipped_out_of_scope.length, 0);
 
-    const onProduct = taste.auditTaste({ profile: 'scoped', html, surface: 'product-site' });
+    const onProduct = await taste.auditTaste(store, { profile: 'scoped', html, surface: 'product-site' });
     assert.equal(onProduct.findings.filter((f) => f.rule_id === 'GRADIENT-SCOPED').length, 0);
     assert.deepEqual(onProduct.skipped_out_of_scope, [{ rule_id: 'GRADIENT-SCOPED', scope: 'portfolio-monochrome' }]);
     assert.equal(onProduct.verdict, 'PASS');
 
-    const noSurface = taste.auditTaste({ profile: 'scoped', html });
+    const noSurface = await taste.auditTaste(store, { profile: 'scoped', html });
     const capped = noSurface.findings.find((f) => f.rule_id === 'GRADIENT-SCOPED');
     assert.equal(capped.severity, 'warn');
     assert.equal(noSurface.verdict, 'WARN');
@@ -722,10 +727,10 @@ test('per-surface scoping: scoped rule blocks on matching surface, skips on mism
 });
 
 test('scope global and unscoped rules ignore surface; scope survives disk round-trip and (scope:) markdown annotation', async () => {
-  await withTasteHome(async (home) => {
+  await withTasteHome(async (home, store) => {
     const globalScoped = Object.assign({}, baseRules()[0], { scope: 'global' });
-    taste.createTasteProfile({ name: 'globals', rules: [globalScoped, baseRules()[1]] });
-    const r = taste.auditTaste({
+    await taste.createTasteProfile(store, { name: 'globals', rules: [globalScoped, baseRules()[1]] });
+    const r = await taste.auditTaste(store, {
       profile: 'globals',
       html: '<style>.x{background:linear-gradient(red, blue)}</style>',
       surface: 'anything-else'
@@ -733,17 +738,17 @@ test('scope global and unscoped rules ignore surface; scope survives disk round-
     assert.equal(r.verdict, 'BLOCK');
     assert.equal(r.skipped_out_of_scope.length, 0);
 
-    taste.createTasteProfile({
+    await taste.createTasteProfile(store, {
       name: 'roundtrip',
       rules: [Object.assign({}, baseRules()[0], { scope: 'portfolio-monochrome' })]
     });
     const onDisk = JSON.parse(await readFile(path.join(home, 'roundtrip.json'), 'utf8'));
     assert.equal(onDisk.rules[0].scope, 'portfolio-monochrome');
-    const reloaded = taste.getTasteProfile('roundtrip');
+    const reloaded = await taste.getTasteProfile(store, 'roundtrip');
     assert.equal(reloaded.rules[0].scope, 'portfolio-monochrome');
 
     const md = '## Color\n- Do NOT use gradients. (block) (scope:portfolio)\n- Avoid bare hex.';
-    const profile = taste.createTasteProfile({ name: 'mdscope', markdown: md });
+    const profile = await taste.createTasteProfile(store, { name: 'mdscope', markdown: md });
     const scoped = profile.rules.find((rule) => rule.negative_prompt.includes('gradients'));
     assert.equal(scoped.scope, 'portfolio');
     assert.equal(scoped.clause_text.includes('(scope:'), false);
@@ -753,22 +758,22 @@ test('scope global and unscoped rules ignore surface; scope survives disk round-
 });
 
 test('short scope tokens ("ui") match by exact raw word — never substring — instead of being unmatchable', async () => {
-  await withTasteHome(async () => {
+  await withTasteHome(async (_home, store) => {
     const shortScoped = Object.assign({}, baseRules()[0], { rule_id: 'GRADIENT-UI', scope: 'ui' });
-    taste.createTasteProfile({ name: 'shortscope', rules: [shortScoped] });
+    await taste.createTasteProfile(store, { name: 'shortscope', rules: [shortScoped] });
     const html = '<style>.x{background:linear-gradient(red, blue)}</style>';
 
-    const onUi = taste.auditTaste({ profile: 'shortscope', html, surface: 'ui' });
+    const onUi = await taste.auditTaste(store, { profile: 'shortscope', html, surface: 'ui' });
     assert.equal(onUi.verdict, 'BLOCK');
     assert.equal(onUi.skipped_out_of_scope.length, 0);
 
-    const onAppUi = taste.auditTaste({ profile: 'shortscope', html, surface: 'app-ui' });
+    const onAppUi = await taste.auditTaste(store, { profile: 'shortscope', html, surface: 'app-ui' });
     assert.equal(onAppUi.verdict, 'BLOCK');
     assert.equal(onAppUi.skipped_out_of_scope.length, 0);
 
     // substring containment must NOT match: "ui" ⊄ words of "guidelines"/"build-system"
     for (const surface of ['guidelines', 'build-system', 'docs']) {
-      const r = taste.auditTaste({ profile: 'shortscope', html, surface });
+      const r = await taste.auditTaste(store, { profile: 'shortscope', html, surface });
       assert.equal(r.verdict, 'PASS', surface);
       assert.deepEqual(r.skipped_out_of_scope, [{ rule_id: 'GRADIENT-UI', scope: 'ui' }], surface);
     }
@@ -787,12 +792,12 @@ test('ruleInScope: exported helper used by url-mode delegate filtering', async (
 });
 
 test('surface calibration interview is built from the profile’s own scopes and voice rules', async () => {
-  await withTasteHome(async () => {
+  await withTasteHome(async (_home, store) => {
     const scoped = Object.assign({}, baseRules()[0], { scope: 'portfolio-monochrome' });
     const voice = Object.assign({}, baseRules()[1], { category: 'voice' });
-    taste.createTasteProfile({ name: 'cal', rules: [scoped, voice, baseRules()[2]] });
+    await taste.createTasteProfile(store, { name: 'cal', rules: [scoped, voice, baseRules()[2]] });
 
-    const interview = taste.getTasteInterview('cal', 'raven-mcp');
+    const interview = await taste.getTasteInterview(store, 'cal', 'raven-mcp');
     assert.equal(interview.tool, 'get_taste_interview');
     assert.equal(interview.project, 'raven-mcp');
     assert.equal(interview.existing_binding, null);
@@ -822,8 +827,8 @@ test('surface calibration interview is built from the profile’s own scopes and
 
     // No voice rules and no scopes -> generic + design-dimension questions,
     // and the voice question still appears (asked even with zero voice rules).
-    taste.createTasteProfile({ name: 'plain', rules: [baseRules()[2]] });
-    const bare = taste.getTasteInterview('plain');
+    await taste.createTasteProfile(store, { name: 'plain', rules: [baseRules()[2]] });
+    const bare = await taste.getTasteInterview(store, 'plain');
     assert.deepEqual(bare.questions.map((q) => q.id), [
       'identity', 'references',
       'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
@@ -835,16 +840,16 @@ test('surface calibration interview is built from the profile’s own scopes and
     assert.ok(bareVoiceQ.question.includes('no voice/tone rules yet'));
 
     // After binding, the interview surfaces the existing calibration.
-    taste.bindTasteSurface('cal', { project: 'raven-mcp', surface: 'product-site', design_notes: { color: 'monochrome, one warm accent' } });
-    const again = taste.getTasteInterview('cal', 'raven-mcp');
+    await taste.bindTasteSurface(store, 'cal', { project: 'raven-mcp', surface: 'product-site', design_notes: { color: 'monochrome, one warm accent' } });
+    const again = await taste.getTasteInterview(store, 'cal', 'raven-mcp');
     assert.equal(again.existing_binding.surface, 'product-site');
   });
 });
 
 test('the five new design dimensions carry non-empty multiple-choice options', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'dims', rules: baseRules() });
-    const interview = taste.getTasteInterview('dims', 'some-project');
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'dims', rules: baseRules() });
+    const interview = await taste.getTasteInterview(store, 'dims', 'some-project');
     for (const key of ['entrance', 'loading', 'navigation', 'aesthetic', 'libraries']) {
       const q = interview.questions.find((question) => question.id === 'design:' + key);
       assert.ok(q, 'missing design:' + key);
@@ -861,9 +866,9 @@ test('the five new design dimensions carry non-empty multiple-choice options', a
 });
 
 test('libraries question suggests Next.js as the default build target, and the kickoff contract carries it', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'nextdef', rules: baseRules() });
-    const interview = taste.getTasteInterview('nextdef', 'some-project');
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'nextdef', rules: baseRules() });
+    const interview = await taste.getTasteInterview(store, 'nextdef', 'some-project');
     const libQ = interview.questions.find((q) => q.id === 'design:libraries');
     assert.ok(/Next\.js/.test(libQ.question), 'libraries question must name the Next.js default');
     assert.ok(/Next\.js/.test(interview.then), 'kickoff then must carry the Next.js default suggestion');
@@ -871,9 +876,9 @@ test('libraries question suggests Next.js as the default build target, and the k
 });
 
 test('voice question always carries exactly 3 distinct-register examples', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'voiceex', rules: baseRules() });
-    const interview = taste.getTasteInterview('voiceex', 'some-project');
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'voiceex', rules: baseRules() });
+    const interview = await taste.getTasteInterview(store, 'voiceex', 'some-project');
     const voiceQ = interview.questions.find((q) => q.id === 'voice');
     assert.ok(voiceQ);
     assert.equal(voiceQ.examples.length, 3);
@@ -887,10 +892,10 @@ test('voice question always carries exactly 3 distinct-register examples', async
 });
 
 test('every question carries skippable + priority; identity is required', async () => {
-  await withTasteHome(async () => {
+  await withTasteHome(async (_home, store) => {
     const scoped = Object.assign({}, baseRules()[0], { scope: 'portfolio-monochrome' });
-    taste.createTasteProfile({ name: 'flags', rules: [scoped, baseRules()[1], baseRules()[2]] });
-    const interview = taste.getTasteInterview('flags', 'some-project');
+    await taste.createTasteProfile(store, { name: 'flags', rules: [scoped, baseRules()[1], baseRules()[2]] });
+    const interview = await taste.getTasteInterview(store, 'flags', 'some-project');
     for (const q of interview.questions) {
       assert.equal(typeof q.skippable, 'boolean', q.id + ' must have boolean skippable');
       assert.ok(q.priority === 'core' || q.priority === 'extended', q.id + ' must have core|extended priority');
@@ -908,26 +913,26 @@ test('every question carries skippable + priority; identity is required', async 
 });
 
 test('mode:"refine" requires an existing binding and errors naming kickoff', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'norefine', rules: baseRules() });
-    assert.throws(
-      () => taste.getTasteInterview('norefine', 'unbound-project', 'refine'),
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'norefine', rules: baseRules() });
+    await assert.rejects(
+      () => taste.getTasteInterview(store, 'norefine', 'unbound-project', 'refine'),
       /kickoff/
     );
   });
 });
 
 test('mode:"refine" builds a re-interview from the stored binding: complaint first, revise:<key> quoting the stored note, and revise:voice', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'refineme', rules: baseRules() });
-    taste.bindTasteSurface('refineme', {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'refineme', rules: baseRules() });
+    await taste.bindTasteSurface(store, 'refineme', {
       project: 'some-project',
       surface: 'product-site',
       voice_note: 'Plainer than the portfolio register.',
       design_notes: { color: 'dark ground, cyan accent' },
     });
 
-    const refine = taste.getTasteInterview('refineme', 'some-project', 'refine');
+    const refine = await taste.getTasteInterview(store, 'refineme', 'some-project', 'refine');
     assert.equal(refine.tool, 'get_taste_interview');
     assert.equal(refine.existing_binding.surface, 'product-site');
     const ids = refine.questions.map((q) => q.id);
@@ -952,34 +957,34 @@ test('mode:"refine" builds a re-interview from the stored binding: complaint fir
 });
 
 test('bind_taste_surface validates, normalizes hosts, upserts by project, and round-trips from disk', async () => {
-  await withTasteHome(async (home) => {
-    taste.createTasteProfile({ name: 'bindings', rules: baseRules() });
+  await withTasteHome(async (home, store) => {
+    await taste.createTasteProfile(store, { name: 'bindings', rules: baseRules() });
 
-    assert.throws(() => taste.bindTasteSurface('bindings', { project: 'x', surface: '' }), /surface is required/);
-    assert.throws(() => taste.bindTasteSurface('bindings', { project: '/etc', surface: 's' }), /project must match/);
-    assert.throws(
-      () => taste.bindTasteSurface('bindings', { project: 'x', surface: 's', overrides: [{ rule_id: 'NOPE', severity: 'off' }] }),
+    await assert.rejects(() => taste.bindTasteSurface(store, 'bindings', { project: 'x', surface: '' }), /surface is required/);
+    await assert.rejects(() => taste.bindTasteSurface(store, 'bindings', { project: '/etc', surface: 's' }), /project must match/);
+    await assert.rejects(
+      () => taste.bindTasteSurface(store, 'bindings', { project: 'x', surface: 's', overrides: [{ rule_id: 'NOPE', severity: 'off' }] }),
       /does not exist in profile.rules/
     );
-    assert.throws(
-      () => taste.bindTasteSurface('bindings', { project: 'x', surface: 's', overrides: [{ rule_id: 'HUE-NIT', severity: 'loud' }] }),
+    await assert.rejects(
+      () => taste.bindTasteSurface(store, 'bindings', { project: 'x', surface: 's', overrides: [{ rule_id: 'HUE-NIT', severity: 'loud' }] }),
       /severity must be block, warn, nit, or off/
     );
 
-    assert.throws(
-      () => taste.bindTasteSurface('bindings', { project: 'x', surface: 's', design_notes: { typography: '' } }),
+    await assert.rejects(
+      () => taste.bindTasteSurface(store, 'bindings', { project: 'x', surface: 's', design_notes: { typography: '' } }),
       /design_notes.typography must be a non-empty string/
     );
-    assert.throws(
-      () => taste.bindTasteSurface('bindings', { project: 'x', surface: 's', design_notes: { 'not a key!': 'x' } }),
+    await assert.rejects(
+      () => taste.bindTasteSurface(store, 'bindings', { project: 'x', surface: 's', design_notes: { 'not a key!': 'x' } }),
       /keys must be short dimension names/
     );
-    assert.throws(
-      () => taste.bindTasteSurface('bindings', { project: 'x', surface: 's', design_notes: { Typography: 'A', typography: 'B' } }),
+    await assert.rejects(
+      () => taste.bindTasteSurface(store, 'bindings', { project: 'x', surface: 's', design_notes: { Typography: 'A', typography: 'B' } }),
       /two keys that normalize to the same dimension: typography/
     );
 
-    const bound = taste.bindTasteSurface('bindings', {
+    const bound = await taste.bindTasteSurface(store, 'bindings', {
       project: 'raven-mcp',
       surface: 'product-site',
       hosts: ['https://RavenMCP.ai/some/path', 'www.example.com:8080'],
@@ -990,7 +995,7 @@ test('bind_taste_surface validates, normalizes hosts, upserts by project, and ro
     assert.deepEqual(bound.hosts, ['ravenmcp.ai', 'www.example.com']);
     // Keys lowercase, values trimmed; round-trips through disk validation.
     assert.deepEqual(bound.design_notes, { typography: 'Grotesque, restrained scale.', spacing: 'Airy, 8px grid.' });
-    assert.deepEqual(taste.listSurfaceBindings('bindings')[0].design_notes, bound.design_notes);
+    assert.deepEqual((await taste.listSurfaceBindings(store, 'bindings'))[0].design_notes, bound.design_notes);
 
     const onDisk = JSON.parse(await readFile(path.join(home, 'bindings.surfaces.json'), 'utf8'));
     assert.equal(onDisk.version, 1);
@@ -1000,12 +1005,12 @@ test('bind_taste_surface validates, normalizes hosts, upserts by project, and ro
     const legacy = JSON.parse(await readFile(path.join(home, 'bindings.surfaces.json'), 'utf8'));
     delete legacy.bindings[0].design_notes;
     await writeFile(path.join(home, 'bindings.surfaces.json'), JSON.stringify(legacy), 'utf8');
-    assert.deepEqual(taste.listSurfaceBindings('bindings')[0].design_notes, {});
+    assert.deepEqual((await taste.listSurfaceBindings(store, 'bindings'))[0].design_notes, {});
 
     // Upsert: same project replaces, different project adds.
-    taste.bindTasteSurface('bindings', { project: 'raven-mcp', surface: 'developer docs', uncalibrated_ack: 'test fixture' });
-    taste.bindTasteSurface('bindings', { project: 'portfolio', surface: 'monochrome portfolio', uncalibrated_ack: 'test fixture' });
-    const all = taste.listSurfaceBindings('bindings');
+    await taste.bindTasteSurface(store, 'bindings', { project: 'raven-mcp', surface: 'developer docs', uncalibrated_ack: 'test fixture' });
+    await taste.bindTasteSurface(store, 'bindings', { project: 'portfolio', surface: 'monochrome portfolio', uncalibrated_ack: 'test fixture' });
+    const all = await taste.listSurfaceBindings(store, 'bindings');
     assert.deepEqual(all.map((b) => [b.project, b.surface]), [
       ['portfolio', 'monochrome portfolio'],
       ['raven-mcp', 'developer docs']
@@ -1014,106 +1019,106 @@ test('bind_taste_surface validates, normalizes hosts, upserts by project, and ro
 });
 
 test('bind_taste_surface REFUSES a new surface with no calibration content (interview-skip fingerprint), and the escape hatch is recorded', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'gate', rules: baseRules() });
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'gate', rules: baseRules() });
 
     // The exact failure this guard exists for: an agent binds a brand-new
     // surface identity-only, having skipped the kickoff interview.
-    assert.throws(
-      () => taste.bindTasteSurface('gate', { project: 'ai-reader-raven', surface: 'product-site' }),
+    await assert.rejects(
+      () => taste.bindTasteSurface(store, 'gate', { project: 'ai-reader-raven', surface: 'product-site' }),
       /Refusing to bind surface .*no calibration content.*get_taste_interview/s
     );
     // Hosts alone are identity/matching, not taste calibration -> still refused.
-    assert.throws(
-      () => taste.bindTasteSurface('gate', { project: 'ai-reader-raven', surface: 'product-site', hosts: ['aireader.ai'] }),
+    await assert.rejects(
+      () => taste.bindTasteSurface(store, 'gate', { project: 'ai-reader-raven', surface: 'product-site', hosts: ['aireader.ai'] }),
       /Refusing to bind surface/
     );
     // Whitespace cannot smuggle a bind through: a blank voice_note is trimmed to
     // empty and does NOT count as calibration.
-    assert.throws(
-      () => taste.bindTasteSurface('gate', { project: 'ai-reader-raven', surface: 'product-site', voice_note: '   ' }),
+    await assert.rejects(
+      () => taste.bindTasteSurface(store, 'gate', { project: 'ai-reader-raven', surface: 'product-site', voice_note: '   ' }),
       /Refusing to bind surface/
     );
     // A whitespace-only uncalibrated_ack is worthless (destroys auditability) ->
     // trimmed to empty, still refused.
-    assert.throws(
-      () => taste.bindTasteSurface('gate', { project: 'ai-reader-raven', surface: 'product-site', uncalibrated_ack: '   ' }),
+    await assert.rejects(
+      () => taste.bindTasteSurface(store, 'gate', { project: 'ai-reader-raven', surface: 'product-site', uncalibrated_ack: '   ' }),
       /Refusing to bind surface/
     );
     // Nothing was persisted by the refused calls.
-    assert.equal(taste.listSurfaceBindings('gate').length, 0);
+    assert.equal((await taste.listSurfaceBindings(store, 'gate')).length, 0);
 
     // ANY real calibration signal satisfies the gate: design_notes...
-    taste.bindTasteSurface('gate', { project: 'with-notes', surface: 'product-site', design_notes: { color: 'monochrome' } });
+    await taste.bindTasteSurface(store, 'gate', { project: 'with-notes', surface: 'product-site', design_notes: { color: 'monochrome' } });
     // ...voice_note...
-    taste.bindTasteSurface('gate', { project: 'with-voice', surface: 'product-site', voice_note: 'Plain product register.' });
+    await taste.bindTasteSurface(store, 'gate', { project: 'with-voice', surface: 'product-site', voice_note: 'Plain product register.' });
     // ...an override...
-    taste.bindTasteSurface('gate', { project: 'with-override', surface: 'product-site', overrides: [{ rule_id: 'HUE-NIT', severity: 'off' }] });
+    await taste.bindTasteSurface(store, 'gate', { project: 'with-override', surface: 'product-site', overrides: [{ rule_id: 'HUE-NIT', severity: 'off' }] });
     // ...or a reference.
-    taste.bindTasteSurface('gate', { project: 'with-ref', surface: 'product-site', references: [{ url: 'https://example.com' }] });
-    assert.equal(taste.listSurfaceBindings('gate').length, 4);
+    await taste.bindTasteSurface(store, 'gate', { project: 'with-ref', surface: 'product-site', references: [{ url: 'https://example.com' }] });
+    assert.equal((await taste.listSurfaceBindings(store, 'gate')).length, 4);
 
     // Escape hatch: an explicit ack (user interviewed, skipped every dimension)
     // is allowed AND recorded on the binding so the skip is auditable.
-    const acked = taste.bindTasteSurface('gate', { project: 'declined-cal', surface: 'product-site', uncalibrated_ack: 'user interviewed 2026-07-04, declined all dimensions' });
+    const acked = await taste.bindTasteSurface(store, 'gate', { project: 'declined-cal', surface: 'product-site', uncalibrated_ack: 'user interviewed 2026-07-04, declined all dimensions' });
     assert.equal(acked.uncalibrated_ack, 'user interviewed 2026-07-04, declined all dimensions');
-    assert.equal(taste.listSurfaceBindings('gate').find((b) => b.project === 'declined-cal').uncalibrated_ack, acked.uncalibrated_ack);
+    assert.equal((await taste.listSurfaceBindings(store, 'gate')).find((b) => b.project === 'declined-cal').uncalibrated_ack, acked.uncalibrated_ack);
 
     // A re-bind that KEEPS calibration is fine (update path unbroken): pass the
     // design_notes again while changing the surface string.
-    const rebound = taste.bindTasteSurface('gate', { project: 'with-notes', surface: 'product-site v2', design_notes: { color: 'monochrome' } });
+    const rebound = await taste.bindTasteSurface(store, 'gate', { project: 'with-notes', surface: 'product-site v2', design_notes: { color: 'monochrome' } });
     assert.equal(rebound.surface, 'product-site v2');
     assert.equal(rebound.uncalibrated_ack, undefined);
 
     // But an EMPTY re-bind of an already-calibrated project is REFUSED — an
     // upsert replaces all fields, so this would silently erase the calibration
     // (the same-project/new-surface hole). It must not be exempt.
-    assert.throws(
-      () => taste.bindTasteSurface('gate', { project: 'with-notes', surface: 'product-site v3' }),
+    await assert.rejects(
+      () => taste.bindTasteSurface(store, 'gate', { project: 'with-notes', surface: 'product-site v3' }),
       /Refusing to bind surface/
     );
     // The prior calibrated binding is untouched by the refused call.
-    assert.deepEqual(taste.listSurfaceBindings('gate').find((b) => b.project === 'with-notes').design_notes, { color: 'monochrome' });
-    assert.equal(taste.listSurfaceBindings('gate').find((b) => b.project === 'with-notes').surface, 'product-site v2');
+    assert.deepEqual((await taste.listSurfaceBindings(store, 'gate')).find((b) => b.project === 'with-notes').design_notes, { color: 'monochrome' });
+    assert.equal((await taste.listSurfaceBindings(store, 'gate')).find((b) => b.project === 'with-notes').surface, 'product-site v2');
   });
 });
 
 test('resolveSurfaceBinding: explicit project beats url host; hosts match subdomains; unknown resolves null', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'res', rules: baseRules() });
-    assert.equal(taste.resolveSurfaceBinding('res', { project: 'anything' }), null);
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'res', rules: baseRules() });
+    assert.equal(await taste.resolveSurfaceBinding(store, 'res', { project: 'anything' }), null);
 
-    taste.bindTasteSurface('res', { project: 'raven-mcp', surface: 'product-site', hosts: ['ravenmcp.ai'], uncalibrated_ack: 'test fixture' });
-    taste.bindTasteSurface('res', { project: 'portfolio', surface: 'monochrome portfolio', hosts: ['andrew.design'], uncalibrated_ack: 'test fixture' });
+    await taste.bindTasteSurface(store, 'res', { project: 'raven-mcp', surface: 'product-site', hosts: ['ravenmcp.ai'], uncalibrated_ack: 'test fixture' });
+    await taste.bindTasteSurface(store, 'res', { project: 'portfolio', surface: 'monochrome portfolio', hosts: ['andrew.design'], uncalibrated_ack: 'test fixture' });
 
-    assert.equal(taste.resolveSurfaceBinding('res', { project: 'Portfolio' }).project, 'portfolio');
-    assert.equal(taste.resolveSurfaceBinding('res', { url: 'https://ravenmcp.ai/changelog' }).project, 'raven-mcp');
-    assert.equal(taste.resolveSurfaceBinding('res', { url: 'https://www.ravenmcp.ai/' }).project, 'raven-mcp');
+    assert.equal((await taste.resolveSurfaceBinding(store, 'res', { project: 'Portfolio' })).project, 'portfolio');
+    assert.equal((await taste.resolveSurfaceBinding(store, 'res', { url: 'https://ravenmcp.ai/changelog' })).project, 'raven-mcp');
+    assert.equal((await taste.resolveSurfaceBinding(store, 'res', { url: 'https://www.ravenmcp.ai/' })).project, 'raven-mcp');
     // Explicit project wins even when the url points at another binding's host.
-    assert.equal(taste.resolveSurfaceBinding('res', { project: 'portfolio', url: 'https://ravenmcp.ai/' }).project, 'portfolio');
+    assert.equal((await taste.resolveSurfaceBinding(store, 'res', { project: 'portfolio', url: 'https://ravenmcp.ai/' })).project, 'portfolio');
     // Suffix matching is domain-boundary safe: notravenmcp.ai is a different host.
-    assert.equal(taste.resolveSurfaceBinding('res', { url: 'https://notravenmcp.ai/' }), null);
-    assert.equal(taste.resolveSurfaceBinding('res', { url: 'not a url' }), null);
-    assert.equal(taste.resolveSurfaceBinding('res', {}), null);
+    assert.equal(await taste.resolveSurfaceBinding(store, 'res', { url: 'https://notravenmcp.ai/' }), null);
+    assert.equal(await taste.resolveSurfaceBinding(store, 'res', { url: 'not a url' }), null);
+    assert.equal(await taste.resolveSurfaceBinding(store, 'res', {}), null);
   });
 });
 
 test('a resolved binding supplies the surface, applies overrides at full trust, and echoes the voice note', async () => {
-  await withTasteHome(async () => {
+  await withTasteHome(async (_home, store) => {
     const scoped = Object.assign({}, baseRules()[0], { scope: 'portfolio-monochrome' });
-    taste.createTasteProfile({ name: 'proj', rules: [scoped, baseRules()[1]] });
-    taste.bindTasteSurface('proj', {
+    await taste.createTasteProfile(store, { name: 'proj', rules: [scoped, baseRules()[1]] });
+    await taste.bindTasteSurface(store, 'proj', {
       project: 'raven-mcp',
       surface: 'product-site',
       overrides: [{ rule_id: 'BANNED-WARN', severity: 'nit' }],
       voice_note: 'Product register: plain benefits OK, still no hype verbs.',
       design_notes: { typography: 'Grotesque, restrained scale.' }
     });
-    taste.bindTasteSurface('proj', { project: 'portfolio', surface: 'monochrome portfolio', uncalibrated_ack: 'test fixture' });
+    await taste.bindTasteSurface(store, 'proj', { project: 'portfolio', surface: 'monochrome portfolio', uncalibrated_ack: 'test fixture' });
     const html = '<style>.x{background:linear-gradient(red, blue)}</style><p>We have proven results.</p>';
 
     // On raven-mcp: monochrome rule skipped, voice rule re-tuned to nit, note echoed.
-    const onRaven = taste.auditTaste({ profile: 'proj', html, project: 'raven-mcp' });
+    const onRaven = await taste.auditTaste(store, { profile: 'proj', html, project: 'raven-mcp' });
     assert.equal(onRaven.binding, 'raven-mcp');
     assert.equal(onRaven.surface_applied, 'product-site');
     assert.deepEqual(onRaven.skipped_out_of_scope, [{ rule_id: 'GRADIENT-BLOCK', scope: 'portfolio-monochrome' }]);
@@ -1124,16 +1129,16 @@ test('a resolved binding supplies the surface, applies overrides at full trust, 
     assert.equal(onRaven.verdict, 'PASS');
 
     // No design_notes on the portfolio binding -> field absent, not {}.
-    assert.equal(taste.auditTaste({ profile: 'proj', html, project: 'portfolio' }).design_notes, undefined);
+    assert.equal((await taste.auditTaste(store, { profile: 'proj', html, project: 'portfolio' })).design_notes, undefined);
 
     // On the portfolio: scoped rule runs at FULL block (binding surface counts as provided).
-    const onPortfolio = taste.auditTaste({ profile: 'proj', html, project: 'portfolio' });
+    const onPortfolio = await taste.auditTaste(store, { profile: 'proj', html, project: 'portfolio' });
     assert.equal(onPortfolio.binding, 'portfolio');
     assert.equal(onPortfolio.findings.find((f) => f.rule_id === 'GRADIENT-BLOCK').severity, 'block');
     assert.equal(onPortfolio.verdict, 'BLOCK');
 
     // Explicit surface beats the binding's surface; overrides still apply.
-    const explicit = taste.auditTaste({ profile: 'proj', html, project: 'raven-mcp', surface: 'portfolio' });
+    const explicit = await taste.auditTaste(store, { profile: 'proj', html, project: 'raven-mcp', surface: 'portfolio' });
     assert.equal(explicit.surface_applied, 'portfolio');
     assert.equal(explicit.findings.find((f) => f.rule_id === 'GRADIENT-BLOCK').severity, 'block');
     assert.equal(explicit.findings.find((f) => f.rule_id === 'BANNED-WARN').severity, 'nit');
@@ -1141,15 +1146,15 @@ test('a resolved binding supplies the surface, applies overrides at full trust, 
 });
 
 test('an off override silences a rule on that surface and is reported under disabled_by_binding', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'silence', rules: baseRules() });
-    taste.bindTasteSurface('silence', {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'silence', rules: baseRules() });
+    await taste.bindTasteSurface(store, 'silence', {
       project: 'raven-mcp',
       surface: 'product-site',
       overrides: [{ rule_id: 'GRADIENT-BLOCK', severity: 'off' }]
     });
     const html = '<style>.x{background:linear-gradient(red, blue)}</style>';
-    const r = taste.auditTaste({ profile: 'silence', html, project: 'raven-mcp' });
+    const r = await taste.auditTaste(store, { profile: 'silence', html, project: 'raven-mcp' });
     assert.deepEqual(r.disabled_by_binding, [{ rule_id: 'GRADIENT-BLOCK', severity: 'off' }]);
     assert.equal(r.findings.filter((f) => f.rule_id === 'GRADIENT-BLOCK').length, 0);
     assert.equal(r.verdict, 'PASS');
@@ -1157,34 +1162,34 @@ test('an off override silences a rule on that surface and is reported under disa
 });
 
 test('calibration_hint appears only when scoped rules exist and neither surface nor binding was given', async () => {
-  await withTasteHome(async () => {
+  await withTasteHome(async (_home, store) => {
     const scoped = Object.assign({}, baseRules()[0], { scope: 'portfolio-monochrome' });
-    taste.createTasteProfile({ name: 'hint', rules: [scoped] });
+    await taste.createTasteProfile(store, { name: 'hint', rules: [scoped] });
     const html = '<style>.x{background:linear-gradient(red, blue)}</style>';
 
-    const bare = taste.auditTaste({ profile: 'hint', html });
+    const bare = await taste.auditTaste(store, { profile: 'hint', html });
     assert.ok(bare.calibration_hint.includes('get_taste_interview'));
     assert.equal(bare.binding, '');
     assert.equal(bare.findings[0].severity, 'warn');
 
-    const withSurface = taste.auditTaste({ profile: 'hint', html, surface: 'portfolio' });
+    const withSurface = await taste.auditTaste(store, { profile: 'hint', html, surface: 'portfolio' });
     assert.equal(withSurface.calibration_hint, undefined);
 
-    taste.createTasteProfile({ name: 'nohint', rules: [baseRules()[0]] });
-    const unscopedProfile = taste.auditTaste({ profile: 'nohint', html });
+    await taste.createTasteProfile(store, { name: 'nohint', rules: [baseRules()[0]] });
+    const unscopedProfile = await taste.auditTaste(store, { profile: 'nohint', html });
     assert.equal(unscopedProfile.calibration_hint, undefined);
   });
 });
 
 test('host binding hardening: single-label hosts rejected, userinfo/ports stripped, corrupt stored files refuse to load', async () => {
-  await withTasteHome(async (home) => {
-    taste.createTasteProfile({ name: 'hard', rules: baseRules() });
+  await withTasteHome(async (home, store) => {
+    await taste.createTasteProfile(store, { name: 'hard', rules: baseRules() });
 
     // A bare TLD would suffix-match every site under it.
-    assert.throws(() => taste.bindTasteSurface('hard', { project: 'x', surface: 's', hosts: ['ai'] }), /single label/);
-    assert.throws(() => taste.bindTasteSurface('hard', { project: 'x', surface: 's', hosts: ['   '] }), /empty/);
+    await assert.rejects(() => taste.bindTasteSurface(store, 'hard', { project: 'x', surface: 's', hosts: ['ai'] }), /single label/);
+    await assert.rejects(() => taste.bindTasteSurface(store, 'hard', { project: 'x', surface: 's', hosts: ['   '] }), /empty/);
 
-    const bound = taste.bindTasteSurface('hard', {
+    const bound = await taste.bindTasteSurface(store, 'hard', {
       project: 'x', surface: 's',
       hosts: ['user:pass@ravenmcp.ai', 'localhost:3000', '127.0.0.1'],
       uncalibrated_ack: 'test fixture'
@@ -1199,7 +1204,7 @@ test('host binding hardening: single-label hosts rejected, userinfo/ports stripp
     const badHost = structuredClone(good);
     badHost.bindings[0].hosts = ['AI'];
     writeFileSync(file, JSON.stringify(badHost));
-    assert.throws(() => taste.listSurfaceBindings('hard'), /unnormalized|single label/);
+    await assert.rejects(() => taste.listSurfaceBindings(store, 'hard'), /unnormalized|single label/);
 
     const dupOverride = structuredClone(good);
     dupOverride.bindings[0].overrides = [
@@ -1207,27 +1212,27 @@ test('host binding hardening: single-label hosts rejected, userinfo/ports stripp
       { rule_id: 'HUE-NIT', severity: 'warn' }
     ];
     writeFileSync(file, JSON.stringify(dupOverride));
-    assert.throws(() => taste.listSurfaceBindings('hard'), /duplicate rule_id/);
+    await assert.rejects(() => taste.listSurfaceBindings(store, 'hard'), /duplicate rule_id/);
 
     const badProject = structuredClone(good);
     badProject.bindings[0].project = '../escape';
     writeFileSync(file, JSON.stringify(badProject));
-    assert.throws(() => taste.listSurfaceBindings('hard'), /project must match/);
+    await assert.rejects(() => taste.listSurfaceBindings(store, 'hard'), /project must match/);
 
     // Unknown override rule_ids stay loadable by design: bindings outlive rule renames.
     const staleRule = structuredClone(good);
     staleRule.bindings[0].overrides = [{ rule_id: 'REMOVED-RULE', severity: 'off' }];
     writeFileSync(file, JSON.stringify(staleRule));
-    assert.equal(taste.listSurfaceBindings('hard')[0].overrides[0].rule_id, 'REMOVED-RULE');
+    assert.equal((await taste.listSurfaceBindings(store, 'hard'))[0].overrides[0].rule_id, 'REMOVED-RULE');
   });
 });
 
 test('the interview closes with an open-ended special question that learns suggestions from other bindings', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'sig', rules: baseRules() });
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'sig', rules: baseRules() });
 
     // First surface: no other bindings yet -> open-ended, no suggestions.
-    const first = taste.getTasteInterview('sig', 'portfolio');
+    const first = await taste.getTasteInterview(store, 'sig', 'portfolio');
     const firstSpecial = first.questions[first.questions.length - 1];
     assert.equal(firstSpecial.id, 'special');
     assert.equal(firstSpecial.skippable, true);
@@ -1239,33 +1244,33 @@ test('the interview closes with an open-ended special question that learns sugge
 
     // Bind a special note on one surface; the NEXT project's interview
     // proposes it back as a learned suggestion.
-    taste.bindTasteSurface('sig', {
+    await taste.bindTasteSurface(store, 'sig', {
       project: 'portfolio', surface: 'monochrome portfolio',
       design_notes: { special: 'faint grid lines texture behind hero' },
     });
-    const second = taste.getTasteInterview('sig', 'raven-mcp');
+    const second = await taste.getTasteInterview(store, 'sig', 'raven-mcp');
     const secondSpecial = second.questions[second.questions.length - 1];
     assert.deepEqual(secondSpecial.suggestions, ['faint grid lines texture behind hero']);
     assert.ok(secondSpecial.question.includes('faint grid lines texture behind hero'));
 
     // Quotes and newlines in a stored note are neutralized in the question text.
-    taste.bindTasteSurface('sig', {
+    await taste.bindTasteSurface(store, 'sig', {
       project: 'quoted', surface: 'app-ui',
       design_notes: { special: "it's a\ndotted 'grain' texture" },
     });
-    const third = taste.getTasteInterview('sig', 'raven-mcp');
+    const third = await taste.getTasteInterview(store, 'sig', 'raven-mcp');
     const thirdSpecial = third.questions[third.questions.length - 1];
     assert.ok(!/it's/.test(thirdSpecial.question), 'raw single quotes must not reach the question text');
     assert.ok(!thirdSpecial.question.includes('\n'), 'newlines must be collapsed in the question text');
     assert.ok(thirdSpecial.suggestions.length === 2, 'raw suggestion values still carried in the suggestions field');
 
     // Same project is excluded from its own suggestions (only the other binding's note remains).
-    const samePrj = taste.getTasteInterview('sig', 'portfolio');
+    const samePrj = await taste.getTasteInterview(store, 'sig', 'portfolio');
     const sameSpecial = samePrj.questions[samePrj.questions.length - 1];
     assert.deepEqual(sameSpecial.suggestions, ["it's a\ndotted 'grain' texture"]);
 
     // Refine mode revisits the stored special note like any other dimension.
-    const refine = taste.getTasteInterview('sig', 'portfolio', 'refine');
+    const refine = await taste.getTasteInterview(store, 'sig', 'portfolio', 'refine');
     const revise = refine.questions.find((q) => q.id === 'revise:special');
     assert.ok(revise);
     assert.ok(revise.question.includes('faint grid lines texture behind hero'));
@@ -1273,9 +1278,9 @@ test('the interview closes with an open-ended special question that learns sugge
 });
 
 test('the references question invites examples right after identity and the then-contract folds them into notes', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'refs', rules: baseRules() });
-    const interview = taste.getTasteInterview('refs', 'demo');
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'refs', rules: baseRules() });
+    const interview = await taste.getTasteInterview(store, 'refs', 'demo');
     assert.equal(interview.questions[1].id, 'references');
     assert.equal(interview.questions[1].skippable, true);
     assert.equal(interview.questions[1].priority, 'core');
@@ -1286,35 +1291,35 @@ test('the references question invites examples right after identity and the then
 });
 
 test('record_taste_decision: records, lists, filters, and validates', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'decider', rules: baseRules() });
-    const rec = taste.recordTasteDecision('decider', {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'decider', rules: baseRules() });
+    const rec = await taste.recordTasteDecision(store, 'decider', {
       project: 'proj-a', dimension: 'Color ', decision: 'amber-phosphor accent, period-accurate',
       rejected: ['electric blue'], why: 'matches CRT heritage', source: 'user-corrected',
     });
     assert.equal(rec.dimension, 'color', 'dimension normalizes to lowercase/trimmed');
     assert.equal(rec.source, 'user-corrected');
-    taste.recordTasteDecision('decider', { project: 'proj-b', dimension: 'color', decision: 'warm off-white ground' });
-    const all = taste.listTasteDecisions('decider');
+    await taste.recordTasteDecision(store, 'decider', { project: 'proj-b', dimension: 'color', decision: 'warm off-white ground' });
+    const all = await taste.listTasteDecisions(store, 'decider');
     assert.equal(all.length, 2);
-    assert.equal(taste.listTasteDecisions('decider', { project: 'proj-a' }).length, 1);
-    assert.equal(taste.listTasteDecisions('decider', { dimension: 'color' }).length, 2);
+    assert.equal((await taste.listTasteDecisions(store, 'decider', { project: 'proj-a' })).length, 1);
+    assert.equal((await taste.listTasteDecisions(store, 'decider', { dimension: 'color' })).length, 2);
     assert.equal(all[1].source, 'user-directed', 'source defaults to user-directed');
-    assert.throws(() => taste.recordTasteDecision('decider', { project: 'proj-a', dimension: 'Bad Key!', decision: 'x' }), /dimension/);
-    assert.throws(() => taste.recordTasteDecision('decider', { project: 'proj-a', dimension: 'color', decision: '  ' }), /decision/);
-    assert.throws(() => taste.recordTasteDecision('decider', { project: 'proj-a', dimension: 'color', decision: 'x', source: 'guessed' }), /source/);
+    await assert.rejects(() => taste.recordTasteDecision(store, 'decider', { project: 'proj-a', dimension: 'Bad Key!', decision: 'x' }), /dimension/);
+    await assert.rejects(() => taste.recordTasteDecision(store, 'decider', { project: 'proj-a', dimension: 'color', decision: '  ' }), /decision/);
+    await assert.rejects(() => taste.recordTasteDecision(store, 'decider', { project: 'proj-a', dimension: 'color', decision: 'x', source: 'guessed' }), /source/);
   });
 });
 
 test('kickoff interview learns from decisions on OTHER projects — suggestions on standard dimensions', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'learner', rules: baseRules() });
-    taste.recordTasteDecision('learner', { project: 'proj-a', dimension: 'navigation', decision: 'hamburger at every breakpoint' });
-    const interview = taste.getTasteInterview('learner', 'proj-new');
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'learner', rules: baseRules() });
+    await taste.recordTasteDecision(store, 'learner', { project: 'proj-a', dimension: 'navigation', decision: 'hamburger at every breakpoint' });
+    const interview = await taste.getTasteInterview(store, 'learner', 'proj-new');
     const navQ = interview.questions.find((q) => q.id === 'design:navigation');
     assert.deepEqual(navQ.suggestions, ['hamburger at every breakpoint']);
     assert.ok(/On past projects you decided/.test(navQ.question), 'question text carries the learned decision');
-    const sameProject = taste.getTasteInterview('learner', 'proj-a');
+    const sameProject = await taste.getTasteInterview(store, 'learner', 'proj-a');
     const sameNavQ = sameProject.questions.find((q) => q.id === 'design:navigation');
     assert.equal(sameNavQ.suggestions, undefined, 'decisions from the SAME project are excluded');
     assert.ok(/record_taste_decision/.test(interview.then), 'kickoff then tells the client to keep recording decisions');
@@ -1322,12 +1327,12 @@ test('kickoff interview learns from decisions on OTHER projects — suggestions 
 });
 
 test('kickoff interview grows NEW questions from decision categories no standard dimension covers', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'grower', rules: baseRules() });
-    taste.recordTasteDecision('grower', { project: 'proj-a', dimension: 'iconography', decision: 'stroke icons only, 1.5px, no fills' });
-    taste.recordTasteDecision('grower', { project: 'proj-a', dimension: 'iconography', decision: 'stroke icons only, 1.5px, no fills' });
-    taste.recordTasteDecision('grower', { project: 'proj-b', dimension: 'iconography', decision: 'geometric, currentColor' });
-    const interview = taste.getTasteInterview('grower', 'proj-new');
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'grower', rules: baseRules() });
+    await taste.recordTasteDecision(store, 'grower', { project: 'proj-a', dimension: 'iconography', decision: 'stroke icons only, 1.5px, no fills' });
+    await taste.recordTasteDecision(store, 'grower', { project: 'proj-a', dimension: 'iconography', decision: 'stroke icons only, 1.5px, no fills' });
+    await taste.recordTasteDecision(store, 'grower', { project: 'proj-b', dimension: 'iconography', decision: 'geometric, currentColor' });
+    const interview = await taste.getTasteInterview(store, 'grower', 'proj-new');
     const iconQ = interview.questions.find((q) => q.id === 'design:iconography');
     assert.ok(iconQ, 'a learned iconography question is spawned');
     assert.equal(iconQ.skippable, true);
@@ -1339,13 +1344,13 @@ test('kickoff interview grows NEW questions from decision categories no standard
 });
 
 test('listTasteProfiles skips sidecar surfaces/decisions stores', async () => {
-  await withTasteHome(async (home) => {
-    const profile = taste.createTasteProfile({ name: 'andrew', rules: baseRules().slice(0, 1) });
-    taste.bindTasteSurface('andrew', { project: 'demo', surface: 'product site', active_scopes: [], overrides: [], voice_note: '', url_hosts: [], uncalibrated_ack: 'test fixture' });
-    taste.recordTasteDecision('andrew', { project: 'demo', dimension: 'color', decision: 'warm accent', rejected: [], why: 'fits' });
+  await withTasteHome(async (home, store) => {
+    const profile = await taste.createTasteProfile(store, { name: 'andrew', rules: baseRules().slice(0, 1) });
+    await taste.bindTasteSurface(store, 'andrew', { project: 'demo', surface: 'product site', active_scopes: [], overrides: [], voice_note: '', url_hosts: [], uncalibrated_ack: 'test fixture' });
+    await taste.recordTasteDecision(store, 'andrew', { project: 'demo', dimension: 'color', decision: 'warm accent', rejected: [], why: 'fits' });
     assert.ok((await readFile(path.join(home, 'andrew.surfaces.json'), 'utf8')).length > 0);
     assert.ok((await readFile(path.join(home, 'andrew.decisions.json'), 'utf8')).length > 0);
-    assert.deepEqual(taste.listTasteProfiles(), [
+    assert.deepEqual(await taste.listTasteProfiles(store), [
       { name: 'andrew', rules: 1, corpus: 0, updated_at: profile.updated_at }
     ]);
   });
@@ -1364,9 +1369,9 @@ function makeTraits(over) {
 }
 
 test('bindTasteSurface persists references (with and without traits) and round-trips from disk', async () => {
-  await withTasteHome(async (home) => {
-    taste.createTasteProfile({ name: 'refs', rules: baseRules() });
-    const bound = taste.bindTasteSurface('refs', {
+  await withTasteHome(async (home, store) => {
+    await taste.createTasteProfile(store, { name: 'refs', rules: baseRules() });
+    const bound = await taste.bindTasteSurface(store, 'refs', {
       project: 'vision-app', surface: 'product-site',
       design_notes: { color: 'Dark, cinematic palette.' },
       references: [
@@ -1383,7 +1388,7 @@ test('bindTasteSurface persists references (with and without traits) and round-t
     assert.equal(bound.references[1].traits, undefined);
 
     // Persists and reloads through disk validation.
-    const reloaded = taste.listSurfaceBindings('refs')[0];
+    const reloaded = (await taste.listSurfaceBindings(store, 'refs'))[0];
     assert.deepEqual(reloaded.references, bound.references);
     const onDisk = JSON.parse(await readFile(path.join(home, 'refs.surfaces.json'), 'utf8'));
     assert.equal(onDisk.bindings[0].references.length, 2);
@@ -1391,44 +1396,44 @@ test('bindTasteSurface persists references (with and without traits) and round-t
 });
 
 test('bindTasteSurface validates reference shape and requires http(s) urls', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'refval', rules: baseRules() });
-    assert.throws(
-      () => taste.bindTasteSurface('refval', { project: 'x', surface: 's', references: 'nope' }),
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'refval', rules: baseRules() });
+    await assert.rejects(
+      () => taste.bindTasteSurface(store, 'refval', { project: 'x', surface: 's', references: 'nope' }),
       /references must be an array/
     );
-    assert.throws(
-      () => taste.bindTasteSurface('refval', { project: 'x', surface: 's', references: [{ liked: 'no url' }] }),
+    await assert.rejects(
+      () => taste.bindTasteSurface(store, 'refval', { project: 'x', surface: 's', references: [{ liked: 'no url' }] }),
       /references\[0\]\.url must be a string/
     );
-    assert.throws(
-      () => taste.bindTasteSurface('refval', { project: 'x', surface: 's', references: [{ url: 'ftp://x.com' }] }),
+    await assert.rejects(
+      () => taste.bindTasteSurface(store, 'refval', { project: 'x', surface: 's', references: [{ url: 'ftp://x.com' }] }),
       /must be an http\(s\) URL/
     );
-    assert.throws(
-      () => taste.bindTasteSurface('refval', { project: 'x', surface: 's', references: [{ url: 'not a url' }] }),
+    await assert.rejects(
+      () => taste.bindTasteSurface(store, 'refval', { project: 'x', surface: 's', references: [{ url: 'not a url' }] }),
       /must be a valid http\(s\) URL/
     );
-    assert.throws(
-      () => taste.bindTasteSurface('refval', { project: 'x', surface: 's', references: [{ url: 'https://x.com', liked: 42 }] }),
+    await assert.rejects(
+      () => taste.bindTasteSurface(store, 'refval', { project: 'x', surface: 's', references: [{ url: 'https://x.com', liked: 42 }] }),
       /liked must be a string/
     );
     // Empty binding stores no references key at all (disk format unchanged).
-    const plain = taste.bindTasteSurface('refval', { project: 'plain', surface: 's', uncalibrated_ack: 'test fixture' });
+    const plain = await taste.bindTasteSurface(store, 'refval', { project: 'plain', surface: 's', uncalibrated_ack: 'test fixture' });
     assert.equal(plain.references, undefined);
   });
 });
 
 test('validateStoredBinding backward compat: old binding JSON without references loads', async () => {
-  await withTasteHome(async (home) => {
-    taste.createTasteProfile({ name: 'compat', rules: baseRules() });
-    taste.bindTasteSurface('compat', { project: 'legacy', surface: 'product-site', design_notes: { color: 'Bone white.' } });
+  await withTasteHome(async (home, store) => {
+    await taste.createTasteProfile(store, { name: 'compat', rules: baseRules() });
+    await taste.bindTasteSurface(store, 'compat', { project: 'legacy', surface: 'product-site', design_notes: { color: 'Bone white.' } });
     const raw = JSON.parse(await readFile(path.join(home, 'compat.surfaces.json'), 'utf8'));
     assert.equal(raw.bindings[0].references, undefined, 'no references key written when none given');
     // Simulate a pre-references store (field absent entirely) — still loads.
     delete raw.bindings[0].references;
     await writeFile(path.join(home, 'compat.surfaces.json'), JSON.stringify(raw), 'utf8');
-    const loaded = taste.listSurfaceBindings('compat')[0];
+    const loaded = (await taste.listSurfaceBindings(store, 'compat'))[0];
     assert.equal(loaded.references, undefined);
     assert.equal(loaded.design_notes.color, 'Bone white.');
   });
@@ -1525,9 +1530,9 @@ test('checkBindingConsistency flags motion and spacing contradictions with citab
 // ---- LEG C: design_notes presence verification in auditTaste ----
 
 test('auditTaste verifies design_notes against traits: the vision-app-raven failure shape now BLOCKS', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'fidelity', rules: baseRules() });
-    taste.bindTasteSurface('fidelity', {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'fidelity', rules: baseRules() });
+    await taste.bindTasteSurface(store, 'fidelity', {
       project: 'vision-app-raven',
       surface: 'product-site',
       design_notes: {
@@ -1544,7 +1549,7 @@ test('auditTaste verifies design_notes against traits: the vision-app-raven fail
       scroll_effects: false, animation_count: 0, backdrop_filter: false,
       image_count: 1, video_count: 0
     });
-    const result = taste.auditTaste({
+    const result = await taste.auditTaste(store, {
       profile: 'fidelity',
       html: '<main><p>Raven vision app.</p></main>',
       project: 'vision-app-raven',
@@ -1581,9 +1586,9 @@ test('auditTaste verifies design_notes against traits: the vision-app-raven fail
 });
 
 test('auditTaste carries build_hints for expensive notes, alongside the missing findings', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'hints', rules: baseRules() });
-    taste.bindTasteSurface('hints', {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'hints', rules: baseRules() });
+    await taste.bindTasteSurface(store, 'hints', {
       project: 'vision-app-raven',
       surface: 'product-site',
       design_notes: {
@@ -1596,7 +1601,7 @@ test('auditTaste carries build_hints for expensive notes, alongside the missing 
       scheme: 'light', canvas_count: 0, webgl: false, scroll_effects: false,
       animation_count: 0, backdrop_filter: false, image_count: 1
     });
-    const result = taste.auditTaste({ profile: 'hints', html: '<main><p>App.</p></main>', project: 'vision-app-raven', traits });
+    const result = await taste.auditTaste(store, { profile: 'hints', html: '<main><p>App.</p></main>', project: 'vision-app-raven', traits });
 
     // The audit hands the fix ammunition next to the missing finding.
     assert.ok(Array.isArray(result.build_hints), 'build_hints present when a note names an expensive technique');
@@ -1613,28 +1618,28 @@ test('auditTaste carries build_hints for expensive notes, alongside the missing 
 });
 
 test('auditTaste omits build_hints when no note names an expensive technique', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'nohints', rules: baseRules() });
-    taste.bindTasteSurface('nohints', {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'nohints', rules: baseRules() });
+    await taste.bindTasteSurface(store, 'nohints', {
       project: 'plain-app',
       surface: 'product-site',
       design_notes: { typography: 'restrained grotesque', libraries: 'none — vanilla JS' }
     });
-    const result = taste.auditTaste({ profile: 'nohints', html: '<main><p>Hi.</p></main>', project: 'plain-app', traits: makeTraits({}) });
+    const result = await taste.auditTaste(store, { profile: 'nohints', html: '<main><p>Hi.</p></main>', project: 'plain-app', traits: makeTraits({}) });
     assert.equal(result.build_hints, undefined, 'no expensive technique -> no build_hints field');
   });
 });
 
 test('auditTaste html mode extracts static traits when none are passed', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'staticfid', rules: baseRules() });
-    taste.bindTasteSurface('staticfid', {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'staticfid', rules: baseRules() });
+    await taste.bindTasteSurface(store, 'staticfid', {
       project: 'static-app',
       surface: 'product-site',
       design_notes: { color: 'Dark, cinematic.', aesthetic: 'glassmorphic', motion: 'cinematic scroll' }
     });
     const html = '<html><body style="background:#ffffff"><main><p>Hello.</p></main></body></html>';
-    const result = taste.auditTaste({ profile: 'staticfid', html, project: 'static-app' });
+    const result = await taste.auditTaste(store, { profile: 'staticfid', html, project: 'static-app' });
     const byKey = Object.fromEntries(result.note_assessments.map((a) => [a.key, a]));
     // Statically observable: white body -> the dark note is missing; no backdrop-filter -> glass missing.
     assert.equal(byKey.color.status, 'missing');
@@ -1647,9 +1652,9 @@ test('auditTaste html mode extracts static traits when none are passed', async (
 });
 
 test('auditTaste folds reference deltas from the binding into fidelity_findings', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'refdelta', rules: baseRules() });
-    taste.bindTasteSurface('refdelta', {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'refdelta', rules: baseRules() });
+    await taste.bindTasteSurface(store, 'refdelta', {
       project: 'vision-app',
       surface: 'product-site',
       design_notes: { color: 'Dark, cinematic.' },
@@ -1659,7 +1664,7 @@ test('auditTaste folds reference deltas from the binding into fidelity_findings'
       ]
     });
     const target = makeTraits({ scheme: 'dark', bg_luminance: 0.05, animation_count: 0, scroll_effects: false });
-    const result = taste.auditTaste({ profile: 'refdelta', html: '<main><p>Hi.</p></main>', project: 'vision-app', traits: target });
+    const result = await taste.auditTaste(store, { profile: 'refdelta', html: '<main><p>Hi.</p></main>', project: 'vision-app', traits: target });
     const scheme = result.fidelity_findings.filter((f) => f.rule_id === 'REF-scheme-mismatch');
     assert.equal(scheme.length, 1, 'deduped across refs');
     assert.match(scheme[0].evidence, /mont-fort\.com/);
@@ -1673,22 +1678,22 @@ test('auditTaste folds reference deltas from the binding into fidelity_findings'
 });
 
 test('fidelity backward compat: no design_notes, no traits, or text mode leaves the result shape unchanged', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'fidcompat', rules: baseRules() });
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'fidcompat', rules: baseRules() });
     // Binding without design_notes: nothing to verify even with traits.
-    taste.bindTasteSurface('fidcompat', { project: 'plain', surface: 'product-site', uncalibrated_ack: 'test fixture' });
-    const withTraits = taste.auditTaste({ profile: 'fidcompat', html: '<p>Hi.</p>', project: 'plain', traits: makeTraits({}) });
+    await taste.bindTasteSurface(store, 'fidcompat', { project: 'plain', surface: 'product-site', uncalibrated_ack: 'test fixture' });
+    const withTraits = await taste.auditTaste(store, { profile: 'fidcompat', html: '<p>Hi.</p>', project: 'plain', traits: makeTraits({}) });
     assert.equal(withTraits.note_assessments, undefined);
     assert.equal(withTraits.fidelity_findings, undefined);
 
     // No binding at all.
-    const unbound = taste.auditTaste({ profile: 'fidcompat', html: '<p>Hi.</p>' });
+    const unbound = await taste.auditTaste(store, { profile: 'fidcompat', html: '<p>Hi.</p>' });
     assert.equal(unbound.note_assessments, undefined);
     assert.equal(unbound.fidelity_findings, undefined);
 
     // design_notes bound, but text mode has no traits and nothing to extract.
-    taste.bindTasteSurface('fidcompat', { project: 'noted', surface: 'product-site', design_notes: { color: 'dark' } });
-    const textMode = taste.auditTaste({ profile: 'fidcompat', text: 'Some copy.', project: 'noted' });
+    await taste.bindTasteSurface(store, 'fidcompat', { project: 'noted', surface: 'product-site', design_notes: { color: 'dark' } });
+    const textMode = await taste.auditTaste(store, { profile: 'fidcompat', text: 'Some copy.', project: 'noted' });
     assert.equal(textMode.note_assessments, undefined);
     assert.equal(textMode.fidelity_findings, undefined);
     assert.equal(textMode.verdict, 'PASS');
@@ -1696,9 +1701,9 @@ test('fidelity backward compat: no design_notes, no traits, or text mode leaves 
 });
 
 test('restraint guard alone escalates a clean PASS to WARN with the standard verdict line', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'restraint', rules: baseRules() });
-    taste.bindTasteSurface('restraint', {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'restraint', rules: baseRules() });
+    await taste.bindTasteSurface(store, 'restraint', {
       project: 'sparse-app',
       surface: 'product-site',
       design_notes: { typography: 'Grotesque, restrained.' } // unverifiable note: no NOTE- finding
@@ -1708,7 +1713,7 @@ test('restraint guard alone escalates a clean PASS to WARN with the standard ver
       animation_count: 0, backdrop_filter: false, font_families: ['Inter'],
       max_heading_px: 40, gradient_count: 0
     });
-    const result = taste.auditTaste({ profile: 'restraint', html: '<main><p>Hi.</p></main>', project: 'sparse-app', traits: sparseEmpty });
+    const result = await taste.auditTaste(store, { profile: 'restraint', html: '<main><p>Hi.</p></main>', project: 'sparse-app', traits: sparseEmpty });
     assert.deepEqual(result.fidelity_findings.map((f) => f.rule_id), ['TASTE-restraint-earned']);
     assert.equal(result.verdict, 'WARN');
     assert.equal(result.verdict_line, 'Verdict: WARN (0 block, 1 warn)');
@@ -1716,7 +1721,7 @@ test('restraint guard alone escalates a clean PASS to WARN with the standard ver
     assert.equal(result.note_assessments[0].status, 'unverifiable');
 
     // Same page with earned sparseness (craft present): guard is silent, PASS.
-    const crafted = taste.auditTaste({
+    const crafted = await taste.auditTaste(store, {
       profile: 'restraint', html: '<main><p>Hi.</p></main>', project: 'sparse-app',
       traits: makeTraits(Object.assign({}, sparseEmpty, { canvas_count: 1, animation_count: 6 }))
     });
@@ -1734,15 +1739,15 @@ const distFidelityMobile = path.resolve(__dirname, '../dist/taste-fidelity.js');
 const fidelityMobile = await import(distFidelityMobile);
 
 test('references accept local .png image paths alongside http(s) URLs', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'mobrefs', rules: baseRules() });
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'mobrefs', rules: baseRules() });
     // isPngPathReference is the routing predicate the bind handler uses.
     assert.equal(taste.isPngPathReference('/tmp/screen.png'), true);
     assert.equal(taste.isPngPathReference('shots/Home.PNG'), true);
     assert.equal(taste.isPngPathReference('https://a.com/shot.png'), false, 'http urls stay on the live-capture path');
     assert.equal(taste.isPngPathReference('/tmp/screen.jpg'), false);
 
-    const bound = taste.bindTasteSurface('mobrefs', {
+    const bound = await taste.bindTasteSurface(store, 'mobrefs', {
       project: 'vision-app-ios', surface: 'mobile app',
       design_notes: { color: 'Dark, cinematic palette.' },
       references: [
@@ -1754,11 +1759,11 @@ test('references accept local .png image paths alongside http(s) URLs', async ()
     assert.equal(bound.references[0].url, '/tmp/home-screen.png');
     assert.equal(bound.references[0].traits.scheme, 'dark');
     // Round-trips through disk validation.
-    const reloaded = taste.listSurfaceBindings('mobrefs')[0];
+    const reloaded = (await taste.listSurfaceBindings(store, 'mobrefs'))[0];
     assert.equal(reloaded.references[0].url, '/tmp/home-screen.png');
     // Non-png non-url paths are still rejected.
-    assert.throws(
-      () => taste.bindTasteSurface('mobrefs', { project: 'x', surface: 's', references: [{ url: '/tmp/notes.txt' }] }),
+    await assert.rejects(
+      () => taste.bindTasteSurface(store, 'mobrefs', { project: 'x', surface: 's', references: [{ url: '/tmp/notes.txt' }] }),
       /must be a valid http\(s\) URL or a \.png image path/
     );
   });
@@ -1782,16 +1787,16 @@ test('checkBindingConsistency works on the pixel-trait subset from an image refe
 });
 
 test('mobile audit integration: bound design_notes verified against source fold into issues; no binding -> unchanged', async () => {
-  await withTasteHome(async () => {
+  await withTasteHome(async (_home, store) => {
     // The exact chain audit_swiftui runs when passed project: resolve the
     // binding, assess the notes against the source, fold missing into issues.
-    taste.createTasteProfile({ name: 'andrew-mobile', rules: baseRules() });
-    taste.bindTasteSurface('andrew-mobile', {
+    await taste.createTasteProfile(store, { name: 'andrew-mobile', rules: baseRules() });
+    await taste.bindTasteSurface(store, 'andrew-mobile', {
       project: 'vision-app-ios', surface: 'mobile app',
       design_notes: { aesthetic: 'glassmorphic frosted panels', motion: 'cinematic choreographed transitions', loading: 'branded loader' }
     });
 
-    const binding = taste.resolveSurfaceBinding('andrew-mobile', { project: 'vision-app-ios' });
+    const binding = await taste.resolveSurfaceBinding(store, 'andrew-mobile', { project: 'vision-app-ios' });
     assert.ok(binding, 'project hint must resolve the binding');
 
     const bareSource = 'struct ListView: View { var body: some View { VStack { Text("one") } } }';
@@ -1807,7 +1812,7 @@ test('mobile audit integration: bound design_notes verified against source fold 
 
     // Backward compat: an unbound project resolves nothing -> no note issues,
     // the audit result is byte-identical to the pre-taste behavior.
-    assert.equal(taste.resolveSurfaceBinding('andrew-mobile', { project: 'some-other-app' }), null);
+    assert.equal(await taste.resolveSurfaceBinding(store, 'andrew-mobile', { project: 'some-other-app' }), null);
   });
 });
 
@@ -1832,9 +1837,9 @@ test('checkBindingConsistency: scroll-driven references (animation_count=0, scro
 });
 
 test('stored reference traits are sanitized: corrupt fields degrade to null/unknown, never crash later audits', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'corrupt', rules: baseRules() });
-    taste.bindTasteSurface('corrupt', {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'corrupt', rules: baseRules() });
+    await taste.bindTasteSurface(store, 'corrupt', {
       project: 'p',
       surface: 'product-site',
       design_notes: { color: 'Dark, cinematic.', spacing: 'airy' },
@@ -1843,7 +1848,7 @@ test('stored reference traits are sanitized: corrupt fields degrade to null/unkn
         traits: { scheme: 'neon', bg_luminance: 'very dark', text_density: '0.5', animation_count: NaN, font_families: ['Inter', 42], section_count: -3 }
       }]
     });
-    const loaded = taste.listSurfaceBindings('corrupt')[0];
+    const loaded = (await taste.listSurfaceBindings(store, 'corrupt'))[0];
     const t = loaded.references[0].traits;
     assert.equal(t.scheme, 'unknown');
     assert.equal(t.bg_luminance, null);

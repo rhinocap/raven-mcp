@@ -1,34 +1,28 @@
 /**
  * remote-store-invariant.test.mjs
  *
- * The whack-a-mole killer for the hosted (remote) MCP endpoint.
- *
- * Invariant under test: in remote runtime, NO code path may read or write the
- * local raven store (~/.raven taste profiles + creative records). Three
- * adversarial Codex passes each found a new tool/param reaching a local resource;
- * the fix gates the *capability* at the store functions via a one-way latch
- * (src/remote-runtime.ts), so this test asserts the capability is closed rather
- * than enumerating tools. If a future change reopens the store in remote mode,
- * this test fails.
+ * The hosted (remote) MCP endpoint must not get a capability to read or write
+ * the local taste store. Phase 4 moves that invariant from implicit taste.ts
+ * fs/latch checks to an explicit per-server TasteStore: local stdio uses
+ * FsTasteStore, while a remote build with no injected store uses
+ * ClosedTasteStore. No module-global current store is allowed.
  *
  * Runs after `npm run build`. Each assertion phase runs in its own spawned node
- * process — the latch is process-global and one-way (by design), so it must not
- * leak into sibling test files; a child process guarantees isolation.
+ * process because remote-runtime is still a one-way process latch for the
+ * creative store and remote server mode.
  */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.resolve(__dirname, '../dist');
 
-// Run a snippet in a fresh node process with a sentinel store home, return its
-// stdout. Throws (failing the test) on non-zero exit.
 function runChild(snippet, env) {
   return execFileSync(process.execPath, ['--input-type=module', '-e', snippet], {
     env: { ...process.env, ...env },
@@ -36,55 +30,93 @@ function runChild(snippet, env) {
   });
 }
 
-test('remote runtime closes the local taste store; local runtime keeps it open', () => {
+test('TasteStore capability is explicit: fs store opens local taste; closed store reads empty and rejects writes', () => {
   const home = mkdtempSync(path.join(tmpdir(), 'raven-inv-'));
   const tasteHome = path.join(home, 'taste');
   mkdirSync(tasteHome, { recursive: true });
 
   const tasteUrl = JSON.stringify(pathToImport('taste.js'));
-  const rtUrl = JSON.stringify(pathToImport('remote-runtime.js'));
+  const storeUrl = JSON.stringify(pathToImport('taste-store.js'));
 
   try {
-    // Phase 1 — LOCAL runtime (latch never set): create a real profile + surface
-    // binding via the actual store API (guaranteed-valid on-disk shape), then
-    // read them back. Proves the sentinel data is real and a leak is detectable.
     const localOut = runChild(
       `import { createTasteProfile, bindTasteSurface, listTasteProfiles, resolveSurfaceBinding } from ${tasteUrl};
-       createTasteProfile({ name: 'invtest' });
-       bindTasteSurface('invtest', { project: 'secretproj', surface: 'product-site', design_notes: { color: 'monochrome one-accent' } });
-       const names = listTasteProfiles().map(p => p.name);
-       const bound = resolveSurfaceBinding('invtest', { project: 'secretproj' });
+       import { FsTasteStore } from ${storeUrl};
+       const store = new FsTasteStore();
+       await createTasteProfile(store, { name: 'invtest' });
+       await bindTasteSurface(store, 'invtest', { project: 'secretproj', surface: 'product-site', design_notes: { color: 'monochrome one-accent' } });
+       const names = (await listTasteProfiles(store)).map(p => p.name);
+       const bound = await resolveSurfaceBinding(store, 'invtest', { project: 'secretproj' });
        console.log(JSON.stringify({ names, bound: bound ? bound.project : null }));`,
       { RAVEN_TASTE_HOME: tasteHome }
     );
     const local = JSON.parse(localOut.trim().split('\n').pop());
-    assert.deepEqual(local.names, ['invtest'], 'local runtime must read the taste store');
-    assert.equal(local.bound, 'secretproj', 'local runtime must resolve the surface binding');
+    assert.deepEqual(local.names, ['invtest'], 'FsTasteStore must read the local taste store');
+    assert.equal(local.bound, 'secretproj', 'FsTasteStore must resolve the local surface binding');
 
-    // Phase 2 — REMOTE runtime (latch set): the SAME calls fail closed. Even
-    // with valid on-disk data and an explicitly-named project, the store is
-    // never read — no profile names, no binding.
-    const remoteOut = runChild(
-      `import { setRemoteRuntime } from ${rtUrl};
-       setRemoteRuntime();
-       const { listTasteProfiles, resolveSurfaceBinding } = await import(${tasteUrl});
-       const names = listTasteProfiles();
-       const bound = resolveSurfaceBinding('invtest', { project: 'secretproj' });
-       console.log(JSON.stringify({ names, bound }));`,
+    const closedOut = runChild(
+      `import { createTasteProfile, bindTasteSurface, listTasteProfiles, resolveSurfaceBinding, getTasteProfile } from ${tasteUrl};
+       import { ClosedTasteStore } from ${storeUrl};
+       const store = new ClosedTasteStore();
+       const names = await listTasteProfiles(store);
+       const bound = await resolveSurfaceBinding(store, 'invtest', { project: 'secretproj' });
+       let getError = '';
+       let createError = '';
+       let bindError = '';
+       try { await getTasteProfile(store, 'invtest'); } catch (err) { getError = err.message; }
+       try { await createTasteProfile(store, { name: 'nope' }); } catch (err) { createError = err.message; }
+       try { await bindTasteSurface(store, 'invtest', { project: 'x', surface: 's', design_notes: { color: 'x' } }); } catch (err) { bindError = err.message; }
+       console.log(JSON.stringify({ names, bound, getError, createError, bindError }));`,
       { RAVEN_TASTE_HOME: tasteHome }
     );
-    const remote = JSON.parse(remoteOut.trim().split('\n').pop());
-    assert.deepEqual(remote.names, [], 'remote runtime must NOT enumerate taste profiles');
-    assert.equal(remote.bound, null, 'remote runtime must NOT resolve any surface binding');
+    const closed = JSON.parse(closedOut.trim().split('\n').pop());
+    assert.deepEqual(closed.names, [], 'ClosedTasteStore must not enumerate taste profiles');
+    assert.equal(closed.bound, null, 'ClosedTasteStore must not resolve local surface bindings');
+    assert.match(closed.getError, /Taste profile not found: invtest.*Available profiles: \(none\)/);
+    assert.match(closed.createError, /Taste store is not available in remote runtime/);
+    assert.match(closed.bindError, /Taste profile not found: invtest.*Available profiles: \(none\)/);
   } finally {
     rmSync(home, { recursive: true, force: true });
   }
 });
 
+test('remote build with no injected store keeps anonymous endpoint taste-closed', () => {
+  const indexUrl = JSON.stringify(pathToImport('index.js'));
+
+  const out = runChild(
+    `import { buildServer } from ${indexUrl};
+     import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+     import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+     const server = buildServer({ remote: true });
+     const client = new Client({ name: 'remote-store-invariant-test', version: '1.0.0' }, { capabilities: {} });
+     await server.connect(serverTransport);
+     await client.connect(clientTransport);
+     const listed = await client.listTools();
+     const names = listed.tools.map(t => t.name).sort();
+     const tasteNames = names.filter(name => name.includes('taste') || name === 'label_finding');
+     let listTasteError = '';
+     let createTasteError = '';
+     try {
+       const listCall = await client.callTool({ name: 'list_taste_profiles', arguments: {} });
+       listTasteError = listCall.content && listCall.content[0] ? listCall.content[0].text : '';
+     } catch (err) { listTasteError = err.message; }
+     try {
+       const createCall = await client.callTool({ name: 'create_taste_profile', arguments: { name: 'leak' } });
+       createTasteError = createCall.content && createCall.content[0] ? createCall.content[0].text : '';
+     } catch (err) { createTasteError = err.message; }
+     await client.close();
+     await server.close();
+     console.log(JSON.stringify({ count: names.length, tasteNames, listTasteError, createTasteError }));`
+  );
+
+  const result = JSON.parse(out.trim().split('\n').pop());
+  assert.equal(result.count, 45, 'remote anonymous endpoint must keep the existing 45-tool set');
+  assert.deepEqual(result.tasteNames, [], 'remote anonymous endpoint must expose no taste store tools');
+  assert.match(result.listTasteError, /not found|Unknown tool|Tool.*not/i);
+  assert.match(result.createTasteError, /not found|Unknown tool|Tool.*not/i);
+});
+
 function pathToImport(file) {
-  return fileURLToPathHref(path.join(distDir, file));
-}
-function fileURLToPathHref(p) {
-  // file:// URL for cross-platform dynamic import in the child.
-  return new URL('file://' + p).href;
+  return new URL('file://' + path.join(distDir, file)).href;
 }

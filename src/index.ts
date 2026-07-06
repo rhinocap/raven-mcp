@@ -32,6 +32,7 @@ import { createTasteProfile, getTasteProfile, listTasteProfiles, labelFinding, a
 import type { ReferenceCapture, SurfaceBinding } from "./taste.js";
 import { generateTastePortrait } from "./taste-portrait.js";
 import { setRemoteRuntime, isRemoteRuntime } from "./remote-runtime.js";
+import { ClosedTasteStore, FsTasteStore, type TasteStore } from "./taste-store.js";
 import { remoteUrlGuardError } from "./remote-url-guard.js";
 import { buildHints, screenTraitsFromImage, assessDesignNotesSource, assessDesignNotesImage, noteIssuesFromAssessments } from "./taste-fidelity.js";
 import type { NoteAssessment, MobileSourceKind } from "./taste-fidelity.js";
@@ -1673,7 +1674,7 @@ const REMOTE_URL_GUARDED_TOOLS: { [tool: string]: string } = {
 // The stdio entry calls this once; a future HTTP entry calls it per request.
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
-export function buildServer(opts?: { remote?: boolean }): McpServer {
+export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }): McpServer {
 // remote = serve only the 45 stateless remote-safe tools (gate off the 20
 // stateful/local + 5 fs/network/side-effect capability tools; evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
@@ -1688,6 +1689,9 @@ var remote: boolean = (opts && typeof opts.remote === "boolean")
 // once (idempotent under Fluid-Compute instance reuse) and every ~/.raven read/
 // write below fails closed regardless of which tool or param reached it.
 if (remote) setRemoteRuntime();
+var tasteStore: TasteStore = opts && opts.tasteStore
+  ? opts.tasteStore
+  : remote ? new ClosedTasteStore() : new FsTasteStore();
 var server = new McpServer({
   name: "raven-mcp",
   version: PKG_VERSION
@@ -4006,18 +4010,18 @@ function parsePlistKeys(xml: string): Record<string, string> {
 // and pixel-derived screenshot traits (audit_screen/audit_ios_screen).
 // Resolution is opt-in via a project hint and NEVER throws — a broken taste
 // store must not break a plain HIG audit.
-function resolveMobileTaste(project?: string, profile?: string): { profile: string; binding: SurfaceBinding } | null {
+async function resolveMobileTaste(tasteStore: TasteStore, project?: string, profile?: string): Promise<{ profile: string; binding: SurfaceBinding } | null> {
   if (typeof project !== "string" || project.trim().length === 0) return null;
   try {
     var profileNames: string[];
     if (typeof profile === "string" && profile.trim().length > 0) {
       profileNames = [profile.trim()];
     } else {
-      profileNames = listTasteProfiles().map(function (p: any) { return p.name; });
+      profileNames = (await listTasteProfiles(tasteStore)).map(function (p: any) { return p.name; });
     }
     for (var pn of profileNames) {
       try {
-        var binding = resolveSurfaceBinding(pn, { project: project });
+        var binding = await resolveSurfaceBinding(tasteStore, pn, { project: project });
         if (binding) return { profile: pn, binding: binding };
       } catch { /* skip unreadable profile */ }
     }
@@ -4030,14 +4034,15 @@ function resolveMobileTaste(project?: string, profile?: string): { profile: stri
 // notes into the audit's issues (warn by default, error when a named library
 // or branded loader is wholly absent) so they count toward score/grade the
 // same way web fidelity findings count toward audit_taste's verdict.
-function applySourceTasteNotes(
+async function applySourceTasteNotes(
+  tasteStore: TasteStore,
   src: string,
   kind: MobileSourceKind,
   issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }>,
   project?: string,
   profile?: string
-): { profile: string; project: string; surface: string; note_assessments: NoteAssessment[] } | null {
-  var resolved = resolveMobileTaste(project, profile);
+): Promise<{ profile: string; project: string; surface: string; note_assessments: NoteAssessment[] } | null> {
+  var resolved = await resolveMobileTaste(tasteStore, project, profile);
   if (!resolved || Object.keys(resolved.binding.design_notes).length === 0) return null;
   var assessments = assessDesignNotesSource(resolved.binding.design_notes, src, kind);
   for (var ni of noteIssuesFromAssessments(resolved.binding.design_notes, assessments)) issues.push(ni);
@@ -4180,7 +4185,7 @@ server.tool(
     if (/Image\(\s*systemName:|systemImage:/.test(src)) passes.push("Uses SF Symbols for iconography");
 
     // ── Taste fidelity: verify the binding's design_notes against the source
-    var taste = applySourceTasteNotes(src, "swiftui", issues, project, profile);
+    var taste = await applySourceTasteNotes(tasteStore, src, "swiftui", issues, project, profile);
 
     var errors = issues.filter(function (i) { return i.severity === "error"; });
     var warnings = issues.filter(function (i) { return i.severity === "warning"; });
@@ -4344,7 +4349,7 @@ async function auditScreenSnapshot(elements: any, viewport: any, screenshot: any
   // design_notes. Only the scheme/luminance subset is verifiable from pixels;
   // everything else answers unverifiable rather than guessed. No screenshot →
   // every note is unverifiable with the reason (never silently skipped).
-  var tasteResolved = resolveMobileTaste(project, profile);
+  var tasteResolved = await resolveMobileTaste(tasteStore, project, profile);
   var noteAssessments: NoteAssessment[] | undefined = undefined;
   var screenTraits: PageTraits | undefined = undefined;
   if (tasteResolved && Object.keys(tasteResolved.binding.design_notes).length > 0) {
@@ -4787,7 +4792,7 @@ server.tool(
     if (/Platform\.(OS|select)\b|\.ios\.|\.android\./.test(src)) passes.push("Handles iOS/Android differences (Platform)");
 
     // ── Taste fidelity: verify the binding's design_notes against the source
-    var taste = applySourceTasteNotes(src, "rn", issues, project, profile);
+    var taste = await applySourceTasteNotes(tasteStore, src, "rn", issues, project, profile);
 
     var errors = issues.filter(function (i) { return i.severity === "error"; });
     var warnings = issues.filter(function (i) { return i.severity === "warning"; });
@@ -5774,7 +5779,7 @@ server.tool(
     markdown: z.string().optional().describe("DESIGN.md-style markdown to ingest as rules.")
   },
   async function ({ name, rules, corpus, markdown }) {
-    var profile = createTasteProfile({ name: name, rules: rules, corpus: corpus, markdown: markdown });
+    var profile = await createTasteProfile(tasteStore, { name: name, rules: rules, corpus: corpus, markdown: markdown });
     return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "create_taste_profile", name: profile.name, rules: profile.rules.length, corpus: profile.corpus.length, home: process.env.RAVEN_TASTE_HOME ? "RAVEN_TASTE_HOME" : "~/.raven/taste" }, null, 2) }] };
   }
 );
@@ -5784,8 +5789,8 @@ server.tool(
   "Load a locally stored taste profile by name — returns its full rule catalog, precedent corpus, and per-project surface bindings. NOT a calibration step: bindings are per-surface and do not transfer — for design work on a project without a binding, call get_taste_interview and ask the user its questions before committing any direction.",
   { name: z.string().min(1).describe("Profile name.") },
   async function ({ name }) {
-    var bindingsOut = listSurfaceBindings(name);
-    var profileOut = Object.assign({}, getTasteProfile(name), {
+    var bindingsOut = await listSurfaceBindings(tasteStore, name);
+    var profileOut = Object.assign({}, await getTasteProfile(tasteStore, name), {
       surfaces: bindingsOut,
       kickoff_reminder: "Bindings are per-surface and do NOT transfer between projects. Starting design work on a project that is not in `surfaces`? Reading this profile does not calibrate it — call get_taste_interview with the new project name, ask the USER its questions, and bind_taste_surface the answers BEFORE committing any design direction, palette, type choice, or name."
     });
@@ -5802,7 +5807,7 @@ server.tool(
     mode: z.enum(["kickoff", "refine"]).optional().describe("'kickoff' (default) calibrates a project with no binding yet. 'refine' re-interviews an ALREADY-bound project after the user rejects generated/designed output — requires an existing binding (throws naming get_taste_interview kickoff otherwise) and asks what fell short, then per-dimension keep/tighten/replace, then voice, then an optional reject precedent.")
   },
   async function ({ profile, project, mode }) {
-    return { content: [{ type: "text" as const, text: JSON.stringify(getTasteInterview(profile, project, mode), null, 2) }] };
+    return { content: [{ type: "text" as const, text: JSON.stringify(await getTasteInterview(tasteStore, profile, project, mode), null, 2) }] };
   }
 );
 
@@ -5855,7 +5860,7 @@ server.tool(
         capturedRefs.push(entry);
       }
     }
-    var binding = bindTasteSurface(profile, { project: project, surface: surface, hosts: hosts, overrides: overrides, voice_note: voice_note, design_notes: design_notes, references: capturedRefs, uncalibrated_ack: uncalibrated_ack });
+    var binding = await bindTasteSurface(tasteStore, profile, { project: project, surface: surface, hosts: hosts, overrides: overrides, voice_note: voice_note, design_notes: design_notes, references: capturedRefs, uncalibrated_ack: uncalibrated_ack });
     var consistencyWarnings = binding.references ? checkBindingConsistency(binding.design_notes, binding.references) : [];
     var payload: Record<string, unknown> = { tool: "bind_taste_surface", profile: profile, binding: binding };
     if (warnings.length > 0) payload.warnings = warnings;
@@ -5885,7 +5890,7 @@ server.tool(
     source: z.enum(["user-directed", "user-approved", "user-corrected"]).optional().describe("How the decision was made — defaults to 'user-directed'. 'user-corrected' (user overrode a generated choice) is the highest-signal record."),
   },
   async function ({ profile, project, dimension, decision, rejected, why, source }) {
-    var recorded = recordTasteDecision(profile, { project: project, dimension: dimension, decision: decision, rejected: rejected, why: why, source: source });
+    var recorded = await recordTasteDecision(tasteStore, profile, { project: project, dimension: dimension, decision: decision, rejected: rejected, why: why, source: source });
     return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "record_taste_decision", profile: profile, recorded: recorded, next: "This decision now feeds future get_taste_interview kickoffs for '" + profile + "' — recurring choices return as suggested defaults, new categories become new questions." }, null, 2) }] };
   }
 );
@@ -5899,7 +5904,7 @@ server.tool(
     dimension: z.string().optional().describe("Only decisions on this dimension."),
   },
   async function ({ profile, project, dimension }) {
-    var decisions = listTasteDecisions(profile, { project: project, dimension: dimension });
+    var decisions = await listTasteDecisions(tasteStore, profile, { project: project, dimension: dimension });
     return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "list_taste_decisions", profile: profile, count: decisions.length, decisions: decisions }, null, 2) }] };
   }
 );
@@ -5913,7 +5918,7 @@ server.tool(
     output_dir: z.string().min(1).describe("Directory where the generated HTML files should be written."),
   },
   async function ({ profile, project, output_dir }) {
-    var result = generateTastePortrait({ profile: profile, project: project, output_dir: output_dir });
+    var result = await generateTastePortrait({ store: tasteStore, profile: profile, project: project, output_dir: output_dir });
     return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "generate_taste_portrait", files: result.files, index_path: result.index_path, warnings: result.warnings }, null, 2) }] };
   }
 );
@@ -5922,7 +5927,7 @@ server.tool(
   "list_taste_profiles",
   "List locally stored taste profiles with rule/corpus counts and last-updated timestamps.",
   async function () {
-    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "list_taste_profiles", profiles: listTasteProfiles() }, null, 2) }] };
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "list_taste_profiles", profiles: await listTasteProfiles(tasteStore) }, null, 2) }] };
   }
 );
 
@@ -5939,7 +5944,7 @@ server.tool(
     right: z.string().describe("What right looks like.")
   },
   async function ({ profile, artifact, verdict, violated_rule, severity, wrong, right }) {
-    var res = labelFinding(profile, { artifact: artifact, verdict: verdict, violated_rule: violated_rule, severity: severity || "", wrong: wrong, right: right });
+    var res = await labelFinding(tasteStore, profile, { artifact: artifact, verdict: verdict, violated_rule: violated_rule, severity: severity || "", wrong: wrong, right: right });
     return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "label_finding", profile: res.profile, corpus_count: res.corpus_count, record: res.record }, null, 2) }] };
   }
 );
@@ -5962,12 +5967,12 @@ server.tool(
     if (providedInputs !== 1) {
       return { content: [{ type: "text" as const, text: "Provide exactly one of html, text, or url to judge (got " + providedInputs + ")." }] };
     }
-    var prof = getTasteProfile(profile);
+    var prof = await getTasteProfile(tasteStore, profile);
     var targetHtml = html;
     var pageIssues: { rule: string; severity: string; message: string; fix?: string }[] = [];
     // Resolve any surface binding up front: delegate audits must be filtered by
     // the same calibrated surface + off-overrides the rule loop will use.
-    var binding = resolveSurfaceBinding(prof.name, { project: project, url: url });
+    var binding = await resolveSurfaceBinding(tasteStore, prof.name, { project: project, url: url });
     var effectiveSurface = typeof surface === "string" && surface.trim().length > 0 ? surface : binding ? binding.surface : undefined;
     var offRuleIds = new Set((binding ? binding.overrides : []).filter(function (o) { return o.severity === "off"; }).map(function (o) { return o.rule_id; }));
     // Out-of-scope and binding-silenced raven rules must not trigger delegated
@@ -5999,7 +6004,7 @@ server.tool(
       var pc = runPageChecks(targetHtml);
       for (var iss of pc.issues) pageIssues.push({ rule: iss.rule, severity: iss.severity, message: iss.message, fix: iss.fix });
     }
-    var result = auditTaste({ profile: prof, html: targetHtml, text: targetHtml === undefined ? text : undefined, page_issues: pageIssues.length > 0 ? pageIssues : undefined, surface: surface, binding: binding, traits: liveTraits, document_kind: document_kind });
+    var result = await auditTaste(tasteStore, { profile: prof, html: targetHtml, text: targetHtml === undefined ? text : undefined, page_issues: pageIssues.length > 0 ? pageIssues : undefined, surface: surface, binding: binding, traits: liveTraits, document_kind: document_kind });
     var out: any = result;
     if (url) out = Object.assign({}, result, { target: "url", url: url });
     return { content: [{ type: "text" as const, text: JSON.stringify(out, null, 2) }] };
@@ -6015,7 +6020,7 @@ async function main() {
   // Hardcode remote:false so stdio ALWAYS serves all 70 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
-  const server = buildServer({ remote: false });
+  const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });
   var transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("raven-mcp v" + PKG_VERSION + " running on stdio — design intelligence ready");

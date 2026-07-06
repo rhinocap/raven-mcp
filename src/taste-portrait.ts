@@ -12,8 +12,10 @@ import {
   type TasteProfile,
   type TasteRule,
 } from "./taste.js";
+import type { TasteStore } from "./taste-store.js";
 
 export type TastePortraitInput = {
+  store: TasteStore;
   profile: string;
   project?: string;
   output_dir: string;
@@ -39,7 +41,7 @@ type PortraitPage = {
   generatedAt: string;
 };
 
-export function generateTastePortrait(input: TastePortraitInput): TastePortraitResult {
+export async function generateTastePortrait(input: TastePortraitInput): Promise<TastePortraitResult> {
   if (typeof input.profile !== "string" || input.profile.trim().length === 0) {
     throw new Error("profile is required");
   }
@@ -47,11 +49,11 @@ export function generateTastePortrait(input: TastePortraitInput): TastePortraitR
     throw new Error("output_dir is required");
   }
 
-  const profile = getTasteProfile(input.profile.trim());
+  const profile = await getTasteProfile(input.store, input.profile.trim());
   const project = typeof input.project === "string" && input.project.trim().length > 0 ? input.project.trim() : undefined;
   const bindings = project === undefined
-    ? listSurfaceBindings(profile.name)
-    : [resolveProjectBinding(profile.name, project)];
+    ? await listSurfaceBindings(input.store, profile.name)
+    : [await resolveProjectBinding(input.store, profile.name, project)];
 
   if (bindings.length === 0) {
     throw new Error("No bound taste surfaces found for profile: " + profile.name);
@@ -66,7 +68,7 @@ export function generateTastePortrait(input: TastePortraitInput): TastePortraitR
 
   for (const binding of bindings) {
     const family = chooseFamily(binding);
-    const page = buildPageModel(profile, binding, family, generatedAt);
+    const page = await buildPageModel(input.store, profile, binding, family, generatedAt);
     warnings.push(...page.warnings);
     const filename = safeFilename(binding.project) + ".html";
     const outPath = join(outputDir, filename);
@@ -85,19 +87,19 @@ export function generateTastePortrait(input: TastePortraitInput): TastePortraitR
   return result;
 }
 
-function resolveProjectBinding(profileName: string, project: string): SurfaceBinding {
-  const binding = resolveSurfaceBinding(profileName, { project });
+async function resolveProjectBinding(store: TasteStore, profileName: string, project: string): Promise<SurfaceBinding> {
+  const binding = await resolveSurfaceBinding(store, profileName, { project });
   if (binding === null) {
     throw new Error("No bound taste surface found for profile '" + profileName + "' and project '" + project + "'");
   }
   return binding;
 }
 
-function buildPageModel(profile: TasteProfile, binding: SurfaceBinding, family: PortraitFamily, generatedAt: string): PortraitPage {
+async function buildPageModel(store: TasteStore, profile: TasteProfile, binding: SurfaceBinding, family: PortraitFamily, generatedAt: string): Promise<PortraitPage> {
   const warnings: string[] = [];
   const rules = profile.rules.filter(function(rule) { return ruleInScope(rule, binding.surface); });
   const corpus = profile.corpus.slice();
-  const decisions = listTasteDecisions(profile.name, { project: binding.project });
+  const decisions = await listTasteDecisions(store, profile.name, { project: binding.project });
 
   if (rules.length === 0) warnings.push(binding.project + ": no in-scope taste rules for surface '" + binding.surface + "'; omitted rules section.");
   if (corpus.length === 0) warnings.push(binding.project + ": no corpus wrong/right records; omitted corrections section.");

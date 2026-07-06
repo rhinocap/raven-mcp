@@ -9,13 +9,16 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distTaste = path.resolve(__dirname, '../dist/taste.js');
 const distPortrait = path.resolve(__dirname, '../dist/taste-portrait.js');
+const distTasteStore = path.resolve(__dirname, '../dist/taste-store.js');
 
 let taste;
 let portrait;
+let tasteStoreMod;
 
 try {
   taste = await import(distTaste);
   portrait = await import(distPortrait);
+  tasteStoreMod = await import(distTasteStore);
 } catch (err) {
   const msg = `dist taste portrait modules not found - run \`npm run build\` first. (${err.message})`;
   test('taste portrait modules available', (t) => { t.skip(msg); });
@@ -27,7 +30,8 @@ async function withTasteHome(fn) {
   const home = await mkdtemp(path.join(tmpdir(), 'raven-taste-portrait-home-'));
   process.env.RAVEN_TASTE_HOME = home;
   try {
-    await fn(home);
+    const store = new tasteStoreMod.FsTasteStore();
+    await fn(home, store);
   } finally {
     if (previous === undefined) {
       delete process.env.RAVEN_TASTE_HOME;
@@ -86,8 +90,8 @@ function assertHtmlSane(html) {
 }
 
 test('full profile renders all portrait sections from store data', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, {
       name: 'portrait-full',
       rules: rules(),
       corpus: [
@@ -100,7 +104,7 @@ test('full profile renders all portrait sections from store data', async () => {
         },
       ],
     });
-    taste.bindTasteSurface('portrait-full', {
+    await taste.bindTasteSurface(store, 'portrait-full', {
       project: 'portfolio',
       surface: 'monochrome portfolio editorial',
       voice_note: 'Punchy editorial, no sales language.',
@@ -110,7 +114,7 @@ test('full profile renders all portrait sections from store data', async () => {
         motion: 'Curtain wipe and reveal only; reduced motion must render static.',
       },
     });
-    taste.recordTasteDecision('portrait-full', {
+    await taste.recordTasteDecision(store, 'portrait-full', {
       project: 'portfolio',
       dimension: 'color',
       decision: 'Use ink, graphite, and paper only.',
@@ -120,7 +124,7 @@ test('full profile renders all portrait sections from store data', async () => {
     });
 
     const outDir = await tempOutputDir();
-    const result = portrait.generateTastePortrait({ profile: 'portrait-full', project: 'portfolio', output_dir: outDir });
+    const result = await portrait.generateTastePortrait({ store, profile: 'portrait-full', project: 'portfolio', output_dir: outDir });
     assert.equal(result.files.length, 1);
     assert.equal(result.index_path, undefined);
     assert.deepEqual(result.warnings, []);
@@ -138,9 +142,9 @@ test('full profile renders all portrait sections from store data', async () => {
 });
 
 test('sparse profile omits empty corpus and decision sections and warns', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'portrait-sparse', rules: rules() });
-    taste.bindTasteSurface('portrait-sparse', {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'portrait-sparse', rules: rules() });
+    await taste.bindTasteSurface(store, 'portrait-sparse', {
       project: 'plain',
       surface: 'monochrome portfolio',
       design_notes: { color: 'Monochrome, accent none.' },
@@ -148,7 +152,7 @@ test('sparse profile omits empty corpus and decision sections and warns', async 
     });
 
     const outDir = await tempOutputDir();
-    const result = portrait.generateTastePortrait({ profile: 'portrait-sparse', project: 'plain', output_dir: outDir });
+    const result = await portrait.generateTastePortrait({ store, profile: 'portrait-sparse', project: 'plain', output_dir: outDir });
     const html = await readFile(result.files[0].path, 'utf8');
     assertHtmlSane(html);
     assert.ok(!html.includes('corrections-section'));
@@ -159,24 +163,24 @@ test('sparse profile omits empty corpus and decision sections and warns', async 
 });
 
 test('monochrome-scoped output contains no hue outside its palette tokens', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, {
       name: 'portrait-mono',
       rules: rules(),
       corpus: [
         { artifact: 'color correction', verdict: 'revise', violated_rule: 'MONO-COLOR', wrong: 'red glow', right: 'graphite only' },
       ],
     });
-    taste.bindTasteSurface('portrait-mono', {
+    await taste.bindTasteSurface(store, 'portrait-mono', {
       project: 'mono',
       surface: 'monochrome portfolio',
       design_notes: { color: 'Monochrome only. Accent none. No hue.' },
       voice_note: 'Documentary, not decorative.',
     });
-    taste.recordTasteDecision('portrait-mono', { project: 'mono', dimension: 'color', decision: 'Suppress hue entirely.' });
+    await taste.recordTasteDecision(store, 'portrait-mono', { project: 'mono', dimension: 'color', decision: 'Suppress hue entirely.' });
 
     const outDir = await tempOutputDir();
-    const result = portrait.generateTastePortrait({ profile: 'portrait-mono', project: 'mono', output_dir: outDir });
+    const result = await portrait.generateTastePortrait({ store, profile: 'portrait-mono', project: 'mono', output_dir: outDir });
     const html = await readFile(result.files[0].path, 'utf8');
     const hexes = Array.from(new Set((html.match(/#[0-9a-fA-F]{6}\b/g) || []).map((hex) => hex.toLowerCase())));
     assert.deepEqual(hexes.sort(), ['#141412', '#4a4742', '#7d7870', '#f4f1ea', '#faf7f2'].sort());
@@ -184,27 +188,27 @@ test('monochrome-scoped output contains no hue outside its palette tokens', asyn
 });
 
 test('multi-binding render writes a gallery index linking every surface', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, {
       name: 'portrait-gallery',
       rules: rules(),
       corpus: [
         { artifact: 'baseline', verdict: 'revise', violated_rule: 'TYPE-JOBS', wrong: 'serif heading', right: 'sans heading' },
       ],
     });
-    taste.bindTasteSurface('portrait-gallery', {
+    await taste.bindTasteSurface(store, 'portrait-gallery', {
       project: 'portfolio',
       surface: 'monochrome portfolio editorial',
       design_notes: { color: 'Monochrome, accent none.' },
     });
-    taste.bindTasteSurface('portrait-gallery', {
+    await taste.bindTasteSurface(store, 'portrait-gallery', {
       project: 'gym-product',
       surface: 'product site atmosphere',
       design_notes: { color: 'Deep navy with cyan, magenta, and mint atmosphere.', aesthetic: 'Glassmorphic product surface.' },
     });
 
     const outDir = await tempOutputDir();
-    const result = portrait.generateTastePortrait({ profile: 'portrait-gallery', output_dir: outDir });
+    const result = await portrait.generateTastePortrait({ store, profile: 'portrait-gallery', output_dir: outDir });
     assert.equal(result.files.length, 2);
     assert.ok(result.index_path);
     assert.ok(existsSync(result.index_path));
@@ -222,8 +226,8 @@ test('multi-binding render writes a gallery index linking every surface', async 
 });
 
 test('audit_taste exempts data-taste-quote content from detectors and reports the exemption', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, {
       name: 'quote-exempt',
       rules: [
         {
@@ -241,26 +245,26 @@ test('audit_taste exempts data-taste-quote content from detectors and reports th
     });
 
     const quoted = '<html><body><blockquote data-taste-quote><p>we shipped a proven supercharge</p></blockquote><h1>Calm heading</h1></body></html>';
-    const exempt = taste.auditTaste({ profile: 'quote-exempt', html: quoted });
+    const exempt = await taste.auditTaste(store, { profile: 'quote-exempt', html: quoted });
     assert.equal(exempt.findings.length, 0);
     assert.ok(exempt.quoted_evidence_exempt);
     assert.equal(exempt.quoted_evidence_exempt.elements, 1);
     assert.ok(exempt.quoted_evidence_exempt.chars > 0);
 
     const nested = '<html><body><div data-taste-quote><div><p>proven</p></div></div><p>plain copy after the quote</p></body></html>';
-    const nestedResult = taste.auditTaste({ profile: 'quote-exempt', html: nested });
+    const nestedResult = await taste.auditTaste(store, { profile: 'quote-exempt', html: nested });
     assert.equal(nestedResult.findings.length, 0);
 
     const bare = '<html><body><p>a proven supercharge of value</p></body></html>';
-    const flagged = taste.auditTaste({ profile: 'quote-exempt', html: bare });
+    const flagged = await taste.auditTaste(store, { profile: 'quote-exempt', html: bare });
     assert.ok(flagged.findings.length > 0);
     assert.equal(flagged.quoted_evidence_exempt, undefined);
   });
 });
 
 test('generated portrait passes audit_taste against its own surface (self-audit gate)', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, {
       name: 'self-audit',
       rules: [
         {
@@ -294,13 +298,13 @@ test('generated portrait passes audit_taste against its own surface (self-audit 
         },
       ],
     });
-    taste.bindTasteSurface('self-audit', {
+    await taste.bindTasteSurface(store, 'self-audit', {
       project: 'product',
       surface: 'product site',
       voice_note: 'Plain product register.',
       design_notes: { color: 'Warm off-white ground, one warm accent. No gradients, no glow.' },
     });
-    taste.recordTasteDecision('self-audit', {
+    await taste.recordTasteDecision(store, 'self-audit', {
       project: 'product',
       dimension: 'voice',
       decision: 'Copy states what the tool does; a proven-supercharge register was rejected.',
@@ -308,18 +312,18 @@ test('generated portrait passes audit_taste against its own surface (self-audit 
     });
 
     const outDir = await tempOutputDir();
-    const result = portrait.generateTastePortrait({ profile: 'self-audit', project: 'product', output_dir: outDir });
+    const result = await portrait.generateTastePortrait({ store, profile: 'self-audit', project: 'product', output_dir: outDir });
     const html = await readFile(result.files[0].path, 'utf8');
-    const audit = taste.auditTaste({ profile: 'self-audit', project: 'product', html });
+    const audit = await taste.auditTaste(store, { profile: 'self-audit', project: 'product', html });
     assert.equal(audit.verdict, 'PASS', JSON.stringify(audit.findings, null, 2));
     assert.ok(audit.quoted_evidence_exempt && audit.quoted_evidence_exempt.elements > 0);
   });
 });
 
 test('family follows explicit color permissions, not adjacent vocabulary', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'family-routing', rules: rules(), corpus: [] });
-    taste.bindTasteSurface('family-routing', {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'family-routing', rules: rules(), corpus: [] });
+    await taste.bindTasteSurface(store, 'family-routing', {
       project: 'light-glass',
       surface: 'product site',
       design_notes: {
@@ -327,14 +331,14 @@ test('family follows explicit color permissions, not adjacent vocabulary', async
         aesthetic: 'Flat-white blended with glassmorphic — translucent blurred layers for depth.',
       },
     });
-    taste.bindTasteSurface('family-routing', {
+    await taste.bindTasteSurface(store, 'family-routing', {
       project: 'saturated',
       surface: 'product site',
       design_notes: { color: 'Deep navy ground with saturated multi-hue color washes and discrete orbs.' },
     });
 
     const outDir = await tempOutputDir();
-    const result = portrait.generateTastePortrait({ profile: 'family-routing', output_dir: outDir });
+    const result = await portrait.generateTastePortrait({ store, profile: 'family-routing', output_dir: outDir });
     const byProject = Object.fromEntries(result.files.map((file) => [file.project, file.path]));
 
     const lightGlass = await readFile(byProject['light-glass'], 'utf8');
@@ -347,8 +351,8 @@ test('family follows explicit color permissions, not adjacent vocabulary', async
 });
 
 test("document_kind:'portrait' skips note-fidelity honestly; 'artifact' still enforces it", async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, {
       name: 'genre',
       rules: [
         {
@@ -364,7 +368,7 @@ test("document_kind:'portrait' skips note-fidelity honestly; 'artifact' still en
       ],
       corpus: [],
     });
-    taste.bindTasteSurface('genre', {
+    await taste.bindTasteSurface(store, 'genre', {
       project: 'webgl-product',
       surface: 'product site',
       design_notes: {
@@ -374,18 +378,18 @@ test("document_kind:'portrait' skips note-fidelity honestly; 'artifact' still en
     });
 
     const outDir = await tempOutputDir();
-    const result = portrait.generateTastePortrait({ profile: 'genre', project: 'webgl-product', output_dir: outDir });
+    const result = await portrait.generateTastePortrait({ store, profile: 'genre', project: 'webgl-product', output_dir: outDir });
     const html = await readFile(result.files[0].path, 'utf8');
 
     // As an artifact OF the surface, the missing three.js canvas is a block.
-    const asArtifact = taste.auditTaste({ profile: 'genre', project: 'webgl-product', html });
+    const asArtifact = await taste.auditTaste(store, { profile: 'genre', project: 'webgl-product', html });
     assert.equal(asArtifact.verdict, 'BLOCK');
     assert.ok((asArtifact.fidelity_findings || []).some((f) => f.rule_id === 'NOTE-libraries'));
     assert.equal(asArtifact.note_fidelity_skipped, undefined);
 
     // As a document ABOUT the surface, notes are not acceptance criteria —
     // and the skip is announced, never silent.
-    const asPortrait = taste.auditTaste({ profile: 'genre', project: 'webgl-product', html, document_kind: 'portrait' });
+    const asPortrait = await taste.auditTaste(store, { profile: 'genre', project: 'webgl-product', html, document_kind: 'portrait' });
     assert.equal(asPortrait.verdict, 'PASS', JSON.stringify(asPortrait.findings, null, 2));
     assert.equal(asPortrait.fidelity_findings, undefined);
     assert.equal(asPortrait.note_assessments, undefined);
@@ -395,9 +399,9 @@ test("document_kind:'portrait' skips note-fidelity honestly; 'artifact' still en
 });
 
 test('anime.js is a named-library escalation: absent motion blocks as an artifact, is skipped as a portrait', async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'anime-lib', rules: rules(), corpus: [] });
-    taste.bindTasteSurface('anime-lib', {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'anime-lib', rules: rules(), corpus: [] });
+    await taste.bindTasteSurface(store, 'anime-lib', {
       project: 'motion-site',
       surface: 'product site',
       design_notes: {
@@ -418,22 +422,22 @@ test('anime.js is a named-library escalation: absent motion blocks as an artifac
 
     // As an artifact OF the surface, a wholly-absent NAMED library (anime.js) blocks
     // — the same escalation three.js/gsap/lottie get, not a soft warn.
-    const asArtifact = taste.auditTaste({ profile: 'anime-lib', project: 'motion-site', html, traits: stillTraits });
+    const asArtifact = await taste.auditTaste(store, { profile: 'anime-lib', project: 'motion-site', html, traits: stillTraits });
     assert.equal(asArtifact.verdict, 'BLOCK', JSON.stringify(asArtifact.fidelity_findings, null, 2));
     const lib = (asArtifact.fidelity_findings || []).find((f) => f.rule_id === 'NOTE-libraries');
     assert.ok(lib, 'anime.js absence must surface as NOTE-libraries');
     assert.equal(lib.severity, 'block', 'a named library escalates to block, not warn');
 
     // As a document ABOUT the surface, the anime.js note is not an acceptance criterion.
-    const asPortrait = taste.auditTaste({ profile: 'anime-lib', project: 'motion-site', html, traits: stillTraits, document_kind: 'portrait' });
+    const asPortrait = await taste.auditTaste(store, { profile: 'anime-lib', project: 'motion-site', html, traits: stillTraits, document_kind: 'portrait' });
     assert.equal(asPortrait.fidelity_findings, undefined);
     assert.ok(typeof asPortrait.note_fidelity_skipped === 'string');
   });
 });
 
 test("document_kind:'portrait' still BLOCKS a real profile-rule violation (guarantee #1)", async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, {
       name: 'portrait-rules',
       rules: [
         {
@@ -449,7 +453,7 @@ test("document_kind:'portrait' still BLOCKS a real profile-rule violation (guara
       ],
       corpus: [],
     });
-    taste.bindTasteSurface('portrait-rules', {
+    await taste.bindTasteSurface(store, 'portrait-rules', {
       project: 'p',
       surface: 'product site',
       // A named library the portrait can't literally be — proves note-fidelity
@@ -458,13 +462,13 @@ test("document_kind:'portrait' still BLOCKS a real profile-rule violation (guara
     });
 
     const outDir = await tempOutputDir();
-    const result = portrait.generateTastePortrait({ profile: 'portrait-rules', project: 'p', output_dir: outDir });
+    const result = await portrait.generateTastePortrait({ store, profile: 'portrait-rules', project: 'p', output_dir: outDir });
     let html = await readFile(result.files[0].path, 'utf8');
     // Inject a REAL, un-quoted gradient into the portrait body — a genuine
     // taste-rule violation that must survive portrait mode.
     html = html.replace('</main>', '<div style="background:linear-gradient(90deg,#ff0000,#0000ff)">x</div></main>');
 
-    const audit = taste.auditTaste({ profile: 'portrait-rules', project: 'p', html, document_kind: 'portrait' });
+    const audit = await taste.auditTaste(store, { profile: 'portrait-rules', project: 'p', html, document_kind: 'portrait' });
     // Note-fidelity is skipped (the missing three.js scene is NOT a finding)...
     assert.ok(typeof audit.note_fidelity_skipped === 'string', 'note-fidelity should be skipped');
     assert.equal(audit.fidelity_findings, undefined);
@@ -476,9 +480,9 @@ test("document_kind:'portrait' still BLOCKS a real profile-rule violation (guara
 });
 
 test("wantsLightGlass rejects negated glass phrasing (no false glass)", async () => {
-  await withTasteHome(async () => {
-    taste.createTasteProfile({ name: 'neg-glass', rules: rules(), corpus: [] });
-    taste.bindTasteSurface('neg-glass', {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'neg-glass', rules: rules(), corpus: [] });
+    await taste.bindTasteSurface(store, 'neg-glass', {
       project: 'anti-glass',
       surface: 'product site',
       // Explicitly forbids glass — the generator must NOT apply glass CSS.
@@ -487,7 +491,7 @@ test("wantsLightGlass rejects negated glass phrasing (no false glass)", async ()
         aesthetic: 'Flat matte surfaces. No frosted glass, avoid glass panels.',
       },
     });
-    taste.bindTasteSurface('neg-glass', {
+    await taste.bindTasteSurface(store, 'neg-glass', {
       project: 'yes-glass',
       surface: 'product site',
       design_notes: {
@@ -497,7 +501,7 @@ test("wantsLightGlass rejects negated glass phrasing (no false glass)", async ()
     });
 
     const outDir = await tempOutputDir();
-    const result = portrait.generateTastePortrait({ profile: 'neg-glass', output_dir: outDir });
+    const result = await portrait.generateTastePortrait({ store, profile: 'neg-glass', output_dir: outDir });
     const byProject = Object.fromEntries(result.files.map((file) => [file.project, file.path]));
 
     const anti = await readFile(byProject['anti-glass'], 'utf8');
