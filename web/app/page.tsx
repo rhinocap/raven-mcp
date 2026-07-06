@@ -85,22 +85,50 @@ export default function Home() {
             <div className="section-header">
               <p className="label reveal">The Taste Engine</p>
               <h2 className="reveal reveal-delay-1">Your design judgment, made portable</h2>
-              <p className="subtitle reveal reveal-delay-2">Every other audit holds your agent's work to the field's rules. The Taste Engine holds it to <em>yours</em>&mdash;calibrated once, applied on every build.</p>
+              <p className="subtitle reveal reveal-delay-2">Every other audit holds your agent's work to the field's rules. The Taste Engine holds it to <em>yours</em>&mdash;calibrated once per surface, enforced on every build, kicked off fresh for each new project.</p>
             </div>
         
             <div className="recipe reveal">
-              <div className="terminal">
-                <div className="terminal-header">
-                  <span className="terminal-dot"></span>
-                  <span className="terminal-dot"></span>
-                  <span className="terminal-dot"></span>
-                  <span className="terminal-title">audit_taste &mdash; raven-mcp</span>
+              <div className="lifecycle-step">
+                <p className="step-label"><span className="step-num">01</span> Calibrate</p>
+                <div className="terminal">
+                  <div className="terminal-header">
+                    <span className="terminal-dot"></span>
+                    <span className="terminal-dot"></span>
+                    <span className="terminal-dot"></span>
+                    <span className="terminal-title">get_taste_interview &mdash; fieldnotes</span>
+                  </div>
+                  <div className="static-term-body">
+                    <pre data-taste-quote aria-label="Recorded get_taste_interview output starting a calibration interview" dangerouslySetInnerHTML={{ __html: `<span class="g">$</span> get_taste_interview <span class="k">profile</span>:<span class="v">'andrew'</span> <span class="k">project</span>:<span class="v">'fieldnotes'</span>
+
+  <span class="k">existing_binding</span>  <span class="v">null</span>   <span class="c">— new surface, calibration starts</span>
+
+  · <span class="k">identity</span>     what is fieldnotes, in a phrase — and what
+                 family: portfolio, product site, docs, app UI?
+  · <span class="k">references</span>   links you want this surface to sit near
+  · <span class="k">typography</span>   editorial serif / neutral sans / mono-forward
+  · <span class="k">motion</span>       none / restrained reveals / choreographed
+  · <span class="k">voice</span>        pick a register by ear — three samples given
+
+  <span class="c">12 dimensions · blocking — answers land before design work</span>` }} />
+                  </div>
                 </div>
-                <div className="static-term-body">
-                  <pre data-taste-quote aria-label="Recorded audit_taste output showing a BLOCK verdict" dangerouslySetInnerHTML={{ __html: `<span class="g">$</span> audit_taste <span class="k">project</span>:<span class="v">'raven-mcp'</span>
+              </div>
+
+              <div className="lifecycle-step">
+                <p className="step-label"><span className="step-num">02</span> Audit</p>
+                <div className="terminal">
+                  <div className="terminal-header">
+                    <span className="terminal-dot"></span>
+                    <span className="terminal-dot"></span>
+                    <span className="terminal-dot"></span>
+                    <span className="terminal-title">audit_taste &mdash; raven-mcp</span>
+                  </div>
+                  <div className="static-term-body">
+                    <pre data-taste-quote aria-label="Recorded audit_taste output showing a BLOCK verdict" dangerouslySetInnerHTML={{ __html: `<span class="g">$</span> audit_taste <span class="k">project</span>:<span class="v">'raven-mcp'</span>
 
   <span class="k">verdict</span>       <span class="block">BLOCK</span>
-  <span class="k">verdict_line</span>  2 blocking findings &mdash; fix before ship.
+  <span class="k">verdict_line</span>  2 blocking findings — fix before ship.
 
   <span class="k">findings</span>
     · <span class="v">voice-no-hype</span>   "supercharge your workflow"  <span class="c">→ cut the hype verb</span>
@@ -109,9 +137,37 @@ export default function Home() {
   <span class="k">suppressed</span>             1   <span class="c">accepted precedent</span>
   <span class="k">not_assessed</span>           1   <span class="c">clause needs a live capture</span>
   <span class="k">quoted_evidence_exempt</span> <span class="c">{ elements: 1, chars: 512 }</span>` }} />
+                  </div>
                 </div>
               </div>
-              <p className="replay-caption">Recorded replay&mdash;taste profiles live locally under <code>~/.raven/taste/</code>, so this is a captured run, not a live call.</p>
+
+              <div className="lifecycle-step">
+                <p className="step-label"><span className="step-num">03</span> Kick off</p>
+                <div className="terminal">
+                  <div className="terminal-header">
+                    <span className="terminal-dot"></span>
+                    <span className="terminal-dot"></span>
+                    <span className="terminal-dot"></span>
+                    <span className="terminal-title">bind_taste_surface &mdash; fieldnotes</span>
+                  </div>
+                  <div className="static-term-body">
+                    <pre data-taste-quote aria-label="Recorded bind_taste_surface output binding a new project surface" dangerouslySetInnerHTML={{ __html: `<span class="g">$</span> bind_taste_surface <span class="k">surface</span>:<span class="v">'fieldnotes'</span> <span class="k">profile</span>:<span class="v">'andrew'</span>
+
+  <span class="k">bound</span>          fieldnotes — docs · hosts: fieldnotes.dev
+
+  <span class="k">design_notes</span>   typography   editorial serif, wide measure
+                 color        near-monochrome, one accent
+                 motion       none — pages arrive settled
+  <span class="k">overrides</span>      voice-no-hype → strict
+  <span class="k">references</span>     2 captured, with what to keep from each
+
+  <span class="c">design_notes are acceptance criteria — echoed in every</span>
+  <span class="c">audit_taste project:'fieldnotes' from here on</span>` }} />
+                  </div>
+                </div>
+              </div>
+
+              <p className="replay-caption">Recorded replays&mdash;taste profiles live locally under <code>~/.raven/taste/</code>, so these are captured runs, not live calls.</p>
             </div>
           </div>
         </section>
