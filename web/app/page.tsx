@@ -88,37 +88,16 @@ export default function Home() {
               <p className="subtitle reveal reveal-delay-2">Every other audit holds your agent's work to the field's rules. The Taste Engine holds it to <em>yours</em>&mdash;calibrated once, applied on every build.</p>
             </div>
         
-            <div className="judge-grid">
-              <div className="judge-text reveal">
-                <span className="eyebrow-tool">audit_taste</span>
-                <h2>A verdict, with the rule behind it</h2>
-                <p>Calibrate a profile once&mdash;your accent rules, your banned words, the wrong-and-right examples you've corrected&mdash;and bind it to a surface. From then on, <code>audit_taste</code> returns a verdict on anything your agent builds: BLOCK, WARN, or PASS.</p>
-                <ul className="judge-proof">
-                  <li>
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 9.5l3.5 3.5L15 5"/></svg>
-                    <span><strong>Cites the rule, not a vibe.</strong> Every finding names a <code>rule_id</code> and quotes the exact evidence. Clauses it can't check deterministically land in <code>not_assessed</code>&mdash;it never guesses.</span>
-                  </li>
-                  <li>
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 9.5l3.5 3.5L15 5"/></svg>
-                    <span><strong>Learns from your corrections.</strong> <code>label_finding</code> records accept, revise, or reject as precedent; accepted patterns are suppressed next time, so the judge grows toward your eye.</span>
-                  </li>
-                  <li>
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 9.5l3.5 3.5L15 5"/></svg>
-                    <span><strong>Yours, and only yours.</strong> Profiles live locally under <code>~/.raven/taste/</code>. Nothing leaves your machine.</span>
-                  </li>
-                </ul>
-              </div>
-        
-              <div className="replay reveal reveal-delay-1">
-                <div className="terminal">
-                  <div className="terminal-header">
-                    <span className="terminal-dot"></span>
-                    <span className="terminal-dot"></span>
-                    <span className="terminal-dot"></span>
-                    <span className="terminal-title">audit_taste &mdash; raven-mcp</span>
-                  </div>
-                  <div className="static-term-body">
-                    <pre data-taste-quote aria-label="Recorded audit_taste output showing a BLOCK verdict" dangerouslySetInnerHTML={{ __html: `<span class="g">$</span> audit_taste <span class="k">project</span>:<span class="v">'raven-mcp'</span>
+            <div className="recipe reveal">
+              <div className="terminal">
+                <div className="terminal-header">
+                  <span className="terminal-dot"></span>
+                  <span className="terminal-dot"></span>
+                  <span className="terminal-dot"></span>
+                  <span className="terminal-title">audit_taste &mdash; raven-mcp</span>
+                </div>
+                <div className="static-term-body">
+                  <pre data-taste-quote aria-label="Recorded audit_taste output showing a BLOCK verdict" dangerouslySetInnerHTML={{ __html: `<span class="g">$</span> audit_taste <span class="k">project</span>:<span class="v">'raven-mcp'</span>
 
   <span class="k">verdict</span>       <span class="block">BLOCK</span>
   <span class="k">verdict_line</span>  2 blocking findings &mdash; fix before ship.
@@ -130,10 +109,9 @@ export default function Home() {
   <span class="k">suppressed</span>             1   <span class="c">accepted precedent</span>
   <span class="k">not_assessed</span>           1   <span class="c">clause needs a live capture</span>
   <span class="k">quoted_evidence_exempt</span> <span class="c">{ elements: 1, chars: 512 }</span>` }} />
-                  </div>
                 </div>
-                <p className="replay-caption">Recorded replay. Taste stores are local and private by design&mdash;this is a captured <code>audit_taste</code> run showing the shape of a verdict, not a live call from your browser.</p>
               </div>
+              <p className="replay-caption">Recorded replay&mdash;taste profiles live locally under <code>~/.raven/taste/</code>, so this is a captured run, not a live call.</p>
             </div>
           </div>
         </section>
@@ -143,7 +121,7 @@ export default function Home() {
             <div className="section-header">
               <p className="label reveal">Cinematic builds</p>
               <h2 className="reveal reveal-delay-1">A recipe that names its price</h2>
-              <p className="subtitle reveal reveal-delay-2">When a surface's taste calls for an AI-generated video hero, Raven returns a build recipe&mdash;and the recipe names its own cost. It tells your agent which paid tool the technique depends on, to confirm that spend with you first, and to agree a still-photography or licensed-film fallback before running anything. A surface that opted out of AI is never pushed toward a paid dependency.</p>
+              <p className="subtitle reveal reveal-delay-2">When a surface's taste calls for an AI-generated video hero, Raven returns the build recipe&mdash;and the recipe declares its paid dependency before your agent spends anything.</p>
             </div>
         
             <div className="recipe reveal">

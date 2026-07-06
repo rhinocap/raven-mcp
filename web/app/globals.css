@@ -606,7 +606,7 @@
     /* Terminal */
     .hero-visual {
       margin-top: var(--space-16);
-      width: 100%; max-width: 900px;
+      width: 100%; max-width: 760px;
       position: relative;
     }
     .hero-visual::after {
@@ -1518,38 +1518,12 @@
 
     /* ── TASTE ENGINE (The Design Judge) ─────────────────── */
     .judge { padding: clamp(80px, 9vw, 144px) 0; position: relative; }
-    .judge-grid {
-      display: grid; gap: clamp(40px, 5vw, 72px);
-      align-items: center; margin-top: clamp(48px, 6vw, 80px);
-    }
-    @media (min-width: 900px) {
-      .judge-grid { grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); }
-    }
-    .judge-text { max-width: 36rem; }
-    .eyebrow-tool {
-      display: inline-block; font-family: var(--font-mono); font-size: 12px;
-      letter-spacing: 0.01em; color: var(--accent-blue);
-      background: var(--bg-accent-subtle); border: 1px solid var(--border-accent);
-      padding: 4px 11px; border-radius: var(--radius-full); margin-bottom: var(--space-5);
-    }
-    .judge-text h2 { font-size: clamp(28px, 3.4vw, 44px); margin-bottom: var(--space-5); }
-    .judge-text > p {
-      font-size: clamp(17px, 1.4vw, 20px); line-height: 1.6;
-      color: var(--text-secondary); margin: 0 0 var(--space-7);
-    }
-    .judge-proof { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-5); }
-    .judge-proof li { display: flex; gap: var(--space-3); font-size: 16px; line-height: 1.55; color: var(--text-secondary); }
-    .judge-proof li strong { color: var(--text-primary); font-weight: 600; }
-    .judge-proof svg { flex-shrink: 0; margin-top: 3px; color: var(--accent-green); }
-    .judge-proof code {
-      font-family: var(--font-mono); font-size: 0.86em; color: var(--accent-blue);
-      background: var(--bg-accent-subtle); padding: 1px 6px; border-radius: var(--radius-sm);
-    }
 
     /* Static terminal (replay / recipe) — content-sized, no animation */
     .static-term-body {
-      padding: var(--space-6) var(--space-7);
-      font-family: var(--font-mono); font-size: 13px; line-height: 1.9;
+      padding: var(--space-6) var(--space-8);
+      font-family: var(--font-mono); font-size: 13px; line-height: 2;
+      min-height: 360px;
       overflow-x: auto;
     }
     .static-term-body pre { margin: 0; white-space: pre; color: var(--text-secondary); font: inherit; }
@@ -1566,7 +1540,6 @@
     /* ── CINEMATIC BUILDS (Higgsfield) ───────────────────── */
     .cinematic { padding: clamp(80px, 9vw, 144px) 0; }
     .recipe { max-width: 760px; margin: clamp(40px, 5vw, 64px) auto 0; }
-    .recipe .static-term-body { padding: var(--space-6) var(--space-8); line-height: 2; }
 
     /* ══════════════════════════════════════════
        FINAL CTA
