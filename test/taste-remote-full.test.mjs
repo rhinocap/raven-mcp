@@ -20,6 +20,10 @@ import { RedisTasteStore } from '../dist/taste-store-redis.js';
 import { buildServer } from '../dist/index.js';
 
 const GOLDEN_45_HASH = 'f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6';
+const ANONYMOUS_INSTRUCTIONS_HASH = 'f35aac77ff8b46a1223d4cf8114888011b37bced77d35a0d02b17000f9ce8b18';
+const ANONYMOUS_INSTRUCTIONS_AND_TOOL_DESCRIPTIONS_HASH = '753b41b2072ce50a3a676c9343fb2ed55033ede636b8f50ec78381b86ca36d23';
+const AUTHED_STARTUP_INSTRUCTIONS = "AUTHENTICATED STARTUP: this remote endpoint is connected to a per-user taste store. At project kickoff or the first real design/copy/UI work for a project, call get_taste_interview for the connected user's taste profile and project name before choosing direction. Ask the returned questions, then persist the user's answers with bind_taste_surface before generating design work. If the profile name is not known yet, call list_taste_profiles first.";
+const AUTHED_INTERVIEW_DESCRIPTION = "AUTHENTICATED STARTUP: on the remote authed endpoint, use this as the first taste step for the connected user's per-user store at project kickoff; if you do not know the profile name, call list_taste_profiles first, then call get_taste_interview with that profile and project name before design/copy/UI decisions.";
 const ALL_TASTE = [
   'create_taste_profile', 'get_taste_profile', 'list_taste_profiles',
   'get_taste_interview', 'bind_taste_surface', 'record_taste_decision',
@@ -52,6 +56,12 @@ async function call(server, name, args) {
   return { isError: !!result.isError, text, json: safeParse(text) };
 }
 function safeParse(t) { try { return JSON.parse(t); } catch { return null; } }
+function anonymousMetadataPayload(server, names) {
+  return JSON.stringify({
+    instructions: server.server._options.instructions,
+    tools: names.map((name) => ({ name, description: server._registeredTools[name].description || '' }))
+  });
+}
 
 test('gating: remote+store = 55 (45 + all 10 taste); bare remote = golden 45; stdio = 70', () => {
   const bare = buildServer({ remote: true });
@@ -66,6 +76,24 @@ test('gating: remote+store = 55 (45 + all 10 taste); bare remote = golden 45; st
   assert.deepEqual(extras, ALL_TASTE.slice().sort());
 
   assert.equal(Object.keys(buildServer({})._registeredTools).length, 70, 'stdio unchanged');
+});
+
+test('authed startup tuning appears only on store-backed remote metadata', () => {
+  const bare = buildServer({ remote: true });
+  const bareNames = Object.keys(bare._registeredTools).sort();
+  assert.equal(createHash('sha256').update(bare.server._options.instructions).digest('hex'), ANONYMOUS_INSTRUCTIONS_HASH);
+  assert.equal(createHash('sha256').update(bareNames.join('\n')).digest('hex'), GOLDEN_45_HASH);
+  assert.equal(createHash('sha256').update(anonymousMetadataPayload(bare, bareNames)).digest('hex'), ANONYMOUS_INSTRUCTIONS_AND_TOOL_DESCRIPTIONS_HASH);
+  assert.ok(!bare.server._options.instructions.includes(AUTHED_STARTUP_INSTRUCTIONS));
+  assert.equal(bare._registeredTools.get_taste_interview, undefined, 'anonymous remote must not register get_taste_interview');
+
+  const local = buildServer({});
+  assert.ok(!local.server._options.instructions.includes(AUTHED_STARTUP_INSTRUCTIONS));
+  assert.ok(!local._registeredTools.get_taste_interview.description.includes(AUTHED_INTERVIEW_DESCRIPTION));
+
+  const authed = buildServer({ remote: true, tasteStore: new RedisTasteStore('user_A', fakeRedis()) });
+  assert.ok(authed.server._options.instructions.includes(AUTHED_STARTUP_INSTRUCTIONS));
+  assert.ok(authed._registeredTools.get_taste_interview.description.includes(AUTHED_INTERVIEW_DESCRIPTION));
 });
 
 test('full loop over the remote+store server handlers', async () => {
