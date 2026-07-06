@@ -17,7 +17,7 @@
   <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:title" content="RavenMCP — Design Intelligence for AI">
-  <meta property="og:description" content="129 design principles · 22 UI patterns · 56 tools · 12 design systems · web, iOS, Android & React Native audits · content voice guides · research methods · service blueprints. One install for design-literate AI.">
+  <meta property="og:description" content="129 design principles · 22 UI patterns · 70 tools · 12 design systems · a Taste Engine for portable design judgment · web, iOS, Android & React Native audits · content voice guides · research methods · service blueprints. One install for design-literate AI.">
   <meta property="og:image" content="https://ravenmcp.ai/assets/og-image.jpg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -28,7 +28,7 @@
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="RavenMCP — Design Intelligence for AI">
-  <meta name="twitter:description" content="129 principles · 22 patterns · 56 tools · 12 design systems · web, iOS, Android & React Native audits · content voice · research · service blueprints. Design intelligence for AI, in one install.">
+  <meta name="twitter:description" content="129 principles · 22 patterns · 70 tools · 12 design systems · a Taste Engine · web, iOS, Android & React Native audits · content voice · research · service blueprints. Design intelligence for AI, in one install.">
   <meta name="twitter:image" content="https://ravenmcp.ai/assets/og-image.jpg">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -181,6 +181,19 @@
       -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
       pointer-events: none;
     }
+
+    /* ── Interactive hero grid (cursor-follow silver grid, Higgsfield-style) ── */
+    .hero-grid-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+      mask-image: radial-gradient(ellipse 82% 74% at 50% 44%, #000 52%, transparent 100%);
+      -webkit-mask-image: radial-gradient(ellipse 82% 74% at 50% 44%, #000 52%, transparent 100%);
+    }
+    .hero .container { z-index: 2; }
 
     /* ── Gradient Glow ── */
     .glow {
@@ -1825,6 +1838,58 @@
       margin: 0;
       color: var(--text-secondary);
     }
+
+    /* ── TASTE ENGINE (The Design Judge) ─────────────────── */
+    .judge { padding: clamp(80px, 9vw, 144px) 0; position: relative; }
+    .judge-grid {
+      display: grid; gap: clamp(40px, 5vw, 72px);
+      align-items: center; margin-top: clamp(48px, 6vw, 80px);
+    }
+    @media (min-width: 900px) {
+      .judge-grid { grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); }
+    }
+    .judge-text { max-width: 36rem; }
+    .eyebrow-tool {
+      display: inline-block; font-family: var(--font-mono); font-size: 12px;
+      letter-spacing: 0.01em; color: var(--accent-blue);
+      background: var(--bg-accent-subtle); border: 1px solid var(--border-accent);
+      padding: 4px 11px; border-radius: var(--radius-full); margin-bottom: var(--space-5);
+    }
+    .judge-text h2 { font-size: clamp(28px, 3.4vw, 44px); margin-bottom: var(--space-5); }
+    .judge-text > p {
+      font-size: clamp(17px, 1.4vw, 20px); line-height: 1.6;
+      color: var(--text-secondary); margin: 0 0 var(--space-7);
+    }
+    .judge-proof { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-5); }
+    .judge-proof li { display: flex; gap: var(--space-3); font-size: 16px; line-height: 1.55; color: var(--text-secondary); }
+    .judge-proof li strong { color: var(--text-primary); font-weight: 600; }
+    .judge-proof svg { flex-shrink: 0; margin-top: 3px; color: var(--accent-green); }
+    .judge-proof code {
+      font-family: var(--font-mono); font-size: 0.86em; color: var(--accent-blue);
+      background: var(--bg-accent-subtle); padding: 1px 6px; border-radius: var(--radius-sm);
+    }
+
+    /* Static terminal (replay / recipe) — content-sized, no animation */
+    .static-term-body {
+      padding: var(--space-6) var(--space-7);
+      font-family: var(--font-mono); font-size: 13px; line-height: 1.9;
+      overflow-x: auto;
+    }
+    .static-term-body pre { margin: 0; white-space: pre; color: var(--text-secondary); font: inherit; }
+    .static-term-body .k { color: var(--accent-blue); }
+    .static-term-body .v { color: var(--accent-orange); }
+    .static-term-body .c { color: var(--text-tertiary); }
+    .static-term-body .g { color: var(--accent-green); }
+    .static-term-body .block { color: var(--accent-orange); font-weight: 600; }
+    .replay-caption {
+      font-size: 13px; line-height: 1.55; color: var(--text-tertiary);
+      margin: var(--space-4) 0 0; max-width: 46rem;
+    }
+
+    /* ── CINEMATIC BUILDS (Higgsfield) ───────────────────── */
+    .cinematic { padding: clamp(80px, 9vw, 144px) 0; }
+    .recipe { max-width: 760px; margin: clamp(40px, 5vw, 64px) auto 0; }
+    .recipe .static-term-body { padding: var(--space-6) var(--space-8); line-height: 2; }
   </style>
 
   <!-- Structured data for search & AI answer engines -->
@@ -1865,7 +1930,7 @@
         "url": "https://ravenmcp.ai/",
         "downloadUrl": "https://www.npmjs.com/package/raven-mcp",
         "softwareHelp": "https://ravenmcp.ai/docs.html",
-        "description": "RavenMCP is an open-source Model Context Protocol server that gives AI agents like Claude design intelligence: 55 tools across nine knowledge layers — 129 design principles, 22 UI patterns, 12 design-system token libraries, content voice, brand, research, service blueprints, and design audits for web, iOS, Android, and React Native.",
+        "description": "RavenMCP is an open-source Model Context Protocol server that gives AI agents like Claude design intelligence: 70 tools spanning 129 design principles, 22 UI patterns, 12 design-system token libraries, content voice, brand, research, service blueprints, design audits for web, iOS, Android, and React Native, and a Taste Engine that holds every build to the owner's own design judgment.",
         "license": "https://opensource.org/licenses/MIT",
         "isAccessibleForFree": true,
         "author": { "@type": "Person", "name": "Andrew Cunliffe" },
@@ -1880,7 +1945,9 @@
           "22 reusable UI patterns",
           "12 world-class design systems with W3C DTCG tokens",
           "Design audits for web, iOS/SwiftUI, Android, and React Native",
-          "Content voice guides, brand profiles, research methods, and service blueprints"
+          "Content voice guides, brand profiles, research methods, and service blueprints",
+          "A Taste Engine that makes a person's design judgment portable — audit_taste returns a BLOCK/WARN/PASS verdict citing the rule behind every finding",
+          "Cinematic build recipes that name their paid external dependency and a still-photo fallback before spending"
         ]
       },
       {
@@ -1892,7 +1959,7 @@
             "name": "What is RavenMCP?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "RavenMCP (Raven) is an open-source Model Context Protocol (MCP) server that gives AI agents like Claude design intelligence — the design knowledge once locked in expert heads. It exposes 55 tools across nine knowledge layers: design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, and multi-platform design audits."
+              "text": "RavenMCP (Raven) is an open-source Model Context Protocol (MCP) server that gives AI agents like Claude design intelligence — the design knowledge once locked in expert heads. It exposes 70 tools spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits, and a Taste Engine that holds every build to the owner's own design judgment."
             }
           },
           {
@@ -1916,7 +1983,7 @@
             "name": "Which AI agents work with RavenMCP?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "RavenMCP works with any client that supports the Model Context Protocol, including Claude (Claude Code and the Claude desktop app). Once installed, the agent can call Raven's 55 tools directly during a conversation."
+              "text": "RavenMCP works with any client that supports the Model Context Protocol — Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's 70 tools directly during a conversation."
             }
           },
           {
@@ -1933,6 +2000,22 @@
             "acceptedAnswer": {
               "@type": "Answer",
               "text": "RavenMCP includes production tokens from 12 world-class design systems in W3C DTCG format, all queryable by AI agents. It also exposes 129 design principles and 22 reusable UI patterns."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is the Taste Engine?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "The Taste Engine makes one person's design judgment portable. You calibrate a profile once — your rules, your banned words, the wrong-and-right examples you have corrected — and bind it to a surface. From then on, audit_taste returns a verdict on anything your agent builds: BLOCK, WARN, or PASS, with the rule and the evidence behind every finding. It learns from your corrections through label_finding, and the profile lives locally under ~/.raven/taste — nothing leaves your machine."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does RavenMCP cost anything to run, or use paid services?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "RavenMCP itself is free and open source, and every tool runs locally. Some optional build recipes — like an AI-generated video hero — can chain a paid external tool (for example the Higgsfield MCP running the Seedance model). Raven never spends on your behalf: the recipe names its dependency, tells the agent to confirm the cost with you first, and to agree a still-photography or licensed-film fallback before running anything."
             }
           }
         ]
@@ -1956,13 +2039,13 @@
     <div class="glow glow-1"></div>
     <div class="glow glow-2"></div>
     <div class="glow glow-3"></div>
-    <div class="grid-bg"></div>
+    <canvas class="hero-grid-canvas" id="hero-grid" aria-hidden="true"></canvas>
     <div class="container">
       <div class="hero-badge reveal">
         Open-source MCP Server · MIT
       </div>
       <h1 class="reveal reveal-delay-1"><span class="line-glow">Design intelligence</span><span class="line-accent">for every prompt</span></h1>
-      <p class="subtitle reveal reveal-delay-2">Fifty-five tools that give your AI agent the design knowledge once locked in expert heads — principles, patterns, tokens, voice, brand, and more.</p>
+      <p class="subtitle reveal reveal-delay-2">The judgment layer for AI agents — 70 tools that audit what your agent builds, hold it to your taste, and cite the rule behind every finding. Claude, Cursor, or any MCP client.</p>
       <div class="hero-cta reveal reveal-delay-3">
         <button class="cta-install" aria-label="Copy install command to clipboard" onclick="navigator.clipboard.writeText('claude mcp add raven -- npx -y raven-mcp').then(()=>{this.querySelector('.copy-label').textContent='Copied!'; this.setAttribute('aria-label', 'Install command copied'); document.getElementById('copy-status').textContent='Install command copied to clipboard.'})">
           <span class="copy-label">claude mcp add raven -- npx -y raven-mcp</span>
@@ -2050,6 +2133,184 @@
     </div>
   </section>
 
+  <!-- Interactive hero grid engine (9 variants; ?grid=N selects, default Beacon) -->
+  <script>
+  (function () {
+    "use strict";
+    var canvas = document.getElementById("hero-grid");
+    if (!canvas) return;
+    var hero = document.querySelector(".hero");
+    if (!hero) return;
+    var ctx = canvas.getContext("2d");
+    var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
+    var CELL = 46;
+    var mouse = { x: -9999, y: -9999, tx: -9999, ty: -9999, active: false };
+    var t0 = performance.now();
+    var trail = [];
+    var params = new URLSearchParams(location.search);
+    var g = parseInt(params.get("grid"), 10);
+    var current = (g >= 1 && g <= 9) ? g - 1 : 0; // default Beacon
+
+    function resize() {
+      W = canvas.offsetWidth; H = canvas.offsetHeight;
+      canvas.width = Math.floor(W * DPR); canvas.height = Math.floor(H * DPR);
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    }
+    window.addEventListener("resize", resize);
+
+    if (!reduced) {
+      hero.addEventListener("pointermove", function (e) {
+        var r = canvas.getBoundingClientRect();
+        mouse.tx = e.clientX - r.left; mouse.ty = e.clientY - r.top; mouse.active = true;
+        if (current === 8) { trail.push({ x: mouse.tx, y: mouse.ty, born: performance.now() }); if (trail.length > 60) trail.shift(); }
+      });
+      hero.addEventListener("pointerleave", function () { mouse.active = false; });
+    }
+
+    function lerp(a, b, n) { return a + (b - a) * n; }
+    function clamp01(n) { return n < 0 ? 0 : n > 1 ? 1 : n; }
+
+    function baseGrid(alpha, cell) {
+      cell = cell || CELL;
+      ctx.strokeStyle = "rgba(255,255,255," + alpha + ")"; ctx.lineWidth = 1; ctx.beginPath();
+      for (var x = 0; x <= W; x += cell) { ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, H); }
+      for (var y = 0; y <= H; y += cell) { ctx.moveTo(0, y + .5); ctx.lineTo(W, y + .5); }
+      ctx.stroke();
+    }
+    function softSpotlightGrid(mx, my, R, cell, rgb, peak, lw) {
+      peak = peak || 0.55; lw = lw || 1; ctx.lineWidth = lw;
+      var x0 = Math.floor((mx - R) / cell) * cell, y0 = Math.floor((my - R) / cell) * cell;
+      for (var x = x0; x <= mx + R; x += cell) {
+        var dx = Math.abs(x - mx); if (dx > R) continue;
+        var half = Math.sqrt(R * R - dx * dx), a = (1 - dx / R) * peak;
+        var gr = ctx.createLinearGradient(0, my - half, 0, my + half);
+        gr.addColorStop(0, "rgba(" + rgb + ",0)"); gr.addColorStop(0.5, "rgba(" + rgb + "," + a + ")"); gr.addColorStop(1, "rgba(" + rgb + ",0)");
+        ctx.strokeStyle = gr; ctx.beginPath(); ctx.moveTo(x + .5, my - half); ctx.lineTo(x + .5, my + half); ctx.stroke();
+      }
+      for (var y = y0; y <= my + R; y += cell) {
+        var dy = Math.abs(y - my); if (dy > R) continue;
+        var halfh = Math.sqrt(R * R - dy * dy), a2 = (1 - dy / R) * peak;
+        var g2 = ctx.createLinearGradient(mx - halfh, 0, mx + halfh, 0);
+        g2.addColorStop(0, "rgba(" + rgb + ",0)"); g2.addColorStop(0.5, "rgba(" + rgb + "," + a2 + ")"); g2.addColorStop(1, "rgba(" + rgb + ",0)");
+        ctx.strokeStyle = g2; ctx.beginPath(); ctx.moveTo(mx - halfh, y + .5); ctx.lineTo(mx + halfh, y + .5); ctx.stroke();
+      }
+    }
+    function radialFill(mx, my, R, inner, outer) {
+      var gr = ctx.createRadialGradient(mx, my, 0, mx, my, R);
+      gr.addColorStop(0, inner); gr.addColorStop(1, outer);
+      ctx.fillStyle = gr; ctx.fillRect(mx - R, my - R, R * 2, R * 2);
+    }
+
+    function drawBeacon(time, mx, my, active) {
+      baseGrid(0.02, 40); if (!active) return;
+      radialFill(mx, my, 320, "rgba(0,191,255,0.05)", "rgba(0,191,255,0)");
+      softSpotlightGrid(mx, my, 300, 40, "214,224,240", 0.55);
+    }
+    function drawLoom(time, mx, my, active) {
+      baseGrid(0.032, 46); if (!active) return;
+      softSpotlightGrid(mx, my, 220, 46, "244,247,252", 0.7, 1.4);
+    }
+    function drawCircuit(time, mx, my, active) {
+      baseGrid(0.04);
+      var tsec = reduced ? 0 : time / 1000;
+      var row = Math.floor((0.35 + 0.15 * Math.sin(tsec * 0.3)) * H / CELL) * CELL;
+      var px = ((tsec * 120) % (W + 200)) - 100;
+      radialFill(px, row, 60, "rgba(0,229,255,0.5)", "rgba(0,229,255,0)");
+      if (active) {
+        var cx = Math.floor(mx / CELL), cy = Math.floor(my / CELL), span = 2;
+        for (var i = -span; i <= span; i++) for (var j = -span; j <= span; j++) {
+          var gx = (cx + i) * CELL, gy = (cy + j) * CELL;
+          var d = Math.hypot(gx + CELL / 2 - mx, gy + CELL / 2 - my);
+          var a = clamp01(1 - d / (CELL * (span + 0.5))); if (a <= 0) continue;
+          ctx.fillStyle = "rgba(0,191,255," + (a * 0.26) + ")"; ctx.fillRect(gx + 1, gy + 1, CELL - 2, CELL - 2);
+          ctx.strokeStyle = "rgba(0,229,255," + (a * 0.7) + ")"; ctx.lineWidth = 1; ctx.strokeRect(gx + 1.5, gy + 1.5, CELL - 3, CELL - 3);
+        }
+      }
+    }
+    function drawConstellation(time, mx, my, active) {
+      var R = 240, cell = CELL;
+      if (active) {
+        ctx.lineWidth = 1;
+        for (var x = 0; x <= W; x += cell) for (var y = 0; y <= H; y += cell) {
+          var f = clamp01(1 - Math.hypot(x - mx, y - my) / R); if (f < 0.25) continue;
+          ctx.strokeStyle = "rgba(0,191,255," + (f * 0.32) + ")";
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + cell, y); ctx.moveTo(x, y); ctx.lineTo(x, y + cell); ctx.stroke();
+        }
+      }
+      for (var x2 = 0; x2 <= W; x2 += cell) for (var y2 = 0; y2 <= H; y2 += cell) {
+        var f2 = active ? clamp01(1 - Math.hypot(x2 - mx, y2 - my) / R) : 0;
+        var r = 1 + f2 * 2.4, a = 0.10 + f2 * 0.85;
+        ctx.fillStyle = f2 > 0.35 ? "rgba(0,229,255," + a + ")" : "rgba(196,210,230," + a + ")";
+        ctx.beginPath(); ctx.arc(x2, y2, r, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    function drawHorizon(time, mx, my, active) {
+      var horizon = H * 0.46, vpx = W / 2 + (active ? (mx - W / 2) * 0.12 : 0);
+      var hg = ctx.createLinearGradient(0, horizon - 70, 0, horizon + 46);
+      hg.addColorStop(0, "rgba(0,191,255,0)"); hg.addColorStop(0.6, "rgba(0,191,255,0.12)"); hg.addColorStop(1, "rgba(0,191,255,0)");
+      ctx.fillStyle = hg; ctx.fillRect(0, horizon - 70, W, 116); ctx.lineWidth = 1;
+      for (var i = -14; i <= 14; i++) { var bx = vpx + i * (W / 12); ctx.strokeStyle = "rgba(196,210,230,0.16)"; ctx.beginPath(); ctx.moveTo(vpx, horizon); ctx.lineTo(bx, H); ctx.stroke(); }
+      for (var k = 1; k <= 16; k++) { var p = k / 16, yy = horizon + Math.pow(p, 2.2) * (H - horizon); ctx.strokeStyle = "rgba(196,210,230," + (0.05 + p * 0.16) + ")"; ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(W, yy); ctx.stroke(); }
+      ctx.strokeStyle = "rgba(0,229,255,0.5)"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(0, horizon); ctx.lineTo(W, horizon); ctx.stroke();
+    }
+    function drawWeave(time, mx, my, active) {
+      var grad = ctx.createLinearGradient(0, 0, W, H);
+      grad.addColorStop(0, "rgba(196,210,230,0.10)"); grad.addColorStop(0.5, "rgba(0,191,255,0.15)"); grad.addColorStop(1, "rgba(124,58,237,0.11)");
+      ctx.strokeStyle = grad; ctx.lineWidth = 1; ctx.beginPath();
+      for (var x = 0; x <= W; x += CELL) { ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, H); }
+      for (var y = 0; y <= H; y += CELL) { ctx.moveTo(0, y + .5); ctx.lineTo(W, y + .5); }
+      ctx.stroke(); if (active) radialFill(mx, my, 220, "rgba(0,229,255,0.13)", "rgba(0,229,255,0)");
+    }
+    function drawCrosshair(time, mx, my, active) {
+      var cell = CELL, arm = 4, R = 200;
+      for (var x = 0; x <= W; x += cell) for (var y = 0; y <= H; y += cell) {
+        var f = active ? clamp01(1 - Math.hypot(x - mx, y - my) / R) : 0, a = 0.06 + f * 0.7;
+        ctx.strokeStyle = f > 0.4 ? "rgba(0,229,255," + a + ")" : "rgba(206,218,236," + a + ")";
+        ctx.lineWidth = f > 0.4 ? 1.3 : 1; ctx.beginPath();
+        ctx.moveTo(x - arm, y + .5); ctx.lineTo(x + arm, y + .5); ctx.moveTo(x + .5, y - arm); ctx.lineTo(x + .5, y + arm); ctx.stroke();
+      }
+      if (active) radialFill(mx, my, 150, "rgba(0,191,255,0.10)", "rgba(0,191,255,0)");
+    }
+    function drawRadar(time, mx, my, active) {
+      baseGrid(0.035);
+      var tsec = reduced ? 0.25 : (time / 3200) % 1, scanY = tsec * H;
+      var bg = ctx.createLinearGradient(0, scanY - 130, 0, scanY + 8);
+      bg.addColorStop(0, "rgba(0,191,255,0)"); bg.addColorStop(0.8, "rgba(0,191,255,0.10)"); bg.addColorStop(1, "rgba(0,229,255,0.5)");
+      ctx.fillStyle = bg; ctx.fillRect(0, scanY - 130, W, 138);
+      ctx.strokeStyle = "rgba(0,229,255,0.7)"; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(0, scanY); ctx.lineTo(W, scanY); ctx.stroke();
+      var ry = Math.round(scanY / CELL) * CELL;
+      for (var x = 0; x <= W; x += CELL) { ctx.fillStyle = "rgba(0,229,255,0.8)"; ctx.beginPath(); ctx.arc(x, ry, 2, 0, Math.PI * 2); ctx.fill(); }
+      if (active) radialFill(mx, my, 170, "rgba(206,218,236,0.10)", "rgba(206,218,236,0)");
+    }
+    function drawComet(time, mx, my, active) {
+      baseGrid(0.04); var now = performance.now();
+      for (var i = 0; i < trail.length; i++) {
+        var pt = trail[i], age = (now - pt.born) / 900; if (age >= 1) continue; var a = 1 - age;
+        var gx = Math.floor(pt.x / CELL) * CELL, gy = Math.floor(pt.y / CELL) * CELL;
+        ctx.fillStyle = "rgba(0,191,255," + (a * 0.32) + ")"; ctx.fillRect(gx + 1, gy + 1, CELL - 2, CELL - 2);
+        ctx.fillStyle = "rgba(0,229,255," + (a * 0.9) + ")"; ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.4 * a + 0.6, 0, Math.PI * 2); ctx.fill();
+      }
+      if (active) { ctx.fillStyle = "rgba(240,248,255,0.9)"; ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 3, 0, Math.PI * 2); ctx.fill(); }
+    }
+
+    var RENDER = [drawBeacon, drawLoom, drawCircuit, drawConstellation, drawHorizon, drawWeave, drawCrosshair, drawRadar, drawComet];
+
+    function frame() {
+      var time = performance.now() - t0;
+      mouse.x = lerp(mouse.x < -9000 ? mouse.tx : mouse.x, mouse.tx, 0.18);
+      mouse.y = lerp(mouse.y < -9000 ? mouse.ty : mouse.y, mouse.ty, 0.18);
+      ctx.clearRect(0, 0, W, H);
+      RENDER[current](time, mouse.x, mouse.y, mouse.active);
+      requestAnimationFrame(frame);
+    }
+
+    resize();
+    if (reduced) { RENDER[current](0, -9999, -9999, false); }
+    else { requestAnimationFrame(frame); }
+  })();
+  </script>
+
   <!-- SIZZLE REEL -->
   <section style="padding: clamp(80px, 9vw, 144px) 0 clamp(24px, 3vw, 40px);">
     <div class="container" style="display:flex;flex-direction:column;align-items:center;">
@@ -2076,13 +2337,106 @@
     </div>
   </section>
 
+  <!-- THE DESIGN JUDGE — Taste Engine -->
+  <section id="judge" class="judge">
+    <div class="grid-bg"></div>
+    <div class="container">
+      <div class="section-header">
+        <p class="label reveal">The Taste Engine</p>
+        <h2 class="reveal reveal-delay-1">Your design judgment, made portable</h2>
+        <p class="subtitle reveal reveal-delay-2">Every other audit holds your agent's work to the field's rules. The Taste Engine holds it to <em>yours</em>&mdash;calibrated once, applied on every build.</p>
+      </div>
+
+      <div class="judge-grid">
+        <div class="judge-text reveal">
+          <span class="eyebrow-tool">audit_taste</span>
+          <h2>A verdict, with the rule behind it</h2>
+          <p>Calibrate a profile once&mdash;your accent rules, your banned words, the wrong-and-right examples you've corrected&mdash;and bind it to a surface. From then on, <code>audit_taste</code> returns a verdict on anything your agent builds: BLOCK, WARN, or PASS.</p>
+          <ul class="judge-proof">
+            <li>
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5l3.5 3.5L15 5"/></svg>
+              <span><strong>Cites the rule, not a vibe.</strong> Every finding names a <code>rule_id</code> and quotes the exact evidence. Clauses it can't check deterministically land in <code>not_assessed</code>&mdash;it never guesses.</span>
+            </li>
+            <li>
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5l3.5 3.5L15 5"/></svg>
+              <span><strong>Learns from your corrections.</strong> <code>label_finding</code> records accept, revise, or reject as precedent; accepted patterns are suppressed next time, so the judge grows toward your eye.</span>
+            </li>
+            <li>
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5l3.5 3.5L15 5"/></svg>
+              <span><strong>Yours, and only yours.</strong> Profiles live locally under <code>~/.raven/taste/</code>. Nothing leaves your machine.</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="replay reveal reveal-delay-1">
+          <div class="terminal">
+            <div class="terminal-header">
+              <span class="terminal-dot"></span>
+              <span class="terminal-dot"></span>
+              <span class="terminal-dot"></span>
+              <span class="terminal-title">audit_taste &mdash; raven-mcp</span>
+            </div>
+            <div class="static-term-body">
+<pre data-taste-quote aria-label="Recorded audit_taste output showing a BLOCK verdict"><span class="g">$</span> audit_taste <span class="k">project</span>:<span class="v">'raven-mcp'</span>
+
+  <span class="k">verdict</span>       <span class="block">BLOCK</span>
+  <span class="k">verdict_line</span>  2 blocking findings &mdash; fix before ship.
+
+  <span class="k">findings</span>
+    · <span class="v">voice-no-hype</span>   "supercharge your workflow"  <span class="c">→ cut the hype verb</span>
+    · <span class="v">voice-no-hype</span>   "unlock durable growth"      <span class="c">→ name the outcome plainly</span>
+
+  <span class="k">suppressed</span>             1   <span class="c">accepted precedent</span>
+  <span class="k">not_assessed</span>           1   <span class="c">clause needs a live capture</span>
+  <span class="k">quoted_evidence_exempt</span> <span class="c">{ elements: 1, chars: 512 }</span></pre>
+            </div>
+          </div>
+          <p class="replay-caption">Recorded replay. Taste stores are local and private by design&mdash;this is a captured <code>audit_taste</code> run showing the shape of a verdict, not a live call from your browser.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CINEMATIC BUILDS — Higgsfield candor -->
+  <section id="cinematic" class="cinematic">
+    <div class="container">
+      <div class="section-header">
+        <p class="label reveal">Cinematic builds</p>
+        <h2 class="reveal reveal-delay-1">A recipe that names its price</h2>
+        <p class="subtitle reveal reveal-delay-2">When a surface's taste calls for an AI-generated video hero, Raven returns a build recipe&mdash;and the recipe names its own cost. It tells your agent which paid tool the technique depends on, to confirm that spend with you first, and to agree a still-photography or licensed-film fallback before running anything. A surface that opted out of AI is never pushed toward a paid dependency.</p>
+      </div>
+
+      <div class="recipe reveal">
+        <div class="terminal">
+          <div class="terminal-header">
+            <span class="terminal-dot"></span>
+            <span class="terminal-dot"></span>
+            <span class="terminal-dot"></span>
+            <span class="terminal-title">build_hint &mdash; ai-video-hero</span>
+          </div>
+          <div class="static-term-body">
+<pre data-taste-quote aria-label="Recorded build_hint recipe for an AI-generated video hero"><span class="k">build_hint</span>: <span class="v">ai-video-hero</span>
+  <span class="k">technique</span>    AI-generated video hero over a poster frame
+  <span class="k">chain</span>        one hero still → short clips around one
+               consistent subject → reserve 4K for a single
+               final shot, then web-compress; autoplay muted + inline
+  <span class="k">depends_on</span>   Higgsfield MCP (Seedance model) <span class="c">— paid, external</span>
+  <span class="k">cost</span>         confirm the spend with the user before running
+  <span class="k">fallback</span>     still photography or licensed film, agreed first
+  <span class="block">never</span>        a surface that opted out of AI → no paid tool</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- KNOWLEDGE LAYERS -->
   <section id="layers" class="layers">
     <div class="grid-bg"></div>
     <div class="container">
       <div class="section-header">
-        <p class="label reveal">Nine Knowledge Layers</p>
-        <h2 class="reveal reveal-delay-1">Nine layers, one MCP server</h2>
+        <p class="label reveal">Knowledge Layers</p>
+        <h2 class="reveal reveal-delay-1">The knowledge behind the judgment</h2>
         <p class="subtitle reveal reveal-delay-2">Design, content, brand, research, service, business &mdash; every layer your AI is missing, structured for machines to query and apply.</p>
       </div>
 
@@ -2112,7 +2466,7 @@
           <div class="stat">22</div>
           <div class="stat-label">Pattern libraries</div>
           <h3>Patterns</h3>
-          <p>Proven UI patterns for signup, pricing, dashboards, forms, navigation, CTAs&mdash;plus content patterns (errors, empty states, notifications) and service patterns (blueprinting, handoff).</p>
+          <p>Field-tested UI patterns for signup, pricing, dashboards, forms, navigation, CTAs&mdash;plus content patterns (errors, empty states, notifications) and service patterns (blueprinting, handoff).</p>
           <div class="layer-tags">
             <span class="tag">Landing Pages</span>
             <span class="tag">Pricing</span>
@@ -2240,9 +2594,9 @@
   <section id="tools" class="tools-section">
     <div class="container">
       <div class="section-header">
-        <p class="label reveal">Fifty-Five Tools</p>
-        <h2 class="reveal reveal-delay-1">Fifty-five tools, organized by job</h2>
-        <p class="subtitle reveal reveal-delay-2">Fifty-five focused queries, grouped by what they do&mdash;<strong>know</strong>, <strong>create</strong>, <strong>audit</strong>. Claude calls them automatically, with no special syntax.</p>
+        <p class="label reveal">Seventy Tools</p>
+        <h2 class="reveal reveal-delay-1">Seventy tools, organized by job</h2>
+        <p class="subtitle reveal reveal-delay-2">Seventy focused calls, grouped by what they do&mdash;<strong>know</strong>, <strong>create</strong>, <strong>audit</strong>, <strong>judge</strong>. Claude calls them automatically, with no special syntax.</p>
       </div>
 
       <div class="tool-act">
@@ -2260,7 +2614,7 @@
           </div>
           <div class="tool-card reveal reveal-delay-1">
             <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg></div>
-            <div><div class="tool-name">get_pattern</div><div class="tool-desc">Proven patterns with do's, don'ts, and evidence across UI, content, and service-design types</div></div>
+            <div><div class="tool-name">get_pattern</div><div class="tool-desc">Field-tested patterns with do's, don'ts, and evidence across UI, content, and service-design types</div></div>
           </div>
           <div class="tool-card reveal">
             <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" stroke-width="1.5" stroke-linecap="round"><path d="M3 3h10v10H3z"/><path d="M3 7h10M7 3v10"/></svg></div>
@@ -2470,6 +2824,18 @@
             <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="4.5" y="1.5" width="7" height="13" rx="1.5"/><path d="M2 11h12"/><path d="M6.5 13h3"/></svg></div>
             <div><div class="tool-name">audit_device_frame</div><div class="tool-desc">Catch content cropped inside a device mockup&mdash;aspect-ratio cover loss, baked-in pan/zoom drift, and edges sliced at the frame</div></div>
           </div>
+          <div class="tool-card reveal">
+            <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="5" height="12" rx="1"/><rect x="9" y="2" width="5" height="12" rx="1"/><path d="M4.5 5v6M11.5 5v6"/></svg></div>
+            <div><div class="tool-name">audit_consistency</div><div class="tool-desc">Audit multiple routes for cross-page consistency&mdash;content-container width and hero heading tier against the inferred canonical</div></div>
+          </div>
+          <div class="tool-card reveal reveal-delay-1">
+            <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M7 6l3 2-3 2z" fill="#FFAB40"/></svg></div>
+            <div><div class="tool-name">audit_video_playback</div><div class="tool-desc">Render in headless Chromium and check every &lt;video&gt; actually advances&mdash;classifies each clip playing, paused, stalled, empty, or error</div></div>
+          </div>
+          <div class="tool-card reveal">
+            <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 2a6 6 0 000 12z" fill="#00E676"/><path d="M8 5v6" stroke="#1a1a22"/></svg></div>
+            <div><div class="tool-name">suggest_contrast_fix</div><div class="tool-desc">Given failing WCAG pairs, return the minimal color change that clears the target ratio&mdash;the smallest foreground shift, with a background alternative</div></div>
+          </div>
           </div>
         </div>
         <div class="tool-sub">
@@ -2529,11 +2895,76 @@
             <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" stroke-width="1.5" stroke-linecap="round"><path d="M8 2l1.7 3.8 4.1.4-3.1 2.7.9 4.1L8 10.9 4.4 13l.9-4.1-3.1-2.7 4.1-.4z"/></svg></div>
             <div><div class="tool-name">score_creative</div><div class="tool-desc">Score prompts, scripts, and concepts for hook strength, benefit clarity, channel fit, audience fit, and brand fit</div></div>
           </div>
+          <div class="tool-card reveal">
+            <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" stroke-width="1.5" stroke-linecap="round"><path d="M2 13V3M2 13h12"/><rect x="4" y="8" width="2" height="3"/><rect x="7" y="5" width="2" height="6"/><rect x="10" y="6" width="2" height="5"/></svg></div>
+            <div><div class="tool-name">score_page</div><div class="tool-desc">Score a page across 7 categories&mdash;structure, type, color, spacing, accessibility, responsive, tokens&mdash;each rated 0&ndash;10, derived deterministically</div></div>
+          </div>
           </div>
         </div>
       </div>
+
+      <!-- Act 04 — Judge (Taste Engine) -->
       <div class="tool-act">
         <div class="tool-act-head">
+          <span class="tool-act-num">04</span>
+          <h3 class="tool-act-title">Judge</h3>
+          <p class="tool-act-desc">The Taste Engine — calibrate a person's design judgment once, then hold every build to it, with the rule behind each verdict.</p>
+        </div>
+        <div class="tool-sub">
+          <span class="tool-sub-label">Calibrate</span>
+          <div class="tools-grid">
+          <div class="tool-card reveal">
+            <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" stroke-width="1.5" stroke-linecap="round"><path d="M8 2v3M8 11v3M2 8h3M11 8h3"/><circle cx="8" cy="8" r="2.5"/></svg></div>
+            <div><div class="tool-name">create_taste_profile</div><div class="tool-desc">Build a ruleset and precedent corpus from explicit rules or a DESIGN.md doc&mdash;stored locally under ~/.raven/taste</div></div>
+          </div>
+          <div class="tool-card reveal reveal-delay-1">
+            <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 6h6M5 8h4M5 10h5"/></svg></div>
+            <div><div class="tool-name">get_taste_profile</div><div class="tool-desc">Read a profile's rules, scopes, voice, and its surface bindings</div></div>
+          </div>
+          <div class="tool-card reveal">
+            <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" stroke-width="1.5" stroke-linecap="round"><path d="M2 4h12M2 8h8M2 12h10"/></svg></div>
+            <div><div class="tool-name">list_taste_profiles</div><div class="tool-desc">Browse every taste profile on this machine</div></div>
+          </div>
+          <div class="tool-card reveal reveal-delay-1">
+            <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#B388FF" stroke-width="1.5" stroke-linecap="round"><path d="M4 3h8v10l-4-2-4 2z"/><path d="M6 6h4M6 8h3"/></svg></div>
+            <div><div class="tool-name">get_taste_interview</div><div class="tool-desc">A kickoff question set built from the profile's own rules&mdash;asks how each surface should read before the first design decision</div></div>
+          </div>
+          <div class="tool-card reveal">
+            <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" stroke-width="1.5" stroke-linecap="round"><path d="M5 8l2 2 4-5"/><rect x="2" y="2" width="12" height="12" rx="2"/></svg></div>
+            <div><div class="tool-name">bind_taste_surface</div><div class="tool-desc">Bind a profile to a surface&mdash;scoped overrides, URL hosts, a voice note, and per-dimension design notes</div></div>
+          </div>
+          </div>
+        </div>
+        <div class="tool-sub">
+          <span class="tool-sub-label">Judge &amp; learn</span>
+          <div class="tools-grid">
+          <div class="tool-card reveal">
+            <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00BFFF" stroke-width="1.5" stroke-linecap="round"><path d="M8 2l5 2.5v4c0 3-2.2 4.8-5 5.5-2.8-.7-5-2.5-5-5.5v-4z"/><path d="M6 8l1.5 1.5L10.5 6"/></svg></div>
+            <div><div class="tool-name">audit_taste</div><div class="tool-desc">Judge HTML, text, or a URL against a profile&mdash;verdict BLOCK/WARN/PASS, every finding citing a rule_id and its evidence</div></div>
+          </div>
+          <div class="tool-card reveal reveal-delay-1">
+            <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" stroke-width="1.5" stroke-linecap="round"><path d="M2 8l2.5 2.5L8 5"/><path d="M8 8l2 2 4-5"/></svg></div>
+            <div><div class="tool-name">label_finding</div><div class="tool-desc">Append a labeled precedent&mdash;accept, revise, or reject; accepted patterns suppress that finding in future audits</div></div>
+          </div>
+          <div class="tool-card reveal">
+            <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" stroke-width="1.5" stroke-linecap="round"><path d="M4 2h6l2 2v10H4z"/><path d="M6 6h4M6 8h4M6 10h2"/></svg></div>
+            <div><div class="tool-name">record_taste_decision</div><div class="tool-desc">Log a chosen-vs-rejected decision so recurring choices become interview defaults</div></div>
+          </div>
+          <div class="tool-card reveal reveal-delay-1">
+            <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 3v10h10"/><path d="M6 10l2-3 2 2 3-4"/></svg></div>
+            <div><div class="tool-name">list_taste_decisions</div><div class="tool-desc">Review the decision history behind a profile's evolving taste</div></div>
+          </div>
+          <div class="tool-card reveal">
+            <div class="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#B388FF" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="12" height="12" rx="2"/><circle cx="6" cy="6" r="1.5"/><path d="M3 12l3-3 2 2 3-4 2 2.5"/></svg></div>
+            <div><div class="tool-name">generate_taste_portrait</div><div class="tool-desc">Render a bound surface as a self-contained designed page built from its own taste store</div></div>
+          </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tool-act">
+        <div class="tool-act-head">
+          <span class="tool-act-num">05</span>
           <h3 class="tool-act-title">Meta</h3>
           <p class="tool-act-desc">Local usage reflection and release registration.</p>
         </div>
@@ -2559,7 +2990,7 @@
       <div class="section-header">
         <p class="label reveal">Watch it work</p>
         <h2 class="reveal reveal-delay-1">No Figma file. No designer.</h2>
-        <p class="subtitle reveal reveal-delay-2">One prompt builds a real SwiftUI app&mdash;then Raven audits every screen against 73 principles and 13 patterns, flags the issues, and guides the fixes. Recorded live on the iPhone 17 Pro simulator.</p>
+        <p class="subtitle reveal reveal-delay-2">One prompt builds a real SwiftUI app&mdash;then Raven audits every screen against its principle and pattern library, flags the issues, and guides the fixes. Recorded live on the iPhone 17 Pro simulator.</p>
       </div>
     </div>
 
@@ -2628,7 +3059,7 @@
           <div class="watch-text">
             <span class="wc-tool">get_pattern &middot; audit_typography</span>
             <h3>Patterns with evidence</h3>
-            <p>Need a dashboard or streak system? Raven returns the proven pattern&mdash;do's, don'ts, and the research behind it&mdash;before a pixel is drawn.</p>
+            <p>Need a dashboard or streak system? Raven returns the pattern that works&mdash;do's, don'ts, and the research behind it&mdash;before a pixel is drawn.</p>
           </div>
           <div class="watch-media">
             <div class="mb">
@@ -2667,8 +3098,8 @@
         <div class="watch-row reveal">
           <div class="watch-text">
             <span class="wc-tool">evaluate_design</span>
-            <h3>Evaluated against 73 principles</h3>
-            <p>The finished app scored against 73 principles and 13 patterns. Raven flags pure-black backgrounds, color-only indicators, and motion gaps&mdash;then fixes them.</p>
+            <h3>Evaluated, then fixed</h3>
+            <p>The finished app scored against Raven's principles and patterns. Raven flags pure-black backgrounds, color-only indicators, and motion gaps&mdash;then fixes them.</p>
           </div>
           <div class="watch-media">
             <div class="mb">
@@ -2676,7 +3107,7 @@
                 <video class="watch-video" muted loop playsinline preload="none"
                   poster="assets/video/clips/06-evaluate.jpg"
                   data-mp4="assets/video/clips/06-evaluate.mp4"
-                  aria-label="Raven evaluating the finished app against 73 principles and 13 patterns"></video>
+                  aria-label="Raven evaluating the finished app against its principles and patterns"></video>
                 <div class="mb-gloss"></div><div class="mb-notch"></div>
               </div></div></div>
               <div class="mb-hinge"><div class="mb-groove"></div></div>
@@ -2903,7 +3334,7 @@
         <div class="glow-card pricing-open-card">
           <div class="pricing-open-stats">
             <div class="pricing-open-stat">
-              <span class="pricing-open-num">31</span>
+              <span class="pricing-open-num">70</span>
               <span class="pricing-open-label">Tools</span>
             </div>
             <div class="pricing-open-stat">
@@ -2911,8 +3342,8 @@
               <span class="pricing-open-label">Principles</span>
             </div>
             <div class="pricing-open-stat">
-              <span class="pricing-open-num">8</span>
-              <span class="pricing-open-label">Knowledge Layers</span>
+              <span class="pricing-open-num">12</span>
+              <span class="pricing-open-label">Design Systems</span>
             </div>
             <div class="pricing-open-stat">
               <span class="pricing-open-num">22</span>
@@ -2984,7 +3415,7 @@
       <div class="faq-list reveal reveal-delay-3">
         <div class="faq-item">
           <h3>What is RavenMCP?</h3>
-          <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server that gives AI agents like Claude design intelligence &mdash; the design knowledge once locked in expert heads. It exposes 55 tools across nine knowledge layers: design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, and multi-platform design audits.</p>
+          <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server that gives AI agents like Claude design intelligence &mdash; the design knowledge once locked in expert heads. It exposes 70 tools spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits, and a Taste Engine that holds every build to the owner's own design judgment.</p>
         </div>
         <div class="faq-item">
           <h3>How do I install RavenMCP?</h3>
@@ -2996,7 +3427,7 @@
         </div>
         <div class="faq-item">
           <h3>Which AI agents work with RavenMCP?</h3>
-          <p>Raven works with any client that supports the Model Context Protocol, including Claude (Claude Code and the Claude desktop app). Once installed, the agent can call Raven's 55 tools directly during a conversation.</p>
+          <p>Raven works with any client that supports the Model Context Protocol &mdash; Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's 70 tools directly during a conversation.</p>
         </div>
         <div class="faq-item">
           <h3>What platforms can RavenMCP audit?</h3>
@@ -3005,6 +3436,14 @@
         <div class="faq-item">
           <h3>What design systems does RavenMCP support?</h3>
           <p>Raven includes production tokens from 12 world-class design systems in W3C DTCG format, all queryable by AI agents. It also exposes 129 design principles and 22 reusable UI patterns.</p>
+        </div>
+        <div class="faq-item">
+          <h3>What is the Taste Engine?</h3>
+          <p>The Taste Engine makes one person's design judgment portable. You calibrate a profile once &mdash; your rules, your banned words, the wrong-and-right examples you've corrected &mdash; and bind it to a surface. From then on, <code>audit_taste</code> returns a verdict on anything your agent builds: BLOCK, WARN, or PASS, with the rule and the evidence behind every finding. It learns from your corrections through <code>label_finding</code>, and the profile lives locally under <code>~/.raven/taste</code> &mdash; nothing leaves your machine.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Does Raven cost anything to run, or use paid services?</h3>
+          <p>Raven itself is free and open source, and every tool runs locally. Some optional build recipes &mdash; like an AI-generated video hero &mdash; can chain a paid external tool such as the Higgsfield MCP. Raven never spends on your behalf: the recipe names its dependency, tells the agent to confirm the cost with you first, and to agree a still-photography or licensed-film fallback before running anything.</p>
         </div>
       </div>
     </div>
@@ -3016,7 +3455,7 @@
     <div class="container">
       <p class="label reveal">Get Started</p>
       <h2 class="reveal reveal-delay-1">Give your AI<br>design intelligence</h2>
-      <p class="subtitle reveal reveal-delay-2">Open source. Zero runtime dependencies. Works with Claude Code and Claude Desktop.</p>
+      <p class="subtitle reveal reveal-delay-2">Open source. Zero runtime dependencies. Works with Claude Code, Claude Desktop, Cursor &mdash; any MCP client.</p>
       <div class="cta-actions reveal reveal-delay-3">
         <a href="/docs.html" class="btn btn-primary">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"/></svg>
@@ -3152,7 +3591,7 @@
     var scenes = [
       {
         prompt: 'claude "add a pricing section to the landing page"',
-        comment: '# Raven auto-queries across 9 knowledge layers:',
+        comment: '# Raven auto-queries across its knowledge layers:',
         tools: [
           { fn: 'get_principles', result: 'Hick\'s Law, Anchoring, Von Restorff', color: 'fn' },
           { fn: 'get_pattern', result: '3-tier, feature comparison, social proof', color: 'fn' },

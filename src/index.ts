@@ -30,7 +30,7 @@ import { auditConsistency } from "./audit-consistency.js";
 import { detectOrphanStretch } from "./layout-orphans.js";
 import { createTasteProfile, getTasteProfile, listTasteProfiles, labelFinding, auditTaste, ruleInScope, getTasteInterview, bindTasteSurface, listSurfaceBindings, resolveSurfaceBinding, recordTasteDecision, listTasteDecisions, checkBindingConsistency, isPngPathReference } from "./taste.js";
 import type { ReferenceCapture, SurfaceBinding } from "./taste.js";
-import { generateTastePortrait } from "./taste-portrait.js";
+import { generateTastePortrait, generateTastePortraitInline } from "./taste-portrait.js";
 import { setRemoteRuntime, isRemoteRuntime } from "./remote-runtime.js";
 import { ClosedTasteStore, FsTasteStore, type TasteStore } from "./taste-store.js";
 import { remoteUrlGuardError } from "./remote-url-guard.js";
@@ -1627,10 +1627,17 @@ const REMOTE_GATED_TOOLS = new Set<string>([
 // injected into buildServer (P4.2+: api/mcp-user.js passes a
 // RedisTasteStore(sub) per request). Gating is store-PRESENCE-based: the
 // anonymous endpoint never injects a store, so its 45-tool surface is
-// unchanged by construction. P4.2 un-gates exactly the profile trio; the
-// remaining 7 taste tools land in P4.3.
+// unchanged by construction. P4.2 un-gated the profile trio; P4.3 un-gates
+// the remaining 7 taste tools. Remote-safety deltas for the 7 (all runtime
+// branches on the authed path — schemas/descriptions shared with stdio stay
+// byte-identical): generate_taste_portrait returns HTML inline (no fs);
+// bind_taste_surface refuses local .png reference paths and public-URL-guards
+// reference captures; audit_taste's url mode gets the Phase-3 public-URL
+// guard via REMOTE_URL_GUARDED_TOOLS.
 const AUTHED_USER_TASTE_TOOLS = new Set<string>([
-  "create_taste_profile", "get_taste_profile", "list_taste_profiles"
+  "create_taste_profile", "get_taste_profile", "list_taste_profiles",
+  "get_taste_interview", "bind_taste_surface", "record_taste_decision",
+  "list_taste_decisions", "generate_taste_portrait", "label_finding", "audit_taste"
 ]);
 
 // Tools KEPT in remote mode for their safe pasted-content path, but whose `url`
@@ -1675,7 +1682,11 @@ const REMOTE_URL_GUARDED_TOOLS: { [tool: string]: string } = {
   audit_contrast: "url",
   audit_tap_targets: "url",
   audit_responsive_visibility: "url",
-  audit_video_playback: "url"
+  audit_video_playback: "url",
+  // P4.3: audit_taste is only REACHABLE remotely on the authed store-injected
+  // path; when it is, its url-capture mode gets the same public-URL guard as
+  // the Phase-3 browser tools. No-op for stdio (guard runs only when remote).
+  audit_taste: "url"
 };
 
 // buildServer() returns a FRESH McpServer with all 70 tools + the usage-log/
@@ -5796,7 +5807,7 @@ server.tool(
   },
   async function ({ name, rules, corpus, markdown }) {
     var profile = await createTasteProfile(tasteStore, { name: name, rules: rules, corpus: corpus, markdown: markdown });
-    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "create_taste_profile", name: profile.name, rules: profile.rules.length, corpus: profile.corpus.length, home: process.env.RAVEN_TASTE_HOME ? "RAVEN_TASTE_HOME" : "~/.raven/taste" }, null, 2) }] };
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "create_taste_profile", name: profile.name, rules: profile.rules.length, corpus: profile.corpus.length, home: (remote && hasUserStore) ? "cloud:per-user" : (process.env.RAVEN_TASTE_HOME ? "RAVEN_TASTE_HOME" : "~/.raven/taste") }, null, 2) }] };
   }
 );
 
@@ -5856,6 +5867,23 @@ server.tool(
         var refInput = references[i];
         var entry: ReferenceCapture = { url: refInput.url };
         if (refInput.liked !== undefined && refInput.liked.trim().length > 0) entry.liked = refInput.liked.trim();
+        // Remote path (authed): a .png reference is a LOCAL FILE PATH — on a
+        // hosted server that is a server-file read oracle, so refuse it
+        // outright; URL references must clear the Phase-3 public-URL guard
+        // before any capture. Both checks are remote-only — stdio unchanged.
+        if (remote) {
+          if (isPngPathReference(refInput.url)) {
+            warnings.push("reference " + refInput.url + " rejected: local screenshot paths are not available on the hosted endpoint — pass a public URL instead");
+            capturedRefs.push(entry);
+            continue;
+          }
+          var refGuardMessage = await remoteUrlGuardError(refInput.url);
+          if (refGuardMessage !== null) {
+            warnings.push("reference " + refInput.url + " stored uncaptured: " + refGuardMessage);
+            capturedRefs.push(entry);
+            continue;
+          }
+        }
         try {
           if (isPngPathReference(refInput.url)) {
             // Screenshot reference (mobile): traits come from the pixels.
@@ -5941,6 +5969,13 @@ server.tool(
     output_dir: z.string().min(1).describe("Directory where the generated HTML files should be written."),
   },
   async function ({ profile, project, output_dir }) {
+    // Remote authed path (P4.3): serverless filesystems are ephemeral, so the
+    // portrait comes back INLINE (size-capped) and output_dir is ignored.
+    // stdio keeps the exact fs-writing behavior below.
+    if (remote && hasUserStore) {
+      var inline = await generateTastePortraitInline({ store: tasteStore, profile: profile, project: project });
+      return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "generate_taste_portrait", inline: true, note: "Hosted endpoint returns portrait HTML inline; output_dir is ignored — save the html fields yourself.", files: inline.files, index_html: inline.index_html, total_bytes: inline.total_bytes, warnings: inline.warnings }, null, 2) }] };
+    }
     var result = await generateTastePortrait({ store: tasteStore, profile: profile, project: project, output_dir: output_dir });
     return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "generate_taste_portrait", files: result.files, index_path: result.index_path, warnings: result.warnings }, null, 2) }] };
   }

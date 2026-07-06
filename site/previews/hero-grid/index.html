@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Raven — Hero Grid Variants</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg-base: #1a1a22;
+    --bg-deep: #121218;
+    --bg-raised: #2a2a33;
+    --text-primary: #F0F0F2;
+    --text-secondary: #9498A0;
+    --text-tertiary: #6b6f78;
+    --accent-blue: #00BFFF;
+    --accent-cyan: #00E5FF;
+    --border: rgba(255,255,255,0.06);
+    --border-strong: rgba(255,255,255,0.12);
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+    --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px;
+    --radius-full: 9999px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    position: relative;
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 96px 24px 120px;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .grid-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    top: -160px; left: 50%; transform: translateX(-50%);
+    width: 1400px; height: 820px;
+    background: radial-gradient(ellipse, rgba(0,191,255,0.22) 0%, rgba(0,229,255,0.08) 34%, rgba(0,191,255,0.03) 58%, transparent 78%);
+    filter: blur(20px);
+    z-index: 1;
+    pointer-events: none;
+  }
+  .hero::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 90% 80% at 50% 42%, transparent 40%, rgba(18,18,24,0.55) 82%, var(--bg-base) 100%);
+    z-index: 2;
+    pointer-events: none;
+  }
+  .hero .container {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-6);
+    max-width: 940px;
+  }
+
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: var(--space-2);
+    font-size: 13px; font-weight: 500; color: var(--accent-blue);
+    letter-spacing: 0.02em;
+  }
+  .hero-badge .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent-blue);
+    box-shadow: 0 0 12px var(--accent-blue), 0 0 24px rgba(0,191,255,0.3);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  @media (prefers-reduced-motion: reduce) { .hero-badge .dot { animation: none; } }
+
+  h1 {
+    max-width: 900px;
+    font-size: clamp(52px, 7vw, 88px);
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 1.04;
+  }
+  h1 .line-glow, h1 .line-accent {
+    display: block;
+    padding-bottom: 0.1em;
+    -webkit-text-fill-color: transparent;
+  }
+  h1 .line-glow {
+    background: linear-gradient(135deg, #F0F0F2 0%, rgba(240,240,242,0.72) 100%);
+    -webkit-background-clip: text; background-clip: text;
+  }
+  h1 .line-accent {
+    background: linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-blue) 40%, #7c3aed 100%);
+    -webkit-background-clip: text; background-clip: text;
+    filter: drop-shadow(0 0 40px rgba(0,191,255,0.4));
+  }
+  .subtitle {
+    font-size: clamp(18px, 2vw, 22px);
+    line-height: 1.6;
+    color: var(--text-secondary);
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  .cta-install {
+    display: inline-flex; align-items: center; gap: 10px;
+    margin-top: var(--space-4);
+    padding: 13px 20px;
+    background: var(--bg-raised);
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    font-family: var(--font-mono);
+    font-size: 14px; color: var(--text-primary);
+    cursor: pointer;
+    transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  .cta-install:hover { border-color: rgba(0,191,255,0.4); box-shadow: 0 0 32px rgba(0,191,255,0.12); }
+  .cta-install svg { color: var(--accent-blue); }
+  .hero-text-links { display: flex; gap: var(--space-6); margin-top: var(--space-3); }
+  .btn-text-link { color: var(--text-secondary); text-decoration: none; font-size: 15px; font-weight: 500; transition: color .2s; }
+  .btn-text-link:hover { color: var(--accent-blue); }
+
+  /* ── Variant switcher ── */
+  .switcher {
+    position: fixed;
+    left: 50%; bottom: 22px; transform: translateX(-50%);
+    z-index: 50;
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px;
+    background: rgba(26,26,34,0.82);
+    backdrop-filter: blur(16px) saturate(1.4);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-full);
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    max-width: calc(100vw - 32px);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .switcher button {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 14px; font-weight: 600;
+    cursor: pointer;
+    transition: all .18s ease;
+  }
+  .switcher button:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
+  .switcher button.active {
+    color: #0a0a12;
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 20px rgba(0,191,255,0.45);
+  }
+  .switcher .label {
+    padding: 0 14px 0 10px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+  }
+  .switcher .label b { color: var(--text-primary); font-weight: 600; }
+  .hint {
+    position: fixed; top: 18px; left: 50%; transform: translateX(-50%);
+    z-index: 50;
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.04em;
+    color: var(--text-tertiary);
+    background: rgba(26,26,34,0.7);
+    padding: 6px 14px; border-radius: var(--radius-full);
+    border: 1px solid var(--border);
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+  <div class="hint">Move your cursor over the hero · press 1–9 to switch</div>
+
+  <section class="hero">
+    <canvas class="grid-canvas" id="grid"></canvas>
+    <div class="container">
+      <div class="hero-badge"><span class="dot"></span> Open-source MCP Server · MIT</div>
+      <h1><span class="line-glow">Design intelligence</span><span class="line-accent">for every prompt</span></h1>
+      <p class="subtitle">The design judgment once locked in expert heads — principles, tokens, brand voice, and your own portable taste — in one install for any AI agent.</p>
+      <button class="cta-install" id="copyBtn">
+        <span>claude mcp add raven -- npx -y raven-mcp</span>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M2 10V3a1 1 0 011-1h7"/></svg>
+      </button>
+      <div class="hero-text-links">
+        <a href="#" class="btn-text-link">Docs →</a>
+        <a href="#" class="btn-text-link">View on GitHub →</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="switcher" id="switcher">
+    <span class="label" id="variantLabel"><b>1</b> · Beacon</span>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+  var VARIANTS = [
+    "Beacon", "Loom", "Circuit", "Constellation",
+    "Horizon", "Weave", "Crosshair", "Radar", "Comet"
+  ];
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var canvas = document.getElementById("grid");
+  var ctx = canvas.getContext("2d");
+  var W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
+  var CELL = 46;
+  var mouse = { x: -9999, y: -9999, tx: -9999, ty: -9999, active: false };
+  var t0 = performance.now();
+  var current = 0;
+  var trail = [];
+
+  function resize() {
+    W = canvas.offsetWidth;
+    H = canvas.offsetHeight;
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener("resize", resize);
+
+  var hero = document.querySelector(".hero");
+  hero.addEventListener("pointermove", function (e) {
+    var r = canvas.getBoundingClientRect();
+    mouse.tx = e.clientX - r.left;
+    mouse.ty = e.clientY - r.top;
+    mouse.active = true;
+    if (current === 8) {
+      trail.push({ x: mouse.tx, y: mouse.ty, born: performance.now() });
+      if (trail.length > 60) trail.shift();
+    }
+  });
+  hero.addEventListener("pointerleave", function () { mouse.active = false; });
+
+  // ── helpers ──
+  function lerp(a, b, n) { return a + (b - a) * n; }
+  function clamp01(n) { return n < 0 ? 0 : n > 1 ? 1 : n; }
+
+  function baseGrid(alpha, cell) {
+    cell = cell || CELL;
+    ctx.strokeStyle = "rgba(255,255,255," + alpha + ")";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (var x = 0; x <= W; x += cell) { ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, H); }
+    for (var y = 0; y <= H; y += cell) { ctx.moveTo(0, y + .5); ctx.lineTo(W, y + .5); }
+    ctx.stroke();
+  }
+  // soft circular spotlight of brightened grid lines (no hard clip edge)
+  function softSpotlightGrid(mx, my, R, cell, rgb, peak, lw) {
+    peak = peak || 0.55; lw = lw || 1;
+    ctx.lineWidth = lw;
+    var x0 = Math.floor((mx - R) / cell) * cell, y0 = Math.floor((my - R) / cell) * cell;
+    for (var x = x0; x <= mx + R; x += cell) {
+      var dx = Math.abs(x - mx); if (dx > R) continue;
+      var half = Math.sqrt(R * R - dx * dx);
+      var a = (1 - dx / R) * peak;
+      var g = ctx.createLinearGradient(0, my - half, 0, my + half);
+      g.addColorStop(0, "rgba(" + rgb + ",0)");
+      g.addColorStop(0.5, "rgba(" + rgb + "," + a + ")");
+      g.addColorStop(1, "rgba(" + rgb + ",0)");
+      ctx.strokeStyle = g;
+      ctx.beginPath(); ctx.moveTo(x + .5, my - half); ctx.lineTo(x + .5, my + half); ctx.stroke();
+    }
+    for (var y = y0; y <= my + R; y += cell) {
+      var dy = Math.abs(y - my); if (dy > R) continue;
+      var halfh = Math.sqrt(R * R - dy * dy);
+      var a2 = (1 - dy / R) * peak;
+      var g2 = ctx.createLinearGradient(mx - halfh, 0, mx + halfh, 0);
+      g2.addColorStop(0, "rgba(" + rgb + ",0)");
+      g2.addColorStop(0.5, "rgba(" + rgb + "," + a2 + ")");
+      g2.addColorStop(1, "rgba(" + rgb + ",0)");
+      ctx.strokeStyle = g2;
+      ctx.beginPath(); ctx.moveTo(mx - halfh, y + .5); ctx.lineTo(mx + halfh, y + .5); ctx.stroke();
+    }
+  }
+  function radialFill(mx, my, R, inner, outer) {
+    var g = ctx.createRadialGradient(mx, my, 0, mx, my, R);
+    g.addColorStop(0, inner); g.addColorStop(1, outer);
+    ctx.fillStyle = g; ctx.fillRect(mx - R, my - R, R * 2, R * 2);
+  }
+
+  // ── variant renderers ──  (time ms, mx, my, active) ──
+  // 1 · Beacon — faithful higgsfield transposition: fine silver grid, wide soft spotlight + faint blue haze
+  function drawBeacon(time, mx, my, active) {
+    baseGrid(0.02, 40);
+    if (!active) return;
+    radialFill(mx, my, 320, "rgba(0,191,255,0.05)", "rgba(0,191,255,0)");
+    softSpotlightGrid(mx, my, 300, 40, "214,224,240", 0.55);
+  }
+
+  // 2 · Loom — maximum restraint: NO glow, no fill. Lines near cursor whiten & thicken (weight only)
+  function drawLoom(time, mx, my, active) {
+    baseGrid(0.032, 46);
+    if (!active) return;
+    softSpotlightGrid(mx, my, 220, 46, "244,247,252", 0.7, 1.4);
+  }
+
+  // 3 · Circuit — discrete cells ignite blue & decay individually; an autonomous pulse runs a gridline
+  function drawCircuit(time, mx, my, active) {
+    baseGrid(0.04);
+    // autonomous traveling pulse along one row + one column
+    var tsec = reduced ? 0 : time / 1000;
+    var row = Math.floor((0.35 + 0.15 * Math.sin(tsec * 0.3)) * H / CELL) * CELL;
+    var px = ((tsec * 120) % (W + 200)) - 100;
+    radialFill(px, row, 60, "rgba(0,229,255,0.5)", "rgba(0,229,255,0)");
+    if (active) {
+      var cx = Math.floor(mx / CELL), cy = Math.floor(my / CELL), span = 2;
+      for (var i = -span; i <= span; i++) {
+        for (var j = -span; j <= span; j++) {
+          var gx = (cx + i) * CELL, gy = (cy + j) * CELL;
+          var d = Math.hypot(gx + CELL / 2 - mx, gy + CELL / 2 - my);
+          var a = clamp01(1 - d / (CELL * (span + 0.5)));
+          if (a <= 0) continue;
+          ctx.fillStyle = "rgba(0,191,255," + (a * 0.26) + ")";
+          ctx.fillRect(gx + 1, gy + 1, CELL - 2, CELL - 2);
+          ctx.strokeStyle = "rgba(0,229,255," + (a * 0.7) + ")";
+          ctx.lineWidth = 1; ctx.strokeRect(gx + 1.5, gy + 1.5, CELL - 3, CELL - 3);
+        }
+      }
+    }
+  }
+
+  // 4 · Constellation — dot lattice; near cursor dots brighten and draw hairlines to neighbors
+  function drawConstellation(time, mx, my, active) {
+    var R = 240, cell = CELL;
+    // links first (under the dots)
+    if (active) {
+      ctx.lineWidth = 1;
+      for (var x = 0; x <= W; x += cell) {
+        for (var y = 0; y <= H; y += cell) {
+          var f = clamp01(1 - Math.hypot(x - mx, y - my) / R);
+          if (f < 0.25) continue;
+          ctx.strokeStyle = "rgba(0,191,255," + (f * 0.32) + ")";
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + cell, y); ctx.moveTo(x, y); ctx.lineTo(x, y + cell); ctx.stroke();
+        }
+      }
+    }
+    for (var x2 = 0; x2 <= W; x2 += cell) {
+      for (var y2 = 0; y2 <= H; y2 += cell) {
+        var f2 = active ? clamp01(1 - Math.hypot(x2 - mx, y2 - my) / R) : 0;
+        var r = 1 + f2 * 2.4, a = 0.10 + f2 * 0.85;
+        ctx.fillStyle = f2 > 0.35 ? "rgba(0,229,255," + a + ")" : "rgba(196,210,230," + a + ")";
+        ctx.beginPath(); ctx.arc(x2, y2, r, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+
+  // 5 · Horizon — perspective grid receding to a horizon behind the H1; cursor parallax + blue bloom
+  function drawHorizon(time, mx, my, active) {
+    var horizon = H * 0.46;
+    var vpx = W / 2 + (active ? (mx - W / 2) * 0.12 : 0);
+    var hg = ctx.createLinearGradient(0, horizon - 70, 0, horizon + 46);
+    hg.addColorStop(0, "rgba(0,191,255,0)");
+    hg.addColorStop(0.6, "rgba(0,191,255,0.12)");
+    hg.addColorStop(1, "rgba(0,191,255,0)");
+    ctx.fillStyle = hg; ctx.fillRect(0, horizon - 70, W, 116);
+    ctx.lineWidth = 1;
+    for (var i = -14; i <= 14; i++) {
+      var bx = vpx + i * (W / 12);
+      ctx.strokeStyle = "rgba(196,210,230,0.16)";
+      ctx.beginPath(); ctx.moveTo(vpx, horizon); ctx.lineTo(bx, H); ctx.stroke();
+    }
+    for (var k = 1; k <= 16; k++) {
+      var p = k / 16;
+      var yy = horizon + Math.pow(p, 2.2) * (H - horizon);
+      ctx.strokeStyle = "rgba(196,210,230," + (0.05 + p * 0.16) + ")";
+      ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(W, yy); ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(0,229,255,0.5)"; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(0, horizon); ctx.lineTo(W, horizon); ctx.stroke();
+  }
+
+  // 6 · Weave — grid lines painted with a silver→blue→violet gradient (the literal "silver grid IN the gradient")
+  function drawWeave(time, mx, my, active) {
+    var grad = ctx.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, "rgba(196,210,230,0.10)");
+    grad.addColorStop(0.5, "rgba(0,191,255,0.15)");
+    grad.addColorStop(1, "rgba(124,58,237,0.11)");
+    ctx.strokeStyle = grad; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (var x = 0; x <= W; x += CELL) { ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, H); }
+    for (var y = 0; y <= H; y += CELL) { ctx.moveTo(0, y + .5); ctx.lineTo(W, y + .5); }
+    ctx.stroke();
+    if (active) radialFill(mx, my, 220, "rgba(0,229,255,0.13)", "rgba(0,229,255,0)");
+  }
+
+  // 7 · Crosshair — plus-marks at intersections; near cursor they brighten silver with a tight blue core
+  function drawCrosshair(time, mx, my, active) {
+    var cell = CELL, arm = 4, R = 200;
+    for (var x = 0; x <= W; x += cell) {
+      for (var y = 0; y <= H; y += cell) {
+        var f = active ? clamp01(1 - Math.hypot(x - mx, y - my) / R) : 0;
+        var a = 0.06 + f * 0.7;
+        ctx.strokeStyle = f > 0.4 ? "rgba(0,229,255," + a + ")" : "rgba(206,218,236," + a + ")";
+        ctx.lineWidth = f > 0.4 ? 1.3 : 1;
+        ctx.beginPath();
+        ctx.moveTo(x - arm, y + .5); ctx.lineTo(x + arm, y + .5);
+        ctx.moveTo(x + .5, y - arm); ctx.lineTo(x + .5, y + arm);
+        ctx.stroke();
+      }
+    }
+    if (active) radialFill(mx, my, 150, "rgba(0,191,255,0.10)", "rgba(0,191,255,0)");
+  }
+
+  // 8 · Radar — a blue scan-beam sweeps down the grid (Raven audit motif), lighting each row it passes
+  function drawRadar(time, mx, my, active) {
+    baseGrid(0.035);
+    var tsec = reduced ? 0.25 : (time / 3200) % 1;
+    var scanY = tsec * H;
+    var bg = ctx.createLinearGradient(0, scanY - 130, 0, scanY + 8);
+    bg.addColorStop(0, "rgba(0,191,255,0)");
+    bg.addColorStop(0.8, "rgba(0,191,255,0.10)");
+    bg.addColorStop(1, "rgba(0,229,255,0.5)");
+    ctx.fillStyle = bg; ctx.fillRect(0, scanY - 130, W, 138);
+    ctx.strokeStyle = "rgba(0,229,255,0.7)"; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(0, scanY); ctx.lineTo(W, scanY); ctx.stroke();
+    var ry = Math.round(scanY / CELL) * CELL;
+    for (var x = 0; x <= W; x += CELL) {
+      ctx.fillStyle = "rgba(0,229,255,0.8)";
+      ctx.beginPath(); ctx.arc(x, ry, 2, 0, Math.PI * 2); ctx.fill();
+    }
+    if (active) radialFill(mx, my, 170, "rgba(206,218,236,0.10)", "rgba(206,218,236,0)");
+  }
+
+  // 9 · Comet — invisible idle; the cursor leaves a decaying cyan wake across the cells
+  function drawComet(time, mx, my, active) {
+    baseGrid(0.04);
+    var now = performance.now();
+    for (var i = 0; i < trail.length; i++) {
+      var p = trail[i];
+      var age = (now - p.born) / 900;
+      if (age >= 1) continue;
+      var a = 1 - age;
+      var gx = Math.floor(p.x / CELL) * CELL, gy = Math.floor(p.y / CELL) * CELL;
+      ctx.fillStyle = "rgba(0,191,255," + (a * 0.32) + ")";
+      ctx.fillRect(gx + 1, gy + 1, CELL - 2, CELL - 2);
+      ctx.fillStyle = "rgba(0,229,255," + (a * 0.9) + ")";
+      ctx.beginPath(); ctx.arc(p.x, p.y, 2.4 * a + 0.6, 0, Math.PI * 2); ctx.fill();
+    }
+    if (active) {
+      ctx.fillStyle = "rgba(240,248,255,0.9)";
+      ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 3, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  var RENDER = [
+    drawBeacon, drawLoom, drawCircuit, drawConstellation,
+    drawHorizon, drawWeave, drawCrosshair, drawRadar, drawComet
+  ];
+
+  function frame() {
+    var time = performance.now() - t0;
+    mouse.x = lerp(mouse.x < -9000 ? mouse.tx : mouse.x, mouse.tx, 0.18);
+    mouse.y = lerp(mouse.y < -9000 ? mouse.ty : mouse.y, mouse.ty, 0.18);
+    ctx.clearRect(0, 0, W, H);
+    RENDER[current](time, mouse.x, mouse.y, mouse.active);
+    requestAnimationFrame(frame);
+  }
+
+  var switcher = document.getElementById("switcher");
+  var labelEl = document.getElementById("variantLabel");
+  var btns = [];
+  for (var i = 0; i < 9; i++) {
+    var b = document.createElement("button");
+    b.textContent = String(i + 1);
+    b.setAttribute("aria-label", "Variant " + (i + 1) + ": " + VARIANTS[i]);
+    (function (idx, node) { node.addEventListener("click", function () { setVariant(idx); }); })(i, b);
+    switcher.insertBefore(b, labelEl);
+    btns.push(b);
+  }
+  function setVariant(idx) {
+    current = idx;
+    trail = [];
+    for (var k = 0; k < btns.length; k++) btns[k].classList.toggle("active", k === idx);
+    labelEl.innerHTML = "<b>" + (idx + 1) + "</b> · " + VARIANTS[idx];
+  }
+  window.addEventListener("keydown", function (e) {
+    var n = parseInt(e.key, 10);
+    if (n >= 1 && n <= 9) setVariant(n - 1);
+  });
+
+  document.getElementById("copyBtn").addEventListener("click", function () {
+    var span = this.querySelector("span");
+    var orig = span.textContent;
+    navigator.clipboard && navigator.clipboard.writeText("claude mcp add raven -- npx -y raven-mcp");
+    span.textContent = "Copied!";
+    setTimeout(function () { span.textContent = orig; }, 1400);
+  });
+
+  resize();
+  setVariant(0);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

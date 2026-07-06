@@ -2,6 +2,7 @@
   var CENTER_LINKS = [];
 
   var PAGE_LINKS = [
+    { label: 'The Judge', href: '/#judge' },
     { label: 'Open Source', href: '/#pricing' },
     { label: 'Docs', href: '/docs.html' },
     { label: 'Changelog', href: '/changelog.html' },

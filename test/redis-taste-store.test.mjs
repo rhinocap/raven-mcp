@@ -22,6 +22,9 @@ import { buildServer } from '../dist/index.js';
 
 const GOLDEN_45_HASH = 'f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6';
 const TRIO = ['create_taste_profile', 'get_taste_profile', 'list_taste_profiles'];
+// P4.3 widened the store-injected surface from the trio (P4.2) to all 10
+// taste tools; test/taste-remote-full.test.mjs owns the exact-set assertion.
+const AUTHED_TASTE_COUNT = 10;
 
 // In-memory fake mirroring @upstash/redis behavior used by the store:
 // values are structured-cloned (JSON semantics), lists ordered, sets unique.
@@ -99,10 +102,10 @@ test('buildServer gating: store injection un-gates exactly the profile trio', as
   const store = new RedisTasteStore('user_A', fakeRedis());
   const authed = buildServer({ remote: true, tasteStore: store });
   const authedNames = Object.keys(authed._registeredTools).sort();
-  assert.equal(authedNames.length, 48, '45 + the profile trio');
+  assert.equal(authedNames.length, 45 + AUTHED_TASTE_COUNT, '45 + the authed taste subset');
   for (const t of TRIO) assert.ok(authedNames.includes(t), 'missing ' + t);
-  const extras = authedNames.filter((n) => !bareNames.includes(n)).sort();
-  assert.deepEqual(extras, TRIO.slice().sort(), 'ONLY the trio may be added in P4.2');
+  const extras = authedNames.filter((n) => !bareNames.includes(n));
+  assert.ok(extras.every((n) => /taste|label_finding/.test(n)), 'every added tool is a taste tool: ' + extras.join(','));
 });
 
 test('stdio (non-remote) surface is unaffected by the P4.2 change', async () => {

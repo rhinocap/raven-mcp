@@ -87,6 +87,66 @@ export async function generateTastePortrait(input: TastePortraitInput): Promise<
   return result;
 }
 
+// P4.3 — INLINE portrait generation for the authenticated remote endpoint.
+// Serverless filesystems are ephemeral, so the remote path returns the
+// rendered HTML in the tool result instead of writing files (the fs-writing
+// generateTastePortrait above is untouched — stdio behavior is byte-identical).
+// A byte cap keeps the response inside the transport's practical limits.
+export type TastePortraitInlineResult = {
+  files: { name: string; surface: string; project: string; html: string }[];
+  index_html?: string;
+  warnings: string[];
+  total_bytes: number;
+};
+
+const PORTRAIT_INLINE_MAX_BYTES = 350_000;
+
+export async function generateTastePortraitInline(input: { store: TasteStore; profile: string; project?: string }): Promise<TastePortraitInlineResult> {
+  if (typeof input.profile !== "string" || input.profile.trim().length === 0) {
+    throw new Error("profile is required");
+  }
+  const profile = await getTasteProfile(input.store, input.profile.trim());
+  const project = typeof input.project === "string" && input.project.trim().length > 0 ? input.project.trim() : undefined;
+  const bindings = project === undefined
+    ? await listSurfaceBindings(input.store, profile.name)
+    : [await resolveProjectBinding(input.store, profile.name, project)];
+  if (bindings.length === 0) {
+    throw new Error("No bound taste surfaces found for profile: " + profile.name);
+  }
+
+  const files: { name: string; surface: string; project: string; html: string }[] = [];
+  const warnings: string[] = [];
+  const generatedAt = new Date().toISOString();
+  let totalBytes = 0;
+
+  for (const binding of bindings) {
+    const family = chooseFamily(binding);
+    const page = await buildPageModel(input.store, profile, binding, family, generatedAt);
+    warnings.push(...page.warnings);
+    const html = renderPortraitPage(page);
+    totalBytes += Buffer.byteLength(html, "utf8");
+    files.push({ name: safeFilename(binding.project) + ".html", surface: binding.surface, project: binding.project, html });
+  }
+
+  let indexHtml: string | undefined;
+  if (project === undefined && files.length > 1) {
+    // The gallery index links local files; inline consumers get it as a page.
+    indexHtml = renderGalleryIndex(profile.name, files.map(function (f) { return { path: f.name, surface: f.surface, project: f.project }; }), bindings, generatedAt);
+    totalBytes += Buffer.byteLength(indexHtml, "utf8");
+  }
+
+  if (totalBytes > PORTRAIT_INLINE_MAX_BYTES) {
+    throw new Error(
+      "Inline portrait output is " + totalBytes + " bytes, above the " + PORTRAIT_INLINE_MAX_BYTES +
+      "-byte hosted cap. Pass a single `project` to render one surface at a time."
+    );
+  }
+
+  const result: TastePortraitInlineResult = { files, warnings, total_bytes: totalBytes };
+  if (indexHtml !== undefined) result.index_html = indexHtml;
+  return result;
+}
+
 async function resolveProjectBinding(store: TasteStore, profileName: string, project: string): Promise<SurfaceBinding> {
   const binding = await resolveSurfaceBinding(store, profileName, { project });
   if (binding === null) {
