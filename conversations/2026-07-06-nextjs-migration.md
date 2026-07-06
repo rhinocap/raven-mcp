@@ -50,6 +50,13 @@ Computer crashed mid site-update. Recovered: one staged, intact uncommitted edit
 **Verified:** build green; DOM @1440px: all 3 terminals 760×408, bodies 758×360 — PIXEL-IDENTICAL; step-num = rgb(0,191,255)=#00BFFF. Mobile @390px: 3× 358×361 uniform, `docScrollX:false` (wide mono scrolls inside each terminal's own overflow-x:auto, page body doesn't). Eyes-on desktop + mobile: reads as clean top-to-bottom lifecycle, syntax coloring consistent, no card-soup. Line-count re-counted by hand: ①②③ all exactly 12 lines. Raven audit_taste (raven-mcp binding, text mode): **PASS** (0 findings; one-warm-orange skipped out-of-scope; voice_note "no hype verbs"). design-judge Layer 2: **PASS** (no findings — blue accent in-scope for product-site, restraint held, px on component labels matches existing .replay-caption/.realm-tradition pattern). Codex devil's-advocate: running.
 **Committed:** pending Codex clear (NOT pushed — feature branch).
 
+## ⚠️ CROSS-INSTANCE NOTE — P4 branch has an unpushed local commit (for the P4 instance)
+As of 2026-07-06, local `p4-remote-taste` is **one commit ahead of `origin/p4-remote-taste`**:
+- origin HEAD: `64633d0` (P4.2: RedisTasteStore(sub) + per-request identity threading)
+- local HEAD:  `529b901` (auto-save: `docs/remote-mcp-phase4-progress.md` +8 more) — **NOT on origin**
+
+This auto-save is the P4 instance's WIP; I (nextjs-migration instance) did NOT push it and did NOT touch any P4 backend file (verified: my `feat/nextjs-migration` diff is `web/**`, `site/index.html`, `conversations/**`, `llms.txt` only — zero `api/mcp*`, `src/**` TasteStore, `.well-known`, auth, `next.config`). `feat/nextjs-migration` forked off `529b901`, so that commit rides along in my branch's *history*, but `origin/p4-remote-taste` still points at `64633d0`. **P4 instance: if you want that progress on origin, push `p4-remote-taste` yourself** — I intentionally left your branch alone.
+
 ## State at end of session
 - Static-site grid dimming: committed on feat/nextjs-migration (2972de4)
 - Next.js content port: DONE + verified on feat/nextjs-migration (f5b5d37, 229375c)
