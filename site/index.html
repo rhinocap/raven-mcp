@@ -45,6 +45,9 @@
       --bg-accent: #00BFFF;
       --bg-accent-hover: #33CFFF;
       --bg-accent-subtle: rgba(0, 191, 255, 0.06);
+      --bg-cta-install: rgba(14, 30, 46, 0.82);
+      --bg-cta-install-hover: rgba(22, 44, 66, 0.9);
+      --hero-scrim-rgb: 10, 11, 16;
 
       --border: rgba(255, 255, 255, 0.06);
       --border-strong: rgba(255, 255, 255, 0.1);
@@ -192,6 +195,20 @@
       pointer-events: none;
       mask-image: radial-gradient(ellipse 82% 74% at 50% 44%, #000 52%, transparent 100%);
       -webkit-mask-image: radial-gradient(ellipse 82% 74% at 50% 44%, #000 52%, transparent 100%);
+      opacity: 0.72;
+    }
+    /* Readability scrim: darkens the grid + glow directly behind the hero content
+       so lit gridlines never wash out the H1 / subtitle / install button. */
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background: radial-gradient(ellipse 58% 46% at 50% 42%,
+        rgba(var(--hero-scrim-rgb), 0.62) 0%,
+        rgba(var(--hero-scrim-rgb), 0.30) 46%,
+        transparent 72%);
     }
     .hero .container { z-index: 2; }
 
@@ -348,7 +365,7 @@
     .hero .glow-1 {
       top: -120px; left: 50%; transform: translateX(-50%);
       width: 1400px; height: 800px;
-      background: radial-gradient(ellipse, rgba(0,191,255,0.40) 0%, rgba(0,229,255,0.18) 30%, rgba(0,191,255,0.06) 55%, transparent 80%);
+      background: radial-gradient(ellipse, rgba(0,191,255,0.26) 0%, rgba(0,229,255,0.11) 30%, rgba(0,191,255,0.04) 55%, transparent 80%);
     }
     .hero .glow-2 {
       top: 100px; left: 15%;
@@ -1564,7 +1581,9 @@
       display: flex; align-items: center; gap: var(--space-3);
       min-height: 44px;
       padding: var(--space-3) var(--space-5);
-      background: var(--bg-accent-subtle);
+      background: var(--bg-cta-install);
+      backdrop-filter: blur(12px) saturate(1.4);
+      -webkit-backdrop-filter: blur(12px) saturate(1.4);
       border: 1px solid var(--border-accent);
       border-radius: var(--radius-full);
       font-family: var(--font-mono); font-size: 13px;
@@ -1575,7 +1594,7 @@
     .cta-install svg { color: var(--accent-blue); flex-shrink: 0; }
     .cta-install:hover {
       border-color: var(--accent-blue);
-      background: rgba(0, 191, 255, 0.1);
+      background: var(--bg-cta-install-hover);
     }
 
     /* ══════════════════════════════════════════
@@ -1947,7 +1966,7 @@
           "Design audits for web, iOS/SwiftUI, Android, and React Native",
           "Content voice guides, brand profiles, research methods, and service blueprints",
           "A Taste Engine that makes a person's design judgment portable — audit_taste returns a BLOCK/WARN/PASS verdict citing the rule behind every finding",
-          "Cinematic build recipes that name their paid external dependency and a still-photo fallback before spending"
+          "Cinematic build recipes that name their paid external dependency and a still-photography fallback before spending"
         ]
       },
       {
@@ -2204,8 +2223,8 @@
 
     function drawBeacon(time, mx, my, active) {
       baseGrid(0.02, 40); if (!active) return;
-      radialFill(mx, my, 320, "rgba(0,191,255,0.05)", "rgba(0,191,255,0)");
-      softSpotlightGrid(mx, my, 300, 40, "214,224,240", 0.55);
+      radialFill(mx, my, 320, "rgba(0,191,255,0.032)", "rgba(0,191,255,0)");
+      softSpotlightGrid(mx, my, 300, 40, "214,224,240", 0.36);
     }
     function drawLoom(time, mx, my, active) {
       baseGrid(0.032, 46); if (!active) return;
@@ -3098,8 +3117,8 @@
         <div class="watch-row reveal">
           <div class="watch-text">
             <span class="wc-tool">evaluate_design</span>
-            <h3>Evaluated, then fixed</h3>
-            <p>The finished app scored against Raven's principles and patterns. Raven flags pure-black backgrounds, color-only indicators, and motion gaps&mdash;then fixes them.</p>
+            <h3>Evaluated, with the fix</h3>
+            <p>The finished app scored against Raven's principles and patterns. Raven flags pure-black backgrounds, color-only indicators, and motion gaps&mdash;and returns the fix for each.</p>
           </div>
           <div class="watch-media">
             <div class="mb">
