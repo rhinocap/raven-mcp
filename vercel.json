@@ -5,8 +5,18 @@
     "api/mcp.js": {
       "includeFiles": "src/data/**",
       "maxDuration": 300
+    },
+    "api/mcp-user.js": {
+      "includeFiles": "src/data/**",
+      "maxDuration": 300
     }
   },
+  "rewrites": [
+    { "source": "/.well-known/oauth-protected-resource", "destination": "/api/well-known?doc=prm" },
+    { "source": "/.well-known/oauth-protected-resource/api/mcp-user", "destination": "/api/well-known?doc=prm" },
+    { "source": "/.well-known/oauth-authorization-server", "destination": "/api/well-known?doc=as" },
+    { "source": "/.well-known/oauth-authorization-server/api/mcp-user", "destination": "/api/well-known?doc=as" }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",
@@ -14,6 +24,23 @@
         { "key": "Access-Control-Allow-Origin", "value": "*" },
         { "key": "Access-Control-Allow-Methods", "value": "GET, POST, OPTIONS" },
         { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Accept, Mcp-Session-Id, Mcp-Protocol-Version" }
+      ]
+    },
+    {
+      "source": "/api/mcp-user",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Accept, Authorization, Mcp-Session-Id, Mcp-Protocol-Version" },
+        { "key": "Access-Control-Expose-Headers", "value": "WWW-Authenticate" }
+      ]
+    },
+    {
+      "source": "/.well-known/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Accept" }
       ]
     }
   ]
