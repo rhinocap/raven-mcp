@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revisit — 2026-07-05 (Remote-MCP hosting build P0/1/3 + P4.0 + cinematic feature + v1.16.0)</title>
+<style>
+  :root {
+    --bg-base: #1a1a22;
+    --bg-surface: #212129;
+    --bg-raised: #2a2a33;
+    --border: rgba(255, 255, 255, 0.06);
+    --border-strong: rgba(255, 255, 255, 0.1);
+    --text-primary: #F0F0F2;
+    --text-secondary: #9498A0;
+    --text-tertiary: #5C5F68;
+    --text-accent: #0077c5;
+    --accent-blue: #0077c5;
+    --accent-green: #00E676;
+    --accent-orange: #FFAB40;
+    --accent-pink: #FF4081;
+    --accent-yellow: #FFD740;
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+    --max-width: 960px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .cover {
+    padding: 80px 24px 64px;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 0%, rgba(0, 119, 197, 0.15), transparent),
+      radial-gradient(ellipse 60% 60% at 80% 20%, rgba(0, 230, 118, 0.07), transparent),
+      linear-gradient(180deg, #1f1f2b 0%, var(--bg-base) 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .cover-inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+  }
+  .cover-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 16px;
+  }
+  .cover h1 {
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+  .cover .subtitle {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 680px;
+    margin-bottom: 48px;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .stat {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .stat-value {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .stat-value.green { color: var(--accent-green); }
+  .stat-value.blue { color: var(--accent-blue); }
+  .stat-value.orange { color: var(--accent-orange); }
+  .stat-value.yellow { color: var(--accent-yellow); }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+  .body {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+  .section {
+    margin-bottom: 48px;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .badge-shipped { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-verified { background: rgba(0,119,197,0.15); color: var(--accent-blue); }
+  .badge-miss { background: rgba(255,171,64,0.12); color: var(--accent-orange); }
+  .badge-repeat { background: rgba(255,64,129,0.12); color: var(--accent-pink); }
+  .badge-win { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-fixed { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .card p {
+    color: var(--text-secondary);
+    margin-top: 4px;
+    line-height: 1.65;
+  }
+  .card code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: rgba(255,255,255,0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-primary);
+  }
+  .card blockquote {
+    margin-top: 10px;
+    padding: 10px 16px;
+    border-left: 3px solid var(--accent-orange);
+    background: rgba(255,171,64,0.06);
+    color: var(--text-primary);
+    font-style: italic;
+  }
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 32px 0;
+  }
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .table-wrap {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    padding: 14px 20px;
+    text-align: left;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 14px 20px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  td:first-child { color: var(--text-primary); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  .highlight {
+    background: rgba(0,119,197,0.08);
+    border: 1px solid rgba(0,119,197,0.2);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .highlight p { color: var(--text-primary); }
+  .tag-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .tag {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-label">Revisit · 2026-07-05 · Headless (auto-fired on /clear)</div>
+    <h1>Six adversarial rounds,<br>zero shipped holes</h1>
+    <p class="subtitle">The remote-MCP hosting plan went from scope doc to shipped release in one sitting — Phases 0/1/3, an async taste-store refactor, and a new cinematic-website feature, all released as v1.16.0. Every phase went through a report-only Codex devil's-advocate pass before being called done, and every one of the six rounds found something real.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value blue">~76%</div>
+        <div class="stat-label">First-attempt accuracy</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value orange">6×</div>
+        <div class="stat-label">Codex adversarial rounds, 6 real holes found</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value green">45/70</div>
+        <div class="stat-label">Tools live on the no-auth remote endpoint</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value green">0</div>
+        <div class="stat-label">Push rejections</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="body">
+
+  <div class="section">
+    <div class="section-label">What shipped — v1.16.0</div>
+    <div class="card">
+      <div class="card-title">Phase 0 — additive <code>buildServer()</code> factory <span class="badge badge-shipped">Shipped</span></div>
+      <p>The module-level <code>McpServer</code> singleton could only <code>connect()</code> once (SDK issue #961), so stdio and the new HTTP transport needed separate server instances from the same registration code. Solved additively — stdio's existing behavior is untouched.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Phase 1 — 45 stateless tools live on the no-auth remote endpoint <span class="badge badge-shipped">Shipped</span> <span class="badge badge-verified">4 adversarial rounds</span></div>
+      <p><code>REMOTE_GATED_TOOLS</code> + <code>isRemoteRuntime()</code> — a one-way latch — gate filesystem, local-store, and side-effecting tools off the anonymous remote surface entirely, rather than patching each tool individually. Verified by <code>test/remote-store-invariant.test.mjs</code> and a golden tool-count hash. Took 4 rounds of Codex adversarial review to close: fs-read/SSRF/compute-DoS, path traversal, a local-store read/write oracle, and side-effecting-tool abuse, each a genuinely distinct hole the previous round's fix didn't cover.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Phase 3 — 5 browser-dependent tools via a hardened, proxied Chromium <span class="badge badge-shipped">Shipped</span> <span class="badge badge-verified">Adversarially verified</span></div>
+      <p>An in-process, memoized SSRF-safe egress proxy (DNS-rebind-safe <code>validateAndResolve</code>) in front of a <code>@sparticuz/chromium</code> + <code>playwright-core</code> launch, with proxy + hardening flags. A socket-teardown race was found and fixed in the adversarial pass.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">P4.0 — async <code>TasteStore</code> interface, byte-identical stdio <span class="badge badge-shipped">Shipped</span> <span class="badge badge-win">Self-caught regression</span></div>
+      <p><code>FsTasteStore</code> / <code>ClosedTasteStore</code> with a <code>.describe()</code> method for byte-identity-preserving error messages. Self-caught its own regression (Item C) before shipping rather than papering over the divergence.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Cinematic-website taste-engine feature <span class="badge badge-shipped">Shipped</span> <span class="badge badge-fixed">Fixed after Codex round</span></div>
+      <p>Two new <code>TECHNIQUE_RECIPES</code> (AI cinematic video hero via Higgsfield/Seedance 2.0, scroll-scrub cinematic sequence) plus 4 new interview options, distilled from an external source rather than copying branded prompts verbatim. A Higgsfield MCP dependency is disclosed at the interview opt-in moment, not hidden.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Mistakes &amp; lessons</div>
+
+    <div class="card">
+      <div class="card-title">Same root cause, four Codex rounds in a row <span class="badge badge-repeat">Repeat — bumped to 5×</span></div>
+      <p>The original Phase 1 tool classification split by state and browser-dependency but never enumerated the full blocking-capability axis (filesystem / network / local-store / compute-side-effect) up front. Each of four Codex rounds found a distinct hole on that missing axis — fs/SSRF, path traversal, local-store oracle, side-effect abuse — instead of one checklist catching all four in round 1.</p>
+      <div class="tag-row">
+        <span class="tag">queued → PROMOTION-QUEUE.md</span>
+        <span class="tag">scope-doc-enumerate-capability-axes (now 5×)</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><code>codex:codex-rescue</code> is not resumable <span class="badge badge-repeat">Repeat — bumped to 5×</span></div>
+      <p>Hit twice more this session (P4.0 verify, cinematic-feature verify): the rescue agent is a pure single-invocation forwarder that launches a detached Codex task and returns immediately. Trying to "resume" it for a blocking result gets an explicit refusal — "I am not permitted to call status, poll, block, or fetch results." Correct pattern: poll the on-disk job-state JSON directly, or arm a background Bash watcher.</p>
+      <div class="tag-row">
+        <span class="tag">queued → PROMOTION-QUEUE.md</span>
+        <span class="tag">agent-output-placeholder-content-check (now 5×)</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Fable advisor <code>fork</code> inherited context and drifted <span class="badge badge-miss">New — queued</span></div>
+      <p>Consulted Fable 5 via a context-inheriting Agent <code>fork</code> for a fresh architecture question. It read 122k tokens of prior conversation, made zero tool calls, and returned a status echo instead of a plan. Relaunching as a clean, self-contained <code>Plan</code> agent (no inherited context) fixed it immediately.</p>
+      <div class="tag-row">
+        <span class="tag">queued → PROMOTION-QUEUE.md</span>
+        <span class="tag">advisor-fork-inherits-and-drifts (new, 1×)</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Over-broad trigger regex, self-shipped defect <span class="badge badge-fixed">Caught by Codex, fixed</span></div>
+      <p>First-draft cinematic-feature trigger patterns (<code>cinematic (video|film|clip)</code>, <code>video[- ]?led hero</code>) matched non-AI and anti-AI notes, incorrectly pushing paid-Higgsfield guidance. Existing tests had actually blessed these broad matches as intended positives. An independent Codex adversarial pass caught it; fixed by tightening the regex, flipping 4 tests to negatives, and adding explicit false-positive tests.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Self-caught, not shipped</div>
+      <p>A redirect-to-cloud-metadata SSRF probe reported a spurious <code>FAIL</code> — its own leak-detector matched the echoed input URL rather than real leaked content. Investigated rather than accepting the fail, wrote a corrected detector, re-verified genuinely on the live deployment. A stray literal file named <code>0</code> (misread shell redirect around an env var in a smoke test) was caught and removed pre-commit.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Verification that held</div>
+    <div class="card">
+      <div class="card-title">Adversarial review did its job, six times over <span class="badge badge-win">Win</span></div>
+      <p>Every phase (Phase 1 ×4, Phase 3, cinematic feature) went through a report-only Codex devil's-advocate pass (<code>git diff --stat</code> checked before reading its output) before being called done — and every single round found something real, never a rubber stamp.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Precise, source-checked answers over assumptions <span class="badge badge-win">Win</span></div>
+      <p>Andrew's follow-up questions on npm distribution (the <code>files</code> field ships <code>dist/</code> but not <code>api/</code> — npm releases never carry the remote handler), Higgsfield MCP setup, and Vercel project-topology risk (the linked "site" project also serves the public ravenmcp.ai marketing homepage) were all answered by checking actual config/state, not by assuming.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Design-judge Stop hook discriminated correctly <span class="badge badge-win">Win</span></div>
+      <p>Fired ~6 times on done/fixed/shipped claims — PASS with cited rule IDs when a real copy/prose artifact existed, a clean decline with stated reasoning when the claim was pure backend/security/topology work with no visual or copy surface.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Promotion queue (blocked in headless — needs a manual /revisit)</div>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Slug</th><th>Count</th><th>Rule</th></tr>
+        <tr><td>agent-output-placeholder-content-check</td><td>5×</td><td>Subagent/tool results can pass schema validation while the content is a stub — including <code>codex:codex-rescue</code>'s own "task started" acknowledgment. Poll job-state JSON directly; never resume the rescue agent for a blocking result.</td></tr>
+        <tr><td>scope-doc-enumerate-capability-axes</td><td>5×</td><td>Enumerate all blocking-capability axes (state, network, browser, GPU/ML-inference, local-store, side-effect) explicitly and up front when classifying tools for a hosting/architecture scope doc — 4 Codex rounds this session each found one missing axis in turn.</td></tr>
+        <tr><td>advisor-fork-inherits-and-drifts</td><td>1× (new)</td><td>Never use a context-inheriting Agent <code>fork</code> for a fresh advisor/planner consult (e.g. Fable 5) — it inherits full conversation context and can echo/narrate status instead of independently reasoning. Use a clean, self-contained agent type instead.</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">What would help go faster</div>
+    <div class="highlight">
+      <p>A single capability-axis checklist (state / network / browser / local-store / side-effect / GPU-inference) applied to the tool classification BEFORE the first Codex round would have collapsed 4 rounds of Phase 1 security findings into 1. The rescue-agent forward-only behavior is now confirmed enough times that it should be habitual, not rediscovered per session — worth a one-line reminder at the top of any Codex-delegated verify step.</p>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
