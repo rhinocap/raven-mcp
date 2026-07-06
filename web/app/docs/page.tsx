@@ -6,7 +6,7 @@ import './docs.css'
 export const metadata: Metadata = {
   title: 'Docs — RavenMCP',
   description:
-    'Install RavenMCP and use its 55 design-intelligence tools with Claude. Full setup for Claude Code, Claude Desktop, and any MCP client.',
+    'Install RavenMCP and use its 70 design-intelligence tools with Claude. Full setup for Claude Code, Claude Desktop, and any MCP client.',
   alternates: { canonical: '/docs' },
 };
 

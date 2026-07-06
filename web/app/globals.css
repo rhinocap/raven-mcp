@@ -10,6 +10,9 @@
       --bg-accent: #00BFFF;
       --bg-accent-hover: #33CFFF;
       --bg-accent-subtle: rgba(0, 191, 255, 0.06);
+      --bg-cta-install: rgba(14, 30, 46, 0.82);
+      --bg-cta-install-hover: rgba(22, 44, 66, 0.9);
+      --hero-scrim-rgb: 10, 11, 16;
 
       --border: rgba(255, 255, 255, 0.06);
       --border-strong: rgba(255, 255, 255, 0.1);
@@ -146,6 +149,33 @@
       -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
       pointer-events: none;
     }
+
+    /* ── Interactive hero grid (cursor-follow silver grid, Higgsfield-style) ── */
+    .hero-grid-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+      mask-image: radial-gradient(ellipse 82% 74% at 50% 44%, #000 52%, transparent 100%);
+      -webkit-mask-image: radial-gradient(ellipse 82% 74% at 50% 44%, #000 52%, transparent 100%);
+      opacity: 0.72;
+    }
+    /* Readability scrim: darkens the grid + glow directly behind the hero content
+       so lit gridlines never wash out the H1 / subtitle / install button. */
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background: radial-gradient(ellipse 58% 46% at 50% 42%,
+        rgba(var(--hero-scrim-rgb), 0.62) 0%,
+        rgba(var(--hero-scrim-rgb), 0.30) 46%,
+        transparent 72%);
+    }
+    .hero .container { z-index: 2; }
 
     /* ── Gradient Glow ── */
     .glow {
@@ -1483,6 +1513,58 @@
     .realm h4 { font-size: 20px; margin-bottom: var(--space-1); }
     .realm p { font-size: 19px; color: var(--text-tertiary); line-height: 1.55; }
 
+    /* ── TASTE ENGINE (The Design Judge) ─────────────────── */
+    .judge { padding: clamp(80px, 9vw, 144px) 0; position: relative; }
+    .judge-grid {
+      display: grid; gap: clamp(40px, 5vw, 72px);
+      align-items: center; margin-top: clamp(48px, 6vw, 80px);
+    }
+    @media (min-width: 900px) {
+      .judge-grid { grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); }
+    }
+    .judge-text { max-width: 36rem; }
+    .eyebrow-tool {
+      display: inline-block; font-family: var(--font-mono); font-size: 12px;
+      letter-spacing: 0.01em; color: var(--accent-blue);
+      background: var(--bg-accent-subtle); border: 1px solid var(--border-accent);
+      padding: 4px 11px; border-radius: var(--radius-full); margin-bottom: var(--space-5);
+    }
+    .judge-text h2 { font-size: clamp(28px, 3.4vw, 44px); margin-bottom: var(--space-5); }
+    .judge-text > p {
+      font-size: clamp(17px, 1.4vw, 20px); line-height: 1.6;
+      color: var(--text-secondary); margin: 0 0 var(--space-7);
+    }
+    .judge-proof { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-5); }
+    .judge-proof li { display: flex; gap: var(--space-3); font-size: 16px; line-height: 1.55; color: var(--text-secondary); }
+    .judge-proof li strong { color: var(--text-primary); font-weight: 600; }
+    .judge-proof svg { flex-shrink: 0; margin-top: 3px; color: var(--accent-green); }
+    .judge-proof code {
+      font-family: var(--font-mono); font-size: 0.86em; color: var(--accent-blue);
+      background: var(--bg-accent-subtle); padding: 1px 6px; border-radius: var(--radius-sm);
+    }
+
+    /* Static terminal (replay / recipe) — content-sized, no animation */
+    .static-term-body {
+      padding: var(--space-6) var(--space-7);
+      font-family: var(--font-mono); font-size: 13px; line-height: 1.9;
+      overflow-x: auto;
+    }
+    .static-term-body pre { margin: 0; white-space: pre; color: var(--text-secondary); font: inherit; }
+    .static-term-body .k { color: var(--accent-blue); }
+    .static-term-body .v { color: var(--accent-orange); }
+    .static-term-body .c { color: var(--text-tertiary); }
+    .static-term-body .g { color: var(--accent-green); }
+    .static-term-body .block { color: var(--accent-orange); font-weight: 600; }
+    .replay-caption {
+      font-size: 13px; line-height: 1.55; color: var(--text-tertiary);
+      margin: var(--space-4) 0 0; max-width: 46rem;
+    }
+
+    /* ── CINEMATIC BUILDS (Higgsfield) ───────────────────── */
+    .cinematic { padding: clamp(80px, 9vw, 144px) 0; }
+    .recipe { max-width: 760px; margin: clamp(40px, 5vw, 64px) auto 0; }
+    .recipe .static-term-body { padding: var(--space-6) var(--space-8); line-height: 2; }
+
     /* ══════════════════════════════════════════
        FINAL CTA
        ══════════════════════════════════════════ */
@@ -1516,7 +1598,9 @@
       display: flex; align-items: center; gap: var(--space-3);
       min-height: 44px;
       padding: var(--space-3) var(--space-5);
-      background: var(--bg-accent-subtle);
+      background: var(--bg-cta-install);
+      backdrop-filter: blur(12px) saturate(1.4);
+      -webkit-backdrop-filter: blur(12px) saturate(1.4);
       border: 1px solid var(--border-accent);
       border-radius: var(--radius-full);
       font-family: var(--font-mono); font-size: 13px;
@@ -1527,7 +1611,7 @@
     .cta-install svg { color: var(--accent-blue); flex-shrink: 0; }
     .cta-install:hover {
       border-color: var(--accent-blue);
-      background: rgba(0, 191, 255, 0.1);
+      background: var(--bg-cta-install-hover);
     }
 
     /* ══════════════════════════════════════════

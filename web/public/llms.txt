@@ -1,6 +1,6 @@
 # RavenMCP
 
-> RavenMCP (Raven) is an open-source [Model Context Protocol](https://modelcontextprotocol.io) server that gives AI agents like Claude design intelligence — the design knowledge once locked in expert heads. It exposes 55 tools across nine knowledge layers: design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, and multi-platform design audits (web, iOS, Android, React Native). It is free, MIT-licensed, and installs in one command.
+> RavenMCP (Raven) is an open-source [Model Context Protocol](https://modelcontextprotocol.io) server that gives AI agents like Claude design intelligence — the design knowledge once locked in expert heads. It exposes 70 tools spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits (web, iOS, Android, React Native), and a Taste Engine that holds every build to the owner's own design judgment. It is free, MIT-licensed, and installs in one command.
 
 Install with one command:
 
@@ -9,12 +9,14 @@ claude mcp add raven -- npx -y raven-mcp
 ```
 
 Key facts:
-- 55 focused tools, grouped by job (query, audit, generate, score).
+- 70 focused tools, grouped by job (know, create, audit, judge).
 - 129 design principles: Nielsen's heuristics, Laws of UX, Gestalt, WCAG accessibility, typography, color theory, mobile UX, responsive layout, and the D4D framework — each with violations and checklists.
 - 22 reusable UI patterns.
 - 12 world-class design systems with production tokens in W3C DTCG format.
 - Audits for web pages, layouts, SwiftUI/iOS screens, Android, and React Native — checking principles, patterns, contrast, tap targets, typography, and accessibility.
 - Content voice guides, brand profiles, research methods, and service blueprints.
+- A Taste Engine that makes a person's design judgment portable: calibrate a profile once, then audit_taste returns a BLOCK/WARN/PASS verdict on any build, citing the rule_id and evidence behind every finding — and learning from your corrections. Profiles stay local under ~/.raven/taste.
+- Cinematic build recipes that name their paid external dependency (e.g. the Higgsfield MCP) and a still-photography fallback, so the agent confirms any spend with you before running it.
 - 100% free and open source. No tiers, no limits, no account required.
 
 ## Documentation
@@ -25,7 +27,7 @@ Key facts:
 
 ## About
 
-- [Homepage](https://ravenmcp.ai/): Overview of the nine knowledge layers, the 55 tools, and live examples.
+- [Homepage](https://ravenmcp.ai/): Overview of the Taste Engine, the knowledge layers, the 70 tools, and live examples.
 - [About](https://ravenmcp.ai/about.html): The project, its creator, and the story behind the name.
 - [GitHub](https://github.com/rhinocap/raven-mcp): Source code, issues, and contribution guide (MIT license).
 
