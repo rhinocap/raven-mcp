@@ -203,7 +203,7 @@ export default function Home() {
                 <div className="stat">22</div>
                 <div className="stat-label">Pattern libraries</div>
                 <h3>Patterns</h3>
-                <p>Proven UI patterns for signup, pricing, dashboards, forms, navigation, CTAs&mdash;plus content patterns (errors, empty states, notifications) and service patterns (blueprinting, handoff).</p>
+                <p>Field-tested UI patterns for signup, pricing, dashboards, forms, navigation, CTAs&mdash;plus content patterns (errors, empty states, notifications) and service patterns (blueprinting, handoff).</p>
                 <div className="layer-tags">
                   <span className="tag">Landing Pages</span>
                   <span className="tag">Pricing</span>
@@ -787,7 +787,7 @@ export default function Home() {
                 <div className="watch-text">
                   <span className="wc-tool">get_pattern &middot; audit_typography</span>
                   <h3>Patterns with evidence</h3>
-                  <p>Need a dashboard or streak system? Raven returns the proven pattern&mdash;do's, don'ts, and the research behind it&mdash;before a pixel is drawn.</p>
+                  <p>Need a dashboard or streak system? Raven returns the pattern that works&mdash;do's, don'ts, and the research behind it&mdash;before a pixel is drawn.</p>
                 </div>
                 <div className="watch-media">
                   <div className="mb">
