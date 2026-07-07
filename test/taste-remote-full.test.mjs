@@ -2,7 +2,7 @@
  * taste-remote-full.test.mjs — P4.3
  *
  * The FULL authed taste subset over a per-user Redis store (fake client):
- *   - gating: remote+store = 55 tools (45 + all 10); remote bare = golden 45;
+ *   - gating: remote+store = 56 tools (45 + all 10 + delete); remote bare = golden 45;
  *     stdio = 70
  *   - the whole loop via the registered tool handlers on a remote+store
  *     server: create → interview → bind → record_decision → list_decisions →
@@ -43,6 +43,15 @@ function fakeRedis() {
     async smembers(key) { const s = kv.get(key); return s instanceof Set ? [...s] : []; },
     async rpush(key, ...values) { if (!Array.isArray(kv.get(key))) kv.set(key, []); const l = kv.get(key); for (const v of values) l.push(clone(v)); return l.length; },
     async lrange(key, start, stop) { const l = kv.get(key); if (!Array.isArray(l)) return []; const end = stop === -1 ? l.length : stop + 1; return clone(l.slice(start, end)); },
+    async scan(cursor, opts) {
+      const match = opts && opts.match;
+      const re = match ? new RegExp('^' + match.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$') : null;
+      const all = [...kv.keys()].filter((k) => !re || re.test(k));
+      const start = Number(cursor) || 0;
+      const page = all.slice(start, start + 2);
+      const next = start + 2 >= all.length ? '0' : String(start + 2);
+      return [next, page];
+    },
   };
 }
 
@@ -63,7 +72,7 @@ function anonymousMetadataPayload(server, names) {
   });
 }
 
-test('gating: remote+store = 55 (45 + all 10 taste); bare remote = golden 45; stdio = 70', () => {
+test('gating: remote+store = 56 (45 + all 10 taste + delete_taste_data); bare remote = golden 45; stdio = 70', () => {
   const bare = buildServer({ remote: true });
   const bareNames = Object.keys(bare._registeredTools).sort();
   assert.equal(bareNames.length, 45);
@@ -71,9 +80,9 @@ test('gating: remote+store = 55 (45 + all 10 taste); bare remote = golden 45; st
 
   const authed = buildServer({ remote: true, tasteStore: new RedisTasteStore('user_A', fakeRedis()) });
   const authedNames = Object.keys(authed._registeredTools).sort();
-  assert.equal(authedNames.length, 55, '45 + all 10 taste tools');
+  assert.equal(authedNames.length, 56, '45 + all 10 taste tools + delete_taste_data');
   const extras = authedNames.filter((n) => !bareNames.includes(n)).sort();
-  assert.deepEqual(extras, ALL_TASTE.slice().sort());
+  assert.deepEqual(extras, ALL_TASTE.concat('delete_taste_data').sort());
 
   assert.equal(Object.keys(buildServer({})._registeredTools).length, 70, 'stdio unchanged');
 });
@@ -168,6 +177,32 @@ test('full loop over the remote+store server handlers', async () => {
   // Nothing may have been written to /tmp/ignored.
   const { existsSync } = await import('node:fs');
   assert.equal(existsSync('/tmp/ignored'), false, 'remote portrait must not touch the filesystem');
+});
+
+test('delete_taste_data erases only the connected user taste keyspace', async () => {
+  const redis = fakeRedis();
+  const server = buildServer({ remote: true, tasteStore: new RedisTasteStore('user_A', redis) });
+
+  await call(server, 'create_taste_profile', { name: 'deletaste' });
+  await call(server, 'bind_taste_surface', {
+    profile: 'deletaste', project: 'deleteproj', surface: 'site',
+    design_notes: { color: 'dark' }
+  });
+  await call(server, 'record_taste_decision', {
+    profile: 'deletaste', project: 'deleteproj', dimension: 'color', decision: 'dark'
+  });
+  redis.kv.set('rl:user_A:w', 1);
+
+  const deleted = await call(server, 'delete_taste_data', { confirm: 'DELETE' });
+  assert.ok(!deleted.isError, deleted.text);
+  assert.equal(deleted.json.remaining, 0);
+  assert.equal(deleted.json.ok, true);
+  assert.deepEqual([...redis.kv.keys()].filter((k) => k.startsWith('taste:user_A:')), [], 'all user taste keys are gone');
+  assert.equal(redis.kv.get('rl:user_A:w'), 1, 'rate-limit key survives');
+
+  const again = await call(server, 'delete_taste_data', { confirm: 'DELETE' });
+  assert.ok(!again.isError, again.text);
+  assert.equal(again.json.remaining, 0, 'second delete is idempotent');
 });
 
 test('remote bind_taste_surface refuses local .png reference paths', async () => {

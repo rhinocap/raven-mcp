@@ -21,6 +21,7 @@ import { RedisTasteStore } from "../dist/taste-store-redis.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { Redis } from "@upstash/redis";
 import { verifyBearer, wwwAuthenticate } from "./_auth.js";
+import { checkRateLimit } from "./_ratelimit.js";
 
 // Upstash Redis REST client — module-level is safe: it is user-AGNOSTIC
 // config (URL + token from env). All per-user scoping lives in the
@@ -58,6 +59,17 @@ export default async function handler(req, res) {
       jsonrpc: "2.0",
       error: { code: -32001, message: auth.missing ? "Authentication required." : "Invalid access token." },
       id: null
+    });
+    return;
+  }
+
+  const rl = await checkRateLimit(redis(), auth.claims.sub);
+  if (!rl.allowed) {
+    res.setHeader("Retry-After", String(rl.retryAfter));
+    res.status(429).json({
+      jsonrpc: "2.0",
+      error: { code: -32000, message: "Rate limit exceeded. Retry after " + rl.retryAfter + "s." },
+      id: recoverableId(req.body)
     });
     return;
   }

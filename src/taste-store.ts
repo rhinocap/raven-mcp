@@ -16,6 +16,10 @@ export interface TasteStore {
   // prefers it when present. FsTasteStore intentionally does NOT implement it,
   // so the stdio path is byte-for-byte unchanged.
   appendDecision?(name: string, decision: TasteDecision): Promise<void>;
+  // OPTIONAL irreversible per-user erasure. Remote Redis stores implement this;
+  // FsTasteStore intentionally does NOT implement it, so the stdio path is
+  // byte-for-byte unchanged.
+  deleteAllUserData?(): Promise<{ deleted: number; remaining: number }>;
   // Human label for a store slot, used only in corrupt-store error messages.
   // Fs returns the absolute path; non-fs stores return the logical file name
   // (an absolute path would be a lie for a Redis-backed store).

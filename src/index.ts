@@ -1606,6 +1606,7 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   "create_taste_profile", "get_taste_profile", "list_taste_profiles",
   "get_taste_interview", "bind_taste_surface", "record_taste_decision",
   "list_taste_decisions", "generate_taste_portrait", "label_finding", "audit_taste",
+  "delete_taste_data",
   "create_brand_profile", "get_brand_profile", "list_brand_profiles",
   "register_creative_asset", "create_character_profile", "create_generation_job",
   "get_generation_job", "list_generation_jobs", "plan_creative_campaign", "raven_reflect",
@@ -1637,7 +1638,8 @@ const REMOTE_GATED_TOOLS = new Set<string>([
 const AUTHED_USER_TASTE_TOOLS = new Set<string>([
   "create_taste_profile", "get_taste_profile", "list_taste_profiles",
   "get_taste_interview", "bind_taste_surface", "record_taste_decision",
-  "list_taste_decisions", "generate_taste_portrait", "label_finding", "audit_taste"
+  "list_taste_decisions", "generate_taste_portrait", "label_finding", "audit_taste",
+  "delete_taste_data"
 ]);
 
 const AUTHED_USER_TASTE_STARTUP_INSTRUCTIONS =
@@ -5822,6 +5824,23 @@ server.tool(
     return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "create_taste_profile", name: profile.name, rules: profile.rules.length, corpus: profile.corpus.length, home: (remote && hasUserStore) ? "cloud:per-user" : (process.env.RAVEN_TASTE_HOME ? "RAVEN_TASTE_HOME" : "~/.raven/taste") }, null, 2) }] };
   }
 );
+
+if (remote && hasUserStore) {
+  server.tool(
+    "delete_taste_data",
+    "IRREVERSIBLY delete ALL of the connected user's stored taste data on the hosted endpoint — every taste profile, surface binding, and recorded decision keyed to your account (the taste:{you}:* keyspace). This does not touch rate-limit counters and cannot be undone. Requires confirm:\"DELETE\". Returns {deleted, remaining}; remaining>0 means erasure was incomplete (reported as an error).",
+    { confirm: z.literal("DELETE").describe("Must be exactly the string DELETE to authorize irreversible erasure of all your stored taste data.") },
+    async function ({ confirm }) {
+      var store: any = tasteStore;
+      if (typeof store.deleteAllUserData !== "function") {
+        return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ tool: "delete_taste_data", error: "deletion is only available on the hosted per-user store" }, null, 2) }] };
+      }
+      var res = await store.deleteAllUserData();
+      var failed = res.remaining > 0;
+      return { isError: failed, content: [{ type: "text" as const, text: JSON.stringify({ tool: "delete_taste_data", deleted: res.deleted, remaining: res.remaining, ok: !failed }, null, 2) }] };
+    }
+  );
+}
 
 server.tool(
   "get_taste_profile",
