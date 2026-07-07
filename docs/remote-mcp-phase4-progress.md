@@ -92,6 +92,8 @@
 
 Harness prints `=== N/N PASS ===`. Paste that block back and the agent fills the P4.3 evidence slot + boxes it (after the adversarial Codex pass + eyes-on).
 
+> **Diagnostic:** if a connected client shows **45** taste-less tools instead of **55**, that's not a Raven bug — `/api/mcp-user` intentionally falls back to the anonymous 45-tool surface when the Upstash Redis env is absent (`redis()` returns null → `buildServer({ remote: true })`, no per-user store). Fix = confirm the Upstash env vars are present in the Vercel **Preview** environment for the `p4-remote-taste` branch, not the account tier.
+
 ### Part B — Three client connects (P4.4). Same URL for all: `https://mcp.ravenmcp.ai/api/mcp-user`
 
 **B1. Claude.ai** — Settings → Connectors → **+ Add custom connector** → name "Raven MCP", paste URL, leave OAuth Client ID/Secret blank (DCR auto-registers) → **Add**. Expected hops: PRM fetch → AS `artistic-gold-76-staging.authkit.app` → DCR → AuthKit login (**you sign in + Authorize**) → PKCE exchange → badge "Connected". **Interview check:** new chat, enable the connector, ask anything touching taste → `get_taste_interview` fires with `existing_binding: null` on first contact. **Reconnect check:** 2nd new chat → **same** profile/binding returned, no fresh interview.

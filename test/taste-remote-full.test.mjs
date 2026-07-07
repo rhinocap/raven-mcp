@@ -96,6 +96,26 @@ test('authed startup tuning appears only on store-backed remote metadata', () =>
   assert.ok(authed._registeredTools.get_taste_interview.description.includes(AUTHED_INTERVIEW_DESCRIPTION));
 });
 
+// Leak-guard: build an AUTHED server FIRST (which mutates its own instructions),
+// then a fresh anon build must still be byte-golden — proves the instructions
+// string is per-instance, not a shared reference the authed build pollutes.
+test('authed-first build does not leak startup tuning into a later anon build', () => {
+  const authedFirst = buildServer({ remote: true, tasteStore: new RedisTasteStore('user_A', fakeRedis()) });
+  assert.ok(authedFirst.server._options.instructions.includes(AUTHED_STARTUP_INSTRUCTIONS), 'authed build carries the tuning');
+
+  const anonAfter = buildServer({ remote: true });
+  const anonNames = Object.keys(anonAfter._registeredTools).sort();
+  assert.equal(createHash('sha256').update(anonNames.join('\n')).digest('hex'), GOLDEN_45_HASH, 'anon after authed still golden-45');
+  assert.equal(createHash('sha256').update(anonAfter.server._options.instructions).digest('hex'), ANONYMOUS_INSTRUCTIONS_HASH, 'anon instructions unchanged after an authed build');
+  assert.ok(!anonAfter.server._options.instructions.includes(AUTHED_STARTUP_INSTRUCTIONS), 'no startup tuning leaked into anon');
+  assert.notEqual(authedFirst.server._options, anonAfter.server._options, 'each build has its own _options');
+
+  // A second authed build must carry exactly ONE copy of the tuning (no cumulative append).
+  const authedSecond = buildServer({ remote: true, tasteStore: new RedisTasteStore('user_B', fakeRedis()) });
+  assert.equal((authedSecond.server._options.instructions.match(/AUTHENTICATED STARTUP:/g) || []).length, 1, 'startup tuning not double-appended');
+  assert.equal((authedSecond._registeredTools.get_taste_interview.description.match(/AUTHENTICATED STARTUP:/g) || []).length, 1, 'interview suffix not double-appended');
+});
+
 test('full loop over the remote+store server handlers', async () => {
   const redis = fakeRedis();
   const server = buildServer({ remote: true, tasteStore: new RedisTasteStore('user_A', redis) });
