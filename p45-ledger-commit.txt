@@ -1,0 +1,24 @@
+docs(p4.5): Bar-1 authed legs LIVE-VERIFIED — delete + rate-limit; promote human-gated
+
+Live on mcp.ravenmcp.ai with a real AuthKit token (identity A):
+- delete_taste_data{confirm:"DELETE"} -> {deleted:6, remaining:0, ok:true};
+  wrong confirm rejected (z.literal); reads-empty (list->[], gets->not-found).
+  Upstash out-of-band SCAN taste:{sub}:* = [0,[]] (0 keys) while rl:{sub}:*
+  survived -> delete swept the taste namespace and left rate-limit keys alone.
+- rate limit: authed flood 135 -> exactly 120x200 + 15x429 (Retry-After 49);
+  anon flood 135 -> 135x200 / 0x429 (unthrottled).
+- anon 45/golden f64bb18... re-proven; delete_taste_data absent+refused on anon;
+  PRM 200; both 401 challenges.
+
+Adversarial report-only devil's-advocate pass on the final state (fresh build,
+suite green, golden hash reproduced) falsified none of 5 claims: delete
+completeness/safety, rate-limit fail-open + namespace isolation, api/mcp.js
+byte-identical, secrets env-only, promote doc correct. Two non-blocking notes:
+fixed-window ~2x boundary burst (inherent, undocumented as caveat) and SCAN not
+covering keys written during a sweep (not exploitable single-user).
+
+P4.5 NOT done: production promote is human-gated (single supervised
+`vercel deploy --prod` to project site prj_Tdsg7..., repo root, never
+`vercel promote`, never web/) per docs/remote-mcp-promote-gonogo.md.
+
+Ledger only; no source changes.
