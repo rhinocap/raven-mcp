@@ -18,6 +18,34 @@ test("checkRateLimit fails open when incr throws", async function () {
   assert.deepEqual(await checkRateLimit(throwingClient, "user-1"), { allowed: true });
 });
 
+test("checkRateLimit re-arms the TTL on every hit (no no-TTL key leak)", async function () {
+  // Regression guard: EXPIRE must fire on every request, not only when count===1,
+  // so a transient EXPIRE failure on the first hit self-heals on the next instead
+  // of leaving an rl: key with no TTL forever.
+  const expireCalls = [];
+  const fakeClient = {
+    counts: new Map(),
+    async incr(key) {
+      const next = (this.counts.get(key) || 0) + 1;
+      this.counts.set(key, next);
+      return next;
+    },
+    async expire(key, ttl) {
+      expireCalls.push({ key, ttl });
+    }
+  };
+
+  await checkRateLimit(fakeClient, "user-ttl");
+  await checkRateLimit(fakeClient, "user-ttl");
+  await checkRateLimit(fakeClient, "user-ttl");
+
+  assert.equal(expireCalls.length, 3, "EXPIRE should be called on every request");
+  for (const c of expireCalls) {
+    assert.ok(c.key.startsWith("rl:user-ttl:"));
+    assert.ok(c.ttl > 0);
+  }
+});
+
 test("checkRateLimit enforces fixed-window limit with rl-prefixed keys", async function () {
   const previousLimit = process.env.RAVEN_USER_RATE_LIMIT;
   const previousWindow = process.env.RAVEN_USER_RATE_LIMIT_WINDOW_S;

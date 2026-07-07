@@ -40,7 +40,14 @@ function redis() {
 const MAX_BODY_BYTES = 400_000;
 
 function recoverableId(body) {
-  return (body && typeof body === "object" && !Array.isArray(body) && body.id !== undefined) ? body.id : null;
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const id = body.id;
+  // JSON-RPC ids are string|number|null. Reflect only those, and cap string
+  // length, so a hostile oversized/object id can't be echoed back in an error
+  // response before the MAX_BODY_BYTES guard has a chance to run.
+  if (typeof id === "number") return id;
+  if (typeof id === "string") return id.length <= 256 ? id : null;
+  return null;
 }
 
 export default async function handler(req, res) {

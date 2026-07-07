@@ -14,7 +14,10 @@ export async function checkRateLimit(client, sub) {
   const key = "rl:" + sub + ":" + bucket;
   try {
     const count = await client.incr(key);
-    if (count === 1) await client.expire(key, windowS * 2);
+    // Re-arm the TTL on every hit (EXPIRE is idempotent) rather than only on the
+    // first: if EXPIRE ever fails right after INCR created the key, the next
+    // request self-heals it instead of leaking a no-TTL rl: key forever.
+    await client.expire(key, windowS * 2);
     if (count > limit) {
       const retryAfter = (bucket + 1) * windowS - now;
       return { allowed: false, retryAfter: retryAfter > 0 ? retryAfter : windowS, limit };
