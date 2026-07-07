@@ -58,12 +58,12 @@
 - Preview URL: `https://mcp.ravenmcp.ai` (branch alias → deploy `site-is47gz7m6`, commit `23bec66`, Ready 2026-07-06 ~16:57 PT; also `https://site-git-p4-remote-taste-…vercel.app`) · Verify evidence: 517/0 + `buildServer` gating 2026-07-06; live anon/auth-challenge transcript 2026-07-06 ~00:05Z. Real-client evidence: live session 2026-07-06/07 — Claude.ai (Max) connector 55/interview/reconnect; Cursor (Pro) 55/interview; ChatGPT (Pro, dev-mode) OAuth/interview/**persisted write** verified cross-client via Claude.ai. All three OAuth flows = DCR + AuthKit `artistic-gold-76-staging.authkit.app` + PKCE. ChatGPT hard gate PASSED.
 
 ### P4.5 — Privacy, deletion, rate limits, follow-on scope; production promote
-- [ ] Built · commit: `______`
-- [ ] `delete_taste_data`: create→delete→reads empty + Upstash shows 0 keys for `sub`
-- [ ] per-user 429 on authed path while anonymous stays unthrottled · [ ] privacy/retention note in README + scope doc
-- [ ] follow-on scope doc for creative subset written (not built)
-- [ ] anon == golden hash · [ ] **promoted to production** (this repo's Vercel project; never toward the marketing line)
-- Preview URL: `______` · Verify evidence: `______`
+- [x] Built · commit: `a704725` (build `374b067` + adversarial-Codex hardening `a704725`)
+- [~] `delete_taste_data`: **built + gated + unit-verified** (authed-only, `confirm:"DELETE"` z.literal, index-walk→SCAN sweep→verify, injection-guarded `sub`, idempotent, `{deleted,remaining}`, isError if remaining>0). Live create→delete→reads-empty + **Upstash 0-keys-for-`sub`** PENDING one AuthKit sign-in (harness `/tmp/verify-authed-loop-p45.mjs` ready).
+- [~] per-user 429 on authed path while anonymous stays unthrottled — **built + unit-verified** (`api/_ratelimit.js`, fail-open, `rl:{sub}` namespace, INCR+EXPIRE 2W every hit, 429+Retry-After; anon `api/mcp.js` untouched). Live 429@~121 + anon-flood-0×429 PENDING sign-in (`/tmp/verify-ratelimit-p45.mjs` ready). · [x] privacy/retention note in README + `docs/remote-mcp-privacy.md`
+- [x] follow-on scope doc for creative subset written (not built) — `docs/remote-mcp-creative-scope.md`
+- [x] anon == golden hash — **live-proven** on `mcp.ravenmcp.ai` (8/8: 45/golden `f64bb18…`, `delete_taste_data` absent from anon, 401 challenge + `WWW-Authenticate`, garbage-bearer 401, PRM 200) · [ ] **promoted to production** — HUMAN-GATED, NOT executed; go/no-go plan in `docs/remote-mcp-promote-gonogo.md` (single supervised `vercel deploy --prod` to project `site`, never `vercel promote`, never the marketing `web` line)
+- Preview URL: `https://mcp.ravenmcp.ai` (→ deploy `site-boo1lgwjq` @ `a704725`, Ready; commit→deploy timing correlated 19:51:15→19:51:19) · Verify evidence: local **525 pass / 0 fail** + `buildServer` stdio 70 / anon 45 / authed 56 / golden; `api/mcp.js` byte-identical vs `1aa6c6a`; live anon 8/8; adversarial Codex report-only pass falsified 0 of 3 core claims and surfaced 2 Mediums (TTL-leak + oversized-id reflection) — both fixed in `a704725`. Remaining: authed-loop + rate-limit + Upstash-SCAN=0 live legs (one sign-in) → then human-gated promote.
 
 ## Iteration log
 
