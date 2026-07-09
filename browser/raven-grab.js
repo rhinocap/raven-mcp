@@ -11,11 +11,18 @@
   }
 
   var bridgeOrigin;
+  var bridgeKey;
   try {
-    bridgeOrigin = new URL(script.src, document.baseURI).origin;
+    var scriptUrl = new URL(script.src, document.baseURI);
+    bridgeOrigin = scriptUrl.origin;
+    bridgeKey = scriptUrl.searchParams.get("key") || "";
   } catch (error) {
     console.error("[Raven Grab] Cannot parse the bridge URL from the script src.", error);
     return;
+  }
+  var bridgeQuery = "?key=" + encodeURIComponent(bridgeKey);
+  function bridgeUrl(path) {
+    return bridgeOrigin + path + bridgeQuery;
   }
 
   if (location.protocol === "https:" && bridgeOrigin.indexOf("http:") === 0) {
@@ -240,8 +247,68 @@
     return output;
   }
 
+  function splitSelectorList(selectorText) {
+    var selectors = [];
+    var start = 0;
+    var depth = 0;
+    var quote = "";
+    for (var i = 0; i < selectorText.length; i += 1) {
+      var char = selectorText.charAt(i);
+      if (quote) {
+        if (char === quote && selectorText.charAt(i - 1) !== "\\") quote = "";
+        continue;
+      }
+      if (char === '"' || char === "'") quote = char;
+      else if (char === "(" || char === "[") depth += 1;
+      else if (char === ")" || char === "]") depth = Math.max(0, depth - 1);
+      else if (char === "," && depth === 0) {
+        selectors.push(selectorText.slice(start, i).trim());
+        start = i + 1;
+      }
+    }
+    selectors.push(selectorText.slice(start).trim());
+    return selectors.filter(function (selector) { return !!selector; });
+  }
+
+  function specificityForSelector(selector) {
+    var withoutWhere = selector.replace(/:where\(([^()]|\([^()]*\))*\)/g, "");
+    var ids = (withoutWhere.match(/#[\w-]+/g) || []).length;
+    var classes = (withoutWhere.match(/\.[\w-]+/g) || []).length;
+    classes += (withoutWhere.match(/\[[^\]]+\]/g) || []).length;
+    classes += (withoutWhere.match(/:(?!:)[\w-]+(?:\([^)]*\))?/g) || []).length;
+    var typeSource = withoutWhere
+      .replace(/\[[^\]]+\]/g, " ")
+      .replace(/#[\w-]+|\.[\w-]+/g, " ")
+      .replace(/::?[\w-]+(?:\([^)]*\))?/g, " ")
+      .replace(/[>+~*]/g, " ");
+    var types = (typeSource.match(/(?:^|\s)([a-zA-Z][\w-]*)/g) || []).length;
+    return [ids, classes, types];
+  }
+
+  function matchingSpecificity(element, selectorText) {
+    var best = null;
+    splitSelectorList(selectorText).forEach(function (selector) {
+      try {
+        if (!element.matches(selector)) return;
+        var specificity = specificityForSelector(selector);
+        if (!best || compareSpecificity(specificity, best) > 0) best = specificity;
+      } catch (error) {
+        // Unsupported selectors and pseudo-elements do not target this element.
+      }
+    });
+    return best;
+  }
+
+  function compareSpecificity(left, right) {
+    for (var i = 0; i < left.length; i += 1) {
+      if (left[i] !== right[i]) return left[i] - right[i];
+    }
+    return 0;
+  }
+
   function matchingRules(element) {
     var matches = [];
+    var sourceOrder = 0;
     function walk(ruleList) {
       if (!ruleList) return;
       for (var i = 0; i < ruleList.length; i += 1) {
@@ -249,11 +316,9 @@
         if (typeof CSSMediaRule !== "undefined" && rule instanceof CSSMediaRule && !matchMedia(rule.conditionText).matches) continue;
         if (typeof CSSSupportsRule !== "undefined" && rule instanceof CSSSupportsRule && !CSS.supports(rule.conditionText)) continue;
         if (rule.selectorText && rule.style) {
-          try {
-            if (element.matches(rule.selectorText)) matches.push(rule.style);
-          } catch (error) {
-            // Unsupported selectors and pseudo-elements do not target this element's style object.
-          }
+          var specificity = matchingSpecificity(element, rule.selectorText);
+          if (specificity) matches.push({ style: rule.style, specificity: specificity, sourceOrder: sourceOrder, inline: false });
+          sourceOrder += 1;
         }
         if (rule.cssRules) {
           try { walk(rule.cssRules); } catch (error) { /* inaccessible nested rules */ }
@@ -263,8 +328,93 @@
     for (var i = 0; i < document.styleSheets.length; i += 1) {
       try { walk(document.styleSheets[i].cssRules); } catch (error) { /* cross-origin sheet */ }
     }
-    matches.push(element.style);
+    matches.push({ style: element.style, specificity: [0, 0, 0], sourceOrder: sourceOrder, inline: true });
     return matches;
+  }
+
+  function declarationsFor(match) {
+    var declarations = [];
+    var style = match.style;
+    for (var i = 0; i < style.length; i += 1) {
+      var property = style[i];
+      declarations.push({
+        property: property,
+        value: style.getPropertyValue(property),
+        important: style.getPropertyPriority(property) === "important",
+        match: match,
+        declarationOrder: i
+      });
+    }
+    // Pending-substitution: shorthands using var() expand to EMPTY longhands in
+    // CSSOM, so the var() only survives in cssText. Always merge cssText
+    // declarations that indexed iteration missed.
+    if (style.cssText) {
+      var seen = Object.create(null);
+      for (var s = 0; s < declarations.length; s += 1) seen[declarations[s].property] = true;
+      var pattern = /(?:^|;)\s*([\w-]+)\s*:\s*([^;]+)/g;
+      var parsed;
+      while ((parsed = pattern.exec(style.cssText))) {
+        if (seen[parsed[1]]) continue;
+        var value = parsed[2].trim();
+        var important = /\s*!important\s*$/i.test(value);
+        declarations.push({
+          property: parsed[1],
+          value: value.replace(/\s*!important\s*$/i, ""),
+          important: important,
+          match: match,
+          declarationOrder: declarations.length
+        });
+      }
+    }
+    return declarations;
+  }
+
+  function boxLonghands(prefix) {
+    return [prefix + "-top", prefix + "-right", prefix + "-bottom", prefix + "-left"];
+  }
+
+  function affectedProperties(property) {
+    if (property === "margin" || property === "padding" || property === "inset") return boxLonghands(property);
+    if (property === "border") {
+      return ["top", "right", "bottom", "left"].reduce(function (output, side) {
+        return output.concat(["border-" + side + "-width", "border-" + side + "-style", "border-" + side + "-color"]);
+      }, []);
+    }
+    if (/^border-(width|style|color)$/.test(property)) {
+      var suffix = property.slice("border-".length);
+      return ["top", "right", "bottom", "left"].map(function (side) { return "border-" + side + "-" + suffix; });
+    }
+    var borderSide = property.match(/^border-(top|right|bottom|left)$/);
+    if (borderSide) return ["width", "style", "color"].map(function (suffix) { return property + "-" + suffix; });
+    if (property === "background") return ["background-color", "background-image", "background-position", "background-size", "background-repeat", "background-origin", "background-clip", "background-attachment"];
+    if (property === "font") return ["font-style", "font-variant", "font-weight", "font-stretch", "font-size", "line-height", "font-family"];
+    return [property];
+  }
+
+  function declarationWins(candidate, incumbent) {
+    if (!incumbent) return true;
+    if (candidate.important !== incumbent.important) return candidate.important;
+    if (candidate.match.inline !== incumbent.match.inline) return candidate.match.inline;
+    var specificity = compareSpecificity(candidate.match.specificity, incumbent.match.specificity);
+    if (specificity !== 0) return specificity > 0;
+    if (candidate.match.sourceOrder !== incumbent.match.sourceOrder) return candidate.match.sourceOrder > incumbent.match.sourceOrder;
+    return candidate.declarationOrder > incumbent.declarationOrder;
+  }
+
+  function winningDeclarations(element) {
+    var winners = Object.create(null);
+    matchingRules(element).forEach(function (match) {
+      declarationsFor(match).forEach(function (declaration) {
+        affectedProperties(declaration.property).forEach(function (property) {
+          if (declarationWins(declaration, winners[property])) winners[property] = declaration;
+        });
+      });
+    });
+    var unique = [];
+    Object.keys(winners).forEach(function (property) {
+      if (unique.indexOf(winners[property]) === -1) unique.push(winners[property]);
+    });
+    return unique;
   }
 
   function tokenByCssVar(cssVar) {
@@ -278,32 +428,24 @@
     var computed = getComputedStyle(element);
     var rootComputed = getComputedStyle(document.documentElement);
     var found = Object.create(null);
-    matchingRules(element).forEach(function (declaration) {
-      // Declarations using var() in a shorthand expand to EMPTY longhands in CSSOM
-      // (pending-substitution values), so parse cssText instead of indexed longhands.
-      var cssText = declaration.cssText || "";
-      var declarationPattern = /([\w-]+)\s*:\s*([^;]*var\(\s*--[\w-]+[^;]*)/g;
-      var declarationMatch;
-      while ((declarationMatch = declarationPattern.exec(cssText))) {
-        var property = declarationMatch[1];
-        var rawValue = declarationMatch[2];
-        var expression = /var\(\s*(--[\w-]+)/g;
-        var match;
-        while ((match = expression.exec(rawValue))) {
-          var cssVar = match[1];
-          var key = property + "|" + cssVar;
-          if (found[key]) continue;
-          var resolved = computed.getPropertyValue(cssVar).trim() || rootComputed.getPropertyValue(cssVar).trim();
-          var bridgeToken = tokenByCssVar(cssVar);
-          found[key] = {
-            property: property,
-            cssVar: cssVar,
-            value: resolved,
-            name: bridgeToken ? bridgeToken.name : cssVar,
-            group: bridgeToken ? bridgeToken.group : "custom",
-            bridgeToken: bridgeToken || null
-          };
-        }
+    winningDeclarations(element).forEach(function (declaration) {
+      var expression = /var\(\s*(--[\w-]+)/g;
+      var match;
+      while ((match = expression.exec(declaration.value))) {
+        var cssVar = match[1];
+        var key = declaration.property + "|" + cssVar;
+        if (found[key]) continue;
+        var resolved = computed.getPropertyValue(cssVar).trim() || rootComputed.getPropertyValue(cssVar).trim();
+        var bridgeToken = tokenByCssVar(cssVar);
+        found[key] = {
+          property: declaration.property,
+          cssVar: cssVar,
+          value: resolved,
+          name: bridgeToken ? bridgeToken.name : cssVar,
+          group: bridgeToken ? bridgeToken.group : "custom",
+          path: bridgeToken ? bridgeToken.path : cssVar,
+          bridgeToken: bridgeToken || null
+        };
       }
     });
     return Object.keys(found).map(function (key) { return found[key]; });
@@ -329,6 +471,7 @@
         var name = value.name || tokenPath[tokenPath.length - 1] || cssVar;
         var group = value.group || value.type || (tokenPath.length > 1 ? tokenPath[tokenPath.length - 2] : "custom");
         output.push({
+          path: tokenPath.join("."),
           name: String(name),
           value: String(tokenValue),
           group: String(group),
@@ -380,9 +523,50 @@
   }
 
   function alternativesFor(token) {
+    var tokenPath = token.bridgeToken && token.bridgeToken.path ? token.bridgeToken.path : token.path;
+    var tokenParts = String(tokenPath || "").split(".");
+    var tokenLeaf = tokenLeafProperty(token.group, tokenParts);
     return bridgeTokens.filter(function (candidate) {
-      return candidate.group === token.group && candidate.cssVar !== token.cssVar;
+      if (candidate.group !== token.group || candidate.cssVar === token.cssVar) return false;
+      if (tokenParts.length <= 2) return true;
+      var candidateParts = String(candidate.path || "").split(".");
+      return candidateParts.length > 2 && tokenLeafProperty(candidate.group, candidateParts) === tokenLeaf;
     });
+  }
+
+  function tokenLeafProperty(group, pathParts) {
+    var last = String(pathParts[pathParts.length - 1] || "").replace(/[-_]/g, "").toLowerCase();
+    if (group !== "typography" || pathParts.length <= 2) return last;
+    var property = String(pathParts[1] || "").replace(/[-_]/g, "").toLowerCase();
+    var typographyProperties = {
+      fontfamily: true,
+      fontsize: true,
+      fontweight: true,
+      fontstyle: true,
+      lineheight: true,
+      letterspacing: true,
+      texttransform: true
+    };
+    return typographyProperties[property] ? property : last;
+  }
+
+  function tokenPathFor(token) {
+    if (token.bridgeToken && token.bridgeToken.path) return token.bridgeToken.path;
+    if (token.path) return token.path;
+    if (token.group && token.name) return token.group + "." + token.name;
+    return token.name;
+  }
+
+  function tokenIntentFor(token, alternative, newName, newValue) {
+    var nextName = alternative ? alternative.name : newName;
+    return {
+      property: token.property,
+      oldToken: token.name,
+      oldTokenPath: tokenPathFor(token),
+      newToken: nextName,
+      newTokenPath: alternative ? alternative.path : (token.group && nextName ? token.group + "." + nextName : nextName),
+      newTokenValue: alternative ? alternative.value : newValue
+    };
   }
 
   function escapeHtml(value) {
@@ -487,23 +671,18 @@
     if (choice === "__new__") {
       var nameInput = panel.querySelector('[data-new-name="' + index + '"]');
       var valueInput = panel.querySelector('[data-new-value="' + index + '"]');
-      tokenIntents[index] = {
-        property: token.property,
-        oldToken: token.name,
-        newToken: nameInput.value.trim() || undefined,
-        newTokenValue: valueInput.value.trim() || undefined
-      };
+      tokenIntents[index] = tokenIntentFor(
+        token,
+        null,
+        nameInput.value.trim() || undefined,
+        valueInput.value.trim() || undefined
+      );
       if (valueInput.value.trim()) document.documentElement.style.setProperty(token.cssVar, valueInput.value.trim());
       return;
     }
     var alternative = tokenByCssVar(choice);
     if (!alternative) return;
-    tokenIntents[index] = {
-      property: token.property,
-      oldToken: token.name,
-      newToken: alternative.name,
-      newTokenValue: alternative.value
-    };
+    tokenIntents[index] = tokenIntentFor(token, alternative);
     document.documentElement.style.setProperty(token.cssVar, alternative.value);
   }
 
@@ -548,7 +727,7 @@
     status.textContent = "";
     status.removeAttribute("data-kind");
     try {
-      var response = await fetch(bridgeOrigin + "/grab", {
+      var response = await fetch(bridgeUrl("/grab"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payloadForSend())
@@ -633,7 +812,7 @@
   window.addEventListener("react-grab:element-selected", captureReactMetadata);
   document.addEventListener("react-grab:element-selected", captureReactMetadata);
 
-  fetch(bridgeOrigin + "/tokens")
+  fetch(bridgeUrl("/tokens"))
     .then(function (response) {
       if (!response.ok) throw new Error("Bridge returned " + response.status);
       return response.json();

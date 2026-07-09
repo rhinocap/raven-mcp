@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "http";
+import { randomBytes } from "crypto";
 import { existsSync, readFileSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
@@ -55,6 +56,7 @@ export interface GrabBridgeDrainResult {
 interface BridgeSession {
   server: ReturnType<typeof createServer>;
   port: number;
+  key: string;
   path: string;
   mode: "server" | "shim";
   queue: GrabBridgeSelection[];
@@ -70,9 +72,10 @@ export async function startGrabSession(path: string, port?: number): Promise<Gra
   if (!existsSync(abs)) {
     throw new Error("DESIGN.md not found at " + abs);
   }
+  var key = randomBytes(32).toString("hex");
 
   var server = createServer(function (req, res) {
-    void handleGrabRequest(abs, req, res);
+    void handleGrabRequest(abs, key, req, res);
   });
 
   var actualPort = 0;
@@ -89,6 +92,7 @@ export async function startGrabSession(path: string, port?: number): Promise<Gra
     currentSession = {
       server: server,
       port: actualPort,
+      key: key,
       path: abs,
       mode: "server",
       queue: [],
@@ -109,6 +113,7 @@ export async function startGrabSession(path: string, port?: number): Promise<Gra
     currentSession = {
       server: server,
       port: actualPort,
+      key: key,
       path: abs,
       mode: "shim",
       queue: [],
@@ -120,7 +125,7 @@ export async function startGrabSession(path: string, port?: number): Promise<Gra
   return {
     port: actualPort,
     url: "http://127.0.0.1:" + actualPort,
-    script_tag: '<script src="http://127.0.0.1:' + actualPort + '/raven-grab.js"></script>',
+    script_tag: '<script src="http://127.0.0.1:' + actualPort + '/raven-grab.js?key=' + key + '"></script>',
     path: abs,
     mode: mode,
     warning: mode === "shim"
@@ -200,17 +205,17 @@ export function queueGrabSelection(selection: unknown): GrabBridgeSelection {
   return item;
 }
 
-async function handleGrabRequest(designMdPath: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
+async function handleGrabRequest(designMdPath: string, key: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
   var bodyText = await readJsonBody(req).then(function (body) {
     return JSON.stringify(body);
   }).catch(function () {
     return "";
   });
-  var result = await buildGrabResponse(designMdPath, req.method || "GET", req.url || "/", bodyText);
+  var result = await buildGrabResponse(designMdPath, key, req.method || "GET", req.url || "/", bodyText);
   setCorsHeaders(res);
   res.statusCode = result.status;
-  for (var key in result.headers) {
-    res.setHeader(key, result.headers[key]);
+  for (var headerName in result.headers) {
+    res.setHeader(headerName, result.headers[headerName]);
   }
   res.end(result.body);
 }
@@ -244,19 +249,27 @@ interface GrabResponse {
   body: string;
 }
 
-async function buildGrabResponse(designMdPath: string, method: string, url: string, bodyText: string): Promise<GrabResponse> {
+async function buildGrabResponse(designMdPath: string, key: string, method: string, url: string, bodyText: string): Promise<GrabResponse> {
+  var parsedUrl = new URL(url, "http://127.0.0.1");
+  var pathname = parsedUrl.pathname;
   if (method === "OPTIONS") {
     return { status: 204, headers: {}, body: "" };
   }
 
-  if (method === "GET" && url === "/raven-grab.js") {
+  var protectedRoute = (method === "GET" && (pathname === "/raven-grab.js" || pathname === "/tokens"))
+    || (method === "POST" && pathname === "/grab");
+  if (protectedRoute && parsedUrl.searchParams.get("key") !== key) {
+    return { status: 403, headers: { "Content-Type": "text/plain; charset=utf-8" }, body: "Forbidden" };
+  }
+
+  if (method === "GET" && pathname === "/raven-grab.js") {
     if (!existsSync(GRAB_ASSET_PATH)) {
       return { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" }, body: "raven-grab.js not found" };
     }
     return { status: 200, headers: { "Content-Type": "application/javascript; charset=utf-8" }, body: readFileSync(GRAB_ASSET_PATH, "utf8") };
   }
 
-  if (method === "GET" && url === "/tokens") {
+  if (method === "GET" && pathname === "/tokens") {
     try {
       var raw = readFileSync(designMdPath, "utf8");
       var parsed = parseDesignMd(raw);
@@ -275,7 +288,7 @@ async function buildGrabResponse(designMdPath: string, method: string, url: stri
     }
   }
 
-  if (method === "POST" && url === "/grab") {
+  if (method === "POST" && pathname === "/grab") {
     try {
       var payload = bodyText ? JSON.parse(bodyText) : {};
       var item = queueGrabSelection(payload);
@@ -305,8 +318,12 @@ function installFetchShim(): void {
     var url = new URL(request.url);
     if (currentSession && url.hostname === "127.0.0.1" && Number(url.port || "0") === currentSession.port) {
       var bodyText = request.method === "GET" || request.method === "HEAD" ? "" : await request.text();
-      var result = await buildGrabResponse(currentSession.path, request.method, url.pathname, bodyText);
-      return new Response(result.body, { status: result.status, headers: result.headers });
+      var result = await buildGrabResponse(currentSession.path, currentSession.key, request.method, url.pathname + url.search, bodyText);
+      var headers = new Headers(result.headers);
+      headers.set("Access-Control-Allow-Origin", "*");
+      headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      headers.set("Access-Control-Allow-Headers", "Content-Type");
+      return new Response(result.body, { status: result.status, headers: headers });
     }
     return originalFetch!(input, init);
   }) as typeof fetch;

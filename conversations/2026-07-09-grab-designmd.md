@@ -21,12 +21,15 @@ Fresh /goal: two-way click-to-change (grab overlay + token panel) + DESIGN.md as
 - Live E2E: ✓ full round trip verified (eyes-on live preview swap)
 - DA pass (gpt-5.6-sol): ✓ ran; verdict ~65-70%. Fixed same-turn: composite-ref validation (getdesign.md starters), set/rename collision guards, react-grab listener ordering, stale reactMetadata, ref-token "[object Object]", bridge body/queue caps, shim-mode honesty. Regression test added.
 - Committed: 9770926 on explore/tools-redesign (pathspec; web/ excluded). NOT pushed.
+- Hardening pass (stop-hook mandated, all DONE via Codex gpt-5.6-sol legs A+B + main-loop fixes):
+  - ✓ Comment-preserving DESIGN.md updates (line-based surgical frontmatter edits, validate-before-write)
+  - ✓ Cascade precedence in overlay token matching (specificity + source-order + !important + inline)
+  - ✓ Type-safe dropdown grouping incl. property-first typography paths; intents carry full token paths (oldTokenPath/newTokenPath — E2E verified in grabbed.json)
+  - ✓ Capability token for bridge (?key= on script tag; 403 without — curl-verified)
+  - ✓ Official typography CSS-var namespace (--font/-text/-font-weight/-leading/-tracking)
+  - ✓ README "Click-to-change (grab) + DESIGN.md" section (dual-customer pass done)
+  - ✓ Regression found+fixed in leg B's declarationsFor: cssText fallback only ran when style.length===0, dropping var() shorthands in mixed rules ("No design tokens matched") — now always merges cssText declarations missed by indexed iteration; full live E2E re-verified eyes-on (match → typed swap → live preview → send → full-path intents)
+  - Suite 547/547; tsc clean
 - Pending (carried forward):
-  - Comment-preserving YAML serializer (update rewrites frontmatter; full-line comments dropped, inline comments mis-parsed)
-  - Cascade precedence in overlay token matching (overridden rules reported as "used"); shadow-DOM composedPath targeting; cross-origin sheets
-  - Type-safe dropdown grouping for composite typography; intents should carry full token paths
-  - Capability token for bridge (currently wildcard CORS, loopback-only); Chrome Local Network Access permission guidance
-  - Official typography CSS-var namespace (--font-button vs --typography-button-fontFamily)
-  - README/public docs for the feature (indie-dev setup section)
-  - Branch isolation: feature commit sits on explore/tools-redesign with unrelated web redesign — cherry-pick to clean branch before landing to main
-  - Panel nit: token header shows `md`, not `rounded.md`
+  - Branch isolation: feature commits sit on explore/tools-redesign with unrelated web redesign — other instance is separating; do NOT push from here
+  - Panel nit: token header shows `md`, not `rounded.md` (dropdown/group context makes it unambiguous)

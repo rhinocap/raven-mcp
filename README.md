@@ -116,6 +116,19 @@ cd raven-mcp && npm install && npm run build
 | `generate_taste_portrait` | Render a bound taste surface as a self-contained designed HTML page (its rules, notes, voice, decisions, and wrong→right corpus) that obeys the surface it describes — art direction routes by the surface's own color permissions; sparse surfaces degrade gracefully. Omit `project` to render every binding plus a gallery. Every portrait passes `audit_taste` (`document_kind:'portrait'`) against its own surface |
 | `raven_reflect` | Summarize your local Raven usage log to find patterns + gaps |
 
+## Click-to-change (grab) + DESIGN.md
+
+Raven Grab connects a local page to your agent so you can click an element, describe the change, and send its selector, computed styles, matching DESIGN.md tokens, and token choices back to the session. The bridge runs on loopback and the returned script tag carries the capability key required by its routes.
+
+Setup takes under a minute:
+
+1. Call `start_grab_session` with the path to your `DESIGN.md`.
+2. Paste the returned `<script>` tag into the local page you are editing.
+3. Click elements and enter the changes you want in the Grab panel.
+4. Call `get_grabbed_elements` to receive the queued selections and instructions.
+
+Use `read_design_md` to inspect a DESIGN.md file and its flattened token index, `init_design_md` to create one from a stored Raven system, a blank template, or a [getdesign.md](https://getdesign.md) starter, and `update_design_md` to set, rename, or remove one token without rewriting the rest of the file.
+
 ## Creative studio
 
 Raven now covers the creative-production workflow around media generation without copying or depending on any closed vendor. The tools are orchestration primitives:

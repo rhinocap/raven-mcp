@@ -2561,7 +2561,7 @@ server.tool(
 
 server.tool(
   "start_grab_session",
-  "Start the Raven grab bridge on loopback, serving the overlay script and DESIGN.md tokens for the provided path.",
+  "Start a capability-keyed Raven grab bridge on loopback, serving the overlay script and DESIGN.md tokens for the provided path.",
   {
     path: z.string().describe("Path to DESIGN.md to expose over /tokens"),
     port: z.number().int().positive().optional().describe("Optional port; defaults to an ephemeral loopback port")
