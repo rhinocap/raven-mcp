@@ -1696,14 +1696,26 @@
       font-size: 15px; color: var(--text-secondary); margin: 0;
       flex: 1 1 260px; min-width: 0;
     }
-    .tool-sub { margin-top: var(--space-8); }
-    .tool-sub-label {
-      display: block;
+    .tool-act-count {
       font-family: var(--font-mono); font-size: 12px; font-weight: 600;
       letter-spacing: 0.08em; text-transform: uppercase;
-      color: var(--text-tertiary);
-      margin-bottom: var(--space-4);
+      color: var(--text-tertiary); white-space: nowrap;
     }
+    .tool-chips {
+      display: flex; flex-wrap: wrap;
+      gap: var(--space-2) var(--space-3);
+      margin-top: var(--space-6);
+    }
+    .tool-chip {
+      font-family: var(--font-mono); font-size: 13px; font-weight: 500;
+      color: var(--text-secondary);
+      padding: 6px 12px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      cursor: default;
+      transition: color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+    }
+    .tool-chip:hover { color: var(--text-primary); border-color: var(--border-accent); }
 
     /* ══════════════════════════════════════════
        HOW IT WORKS
