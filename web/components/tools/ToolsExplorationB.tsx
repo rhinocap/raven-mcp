@@ -164,7 +164,7 @@ export default function ToolsExplorationB() {
                     </div>
                   </div>
                   <span className="txb-chevron" aria-hidden="true">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="26" height="26" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M4 6l4 4 4-4" />
                     </svg>
                   </span>
@@ -217,6 +217,7 @@ export default function ToolsExplorationB() {
           font-weight: 600;
           color: var(--text-tertiary);
           padding-top: 6px;
+          width: 28px;
           flex-shrink: 0;
           transition: color var(--duration-fast) var(--ease-out);
         }
@@ -275,7 +276,7 @@ export default function ToolsExplorationB() {
 
         .txb-chevron {
           flex-shrink: 0;
-          width: 28px; height: 28px;
+          width: 56px; height: 56px;
           border-radius: var(--radius-full);
           border: 1px solid var(--border-strong);
           display: flex; align-items: center; justify-content: center;
@@ -292,6 +293,11 @@ export default function ToolsExplorationB() {
 
         .txb-panel {
           padding: 0 0 var(--space-10);
+          /* indent past the number column so tool names share the title's
+             left edge; the border marks the gutter line */
+          margin-left: 28px;
+          border-left: 1px solid var(--border);
+          padding-left: calc(var(--space-6) - 1px);
         }
 
         .txb-grid {
@@ -317,6 +323,8 @@ export default function ToolsExplorationB() {
 
         @media (max-width: 720px) {
           .txb-act-head { gap: var(--space-4); }
+          .txb-panel { padding-left: calc(var(--space-4) - 1px); }
+          .txb-chevron { width: 44px; height: 44px; }
           .txb-purpose { font-size: 16px; }
           .txb-grid { grid-template-columns: 1fr; gap: var(--space-5); }
         }
