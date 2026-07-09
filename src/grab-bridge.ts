@@ -45,6 +45,7 @@ export interface GrabBridgeStartResult {
   script_tag: string;
   path: string;
   mode: "server" | "shim";
+  proxy_target?: string;
   warning?: string;
 }
 
@@ -59,6 +60,7 @@ interface BridgeSession {
   key: string;
   path: string;
   mode: "server" | "shim";
+  proxyTarget?: string;
   queue: GrabBridgeSelection[];
   waiters: Array<(items: GrabBridgeSelection[]) => void>;
 }
@@ -66,16 +68,29 @@ interface BridgeSession {
 var currentSession: BridgeSession | null = null;
 var originalFetch: typeof fetch | null = null;
 
-export async function startGrabSession(path: string, port?: number): Promise<GrabBridgeStartResult> {
+export async function startGrabSession(path: string, port?: number, proxyTarget?: string): Promise<GrabBridgeStartResult> {
   await stopGrabSession();
   var abs = resolve(path);
   if (!existsSync(abs)) {
     throw new Error("DESIGN.md not found at " + abs);
   }
+  var normalizedTarget: string | undefined;
+  if (proxyTarget !== undefined) {
+    var targetUrl: URL;
+    try {
+      targetUrl = new URL(proxyTarget);
+    } catch (_err) {
+      throw new Error("proxy_target must be an http(s) URL");
+    }
+    if (targetUrl.protocol !== "http:" && targetUrl.protocol !== "https:") {
+      throw new Error("proxy_target must be an http(s) URL");
+    }
+    normalizedTarget = targetUrl.origin;
+  }
   var key = randomBytes(32).toString("hex");
 
   var server = createServer(function (req, res) {
-    void handleGrabRequest(abs, key, req, res);
+    void handleGrabRequest(abs, key, req, res, normalizedTarget);
   });
 
   var actualPort = 0;
@@ -95,6 +110,7 @@ export async function startGrabSession(path: string, port?: number): Promise<Gra
       key: key,
       path: abs,
       mode: "server",
+      proxyTarget: normalizedTarget,
       queue: [],
       waiters: []
     };
@@ -122,15 +138,20 @@ export async function startGrabSession(path: string, port?: number): Promise<Gra
   }
 
   var mode = currentSession.mode;
+  var warning = mode === "shim"
+    ? "Sandboxed environment: no real HTTP server is listening — the bridge only answers in-process fetch() calls. A browser cannot reach this session."
+    : undefined;
+  if (warning && normalizedTarget) {
+    warning += " proxy_target is ignored in shim mode.";
+  }
   return {
     port: actualPort,
     url: "http://127.0.0.1:" + actualPort,
     script_tag: '<script src="http://127.0.0.1:' + actualPort + '/raven-grab.js?key=' + key + '"></script>',
     path: abs,
     mode: mode,
-    warning: mode === "shim"
-      ? "Sandboxed environment: no real HTTP server is listening — the bridge only answers in-process fetch() calls. A browser cannot reach this session."
-      : undefined
+    proxy_target: mode === "server" ? normalizedTarget : undefined,
+    warning: warning
   };
 }
 
@@ -205,13 +226,21 @@ export function queueGrabSelection(selection: unknown): GrabBridgeSelection {
   return item;
 }
 
-async function handleGrabRequest(designMdPath: string, key: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
+async function handleGrabRequest(designMdPath: string, key: string, req: IncomingMessage, res: ServerResponse, proxyTarget?: string): Promise<void> {
+  var method = req.method || "GET";
+  var requestUrl = req.url || "/";
+  var pathname = new URL(requestUrl, "http://127.0.0.1").pathname;
+  var bridgeRoute = pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/grab";
+  if (proxyTarget && method !== "OPTIONS" && !bridgeRoute) {
+    await proxyGrabRequest(proxyTarget, key, method, requestUrl, req, res);
+    return;
+  }
   var bodyText = await readJsonBody(req).then(function (body) {
     return JSON.stringify(body);
   }).catch(function () {
     return "";
   });
-  var result = await buildGrabResponse(designMdPath, key, req.method || "GET", req.url || "/", bodyText);
+  var result = await buildGrabResponse(designMdPath, key, method, requestUrl, bodyText);
   setCorsHeaders(res);
   res.statusCode = result.status;
   for (var headerName in result.headers) {
@@ -227,7 +256,101 @@ function setCorsHeaders(res: ServerResponse): void {
 }
 
 var MAX_BODY_BYTES = 1024 * 1024;
+var MAX_PROXY_BODY_BYTES = 25 * 1024 * 1024;
 var MAX_QUEUE_LENGTH = 200;
+
+async function proxyGrabRequest(proxyTarget: string, key: string, method: string, requestUrl: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  var targetPath = new URL(requestUrl, "http://127.0.0.1");
+  var targetUrl = proxyTarget + targetPath.pathname + targetPath.search;
+  var headers = new Headers();
+  var strippedRequestHeaders = new Set(["host", "connection", "accept-encoding", "content-length", "transfer-encoding"]);
+  for (var i = 0; i < req.rawHeaders.length; i += 2) {
+    var headerName = req.rawHeaders[i];
+    var headerValue = req.rawHeaders[i + 1];
+    if (!strippedRequestHeaders.has(headerName.toLowerCase())) {
+      headers.append(headerName, headerValue);
+    }
+  }
+
+  var body: Buffer | undefined;
+  if (method !== "GET" && method !== "HEAD") {
+    try {
+      body = await readRawBody(req, MAX_PROXY_BODY_BYTES);
+    } catch (_err) {
+      res.statusCode = 413;
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.end("Payload too large");
+      return;
+    }
+  }
+
+  try {
+    var fetchBody = body ? new Uint8Array(body) : undefined;
+    var upstream = await fetch(targetUrl, {
+      method: method,
+      headers: headers,
+      body: fetchBody,
+      redirect: "manual"
+    });
+    res.statusCode = upstream.status;
+    copyProxyResponseHeaders(upstream.headers, res);
+    if (method === "HEAD") {
+      res.end();
+      return;
+    }
+    var responseBody = Buffer.from(await upstream.arrayBuffer());
+    var contentType = upstream.headers.get("content-type") || "";
+    if (/\btext\/html\b/i.test(contentType)) {
+      var html = responseBody.toString("utf8");
+      var script = '<script src="/raven-grab.js?key=' + key + '"></script>';
+      if (/<\/body>/i.test(html)) {
+        html = html.replace(/<\/body>/i, function (closingTag) {
+          return script + closingTag;
+        });
+      } else {
+        html += script;
+      }
+      responseBody = Buffer.from(html, "utf8");
+      res.setHeader("Content-Length", String(responseBody.length));
+    }
+    res.end(responseBody);
+  } catch (err) {
+    var message = err instanceof Error ? err.message : String(err);
+    res.statusCode = 502;
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.end("Bad gateway: " + message);
+  }
+}
+
+async function readRawBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
+  var chunks: Buffer[] = [];
+  var total = 0;
+  for await (var chunk of req) {
+    var buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buf.length;
+    if (total > maxBytes) {
+      throw new Error("Request body exceeds " + maxBytes + " bytes");
+    }
+    chunks.push(buf);
+  }
+  return Buffer.concat(chunks);
+}
+
+function copyProxyResponseHeaders(headers: Headers, res: ServerResponse): void {
+  var strippedResponseHeaders = new Set(["content-length", "content-encoding", "transfer-encoding", "connection"]);
+  headers.forEach(function (headerValue, headerName) {
+    if (!strippedResponseHeaders.has(headerName.toLowerCase())) {
+      res.setHeader(headerName, headerValue);
+    }
+  });
+  var headersWithCookies = headers as Headers & { getSetCookie?: () => string[] };
+  if (typeof headersWithCookies.getSetCookie === "function") {
+    var cookies = headersWithCookies.getSetCookie();
+    if (cookies.length > 0) {
+      res.setHeader("Set-Cookie", cookies);
+    }
+  }
+}
 
 async function readJsonBody(req: IncomingMessage): Promise<any> {
   var chunks: Buffer[] = [];

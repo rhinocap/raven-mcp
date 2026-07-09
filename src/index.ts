@@ -2561,14 +2561,15 @@ server.tool(
 
 server.tool(
   "start_grab_session",
-  "Start a capability-keyed Raven grab bridge on loopback, serving the overlay script and DESIGN.md tokens for the provided path.",
+  "Start a capability-keyed Raven grab bridge on loopback. Proxy mode is the preferred zero-paste path: it serves a running local app with the overlay injected into HTML; the manual script tag remains available when needed.",
   {
     path: z.string().describe("Path to DESIGN.md to expose over /tokens"),
-    port: z.number().int().positive().optional().describe("Optional port; defaults to an ephemeral loopback port")
+    port: z.number().int().positive().optional().describe("Optional port; defaults to an ephemeral loopback port"),
+    proxy_target: z.string().optional().describe("URL of a running local dev server; the bridge will serve that app with the grab overlay auto-injected into every HTML page — user opens the bridge URL, zero setup")
   },
-  async ({ path, port }) => {
+  async ({ path, port, proxy_target }) => {
     try {
-      var session = await startGrabSession(path, port);
+      var session = await startGrabSession(path, port, proxy_target);
       return {
         content: [{
           type: "text" as const,

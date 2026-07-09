@@ -122,10 +122,13 @@ Raven Grab connects a local page to your agent so you can click an element, desc
 
 Setup takes under a minute:
 
-1. Call `start_grab_session` with the path to your `DESIGN.md`.
-2. Paste the returned `<script>` tag into the local page you are editing.
-3. Click elements and enter the changes you want in the Grab panel.
-4. Call `get_grabbed_elements` to receive the queued selections and instructions.
+1. Start your local dev server.
+2. Call `start_grab_session` with the path to your `DESIGN.md` and `proxy_target` set to the local server URL.
+3. Open the returned bridge URL. The overlay is already included on HTML pages served through it.
+4. Click elements and enter the changes you want in the Grab panel.
+5. Call `get_grabbed_elements` to receive the queued selections and instructions.
+
+For a page you control, you can omit `proxy_target` and paste the returned `<script>` tag into the page instead.
 
 Use `read_design_md` to inspect a DESIGN.md file and its flattened token index, `init_design_md` to create one from a stored Raven system, a blank template, or a [getdesign.md](https://getdesign.md) starter, and `update_design_md` to set, rename, or remove one token without rewriting the rest of the file.
 

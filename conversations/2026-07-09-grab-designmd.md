@@ -33,3 +33,4 @@ Fresh /goal: two-way click-to-change (grab overlay + token panel) + DESIGN.md as
 - Pending (carried forward):
   - Branch isolation: feature commits sit on explore/tools-redesign with unrelated web redesign — other instance is separating; do NOT push from here
   - Panel nit: token header shows `md`, not `rounded.md` (dropdown/group context makes it unambiguous)
+  - ✓ Proxy mode (zero-paste): start_grab_session proxy_target serves the dev server with the overlay auto-injected into every HTML response — live E2E on clean HTML (no script tag in source): pill present, click → tokens → swap → send → full-path intents. Suite 554/554.

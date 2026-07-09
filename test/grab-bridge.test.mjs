@@ -4,6 +4,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createServer, request as httpRequest } from 'node:http';
 import vm from 'node:vm';
 
 const previousNoUsageLog = process.env.RAVEN_NO_USAGE_LOG;
@@ -41,6 +42,37 @@ async function withClient(server, fn) {
     await client.close();
     await server.close();
   }
+}
+
+async function withUpstream(handler, fn) {
+  const server = createServer(handler);
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject);
+      resolve();
+    });
+  });
+  const address = server.address();
+  assert.ok(address && typeof address === 'object');
+  try {
+    return await fn(`http://127.0.0.1:${address.port}`);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
+
+async function makeDesignFixture() {
+  const dir = await mkdtemp(path.join(tmpdir(), 'raven-grab-proxy-'));
+  const designPath = path.join(dir, 'DESIGN.md');
+  await writeFile(designPath, `---\ncolors:\n  primary: "#111111"\n---\n# Proxy fixture\n`, 'utf8');
+  return designPath;
+}
+
+function sessionKey(session) {
+  const match = session.script_tag.match(/[?&]key=([a-f0-9]+)/);
+  assert.ok(match, 'session script tag should contain its capability key');
+  return match[1];
 }
 
 function fakeStyle(declarations = {}) {
@@ -206,6 +238,213 @@ test('start_grab_session requires its capability key, serves DESIGN.md tokens, q
     const stopped = await client.callTool({ name: 'stop_grab_session', arguments: {} });
     assert.ok(!stopped.isError);
     assert.equal(JSON.parse(stopped.content[0].text).stopped, true);
+  });
+});
+
+test('grab proxy injects exactly one keyed overlay script before the first closing body tag', async () => {
+  const designPath = await makeDesignFixture();
+  const original = '<!doctype html><html><body><main>Original content</main></BoDy></html>';
+
+  await withUpstream((req, res) => {
+    assert.equal(req.url, '/nested/page?view=full');
+    res.writeHead(201, { 'Content-Type': 'text/html; charset=utf-8', 'X-Upstream': 'yes' });
+    res.end(original);
+  }, async (upstreamUrl) => {
+    await withClient(indexMod.buildServer({}), async (client) => {
+      try {
+        const started = await client.callTool({
+          name: 'start_grab_session',
+          arguments: { path: designPath, proxy_target: upstreamUrl }
+        });
+        assert.ok(!started.isError);
+        const session = JSON.parse(started.content[0].text);
+        const key = sessionKey(session);
+        const response = await fetch(`${session.url}/nested/page?view=full`);
+        const html = await response.text();
+        const injected = `<script src="/raven-grab.js?key=${key}"></script>`;
+
+        assert.equal(response.status, 201);
+        assert.equal(response.headers.get('x-upstream'), 'yes');
+        assert.equal(response.headers.get('access-control-allow-origin'), null);
+        assert.equal(html.split(injected).length - 1, 1);
+        assert.equal(html, original.replace(/<\/body>/i, `${injected}</BoDy>`));
+        assert.ok(html.indexOf(injected) < html.toLowerCase().indexOf('</body>'));
+      } finally {
+        await client.callTool({ name: 'stop_grab_session', arguments: {} });
+      }
+    });
+  });
+});
+
+test('start_grab_session rejects an empty proxy_target instead of silently disabling proxy mode', async () => {
+  const designPath = await makeDesignFixture();
+
+  await withClient(indexMod.buildServer({}), async (client) => {
+    const started = await client.callTool({
+      name: 'start_grab_session',
+      arguments: { path: designPath, proxy_target: '' }
+    });
+    if (!started.isError) {
+      await client.callTool({ name: 'stop_grab_session', arguments: {} });
+    }
+
+    assert.equal(started.isError, true);
+    assert.match(started.content[0].text, /proxy_target/);
+  });
+});
+
+test('grab proxy preserves HEAD semantics without fabricating an injected body length', async () => {
+  const designPath = await makeDesignFixture();
+
+  await withUpstream((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': '123' });
+    res.end();
+  }, async (upstreamUrl) => {
+    await withClient(indexMod.buildServer({}), async (client) => {
+      try {
+        const started = await client.callTool({
+          name: 'start_grab_session',
+          arguments: { path: designPath, proxy_target: upstreamUrl }
+        });
+        const session = JSON.parse(started.content[0].text);
+        const response = await fetch(`${session.url}/document`, { method: 'HEAD' });
+
+        assert.equal(response.status, 200);
+        assert.match(response.headers.get('content-type') || '', /^text\/html/);
+        assert.equal(response.headers.get('content-length'), null);
+        assert.equal(await response.text(), '');
+      } finally {
+        await client.callTool({ name: 'stop_grab_session', arguments: {} });
+      }
+    });
+  });
+});
+
+test('grab proxy passes non-HTML response bytes through without injection', async () => {
+  const designPath = await makeDesignFixture();
+  const original = Buffer.from('{"message":"unchanged","bytes":[0,255]}\n', 'utf8');
+
+  await withUpstream((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': original.length });
+    res.end(original);
+  }, async (upstreamUrl) => {
+    await withClient(indexMod.buildServer({}), async (client) => {
+      try {
+        const started = await client.callTool({
+          name: 'start_grab_session',
+          arguments: { path: designPath, proxy_target: upstreamUrl }
+        });
+        const session = JSON.parse(started.content[0].text);
+        const response = await fetch(`${session.url}/data.json`);
+        const body = Buffer.from(await response.arrayBuffer());
+
+        assert.deepEqual(body, original);
+        assert.equal(body.includes(Buffer.from('raven-grab.js')), false);
+      } finally {
+        await client.callTool({ name: 'stop_grab_session', arguments: {} });
+      }
+    });
+  });
+});
+
+test('grab proxy forwards chunked request bodies without forwarding transfer-encoding', async () => {
+  const designPath = await makeDesignFixture();
+  let received;
+
+  await withUpstream(async (req, res) => {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    received = {
+      method: req.method,
+      url: req.url,
+      body: Buffer.concat(chunks),
+      transferEncoding: req.headers['transfer-encoding']
+    };
+    res.writeHead(204);
+    res.end();
+  }, async (upstreamUrl) => {
+    await withClient(indexMod.buildServer({}), async (client) => {
+      try {
+        const started = await client.callTool({
+          name: 'start_grab_session',
+          arguments: { path: designPath, proxy_target: upstreamUrl }
+        });
+        const session = JSON.parse(started.content[0].text);
+        const response = await new Promise((resolve, reject) => {
+          const request = httpRequest(`${session.url}/api/save?draft=1`, { method: 'PATCH' }, (res) => {
+            const chunks = [];
+            res.on('data', (chunk) => chunks.push(chunk));
+            res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks) }));
+          });
+          request.on('error', reject);
+          request.write(Buffer.from([0, 1]));
+          request.end(Buffer.from([2, 255]));
+        });
+
+        assert.equal(response.status, 204);
+        assert.equal(received.method, 'PATCH');
+        assert.equal(received.url, '/api/save?draft=1');
+        assert.deepEqual(received.body, Buffer.from([0, 1, 2, 255]));
+        assert.equal(received.transferEncoding, undefined);
+      } finally {
+        await client.callTool({ name: 'stop_grab_session', arguments: {} });
+      }
+    });
+  });
+});
+
+test('grab bridge routes remain available while proxy mode is active', async () => {
+  const designPath = await makeDesignFixture();
+
+  await withUpstream((_req, res) => {
+    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.end('upstream route');
+  }, async (upstreamUrl) => {
+    await withClient(indexMod.buildServer({}), async (client) => {
+      try {
+        const started = await client.callTool({
+          name: 'start_grab_session',
+          arguments: { path: designPath, proxy_target: upstreamUrl }
+        });
+        const session = JSON.parse(started.content[0].text);
+        const key = sessionKey(session);
+        const response = await fetch(`${session.url}/tokens?key=${key}`);
+        const tokens = await response.json();
+
+        assert.equal(response.status, 200);
+        assert.equal(response.headers.get('access-control-allow-origin'), '*');
+        assert.equal(tokens.path, path.resolve(designPath));
+        assert.equal(tokens.count, 1);
+      } finally {
+        await client.callTool({ name: 'stop_grab_session', arguments: {} });
+      }
+    });
+  });
+});
+
+test('grab proxy returns 502 when its upstream is unreachable', async () => {
+  const designPath = await makeDesignFixture();
+  let unreachableUrl;
+  await withUpstream((_req, res) => res.end(), async (upstreamUrl) => {
+    unreachableUrl = upstreamUrl;
+  });
+
+  await withClient(indexMod.buildServer({}), async (client) => {
+    try {
+      const started = await client.callTool({
+        name: 'start_grab_session',
+        arguments: { path: designPath, proxy_target: unreachableUrl }
+      });
+      const session = JSON.parse(started.content[0].text);
+      const response = await fetch(`${session.url}/unreachable`);
+      const body = await response.text();
+
+      assert.equal(response.status, 502);
+      assert.match(response.headers.get('content-type') || '', /^text\/plain/);
+      assert.match(body, /^Bad gateway: /);
+    } finally {
+      await client.callTool({ name: 'stop_grab_session', arguments: {} });
+    }
   });
 });
 
