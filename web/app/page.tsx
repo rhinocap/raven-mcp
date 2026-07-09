@@ -1,5 +1,5 @@
 import HomeScripts from '@/components/HomeScripts'
-import ToolsExplorer from "@/components/tools/ToolsExplorer";
+import ToolsSection from "@/components/tools/ToolsSection";
 import HeroGrid from '@/components/HeroGrid'
 
 export default function Home() {
@@ -540,7 +540,7 @@ export default function Home() {
         </section>
 
         {/* TOOLS */}
-        <ToolsExplorer />
+        <ToolsSection />
 
         {/* WATCH IT WORK — MacBook feature grid */}
         <section id="watch" className="watch-section" style={{ padding: 'clamp(80px, 9vw, 144px) 0' }}>

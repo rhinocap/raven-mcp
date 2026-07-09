@@ -125,7 +125,7 @@ const ACTS: Act[] = [
   },
 ];
 
-export default function ToolsExplorationB() {
+export default function ToolsSection() {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
 
   return (
@@ -149,20 +149,21 @@ export default function ToolsExplorationB() {
                   className="txb-act-head"
                   onClick={() => setOpenIdx(open ? null : i)}
                   aria-expanded={open}
+                  aria-controls={"txb-panel-" + act.num}
                 >
                   <span className="txb-num">{act.num}</span>
-                  <div className="txb-head-main">
-                    <div className="txb-head-top">
-                      <h3 className="txb-title">{act.title}</h3>
+                  <span className="txb-head-main">
+                    <span className="txb-head-top">
+                      <span className="txb-title">{act.title}</span>
                       <span className="txb-count">{act.tools.length} tools</span>
-                    </div>
-                    <p className="txb-purpose">{act.purpose}</p>
-                    <div className="txb-marquee">
+                    </span>
+                    <span className="txb-purpose">{act.purpose}</span>
+                    <span className="txb-marquee">
                       {act.marquee.map((m) => (
                         <span className="txb-marquee-item" key={m}>{m}</span>
                       ))}
-                    </div>
-                  </div>
+                    </span>
+                  </span>
                   <span className="txb-chevron" aria-hidden="true">
                     <svg width="26" height="26" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M4 6l4 4 4-4" />
@@ -170,7 +171,7 @@ export default function ToolsExplorationB() {
                   </span>
                 </button>
 
-                <div className="txb-panel" hidden={!open}>
+                <div className="txb-panel" id={"txb-panel-" + act.num} role="region" aria-label={act.title + " tools"} hidden={!open}>
                   <div className="txb-grid">
                     {act.tools.map((t) => (
                       <div className="txb-tool" key={t.name}>
@@ -186,149 +187,6 @@ export default function ToolsExplorationB() {
         </div>
       </div>
 
-      <style>{`
-        .txb-list {
-          display: flex;
-          flex-direction: column;
-          border-top: 1px solid var(--border);
-        }
-
-        .txb-act {
-          border-bottom: 1px solid var(--border);
-        }
-
-        .txb-act-head {
-          width: 100%;
-          display: flex;
-          align-items: flex-start;
-          gap: var(--space-6);
-          padding: var(--space-8) 0;
-          background: none;
-          border: 0;
-          text-align: left;
-          cursor: pointer;
-          color: inherit;
-          font: inherit;
-        }
-
-        .txb-num {
-          font-family: var(--font-mono);
-          font-size: 14px;
-          font-weight: 600;
-          color: var(--text-tertiary);
-          padding-top: 6px;
-          width: 28px;
-          flex-shrink: 0;
-          transition: color var(--duration-fast) var(--ease-out);
-        }
-        .txb-act[data-open="true"] .txb-num { color: var(--text-accent); }
-
-        .txb-head-main { flex: 1; min-width: 0; }
-
-        .txb-head-top {
-          display: flex;
-          align-items: baseline;
-          gap: var(--space-4);
-          flex-wrap: wrap;
-        }
-
-        .txb-title {
-          font-size: clamp(26px, 3vw, 34px);
-          font-weight: 700;
-          letter-spacing: -0.02em;
-          color: var(--text-primary);
-          margin: 0;
-        }
-
-        .txb-count {
-          font-family: var(--font-mono);
-          font-size: 12px;
-          font-weight: 600;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: var(--text-tertiary);
-        }
-
-        .txb-purpose {
-          font-size: 18px;
-          line-height: var(--leading-copy);
-          color: var(--text-secondary);
-          max-width: 640px;
-          margin: var(--space-3) 0 0;
-        }
-
-        .txb-marquee {
-          display: flex;
-          flex-wrap: wrap;
-          gap: var(--space-2);
-          margin-top: var(--space-4);
-        }
-
-        .txb-marquee-item {
-          font-family: var(--font-mono);
-          font-size: 13px;
-          color: var(--text-accent);
-          padding: 4px 10px;
-          border: 1px solid var(--border-accent);
-          border-radius: var(--radius-full);
-          background: var(--bg-accent-subtle);
-        }
-
-        .txb-chevron {
-          flex-shrink: 0;
-          width: 56px; height: 56px;
-          border-radius: var(--radius-full);
-          border: 1px solid var(--border-strong);
-          display: flex; align-items: center; justify-content: center;
-          color: var(--text-tertiary);
-          margin-top: 6px;
-          transition: transform var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
-        }
-        .txb-act[data-open="true"] .txb-chevron {
-          transform: rotate(180deg);
-          color: var(--text-accent);
-          border-color: var(--border-accent);
-        }
-        .txb-act-head:hover .txb-chevron { color: var(--text-primary); }
-
-        .txb-panel {
-          padding: 0 0 var(--space-10);
-          /* indent past the number column so tool names share the title's
-             left edge; the border marks the gutter line */
-          margin-left: 28px;
-          border-left: 1px solid var(--border);
-          padding-left: calc(var(--space-6) - 1px);
-        }
-
-        .txb-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: var(--space-6) var(--space-10);
-          padding-top: var(--space-2);
-        }
-
-        .txb-tool-name {
-          font-family: var(--font-mono);
-          font-size: 15px;
-          font-weight: 600;
-          color: var(--text-primary);
-          margin-bottom: 4px;
-        }
-
-        .txb-tool-desc {
-          font-size: 15px;
-          line-height: var(--leading-copy);
-          color: var(--text-secondary);
-        }
-
-        @media (max-width: 720px) {
-          .txb-act-head { gap: var(--space-4); }
-          .txb-panel { padding-left: calc(var(--space-4) - 1px); }
-          .txb-chevron { width: 44px; height: 44px; }
-          .txb-purpose { font-size: 16px; }
-          .txb-grid { grid-template-columns: 1fr; gap: var(--space-5); }
-        }
-      `}</style>
     </section>
   );
 }
