@@ -89,6 +89,30 @@
       "description": "Get tokens for a specific design system"
     },
     {
+      "name": "read_design_md",
+      "description": "Parse a DESIGN.md file and return its tokens plus Markdown body"
+    },
+    {
+      "name": "init_design_md",
+      "description": "Initialize a DESIGN.md file from a stored system, starter slug, or blank template"
+    },
+    {
+      "name": "update_design_md",
+      "description": "Update one DESIGN.md token surgically while preserving the Markdown body"
+    },
+    {
+      "name": "start_grab_session",
+      "description": "Start the Raven grab bridge on loopback for a DESIGN.md path"
+    },
+    {
+      "name": "get_grabbed_elements",
+      "description": "Drain the Raven grab queue, optionally waiting for the next selection"
+    },
+    {
+      "name": "stop_grab_session",
+      "description": "Stop the Raven grab bridge and clear any queued selections"
+    },
+    {
       "name": "compose_system",
       "description": "Mix tokens from different systems"
     },

@@ -39,6 +39,8 @@ import type { NoteAssessment, MobileSourceKind } from "./taste-fidelity.js";
 import { readFile } from "fs/promises";
 import { registerCalls } from "./calls.js";
 import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
+import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet } from "./designmd.js";
+import { startGrabSession, getGrabbedElements, stopGrabSession } from "./grab-bridge.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -1597,11 +1599,12 @@ function maybeComputeDailyDigest(): void {
 
 // ── Server ──────────────────────────────────────────────────────────
 
-// The 25 tools NOT served on a shared remote server (buildServer({remote:true})).
+// The 31 tools NOT served on a shared remote server (buildServer({remote:true})).
 // 20 are stateful/local (per-user ~/.raven files, or the create_generation_job
-// subprocess), and 5 reach the filesystem/network or have an external side
-// effect (see the capability block below). Everything else (45 stateless tools,
-// including the 5 guarded browser URL audits added in Phase 3) is remote-safe.
+// subprocess), 5 reach the filesystem/network or have an external side effect,
+// and 6 are the DESIGN.md / grab-bridge tools (local file I/O plus a single
+// loopback HTTP session). Everything else (45 stateless tools, including the 5
+// guarded browser URL audits added in Phase 3) is remote-safe.
 // Traced to docs/remote-mcp-scope.md §2; asserted at build time.
 const REMOTE_GATED_TOOLS = new Set<string>([
   // stateful / local (20)
@@ -1628,7 +1631,10 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   // it and talon_rules off remote entirely for now to keep the frozen
   // anonymous 45-tool golden hash unchanged. Revisit if/when Talon gets its
   // own remote-safety pass (URL-guard like audit_page, or an authed lane).
-  "talon_scan", "talon_rules"
+  "talon_scan", "talon_rules",
+  // DESIGN.md and grab bridge stateful tools.
+  "read_design_md", "init_design_md", "update_design_md",
+  "start_grab_session", "get_grabbed_elements", "stop_grab_session"
 ]);
 
 // Taste tools served to AUTHENTICATED remote users when a per-user store is
@@ -2432,6 +2438,204 @@ server.tool(
         text
       }]
     };
+  }
+);
+
+// ── DESIGN.md / grab bridge tools ──────────────────────────────────
+
+server.tool(
+  "read_design_md",
+  "Parse a DESIGN.md file and return its frontmatter, Markdown body, and flattened token index.",
+  {
+    path: z.string().describe("Path to DESIGN.md")
+  },
+  async ({ path }) => {
+    try {
+      var doc = readDesignMd(path);
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            path: doc.path,
+            frontmatter: doc.frontmatter,
+            body: doc.body,
+            tokens: doc.tokens
+          }, null, 2)
+        }]
+      };
+    } catch (err) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: (err as Error).message
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+server.tool(
+  "init_design_md",
+  "Initialize a DESIGN.md file from a stored Raven token system, a getdesign.md starter slug, or a blank template.",
+  {
+    path: z.string().describe("Path to DESIGN.md to create"),
+    from: z.any().describe("Source selector: blank, stored system, or starter slug")
+  },
+  async ({ path, from }) => {
+    try {
+      var doc = await initDesignMd(path, from);
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            path: doc.path,
+            source: doc.source,
+            frontmatter: doc.frontmatter,
+            body: doc.body,
+            tokens: doc.tokens
+          }, null, 2)
+        }]
+      };
+    } catch (err) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: (err as Error).message
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+server.tool(
+  "update_design_md",
+  "Update one DESIGN.md token surgically while preserving the Markdown body.",
+  {
+    path: z.string().describe("Path to DESIGN.md"),
+    set: z.object({
+      group: z.string().describe("Top-level group name"),
+      name: z.string().describe("Token name or dotted nested path"),
+      value: z.any().describe("New scalar or {group.name} reference")
+    }).optional(),
+    rename: z.object({
+      group: z.string().describe("Top-level group name"),
+      from: z.string().optional().describe("Old token name or dotted nested path"),
+      name: z.string().optional().describe("Alias for from"),
+      to: z.string().optional().describe("New token name or dotted nested path"),
+      new_name: z.string().optional().describe("Alias for to")
+    }).optional(),
+    remove: z.object({
+      group: z.string().describe("Top-level group name"),
+      name: z.string().optional().describe("Token name or dotted nested path"),
+      path: z.string().optional().describe("Alias for name")
+    }).optional()
+  },
+  async ({ path, set, rename, remove }) => {
+    try {
+      var doc = updateDesignMd(path, { set: set as DesignMdUpdateSet | undefined, rename: rename, remove: remove });
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            path: doc.path,
+            operation: doc.operation,
+            frontmatter: doc.frontmatter,
+            body: doc.body,
+            tokens: doc.tokens
+          }, null, 2)
+        }]
+      };
+    } catch (err) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: (err as Error).message
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+server.tool(
+  "start_grab_session",
+  "Start the Raven grab bridge on loopback, serving the overlay script and DESIGN.md tokens for the provided path.",
+  {
+    path: z.string().describe("Path to DESIGN.md to expose over /tokens"),
+    port: z.number().int().positive().optional().describe("Optional port; defaults to an ephemeral loopback port")
+  },
+  async ({ path, port }) => {
+    try {
+      var session = await startGrabSession(path, port);
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify(session, null, 2)
+        }]
+      };
+    } catch (err) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: (err as Error).message
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+server.tool(
+  "get_grabbed_elements",
+  "Drain the current grab queue, optionally waiting up to timeout_ms for the next selection.",
+  {
+    timeout_ms: z.number().int().positive().optional().describe("Optional wait timeout in milliseconds")
+  },
+  async ({ timeout_ms }) => {
+    try {
+      var grabbed = await getGrabbedElements(timeout_ms);
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify(grabbed, null, 2)
+        }]
+      };
+    } catch (err) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: (err as Error).message
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+server.tool(
+  "stop_grab_session",
+  "Stop the current grab bridge and clear its queued selections.",
+  {},
+  async () => {
+    try {
+      var stopped = await stopGrabSession();
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify(stopped, null, 2)
+        }]
+      };
+    } catch (err) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: (err as Error).message
+        }],
+        isError: true
+      };
+    }
   }
 );
 

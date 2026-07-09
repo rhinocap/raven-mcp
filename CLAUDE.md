@@ -19,3 +19,6 @@
 - Bounces on: a site that looks less polished than competing tools (undermines the "design intelligence" claim on its face), vague AI-marketing copy that never says concretely what it does, no obvious "try it in under a minute" path
 - Expects voice: plain, concrete, show-don't-tell — a working example or before/after beats an adjective-laden pitch; technical enough to trust, not jargon-dense
 - Uncalibrated: none — all three interview questions answered
+
+### Feature overrides
+- **grab / DESIGN.md feature (2026-07-09):** dual customer — the bound solo indie dev AND design-system-mature teams (existing token vocabulary). Verify both ways: under-a-minute setup + concrete copy for the indie dev; token fidelity, naming rigor, no dumbing-down for the mature team.

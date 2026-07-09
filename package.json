@@ -10,6 +10,7 @@
   },
   "files": [
     "dist/",
+    "browser/",
     "src/data/",
     "scripts/postinstall.cjs",
     "scripts/ios-audit.mjs",
