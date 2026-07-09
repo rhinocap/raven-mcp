@@ -48,102 +48,142 @@
   var currentSelection = null;
   var reactMetadata = null;
   var tokenIntents = Object.create(null);
+  var styleEdits = Object.create(null);
+  var styleEditOriginalInline = Object.create(null);
   var previewOriginals = Object.create(null);
 
   var host = document.createElement("div");
   host.setAttribute("data-raven-grab-overlay", "");
   host.style.cssText =
-    "position:fixed;inset:0;pointer-events:none;z-index:" + Z_INDEX + ";font-family:system-ui,sans-serif;";
+    "position:fixed;inset:0;pointer-events:none;z-index:" + Z_INDEX + ";font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;";
   (document.documentElement || document.body).appendChild(host);
   var shadow = host.attachShadow({ mode: "closed" });
 
   var style = document.createElement("style");
   style.textContent = `
-    :host { all: initial; }
+    :host {
+      all: initial;
+      --raven-grab-bg: #1a1a22;
+      --raven-grab-surface: #212129;
+      --raven-grab-raised: #2a2a33;
+      --raven-grab-overlay: #32323d;
+      --raven-grab-text: #F0F0F2;
+      --raven-grab-muted: #9498A0;
+      --raven-grab-tertiary: #8E929C;
+      --raven-grab-accent: #00BFFF;
+      --raven-grab-accent-hover: #33CFFF;
+      --raven-grab-error: #FF4060;
+      --raven-grab-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --raven-grab-mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", monospace;
+    }
     * { box-sizing: border-box; }
     .raven-grab-highlight {
-      position: fixed; display: none; pointer-events: none; border: 2px solid #3b67f2;
-      background: rgba(59, 103, 242, .08); border-radius: 3px;
-      box-shadow: 0 0 0 1px rgba(255,255,255,.72) inset;
+      position: fixed; display: none; pointer-events: none; border: 2px solid var(--raven-grab-accent);
+      background: rgba(0, 191, 255, .08); border-radius: 3px;
+      box-shadow: 0 0 0 1px rgba(10, 10, 18, .72) inset, 0 0 0 1px rgba(0, 191, 255, .35);
     }
     .raven-grab-label {
       position: fixed; display: none; max-width: min(420px, calc(100vw - 24px));
-      padding: 5px 8px; color: #fff; background: #2851d4; border-radius: 4px;
-      font: 600 11px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace;
+      padding: 5px 8px; color: #0a0a12; background: var(--raven-grab-accent); border-radius: 4px;
+      font: 600 11px/1.25 var(--raven-grab-mono);
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
-      box-shadow: 0 2px 8px rgba(15, 23, 42, .18);
+      box-shadow: 0 0 0 1px rgba(0, 191, 255, .6), 0 4px 16px rgba(0, 191, 255, .35);
     }
     .raven-grab-panel {
       position: fixed; top: 12px; right: 12px; display: none; width: min(360px, calc(100vw - 24px));
       max-height: calc(100vh - 24px); overflow: auto; pointer-events: auto;
-      color: #172033; background: #f8f9fb; border: 1px solid #d9dde7; border-radius: 12px;
-      box-shadow: 0 18px 52px rgba(15, 23, 42, .22); font: 13px/1.45 system-ui, sans-serif;
+      color: var(--raven-grab-text); background: rgba(36, 36, 46, .95);
+      border: 1px solid rgba(255, 255, 255, .12); border-radius: 20px;
+      box-shadow: 0 0 0 1px rgba(0, 191, 255, .15), 0 24px 80px rgba(0, 0, 0, .6),
+        0 0 120px rgba(0, 191, 255, .08), inset 0 1px 0 rgba(255, 255, 255, .04);
+      backdrop-filter: blur(24px) saturate(1.6); font: 13px/1.45 var(--raven-grab-ui);
       overscroll-behavior: contain;
     }
     .raven-grab-panel[aria-hidden="false"] { display: block; }
     .raven-grab-header {
       position: sticky; top: 0; z-index: 1; display: flex; align-items: center; min-height: 52px;
-      padding: 8px 8px 8px 14px; background: rgba(248,249,251,.96); border-bottom: 1px solid #e2e5ec;
-      backdrop-filter: blur(8px);
+      padding: 12px 16px; background: rgba(255, 255, 255, .01); border-bottom: 1px solid rgba(255, 255, 255, .06);
+      backdrop-filter: blur(24px) saturate(1.6);
     }
     .raven-grab-title { min-width: 0; flex: 1; }
-    .raven-grab-title strong { display: block; font-size: 13px; font-weight: 700; letter-spacing: -.01em; }
-    .raven-grab-title span { display: block; margin-top: 1px; color: #6c7485; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .raven-grab-title strong { display: block; color: var(--raven-grab-text); font: 700 14px/1.3 var(--raven-grab-ui); letter-spacing: -.01em; }
+    .raven-grab-title span { display: block; margin-top: 1px; color: var(--raven-grab-tertiary); font: 400 11px/1.35 var(--raven-grab-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .raven-grab-icon-button {
-      width: 44px; height: 44px; padding: 0; border: 0; border-radius: 8px; color: #5f687a;
-      background: transparent; cursor: pointer; font: 20px/1 system-ui, sans-serif;
+      width: 44px; height: 44px; padding: 0; border: 1px solid rgba(255, 255, 255, .1); border-radius: 8px;
+      color: var(--raven-grab-muted); background: var(--raven-grab-raised); cursor: pointer;
+      font: 20px/1 var(--raven-grab-ui); transition: color 150ms ease, background 150ms ease, border-color 150ms ease;
     }
-    .raven-grab-icon-button:hover { color: #172033; background: #e9ecf2; }
-    .raven-grab-content { padding: 14px; }
+    .raven-grab-icon-button:hover { color: var(--raven-grab-text); background: var(--raven-grab-overlay); border-color: rgba(255, 255, 255, .15); }
+    .raven-grab-content { padding: 16px; }
     .raven-grab-section + .raven-grab-section { margin-top: 16px; }
-    .raven-grab-section-title { margin: 0 0 8px; color: #656e80; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .raven-grab-section-title { margin: 0 0 8px; color: var(--raven-grab-tertiary); font: 600 12px/1.3 var(--raven-grab-mono); letter-spacing: .08em; text-transform: uppercase; }
     .raven-grab-token {
-      padding: 10px; background: #fff; border: 1px solid #e0e4eb; border-radius: 9px;
+      padding: 12px; background: var(--raven-grab-raised); border: 1px solid rgba(255, 255, 255, .06); border-radius: 12px;
     }
     .raven-grab-token + .raven-grab-token { margin-top: 8px; }
     .raven-grab-token-line { display: flex; align-items: center; min-height: 24px; gap: 8px; }
-    .raven-grab-swatch { width: 18px; height: 18px; flex: 0 0 auto; border: 1px solid rgba(15,23,42,.14); border-radius: 5px; background: var(--swatch, transparent); }
-    .raven-grab-token-name { min-width: 0; flex: 1; font: 600 12px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
-    .raven-grab-token-value { color: #737b8b; font: 11px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .raven-grab-swatch { width: 20px; height: 20px; flex: 0 0 auto; border: 1px solid rgba(255, 255, 255, .12); border-radius: 4px; background: var(--swatch, transparent); }
+    .raven-grab-token-name { min-width: 0; flex: 1; color: var(--raven-grab-text); font: 600 12px/1.3 var(--raven-grab-mono); overflow-wrap: anywhere; }
+    .raven-grab-token-value { color: var(--raven-grab-tertiary); font: 400 11px/1.3 var(--raven-grab-mono); }
     .raven-grab-field { display: block; margin-top: 8px; }
-    .raven-grab-field > span { display: block; margin-bottom: 4px; color: #596274; font-size: 11px; font-weight: 650; }
+    .raven-grab-field > span { display: block; margin-bottom: 4px; color: var(--raven-grab-muted); font: 600 11px/1.35 var(--raven-grab-ui); }
     .raven-grab-input, .raven-grab-select, .raven-grab-textarea {
-      width: 100%; min-height: 44px; padding: 9px 10px; color: #172033; background: #fff;
-      border: 1px solid #cdd2dc; border-radius: 7px; outline: none; font: 13px/1.35 system-ui, sans-serif;
+      width: 100%; min-height: 44px; padding: 7px 10px; color: var(--raven-grab-text); background: var(--raven-grab-bg);
+      border: 1px solid rgba(255, 255, 255, .1); border-radius: 8px; outline: none;
+      transition: border-color 150ms ease, box-shadow 150ms ease;
     }
+    .raven-grab-input, .raven-grab-select { font: 400 12px/1.4 var(--raven-grab-mono); }
     .raven-grab-select { cursor: pointer; }
-    .raven-grab-input:hover, .raven-grab-select:hover, .raven-grab-textarea:hover { border-color: #929baa; }
-    .raven-grab-input:focus, .raven-grab-select:focus, .raven-grab-textarea:focus { border-color: #3b67f2; box-shadow: 0 0 0 3px rgba(59,103,242,.15); }
-    .raven-grab-textarea { min-height: 88px; resize: vertical; }
+    .raven-grab-input:hover, .raven-grab-select:hover, .raven-grab-textarea:hover { border-color: rgba(0, 191, 255, .3); }
+    .raven-grab-input:focus, .raven-grab-select:focus, .raven-grab-textarea:focus { border-color: var(--raven-grab-accent); box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
+    .raven-grab-textarea { min-height: 88px; resize: vertical; font: 400 12px/1.4 var(--raven-grab-ui); }
     .raven-grab-new-token { display: none; grid-template-columns: 1fr 1fr; gap: 8px; }
     .raven-grab-new-token[data-open="true"] { display: grid; }
-    .raven-grab-styles { margin: 0; padding: 0; list-style: none; background: #fff; border: 1px solid #e0e4eb; border-radius: 9px; overflow: hidden; }
-    .raven-grab-styles li { display: grid; grid-template-columns: minmax(92px, .8fr) minmax(0, 1.2fr); gap: 10px; padding: 7px 9px; }
-    .raven-grab-styles li + li { border-top: 1px solid #edf0f4; }
-    .raven-grab-styles span { color: #687184; font-size: 11px; }
-    .raven-grab-styles code { overflow-wrap: anywhere; color: #313a4b; font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .raven-grab-empty { margin: 0; padding: 11px; color: #697285; background: #fff; border: 1px dashed #cfd5df; border-radius: 9px; font-size: 12px; }
-    .raven-grab-actions { position: sticky; bottom: 0; padding: 10px 14px 14px; background: linear-gradient(to bottom, rgba(248,249,251,0), #f8f9fb 18%); }
+    .raven-grab-styles { margin: 0; padding: 0; list-style: none; }
+    .raven-grab-styles li { display: grid; grid-template-columns: minmax(92px, .8fr) minmax(0, 1.2fr); align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; background: var(--raven-grab-raised); border: 1px solid rgba(255, 255, 255, .06); border-radius: 12px; }
+    .raven-grab-styles li + li { margin-top: 8px; }
+    .raven-grab-styles li[data-edited="true"] { background: rgba(0, 191, 255, .06); border-color: var(--raven-grab-accent); box-shadow: inset 3px 0 0 var(--raven-grab-accent); }
+    .raven-grab-styles span { color: var(--raven-grab-muted); font: 400 11px/1.4 var(--raven-grab-ui); }
+    .raven-grab-styles code { display: flex; align-items: center; min-height: 44px; overflow-wrap: anywhere; color: var(--raven-grab-text); font: 400 11px/1.4 var(--raven-grab-mono); cursor: pointer; border-radius: 4px; }
+    .raven-grab-styles code:hover { background: rgba(255, 255, 255, .04); text-decoration: underline dashed; text-underline-offset: 3px; }
+    .raven-grab-styles code:focus-visible { outline: 2px solid var(--raven-grab-accent); outline-offset: 2px; }
+    .raven-grab-styles li[data-edited="true"] code { color: var(--raven-grab-accent); }
+    .raven-grab-styles li[data-error="true"] { border-color: #FF4060; }
+    .raven-grab-style-input {
+      width: 100%; min-width: 0; min-height: 44px; padding: 7px 10px; color: var(--raven-grab-text); background: var(--raven-grab-bg);
+      border: 1px solid var(--raven-grab-accent); border-radius: 8px; outline: none;
+      font: 400 11px/1.4 var(--raven-grab-mono);
+    }
+    .raven-grab-style-input:focus { box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
+    .raven-grab-empty { margin: 0; padding: 12px; color: var(--raven-grab-muted); background: var(--raven-grab-raised); border: 1px dashed rgba(255, 255, 255, .1); border-radius: 12px; font: 400 12px/1.45 var(--raven-grab-ui); }
+    .raven-grab-actions { position: sticky; bottom: 0; padding: 12px 16px 16px; background: linear-gradient(to bottom, rgba(36, 36, 46, 0), rgba(36, 36, 46, .98) 18%); }
     .raven-grab-send {
-      width: 100%; min-height: 44px; border: 0; border-radius: 8px; color: #fff; background: #315fe8;
-      cursor: pointer; font: 700 13px/1 system-ui, sans-serif; box-shadow: 0 1px 2px rgba(15,23,42,.16);
+      width: 100%; min-height: 44px; padding: 12px 28px; border: 0; border-radius: 9999px; color: #0a0a12;
+      background: linear-gradient(135deg, var(--raven-grab-accent), #00E5FF); cursor: pointer;
+      font: 700 14px/1 var(--raven-grab-ui);
+      box-shadow: 0 0 0 1px rgba(0, 191, 255, .6), 0 4px 16px rgba(0, 191, 255, .35), 0 0 40px rgba(0, 191, 255, .15);
+      transition: transform 150ms cubic-bezier(.16, 1, .3, 1), background 150ms ease, box-shadow 150ms ease;
     }
-    .raven-grab-send:hover { background: #244ecb; }
-    .raven-grab-send:focus-visible, .raven-grab-icon-button:focus-visible { outline: 3px solid rgba(59,103,242,.35); outline-offset: 2px; }
+    .raven-grab-send:hover { background: var(--raven-grab-accent-hover); transform: translateY(-2px); box-shadow: 0 0 0 1px rgba(0, 191, 255, .8), 0 8px 32px rgba(0, 191, 255, .45), 0 0 60px rgba(0, 191, 255, .2); }
+    .raven-grab-send:focus-visible, .raven-grab-icon-button:focus-visible { outline: 3px solid rgba(0, 191, 255, .35); outline-offset: 2px; }
     .raven-grab-send:disabled { cursor: wait; opacity: .62; }
-    .raven-grab-status { min-height: 18px; margin: 6px 2px 0; color: #697285; font-size: 11px; text-align: center; }
-    .raven-grab-status[data-kind="error"] { color: #a33a3a; }
-    .raven-grab-status[data-kind="success"] { color: #21734d; }
+    .raven-grab-status { min-height: 18px; margin: 8px 2px 0; color: var(--raven-grab-tertiary); font: 400 11px/1.4 var(--raven-grab-ui); text-align: center; }
+    .raven-grab-status[data-kind="error"] { color: var(--raven-grab-error); }
+    .raven-grab-status[data-kind="success"] { color: #00E676; }
     .raven-grab-arm {
-      position: fixed; right: 12px; bottom: 12px; min-height: 44px; padding: 0 16px;
+      position: fixed; right: 12px; bottom: 12px; min-height: 44px; padding: 12px 20px;
       display: flex; align-items: center; gap: 8px; pointer-events: auto; cursor: pointer;
-      color: #fff; background: #315fe8; border: 0; border-radius: 22px;
-      font: 700 12px/1 system-ui, sans-serif; box-shadow: 0 4px 16px rgba(15,23,42,.28);
+      color: var(--raven-grab-text); background: rgba(14, 30, 46, .82); border: 1px solid rgba(0, 191, 255, .3); border-radius: 9999px;
+      backdrop-filter: blur(12px) saturate(1.4); font: 500 13px/1 var(--raven-grab-mono);
+      box-shadow: 0 4px 24px rgba(0, 0, 0, .3), 0 0 0 1px rgba(0, 0, 0, .2);
+      transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
     }
-    .raven-grab-arm:hover { background: #244ecb; }
-    .raven-grab-arm[data-armed="false"] { color: #313a4b; background: #e9ecf2; }
-    .raven-grab-arm[data-armed="false"]:hover { background: #dde1e9; }
-    .raven-grab-arm:focus-visible { outline: 3px solid rgba(59,103,242,.35); outline-offset: 2px; }
+    .raven-grab-arm::before { content: ""; width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--raven-grab-accent); box-shadow: 0 0 12px var(--raven-grab-accent), 0 0 24px rgba(0, 191, 255, .3); }
+    .raven-grab-arm:hover { background: rgba(22, 44, 66, .9); border-color: var(--raven-grab-accent); }
+    .raven-grab-arm[data-armed="false"] { color: var(--raven-grab-muted); background: rgba(36, 36, 46, .95); border-color: rgba(255, 255, 255, .12); }
+    .raven-grab-arm[data-armed="false"]::before { background: #5C5F68; box-shadow: none; }
+    .raven-grab-arm[data-armed="false"]:hover { color: var(--raven-grab-text); background: var(--raven-grab-overlay); border-color: var(--raven-grab-accent); }
+    .raven-grab-arm:focus-visible { outline: 3px solid rgba(0, 191, 255, .35); outline-offset: 2px; }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; } }
   `;
 
@@ -575,8 +615,107 @@
     });
   }
 
+  function styleEditsForSend() {
+    return Object.keys(styleEdits).map(function (property) { return styleEdits[property]; });
+  }
+
+  function restoreStyleEdit(property) {
+    var original = styleEditOriginalInline[property];
+    if (!selectedElement || !original) return;
+    if (original.value) selectedElement.style.setProperty(property, original.value, original.priority);
+    else selectedElement.style.removeProperty(property);
+  }
+
+  function rollbackStyleEdits() {
+    Object.keys(styleEditOriginalInline).forEach(restoreStyleEdit);
+    styleEdits = Object.create(null);
+    styleEditOriginalInline = Object.create(null);
+  }
+
+  function commitStyleEdit(property, newValue, currentValue) {
+    if (!selectedElement || newValue === currentValue) return false;
+    if (window.CSS && typeof window.CSS.supports === "function" && !window.CSS.supports(property, newValue)) return false;
+    var originalValue = styleEdits[property] ? styleEdits[property].oldValue : currentSelection.styles[property];
+    if (!styleEditOriginalInline[property]) {
+      styleEditOriginalInline[property] = {
+        value: selectedElement.style.getPropertyValue(property),
+        priority: selectedElement.style.getPropertyPriority(property)
+      };
+    }
+    if (newValue === originalValue) {
+      restoreStyleEdit(property);
+      delete styleEdits[property];
+      delete styleEditOriginalInline[property];
+    } else {
+      selectedElement.style.setProperty(property, newValue);
+      styleEdits[property] = { property: property, oldValue: originalValue, newValue: newValue };
+    }
+    return true;
+  }
+
+  function replaceStyleInput(input, value) {
+    var row = input.parentElement;
+    var property = row.getAttribute("data-style-property");
+    var cell = document.createElement("code");
+    cell.setAttribute("data-style-value", "");
+    cell.setAttribute("tabindex", "0");
+    cell.setAttribute("role", "button");
+    cell.setAttribute("aria-label", "Edit " + property);
+    cell.textContent = value;
+    row.setAttribute("data-edited", styleEdits[property] ? "true" : "false");
+    input.parentNode.replaceChild(cell, input);
+  }
+
+  function cancelStyleEdit(input, previousValue) {
+    if (input && input.parentNode) replaceStyleInput(input, previousValue);
+  }
+
+  function beginStyleEdit(valueCell) {
+    var row = valueCell.parentElement;
+    var property = row.getAttribute("data-style-property");
+    var previousValue = valueCell.textContent;
+    var input = document.createElement("input");
+    var finished = false;
+    input.className = "raven-grab-style-input";
+    input.type = "text";
+    input.value = previousValue;
+    input.setAttribute("data-style-input", property);
+    valueCell.parentNode.replaceChild(input, valueCell);
+    input.focus();
+    input.select();
+
+    function commit() {
+      if (finished) return;
+      finished = true;
+      var newValue = input.value.trim();
+      var committed = commitStyleEdit(property, newValue, previousValue);
+      if (!committed && newValue !== previousValue) {
+        row.setAttribute("data-error", "true");
+        setTimeout(function () {
+          if (typeof row.removeAttribute === "function") row.removeAttribute("data-error");
+        }, 600);
+      }
+      replaceStyleInput(input, committed ? newValue : previousValue);
+    }
+
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commit();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        finished = true;
+        cancelStyleEdit(input, previousValue);
+      }
+    });
+    input.addEventListener("blur", commit);
+  }
+
   function renderPanel() {
     tokenIntents = Object.create(null);
+    styleEdits = Object.create(null);
+    styleEditOriginalInline = Object.create(null);
     var tokens = currentSelection.tokens;
     var matchedTokens = tokens.map(function (token, index) {
       return { token: token, index: index };
@@ -609,7 +748,7 @@
         }).join("")
       : '<p class="raven-grab-empty">No design tokens matched this element. Computed styles are still included.</p>';
     var stylesMarkup = Object.keys(currentSelection.styles).map(function (property) {
-      return "<li><span>" + escapeHtml(property) + "</span><code>" + escapeHtml(currentSelection.styles[property]) + "</code></li>";
+      return '<li data-style-property="' + escapeHtml(property) + '"><span>' + escapeHtml(property) + '</span><code data-style-value tabindex="0" role="button" aria-label="Edit ' + escapeHtml(property) + '">' + escapeHtml(currentSelection.styles[property]) + "</code></li>";
     }).join("");
 
     panel.innerHTML = `
@@ -637,6 +776,7 @@
       else document.documentElement.style.removeProperty(cssVar);
     });
     previewOriginals = Object.create(null);
+    rollbackStyleEdits();
     selectedElement = null;
     hoveredElement = null;
     currentSelection = null;
@@ -709,6 +849,7 @@
       styles: currentSelection.styles,
       tokens: currentSelection.tokens,
       tokenIntents: Object.keys(tokenIntents).map(function (key) { return tokenIntents[key]; }),
+      styleEdits: styleEditsForSend(),
       instruction: (panel.querySelector("[data-instruction]") || {}).value || ""
     };
     if (reactMetadata) {
@@ -756,6 +897,15 @@
     event.stopPropagation();
     if (event.target.closest("[data-close]")) dismiss();
     if (event.target.closest("[data-send]")) sendSelection();
+    var styleValue = event.target.closest("[data-style-value]");
+    if (styleValue) beginStyleEdit(styleValue);
+  });
+  panel.addEventListener("keydown", function (event) {
+    var styleValue = event.target.closest("[data-style-value]");
+    if (styleValue && (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      beginStyleEdit(styleValue);
+    }
   });
   panel.addEventListener("change", function (event) {
     var index = event.target.getAttribute("data-token-choice");
@@ -787,6 +937,7 @@
     if (event.altKey && target.parentElement) target = target.parentElement;
     event.preventDefault();
     event.stopImmediatePropagation();
+    rollbackStyleEdits();
     selectedElement = target;
     setHighlight(target);
     currentSelection = selectionFor(target);
@@ -794,7 +945,8 @@
   }, true);
 
   document.addEventListener("keydown", function (event) {
-    if (event.key === "Escape") dismiss();
+    var styleInput = shadow.activeElement && shadow.activeElement.getAttribute("data-style-input") !== null;
+    if (event.key === "Escape" && !styleInput) dismiss();
     if (event.altKey && (event.key === "g" || event.key === "G" || event.code === "KeyG")) setArmed(!armed);
   }, true);
 

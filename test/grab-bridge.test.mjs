@@ -75,15 +75,21 @@ function sessionKey(session) {
   return match[1];
 }
 
-function fakeStyle(declarations = {}) {
+function fakeStyle(declarations = {}, priorities = {}) {
   const properties = Object.keys(declarations);
   const style = {
     cssText: properties.map((property) => `${property}: ${declarations[property]};`).join(' '),
     length: properties.length,
     getPropertyValue(property) { return declarations[property] || ''; },
-    getPropertyPriority() { return ''; },
-    setProperty(property, value) { declarations[property] = value; },
-    removeProperty(property) { delete declarations[property]; }
+    getPropertyPriority(property) { return priorities[property] || ''; },
+    setProperty(property, value, priority = '') {
+      declarations[property] = value;
+      priorities[property] = priority;
+    },
+    removeProperty(property) {
+      delete declarations[property];
+      delete priorities[property];
+    }
   };
   properties.forEach((property, index) => { style[index] = property; });
   return style;
@@ -99,18 +105,41 @@ async function loadOverlayInternals() {
     tokenMapFor: tokenMapFor,
     alternativesFor: alternativesFor,
     tokenIntentFor: tokenIntentFor,
+    beginStyleEdit: beginStyleEdit,
+    commitStyleEdit: commitStyleEdit,
+    cancelStyleEdit: cancelStyleEdit,
+    dismiss: dismiss,
+    payloadForSend: payloadForSend,
+    styleEditsForSend: styleEditsForSend,
+    setStyleContext: function (element, styles) {
+      selectedElement = element;
+      currentSelection = { selector: "#target", html: "", rect: {}, styles: styles, tokens: [] };
+      styleEdits = Object.create(null);
+      styleEditOriginalInline = Object.create(null);
+    },
     setTokens: function (tokens) { bridgeTokens = normalizeTokens(tokens); }
   };
 ${marker}`);
   assert.notEqual(instrumented, source, 'overlay test hook insertion point must exist');
 
   function fakeElement() {
+    const attributes = {};
+    const listeners = {};
     return {
       style: fakeStyle(),
-      setAttribute() {},
-      removeAttribute() {},
+      setAttribute(name, value) { attributes[name] = String(value); },
+      getAttribute(name) { return Object.hasOwn(attributes, name) ? attributes[name] : null; },
+      removeAttribute(name) { delete attributes[name]; },
       appendChild() {},
-      addEventListener() {},
+      addEventListener(type, listener) {
+        if (!listeners[type]) listeners[type] = [];
+        listeners[type].push(listener);
+      },
+      dispatch(type, event) {
+        for (const listener of listeners[type] || []) listener(event);
+      },
+      focus() {},
+      select() {},
       attachShadow() { return { appendChild() {} }; },
       querySelector() { return null; }
     };
@@ -129,7 +158,10 @@ ${marker}`);
     querySelectorAll() { return []; }
   };
   const window = {
-    CSS: { escape: (value) => value },
+    CSS: {
+      escape: (value) => value,
+      supports: (_property, value) => value !== 'definitely-invalid'
+    },
     addEventListener() {}
   };
   const context = {
@@ -220,6 +252,7 @@ test('start_grab_session requires its capability key, serves DESIGN.md tokens, q
         selector: '#cta',
         html: '<button id="cta">Save</button>',
         rect: { x: 10, y: 20, w: 120, h: 44 },
+        styleEdits: [{ property: 'color', oldValue: '#111111', newValue: '#222222' }],
         instruction: 'Swap the primary color to the muted variant.'
       })
     });
@@ -233,6 +266,9 @@ test('start_grab_session requires its capability key, serves DESIGN.md tokens, q
     const grabbed = JSON.parse(drained.content[0].text);
     assert.equal(grabbed.count, 1);
     assert.equal(grabbed.elements[0].selector, '#cta');
+    assert.deepEqual(grabbed.elements[0].styleEdits, [
+      { property: 'color', oldValue: '#111111', newValue: '#222222' }
+    ]);
     assert.equal(grabbed.elements[0].instruction, 'Swap the primary color to the muted variant.');
 
     const stopped = await client.callTool({ name: 'stop_grab_session', arguments: {} });
@@ -543,6 +579,121 @@ test('overlay token intents include old and new full token paths', async () => {
       newTokenValue: 'Newsreader'
     }
   );
+});
+
+test('overlay computed-style commits preserve the original value across re-edits', async () => {
+  const { internals } = await loadOverlayInternals();
+  const element = { style: fakeStyle({ color: 'rgb(0, 0, 0)' }) };
+  internals.setStyleContext(element, { color: 'rgb(0, 0, 0)' });
+
+  assert.equal(internals.commitStyleEdit('color', 'rgb(20, 20, 20)', 'rgb(0, 0, 0)'), true);
+  assert.deepEqual(Array.from(internals.styleEditsForSend(), (edit) => ({ ...edit })), [
+    { property: 'color', oldValue: 'rgb(0, 0, 0)', newValue: 'rgb(20, 20, 20)' }
+  ]);
+
+  assert.equal(internals.commitStyleEdit('color', 'rgb(40, 40, 40)', 'rgb(20, 20, 20)'), true);
+  assert.equal(element.style.getPropertyValue('color'), 'rgb(40, 40, 40)');
+  assert.deepEqual(Array.from(internals.styleEditsForSend(), (edit) => ({ ...edit })), [
+    { property: 'color', oldValue: 'rgb(0, 0, 0)', newValue: 'rgb(40, 40, 40)' }
+  ]);
+});
+
+test('overlay dismiss rolls back inline computed-style mutations', async () => {
+  const { internals } = await loadOverlayInternals();
+  const element = { style: fakeStyle({ color: 'rgb(1, 2, 3)' }, { color: 'important' }) };
+  internals.setStyleContext(element, { color: 'rgb(1, 2, 3)' });
+
+  internals.commitStyleEdit('color', 'rgb(20, 20, 20)', 'rgb(1, 2, 3)');
+  assert.equal(element.style.getPropertyValue('color'), 'rgb(20, 20, 20)');
+
+  internals.dismiss();
+  assert.equal(element.style.getPropertyValue('color'), 'rgb(1, 2, 3)');
+  assert.equal(element.style.getPropertyPriority('color'), 'important');
+  assert.deepEqual(Array.from(internals.styleEditsForSend()), []);
+});
+
+test('overlay reverting to the original computed value removes the inline override', async () => {
+  const { internals } = await loadOverlayInternals();
+  const element = { style: fakeStyle() };
+  internals.setStyleContext(element, { color: 'rgb(0, 0, 0)' });
+
+  internals.commitStyleEdit('color', 'rgb(20, 20, 20)', 'rgb(0, 0, 0)');
+  internals.commitStyleEdit('color', 'rgb(0, 0, 0)', 'rgb(20, 20, 20)');
+
+  assert.equal(element.style.getPropertyValue('color'), '');
+  assert.deepEqual(Array.from(internals.styleEditsForSend()), []);
+});
+
+test('overlay invalid computed-style value leaves the displayed value unchanged', async () => {
+  const { internals, document } = await loadOverlayInternals();
+  const element = { style: fakeStyle() };
+  internals.setStyleContext(element, { color: 'rgb(0, 0, 0)' });
+  const row = {
+    child: null,
+    getAttribute(name) { return name === 'data-style-property' ? 'color' : null; },
+    setAttribute() {},
+    replaceChild(next) {
+      this.child = next;
+      next.parentElement = this;
+      next.parentNode = this;
+    }
+  };
+  const valueCell = document.createElement('code');
+  valueCell.textContent = 'rgb(0, 0, 0)';
+  valueCell.parentElement = row;
+  valueCell.parentNode = row;
+
+  internals.beginStyleEdit(valueCell);
+  row.child.value = 'definitely-invalid';
+  row.child.dispatch('keydown', { key: 'Enter', preventDefault() {} });
+
+  assert.equal(row.child.textContent, 'rgb(0, 0, 0)');
+  assert.equal(element.style.getPropertyValue('color'), '');
+  assert.deepEqual(Array.from(internals.styleEditsForSend()), []);
+});
+
+test('overlay computed-style identical, invalid, and cancelled edits record nothing', async () => {
+  const { internals, document } = await loadOverlayInternals();
+  const element = { style: fakeStyle({ color: 'rgb(0, 0, 0)' }) };
+  internals.setStyleContext(element, { color: 'rgb(0, 0, 0)' });
+
+  assert.equal(internals.commitStyleEdit('color', 'rgb(0, 0, 0)', 'rgb(0, 0, 0)'), false);
+  assert.equal(internals.commitStyleEdit('color', 'definitely-invalid', 'rgb(0, 0, 0)'), false);
+  const row = {
+    child: null,
+    getAttribute(name) { return name === 'data-style-property' ? 'color' : null; },
+    setAttribute() {},
+    replaceChild(next) {
+      this.child = next;
+      next.parentElement = this;
+      next.parentNode = this;
+    }
+  };
+  const valueCell = document.createElement('code');
+  valueCell.textContent = 'rgb(0, 0, 0)';
+  valueCell.parentElement = row;
+  valueCell.parentNode = row;
+  internals.beginStyleEdit(valueCell);
+  row.child.dispatch('keydown', {
+    key: 'Escape',
+    preventDefault() {},
+    stopPropagation() {}
+  });
+
+  assert.deepEqual(Array.from(internals.styleEditsForSend()), []);
+  assert.equal(element.style.getPropertyValue('color'), 'rgb(0, 0, 0)');
+  assert.equal(row.child.textContent, 'rgb(0, 0, 0)');
+});
+
+test('overlay grab payload includes computed style edits', async () => {
+  const { internals } = await loadOverlayInternals();
+  const element = { style: fakeStyle({ color: 'rgb(0, 0, 0)' }) };
+  internals.setStyleContext(element, { color: 'rgb(0, 0, 0)' });
+  internals.commitStyleEdit('color', 'rgb(20, 20, 20)', 'rgb(0, 0, 0)');
+
+  assert.deepEqual(Array.from(internals.payloadForSend().styleEdits, (edit) => ({ ...edit })), [
+    { property: 'color', oldValue: 'rgb(0, 0, 0)', newValue: 'rgb(20, 20, 20)' }
+  ]);
 });
 
 test('overlay appends its script capability key to bridge requests', async () => {

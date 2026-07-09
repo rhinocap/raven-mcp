@@ -17,6 +17,7 @@ var GrabPayloadSchema = z.object({
   styles: z.record(z.any()).optional(),
   tokens: z.any().optional(),
   tokenIntents: z.array(z.any()).optional(),
+  styleEdits: z.array(z.any()).optional(),
   instruction: z.string().optional(),
   componentName: z.string().optional(),
   filePath: z.string().optional(),
@@ -31,6 +32,7 @@ export interface GrabBridgeSelection {
   styles?: Record<string, any>;
   tokens?: any;
   tokenIntents?: any[];
+  styleEdits?: any[];
   instruction?: string;
   componentName?: string;
   filePath?: string;
@@ -214,6 +216,7 @@ export function queueGrabSelection(selection: unknown): GrabBridgeSelection {
     styles: parsed.styles,
     tokens: parsed.tokens,
     tokenIntents: parsed.tokenIntents,
+    styleEdits: parsed.styleEdits,
     instruction: parsed.instruction,
     componentName: parsed.componentName,
     filePath: parsed.filePath,

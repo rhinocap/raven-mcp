@@ -119,6 +119,7 @@ cd raven-mcp && npm install && npm run build
 ## Click-to-change (grab) + DESIGN.md
 
 Raven Grab connects a local page to your agent so you can click an element, describe the change, and send its selector, computed styles, matching DESIGN.md tokens, and token choices back to the session. The bridge runs on loopback and the returned script tag carries the capability key required by its routes.
+Computed styles are editable inline, and edits are sent to the agent as `styleEdits`.
 
 Setup takes under a minute:
 
