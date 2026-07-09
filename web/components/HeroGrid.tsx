@@ -139,8 +139,8 @@ export default function HeroGrid() {
     function drawBeacon(mx: number, my: number, active: boolean) {
       baseGrid(0.02, 40)
       if (!active) return
-      radialFill(mx, my, 320, 'rgba(0,191,255,0.032)', 'rgba(0,191,255,0)')
-      softSpotlightGrid(mx, my, 300, 40, '214,224,240', 0.36)
+      radialFill(mx, my, 320, 'rgba(0,191,255,0.015)', 'rgba(0,191,255,0)')
+      softSpotlightGrid(mx, my, 300, 40, '214,224,240', 0.16)
     }
 
     function frame() {
