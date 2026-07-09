@@ -6,7 +6,7 @@ import RevealAndCopy from '@/components/RevealAndCopy'
 
 const inter = Inter({
   subsets: ['latin'],
-  weight: ['400', '500', '600', '700', '800'],
+  weight: ['400', '500', '600', '700'],
   variable: '--font-inter',
   display: 'swap',
 })

@@ -16,13 +16,13 @@
     }\
     .footer-brand { display: flex; align-items: center; gap: var(--space-3, 12px); }\
     .footer-brand img { width: 22px; height: 22px; object-fit: contain; opacity: 0.5; }\
-    .footer-brand span { font-size: 13px; color: var(--text-tertiary, #5C5F68); }\
+    .footer-brand span { font-size: 13px; color: var(--text-tertiary); }\
     .footer-links { display: flex; gap: var(--space-6, 24px); }\
     .footer-links a {\
-      font-size: 13px; color: var(--text-tertiary, #5C5F68);\
+      font-size: 13px; color: var(--text-tertiary);\
       transition: color 150ms cubic-bezier(0.16, 1, 0.3, 1);\
     }\
-    .footer-links a:hover { color: var(--text-primary, #F0F0F2); }\
+    .footer-links a:hover { color: var(--text-primary); }\
     @media (max-width: 768px) {\
       .footer-inner { flex-direction: column; gap: var(--space-4, 16px); text-align: center; }\
       .footer-links { justify-content: center; flex-wrap: wrap; }\

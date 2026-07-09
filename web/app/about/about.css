@@ -4,17 +4,10 @@
     :root {
       --bg: #0E0F13;
       --bg-surface: #16171D;
-      --bg-raised: #1C1D25;
-      --bg-overlay: #32323d;
-      --bg-accent: #00BFFF;
-      --bg-accent-hover: #33CFFF;
+      --bg-raised: var(--bg-device-screen);
       --bg-accent-subtle: rgba(0, 191, 255, 0.06);
-      --text-primary: #F0F0F2;
       --text-secondary: #A0A3B1;
       --text-tertiary: #6B6E7D;
-      --text-accent: #00BFFF;
-      --accent-blue: #00BFFF;
-      --accent-cyan: #00E5FF;
       --border: rgba(255, 255, 255, 0.08);
       --border-strong: rgba(255, 255, 255, 0.12);
       --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -92,7 +85,7 @@
       width: 100%;
       aspect-ratio: 3 / 4;
       border-radius: var(--radius-xl);
-      background: linear-gradient(135deg, #1C1D25 0%, #252630 100%);
+      background: linear-gradient(135deg, var(--bg-device-screen) 0%, #252630 100%);
       border: 1px solid var(--border-strong);
       overflow: hidden;
       position: relative;
@@ -133,7 +126,7 @@
 
     .hero-name {
       font-size: clamp(40px, 5vw, 56px);
-      font-weight: 800;
+      font-weight: 700;
       letter-spacing: -0.03em;
       line-height: 1.05;
     }
@@ -171,7 +164,7 @@
     }
     .hero-link.primary {
       background: var(--accent-blue);
-      color: #000;
+      color: var(--color-black);
     }
     .hero-link.primary:hover {
       background: var(--accent-cyan);
@@ -206,7 +199,7 @@
 
     .section-title {
       font-size: clamp(28px, 4vw, 40px);
-      font-weight: 800;
+      font-weight: 700;
       letter-spacing: -0.02em;
       margin-bottom: 48px;
       max-width: 600px;
@@ -340,12 +333,12 @@
 
     .cta-section h2 {
       font-size: clamp(32px, 5vw, 48px);
-      font-weight: 800;
+      font-weight: 700;
       letter-spacing: -0.03em;
       margin-bottom: var(--space-4, 16px);
     }
     .cta-section h2 span {
-      background: linear-gradient(135deg, #fff 0%, var(--accent-blue) 40%, var(--accent-cyan) 100%);
+      background: linear-gradient(135deg, var(--text-inverse) 0%, var(--accent-blue) 40%, var(--accent-cyan) 100%);
       -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
     }
 

@@ -7,7 +7,7 @@
       --bg-raised: #2a2a33;
       --bg-overlay: #32323d;
       --bg-alt: #16161e;
-      --bg-accent: #00BFFF;
+      --bg-accent: var(--accent-blue);
       --bg-accent-hover: #33CFFF;
       --bg-accent-subtle: rgba(0, 191, 255, 0.06);
       --bg-cta-install: rgba(14, 30, 46, 0.82);
@@ -21,7 +21,9 @@
       --text-primary: #F0F0F2;
       --text-secondary: #9498A0;
       --text-tertiary: #8E929C;
-      --text-accent: #00BFFF;
+      --text-accent: var(--accent-blue);
+      --text-muted-deep: #5C5F68;
+      --text-inverse: #fff;
 
       /* Neon blue primary, supporting accents */
       --accent-blue: #00BFFF;
@@ -29,8 +31,13 @@
       --accent-green: #00E676;
       --accent-orange: #FFAB40;
       --accent-pink: #FF4081;
+      --accent-danger: #FF4060;
+      --accent-brand-green: #1DB954;
 
       --text-on-accent: #0a0a12;
+      --color-black: #000;
+      --text-demo-muted: #8A8F98;
+      --bg-device-screen: #1C1D25;
 
       /* MacBook chrome — device illustration only, not part of the brand palette */
       --mb-lid-top: #3c3c3f; --mb-lid-bottom: #252528; --mb-edge: #525257;
@@ -88,7 +95,7 @@
       display: inline-flex;
       align-items: center;
       min-height: 44px;
-      color: var(--text-secondary, #9498A0);
+      color: var(--text-secondary);
       font-size: 14px;
       font-weight: 500;
       padding: 10px 8px;
@@ -96,7 +103,7 @@
       text-decoration: none;
     }
     .btn-text-link:hover {
-      color: var(--accent-blue, #00BFFF);
+      color: var(--accent-blue);
     }
 
     /* Skip-to-content link — visually hidden until focused (WCAG 2.4.1) */
@@ -107,12 +114,16 @@
       background: var(--accent-blue);
       color: var(--text-on-accent);
       padding: 12px 20px;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
       border-radius: 8px;
       font-weight: 600;
       font-size: 14px;
       z-index: 1000;
       transition: top 200ms ease;
       text-decoration: none;
+      box-sizing: border-box;
     }
     .skip-link:focus {
       top: 16px;
@@ -278,8 +289,8 @@
       border-radius: inherit;
       padding: 1px;
       background: linear-gradient(135deg, rgba(0,191,255,0.25), rgba(255,255,255,0.06), rgba(0,229,255,0.15));
-      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask: linear-gradient(var(--text-inverse) 0 0) content-box, linear-gradient(var(--text-inverse) 0 0);
+      mask: linear-gradient(var(--text-inverse) 0 0) content-box, linear-gradient(var(--text-inverse) 0 0);
       -webkit-mask-composite: xor;
       mask-composite: exclude;
       pointer-events: none;
@@ -435,7 +446,7 @@
     .hero h1 .line-glow {
       /* background-clip MUST come after the background shorthand, or the
          shorthand resets clip back to border-box (renders a solid bar) */
-      background: linear-gradient(135deg, #F0F0F2 0%, rgba(240, 240, 242, 0.72) 100%);
+      background: linear-gradient(135deg, var(--text-primary) 0%, rgba(240, 240, 242, 0.72) 100%);
       -webkit-background-clip: text;
       background-clip: text;
     }
@@ -1189,8 +1200,8 @@
       width: 100%; padding: 7px 10px; background: var(--bg-base); border: 1px solid var(--border-strong);
       border-radius: 6px; font-size: 12px; color: var(--text-primary); font-family: var(--font-body); box-sizing: border-box;
     }
-    .mini-form-field .mini-input.has-error { border-color: #FF4060; }
-    .mini-form-field .mini-error { font-size: 10px; color: #FF4060; margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+    .mini-form-field .mini-input.has-error { border-color: var(--accent-danger); }
+    .mini-form-field .mini-error { font-size: 10px; color: var(--accent-danger); margin-top: 3px; display: flex; align-items: center; gap: 4px; }
     .mini-form-row { display: flex; gap: 8px; }
     .mini-form-row .mini-form-field { flex: 1; }
     .mini-form-submit {
@@ -1214,7 +1225,7 @@
     .mini-kpi {
       background: #1F2028; border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 10px;
     }
-    .mini-kpi-label { font-size: 9px; color: #8A8F98; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
+    .mini-kpi-label { font-size: 9px; color: var(--text-demo-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
     .mini-kpi-value { font-size: 18px; font-weight: 700; color: #F2F2F2; letter-spacing: -0.03em; }
     .mini-kpi-change { font-size: 9px; font-weight: 600; margin-top: 2px; }
     .mini-kpi-change.up { color: #6FCF97; }
@@ -1223,7 +1234,7 @@
       background: #1F2028; border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 12px;
       height: 90px; position: relative; overflow: hidden;
     }
-    .mini-dash-chart-label { font-size: 9px; color: #8A8F98; margin-bottom: 6px; }
+    .mini-dash-chart-label { font-size: 9px; color: var(--text-demo-muted); margin-bottom: 6px; }
     .mini-chart-bars { display: flex; align-items: flex-end; gap: 4px; height: 54px; }
     .mini-chart-bar {
       flex: 1; border-radius: 3px 3px 0 0;
@@ -1237,20 +1248,20 @@
     .mini-audit-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
     .mini-audit-header h4 { font-size: 14px; font-weight: 700; color: var(--text-primary); }
     .mini-audit-grade {
-      width: 32px; height: 32px; border-radius: 50%; background: #1DB954; color: #000;
+      width: 32px; height: 32px; border-radius: 50%; background: var(--accent-brand-green); color: var(--color-black);
       display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700;
     }
     .mini-audit-score { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
     .mini-audit-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
-    .mini-audit-fill { height: 100%; background: linear-gradient(90deg, #1DB954, #00BFFF); border-radius: 3px; }
+    .mini-audit-fill { height: 100%; background: linear-gradient(90deg, var(--accent-brand-green), var(--accent-blue)); border-radius: 3px; }
     .mini-audit-score span { font-size: 11px; font-weight: 700; color: var(--text-primary); }
     .mini-audit-checks { display: flex; flex-direction: column; gap: 4px; }
     .mini-check { font-size: 10px; display: flex; align-items: center; gap: 6px; padding: 3px 0; }
     .mini-check span { width: 14px; height: 14px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; flex-shrink: 0; }
     .mini-check.pass { color: var(--text-secondary); }
-    .mini-check.pass span { background: rgba(29,185,84,0.15); color: #1DB954; }
-    .mini-check.warn { color: #FFAB40; }
-    .mini-check.warn span { background: rgba(255,171,64,0.15); color: #FFAB40; }
+    .mini-check.pass span { background: rgba(29,185,84,0.15); color: var(--accent-brand-green); }
+    .mini-check.warn { color: var(--accent-orange); }
+    .mini-check.warn span { background: rgba(255,171,64,0.15); color: var(--accent-orange); }
 
     /* Mini Accessibility Report UI */
     .mini-a11y {
@@ -1260,7 +1271,7 @@
     .mini-a11y-header h4 { font-size: 14px; font-weight: 700; color: var(--text-primary); }
     .mini-a11y-badge {
       font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
-      background: rgba(0,230,118,0.12); color: #00E676; padding: 3px 8px; border-radius: 4px;
+      background: rgba(0,230,118,0.12); color: var(--accent-green); padding: 3px 8px; border-radius: 4px;
     }
     .mini-a11y-summary { display: flex; gap: 12px; margin-bottom: 14px; }
     .mini-a11y-stat {
@@ -1268,8 +1279,8 @@
       border: 1px solid rgba(255,255,255,0.05); border-radius: 8px;
     }
     .mini-a11y-stat-val { font-size: 18px; font-weight: 700; letter-spacing: -0.03em; }
-    .mini-a11y-stat-val.good { color: #00E676; }
-    .mini-a11y-stat-val.bad { color: #FF4060; }
+    .mini-a11y-stat-val.good { color: var(--accent-green); }
+    .mini-a11y-stat-val.bad { color: var(--accent-danger); }
     .mini-a11y-stat-label { font-size: 9px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
     .mini-a11y-checks { display: flex; flex-direction: column; gap: 3px; }
     .mini-a11y-check { font-size: 10px; display: flex; align-items: center; gap: 6px; padding: 3px 0; }
@@ -1278,36 +1289,36 @@
       justify-content: center; font-size: 8px; font-weight: 700; flex-shrink: 0;
     }
     .mini-a11y-check.pass { color: var(--text-secondary); }
-    .mini-a11y-check.pass .a11y-icon { background: rgba(0,230,118,0.15); color: #00E676; }
-    .mini-a11y-check.fail { color: #FF4060; }
-    .mini-a11y-check.fail .a11y-icon { background: rgba(255,64,96,0.15); color: #FF4060; }
+    .mini-a11y-check.pass .a11y-icon { background: rgba(0,230,118,0.15); color: var(--accent-green); }
+    .mini-a11y-check.fail { color: var(--accent-danger); }
+    .mini-a11y-check.fail .a11y-icon { background: rgba(255,64,96,0.15); color: var(--accent-danger); }
 
     /* Mini Phone / Mobile App UI */
     .mini-phone {
-      width: 200px; margin: 0 auto; background: #000; border-radius: 24px;
+      width: 200px; margin: 0 auto; background: var(--color-black); border-radius: 24px;
       padding: 8px; box-shadow: 0 0 0 2px #2A2A2E, 0 8px 32px rgba(0,0,0,0.5);
       font-family: var(--font-body);
     }
     .mini-phone-notch {
-      width: 72px; height: 18px; background: #000; border-radius: 0 0 12px 12px;
+      width: 72px; height: 18px; background: var(--color-black); border-radius: 0 0 12px 12px;
       margin: 0 auto -8px; position: relative; z-index: 2;
     }
     .mini-phone-screen {
-      background: #1C1D25; border-radius: 18px; overflow: hidden;
+      background: var(--bg-device-screen); border-radius: 18px; overflow: hidden;
       display: flex; flex-direction: column; min-height: 280px;
     }
     .mini-phone-status {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 10px 14px 4px; font-size: 9px; font-weight: 600; color: #fff;
+      padding: 10px 14px 4px; font-size: 9px; font-weight: 600; color: var(--text-inverse);
     }
     .mini-phone-content { flex: 1; padding: 10px 14px; }
-    .mini-phone-content h4 { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 10px; }
+    .mini-phone-content h4 { font-size: 14px; font-weight: 700; color: var(--text-inverse); margin-bottom: 10px; }
     .mini-app-card {
       background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
       border-radius: 10px; padding: 10px; margin-bottom: 8px;
     }
-    .mini-app-card-title { font-size: 10px; font-weight: 600; color: #fff; margin-bottom: 3px; }
-    .mini-app-card-sub { font-size: 9px; color: #8A8F98; }
+    .mini-app-card-title { font-size: 10px; font-weight: 600; color: var(--text-inverse); margin-bottom: 3px; }
+    .mini-app-card-sub { font-size: 9px; color: var(--text-demo-muted); }
     .mini-phone-tabbar {
       display: flex; align-items: center; justify-content: space-around;
       padding: 8px 4px 12px; border-top: 1px solid rgba(255,255,255,0.06);
@@ -1315,12 +1326,12 @@
     }
     .mini-tab { display: flex; flex-direction: column; align-items: center; gap: 2px; position: relative; }
     .mini-tab-icon { font-size: 14px; line-height: 1; }
-    .mini-tab-label { font-size: 8px; font-weight: 500; color: #8A8F98; }
-    .mini-tab.active .mini-tab-icon { color: #00BFFF; }
-    .mini-tab.active .mini-tab-label { color: #00BFFF; font-weight: 600; }
+    .mini-tab-label { font-size: 8px; font-weight: 500; color: var(--text-demo-muted); }
+    .mini-tab.active .mini-tab-icon { color: var(--accent-blue); }
+    .mini-tab.active .mini-tab-label { color: var(--accent-blue); font-weight: 600; }
     .mini-tab-badge {
       position: absolute; top: -4px; right: -6px; min-width: 12px; height: 12px;
-      background: #FF4060; color: #fff; font-size: 7px; font-weight: 700;
+      background: var(--accent-danger); color: var(--text-inverse); font-size: 7px; font-weight: 700;
       border-radius: 6px; display: flex; align-items: center; justify-content: center;
       padding: 0 3px;
     }
@@ -1331,18 +1342,18 @@
     }
     .mini-brand-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
     .mini-brand-logo { width: 28px; height: 28px; border-radius: 50%; }
-    .mini-brand-header h4 { font-size: 14px; font-weight: 700; color: #fff; }
+    .mini-brand-header h4 { font-size: 14px; font-weight: 700; color: var(--text-inverse); }
     .mini-brand-tokens { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
     .mini-token { display: flex; align-items: center; gap: 10px; padding: 6px 8px; background: rgba(255,255,255,0.04); border-radius: 6px; }
     .mini-token-swatch { width: 20px; height: 20px; border-radius: 4px; flex-shrink: 0; }
     .mini-token-info { display: flex; align-items: center; justify-content: space-between; flex: 1; }
-    .mini-token-name { font-size: 11px; font-weight: 600; color: #fff; }
+    .mini-token-name { font-size: 11px; font-weight: 600; color: var(--text-inverse); }
     .mini-token-val { font-size: 10px; font-family: monospace; color: #B3B3B3; }
     .mini-brand-fonts {
       display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06);
     }
     .mini-brand-fonts span {
-      font-size: 9px; font-weight: 600; color: #1DB954; background: rgba(29,185,84,0.1);
+      font-size: 9px; font-weight: 600; color: var(--accent-brand-green); background: rgba(29,185,84,0.1);
       padding: 3px 8px; border-radius: 4px;
     }
 
@@ -2299,27 +2310,27 @@
           flex: 1;
           min-width: 130px;
           padding: 20px;
-          background: var(--bg-raised, #2a2a33);
+          background: var(--bg-raised);
           border: 1px solid var(--border, rgba(255,255,255,0.06));
           border-radius: 12px;
         }
         .raven-stat-num {
           font-size: clamp(28px, 4vw, 36px);
           font-weight: 700;
-          color: var(--text-primary, #F0F0F2);
+          color: var(--text-primary);
           line-height: 1;
           letter-spacing: -0.02em;
         }
         .raven-stat-num .unit {
           font-size: 0.5em;
-          color: var(--text-tertiary, #5C5F68);
+          color: var(--text-tertiary);
           font-weight: 600;
           margin-left: 2px;
         }
         .raven-stat-label {
           font-family: var(--font-mono, ui-monospace, "SF Mono", monospace);
           font-size: 13px;
-          color: var(--text-tertiary, #5C5F68);
+          color: var(--text-tertiary);
           text-transform: uppercase;
           letter-spacing: 0.1em;
           margin-top: 10px;
@@ -2343,6 +2354,7 @@
     }
     .faq-item:hover { border-color: var(--border-accent); }
     .layer-card p a, .faq-item p a { color: var(--text-accent); text-decoration: none; border-bottom: 1px solid var(--border-accent); transition: border-color 200ms; }
+    .layer-card p a,
     .faq-item p a {
       display: inline-flex;
       align-items: center;

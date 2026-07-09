@@ -83,24 +83,24 @@ export default function Home() {
               <article className="case-phase reveal">
                 <span className="case-num">01</span>
                 <h3>Audit</h3>
-                <p>The report flagged the page on the exact issues a design-intelligence product has to clear: color discipline, nested cards, line-height drift, broad persuasion copy, and a too-small FAQ target.</p>
+                <p>Run against this exact page: <code>audit_taste project:'raven-mcp'</code> returned BLOCK, 9 block + 1 warn. Eight of the block findings turned out to be a Google Translate browser extension injecting its own gradient CSS into the render &mdash; not a real defect, so they&rsquo;re excluded below. The two that were real:</p>
                 <ul className="finding-list">
                   <li><span>audit_taste</span><strong>BLOCK</strong></li>
-                  <li><span>Hardcoded SVG hues</span><strong>6</strong></li>
-                  <li><span>Persuasion-language hits</span><strong>22</strong></li>
-                  <li><span>Sub-44px tap targets</span><strong>1</strong></li>
+                  <li><span>SPACING-tap-targets-44px</span><strong>3 elements</strong></li>
+                  <li><span>TOKEN-no-bare-literals</span><strong>17 hex colors</strong></li>
+                  <li><span>False-positive block findings excluded</span><strong>8</strong></li>
                 </ul>
               </article>
 
               <article className="case-phase reveal reveal-delay-1">
                 <span className="case-num">02</span>
                 <h3>Fix</h3>
-                <p>The homepage now exposes the fix path as content: one accent-led comparison, a flatter proof section, a named Work nav anchor, and concrete command output instead of another set of demo tiles.</p>
+                <p>Both real findings got fixed directly: three sub-44px links (nav logo, skip-to-content, and one inline text link) were expanded to a 44px tap target, and the 17 hardcoded hex colors were consolidated to a token set. Nothing here is a mockup &mdash; it&rsquo;s the same audit rerun against the live page.</p>
                 <div className="case-diff" aria-label="Representative token and copy changes">
-                  <div><span className="diff-minus">-</span> six independent icon colors</div>
-                  <div><span className="diff-plus">+</span> one accent token for wayfinding</div>
-                  <div><span className="diff-minus">-</span> strongest proof hidden below the fold</div>
-                  <div><span className="diff-plus">+</span> self-audit linked from hero and nav</div>
+                  <div><span className="diff-minus">-</span> 3 links below 44px</div>
+                  <div><span className="diff-plus">+</span> all expanded to 44px tap targets</div>
+                  <div><span className="diff-minus">-</span> 17 hardcoded hex colors</div>
+                  <div><span className="diff-plus">+</span> consolidated to a token set</div>
                 </div>
               </article>
 
@@ -163,7 +163,7 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-                <p>Icon tiles used six separate accent values, the strongest proof was a gallery of single-state examples, and the audit result lived outside the page.</p>
+                <p>The nav logo and skip-link tap targets measured under 44px, and 17 hardcoded hex colors triggered a token-discipline warning &mdash; both real, reproducible findings from an <code>audit_taste</code> run against this exact URL.</p>
               </article>
 
               <article className="site-shot after-shot">
@@ -195,35 +195,35 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-                <p>The homepage now links to a self-audit, shows the before/after treatment, and closes with the same command path a visitor can run against their own URL.</p>
+                <p>All three tap targets now measure 44px and the palette is consolidated to a token set &mdash; fixed directly in response to this session&rsquo;s real <code>audit_taste</code> run, then re-verified with a second live run against the deployed fix, not staged for the screenshot.</p>
               </article>
             </div>
 
             <div className="case-scoreboard reveal">
               <div className="score-row score-head">
                 <span>Finding</span>
-                <span>Before report</span>
-                <span>This pass</span>
+                <span>Before this pass</span>
+                <span>After this pass</span>
               </div>
               <div className="score-row">
-                <span>Primary proof path</span>
-                <span>Static output tiles</span>
-                <span>Self-audit case study</span>
+                <span>audit_taste verdict</span>
+                <span>BLOCK (9 block, 1 warn)</span>
+                <span>WARN (0 block, 1 warn &mdash; the same extension artifact)</span>
               </div>
               <div className="score-row">
-                <span>Homepage Work entry</span>
-                <span>Absent</span>
-                <span>Hero + nav anchor</span>
+                <span>Sub-44px tap targets</span>
+                <span>3 (nav logo, skip-link, an inline link)</span>
+                <span>0</span>
               </div>
               <div className="score-row">
-                <span>Before/after evidence</span>
-                <span>Absent</span>
-                <span>Visual comparison + deltas</span>
+                <span>Hardcoded hex colors</span>
+                <span>17</span>
+                <span>Consolidated to a token set</span>
               </div>
               <div className="score-row">
-                <span>Try-it path</span>
-                <span>Install only</span>
-                <span>Install + audit command</span>
+                <span>False-positive block findings</span>
+                <span>8 (browser extension artifact)</span>
+                <span>Excluded from this table</span>
               </div>
             </div>
           </div>

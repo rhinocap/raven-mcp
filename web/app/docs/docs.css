@@ -1,28 +1,6 @@
 
     :root {
-      --bg-base: #1a1a22;
-      --bg-surface: #212129;
-      --bg-raised: #2a2a33;
-      --bg-overlay: #32323d;
-      --bg-alt: #16161e;
-      --bg-accent: #00BFFF;
-      --bg-accent-hover: #33CFFF;
-      --bg-accent-subtle: rgba(0, 191, 255, 0.06);
-
-      --border: rgba(255, 255, 255, 0.06);
-      --border-strong: rgba(255, 255, 255, 0.1);
-      --border-accent: rgba(0, 191, 255, 0.3);
-
-      --text-primary: #F0F0F2;
-      --text-secondary: #9498A0;
-      --text-tertiary: #5C5F68;
-      --text-accent: #00BFFF;
-
-      --accent-blue: #00BFFF;
-      --accent-cyan: #00E5FF;
-      --accent-green: #00E676;
-      --accent-orange: #FFAB40;
-      --accent-pink: #FF4081;
+      --text-tertiary: var(--text-muted-deep);
 
       --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
@@ -141,7 +119,7 @@
     /* ── Typography ── */
     h1 {
       font-size: clamp(32px, 5vw, 42px);
-      font-weight: 800;
+      font-weight: 700;
       color: var(--text-primary);
       letter-spacing: -0.03em;
       line-height: 1.2;
