@@ -91,6 +91,40 @@ test('flattenDesignTokens returns nested paths and official CSS-var names', () =
   assert.equal(byPath['components.button.bg'].ref, 'colors.primary');
 });
 
+test('flattenDesignTokens maps official typography properties to CSS-var namespaces', () => {
+  const parsed = designmd.parseDesignMd(`---
+typography:
+  Primary Button:
+    fontFamily: Inter
+    fontSize: 14px
+    fontWeight: 600
+    lineHeight: 1.2
+    letterSpacing: -0.01em
+---
+Body`);
+  const tokens = designmd.flattenDesignTokens(parsed.frontmatter);
+  const byPath = Object.fromEntries(tokens.map((token) => [token.path, token.cssVar]));
+
+  assert.equal(byPath['typography.Primary Button.fontFamily'], '--font-primary-button');
+  assert.equal(byPath['typography.Primary Button.fontSize'], '--text-primary-button');
+  assert.equal(byPath['typography.Primary Button.fontWeight'], '--font-weight-primary-button');
+  assert.equal(byPath['typography.Primary Button.lineHeight'], '--leading-primary-button');
+  assert.equal(byPath['typography.Primary Button.letterSpacing'], '--tracking-primary-button');
+});
+
+test('parseDesignMd excludes inline comments from unquoted scalar values', () => {
+  const parsed = designmd.parseDesignMd(`---
+colors:
+  primary: #635BFF # brand purple
+spacing:
+  md: 16px # base unit
+---
+Body`);
+
+  assert.equal(parsed.frontmatter.colors.primary, '#635BFF');
+  assert.equal(parsed.frontmatter.spacing.md, '16px');
+});
+
 test('initDesignMd converts a stored system into DESIGN.md and preserves the source body', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'raven-designmd-'));
   const outPath = path.join(dir, 'DESIGN.md');
@@ -176,6 +210,31 @@ test('updateDesignMd preserves the Markdown body and can rename and set tokens',
   assert.equal(renamed.frontmatter.spacing.base, '16px');
   assert.equal(renamed.frontmatter.spacing.md, undefined);
   assert.equal(renamed.body, updated.body);
+});
+
+test('updateDesignMd preserves frontmatter comments and untouched lines byte-for-byte', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'raven-designmd-'));
+  const outPath = path.join(dir, 'DESIGN.md');
+  const raw = `---
+# palette notes
+colors:
+  primary: "#635BFF" # brand purple
+
+  # secondary stays documented
+  secondary: "#111111" # untouched inline
+spacing:
+  md: "16px" # untouched spacing
+---
+Body
+`;
+  await writeFile(outPath, raw, 'utf8');
+
+  designmd.updateDesignMd(outPath, {
+    set: { group: 'colors', name: 'primary', value: '#101010' }
+  });
+
+  const updated = await readFile(outPath, 'utf8');
+  assert.equal(updated, raw.replace('  primary: "#635BFF" # brand purple', '  primary: "#101010" # brand purple'));
 });
 
 test('updateDesignMd rejects removals that would break a DESIGN.md reference', async () => {

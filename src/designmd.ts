@@ -72,6 +72,31 @@ export interface DesignMdUpdateResult extends ParsedDesignMd {
   operation: { kind: "set"; path: string } | { kind: "rename"; from: string; to: string } | { kind: "remove"; path: string };
 }
 
+interface RawDesignMdLine {
+  text: string;
+  eol: string;
+}
+
+interface RawDesignMdParts {
+  prefix: string;
+  frontmatter: string;
+  suffix: string;
+  newline: string;
+}
+
+interface RawFrontmatterEntry {
+  index: number;
+  indent: number;
+  key: string;
+  path: string;
+  colonIndex: number;
+  keyStart: number;
+  keyEnd: number;
+  valueStart: number;
+  valueEnd: number;
+  isGroup: boolean;
+}
+
 export function parseDesignMd(source: string): ParsedDesignMd {
   var match = source.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!match) {
@@ -175,6 +200,8 @@ export function updateDesignMd(path: string, mutation: { set?: DesignMdUpdateSet
   var raw = readFileSync(abs, "utf8");
   var parsed = parseDesignMd(raw);
   var updated = deepClone(parsed.frontmatter);
+  var rawParts = splitRawDesignMd(raw);
+  var lines = splitRawLines(rawParts.frontmatter);
   var operation: DesignMdUpdateResult["operation"] | null = null;
   var hasSet = !!mutation.set;
   var hasRename = !!mutation.rename;
@@ -187,33 +214,34 @@ export function updateDesignMd(path: string, mutation: { set?: DesignMdUpdateSet
 
   if (mutation.set) {
     var setPath = joinTokenPath(mutation.set.group, mutation.set.name);
-    setNodeAtPath(updated, setPath, normalizeSetValue(mutation.set.value));
+    var setValue = normalizeSetValue(mutation.set.value);
+    setNodeAtPath(updated, setPath, setValue);
+    setRawFrontmatterValue(lines, setPath, setValue, rawParts.newline);
     operation = { kind: "set", path: setPath };
   } else if (mutation.rename) {
     var rename = normalizeRename(mutation.rename);
     var oldPath = rename.from;
     var newPath = rename.to;
     renameNodeAtPath(updated, oldPath, newPath);
+    renameRawFrontmatterKey(lines, oldPath, newPath);
     operation = { kind: "rename", from: oldPath, to: newPath };
   } else if (mutation.remove) {
     var removePath = normalizeRemove(mutation.remove);
     deleteNodeAtPath(updated, removePath);
+    removeRawFrontmatterPath(lines, removePath, updated);
     operation = { kind: "remove", path: removePath };
   }
 
-  validateDesignMdRefs(updated);
-
-  var doc = {
-    frontmatter: updated,
-    body: parsed.body
-  };
-  writeFileSync(abs, serializeDesignMd(doc), "utf8");
+  var candidate = rawParts.prefix + joinRawLines(lines) + rawParts.suffix;
+  var result = parseDesignMd(candidate);
+  validateDesignMdRefs(result.frontmatter);
+  writeFileSync(abs, candidate, "utf8");
 
   return {
     path: abs,
-    frontmatter: updated,
-    body: parsed.body,
-    tokens: flattenDesignTokens(updated),
+    frontmatter: result.frontmatter,
+    body: result.body,
+    tokens: flattenDesignTokens(result.frontmatter),
     operation: operation as DesignMdUpdateResult["operation"]
   };
 }
@@ -350,7 +378,7 @@ function parseFrontmatter(text: string): DesignMdNode {
     while (stack.length > 1 && indent <= stack[stack.length - 1].indent) stack.pop();
     var parent = stack[stack.length - 1].node;
     var key = line.slice(0, colonIndex).trim();
-    var rest = line.slice(colonIndex + 1).trim();
+    var rest = stripInlineComment(line.slice(colonIndex + 1)).trim();
     if (!key) throw new Error("Invalid DESIGN.md frontmatter key: " + raw);
 
     if (rest === "") {
@@ -381,6 +409,234 @@ function parseScalar(text: string): any {
   if (text === "false") return false;
   if (/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(text)) return Number(text);
   return text;
+}
+
+function stripInlineComment(text: string): string {
+  var index = findInlineCommentStart(text, 0);
+  return index === -1 ? text : text.slice(0, index);
+}
+
+function findInlineCommentStart(text: string, start: number): number {
+  var quote = "";
+  var escaped = false;
+  var hasValue = false;
+  for (var i = start; i < text.length; i++) {
+    var ch = text.charAt(i);
+    if (quote === "\"") {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === "\"") {
+        quote = "";
+      }
+      hasValue = true;
+      continue;
+    }
+    if (quote === "'") {
+      if (ch === "'" && text.charAt(i + 1) === "'") {
+        i++;
+      } else if (ch === "'") {
+        quote = "";
+      }
+      hasValue = true;
+      continue;
+    }
+    if (ch === "\"" || ch === "'") {
+      quote = ch;
+      hasValue = true;
+      continue;
+    }
+    if (ch === "#" && hasValue && i > start && /\s/.test(text.charAt(i - 1))) {
+      return i;
+    }
+    if (!/\s/.test(ch)) hasValue = true;
+  }
+  return -1;
+}
+
+function splitRawDesignMd(raw: string): RawDesignMdParts {
+  var match = raw.match(/^---(\r?\n)([\s\S]*?)(\r?\n)---(\r?\n?)([\s\S]*)$/);
+  if (!match) {
+    return {
+      prefix: "---\n",
+      frontmatter: "",
+      suffix: "\n---\n" + raw,
+      newline: "\n"
+    };
+  }
+  return {
+    prefix: "---" + match[1],
+    frontmatter: match[2],
+    suffix: match[3] + "---" + match[4] + match[5],
+    newline: match[1]
+  };
+}
+
+function splitRawLines(text: string): RawDesignMdLine[] {
+  var lines: RawDesignMdLine[] = [];
+  var offset = 0;
+  while (offset < text.length) {
+    var newlineIndex = text.indexOf("\n", offset);
+    if (newlineIndex === -1) {
+      lines.push({ text: text.slice(offset), eol: "" });
+      break;
+    }
+    var lineEnd = newlineIndex;
+    var eol = "\n";
+    if (lineEnd > offset && text.charAt(lineEnd - 1) === "\r") {
+      lineEnd--;
+      eol = "\r\n";
+    }
+    lines.push({ text: text.slice(offset, lineEnd), eol: eol });
+    offset = newlineIndex + 1;
+  }
+  return lines;
+}
+
+function joinRawLines(lines: RawDesignMdLine[]): string {
+  var out = "";
+  for (var i = 0; i < lines.length; i++) out += lines[i].text + lines[i].eol;
+  return out;
+}
+
+function scanRawFrontmatter(lines: RawDesignMdLine[]): RawFrontmatterEntry[] {
+  var entries: RawFrontmatterEntry[] = [];
+  var stack: Array<{ indent: number; path: string }> = [];
+  for (var i = 0; i < lines.length; i++) {
+    var text = lines[i].text;
+    if (!text || text.trim() === "" || text.trim().charAt(0) === "#") continue;
+    var indent = countLeadingSpaces(text);
+    var colonIndex = text.indexOf(":", indent);
+    if (colonIndex === -1) continue;
+    while (stack.length > 0 && indent <= stack[stack.length - 1].indent) stack.pop();
+    var rawKey = text.slice(indent, colonIndex);
+    var key = rawKey.trim();
+    if (!key) continue;
+    var keyLeading = rawKey.length - rawKey.replace(/^\s+/, "").length;
+    var keyTrailing = rawKey.length - rawKey.replace(/\s+$/, "").length;
+    var path = stack.length > 0 ? stack[stack.length - 1].path + "." + key : key;
+    var commentStart = findInlineCommentStart(text, colonIndex + 1);
+    var valueLimit = commentStart === -1 ? text.length : commentStart;
+    var valueStart = colonIndex + 1;
+    while (valueStart < valueLimit && /\s/.test(text.charAt(valueStart))) valueStart++;
+    var valueEnd = valueLimit;
+    while (valueEnd > valueStart && /\s/.test(text.charAt(valueEnd - 1))) valueEnd--;
+    var isGroup = stripInlineComment(text.slice(colonIndex + 1)).trim() === "";
+    entries.push({
+      index: i,
+      indent: indent,
+      key: key,
+      path: path,
+      colonIndex: colonIndex,
+      keyStart: indent + keyLeading,
+      keyEnd: colonIndex - keyTrailing,
+      valueStart: valueStart,
+      valueEnd: valueEnd,
+      isGroup: isGroup
+    });
+    if (isGroup) stack.push({ indent: indent, path: path });
+  }
+  return entries;
+}
+
+function findRawEntry(entries: RawFrontmatterEntry[], path: string): RawFrontmatterEntry | null {
+  for (var i = 0; i < entries.length; i++) {
+    if (entries[i].path === path) return entries[i];
+  }
+  return null;
+}
+
+function setRawFrontmatterValue(lines: RawDesignMdLine[], path: string, value: any, newline: string): void {
+  var entries = scanRawFrontmatter(lines);
+  var entry = findRawEntry(entries, path);
+  if (entry) {
+    if (entry.isGroup) {
+      for (var i = entries.length - 1; i >= 0; i--) {
+        if (entries[i].path.indexOf(path + ".") === 0) lines.splice(entries[i].index, 1);
+      }
+      entries = scanRawFrontmatter(lines);
+      entry = findRawEntry(entries, path) as RawFrontmatterEntry;
+    }
+    var current = lines[entry.index].text;
+    var prefix = current.slice(0, entry.valueStart);
+    if (entry.valueStart === entry.colonIndex + 1) prefix += " ";
+    lines[entry.index].text = prefix + serializeScalar(value) + current.slice(entry.valueEnd);
+    return;
+  }
+
+  var parts = path.split(".").filter(Boolean);
+  var parent: RawFrontmatterEntry | null = null;
+  var parentCount = 0;
+  for (var p = parts.length - 1; p > 0; p--) {
+    parent = findRawEntry(entries, parts.slice(0, p).join("."));
+    if (parent) {
+      parentCount = p;
+      break;
+    }
+  }
+  var insertAt = parent ? rawGroupEnd(entries, parent, lines.length) : lines.length;
+  var baseIndent = parent ? parent.indent + 2 : 0;
+  var additions: string[] = [];
+  for (var n = parentCount; n < parts.length; n++) {
+    var indent = repeatSpaces(baseIndent + ((n - parentCount) * 2));
+    additions.push(indent + parts[n] + (n === parts.length - 1 ? ": " + serializeScalar(value) : ":"));
+  }
+  insertRawLines(lines, insertAt, additions, newline);
+}
+
+function rawGroupEnd(entries: RawFrontmatterEntry[], group: RawFrontmatterEntry, fallback: number): number {
+  for (var i = 0; i < entries.length; i++) {
+    if (entries[i].index > group.index && entries[i].indent <= group.indent) return entries[i].index;
+  }
+  return fallback;
+}
+
+function insertRawLines(lines: RawDesignMdLine[], index: number, additions: string[], newline: string): void {
+  if (additions.length === 0) return;
+  var inserted: RawDesignMdLine[] = [];
+  if (index === lines.length && lines.length > 0 && lines[lines.length - 1].eol === "") {
+    lines[lines.length - 1].eol = newline;
+  }
+  for (var i = 0; i < additions.length; i++) {
+    var eol = index < lines.length || i < additions.length - 1 ? newline : "";
+    inserted.push({ text: additions[i], eol: eol });
+  }
+  lines.splice(index, 0, ...inserted);
+}
+
+function renameRawFrontmatterKey(lines: RawDesignMdLine[], fromPath: string, toPath: string): void {
+  var fromParts = fromPath.split(".").filter(Boolean);
+  var toParts = toPath.split(".").filter(Boolean);
+  var fromParent = fromParts.slice(0, -1).join(".");
+  var toParent = toParts.slice(0, -1).join(".");
+  if (fromParent !== toParent) {
+    throw new Error("Cannot rename across DESIGN.md groups with a surgical key edit");
+  }
+  var entry = findRawEntry(scanRawFrontmatter(lines), fromPath);
+  if (!entry) throw new Error("Token path not found: " + fromPath);
+  var text = lines[entry.index].text;
+  lines[entry.index].text = text.slice(0, entry.keyStart) + toParts[toParts.length - 1] + text.slice(entry.keyEnd);
+}
+
+function removeRawFrontmatterPath(lines: RawDesignMdLine[], path: string, updated: DesignMdNode): void {
+  var entries = scanRawFrontmatter(lines);
+  var found = false;
+  for (var i = entries.length - 1; i >= 0; i--) {
+    if (entries[i].path === path || entries[i].path.indexOf(path + ".") === 0) {
+      lines.splice(entries[i].index, 1);
+      found = true;
+    }
+  }
+  if (!found) throw new Error("Token path not found: " + path);
+
+  var parts = path.split(".").filter(Boolean);
+  for (var p = parts.length - 1; p > 0; p--) {
+    var parentPath = parts.slice(0, p).join(".");
+    if (typeof getNodeAtPath(updated, parentPath) !== "undefined") break;
+    var parentEntry = findRawEntry(scanRawFrontmatter(lines), parentPath);
+    if (parentEntry) lines.splice(parentEntry.index, 1);
+  }
 }
 
 function unquote(text: string): string {
@@ -465,6 +721,13 @@ function cssVarFromPath(pathParts: string[]): string {
   if (top === "typography") {
     var group = pathParts[1] || "";
     var rest = pathParts.slice(2).join("-").replace(/\./g, "-");
+    var property = pathParts[2] || "";
+    var name = kebabCase(group);
+    if (property === "fontFamily") return "--font-" + name;
+    if (property === "fontSize") return "--text-" + name;
+    if (property === "fontWeight") return "--font-weight-" + name;
+    if (property === "lineHeight") return "--leading-" + name;
+    if (property === "letterSpacing") return "--tracking-" + name;
     if (group === "font-family") return "--font-" + rest;
     if (group === "font-size") return "--text-" + rest;
     if (group === "font-weight") return "--font-weight-" + rest;
@@ -473,6 +736,14 @@ function cssVarFromPath(pathParts: string[]): string {
     return "--typography-" + pathParts.slice(1).join("-").replace(/\./g, "-");
   }
   return "--" + pathParts.join("-").replace(/\./g, "-");
+}
+
+function kebabCase(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/[^A-Za-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
 }
 
 function pathFromParts(parts: string[]): string {
