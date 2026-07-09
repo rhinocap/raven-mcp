@@ -1675,9 +1675,9 @@
       color: var(--text-accent);
     }
 
-    /* Tool taxonomy — 3 acts (Know · Create · Audit) as labeled sub-sections */
+    /* Tool taxonomy — 5 acts (Know · Create · Audit · Judge · Meta) as labeled sub-sections */
     .tool-act { margin-top: var(--space-16); }
-    .tool-act:first-of-type { margin-top: 0; }
+    .section-header + .tool-act { margin-top: var(--space-10); }
     .tool-act-head {
       display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-3) var(--space-4);
       padding-bottom: var(--space-4);
