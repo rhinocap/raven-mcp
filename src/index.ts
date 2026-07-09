@@ -37,6 +37,8 @@ import { remoteUrlGuardError } from "./remote-url-guard.js";
 import { buildHints, screenTraitsFromImage, assessDesignNotesSource, assessDesignNotesImage, noteIssuesFromAssessments } from "./taste-fidelity.js";
 import type { NoteAssessment, MobileSourceKind } from "./taste-fidelity.js";
 import { readFile } from "fs/promises";
+import { registerCalls } from "./calls.js";
+import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -1620,7 +1622,13 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   // which sends mail + subscribes via Resend with no rate limit/CAPTCHA/auth — a
   // no-auth spam/abuse amplifier if left remote-exposed.)
   "audit_contract", "audit_asset_integrity", "audit_device_frame", "audit_api_contract",
-  "raven_register"
+  "raven_register",
+  // Talon detector engine (P1, parity-roadmap Gap 1) — talon_scan takes the
+  // same url → capturePage() fetch surface as audit_api_contract; gate both
+  // it and talon_rules off remote entirely for now to keep the frozen
+  // anonymous 45-tool golden hash unchanged. Revisit if/when Talon gets its
+  // own remote-safety pass (URL-guard like audit_page, or an authed lane).
+  "talon_scan", "talon_rules"
 ]);
 
 // Taste tools served to AUTHENTICATED remote users when a per-user store is
@@ -6066,6 +6074,80 @@ server.tool(
     var out: any = result;
     if (url) out = Object.assign({}, result, { target: "url", url: url });
     return { content: [{ type: "text" as const, text: JSON.stringify(out, null, 2) }] };
+  }
+);
+
+  registerCalls(server, tasteStore, allPrinciples);
+
+server.tool(
+  "talon_scan",
+  "Run Raven's deterministic detector engine over a page — no LLM, pure measurement. Covers color-system discipline (palette budget, near-duplicate hex, hue diversity), spacing-grid conformance (base-unit, scale count), type-scale/rhythm (size count, body line-height, measure, font-family budget), heading/landmark structure, motion-duration/easing sanity (flashing-animation risk, prefers-reduced-motion coverage), and orphan-stretch/horizontal-overflow geometry. Pass html, url (rendered headless), or pre-measured elements+viewport (the same DevTools-snippet shape audit_layout takes — required for the two geometry rules). Every finding cites the src/data/principles/*.json entry it derives from. Pass project (and profile) to resolve a saved taste surface binding (see bind_taste_surface) — a finding the binding silences via an 'off' override is still returned, flagged waived_by_taste:true, never dropped.",
+  {
+    html: z.string().optional().describe("Full HTML/CSS of the page to scan."),
+    url: z.string().optional().describe("Live URL — rendered headless with scroll-settle."),
+    elements: z.array(z.object({
+      selector: z.string(),
+      rect: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
+      computed: z.object({
+        padding: z.string().optional(),
+        margin: z.string().optional(),
+        gap: z.string().optional(),
+        fontSize: z.string().optional(),
+        color: z.string().optional(),
+        background: z.string().optional()
+      }).optional()
+    })).optional().describe("Pre-measured element rects (DevTools-snippet shape from audit_layout) — enables the geometry rules (orphan-stretch, horizontal-overflow)."),
+    viewport: z.object({ w: z.number(), h: z.number() }).optional().describe("Viewport used for the horizontal-overflow geometry check."),
+    surface: z.string().optional().describe("What surface is being scanned — activates/skips scope-tagged rules by token match. Omit if unsure."),
+    project: z.string().optional().describe("Project identifier — resolves a saved surface binding (see bind_taste_surface) whose overrides can waive specific TAL-### rules. Requires profile."),
+    profile: z.string().optional().describe("Taste profile name to resolve project's binding against (see list_taste_profiles). Only used when project or url is also given.")
+  },
+  async function ({ html, url, elements, viewport, surface, project, profile }) {
+    var targetHtml = html;
+    if (url !== undefined && url !== null) {
+      try {
+        var cap = await capturePage(url, { scroll_settle: true });
+        targetHtml = cap.renderedHtml;
+      } catch (e) {
+        if (e instanceof CaptureUnavailableError) {
+          return { content: [{ type: "text" as const, text: "Playwright chromium not available. Run: npx playwright install chromium" }] };
+        }
+        throw e;
+      }
+    }
+    if ((targetHtml === undefined || targetHtml === null) && (!elements || elements.length === 0)) {
+      return { content: [{ type: "text" as const, text: "Provide html, url, or elements to scan." }] };
+    }
+    var binding: SurfaceBinding | null = null;
+    if (typeof profile === "string" && profile.trim().length > 0 && (project || url)) {
+      binding = await resolveSurfaceBinding(tasteStore, profile, { project: project, url: url });
+    }
+    var effectiveSurface = typeof surface === "string" && surface.trim().length > 0 ? surface : (binding ? binding.surface : undefined);
+    var result = runTalon(
+      { html: targetHtml || "", elements: elements as TalonElement[] | undefined, viewport: viewport },
+      { surface: effectiveSurface, binding: binding }
+    );
+    var waivedCount = result.findings.filter(function (f) { return f.waived_by_taste === true; }).length;
+    var out: any = {
+      tool: "talon_scan",
+      rule_count: listTalonRules().length,
+      findings: result.findings,
+      passes: result.passes,
+      waived_by_taste_count: waivedCount
+    };
+    if (url) out.url = url;
+    if (binding) out.binding = binding.project;
+    return { content: [{ type: "text" as const, text: JSON.stringify(out, null, 2) }] };
+  }
+);
+
+server.tool(
+  "talon_rules",
+  "Enumerate Raven's Talon detector rule corpus — id, category, severity, taste scope, and the src/data/principles/*.json entry each rule cites. No scan required; use this to show a client 'why' before or instead of running talon_scan.",
+  {},
+  async function () {
+    var rules = listTalonRules();
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "talon_rules", count: rules.length, rules: rules }, null, 2) }] };
   }
 );
 

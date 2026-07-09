@@ -127,9 +127,9 @@ The single largest residual risk isn't in any workstream — it's how this work 
 ## Phased punch list — P1/P2/P3, all four workstreams, ordered by leverage
 
 **P1 — highest leverage, lowest risk, ship first**
-1. Talon engine + rule corpus, with the `source` citation field enforced in the schema from the first shipped rule (Gap 1).
+1. **DONE** — Talon engine + rule corpus, with the `source` citation field enforced in the schema from the first shipped rule (Gap 1). Shipped: 15 rules, `talon_scan`/`talon_rules` MCP tools, cited `source` field verified populated on live findings.
 2. Talon terminology blocklist applied to all copy before any public description is written (Gap 1).
-3. Calls / MCP Prompts plumbing + first ~6 calls (Gap 4) — cheapest visible product-shaped win, makes Raven feel complete in every host immediately.
+3. **DONE** — Calls / MCP Prompts plumbing + first ~6 calls (Gap 4) — cheapest visible product-shaped win, makes Raven feel complete in every host immediately. Shipped 5 prompts: `preen`, `appraise`, `cadence`, `plumage`, `truesight` — no naming-clearance issues since these 5 were already vetted in the original roadmap review above.
 4. Calls clean-room naming pass: one designated reviewer produces the blocklist once, before any Call ships publicly (Gap 4).
 
 **P2 — ship once P1 gives them something to distribute/build on**

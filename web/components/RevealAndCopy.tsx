@@ -32,6 +32,35 @@ export default function RevealAndCopy() {
     )
     if (!reduce) els.forEach((el) => observer.observe(el))
 
+    // IntersectionObserver only fires for frames the browser actually
+    // renders — a large/fast scroll (fast flick, End key, hash-jump,
+    // programmatic scrollTo) can land past a .reveal element without ever
+    // rendering a frame where it intersected, leaving it permanently at
+    // opacity:0. Sweep on scroll/resize and catch up anything already past
+    // the fold that the observer missed.
+    let sweepQueued = false
+    const sweep = () => {
+      sweepQueued = false
+      const vh = window.innerHeight
+      els.forEach((el) => {
+        if (el.classList.contains('visible')) return
+        if (el.getBoundingClientRect().top < vh) {
+          el.classList.add('visible')
+          observer.unobserve(el)
+        }
+      })
+    }
+    const onScroll = () => {
+      if (sweepQueued) return
+      sweepQueued = true
+      requestAnimationFrame(sweep)
+    }
+    if (!reduce) {
+      window.addEventListener('scroll', onScroll, { passive: true })
+      window.addEventListener('resize', onScroll, { passive: true })
+      sweep()
+    }
+
     // Delegated clipboard for every install button.
     const onClick = (e: MouseEvent) => {
       const btn = (e.target as HTMLElement)?.closest<HTMLElement>('.cta-install')
@@ -53,6 +82,8 @@ export default function RevealAndCopy() {
 
     return () => {
       observer.disconnect()
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
       document.removeEventListener('click', onClick)
     }
   }, [])

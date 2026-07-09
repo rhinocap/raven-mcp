@@ -21,8 +21,8 @@ export default function Home() {
             <div className="hero-badge reveal">
               Open-source MCP Server · MIT
             </div>
-            <h1 className="reveal reveal-delay-1"><span className="line-glow">Design intelligence</span><span className="line-accent">for every prompt</span></h1>
-            <p className="subtitle reveal reveal-delay-2">The judgment layer for AI agents — 70 tools that audit what your agent builds, hold it to your taste, and cite the rule behind every finding. Claude, Cursor, or any MCP client.</p>
+            <h1 className="reveal reveal-delay-1"><span className="line-glow">Design audits</span><span className="line-accent">for AI-built UI</span></h1>
+            <p className="subtitle reveal reveal-delay-2">Raven is an open-source MCP server that lets coding agents audit a page, name the broken design rule, and return the fix with evidence. The first case study is this homepage.</p>
             <div className="hero-cta reveal reveal-delay-3">
               <button className="cta-install" aria-label="Copy install command to clipboard" data-copy="claude mcp add raven -- npx -y raven-mcp">
                 <span className="copy-label">claude mcp add raven -- npx -y raven-mcp</span>
@@ -30,6 +30,7 @@ export default function Home() {
               </button>
             </div>
             <div className="hero-text-links reveal reveal-delay-3">
+              <a href="#work" className="btn-text-link">See the self-audit →</a>
               <a href="/docs.html" className="btn-text-link">Docs →</a>
               <a href="https://github.com/rhinocap/raven-mcp" className="btn-text-link">View on GitHub →</a>
             </div>
@@ -51,6 +52,180 @@ export default function Home() {
             
             
 
+          </div>
+        </section>
+
+        {/* SELF-AUDIT CASE STUDY */}
+        <section id="work" className="self-audit">
+          <div className="container">
+            <div className="case-hero reveal">
+              <div className="case-hero-copy">
+                <p className="label">Case study</p>
+                <h2>We audited our own homepage.</h2>
+                <p>Raven's strongest proof is a self-critique: run the audit, fix the findings, and show exactly what changed. This section turns the report into a reproducible before/after instead of another claim about design quality.</p>
+              </div>
+              <div className="case-command terminal">
+                <div className="terminal-header">
+                  <span className="terminal-dot"></span>
+                  <span className="terminal-dot"></span>
+                  <span className="terminal-dot"></span>
+                  <span className="terminal-title">run it on your site</span>
+                </div>
+                <div className="static-term-body">
+                  <pre aria-label="Raven audit command" dangerouslySetInnerHTML={{ __html: `<span class="g">$</span> claude mcp add raven -- npx -y raven-mcp
+<span class="g">$</span> audit_page <span class="k">url</span>:<span class="v">'https://ravenmcp.ai'</span>
+<span class="g">$</span> audit_taste <span class="k">project</span>:<span class="v">'raven-mcp'</span> <span class="k">url</span>:<span class="v">'https://ravenmcp.ai'</span>` }} />
+                </div>
+              </div>
+            </div>
+
+            <div className="case-phases">
+              <article className="case-phase reveal">
+                <span className="case-num">01</span>
+                <h3>Audit</h3>
+                <p>The report flagged the page on the exact issues a design-intelligence product has to clear: color discipline, nested cards, line-height drift, broad persuasion copy, and a too-small FAQ target.</p>
+                <ul className="finding-list">
+                  <li><span>audit_taste</span><strong>BLOCK</strong></li>
+                  <li><span>Hardcoded SVG hues</span><strong>6</strong></li>
+                  <li><span>Persuasion-language hits</span><strong>22</strong></li>
+                  <li><span>Sub-44px tap targets</span><strong>1</strong></li>
+                </ul>
+              </article>
+
+              <article className="case-phase reveal reveal-delay-1">
+                <span className="case-num">02</span>
+                <h3>Fix</h3>
+                <p>The homepage now exposes the fix path as content: one accent-led comparison, a flatter proof section, a named Work nav anchor, and concrete command output instead of another set of demo tiles.</p>
+                <div className="case-diff" aria-label="Representative token and copy changes">
+                  <div><span className="diff-minus">-</span> six independent icon colors</div>
+                  <div><span className="diff-plus">+</span> one accent token for wayfinding</div>
+                  <div><span className="diff-minus">-</span> strongest proof hidden below the fold</div>
+                  <div><span className="diff-plus">+</span> self-audit linked from hero and nav</div>
+                </div>
+              </article>
+
+              <article className="case-phase reveal reveal-delay-2">
+                <span className="case-num">03</span>
+                <h3>Verify</h3>
+                <p>Raven's natural close is not a testimonial. It is a command a builder can paste into Claude and point at a real URL, then compare the returned findings to the page in front of them.</p>
+                <div className="verify-block">
+                  <span>next step</span>
+                  <code>audit_page → audit_taste → fix → rerun</code>
+                </div>
+              </article>
+            </div>
+
+            <div className="changed-grid">
+              <article className="changed-card reveal">
+                <span>Color discipline</span>
+                <h3>Six accent hues became one rule.</h3>
+                <p>The comparison shows the audit finding as a visual defect: independent icon colors read as decoration, while one accent value makes the evidence easier to scan.</p>
+              </article>
+              <article className="changed-card reveal reveal-delay-1">
+                <span>Layout density</span>
+                <h3>Proof moved ahead of inventory.</h3>
+                <p>The homepage now explains what Raven does through a concrete self-audit before the visitor reaches long tool lists or example galleries.</p>
+              </article>
+              <article className="changed-card reveal reveal-delay-2">
+                <span>Voice</span>
+                <h3>The page shows the workflow.</h3>
+                <p>The case study names the findings and commands directly, matching the skeptical builder who wants evidence before committing time.</p>
+              </article>
+            </div>
+
+            <div className="before-after reveal" aria-label="Before and after visual comparison of the Raven homepage audit">
+              <article className="site-shot before-shot">
+                <div className="shot-header">
+                  <span>Before</span>
+                  <strong>audit_taste: BLOCK</strong>
+                </div>
+                <div className="shot-window">
+                  <div className="shot-nav"><span></span><span></span><span></span></div>
+                  <div className="shot-page">
+                    <div className="shot-hero">
+                      <div className="shot-pill">Design intelligence</div>
+                      <div className="shot-title wide"></div>
+                      <div className="shot-title short"></div>
+                      <div className="shot-copy"></div>
+                    </div>
+                    <div className="shot-rainbow-grid">
+                      <span className="hue-1"></span>
+                      <span className="hue-2"></span>
+                      <span className="hue-3"></span>
+                      <span className="hue-4"></span>
+                      <span className="hue-5"></span>
+                      <span className="hue-6"></span>
+                    </div>
+                    <div className="shot-stack">
+                      <div></div>
+                      <div></div>
+                      <div></div>
+                    </div>
+                  </div>
+                </div>
+                <p>Icon tiles used six separate accent values, the strongest proof was a gallery of single-state examples, and the audit result lived outside the page.</p>
+              </article>
+
+              <article className="site-shot after-shot">
+                <div className="shot-header">
+                  <span>After this pass</span>
+                  <strong>self-audit visible</strong>
+                </div>
+                <div className="shot-window">
+                  <div className="shot-nav"><span></span><span></span><span></span></div>
+                  <div className="shot-page">
+                    <div className="shot-hero">
+                      <div className="shot-pill">Case study</div>
+                      <div className="shot-title wide"></div>
+                      <div className="shot-title short accent"></div>
+                      <div className="shot-copy"></div>
+                    </div>
+                    <div className="shot-proof-row">
+                      <span>Audit</span>
+                      <span>Fix</span>
+                      <span>Verify</span>
+                    </div>
+                    <div className="shot-accent-grid">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </div>
+                  </div>
+                </div>
+                <p>The homepage now links to a self-audit, shows the before/after treatment, and closes with the same command path a visitor can run against their own URL.</p>
+              </article>
+            </div>
+
+            <div className="case-scoreboard reveal">
+              <div className="score-row score-head">
+                <span>Finding</span>
+                <span>Before report</span>
+                <span>This pass</span>
+              </div>
+              <div className="score-row">
+                <span>Primary proof path</span>
+                <span>Static output tiles</span>
+                <span>Self-audit case study</span>
+              </div>
+              <div className="score-row">
+                <span>Homepage Work entry</span>
+                <span>Absent</span>
+                <span>Hero + nav anchor</span>
+              </div>
+              <div className="score-row">
+                <span>Before/after evidence</span>
+                <span>Absent</span>
+                <span>Visual comparison + deltas</span>
+              </div>
+              <div className="score-row">
+                <span>Try-it path</span>
+                <span>Install only</span>
+                <span>Install + audit command</span>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -84,8 +259,8 @@ export default function Home() {
           <div className="container">
             <div className="section-header">
               <p className="label reveal">The Taste Engine</p>
-              <h2 className="reveal reveal-delay-1">Your design judgment, made portable</h2>
-              <p className="subtitle reveal reveal-delay-2">Every other audit holds your agent's work to the field's rules. The Taste Engine holds it to <em>yours</em>&mdash;calibrated once per surface, enforced on every build, kicked off fresh for each new project.</p>
+              <h2 className="reveal reveal-delay-1">Turn your taste into audit rules</h2>
+              <p className="subtitle reveal reveal-delay-2">Raven asks how a project should look and sound, stores that surface profile locally, then <code>audit_taste</code> returns BLOCK/WARN/PASS findings with rule IDs and evidence.</p>
             </div>
         
             <div className="recipe reveal">
@@ -131,8 +306,8 @@ export default function Home() {
   <span class="k">verdict_line</span>  2 blocking findings — fix before ship.
 
   <span class="k">findings</span>
-    · <span class="v">voice-no-hype</span>   "supercharge your workflow"  <span class="c">→ cut the hype verb</span>
-    · <span class="v">voice-no-hype</span>   "unlock durable growth"      <span class="c">→ name the outcome plainly</span>
+    · <span class="v">voice-no-hype</span>   "make every screen better"   <span class="c">→ name the check performed</span>
+    · <span class="v">voice-no-hype</span>   "built for modern teams"     <span class="c">→ name the user and task</span>
 
   <span class="k">suppressed</span>             1   <span class="c">accepted precedent</span>
   <span class="k">not_assessed</span>           1   <span class="c">clause needs a live capture</span>
@@ -210,7 +385,7 @@ export default function Home() {
             <div className="section-header">
               <p className="label reveal">Nine Knowledge Layers</p>
               <h2 className="reveal reveal-delay-1">Nine layers, one MCP server</h2>
-              <p className="subtitle reveal reveal-delay-2">Design, content, brand, research, service, business &mdash; every layer your AI is missing, structured for machines to query and apply.</p>
+              <p className="subtitle reveal reveal-delay-2">Raven exposes principles, UI patterns, content voice, research methods, service blueprints, strategy frameworks, design tokens, and audit tools as MCP calls.</p>
             </div>
 
             <div className="layers-grid">
@@ -249,7 +424,7 @@ export default function Home() {
               </div>
 
               <div className="glow-card layer-card reveal reveal-delay-2">
-                <div className="layer-icon" style={{ background: 'rgba(179,136,255,0.12)', color: '#B388FF' }}>
+                <div className="layer-icon accent">
                   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 5h14M4 10h10M4 15h12" /></svg>
                 </div>
                 <div className="stat">4</div>
@@ -265,7 +440,7 @@ export default function Home() {
               </div>
 
               <div className="glow-card layer-card reveal">
-                <div className="layer-icon" style={{ background: 'rgba(0,229,255,0.12)', color: '#00E5FF' }}>
+                <div className="layer-icon accent">
                   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="10" cy="10" r="6" /><path d="M14.5 14.5l4 4" /></svg>
                 </div>
                 <div className="stat">6</div>
@@ -297,7 +472,7 @@ export default function Home() {
               </div>
 
               <div className="glow-card layer-card reveal reveal-delay-2">
-                <div className="layer-icon" style={{ background: 'rgba(255,171,64,0.12)', color: '#FFAB40' }}>
+                <div className="layer-icon accent">
                   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><circle cx="11" cy="11" r="3" /></svg>
                 </div>
                 <div className="stat">7</div>
@@ -329,7 +504,7 @@ export default function Home() {
               </div>
 
               <div className="glow-card layer-card card-raised reveal reveal-delay-1">
-                <div className="layer-icon" style={{ background: 'rgba(255,64,129,0.12)', color: '#FF4081' }}>
+                <div className="layer-icon accent">
                   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="3" width="16" height="16" rx="2" /><path d="M7 8h8M7 11h5M7 14h7" /></svg>
                 </div>
                 <div className="stat">12</div>
@@ -376,7 +551,7 @@ export default function Home() {
               <div className="tool-act-head">
                 <span className="tool-act-num">01</span>
                 <h3 className="tool-act-title">Know</h3>
-                <p className="tool-act-desc">Query the design intelligence — principles, patterns, research, and the reference libraries Raven reasons from.</p>
+                <p className="tool-act-desc">Ask for the source material Raven uses: principles, patterns, research methods, metrics frameworks, and token libraries.</p>
               </div>
               <div className="tool-sub">
                 <span className="tool-sub-label">Principles &amp; patterns</span>
@@ -386,15 +561,15 @@ export default function Home() {
                   <div><div className="tool-name">get_principles</div><div className="tool-desc">Design principles matched to your UI context&mdash;heuristics, laws, accessibility, color theory</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg></div>
                   <div><div className="tool-name">get_pattern</div><div className="tool-desc">Field-tested patterns with do's, don'ts, and evidence across UI, content, and service-design types</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" strokeWidth="1.5" strokeLinecap="round"><path d="M3 3h10v10H3z"/><path d="M3 7h10M7 3v10"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 3h10v10H3z"/><path d="M3 7h10M7 3v10"/></svg></div>
                   <div><div className="tool-name">get_checklist</div><div className="tool-desc">Pre-publish quality checklist for any UI type&mdash;forms, dashboards, landing pages, mobile</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" strokeWidth="1.5" strokeLinecap="round"><path d="M8 2v4l3 2"/><circle cx="8" cy="8" r="6"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 2v4l3 2"/><circle cx="8" cy="8" r="6"/></svg></div>
                   <div><div className="tool-name">get_d4d_framework</div><div className="tool-desc">Design for Delight&mdash;customer empathy, hypothesis, and experiment templates</div></div>
                 </div>
                 <div className="tool-card reveal">
@@ -407,15 +582,15 @@ export default function Home() {
                 <span className="tool-sub-label">Strategy, metrics &amp; research</span>
                 <div className="tools-grid">
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" strokeWidth="1.5" strokeLinecap="round"><path d="M2 12l4-4 3 3 5-5"/><path d="M10 6h4v4"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2 12l4-4 3 3 5-5"/><path d="M10 6h4v4"/></svg></div>
                   <div><div className="tool-name">get_business_strategy</div><div className="tool-desc">Monetization, retention, onboarding, growth, and metrics frameworks</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" strokeWidth="1.5" strokeLinecap="round"><path d="M3 13V3M3 13h10"/><path d="M5 10l2-4 2 3 3-6"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 13V3M3 13h10"/><path d="M5 10l2-4 2 3 3-6"/></svg></div>
                   <div><div className="tool-name">get_metrics_framework</div><div className="tool-desc">HEART, AARRR, North Star, conversion funnel, RICE, OKRs&mdash;with examples</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="4"/><path d="M10 10l4 4"/><path d="M5 7h4"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="4"/><path d="M10 10l4 4"/><path d="M5 7h4"/></svg></div>
                   <div><div className="tool-name">get_research_method</div><div className="tool-desc">Qualitative, quantitative, and usability methods&mdash;with protocols and bias traps</div></div>
                 </div>
                 </div>
@@ -424,7 +599,7 @@ export default function Home() {
                 <span className="tool-sub-label">Reference libraries</span>
                 <div className="tools-grid">
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" strokeWidth="1.5" strokeLinecap="round"><path d="M2 4h12M2 8h8M2 12h10"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2 4h12M2 8h8M2 12h10"/></svg></div>
                   <div><div className="tool-name">list_design_systems</div><div className="tool-desc">Browse the registry of 12 design systems with tokens and metadata</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
@@ -432,35 +607,35 @@ export default function Home() {
                   <div><div className="tool-name">get_design_system</div><div className="tool-desc">Full tokens&mdash;colors, typography, spacing, radii, elevation, motion</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#B388FF" strokeWidth="1.5" strokeLinecap="round"><path d="M4 3h8v10H4z"/><path d="M6 7h4M6 10h4"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 3h8v10H4z"/><path d="M6 7h4M6 10h4"/></svg></div>
                   <div><div className="tool-name">list_content_systems</div><div className="tool-desc">Browse brand voice &amp; tone systems&mdash;Mailchimp, GOV.UK, Polaris, Atlassian</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#B388FF" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="5" r="2"/><path d="M5 13c0-2 1-4 3-4s3 2 3 4"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="5" r="2"/><path d="M5 13c0-2 1-4 3-4s3 2 3 4"/></svg></div>
                   <div><div className="tool-name">get_content_system</div><div className="tool-desc">A brand's full voice&mdash;attributes, tone shifts, vocabulary, grammar, content patterns</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#B388FF" strokeWidth="1.5" strokeLinecap="round"><path d="M3 3v10h10"/><path d="M6 10l2-3 2 2 3-4"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 3v10h10"/><path d="M6 10l2-3 2 2 3-4"/></svg></div>
                   <div><div className="tool-name">get_content_principles</div><div className="tool-desc">UX-writing principles&mdash;clarity, active voice, error anatomy, inclusive language</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#B388FF" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="6"/><path d="M6 8l1.5 1.5L11 6"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="6"/><path d="M6 8l1.5 1.5L11 6"/></svg></div>
                   <div><div className="tool-name">get_content_pattern</div><div className="tool-desc">Copy recipes for error messages, empty states, notifications, form validation</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" strokeWidth="1.5" strokeLinecap="round"><circle cx="5" cy="8" r="2"/><circle cx="11" cy="8" r="2"/><path d="M7 8h2"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="5" cy="8" r="2"/><circle cx="11" cy="8" r="2"/><path d="M7 8h2"/></svg></div>
                   <div><div className="tool-name">get_service_pattern</div><div className="tool-desc">Blueprinting, human handoff, signup-as-service, omnichannel, moments of truth</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="3" width="10" height="10" rx="1"/><path d="M6 6l1.5 1.5L10 5"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="3" width="10" height="10" rx="1"/><path d="M6 6l1.5 1.5L10 5"/></svg></div>
                   <div><div className="tool-name">get_service_standard</div><div className="tool-desc">The GOV.UK Service Standard&mdash;14 points for service-quality assessment</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2"/></svg></div>
                   <div><div className="tool-name">get_brand_principles</div><div className="tool-desc">Logo usage, gradient rules, imagery, visual hierarchy, brand-as-system</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" strokeWidth="1.5" strokeLinecap="round"><path d="M3 5l2-2 2 2M11 5l2-2 2 2M3 11l2 2 2-2M11 11l2 2 2-2"/><rect x="6" y="6" width="4" height="4"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 5l2-2 2 2M11 5l2-2 2 2M3 11l2 2 2-2M11 11l2 2 2-2"/><rect x="6" y="6" width="4" height="4"/></svg></div>
                   <div><div className="tool-name">get_brand_trends</div><div className="tool-desc">2026 visual trends&mdash;bento, monospace, neon-on-glass, brutalism, AI imagery</div></div>
                 </div>
                 </div>
@@ -470,21 +645,21 @@ export default function Home() {
               <div className="tool-act-head">
                 <span className="tool-act-num">02</span>
                 <h3 className="tool-act-title">Create</h3>
-                <p className="tool-act-desc">Generate production-ready systems and assets — from a brand color, a prompt, or a composition.</p>
+                <p className="tool-act-desc">Create token sets, brand profiles, service blueprints, and provider-ready creative job payloads from explicit inputs.</p>
               </div>
               <div className="tool-sub">
                 <span className="tool-sub-label">Design systems &amp; tokens</span>
                 <div className="tools-grid">
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FF4081" strokeWidth="1.5" strokeLinecap="round"><path d="M3 8a5 5 0 0110 0"/><path d="M8 3v5l3 2"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 8a5 5 0 0110 0"/><path d="M8 3v5l3 2"/></svg></div>
                   <div><div className="tool-name">generate_design_system</div><div className="tool-desc">Generate a complete design system from a brand color&mdash;export as HTML, CSS, Figma, or SVG</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l4 4-4 4"/><path d="M12 4l-4 4 4 4"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l4 4-4 4"/><path d="M12 4l-4 4 4 4"/></svg></div>
                   <div><div className="tool-name">compose_system</div><div className="tool-desc">Mix tokens from multiple design systems into a custom composition</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="6"/><path d="M5 8h6M8 5v6"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="6"/><path d="M5 8h6M8 5v6"/></svg></div>
                   <div><div className="tool-name">get_brand_system</div><div className="tool-desc">Get a complete design system for building an app with branding like any company</div></div>
                 </div>
                 </div>
@@ -493,7 +668,7 @@ export default function Home() {
                 <span className="tool-sub-label">Brand &amp; creative</span>
                 <div className="tools-grid">
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="5" r="2.5"/><path d="M3 14c1-3 3-5 5-5s4 2 5 5"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="5" r="2.5"/><path d="M3 14c1-3 3-5 5-5s4 2 5 5"/></svg></div>
                   <div><div className="tool-name">create_brand_profile</div><div className="tool-desc">Store local brand memory: colors, fonts, tone, audience, constraints, product notes, and asset references</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
@@ -501,19 +676,19 @@ export default function Home() {
                   <div><div className="tool-name">get_brand_profile</div><div className="tool-desc">Read a saved local creative brand profile for reuse in generation and campaign jobs</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4h8M4 8h8M4 12h8"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4h8M4 8h8M4 12h8"/></svg></div>
                   <div><div className="tool-name">list_brand_profiles</div><div className="tool-desc">List saved creative brand profiles under the local Raven creative workspace</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#B388FF" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="5" r="2.5"/><path d="M5 13c0-2 1-4 3-4s3 2 3 4"/><path d="M12 3l1 1M3 12l1 1"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="5" r="2.5"/><path d="M5 13c0-2 1-4 3-4s3 2 3 4"/><path d="M12 3l1 1M3 12l1 1"/></svg></div>
                   <div><div className="tool-name">create_character_profile</div><div className="tool-desc">Create a character or identity reference profile for consistent image and video generation</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" strokeWidth="1.5" strokeLinecap="round"><path d="M3 12l3-4 3 2 4-6"/><path d="M10 4h3v3"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 12l3-4 3 2 4-6"/><path d="M10 4h3v3"/></svg></div>
                   <div><div className="tool-name">plan_creative_campaign</div><div className="tool-desc">Plan a multi-asset campaign across photos, cards, UGC ads, TV spots, social packs, and storyboards</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FF4081" strokeWidth="1.5" strokeLinecap="round"><path d="M3 4h10v8H3z"/><path d="M6 7l2 2 3-4"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 4h10v8H3z"/><path d="M6 7l2 2 3-4"/></svg></div>
                   <div><div className="tool-name">create_generation_job</div><div className="tool-desc">Create a provider-ready image, video, audio, 3D, campaign, or analysis job payload</div></div>
                 </div>
                 <div className="tool-card reveal">
@@ -521,19 +696,19 @@ export default function Home() {
                   <div><div className="tool-name">get_generation_job</div><div className="tool-desc">Read a generation job, its provider payload, status, and runner output if execution was enabled</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" strokeWidth="1.5" strokeLinecap="round"><path d="M3 5h10M3 8h10M3 11h10"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 5h10M3 8h10M3 11h10"/></svg></div>
                   <div><div className="tool-name">list_generation_jobs</div><div className="tool-desc">List local creative generation jobs by status, media type, or brand profile</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FF4081" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 6h6M5 9h4"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 6h6M5 9h4"/></svg></div>
                   <div><div className="tool-name">list_creative_models</div><div className="tool-desc">Browse provider-agnostic model slots for image, video, 3D, audio, character consistency, and analysis</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" strokeWidth="1.5" strokeLinecap="round"><path d="M3 3h10v10H3z"/><path d="M5 6h6M5 9h4M5 12h5"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 3h10v10H3z"/><path d="M5 6h6M5 9h4M5 12h5"/></svg></div>
                   <div><div className="tool-name">list_creative_presets</div><div className="tool-desc">Browse presets for product photos, marketplace cards, UGC ads, TV spots, social packs, storyboards, and infographics</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="3" width="10" height="10" rx="1.5"/><path d="M5 11l2-2 2 1 2-3"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="3" width="10" height="10" rx="1.5"/><path d="M5 11l2-2 2 1 2-3"/></svg></div>
                   <div><div className="tool-name">register_creative_asset</div><div className="tool-desc">Register a local path or remote URL as an asset reference; Raven stores metadata, not file bytes</div></div>
                 </div>
                 </div>
@@ -542,7 +717,7 @@ export default function Home() {
                 <span className="tool-sub-label">Service design</span>
                 <div className="tools-grid">
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="3" width="5" height="4"/><rect x="9" y="3" width="5" height="4"/><rect x="2" y="9" width="5" height="4"/><rect x="9" y="9" width="5" height="4"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="3" width="5" height="4"/><rect x="9" y="3" width="5" height="4"/><rect x="2" y="9" width="5" height="4"/><rect x="9" y="9" width="5" height="4"/></svg></div>
                   <div><div className="tool-name">generate_service_blueprint</div><div className="tool-desc">Render a service blueprint as HTML&mdash;current vs. ideal, with two-actor HI-loop mode</div></div>
                 </div>
                 </div>
@@ -558,7 +733,7 @@ export default function Home() {
                 <span className="tool-sub-label">Web</span>
                 <div className="tools-grid">
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" strokeWidth="1.5" strokeLinecap="round"><path d="M2 3h12M2 7h8M2 11h10M13 7l-2 2 2 2"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2 3h12M2 7h8M2 11h10M13 7l-2 2 2 2"/></svg></div>
                   <div><div className="tool-name">audit_page</div><div className="tool-desc">Score any HTML page against Raven's design quality standards &mdash; typography, accessibility, responsive, tokens</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
@@ -570,27 +745,27 @@ export default function Home() {
                   <div><div className="tool-name">audit_layout</div><div className="tool-desc">Evaluate a rendered page's visual rhythm, alignment, and optical balance</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 2a6 6 0 000 12z" fill="#00E5FF"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 2a6 6 0 000 12z" fill="currentColor"/></svg></div>
                   <div><div className="tool-name">audit_contrast</div><div className="tool-desc">WCAG 2.1 contrast ratios for every text element on a rendered page&mdash;AA/AAA pass-fail with delta-to-pass</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="3" width="12" height="8" rx="1"/><rect x="6" y="11" width="4" height="2"/><path d="M2 9h12"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="3" width="12" height="8" rx="1"/><rect x="6" y="11" width="4" height="2"/><path d="M2 9h12"/></svg></div>
                   <div><div className="tool-name">audit_responsive_visibility</div><div className="tool-desc">Flag content visible on desktop but hidden on mobile across breakpoints&mdash;catches responsive-hiding bugs that only surface on real devices</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="2"/><rect x="2" y="2" width="12" height="12" rx="2"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="2"/><rect x="2" y="2" width="12" height="12" rx="2"/></svg></div>
                   <div><div className="tool-name">audit_tap_targets</div><div className="tool-desc">WCAG 2.5.5 / 44px tap-target audit&mdash;a per-element fix table with the exact CSS to reach the minimum, worst-first</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#B388FF" strokeWidth="1.5" strokeLinecap="round"><path d="M3 4h10M5 4v9M7 13h-4"/><path d="M10 7h3M11.5 7v6M13 13h-3"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 4h10M5 4v9M7 13h-4"/><path d="M10 7h3M11.5 7v6M13 13h-3"/></svg></div>
                   <div><div className="tool-name">audit_typography</div><div className="tool-desc">Typographic-scale report&mdash;detects the modular ratio, off-scale sizes, line-height drift, and bloated weight ladders</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FF4081" strokeWidth="1.5" strokeLinecap="round"><path d="M3 3h10v10H3z"/><path d="M5 6h6M5 8h6M5 10h4"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 3h10v10H3z"/><path d="M5 6h6M5 8h6M5 10h4"/></svg></div>
                   <div><div className="tool-name">audit_content</div><div className="tool-desc">Per-item UX-writing verdicts&mdash;metrics need a number, CTAs stay action-led, prose drops passive voice and jargon, with rewrites</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FF8A65" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M2 11l3-3 2 2 3-4 4 5"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M2 11l3-3 2 2 3-4 4 5"/></svg></div>
                   <div><div className="tool-name">audit_asset_integrity</div><div className="tool-desc">Detect content sliced off inside a correctly-sized export&mdash;luminance variance flags a Figma export that ended mid-form</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
@@ -598,15 +773,15 @@ export default function Home() {
                   <div><div className="tool-name">audit_device_frame</div><div className="tool-desc">Catch content cropped inside a device mockup&mdash;aspect-ratio cover loss, baked-in pan/zoom drift, and edges sliced at the frame</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="2" width="5" height="12" rx="1"/><rect x="9" y="2" width="5" height="12" rx="1"/><path d="M4.5 5v6M11.5 5v6"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="2" width="5" height="12" rx="1"/><rect x="9" y="2" width="5" height="12" rx="1"/><path d="M4.5 5v6M11.5 5v6"/></svg></div>
                   <div><div className="tool-name">audit_consistency</div><div className="tool-desc">Audit multiple routes for cross-page consistency&mdash;content-container width and hero heading tier against the inferred canonical</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M7 6l3 2-3 2z" fill="#FFAB40"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M7 6l3 2-3 2z" fill="currentColor"/></svg></div>
                   <div><div className="tool-name">audit_video_playback</div><div className="tool-desc">Render in headless Chromium and check every &lt;video&gt; actually advances&mdash;classifies each clip playing, paused, stalled, empty, or error</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 2a6 6 0 000 12z" fill="#00E676"/><path d="M8 5v6" stroke="#1a1a22"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 2a6 6 0 000 12z" fill="currentColor"/><path d="M8 5v6" stroke="var(--bg-base)"/></svg></div>
                   <div><div className="tool-name">suggest_contrast_fix</div><div className="tool-desc">Given failing WCAG pairs, return the minimal color change that clears the target ratio&mdash;the smallest foreground shift, with a background alternative</div></div>
                 </div>
                 </div>
@@ -615,7 +790,7 @@ export default function Home() {
                 <span className="tool-sub-label">Native — iOS &amp; React Native</span>
                 <div className="tools-grid">
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FF8A65" strokeWidth="1.5" strokeLinecap="round"><rect x="4" y="2" width="8" height="12" rx="1.5"/><path d="M6 5h4M6 8h4M7 11h2"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="4" y="2" width="8" height="12" rx="1.5"/><path d="M6 5h4M6 8h4M7 11h2"/></svg></div>
                   <div><div className="tool-name">audit_swiftui</div><div className="tool-desc">Audit SwiftUI source against Apple's HIG&mdash;Dynamic Type, semantic colors, 44pt targets, AccentColor</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
@@ -627,15 +802,15 @@ export default function Home() {
                   <div><div className="tool-name">audit_ios_screen</div><div className="tool-desc">Score a captured iOS screen snapshot&mdash;44pt targets, contrast, visual rhythm&mdash;with device-capable capture orchestration</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" strokeWidth="1.5" strokeLinecap="round"><rect x="4" y="2" width="8" height="12" rx="1.5"/><circle cx="8" cy="8" r="2"/><path d="M8 4v1M8 11v1"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="4" y="2" width="8" height="12" rx="1.5"/><circle cx="8" cy="8" r="2"/><path d="M8 4v1M8 11v1"/></svg></div>
                   <div><div className="tool-name">audit_ios_a11y</div><div className="tool-desc">Score an iOS accessibility snapshot&mdash;missing labels/traits, sub-44pt targets, per-text contrast, Dynamic-Type clipping, VoiceOver order</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" strokeWidth="1.5" strokeLinecap="round"><path d="M8 2l5 2v4c0 3-2 5-5 6-3-1-5-3-5-6V4z"/><path d="M6 8l1.5 1.5L10.5 6.5"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 2l5 2v4c0 3-2 5-5 6-3-1-5-3-5-6V4z"/><path d="M6 8l1.5 1.5L10.5 6.5"/></svg></div>
                   <div><div className="tool-name">audit_ios_privacy</div><div className="tool-desc">Audit Info.plist or Expo app.json&mdash;usage-string honesty, ATS, bundled secrets, undisclosed data-egress</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="1"/><ellipse cx="8" cy="8" rx="6.5" ry="2.5"/><ellipse cx="8" cy="8" rx="6.5" ry="2.5" transform="rotate(60 8 8)"/><ellipse cx="8" cy="8" rx="6.5" ry="2.5" transform="rotate(120 8 8)"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="1"/><ellipse cx="8" cy="8" rx="6.5" ry="2.5"/><ellipse cx="8" cy="8" rx="6.5" ry="2.5" transform="rotate(60 8 8)"/><ellipse cx="8" cy="8" rx="6.5" ry="2.5" transform="rotate(120 8 8)"/></svg></div>
                   <div><div className="tool-name">audit_rn</div><div className="tool-desc">Audit React Native / Expo source&mdash;touchable a11y, 44/48pt targets, font scaling, safe areas, dark mode</div></div>
                 </div>
                 </div>
@@ -644,11 +819,11 @@ export default function Home() {
                 <span className="tool-sub-label">Cross-platform &amp; contracts</span>
                 <div className="tools-grid">
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="3" width="5" height="10" rx="1"/><rect x="9" y="3" width="5" height="10" rx="1"/><path d="M7 8h2"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="3" width="5" height="10" rx="1"/><rect x="9" y="3" width="5" height="10" rx="1"/><path d="M7 8h2"/></svg></div>
                   <div><div className="tool-name">audit_parity</div><div className="tool-desc">Compare iOS and Android snapshots against named spatial relationships&mdash;catches cross-platform layout drift past device-verified claims</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" strokeWidth="1.5" strokeLinecap="round"><path d="M5 3h6M8 3v10M5 13h6"/><path d="M3 6l2-2 2 2M9 10l2 2 2-2"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M5 3h6M8 3v10M5 13h6"/><path d="M3 6l2-2 2 2M9 10l2 2 2-2"/></svg></div>
                   <div><div className="tool-name">audit_contract</div><div className="tool-desc">Verify a wire contract is identical across iOS, proxy, and Android&mdash;flags missing tokens, schemaVersion drift, and prefix-ordering bugs</div></div>
                 </div>
                 <div className="tool-card reveal">
@@ -661,15 +836,15 @@ export default function Home() {
                 <span className="tool-sub-label">Scoring</span>
                 <div className="tools-grid">
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" strokeWidth="1.5" strokeLinecap="round"><path d="M8 2l2 4h4l-3 3 1 4-4-2-4 2 1-4-3-3h4z"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 2l2 4h4l-3 3 1 4-4-2-4 2 1-4-3-3h4z"/></svg></div>
                   <div><div className="tool-name">evaluate_design</div><div className="tool-desc">Score a design description against relevant principles and patterns</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" strokeWidth="1.5" strokeLinecap="round"><path d="M8 2l1.7 3.8 4.1.4-3.1 2.7.9 4.1L8 10.9 4.4 13l.9-4.1-3.1-2.7 4.1-.4z"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 2l1.7 3.8 4.1.4-3.1 2.7.9 4.1L8 10.9 4.4 13l.9-4.1-3.1-2.7 4.1-.4z"/></svg></div>
                   <div><div className="tool-name">score_creative</div><div className="tool-desc">Score prompts, scripts, and concepts for hook strength, benefit clarity, channel fit, audience fit, and brand fit</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" strokeWidth="1.5" strokeLinecap="round"><path d="M2 13V3M2 13h12"/><rect x="4" y="8" width="2" height="3"/><rect x="7" y="5" width="2" height="6"/><rect x="10" y="6" width="2" height="5"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2 13V3M2 13h12"/><rect x="4" y="8" width="2" height="3"/><rect x="7" y="5" width="2" height="6"/><rect x="10" y="6" width="2" height="5"/></svg></div>
                   <div><div className="tool-name">score_page</div><div className="tool-desc">Score a page across 7 categories&mdash;structure, type, color, spacing, accessibility, responsive, tokens&mdash;each rated 0&ndash;10, derived deterministically</div></div>
                 </div>
                 </div>
@@ -687,7 +862,7 @@ export default function Home() {
                 <span className="tool-sub-label">Calibrate</span>
                 <div className="tools-grid">
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" strokeWidth="1.5" strokeLinecap="round"><path d="M8 2v3M8 11v3M2 8h3M11 8h3"/><circle cx="8" cy="8" r="2.5"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 2v3M8 11v3M2 8h3M11 8h3"/><circle cx="8" cy="8" r="2.5"/></svg></div>
                   <div><div className="tool-name">create_taste_profile</div><div className="tool-desc">Build a ruleset and precedent corpus from explicit rules or a DESIGN.md doc&mdash;stored locally under ~/.raven/taste</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
@@ -695,15 +870,15 @@ export default function Home() {
                   <div><div className="tool-name">get_taste_profile</div><div className="tool-desc">Read a profile's rules, scopes, voice, and its surface bindings</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" strokeWidth="1.5" strokeLinecap="round"><path d="M2 4h12M2 8h8M2 12h10"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2 4h12M2 8h8M2 12h10"/></svg></div>
                   <div><div className="tool-name">list_taste_profiles</div><div className="tool-desc">Browse every taste profile on this machine</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#B388FF" strokeWidth="1.5" strokeLinecap="round"><path d="M4 3h8v10l-4-2-4 2z"/><path d="M6 6h4M6 8h3"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 3h8v10l-4-2-4 2z"/><path d="M6 6h4M6 8h3"/></svg></div>
                   <div><div className="tool-name">get_taste_interview</div><div className="tool-desc">A kickoff question set built from the profile's own rules&mdash;asks how each surface should read before the first design decision</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" strokeWidth="1.5" strokeLinecap="round"><path d="M5 8l2 2 4-5"/><rect x="2" y="2" width="12" height="12" rx="2"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M5 8l2 2 4-5"/><rect x="2" y="2" width="12" height="12" rx="2"/></svg></div>
                   <div><div className="tool-name">bind_taste_surface</div><div className="tool-desc">Bind a profile to a surface&mdash;scoped overrides, URL hosts, a voice note, and per-dimension design notes</div></div>
                 </div>
                 </div>
@@ -712,15 +887,15 @@ export default function Home() {
                 <span className="tool-sub-label">Judge &amp; learn</span>
                 <div className="tools-grid">
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00BFFF" strokeWidth="1.5" strokeLinecap="round"><path d="M8 2l5 2.5v4c0 3-2.2 4.8-5 5.5-2.8-.7-5-2.5-5-5.5v-4z"/><path d="M6 8l1.5 1.5L10.5 6"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 2l5 2.5v4c0 3-2.2 4.8-5 5.5-2.8-.7-5-2.5-5-5.5v-4z"/><path d="M6 8l1.5 1.5L10.5 6"/></svg></div>
                   <div><div className="tool-name">audit_taste</div><div className="tool-desc">Judge HTML, text, or a URL against a profile&mdash;verdict BLOCK/WARN/PASS, every finding citing a rule_id and its evidence</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E676" strokeWidth="1.5" strokeLinecap="round"><path d="M2 8l2.5 2.5L8 5"/><path d="M8 8l2 2 4-5"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2 8l2.5 2.5L8 5"/><path d="M8 8l2 2 4-5"/></svg></div>
                   <div><div className="tool-name">label_finding</div><div className="tool-desc">Append a labeled precedent&mdash;accept, revise, or reject; accepted patterns suppress that finding in future audits</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#FFAB40" strokeWidth="1.5" strokeLinecap="round"><path d="M4 2h6l2 2v10H4z"/><path d="M6 6h4M6 8h4M6 10h2"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 2h6l2 2v10H4z"/><path d="M6 6h4M6 8h4M6 10h2"/></svg></div>
                   <div><div className="tool-name">record_taste_decision</div><div className="tool-desc">Log a chosen-vs-rejected decision so recurring choices become interview defaults</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
@@ -728,7 +903,7 @@ export default function Home() {
                   <div><div className="tool-name">list_taste_decisions</div><div className="tool-desc">Review the decision history behind a profile's evolving taste</div></div>
                 </div>
                 <div className="tool-card reveal">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#B388FF" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="2" width="12" height="12" rx="2"/><circle cx="6" cy="6" r="1.5"/><path d="M3 12l3-3 2 2 3-4 2 2.5"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="2" width="12" height="12" rx="2"/><circle cx="6" cy="6" r="1.5"/><path d="M3 12l3-3 2 2 3-4 2 2.5"/></svg></div>
                   <div><div className="tool-name">generate_taste_portrait</div><div className="tool-desc">Render a bound surface as a self-contained designed page built from its own taste store</div></div>
                 </div>
                 </div>
@@ -748,7 +923,7 @@ export default function Home() {
                   <div><div className="tool-name">raven_reflect</div><div className="tool-desc">Summarize your local Raven usage log&mdash;tool counts, recurring warnings, gaps</div></div>
                 </div>
                 <div className="tool-card reveal reveal-delay-1">
-                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#00E5FF" strokeWidth="1.5" strokeLinecap="round"><path d="M3 4h10M3 8h6M3 12h10"/><path d="M11 6l2 2-2 2"/></svg></div>
+                  <div className="tool-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 4h10M3 8h6M3 12h10"/><path d="M11 6l2 2-2 2"/></svg></div>
                   <div><div className="tool-name">raven_register</div><div className="tool-desc">Register an email for Raven updates and a direct feedback line to the creator</div></div>
                 </div>
                 </div>
@@ -822,8 +997,8 @@ export default function Home() {
               <div className="watch-row reveal">
                 <div className="watch-text">
                   <span className="wc-tool">get_pattern &middot; audit_typography</span>
-                  <h3>Patterns with evidence</h3>
-                  <p>Need a dashboard or streak system? Raven returns the pattern that works&mdash;do's, don'ts, and the research behind it&mdash;before a pixel is drawn.</p>
+                  <h3>Patterns with checklists</h3>
+                  <p>Need a dashboard or streak system? Raven returns the relevant pattern, its do's and don'ts, and the research notes before a pixel is drawn.</p>
                 </div>
                 <div className="watch-media">
                   <div className="mb">
@@ -839,8 +1014,8 @@ export default function Home() {
               <div className="watch-row reveal">
                 <div className="watch-text">
                   <span className="wc-tool">audit_ios_a11y &middot; audit_contrast &middot; audit_tap_targets</span>
-                  <h3>Accessible by default</h3>
-                  <p>Raven runs a full accessibility pass&mdash;VoiceOver labels, Dynamic Type, contrast ratios, tap-target sizes&mdash;and scores every screen.</p>
+                  <h3>Accessibility checked after build</h3>
+                  <p>Raven audits VoiceOver labels, Dynamic Type, contrast ratios, tap-target sizes, and per-screen scores after the UI exists.</p>
                 </div>
                 <div className="watch-media">
                   <div className="mb">
@@ -876,9 +1051,9 @@ export default function Home() {
         <section id="examples" className="examples-section" style={{ padding: 'clamp(80px, 9vw, 144px) 0' }}>
           <div className="container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div className="section-header">
-              <p className="label reveal">Real Outputs</p>
-              <h2 className="reveal reveal-delay-1">One tool. Every industry.</h2>
-              <p className="subtitle reveal reveal-delay-2">Built entirely with Raven's design intelligence. Click any to explore.</p>
+              <p className="label reveal">Illustrative Outputs</p>
+              <h2 className="reveal reveal-delay-1">Example pages Raven can guide</h2>
+              <p className="subtitle reveal reveal-delay-2">Six demo pages showing different Raven-guided prompts. They are examples, not customer proof.</p>
             </div>
             <div className="demo-showcase reveal reveal-delay-3" style={{ marginTop: '0', width: '100%' }}>
               <div className="demo-grid">
@@ -942,7 +1117,7 @@ export default function Home() {
                   <div className="demo-card-overlay">
                     <div className="demo-card-industry">Real Estate</div>
                     <div className="demo-card-name">Oleander Residence</div>
-                    <div className="demo-card-desc">$12.5M luxury estate listing</div>
+                    <div className="demo-card-desc">Estate listing concept</div>
                   </div>
                   <div className="demo-card-arrow">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 8h8M9 4l4 4-4 4" /></svg>
@@ -958,8 +1133,8 @@ export default function Home() {
           <div className="container">
             <div className="section-header">
               <p className="label reveal">Token Registry</p>
-              <h2 className="reveal reveal-delay-1">The world's best design systems, queryable</h2>
-              <p className="subtitle reveal reveal-delay-2">Production tokens from 12 world-class design systems in W3C DTCG format. Platforms, products, and frameworks &mdash; all queryable.</p>
+              <h2 className="reveal reveal-delay-1">Twelve design-system token sets, queryable</h2>
+              <p className="subtitle reveal reveal-delay-2">Ask for Apple HIG, Material, Stripe, Linear, Vercel, GitHub Primer, and more as W3C DTCG tokens or CSS variables.</p>
             </div>
 
             <div className="systems-grid">
@@ -1048,7 +1223,7 @@ export default function Home() {
                 <h2>Named for the creature that bridges worlds</h2>
                 <p>Across Norse, Celtic, and Native American traditions, the raven carries knowledge from hidden places and brings it into the light.</p>
                 <p>Odin's ravens Huginn and Muninn&mdash;Thought and Memory&mdash;fly across all nine realms at dawn and return to whisper everything they've seen. The Morr&iacute;gan takes raven form to decide fate. Y&eacute;il stole the sun from darkness and gave it to everyone.</p>
-                <p style={{ color: 'var(--text-accent)', fontWeight: '500' }}>Raven MCP: design intelligence that used to be locked away, now flying across your work.</p>
+                <p style={{ color: 'var(--text-accent)', fontWeight: '500' }}>Raven MCP: principles, tokens, audits, and taste rules exposed as tools your coding agent can call.</p>
               </div>
               <div className="mythology-visual reveal reveal-delay-2">
                 <img src="assets/raven-logo.png" alt="Raven" />
@@ -1081,14 +1256,14 @@ export default function Home() {
             <div className="section-header">
               <p className="label reveal">Open Source</p>
               <h2 className="reveal reveal-delay-1">Free. All of it.</h2>
-              <p className="subtitle reveal reveal-delay-2">Every tool, every token, every principle &mdash; no limits, no tiers, no catch. Raven is open source and always will be.</p>
+              <p className="subtitle reveal reveal-delay-2">Every tool, token, and principle is included under the MIT license. No account, hosted plan, or usage meter.</p>
             </div>
 
             <div className="pricing-open-source reveal reveal-delay-3">
               <div className="glow-card pricing-open-card">
                 <div className="pricing-open-stats">
                   <div className="pricing-open-stat">
-                    <span className="pricing-open-num">31</span>
+                    <span className="pricing-open-num">70</span>
                     <span className="pricing-open-label">Tools</span>
                   </div>
                   <div className="pricing-open-stat">
@@ -1096,7 +1271,7 @@ export default function Home() {
                     <span className="pricing-open-label">Principles</span>
                   </div>
                   <div className="pricing-open-stat">
-                    <span className="pricing-open-num">8</span>
+                    <span className="pricing-open-num">9</span>
                     <span className="pricing-open-label">Knowledge Layers</span>
                   </div>
                   <div className="pricing-open-stat">
@@ -1104,13 +1279,13 @@ export default function Home() {
                     <span className="pricing-open-label">Patterns</span>
                   </div>
                 </div>
-                <p className="pricing-open-desc">Design intelligence for every AI-generated interface &mdash; accessibility audits, token systems, evaluation scoring, and more. Install in 30 seconds.</p>
+                <p className="pricing-open-desc">Use Raven to audit AI-generated interfaces, fetch token systems, score design choices, and cite the rule behind each finding. Install in 30 seconds.</p>
               </div>
 
               <div className="glow-card pricing-services-card">
                 <p className="pricing-services-label">Need something custom?</p>
                 <h3 className="pricing-services-title">Custom Design Systems</h3>
-                <p className="pricing-services-desc">Get a bespoke Raven-compatible design system built for your brand &mdash; tokens, principles, evaluation rules, all tailored to your product.</p>
+                <p className="pricing-services-desc">Get a Raven-compatible design system for your brand: tokens, principles, and evaluation rules matched to your product.</p>
                 <a href="mailto:andrew@ravenmcp.ai" className="pricing-services-link">Get in touch &rarr;</a>
               </div>
             </div>
@@ -1128,7 +1303,7 @@ export default function Home() {
             <div className="faq-list reveal reveal-delay-3">
               <div className="faq-item">
                 <h3>What is RavenMCP?</h3>
-                <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server that gives AI agents like Claude design intelligence &mdash; the design knowledge once locked in expert heads. It exposes 70 tools spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits, and a Taste Engine that holds every build to the owner's own design judgment.</p>
+                <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server. Add it to Claude or Cursor, and your agent can call 70 local tools for design principles, UI patterns, design-system tokens, content voice, research methods, service blueprints, multi-platform audits, and project-specific taste checks.</p>
               </div>
               <div className="faq-item">
                 <h3>How do I install RavenMCP?</h3>
@@ -1148,7 +1323,7 @@ export default function Home() {
               </div>
               <div className="faq-item">
                 <h3>What design systems does RavenMCP support?</h3>
-                <p>Raven includes production tokens from 12 world-class design systems in W3C DTCG format, all queryable by AI agents. It also exposes 129 design principles and 22 reusable UI patterns.</p>
+                <p>Raven includes tokens from 12 named systems in W3C DTCG format, including Apple HIG, Material, Stripe, Linear, Vercel, GitHub Primer, Tailwind, and shadcn/ui. It also exposes 129 design principles and 22 reusable UI patterns.</p>
               </div>
             </div>
           </div>
@@ -1158,8 +1333,8 @@ export default function Home() {
           <div className="glow"></div>
           <div className="container">
             <p className="label reveal">Get Started</p>
-            <h2 className="reveal reveal-delay-1">Give your AI<br />design intelligence</h2>
-            <p className="subtitle reveal reveal-delay-2">Open source. Zero runtime dependencies. Works with Claude Code and Claude Desktop.</p>
+            <h2 className="reveal reveal-delay-1">Add design checks<br />to Claude</h2>
+            <p className="subtitle reveal reveal-delay-2">Open source. Zero runtime dependencies. One MCP install for Claude Code, Claude Desktop, Cursor, and compatible clients.</p>
             <div className="cta-actions reveal reveal-delay-3">
               <a href="/docs.html" className="btn btn-primary">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 2v8M5 7l3 3 3-3M3 12h10" /></svg>

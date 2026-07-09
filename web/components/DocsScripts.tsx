@@ -37,14 +37,7 @@ export default function DocsScripts() {
         link.classList.toggle('active', link.getAttribute('href') === '#' + current);
       });
     });
-
-    // Scroll reveal
-    var revealObserver = new IntersectionObserver(function(entries) {
-      entries.forEach(function(entry) {
-        if (entry.isIntersecting) entry.target.classList.add('visible');
-      });
-    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
-    document.querySelectorAll('.reveal').forEach(function(el) { revealObserver.observe(el); });
+    // Scroll reveal is handled site-wide by RevealAndCopy (app/layout.tsx).
   `)
   }, [])
 

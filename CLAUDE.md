@@ -8,3 +8,14 @@
 - **Landmines:** see landmines[] above — headline one is **main is months behind reality**: production already runs P4.1–P4.5 (shipped 2026-07-07 per the p4 branch) that isn't merged to main; a successor working from main alone will misjudge what's built. Also: `dist/` is gitignored (rebuild + MCP-reconnect needed after any src change reaches a running session); `web` Vercel project has no git integration.
 - **Decisions locked (don't re-litigate):** free-beta access via AuthKit only; canonical host = mcp.ravenmcp.ai on the `site` project; ChatGPT support is a hard P4.4 exit gate; WorkOS+Upstash is the current stack; 400KB remote body cap is measurement-derived; Next.js `web/` is the committed replacement for static `site/`.
 - **State ledger / session logs:** `docs/remote-mcp-phase4-progress.md` (read on `origin/p4-remote-taste` for truth, NOT main), `docs/remote-mcp-phase4-scope.md`, `docs/remote-mcp-progress.md` + `docs/remote-mcp-scope.md` (predecessor phases), `conversations/2026-07-06-p4-close-out.md`, `conversations/2026-07-06-nextjs-migration.md`, `conversations/PROMOTION-QUEUE.md`, `.claude/skills/release/SKILL.md`.
+
+## Target customer (customer-lens-kickoff, 2026-07-09)
+- I am a solo indie developer/builder, working alone, moderately technical but not deep into the design-tooling space
+- I am trying to figure out whether this "design-intelligence MCP server" thing is worth adding to my coding-agent workflow
+- But I've never heard of this category before landing here — I don't yet know what an MCP design/taste server even does
+- Because design-intelligence-for-AI-agents is a new, unfamiliar product category — there's no existing mental model to slot this into
+- Which makes me feel skeptical and a little impatient — is this real, or is it AI-marketing fluff?
+- Meets the product: cold, via GitHub/HN/Twitter discovery, no prior context, evaluating solo with no one to ask
+- Bounces on: a site that looks less polished than competing tools (undermines the "design intelligence" claim on its face), vague AI-marketing copy that never says concretely what it does, no obvious "try it in under a minute" path
+- Expects voice: plain, concrete, show-don't-tell — a working example or before/after beats an adjective-laden pitch; technical enough to trust, not jargon-dense
+- Uncalibrated: none — all three interview questions answered

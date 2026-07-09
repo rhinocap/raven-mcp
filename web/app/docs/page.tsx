@@ -29,24 +29,24 @@ export default function DocsPage() {
           <div className="docs-content">
           <div className="reveal">
           <h1>RavenMCP <span className="accent">Docs</span></h1>
-          <p className="subtitle">Everything you need to get Raven running with Claude Code, Claude Desktop, or any MCP-compatible client.</p>
+          <p className="subtitle">Install Raven, then let Claude call design audits, token lookups, UI patterns, and taste checks while it builds.</p>
           </div>
       
           {/* ── Get Started ── */}
           <h2 id="quickstart" className="reveal">Get Started</h2>
-          <p>Design intelligence in Claude in under 2 minutes. Pick the path that matches how you use Claude.</p>
+          <p>Add Raven to Claude in under 2 minutes. Pick the path that matches how you use Claude.</p>
       
           <h3 className="reveal">Claude Code — one command</h3>
           <p>If you're in the terminal, this is the fastest path:</p>
           <pre><code>claude mcp add raven -- npx -y raven-mcp</code></pre>
       
-          <p>Ask Claude to build UI and Raven's tools fire automatically:</p>
+          <p>Ask Claude to build or check UI; Raven gives it callable tools:</p>
           <pre><code>"Build me a pricing page with 3 tiers"
       "Check this signup form for accessibility issues"
       "Use Stripe's design tokens for the checkout flow"</code></pre>
       
           <div className="callout reveal">
-            <strong>No configuration needed.</strong> Once added, Claude automatically queries Raven when you ask it to build, evaluate, or improve UI. The tools fire behind the scenes.
+            <strong>No configuration needed.</strong> Once added, Claude can call Raven for pattern guidance, token lookup, accessibility checks, typography checks, and taste verdicts.
           </div>
       
           <h3 className="reveal">Team config (.mcp.json)</h3>
@@ -98,7 +98,7 @@ export default function DocsPage() {
       
           {/* ── Tool Reference ── */}
           <h2 id="tools" className="reveal">Tool Reference</h2>
-          <p>Raven provides 56 tools across 9 knowledge layers. Claude calls them automatically based on what you're asking for. Below, the original 13 tools have full docs; the newer tools from v1.2–v1.11 are listed with summary descriptions.</p>
+          <p>Raven provides 70 tools across 9 knowledge layers. Claude calls the relevant tool based on the task; the cards below show what each tool returns.</p>
       
           <h3>Principles Layer</h3>
       
@@ -148,7 +148,7 @@ export default function DocsPage() {
       
           <div className="tool-card reveal">
             <h3>get_pattern</h3>
-            <p className="tool-desc">Get proven UI/UX patterns for a specific design type. Returns do's, don'ts, evidence, and checklists.</p>
+            <p className="tool-desc">Get UI/UX pattern guidance for a specific design type. Returns do's, don'ts, evidence, and checklists.</p>
             <dl className="params">
               <dt>type <span className="required">required</span></dt>
               <dd>Pattern type: signup-flow, pricing-page, navigation, forms, landing-page, dashboard, modals-dialogs, empty-states, error-states, loading-states, cta, social-proof, mobile-conversion</dd>
@@ -158,7 +158,7 @@ export default function DocsPage() {
               <dd>"conversion" | "usability" | "accessibility" | "delight"</dd>
             </dl>
             <pre><code>// Try:
-      "Show me the best patterns for a mobile signup flow"
+      "Show me the checklist for a mobile signup flow"
       "What does a high-converting pricing page need?"</code></pre>
           </div>
       
@@ -523,18 +523,18 @@ export default function DocsPage() {
       
           {/* ── Examples ── */}
           <h2 id="examples" className="reveal">Examples</h2>
-          <p>You don't need to call tools directly. Just talk to Claude naturally and Raven fires automatically.</p>
+          <p>You don't need to call tools directly. Say what you are building or checking, and Claude can call the relevant Raven tool.</p>
       
-          <h3>Build a pricing page with best practices</h3>
+          <h3>Build a pricing page with Raven guidance</h3>
           <pre><code>"Build me a pricing page with 3 tiers for a developer tool.
        Use Stripe's design tokens."</code></pre>
-          <p>Raven will call <code>get_pattern("pricing-page")</code>, <code>get_principles("pricing page")</code>, and <code>get_design_system("stripe")</code> — then Claude builds the page using all three.</p>
+          <p>Raven can call <code>get_pattern("pricing-page")</code>, <code>get_principles("pricing page")</code>, and <code>get_design_system("stripe")</code>; Claude then builds from those returned rules and tokens.</p>
       
           <h3>Evaluate an existing design</h3>
           <pre><code>"This signup form has 8 fields including phone number and company
        size. No social login. The submit button says 'Submit'. No inline
        validation. Evaluate it for conversion and usability."</code></pre>
-          <p>Raven calls <code>evaluate_design</code> and returns every principle being violated, with specific fixes.</p>
+          <p>Raven calls <code>evaluate_design</code> and returns matched principles, likely violations, and specific fixes.</p>
       
           <h3>Pre-launch checklist</h3>
           <pre><code>"Give me a pre-launch checklist for this mobile landing page"</code></pre>
@@ -548,7 +548,7 @@ export default function DocsPage() {
           <h3>Generate a complete design system</h3>
           <pre><code>"Generate a bold design system for my startup called NightOwl.
        Brand color is #8B5CF6. Export as HTML so I can share it."</code></pre>
-          <p>Raven calls <code>generate_design_system</code> to create a full token set — colors, typography, spacing, radius, elevation, motion — and exports it as a beautiful, self-contained HTML documentation page you can open in a browser or print to PDF.</p>
+          <p>Raven calls <code>generate_design_system</code> to create a token set — colors, typography, spacing, radius, elevation, motion — and exports a self-contained HTML documentation page you can open in a browser or print to PDF.</p>
       
           <h3>Search across everything</h3>
           <pre><code>"What does Raven know about color contrast?"</code></pre>

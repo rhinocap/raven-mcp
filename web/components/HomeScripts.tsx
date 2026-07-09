@@ -24,13 +24,7 @@ export default function HomeScripts() {
       
 
 
-    /* ── Scroll Reveal ── */
-    var observer = new IntersectionObserver(function(entries) {
-      entries.forEach(function(entry) {
-        if (entry.isIntersecting) entry.target.classList.add('visible');
-      });
-    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
-    document.querySelectorAll('.reveal').forEach(function(el) { observer.observe(el); });
+    /* ── Scroll Reveal ── handled site-wide by RevealAndCopy (app/layout.tsx) */
 
     /* ── Sizzle Reel ── */
     function chrome(url: string, inner: string) {

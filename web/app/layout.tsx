@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://ravenmcp.ai'),
   title: 'RavenMCP — Design Intelligence MCP for Claude · Open Source',
   description:
-    '129 design principles · 22 UI patterns · 70 tools · 12 design systems · a Taste Engine for portable design judgment · web, iOS, Android & React Native audits · content voice guides · research methods · service blueprints. One install for design-literate AI.',
+    'Install one MCP server so Claude can call 70 tools for UI audits, design-system tokens, patterns, content voice, research methods, service blueprints, and taste checks.',
   applicationName: 'RavenMCP',
   authors: [{ name: 'Andrew Cunliffe' }],
   keywords: [
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     siteName: 'RavenMCP',
     title: 'RavenMCP — Design Intelligence for AI',
     description:
-      '129 design principles · 22 UI patterns · 70 tools · 12 design systems · a Taste Engine for portable design judgment · web, iOS, Android & React Native audits · content voice guides · research methods · service blueprints. One install for design-literate AI.',
+      'Install one MCP server so Claude can call 70 tools for UI audits, design-system tokens, patterns, content voice, research methods, service blueprints, and taste checks.',
     url: 'https://ravenmcp.ai',
     images: [
       {
@@ -95,7 +95,7 @@ const jsonLd = {
       url: 'https://ravenmcp.ai/',
       name: 'RavenMCP',
       description:
-        'Design intelligence for every prompt. An open-source MCP server giving AI agents design knowledge.',
+        'An open-source MCP server that gives coding agents callable tools for UI audits, design tokens, patterns, and taste checks.',
       publisher: { '@id': 'https://ravenmcp.ai/#organization' },
       inLanguage: 'en',
     },
@@ -120,7 +120,7 @@ const jsonLd = {
       featureList: [
         '129 design principles (Nielsen heuristics, Laws of UX, Gestalt, WCAG, typography, color, mobile UX, D4D)',
         '22 reusable UI patterns',
-        '12 world-class design systems with W3C DTCG tokens',
+        '12 named design systems with W3C DTCG tokens',
         'Design audits for web, iOS/SwiftUI, Android, and React Native',
         'Content voice guides, brand profiles, research methods, and service blueprints',
         "A Taste Engine that makes a person's design judgment portable — audit_taste returns a BLOCK/WARN/PASS verdict citing the rule behind every finding",
@@ -136,7 +136,7 @@ const jsonLd = {
           name: 'What is RavenMCP?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: "RavenMCP (Raven) is an open-source Model Context Protocol (MCP) server that gives AI agents like Claude design intelligence — the design knowledge once locked in expert heads. It exposes 70 tools spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits, and a Taste Engine that holds every build to the owner's own design judgment.",
+            text: 'RavenMCP (Raven) is an open-source Model Context Protocol (MCP) server. Add it to Claude or Cursor, and your agent can call 70 local tools for design principles, UI patterns, design-system tokens, content voice, research methods, service blueprints, multi-platform audits, and project-specific taste checks.',
           },
         },
         {
@@ -176,7 +176,7 @@ const jsonLd = {
           name: 'What design systems does RavenMCP support?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'RavenMCP includes production tokens from 12 world-class design systems in W3C DTCG format, all queryable by AI agents. It also exposes 129 design principles and 22 reusable UI patterns.',
+            text: 'RavenMCP includes tokens from 12 named systems in W3C DTCG format, including Apple HIG, Material, Stripe, Linear, Vercel, GitHub Primer, Tailwind, and shadcn/ui. It also exposes 129 design principles and 22 reusable UI patterns.',
           },
         },
       ],

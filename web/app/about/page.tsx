@@ -23,7 +23,7 @@ export default function AboutPage() {
           <h1 className="hero-name">Andrew<br />Cunliffe</h1>
           <p className="hero-title">Senior Staff Designer & Product Strategist</p>
           <p className="hero-bio">I drive platform visions and make company-wide AI+Human experiences a reality. Design strategy at the enterprise scale — setting the direction for how millions of customers interact with AI, then making sure those experiences actually ship and thrive.</p>
-          <p className="hero-bio">Raven MCP was born from a simple frustration: AI can write code, but it can't <em>design</em>. It doesn't know Nielsen's heuristics. It doesn't understand Gestalt. It reaches for Comic Sans when it should reach for Inter. I built Raven to fix that — permanently.</p>
+          <p className="hero-bio">Raven MCP was born from a simple frustration: AI can write code, but it misses basic design checks. It may ignore Nielsen's heuristics, Gestalt principles, contrast ratios, tap-target sizes, or the product's own design system. I built Raven so agents can query those rules while they work.</p>
           <div className="hero-links">
             <a href="/" className="hero-link primary">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
@@ -54,7 +54,7 @@ export default function AboutPage() {
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>
             </div>
             <h3>AI + Human Experiences</h3>
-            <p>Designing enterprise-scale experiences where AI and humans work together seamlessly. Smart handoffs, trust calibration, and interfaces that make AI actually useful.</p>
+            <p>Designing enterprise-scale experiences where AI and humans share the work. Handoff states, trust calibration, review paths, and interfaces that show what the AI did and what still needs human judgment.</p>
           </div>
           <div className="skill-card reveal reveal-delay-3">
             <div className="skill-icon">
@@ -68,7 +68,7 @@ export default function AboutPage() {
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
             </div>
             <h3>AI Design Intelligence</h3>
-            <p>Building the tools that give AI real design taste. RavenMCP is the proof — 129 principles, 22 patterns, 12 design systems, 5 brand voice guides, research methods, service blueprints, and a framework that turns Claude into a design-literate partner.</p>
+            <p>Building the tools that let AI agents check design work. RavenMCP exposes 129 principles, 22 patterns, 12 design systems, 5 brand voice guides, research methods, service blueprints, and taste audits through MCP.</p>
           </div>
           <div className="skill-card reveal reveal-delay-1">
             <div className="skill-icon">
@@ -95,7 +95,7 @@ export default function AboutPage() {
             <h2 className="section-title">Design knowledge shouldn't be locked in people's heads</h2>
             <p><strong>The problem is simple:</strong> AI can generate UI, but it doesn't understand <em>why</em> one layout works and another doesn't. It doesn't know that cards need consistent padding, that contrast ratios have legal minimums, or that Fitts's Law governs every button you've ever clicked.</p>
             <p>Senior designers carry decades of this knowledge. When they review AI output, they see dozens of violations instantly. But that expertise doesn't transfer to the AI — it just gets corrected and forgotten.</p>
-            <p><strong>Raven changes that.</strong> It gives Claude access to 129 design principles, 22 UI + content + service patterns, 12 design system token sets, 5 brand voice guides, research methods with protocols, service-design patterns with a two-actor blueprint generator, brand-and-visual guidance with current trends, and strategic frameworks — all through MCP. The AI doesn't guess at design anymore. It knows.</p>
+            <p><strong>Raven changes the workflow.</strong> It gives Claude access to 129 design principles, 22 UI + content + service patterns, 12 design system token sets, 5 brand voice guides, research methods with protocols, service-design patterns with a two-actor blueprint generator, brand-and-visual guidance with current trends, and strategic frameworks — all through MCP. The agent can cite the rule it used instead of relying on a generic prompt.</p>
           </div>
           <div className="why-terminal">
             <div className="why-terminal-header">
@@ -113,7 +113,7 @@ export default function AboutPage() {
               <span className="output">→ Calls get_principles("hierarchy")</span><br />
               <span className="output">→ Calls get_pattern("data-table")</span><br />
               <span className="output">→ Calls evaluate_design()</span><br />
-              <span className="output">→ Ships pixel-perfect, accessible UI</span>
+              <span className="output">→ Ships UI with named rules and accessibility checks</span>
             </div>
           </div>
         </div>
@@ -121,8 +121,8 @@ export default function AboutPage() {
 
       {/* CTA */}
       <section className="cta-section reveal">
-        <h2>Ready to give AI<br /><span>real design taste?</span></h2>
-        <p>Raven MCP is open source, free forever, and installs in 30 seconds.</p>
+        <h2>Ready to add design checks<br /><span>to Claude?</span></h2>
+        <p>Raven MCP is open source, MIT licensed, and installs in 30 seconds.</p>
         <div style={{ display: 'flex', gap: 'var(--space-4,16px)', justifyContent: 'center' }}>
           <a href="/" className="hero-link primary">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 2v8M5 7l3 3 3-3M3 12h10" /></svg>
