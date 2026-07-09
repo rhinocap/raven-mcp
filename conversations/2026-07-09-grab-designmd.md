@@ -17,8 +17,16 @@ Fresh /goal: two-way click-to-change (grab overlay + token panel) + DESIGN.md as
 | Token matching shipped against indexed CSSOM longhands (empty under var()-shorthand) | assumption | Pending-substitution: parse cssText for var() detection |
 
 ## State at end of session
-- Implementation + tests: ✓ 539/539
-- Live E2E: ✓ full round trip verified
-- DA pass (gpt-5.6-sol): running
-- Commit/push: pending
-- Panel nit (carried forward): token header shows `md`, not `rounded.md` (group only in payload)
+- Implementation + tests: ✓ 540/540
+- Live E2E: ✓ full round trip verified (eyes-on live preview swap)
+- DA pass (gpt-5.6-sol): ✓ ran; verdict ~65-70%. Fixed same-turn: composite-ref validation (getdesign.md starters), set/rename collision guards, react-grab listener ordering, stale reactMetadata, ref-token "[object Object]", bridge body/queue caps, shim-mode honesty. Regression test added.
+- Committed: 9770926 on explore/tools-redesign (pathspec; web/ excluded). NOT pushed.
+- Pending (carried forward):
+  - Comment-preserving YAML serializer (update rewrites frontmatter; full-line comments dropped, inline comments mis-parsed)
+  - Cascade precedence in overlay token matching (overridden rules reported as "used"); shadow-DOM composedPath targeting; cross-origin sheets
+  - Type-safe dropdown grouping for composite typography; intents should carry full token paths
+  - Capability token for bridge (currently wildcard CORS, loopback-only); Chrome Local Network Access permission guidance
+  - Official typography CSS-var namespace (--font-button vs --typography-button-fontFamily)
+  - README/public docs for the feature (indie-dev setup section)
+  - Branch isolation: feature commit sits on explore/tools-redesign with unrelated web redesign — cherry-pick to clean branch before landing to main
+  - Panel nit: token header shows `md`, not `rounded.md`
