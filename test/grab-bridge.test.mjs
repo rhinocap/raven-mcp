@@ -1416,13 +1416,16 @@ test('overlay renders color swatches beside custom token values and inline color
   paddingCell.parentElement = paddingRow;
   paddingCell.parentNode = paddingRow;
   internals.beginStyleEdit(paddingCell);
-  // Single-value numerics get a number field with the unit fixed (Figma-style),
-  // wrapped in the editor container rather than a bare free-text input.
+  // Single-value numerics get a number field plus a UNIT DROPDOWN (the unit is a
+  // choice — px/pt/rem/cm — not a fixed tag), wrapped in the editor container.
   assert.equal(paddingRow.child.className, 'raven-grab-style-editor');
   const paddingNumber = paddingRow.child.children.find((child) => child.type === 'number');
   assert.ok(paddingNumber, 'padding value should render a number input');
   assert.equal(paddingNumber.value, '16');
-  assert.equal(paddingRow.child.children.some((child) => child.className === 'raven-grab-style-unit'), true);
+  const paddingUnit = paddingRow.child.children.find((child) => child.className === 'raven-grab-style-unit');
+  assert.ok(paddingUnit, 'padding value should render a selectable unit control');
+  assert.match(paddingUnit.innerHTML, /value="px"[^>]*selected/, 'current unit px is preselected');
+  assert.match(paddingUnit.innerHTML, /value="pt"/, 'alternative units are offered');
 
   const computed = internals.computedStylesFor({
     computedStyle: fakeStyle({

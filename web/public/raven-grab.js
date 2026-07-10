@@ -216,15 +216,14 @@
     .raven-grab-style-editor { display: flex; align-items: center; gap: 6px; width: 100%; }
     .raven-grab-style-editor .raven-grab-style-input { flex: 1 1 auto; }
     .raven-grab-color-input { flex: 0 0 28px; width: 28px; height: 28px; padding: 0; background: none; border: 1px solid var(--raven-grab-accent); border-radius: 8px; cursor: pointer; }
-    .raven-grab-style-select, .raven-grab-style-format {
+    .raven-grab-style-select, .raven-grab-style-format, .raven-grab-style-unit {
       min-height: 32px; padding: 6px 8px; color: var(--raven-grab-text); background: var(--raven-grab-bg);
       border: 1px solid var(--raven-grab-accent); border-radius: 8px; outline: none; cursor: pointer;
       font: 400 11px/1.4 var(--raven-grab-mono);
     }
     .raven-grab-style-select { flex: 1 1 auto; width: 100%; }
-    .raven-grab-style-format { flex: 0 0 auto; }
-    .raven-grab-style-select:focus, .raven-grab-style-format:focus { box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
-    .raven-grab-style-unit { flex: 0 0 auto; color: var(--raven-grab-muted); font: 400 11px/1.4 var(--raven-grab-mono); }
+    .raven-grab-style-format, .raven-grab-style-unit { flex: 0 0 auto; }
+    .raven-grab-style-select:focus, .raven-grab-style-format:focus, .raven-grab-style-unit:focus { box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
     .raven-grab-empty { margin: 0; padding: 12px; color: var(--raven-grab-muted); background: var(--raven-grab-raised); border: 1px dashed rgba(255, 255, 255, .1); border-radius: 12px; font: 400 12px/1.45 var(--raven-grab-ui); }
     .raven-grab-actions { flex: 0 0 auto; padding: 12px 16px 16px; background: #212129; border-top: 1px solid rgba(255, 255, 255, .06); }
     .raven-grab-send {
@@ -1115,6 +1114,11 @@
     "justify-content": ["normal", "flex-start", "flex-end", "center", "space-between", "space-around", "space-evenly", "start", "end"]
   };
 
+  // Common CSS length/angle units offered in the number editor's unit dropdown.
+  // The value's ACTUAL unit is always preserved and prepended if it isn't here
+  // (px is the default assumption, but a "cm"/"pt"/whatever value keeps its own).
+  var STYLE_UNIT_OPTIONS = ["px", "pt", "rem", "em", "%", "vw", "vh", "ch", "cm", "mm", "in"];
+
   // Single-value number+unit only (e.g. "16px", "1.4", "0.9", "0px"). Compound
   // values like "8px 16px" return null so they don't masquerade as a number field.
   function parseNumericValue(value) {
@@ -1192,13 +1196,23 @@
       input.value = parsed.number;
       input.setAttribute("step", "any");
       editor.appendChild(input);
+      // The unit is itself a choice — px/pt/rem/cm/… — so it's a dropdown, not a
+      // fixed tag. The value's own unit is always kept (prepended if unusual).
       if (parsed.unit) {
-        var unitTag = document.createElement("span");
-        unitTag.className = "raven-grab-style-unit";
-        unitTag.textContent = parsed.unit;
-        editor.appendChild(unitTag);
+        var unitSelect = document.createElement("select");
+        unitSelect.className = "raven-grab-style-unit";
+        unitSelect.setAttribute("aria-label", property + " unit");
+        var units = STYLE_UNIT_OPTIONS.slice();
+        if (units.indexOf(parsed.unit) === -1) units.unshift(parsed.unit);
+        unitSelect.innerHTML = units.map(function (u) { return optionMarkup(u, u, parsed.unit); }).join("");
+        editor.appendChild(unitSelect);
+        input.unitSelect = unitSelect; // ponytail: readValue reads the live unit
+        relatedInternal.push(input, unitSelect);
+        unitSelect.addEventListener("blur", handleBlur);
+        unitSelect.addEventListener("change", commit);
+      } else {
+        input.unitSelect = null;
       }
-      input.numericUnit = parsed.unit; // ponytail: stash the fixed unit on the node
     } else if (control === "color") {
       input.type = "text";
       input.value = previousValue;
@@ -1237,7 +1251,8 @@
     function readValue() {
       if (control === "number") {
         var n = input.value.trim();
-        return n === "" ? "" : n + (input.numericUnit || "");
+        if (n === "") return "";
+        return n + (input.unitSelect ? input.unitSelect.value : "");
       }
       return input.value.trim();
     }
