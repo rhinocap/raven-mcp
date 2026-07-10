@@ -65,3 +65,9 @@ Fresh /goal: two-way click-to-change (grab overlay + token panel) + DESIGN.md as
 - DA verdict: 5/6 fixes confirmed; #6 (email retry duplication) fixed with per-request idempotency key (overlay requestId -> Resend idempotencyKey). Skipped DA "new findings": rate-limit-before-validation (correct anti-abuse), multi-row-same-cssVar preview divergence (pre-existing edge, logged).
 - Andrew mid-turn: success status text under CTA removed (sr-only now; morph pill is the visible confirmation); morph simplified — sent pill returns straight to CTA (no trailing check). Both eyes-on verified via Playwright.
 - Commits: 416fcf7, a6ab928, d626022 (explore/tools-redesign, NOT pushed). Preview: https://web-nc4ijw8qd-cunliffeandrewc-8712s-projects.vercel.app/playground (deploy-protected). Bridge session stopped; :8899 killed; next dev :3210 left running.
+
+### Round 3 — /goal: spellcheck, default-visible panel, collapse-to-edge-tab, color input, wireframe demo
+**What:** Two Codex gpt-5.6-sol legs (overlay + page) implemented: spellcheck on free-text only; panel visible by default when armed with empty state; header caret collapses panel off right edge with 44px left-caret tab; arm pill deleted (Alt+G + tab carry arming); color swatch + hex/rgb input on color rows with live preview (added `input` listener alongside `change` for drag-preview); playground rewritten as Northstar wireframe on 27 `--demo-*` tokens.
+**Fix found in verification:** raw `<style>` child in page.tsx caused React hydration mismatch → whole root re-rendered mid-interaction (real clicks selected `html`); fixed via dangerouslySetInnerHTML. Also: `scroll-behavior: smooth` invalidates rect-then-click in Playwright — use behavior:'instant' + resettle.
+**Verified:** 573/573 tests, mirror byte-identical, Playwright eyes-on all six behaviors + vision pass on default/collapsed/color-preview screenshots.
+**Pushed:** committed 92920ae on explore/tools-redesign (NOT pushed per standing constraint).
