@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import Script from 'next/script'
+import Coachmarks from './Coachmarks'
 
 export const metadata: Metadata = {
   title: 'Raven Grab — Live Demo | RavenMCP',
@@ -62,6 +62,8 @@ export default function PlaygroundPage() {
             <p className="label">Grabbable wireframe</p>
             <p>Select any block, type style, control, or section to inspect it.</p>
           </div>
+
+          <Coachmarks config={ravenGrabConfig} />
 
           <article className="playground-wireframe">
             <nav className="wireframe-nav" aria-label="Demo navigation">
@@ -563,7 +565,141 @@ export default function PlaygroundPage() {
           font-weight: var(--demo-text-caption-weight);
         }
 
+        .playground-controls {
+          display: flex;
+          align-items: center;
+          gap: var(--space-4);
+          margin-bottom: var(--space-4);
+        }
+
+        .playground-role-toggle {
+          display: inline-flex;
+          padding: var(--space-1);
+          background: var(--bg-surface);
+          border: 1px solid var(--border-strong);
+          border-radius: var(--radius-sm);
+        }
+
+        .playground-role-toggle button {
+          min-height: 44px;
+          padding: 0 var(--space-4);
+          color: var(--text-secondary);
+          background: transparent;
+          border: 0;
+          border-radius: var(--radius-sm);
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 600;
+        }
+
+        .playground-role-toggle button:hover {
+          color: var(--text-primary);
+        }
+
+        .playground-role-toggle button[aria-pressed="true"] {
+          color: var(--text-primary);
+          background: var(--bg-raised);
+        }
+
+        .playground-replay {
+          padding: 0;
+          color: var(--text-secondary);
+          background: transparent;
+          border: 0;
+          cursor: pointer;
+          font-size: 13px;
+          text-decoration: underline;
+          text-underline-offset: 3px;
+        }
+
+        .playground-replay:hover {
+          color: var(--accent-blue);
+        }
+
+        .playground-tour__backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 2147483640;
+          background: rgba(10, 10, 18, 0.55);
+        }
+
+        .playground-tour__spotlight {
+          position: fixed;
+          z-index: 2147483641;
+          border: 2px solid var(--accent-blue);
+          border-radius: var(--radius-sm);
+          box-shadow: 0 0 0 9999px rgba(10, 10, 18, 0.55);
+          pointer-events: none;
+        }
+
+        .playground-tour__card {
+          z-index: 2147483642;
+          padding: var(--space-6);
+          color: var(--text-primary);
+          background: var(--bg-surface);
+          border: 1px solid var(--border-strong);
+          border-radius: var(--radius-md);
+          box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .playground-tour__card h3 {
+          margin: 0 0 var(--space-2);
+          font-size: 16px;
+          font-weight: 600;
+        }
+
+        .playground-tour__card > p:not(.playground-tour__count) {
+          margin: 0;
+          color: var(--text-secondary);
+          font-size: 14px;
+          line-height: 1.6;
+        }
+
+        .playground-tour__count {
+          margin: 0 0 var(--space-2);
+          color: var(--text-secondary);
+          font-size: 13px;
+        }
+
+        .playground-tour__actions {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-top: var(--space-4);
+        }
+
+        .playground-tour__actions button {
+          min-height: 44px;
+          padding: 0 var(--space-4);
+          color: var(--text-secondary);
+          background: transparent;
+          border: 0;
+          border-radius: var(--radius-sm);
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 600;
+        }
+
+        .playground-tour__actions button:hover {
+          color: var(--text-primary);
+        }
+
+        .playground-tour__next {
+          color: var(--text-on-accent) !important;
+          background: var(--accent-blue) !important;
+        }
+
+        .playground-tour__next:hover {
+          filter: brightness(1.1);
+        }
+
         @media (max-width: 640px) {
+          .playground-tour__card {
+            right: 16px !important;
+            left: 16px !important;
+            width: auto !important;
+          }
+
           .playground-intro {
             padding-top: calc(var(--nav-height) + var(--space-12));
           }
@@ -614,10 +750,6 @@ export default function PlaygroundPage() {
         }
       ` }} />
 
-      <Script id="raven-grab-config" strategy="afterInteractive">
-        {`window.RavenGrabConfig = ${JSON.stringify(ravenGrabConfig)};`}
-      </Script>
-      <Script src="/raven-grab.js" strategy="afterInteractive" />
     </main>
   )
 }

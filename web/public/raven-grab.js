@@ -1727,11 +1727,16 @@
     if (sendButton && !sendButton.disabled) sendButton.click();
   });
 
+  function inIgnoredRegion(target) {
+    return !!(target && typeof target.closest === "function" && target.closest("[data-raven-grab-ignore]"));
+  }
+
   document.addEventListener("mousemove", function (event) {
     if (!armed || collapsed) return;
     var path = event.composedPath ? event.composedPath() : [];
     if (path.indexOf(host) !== -1 || selectedElement) return;
     var target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
+    if (inIgnoredRegion(target)) return;
     if (target && target !== hoveredElement) {
       hoveredElement = target;
       setHighlight(target);
@@ -1743,7 +1748,7 @@
     var path = event.composedPath ? event.composedPath() : [];
     if (path.indexOf(host) !== -1) return;
     var target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
-    if (!target) return;
+    if (!target || inIgnoredRegion(target)) return;
     if (event.altKey && target.parentElement) target = target.parentElement;
     event.preventDefault();
     event.stopImmediatePropagation();
