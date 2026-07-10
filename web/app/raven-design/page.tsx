@@ -47,6 +47,7 @@ const ravenGrabConfig = {
   },
   grabEndpoint: null,
   componentRequestEndpoint: '/api/component-request',
+  componentRequestFlow: 'email',
 }
 
 export default function PlaygroundPage() {

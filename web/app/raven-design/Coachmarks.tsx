@@ -43,7 +43,7 @@ const STEPS: Step[] = [
   },
   {
     title: 'Two roles, two second tabs',
-    body: 'Engineers get "Request Component" — a request that goes to the design team. The design system side gets "Add to Design System" — instructions to create the component and update DESIGN.md.',
+    body: 'Engineers get "Request Component" — in this playground, it emails you the captured request packet to try the flow. The design system side gets "Add to Design System" — instructions to create the component and update DESIGN.md.',
     anchor: 'panel',
   },
   {
