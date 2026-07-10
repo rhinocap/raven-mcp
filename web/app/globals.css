@@ -899,6 +899,8 @@
     .section-header h2 {
       max-width: var(--content-max-width);
       margin: 0 auto var(--space-4);
+      /* No single-word hangers on wrapped headings. */
+      text-wrap: balance;
     }
     .section-header .subtitle { margin: 0 auto; }
 
