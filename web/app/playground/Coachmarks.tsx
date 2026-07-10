@@ -6,6 +6,7 @@ type Role = 'consumer' | 'maintainer'
 
 const ROLE_KEY = 'raven-grab-role'
 const TOUR_KEY = 'raven-grab-tour-done'
+const TOUR_STEP_KEY = 'raven-grab-tour-step'
 
 type Step = {
   title: string
@@ -85,7 +86,15 @@ export default function Coachmarks({ config }: { config: Record<string, unknown>
       document.body.appendChild(s)
     }
     try {
-      if (!localStorage.getItem(TOUR_KEY)) setStep(0)
+      if (!localStorage.getItem(TOUR_KEY)) {
+        const saved = localStorage.getItem(TOUR_STEP_KEY)
+        const stepNum = saved ? parseInt(saved, 10) : 0
+        if (!isNaN(stepNum) && stepNum >= 0 && stepNum < STEPS.length) {
+          setStep(stepNum)
+        } else {
+          setStep(0)
+        }
+      }
     } catch {
       /* tour stays off */
     }
@@ -119,6 +128,17 @@ export default function Coachmarks({ config }: { config: Record<string, unknown>
     return () => {
       removeEventListener('scroll', update, true)
       removeEventListener('resize', update)
+    }
+  }, [step])
+
+  // Persist current tour step to localStorage so it survives a role change reload.
+  useEffect(() => {
+    if (step >= 0) {
+      try {
+        localStorage.setItem(TOUR_STEP_KEY, String(step))
+      } catch {
+        /* ignore */
+      }
     }
   }, [step])
 
@@ -173,7 +193,7 @@ export default function Coachmarks({ config }: { config: Record<string, unknown>
 
       {current && (
         <div className="playground-tour" role="dialog" aria-label={current.title} aria-modal="false" data-raven-grab-ignore="">
-          <div className="playground-tour__backdrop" onClick={endTour} />
+          <div className="playground-tour__backdrop" />
           {targetRect && (
             <div
               className="playground-tour__spotlight"

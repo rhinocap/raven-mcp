@@ -572,6 +572,20 @@ export default function PlaygroundPage() {
           margin-bottom: var(--space-4);
         }
 
+        @media (min-width: 900px) {
+          /* Reserve a right-side gutter so the fixed grab panel (~380px, right:20px)
+             never underlaps the hero H1, label, and description. */
+          .playground-intro {
+            padding-right: 400px;
+          }
+          /* Nav lives in layout.tsx as a sibling of .playground-intro, so the
+             gutter above can't reach it — narrow the nav's own max-width so its
+             right-side content also clears the fixed panel between 900–1439px. */
+          raven-nav {
+            --max-width: calc(100vw - 440px);
+          }
+        }
+
         @media (min-width: 1440px) {
           /* Make room for the controls pill: narrow the site nav on this page only. */
           raven-nav {

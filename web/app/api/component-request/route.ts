@@ -367,22 +367,10 @@ export async function POST(request: Request) {
     }
   }
 
-  try {
-    const requesterResult = await resend.emails.send({
-      from: FROM_ADDRESS,
-      to: [componentRequest.email],
-      replyTo: TRIAGE_ADDRESS,
-      subject: 'Your component request — Raven',
-      html: buildRequesterEmail(body, componentRequest, previewUrl),
-    }, sendOptions('requester'))
-
-    if (requesterResult.error) {
-      return NextResponse.json({ error: 'Failed to send the component request.' }, { status: 502 })
-    }
-  } catch {
-    return NextResponse.json({ error: 'Failed to send the component request.' }, { status: 500 })
-  }
-
+  // Triage delivery to the design team is the load-bearing send — if it fails
+  // the request is effectively lost, so it goes FIRST and its failure is a hard
+  // error. Only once the team has the request do we send the requester's
+  // confirmation copy; never report success when triage did not go through.
   try {
     const triageResult = await resend.emails.send({
       from: FROM_ADDRESS,
@@ -394,9 +382,29 @@ export async function POST(request: Request) {
 
     if (triageResult.error) {
       console.error('Failed to send component request triage notification.', triageResult.error)
+      return NextResponse.json({ error: 'Failed to send the component request.' }, { status: 502 })
     }
   } catch (error) {
     console.error('Failed to send component request triage notification.', error)
+    return NextResponse.json({ error: 'Failed to send the component request.' }, { status: 500 })
+  }
+
+  try {
+    const requesterResult = await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: [componentRequest.email],
+      replyTo: TRIAGE_ADDRESS,
+      subject: 'Your component request — Raven',
+      html: buildRequesterEmail(body, componentRequest, previewUrl),
+    }, sendOptions('requester'))
+
+    if (requesterResult.error) {
+      // Team already has the request; the requester's confirmation copy failing
+      // is not a lost request. Log and still report success.
+      console.error('Failed to send requester confirmation email.', requesterResult.error)
+    }
+  } catch (error) {
+    console.error('Failed to send requester confirmation email.', error)
   }
 
   return NextResponse.json({ success: true }, { status: 200 })
