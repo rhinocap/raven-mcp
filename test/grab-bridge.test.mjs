@@ -990,7 +990,7 @@ test('overlay keeps consumer component-request markup unchanged when role is abs
   internals.switchTab('request');
 
   const html = internals.getPanelHtml();
-  assert.match(html, />Request Component<\/button>/);
+  assert.match(html, />Add component<\/button>/);
   assert.match(html, /data-issue-type/);
   assert.match(html, /data-issue-size/);
   assert.match(html, /Send component request to design/);
@@ -1022,7 +1022,7 @@ test('maintainer role renders add-to-design-system flow and creates an agent ins
   internals.switchTab('request');
 
   const html = internals.getPanelHtml();
-  assert.match(html, />Add to Design System<\/button>/);
+  assert.match(html, />Add component<\/button>/);
   assert.match(html, /data-use-case/);
   assert.match(html, /Add to design system/);
   assert.doesNotMatch(html, /data-component-email|data-issue-type|data-issue-size|EMAIL YOURSELF|Send component request/);
