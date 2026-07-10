@@ -55,3 +55,8 @@ Fresh /goal: two-way click-to-change (grab overlay + token panel) + DESIGN.md as
 - Chrome-MCP note: occluded tab freezes CSS transitions (currentTime stuck 0) — computed-style/visual timing checks unreliable there; Playwright headless is the eyes-on path. Shadow root flipped closed→open to enable programmatic verification.
 **Verify:** npm test 568/568 (was 566; +morph VM tests); playground E2E eyes-on (grab → 4 matched tokens → swap visibly white → Would send summary → morph; Request Component → email → 503 JSON graceful "Try again"). Stale stash bqriu207z dropped (superseded).
 **Pending:** DA pass (b54cfseoe) disposition; commit (pathspec, NO push — branch shared with web redesign); Vercel preview of web/ + RESEND_API_KEY into web project env (Andrew, not in chat); /mcp reconnect for componentRequest in live drains.
+
+### Fix round (DA defects 1-6) — verified
+- Overlay leg: standalone componentRequest POST now sends full selection context; shared rollbackTokenPreviews() on dismiss + re-selection; collapsed sections visibility:hidden (150ms delay). Route leg: sanitizeIdentifier (reserved words/digits), rate-limit pruning >500 keys, requester-email-first + best-effort triage. Main-loop addition: `?? body.tokens` fallback in both email builders (overlay sends `tokens`, route only read matchedTokens/tokenIntents).
+- Verified: 569/569 npm test; Playwright eyes-on — email POST carries selector+tokens+styles → 503 (not 400); cross-element rollback (A's inline --demo-spacing-lg cleared on selecting B).
+- Committed 416fcf7 on explore/tools-redesign (NOT pushed per constraint). Vercel preview deploy + Codex DA pass in flight.
