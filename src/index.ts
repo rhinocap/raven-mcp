@@ -2571,10 +2571,12 @@ server.tool(
   async ({ path, port, proxy_target, role }) => {
     try {
       var session = await startGrabSession(path, port, proxy_target, role);
+      var payload: Record<string, unknown> = { ...session };
+      payload.agent_protocol = "Tell the user in ONE line that component requests go to this live agent session and are drained with get_grabbed_elements; for teams, briefly mention GitHub routing with COMPONENT_REQUEST_GITHUB_REPO and optional COMPONENT_REQUEST_GITHUB_TOKEN.";
       return {
         content: [{
           type: "text" as const,
-          text: JSON.stringify(session, null, 2)
+          text: JSON.stringify(payload, null, 2)
         }]
       };
     } catch (err) {

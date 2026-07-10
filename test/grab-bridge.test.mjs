@@ -96,7 +96,7 @@ function fakeStyle(declarations = {}, priorities = {}) {
 }
 
 async function loadOverlayInternals(options = {}) {
-  const overlayPath = path.resolve(__dirname, '../browser/raven-grab.js');
+  const overlayPath = options.overlayPath || path.resolve(__dirname, '../browser/raven-grab.js');
   const source = await readFile(overlayPath, 'utf8');
   const marker = '  if (grabConfig) {';
   const instrumented = source.replace(marker, `
@@ -122,7 +122,7 @@ async function loadOverlayInternals(options = {}) {
     toggleSection: typeof toggleSection === "function" ? toggleSection : undefined,
     updateIntent: updateIntent,
     rollbackTokenPreviews: rollbackTokenPreviews,
-    sendComponentRequestEmail: typeof sendComponentRequestEmail === "function" ? sendComponentRequestEmail : undefined,
+    sendComponentRequest: typeof sendComponentRequest === "function" ? sendComponentRequest : undefined,
     sendSelection: sendSelection,
     getPanelHtml: function () { return panel.innerHTML; },
     getPanelAttribute: function (name) { return panel.getAttribute(name); },
@@ -211,6 +211,7 @@ ${marker}`);
   const window = {
     RavenGrabConfig: options.config,
     ravenGrabConfig: options.lowercaseConfig,
+    localStorage: options.localStorage,
     CSS: {
       escape: (value) => value,
       supports: (_property, value) => value !== 'definitely-invalid'
@@ -1054,7 +1055,7 @@ test('standalone overlay loads configured tokens and POSTs the full component re
     },
     fetch: async (url, init) => {
       calls.push({ url, init });
-      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+      return { ok: true, status: 200, json: async () => ({ success: true, mode: 'issue', url: 'https://github.com/o/r/issues/1', message: 'Request created' }) };
     }
   });
 
@@ -1079,8 +1080,8 @@ test('standalone overlay loads configured tokens and POSTs the full component re
   assert.equal(status.getAttribute("data-kind"), "sr-only");
   assert.equal(button.getAttribute('data-send-state'), 'collapse');
 
-  assert.equal(typeof internals.sendComponentRequestEmail, 'function');
-  await internals.sendComponentRequestEmail({
+  assert.equal(typeof internals.sendComponentRequest, 'function');
+  await internals.sendComponentRequest({
     issueType: 'Accessibility',
     issueSize: '1,000+',
     useCase: 'Keyboard users need an exposed focus-ring variant.',
@@ -1103,6 +1104,126 @@ test('standalone overlay loads configured tokens and POSTs the full component re
     useCase: 'Keyboard users need an exposed focus-ring variant.',
     email: 'designer@example.com'
   });
+});
+
+test('email-flow playground overlay requires an email and posts flow:email', async () => {
+  const calls = [];
+  const clock = fakeClock();
+  const { internals, document } = await loadOverlayInternals({
+    setTimeout: clock.setTimeout,
+    config: {
+      mode: 'standalone',
+      tokens: {},
+      grabEndpoint: null,
+      componentRequestEndpoint: 'https://example.test/component-request',
+      componentRequestFlow: 'email'
+    },
+    fetch: async (url, init) => {
+      calls.push({ url, init });
+      return { ok: true, status: 200, json: async () => ({ success: true, mode: 'email', message: 'Email sent' }) };
+    }
+  });
+
+  internals.setStyleContext(
+    { style: fakeStyle() },
+    { color: 'rgb(0, 0, 0)' },
+    [{ property: 'color', cssVar: '--color-primary', value: '#111111' }],
+    '#request-target'
+  );
+  internals.renderPanel();
+  const button = document.createElement('button');
+  const status = document.createElement('p');
+  internals.setPanelQuery('[data-send-email]', button);
+  internals.setPanelQuery('[data-status]', status);
+
+  const rejected = await internals.sendComponentRequest({
+    issueType: 'Accessibility',
+    issueSize: '1,000+',
+    useCase: 'Keyboard users need an exposed focus-ring variant.',
+    email: ''
+  });
+  assert.equal(rejected, false, 'email flow must require an email address');
+  assert.equal(calls.length, 0);
+
+  const sent = await internals.sendComponentRequest({
+    issueType: 'Accessibility',
+    issueSize: '1,000+',
+    useCase: 'Keyboard users need an exposed focus-ring variant.',
+    email: 'designer@example.com'
+  });
+  assert.equal(sent, true);
+  assert.equal(calls.length, 1);
+  const sentBody = JSON.parse(calls[0].init.body);
+  assert.equal(sentBody.flow, 'email');
+  assert.equal(sentBody.email, 'designer@example.com');
+  assert.equal(status.textContent, 'Email sent');
+  clock.tick(820);
+  assert.match(button.innerHTML, /Email sent/);
+  clock.tick(2300);
+  assert.match(button.innerHTML, /Send email/);
+});
+
+test('request component shows the clipboard-only setup hint only when no destination is configured', async () => {
+  const overlayPath = path.resolve(__dirname, '../web/public/raven-grab.js');
+  const stored = {};
+  const localStorage = {
+    getItem(key) { return Object.hasOwn(stored, key) ? stored[key] : null; },
+    setItem(key, value) { stored[key] = String(value); }
+  };
+  const configurations = [
+    {
+      config: {
+        mode: 'standalone',
+        tokens: {},
+        grabEndpoint: null,
+        componentRequestEndpoint: null
+      },
+      expected: true
+    },
+    {
+      config: {
+        mode: 'standalone',
+        tokens: {},
+        grabEndpoint: null,
+        componentRequestEndpoint: null,
+        componentRequestFlow: 'email'
+      },
+      expected: false
+    },
+    {
+      config: {
+        mode: 'standalone',
+        tokens: {},
+        grabEndpoint: null,
+        componentRequestEndpoint: 'https://example.test/component-request'
+      },
+      expected: false
+    }
+  ];
+
+  for (const configuration of configurations) {
+    const { internals } = await loadOverlayInternals({
+      overlayPath,
+      config: configuration.config,
+      localStorage
+    });
+    internals.setStyleContext({ style: fakeStyle() }, { color: 'rgb(0, 0, 0)' });
+    internals.switchTab('request');
+
+    const html = internals.getPanelHtml();
+    if (configuration.expected) {
+      assert.match(html, /No destination configured — requests can&#39;t be sent yet\. Ask your agent to set up GitHub routing\./);
+      const dismissButton = {
+        closest(selector) { return selector === '[data-dismiss-request-hint]' ? this : null; }
+      };
+      internals.dispatchPanel('click', { target: dismissButton, stopPropagation() {} });
+      assert.equal(stored['raven-grab-request-hint-dismissed'], 'true');
+      assert.doesNotMatch(internals.getPanelHtml(), /No destination configured/);
+      delete stored['raven-grab-request-hint-dismissed'];
+    } else {
+      assert.doesNotMatch(html, /No destination configured/);
+    }
+  }
 });
 
 test('reselecting and dismissing restore token previews on their original target', async () => {
@@ -1186,7 +1307,7 @@ test('successful agent send morphs through all five beats and restores the defau
   assert.match(button.innerHTML, /Send to agent/);
 });
 
-test('successful component-request email morph shows Email sent and restores Send email', async () => {
+test('successful component-request morph shows Request created and restores Create request', async () => {
   const clock = fakeClock();
   const { internals, document } = await loadOverlayInternals({
     setTimeout: clock.setTimeout,
@@ -1196,7 +1317,7 @@ test('successful component-request email morph shows Email sent and restores Sen
       grabEndpoint: null,
       componentRequestEndpoint: 'https://example.test/component-request'
     },
-    fetch: async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) })
+    fetch: async () => ({ ok: true, status: 200, json: async () => ({ success: true, mode: 'issue', url: 'https://github.com/o/r/issues/1', message: 'Request created' }) })
   });
   const button = document.createElement('button');
   const status = document.createElement('p');
@@ -1204,7 +1325,7 @@ test('successful component-request email morph shows Email sent and restores Sen
   internals.setPanelQuery('[data-send-email]', button);
   internals.setPanelQuery('[data-status]', status);
 
-  const sent = await internals.sendComponentRequestEmail({
+  const sent = await internals.sendComponentRequest({
     issueType: 'Accessibility',
     issueSize: '1,000+',
     useCase: 'Keyboard users need an exposed focus-ring variant.',
@@ -1213,15 +1334,17 @@ test('successful component-request email morph shows Email sent and restores Sen
 
   assert.equal(sent, true);
   assert.equal(button.getAttribute('data-send-state'), 'collapse');
-  assert.equal(status.textContent, 'Email sent');
+  assert.match(status.innerHTML, /View request/);
+  assert.match(status.innerHTML, /https:\/\/github\.com\/o\/r\/issues\/1/);
+  assert.equal(status.getAttribute('data-kind'), 'success');
 
   clock.tick(820);
   assert.equal(button.getAttribute('data-send-state'), 'sent');
-  assert.match(button.innerHTML, /Email sent/);
+  assert.match(button.innerHTML, /Request created/);
 
   clock.tick(2300);
   assert.equal(button.getAttribute('data-send-state'), 'default');
-  assert.match(button.innerHTML, /Send email/);
+  assert.match(button.innerHTML, /Create request/);
 });
 
 test('reduced motion skips dot and trace beats while preserving sent hold and reset', async () => {
@@ -1471,8 +1594,8 @@ test('overlay panel CSS keeps only the body scrollable and provides the collapse
   assert.match(source, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.raven-grab-panel, \.raven-grab-send, \.raven-grab-textarea \{ transition: none !important; \}/);
 });
 
-test('browser overlay mirror stays byte-identical', async () => {
+test('browser overlay mirrors the web overlay byte-for-byte', async () => {
   const source = await readFile(path.resolve(__dirname, '../browser/raven-grab.js'), 'utf8');
   const mirror = await readFile(path.resolve(__dirname, '../web/public/raven-grab.js'), 'utf8');
-  assert.equal(mirror, source);
+  assert.equal(source, mirror);
 });

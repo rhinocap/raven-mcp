@@ -66,6 +66,11 @@ export interface GrabBridgeStartResult {
   script_tag: string;
   path: string;
   mode: "server" | "shim";
+  destination: {
+    active: string;
+    component_requests: string;
+    team_setup: string;
+  };
   proxy_target?: string;
   warning?: string;
 }
@@ -178,6 +183,11 @@ export async function startGrabSession(path: string, port?: number, proxyTarget?
     script_tag: grabRoleConfigTag(role) + '<script src="http://127.0.0.1:' + actualPort + '/raven-grab.js?key=' + key + '"></script>',
     path: abs,
     mode: mode,
+    destination: {
+      active: "agent-session",
+      component_requests: "Overlay component requests are delivered to this live agent session. Drain them with get_grabbed_elements.",
+      team_setup: "For team routing, host an endpoint with the semantics of web/app/api/component-request/route.ts, set COMPONENT_REQUEST_GITHUB_REPO=<owner/repo>, and optionally set COMPONENT_REQUEST_GITHUB_TOKEN with issues:write scope to create structured issues automatically. Without the token, the overlay opens a prefilled new-issue link; with neither environment variable, it falls back to a copy packet; point RavenGrabConfig.componentRequestEndpoint at the hosted endpoint."
+    },
     proxy_target: mode === "server" ? normalizedTarget : undefined,
     warning: warning
   };
