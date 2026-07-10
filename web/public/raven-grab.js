@@ -43,7 +43,7 @@
   var STYLE_PROPERTIES = [
     "display", "position", "box-sizing", "width", "height", "margin", "padding", "gap",
     "color", "background", "background-color", "border-color", "outline-color", "fill", "stroke", "border-width", "border-style", "border-radius",
-    "font-family", "font-size", "font-weight", "line-height", "letter-spacing", "text-align",
+    "font-family", "font-size", "font-weight", "line-height", "letter-spacing", "text-align", "text-decoration",
     "opacity", "box-shadow", "align-items", "justify-content", "grid-template-columns"
   ];
   var INTERACTIVE_STATES = ["hover", "focus", "active", "disabled"];

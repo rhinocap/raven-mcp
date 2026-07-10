@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
+import { renderedElementFor } from './preview'
 
 type RecordValue = Record<string, unknown>
 
@@ -213,68 +214,9 @@ function emailShell(label: string, title: string, content: string): string {
 </html>`
 }
 
-const PREVIEW_STYLE_PROPS = new Set([
-  'display', 'width', 'height', 'padding', 'gap',
-  'color', 'background', 'background-color', 'border-color', 'border-width', 'border-style', 'border-radius',
-  'font-family', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'text-align',
-  'opacity', 'box-shadow', 'align-items', 'justify-content', 'grid-template-columns',
-])
-
-function sanitizeElementHtml(raw: string): string {
-  return raw
-    .replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, '')
-    .replace(/<\/?(script|style|iframe|object|embed|link|meta|base)\b[^>]*>/gi, '')
-    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    .replace(/\s(class|id)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    .replace(/\s(href|src|xlink:href|action|formaction|srcset)\s*=\s*("\s*javascript:[^"]*"|'\s*javascript:[^']*'|javascript:[^\s>]+)/gi, '')
-}
-
-function inlineRootStyles(html: string, styles: unknown): string {
-  if (!isRecord(styles)) return html
-  const decls = Object.entries(styles)
-    .filter(([key, value]) => PREVIEW_STYLE_PROPS.has(key) && typeof value === 'string' && !/[<>"]|expression\s*\(|url\s*\(/i.test(value))
-    .map(([key, value]) => `${key}:${value}`)
-    .concat('margin:0 auto')
-    .join(';')
-  const match = html.match(/^<([a-zA-Z][\w-]*)((?:"[^"]*"|'[^']*'|[^>"'])*)>/)
-  if (!decls || !match) return html
-  const styleAttr = /\sstyle\s*=\s*"([^"]*)"/i
-  const attrs = styleAttr.test(match[2])
-    ? match[2].replace(styleAttr, (_full, existing) => ` style="${existing};${decls}"`)
-    : `${match[2]} style="${decls}"`
-  return `<${match[1]}${attrs}>${html.slice(match[0].length)}`
-}
-
-function renderedElementFor(body: RecordValue): string {
-  const raw = asTrimmedString(body.html, 4_000)
-  // Truncated captures (client caps outerHTML and appends "…") are broken markup — skip.
-  if (!raw || !raw.startsWith('<') || raw.endsWith('…')) return ''
-  return inlineRootStyles(sanitizeElementHtml(raw), body.styles ?? body.computedStyles)
-}
-
-function buildPreviewCard(rendered: string): string {
-  if (!rendered) return ''
-  return `<div style="color:#00BFFF; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:28px 0 12px;">Rendered element</div>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(255,255,255,.06); border-radius:12px;">
-      <tr><td align="center" style="padding:0;"><div style="background:#FFFFFF; border-radius:12px; padding:32px 24px; text-align:center;">${rendered}</div></td></tr>
-    </table>
-    <div style="color:#8E929C; font-size:13px; line-height:1.6; padding-top:10px;">Open the attached <strong style="color:#F0F0F2;">component-preview.html</strong> to view the element in your browser.</div>`
-}
-
-function buildPreviewDocument(body: RecordValue, rendered: string): string {
-  const selector = escapeHtml(asTrimmedString(body.selector, 500))
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Raven component preview — ${selector}</title>
-</head>
-<body style="margin:0; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; background:#F4F4F6; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <div style="color:#5C5F68; font-size:13px; letter-spacing:.04em;">Raven component preview · <code>${selector}</code></div>
-  <div style="background:#FFFFFF; border:1px solid rgba(0,0,0,.08); border-radius:12px; padding:48px 64px; box-shadow:0 2px 12px rgba(0,0,0,.06);">${rendered}</div>
-</body>
-</html>`
+function buildPreviewLink(previewUrl: string): string {
+  if (!previewUrl) return ''
+  return `<div style="padding-bottom:24px;"><a href="${escapeHtml(previewUrl)}" style="display:inline-block; color:#1a1a22; background-color:#00BFFF; font-size:14px; font-weight:600; padding:10px 18px; border-radius:8px; text-decoration:none;">View the element in your browser</a></div>`
 }
 
 function packetRow(label: string, value: unknown): string {
@@ -302,7 +244,7 @@ function buildPacketCard(body: RecordValue, request: ComponentRequest): string {
   </table>`
 }
 
-function buildRequesterEmail(body: RecordValue, request: ComponentRequest, rendered: string): string {
+function buildRequesterEmail(body: RecordValue, request: ComponentRequest, previewUrl: string): string {
   const selector = asTrimmedString(body.selector, 500) || 'selected-element'
   const matchedTokens = body.matchedTokens ?? body.tokens ?? body.tokenIntents
   const computedStyles = body.computedStyles ?? body.styles ?? body.styleEdits
@@ -310,7 +252,7 @@ function buildRequesterEmail(body: RecordValue, request: ComponentRequest, rende
 
   const content = `
     <div style="color:#9498A0; font-size:15px; line-height:1.7; padding-bottom:24px;">Here is the triage packet captured from your selection, plus a deterministic starting spec for <strong style="color:#F0F0F2;">${escapeHtml(spec.componentName)}</strong>.</div>
-    ${buildPreviewCard(rendered)}
+    ${buildPreviewLink(previewUrl)}
     ${buildPacketCard(body, request)}
     <div style="color:#00BFFF; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:28px 0 12px;">Example component spec</div>
     <table class="card" bgcolor="#212129" width="100%" cellpadding="0" cellspacing="0" style="background-color:#212129; border:1px solid rgba(255,255,255,.06); border-radius:12px;">
@@ -324,10 +266,10 @@ function buildRequesterEmail(body: RecordValue, request: ComponentRequest, rende
   return emailShell('Component request', 'Your component request — Raven', content)
 }
 
-function buildTriageEmail(body: RecordValue, request: ComponentRequest, rendered: string): string {
+function buildTriageEmail(body: RecordValue, request: ComponentRequest, previewUrl: string): string {
   const content = `
     <div style="color:#9498A0; font-size:15px; line-height:1.7; padding-bottom:24px;">A Playground visitor requested a component. Reply to <a href="mailto:${escapeHtml(request.email)}" style="color:#00BFFF;">${escapeHtml(request.email)}</a>.</div>
-    ${buildPreviewCard(rendered)}
+    ${buildPreviewLink(previewUrl)}
     ${buildPacketCard(body, request)}`
   return emailShell('Playground triage', 'New Raven component request', content)
 }
@@ -413,13 +355,17 @@ export async function POST(request: Request) {
   const requestId = asTrimmedString(body.requestId, 100)
   const sendOptions = (suffix: string) =>
     requestId ? { idempotencyKey: `${requestId}-${suffix}` } : undefined
-  const rendered = renderedElementFor(body)
-  const attachments = rendered
-    ? [{
-        filename: 'component-preview.html',
-        content: Buffer.from(buildPreviewDocument(body, rendered)).toString('base64'),
-      }]
-    : undefined
+  let previewUrl = ''
+  if (renderedElementFor(body)) {
+    const payload = Buffer.from(JSON.stringify({
+      selector,
+      html: body.html,
+      styles: body.styles ?? body.computedStyles,
+    })).toString('base64url')
+    if (payload.length <= 8_000) {
+      previewUrl = `${new URL(request.url).origin}/api/component-preview?d=${payload}`
+    }
+  }
 
   try {
     const requesterResult = await resend.emails.send({
@@ -427,8 +373,7 @@ export async function POST(request: Request) {
       to: [componentRequest.email],
       replyTo: TRIAGE_ADDRESS,
       subject: 'Your component request — Raven',
-      html: buildRequesterEmail(body, componentRequest, rendered),
-      attachments,
+      html: buildRequesterEmail(body, componentRequest, previewUrl),
     }, sendOptions('requester'))
 
     if (requesterResult.error) {
@@ -444,8 +389,7 @@ export async function POST(request: Request) {
       to: [TRIAGE_ADDRESS],
       replyTo: componentRequest.email,
       subject: `Component request: ${componentRequest.issueType}`,
-      html: buildTriageEmail(body, componentRequest, rendered),
-      attachments,
+      html: buildTriageEmail(body, componentRequest, previewUrl),
     }, sendOptions('triage'))
 
     if (triageResult.error) {
