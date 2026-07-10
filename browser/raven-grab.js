@@ -63,6 +63,12 @@
   var componentRequestStep = "form";
   var componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
   var componentRequestId = "";
+  var requestHintDismissed = false;
+  try {
+    requestHintDismissed = window.localStorage.getItem("raven-grab-request-hint-dismissed") === "true";
+  } catch (storageError) {
+    requestHintDismissed = false;
+  }
   var collapsed = window.innerWidth <= 640;
   var panelDrag = null;
   var panelPosition = null;
@@ -226,6 +232,9 @@
     .raven-grab-style-select:focus, .raven-grab-style-format:focus, .raven-grab-style-unit:focus { box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
     .raven-grab-empty { margin: 0; padding: 12px; color: var(--raven-grab-muted); background: var(--raven-grab-raised); border: 1px dashed rgba(255, 255, 255, .1); border-radius: 12px; font: 400 12px/1.45 var(--raven-grab-ui); }
     .raven-grab-actions { flex: 0 0 auto; padding: 12px 16px 16px; background: #212129; border-top: 1px solid rgba(255, 255, 255, .06); }
+    .raven-grab-request-hint { display: flex; align-items: flex-start; gap: 6px; margin: 0 0 8px; color: var(--raven-grab-muted); font: 400 11px/1.35 var(--raven-grab-ui); }
+    .raven-grab-request-hint-dismiss { flex: 0 0 auto; margin: -4px -4px -4px 0; padding: 4px; color: var(--raven-grab-muted); background: transparent; border: 0; cursor: pointer; font: 400 14px/1 var(--raven-grab-ui); }
+    .raven-grab-request-hint-dismiss:hover { color: var(--raven-grab-text); }
     .raven-grab-send {
       position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 44px; min-height: 0; margin: 0 auto; padding: 12px 28px;
       overflow: hidden; border: 0 solid transparent; border-radius: 9999px; color: #0a1018;
@@ -1440,6 +1449,9 @@
     var issueTypes = ["UX/Usability", "Visual bug", "Missing variant", "Accessibility", "New pattern", "Other"];
     var issueSizes = ["1-10 users/customers", "10-100", "100-1,000", "1,000+", "Internal only"];
     var emailFlow = !!(grabConfig && grabConfig.componentRequestFlow === "email");
+    var agentEndpoint = emailFlow ? null : (grabConfig ? grabConfig.grabEndpoint : bridgeUrl("/grab"));
+    var standaloneEndpoint = agentEndpoint ? null : (grabConfig && grabConfig.componentRequestEndpoint);
+    var copyOnlyRequest = !emailFlow && !agentEndpoint && !standaloneEndpoint;
     var requestFormMarkup = `
       ${elementMarkup}
       <section class="raven-grab-section">
@@ -1478,6 +1490,10 @@
           ? '<button class="raven-grab-send" type="button" data-send-email data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">' + (emailFlow ? "Send email" : "Create request") + '</span></button>'
           : '<button class="raven-grab-send" type="button" data-request-next data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">' + (emailFlow ? "Continue" : "Send component request to design") + '</span></button>'));
     var requestTabLabel = grabRole === "maintainer" ? "Add component" : "Request Component";
+    var requestHintText = "No destination configured — requests can't be sent yet. Ask your agent to set up GitHub routing.";
+    var requestHintMarkup = activeTab === "request" && grabRole !== "maintainer" && copyOnlyRequest && !requestHintDismissed
+      ? '<p class="raven-grab-request-hint" data-request-hint><span>' + escapeHtml(requestHintText) + '</span><button class="raven-grab-request-hint-dismiss" type="button" data-dismiss-request-hint aria-label="' + escapeHtml("Dismiss setup hint") + '">' + escapeHtml("×") + "</button></p>"
+      : "";
 
     panel.innerHTML = `
       <div class="raven-grab-top">
@@ -1491,7 +1507,7 @@
         </div>
       </div>
       <div class="raven-grab-body"><div class="raven-grab-content">${bodyMarkup}</div></div>
-      <div class="raven-grab-actions">${actionMarkup}<p class="raven-grab-status" data-status aria-live="polite"></p></div>`;
+      <div class="raven-grab-actions">${requestHintMarkup}${actionMarkup}<p class="raven-grab-status" data-status aria-live="polite"></p></div>`;
     panel.setAttribute("aria-hidden", "false");
     panel.setAttribute("data-collapsed", collapsed ? "true" : "false");
   }
@@ -1813,6 +1829,16 @@
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   }
 
+  function dismissRequestHint() {
+    requestHintDismissed = true;
+    try {
+      window.localStorage.setItem("raven-grab-request-hint-dismissed", "true");
+    } catch (storageError) {
+      // The in-memory dismissal still applies when storage is unavailable.
+    }
+    renderPanel();
+  }
+
   async function sendComponentRequest(requestOverride) {
     if (requestOverride) {
       componentRequest = {
@@ -1928,6 +1954,7 @@
     if (event.target.closest("[data-send]")) sendSelection();
     if (event.target.closest("[data-request-next]")) advanceComponentRequest();
     if (event.target.closest("[data-send-email]")) sendComponentRequest();
+    if (event.target.closest("[data-dismiss-request-hint]")) dismissRequestHint();
     var tab = event.target.closest("[data-tab]");
     if (tab) switchTab(tab.getAttribute("data-tab"));
     var sectionToggle = event.target.closest("[data-section-toggle]");

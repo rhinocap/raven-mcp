@@ -96,7 +96,7 @@ function fakeStyle(declarations = {}, priorities = {}) {
 }
 
 async function loadOverlayInternals(options = {}) {
-  const overlayPath = path.resolve(__dirname, '../browser/raven-grab.js');
+  const overlayPath = options.overlayPath || path.resolve(__dirname, '../browser/raven-grab.js');
   const source = await readFile(overlayPath, 'utf8');
   const marker = '  if (grabConfig) {';
   const instrumented = source.replace(marker, `
@@ -211,6 +211,7 @@ ${marker}`);
   const window = {
     RavenGrabConfig: options.config,
     ravenGrabConfig: options.lowercaseConfig,
+    localStorage: options.localStorage,
     CSS: {
       escape: (value) => value,
       supports: (_property, value) => value !== 'definitely-invalid'
@@ -1162,6 +1163,69 @@ test('email-flow playground overlay requires an email and posts flow:email', asy
   assert.match(button.innerHTML, /Send email/);
 });
 
+test('request component shows the clipboard-only setup hint only when no destination is configured', async () => {
+  const overlayPath = path.resolve(__dirname, '../web/public/raven-grab.js');
+  const stored = {};
+  const localStorage = {
+    getItem(key) { return Object.hasOwn(stored, key) ? stored[key] : null; },
+    setItem(key, value) { stored[key] = String(value); }
+  };
+  const configurations = [
+    {
+      config: {
+        mode: 'standalone',
+        tokens: {},
+        grabEndpoint: null,
+        componentRequestEndpoint: null
+      },
+      expected: true
+    },
+    {
+      config: {
+        mode: 'standalone',
+        tokens: {},
+        grabEndpoint: null,
+        componentRequestEndpoint: null,
+        componentRequestFlow: 'email'
+      },
+      expected: false
+    },
+    {
+      config: {
+        mode: 'standalone',
+        tokens: {},
+        grabEndpoint: null,
+        componentRequestEndpoint: 'https://example.test/component-request'
+      },
+      expected: false
+    }
+  ];
+
+  for (const configuration of configurations) {
+    const { internals } = await loadOverlayInternals({
+      overlayPath,
+      config: configuration.config,
+      localStorage
+    });
+    internals.setStyleContext({ style: fakeStyle() }, { color: 'rgb(0, 0, 0)' });
+    internals.switchTab('request');
+
+    const html = internals.getPanelHtml();
+    if (configuration.expected) {
+      assert.match(html, /No destination configured — requests can&#39;t be sent yet\. Ask your agent to set up GitHub routing\./);
+      const dismissButton = {
+        closest(selector) { return selector === '[data-dismiss-request-hint]' ? this : null; }
+      };
+      internals.dispatchPanel('click', { target: dismissButton, stopPropagation() {} });
+      assert.equal(stored['raven-grab-request-hint-dismissed'], 'true');
+      assert.doesNotMatch(internals.getPanelHtml(), /No destination configured/);
+      delete stored['raven-grab-request-hint-dismissed'];
+    } else {
+      assert.doesNotMatch(html, /No destination configured/);
+    }
+  }
+});
+
 test('reselecting and dismissing restore token previews on their original target', async () => {
   const { internals, document } = await loadOverlayInternals();
   const first = document.createElement('div');
@@ -1530,8 +1594,8 @@ test('overlay panel CSS keeps only the body scrollable and provides the collapse
   assert.match(source, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.raven-grab-panel, \.raven-grab-send, \.raven-grab-textarea \{ transition: none !important; \}/);
 });
 
-test('browser overlay mirror stays byte-identical', async () => {
+test('browser overlay mirrors the web overlay byte-for-byte', async () => {
   const source = await readFile(path.resolve(__dirname, '../browser/raven-grab.js'), 'utf8');
   const mirror = await readFile(path.resolve(__dirname, '../web/public/raven-grab.js'), 'utf8');
-  assert.equal(mirror, source);
+  assert.equal(source, mirror);
 });
