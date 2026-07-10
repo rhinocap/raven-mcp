@@ -1464,7 +1464,7 @@
           : (componentRequestStep === "email"
           ? '<button class="raven-grab-send" type="button" data-send-email data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Send email</span></button>'
           : '<button class="raven-grab-send" type="button" data-request-next data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Send component request to design</span></button>'));
-    var requestTabLabel = "Add component";
+    var requestTabLabel = grabRole === "maintainer" ? "Add component" : "Request Component";
 
     panel.innerHTML = `
       <div class="raven-grab-top">

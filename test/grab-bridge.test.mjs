@@ -990,7 +990,7 @@ test('overlay keeps consumer component-request markup unchanged when role is abs
   internals.switchTab('request');
 
   const html = internals.getPanelHtml();
-  assert.match(html, />Add component<\/button>/);
+  assert.match(html, />Request Component<\/button>/);
   assert.match(html, /data-issue-type/);
   assert.match(html, /data-issue-size/);
   assert.match(html, /Send component request to design/);
