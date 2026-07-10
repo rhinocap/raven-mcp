@@ -62,8 +62,34 @@ export default function Home() {
           <div className="container">
             <div className="section-header">
               <p className="label reveal">Raven Design</p>
+              <h2 className="reveal reveal-delay-1">Select an element. Edit its tokens and styles. Send it to your agent.</h2>
+              <p className="subtitle reveal reveal-delay-2">The playground live &mdash; a heading is selected, its design tokens and computed styles opened, the token remapped and an underline applied on the page itself, then the change is written up and sent.</p>
+            </div>
+
+            <figure className="ba-featured pg-demo reveal">
+              <video
+                src="/playground-demo.mp4"
+                poster="/playground-demo-poster.jpg"
+                autoPlay
+                muted
+                loop
+                playsInline
+                aria-label="Screen capture of the Raven Design playground: an element is selected, its design tokens and computed styles are opened, the accent token and an underline are applied visibly on the page, and the change is sent to the agent."
+              />
+              <figcaption>
+                Tokens and computed styles, edited live on the page before anything reaches the agent.
+                <a href="/raven-design" className="btn-text-link">Try the playground →</a>
+              </figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section id="before-after" className="raven-design">
+          <div className="container">
+            <div className="section-header">
+              <p className="label reveal">Before &amp; after</p>
               <h2 className="reveal reveal-delay-1">Without Raven, and with it. Drag the divider.</h2>
-              <p className="subtitle reveal reveal-delay-2">Each pair below is a real brief before Raven and after it &mdash; a fresh build, a rebuild, and a taste-profile pass. Below them, the playground itself: select an element, edit its tokens and styles, and send the change to your agent.</p>
+              <p className="subtitle reveal reveal-delay-2">Each pair is a real brief before Raven and after it &mdash; a fresh build, a rebuild, and a taste-profile pass.</p>
             </div>
 
             <div className="ba-featured reveal">
@@ -99,22 +125,6 @@ export default function Home() {
                 />
               </div>
             </div>
-
-            <figure className="ba-featured pg-demo reveal">
-              <video
-                src="/playground-demo.mp4"
-                poster="/playground-demo-poster.jpg"
-                autoPlay
-                muted
-                loop
-                playsInline
-                aria-label="Screen capture of the Raven Design playground: an element is selected, mapped to the accent token, given a written instruction, and sent to the agent."
-              />
-              <figcaption>
-                The playground live &mdash; select an element, map it to a token, tell the agent what to change, send.
-                <a href="/raven-design" className="btn-text-link">Try the playground →</a>
-              </figcaption>
-            </figure>
           </div>
         </section>
 
