@@ -572,11 +572,10 @@ export default function PlaygroundPage() {
           margin-bottom: var(--space-4);
         }
 
-        @media (min-width: 1280px) {
+        @media (min-width: 1440px) {
           /* Make room for the controls pill: narrow the site nav on this page only. */
-          .playground-page ~ raven-nav,
           raven-nav {
-            --max-width: 900px;
+            --max-width: min(1140px, calc(100vw - 704px));
           }
 
           .playground-controls {
@@ -584,12 +583,8 @@ export default function PlaygroundPage() {
             top: 12px;
             left: 16px;
             z-index: 100;
-            flex-direction: column;
-            align-items: flex-start;
-            justify-content: center;
-            gap: var(--space-1);
             height: var(--nav-height, 64px);
-            padding: 0 var(--space-3);
+            padding: 0 var(--space-4);
             margin-bottom: 0;
             background: rgba(36, 36, 46, 0.5);
             backdrop-filter: blur(24px) saturate(1.6);
@@ -597,24 +592,6 @@ export default function PlaygroundPage() {
             border: 1px solid rgba(255, 255, 255, 0.12);
             border-radius: var(--radius-xl);
             box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.2);
-          }
-
-          .playground-controls .playground-role-toggle {
-            padding: 0;
-            background: transparent;
-            border: 0;
-          }
-
-          /* ponytail: 28px targets are desktop-pointer-only (>=1280px media query). */
-          .playground-controls .playground-role-toggle button {
-            min-height: 28px;
-            padding: 0 var(--space-2) 0 0;
-            font-size: 12px;
-          }
-
-          .playground-controls .playground-replay {
-            min-height: 28px;
-            font-size: 12px;
           }
         }
 
