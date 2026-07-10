@@ -344,6 +344,9 @@ export async function POST(request: Request) {
   }
 
   const resend = new Resend(apiKey)
+  const requestId = asTrimmedString(body.requestId, 100)
+  const sendOptions = (suffix: string) =>
+    requestId ? { idempotencyKey: `${requestId}-${suffix}` } : undefined
 
   try {
     const requesterResult = await resend.emails.send({
@@ -352,7 +355,7 @@ export async function POST(request: Request) {
       replyTo: TRIAGE_ADDRESS,
       subject: 'Your component request — Raven',
       html: buildRequesterEmail(body, componentRequest),
-    })
+    }, sendOptions('requester'))
 
     if (requesterResult.error) {
       return NextResponse.json({ error: 'Failed to send the component request.' }, { status: 502 })
@@ -368,7 +371,7 @@ export async function POST(request: Request) {
       replyTo: componentRequest.email,
       subject: `Component request: ${componentRequest.issueType}`,
       html: buildTriageEmail(body, componentRequest),
-    })
+    }, sendOptions('triage'))
 
     if (triageResult.error) {
       console.error('Failed to send component request triage notification.', triageResult.error)

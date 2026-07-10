@@ -59,6 +59,7 @@
   var instructionDraft = "";
   var componentRequestStep = "form";
   var componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
+  var componentRequestId = "";
 
   var host = document.createElement("div");
   host.setAttribute("data-raven-grab-overlay", "");
@@ -220,6 +221,7 @@
     .raven-grab-status { min-height: 18px; margin: 8px 2px 0; color: var(--raven-grab-tertiary); font: 400 11px/1.4 var(--raven-grab-ui); text-align: center; }
     .raven-grab-status[data-kind="error"] { color: var(--raven-grab-error); }
     .raven-grab-status[data-kind="success"] { color: #00E676; }
+    .raven-grab-status[data-kind="sr-only"] { position: absolute; width: 1px; height: 1px; min-height: 0; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     .raven-grab-arm {
       position: fixed; left: 50%; bottom: 20px; min-height: 44px; padding: 12px 20px; transform: translateX(-50%);
       display: flex; align-items: center; gap: 8px; pointer-events: auto; cursor: pointer;
@@ -1002,6 +1004,7 @@
     instructionDraft = "";
     componentRequestStep = "form";
     componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
+    componentRequestId = "";
     panel.setAttribute("aria-hidden", "true");
     panel.innerHTML = "";
     setHighlight(null);
@@ -1165,8 +1168,8 @@
       var payload = payloadForSend();
       var endpoint = grabConfig ? grabConfig.grabEndpoint : bridgeUrl("/grab");
       if (!endpoint) {
-        status.textContent = "Would send " + payload.selector + " · " + payload.tokenIntents.length + (payload.tokenIntents.length === 1 ? " token change" : " token changes") + " · " + payload.styleEdits.length + (payload.styleEdits.length === 1 ? " style edit" : " style edits");
-        status.setAttribute("data-kind", "success");
+        status.textContent = "Sent " + payload.selector + " · " + payload.tokenIntents.length + (payload.tokenIntents.length === 1 ? " token change" : " token changes") + " · " + payload.styleEdits.length + (payload.styleEdits.length === 1 ? " style edit" : " style edits");
+        status.setAttribute("data-kind", "sr-only");
         morphSendButton(button, "[data-send]", "Sent to agent", "Send to agent");
         return;
       }
@@ -1178,7 +1181,7 @@
       if (!response.ok) throw new Error("Bridge returned " + response.status);
       reactMetadata = null;
       status.textContent = "Sent to agent";
-      status.setAttribute("data-kind", "success");
+      status.setAttribute("data-kind", "sr-only");
       morphSendButton(button, "[data-send]", "Sent to agent", "Send to agent");
     } catch (error) {
       status.textContent = "Could not reach the Raven bridge";
@@ -1241,7 +1244,9 @@
     try {
       var standaloneEndpoint = grabConfig && grabConfig.componentRequestEndpoint;
       var endpoint = standaloneEndpoint || bridgeUrl("/grab");
+      if (!componentRequestId) componentRequestId = "cr-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
       var body = standaloneEndpoint ? {
+        requestId: componentRequestId,
         selector: currentSelection.selector,
         tokens: currentSelection.tokens,
         styles: currentSelection.styles,
@@ -1256,7 +1261,8 @@
         body: JSON.stringify(body)
       });
       if (!response.ok) throw new Error("Request returned " + response.status);
-      setPanelStatus("Email sent", "success");
+      componentRequestId = "";
+      setPanelStatus("Email sent", "sr-only");
       if (button) morphSendButton(button, "[data-send-email]", "Email sent", "Send email");
       return true;
     } catch (error) {
@@ -1345,6 +1351,7 @@
     instructionDraft = "";
     componentRequestStep = "form";
     componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
+    componentRequestId = "";
     selectedElement = target;
     setHighlight(target);
     currentSelection = selectionFor(target);

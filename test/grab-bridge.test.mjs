@@ -875,7 +875,8 @@ test('standalone overlay loads configured tokens and POSTs the full component re
   internals.setPanelQuery('[data-status]', status);
   await internals.sendSelection();
   assert.equal(calls.length, 0, 'null standalone grabEndpoint must not POST');
-  assert.match(status.textContent, /^Would send #request-target/);
+  assert.match(status.textContent, /^Sent #request-target/);
+  assert.equal(status.getAttribute("data-kind"), "sr-only");
   assert.equal(button.getAttribute('data-send-state'), 'check');
 
   assert.equal(typeof internals.sendComponentRequestEmail, 'function');
@@ -889,7 +890,10 @@ test('standalone overlay loads configured tokens and POSTs the full component re
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, 'https://example.test/component-request');
   assert.equal(calls[0].init.method, 'POST');
-  assert.deepEqual(JSON.parse(calls[0].init.body), {
+  const sentBody = JSON.parse(calls[0].init.body);
+  assert.match(sentBody.requestId, /^cr-/);
+  delete sentBody.requestId;
+  assert.deepEqual(sentBody, {
     selector: '#request-target',
     tokens: [{ property: 'color', cssVar: '--color-primary', value: '#111111' }],
     styles: { color: 'rgb(0, 0, 0)' },
