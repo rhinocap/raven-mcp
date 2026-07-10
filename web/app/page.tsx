@@ -66,6 +66,10 @@ export default function Home() {
               <p className="subtitle reveal reveal-delay-2">The playground live &mdash; a heading is selected, its design tokens and computed styles opened, the token remapped and an underline applied on the page itself, then the change written up as a payload for your agent.</p>
             </div>
 
+            <div className="pg-demo-cta reveal">
+              <a href="/raven-design" className="btn btn-primary">Try the playground</a>
+            </div>
+
             <figure className="ba-featured pg-demo reveal">
               <video
                 src="/playground-demo.mp4"
@@ -76,9 +80,6 @@ export default function Home() {
                 playsInline
                 aria-label="Screen capture of the Raven Design playground: an element is selected, its design tokens and computed styles are opened, the accent token and an underline are applied visibly on the page, and the change is packaged for the agent."
               />
-              <figcaption className="pg-demo-cta">
-                <a href="/raven-design" className="btn btn-primary">Try the playground</a>
-              </figcaption>
             </figure>
           </div>
         </section>
