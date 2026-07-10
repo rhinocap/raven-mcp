@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import Coachmarks from './Coachmarks'
 
 export const metadata: Metadata = {
-  title: 'Raven Grab — Live Demo | RavenMCP',
-  description: 'Try Raven Grab on a live, token-driven product wireframe.',
+  title: 'Raven Design — Live Demo | RavenMCP',
+  description: 'Pair design with your agent on a live, token-driven product wireframe.',
 }
 
 const ravenGrabConfig = {
@@ -49,7 +49,7 @@ export default function PlaygroundPage() {
       <section className="playground-intro">
         <div className="container">
           <p className="label">Playground</p>
-          <h1>Raven Grab — live demo</h1>
+          <h1>Raven Design — pair designing with your agent</h1>
           <p>
             Click any element, swap tokens, edit styles, or request a component.
           </p>
@@ -59,7 +59,7 @@ export default function PlaygroundPage() {
       <section className="playground-stage" aria-labelledby="wireframe-title">
         <div className="container">
           <div className="playground-stage-heading">
-            <p className="label">Grabbable wireframe</p>
+            <p className="label">Live wireframe</p>
             <p>Select any block, type style, control, or section to inspect it.</p>
           </div>
 
@@ -570,6 +570,52 @@ export default function PlaygroundPage() {
           align-items: center;
           gap: var(--space-4);
           margin-bottom: var(--space-4);
+        }
+
+        @media (min-width: 1280px) {
+          /* Make room for the controls pill: narrow the site nav on this page only. */
+          .playground-page ~ raven-nav,
+          raven-nav {
+            --max-width: 900px;
+          }
+
+          .playground-controls {
+            position: fixed;
+            top: 12px;
+            left: 16px;
+            z-index: 100;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            gap: var(--space-1);
+            height: 64px;
+            padding: 0 var(--space-3);
+            margin-bottom: 0;
+            background: rgba(36, 36, 46, 0.5);
+            backdrop-filter: blur(24px) saturate(1.6);
+            -webkit-backdrop-filter: blur(24px) saturate(1.6);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: var(--radius-xl);
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.2);
+          }
+
+          .playground-controls .playground-role-toggle {
+            padding: 0;
+            background: transparent;
+            border: 0;
+          }
+
+          /* ponytail: 28px targets are desktop-pointer-only (>=1280px media query). */
+          .playground-controls .playground-role-toggle button {
+            min-height: 28px;
+            padding: 0 var(--space-2) 0 0;
+            font-size: 12px;
+          }
+
+          .playground-controls .playground-replay {
+            min-height: 28px;
+            font-size: 12px;
+          }
         }
 
         .playground-role-toggle {

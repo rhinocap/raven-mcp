@@ -39,7 +39,7 @@
   }
 
   var MAX_HTML = 2000;
-  var Z_INDEX = "2147483646";
+  var Z_INDEX = "2147483647";
   var STYLE_PROPERTIES = [
     "display", "position", "box-sizing", "width", "height", "margin", "padding", "gap",
     "color", "background", "background-color", "border-color", "outline-color", "fill", "stroke", "border-width", "border-style", "border-radius",
@@ -293,7 +293,7 @@
   label.className = "raven-grab-label";
   var panel = document.createElement("aside");
   panel.className = "raven-grab-panel";
-  panel.setAttribute("aria-label", "Raven Grab selection");
+  panel.setAttribute("aria-label", "Raven Design selection");
   panel.setAttribute("aria-hidden", "true");
   panel.setAttribute("data-collapsed", "false");
   var edgeTab = document.createElement("button");
@@ -1728,7 +1728,9 @@
   });
 
   function inIgnoredRegion(target) {
-    return !!(target && typeof target.closest === "function" && target.closest("[data-raven-grab-ignore]"));
+    if (!target || typeof target.closest !== "function") return false;
+    // Injected dev tooling (Vercel toolbar etc.) must keep its own clicks.
+    return !!target.closest("[data-raven-grab-ignore], vercel-live-feedback, [data-vercel-toolbar], vercel-toolbar, nextjs-portal");
   }
 
   document.addEventListener("mousemove", function (event) {

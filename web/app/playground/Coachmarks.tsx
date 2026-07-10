@@ -16,8 +16,8 @@ type Step = {
 
 const STEPS: Step[] = [
   {
-    title: 'Raven Grab',
-    body: 'This wireframe has a live grab overlay. Click any element on the page, describe a change, and the request goes straight to your coding agent with the exact selector, tokens, and styles attached.',
+    title: 'Raven Design',
+    body: 'Pair designing with your agent. Click any element on the page, describe a change, and the request goes straight to your coding agent with the exact selector, tokens, and styles attached.',
     anchor: 'center',
   },
   {
@@ -47,7 +47,7 @@ const STEPS: Step[] = [
   },
   {
     title: 'Collapse and reopen',
-    body: 'The caret in the panel header tucks it away to the right edge — no grab chrome while it’s closed. Drag the panel by its header, or the edge tab up and down, if either is in your way.',
+    body: 'The caret in the panel header tucks it away to the right edge — no overlay chrome while it’s closed. Drag the panel by its header, or the edge tab up and down, if either is in your way.',
     anchor: 'panel',
   },
 ]
@@ -149,7 +149,7 @@ export default function Coachmarks({ config }: { config: Record<string, unknown>
   return (
     <>
       <div className="playground-controls" data-raven-grab-ignore="">
-        <div className="playground-role-toggle" role="group" aria-label="Grab role">
+        <div className="playground-role-toggle" role="group" aria-label="Role">
           {(['consumer', 'maintainer'] as const).map((r) => (
             <button
               key={r}
