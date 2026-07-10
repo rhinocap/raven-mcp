@@ -82,3 +82,9 @@ Fresh /goal: two-way click-to-change (grab overlay + token panel) + DESIGN.md as
 **Why:** Round-6 /goal items + Andrew's "coachmarks on the demo page" ask; overlay's capture-phase click handler was eating all page clicks (root cause of dead tour buttons).
 **Verified:** eyes-on styled tour (44px buttons, spotlight step, tokened card), design-judge PASS, mirrors byte-identical, 582/582 tests. Gotcha re-hit: `next build` while dev server runs corrupts `.next` → chunk 404s, dead hydration; restart dev server.
 **Pushed:** NOT pushed (explore/tools-redesign push freeze). Preview deploy in flight.
+
+### Vercel-toolbar conflict fix + rename to Raven Design + controls dock (round 7)
+**What:** Overlay ignores clicks on injected dev tooling (vercel-live-feedback etc.), host z-index → 2147483647; playground renamed "Raven Design — pair designing with your agent" (metadata, h1, tour step 1/7, panel aria-label); controls pill fixed top-left at nav height ≥1280px (nav narrowed to 900px on this page); pill height coupled to --nav-height.
+**Why:** Andrew: panel disappeared/conflicted with Vercel toolbar; wants controls at nav height top-left; stop calling it "grab". Context: sending to Apple hiring team (100 eng / 2 designers async design-system use case).
+**Verified:** toolbar click no longer grabbed on deployed preview (defaultPrevented=false inside toolbar, true on page); 41/41 grab tests; mirror byte-identical; eyes-on at 1456/1800 + Chrome on preview; Codex adversarial pass run (nav-height coupling fixed; shadow-DOM generic ignore logged as known scope).
+**Commits:** 02d3ee8, a7a6f6d (NOT pushed — branch push frozen). Preview: https://web-cy2f7ls4w-cunliffeandrewc-8712s-projects.vercel.app/playground
