@@ -213,6 +213,49 @@ function emailShell(label: string, title: string, content: string): string {
 </html>`
 }
 
+const PREVIEW_STYLE_PROPS = new Set([
+  'display', 'width', 'height', 'padding', 'gap',
+  'color', 'background', 'background-color', 'border-color', 'border-width', 'border-style', 'border-radius',
+  'font-family', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'text-align',
+  'opacity', 'box-shadow', 'align-items', 'justify-content', 'grid-template-columns',
+])
+
+function sanitizeElementHtml(raw: string): string {
+  return raw
+    .replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, '')
+    .replace(/<\/?(script|style|iframe|object|embed|link|meta|base)\b[^>]*>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/\s(class|id)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/\s(href|src|xlink:href|action|formaction|srcset)\s*=\s*("\s*javascript:[^"]*"|'\s*javascript:[^']*'|javascript:[^\s>]+)/gi, '')
+}
+
+function inlineRootStyles(html: string, styles: unknown): string {
+  if (!isRecord(styles)) return html
+  const decls = Object.entries(styles)
+    .filter(([key, value]) => PREVIEW_STYLE_PROPS.has(key) && typeof value === 'string' && !/[<>"]|expression\s*\(|url\s*\(/i.test(value))
+    .map(([key, value]) => `${key}:${value}`)
+    .concat('margin:0 auto')
+    .join(';')
+  const match = html.match(/^<([a-zA-Z][\w-]*)((?:"[^"]*"|'[^']*'|[^>"'])*)>/)
+  if (!decls || !match) return html
+  const styleAttr = /\sstyle\s*=\s*"([^"]*)"/i
+  const attrs = styleAttr.test(match[2])
+    ? match[2].replace(styleAttr, (_full, existing) => ` style="${existing};${decls}"`)
+    : `${match[2]} style="${decls}"`
+  return `<${match[1]}${attrs}>${html.slice(match[0].length)}`
+}
+
+function buildPreviewCard(body: RecordValue): string {
+  const raw = asTrimmedString(body.html, 4_000)
+  // Truncated captures (client caps outerHTML and appends "…") are broken markup — skip.
+  if (!raw || !raw.startsWith('<') || raw.endsWith('…')) return ''
+  const rendered = inlineRootStyles(sanitizeElementHtml(raw), body.styles ?? body.computedStyles)
+  return `<div style="color:#00BFFF; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:28px 0 12px;">Rendered element</div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(255,255,255,.06); border-radius:12px;">
+      <tr><td align="center" style="padding:0;"><div style="background:#FFFFFF; border-radius:12px; padding:32px 24px; text-align:center;">${rendered}</div></td></tr>
+    </table>`
+}
+
 function packetRow(label: string, value: unknown): string {
   return `<tr>
     <td style="width:150px; color:#8E929C; font-size:12px; line-height:1.5; padding:10px 16px 10px 0; border-bottom:1px solid rgba(255,255,255,.06); vertical-align:top;">${escapeHtml(label)}</td>
@@ -246,6 +289,7 @@ function buildRequesterEmail(body: RecordValue, request: ComponentRequest): stri
 
   const content = `
     <div style="color:#9498A0; font-size:15px; line-height:1.7; padding-bottom:24px;">Here is the triage packet captured from your selection, plus a deterministic starting spec for <strong style="color:#F0F0F2;">${escapeHtml(spec.componentName)}</strong>.</div>
+    ${buildPreviewCard(body)}
     ${buildPacketCard(body, request)}
     <div style="color:#00BFFF; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:28px 0 12px;">Example component spec</div>
     <table class="card" bgcolor="#212129" width="100%" cellpadding="0" cellspacing="0" style="background-color:#212129; border:1px solid rgba(255,255,255,.06); border-radius:12px;">
@@ -262,6 +306,7 @@ function buildRequesterEmail(body: RecordValue, request: ComponentRequest): stri
 function buildTriageEmail(body: RecordValue, request: ComponentRequest): string {
   const content = `
     <div style="color:#9498A0; font-size:15px; line-height:1.7; padding-bottom:24px;">A Playground visitor requested a component. Reply to <a href="mailto:${escapeHtml(request.email)}" style="color:#00BFFF;">${escapeHtml(request.email)}</a>.</div>
+    ${buildPreviewCard(body)}
     ${buildPacketCard(body, request)}`
   return emailShell('Playground triage', 'New Raven component request', content)
 }
