@@ -42,8 +42,13 @@ const STEPS: Step[] = [
   },
   {
     title: 'Two roles, two second tabs',
-    body: 'Consumers get "Request Component" — a request that goes to the design team. Maintainers get "Add to Design System" — instructions to create the component and update DESIGN.md. Use the toggle at the top left of the page to switch.',
+    body: 'Engineers get "Request Component" — a request that goes to the design team. The design system side gets "Add to Design System" — instructions to create the component and update DESIGN.md.',
     anchor: 'panel',
+  },
+  {
+    title: 'Switch roles here',
+    body: 'This toggle switches the panel between the Engineer view and the Design system view — same element, two workflows.',
+    anchor: 'target:.playground-role-toggle',
   },
   {
     title: 'Collapse and reopen',
@@ -157,7 +162,7 @@ export default function Coachmarks({ config }: { config: Record<string, unknown>
               aria-pressed={role === r}
               onClick={() => chooseRole(r)}
             >
-              {r === 'consumer' ? 'Consumer' : 'Maintainer'}
+              {r === 'consumer' ? 'Engineer' : 'Design system'}
             </button>
           ))}
         </div>

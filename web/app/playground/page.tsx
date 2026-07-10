@@ -584,14 +584,7 @@ export default function PlaygroundPage() {
             left: 16px;
             z-index: 100;
             height: var(--nav-height, 64px);
-            padding: 0 var(--space-4);
             margin-bottom: 0;
-            background: rgba(36, 36, 46, 0.5);
-            backdrop-filter: blur(24px) saturate(1.6);
-            -webkit-backdrop-filter: blur(24px) saturate(1.6);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: var(--radius-xl);
-            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.2);
           }
         }
 
