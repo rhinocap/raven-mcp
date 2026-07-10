@@ -40,3 +40,18 @@ Fresh /goal: two-way click-to-change (grab overlay + token panel) + DESIGN.md as
   - ✓ Grab-receipt agent protocol: get_grabbed_elements appends agent_protocol when count>0 (summarize changes, ask "write a goal or wait for direction", never implement unasked); server instructions updated to drain during active sessions. Suite 557/557.
   - ✓ DA pass on inline editing (gpt-5.6-sol) found 4 P2s — all fixed by dedicated Codex leg: original-inline-value capture + rollback on dismiss/new selection, revert restores prior inline declaration, invalid CSS preserves displayed value + #FF4060 flash, keyboard/ARIA/hover affordance on editable values. 3 VM regression tests added. Suite 560/560 local. Eyes-on re-verified in Chrome: invalid `banana!!` → red flash, value stays `12px 24px`; valid `30px 80px` → button grew; dismiss → button reverted (no stray inline override).
   - NOTE: running raven session serves pre-inline-edit dist — styleEdits absent from live drains until rebuild+reconnect (tests cover new round trip).
+
+### Panel v2 + Playground + send-morph (/goal round 2, this session)
+**What:**
+- Panel v2 per Figma 3-136 (docs/grab-panel-v2-spec.md): tabbed Design | Request Component, #212129 glass, JBMono/cyan, collapsible DESIGN TOKENS + COMPUTED STYLES sections (collapsed by default, caret, grid-rows animation), scrollable body with pinned header/tabs + footer CTA, element chip hover-tooltip + click-copies-selector, centered arm pill.
+- Request Component triage loop: issue type/size selects + use-case textarea → email step ("EMAIL YOURSELF THE COMPONENT") → componentRequest {issueType,issueSize,useCase,email} through bridge schema + drains (VM tests).
+- Playground page web/app/playground/page.tsx (ravenmcp.ai style) + /api/component-request (Resend, both-emails triage packet + generated component spec, 5/min/IP rate limit, 503 JSON without RESEND_API_KEY). Standalone overlay mode (config tokens, grabEndpoint:null → "Would send…" summary).
+- Send-button morph (Figma 6-626), Codex gpt-5.6-sol leg: CTA → 44px outlined ✓ circle → "✓ Sent to agent"/"Email sent" outlined pill → back to ✓ → restored, ~250ms steps, reduced-motion honored, aria-busy/live, failure path unmorphed. Eyes-on verified via Playwright captures (all 3 states, text unclipped).
+**Bugs found + fixed during E2E:**
+- Standalone token match failure: config tokens normalized to --colors-* but demo card uses --demo-* → pass explicit cssVar per token in playground config.
+- Token swap preview invisible: preview set var on documentElement, masked by component-local --demo-* definition → preview now sets inline var on the SELECTED element (previewOriginals store target for rollback).
+- Sent-pill clipped ("Sent to a…"): --raven-grab-sent-width measured from button.scrollWidth while 44px wide → offscreen max-content probe clone.
+- "1 token changes" pluralization.
+- Chrome-MCP note: occluded tab freezes CSS transitions (currentTime stuck 0) — computed-style/visual timing checks unreliable there; Playwright headless is the eyes-on path. Shadow root flipped closed→open to enable programmatic verification.
+**Verify:** npm test 568/568 (was 566; +morph VM tests); playground E2E eyes-on (grab → 4 matched tokens → swap visibly white → Would send summary → morph; Request Component → email → 503 JSON graceful "Try again"). Stale stash bqriu207z dropped (superseded).
+**Pending:** DA pass (b54cfseoe) disposition; commit (pathspec, NO push — branch shared with web redesign); Vercel preview of web/ + RESEND_API_KEY into web project env (Andrew, not in chat); /mcp reconnect for componentRequest in live drains.

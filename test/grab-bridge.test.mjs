@@ -95,10 +95,10 @@ function fakeStyle(declarations = {}, priorities = {}) {
   return style;
 }
 
-async function loadOverlayInternals() {
+async function loadOverlayInternals(options = {}) {
   const overlayPath = path.resolve(__dirname, '../browser/raven-grab.js');
   const source = await readFile(overlayPath, 'utf8');
-  const marker = '  fetch(bridgeUrl("/tokens"))';
+  const marker = '  if (grabConfig) {';
   const instrumented = source.replace(marker, `
   globalThis.__ravenGrabTest = {
     bridgeUrl: bridgeUrl,
@@ -111,9 +111,21 @@ async function loadOverlayInternals() {
     dismiss: dismiss,
     payloadForSend: payloadForSend,
     styleEditsForSend: styleEditsForSend,
-    setStyleContext: function (element, styles) {
+    renderPanel: renderPanel,
+    copyElementSelector: typeof copyElementSelector === "function" ? copyElementSelector : undefined,
+    switchTab: typeof switchTab === "function" ? switchTab : undefined,
+    toggleSection: typeof toggleSection === "function" ? toggleSection : undefined,
+    updateIntent: updateIntent,
+    rollbackTokenPreviews: rollbackTokenPreviews,
+    sendComponentRequestEmail: typeof sendComponentRequestEmail === "function" ? sendComponentRequestEmail : undefined,
+    sendSelection: sendSelection,
+    getPanelHtml: function () { return panel.innerHTML; },
+    dispatchPanel: function (type, event) { panel.dispatch(type, event); },
+    getBridgeTokens: function () { return bridgeTokens; },
+    setPanelQuery: function (selector, value) { panel.setQuery(selector, value); },
+    setStyleContext: function (element, styles, tokens, selector) {
       selectedElement = element;
-      currentSelection = { selector: "#target", html: "", rect: {}, styles: styles, tokens: [] };
+      currentSelection = { selector: selector || "#target", html: "", rect: {}, styles: styles, tokens: tokens || [] };
       styleEdits = Object.create(null);
       styleEditOriginalInline = Object.create(null);
     },
@@ -125,8 +137,19 @@ ${marker}`);
   function fakeElement() {
     const attributes = {};
     const listeners = {};
+    const queries = {};
     return {
+      nodeType: 1,
+      localName: 'div',
+      classList: [],
+      children: [],
+      parentElement: null,
+      outerHTML: '<div></div>',
       style: fakeStyle(),
+      innerHTML: '',
+      textContent: '',
+      value: '',
+      disabled: false,
       setAttribute(name, value) { attributes[name] = String(value); },
       getAttribute(name) { return Object.hasOwn(attributes, name) ? attributes[name] : null; },
       removeAttribute(name) { delete attributes[name]; },
@@ -140,13 +163,16 @@ ${marker}`);
       },
       focus() {},
       select() {},
+      getBoundingClientRect() { return { x: 0, y: 0, top: 0, right: 0, bottom: 0, left: 0, width: 0, height: 0 }; },
       attachShadow() { return { appendChild() {} }; },
-      querySelector() { return null; }
+      querySelector(selector) { return queries[selector] || null; },
+      setQuery(selector, value) { queries[selector] = value; }
     };
   }
 
   const documentElement = fakeElement();
   documentElement.contains = () => true;
+  const documentListeners = {};
   const document = {
     baseURI: 'http://example.test/',
     currentScript: { src: 'http://127.0.0.1:41234/raven-grab.js?key=test-key' },
@@ -154,10 +180,17 @@ ${marker}`);
     body: documentElement,
     styleSheets: [],
     createElement: fakeElement,
-    addEventListener() {},
+    addEventListener(type, listener) {
+      if (!documentListeners[type]) documentListeners[type] = [];
+      documentListeners[type].push(listener);
+    },
+    dispatch(type, event) {
+      for (const listener of documentListeners[type] || []) listener(event);
+    },
     querySelectorAll() { return []; }
   };
   const window = {
+    RavenGrabConfig: options.config,
     CSS: {
       escape: (value) => value,
       supports: (_property, value) => value !== 'definitely-invalid'
@@ -169,19 +202,48 @@ ${marker}`);
     document,
     location: { protocol: 'http:' },
     URL,
+    navigator: { clipboard: options.clipboard },
     console: { error() {}, warn() {}, info() {} },
     encodeURIComponent,
-    setTimeout,
+    setTimeout: options.setTimeout || setTimeout,
     clearTimeout,
     innerHeight: 900,
     innerWidth: 1440,
-    fetch: async () => ({ ok: true, json: async () => ({ tokens: [] }) }),
+    fetch: options.fetch || (async () => ({ ok: true, json: async () => ({ tokens: [] }) })),
     getComputedStyle(element) {
       return element.computedStyle || fakeStyle();
     }
   };
   vm.runInNewContext(instrumented, context, { filename: overlayPath });
+  await Promise.resolve();
+  await Promise.resolve();
   return { internals: context.__ravenGrabTest, document };
+}
+
+function fakeClock() {
+  let now = 0;
+  let nextId = 1;
+  const timers = [];
+  return {
+    setTimeout(callback, delay) {
+      const timer = { id: nextId, at: now + delay, callback };
+      nextId += 1;
+      timers.push(timer);
+      return timer.id;
+    },
+    tick(duration) {
+      const end = now + duration;
+      while (true) {
+        timers.sort((left, right) => left.at - right.at);
+        const timer = timers[0];
+        if (!timer || timer.at > end) break;
+        timers.shift();
+        now = timer.at;
+        timer.callback();
+      }
+      now = end;
+    }
+  };
 }
 
 test('tool gating keeps the anonymous remote surface at 45 and gates the six DESIGN.md/grab tools', async () => {
@@ -253,7 +315,13 @@ test('start_grab_session requires its capability key, serves DESIGN.md tokens, q
         html: '<button id="cta">Save</button>',
         rect: { x: 10, y: 20, w: 120, h: 44 },
         styleEdits: [{ property: 'color', oldValue: '#111111', newValue: '#222222' }],
-        instruction: 'Swap the primary color to the muted variant.'
+        instruction: 'Swap the primary color to the muted variant.',
+        componentRequest: {
+          issueType: 'Missing variant',
+          issueSize: '100-1,000',
+          useCase: 'The billing table needs a compact density variant.',
+          email: 'designer@example.com'
+        }
       })
     });
     assert.equal(grabRes.status, 202);
@@ -270,6 +338,12 @@ test('start_grab_session requires its capability key, serves DESIGN.md tokens, q
       { property: 'color', oldValue: '#111111', newValue: '#222222' }
     ]);
     assert.equal(grabbed.elements[0].instruction, 'Swap the primary color to the muted variant.');
+    assert.deepEqual(grabbed.elements[0].componentRequest, {
+      issueType: 'Missing variant',
+      issueSize: '100-1,000',
+      useCase: 'The billing table needs a compact density variant.',
+      email: 'designer@example.com'
+    });
 
     const stopped = await client.callTool({ name: 'stop_grab_session', arguments: {} });
     assert.ok(!stopped.isError);
@@ -700,4 +774,254 @@ test('overlay appends its script capability key to bridge requests', async () =>
   const { internals } = await loadOverlayInternals();
   assert.equal(internals.bridgeUrl('/tokens'), 'http://127.0.0.1:41234/tokens?key=test-key');
   assert.equal(internals.bridgeUrl('/grab'), 'http://127.0.0.1:41234/grab?key=test-key');
+});
+
+test('overlay switches between Design and Request Component tabs', async () => {
+  const { internals } = await loadOverlayInternals();
+  internals.setStyleContext({ style: fakeStyle() }, { color: 'rgb(0, 0, 0)' });
+  internals.renderPanel();
+
+  assert.match(internals.getPanelHtml(), /data-tab="design"[^>]*aria-selected="true"/);
+  assert.equal(typeof internals.switchTab, 'function');
+  internals.switchTab('request');
+  assert.match(internals.getPanelHtml(), /data-tab="request"[^>]*aria-selected="true"/);
+  assert.match(internals.getPanelHtml(), /REASON FOR NEW COMPONENT/);
+});
+
+test('overlay element chip exposes the full selector and copies it through the clipboard', async () => {
+  const writes = [];
+  const selector = 'main[data-view="billing"] > section:nth-child(12) .action-row button[data-action="save-and-continue"]';
+  const { internals, document } = await loadOverlayInternals({
+    clipboard: { writeText: async (value) => { writes.push(value); } }
+  });
+  internals.setStyleContext({ style: fakeStyle() }, {}, [], selector);
+  internals.renderPanel();
+
+  assert.match(
+    internals.getPanelHtml(),
+    /title="main\[data-view=&quot;billing&quot;\] &gt; section:nth-child\(12\) \.action-row button\[data-action=&quot;save-and-continue&quot;\]"/
+  );
+
+  const chip = document.createElement('span');
+  chip.closest = (query) => query === '[data-element-selector]' ? chip : null;
+  internals.dispatchPanel('click', { target: chip, stopPropagation() {} });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(writes, [selector]);
+  assert.equal(chip.textContent, 'Copied');
+  assert.equal(chip.getAttribute('data-copied'), 'true');
+});
+
+test('overlay token and computed-style sections start collapsed and toggle without losing edits', async () => {
+  const { internals } = await loadOverlayInternals();
+  const element = { style: fakeStyle() };
+  internals.setStyleContext(element, { color: 'rgb(0, 0, 0)' });
+  internals.commitStyleEdit('color', 'rgb(20, 20, 20)', 'rgb(0, 0, 0)');
+  internals.renderPanel();
+
+  assert.match(internals.getPanelHtml(), /data-section-toggle="tokens"[^>]*aria-expanded="false"/);
+  assert.match(internals.getPanelHtml(), /data-section-toggle="styles"[^>]*aria-expanded="false"/);
+  assert.equal(typeof internals.toggleSection, 'function');
+  internals.toggleSection('styles');
+  assert.match(internals.getPanelHtml(), /data-section-toggle="styles"[^>]*aria-expanded="true"/);
+  assert.match(internals.getPanelHtml(), /data-edited="true"/);
+});
+
+test('overlay excludes tokenized properties from the not-tokenized styles table', async () => {
+  const { internals } = await loadOverlayInternals();
+  internals.setStyleContext(
+    { style: fakeStyle() },
+    { color: 'rgb(0, 191, 255)', padding: '16px' },
+    [{ property: 'color', name: 'primary', value: '#00BFFF', bridgeToken: { path: 'colors.primary' } }]
+  );
+  internals.renderPanel();
+
+  assert.doesNotMatch(internals.getPanelHtml(), /data-style-property="color"/);
+  assert.match(internals.getPanelHtml(), /data-style-property="padding"/);
+});
+
+test('standalone overlay loads configured tokens and POSTs the full component request to the email endpoint', async () => {
+  const calls = [];
+  const clock = fakeClock();
+  const tokens = { 'colors.primary': '#00BFFF' };
+  const { internals, document } = await loadOverlayInternals({
+    setTimeout: clock.setTimeout,
+    config: {
+      mode: 'standalone',
+      tokens,
+      grabEndpoint: null,
+      componentRequestEndpoint: 'https://example.test/component-request'
+    },
+    fetch: async (url, init) => {
+      calls.push({ url, init });
+      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    }
+  });
+
+  assert.equal(internals.getBridgeTokens().length, 1);
+  assert.equal(internals.getBridgeTokens()[0].path, 'colors.primary');
+  assert.equal(calls.length, 0, 'standalone token loading must not call GET /tokens');
+
+  const button = document.createElement('button');
+  const status = document.createElement('p');
+  internals.setStyleContext(
+    { style: fakeStyle() },
+    { color: 'rgb(0, 0, 0)' },
+    [{ property: 'color', cssVar: '--color-primary', value: '#111111' }],
+    '#request-target'
+  );
+  internals.renderPanel();
+  internals.setPanelQuery('[data-send]', button);
+  internals.setPanelQuery('[data-status]', status);
+  await internals.sendSelection();
+  assert.equal(calls.length, 0, 'null standalone grabEndpoint must not POST');
+  assert.match(status.textContent, /^Would send #request-target/);
+  assert.equal(button.getAttribute('data-send-state'), 'check');
+
+  assert.equal(typeof internals.sendComponentRequestEmail, 'function');
+  await internals.sendComponentRequestEmail({
+    issueType: 'Accessibility',
+    issueSize: '1,000+',
+    useCase: 'Keyboard users need an exposed focus-ring variant.',
+    email: 'designer@example.com'
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://example.test/component-request');
+  assert.equal(calls[0].init.method, 'POST');
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    selector: '#request-target',
+    tokens: [{ property: 'color', cssVar: '--color-primary', value: '#111111' }],
+    styles: { color: 'rgb(0, 0, 0)' },
+    issueType: 'Accessibility',
+    issueSize: '1,000+',
+    useCase: 'Keyboard users need an exposed focus-ring variant.',
+    email: 'designer@example.com'
+  });
+});
+
+test('reselecting and dismissing restore token previews on their original target', async () => {
+  const { internals, document } = await loadOverlayInternals();
+  const first = document.createElement('div');
+  first.style = fakeStyle({ '--color-primary': '#111111' }, { '--color-primary': 'important' });
+  const second = document.createElement('div');
+  second.id = 'second';
+  const select = document.createElement('select');
+  select.value = '--color-secondary';
+  const newFields = document.createElement('div');
+  const token = { property: 'color', cssVar: '--color-primary', value: '#111111', path: 'colors.primary' };
+
+  internals.setTokens([
+    { path: 'colors.secondary', name: 'secondary', group: 'colors', value: '#222222', cssVar: '--color-secondary' }
+  ]);
+  internals.setStyleContext(first, { color: '#111111' }, [token], '#first');
+  internals.setPanelQuery('[data-token-choice="0"]', select);
+  internals.setPanelQuery('[data-new-token="0"]', newFields);
+
+  internals.updateIntent(0);
+  assert.equal(first.style.getPropertyValue('--color-primary'), '#222222');
+
+  document.dispatch('click', {
+    target: second,
+    altKey: false,
+    composedPath: () => [],
+    preventDefault() {},
+    stopImmediatePropagation() {}
+  });
+  assert.equal(first.style.getPropertyValue('--color-primary'), '#111111');
+  assert.equal(first.style.getPropertyPriority('--color-primary'), 'important');
+
+  internals.setStyleContext(first, { color: '#111111' }, [token], '#first');
+  internals.setPanelQuery('[data-token-choice="0"]', select);
+  internals.setPanelQuery('[data-new-token="0"]', newFields);
+  internals.updateIntent(0);
+  internals.dismiss();
+  assert.equal(first.style.getPropertyValue('--color-primary'), '#111111');
+  assert.equal(first.style.getPropertyPriority('--color-primary'), 'important');
+});
+
+test('successful agent send morphs through sent state and restores the default CTA after timers', async () => {
+  const clock = fakeClock();
+  const { internals, document } = await loadOverlayInternals({
+    setTimeout: clock.setTimeout,
+    fetch: async () => ({ ok: true, status: 202, json: async () => ({ ok: true }) })
+  });
+  const button = document.createElement('button');
+  const status = document.createElement('p');
+  internals.setStyleContext({ style: fakeStyle() }, { color: 'rgb(0, 0, 0)' });
+  internals.renderPanel();
+  internals.setPanelQuery('[data-send]', button);
+  internals.setPanelQuery('[data-status]', status);
+
+  await internals.sendSelection();
+
+  assert.equal(button.getAttribute('data-send-state'), 'check');
+  assert.equal(button.getAttribute('aria-busy'), 'true');
+  assert.equal(button.disabled, true);
+  assert.equal(status.textContent, 'Sent to agent');
+
+  clock.tick(650);
+  assert.equal(button.getAttribute('data-send-state'), 'sent');
+  assert.match(button.innerHTML, /Sent to agent/);
+
+  clock.tick(1850);
+  assert.equal(button.getAttribute('data-send-state'), 'check');
+
+  clock.tick(250);
+  assert.equal(button.getAttribute('data-send-state'), 'default');
+  assert.equal(button.getAttribute('aria-busy'), null);
+  assert.equal(button.disabled, false);
+  assert.match(button.innerHTML, /Send to agent/);
+});
+
+test('successful component-request email morph shows Email sent and restores Send email', async () => {
+  const clock = fakeClock();
+  const { internals, document } = await loadOverlayInternals({
+    setTimeout: clock.setTimeout,
+    config: {
+      mode: 'standalone',
+      tokens: {},
+      grabEndpoint: null,
+      componentRequestEndpoint: 'https://example.test/component-request'
+    },
+    fetch: async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) })
+  });
+  const button = document.createElement('button');
+  const status = document.createElement('p');
+  internals.setStyleContext({ style: fakeStyle() }, { color: 'rgb(0, 0, 0)' });
+  internals.setPanelQuery('[data-send-email]', button);
+  internals.setPanelQuery('[data-status]', status);
+
+  const sent = await internals.sendComponentRequestEmail({
+    issueType: 'Accessibility',
+    issueSize: '1,000+',
+    useCase: 'Keyboard users need an exposed focus-ring variant.',
+    email: 'designer@example.com'
+  });
+
+  assert.equal(sent, true);
+  assert.equal(button.getAttribute('data-send-state'), 'check');
+  assert.equal(status.textContent, 'Email sent');
+
+  clock.tick(650);
+  assert.equal(button.getAttribute('data-send-state'), 'sent');
+  assert.match(button.innerHTML, /Email sent/);
+
+  clock.tick(2100);
+  assert.equal(button.getAttribute('data-send-state'), 'default');
+  assert.match(button.innerHTML, /Send email/);
+});
+
+test('overlay panel CSS keeps only the body scrollable and centers the arm pill', async () => {
+  const source = await readFile(path.resolve(__dirname, '../browser/raven-grab.js'), 'utf8');
+  assert.match(source, /\.raven-grab-panel \{[\s\S]*max-height: calc\(100vh - 40px\); overflow: hidden;[\s\S]*flex-direction: column;/);
+  assert.match(source, /\.raven-grab-top \{ flex: 0 0 auto;/);
+  assert.match(source, /\.raven-grab-body \{ flex: 1 1 auto; min-height: 0; overflow-y: auto;/);
+  assert.match(source, /\.raven-grab-actions \{ flex: 0 0 auto;/);
+  assert.match(source, /\.raven-grab-collapsible-inner \{[^}]*visibility: visible;[^}]*transition: visibility 0s linear;/);
+  assert.match(source, /\.raven-grab-collapsible\[data-open="false"\] \.raven-grab-collapsible-inner \{ visibility: hidden; transition-delay: 150ms; \}/);
+  assert.match(source, /\.raven-grab-arm \{[\s\S]*left: 50%; bottom: 20px;[\s\S]*transform: translateX\(-50%\);/);
+  assert.match(source, /\.raven-grab-send\[data-send-state="check"\][\s\S]*width: 44px;[\s\S]*height: 44px;[\s\S]*background: rgba\(255, 255, 255, \.06\);[\s\S]*border: 1\.375px solid #00BFFF;/);
+  assert.match(source, /\.raven-grab-send\[data-send-state="sent"\][\s\S]*background: rgba\(22, 44, 66, \.9\);[\s\S]*border: 1px solid #00BFFF;[\s\S]*backdrop-filter: blur\(6px\);/);
+  assert.match(source, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.raven-grab-send \{ transition: none !important; \}/);
 });
