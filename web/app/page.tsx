@@ -62,8 +62,8 @@ export default function Home() {
           <div className="container">
             <div className="section-header">
               <p className="label reveal">Raven Design</p>
-              <h2 className="reveal reveal-delay-1">Select an element. Edit its tokens and styles. Package the change for your agent.</h2>
-              <p className="subtitle reveal reveal-delay-2">The playground live &mdash; a heading is selected, its design tokens and computed styles opened, the token remapped and an underline applied on the page itself, then the change written up as a payload for your agent.</p>
+              <h2 className="reveal reveal-delay-1">Select an element. Edit its tokens and styles.</h2>
+              <p className="subtitle reveal reveal-delay-2">Edits land on the page as you make them, then get packaged for your agent.</p>
             </div>
 
             <div className="pg-demo-cta reveal">
@@ -88,7 +88,7 @@ export default function Home() {
           <div className="container">
             <div className="section-header">
               <p className="label reveal">Before &amp; after</p>
-              <h2 className="reveal reveal-delay-1">Without Raven, and with it. Drag the divider.</h2>
+              <h2 className="reveal reveal-delay-1">Without Raven, and with it.</h2>
               <p className="subtitle reveal reveal-delay-2">Each pair is a real brief before Raven and after it &mdash; a fresh build, a rebuild, and a taste-profile pass.</p>
             </div>
 
