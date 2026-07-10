@@ -119,7 +119,7 @@
     .raven-grab-title { min-width: 0; flex: 1; }
     .raven-grab-title strong { display: block; color: var(--raven-grab-text); font: 700 14px/1.3 var(--raven-grab-ui); letter-spacing: -.01em; }
     .raven-grab-icon-button {
-      width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%;
+      width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%;
       color: var(--raven-grab-muted); background: rgba(255, 255, 255, .06); cursor: pointer;
       font: 18px/1 var(--raven-grab-ui); transition: color 150ms ease, background 150ms ease;
     }
@@ -208,8 +208,8 @@
     }
     .raven-grab-send[data-send-state="default"]:hover { background: var(--raven-grab-accent-hover); transform: translateY(-2px); box-shadow: 0 0 0 1px rgba(0, 191, 255, .8), 0 8px 32px rgba(0, 191, 255, .45), 0 0 60px rgba(0, 191, 255, .2); }
     .raven-grab-send[data-send-state="check"] {
-      width: 44px; height: 44px; padding: 0; color: #00BFFF; background: rgba(255, 255, 255, .06);
-      border: 1.375px solid #00BFFF; border-radius: 9999px; box-shadow: none;
+      width: 44px; height: 44px; padding: 0; color: #00BFFF; background: transparent;
+      border: 0; border-radius: 9999px; box-shadow: none;
     }
     .raven-grab-send[data-send-state="sent"] {
       width: var(--raven-grab-sent-width, max-content); height: 44px; padding: 0; color: #00BFFF;
@@ -218,12 +218,14 @@
     }
     .raven-grab-check {
       display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex: 0 0 44px;
-      color: #00BFFF; font: 700 16.5px/1 var(--raven-grab-ui);
+      color: #00BFFF;
     }
-    .raven-grab-sent-content { display: inline-flex; align-items: center; gap: 10px; padding-right: 16px; white-space: nowrap; }
-    .raven-grab-send[data-send-state="sent"] .raven-grab-check {
-      background: rgba(255, 255, 255, .06); border: 1.375px solid #00BFFF; border-radius: 9999px;
-    }
+    .raven-grab-check svg { width: 20px; height: 20px; }
+    .raven-grab-check path { stroke-dasharray: 24; stroke-dashoffset: 24; animation: raven-grab-draw 400ms ease 50ms forwards; }
+    @keyframes raven-grab-draw { to { stroke-dashoffset: 0; } }
+    .raven-grab-sent-content { display: inline-flex; align-items: center; gap: 2px; padding: 0 20px 0 8px; white-space: nowrap; }
+    .raven-grab-send[data-send-state="sent"] .raven-grab-check svg { width: 16px; height: 16px; }
+    .raven-grab-send[data-send-state="sent"] .raven-grab-check path { animation: none; stroke-dashoffset: 0; }
     .raven-grab-sent-message { color: #00BFFF; font: 600 14px/1 var(--raven-grab-ui); }
     .raven-grab-send:focus-visible, .raven-grab-icon-button:focus-visible { outline: 3px solid rgba(0, 191, 255, .35); outline-offset: 2px; }
     .raven-grab-send:disabled { cursor: not-allowed; opacity: .5; transform: none; box-shadow: none; }
@@ -232,8 +234,8 @@
     .raven-grab-status[data-kind="success"] { color: #00E676; }
     .raven-grab-status[data-kind="sr-only"] { position: absolute; width: 1px; height: 1px; min-height: 0; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     .raven-grab-edge-tab {
-      position: fixed; right: 0; top: 50%; display: none; align-items: center; justify-content: center;
-      width: 40px; min-height: 44px; padding: 0; transform: translateY(-50%); pointer-events: auto; cursor: pointer;
+      position: fixed; right: 0; top: 33px; display: none; align-items: center; justify-content: center;
+      width: 44px; min-height: 44px; padding: 0; pointer-events: auto; cursor: pointer;
       color: var(--raven-grab-accent); background: rgba(22, 44, 66, .9); border: 1px solid var(--raven-grab-accent); border-right: 0; border-radius: 12px 0 0 12px;
       backdrop-filter: blur(12px); font: 500 24px/1 var(--raven-grab-ui); box-shadow: 0 8px 24px rgba(0, 0, 0, .3);
     }
@@ -243,6 +245,7 @@
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { scroll-behavior: auto !important; }
       .raven-grab-panel, .raven-grab-send { transition: none !important; }
+      .raven-grab-check path { animation: none !important; stroke-dashoffset: 0 !important; }
     }
   `;
 
@@ -1181,10 +1184,14 @@
     return payload;
   }
 
+  function checkMarkup() {
+    return '<span class="raven-grab-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>';
+  }
+
   function sendButtonMarkup(state, message) {
-    if (state === "check") return '<span class="raven-grab-check" aria-hidden="true">✓</span>';
+    if (state === "check") return checkMarkup();
     if (state === "sent") {
-      return '<span class="raven-grab-sent-content"><span class="raven-grab-check" aria-hidden="true">✓</span><span class="raven-grab-sent-message">' + escapeHtml(message) + "</span></span>";
+      return '<span class="raven-grab-sent-content">' + checkMarkup() + '<span class="raven-grab-sent-message">' + escapeHtml(message) + "</span></span>";
     }
     return '<span class="raven-grab-send-label">' + escapeHtml(message) + "</span>";
   }
@@ -1403,6 +1410,29 @@
     if (event.target.getAttribute("data-instruction") !== null) instructionDraft = event.target.value;
     if (event.target.getAttribute("data-use-case") !== null) componentRequest.useCase = event.target.value;
     if (event.target.getAttribute("data-component-email") !== null) componentRequest.email = event.target.value;
+  });
+  panel.addEventListener("keydown", function (event) {
+    if (event.key !== "Enter") return;
+    var target = event.target;
+    if (!target || !target.getAttribute) return;
+    var isInstruction = target.getAttribute("data-instruction") !== null;
+    var isUseCase = target.getAttribute("data-use-case") !== null;
+    var isEmail = target.getAttribute("data-component-email") !== null;
+    if (!isInstruction && !isUseCase && !isEmail) return;
+    if (event.metaKey || event.ctrlKey) {
+      if (target.tagName === "TEXTAREA") {
+        event.preventDefault();
+        var start = target.selectionStart;
+        var end = target.selectionEnd;
+        target.value = target.value.slice(0, start) + "\n" + target.value.slice(end);
+        target.selectionStart = target.selectionEnd = start + 1;
+        target.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      return;
+    }
+    event.preventDefault();
+    var sendButton = panel.querySelector(isInstruction ? "[data-send]" : "[data-send-email], [data-request-next]");
+    if (sendButton && !sendButton.disabled) sendButton.click();
   });
 
   document.addEventListener("mousemove", function (event) {

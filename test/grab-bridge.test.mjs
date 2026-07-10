@@ -1188,8 +1188,9 @@ test('overlay panel CSS keeps only the body scrollable and provides the collapse
   assert.match(source, /\.raven-grab-collapsible\[data-open="false"\] \.raven-grab-collapsible-inner \{ visibility: hidden; transition-delay: 150ms; \}/);
   assert.doesNotMatch(source, /\.raven-grab-arm\b/);
   assert.match(source, /\.raven-grab-panel\[data-collapsed="true"\] \{[^}]*transform: translateX\(calc\(100% \+ 21px\)\);[^}]*pointer-events: none;/);
-  assert.match(source, /\.raven-grab-edge-tab \{[\s\S]*right: 0; top: 50%;[\s\S]*min-height: 44px;[\s\S]*background: rgba\(22, 44, 66, \.9\);[\s\S]*border-radius: 12px 0 0 12px;/);
-  assert.match(source, /\.raven-grab-send\[data-send-state="check"\][\s\S]*width: 44px;[\s\S]*height: 44px;[\s\S]*background: rgba\(255, 255, 255, \.06\);[\s\S]*border: 1\.375px solid #00BFFF;/);
+  assert.match(source, /\.raven-grab-edge-tab \{[\s\S]*right: 0; top: 33px;[\s\S]*width: 44px; min-height: 44px;[\s\S]*background: rgba\(22, 44, 66, \.9\);[\s\S]*border-radius: 12px 0 0 12px;/);
+  assert.match(source, /\.raven-grab-send\[data-send-state="check"\][\s\S]*width: 44px;[\s\S]*height: 44px;[\s\S]*background: transparent;[\s\S]*border: 0;/);
+  assert.match(source, /@keyframes raven-grab-draw \{ to \{ stroke-dashoffset: 0; \} \}/);
   assert.match(source, /\.raven-grab-send\[data-send-state="sent"\][\s\S]*background: rgba\(22, 44, 66, \.9\);[\s\S]*border: 1px solid #00BFFF;[\s\S]*backdrop-filter: blur\(6px\);/);
   assert.match(source, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.raven-grab-panel, \.raven-grab-send \{ transition: none !important; \}/);
 });

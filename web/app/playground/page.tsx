@@ -139,7 +139,7 @@ export default function PlaygroundPage() {
                   <label htmlFor="project-notes">Project notes</label>
                   <textarea id="project-notes" name="project-notes" rows={4} placeholder="What needs to be tracked?" />
                 </div>
-                <button className="wireframe-button wireframe-button--primary" type="submit">
+                <button className="wireframe-button wireframe-button--primary" type="button">
                   Create workspace
                 </button>
               </form>
@@ -148,8 +148,8 @@ export default function PlaygroundPage() {
             <footer className="wireframe-footer">
               <p>© 2026 Northstar Workspace</p>
               <div className="wireframe-footer__links">
-                <a href="#overview">Privacy</a>
-                <a href="#overview">Terms</a>
+                <span>Privacy</span>
+                <span>Terms</span>
                 <a href="#contact">Support</a>
               </div>
             </footer>
