@@ -215,6 +215,106 @@
     
     <article class="release">
       <header class="release-head">
+        <h2>v1.16.1</h2>
+        <span class="badge badge-minor">minor</span>
+        <time datetime="2026-07-10T18:26:36Z">July 10, 2026</time>
+      </header>
+      <div class="release-body">
+        <p>Raven v1.16.1 — patch release</p>
+
+<h3>Changes</h3>
+<ul>
+<li>1e0e702 Raise Replay tour button to 44px tap-target floor</li>
+<li>7594a01 Rename /playground route to /raven-design with a 301 from the old path</li>
+<li>eb710a1 Restore Request Component label for the engineer role</li>
+<li>4dd6e06 Shorten component tab label to Add</li>
+</ul>
+<p>component</p>
+<ul>
+<li>c7c75f9 Make computed-style unit a selectable dropdown, not a locked tag</li>
+<li>ea813ec auto-save: web/app/api/component-request/route.ts +2 more</li>
+<li>9c93b8b grab: fix 4 color-editor defects from adversarial pass</li>
+<li>52179cf Harden component-preview against CSS declaration injection</li>
+<li>c4263ab Replace email component render/attachment with a hosted preview link</li>
+<li>c3ca379 Attach a standalone component-preview.html to component-request emails</li>
+<li>e2967bd Render the grabbed element as HTML in component-request emails</li>
+<li>52575e8 Rename roles to Engineer / Design system, spotlight tour step for the toggle, unwrap controls from nav-style pill</li>
+<li>a945d35 Restore original toggle styling in the top-left controls pill</li>
+<li>da0f1b5 Tour step 6: toggle is at the top left of the page</li>
+<li>0d67904 Session log: toolbar conflict fix, Raven Design rename, controls dock</li>
+<li>a7a6f6d Couple controls pill height to --nav-height token</li>
+<li>02d3ee8 Rename playground to Raven Design, dock controls top-left at nav height, ignore Vercel toolbar clicks</li>
+<li>982784c Restyle grab panel tabs and header to match Figma spec</li>
+<li>12e7070 Session log: round 6 + coachmarks</li>
+<li>02e7376 Add playground coachmark tour, role toggle, and overlay ignore-region opt-out</li>
+<li>5379886 Add draggable panel + edge tab with position memory, 5-beat send morph, and send-clear animation to Raven Grab</li>
+<li>9045bd1 auto-save: browser/raven-grab.js +5 more</li>
+<li>ff459ef Grab: collapsed hides all highlight chrome — no hover/selection boxes until reopened</li>
+<li>e75f9f9 Session log: grab round 4</li>
+<li>bc12512 Grab: draw-check morph, Enter-to-send, aligned collapse tab</li>
+<li>1bf0050 Grab: collapsed panel passes clicks through — grabbing only while panel is open</li>
+<li>c3bbf93 session log: grab round 3</li>
+<li>92920ae Grab round 3: default-visible panel, collapse-to-edge-tab, color swatch, spellcheck, wireframe demo page</li>
+<li>d2c6e3a auto-save: .claude/raven-opportunities.md</li>
+<li>9b3a690 session log: DA round + morph simplification</li>
+<li>d626022 Grab: sent pill morphs straight back to the CTA (drop trailing check step)</li>
+<li>a6ab928 Grab: hide success status text (redundant with morph pill) + email idempotency key</li>
+<li>c9140c4 session log: grab fix round</li>
+<li>416fcf7 Grab panel v2: tabs + component-request loop, standalone playground, send-button morph</li>
+<li>1b42fc6 Grab overlay: inline computed-style editing hardened + site restyle + agent receipt protocol</li>
+<li>83370fd server instructions: grab overlay on by default for any agent-started local server</li>
+<li>06f8d3f grab bridge proxy mode: auto-inject overlay into any local dev server (zero-paste)</li>
+<li>48ce87e harden grab+DESIGN.md: capability-keyed bridge, cascade-aware token matching, comment-preserving updates, typography namespace, docs</li>
+<li>62153b8 auto-save: src/designmd.ts +1 more</li>
+<li>f980918 session log: grab/DESIGN.md end-state + DA-pass ledger</li>
+<li>9770926 feat: react-grab-style click-to-change + DESIGN.md first-class format</li>
+<li>5a282ca web: ship tools-section redesign — progressive disclosure (variant B)</li>
+<li>f5effa3 web: tools variant B — 2x chevron circle, expanded grid aligns to title edge</li>
+<li>eb447d4 web: nudge grid spotlight back up a touch (peak 0.16-&gt;0.22)</li>
+<li>09bc8d2 web: dim the background grid cursor spotlight</li>
+<li>7cb3d76 web: tools-section redesign explorations A/B/C with local variant toggle</li>
+<li>94ea8ba Fix dead first-act margin selector and stale act-count comment</li>
+<li>5e22725 Restructure 70-tool section: hero cards + name-only chips per act</li>
+<li>61f71c4 Save verification evidence for the homepage tap-target/token fix</li>
+<li>bc056da Consolidate homepage hardcoded hex colors into design tokens</li>
+<li>c747ef6 auto-save: CLAUDE.md +21 more</li>
+<li>f268b91 auto-save: docs/parity-roadmap.md</li>
+<li>7f82eef auto-save: conversations/PROMOTION-QUEUE.md</li>
+<li>ff62627 Add successor-critical ground-truth CLAUDE.md</li>
+<li>0621da0 auto-save: p45-ship-ledger.sh</li>
+<li>6014d9e auto-save: p45-ledger-commit.txt +2 more</li>
+<li>0bd0eae revisit: auto-retrospective on /clear (2026-07-06)</li>
+<li>0d9ca9d revisit: auto-retrospective on /clear (2026-07-06)</li>
+<li>be7d651 auto-save: docs/remote-mcp-phase4-progress.md</li>
+<li>64f985f revisit: auto-retrospective on /clear (2026-07-06)</li>
+<li>17f1932 log: cross-instance note — p4-remote-taste has an unpushed local commit (529b901)</li>
+<li>3308d3e web: three-terminal Taste Engine lifecycle (calibrate → audit → kick off)</li>
+<li>375f762 web: grow the two static terminals to the hero terminal&#39;s height</li>
+<li>bb89e90 web: trim new-section copy + unify the two static terminals</li>
+<li>ff6871e auto-save: conversations/2026-07-06-nextjs-migration.md</li>
+<li>cfba187 web: promote the Beacon grid to a full-site interactive backdrop</li>
+<li>f10824a log: Next.js content port done + verified (terminals, audit_taste, Codex adversarial)</li>
+<li>229375c web: restore source-verbatim copy — Codex port swapped in banned &#39;proven&#39;</li>
+<li>f5b5d37 web: port current site content to Next.js — #judge, #cinematic, 70-tool section, interactive HeroGrid</li>
+<li>2972de4 site: dim hero hover-grid + frosted install CTA</li>
+<li>529b901 auto-save: docs/remote-mcp-phase4-progress.md +8 more</li>
+<li>64633d0 P4.2: RedisTasteStore(sub) + per-request identity threading — profile trio un-gated for authed users</li>
+<li>3b98ea1 revisit: auto-retrospective on /clear (2026-07-05)</li>
+<li>f050a13 P4.1: AuthKit resource-server auth — /api/mcp-user skeleton + RFC 9728 PRM discovery</li>
+</ul>
+
+<p><strong>Install:</strong></p>
+<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
+
+
+      </div>
+      <footer class="release-foot">
+        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v1.16.1" target="_blank" rel="noopener">View on GitHub &rarr;</a>
+      </footer>
+    </article>
+
+    <article class="release">
+      <header class="release-head">
         <h2>v1.14.1</h2>
         <span class="badge badge-minor">minor</span>
         <time datetime="2026-07-03T18:18:58Z">July 3, 2026</time>
