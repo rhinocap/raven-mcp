@@ -1833,8 +1833,13 @@
     }
     setPanelStatus("", "");
     try {
-      var standaloneEndpoint = grabConfig && grabConfig.componentRequestEndpoint;
-      var endpoint = standaloneEndpoint || bridgeUrl("/grab");
+      // Destination adapter priority: a live agent session (bridge or configured
+      // grab endpoint) beats the standalone request endpoint; the standalone
+      // endpoint is the fallback when no agent is connected.
+      var agentEndpoint = grabConfig ? grabConfig.grabEndpoint : bridgeUrl("/grab");
+      var standaloneEndpoint = agentEndpoint ? null : (grabConfig && grabConfig.componentRequestEndpoint);
+      var endpoint = agentEndpoint || standaloneEndpoint;
+      if (!endpoint) throw new Error("No component request destination is configured");
       if (!componentRequestId) componentRequestId = "cr-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
       var body = standaloneEndpoint ? {
         requestId: componentRequestId,
@@ -1855,8 +1860,8 @@
       if (!response.ok) throw new Error("Request returned " + response.status);
       if (!standaloneEndpoint) {
         componentRequestId = "";
-        setPanelStatus("Request sent", "sr-only");
-        if (button) morphSendButton(button, "[data-send-email]", "Request sent", "Create request");
+        setPanelStatus("Sent to agent", "sr-only");
+        if (button) morphSendButton(button, "[data-send-email]", "Sent to agent", "Create request");
         return true;
       }
       var result = await response.json();
