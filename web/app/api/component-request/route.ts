@@ -459,6 +459,35 @@ export async function POST(request: Request) {
     }
   }
 
+  // Playground fork: the public playground keeps the original email-yourself
+  // flow; production installs use the destination adapter below.
+  if (asTrimmedString(body.flow, 20) === 'email') {
+    if (!componentRequest.email) {
+      return NextResponse.json({ error: 'An email address is required.' }, { status: 400 })
+    }
+    const apiKey = process.env.RESEND_API_KEY
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Email sending is not configured.' }, { status: 503 })
+    }
+    const resend = new Resend(apiKey)
+    try {
+      const emailResult = await resend.emails.send({
+        from: FROM_ADDRESS,
+        to: [componentRequest.email],
+        subject: 'Your component request — Raven',
+        html: buildRequesterEmail(body, componentRequest, previewUrl, ''),
+      }, sendOptions('requester'))
+      if (emailResult.error) {
+        console.error('Failed to send component email.', emailResult.error)
+        return NextResponse.json({ error: 'Failed to send the email.' }, { status: 502 })
+      }
+    } catch (error) {
+      console.error('Failed to send component email.', error)
+      return NextResponse.json({ error: 'Failed to send the email.' }, { status: 502 })
+    }
+    return NextResponse.json({ success: true, mode: 'email', message: 'Email sent' }, { status: 200 })
+  }
+
   const packet = buildIssueBody(body, componentRequest, previewUrl)
   const title = `Component request: ${componentRequest.issueType} — ${selector.slice(0, 80)}`
   const githubRepo = asTrimmedString(process.env.COMPONENT_REQUEST_GITHUB_REPO, 200)

@@ -1105,6 +1105,63 @@ test('standalone overlay loads configured tokens and POSTs the full component re
   });
 });
 
+test('email-flow playground overlay requires an email and posts flow:email', async () => {
+  const calls = [];
+  const clock = fakeClock();
+  const { internals, document } = await loadOverlayInternals({
+    setTimeout: clock.setTimeout,
+    config: {
+      mode: 'standalone',
+      tokens: {},
+      grabEndpoint: null,
+      componentRequestEndpoint: 'https://example.test/component-request',
+      componentRequestFlow: 'email'
+    },
+    fetch: async (url, init) => {
+      calls.push({ url, init });
+      return { ok: true, status: 200, json: async () => ({ success: true, mode: 'email', message: 'Email sent' }) };
+    }
+  });
+
+  internals.setStyleContext(
+    { style: fakeStyle() },
+    { color: 'rgb(0, 0, 0)' },
+    [{ property: 'color', cssVar: '--color-primary', value: '#111111' }],
+    '#request-target'
+  );
+  internals.renderPanel();
+  const button = document.createElement('button');
+  const status = document.createElement('p');
+  internals.setPanelQuery('[data-send-email]', button);
+  internals.setPanelQuery('[data-status]', status);
+
+  const rejected = await internals.sendComponentRequest({
+    issueType: 'Accessibility',
+    issueSize: '1,000+',
+    useCase: 'Keyboard users need an exposed focus-ring variant.',
+    email: ''
+  });
+  assert.equal(rejected, false, 'email flow must require an email address');
+  assert.equal(calls.length, 0);
+
+  const sent = await internals.sendComponentRequest({
+    issueType: 'Accessibility',
+    issueSize: '1,000+',
+    useCase: 'Keyboard users need an exposed focus-ring variant.',
+    email: 'designer@example.com'
+  });
+  assert.equal(sent, true);
+  assert.equal(calls.length, 1);
+  const sentBody = JSON.parse(calls[0].init.body);
+  assert.equal(sentBody.flow, 'email');
+  assert.equal(sentBody.email, 'designer@example.com');
+  assert.equal(status.textContent, 'Email sent');
+  clock.tick(820);
+  assert.match(button.innerHTML, /Email sent/);
+  clock.tick(2300);
+  assert.match(button.innerHTML, /Send email/);
+});
+
 test('reselecting and dismissing restore token previews on their original target', async () => {
   const { internals, document } = await loadOverlayInternals();
   const first = document.createElement('div');

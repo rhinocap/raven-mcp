@@ -1450,7 +1450,13 @@
         <h2 class="raven-grab-section-title">DESCRIBE THE USE CASE AND IMPACT</h2>
         <textarea class="raven-grab-textarea raven-grab-use-case" data-use-case spellcheck="true" placeholder="Tell the design team why you need this…">${escapeHtml(componentRequest.useCase)}</textarea>
       </section>`;
-    var emailMarkup = `
+    var emailFlow = !!(grabConfig && grabConfig.componentRequestFlow === "email");
+    var emailMarkup = emailFlow ? `
+      ${elementMarkup}
+      <section class="raven-grab-section">
+        <h2 class="raven-grab-section-title">EMAIL YOURSELF THE COMPONENT</h2>
+        <input class="raven-grab-input" data-component-email type="email" value="${escapeHtml(componentRequest.email)}" placeholder="email" spellcheck="false" required>
+      </section>` : `
       ${elementMarkup}
       <section class="raven-grab-section">
         <h2 class="raven-grab-section-title">GET NOTIFIED (OPTIONAL)</h2>
@@ -1469,7 +1475,7 @@
       : (grabRole === "maintainer"
           ? '<button class="raven-grab-send" type="button" data-send data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Add to design system</span></button>'
           : (componentRequestStep === "email"
-          ? '<button class="raven-grab-send" type="button" data-send-email data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Create request</span></button>'
+          ? '<button class="raven-grab-send" type="button" data-send-email data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">' + (emailFlow ? "Send email" : "Create request") + '</span></button>'
           : '<button class="raven-grab-send" type="button" data-request-next data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Send component request to design</span></button>'));
     var requestTabLabel = grabRole === "maintainer" ? "Add component" : "Request Component";
 
@@ -1820,8 +1826,9 @@
     }
     var button = panel.querySelector("[data-send-email]");
     var emailInput = panel.querySelector("[data-component-email]");
+    var emailFlow = !!(grabConfig && grabConfig.componentRequestFlow === "email");
     componentRequest.email = componentRequest.email.trim();
-    if (componentRequest.email && !validEmail(componentRequest.email)) {
+    if ((emailFlow || componentRequest.email) && !validEmail(componentRequest.email)) {
       setPanelStatus("Enter a valid email address.", "error");
       if (emailInput) emailInput.focus();
       return false;
@@ -1836,7 +1843,9 @@
       // Destination adapter priority: a live agent session (bridge or configured
       // grab endpoint) beats the standalone request endpoint; the standalone
       // endpoint is the fallback when no agent is connected.
-      var agentEndpoint = grabConfig ? grabConfig.grabEndpoint : bridgeUrl("/grab");
+      // The playground email flow always uses the standalone endpoint; the
+      // agent-session arm only applies to the production destination adapter.
+      var agentEndpoint = emailFlow ? null : (grabConfig ? grabConfig.grabEndpoint : bridgeUrl("/grab"));
       var standaloneEndpoint = agentEndpoint ? null : (grabConfig && grabConfig.componentRequestEndpoint);
       var endpoint = agentEndpoint || standaloneEndpoint;
       if (!endpoint) throw new Error("No component request destination is configured");
@@ -1852,6 +1861,7 @@
         useCase: componentRequest.useCase,
         email: componentRequest.email
       } : payloadForSend();
+      if (standaloneEndpoint && emailFlow) body.flow = "email";
       var response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1875,7 +1885,10 @@
         status.innerHTML = '<a href="' + escapeHtml(safeUrl) + '" target="_blank" rel="noopener">' + escapeHtml(label) + "</a>";
         status.setAttribute("data-kind", "success");
       };
-      if (result.mode === "issue" && safeUrl) {
+      if (result.mode === "email" && result.success === true) {
+        setPanelStatus("Email sent", "sr-only");
+        if (button) morphSendButton(button, "[data-send-email]", "Email sent", emailFlow ? "Send email" : "Create request");
+      } else if (result.mode === "issue" && safeUrl) {
         statusLink("View request");
         if (button) morphSendButton(button, "[data-send-email]", "Request created", "Create request");
       } else if (result.mode === "prefill" && safeUrl && typeof result.packet === "string") {
@@ -1893,6 +1906,7 @@
       }
       return true;
     } catch (error) {
+      if (emailFlow) componentRequestId = "";
       setPanelStatus("Could not send the component request", "error");
       if (button) {
         button.disabled = false;
