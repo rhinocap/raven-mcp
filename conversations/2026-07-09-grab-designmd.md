@@ -76,3 +76,9 @@ Fresh /goal: two-way click-to-change (grab overlay + token panel) + DESIGN.md as
 **What:** (1) Send morph per Figma 6-626: check stroke-draws (dasharray/dashoffset 24, 400ms), no circle border, expands to "Sent to agent" pill, morphs back; reduced-motion disables draw. (2) Collapsed panel passes clicks through — mousemove/click gated on `!armed || collapsed` (committed earlier, urgent unblock). (3) Enter in panel textareas sends (clicks the section's send button); Cmd/Ctrl+Enter inserts newline. (4) Edge tab top:33px — caret center 55 == tab center 55, pure horizontal move.
 **Verified:** Playwright morph sampling (check 0–525ms → sent 700–2275ms → default 2450ms+), Cmd+Enter newline in textarea, nav click-through when collapsed (hash changed, no grab), caret/tab delta 0; vision on r4-sent/r4-tab2/r4-check; 32/32 grab tests; full npm test 0 fail; mirrors byte-identical.
 **Pushed:** committed bc12512 on explore/tools-redesign — NOT pushed (do-not-push constraint).
+
+### Round 6 close-out + coachmarks (post-compaction)
+**What:** Committed 5379886 (draggable panel + edge tab w/ position memory, 5-beat send morph, send-clear fade) and 02e7376 (playground coachmark tour: 7 steps, consumer/maintainer role toggle, replay control; overlay `data-raven-grab-ignore` opt-out so tour/controls stay clickable).
+**Why:** Round-6 /goal items + Andrew's "coachmarks on the demo page" ask; overlay's capture-phase click handler was eating all page clicks (root cause of dead tour buttons).
+**Verified:** eyes-on styled tour (44px buttons, spotlight step, tokened card), design-judge PASS, mirrors byte-identical, 582/582 tests. Gotcha re-hit: `next build` while dev server runs corrupts `.next` → chunk 404s, dead hydration; restart dev server.
+**Pushed:** NOT pushed (explore/tools-redesign push freeze). Preview deploy in flight.
