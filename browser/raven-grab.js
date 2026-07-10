@@ -267,10 +267,14 @@
     .raven-grab-send[data-send-state="sent"] .raven-grab-check svg { width: 16px; height: 16px; }
     .raven-grab-send[data-send-state="sent"] .raven-grab-check path { animation: none; stroke-dashoffset: 0; }
     .raven-grab-sent-message { color: #00BFFF; font: 600 14px/1 var(--raven-grab-ui); clip-path: inset(0 100% 0 0); animation: raven-grab-print 500ms linear forwards; }
-    .raven-grab-border-trace { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+    /* The SVG stroke exists only to draw the border in; it must yield to the
+       real CSS border as raven-grab-static-border lands, or the two strokes
+       stack as a permanent double outline. */
+    .raven-grab-border-trace { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; animation: raven-grab-trace-fade 500ms ease forwards; }
     .raven-grab-border-trace rect { fill: none; stroke: #00BFFF; stroke-width: 1; stroke-dasharray: 1; stroke-dashoffset: 1; animation: raven-grab-trace-border 500ms ease-out forwards; }
     @keyframes raven-grab-print { to { clip-path: inset(0 0 0 0); } }
     @keyframes raven-grab-trace-border { to { stroke-dashoffset: 0; } }
+    @keyframes raven-grab-trace-fade { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
     @keyframes raven-grab-static-border { 0%, 85% { border-color: transparent; } 100% { border-color: #00BFFF; } }
     .raven-grab-send:focus-visible, .raven-grab-icon-button:focus-visible { outline: 3px solid rgba(0, 191, 255, .35); outline-offset: 2px; }
     .raven-grab-send:disabled { cursor: not-allowed; opacity: .5; transform: none; box-shadow: none; }
@@ -292,6 +296,8 @@
       *, *::before, *::after { scroll-behavior: auto !important; }
       .raven-grab-panel, .raven-grab-send, .raven-grab-textarea { transition: none !important; }
       .raven-grab-check path, .raven-grab-pen-dot, .raven-grab-sent-message, .raven-grab-border-trace rect { animation: none !important; }
+      .raven-grab-border-trace { display: none !important; }
+      .raven-grab-send[data-send-state="sent"] { animation: none !important; border-color: #00BFFF !important; }
       .raven-grab-check path { stroke-dashoffset: 0 !important; }
       .raven-grab-sent-message { clip-path: none !important; }
     }
@@ -1664,7 +1670,17 @@
         button.parentNode.appendChild(probe);
         var sentWidth = probe.offsetWidth;
         probe.remove();
-        if (sentWidth) button.style.setProperty("--raven-grab-sent-width", sentWidth + "px");
+        if (sentWidth) {
+          button.style.setProperty("--raven-grab-sent-width", sentWidth + "px");
+          // Match the trace SVG to the real pill geometry — stretching the
+          // static 100x44 viewBox distorts the corner radii into stray arcs.
+          var trace = button.querySelector(".raven-grab-border-trace");
+          if (trace) {
+            trace.setAttribute("viewBox", "0 0 " + sentWidth + " 44");
+            var traceRect = trace.querySelector("rect");
+            if (traceRect) traceRect.setAttribute("width", String(sentWidth - 1));
+          }
+        }
       }
     } else {
       button.innerHTML = sendButtonMarkup(state, message);
