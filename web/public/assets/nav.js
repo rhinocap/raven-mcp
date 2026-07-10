@@ -4,7 +4,6 @@
   var PAGE_LINKS = [
     { label: 'Raven Design', href: '/raven-design' },
     { label: 'Open Source', href: '/#pricing' },
-    { label: 'Work', href: '/#work' },
     { label: 'Docs', href: '/docs' },
     { label: 'Changelog', href: '/changelog' },
     { label: 'About', href: '/about' }

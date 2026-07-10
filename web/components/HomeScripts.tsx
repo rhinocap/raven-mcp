@@ -5,6 +5,14 @@ import { useEffect } from 'react'
 export default function HomeScripts() {
   useEffect(() => {
 
+      // Autoplay attribute can't respect prefers-reduced-motion on its own.
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        document.querySelectorAll<HTMLVideoElement>('.pg-demo video').forEach(v => {
+          v.removeAttribute('loop')
+          v.pause()
+        })
+      }
+
       (async () => {
         try {
           const [npmWeek, npmMeta] = await Promise.all([

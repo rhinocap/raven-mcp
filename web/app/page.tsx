@@ -33,7 +33,6 @@ export default function Home() {
             </div>
             <div className="hero-text-links reveal reveal-delay-3">
               <a href="/raven-design" className="btn-text-link">Try Raven Design →</a>
-              <a href="#work" className="btn-text-link">See the self-audit →</a>
               <a href="/docs.html" className="btn-text-link">Docs →</a>
               <a href="https://github.com/rhinocap/raven-mcp" className="btn-text-link">View on GitHub →</a>
             </div>
@@ -58,187 +57,13 @@ export default function Home() {
           </div>
         </section>
 
-        {/* SELF-AUDIT CASE STUDY */}
-        <section id="work" className="self-audit">
-          <div className="container">
-            <div className="case-hero reveal">
-              <div className="case-hero-copy">
-                <p className="label">Case study</p>
-                <h2>We audited our own homepage.</h2>
-                <p>Raven's strongest proof is a self-critique: run the audit, fix the findings, and show exactly what changed. This section turns the report into a reproducible before/after instead of another claim about design quality.</p>
-              </div>
-              <div className="case-command terminal">
-                <div className="terminal-header">
-                  <span className="terminal-dot"></span>
-                  <span className="terminal-dot"></span>
-                  <span className="terminal-dot"></span>
-                  <span className="terminal-title">run it on your site</span>
-                </div>
-                <div className="static-term-body">
-                  <pre aria-label="Raven audit command" dangerouslySetInnerHTML={{ __html: `<span class="g">$</span> claude mcp add raven -- npx -y raven-mcp
-<span class="g">$</span> audit_page <span class="k">url</span>:<span class="v">'https://ravenmcp.ai'</span>
-<span class="g">$</span> audit_taste <span class="k">project</span>:<span class="v">'raven-mcp'</span> <span class="k">url</span>:<span class="v">'https://ravenmcp.ai'</span>` }} />
-                </div>
-              </div>
-            </div>
-
-            <div className="case-phases">
-              <article className="case-phase reveal">
-                <span className="case-num">01</span>
-                <h3>Audit</h3>
-                <p>Run against this exact page: <code>audit_taste project:'raven-mcp'</code> returned BLOCK, 9 block + 1 warn. Eight of the block findings turned out to be a Google Translate browser extension injecting its own gradient CSS into the render &mdash; not a real defect, so they&rsquo;re excluded below. The two that were real:</p>
-                <ul className="finding-list">
-                  <li><span>audit_taste</span><strong>BLOCK</strong></li>
-                  <li><span>SPACING-tap-targets-44px</span><strong>3 elements</strong></li>
-                  <li><span>TOKEN-no-bare-literals</span><strong>17 hex colors</strong></li>
-                  <li><span>False-positive block findings excluded</span><strong>8</strong></li>
-                </ul>
-              </article>
-
-              <article className="case-phase reveal reveal-delay-1">
-                <span className="case-num">02</span>
-                <h3>Fix</h3>
-                <p>Both real findings got fixed directly: three sub-44px links (nav logo, skip-to-content, and one inline text link) were expanded to a 44px tap target, and the 17 hardcoded hex colors were consolidated to a token set. Nothing here is a mockup &mdash; it&rsquo;s the same audit rerun against the live page.</p>
-                <div className="case-diff" aria-label="Representative token and copy changes">
-                  <div><span className="diff-minus">-</span> 3 links below 44px</div>
-                  <div><span className="diff-plus">+</span> all expanded to 44px tap targets</div>
-                  <div><span className="diff-minus">-</span> 17 hardcoded hex colors</div>
-                  <div><span className="diff-plus">+</span> consolidated to a token set</div>
-                </div>
-              </article>
-
-              <article className="case-phase reveal reveal-delay-2">
-                <span className="case-num">03</span>
-                <h3>Verify</h3>
-                <p>Raven's natural close is not a testimonial. It is a command a builder can paste into Claude and point at a real URL, then compare the returned findings to the page in front of them.</p>
-                <div className="verify-block">
-                  <span>next step</span>
-                  <code>audit_page → audit_taste → fix → rerun</code>
-                </div>
-              </article>
-            </div>
-
-            <div className="changed-grid">
-              <article className="changed-card reveal">
-                <span>Color discipline</span>
-                <h3>Six accent hues became one rule.</h3>
-                <p>The comparison shows the audit finding as a visual defect: independent icon colors read as decoration, while one accent value makes the evidence easier to scan.</p>
-              </article>
-              <article className="changed-card reveal reveal-delay-1">
-                <span>Layout density</span>
-                <h3>Proof moved ahead of inventory.</h3>
-                <p>The homepage now explains what Raven does through a concrete self-audit before the visitor reaches long tool lists or example galleries.</p>
-              </article>
-              <article className="changed-card reveal reveal-delay-2">
-                <span>Voice</span>
-                <h3>The page shows the workflow.</h3>
-                <p>The case study names the findings and commands directly, matching the skeptical builder who wants evidence before committing time.</p>
-              </article>
-            </div>
-
-            <div className="before-after reveal" aria-label="Before and after visual comparison of the Raven homepage audit">
-              <article className="site-shot before-shot">
-                <div className="shot-header">
-                  <span>Before</span>
-                  <strong>audit_taste: BLOCK</strong>
-                </div>
-                <div className="shot-window">
-                  <div className="shot-nav"><span></span><span></span><span></span></div>
-                  <div className="shot-page">
-                    <div className="shot-hero">
-                      <div className="shot-pill">Design intelligence</div>
-                      <div className="shot-title wide"></div>
-                      <div className="shot-title short"></div>
-                      <div className="shot-copy"></div>
-                    </div>
-                    <div className="shot-rainbow-grid">
-                      <span className="hue-1"></span>
-                      <span className="hue-2"></span>
-                      <span className="hue-3"></span>
-                      <span className="hue-4"></span>
-                      <span className="hue-5"></span>
-                      <span className="hue-6"></span>
-                    </div>
-                    <div className="shot-stack">
-                      <div></div>
-                      <div></div>
-                      <div></div>
-                    </div>
-                  </div>
-                </div>
-                <p>The nav logo and skip-link tap targets measured under 44px, and 17 hardcoded hex colors triggered a token-discipline warning &mdash; both real, reproducible findings from an <code>audit_taste</code> run against this exact URL.</p>
-              </article>
-
-              <article className="site-shot after-shot">
-                <div className="shot-header">
-                  <span>After this pass</span>
-                  <strong>self-audit visible</strong>
-                </div>
-                <div className="shot-window">
-                  <div className="shot-nav"><span></span><span></span><span></span></div>
-                  <div className="shot-page">
-                    <div className="shot-hero">
-                      <div className="shot-pill">Case study</div>
-                      <div className="shot-title wide"></div>
-                      <div className="shot-title short accent"></div>
-                      <div className="shot-copy"></div>
-                    </div>
-                    <div className="shot-proof-row">
-                      <span>Audit</span>
-                      <span>Fix</span>
-                      <span>Verify</span>
-                    </div>
-                    <div className="shot-accent-grid">
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                    </div>
-                  </div>
-                </div>
-                <p>All three tap targets now measure 44px and the palette is consolidated to a token set &mdash; fixed directly in response to this session&rsquo;s real <code>audit_taste</code> run, then re-verified with a second live run against the deployed fix, not staged for the screenshot.</p>
-              </article>
-            </div>
-
-            <div className="case-scoreboard reveal">
-              <div className="score-row score-head">
-                <span>Finding</span>
-                <span>Before this pass</span>
-                <span>After this pass</span>
-              </div>
-              <div className="score-row">
-                <span>audit_taste verdict</span>
-                <span>BLOCK (9 block, 1 warn)</span>
-                <span>WARN (0 block, 1 warn &mdash; the same extension artifact)</span>
-              </div>
-              <div className="score-row">
-                <span>Sub-44px tap targets</span>
-                <span>3 (nav logo, skip-link, an inline link)</span>
-                <span>0</span>
-              </div>
-              <div className="score-row">
-                <span>Hardcoded hex colors</span>
-                <span>17</span>
-                <span>Consolidated to a token set</span>
-              </div>
-              <div className="score-row">
-                <span>False-positive block findings</span>
-                <span>8 (browser extension artifact)</span>
-                <span>Excluded from this table</span>
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* RAVEN DESIGN — before/after proof */}
         <section id="raven-design" className="raven-design">
           <div className="container">
             <div className="section-header">
               <p className="label reveal">Raven Design</p>
               <h2 className="reveal reveal-delay-1">Without Raven, and with it. Drag the divider.</h2>
-              <p className="subtitle reveal reveal-delay-2">Each pair below is a real brief before Raven and after it &mdash; a fresh build, a rebuild, a taste-profile pass, and live playground edits. Select an element, edit its tokens and styles with constrained controls, and package the change for your agent.</p>
+              <p className="subtitle reveal reveal-delay-2">Each pair below is a real brief before Raven and after it &mdash; a fresh build, a rebuild, and a taste-profile pass. Below them, the playground itself: select an element, edit its tokens and styles, and send the change to your agent.</p>
             </div>
 
             <div className="ba-featured reveal">
@@ -275,23 +100,21 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="ba-featured reveal">
-              <BeforeAfter
-                beforeSrc="/raven-design-before-after/northstar-before.png"
-                beforeAlt="The Northstar wireframe in the Raven Design playground before any edits."
-                afterSrc="/raven-design-before-after/northstar-after.png"
-                afterAlt="The Northstar wireframe after token and style edits made through the grab panel."
-                caption="The playground's Northstar wireframe, before and after grab-panel edits."
-                aspectRatio="16 / 9"
+            <figure className="ba-featured pg-demo reveal">
+              <video
+                src="/playground-demo.mp4"
+                poster="/playground-demo-poster.jpg"
+                autoPlay
+                muted
+                loop
+                playsInline
+                aria-label="Screen capture of the Raven Design playground: an element is selected, mapped to the accent token, given a written instruction, and sent to the agent."
               />
-            </div>
-
-            <div className="ba-steps reveal">
-              <span><strong>01</strong> Select an element</span>
-              <span><strong>02</strong> Edit tokens &amp; styles</span>
-              <span><strong>03</strong> Package for your agent</span>
-              <a href="/raven-design" className="btn-text-link">Try the playground →</a>
-            </div>
+              <figcaption>
+                The playground live &mdash; select an element, map it to a token, tell the agent what to change, send.
+                <a href="/raven-design" className="btn-text-link">Try the playground →</a>
+              </figcaption>
+            </figure>
           </div>
         </section>
 
