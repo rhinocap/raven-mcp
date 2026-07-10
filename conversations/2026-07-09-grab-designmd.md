@@ -60,3 +60,8 @@ Fresh /goal: two-way click-to-change (grab overlay + token panel) + DESIGN.md as
 - Overlay leg: standalone componentRequest POST now sends full selection context; shared rollbackTokenPreviews() on dismiss + re-selection; collapsed sections visibility:hidden (150ms delay). Route leg: sanitizeIdentifier (reserved words/digits), rate-limit pruning >500 keys, requester-email-first + best-effort triage. Main-loop addition: `?? body.tokens` fallback in both email builders (overlay sends `tokens`, route only read matchedTokens/tokenIntents).
 - Verified: 569/569 npm test; Playwright eyes-on — email POST carries selector+tokens+styles → 503 (not 400); cross-element rollback (A's inline --demo-spacing-lg cleared on selecting B).
 - Committed 416fcf7 on explore/tools-redesign (NOT pushed per constraint). Vercel preview deploy + Codex DA pass in flight.
+
+### Post-DA round + mid-turn asks
+- DA verdict: 5/6 fixes confirmed; #6 (email retry duplication) fixed with per-request idempotency key (overlay requestId -> Resend idempotencyKey). Skipped DA "new findings": rate-limit-before-validation (correct anti-abuse), multi-row-same-cssVar preview divergence (pre-existing edge, logged).
+- Andrew mid-turn: success status text under CTA removed (sr-only now; morph pill is the visible confirmation); morph simplified — sent pill returns straight to CTA (no trailing check). Both eyes-on verified via Playwright.
+- Commits: 416fcf7, a6ab928, d626022 (explore/tools-redesign, NOT pushed). Preview: https://web-nc4ijw8qd-cunliffeandrewc-8712s-projects.vercel.app/playground (deploy-protected). Bridge session stopped; :8899 killed; next dev :3210 left running.
