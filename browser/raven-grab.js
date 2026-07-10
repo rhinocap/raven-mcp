@@ -126,20 +126,20 @@
     .raven-grab-top { flex: 0 0 auto; background: #212129; }
     .raven-grab-header {
       display: flex; align-items: center; min-height: 56px; padding: 12px 16px;
-      border-bottom: 1px solid rgba(255, 255, 255, .06); cursor: grab; touch-action: none; user-select: none;
+      background: rgba(255, 255, 255, .01); border-bottom: 1px solid rgba(255, 255, 255, .06); cursor: grab; touch-action: none; user-select: none;
     }
     .raven-grab-panel[data-dragging="true"] .raven-grab-header { cursor: grabbing; }
     .raven-grab-title { min-width: 0; flex: 1; }
-    .raven-grab-title strong { display: block; color: var(--raven-grab-text); font: 700 14px/1.3 var(--raven-grab-ui); letter-spacing: -.01em; }
+    .raven-grab-title strong { display: block; color: var(--raven-grab-text); font: 500 14px/1.3 var(--raven-grab-ui); letter-spacing: -.01em; }
     .raven-grab-icon-button {
       width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%;
       color: var(--raven-grab-muted); background: rgba(255, 255, 255, .06); cursor: pointer;
       font: 18px/1 var(--raven-grab-ui); transition: color 150ms ease, background 150ms ease;
     }
     .raven-grab-icon-button:hover { color: var(--raven-grab-text); background: rgba(255, 255, 255, .12); }
-    .raven-grab-tabs { display: grid; grid-template-columns: 1fr 1fr; min-height: 44px; padding: 0 16px; background: rgba(14, 30, 46, .82); border-bottom: 1px solid rgba(255, 255, 255, .12); backdrop-filter: blur(6px); }
-    .raven-grab-tab { min-height: 44px; padding: 0 4px; color: var(--raven-grab-text); background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer; font: 500 13px/1 var(--raven-grab-mono); }
-    .raven-grab-tab[aria-selected="true"] { border-bottom-color: rgba(0, 191, 255, .3); }
+    .raven-grab-tabs { display: grid; grid-template-columns: 1fr 1fr; min-height: 44px; background: rgba(255, 255, 255, .01); border-bottom: 1px solid rgba(255, 255, 255, .12); backdrop-filter: blur(6px); }
+    .raven-grab-tab { min-height: 44px; padding: 12px 20px; color: var(--raven-grab-text); background: transparent; border: 0; border-bottom: 1px solid transparent; cursor: pointer; font: 400 13px/1 var(--raven-grab-mono); }
+    .raven-grab-tab[aria-selected="true"] { color: var(--raven-grab-accent); border-bottom-color: rgba(0, 191, 255, .3); font-weight: 500; }
     .raven-grab-tab:hover { color: var(--raven-grab-accent); }
     .raven-grab-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #3c3c47 #212129; }
     .raven-grab-body::-webkit-scrollbar { width: 6px; }
