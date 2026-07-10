@@ -42,7 +42,7 @@ const STEPS: Step[] = [
   },
   {
     title: 'Two roles, two second tabs',
-    body: 'Consumers get "Request Component" — a request that goes to the design team. Maintainers get "Add to Design System" — instructions to create the component and update DESIGN.md. Use the toggle above the wireframe to switch.',
+    body: 'Consumers get "Request Component" — a request that goes to the design team. Maintainers get "Add to Design System" — instructions to create the component and update DESIGN.md. Use the toggle at the top left of the page to switch.',
     anchor: 'panel',
   },
   {
