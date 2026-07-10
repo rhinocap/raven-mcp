@@ -57,13 +57,13 @@ export default function Home() {
           </div>
         </section>
 
-        {/* RAVEN DESIGN — before/after proof */}
+        {/* RAVEN DESIGN — the playground, live */}
         <section id="raven-design" className="raven-design">
           <div className="container">
             <div className="section-header">
               <p className="label reveal">Raven Design</p>
-              <h2 className="reveal reveal-delay-1">Select an element. Edit its tokens and styles. Send it to your agent.</h2>
-              <p className="subtitle reveal reveal-delay-2">The playground live &mdash; a heading is selected, its design tokens and computed styles opened, the token remapped and an underline applied on the page itself, then the change is written up and sent.</p>
+              <h2 className="reveal reveal-delay-1">Select an element. Edit its tokens and styles. Package the change for your agent.</h2>
+              <p className="subtitle reveal reveal-delay-2">The playground live &mdash; a heading is selected, its design tokens and computed styles opened, the token remapped and an underline applied on the page itself, then the change written up as a payload for your agent.</p>
             </div>
 
             <figure className="ba-featured pg-demo reveal">
@@ -74,10 +74,10 @@ export default function Home() {
                 muted
                 loop
                 playsInline
-                aria-label="Screen capture of the Raven Design playground: an element is selected, its design tokens and computed styles are opened, the accent token and an underline are applied visibly on the page, and the change is sent to the agent."
+                aria-label="Screen capture of the Raven Design playground: an element is selected, its design tokens and computed styles are opened, the accent token and an underline are applied visibly on the page, and the change is packaged for the agent."
               />
               <figcaption>
-                Tokens and computed styles, edited live on the page before anything reaches the agent.
+                Tokens and computed styles, edited live on the page before anything is handed to the agent.
                 <a href="/raven-design" className="btn-text-link">Try the playground →</a>
               </figcaption>
             </figure>
