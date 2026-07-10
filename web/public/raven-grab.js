@@ -1144,16 +1144,12 @@
     }, 650);
     setTimeout(function () {
       if (panel.querySelector(selector) !== button) return;
-      setSendButtonState(button, "check", sentMessage);
-    }, 2500);
-    setTimeout(function () {
-      if (panel.querySelector(selector) !== button) return;
       setSendButtonState(button, "default", defaultLabel);
       button.disabled = false;
       button.removeAttribute("aria-busy");
       button.removeAttribute("aria-label");
       if (button.style && typeof button.style.removeProperty === "function") button.style.removeProperty("--raven-grab-sent-width");
-    }, 2750);
+    }, 2500);
   }
 
   async function sendSelection() {

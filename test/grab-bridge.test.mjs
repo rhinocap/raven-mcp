@@ -969,9 +969,6 @@ test('successful agent send morphs through sent state and restores the default C
   assert.match(button.innerHTML, /Sent to agent/);
 
   clock.tick(1850);
-  assert.equal(button.getAttribute('data-send-state'), 'check');
-
-  clock.tick(250);
   assert.equal(button.getAttribute('data-send-state'), 'default');
   assert.equal(button.getAttribute('aria-busy'), null);
   assert.equal(button.disabled, false);
