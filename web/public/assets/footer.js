@@ -40,7 +40,6 @@
           <li><a href="https://github.com/rhinocap/raven-mcp">GitHub</a></li>\
           <li><a href="/docs">Docs</a></li>\
           <li><a href="/#systems">Systems</a></li>\
-          <li><a href="/about">About</a></li>\
         </ul>\
       </div>\
     </footer>\
