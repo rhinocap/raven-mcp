@@ -1439,6 +1439,7 @@
       </section>`;
     var issueTypes = ["UX/Usability", "Visual bug", "Missing variant", "Accessibility", "New pattern", "Other"];
     var issueSizes = ["1-10 users/customers", "10-100", "100-1,000", "1,000+", "Internal only"];
+    var emailFlow = !!(grabConfig && grabConfig.componentRequestFlow === "email");
     var requestFormMarkup = `
       ${elementMarkup}
       <section class="raven-grab-section">
@@ -1448,9 +1449,8 @@
       </section>
       <section class="raven-grab-section">
         <h2 class="raven-grab-section-title">DESCRIBE THE USE CASE AND IMPACT</h2>
-        <textarea class="raven-grab-textarea raven-grab-use-case" data-use-case spellcheck="true" placeholder="Tell the design team why you need this…">${escapeHtml(componentRequest.useCase)}</textarea>
+        <textarea class="raven-grab-textarea raven-grab-use-case" data-use-case spellcheck="true" placeholder="${emailFlow ? "Describe why you need this…" : "Tell the design team why you need this…"}">${escapeHtml(componentRequest.useCase)}</textarea>
       </section>`;
-    var emailFlow = !!(grabConfig && grabConfig.componentRequestFlow === "email");
     var emailMarkup = emailFlow ? `
       ${elementMarkup}
       <section class="raven-grab-section">
@@ -1476,7 +1476,7 @@
           ? '<button class="raven-grab-send" type="button" data-send data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Add to design system</span></button>'
           : (componentRequestStep === "email"
           ? '<button class="raven-grab-send" type="button" data-send-email data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">' + (emailFlow ? "Send email" : "Create request") + '</span></button>'
-          : '<button class="raven-grab-send" type="button" data-request-next data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Send component request to design</span></button>'));
+          : '<button class="raven-grab-send" type="button" data-request-next data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">' + (emailFlow ? "Continue" : "Send component request to design") + '</span></button>'));
     var requestTabLabel = grabRole === "maintainer" ? "Add component" : "Request Component";
 
     panel.innerHTML = `
