@@ -129,6 +129,9 @@ async function loadOverlayInternals(options = {}) {
     getEdgeTabAttribute: function (name) { return typeof edgeTab === "undefined" ? null : edgeTab.getAttribute(name); },
     dispatchEdgeTab: function (type, event) { if (typeof edgeTab !== "undefined") edgeTab.dispatch(type, event); },
     dispatchPanel: function (type, event) { panel.dispatch(type, event); },
+    getPanelStyle: function (name) { return panel.style[name]; },
+    getPanelCapturedPointer: function () { return panel.capturedPointer; },
+    setPanelRect: function (rect) { panel.getBoundingClientRect = function () { return rect; }; },
     getBridgeTokens: function () { return bridgeTokens; },
     setPanelQuery: function (selector, value) { panel.setQuery(selector, value); },
     setStyleContext: function (element, styles, tokens, selector, stateStyles) {
@@ -158,6 +161,7 @@ ${marker}`);
       textContent: '',
       value: '',
       disabled: false,
+      capturedPointer: null,
       setAttribute(name, value) { attributes[name] = String(value); },
       getAttribute(name) { return Object.hasOwn(attributes, name) ? attributes[name] : null; },
       removeAttribute(name) { delete attributes[name]; },
@@ -173,6 +177,9 @@ ${marker}`);
       dispatch(type, event) {
         for (const listener of listeners[type] || []) listener(event);
       },
+      setPointerCapture(pointerId) { this.capturedPointer = pointerId; },
+      hasPointerCapture(pointerId) { return this.capturedPointer === pointerId; },
+      releasePointerCapture(pointerId) { if (this.capturedPointer === pointerId) this.capturedPointer = null; },
       focus() {},
       select() {},
       getBoundingClientRect() { return { x: 0, y: 0, top: 0, right: 0, bottom: 0, left: 0, width: 0, height: 0 }; },
@@ -208,6 +215,7 @@ ${marker}`);
       escape: (value) => value,
       supports: (_property, value) => value !== 'definitely-invalid'
     },
+    matchMedia: () => ({ matches: options.reducedMotion === true }),
     addEventListener() {}
   };
   const context = {
@@ -1069,7 +1077,7 @@ test('standalone overlay loads configured tokens and POSTs the full component re
   assert.equal(calls.length, 0, 'null standalone grabEndpoint must not POST');
   assert.match(status.textContent, /^Sent #request-target/);
   assert.equal(status.getAttribute("data-kind"), "sr-only");
-  assert.equal(button.getAttribute('data-send-state'), 'check');
+  assert.equal(button.getAttribute('data-send-state'), 'collapse');
 
   assert.equal(typeof internals.sendComponentRequestEmail, 'function');
   await internals.sendComponentRequestEmail({
@@ -1137,7 +1145,7 @@ test('reselecting and dismissing restore token previews on their original target
   assert.equal(first.style.getPropertyPriority('--color-primary'), 'important');
 });
 
-test('successful agent send morphs through sent state and restores the default CTA after timers', async () => {
+test('successful agent send morphs through all five beats and restores the default CTA', async () => {
   const clock = fakeClock();
   const { internals, document } = await loadOverlayInternals({
     setTimeout: clock.setTimeout,
@@ -1152,16 +1160,26 @@ test('successful agent send morphs through sent state and restores the default C
 
   await internals.sendSelection();
 
-  assert.equal(button.getAttribute('data-send-state'), 'check');
+  assert.equal(button.getAttribute('data-send-state'), 'collapse');
   assert.equal(button.getAttribute('aria-busy'), 'true');
   assert.equal(button.disabled, true);
   assert.equal(status.textContent, 'Sent to agent');
 
-  clock.tick(650);
+  clock.tick(250);
+  assert.equal(button.getAttribute('data-send-state'), 'dot');
+
+  clock.tick(120);
+  assert.equal(button.getAttribute('data-send-state'), 'trace');
+
+  clock.tick(450);
   assert.equal(button.getAttribute('data-send-state'), 'sent');
   assert.match(button.innerHTML, /Sent to agent/);
+  assert.match(button.innerHTML, /raven-grab-border-trace/);
 
-  clock.tick(1850);
+  clock.tick(2299);
+  assert.equal(button.getAttribute('data-send-state'), 'sent');
+
+  clock.tick(1);
   assert.equal(button.getAttribute('data-send-state'), 'default');
   assert.equal(button.getAttribute('aria-busy'), null);
   assert.equal(button.disabled, false);
@@ -1194,16 +1212,40 @@ test('successful component-request email morph shows Email sent and restores Sen
   });
 
   assert.equal(sent, true);
-  assert.equal(button.getAttribute('data-send-state'), 'check');
+  assert.equal(button.getAttribute('data-send-state'), 'collapse');
   assert.equal(status.textContent, 'Email sent');
 
-  clock.tick(650);
+  clock.tick(820);
   assert.equal(button.getAttribute('data-send-state'), 'sent');
   assert.match(button.innerHTML, /Email sent/);
 
-  clock.tick(2100);
+  clock.tick(2300);
   assert.equal(button.getAttribute('data-send-state'), 'default');
   assert.match(button.innerHTML, /Send email/);
+});
+
+test('reduced motion skips dot and trace beats while preserving sent hold and reset', async () => {
+  const clock = fakeClock();
+  const { internals, document } = await loadOverlayInternals({
+    setTimeout: clock.setTimeout,
+    reducedMotion: true,
+    fetch: async () => ({ ok: true, status: 202, json: async () => ({ ok: true }) })
+  });
+  const button = document.createElement('button');
+  const status = document.createElement('p');
+  internals.setStyleContext({ style: fakeStyle() }, { color: 'rgb(0, 0, 0)' });
+  internals.renderPanel();
+  internals.setPanelQuery('[data-send]', button);
+  internals.setPanelQuery('[data-status]', status);
+
+  await internals.sendSelection();
+
+  assert.equal(button.getAttribute('data-send-state'), 'sent');
+  assert.match(button.innerHTML, /Sent to agent/);
+  clock.tick(1799);
+  assert.equal(button.getAttribute('data-send-state'), 'sent');
+  clock.tick(1);
+  assert.equal(button.getAttribute('data-send-state'), 'default');
 });
 
 test('overlay form fields set explicit spellcheck behavior', async () => {
@@ -1268,6 +1310,37 @@ test('overlay collapses to an edge tab without clearing selection and expands fr
   assert.equal(internals.getPanelAttribute('aria-hidden'), 'true');
   assert.equal(internals.getPanelAttribute('data-collapsed'), 'false');
   assert.equal(internals.getEdgeTabAttribute('aria-hidden'), 'true');
+});
+
+test('overlay header drag captures the pointer and clamps the panel inside an 8px viewport margin', async () => {
+  const { internals } = await loadOverlayInternals();
+  const headerTarget = {
+    closest(selector) {
+      if (selector === '.raven-grab-header') return this;
+      return null;
+    }
+  };
+  internals.setPanelRect({ left: 1080, top: 20, width: 360, height: 400 });
+
+  internals.dispatchPanel('pointerdown', {
+    target: headerTarget,
+    pointerId: 7,
+    button: 0,
+    clientX: 1100,
+    clientY: 40,
+    preventDefault() {}
+  });
+  assert.equal(internals.getPanelCapturedPointer(), 7);
+  assert.equal(internals.getPanelAttribute('data-dragging'), 'true');
+
+  internals.dispatchPanel('pointermove', { pointerId: 7, clientX: 2000, clientY: 0 });
+  assert.equal(internals.getPanelStyle('right'), 'auto');
+  assert.equal(internals.getPanelStyle('left'), '1072px');
+  assert.equal(internals.getPanelStyle('top'), '8px');
+
+  internals.dispatchPanel('pointerup', { pointerId: 7 });
+  assert.equal(internals.getPanelCapturedPointer(), null);
+  assert.equal(internals.getPanelAttribute('data-dragging'), null);
 });
 
 test('overlay renders color swatches beside custom token values and inline color style editors', async () => {
@@ -1368,10 +1441,29 @@ test('overlay panel CSS keeps only the body scrollable and provides the collapse
   assert.match(source, /\.raven-grab-collapsible-inner \{[^}]*visibility: visible;[^}]*transition: visibility 0s linear;/);
   assert.match(source, /\.raven-grab-collapsible\[data-open="false"\] \.raven-grab-collapsible-inner \{ visibility: hidden; transition-delay: 150ms; \}/);
   assert.doesNotMatch(source, /\.raven-grab-arm\b/);
-  assert.match(source, /\.raven-grab-panel\[data-collapsed="true"\] \{[^}]*transform: translateX\(calc\(100% \+ 21px\)\);[^}]*pointer-events: none;/);
+  assert.match(source, /\.raven-grab-panel\[data-collapsed="true"\] \{[^}]*transform: translateX\(calc\(100vw \+ 100%\)\);[^}]*pointer-events: none;/);
   assert.match(source, /\.raven-grab-edge-tab \{[\s\S]*right: 0; top: 33px;[\s\S]*width: 44px; min-height: 44px;[\s\S]*background: rgba\(22, 44, 66, \.9\);[\s\S]*border-radius: 12px 0 0 12px;/);
-  assert.match(source, /\.raven-grab-send\[data-send-state="check"\][\s\S]*width: 44px;[\s\S]*height: 44px;[\s\S]*background: transparent;[\s\S]*border: 0;/);
-  assert.match(source, /@keyframes raven-grab-draw \{ to \{ stroke-dashoffset: 0; \} \}/);
-  assert.match(source, /\.raven-grab-send\[data-send-state="sent"\][\s\S]*background: rgba\(22, 44, 66, \.9\);[\s\S]*border: 1px solid #00BFFF;[\s\S]*backdrop-filter: blur\(6px\);/);
-  assert.match(source, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.raven-grab-panel, \.raven-grab-send \{ transition: none !important; \}/);
+  assert.match(source, /\.raven-grab-header \{[\s\S]*cursor: grab;/);
+  assert.match(source, /\.raven-grab-panel\[data-dragging="true"\] \.raven-grab-header \{ cursor: grabbing; \}/);
+  assert.match(source, /setPointerCapture\(event\.pointerId\)/);
+  assert.match(source, /Math\.max\(8, Math\.min\([^;]*innerWidth[^;]*- 8/);
+  assert.match(source, /Math\.max\(8, Math\.min\([^;]*innerHeight[^;]*- 8/);
+  assert.match(source, /window\.addEventListener\("resize", function \(\) \{[\s\S]*clampPanelToViewport\(\)/);
+  assert.match(source, /\.raven-grab-send\[data-send-state="collapse"\]/);
+  assert.match(source, /\.raven-grab-send\[data-send-state="dot"\][\s\S]*width: 12px;[\s\S]*height: 12px;[\s\S]*background: #00BFFF;/);
+  assert.match(source, /\.raven-grab-send\[data-send-state="trace"\][\s\S]*background: transparent;/);
+  assert.match(source, /@keyframes raven-grab-draw[\s\S]*stroke-dashoffset: 0;/);
+  assert.match(source, /\.raven-grab-send\[data-send-state="sent"\][\s\S]*background: rgba\(22, 44, 66, \.9\);[\s\S]*border: 1px solid transparent;[\s\S]*backdrop-filter: blur\(6px\);/);
+  assert.match(source, /@keyframes raven-grab-static-border[\s\S]*100% \{ border-color: #00BFFF; \}/);
+  assert.match(source, /raven-grab-border-trace[\s\S]*pathLength="1"/);
+  assert.match(source, /\.raven-grab-border-trace rect[\s\S]*stroke-dasharray: 1;[\s\S]*stroke-dashoffset: 1;/);
+  assert.match(source, /@keyframes raven-grab-trace-border[\s\S]*stroke-dashoffset: 0;/);
+  assert.match(source, /\.raven-grab-sent-message[\s\S]*clip-path/);
+  assert.match(source, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.raven-grab-panel, \.raven-grab-send, \.raven-grab-textarea \{ transition: none !important; \}/);
+});
+
+test('browser overlay mirror stays byte-identical', async () => {
+  const source = await readFile(path.resolve(__dirname, '../browser/raven-grab.js'), 'utf8');
+  const mirror = await readFile(path.resolve(__dirname, '../web/public/raven-grab.js'), 'utf8');
+  assert.equal(mirror, source);
 });

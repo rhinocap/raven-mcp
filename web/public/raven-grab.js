@@ -64,6 +64,15 @@
   var componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
   var componentRequestId = "";
   var collapsed = false;
+  var panelDrag = null;
+  var panelPosition = null;
+  var SEND_TIMINGS = {
+    collapse: 250, // Beat 1: pill collapses into the dot.
+    dot: 120, // Beat 2: solid dot hold.
+    trace: 450, // Beat 3: dot becomes the check stroke.
+    expand: 500, // Beat 4: pill, label, and border draw together.
+    hold: 1800 // Beat 5: completed result hold before reset.
+  };
 
   var host = document.createElement("div");
   host.setAttribute("data-raven-grab-overlay", "");
@@ -113,12 +122,13 @@
       overscroll-behavior: contain; transform: translateX(0); transition: transform 200ms ease;
     }
     .raven-grab-panel[aria-hidden="false"] { display: flex; }
-    .raven-grab-panel[data-collapsed="true"] { display: flex; transform: translateX(calc(100% + 21px)); pointer-events: none; }
+    .raven-grab-panel[data-collapsed="true"] { display: flex; transform: translateX(calc(100vw + 100%)); pointer-events: none; }
     .raven-grab-top { flex: 0 0 auto; background: #212129; }
     .raven-grab-header {
       display: flex; align-items: center; min-height: 56px; padding: 12px 16px;
-      border-bottom: 1px solid rgba(255, 255, 255, .06);
+      border-bottom: 1px solid rgba(255, 255, 255, .06); cursor: grab; touch-action: none; user-select: none;
     }
+    .raven-grab-panel[data-dragging="true"] .raven-grab-header { cursor: grabbing; }
     .raven-grab-title { min-width: 0; flex: 1; }
     .raven-grab-title strong { display: block; color: var(--raven-grab-text); font: 700 14px/1.3 var(--raven-grab-ui); letter-spacing: -.01em; }
     .raven-grab-icon-button {
@@ -177,6 +187,8 @@
     .raven-grab-input:focus, .raven-grab-select:focus, .raven-grab-textarea:focus { border-color: var(--raven-grab-accent); box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
     .raven-grab-textarea { min-height: 88px; padding: 12px 14px; resize: vertical; font: 400 12px/1.4 var(--raven-grab-ui); }
     .raven-grab-textarea::placeholder, .raven-grab-input::placeholder { color: var(--raven-grab-tertiary); }
+    .raven-grab-textarea { transition: opacity 240ms ease, transform 240ms ease; }
+    .raven-grab-textarea[data-clearing] { opacity: 0; transform: translateY(-8px); }
     .raven-grab-use-case { min-height: 200px; }
     .raven-grab-new-token { display: none; grid-template-columns: 1fr 1fr; gap: 8px; }
     .raven-grab-new-token[data-open="true"] { display: grid; }
@@ -205,36 +217,54 @@
     .raven-grab-empty { margin: 0; padding: 12px; color: var(--raven-grab-muted); background: var(--raven-grab-raised); border: 1px dashed rgba(255, 255, 255, .1); border-radius: 12px; font: 400 12px/1.45 var(--raven-grab-ui); }
     .raven-grab-actions { flex: 0 0 auto; padding: 12px 16px 16px; background: #212129; border-top: 1px solid rgba(255, 255, 255, .06); }
     .raven-grab-send {
-      display: flex; align-items: center; justify-content: center; width: 100%; height: 44px; min-height: 44px; margin: 0 auto; padding: 12px 28px;
+      position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 44px; min-height: 0; margin: 0 auto; padding: 12px 28px;
       overflow: hidden; border: 0 solid transparent; border-radius: 9999px; color: #0a1018;
       background: var(--raven-grab-accent); cursor: pointer;
       font: 600 14px/1 var(--raven-grab-ui);
       box-shadow: 0 4px 20px rgba(0, 191, 255, .4);
-      transition: width 250ms ease, background 250ms ease, border-radius 250ms ease, border-color 250ms ease, box-shadow 250ms ease, color 250ms ease, padding 250ms ease, transform 150ms cubic-bezier(.16, 1, .3, 1);
+      transition: width 250ms ease-in, height 250ms ease-in, background 250ms ease-in, border-radius 250ms ease-in, border-color 250ms ease-in, box-shadow 250ms ease-in, color 250ms ease-in, padding 250ms ease-in, transform 150ms cubic-bezier(.16, 1, .3, 1);
     }
     .raven-grab-send[data-send-state="default"]:hover { background: var(--raven-grab-accent-hover); transform: translateY(-2px); box-shadow: 0 0 0 1px rgba(0, 191, 255, .8), 0 8px 32px rgba(0, 191, 255, .45), 0 0 60px rgba(0, 191, 255, .2); }
-    .raven-grab-send[data-send-state="check"] {
+    .raven-grab-send[data-send-state="collapse"], .raven-grab-send[data-send-state="dot"] {
+      width: 12px; height: 12px; padding: 0; color: transparent; background: #00BFFF;
+      border: 0; border-radius: 50%; box-shadow: none;
+    }
+    .raven-grab-send[data-send-state="collapse"] .raven-grab-send-label {
+      opacity: 0; clip-path: inset(0 50%); transition: opacity 180ms ease-in, clip-path 250ms ease-in;
+    }
+    .raven-grab-send[data-send-state="trace"] {
       width: 44px; height: 44px; padding: 0; color: #00BFFF; background: transparent;
       border: 0; border-radius: 9999px; box-shadow: none;
     }
     .raven-grab-send[data-send-state="sent"] {
       width: var(--raven-grab-sent-width, max-content); height: 44px; padding: 0; color: #00BFFF;
-      background: rgba(22, 44, 66, .9); border: 1px solid #00BFFF; border-radius: 9999px;
+      background: rgba(22, 44, 66, .9); border: 1px solid transparent; border-radius: 9999px;
       box-shadow: none; backdrop-filter: blur(6px);
+      transition-duration: 500ms; transition-timing-function: cubic-bezier(.16, 1, .3, 1);
+      animation: raven-grab-static-border 500ms ease forwards;
     }
     .raven-grab-check {
       display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex: 0 0 44px;
       color: #00BFFF;
     }
     .raven-grab-check svg { width: 20px; height: 20px; }
-    .raven-grab-check path { stroke-dasharray: 24; stroke-dashoffset: 24; animation: raven-grab-draw 400ms ease 50ms forwards; }
+    .raven-grab-check path { stroke-dasharray: 24; stroke-dashoffset: 24; }
+    .raven-grab-send[data-send-state="trace"] .raven-grab-check path { animation: raven-grab-draw 450ms ease-out forwards; }
     @keyframes raven-grab-draw { to { stroke-dashoffset: 0; } }
+    .raven-grab-pen-dot { position: absolute; width: 12px; height: 12px; background: #00BFFF; border-radius: 50%; animation: raven-grab-pen-away 180ms ease-out forwards; }
+    @keyframes raven-grab-pen-away { to { width: 0; height: 0; opacity: 0; } }
     .raven-grab-sent-content { display: inline-flex; align-items: center; gap: 2px; padding: 0 20px 0 8px; white-space: nowrap; }
     .raven-grab-send[data-send-state="sent"] .raven-grab-check svg { width: 16px; height: 16px; }
     .raven-grab-send[data-send-state="sent"] .raven-grab-check path { animation: none; stroke-dashoffset: 0; }
-    .raven-grab-sent-message { color: #00BFFF; font: 600 14px/1 var(--raven-grab-ui); }
+    .raven-grab-sent-message { color: #00BFFF; font: 600 14px/1 var(--raven-grab-ui); clip-path: inset(0 100% 0 0); animation: raven-grab-print 500ms linear forwards; }
+    .raven-grab-border-trace { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+    .raven-grab-border-trace rect { fill: none; stroke: #00BFFF; stroke-width: 1; stroke-dasharray: 1; stroke-dashoffset: 1; animation: raven-grab-trace-border 500ms ease-out forwards; }
+    @keyframes raven-grab-print { to { clip-path: inset(0 0 0 0); } }
+    @keyframes raven-grab-trace-border { to { stroke-dashoffset: 0; } }
+    @keyframes raven-grab-static-border { 0%, 85% { border-color: transparent; } 100% { border-color: #00BFFF; } }
     .raven-grab-send:focus-visible, .raven-grab-icon-button:focus-visible { outline: 3px solid rgba(0, 191, 255, .35); outline-offset: 2px; }
     .raven-grab-send:disabled { cursor: not-allowed; opacity: .5; transform: none; box-shadow: none; }
+    .raven-grab-send:not([data-send-state="default"]):disabled { opacity: 1; }
     .raven-grab-status { min-height: 18px; margin: 8px 2px 0; color: var(--raven-grab-tertiary); font: 400 11px/1.4 var(--raven-grab-ui); text-align: center; }
     .raven-grab-status[data-kind="error"] { color: var(--raven-grab-error); }
     .raven-grab-status[data-kind="success"] { color: #00E676; }
@@ -250,8 +280,10 @@
     .raven-grab-edge-tab:focus-visible { outline: 3px solid rgba(0, 191, 255, .35); outline-offset: 2px; }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { scroll-behavior: auto !important; }
-      .raven-grab-panel, .raven-grab-send { transition: none !important; }
-      .raven-grab-check path { animation: none !important; stroke-dashoffset: 0 !important; }
+      .raven-grab-panel, .raven-grab-send, .raven-grab-textarea { transition: none !important; }
+      .raven-grab-check path, .raven-grab-pen-dot, .raven-grab-sent-message, .raven-grab-border-trace rect { animation: none !important; }
+      .raven-grab-check path { stroke-dashoffset: 0 !important; }
+      .raven-grab-sent-message { clip-path: none !important; }
     }
   `;
 
@@ -304,10 +336,90 @@
       renderPanel();
     }
   }
+  var edgeTabDragged = false;
   edgeTab.addEventListener("click", function (event) {
     event.stopPropagation();
+    if (edgeTabDragged) {
+      edgeTabDragged = false;
+      return;
+    }
     expandPanel();
   });
+  edgeTab.addEventListener("pointerdown", function (event) {
+    if (event.button !== 0) return;
+    var startY = event.clientY;
+    var startTop = edgeTab.getBoundingClientRect().top;
+    var moved = false;
+    function onMove(e) {
+      var delta = e.clientY - startY;
+      if (!moved && Math.abs(delta) < 4) return;
+      moved = true;
+      edgeTabDragged = true;
+      var top = Math.max(8, Math.min(startTop + delta, innerHeight - edgeTab.offsetHeight - 8));
+      edgeTab.style.top = top + "px";
+    }
+    function onUp() {
+      removeEventListener("pointermove", onMove, true);
+      removeEventListener("pointerup", onUp, true);
+    }
+    addEventListener("pointermove", onMove, true);
+    addEventListener("pointerup", onUp, true);
+  });
+
+  function clampPanelCoordinate(left, top, width, height) {
+    return {
+      left: Math.max(8, Math.min(left, innerWidth - width - 8)),
+      top: Math.max(8, Math.min(top, innerHeight - height - 8))
+    };
+  }
+
+  function placePanel(left, top, width, height) {
+    var next = clampPanelCoordinate(left, top, width, height);
+    panelPosition = { left: next.left, top: next.top, width: width, height: height };
+    panel.style.right = "auto";
+    panel.style.left = next.left + "px";
+    panel.style.top = next.top + "px";
+  }
+
+  function clampPanelToViewport() {
+    if (!panelPosition) return;
+    var rect = collapsed ? null : panel.getBoundingClientRect();
+    var width = rect && rect.width ? rect.width : panelPosition.width;
+    var height = rect && rect.height ? rect.height : panelPosition.height;
+    placePanel(panelPosition.left, panelPosition.top, width, height);
+  }
+
+  panel.addEventListener("pointerdown", function (event) {
+    var target = event.target && event.target.closest ? event.target : null;
+    var header = target ? target.closest(".raven-grab-header") : null;
+    if (!header || target.closest("button") || collapsed || (event.button !== undefined && event.button !== 0)) return;
+    var rect = panel.getBoundingClientRect();
+    panelDrag = {
+      pointerId: event.pointerId,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      width: rect.width,
+      height: rect.height
+    };
+    panel.setPointerCapture(event.pointerId);
+    panel.setAttribute("data-dragging", "true");
+    if (event.preventDefault) event.preventDefault();
+  });
+
+  panel.addEventListener("pointermove", function (event) {
+    if (!panelDrag || event.pointerId !== panelDrag.pointerId) return;
+    placePanel(event.clientX - panelDrag.offsetX, event.clientY - panelDrag.offsetY, panelDrag.width, panelDrag.height);
+  });
+
+  function endPanelDrag(event) {
+    if (!panelDrag || event.pointerId !== panelDrag.pointerId) return;
+    if (panel.hasPointerCapture && panel.hasPointerCapture(event.pointerId)) panel.releasePointerCapture(event.pointerId);
+    panelDrag = null;
+    panel.removeAttribute("data-dragging");
+  }
+
+  panel.addEventListener("pointerup", endPanelDrag);
+  panel.addEventListener("pointercancel", endPanelDrag);
 
   function escapeCss(value) {
     if (window.CSS && typeof window.CSS.escape === "function") return window.CSS.escape(value);
@@ -1330,9 +1442,12 @@
   }
 
   function sendButtonMarkup(state, message) {
-    if (state === "check") return checkMarkup();
+    if (state === "collapse") return '<span class="raven-grab-send-label">' + escapeHtml(message) + "</span>";
+    if (state === "dot") return "";
+    if (state === "trace") return checkMarkup() + '<span class="raven-grab-pen-dot" aria-hidden="true"></span>';
     if (state === "sent") {
-      return '<span class="raven-grab-sent-content">' + checkMarkup() + '<span class="raven-grab-sent-message">' + escapeHtml(message) + "</span></span>";
+      return '<svg class="raven-grab-border-trace" viewBox="0 0 100 44" preserveAspectRatio="none" aria-hidden="true"><rect x="0.5" y="0.5" width="99" height="43" rx="21.5" pathLength="1"></rect></svg>' +
+        '<span class="raven-grab-sent-content">' + checkMarkup() + '<span class="raven-grab-sent-message">' + escapeHtml(message) + "</span></span>";
     }
     return '<span class="raven-grab-send-label">' + escapeHtml(message) + "</span>";
   }
@@ -1367,19 +1482,50 @@
     button.disabled = true;
     button.setAttribute("aria-busy", "true");
     button.setAttribute("aria-label", sentMessage);
-    setSendButtonState(button, "check", sentMessage);
-    setTimeout(function () {
-      if (panel.querySelector(selector) !== button) return;
-      setSendButtonState(button, "sent", sentMessage);
-    }, 650);
-    setTimeout(function () {
+    var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var finish = function () {
       if (panel.querySelector(selector) !== button) return;
       setSendButtonState(button, "default", defaultLabel);
       button.disabled = false;
       button.removeAttribute("aria-busy");
       button.removeAttribute("aria-label");
       if (button.style && typeof button.style.removeProperty === "function") button.style.removeProperty("--raven-grab-sent-width");
-    }, 2500);
+    };
+    if (reducedMotion) {
+      setSendButtonState(button, "sent", sentMessage);
+      setTimeout(finish, SEND_TIMINGS.hold);
+      return;
+    }
+    setSendButtonState(button, "collapse", defaultLabel);
+    setTimeout(function () {
+      if (panel.querySelector(selector) !== button) return;
+      setSendButtonState(button, "dot", sentMessage);
+    }, SEND_TIMINGS.collapse);
+    setTimeout(function () {
+      if (panel.querySelector(selector) !== button) return;
+      setSendButtonState(button, "trace", sentMessage);
+    }, SEND_TIMINGS.collapse + SEND_TIMINGS.dot);
+    setTimeout(function () {
+      if (panel.querySelector(selector) !== button) return;
+      setSendButtonState(button, "sent", sentMessage);
+    }, SEND_TIMINGS.collapse + SEND_TIMINGS.dot + SEND_TIMINGS.trace);
+    setTimeout(finish, SEND_TIMINGS.collapse + SEND_TIMINGS.dot + SEND_TIMINGS.trace + SEND_TIMINGS.expand + SEND_TIMINGS.hold);
+  }
+
+  function clearInstructionText() {
+    instructionDraft = "";
+    var field = panel.querySelector("[data-instruction]");
+    if (!field || !field.value) return;
+    var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reducedMotion) {
+      field.value = "";
+      return;
+    }
+    field.setAttribute("data-clearing", "");
+    setTimeout(function () {
+      if (panel.querySelector("[data-instruction]") === field) field.value = "";
+      field.removeAttribute("data-clearing");
+    }, 250);
   }
 
   async function sendSelection() {
@@ -1398,6 +1544,7 @@
       if (!endpoint) {
         status.textContent = "Sent " + payload.selector + " · " + payload.tokenIntents.length + (payload.tokenIntents.length === 1 ? " token change" : " token changes") + " · " + payload.styleEdits.length + (payload.styleEdits.length === 1 ? " style edit" : " style edits");
         status.setAttribute("data-kind", "sr-only");
+        clearInstructionText();
         morphSendButton(button, "[data-send]", sentLabel, defaultLabel);
         return;
       }
@@ -1410,6 +1557,7 @@
       reactMetadata = null;
       status.textContent = sentLabel;
       status.setAttribute("data-kind", "sr-only");
+      clearInstructionText();
       morphSendButton(button, "[data-send]", sentLabel, defaultLabel);
     } catch (error) {
       status.textContent = "Could not reach the Raven bridge";
@@ -1624,6 +1772,7 @@
   }, true);
 
   window.addEventListener("resize", function () {
+    clampPanelToViewport();
     if (selectedElement && !collapsed) setHighlight(selectedElement);
   });
   window.addEventListener("scroll", function () {
