@@ -16,6 +16,7 @@ const RATE_LIMIT = 5
 const RATE_WINDOW_MS = 60_000
 const RATE_LIMIT_PRUNE_THRESHOLD = 500
 const PREFILL_URL_MAX_LENGTH = 7_000
+const ISSUE_BODY_MAX_LENGTH = 60_000
 const CREATED_ISSUES_MAX = 500
 const requestTimes = new Map<string, number[]>()
 const createdIssues = new Map<string, Record<string, unknown>>()
@@ -186,6 +187,25 @@ function buildComponentSpec(selector: string, matchedTokens: unknown, computedSt
   return { componentName, propNames, tsx }
 }
 
+function backtickDelimiter(value: string, minimum: number): string {
+  const longestRun = (value.match(/`+/g) || []).reduce((max, run) => Math.max(max, run.length), 0)
+  return '`'.repeat(Math.max(minimum, longestRun + 1))
+}
+
+// Backslash escapes are not interpreted inside code spans; the delimiter must
+// simply be longer than any backtick run in the content.
+function codeSpan(value: string): string {
+  const delimiter = backtickDelimiter(value, 1)
+  return `${delimiter} ${value} ${delimiter}`
+}
+
+// User prose goes into a fenced text block so markdown/HTML in it cannot
+// restructure or hide the rest of the issue.
+function fencedText(value: string): string {
+  const delimiter = backtickDelimiter(value, 3)
+  return `${delimiter}text\n${value}\n${delimiter}`
+}
+
 function sortKeysDeep(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortKeysDeep)
   if (isRecord(value)) {
@@ -214,7 +234,7 @@ function buildIssueBody(body: RecordValue, request: ComponentRequest, previewUrl
   const computedStyles = body.computedStyles ?? body.styles ?? body.styleEdits ?? {}
   const spec = buildComponentSpec(selector, matchedTokens, computedStyles)
   const sections = [
-    `## Element selector\n\n\`${selector.replaceAll('`', '\\`')}\``,
+    `## Element selector\n\n${codeSpan(selector)}`,
   ]
 
   if (previewUrl) {
@@ -226,7 +246,7 @@ function buildIssueBody(body: RecordValue, request: ComponentRequest, previewUrl
     `## Computed styles\n\n${jsonBlock(computedStyles)}`,
     `## Issue type\n\n${request.issueType}`,
     `## Issue size\n\n${request.issueSize}`,
-    `## Use case\n\n${request.useCase}`,
+    `## Use case\n\n${fencedText(request.useCase)}`,
     `## Component spec\n\nComponent name: \`${spec.componentName}\`\n\nInferred props: ${spec.propNames.map((name) => `\`${name}\``).join(', ') || 'None'}\n\n\`\`\`tsx\n${spec.tsx}\n\`\`\``,
   )
 
@@ -240,6 +260,17 @@ function dropMarkdownSection(markdown: string, heading: string): string {
   const next = markdown.indexOf('\n## ', start + marker.length)
   if (next === -1) return markdown.slice(0, start).trimEnd()
   return `${markdown.slice(0, start)}${markdown.slice(next + 1)}`
+}
+
+// GitHub rejects issue bodies over 65536 chars with a 422; degrade the packet
+// the same way the prefill URL does instead of failing the request.
+function fitIssueBody(packet: string): string {
+  if (packet.length <= ISSUE_BODY_MAX_LENGTH) return packet
+  let body = dropMarkdownSection(packet, 'Computed styles')
+  if (body.length <= ISSUE_BODY_MAX_LENGTH) return body
+  body = dropMarkdownSection(body, 'Matched tokens')
+  if (body.length <= ISSUE_BODY_MAX_LENGTH) return body
+  return `${body.slice(0, ISSUE_BODY_MAX_LENGTH - 2).trimEnd()}\n…`
 }
 
 function githubPath(repo: string): string {
@@ -516,7 +547,7 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           title,
-          body: packet,
+          body: fitIssueBody(packet),
           labels: ['component-request', 'needs-triage'],
         }),
       })
