@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://ravenmcp.ai'),
   title: 'RavenMCP — Design Intelligence MCP for Claude · Open Source',
   description:
-    'Install one MCP server so Claude can call 70 tools for UI audits, design-system tokens, patterns, content voice, research methods, service blueprints, and taste checks.',
+    'Pair-design with your coding agent: click any element on your page, edit its tokens and styles, and package the change for Claude — plus 70 tools for UI audits, design-system tokens, and taste checks.',
   applicationName: 'RavenMCP',
   authors: [{ name: 'Andrew Cunliffe' }],
   keywords: [
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     siteName: 'RavenMCP',
     title: 'RavenMCP — Design Intelligence for AI',
     description:
-      'Install one MCP server so Claude can call 70 tools for UI audits, design-system tokens, patterns, content voice, research methods, service blueprints, and taste checks.',
+      'Pair-design with your coding agent: click any element on your page, edit its tokens and styles, and package the change for Claude — plus 70 tools for UI audits, design-system tokens, and taste checks.',
     url: 'https://ravenmcp.ai',
     images: [
       {

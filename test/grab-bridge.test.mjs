@@ -719,7 +719,7 @@ test('overlay renders state groups in token and raw style sections and sends the
 
 test('overlay state capture is wired into selection and playground state fixtures', async () => {
   const overlaySource = await readFile(path.resolve(__dirname, '../browser/raven-grab.js'), 'utf8');
-  const playgroundSource = await readFile(path.resolve(__dirname, '../web/app/playground/page.tsx'), 'utf8');
+  const playgroundSource = await readFile(path.resolve(__dirname, '../web/app/raven-design/page.tsx'), 'utf8');
   assert.match(overlaySource, /stateStyles:\s*interactiveStylesFor\(element\)/);
   assert.equal((overlaySource.match(/stateStyles:\s*currentSelection\.stateStyles/g) || []).length, 2);
   assert.match(overlaySource, /document\.styleSheets[\s\S]*try\s*\{[\s\S]*\.cssRules/);
