@@ -32,7 +32,10 @@ function sanitizeElementHtml(raw: string): string {
 function inlineRootStyles(html: string, styles: unknown): string {
   if (!isRecord(styles)) return html
   const decls = Object.entries(styles)
-    .filter(([key, value]) => PREVIEW_STYLE_PROPS.has(key) && typeof value === 'string' && !/[<>"]|expression\s*\(|url\s*\(/i.test(value))
+    // Values come from getComputedStyle — a real value is a single declaration
+    // with no ';' or backslash escape. Rejecting both kills CSS declaration
+    // injection (extra ';'-separated rules) and url()/escape obfuscation.
+    .filter(([key, value]) => PREVIEW_STYLE_PROPS.has(key) && typeof value === 'string' && !/[<>";\\]|expression\s*\(|url\s*\(/i.test(value))
     .map(([key, value]) => `${key}:${value}`)
     .concat('margin:0 auto')
     .join(';')

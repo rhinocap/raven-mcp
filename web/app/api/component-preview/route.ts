@@ -30,7 +30,10 @@ export async function GET(request: Request) {
       'Content-Type': 'text/html; charset=utf-8',
       'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data: https:",
       'X-Robots-Tag': 'noindex',
-      'Cache-Control': 'public, max-age=31536000, immutable',
+      // Payloads are attacker-craftable; don't let a malicious link get pinned
+      // in a shared/immutable cache. Short private cache is enough for the
+      // legitimate open-from-email flow.
+      'Cache-Control': 'private, max-age=300',
     },
   })
 }
