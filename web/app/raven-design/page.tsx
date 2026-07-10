@@ -4,6 +4,12 @@ import Coachmarks from './Coachmarks'
 export const metadata: Metadata = {
   title: 'Raven Design — Live Demo | RavenMCP',
   description: 'Pair design with your agent on a live, token-driven product wireframe.',
+  alternates: { canonical: '/raven-design' },
+  openGraph: {
+    url: 'https://ravenmcp.ai/raven-design',
+    title: 'Raven Design — Live Demo | RavenMCP',
+    description: 'Pair design with your agent on a live, token-driven product wireframe.',
+  },
 }
 
 const ravenGrabConfig = {

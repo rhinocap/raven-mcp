@@ -1,6 +1,7 @@
 import HomeScripts from '@/components/HomeScripts'
 import ToolsSection from "@/components/tools/ToolsSection";
 import HeroGrid from '@/components/HeroGrid'
+import BeforeAfter from '@/components/BeforeAfter'
 
 export default function Home() {
   return (
@@ -22,8 +23,8 @@ export default function Home() {
             <div className="hero-badge reveal">
               Open-source MCP Server · MIT
             </div>
-            <h1 className="reveal reveal-delay-1"><span className="line-glow">Design audits</span><span className="line-accent">for AI-built UI</span></h1>
-            <p className="subtitle reveal reveal-delay-2">Raven is an open-source MCP server that lets coding agents audit a page, name the broken design rule, and return the fix with evidence. The first case study is this homepage.</p>
+            <h1 className="reveal reveal-delay-1"><span className="line-glow">Pair-design</span><span className="line-accent">with your coding agent</span></h1>
+            <p className="subtitle reveal reveal-delay-2">Raven is an open-source MCP server. Click any element on your running page, edit its tokens and styles with real controls, and package the change for your agent &mdash; backed by audits that name the broken design rule and return the fix with evidence.</p>
             <div className="hero-cta reveal reveal-delay-3">
               <button className="cta-install" aria-label="Copy install command to clipboard" data-copy="claude mcp add raven -- npx -y raven-mcp">
                 <span className="copy-label">claude mcp add raven -- npx -y raven-mcp</span>
@@ -31,6 +32,7 @@ export default function Home() {
               </button>
             </div>
             <div className="hero-text-links reveal reveal-delay-3">
+              <a href="/raven-design" className="btn-text-link">Try Raven Design →</a>
               <a href="#work" className="btn-text-link">See the self-audit →</a>
               <a href="/docs.html" className="btn-text-link">Docs →</a>
               <a href="https://github.com/rhinocap/raven-mcp" className="btn-text-link">View on GitHub →</a>
@@ -230,28 +232,65 @@ export default function Home() {
           </div>
         </section>
 
-        {/* SIZZLE REEL */}
-        <section style={{ padding: 'clamp(80px, 9vw, 144px) 0 clamp(24px, 3vw, 40px)' }}>
-          <div className="container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div className="hero-visual reveal" style={{ marginTop: '0' }}>
-              <div className="terminal">
-                <div className="terminal-header">
-                  <span className="terminal-dot"></span>
-                  <span className="terminal-dot"></span>
-                  <span className="terminal-dot"></span>
-                  <span className="terminal-title">claude &mdash; raven-mcp</span>
-                </div>
-                <div className="terminal-body" id="sizzle-reel"></div>
+        {/* RAVEN DESIGN — before/after proof */}
+        <section id="raven-design" className="raven-design">
+          <div className="container">
+            <div className="section-header">
+              <p className="label reveal">Raven Design</p>
+              <h2 className="reveal reveal-delay-1">Without Raven, and with it. Drag the divider.</h2>
+              <p className="subtitle reveal reveal-delay-2">Each pair below is a real brief before Raven and after it &mdash; a fresh build, a rebuild, a taste-profile pass, and live playground edits. Select an element, edit its tokens and styles with constrained controls, and package the change for your agent.</p>
+            </div>
+
+            <div className="ba-featured reveal">
+              <BeforeAfter
+                beforeSrc="/raven-design-before-after/with-without-before.png"
+                beforeAlt="A landscape-architecture brief built without Raven — a dense illustrated hero with full navigation and a thermal-model data card."
+                afterSrc="/raven-design-before-after/fogline-scroll-after.png"
+                afterAlt="The same brief built with Raven — a fog-wrapped coastal house under the serif headline 'Where the fog line ends, the garden begins.'"
+                caption="A landscape-architecture brief, without Raven and with it."
+                aspectRatio="2050 / 1126"
+              />
+            </div>
+
+            <div className="ba-grid">
+              <div className="reveal">
+                <BeforeAfter
+                  beforeSrc="/raven-design-before-after/oddlot-before.png"
+                  beforeAlt="Oddlot v1 editorial page."
+                  afterSrc="/raven-design-before-after/oddlot-after.png"
+                  afterAlt="Oddlot v2 3D workshop rebuild."
+                  caption="Oddlot — the v1 page and the v2 rebuild."
+                  aspectRatio="16 / 10"
+                />
               </div>
-              <div className="sizzle-progress">
-                <span className="sizzle-dot active" data-scene="0"></span>
-                <span className="sizzle-dot" data-scene="1"></span>
-                <span className="sizzle-dot" data-scene="2"></span>
-                <span className="sizzle-dot" data-scene="3"></span>
-                <span className="sizzle-dot" data-scene="4"></span>
-                <span className="sizzle-dot" data-scene="5"></span>
-                <span className="sizzle-dot" data-scene="6"></span>
+              <div className="reveal reveal-delay-1">
+                <BeforeAfter
+                  beforeSrc="/raven-design-before-after/nexus-before.png"
+                  beforeAlt="Nexus product page before applying the bound taste profile."
+                  afterSrc="/raven-design-before-after/nexus-after.png"
+                  afterAlt="Nexus product page rebuilt under the bound taste profile."
+                  caption="Nexus — a generic AI page, rebuilt under a bound taste profile."
+                  aspectRatio="16 / 10"
+                />
               </div>
+            </div>
+
+            <div className="ba-featured reveal">
+              <BeforeAfter
+                beforeSrc="/raven-design-before-after/northstar-before.png"
+                beforeAlt="The Northstar wireframe in the Raven Design playground before any edits."
+                afterSrc="/raven-design-before-after/northstar-after.png"
+                afterAlt="The Northstar wireframe after token and style edits made through the grab panel."
+                caption="The playground's Northstar wireframe, before and after grab-panel edits."
+                aspectRatio="16 / 9"
+              />
+            </div>
+
+            <div className="ba-steps reveal">
+              <span><strong>01</strong> Select an element</span>
+              <span><strong>02</strong> Edit tokens &amp; styles</span>
+              <span><strong>03</strong> Package for your agent</span>
+              <a href="/raven-design" className="btn-text-link">Try the playground →</a>
             </div>
           </div>
         </section>

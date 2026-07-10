@@ -2,6 +2,7 @@
   var CENTER_LINKS = [];
 
   var PAGE_LINKS = [
+    { label: 'Raven Design', href: '/raven-design' },
     { label: 'Open Source', href: '/#pricing' },
     { label: 'Work', href: '/#work' },
     { label: 'Docs', href: '/docs' },
@@ -12,6 +13,7 @@
   var path = window.location.pathname;
 
   function isActive(href) {
+    if (href === '/raven-design') return path === '/raven-design';
     if (href === '/docs') return path === '/docs';
     if (href === '/changelog') return path === '/changelog';
     if (href === '/about') return path === '/about';

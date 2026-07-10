@@ -842,21 +842,6 @@
       color: var(--text-primary);
     }
 
-    /* Sizzle reel video */
-    .sizzle-video {
-      margin-top: var(--space-16);
-      width: 100%;
-      max-width: 1080px;
-      border-radius: 16px;
-      overflow: hidden;
-      box-shadow: 0 0 80px rgba(0, 191, 255, 0.08), 0 4px 32px rgba(0, 0, 0, 0.4);
-    }
-    .sizzle-video video {
-      width: 100%;
-      display: block;
-      border-radius: 16px;
-    }
-
     /* Demo showcase */
     .demo-showcase {
       margin-top: var(--space-16);
@@ -1052,332 +1037,6 @@
     .terminal-body .val { color: var(--accent-orange); }
     .terminal-body .fn { color: var(--accent-blue); }
 
-    /* Sizzle reel animation */
-    .sizzle-line {
-      opacity: 0;
-      transform: translateY(4px);
-      transition: opacity 0.3s var(--ease-out), transform 0.3s var(--ease-out);
-    }
-    .sizzle-line.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
-    .sizzle-cursor {
-      display: inline-block;
-      width: 8px;
-      height: 16px;
-      background: var(--accent-blue);
-      margin-left: 2px;
-      vertical-align: text-bottom;
-      animation: blink 1s step-end infinite;
-      box-shadow: 0 0 8px rgba(0,191,255,0.5);
-    }
-    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-
-    .sizzle-typing .cmd-text { border-right: none; }
-
-    .tool-call {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
-      padding: 3px 0;
-    }
-    .tool-spinner {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      border: 2px solid var(--border-strong);
-      border-top-color: var(--accent-blue);
-      border-radius: 50%;
-      animation: spin 0.6s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .tool-spinner.done {
-      animation: none;
-      border-color: var(--accent-green);
-      background: var(--accent-green);
-      box-shadow: 0 0 8px rgba(0,230,118,0.4);
-    }
-
-    /* UI Preview that appears after tools fire */
-    .ui-preview {
-      opacity: 0;
-      transform: translateY(12px) scale(0.98);
-      transition: opacity 0.6s var(--ease-out), transform 0.6s var(--ease-out);
-      margin-top: var(--space-4);
-    }
-    .ui-preview.visible {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-
-    /* Browser chrome wrapper — same size for all 3 */
-    .browser-chrome {
-      background: var(--bg-alt);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 10px;
-      overflow: hidden;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-    }
-    .browser-bar {
-      display: flex; align-items: center; gap: 8px;
-      padding: 8px 12px;
-      background: rgba(255,255,255,0.02);
-      border-bottom: 1px solid rgba(255,255,255,0.05);
-    }
-    .browser-dots { display: flex; gap: 5px; }
-    .browser-dots span { width: 8px; height: 8px; border-radius: 50%; }
-    .browser-dots span:nth-child(1) { background: #ff5f57; }
-    .browser-dots span:nth-child(2) { background: #febc2e; }
-    .browser-dots span:nth-child(3) { background: #28c840; }
-    .browser-url {
-      flex: 1;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 6px;
-      padding: 4px 10px;
-      font-size: 13px;
-      color: var(--text-tertiary);
-      font-family: var(--font-body);
-    }
-    .browser-viewport {
-      height: 300px;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      background: var(--bg-base);
-    }
-    .browser-viewport > * {
-      width: 100%;
-    }
-
-    /* Mini pricing UI */
-    .mini-pricing { display: flex; gap: 10px; justify-content: center; }
-    .mini-plan {
-      flex: 1; max-width: 200px;
-      background: var(--bg-surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px 14px;
-      text-align: center;
-      font-family: var(--font-body);
-    }
-    .mini-plan.pop {
-      border-color: var(--accent-blue);
-      box-shadow: 0 0 20px rgba(0,191,255,0.12);
-    }
-    .mini-plan-name { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-tertiary); margin-bottom: 4px; }
-    .mini-plan.pop .mini-plan-name { color: var(--accent-blue); }
-    .mini-plan-price { font-size: 24px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.03em; margin-bottom: 2px; }
-    .mini-plan-price span { font-size: 12px; font-weight: 400; color: var(--text-tertiary); }
-    .mini-plan-desc { font-size: 10px; color: var(--text-tertiary); margin-bottom: 10px; line-height: 1.4; }
-    .mini-plan-features { text-align: left; margin-bottom: 12px; }
-    .mini-plan-features div { font-size: 10px; color: var(--text-secondary); padding: 2px 0; display: flex; align-items: center; gap: 5px; }
-    .mini-plan-features div::before { content: "\2713"; color: var(--accent-blue); font-size: 9px; font-weight: 700; }
-    .mini-plan-btn {
-      display: block; width: 100%; padding: 7px; border-radius: 7px; border: none;
-      font-size: 11px; font-weight: 600; cursor: default; font-family: var(--font-body);
-    }
-    .mini-plan-btn.outline { background: transparent; border: 1px solid var(--border-strong); color: var(--text-primary); }
-    .mini-plan-btn.fill { background: var(--accent-blue); color: var(--bg-base); }
-
-    /* Mini signup form UI */
-    .mini-form {
-      max-width: 300px; margin: 0 auto;
-      background: var(--bg-surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 20px;
-      font-family: var(--font-body);
-    }
-    .mini-form h4 { font-size: 16px; font-weight: 700; color: var(--text-primary); margin-bottom: 3px; text-align: center; }
-    .mini-form .mini-form-sub { font-size: 11px; color: var(--text-tertiary); margin-bottom: 14px; text-align: center; }
-    .mini-form-field { margin-bottom: 10px; }
-    .mini-form-field label { display: block; font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 3px; }
-    .mini-form-field .mini-input {
-      width: 100%; padding: 7px 10px; background: var(--bg-base); border: 1px solid var(--border-strong);
-      border-radius: 6px; font-size: 12px; color: var(--text-primary); font-family: var(--font-body); box-sizing: border-box;
-    }
-    .mini-form-field .mini-input.has-error { border-color: var(--accent-danger); }
-    .mini-form-field .mini-error { font-size: 10px; color: var(--accent-danger); margin-top: 3px; display: flex; align-items: center; gap: 4px; }
-    .mini-form-row { display: flex; gap: 8px; }
-    .mini-form-row .mini-form-field { flex: 1; }
-    .mini-form-submit {
-      width: 100%; padding: 8px; background: var(--accent-blue); color: var(--bg-base);
-      border: none; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: default;
-      margin-top: 4px; font-family: var(--font-body);
-    }
-    .mini-form-terms { font-size: 9px; color: var(--text-tertiary); text-align: center; margin-top: 8px; }
-
-    /* Mini dashboard UI */
-    .mini-dash {
-      background: #191A23;
-      border-radius: 0;
-      padding: 16px;
-      font-family: var(--font-body);
-    }
-    .mini-dash-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-    .mini-dash-header h4 { font-size: 14px; font-weight: 700; color: #F2F2F2; }
-    .mini-dash-header span { font-size: 10px; color: #5E6AD2; font-weight: 600; }
-    .mini-dash-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
-    .mini-kpi {
-      background: #1F2028; border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 10px;
-    }
-    .mini-kpi-label { font-size: 9px; color: var(--text-demo-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
-    .mini-kpi-value { font-size: 18px; font-weight: 700; color: #F2F2F2; letter-spacing: -0.03em; }
-    .mini-kpi-change { font-size: 9px; font-weight: 600; margin-top: 2px; }
-    .mini-kpi-change.up { color: #6FCF97; }
-    .mini-kpi-change.down { color: #EB5757; }
-    .mini-dash-chart {
-      background: #1F2028; border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 12px;
-      height: 90px; position: relative; overflow: hidden;
-    }
-    .mini-dash-chart-label { font-size: 9px; color: var(--text-demo-muted); margin-bottom: 6px; }
-    .mini-chart-bars { display: flex; align-items: flex-end; gap: 4px; height: 54px; }
-    .mini-chart-bar {
-      flex: 1; border-radius: 3px 3px 0 0;
-      background: linear-gradient(to top, rgba(0,191,255,0.2), rgba(0,191,255,0.7));
-    }
-
-    /* Mini Audit UI */
-    .mini-audit {
-      padding: 16px 20px; background: var(--bg-surface); font-family: var(--font-family);
-    }
-    .mini-audit-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-    .mini-audit-header h4 { font-size: 14px; font-weight: 700; color: var(--text-primary); }
-    .mini-audit-grade {
-      width: 32px; height: 32px; border-radius: 50%; background: var(--accent-brand-green); color: var(--color-black);
-      display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700;
-    }
-    .mini-audit-score { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
-    .mini-audit-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
-    .mini-audit-fill { height: 100%; background: linear-gradient(90deg, var(--accent-brand-green), var(--accent-blue)); border-radius: 3px; }
-    .mini-audit-score span { font-size: 11px; font-weight: 700; color: var(--text-primary); }
-    .mini-audit-checks { display: flex; flex-direction: column; gap: 4px; }
-    .mini-check { font-size: 10px; display: flex; align-items: center; gap: 6px; padding: 3px 0; }
-    .mini-check span { width: 14px; height: 14px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; flex-shrink: 0; }
-    .mini-check.pass { color: var(--text-secondary); }
-    .mini-check.pass span { background: rgba(29,185,84,0.15); color: var(--accent-brand-green); }
-    .mini-check.warn { color: var(--accent-orange); }
-    .mini-check.warn span { background: rgba(255,171,64,0.15); color: var(--accent-orange); }
-
-    /* Mini Accessibility Report UI */
-    .mini-a11y {
-      padding: 16px 20px; background: var(--bg-surface); font-family: var(--font-body);
-    }
-    .mini-a11y-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-    .mini-a11y-header h4 { font-size: 14px; font-weight: 700; color: var(--text-primary); }
-    .mini-a11y-badge {
-      font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
-      background: rgba(0,230,118,0.12); color: var(--accent-green); padding: 3px 8px; border-radius: 4px;
-    }
-    .mini-a11y-summary { display: flex; gap: 12px; margin-bottom: 14px; }
-    .mini-a11y-stat {
-      flex: 1; text-align: center; padding: 8px; background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.05); border-radius: 8px;
-    }
-    .mini-a11y-stat-val { font-size: 18px; font-weight: 700; letter-spacing: -0.03em; }
-    .mini-a11y-stat-val.good { color: var(--accent-green); }
-    .mini-a11y-stat-val.bad { color: var(--accent-danger); }
-    .mini-a11y-stat-label { font-size: 9px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
-    .mini-a11y-checks { display: flex; flex-direction: column; gap: 3px; }
-    .mini-a11y-check { font-size: 10px; display: flex; align-items: center; gap: 6px; padding: 3px 0; }
-    .mini-a11y-check .a11y-icon {
-      width: 14px; height: 14px; border-radius: 50%; display: flex; align-items: center;
-      justify-content: center; font-size: 8px; font-weight: 700; flex-shrink: 0;
-    }
-    .mini-a11y-check.pass { color: var(--text-secondary); }
-    .mini-a11y-check.pass .a11y-icon { background: rgba(0,230,118,0.15); color: var(--accent-green); }
-    .mini-a11y-check.fail { color: var(--accent-danger); }
-    .mini-a11y-check.fail .a11y-icon { background: rgba(255,64,96,0.15); color: var(--accent-danger); }
-
-    /* Mini Phone / Mobile App UI */
-    .mini-phone {
-      width: 200px; margin: 0 auto; background: var(--color-black); border-radius: 24px;
-      padding: 8px; box-shadow: 0 0 0 2px #2A2A2E, 0 8px 32px rgba(0,0,0,0.5);
-      font-family: var(--font-body);
-    }
-    .mini-phone-notch {
-      width: 72px; height: 18px; background: var(--color-black); border-radius: 0 0 12px 12px;
-      margin: 0 auto -8px; position: relative; z-index: 2;
-    }
-    .mini-phone-screen {
-      background: var(--bg-device-screen); border-radius: 18px; overflow: hidden;
-      display: flex; flex-direction: column; min-height: 280px;
-    }
-    .mini-phone-status {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 10px 14px 4px; font-size: 9px; font-weight: 600; color: var(--text-inverse);
-    }
-    .mini-phone-content { flex: 1; padding: 10px 14px; }
-    .mini-phone-content h4 { font-size: 14px; font-weight: 700; color: var(--text-inverse); margin-bottom: 10px; }
-    .mini-app-card {
-      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 10px; padding: 10px; margin-bottom: 8px;
-    }
-    .mini-app-card-title { font-size: 10px; font-weight: 600; color: var(--text-inverse); margin-bottom: 3px; }
-    .mini-app-card-sub { font-size: 9px; color: var(--text-demo-muted); }
-    .mini-phone-tabbar {
-      display: flex; align-items: center; justify-content: space-around;
-      padding: 8px 4px 12px; border-top: 1px solid rgba(255,255,255,0.06);
-      background: rgba(28,29,37,0.95);
-    }
-    .mini-tab { display: flex; flex-direction: column; align-items: center; gap: 2px; position: relative; }
-    .mini-tab-icon { font-size: 14px; line-height: 1; }
-    .mini-tab-label { font-size: 8px; font-weight: 500; color: var(--text-demo-muted); }
-    .mini-tab.active .mini-tab-icon { color: var(--accent-blue); }
-    .mini-tab.active .mini-tab-label { color: var(--accent-blue); font-weight: 600; }
-    .mini-tab-badge {
-      position: absolute; top: -4px; right: -6px; min-width: 12px; height: 12px;
-      background: var(--accent-danger); color: var(--text-inverse); font-size: 7px; font-weight: 700;
-      border-radius: 6px; display: flex; align-items: center; justify-content: center;
-      padding: 0 3px;
-    }
-
-    /* Mini Brand Kit UI */
-    .mini-brand {
-      padding: 16px 20px; background: #191414; font-family: var(--font-family);
-    }
-    .mini-brand-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-    .mini-brand-logo { width: 28px; height: 28px; border-radius: 50%; }
-    .mini-brand-header h4 { font-size: 14px; font-weight: 700; color: var(--text-inverse); }
-    .mini-brand-tokens { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-    .mini-token { display: flex; align-items: center; gap: 10px; padding: 6px 8px; background: rgba(255,255,255,0.04); border-radius: 6px; }
-    .mini-token-swatch { width: 20px; height: 20px; border-radius: 4px; flex-shrink: 0; }
-    .mini-token-info { display: flex; align-items: center; justify-content: space-between; flex: 1; }
-    .mini-token-name { font-size: 11px; font-weight: 600; color: var(--text-inverse); }
-    .mini-token-val { font-size: 10px; font-family: monospace; color: #B3B3B3; }
-    .mini-brand-fonts {
-      display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06);
-    }
-    .mini-brand-fonts span {
-      font-size: 9px; font-weight: 600; color: var(--accent-brand-green); background: rgba(29,185,84,0.1);
-      padding: 3px 8px; border-radius: 4px;
-    }
-
-    .sizzle-progress {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: var(--space-3);
-      margin-top: var(--space-4);
-    }
-    .sizzle-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--text-tertiary);
-      transition: all 0.3s var(--ease-out);
-      cursor: pointer;
-    }
-    .sizzle-dot.active {
-      background: var(--accent-blue);
-      box-shadow: 0 0 8px rgba(0,191,255,0.5);
-      transform: scale(1.4);
-    }
-
     /* ══════════════════════════════════════════
        SOCIAL PROOF
        ══════════════════════════════════════════ */
@@ -1558,6 +1217,43 @@
       margin: 0 auto;
       height: 1px;
       background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
+    }
+
+    /* ══════════════════════════════════════════
+       RAVEN DESIGN — before/after sliders
+       ══════════════════════════════════════════ */
+
+    .raven-design {
+      position: relative;
+      padding: clamp(80px, 9vw, 144px) 0;
+    }
+    .raven-design .ba-featured {
+      margin-bottom: var(--space-8);
+    }
+    .raven-design .ba-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-6);
+      margin-bottom: var(--space-8);
+    }
+    @media (max-width: 768px) {
+      .raven-design .ba-grid { grid-template-columns: 1fr; }
+    }
+    .raven-design .ba-steps {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-6);
+      margin-top: var(--space-10);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    .raven-design .ba-steps strong {
+      color: var(--accent-blue);
+      font-weight: 600;
+      margin-right: var(--space-2);
     }
 
     /* ══════════════════════════════════════════
@@ -1942,8 +1638,7 @@
     }
     .step-label .step-num { color: var(--accent-blue); }
 
-    /* Static terminal (replay / recipe) — no animation, but sized to
-       match the hero sizzle-reel terminal so all three read as one size. */
+    /* Static terminal (replay / recipe) — no animation. */
     .static-term-body {
       padding: var(--space-6) var(--space-8);
       font-family: var(--font-mono); font-size: 13px; line-height: 2;
