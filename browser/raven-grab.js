@@ -63,7 +63,7 @@
   var componentRequestStep = "form";
   var componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
   var componentRequestId = "";
-  var collapsed = false;
+  var collapsed = window.innerWidth <= 640;
   var panelDrag = null;
   var panelPosition = null;
   var SEND_TIMINGS = {
@@ -147,7 +147,7 @@
     .raven-grab-content { padding: 16px; }
     .raven-grab-section + .raven-grab-section { margin-top: 16px; }
     .raven-grab-section-title { margin: 0 0 8px; color: var(--raven-grab-tertiary); font: 500 12px/1.3 var(--raven-grab-mono); letter-spacing: .96px; text-transform: uppercase; }
-    .raven-grab-section-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 36px; margin: 0; padding: 0; color: var(--raven-grab-tertiary); background: transparent; border: 0; cursor: pointer; text-align: left; font: 500 12px/1.3 var(--raven-grab-mono); letter-spacing: .96px; text-transform: uppercase; }
+    .raven-grab-section-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; margin: 0; padding: 0; color: var(--raven-grab-tertiary); background: transparent; border: 0; cursor: pointer; text-align: left; font: 500 12px/1.3 var(--raven-grab-mono); letter-spacing: .96px; text-transform: uppercase; }
     .raven-grab-section-toggle:hover { color: var(--raven-grab-text); }
     .raven-grab-caret { font: 500 11px/1 var(--raven-grab-mono); transition: transform 150ms ease; }
     .raven-grab-section-toggle[aria-expanded="false"] .raven-grab-caret { transform: rotate(-90deg); }
@@ -213,7 +213,18 @@
       font: 400 11px/1.4 var(--raven-grab-mono);
     }
     .raven-grab-style-input:focus { box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
-    .raven-grab-style-editor { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 6px; width: 100%; }
+    .raven-grab-style-editor { display: flex; align-items: center; gap: 6px; width: 100%; }
+    .raven-grab-style-editor .raven-grab-style-input { flex: 1 1 auto; }
+    .raven-grab-color-input { flex: 0 0 28px; width: 28px; height: 28px; padding: 0; background: none; border: 1px solid var(--raven-grab-accent); border-radius: 8px; cursor: pointer; }
+    .raven-grab-style-select, .raven-grab-style-format {
+      min-height: 32px; padding: 6px 8px; color: var(--raven-grab-text); background: var(--raven-grab-bg);
+      border: 1px solid var(--raven-grab-accent); border-radius: 8px; outline: none; cursor: pointer;
+      font: 400 11px/1.4 var(--raven-grab-mono);
+    }
+    .raven-grab-style-select { flex: 1 1 auto; width: 100%; }
+    .raven-grab-style-format { flex: 0 0 auto; }
+    .raven-grab-style-select:focus, .raven-grab-style-format:focus { box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
+    .raven-grab-style-unit { flex: 0 0 auto; color: var(--raven-grab-muted); font: 400 11px/1.4 var(--raven-grab-mono); }
     .raven-grab-empty { margin: 0; padding: 12px; color: var(--raven-grab-muted); background: var(--raven-grab-raised); border: 1px dashed rgba(255, 255, 255, .1); border-radius: 12px; font: 400 12px/1.45 var(--raven-grab-ui); }
     .raven-grab-actions { flex: 0 0 auto; padding: 12px 16px 16px; background: #212129; border-top: 1px solid rgba(255, 255, 255, .06); }
     .raven-grab-send {
@@ -295,13 +306,14 @@
   panel.className = "raven-grab-panel";
   panel.setAttribute("aria-label", "Raven Design selection");
   panel.setAttribute("aria-hidden", "true");
-  panel.setAttribute("data-collapsed", "false");
+  panel.setAttribute("data-collapsed", collapsed ? "true" : "false");
+  if (collapsed) panel.setAttribute("inert", "");
   var edgeTab = document.createElement("button");
   edgeTab.className = "raven-grab-edge-tab";
   edgeTab.type = "button";
   edgeTab.textContent = "‹";
   edgeTab.setAttribute("aria-label", "Expand Raven panel");
-  edgeTab.setAttribute("aria-hidden", "true");
+  edgeTab.setAttribute("aria-hidden", collapsed ? "false" : "true");
   shadow.appendChild(style);
   shadow.appendChild(highlight);
   shadow.appendChild(label);
@@ -316,6 +328,21 @@
     panel.removeAttribute("inert");
     edgeTab.setAttribute("aria-hidden", "true");
     if (selectedElement) setHighlight(selectedElement);
+  }
+  // On mobile the expanded panel covers ~90% of the wireframe, so arming and
+  // selecting open the panel COLLAPSED (edge-tab visible, wireframe unobscured);
+  // the user taps the edge-tab to expand. Desktop keeps the immediate expand.
+  function openPanel() {
+    if (window.innerWidth <= 640) {
+      collapsed = true;
+      panel.setAttribute("data-collapsed", "true");
+      panel.setAttribute("aria-hidden", "true");
+      panel.setAttribute("inert", "");
+      edgeTab.setAttribute("aria-hidden", "false");
+      if (selectedElement) setHighlight(selectedElement);
+    } else {
+      expandPanel();
+    }
   }
   function collapsePanel() {
     if (!armed || panel.getAttribute("aria-hidden") === "true") return;
@@ -332,7 +359,7 @@
     armed = next;
     if (!armed) dismiss();
     else {
-      expandPanel();
+      openPanel();
       renderPanel();
     }
   }
@@ -903,6 +930,12 @@
     });
   }
 
+  function displayComputedStyleValue(value) {
+    return String(value || "").replace(/(-?\d*\.?\d+)px\b/g, function (match, number) {
+      return String(Math.round(Number(number) * 10) / 10) + "px";
+    });
+  }
+
   function legacyCopyText(value) {
     var textarea = document.createElement("textarea");
     textarea.value = value;
@@ -999,21 +1032,54 @@
     return ["color", "background", "background-color", "border-color", "outline-color", "fill", "stroke"].indexOf(property) !== -1;
   }
 
-  function colorInputValue(value) {
-    var text = String(value || "").trim();
-    var hex = text.match(/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
+  // Parse a hex or rgb()/rgba() color to {r,g,b,a} (a in 0..1), or null if it
+  // isn't one of those forms. Computed color values are always rgb/rgba, so this
+  // covers every real case; named/hsl values (which getComputedStyle never
+  // returns for these properties) fall through to null and are left untouched.
+  function parseColorParts(value) {
+    var t = String(value || "").trim();
+    var hex = t.match(/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
     if (hex) {
-      var digits = hex[1];
-      if (digits.length === 3) digits = digits.charAt(0) + digits.charAt(0) + digits.charAt(1) + digits.charAt(1) + digits.charAt(2) + digits.charAt(2);
-      return "#" + digits.slice(0, 6).toLowerCase();
+      var d = hex[1];
+      if (d.length === 3) d = d.charAt(0) + d.charAt(0) + d.charAt(1) + d.charAt(1) + d.charAt(2) + d.charAt(2);
+      return {
+        r: parseInt(d.slice(0, 2), 16),
+        g: parseInt(d.slice(2, 4), 16),
+        b: parseInt(d.slice(4, 6), 16),
+        a: d.length === 8 ? Math.round(parseInt(d.slice(6, 8), 16) / 255 * 1000) / 1000 : 1
+      };
     }
-    var rgb = text.match(/^rgba?\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)/i);
-    if (!rgb) return "#000000";
-    return "#" + [rgb[1], rgb[2], rgb[3]].map(function (part) {
-      var channel = Math.max(0, Math.min(255, Math.round(Number(part))));
-      var digits = channel.toString(16);
-      return digits.length === 1 ? "0" + digits : digits;
-    }).join("");
+    var rgb = t.match(/^rgba?\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*(?:,\s*(\d*\.?\d+)\s*)?\)$/i);
+    if (!rgb) return null;
+    return {
+      r: Math.max(0, Math.min(255, Math.round(Number(rgb[1])))),
+      g: Math.max(0, Math.min(255, Math.round(Number(rgb[2])))),
+      b: Math.max(0, Math.min(255, Math.round(Number(rgb[3])))),
+      a: rgb[4] === undefined ? 1 : Math.max(0, Math.min(1, Number(rgb[4])))
+    };
+  }
+
+  function channelHex(n) {
+    var d = Math.max(0, Math.min(255, Math.round(n))).toString(16);
+    return d.length === 1 ? "0" + d : d;
+  }
+
+  function colorToHex(parts) {
+    var base = "#" + channelHex(parts.r) + channelHex(parts.g) + channelHex(parts.b);
+    return parts.a < 1 ? base + channelHex(parts.a * 255) : base;
+  }
+
+  function colorToRgb(parts) {
+    if (parts.a < 1) return "rgba(" + parts.r + ", " + parts.g + ", " + parts.b + ", " + parts.a + ")";
+    return "rgb(" + parts.r + ", " + parts.g + ", " + parts.b + ")";
+  }
+
+  // The native <input type="color"> can only hold an opaque #rrggbb; alpha is
+  // preserved separately in the text field, not here.
+  function colorInputValue(value) {
+    var parts = parseColorParts(value);
+    if (!parts) return "#000000";
+    return "#" + channelHex(parts.r) + channelHex(parts.g) + channelHex(parts.b);
   }
 
   function replaceStyleInput(input, value) {
@@ -1022,10 +1088,11 @@
     var property = row.getAttribute("data-style-property");
     var cell = document.createElement("code");
     cell.setAttribute("data-style-value", "");
+    cell.setAttribute("data-style-raw", value);
     cell.setAttribute("tabindex", "0");
     cell.setAttribute("role", "button");
     cell.setAttribute("aria-label", "Edit " + property);
-    cell.textContent = value;
+    cell.textContent = displayComputedStyleValue(value);
     row.setAttribute("data-edited", styleEdits[property] ? "true" : "false");
     row.replaceChild(cell, editor);
   }
@@ -1034,38 +1101,151 @@
     if (input && input.parentNode) replaceStyleInput(input, previousValue);
   }
 
+  // Figma-inspector-style typed editing: numbers get a number field (unit fixed),
+  // colors get a HEX/RGB format dropdown, keyword properties get a value dropdown,
+  // and only genuinely compound shorthands fall back to free text.
+  var STYLE_ENUM_OPTIONS = {
+    "display": ["block", "inline", "inline-block", "flex", "inline-flex", "grid", "inline-grid", "flow-root", "none", "contents"],
+    "position": ["static", "relative", "absolute", "fixed", "sticky"],
+    "box-sizing": ["content-box", "border-box"],
+    "border-style": ["none", "solid", "dashed", "dotted", "double", "groove", "ridge", "inset", "outset"],
+    "text-align": ["left", "right", "center", "justify", "start", "end"],
+    "font-weight": ["100", "200", "300", "400", "500", "600", "700", "800", "900", "normal", "bold", "lighter", "bolder"],
+    "align-items": ["normal", "stretch", "center", "start", "end", "flex-start", "flex-end", "baseline"],
+    "justify-content": ["normal", "flex-start", "flex-end", "center", "space-between", "space-around", "space-evenly", "start", "end"]
+  };
+
+  // Single-value number+unit only (e.g. "16px", "1.4", "0.9", "0px"). Compound
+  // values like "8px 16px" return null so they don't masquerade as a number field.
+  function parseNumericValue(value) {
+    var match = String(value || "").trim().match(/^(-?\d*\.?\d+)([a-z%]*)$/i);
+    if (!match) return null;
+    return { number: match[1], unit: match[2] || "" };
+  }
+
+  // A single hex or rgb()/rgba() color — NOT a compound shorthand like the
+  // computed `background` ("rgba(...) none repeat ..."). Restricted to the forms
+  // parseColorParts understands so the swatch/format controls never fall back to
+  // black on a value they can't round-trip (named/hsl never reach here from
+  // getComputedStyle; if one ever does, it stays a plain text edit).
+  function isSingleColorValue(value) {
+    return parseColorParts(value) !== null;
+  }
+
+  function classifyStyleControl(property, value) {
+    if (isColorProperty(property) && isSingleColorValue(value)) return "color";
+    if (STYLE_ENUM_OPTIONS[property] && STYLE_ENUM_OPTIONS[property].indexOf(String(value).trim()) !== -1) return "enum";
+    if (parseNumericValue(value)) return "number";
+    // A keyword value on an enum property (e.g. width:auto has no enum map, but
+    // display:contents does) still gets its dropdown; otherwise free text.
+    if (STYLE_ENUM_OPTIONS[property]) return "enum";
+    return "text";
+  }
+
+  // Reformat a color between hex and rgb WITHOUT losing alpha (a passive
+  // format-flip must never turn rgba(0,0,0,0) into opaque black). Unparseable
+  // values pass through unchanged.
+  function formatColorValue(value, format) {
+    var parts = parseColorParts(value);
+    if (!parts) return String(value).trim();
+    return format === "rgb" ? colorToRgb(parts) : colorToHex(parts);
+  }
+
   function beginStyleEdit(valueCell) {
     var row = valueCell.parentElement;
     var property = row.getAttribute("data-style-property");
-    var previousValue = valueCell.textContent;
-    var input = document.createElement("input");
+    // Edit the ORIGINAL unrounded computed value, not the display-rounded text —
+    // otherwise editing one component of a compound value (box-shadow, transition)
+    // silently rewrites the untouched components at reduced precision.
+    var previousValue = valueCell.getAttribute("data-style-raw");
+    if (previousValue == null) previousValue = valueCell.textContent;
+    var control = classifyStyleControl(property, previousValue);
     var finished = false;
+
+    var editor = document.createElement("div");
+    editor.className = "raven-grab-style-editor";
+    editor.setAttribute("data-control", control);
+
+    // The primary control (text/number input or select) that replaceStyleInput
+    // reads from; its parentElement is always the editor wrapper.
+    var input = document.createElement("input");
     input.className = "raven-grab-style-input";
-    input.type = "text";
-    input.value = previousValue;
     input.setAttribute("data-style-input", property);
     input.setAttribute("spellcheck", "false");
-    var editor = input;
-    var colorInput = null;
-    if (isColorProperty(property)) {
-      editor = document.createElement("div");
-      editor.className = "raven-grab-style-editor";
-      colorInput = document.createElement("input");
+
+    var focusTarget = input;
+    var relatedInternal = [];
+
+    if (control === "enum") {
+      var select = document.createElement("select");
+      select.className = "raven-grab-style-select";
+      select.setAttribute("data-style-input", property);
+      var options = STYLE_ENUM_OPTIONS[property].slice();
+      if (options.indexOf(previousValue) === -1) options.unshift(previousValue);
+      select.innerHTML = options.map(function (opt) { return optionMarkup(opt, opt, previousValue); }).join("");
+      input = select;
+      focusTarget = select;
+      editor.appendChild(select);
+    } else if (control === "number") {
+      var parsed = parseNumericValue(previousValue);
+      input.type = "number";
+      input.value = parsed.number;
+      input.setAttribute("step", "any");
+      editor.appendChild(input);
+      if (parsed.unit) {
+        var unitTag = document.createElement("span");
+        unitTag.className = "raven-grab-style-unit";
+        unitTag.textContent = parsed.unit;
+        editor.appendChild(unitTag);
+      }
+      input.numericUnit = parsed.unit; // ponytail: stash the fixed unit on the node
+    } else if (control === "color") {
+      input.type = "text";
+      input.value = previousValue;
+      var colorInput = document.createElement("input");
       colorInput.className = "raven-grab-color-input";
       colorInput.type = "color";
       colorInput.value = colorInputValue(previousValue);
       colorInput.setAttribute("aria-label", "Choose " + property + " color");
+      var formatSelect = document.createElement("select");
+      formatSelect.className = "raven-grab-style-format";
+      formatSelect.setAttribute("aria-label", property + " color format");
+      var initialFormat = /^rgb/i.test(previousValue) ? "rgb" : "hex";
+      formatSelect.innerHTML = optionMarkup("hex", "HEX", initialFormat) + optionMarkup("rgb", "RGB", initialFormat);
       editor.appendChild(colorInput);
       editor.appendChild(input);
+      editor.appendChild(formatSelect);
+      // All three participate in one editor; a blur to any of them must NOT commit.
+      relatedInternal.push(input, colorInput, formatSelect);
+      var reformat = function () { input.value = formatColorValue(input.value, formatSelect.value); };
+      formatSelect.addEventListener("change", reformat);
+      var syncColor = function () { input.value = formatColorValue(colorInput.value, formatSelect.value); commit(); };
+      colorInput.addEventListener("input", syncColor);
+      colorInput.addEventListener("change", syncColor);
+      colorInput.addEventListener("blur", handleBlur);
+      formatSelect.addEventListener("blur", handleBlur);
+    } else {
+      input.type = "text";
+      input.value = previousValue;
+      editor.appendChild(input);
     }
+
     valueCell.parentNode.replaceChild(editor, valueCell);
-    input.focus();
-    input.select();
+    focusTarget.focus();
+    if (typeof focusTarget.select === "function") focusTarget.select();
+
+    function readValue() {
+      if (control === "number") {
+        var n = input.value.trim();
+        return n === "" ? "" : n + (input.numericUnit || "");
+      }
+      return input.value.trim();
+    }
 
     function commit() {
       if (finished) return;
       finished = true;
-      var newValue = input.value.trim();
+      var newValue = readValue();
       var committed = commitStyleEdit(property, newValue, previousValue);
       if (!committed && newValue !== previousValue) {
         row.setAttribute("data-error", "true");
@@ -1074,6 +1254,7 @@
         }, 600);
       }
       replaceStyleInput(input, committed ? newValue : previousValue);
+      syncSendButtonDisabled();
     }
 
     input.addEventListener("keydown", function (event) {
@@ -1087,18 +1268,12 @@
         cancelStyleEdit(input, previousValue);
       }
     });
-    input.addEventListener("blur", function (event) {
-      if (colorInput && event.relatedTarget === colorInput) return;
+    function handleBlur(event) {
+      if (relatedInternal.indexOf(event.relatedTarget) !== -1) return;
       commit();
-    });
-    if (colorInput) {
-      var syncColor = function () {
-        input.value = colorInput.value;
-        commit();
-      };
-      colorInput.addEventListener("input", syncColor);
-      colorInput.addEventListener("change", syncColor);
     }
+    input.addEventListener("blur", handleBlur);
+    if (control === "enum") input.addEventListener("change", commit);
   }
 
   function optionMarkup(value, label, selectedValue) {
@@ -1158,7 +1333,7 @@
       if (!stateData || !stateData.declarations || !stateData.declarations.length) return;
       markup += '<div class="raven-grab-state-group" data-style-state="' + state + '"><h3 class="raven-grab-state-label">' + state.toUpperCase() + '</h3><ul class="raven-grab-styles">';
       stateData.declarations.forEach(function (declaration) {
-        var value = declaration.value + (declaration.important ? " !important" : "");
+        var value = displayComputedStyleValue(declaration.value) + (declaration.important ? " !important" : "");
         markup += '<li data-state-style-property="' + escapeHtml(declaration.property) + '"><span>' + escapeHtml(declaration.property) + "</span><code>" + escapeHtml(value) + "</code></li>";
       });
       markup += "</ul></div>";
@@ -1210,7 +1385,7 @@
     }).map(function (property) {
       var edit = styleEdits[property];
       var value = edit ? edit.newValue : currentSelection.styles[property];
-      return '<li data-style-property="' + escapeHtml(property) + '" data-edited="' + (edit ? "true" : "false") + '"><span>' + escapeHtml(property) + '</span><code data-style-value tabindex="0" role="button" aria-label="Edit ' + escapeHtml(property) + '">' + escapeHtml(value) + "</code></li>";
+      return '<li data-style-property="' + escapeHtml(property) + '" data-edited="' + (edit ? "true" : "false") + '"><span>' + escapeHtml(property) + '</span><code data-style-value data-style-raw="' + escapeHtml(value) + '" tabindex="0" role="button" aria-label="Edit ' + escapeHtml(property) + '">' + escapeHtml(displayComputedStyleValue(value)) + "</code></li>";
     }).join("");
     var stateStylesMarkup = stateStyleGroupsMarkup(stateStyles);
 
@@ -1233,7 +1408,7 @@
         <div class="raven-grab-collapsible" id="raven-grab-tokens" data-section-body="tokens" data-open="${expandedSections.tokens ? "true" : "false"}" aria-hidden="${expandedSections.tokens ? "false" : "true"}"><div class="raven-grab-collapsible-inner">${tokenMarkup}</div></div>
       </section>
       <section class="raven-grab-section">
-        <button class="raven-grab-section-toggle" type="button" data-section-toggle="styles" aria-expanded="${expandedSections.styles ? "true" : "false"}" aria-controls="raven-grab-styles"><span>COMPUTED STYLES - NOT TOKENIZED</span><span class="raven-grab-caret" aria-hidden="true">▾</span></button>
+        <button class="raven-grab-section-toggle" type="button" data-section-toggle="styles" aria-expanded="${expandedSections.styles ? "true" : "false"}" aria-controls="raven-grab-styles"><span>Computed styles</span><span class="raven-grab-caret" aria-hidden="true">▾</span></button>
         <div class="raven-grab-collapsible" id="raven-grab-styles" data-section-body="styles" data-open="${expandedSections.styles ? "true" : "false"}" aria-hidden="${expandedSections.styles ? "false" : "true"}"><div class="raven-grab-collapsible-inner"><ul class="raven-grab-styles">${stylesMarkup}</ul>${stateStylesMarkup}</div></div>
       </section>
       <section class="raven-grab-section">
@@ -1293,6 +1468,11 @@
     panel.setAttribute("data-collapsed", collapsed ? "true" : "false");
   }
 
+  function syncSendButtonDisabled() {
+    var button = panel.querySelector("[data-send]");
+    if (button) button.disabled = !currentSelection;
+  }
+
   function switchTab(tab) {
     if (tab !== "design" && tab !== "request") return;
     capturePanelDrafts();
@@ -1327,8 +1507,8 @@
     componentRequestStep = "form";
     componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
     componentRequestId = "";
-    collapsed = false;
-    panel.setAttribute("data-collapsed", "false");
+    collapsed = window.innerWidth <= 640;
+    panel.setAttribute("data-collapsed", collapsed ? "true" : "false");
     panel.removeAttribute("inert");
     edgeTab.setAttribute("aria-hidden", "true");
     panel.setAttribute("aria-hidden", "true");
@@ -1487,6 +1667,7 @@
       if (panel.querySelector(selector) !== button) return;
       setSendButtonState(button, "default", defaultLabel);
       button.disabled = false;
+      if (selector === "[data-send]") syncSendButtonDisabled();
       button.removeAttribute("aria-busy");
       button.removeAttribute("aria-label");
       if (button.style && typeof button.style.removeProperty === "function") button.style.removeProperty("--raven-grab-sent-width");
@@ -1531,6 +1712,7 @@
   async function sendSelection() {
     var button = panel.querySelector("[data-send]");
     var status = panel.querySelector("[data-status]");
+    capturePanelDrafts();
     button.disabled = true;
     button.setAttribute("aria-busy", "true");
     button.textContent = "Sending…";
@@ -1686,6 +1868,7 @@
   panel.addEventListener("change", function (event) {
     var index = event.target.getAttribute("data-token-choice");
     if (index !== null) updateIntent(Number(index));
+    syncSendButtonDisabled();
     if (event.target.getAttribute("data-issue-type") !== null) componentRequest.issueType = event.target.value;
     if (event.target.getAttribute("data-issue-size") !== null) componentRequest.issueSize = event.target.value;
   });
@@ -1699,7 +1882,10 @@
     if (index === null) index = event.target.getAttribute("data-new-value");
     if (index === null) index = colorIndex;
     if (index !== null) updateIntent(Number(index));
-    if (event.target.getAttribute("data-instruction") !== null) instructionDraft = event.target.value;
+    if (event.target.getAttribute("data-instruction") !== null) {
+      instructionDraft = event.target.value;
+      syncSendButtonDisabled();
+    }
     if (event.target.getAttribute("data-use-case") !== null) componentRequest.useCase = event.target.value;
     if (event.target.getAttribute("data-component-email") !== null) componentRequest.email = event.target.value;
   });
@@ -1766,7 +1952,7 @@
     componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
     componentRequestId = "";
     selectedElement = target;
-    expandPanel();
+    openPanel();
     setHighlight(target);
     currentSelection = selectionFor(target);
     renderPanel();
