@@ -71,3 +71,8 @@ Fresh /goal: two-way click-to-change (grab overlay + token panel) + DESIGN.md as
 **Fix found in verification:** raw `<style>` child in page.tsx caused React hydration mismatch → whole root re-rendered mid-interaction (real clicks selected `html`); fixed via dangerouslySetInnerHTML. Also: `scroll-behavior: smooth` invalidates rect-then-click in Playwright — use behavior:'instant' + resettle.
 **Verified:** 573/573 tests, mirror byte-identical, Playwright eyes-on all six behaviors + vision pass on default/collapsed/color-preview screenshots.
 **Pushed:** committed 92920ae on explore/tools-redesign (NOT pushed per standing constraint).
+
+### Round 4 — morph redesign, click-through, Enter-to-send, tab alignment (bc12512)
+**What:** (1) Send morph per Figma 6-626: check stroke-draws (dasharray/dashoffset 24, 400ms), no circle border, expands to "Sent to agent" pill, morphs back; reduced-motion disables draw. (2) Collapsed panel passes clicks through — mousemove/click gated on `!armed || collapsed` (committed earlier, urgent unblock). (3) Enter in panel textareas sends (clicks the section's send button); Cmd/Ctrl+Enter inserts newline. (4) Edge tab top:33px — caret center 55 == tab center 55, pure horizontal move.
+**Verified:** Playwright morph sampling (check 0–525ms → sent 700–2275ms → default 2450ms+), Cmd+Enter newline in textarea, nav click-through when collapsed (hash changed, no grab), caret/tab delta 0; vision on r4-sent/r4-tab2/r4-check; 32/32 grab tests; full npm test 0 fail; mirrors byte-identical.
+**Pushed:** committed bc12512 on explore/tools-redesign — NOT pushed (do-not-push constraint).
