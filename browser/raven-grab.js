@@ -40,7 +40,7 @@
   var Z_INDEX = "2147483646";
   var STYLE_PROPERTIES = [
     "display", "position", "box-sizing", "width", "height", "margin", "padding", "gap",
-    "color", "background-color", "border-color", "border-width", "border-style", "border-radius",
+    "color", "background", "background-color", "border-color", "outline-color", "fill", "stroke", "border-width", "border-style", "border-radius",
     "font-family", "font-size", "font-weight", "line-height", "letter-spacing", "text-align",
     "opacity", "box-shadow", "align-items", "justify-content", "grid-template-columns"
   ];
@@ -60,6 +60,7 @@
   var componentRequestStep = "form";
   var componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
   var componentRequestId = "";
+  var collapsed = false;
 
   var host = document.createElement("div");
   host.setAttribute("data-raven-grab-overlay", "");
@@ -106,9 +107,10 @@
       box-shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 0 32px rgba(0, 191, 255, .06),
         0 8px 16px -4px rgba(0, 0, 0, .35), 0 24px 48px -12px rgba(0, 0, 0, .5);
       backdrop-filter: blur(12px); font: 13px/1.45 var(--raven-grab-ui);
-      overscroll-behavior: contain;
+      overscroll-behavior: contain; transform: translateX(0); transition: transform 200ms ease;
     }
     .raven-grab-panel[aria-hidden="false"] { display: flex; }
+    .raven-grab-panel[data-collapsed="true"] { display: flex; transform: translateX(calc(100% + 21px)); pointer-events: none; }
     .raven-grab-top { flex: 0 0 auto; background: #212129; }
     .raven-grab-header {
       display: flex; align-items: center; min-height: 56px; padding: 12px 16px;
@@ -145,6 +147,7 @@
     .raven-grab-element-chip:hover { background: rgba(0, 191, 255, .16); border-color: rgba(0, 191, 255, .55); }
     .raven-grab-element-chip:focus-visible { outline: 2px solid var(--raven-grab-accent); outline-offset: 2px; }
     .raven-grab-element-chip[data-copied="true"] { color: #00BFFF; }
+    .raven-grab-element-placeholder { display: inline-block; padding: 3px 8px; color: var(--raven-grab-muted); background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .1); border-radius: 4px; font: 500 11px/1.4 var(--raven-grab-mono); }
     .raven-grab-element-tooltip { position: absolute; top: calc(100% + 6px); left: 0; z-index: 3; width: max-content; max-width: 320px; padding: 7px 9px; visibility: hidden; opacity: 0; color: var(--raven-grab-text); background: #1a1a22; border: 1px solid rgba(255, 255, 255, .12); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); font: 400 11px/1.4 var(--raven-grab-mono); overflow-wrap: anywhere; pointer-events: none; white-space: normal; transition: opacity 120ms ease, visibility 120ms ease; }
     .raven-grab-element-wrap:hover .raven-grab-element-tooltip, .raven-grab-element-wrap:focus-within .raven-grab-element-tooltip { visibility: visible; opacity: 1; }
     .raven-grab-token {
@@ -171,6 +174,11 @@
     .raven-grab-use-case { min-height: 200px; }
     .raven-grab-new-token { display: none; grid-template-columns: 1fr 1fr; gap: 8px; }
     .raven-grab-new-token[data-open="true"] { display: grid; }
+    .raven-grab-color-editor { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 8px; }
+    .raven-grab-color-input { width: 28px; height: 28px; min-width: 28px; padding: 0; overflow: hidden; background: var(--raven-grab-bg); border: 1px solid rgba(255, 255, 255, .12); border-radius: 10px; cursor: pointer; }
+    .raven-grab-color-input::-webkit-color-swatch-wrapper { padding: 0; }
+    .raven-grab-color-input::-webkit-color-swatch { border: 0; border-radius: 9px; }
+    .raven-grab-color-input::-moz-color-swatch { border: 0; border-radius: 9px; }
     .raven-grab-styles { margin: 0; padding: 0; overflow: hidden; list-style: none; background: var(--raven-grab-raised); border: 1px solid rgba(255, 255, 255, .06); border-radius: 12px; }
     .raven-grab-styles li { display: grid; grid-template-columns: minmax(92px, .8fr) minmax(0, 1.2fr); align-items: center; gap: 12px; min-height: 36px; padding: 9px 12px; }
     .raven-grab-styles li + li { border-top: 1px solid rgba(255, 255, 255, .06); }
@@ -187,6 +195,7 @@
       font: 400 11px/1.4 var(--raven-grab-mono);
     }
     .raven-grab-style-input:focus { box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
+    .raven-grab-style-editor { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 6px; width: 100%; }
     .raven-grab-empty { margin: 0; padding: 12px; color: var(--raven-grab-muted); background: var(--raven-grab-raised); border: 1px dashed rgba(255, 255, 255, .1); border-radius: 12px; font: 400 12px/1.45 var(--raven-grab-ui); }
     .raven-grab-actions { flex: 0 0 auto; padding: 12px 16px 16px; background: #212129; border-top: 1px solid rgba(255, 255, 255, .06); }
     .raven-grab-send {
@@ -217,28 +226,23 @@
     }
     .raven-grab-sent-message { color: #00BFFF; font: 600 14px/1 var(--raven-grab-ui); }
     .raven-grab-send:focus-visible, .raven-grab-icon-button:focus-visible { outline: 3px solid rgba(0, 191, 255, .35); outline-offset: 2px; }
-    .raven-grab-send:disabled { cursor: wait; }
+    .raven-grab-send:disabled { cursor: not-allowed; opacity: .5; transform: none; box-shadow: none; }
     .raven-grab-status { min-height: 18px; margin: 8px 2px 0; color: var(--raven-grab-tertiary); font: 400 11px/1.4 var(--raven-grab-ui); text-align: center; }
     .raven-grab-status[data-kind="error"] { color: var(--raven-grab-error); }
     .raven-grab-status[data-kind="success"] { color: #00E676; }
     .raven-grab-status[data-kind="sr-only"] { position: absolute; width: 1px; height: 1px; min-height: 0; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-    .raven-grab-arm {
-      position: fixed; left: 50%; bottom: 20px; min-height: 44px; padding: 12px 20px; transform: translateX(-50%);
-      display: flex; align-items: center; gap: 8px; pointer-events: auto; cursor: pointer;
-      color: var(--raven-grab-text); background: rgba(14, 30, 46, .82); border: 1px solid rgba(0, 191, 255, .3); border-radius: 9999px;
-      backdrop-filter: blur(12px) saturate(1.4); font: 500 13px/1 var(--raven-grab-mono);
-      box-shadow: 0 4px 24px rgba(0, 0, 0, .3), 0 0 0 1px rgba(0, 0, 0, .2);
-      transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+    .raven-grab-edge-tab {
+      position: fixed; right: 0; top: 50%; display: none; align-items: center; justify-content: center;
+      width: 40px; min-height: 44px; padding: 0; transform: translateY(-50%); pointer-events: auto; cursor: pointer;
+      color: var(--raven-grab-accent); background: rgba(22, 44, 66, .9); border: 1px solid var(--raven-grab-accent); border-right: 0; border-radius: 12px 0 0 12px;
+      backdrop-filter: blur(12px); font: 500 24px/1 var(--raven-grab-ui); box-shadow: 0 8px 24px rgba(0, 0, 0, .3);
     }
-    .raven-grab-arm::before { content: ""; width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--raven-grab-accent); box-shadow: 0 0 12px var(--raven-grab-accent), 0 0 24px rgba(0, 191, 255, .3); }
-    .raven-grab-arm:hover { background: rgba(22, 44, 66, .9); border-color: var(--raven-grab-accent); }
-    .raven-grab-arm[data-armed="false"] { color: var(--raven-grab-muted); background: rgba(36, 36, 46, .95); border-color: rgba(255, 255, 255, .12); }
-    .raven-grab-arm[data-armed="false"]::before { background: #5C5F68; box-shadow: none; }
-    .raven-grab-arm[data-armed="false"]:hover { color: var(--raven-grab-text); background: var(--raven-grab-overlay); border-color: var(--raven-grab-accent); }
-    .raven-grab-arm:focus-visible { outline: 3px solid rgba(0, 191, 255, .35); outline-offset: 2px; }
+    .raven-grab-edge-tab[aria-hidden="false"] { display: flex; }
+    .raven-grab-edge-tab:hover { background: rgba(22, 44, 66, 1); }
+    .raven-grab-edge-tab:focus-visible { outline: 3px solid rgba(0, 191, 255, .35); outline-offset: 2px; }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { scroll-behavior: auto !important; }
-      .raven-grab-send { transition: none !important; }
+      .raven-grab-panel, .raven-grab-send { transition: none !important; }
     }
   `;
 
@@ -250,31 +254,47 @@
   panel.className = "raven-grab-panel";
   panel.setAttribute("aria-label", "Raven Grab selection");
   panel.setAttribute("aria-hidden", "true");
-  var armButton = document.createElement("button");
-  armButton.className = "raven-grab-arm";
-  armButton.type = "button";
-  armButton.setAttribute("aria-label", "Toggle Raven Grab element picking (Alt+G)");
+  panel.setAttribute("data-collapsed", "false");
+  var edgeTab = document.createElement("button");
+  edgeTab.className = "raven-grab-edge-tab";
+  edgeTab.type = "button";
+  edgeTab.textContent = "‹";
+  edgeTab.setAttribute("aria-label", "Expand Raven panel");
+  edgeTab.setAttribute("aria-hidden", "true");
   shadow.appendChild(style);
   shadow.appendChild(highlight);
   shadow.appendChild(label);
   shadow.appendChild(panel);
-  shadow.appendChild(armButton);
+  shadow.appendChild(edgeTab);
 
   var armed = true;
-  function renderArmButton() {
-    armButton.setAttribute("data-armed", armed ? "true" : "false");
-    armButton.textContent = armed ? "Grabbing — click an element" : "Grab off (Alt+G)";
+  function expandPanel() {
+    collapsed = false;
+    panel.setAttribute("data-collapsed", "false");
+    panel.setAttribute("aria-hidden", "false");
+    panel.removeAttribute("inert");
+    edgeTab.setAttribute("aria-hidden", "true");
+  }
+  function collapsePanel() {
+    if (!armed || panel.getAttribute("aria-hidden") === "true") return;
+    collapsed = true;
+    panel.setAttribute("data-collapsed", "true");
+    panel.setAttribute("aria-hidden", "true");
+    panel.setAttribute("inert", "");
+    edgeTab.setAttribute("aria-hidden", "false");
   }
   function setArmed(next) {
     armed = next;
-    renderArmButton();
     if (!armed) dismiss();
+    else {
+      expandPanel();
+      renderPanel();
+    }
   }
-  armButton.addEventListener("click", function (event) {
+  edgeTab.addEventListener("click", function (event) {
     event.stopPropagation();
-    setArmed(!armed);
+    expandPanel();
   });
-  renderArmButton();
 
   function escapeCss(value) {
     if (window.CSS && typeof window.CSS.escape === "function") return window.CSS.escape(value);
@@ -776,8 +796,30 @@
     return true;
   }
 
+  function isColorProperty(property) {
+    return ["color", "background", "background-color", "border-color", "outline-color", "fill", "stroke"].indexOf(property) !== -1;
+  }
+
+  function colorInputValue(value) {
+    var text = String(value || "").trim();
+    var hex = text.match(/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
+    if (hex) {
+      var digits = hex[1];
+      if (digits.length === 3) digits = digits.charAt(0) + digits.charAt(0) + digits.charAt(1) + digits.charAt(1) + digits.charAt(2) + digits.charAt(2);
+      return "#" + digits.slice(0, 6).toLowerCase();
+    }
+    var rgb = text.match(/^rgba?\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)/i);
+    if (!rgb) return "#000000";
+    return "#" + [rgb[1], rgb[2], rgb[3]].map(function (part) {
+      var channel = Math.max(0, Math.min(255, Math.round(Number(part))));
+      var digits = channel.toString(16);
+      return digits.length === 1 ? "0" + digits : digits;
+    }).join("");
+  }
+
   function replaceStyleInput(input, value) {
-    var row = input.parentElement;
+    var editor = input.parentElement && input.parentElement.className === "raven-grab-style-editor" ? input.parentElement : input;
+    var row = editor.parentElement;
     var property = row.getAttribute("data-style-property");
     var cell = document.createElement("code");
     cell.setAttribute("data-style-value", "");
@@ -786,7 +828,7 @@
     cell.setAttribute("aria-label", "Edit " + property);
     cell.textContent = value;
     row.setAttribute("data-edited", styleEdits[property] ? "true" : "false");
-    input.parentNode.replaceChild(cell, input);
+    row.replaceChild(cell, editor);
   }
 
   function cancelStyleEdit(input, previousValue) {
@@ -803,7 +845,21 @@
     input.type = "text";
     input.value = previousValue;
     input.setAttribute("data-style-input", property);
-    valueCell.parentNode.replaceChild(input, valueCell);
+    input.setAttribute("spellcheck", "false");
+    var editor = input;
+    var colorInput = null;
+    if (isColorProperty(property)) {
+      editor = document.createElement("div");
+      editor.className = "raven-grab-style-editor";
+      colorInput = document.createElement("input");
+      colorInput.className = "raven-grab-color-input";
+      colorInput.type = "color";
+      colorInput.value = colorInputValue(previousValue);
+      colorInput.setAttribute("aria-label", "Choose " + property + " color");
+      editor.appendChild(colorInput);
+      editor.appendChild(input);
+    }
+    valueCell.parentNode.replaceChild(editor, valueCell);
     input.focus();
     input.select();
 
@@ -832,7 +888,18 @@
         cancelStyleEdit(input, previousValue);
       }
     });
-    input.addEventListener("blur", commit);
+    input.addEventListener("blur", function (event) {
+      if (colorInput && event.relatedTarget === colorInput) return;
+      commit();
+    });
+    if (colorInput) {
+      var syncColor = function () {
+        input.value = colorInput.value;
+        commit();
+      };
+      colorInput.addEventListener("input", syncColor);
+      colorInput.addEventListener("change", syncColor);
+    }
   }
 
   function optionMarkup(value, label, selectedValue) {
@@ -862,8 +929,8 @@
   }
 
   function renderPanel() {
-    if (!currentSelection) return;
-    var tokens = currentSelection.tokens;
+    var hasSelection = !!currentSelection;
+    var tokens = hasSelection ? currentSelection.tokens : [];
     var matchedTokens = tokens.map(function (token, index) {
       return { token: token, index: index };
     }).filter(function (entry) { return entry.token.bridgeToken; });
@@ -891,13 +958,13 @@
               </label>
               <div class="raven-grab-new-token" data-new-token="${index}" data-open="${selectedChoice === "__new__" ? "true" : "false"}">
                 <label class="raven-grab-field"><span>Name</span><input class="raven-grab-input" data-new-name="${index}" value="${escapeHtml(intent && intent.newToken ? intent.newToken : "")}" placeholder="e.g. accent-soft"></label>
-                <label class="raven-grab-field"><span>Value</span><input class="raven-grab-input" data-new-value="${index}" value="${escapeHtml(intent && intent.newTokenValue ? intent.newTokenValue : token.value)}" placeholder="#000000"></label>
+                <label class="raven-grab-field"><span>Value</span>${isColorProperty(token.property) ? `<span class="raven-grab-color-editor"><input type="color" class="raven-grab-color-input" data-new-color="${index}" value="${colorInputValue(intent && intent.newTokenValue ? intent.newTokenValue : token.value)}" aria-label="Choose ${escapeHtml(token.property)} color"><input type="text" class="raven-grab-input" data-new-value="${index}" value="${escapeHtml(intent && intent.newTokenValue ? intent.newTokenValue : token.value)}" placeholder="#000000" spellcheck="false"></span>` : `<input type="text" class="raven-grab-input" data-new-value="${index}" value="${escapeHtml(intent && intent.newTokenValue ? intent.newTokenValue : token.value)}" placeholder="CSS value" spellcheck="false">`}</label>
               </div>
             </div>`;
         }).join("")
-      : '<p class="raven-grab-empty">No design tokens matched this element. Computed styles are still included.</p>';
+      : (hasSelection ? '<p class="raven-grab-empty">No design tokens matched this element. Computed styles are still included.</p>' : "");
     var tokenizedProperties = matchedTokens.map(function (entry) { return entry.token.property; });
-    var stylesMarkup = Object.keys(currentSelection.styles).filter(function (property) {
+    var stylesMarkup = Object.keys(hasSelection ? currentSelection.styles : {}).filter(function (property) {
       return tokenizedProperties.indexOf(property) === -1;
     }).map(function (property) {
       var edit = styleEdits[property];
@@ -905,13 +972,17 @@
       return '<li data-style-property="' + escapeHtml(property) + '" data-edited="' + (edit ? "true" : "false") + '"><span>' + escapeHtml(property) + '</span><code data-style-value tabindex="0" role="button" aria-label="Edit ' + escapeHtml(property) + '">' + escapeHtml(value) + "</code></li>";
     }).join("");
 
-    var elementMarkup = `
+    var elementMarkup = hasSelection ? `
       <section class="raven-grab-section">
         <h2 class="raven-grab-section-title">ELEMENT</h2>
         <span class="raven-grab-element-wrap">
           <span class="raven-grab-element-chip" data-element-selector tabindex="0" role="button" aria-label="Copy element selector" title="${escapeHtml(currentSelection.selector)}">${escapeHtml(currentSelection.selector)}</span>
           <span class="raven-grab-element-tooltip" role="tooltip">${escapeHtml(currentSelection.selector)}</span>
         </span>
+      </section>` : `
+      <section class="raven-grab-section">
+        <h2 class="raven-grab-section-title">ELEMENT</h2>
+        <span class="raven-grab-element-placeholder">Click an element to inspect</span>
       </section>`;
     var designMarkup = `
       ${elementMarkup}
@@ -925,7 +996,7 @@
       </section>
       <section class="raven-grab-section">
         <h2 class="raven-grab-section-title">INSTRUCTIONS</h2>
-        <textarea class="raven-grab-textarea" data-instruction placeholder="Tell the agent what to change…">${escapeHtml(instructionDraft)}</textarea>
+        <textarea class="raven-grab-textarea" data-instruction spellcheck="true" placeholder="Tell the agent what to change…">${escapeHtml(instructionDraft)}</textarea>
       </section>`;
     var issueTypes = ["UX/Usability", "Visual bug", "Missing variant", "Accessibility", "New pattern", "Other"];
     var issueSizes = ["1-10 users/customers", "10-100", "100-1,000", "1,000+", "Internal only"];
@@ -938,28 +1009,28 @@
       </section>
       <section class="raven-grab-section">
         <h2 class="raven-grab-section-title">DESCRIBE THE USE CASE AND IMPACT</h2>
-        <textarea class="raven-grab-textarea raven-grab-use-case" data-use-case placeholder="Tell the design team why you need this…">${escapeHtml(componentRequest.useCase)}</textarea>
+        <textarea class="raven-grab-textarea raven-grab-use-case" data-use-case spellcheck="true" placeholder="Tell the design team why you need this…">${escapeHtml(componentRequest.useCase)}</textarea>
       </section>`;
     var emailMarkup = `
       ${elementMarkup}
       <section class="raven-grab-section">
         <h2 class="raven-grab-section-title">EMAIL YOURSELF THE COMPONENT</h2>
-        <input class="raven-grab-input" data-component-email type="email" value="${escapeHtml(componentRequest.email)}" placeholder="email" required>
+        <input class="raven-grab-input" data-component-email type="email" value="${escapeHtml(componentRequest.email)}" placeholder="email" spellcheck="false" required>
       </section>`;
     var bodyMarkup = activeTab === "design"
       ? designMarkup
       : (componentRequestStep === "email" ? emailMarkup : requestFormMarkup);
     var actionMarkup = activeTab === "design"
-      ? '<button class="raven-grab-send" type="button" data-send data-send-state="default"><span class="raven-grab-send-label">Send to agent</span></button>'
+      ? '<button class="raven-grab-send" type="button" data-send data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Send to agent</span></button>'
       : (componentRequestStep === "email"
-          ? '<button class="raven-grab-send" type="button" data-send-email data-send-state="default"><span class="raven-grab-send-label">Send email</span></button>'
-          : '<button class="raven-grab-send" type="button" data-request-next data-send-state="default"><span class="raven-grab-send-label">Send component request to design</span></button>');
+          ? '<button class="raven-grab-send" type="button" data-send-email data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Send email</span></button>'
+          : '<button class="raven-grab-send" type="button" data-request-next data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Send component request to design</span></button>');
 
     panel.innerHTML = `
       <div class="raven-grab-top">
         <div class="raven-grab-header">
           <div class="raven-grab-title"><strong>Raven design</strong></div>
-          <button class="raven-grab-icon-button" type="button" data-close aria-label="Dismiss Raven Grab">&gt;</button>
+          <button class="raven-grab-icon-button" type="button" data-collapse aria-label="Collapse Raven panel">&gt;</button>
         </div>
         <div class="raven-grab-tabs" role="tablist" aria-label="Raven design actions">
           <button class="raven-grab-tab" type="button" role="tab" data-tab="design" aria-selected="${activeTab === "design" ? "true" : "false"}">Design</button>
@@ -969,6 +1040,7 @@
       <div class="raven-grab-body"><div class="raven-grab-content">${bodyMarkup}</div></div>
       <div class="raven-grab-actions">${actionMarkup}<p class="raven-grab-status" data-status aria-live="polite"></p></div>`;
     panel.setAttribute("aria-hidden", "false");
+    panel.setAttribute("data-collapsed", collapsed ? "true" : "false");
   }
 
   function switchTab(tab) {
@@ -1005,6 +1077,10 @@
     componentRequestStep = "form";
     componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
     componentRequestId = "";
+    collapsed = false;
+    panel.setAttribute("data-collapsed", "false");
+    panel.removeAttribute("inert");
+    edgeTab.setAttribute("aria-hidden", "true");
     panel.setAttribute("aria-hidden", "true");
     panel.innerHTML = "";
     setHighlight(null);
@@ -1041,13 +1117,19 @@
     if (choice === "__new__") {
       var nameInput = panel.querySelector('[data-new-name="' + index + '"]');
       var valueInput = panel.querySelector('[data-new-value="' + index + '"]');
+      var customValue = valueInput.value.trim();
+      if (customValue && window.CSS && typeof window.CSS.supports === "function" && !window.CSS.supports(token.property, customValue)) {
+        newFields.setAttribute("data-error", "true");
+        return;
+      }
+      newFields.removeAttribute("data-error");
       tokenIntents[index] = tokenIntentFor(
         token,
         null,
         nameInput.value.trim() || undefined,
-        valueInput.value.trim() || undefined
+        customValue || undefined
       );
-      if (valueInput.value.trim()) previewEl.style.setProperty(token.cssVar, valueInput.value.trim());
+      if (customValue) previewEl.style.setProperty(token.cssVar, customValue);
       return;
     }
     var alternative = tokenByCssVar(choice);
@@ -1279,7 +1361,7 @@
     event.stopPropagation();
     var elementChip = event.target.closest("[data-element-selector]");
     if (elementChip) copyElementSelector(elementChip);
-    if (event.target.closest("[data-close]")) dismiss();
+    if (event.target.closest("[data-collapse]")) collapsePanel();
     if (event.target.closest("[data-send]")) sendSelection();
     if (event.target.closest("[data-request-next]")) advanceComponentRequest();
     if (event.target.closest("[data-send-email]")) sendComponentRequestEmail();
@@ -1309,8 +1391,14 @@
     if (event.target.getAttribute("data-issue-size") !== null) componentRequest.issueSize = event.target.value;
   });
   panel.addEventListener("input", function (event) {
+    var colorIndex = event.target.getAttribute("data-new-color");
+    if (colorIndex !== null) {
+      var colorValueInput = panel.querySelector('[data-new-value="' + colorIndex + '"]');
+      if (colorValueInput) colorValueInput.value = event.target.value;
+    }
     var index = event.target.getAttribute("data-new-name");
     if (index === null) index = event.target.getAttribute("data-new-value");
+    if (index === null) index = colorIndex;
     if (index !== null) updateIntent(Number(index));
     if (event.target.getAttribute("data-instruction") !== null) instructionDraft = event.target.value;
     if (event.target.getAttribute("data-use-case") !== null) componentRequest.useCase = event.target.value;
@@ -1349,6 +1437,7 @@
     componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
     componentRequestId = "";
     selectedElement = target;
+    expandPanel();
     setHighlight(target);
     currentSelection = selectionFor(target);
     renderPanel();
@@ -1373,6 +1462,8 @@
   };
   window.addEventListener("react-grab:element-selected", captureReactMetadata);
   document.addEventListener("react-grab:element-selected", captureReactMetadata);
+
+  renderPanel();
 
   if (grabConfig) {
     bridgeTokens = normalizeTokens(grabConfig.tokens || {});

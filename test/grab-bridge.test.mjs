@@ -105,6 +105,7 @@ async function loadOverlayInternals(options = {}) {
     tokenMapFor: tokenMapFor,
     alternativesFor: alternativesFor,
     tokenIntentFor: tokenIntentFor,
+    computedStylesFor: computedStylesFor,
     beginStyleEdit: beginStyleEdit,
     commitStyleEdit: commitStyleEdit,
     cancelStyleEdit: cancelStyleEdit,
@@ -112,6 +113,8 @@ async function loadOverlayInternals(options = {}) {
     payloadForSend: payloadForSend,
     styleEditsForSend: styleEditsForSend,
     renderPanel: renderPanel,
+    setArmed: typeof setArmed === "function" ? setArmed : undefined,
+    collapsePanel: typeof collapsePanel === "function" ? collapsePanel : undefined,
     copyElementSelector: typeof copyElementSelector === "function" ? copyElementSelector : undefined,
     switchTab: typeof switchTab === "function" ? switchTab : undefined,
     toggleSection: typeof toggleSection === "function" ? toggleSection : undefined,
@@ -120,6 +123,9 @@ async function loadOverlayInternals(options = {}) {
     sendComponentRequestEmail: typeof sendComponentRequestEmail === "function" ? sendComponentRequestEmail : undefined,
     sendSelection: sendSelection,
     getPanelHtml: function () { return panel.innerHTML; },
+    getPanelAttribute: function (name) { return panel.getAttribute(name); },
+    getEdgeTabAttribute: function (name) { return typeof edgeTab === "undefined" ? null : edgeTab.getAttribute(name); },
+    dispatchEdgeTab: function (type, event) { if (typeof edgeTab !== "undefined") edgeTab.dispatch(type, event); },
     dispatchPanel: function (type, event) { panel.dispatch(type, event); },
     getBridgeTokens: function () { return bridgeTokens; },
     setPanelQuery: function (selector, value) { panel.setQuery(selector, value); },
@@ -153,7 +159,11 @@ ${marker}`);
       setAttribute(name, value) { attributes[name] = String(value); },
       getAttribute(name) { return Object.hasOwn(attributes, name) ? attributes[name] : null; },
       removeAttribute(name) { delete attributes[name]; },
-      appendChild() {},
+      appendChild(child) {
+        this.children.push(child);
+        child.parentElement = this;
+        child.parentNode = this;
+      },
       addEventListener(type, listener) {
         if (!listeners[type]) listeners[type] = [];
         listeners[type].push(listener);
@@ -718,8 +728,9 @@ test('overlay invalid computed-style value leaves the displayed value unchanged'
   valueCell.parentNode = row;
 
   internals.beginStyleEdit(valueCell);
-  row.child.value = 'definitely-invalid';
-  row.child.dispatch('keydown', { key: 'Enter', preventDefault() {} });
+  const input = row.child.children.find((child) => child.type === 'text');
+  input.value = 'definitely-invalid';
+  input.dispatch('keydown', { key: 'Enter', preventDefault() {} });
 
   assert.equal(row.child.textContent, 'rgb(0, 0, 0)');
   assert.equal(element.style.getPropertyValue('color'), '');
@@ -748,7 +759,8 @@ test('overlay computed-style identical, invalid, and cancelled edits record noth
   valueCell.parentElement = row;
   valueCell.parentNode = row;
   internals.beginStyleEdit(valueCell);
-  row.child.dispatch('keydown', {
+  const input = row.child.children.find((child) => child.type === 'text');
+  input.dispatch('keydown', {
     key: 'Escape',
     preventDefault() {},
     stopPropagation() {}
@@ -1013,7 +1025,160 @@ test('successful component-request email morph shows Email sent and restores Sen
   assert.match(button.innerHTML, /Send email/);
 });
 
-test('overlay panel CSS keeps only the body scrollable and centers the arm pill', async () => {
+test('overlay form fields set explicit spellcheck behavior', async () => {
+  const { internals } = await loadOverlayInternals();
+  internals.setStyleContext({ style: fakeStyle() }, { color: 'rgb(0, 0, 0)' });
+  internals.renderPanel();
+  assert.match(internals.getPanelHtml(), /<textarea class="raven-grab-textarea"[^>]*spellcheck="true"/);
+
+  internals.switchTab('request');
+  assert.match(internals.getPanelHtml(), /<textarea class="raven-grab-textarea raven-grab-use-case"[^>]*spellcheck="true"/);
+
+  const source = await readFile(path.resolve(__dirname, '../browser/raven-grab.js'), 'utf8');
+  assert.match(source, /data-component-email[^>]*spellcheck="false"/);
+  assert.match(source, /data-style-input[\s\S]{0,120}spellcheck/);
+});
+
+test('overlay shows a disabled empty-state panel whenever grabbing is armed without a selection', async () => {
+  const { internals } = await loadOverlayInternals();
+  assert.equal(internals.getPanelAttribute('aria-hidden'), 'false');
+  assert.match(internals.getPanelHtml(), /raven-grab-element-placeholder[^>]*>Click an element to inspect</);
+  assert.match(internals.getPanelHtml(), /data-tab="design"[^>]*aria-selected="true"/);
+  assert.match(internals.getPanelHtml(), /data-send[^>]*disabled/);
+
+  internals.setArmed(false);
+  assert.equal(internals.getPanelAttribute('aria-hidden'), 'true');
+  assert.equal(internals.getEdgeTabAttribute('aria-hidden'), 'true');
+  internals.setArmed(true);
+  assert.equal(internals.getPanelAttribute('aria-hidden'), 'false');
+});
+
+test('overlay collapses to an edge tab without clearing selection and expands from the tab', async () => {
+  const { internals } = await loadOverlayInternals();
+  internals.setStyleContext({ style: fakeStyle() }, { color: 'rgb(0, 0, 0)' }, [], '#kept-selection');
+  internals.renderPanel();
+
+  assert.equal(typeof internals.collapsePanel, 'function');
+  internals.collapsePanel();
+  assert.equal(internals.getPanelAttribute('data-collapsed'), 'true');
+  assert.equal(internals.getPanelAttribute('aria-hidden'), 'true');
+  assert.equal(internals.getPanelAttribute('inert'), '');
+  assert.equal(internals.getEdgeTabAttribute('aria-hidden'), 'false');
+  assert.match(internals.getPanelHtml(), /#kept-selection/);
+
+  internals.dispatchEdgeTab('click', { stopPropagation() {} });
+  assert.equal(internals.getPanelAttribute('data-collapsed'), 'false');
+  assert.equal(internals.getPanelAttribute('aria-hidden'), 'false');
+  assert.equal(internals.getPanelAttribute('inert'), null);
+  assert.equal(internals.getEdgeTabAttribute('aria-hidden'), 'true');
+  assert.match(internals.getPanelHtml(), /#kept-selection/);
+
+  internals.collapsePanel();
+  internals.dismiss();
+  assert.equal(internals.getPanelAttribute('data-collapsed'), 'false');
+  assert.equal(internals.getPanelAttribute('aria-hidden'), 'true');
+  assert.equal(internals.getPanelAttribute('inert'), null);
+  assert.equal(internals.getEdgeTabAttribute('aria-hidden'), 'true');
+
+  internals.setStyleContext({ style: fakeStyle() }, {}, [], '#disarm-selection');
+  internals.renderPanel();
+  internals.collapsePanel();
+  internals.setArmed(false);
+  assert.equal(internals.getPanelAttribute('aria-hidden'), 'true');
+  assert.equal(internals.getPanelAttribute('data-collapsed'), 'false');
+  assert.equal(internals.getEdgeTabAttribute('aria-hidden'), 'true');
+});
+
+test('overlay renders color swatches beside custom token values and inline color style editors', async () => {
+  const { internals, document } = await loadOverlayInternals();
+  const element = { style: fakeStyle() };
+  internals.setStyleContext(
+    element,
+    { color: 'rgb(17, 34, 51)', padding: '16px' },
+    [{ property: 'background-color', name: 'surface', value: '#112233', cssVar: '--color-surface', bridgeToken: { path: 'colors.surface' } }]
+  );
+  internals.renderPanel();
+  assert.match(internals.getPanelHtml(), /type="color"[^>]*data-new-color="0"[^>]*value="#112233"/);
+  assert.match(internals.getPanelHtml(), /data-new-value="0"[^>]*spellcheck="false"/);
+
+  const tokenSelect = document.createElement('select');
+  tokenSelect.value = '__new__';
+  const newFields = document.createElement('div');
+  const nameInput = document.createElement('input');
+  nameInput.value = 'surface-custom';
+  const valueInput = document.createElement('input');
+  valueInput.setAttribute('data-new-value', '0');
+  valueInput.value = '#112233';
+  internals.setPanelQuery('[data-token-choice="0"]', tokenSelect);
+  internals.setPanelQuery('[data-new-token="0"]', newFields);
+  internals.setPanelQuery('[data-new-name="0"]', nameInput);
+  internals.setPanelQuery('[data-new-value="0"]', valueInput);
+  const tokenColor = document.createElement('input');
+  tokenColor.setAttribute('data-new-color', '0');
+  tokenColor.value = '#abcdef';
+  internals.dispatchPanel('input', { target: tokenColor });
+  assert.equal(valueInput.value, '#abcdef');
+  assert.equal(element.style.getPropertyValue('--color-surface'), '#abcdef');
+  assert.equal(internals.payloadForSend().tokenIntents[0].newTokenValue, '#abcdef');
+
+  valueInput.value = 'definitely-invalid';
+  internals.dispatchPanel('input', { target: valueInput });
+  assert.equal(newFields.getAttribute('data-error'), 'true');
+  assert.equal(element.style.getPropertyValue('--color-surface'), '#abcdef');
+  assert.equal(internals.payloadForSend().tokenIntents[0].newTokenValue, '#abcdef');
+
+  const colorRow = {
+    child: null,
+    getAttribute(name) { return name === 'data-style-property' ? 'color' : null; },
+    setAttribute() {},
+    replaceChild(next) {
+      this.child = next;
+      next.parentElement = this;
+      next.parentNode = this;
+    }
+  };
+  const colorCell = document.createElement('code');
+  colorCell.textContent = 'rgb(17, 34, 51)';
+  colorCell.parentElement = colorRow;
+  colorCell.parentNode = colorRow;
+  internals.beginStyleEdit(colorCell);
+  assert.equal(colorRow.child.className, 'raven-grab-style-editor');
+  assert.equal(colorRow.child.children.some((child) => child.type === 'color'), true);
+  assert.equal(colorRow.child.children.some((child) => child.type === 'text' && child.getAttribute('spellcheck') === 'false'), true);
+  const styleColor = colorRow.child.children.find((child) => child.type === 'color');
+  styleColor.value = '#abcdef';
+  styleColor.dispatch('change', {});
+  assert.equal(element.style.getPropertyValue('color'), '#abcdef');
+  assert.equal(internals.styleEditsForSend().find((edit) => edit.property === 'color').newValue, '#abcdef');
+
+  const paddingRow = {
+    child: null,
+    getAttribute(name) { return name === 'data-style-property' ? 'padding' : null; },
+    setAttribute() {},
+    replaceChild(next) { this.child = next; next.parentElement = this; next.parentNode = this; }
+  };
+  const paddingCell = document.createElement('code');
+  paddingCell.textContent = '16px';
+  paddingCell.parentElement = paddingRow;
+  paddingCell.parentNode = paddingRow;
+  internals.beginStyleEdit(paddingCell);
+  assert.equal(paddingRow.child.type, 'text');
+
+  const computed = internals.computedStylesFor({
+    computedStyle: fakeStyle({
+      background: 'rgb(1, 2, 3)',
+      'outline-color': 'rgb(4, 5, 6)',
+      fill: 'rgb(7, 8, 9)',
+      stroke: 'rgb(10, 11, 12)'
+    })
+  });
+  assert.deepEqual(
+    ['background', 'outline-color', 'fill', 'stroke'].map((property) => computed[property]),
+    ['rgb(1, 2, 3)', 'rgb(4, 5, 6)', 'rgb(7, 8, 9)', 'rgb(10, 11, 12)']
+  );
+});
+
+test('overlay panel CSS keeps only the body scrollable and provides the collapsed edge tab', async () => {
   const source = await readFile(path.resolve(__dirname, '../browser/raven-grab.js'), 'utf8');
   assert.match(source, /\.raven-grab-panel \{[\s\S]*max-height: calc\(100vh - 40px\); overflow: hidden;[\s\S]*flex-direction: column;/);
   assert.match(source, /\.raven-grab-top \{ flex: 0 0 auto;/);
@@ -1021,8 +1186,10 @@ test('overlay panel CSS keeps only the body scrollable and centers the arm pill'
   assert.match(source, /\.raven-grab-actions \{ flex: 0 0 auto;/);
   assert.match(source, /\.raven-grab-collapsible-inner \{[^}]*visibility: visible;[^}]*transition: visibility 0s linear;/);
   assert.match(source, /\.raven-grab-collapsible\[data-open="false"\] \.raven-grab-collapsible-inner \{ visibility: hidden; transition-delay: 150ms; \}/);
-  assert.match(source, /\.raven-grab-arm \{[\s\S]*left: 50%; bottom: 20px;[\s\S]*transform: translateX\(-50%\);/);
+  assert.doesNotMatch(source, /\.raven-grab-arm\b/);
+  assert.match(source, /\.raven-grab-panel\[data-collapsed="true"\] \{[^}]*transform: translateX\(calc\(100% \+ 21px\)\);[^}]*pointer-events: none;/);
+  assert.match(source, /\.raven-grab-edge-tab \{[\s\S]*right: 0; top: 50%;[\s\S]*min-height: 44px;[\s\S]*background: rgba\(22, 44, 66, \.9\);[\s\S]*border-radius: 12px 0 0 12px;/);
   assert.match(source, /\.raven-grab-send\[data-send-state="check"\][\s\S]*width: 44px;[\s\S]*height: 44px;[\s\S]*background: rgba\(255, 255, 255, \.06\);[\s\S]*border: 1\.375px solid #00BFFF;/);
   assert.match(source, /\.raven-grab-send\[data-send-state="sent"\][\s\S]*background: rgba\(22, 44, 66, \.9\);[\s\S]*border: 1px solid #00BFFF;[\s\S]*backdrop-filter: blur\(6px\);/);
-  assert.match(source, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.raven-grab-send \{ transition: none !important; \}/);
+  assert.match(source, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.raven-grab-panel, \.raven-grab-send \{ transition: none !important; \}/);
 });
