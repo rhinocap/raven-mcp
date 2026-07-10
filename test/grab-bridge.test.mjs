@@ -122,7 +122,7 @@ async function loadOverlayInternals(options = {}) {
     toggleSection: typeof toggleSection === "function" ? toggleSection : undefined,
     updateIntent: updateIntent,
     rollbackTokenPreviews: rollbackTokenPreviews,
-    sendComponentRequestEmail: typeof sendComponentRequestEmail === "function" ? sendComponentRequestEmail : undefined,
+    sendComponentRequest: typeof sendComponentRequest === "function" ? sendComponentRequest : undefined,
     sendSelection: sendSelection,
     getPanelHtml: function () { return panel.innerHTML; },
     getPanelAttribute: function (name) { return panel.getAttribute(name); },
@@ -1054,7 +1054,7 @@ test('standalone overlay loads configured tokens and POSTs the full component re
     },
     fetch: async (url, init) => {
       calls.push({ url, init });
-      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+      return { ok: true, status: 200, json: async () => ({ success: true, mode: 'issue', url: 'https://github.com/o/r/issues/1', message: 'Request created' }) };
     }
   });
 
@@ -1079,8 +1079,8 @@ test('standalone overlay loads configured tokens and POSTs the full component re
   assert.equal(status.getAttribute("data-kind"), "sr-only");
   assert.equal(button.getAttribute('data-send-state'), 'collapse');
 
-  assert.equal(typeof internals.sendComponentRequestEmail, 'function');
-  await internals.sendComponentRequestEmail({
+  assert.equal(typeof internals.sendComponentRequest, 'function');
+  await internals.sendComponentRequest({
     issueType: 'Accessibility',
     issueSize: '1,000+',
     useCase: 'Keyboard users need an exposed focus-ring variant.',
@@ -1186,7 +1186,7 @@ test('successful agent send morphs through all five beats and restores the defau
   assert.match(button.innerHTML, /Send to agent/);
 });
 
-test('successful component-request email morph shows Email sent and restores Send email', async () => {
+test('successful component-request morph shows Request created and restores Create request', async () => {
   const clock = fakeClock();
   const { internals, document } = await loadOverlayInternals({
     setTimeout: clock.setTimeout,
@@ -1196,7 +1196,7 @@ test('successful component-request email morph shows Email sent and restores Sen
       grabEndpoint: null,
       componentRequestEndpoint: 'https://example.test/component-request'
     },
-    fetch: async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) })
+    fetch: async () => ({ ok: true, status: 200, json: async () => ({ success: true, mode: 'issue', url: 'https://github.com/o/r/issues/1', message: 'Request created' }) })
   });
   const button = document.createElement('button');
   const status = document.createElement('p');
@@ -1204,7 +1204,7 @@ test('successful component-request email morph shows Email sent and restores Sen
   internals.setPanelQuery('[data-send-email]', button);
   internals.setPanelQuery('[data-status]', status);
 
-  const sent = await internals.sendComponentRequestEmail({
+  const sent = await internals.sendComponentRequest({
     issueType: 'Accessibility',
     issueSize: '1,000+',
     useCase: 'Keyboard users need an exposed focus-ring variant.',
@@ -1213,15 +1213,17 @@ test('successful component-request email morph shows Email sent and restores Sen
 
   assert.equal(sent, true);
   assert.equal(button.getAttribute('data-send-state'), 'collapse');
-  assert.equal(status.textContent, 'Email sent');
+  assert.match(status.innerHTML, /View request/);
+  assert.match(status.innerHTML, /https:\/\/github\.com\/o\/r\/issues\/1/);
+  assert.equal(status.getAttribute('data-kind'), 'success');
 
   clock.tick(820);
   assert.equal(button.getAttribute('data-send-state'), 'sent');
-  assert.match(button.innerHTML, /Email sent/);
+  assert.match(button.innerHTML, /Request created/);
 
   clock.tick(2300);
   assert.equal(button.getAttribute('data-send-state'), 'default');
-  assert.match(button.innerHTML, /Send email/);
+  assert.match(button.innerHTML, /Create request/);
 });
 
 test('reduced motion skips dot and trace beats while preserving sent hold and reset', async () => {

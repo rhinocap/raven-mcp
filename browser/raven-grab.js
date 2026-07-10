@@ -280,6 +280,7 @@
     .raven-grab-send:disabled { cursor: not-allowed; opacity: .5; transform: none; box-shadow: none; }
     .raven-grab-send:not([data-send-state="default"]):disabled { opacity: 1; }
     .raven-grab-status { min-height: 18px; margin: 8px 2px 0; color: var(--raven-grab-tertiary); font: 400 11px/1.4 var(--raven-grab-ui); text-align: center; }
+    .raven-grab-status a { color: #00BFFF; text-decoration: underline; }
     .raven-grab-status[data-kind="error"] { color: var(--raven-grab-error); }
     .raven-grab-status[data-kind="success"] { color: #00E676; }
     .raven-grab-status[data-kind="sr-only"] { position: absolute; width: 1px; height: 1px; min-height: 0; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -1452,8 +1453,8 @@
     var emailMarkup = `
       ${elementMarkup}
       <section class="raven-grab-section">
-        <h2 class="raven-grab-section-title">EMAIL YOURSELF THE COMPONENT</h2>
-        <input class="raven-grab-input" data-component-email type="email" value="${escapeHtml(componentRequest.email)}" placeholder="email" spellcheck="false" required>
+        <h2 class="raven-grab-section-title">GET NOTIFIED (OPTIONAL)</h2>
+        <input class="raven-grab-input" data-component-email type="email" value="${escapeHtml(componentRequest.email)}" placeholder="email (optional)" spellcheck="false">
       </section>`;
     var maintainerFormMarkup = elementMarkup +
       '<section class="raven-grab-section">' +
@@ -1468,7 +1469,7 @@
       : (grabRole === "maintainer"
           ? '<button class="raven-grab-send" type="button" data-send data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Add to design system</span></button>'
           : (componentRequestStep === "email"
-          ? '<button class="raven-grab-send" type="button" data-send-email data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Send email</span></button>'
+          ? '<button class="raven-grab-send" type="button" data-send-email data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Create request</span></button>'
           : '<button class="raven-grab-send" type="button" data-request-next data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Send component request to design</span></button>'));
     var requestTabLabel = grabRole === "maintainer" ? "Add component" : "Request Component";
 
@@ -1806,7 +1807,7 @@
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   }
 
-  async function sendComponentRequestEmail(requestOverride) {
+  async function sendComponentRequest(requestOverride) {
     if (requestOverride) {
       componentRequest = {
         issueType: requestOverride.issueType || "",
@@ -1819,7 +1820,8 @@
     }
     var button = panel.querySelector("[data-send-email]");
     var emailInput = panel.querySelector("[data-component-email]");
-    if (!validEmail(componentRequest.email)) {
+    componentRequest.email = componentRequest.email.trim();
+    if (componentRequest.email && !validEmail(componentRequest.email)) {
       setPanelStatus("Enter a valid email address.", "error");
       if (emailInput) emailInput.focus();
       return false;
@@ -1851,9 +1853,39 @@
         body: JSON.stringify(body)
       });
       if (!response.ok) throw new Error("Request returned " + response.status);
+      if (!standaloneEndpoint) {
+        componentRequestId = "";
+        setPanelStatus("Request sent", "sr-only");
+        if (button) morphSendButton(button, "[data-send-email]", "Request sent", "Create request");
+        return true;
+      }
+      var result = await response.json();
       componentRequestId = "";
-      setPanelStatus("Email sent", "sr-only");
-      if (button) morphSendButton(button, "[data-send-email]", "Email sent", "Send email");
+      var status = panel.querySelector("[data-status]");
+      // Only render server-supplied URLs that are plain https links; escapeHtml
+      // does not neutralize a javascript: scheme inside href.
+      var safeUrl = typeof result.url === "string" && /^https:\/\//i.test(result.url) ? result.url : "";
+      var statusLink = function (label) {
+        if (!status || !safeUrl) return;
+        status.innerHTML = '<a href="' + escapeHtml(safeUrl) + '" target="_blank" rel="noopener">' + escapeHtml(label) + "</a>";
+        status.setAttribute("data-kind", "success");
+      };
+      if (result.mode === "issue" && safeUrl) {
+        statusLink("View request");
+        if (button) morphSendButton(button, "[data-send-email]", "Request created", "Create request");
+      } else if (result.mode === "prefill" && safeUrl && typeof result.packet === "string") {
+        // Clipboard can be denied; the prefilled-issue link still works without it.
+        var prefillCopied = true;
+        try { await writeClipboardText(result.packet); } catch (clipboardError) { prefillCopied = false; }
+        statusLink("Open prefilled issue");
+        if (button) morphSendButton(button, "[data-send-email]", prefillCopied ? "Packet copied" : "Request ready", "Create request");
+      } else if (result.mode === "packet" && typeof result.packet === "string") {
+        await writeClipboardText(result.packet);
+        setPanelStatus("Request packet copied — paste it to your team or agent", "success");
+        if (button) morphSendButton(button, "[data-send-email]", "Packet copied", "Create request");
+      } else {
+        throw new Error("Unexpected component request response");
+      }
       return true;
     } catch (error) {
       setPanelStatus("Could not send the component request", "error");
@@ -1876,7 +1908,7 @@
     if (event.target.closest("[data-collapse]")) collapsePanel();
     if (event.target.closest("[data-send]")) sendSelection();
     if (event.target.closest("[data-request-next]")) advanceComponentRequest();
-    if (event.target.closest("[data-send-email]")) sendComponentRequestEmail();
+    if (event.target.closest("[data-send-email]")) sendComponentRequest();
     var tab = event.target.closest("[data-tab]");
     if (tab) switchTab(tab.getAttribute("data-tab"));
     var sectionToggle = event.target.closest("[data-section-toggle]");

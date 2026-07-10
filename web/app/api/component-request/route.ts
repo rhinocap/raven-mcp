@@ -12,11 +12,13 @@ type ComponentRequest = {
 }
 
 const FROM_ADDRESS = 'Raven MCP <drew@ravenmcp.ai>'
-const TRIAGE_ADDRESS = 'drew@ravenmcp.ai'
 const RATE_LIMIT = 5
 const RATE_WINDOW_MS = 60_000
 const RATE_LIMIT_PRUNE_THRESHOLD = 500
+const PREFILL_URL_MAX_LENGTH = 7_000
+const CREATED_ISSUES_MAX = 500
 const requestTimes = new Map<string, number[]>()
+const createdIssues = new Map<string, Record<string, unknown>>()
 
 const RESERVED_IDENTIFIERS = new Set([
   'arguments',
@@ -184,6 +186,104 @@ function buildComponentSpec(selector: string, matchedTokens: unknown, computedSt
   return { componentName, propNames, tsx }
 }
 
+function sortKeysDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeysDeep)
+  if (isRecord(value)) {
+    return Object.keys(value).sort().reduce<RecordValue>((sorted, key) => {
+      sorted[key] = sortKeysDeep(value[key])
+      return sorted
+    }, {})
+  }
+  return value
+}
+
+function jsonBlock(value: unknown): string {
+  let json: string
+  try {
+    // Sorted keys keep the issue body canonical for semantically equal payloads.
+    json = JSON.stringify(sortKeysDeep(value), null, 2) ?? 'null'
+  } catch {
+    json = JSON.stringify(String(value))
+  }
+  return `\`\`\`json\n${json}\n\`\`\``
+}
+
+function buildIssueBody(body: RecordValue, request: ComponentRequest, previewUrl: string): string {
+  const selector = asTrimmedString(body.selector, 500) || 'selected-element'
+  const matchedTokens = body.matchedTokens ?? body.tokens ?? body.tokenIntents ?? []
+  const computedStyles = body.computedStyles ?? body.styles ?? body.styleEdits ?? {}
+  const spec = buildComponentSpec(selector, matchedTokens, computedStyles)
+  const sections = [
+    `## Element selector\n\n\`${selector.replaceAll('`', '\\`')}\``,
+  ]
+
+  if (previewUrl) {
+    sections.push(`## Preview link\n\n[View the captured element](${previewUrl})`)
+  }
+
+  sections.push(
+    `## Matched tokens\n\n${jsonBlock(matchedTokens)}`,
+    `## Computed styles\n\n${jsonBlock(computedStyles)}`,
+    `## Issue type\n\n${request.issueType}`,
+    `## Issue size\n\n${request.issueSize}`,
+    `## Use case\n\n${request.useCase}`,
+    `## Component spec\n\nComponent name: \`${spec.componentName}\`\n\nInferred props: ${spec.propNames.map((name) => `\`${name}\``).join(', ') || 'None'}\n\n\`\`\`tsx\n${spec.tsx}\n\`\`\``,
+  )
+
+  return `${sections.join('\n\n')}\n`
+}
+
+function dropMarkdownSection(markdown: string, heading: string): string {
+  const marker = `## ${heading}\n`
+  const start = markdown.indexOf(marker)
+  if (start === -1) return markdown
+  const next = markdown.indexOf('\n## ', start + marker.length)
+  if (next === -1) return markdown.slice(0, start).trimEnd()
+  return `${markdown.slice(0, start)}${markdown.slice(next + 1)}`
+}
+
+function githubPath(repo: string): string {
+  return repo.split('/').map((part) => encodeURIComponent(part)).join('/')
+}
+
+function buildPrefillUrl(repo: string, title: string, body: string): string {
+  const params = new URLSearchParams({
+    title,
+    body,
+    labels: 'component-request,needs-triage',
+  })
+  return `https://github.com/${githubPath(repo)}/issues/new?${params.toString()}`
+}
+
+function fitPrefillUrl(repo: string, title: string, packet: string): string {
+  let prefillBody = packet
+  let url = buildPrefillUrl(repo, title, prefillBody)
+  if (url.length <= PREFILL_URL_MAX_LENGTH) return url
+
+  prefillBody = dropMarkdownSection(prefillBody, 'Computed styles')
+  url = buildPrefillUrl(repo, title, prefillBody)
+  if (url.length <= PREFILL_URL_MAX_LENGTH) return url
+
+  prefillBody = dropMarkdownSection(prefillBody, 'Matched tokens')
+  url = buildPrefillUrl(repo, title, prefillBody)
+  if (url.length <= PREFILL_URL_MAX_LENGTH) return url
+
+  const suffix = '\n\n…'
+  let low = 0
+  let high = prefillBody.length
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2)
+    const candidate = `${prefillBody.slice(0, middle).trimEnd()}${suffix}`
+    if (buildPrefillUrl(repo, title, candidate).length <= PREFILL_URL_MAX_LENGTH) {
+      low = middle
+    } else {
+      high = middle - 1
+    }
+  }
+
+  return buildPrefillUrl(repo, title, `${prefillBody.slice(0, low).trimEnd()}${suffix}`)
+}
+
 function emailShell(label: string, title: string, content: string): string {
   return `<!DOCTYPE html>
 <html>
@@ -219,6 +319,11 @@ function buildPreviewLink(previewUrl: string): string {
   return `<div style="padding-bottom:24px;"><a href="${escapeHtml(previewUrl)}" style="display:inline-block; color:#1a1a22; background-color:#00BFFF; font-size:14px; font-weight:600; padding:10px 18px; border-radius:8px; text-decoration:none;">View the element in your browser</a></div>`
 }
 
+function buildRequestLink(requestUrl: string): string {
+  if (!requestUrl) return ''
+  return `<div style="padding-bottom:24px;"><a href="${escapeHtml(requestUrl)}" style="display:inline-block; color:#1a1a22; background-color:#00BFFF; font-size:14px; font-weight:600; padding:10px 18px; border-radius:8px; text-decoration:none;">Open the component request</a></div>`
+}
+
 function packetRow(label: string, value: unknown): string {
   return `<tr>
     <td style="width:150px; color:#8E929C; font-size:12px; line-height:1.5; padding:10px 16px 10px 0; border-bottom:1px solid rgba(255,255,255,.06); vertical-align:top;">${escapeHtml(label)}</td>
@@ -244,7 +349,7 @@ function buildPacketCard(body: RecordValue, request: ComponentRequest): string {
   </table>`
 }
 
-function buildRequesterEmail(body: RecordValue, request: ComponentRequest, previewUrl: string): string {
+function buildRequesterEmail(body: RecordValue, request: ComponentRequest, previewUrl: string, requestUrl: string): string {
   const selector = asTrimmedString(body.selector, 500) || 'selected-element'
   const matchedTokens = body.matchedTokens ?? body.tokens ?? body.tokenIntents
   const computedStyles = body.computedStyles ?? body.styles ?? body.styleEdits
@@ -252,6 +357,7 @@ function buildRequesterEmail(body: RecordValue, request: ComponentRequest, previ
 
   const content = `
     <div style="color:#9498A0; font-size:15px; line-height:1.7; padding-bottom:24px;">Here is the triage packet captured from your selection, plus a deterministic starting spec for <strong style="color:#F0F0F2;">${escapeHtml(spec.componentName)}</strong>.</div>
+    ${buildRequestLink(requestUrl)}
     ${buildPreviewLink(previewUrl)}
     ${buildPacketCard(body, request)}
     <div style="color:#00BFFF; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:28px 0 12px;">Example component spec</div>
@@ -266,14 +372,6 @@ function buildRequesterEmail(body: RecordValue, request: ComponentRequest, previ
   return emailShell('Component request', 'Your component request — Raven', content)
 }
 
-function buildTriageEmail(body: RecordValue, request: ComponentRequest, previewUrl: string): string {
-  const content = `
-    <div style="color:#9498A0; font-size:15px; line-height:1.7; padding-bottom:24px;">A Playground visitor requested a component. Reply to <a href="mailto:${escapeHtml(request.email)}" style="color:#00BFFF;">${escapeHtml(request.email)}</a>.</div>
-    ${buildPreviewLink(previewUrl)}
-    ${buildPacketCard(body, request)}`
-  return emailShell('Playground triage', 'New Raven component request', content)
-}
-
 function parseComponentRequest(body: RecordValue): ComponentRequest | null {
   const raw = isRecord(body.componentRequest) ? body.componentRequest : body
   const email = asTrimmedString(raw.email, 320).toLowerCase()
@@ -282,7 +380,7 @@ function parseComponentRequest(body: RecordValue): ComponentRequest | null {
   const useCase = asTrimmedString(raw.useCase, 4_000)
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-  if (!emailPattern.test(email) || !ISSUE_TYPES.has(issueType) || !ISSUE_SIZES.has(issueSize) || !useCase) {
+  if ((email && !emailPattern.test(email)) || !ISSUE_TYPES.has(issueType) || !ISSUE_SIZES.has(issueSize) || !useCase) {
     return null
   }
 
@@ -324,11 +422,6 @@ function isRateLimited(ip: string): boolean {
 }
 
 export async function POST(request: Request) {
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) {
-    return NextResponse.json({ error: 'Component requests are temporarily unavailable.' }, { status: 503 })
-  }
-
   const ip = getClientIp(request)
   if (isRateLimited(ip)) {
     return NextResponse.json({ error: 'Too many requests. Try again in a minute.' }, { status: 429 })
@@ -348,10 +441,9 @@ export async function POST(request: Request) {
   const componentRequest = parseComponentRequest(body)
   const selector = asTrimmedString(body.selector, 500)
   if (!componentRequest || !selector) {
-    return NextResponse.json({ error: 'A selection, valid email, issue type, issue size, and use case are required.' }, { status: 400 })
+    return NextResponse.json({ error: 'A selection, issue type, issue size, and use case are required.' }, { status: 400 })
   }
 
-  const resend = new Resend(apiKey)
   const requestId = asTrimmedString(body.requestId, 100)
   const sendOptions = (suffix: string) =>
     requestId ? { idempotencyKey: `${requestId}-${suffix}` } : undefined
@@ -367,45 +459,94 @@ export async function POST(request: Request) {
     }
   }
 
-  // Triage delivery to the design team is the load-bearing send — if it fails
-  // the request is effectively lost, so it goes FIRST and its failure is a hard
-  // error. Only once the team has the request do we send the requester's
-  // confirmation copy; never report success when triage did not go through.
-  try {
-    const triageResult = await resend.emails.send({
-      from: FROM_ADDRESS,
-      to: [TRIAGE_ADDRESS],
-      replyTo: componentRequest.email,
-      subject: `Component request: ${componentRequest.issueType}`,
-      html: buildTriageEmail(body, componentRequest, previewUrl),
-    }, sendOptions('triage'))
+  const packet = buildIssueBody(body, componentRequest, previewUrl)
+  const title = `Component request: ${componentRequest.issueType} — ${selector.slice(0, 80)}`
+  const githubRepo = asTrimmedString(process.env.COMPONENT_REQUEST_GITHUB_REPO, 200)
+  const githubToken = asTrimmedString(process.env.COMPONENT_REQUEST_GITHUB_TOKEN, 1_000)
+  let destinationUrl = ''
+  let destination: Record<string, unknown>
 
-    if (triageResult.error) {
-      console.error('Failed to send component request triage notification.', triageResult.error)
-      return NextResponse.json({ error: 'Failed to send the component request.' }, { status: 502 })
-    }
-  } catch (error) {
-    console.error('Failed to send component request triage notification.', error)
-    return NextResponse.json({ error: 'Failed to send the component request.' }, { status: 500 })
+  // GitHub has no idempotency key; a client retry after a slow response would
+  // otherwise open a duplicate issue. requestId is client-generated per attempt
+  // and cleared only on success, so it is the retry identity.
+  // ponytail: in-memory dedupe, same lifetime tradeoff as the rate limiter above.
+  if (requestId) {
+    const cached = createdIssues.get(requestId)
+    if (cached) return NextResponse.json(cached, { status: 200 })
   }
 
-  try {
-    const requesterResult = await resend.emails.send({
-      from: FROM_ADDRESS,
-      to: [componentRequest.email],
-      replyTo: TRIAGE_ADDRESS,
-      subject: 'Your component request — Raven',
-      html: buildRequesterEmail(body, componentRequest, previewUrl),
-    }, sendOptions('requester'))
+  if (githubRepo && githubToken) {
+    try {
+      const githubResponse = await fetch(`https://api.github.com/repos/${githubPath(githubRepo)}/issues`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/vnd.github+json',
+          Authorization: `Bearer ${githubToken}`,
+          'Content-Type': 'application/json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+        body: JSON.stringify({
+          title,
+          body: packet,
+          labels: ['component-request', 'needs-triage'],
+        }),
+      })
 
-    if (requesterResult.error) {
-      // Team already has the request; the requester's confirmation copy failing
-      // is not a lost request. Log and still report success.
-      console.error('Failed to send requester confirmation email.', requesterResult.error)
+      if (!githubResponse.ok) {
+        const githubError = await githubResponse.text()
+        console.error('Failed to create component request issue.', githubResponse.status, githubError)
+        return NextResponse.json({ error: 'Failed to create the component request.' }, { status: 502 })
+      }
+
+      const githubIssue: unknown = await githubResponse.json()
+      destinationUrl = isRecord(githubIssue) ? asTrimmedString(githubIssue.html_url, 2_000) : ''
+      if (!destinationUrl) {
+        console.error('Failed to create component request issue. GitHub did not return html_url.')
+        return NextResponse.json({ error: 'Failed to create the component request.' }, { status: 502 })
+      }
+      destination = { success: true, mode: 'issue', url: destinationUrl, message: 'Request created' }
+      if (requestId) {
+        if (createdIssues.size >= CREATED_ISSUES_MAX) {
+          const oldest = createdIssues.keys().next().value
+          if (oldest !== undefined) createdIssues.delete(oldest)
+        }
+        createdIssues.set(requestId, destination)
+      }
+    } catch (error) {
+      console.error('Failed to create component request issue.', error)
+      return NextResponse.json({ error: 'Failed to create the component request.' }, { status: 502 })
     }
-  } catch (error) {
-    console.error('Failed to send requester confirmation email.', error)
+  } else if (githubRepo) {
+    destinationUrl = fitPrefillUrl(githubRepo, title, packet)
+    destination = {
+      success: true,
+      mode: 'prefill',
+      url: destinationUrl,
+      packet,
+      message: 'Request packet ready',
+    }
+  } else {
+    destination = { success: true, mode: 'packet', packet, message: 'Request packet ready' }
   }
 
-  return NextResponse.json({ success: true }, { status: 200 })
+  const apiKey = process.env.RESEND_API_KEY
+  if (componentRequest.email && apiKey) {
+    const resend = new Resend(apiKey)
+    try {
+      const requesterResult = await resend.emails.send({
+        from: FROM_ADDRESS,
+        to: [componentRequest.email],
+        subject: 'Your component request — Raven',
+        html: buildRequesterEmail(body, componentRequest, previewUrl, destinationUrl),
+      }, sendOptions('requester'))
+
+      if (requesterResult.error) {
+        console.error('Failed to send requester confirmation email.', requesterResult.error)
+      }
+    } catch (error) {
+      console.error('Failed to send requester confirmation email.', error)
+    }
+  }
+
+  return NextResponse.json(destination, { status: 200 })
 }
