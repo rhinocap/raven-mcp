@@ -2565,11 +2565,12 @@ server.tool(
   {
     path: z.string().describe("Path to DESIGN.md to expose over /tokens"),
     port: z.number().int().positive().optional().describe("Optional port; defaults to an ephemeral loopback port"),
-    proxy_target: z.string().optional().describe("URL of a running local dev server; the bridge will serve that app with the grab overlay auto-injected into every HTML page — user opens the bridge URL, zero setup")
+    proxy_target: z.string().optional().describe("URL of a running local dev server; the bridge will serve that app with the grab overlay auto-injected into every HTML page — user opens the bridge URL, zero setup"),
+    role: z.enum(["consumer", "maintainer"]).optional().default("consumer").describe("Overlay role; consumer preserves the component-request flow, maintainer enables direct design-system component creation")
   },
-  async ({ path, port, proxy_target }) => {
+  async ({ path, port, proxy_target, role }) => {
     try {
-      var session = await startGrabSession(path, port, proxy_target);
+      var session = await startGrabSession(path, port, proxy_target, role);
       return {
         content: [{
           type: "text" as const,

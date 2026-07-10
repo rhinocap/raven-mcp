@@ -21,9 +21,11 @@
     return;
   }
   var bridgeQuery = "?key=" + encodeURIComponent(bridgeKey);
-  var grabConfig = window.RavenGrabConfig && window.RavenGrabConfig.mode === "standalone"
-    ? window.RavenGrabConfig
+  var suppliedGrabConfig = window.RavenGrabConfig || window.ravenGrabConfig || null;
+  var grabConfig = suppliedGrabConfig && suppliedGrabConfig.mode === "standalone"
+    ? suppliedGrabConfig
     : null;
+  var grabRole = suppliedGrabConfig && suppliedGrabConfig.role === "maintainer" ? "maintainer" : "consumer";
   function bridgeUrl(path) {
     return bridgeOrigin + path + bridgeQuery;
   }
@@ -44,6 +46,7 @@
     "font-family", "font-size", "font-weight", "line-height", "letter-spacing", "text-align",
     "opacity", "box-shadow", "align-items", "justify-content", "grid-template-columns"
   ];
+  var INTERACTIVE_STATES = ["hover", "focus", "active", "disabled"];
 
   var bridgeTokens = [];
   var selectedElement = null;
@@ -158,6 +161,9 @@
     .raven-grab-swatch { width: 16px; height: 16px; flex: 0 0 auto; border: 1px solid rgba(255, 255, 255, .12); border-radius: 4px; background: var(--swatch, transparent); }
     .raven-grab-token-name { min-width: 0; flex: 1; color: var(--raven-grab-tertiary); font: 500 11px/1.3 var(--raven-grab-mono); overflow-wrap: anywhere; }
     .raven-grab-token-value { display: none; }
+    .raven-grab-state-group { margin-top: 12px; }
+    .raven-grab-state-label { margin: 0 0 6px; color: var(--raven-grab-accent); font: 600 10px/1.3 var(--raven-grab-mono); letter-spacing: .8px; }
+    .raven-grab-state-token-value { color: var(--raven-grab-text); font: 400 11px/1.3 var(--raven-grab-mono); overflow-wrap: anywhere; text-align: right; }
     .raven-grab-field { display: block; margin-top: 8px; }
     .raven-grab-field > span { display: block; margin-bottom: 4px; color: var(--raven-grab-muted); font: 600 11px/1.35 var(--raven-grab-ui); }
     .raven-grab-input, .raven-grab-select, .raven-grab-textarea {
@@ -523,9 +529,9 @@
     return candidate.declarationOrder > incumbent.declarationOrder;
   }
 
-  function winningDeclarations(element) {
+  function winningDeclarationsFromMatches(matches) {
     var winners = Object.create(null);
-    matchingRules(element).forEach(function (match) {
+    matches.forEach(function (match) {
       declarationsFor(match).forEach(function (declaration) {
         affectedProperties(declaration.property).forEach(function (property) {
           if (declarationWins(declaration, winners[property])) winners[property] = declaration;
@@ -539,6 +545,58 @@
     return unique;
   }
 
+  function winningDeclarations(element) {
+    return winningDeclarationsFromMatches(matchingRules(element));
+  }
+
+  function statesForSelector(selector) {
+    var positiveSelector = selector.replace(/:not\((?:[^()]|\([^()]*\))*\)/g, "");
+    return INTERACTIVE_STATES.filter(function (state) {
+      return new RegExp(":" + state + "(?:\\b|-)", "i").test(positiveSelector);
+    });
+  }
+
+  function baseSelectorForState(selector) {
+    return selector.replace(/:(?!:)[a-zA-Z-]+(?:\((?:[^()]|\([^()]*\))*\))?/g, "").trim() || "*";
+  }
+
+  function matchingStateRules(element) {
+    var matches = { hover: [], focus: [], active: [], disabled: [] };
+    var sourceOrder = 0;
+    function walk(ruleList) {
+      if (!ruleList) return;
+      for (var i = 0; i < ruleList.length; i += 1) {
+        var rule = ruleList[i];
+        if (typeof CSSMediaRule !== "undefined" && rule instanceof CSSMediaRule && !matchMedia(rule.conditionText).matches) continue;
+        if (typeof CSSSupportsRule !== "undefined" && rule instanceof CSSSupportsRule && !CSS.supports(rule.conditionText)) continue;
+        if (rule.selectorText && rule.style) {
+          splitSelectorList(rule.selectorText).forEach(function (selector) {
+            var states = statesForSelector(selector);
+            if (!states.length) return;
+            var baseSelector = baseSelectorForState(selector);
+            try {
+              if (!element.matches(baseSelector)) return;
+            } catch (error) {
+              return;
+            }
+            var specificity = specificityForSelector(selector);
+            states.forEach(function (state) {
+              matches[state].push({ style: rule.style, specificity: specificity, sourceOrder: sourceOrder, inline: false });
+            });
+          });
+          sourceOrder += 1;
+        }
+        if (rule.cssRules) {
+          try { walk(rule.cssRules); } catch (error) { /* inaccessible nested rules */ }
+        }
+      }
+    }
+    for (var i = 0; i < document.styleSheets.length; i += 1) {
+      try { walk(document.styleSheets[i].cssRules); } catch (error) { /* cross-origin sheet */ }
+    }
+    return matches;
+  }
+
   function tokenByCssVar(cssVar) {
     for (var i = 0; i < bridgeTokens.length; i += 1) {
       if (bridgeTokens[i].cssVar === cssVar) return bridgeTokens[i];
@@ -546,11 +604,11 @@
     return null;
   }
 
-  function tokenMapFor(element) {
+  function tokenMapForDeclarations(element, declarations) {
     var computed = getComputedStyle(element);
     var rootComputed = getComputedStyle(document.documentElement);
     var found = Object.create(null);
-    winningDeclarations(element).forEach(function (declaration) {
+    declarations.forEach(function (declaration) {
       var expression = /var\(\s*(--[\w-]+)/g;
       var match;
       while ((match = expression.exec(declaration.value))) {
@@ -571,6 +629,27 @@
       }
     });
     return Object.keys(found).map(function (key) { return found[key]; });
+  }
+
+  function tokenMapFor(element) {
+    return tokenMapForDeclarations(element, winningDeclarations(element));
+  }
+
+  function interactiveStylesFor(element) {
+    var stateMatches = matchingStateRules(element);
+    var output = {};
+    INTERACTIVE_STATES.forEach(function (state) {
+      var winners = winningDeclarationsFromMatches(stateMatches[state]);
+      if (!winners.length && !(state === "disabled" && (element.disabled === true || (element.getAttribute && element.getAttribute("disabled") !== null)))) return;
+      output[state] = {
+        declarations: winners.map(function (declaration) {
+          return { property: declaration.property, value: declaration.value, important: declaration.important };
+        }),
+        tokens: tokenMapForDeclarations(element, winners)
+      };
+      if (state === "disabled" && (element.disabled === true || (element.getAttribute && element.getAttribute("disabled") !== null))) output[state].active = true;
+    });
+    return output;
   }
 
   function normalizeTokens(input) {
@@ -629,7 +708,8 @@
       html: html,
       rect: rectFor(element),
       styles: computedStylesFor(element),
-      tokens: tokenMapFor(element)
+      tokens: tokenMapFor(element),
+      stateStyles: interactiveStylesFor(element)
     };
   }
 
@@ -913,6 +993,10 @@
     return '<option value="' + escapeHtml(value) + '"' + (value === selectedValue ? " selected" : "") + ">" + escapeHtml(label) + "</option>";
   }
 
+  function isMaintainerCreateFlow() {
+    return grabRole === "maintainer" && activeTab === "request";
+  }
+
   function capturePanelDrafts() {
     var instruction = panel.querySelector("[data-instruction]");
     if (instruction) instructionDraft = instruction.value;
@@ -935,12 +1019,49 @@
     return "__new__";
   }
 
+  function stateTokenGroupsMarkup(stateStyles) {
+    var markup = "";
+    INTERACTIVE_STATES.forEach(function (state) {
+      var stateData = stateStyles[state];
+      if (!stateData || !stateData.declarations || !stateData.declarations.length) return;
+      var tokens = (stateData.tokens || []).filter(function (token) { return token.bridgeToken; });
+      if (!tokens.length) return;
+      markup += '<div class="raven-grab-state-group" data-token-state="' + state + '"><h3 class="raven-grab-state-label">' + state.toUpperCase() + "</h3>";
+      tokens.forEach(function (token) {
+        markup += '<div class="raven-grab-token"><div class="raven-grab-token-line">' +
+          '<span class="raven-grab-swatch" style="--swatch:' + escapeHtml(isColor(token.value) ? token.value : "transparent") + '"></span>' +
+          '<span class="raven-grab-token-name">' + escapeHtml(token.property) + "</span>" +
+          '<span class="raven-grab-state-token-value">' + escapeHtml(tokenPathFor(token)) + "</span>" +
+          "</div></div>";
+      });
+      markup += "</div>";
+    });
+    return markup;
+  }
+
+  function stateStyleGroupsMarkup(stateStyles) {
+    var markup = "";
+    INTERACTIVE_STATES.forEach(function (state) {
+      var stateData = stateStyles[state];
+      if (!stateData || !stateData.declarations || !stateData.declarations.length) return;
+      markup += '<div class="raven-grab-state-group" data-style-state="' + state + '"><h3 class="raven-grab-state-label">' + state.toUpperCase() + '</h3><ul class="raven-grab-styles">';
+      stateData.declarations.forEach(function (declaration) {
+        var value = declaration.value + (declaration.important ? " !important" : "");
+        markup += '<li data-state-style-property="' + escapeHtml(declaration.property) + '"><span>' + escapeHtml(declaration.property) + "</span><code>" + escapeHtml(value) + "</code></li>";
+      });
+      markup += "</ul></div>";
+    });
+    return markup;
+  }
+
   function renderPanel() {
     var hasSelection = !!currentSelection;
     var tokens = hasSelection ? currentSelection.tokens : [];
+    var stateStyles = hasSelection && currentSelection.stateStyles ? currentSelection.stateStyles : {};
     var matchedTokens = tokens.map(function (token, index) {
       return { token: token, index: index };
     }).filter(function (entry) { return entry.token.bridgeToken; });
+    var stateTokenMarkup = stateTokenGroupsMarkup(stateStyles);
     var tokenMarkup = matchedTokens.length
       ? matchedTokens.map(function (entry) {
           var token = entry.token;
@@ -969,7 +1090,8 @@
               </div>
             </div>`;
         }).join("")
-      : (hasSelection ? '<p class="raven-grab-empty">No design tokens matched this element. Computed styles are still included.</p>' : "");
+      : (hasSelection && !stateTokenMarkup ? '<p class="raven-grab-empty">No design tokens matched this element. Computed styles are still included.</p>' : "");
+    tokenMarkup += stateTokenMarkup;
     var tokenizedProperties = matchedTokens.map(function (entry) { return entry.token.property; });
     var stylesMarkup = Object.keys(hasSelection ? currentSelection.styles : {}).filter(function (property) {
       return tokenizedProperties.indexOf(property) === -1;
@@ -978,6 +1100,7 @@
       var value = edit ? edit.newValue : currentSelection.styles[property];
       return '<li data-style-property="' + escapeHtml(property) + '" data-edited="' + (edit ? "true" : "false") + '"><span>' + escapeHtml(property) + '</span><code data-style-value tabindex="0" role="button" aria-label="Edit ' + escapeHtml(property) + '">' + escapeHtml(value) + "</code></li>";
     }).join("");
+    var stateStylesMarkup = stateStyleGroupsMarkup(stateStyles);
 
     var elementMarkup = hasSelection ? `
       <section class="raven-grab-section">
@@ -999,7 +1122,7 @@
       </section>
       <section class="raven-grab-section">
         <button class="raven-grab-section-toggle" type="button" data-section-toggle="styles" aria-expanded="${expandedSections.styles ? "true" : "false"}" aria-controls="raven-grab-styles"><span>COMPUTED STYLES - NOT TOKENIZED</span><span class="raven-grab-caret" aria-hidden="true">▾</span></button>
-        <div class="raven-grab-collapsible" id="raven-grab-styles" data-section-body="styles" data-open="${expandedSections.styles ? "true" : "false"}" aria-hidden="${expandedSections.styles ? "false" : "true"}"><div class="raven-grab-collapsible-inner"><ul class="raven-grab-styles">${stylesMarkup}</ul></div></div>
+        <div class="raven-grab-collapsible" id="raven-grab-styles" data-section-body="styles" data-open="${expandedSections.styles ? "true" : "false"}" aria-hidden="${expandedSections.styles ? "false" : "true"}"><div class="raven-grab-collapsible-inner"><ul class="raven-grab-styles">${stylesMarkup}</ul>${stateStylesMarkup}</div></div>
       </section>
       <section class="raven-grab-section">
         <h2 class="raven-grab-section-title">INSTRUCTIONS</h2>
@@ -1024,14 +1147,22 @@
         <h2 class="raven-grab-section-title">EMAIL YOURSELF THE COMPONENT</h2>
         <input class="raven-grab-input" data-component-email type="email" value="${escapeHtml(componentRequest.email)}" placeholder="email" spellcheck="false" required>
       </section>`;
+    var maintainerFormMarkup = elementMarkup +
+      '<section class="raven-grab-section">' +
+        '<h2 class="raven-grab-section-title">COMPONENT NOTES</h2>' +
+        '<textarea class="raven-grab-textarea raven-grab-use-case" data-use-case spellcheck="true" placeholder="Describe the reusable component, variants, or behavior…">' + escapeHtml(componentRequest.useCase) + '</textarea>' +
+      '</section>';
     var bodyMarkup = activeTab === "design"
       ? designMarkup
-      : (componentRequestStep === "email" ? emailMarkup : requestFormMarkup);
+      : (grabRole === "maintainer" ? maintainerFormMarkup : (componentRequestStep === "email" ? emailMarkup : requestFormMarkup));
     var actionMarkup = activeTab === "design"
       ? '<button class="raven-grab-send" type="button" data-send data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Send to agent</span></button>'
-      : (componentRequestStep === "email"
+      : (grabRole === "maintainer"
+          ? '<button class="raven-grab-send" type="button" data-send data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Add to design system</span></button>'
+          : (componentRequestStep === "email"
           ? '<button class="raven-grab-send" type="button" data-send-email data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Send email</span></button>'
-          : '<button class="raven-grab-send" type="button" data-request-next data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Send component request to design</span></button>');
+          : '<button class="raven-grab-send" type="button" data-request-next data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Send component request to design</span></button>'));
+    var requestTabLabel = grabRole === "maintainer" ? "Add to Design System" : "Request Component";
 
     panel.innerHTML = `
       <div class="raven-grab-top">
@@ -1041,7 +1172,7 @@
         </div>
         <div class="raven-grab-tabs" role="tablist" aria-label="Raven design actions">
           <button class="raven-grab-tab" type="button" role="tab" data-tab="design" aria-selected="${activeTab === "design" ? "true" : "false"}">Design</button>
-          <button class="raven-grab-tab" type="button" role="tab" data-tab="request" aria-selected="${activeTab === "request" ? "true" : "false"}">Request Component</button>
+          <button class="raven-grab-tab" type="button" role="tab" data-tab="request" aria-selected="${activeTab === "request" ? "true" : "false"}">${requestTabLabel}</button>
         </div>
       </div>
       <div class="raven-grab-body"><div class="raven-grab-content">${bodyMarkup}</div></div>
@@ -1168,11 +1299,17 @@
       rect: currentSelection.rect,
       styles: currentSelection.styles,
       tokens: currentSelection.tokens,
+      stateStyles: currentSelection.stateStyles,
       tokenIntents: Object.keys(tokenIntents).map(function (key) { return tokenIntents[key]; }),
       styleEdits: styleEditsForSend(),
       instruction: instructionDraft
     };
-    if (componentRequest.issueType || componentRequest.issueSize || componentRequest.useCase || componentRequest.email) {
+    if (isMaintainerCreateFlow()) {
+      var userNotes = componentRequest.useCase.trim();
+      payload.intent = "create-component";
+      payload.userNotes = userNotes;
+      payload.instruction = "Build this as a reusable component in the design system and update DESIGN.md." + (userNotes ? " User notes: " + userNotes : "");
+    } else if (componentRequest.issueType || componentRequest.issueSize || componentRequest.useCase || componentRequest.email) {
       payload.componentRequest = {
         issueType: componentRequest.issueType,
         issueSize: componentRequest.issueSize,
@@ -1253,13 +1390,15 @@
     button.textContent = "Sending…";
     status.textContent = "";
     status.removeAttribute("data-kind");
+    var defaultLabel = isMaintainerCreateFlow() ? "Add to design system" : "Send to agent";
+    var sentLabel = isMaintainerCreateFlow() ? "Added to design system" : "Sent to agent";
     try {
       var payload = payloadForSend();
       var endpoint = grabConfig ? grabConfig.grabEndpoint : bridgeUrl("/grab");
       if (!endpoint) {
         status.textContent = "Sent " + payload.selector + " · " + payload.tokenIntents.length + (payload.tokenIntents.length === 1 ? " token change" : " token changes") + " · " + payload.styleEdits.length + (payload.styleEdits.length === 1 ? " style edit" : " style edits");
         status.setAttribute("data-kind", "sr-only");
-        morphSendButton(button, "[data-send]", "Sent to agent", "Send to agent");
+        morphSendButton(button, "[data-send]", sentLabel, defaultLabel);
         return;
       }
       var response = await fetch(endpoint, {
@@ -1269,9 +1408,9 @@
       });
       if (!response.ok) throw new Error("Bridge returned " + response.status);
       reactMetadata = null;
-      status.textContent = "Sent to agent";
+      status.textContent = sentLabel;
       status.setAttribute("data-kind", "sr-only");
-      morphSendButton(button, "[data-send]", "Sent to agent", "Send to agent");
+      morphSendButton(button, "[data-send]", sentLabel, defaultLabel);
     } catch (error) {
       status.textContent = "Could not reach the Raven bridge";
       status.setAttribute("data-kind", "error");
@@ -1339,6 +1478,7 @@
         selector: currentSelection.selector,
         tokens: currentSelection.tokens,
         styles: currentSelection.styles,
+        stateStyles: currentSelection.stateStyles,
         issueType: componentRequest.issueType,
         issueSize: componentRequest.issueSize,
         useCase: componentRequest.useCase,
@@ -1435,7 +1575,7 @@
       return;
     }
     event.preventDefault();
-    var sendButton = panel.querySelector(isInstruction ? "[data-send]" : "[data-send-email], [data-request-next]");
+    var sendButton = panel.querySelector(isInstruction || (grabRole === "maintainer" && isUseCase) ? "[data-send]" : "[data-send-email], [data-request-next]");
     if (sendButton && !sendButton.disabled) sendButton.click();
   });
 

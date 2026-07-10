@@ -103,6 +103,8 @@ async function loadOverlayInternals(options = {}) {
   globalThis.__ravenGrabTest = {
     bridgeUrl: bridgeUrl,
     tokenMapFor: tokenMapFor,
+    interactiveStylesFor: interactiveStylesFor,
+    selectionFor: selectionFor,
     alternativesFor: alternativesFor,
     tokenIntentFor: tokenIntentFor,
     computedStylesFor: computedStylesFor,
@@ -129,9 +131,9 @@ async function loadOverlayInternals(options = {}) {
     dispatchPanel: function (type, event) { panel.dispatch(type, event); },
     getBridgeTokens: function () { return bridgeTokens; },
     setPanelQuery: function (selector, value) { panel.setQuery(selector, value); },
-    setStyleContext: function (element, styles, tokens, selector) {
+    setStyleContext: function (element, styles, tokens, selector, stateStyles) {
       selectedElement = element;
-      currentSelection = { selector: selector || "#target", html: "", rect: {}, styles: styles, tokens: tokens || [] };
+      currentSelection = { selector: selector || "#target", html: "", rect: {}, styles: styles, tokens: tokens || [], stateStyles: stateStyles || {} };
       styleEdits = Object.create(null);
       styleEditOriginalInline = Object.create(null);
     },
@@ -201,6 +203,7 @@ ${marker}`);
   };
   const window = {
     RavenGrabConfig: options.config,
+    ravenGrabConfig: options.lowercaseConfig,
     CSS: {
       escape: (value) => value,
       supports: (_property, value) => value !== 'definitely-invalid'
@@ -393,6 +396,50 @@ test('grab proxy injects exactly one keyed overlay script before the first closi
         await client.callTool({ name: 'stop_grab_session', arguments: {} });
       }
     });
+  });
+});
+
+test('start_grab_session keeps consumer injection unchanged and injects maintainer role config', async () => {
+  const designPath = await makeDesignFixture();
+
+  await withClient(indexMod.buildServer({}), async (client) => {
+    const consumerStarted = await client.callTool({
+      name: 'start_grab_session',
+      arguments: { path: designPath }
+    });
+    const consumerSession = JSON.parse(consumerStarted.content[0].text);
+    assert.match(consumerSession.script_tag, /^<script src="http:\/\/127\.0\.0\.1:\d+\/raven-grab\.js\?key=[a-f0-9]+"><\/script>$/);
+    assert.doesNotMatch(consumerSession.script_tag, /ravenGrabConfig|role/);
+
+    const maintainerStarted = await client.callTool({
+      name: 'start_grab_session',
+      arguments: { path: designPath, role: 'maintainer' }
+    });
+    const maintainerSession = JSON.parse(maintainerStarted.content[0].text);
+    assert.match(maintainerSession.script_tag, /^<script>window\.ravenGrabConfig=\{"role":"maintainer"\};<\/script><script src="http:\/\/127\.0\.0\.1:\d+\/raven-grab\.js\?key=[a-f0-9]+"><\/script>$/);
+    const maintainerKey = sessionKey(maintainerSession);
+    const grabResponse = await fetch(`${maintainerSession.url}/grab?key=${maintainerKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        selector: '#maintainer-target',
+        styles: { color: 'rgb(0, 0, 0)' },
+        tokens: [{ path: 'colors.primary' }],
+        stateStyles: { hover: { declarations: [{ property: 'color', value: 'red' }] } },
+        intent: 'create-component',
+        userNotes: 'Keep the compact hover treatment.',
+        instruction: 'Build this as a reusable component in the design system and update DESIGN.md.'
+      })
+    });
+    assert.equal(grabResponse.status, 202);
+    const drained = await client.callTool({ name: 'get_grabbed_elements', arguments: {} });
+    const grabbed = JSON.parse(drained.content[0].text).elements[0];
+    assert.equal(grabbed.intent, 'create-component');
+    assert.equal(grabbed.userNotes, 'Keep the compact hover treatment.');
+    assert.deepEqual(grabbed.stateStyles, { hover: { declarations: [{ property: 'color', value: 'red' }] } });
+    assert.match(grabbed.instruction, /update DESIGN\.md/);
+
+    await client.callTool({ name: 'stop_grab_session', arguments: {} });
   });
 });
 
@@ -596,6 +643,83 @@ test('overlay token matching keeps only cascade-winning var declarations', async
 
   const cssVars = Array.from(internals.tokenMapFor(element), (token) => token.cssVar).sort();
   assert.deepEqual(cssVars, ['--color-inline', '--color-new', '--spacing-new']);
+});
+
+test('overlay captures interactive state declarations, tokens, and disabled presence', async () => {
+  const { internals, document } = await loadOverlayInternals();
+  internals.setTokens([
+    { path: 'colors.accent', name: 'accent', group: 'colors', value: '#00BFFF', cssVar: '--demo-colors-accent' },
+    { path: 'colors.primary', name: 'primary', group: 'colors', value: '#F0F0F2', cssVar: '--demo-colors-primary' }
+  ]);
+  document.styleSheets.push(
+    { get cssRules() { throw new Error('cross-origin'); } },
+    { cssRules: [
+      { selectorText: 'button:hover', style: fakeStyle({ background: 'var(--demo-colors-primary)' }) },
+      { selectorText: '.demo-button:hover, .other:hover', style: fakeStyle({ background: 'var(--demo-colors-accent)', color: 'var(--demo-colors-primary)' }) },
+      { selectorText: '.demo-button:focus', style: fakeStyle({ outline: '2px solid var(--demo-colors-accent)' }) },
+      { selectorText: '.demo-button:active', style: fakeStyle({ color: 'var(--demo-colors-accent)' }) },
+      { selectorText: '.demo-button:disabled', style: fakeStyle({ opacity: '0.5' }) }
+    ] }
+  );
+  const element = document.createElement('button');
+  element.localName = 'button';
+  element.disabled = true;
+  element.computedStyle = fakeStyle({
+    '--demo-colors-accent': '#00BFFF',
+    '--demo-colors-primary': '#F0F0F2'
+  });
+  element.matches = (selector) => selector === 'button' || selector === '.demo-button';
+
+  const states = JSON.parse(JSON.stringify(internals.interactiveStylesFor(element)));
+  assert.deepEqual(states.hover.declarations, [
+    { property: 'background', value: 'var(--demo-colors-accent)', important: false },
+    { property: 'color', value: 'var(--demo-colors-primary)', important: false }
+  ]);
+  assert.deepEqual(states.hover.tokens.map((token) => token.path).sort(), ['colors.accent', 'colors.primary']);
+  assert.equal(states.focus.declarations[0].property, 'outline');
+  assert.equal(states.active.declarations[0].property, 'color');
+  assert.equal(states.disabled.active, true);
+  assert.equal(states.disabled.declarations[0].property, 'opacity');
+});
+
+test('overlay renders state groups in token and raw style sections and sends them', async () => {
+  const { internals } = await loadOverlayInternals();
+  const stateStyles = {
+    hover: {
+      declarations: [{ property: 'background', value: 'var(--demo-colors-accent)', important: false }],
+      tokens: [{ property: 'background', name: 'accent', path: 'colors.accent', value: '#00BFFF', cssVar: '--demo-colors-accent', bridgeToken: { path: 'colors.accent' } }]
+    },
+    focus: {
+      declarations: [{ property: 'outline', value: '2px solid var(--demo-colors-accent)', important: false }],
+      tokens: [{ property: 'outline', name: 'accent', path: 'colors.accent', value: '#00BFFF', cssVar: '--demo-colors-accent', bridgeToken: { path: 'colors.accent' } }]
+    },
+    active: { declarations: [], tokens: [] },
+    disabled: { active: true, declarations: [], tokens: [] }
+  };
+  internals.setStyleContext({ style: fakeStyle() }, { padding: '16px' }, [], '#state-target', stateStyles);
+  internals.renderPanel();
+
+  const html = internals.getPanelHtml();
+  assert.match(html, /data-token-state="hover"[\s\S]*HOVER[\s\S]*colors\.accent/);
+  assert.match(html, /data-token-state="focus"[\s\S]*FOCUS[\s\S]*colors\.accent/);
+  assert.match(html, /data-style-state="hover"[\s\S]*HOVER[\s\S]*data-state-style-property="background"/);
+  assert.match(html, /data-style-state="focus"[\s\S]*FOCUS[\s\S]*data-state-style-property="outline"/);
+  assert.doesNotMatch(html, /data-token-state="active"|data-style-state="active"/);
+  assert.doesNotMatch(html, /data-token-state="disabled"|data-style-state="disabled"/);
+  assert.deepEqual(JSON.parse(JSON.stringify(internals.payloadForSend().stateStyles)), stateStyles);
+});
+
+test('overlay state capture is wired into selection and playground state fixtures', async () => {
+  const overlaySource = await readFile(path.resolve(__dirname, '../browser/raven-grab.js'), 'utf8');
+  const playgroundSource = await readFile(path.resolve(__dirname, '../web/app/playground/page.tsx'), 'utf8');
+  assert.match(overlaySource, /stateStyles:\s*interactiveStylesFor\(element\)/);
+  assert.equal((overlaySource.match(/stateStyles:\s*currentSelection\.stateStyles/g) || []).length, 2);
+  assert.match(overlaySource, /document\.styleSheets[\s\S]*try\s*\{[\s\S]*\.cssRules/);
+  assert.match(overlaySource, /element\.matches\(baseSelector\)/);
+  assert.match(playgroundSource, /\.wireframe-button:hover\s*\{/);
+  assert.match(playgroundSource, /\.wireframe-field input:focus\s*\{/);
+  assert.match(playgroundSource, /\.wireframe-button:disabled\s*\{/);
+  assert.match(playgroundSource, /<button[^>]*disabled[^>]*>/);
 });
 
 test('overlay alternatives match nested token leaf names within the same group', async () => {
@@ -852,6 +976,62 @@ test('overlay excludes tokenized properties from the not-tokenized styles table'
   assert.match(internals.getPanelHtml(), /data-style-property="padding"/);
 });
 
+test('overlay keeps consumer component-request markup unchanged when role is absent', async () => {
+  const { internals } = await loadOverlayInternals();
+  internals.setStyleContext({ style: fakeStyle() }, { color: 'rgb(0, 0, 0)' });
+  internals.switchTab('request');
+
+  const html = internals.getPanelHtml();
+  assert.match(html, />Request Component<\/button>/);
+  assert.match(html, /data-issue-type/);
+  assert.match(html, /data-issue-size/);
+  assert.match(html, /Send component request to design/);
+  assert.doesNotMatch(html, /Add to Design System|Add to design system/);
+
+  const explicit = await loadOverlayInternals({ lowercaseConfig: { role: 'consumer' } });
+  explicit.internals.setStyleContext({ style: fakeStyle() }, { color: 'rgb(0, 0, 0)' });
+  explicit.internals.switchTab('request');
+  assert.equal(explicit.internals.getPanelHtml(), html, 'explicit consumer markup must be byte-for-byte identical to the absent-role default');
+});
+
+test('maintainer role renders add-to-design-system flow and creates an agent instruction without email framing', async () => {
+  const { internals } = await loadOverlayInternals({
+    lowercaseConfig: { role: 'maintainer' }
+  });
+  const stateStyles = {
+    hover: {
+      declarations: [{ property: 'color', value: 'var(--color-primary)', important: false }],
+      tokens: [{ property: 'color', path: 'colors.primary', value: '#111111' }]
+    }
+  };
+  internals.setStyleContext(
+    { style: fakeStyle() },
+    { color: 'rgb(0, 0, 0)' },
+    [{ property: 'color', path: 'colors.primary', value: '#111111' }],
+    '#maintainer-target',
+    stateStyles
+  );
+  internals.switchTab('request');
+
+  const html = internals.getPanelHtml();
+  assert.match(html, />Add to Design System<\/button>/);
+  assert.match(html, /data-use-case/);
+  assert.match(html, /Add to design system/);
+  assert.doesNotMatch(html, /data-component-email|data-issue-type|data-issue-size|EMAIL YOURSELF|Send component request/);
+
+  const notes = { value: 'Keep the compact hover treatment.', getAttribute() { return null; } };
+  internals.setPanelQuery('[data-use-case]', notes);
+  const payload = JSON.parse(JSON.stringify(internals.payloadForSend()));
+  assert.equal(payload.intent, 'create-component');
+  assert.equal(payload.selector, '#maintainer-target');
+  assert.equal(payload.userNotes, 'Keep the compact hover treatment.');
+  assert.match(payload.instruction, /Build this as a reusable component in the design system and update DESIGN\.md/);
+  assert.deepEqual(payload.styles, { color: 'rgb(0, 0, 0)' });
+  assert.deepEqual(payload.tokens, [{ property: 'color', path: 'colors.primary', value: '#111111' }]);
+  assert.deepEqual(payload.stateStyles, stateStyles);
+  assert.equal(payload.componentRequest, undefined);
+});
+
 test('standalone overlay loads configured tokens and POSTs the full component request to the email endpoint', async () => {
   const calls = [];
   const clock = fakeClock();
@@ -909,6 +1089,7 @@ test('standalone overlay loads configured tokens and POSTs the full component re
     selector: '#request-target',
     tokens: [{ property: 'color', cssVar: '--color-primary', value: '#111111' }],
     styles: { color: 'rgb(0, 0, 0)' },
+    stateStyles: {},
     issueType: 'Accessibility',
     issueSize: '1,000+',
     useCase: 'Keyboard users need an exposed focus-ring variant.',

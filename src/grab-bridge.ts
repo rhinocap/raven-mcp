@@ -9,6 +9,7 @@ import { flattenDesignTokens, parseDesignMd } from "./designmd.js";
 var __dirname = dirname(fileURLToPath(import.meta.url));
 var PKG_ROOT = resolve(join(__dirname, ".."));
 var GRAB_ASSET_PATH = process.env.RAVEN_GRAB_ASSET_PATH ? resolve(process.env.RAVEN_GRAB_ASSET_PATH) : join(PKG_ROOT, "browser", "raven-grab.js");
+type GrabRole = "consumer" | "maintainer";
 
 var GrabPayloadSchema = z.object({
   selector: z.string().min(1),
@@ -16,9 +17,12 @@ var GrabPayloadSchema = z.object({
   rect: z.record(z.any()).optional(),
   styles: z.record(z.any()).optional(),
   tokens: z.any().optional(),
+  stateStyles: z.any().optional(),
   tokenIntents: z.array(z.any()).optional(),
   styleEdits: z.array(z.any()).optional(),
   instruction: z.string().optional(),
+  intent: z.literal("create-component").optional(),
+  userNotes: z.string().optional(),
   componentRequest: z.object({
     issueType: z.string(),
     issueSize: z.string(),
@@ -37,9 +41,12 @@ export interface GrabBridgeSelection {
   rect?: Record<string, any>;
   styles?: Record<string, any>;
   tokens?: any;
+  stateStyles?: any;
   tokenIntents?: any[];
   styleEdits?: any[];
   instruction?: string;
+  intent?: "create-component";
+  userNotes?: string;
   componentRequest?: {
     issueType: string;
     issueSize: string;
@@ -75,6 +82,7 @@ interface BridgeSession {
   path: string;
   mode: "server" | "shim";
   proxyTarget?: string;
+  role: GrabRole;
   queue: GrabBridgeSelection[];
   waiters: Array<(items: GrabBridgeSelection[]) => void>;
 }
@@ -82,7 +90,11 @@ interface BridgeSession {
 var currentSession: BridgeSession | null = null;
 var originalFetch: typeof fetch | null = null;
 
-export async function startGrabSession(path: string, port?: number, proxyTarget?: string): Promise<GrabBridgeStartResult> {
+function grabRoleConfigTag(role: GrabRole): string {
+  return role === "maintainer" ? '<script>window.ravenGrabConfig={"role":"maintainer"};</script>' : "";
+}
+
+export async function startGrabSession(path: string, port?: number, proxyTarget?: string, role: GrabRole = "consumer"): Promise<GrabBridgeStartResult> {
   await stopGrabSession();
   var abs = resolve(path);
   if (!existsSync(abs)) {
@@ -104,7 +116,7 @@ export async function startGrabSession(path: string, port?: number, proxyTarget?
   var key = randomBytes(32).toString("hex");
 
   var server = createServer(function (req, res) {
-    void handleGrabRequest(abs, key, req, res, normalizedTarget);
+    void handleGrabRequest(abs, key, req, res, normalizedTarget, role);
   });
 
   var actualPort = 0;
@@ -125,6 +137,7 @@ export async function startGrabSession(path: string, port?: number, proxyTarget?
       path: abs,
       mode: "server",
       proxyTarget: normalizedTarget,
+      role: role,
       queue: [],
       waiters: []
     };
@@ -146,6 +159,7 @@ export async function startGrabSession(path: string, port?: number, proxyTarget?
       key: key,
       path: abs,
       mode: "shim",
+      role: role,
       queue: [],
       waiters: []
     };
@@ -161,7 +175,7 @@ export async function startGrabSession(path: string, port?: number, proxyTarget?
   return {
     port: actualPort,
     url: "http://127.0.0.1:" + actualPort,
-    script_tag: '<script src="http://127.0.0.1:' + actualPort + '/raven-grab.js?key=' + key + '"></script>',
+    script_tag: grabRoleConfigTag(role) + '<script src="http://127.0.0.1:' + actualPort + '/raven-grab.js?key=' + key + '"></script>',
     path: abs,
     mode: mode,
     proxy_target: mode === "server" ? normalizedTarget : undefined,
@@ -227,9 +241,12 @@ export function queueGrabSelection(selection: unknown): GrabBridgeSelection {
     rect: parsed.rect,
     styles: parsed.styles,
     tokens: parsed.tokens,
+    stateStyles: parsed.stateStyles,
     tokenIntents: parsed.tokenIntents,
     styleEdits: parsed.styleEdits,
     instruction: parsed.instruction,
+    intent: parsed.intent,
+    userNotes: parsed.userNotes,
     componentRequest: parsed.componentRequest,
     componentName: parsed.componentName,
     filePath: parsed.filePath,
@@ -242,13 +259,13 @@ export function queueGrabSelection(selection: unknown): GrabBridgeSelection {
   return item;
 }
 
-async function handleGrabRequest(designMdPath: string, key: string, req: IncomingMessage, res: ServerResponse, proxyTarget?: string): Promise<void> {
+async function handleGrabRequest(designMdPath: string, key: string, req: IncomingMessage, res: ServerResponse, proxyTarget?: string, role: GrabRole = "consumer"): Promise<void> {
   var method = req.method || "GET";
   var requestUrl = req.url || "/";
   var pathname = new URL(requestUrl, "http://127.0.0.1").pathname;
   var bridgeRoute = pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/grab";
   if (proxyTarget && method !== "OPTIONS" && !bridgeRoute) {
-    await proxyGrabRequest(proxyTarget, key, method, requestUrl, req, res);
+    await proxyGrabRequest(proxyTarget, key, method, requestUrl, req, res, role);
     return;
   }
   var bodyText = await readJsonBody(req).then(function (body) {
@@ -275,7 +292,7 @@ var MAX_BODY_BYTES = 1024 * 1024;
 var MAX_PROXY_BODY_BYTES = 25 * 1024 * 1024;
 var MAX_QUEUE_LENGTH = 200;
 
-async function proxyGrabRequest(proxyTarget: string, key: string, method: string, requestUrl: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
+async function proxyGrabRequest(proxyTarget: string, key: string, method: string, requestUrl: string, req: IncomingMessage, res: ServerResponse, role: GrabRole): Promise<void> {
   var targetPath = new URL(requestUrl, "http://127.0.0.1");
   var targetUrl = proxyTarget + targetPath.pathname + targetPath.search;
   var headers = new Headers();
@@ -318,7 +335,7 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
     var contentType = upstream.headers.get("content-type") || "";
     if (/\btext\/html\b/i.test(contentType)) {
       var html = responseBody.toString("utf8");
-      var script = '<script src="/raven-grab.js?key=' + key + '"></script>';
+      var script = grabRoleConfigTag(role) + '<script src="/raven-grab.js?key=' + key + '"></script>';
       if (/<\/body>/i.test(html)) {
         html = html.replace(/<\/body>/i, function (closingTag) {
           return script + closingTag;

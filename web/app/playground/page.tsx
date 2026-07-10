@@ -142,6 +142,9 @@ export default function PlaygroundPage() {
                 <button className="wireframe-button wireframe-button--primary" type="button">
                   Create workspace
                 </button>
+                <button className="wireframe-button wireframe-button--secondary" type="button" disabled>
+                  Workspace unavailable
+                </button>
               </form>
             </section>
 
@@ -367,6 +370,10 @@ export default function PlaygroundPage() {
           border-color: var(--demo-colors-accent);
         }
 
+        .wireframe-button:hover {
+          border-color: var(--demo-colors-accent);
+        }
+
         .wireframe-button--primary:hover {
           color: var(--demo-colors-surface);
           background: var(--demo-colors-primary);
@@ -383,10 +390,29 @@ export default function PlaygroundPage() {
           border-color: var(--demo-colors-accent);
         }
 
+        .wireframe-button:active {
+          color: var(--demo-colors-primary);
+          background: var(--demo-colors-surface-raised);
+        }
+
+        .wireframe-button:disabled {
+          color: var(--demo-colors-muted);
+          background: var(--demo-colors-surface);
+          border-color: var(--demo-colors-line);
+          cursor: not-allowed;
+          opacity: 0.6;
+        }
+
         .wireframe-button:focus-visible,
         .playground-wireframe a:focus-visible,
         .wireframe-field input:focus-visible,
         .wireframe-field textarea:focus-visible {
+          outline: 2px solid var(--demo-colors-accent);
+          outline-offset: var(--demo-spacing-xs);
+        }
+
+        .wireframe-field input:focus {
+          border-color: var(--demo-colors-accent);
           outline: 2px solid var(--demo-colors-accent);
           outline-offset: var(--demo-spacing-xs);
         }
