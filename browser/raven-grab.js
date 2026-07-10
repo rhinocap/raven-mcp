@@ -277,6 +277,7 @@
     panel.setAttribute("aria-hidden", "false");
     panel.removeAttribute("inert");
     edgeTab.setAttribute("aria-hidden", "true");
+    if (selectedElement) setHighlight(selectedElement);
   }
   function collapsePanel() {
     if (!armed || panel.getAttribute("aria-hidden") === "true") return;
@@ -285,6 +286,9 @@
     panel.setAttribute("aria-hidden", "true");
     panel.setAttribute("inert", "");
     edgeTab.setAttribute("aria-hidden", "false");
+    hoveredElement = null;
+    highlight.style.display = "none";
+    label.style.display = "none";
   }
   function setArmed(next) {
     armed = next;
@@ -630,7 +634,7 @@
   }
 
   function setHighlight(element) {
-    if (!element || element === host || !document.documentElement.contains(element)) {
+    if (!element || element === host || typeof element.getBoundingClientRect !== "function" || !document.documentElement.contains(element)) {
       highlight.style.display = "none";
       label.style.display = "none";
       return;
@@ -1480,10 +1484,10 @@
   }, true);
 
   window.addEventListener("resize", function () {
-    if (selectedElement) setHighlight(selectedElement);
+    if (selectedElement && !collapsed) setHighlight(selectedElement);
   });
   window.addEventListener("scroll", function () {
-    if (selectedElement) setHighlight(selectedElement);
+    if (selectedElement && !collapsed) setHighlight(selectedElement);
   }, true);
 
   // Always listen — react-grab may load after this script.
