@@ -1406,7 +1406,7 @@
   });
 
   document.addEventListener("mousemove", function (event) {
-    if (!armed) return;
+    if (!armed || collapsed) return;
     var path = event.composedPath ? event.composedPath() : [];
     if (path.indexOf(host) !== -1 || selectedElement) return;
     var target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
@@ -1417,7 +1417,7 @@
   }, true);
 
   document.addEventListener("click", function (event) {
-    if (!armed) return;
+    if (!armed || collapsed) return;
     var path = event.composedPath ? event.composedPath() : [];
     if (path.indexOf(host) !== -1) return;
     var target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
