@@ -632,6 +632,7 @@ export default function PlaygroundPage() {
         }
 
         .playground-replay {
+          min-height: 44px;
           padding: 0;
           color: var(--text-secondary);
           background: transparent;
