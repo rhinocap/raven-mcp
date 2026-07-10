@@ -875,16 +875,10 @@
       border: 1px solid var(--border);
       background: var(--bg-surface);
     }
-    .pg-demo figcaption {
+    .pg-demo-cta {
       display: flex;
-      flex-wrap: wrap;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: var(--space-2) var(--space-6);
-      margin-top: var(--space-3);
-      color: var(--text-tertiary);
-      font-size: 13px;
-      line-height: 1.5;
+      justify-content: center;
+      margin-top: var(--space-8);
     }
     /* ══════════════════════════════════════════
        KNOWLEDGE LAYERS
@@ -1281,10 +1275,6 @@
     .static-term-body .c { color: var(--text-tertiary); }
     .static-term-body .g { color: var(--accent-green); }
     .static-term-body .block { color: var(--accent-orange); font-weight: 600; }
-    .replay-caption {
-      font-size: 13px; line-height: var(--leading-copy); color: var(--text-tertiary);
-      margin: var(--space-4) 0 0; max-width: 46rem;
-    }
 
     /* ── CINEMATIC BUILDS (Higgsfield) ───────────────────── */
     .cinematic { padding: clamp(80px, 9vw, 144px) 0; }

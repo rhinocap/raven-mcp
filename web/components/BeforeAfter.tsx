@@ -175,7 +175,8 @@ export default function BeforeAfter({
         Before: {beforeAlt} After: {afterAlt}
       </p>
 
-      <figcaption id={captionId} className="ba-caption">
+      {/* Caption is a11y-only — visible captions read as noise under the sliders. */}
+      <figcaption id={captionId} className="sr-only">
         {caption}
       </figcaption>
 
@@ -272,12 +273,6 @@ export default function BeforeAfter({
         .ba-stage:focus-visible .ba-handle {
           color: var(--accent-blue);
           border-color: var(--accent-blue);
-        }
-        .ba-caption {
-          margin-top: var(--space-3, 12px);
-          color: var(--text-tertiary);
-          font-size: 13px;
-          line-height: 1.5;
         }
         @media (max-width: 640px) {
           .ba-pill {

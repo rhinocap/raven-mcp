@@ -76,9 +76,8 @@ export default function Home() {
                 playsInline
                 aria-label="Screen capture of the Raven Design playground: an element is selected, its design tokens and computed styles are opened, the accent token and an underline are applied visibly on the page, and the change is packaged for the agent."
               />
-              <figcaption>
-                Tokens and computed styles, edited live on the page before anything is handed to the agent.
-                <a href="/raven-design" className="btn-text-link">Try the playground →</a>
+              <figcaption className="pg-demo-cta">
+                <a href="/raven-design" className="btn btn-primary">Try the playground</a>
               </figcaption>
             </figure>
           </div>
@@ -215,7 +214,6 @@ export default function Home() {
                 </div>
               </div>
 
-              <p className="replay-caption">Recorded replays&mdash;taste profiles live locally under <code>~/.raven/taste/</code>, so these are captured runs, not live calls.</p>
             </div>
           </div>
         </section>
