@@ -588,7 +588,7 @@ export default function PlaygroundPage() {
             align-items: flex-start;
             justify-content: center;
             gap: var(--space-1);
-            height: 64px;
+            height: var(--nav-height, 64px);
             padding: 0 var(--space-3);
             margin-bottom: 0;
             background: rgba(36, 36, 46, 0.5);
