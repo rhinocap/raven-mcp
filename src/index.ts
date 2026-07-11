@@ -2574,7 +2574,13 @@ server.tool(
     try {
       var session = await startGrabSession(path, port, proxy_target, role);
       var payload: Record<string, unknown> = { ...session };
-      payload.agent_protocol = "Tell the user in ONE line that component requests go to this live agent session and are drained with get_grabbed_elements; for teams, briefly mention GitHub routing with COMPONENT_REQUEST_GITHUB_REPO and optional COMPONENT_REQUEST_GITHUB_TOKEN.";
+      var protocol = "Tell the user in ONE line that sends and component requests from the overlay arrive in this agent session; for teams, briefly mention GitHub routing with COMPONENT_REQUEST_GITHUB_REPO and optional COMPONENT_REQUEST_GITHUB_TOKEN.";
+      if (session.watch_command) {
+        protocol += " Now run watch_command as a background Bash task: it exits the moment the user hits Send, printing their selections. When it does, respond immediately — one line per requested change, then ask whether to implement or wait — and re-launch watch_command to re-arm.";
+      } else {
+        protocol += " No HTTP listener is available in this environment, so drain sends by calling get_grabbed_elements whenever control returns to you.";
+      }
+      payload.agent_protocol = protocol;
       return {
         content: [{
           type: "text" as const,

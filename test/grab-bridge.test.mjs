@@ -560,6 +560,144 @@ test('start_grab_session requires its capability key, serves DESIGN.md tokens, q
   });
 });
 
+test('/agent/wait rejects requests without the session key', async () => {
+  const designPath = await makeDesignFixture();
+  await withClient(indexMod.buildServer({}), async (client) => {
+    const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath } });
+    const session = JSON.parse(started.content[0].text);
+    const response = await fetch(`${session.url}/agent/wait?timeout_ms=200`);
+    assert.equal(response.status, 403);
+    await client.callTool({ name: 'stop_grab_session', arguments: {} });
+  });
+});
+
+test('/agent/wait drains a queued grab for the keyed session', async () => {
+  const designPath = await makeDesignFixture();
+  await withClient(indexMod.buildServer({}), async (client) => {
+    const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath } });
+    const session = JSON.parse(started.content[0].text);
+    const key = sessionKey(session);
+    const element = { selector: '#queued', instruction: 'Move this above the hero.' };
+    const grabResponse = await fetch(`${session.url}/grab?key=${key}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(element)
+    });
+    assert.equal(grabResponse.status, 202);
+
+    const response = await fetch(`${session.url}/agent/wait?key=${key}&timeout_ms=200`);
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.equal(result.count, 1);
+    assert.equal(result.elements[0].selector, element.selector);
+    assert.equal(result.elements[0].instruction, element.instruction);
+    await client.callTool({ name: 'stop_grab_session', arguments: {} });
+  });
+});
+
+test('/agent/wait returns an empty result after a short timeout', async () => {
+  const designPath = await makeDesignFixture();
+  await withClient(indexMod.buildServer({}), async (client) => {
+    const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath } });
+    const session = JSON.parse(started.content[0].text);
+    const key = sessionKey(session);
+    const response = await fetch(`${session.url}/agent/wait?key=${key}&timeout_ms=200`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { count: 0, elements: [] });
+    await client.callTool({ name: 'stop_grab_session', arguments: {} });
+  });
+});
+
+test('a pending /agent/wait resolves when /grab queues an item', async () => {
+  const designPath = await makeDesignFixture();
+  await withClient(indexMod.buildServer({}), async (client) => {
+    const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath } });
+    const session = JSON.parse(started.content[0].text);
+    const key = sessionKey(session);
+    const waitResponsePromise = fetch(`${session.url}/agent/wait?key=${key}&timeout_ms=2000`);
+    const element = { selector: '#pending', instruction: 'Use the compact variant.' };
+    const grabResponse = await fetch(`${session.url}/grab?key=${key}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(element)
+    });
+    assert.equal(grabResponse.status, 202);
+
+    const waitResponse = await waitResponsePromise;
+    assert.equal(waitResponse.status, 200);
+    const result = await waitResponse.json();
+    assert.equal(result.count, 1);
+    assert.equal(result.elements[0].selector, element.selector);
+    assert.equal(result.elements[0].instruction, element.instruction);
+    await client.callTool({ name: 'stop_grab_session', arguments: {} });
+  });
+});
+
+test('start_grab_session returns a keyed wait URL and background watch command', async () => {
+  const designPath = await makeDesignFixture();
+  await withClient(indexMod.buildServer({}), async (client) => {
+    const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath } });
+    const session = JSON.parse(started.content[0].text);
+    if (session.mode !== 'server') {
+      assert.equal(session.wait_url, '');
+      assert.equal(session.watch_command, '');
+    } else {
+      const key = sessionKey(session);
+      assert.equal(session.wait_url, `${session.url}/agent/wait?key=${key}&timeout_ms=240000`);
+      assert.match(session.watch_command, new RegExp(key));
+      assert.match(session.watch_command, /curl -sf/);
+      assert.match(session.watch_command, /"count": 0/);
+    }
+    await client.callTool({ name: 'stop_grab_session', arguments: {} });
+  });
+});
+
+test('watch_command run in a real shell exits with the sent selection', async (t) => {
+  const designPath = await makeDesignFixture();
+  await withClient(indexMod.buildServer({}), async (client) => {
+    const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath } });
+    const session = JSON.parse(started.content[0].text);
+    if (session.mode !== 'server') {
+      await client.callTool({ name: 'stop_grab_session', arguments: {} });
+      t.skip('no HTTP listener in shim mode');
+      return;
+    }
+    const key = sessionKey(session);
+    const { spawn } = await import('node:child_process');
+    const watcher = spawn('sh', ['-c', session.watch_command]);
+    let stdout = '';
+    watcher.stdout.on('data', (chunk) => { stdout += chunk; });
+    const exited = new Promise((resolve) => watcher.on('close', resolve));
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const element = { selector: '#watched', instruction: 'Swap to the accent token.' };
+    const grabResponse = await fetch(`${session.url}/grab?key=${key}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(element)
+    });
+    assert.equal(grabResponse.status, 202);
+
+    const code = await exited;
+    assert.equal(code, 0);
+    const delivered = JSON.parse(stdout);
+    assert.equal(delivered.count, 1);
+    assert.equal(delivered.elements[0].selector, element.selector);
+    await client.callTool({ name: 'stop_grab_session', arguments: {} });
+  });
+});
+
+test('stop_grab_session settles a pending /agent/wait without hanging', async () => {
+  const designPath = await makeDesignFixture();
+  await withClient(indexMod.buildServer({}), async (client) => {
+    const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath } });
+    const session = JSON.parse(started.content[0].text);
+    const key = sessionKey(session);
+    const pending = fetch(`${session.url}/agent/wait?key=${key}&timeout_ms=10000`)
+      .then((response) => response.json())
+      .catch(() => ({ count: 0, elements: [] }));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const stopped = await client.callTool({ name: 'stop_grab_session', arguments: {} });
+    assert.equal(JSON.parse(stopped.content[0].text).stopped, true);
+    const drained = await pending;
+    assert.equal(drained.count, 0);
+  });
+});
+
 test('grab bridge drains ordered multiSelect entries without changing their order', async () => {
   const designPath = await makeDesignFixture();
   await withClient(indexMod.buildServer({}), async (client) => {

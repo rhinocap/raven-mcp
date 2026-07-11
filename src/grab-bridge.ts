@@ -188,6 +188,8 @@ export interface GrabBridgeStartResult {
   port: number;
   url: string;
   script_tag: string;
+  wait_url: string;
+  watch_command: string;
   path: string;
   mode: "server" | "shim";
   destination: {
@@ -310,10 +312,18 @@ export async function startGrabSession(path: string, port?: number, proxyTarget?
   if (warning && normalizedTarget) {
     warning += " proxy_target is ignored in shim mode.";
   }
+  var bridgeUrl = "http://127.0.0.1:" + actualPort;
+  // Watcher only exists in server mode — shim has no HTTP listener for curl to reach.
+  var waitUrl = mode === "server" ? bridgeUrl + "/agent/wait?key=" + key + "&timeout_ms=240000" : "";
+  var watchCommand = waitUrl
+    ? "f=0; while :; do r=$(curl -sf '" + waitUrl + "') || { f=$((f+1)); [ \"$f\" -ge 5 ] && exit 1; sleep 2; continue; }; f=0; if [ -n \"$r\" ] && ! printf '%s' \"$r\" | grep -q '\"count\": 0'; then printf '%s\\n' \"$r\"; exit 0; fi; done"
+    : "";
   return {
     port: actualPort,
-    url: "http://127.0.0.1:" + actualPort,
+    url: bridgeUrl,
     script_tag: grabRoleConfigTag(role) + '<script src="http://127.0.0.1:' + actualPort + '/raven-grab.js?key=' + key + '"></script>',
+    wait_url: waitUrl,
+    watch_command: watchCommand,
     path: abs,
     mode: mode,
     destination: {
@@ -548,7 +558,7 @@ async function handleGrabRequest(designMdPath: string, key: string, req: Incomin
   var method = req.method || "GET";
   var requestUrl = req.url || "/";
   var pathname = new URL(requestUrl, "http://127.0.0.1").pathname;
-  var bridgeRoute = pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/grab"
+  var bridgeRoute = pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/grab" || pathname === "/agent/wait"
     || pathname === "/template" || pathname === "/template-validation" || pathname === "/layers" || pathname === "/layers-intent";
   if (proxyTarget && method !== "OPTIONS" && !bridgeRoute) {
     await proxyGrabRequest(proxyTarget, key, method, requestUrl, req, res, role);
@@ -698,7 +708,7 @@ async function buildGrabResponse(designMdPath: string, key: string, method: stri
     return { status: 204, headers: {}, body: "" };
   }
 
-  var protectedRoute = (method === "GET" && (pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/template"))
+  var protectedRoute = (method === "GET" && (pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/template" || pathname === "/agent/wait"))
     || (method === "POST" && (pathname === "/grab" || pathname === "/template" || pathname === "/template-validation" || pathname === "/layers" || pathname === "/layers-intent"));
   if (protectedRoute && parsedUrl.searchParams.get("key") !== key) {
     return { status: 403, headers: { "Content-Type": "text/plain; charset=utf-8" }, body: "Forbidden" };
@@ -727,6 +737,17 @@ async function buildGrabResponse(designMdPath: string, key: string, method: stri
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: JSON.stringify({ error: (err as Error).message }, null, 2)
       };
+    }
+  }
+
+  if (method === "GET" && pathname === "/agent/wait") {
+    try {
+      var timeoutParam = parsedUrl.searchParams.get("timeout_ms");
+      var timeoutMs = timeoutParam && /^\d+$/.test(timeoutParam) && Number(timeoutParam) > 0 ? Number(timeoutParam) : 240000;
+      timeoutMs = Math.min(timeoutMs, 240000);
+      return jsonResponse(200, await getGrabbedElements(timeoutMs));
+    } catch (err) {
+      return jsonResponse(500, { error: (err as Error).message });
     }
   }
 
