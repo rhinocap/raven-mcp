@@ -133,6 +133,10 @@ async function loadOverlayInternals(options = {}) {
     dispatchPanelLeft: function (type, event) { panelLeft.dispatch(type, event); },
     getEdgeTabAttribute: function (name) { return typeof edgeTab === "undefined" ? null : edgeTab.getAttribute(name); },
     dispatchEdgeTab: function (type, event) { if (typeof edgeTab !== "undefined") edgeTab.dispatch(type, event); },
+    getEdgeTabLeftAttribute: function (name) { return typeof edgeTabLeft === "undefined" ? null : edgeTabLeft.getAttribute(name); },
+    dispatchEdgeTabLeft: function (type, event) { if (typeof edgeTabLeft !== "undefined") edgeTabLeft.dispatch(type, event); },
+    getEdgeTabHtml: function () { return typeof edgeTab === "undefined" ? "" : edgeTab.innerHTML; },
+    getEdgeTabLeftHtml: function () { return typeof edgeTabLeft === "undefined" ? "" : edgeTabLeft.innerHTML; },
     dispatchPanel: function (type, event) { panel.dispatch(type, event); },
     getPanelStyle: function (name) { return panel.style[name]; },
     getPanelCapturedPointer: function () { return panel.capturedPointer; },
@@ -1722,6 +1726,27 @@ test('left structure panel renders its own aside and collapses in sync with the 
   internals.dismiss();
   assert.equal(internals.getPanelLeftAttribute('aria-hidden'), 'true');
   assert.equal(internals.getPanelLeftHtml(), '');
+});
+
+test('left edge tab carries the panel icon and expands both panels when clicked', async () => {
+  const { internals } = await loadOverlayInternals();
+  internals.setStyleContext({ style: fakeStyle() }, { color: 'rgb(0, 0, 0)' }, [], '#edge-tabs');
+  internals.renderPanel();
+
+  assert.equal(internals.getEdgeTabLeftAttribute('data-side'), 'left');
+  assert.match(internals.getEdgeTabHtml(), /<svg/);
+  assert.match(internals.getEdgeTabLeftHtml(), /<svg/);
+  assert.match(internals.getPanelHtml(), /data-collapse[^>]*>[^<]*<svg/);
+
+  internals.collapsePanel(true);
+  assert.equal(internals.getEdgeTabAttribute('aria-hidden'), 'false');
+  assert.equal(internals.getEdgeTabLeftAttribute('aria-hidden'), 'false');
+
+  internals.dispatchEdgeTabLeft('click', { stopPropagation() {} });
+  assert.equal(internals.getPanelAttribute('data-collapsed'), 'false');
+  assert.equal(internals.getPanelLeftAttribute('data-collapsed'), 'false');
+  assert.equal(internals.getEdgeTabAttribute('aria-hidden'), 'true');
+  assert.equal(internals.getEdgeTabLeftAttribute('aria-hidden'), 'true');
 });
 
 test('overlay header drag captures the pointer and clamps the panel inside an 8px viewport margin', async () => {

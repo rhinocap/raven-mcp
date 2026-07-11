@@ -452,12 +452,13 @@
       expandPanel();
     }
   }
-  function collapsePanel() {
+  function collapsePanel(fromLeft) {
     if (!armed || panel.getAttribute("aria-hidden") === "true") return;
     collapsed = true;
     setPanelsCollapsed(true);
     setEdgeTabsHidden(false);
-    if (typeof edgeTab.focus === "function") edgeTab.focus();
+    var focusTab = fromLeft ? edgeTabLeft : edgeTab;
+    if (typeof focusTab.focus === "function") focusTab.focus();
     hoveredElement = null;
     highlight.style.display = "none";
     label.style.display = "none";
@@ -479,6 +480,8 @@
         return;
       }
       expandPanel();
+      var collapseButton = (tab === edgeTabLeft ? panelLeft : panel).querySelector("[data-collapse]");
+      if (collapseButton && typeof collapseButton.focus === "function") collapseButton.focus();
     });
     tab.addEventListener("pointerdown", function (event) {
       if (event.button !== 0) return;
@@ -2412,7 +2415,7 @@
     event.stopPropagation();
     var elementChip = event.target.closest("[data-element-selector]");
     if (elementChip) copyElementSelector(elementChip);
-    if (event.target.closest("[data-collapse]")) collapsePanel();
+    if (event.target.closest("[data-collapse]")) collapsePanel(event.currentTarget === panelLeft);
     if (event.target.closest("[data-send]")) sendSelection();
     if (event.target.closest("[data-request-next]")) advanceComponentRequest();
     if (event.target.closest("[data-send-email]")) sendComponentRequest();

@@ -53,7 +53,7 @@ const STEPS: Step[] = [
   },
   {
     title: 'Collapse and reopen',
-    body: 'The caret in the panel header tucks it away to the right edge — no overlay chrome while it’s closed. Drag the panel by its header, or the edge tab up and down, if either is in your way.',
+    body: 'The collapse icon in either panel header tucks both panels away, leaving a small tab on each edge of the screen — click either tab to bring them back. Drag a panel by its header, or an edge tab up and down, if any are in your way.',
     anchor: 'panel',
   },
 ]
