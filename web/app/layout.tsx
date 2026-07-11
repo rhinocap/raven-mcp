@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { Analytics } from '@vercel/analytics/next'
 import Script from 'next/script'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
@@ -206,6 +207,7 @@ export default function RootLayout({
         <Script src="/assets/nav.js" strategy="beforeInteractive" />
         <Script src="/assets/footer.js" strategy="beforeInteractive" />
         <RevealAndCopy />
+        <Analytics />
       </body>
     </html>
   )
