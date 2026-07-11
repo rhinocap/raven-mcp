@@ -169,6 +169,7 @@
       font: 18px/1 var(--raven-grab-ui); transition: color 150ms ease, background 150ms ease;
     }
     .raven-grab-icon-button:hover { color: var(--raven-grab-text); background: rgba(255, 255, 255, .12); }
+    .raven-grab-icon-button svg, .raven-grab-edge-tab svg { display: block; margin: auto; }
     .raven-grab-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-height: 44px; background: rgba(255, 255, 255, .01); border-bottom: 1px solid rgba(255, 255, 255, .12); backdrop-filter: blur(6px); }
     .raven-grab-tab { min-height: 44px; padding: 12px 6px; color: var(--raven-grab-text); background: transparent; border: 0; border-bottom: 1px solid transparent; cursor: pointer; font: 400 11px/1 var(--raven-grab-mono); }
     .raven-grab-tab[aria-selected="true"] { color: var(--raven-grab-accent); border-bottom-color: rgba(0, 191, 255, .3); font-weight: 500; }
@@ -343,6 +344,7 @@
       color: var(--raven-grab-accent); background: rgba(22, 44, 66, .9); border: 1px solid var(--raven-grab-accent); border-right: 0; border-radius: 12px 0 0 12px;
       backdrop-filter: blur(12px); font: 500 24px/1 var(--raven-grab-ui); box-shadow: 0 8px 24px rgba(0, 0, 0, .3);
     }
+    .raven-grab-edge-tab[data-side="left"] { right: auto; left: 0; border-right: 1px solid var(--raven-grab-accent); border-left: 0; border-radius: 0 12px 12px 0; }
     .raven-grab-edge-tab[aria-hidden="false"] { display: flex; }
     .raven-grab-edge-tab:hover { background: rgba(22, 44, 66, 1); }
     .raven-grab-edge-tab:focus-visible { outline: 3px solid rgba(0, 191, 255, .35); outline-offset: 2px; }
@@ -390,18 +392,35 @@
     for (i = 0; i < b.length; i++) out.push(b[i]);
     return out;
   }
-  var edgeTab = document.createElement("button");
-  edgeTab.className = "raven-grab-edge-tab";
-  edgeTab.type = "button";
-  edgeTab.textContent = "‹";
-  edgeTab.setAttribute("aria-label", "Expand Raven panel");
-  edgeTab.setAttribute("aria-hidden", collapsed ? "false" : "true");
+  // Figma/Chrome-style panel icon: three stacked lines + a caret pointing `dir`.
+  function panelIconSvg(dir) {
+    var caret = dir === "left" ? '<polyline points="13.5,5 10.5,8 13.5,11"/>' : '<polyline points="10.5,5 13.5,8 10.5,11"/>';
+    return '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<line x1="2.5" y1="4.5" x2="8" y2="4.5"/><line x1="2.5" y1="8" x2="8" y2="8"/><line x1="2.5" y1="11.5" x2="8" y2="11.5"/>' + caret + "</svg>";
+  }
+  function makeEdgeTab(side) {
+    var tab = document.createElement("button");
+    tab.className = "raven-grab-edge-tab";
+    tab.type = "button";
+    if (side === "left") tab.setAttribute("data-side", "left");
+    tab.innerHTML = panelIconSvg(side === "left" ? "right" : "left");
+    tab.setAttribute("aria-label", "Expand Raven panels");
+    tab.setAttribute("aria-hidden", collapsed ? "false" : "true");
+    return tab;
+  }
+  var edgeTab = makeEdgeTab("right");
+  var edgeTabLeft = makeEdgeTab("left");
+  var edgeTabs = [edgeTab, edgeTabLeft];
+  function setEdgeTabsHidden(hidden) {
+    for (var i = 0; i < edgeTabs.length; i++) edgeTabs[i].setAttribute("aria-hidden", hidden ? "true" : "false");
+  }
   shadow.appendChild(style);
   shadow.appendChild(highlight);
   shadow.appendChild(label);
   shadow.appendChild(panel);
   shadow.appendChild(panelLeft);
   shadow.appendChild(edgeTab);
+  shadow.appendChild(edgeTabLeft);
 
   var armed = true;
   // Both panels share one collapse state: collapsing either collapses both.
@@ -417,7 +436,7 @@
   function expandPanel() {
     collapsed = false;
     setPanelsCollapsed(false);
-    edgeTab.setAttribute("aria-hidden", "true");
+    setEdgeTabsHidden(true);
     if (selectedElement) setHighlight(selectedElement);
   }
   // On mobile the expanded panel covers ~90% of the wireframe, so arming and
@@ -427,7 +446,7 @@
     if (window.innerWidth <= 640) {
       collapsed = true;
       setPanelsCollapsed(true);
-      edgeTab.setAttribute("aria-hidden", "false");
+      setEdgeTabsHidden(false);
       if (selectedElement) setHighlight(selectedElement);
     } else {
       expandPanel();
@@ -437,7 +456,7 @@
     if (!armed || panel.getAttribute("aria-hidden") === "true") return;
     collapsed = true;
     setPanelsCollapsed(true);
-    edgeTab.setAttribute("aria-hidden", "false");
+    setEdgeTabsHidden(false);
     if (typeof edgeTab.focus === "function") edgeTab.focus();
     hoveredElement = null;
     highlight.style.display = "none";
@@ -451,35 +470,39 @@
       renderPanel();
     }
   }
-  var edgeTabDragged = false;
-  edgeTab.addEventListener("click", function (event) {
-    event.stopPropagation();
-    if (edgeTabDragged) {
-      edgeTabDragged = false;
-      return;
-    }
-    expandPanel();
-  });
-  edgeTab.addEventListener("pointerdown", function (event) {
-    if (event.button !== 0) return;
-    var startY = event.clientY;
-    var startTop = edgeTab.getBoundingClientRect().top;
-    var moved = false;
-    function onMove(e) {
-      var delta = e.clientY - startY;
-      if (!moved && Math.abs(delta) < 4) return;
-      moved = true;
-      edgeTabDragged = true;
-      var top = Math.max(8, Math.min(startTop + delta, innerHeight - edgeTab.offsetHeight - 8));
-      edgeTab.style.top = top + "px";
-    }
-    function onUp() {
-      removeEventListener("pointermove", onMove, true);
-      removeEventListener("pointerup", onUp, true);
-    }
-    addEventListener("pointermove", onMove, true);
-    addEventListener("pointerup", onUp, true);
-  });
+  function bindEdgeTab(tab) {
+    var dragged = false;
+    tab.addEventListener("click", function (event) {
+      event.stopPropagation();
+      if (dragged) {
+        dragged = false;
+        return;
+      }
+      expandPanel();
+    });
+    tab.addEventListener("pointerdown", function (event) {
+      if (event.button !== 0) return;
+      var startY = event.clientY;
+      var startTop = tab.getBoundingClientRect().top;
+      var moved = false;
+      function onMove(e) {
+        var delta = e.clientY - startY;
+        if (!moved && Math.abs(delta) < 4) return;
+        moved = true;
+        dragged = true;
+        var top = Math.max(8, Math.min(startTop + delta, innerHeight - tab.offsetHeight - 8));
+        tab.style.top = top + "px";
+      }
+      function onUp() {
+        removeEventListener("pointermove", onMove, true);
+        removeEventListener("pointerup", onUp, true);
+      }
+      addEventListener("pointermove", onMove, true);
+      addEventListener("pointerup", onUp, true);
+    });
+  }
+  bindEdgeTab(edgeTab);
+  bindEdgeTab(edgeTabLeft);
 
   function clampPanelCoordinate(left, top, width, height) {
     return {
@@ -1898,7 +1921,7 @@
       <div class="raven-grab-top">
         <div class="raven-grab-header">
           <div class="raven-grab-title"><strong>Raven design</strong></div>
-          <button class="raven-grab-icon-button" type="button" data-collapse aria-label="Collapse Raven panels">&gt;</button>
+          <button class="raven-grab-icon-button" type="button" data-collapse aria-label="Collapse Raven panels">${panelIconSvg("right")}</button>
         </div>
         <div class="raven-grab-tabs" role="tablist" aria-label="Raven design actions">
           <button class="raven-grab-tab" type="button" role="tab" data-tab="design" aria-selected="${activeTabA === "design" ? "true" : "false"}">Design</button>
@@ -1911,7 +1934,7 @@
       <div class="raven-grab-top">
         <div class="raven-grab-header">
           <div class="raven-grab-title"><strong>Structure</strong></div>
-          <button class="raven-grab-icon-button" type="button" data-collapse aria-label="Collapse Raven panels">&gt;</button>
+          <button class="raven-grab-icon-button" type="button" data-collapse aria-label="Collapse Raven panels">${panelIconSvg("left")}</button>
         </div>
         <div class="raven-grab-tabs" role="tablist" aria-label="Raven structure actions">
           <button class="raven-grab-tab" type="button" role="tab" data-tab="template" aria-selected="${activeTabB === "template" ? "true" : "false"}">Template</button>
@@ -1977,7 +2000,7 @@
     componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
     componentRequestId = "";
     collapsed = window.innerWidth <= 640;
-    edgeTab.setAttribute("aria-hidden", "true");
+    setEdgeTabsHidden(true);
     for (var pi = 0; pi < panels.length; pi++) {
       panels[pi].setAttribute("data-collapsed", collapsed ? "true" : "false");
       panels[pi].removeAttribute("inert");
