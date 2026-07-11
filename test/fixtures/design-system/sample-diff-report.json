@@ -9,7 +9,11 @@
     "token_fidelity": 50,
     "evidence_confidence": "declared"
   },
-  "passes": [],
+  "passes": [
+    { "id": "optional-component-tooltip", "type": "optional_component", "component": "tooltip", "detail": "Optional component not declared", "severity": "info", "evidence": "Optional in Raven canonical baseline" },
+    { "id": "optional-component-badge", "type": "optional_component", "component": "badge", "detail": "Optional component not declared", "severity": "info", "evidence": "Optional in Raven canonical baseline" },
+    { "id": "optional-component-avatar", "type": "optional_component", "component": "avatar", "detail": "Optional component not declared", "severity": "info", "evidence": "Optional in Raven canonical baseline" }
+  ],
   "errors": [
     { "id": "missing-state-button-focus-visible", "type": "missing_state", "component": "button", "detail": "Missing required state: focus-visible", "severity": "error", "evidence": "Declared states: hover, active, disabled, loading" },
     { "id": "missing-component-input", "type": "missing_component", "component": "input", "detail": "Missing core component", "severity": "error", "evidence": "No matching declaration" },

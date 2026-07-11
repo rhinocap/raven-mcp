@@ -36,13 +36,70 @@ test('token-only DESIGN.md reports unknown coverage, never missing components', 
   assert.match(report.summary, /unknown/i);
 });
 
-test('touch-only platform does not require hover', () => {
-  const inventory = diff.inventoryFromDesignMd(fixture);
-  const report = diff.diffDesignSystem(inventory, 'raven-canonical', { platform: 'web-touch' });
-  assert.equal(report.warnings.some((finding) => finding.type === 'missing_state' && finding.detail.includes('hover')), false);
+test('hover is required for web-pointer but not touch-class platforms', () => {
+  const inventory = {
+    source: 'test', tokens: [], diagnostics: [],
+    components: [{ id: 'button', aliases: [], variants: ['primary', 'secondary'], states: ['focus-visible', 'active', 'disabled', 'loading'], anatomy: ['label'], tokens: {}, evidence: 'declared', confidence: 'declared' }]
+  };
+  const pointer = diff.diffDesignSystem(inventory, 'raven-canonical', { platform: 'web-pointer' });
+  assert.equal(pointer.warnings.some((finding) => finding.type === 'missing_state' && finding.detail.includes('hover')), true);
+  for (const platform of ['web-touch', 'ios', 'android']) {
+    const report = diff.diffDesignSystem(inventory, 'raven-canonical', { platform });
+    assert.equal(report.warnings.some((finding) => finding.type === 'missing_state' && finding.detail.includes('hover')), false, platform);
+  }
+  assert.throws(() => diff.diffDesignSystem(inventory, 'raven-canonical', { platform: 'ios-touch' }), /web-pointer.*web-touch.*ios.*android/);
 });
 
-test('missing focus-visible is the sole accessibility-critical button state error and caps the grade', async () => {
+test('exact component id wins before project aliases', () => {
+  const inventory = { source: 'test', tokens: [], diagnostics: [], components: [{ id: 'button', aliases: [], variants: [], states: [], anatomy: [], tokens: {}, evidence: 'declared', confidence: 'declared' }] };
+  const report = diff.diffDesignSystem(inventory, 'raven-canonical', { platform: 'web-pointer', projectAliases: { button: 'input' } });
+  assert.equal(report.errors.some((finding) => finding.id === 'missing-component-button'), false);
+  assert.equal(report.errors.some((finding) => finding.id === 'missing-component-input'), true);
+});
+
+test('baseline aliases win before project aliases', () => {
+  const inventory = { source: 'test', tokens: [], diagnostics: [], components: [{ id: 'btn', aliases: [], variants: [], states: [], anatomy: [], tokens: {}, evidence: 'declared', confidence: 'declared' }] };
+  const report = diff.diffDesignSystem(inventory, 'raven-canonical', { platform: 'web-pointer', projectAliases: { btn: 'input' } });
+  assert.equal(report.errors.some((finding) => finding.id === 'missing-component-button'), false);
+  assert.equal(report.errors.some((finding) => finding.id === 'missing-component-input'), true);
+});
+
+test('dangling component token refs warn and do not count as faithful', () => {
+  const inventory = {
+    source: 'test', tokens: [{ path: 'colors.primary', group: 'colors', name: 'primary', value: '#000', kind: 'scalar', cssVar: '--color-primary' }], diagnostics: [],
+    components: [{ id: 'button', aliases: [], variants: [], states: [], anatomy: [], tokens: { background: '{colors.missing}', foreground: '{colors.primary}' }, evidence: 'declared', confidence: 'declared' }]
+  };
+  const report = diff.diffDesignSystem(inventory, 'raven-canonical', { platform: 'web-pointer' });
+  assert.equal(report.coverage.token_fidelity, 50);
+  assert.equal(report.warnings.some((finding) => finding.type === 'token_dangling_ref' && finding.detail.includes('colors.missing')), true);
+});
+
+test('a baseline component is consumed once and duplicate matches warn', () => {
+  const component = (id) => ({ id, aliases: [], variants: [], states: [], anatomy: [], tokens: {}, evidence: 'declared', confidence: 'declared' });
+  const report = diff.diffDesignSystem({ source: 'test', tokens: [], diagnostics: [], components: [component('button'), component('btn')] }, 'raven-canonical', { platform: 'web-pointer' });
+  assert.equal(report.coverage.components.covered, 1);
+  assert.ok(report.coverage.components.pct <= 100);
+  assert.equal(report.warnings.some((finding) => finding.type === 'ambiguous_match' && finding.component === 'btn'), true);
+});
+
+test('unmatched optional baseline components emit informational pass notes', () => {
+  const inventory = { source: 'test', tokens: [], diagnostics: [], components: [{ id: 'button', aliases: [], variants: [], states: [], anatomy: [], tokens: {}, evidence: 'declared', confidence: 'declared' }] };
+  const report = diff.diffDesignSystem(inventory, 'raven-canonical', { platform: 'web-pointer' });
+  assert.equal(report.passes.some((finding) => finding.type === 'optional_component' && finding.component === 'tooltip' && finding.severity === 'info'), true);
+});
+
+test('missing focus-visible caps an otherwise above-cap report at score 74 and grade C', async () => {
+  const baseline = diff.loadBaseline('raven-canonical');
+  const components = baseline.components.map((component) => ({
+    id: component.id, aliases: [], variants: component.variants.slice(),
+    states: component.states.filter((state) => !(component.id === 'button' && state === 'focus-visible')),
+    anatomy: component.anatomy.slice(), tokens: {}, evidence: 'declared', confidence: 'declared'
+  }));
+  const capped = diff.diffDesignSystem({ source: 'test', tokens: [], diagnostics: [], components }, 'raven-canonical', { platform: 'web-pointer' });
+  assert.equal(capped.score, 74);
+  assert.equal(capped.grade, 'C');
+  assert.match(capped.summary, /caps the score at 74 and grade at C/);
+
   const report = diff.diffDesignSystem(diff.inventoryFromDesignMd(fixture), 'raven-canonical', { platform: 'web-pointer' });
   const critical = report.errors.filter((finding) => finding.type === 'missing_state' && finding.component === 'button');
   assert.deepEqual(critical.map((finding) => finding.detail), ['Missing required state: focus-visible']);

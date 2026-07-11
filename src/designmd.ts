@@ -187,15 +187,7 @@ export function extractComponentManifest(frontmatter: DesignMdNode): { component
         (decl as any)[key] = value.slice();
       }
     }
-    var keys = Object.keys(node);
-    for (var k = 0; k < keys.length; k++) {
-      var tokenKey = keys[k];
-      if (reserved.indexOf(tokenKey) !== -1) continue;
-      var tokenValue = node[tokenKey];
-      if (typeof tokenValue === "string" || typeof tokenValue === "number" || typeof tokenValue === "boolean" || tokenValue === null || isRefValue(tokenValue)) {
-        decl.tokens[tokenKey] = isRefValue(tokenValue) ? "{" + tokenValue.$ref + "}" : String(tokenValue);
-      }
-    }
+    collectComponentTokens(node, [], reserved, decl.tokens);
     components.push(decl);
   }
   return { components: components, problems: problems };
@@ -752,7 +744,7 @@ function splitInlineArray(text: string, sourceLine: string): string[] {
   for (var i = 0; i < text.length; i++) {
     var ch = text.charAt(i);
     if (quote !== "") {
-      if (ch === quote && text.charAt(i - 1) !== "\\") quote = "";
+      if (ch === quote && !isEscapedAt(text, i)) quote = "";
       continue;
     }
     if (ch === "\"" || ch === "'") { quote = ch; continue; }
@@ -762,6 +754,26 @@ function splitInlineArray(text: string, sourceLine: string): string[] {
   if (quote !== "") throw new Error("Invalid quoted value in inline array: " + sourceLine);
   parts.push(text.slice(start));
   return parts;
+}
+
+function isEscapedAt(text: string, index: number): boolean {
+  var slashes = 0;
+  for (var i = index - 1; i >= 0 && text.charAt(i) === "\\"; i--) slashes++;
+  return slashes % 2 === 1;
+}
+
+function collectComponentTokens(node: DesignMdNode, parts: string[], reserved: string[], tokens: Record<string, string>): void {
+  var keys = Object.keys(node);
+  for (var i = 0; i < keys.length; i++) {
+    var key = keys[i];
+    if (parts.length === 0 && reserved.indexOf(key) !== -1) continue;
+    var value = node[key];
+    var nextParts = parts.concat(key);
+    if (isNodeValue(value)) collectComponentTokens(value, nextParts, reserved, tokens);
+    else if (typeof value === "string" || typeof value === "number" || typeof value === "boolean" || value === null || isRefValue(value)) {
+      tokens[nextParts.join(".")] = isRefValue(value) ? "{" + value.$ref + "}" : String(value);
+    }
+  }
 }
 
 function hasManifestKey(node: DesignMdNode): boolean {

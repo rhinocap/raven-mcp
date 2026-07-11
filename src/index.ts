@@ -1607,10 +1607,11 @@ function maybeComputeDailyDigest(): void {
 
 // ── Server ──────────────────────────────────────────────────────────
 
-// The 35 tools NOT served on a shared remote server (buildServer({remote:true})).
+// The 37 tools NOT served on a shared remote server (buildServer({remote:true})).
 // 20 are stateful/local (per-user ~/.raven files, or the create_generation_job
 // subprocess), 5 reach the filesystem/network or have an external side effect,
-// and 6 are the DESIGN.md / grab-bridge tools (local file I/O plus a single
+// 2 are Talon tools, and 10 are the DESIGN.md / grab / design-system-diff tools
+// (local file I/O plus a single
 // loopback HTTP session). Everything else (45 stateless tools, including the 5
 // guarded browser URL audits added in Phase 3) is remote-safe.
 // Traced to docs/remote-mcp-scope.md §2; asserted at build time.
@@ -1712,18 +1713,18 @@ const REMOTE_URL_GUARDED_TOOLS: { [tool: string]: string } = {
   audit_taste: "url"
 };
 
-// buildServer() returns a FRESH McpServer with all 70 tools + the usage-log/
+// buildServer() returns a FRESH McpServer with all 82 tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
 export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }): McpServer {
-// remote = serve only the 45 stateless remote-safe tools (gate off the 20
-// stateful/local + 5 fs/network/side-effect capability tools; evaluate_design
+// remote = serve only the 45 stateless remote-safe tools (gate off the 37
+// stateful/local, fs/network/side-effect, Talon, DESIGN.md, grab, and diff tools; evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 70.
+// without threading opts. stdio callers pass nothing → remote=false → all 82.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -2459,7 +2460,7 @@ server.tool(
     project_dir: z.string().describe("Project directory where .raven configuration is stored"),
     source_kind: z.literal("design-file").describe("MVP source kind; only design-file is supported"),
     design_file_path: z.string().optional().describe("DESIGN.md path relative to the project directory; defaults to DESIGN.md"),
-    platform: z.string().optional().describe("Target platform such as web-pointer or web-touch"),
+    platform: z.enum(["web-pointer", "web-touch", "ios", "android"]).optional().describe("Target platform: web-pointer, web-touch, ios, or android"),
     aliases: z.record(z.string()).optional().describe("Project component id to Raven canonical component id aliases")
   },
   async function({ project_dir, source_kind, design_file_path, platform, aliases }) {
@@ -2491,16 +2492,16 @@ server.tool(
 
 server.tool(
   "diff_design_system",
-  "Compare a local DESIGN.md component inventory with the Raven canonical baseline.",
+  "Diff a project's declared design system (DESIGN.md) against the Raven canonical baseline: reports missing components, missing interaction/accessibility states, missing variants, and raw-literal token drift, as a scored report with fix priorities.",
   {
     project_dir: z.string().optional().describe("Project directory with a configured design-system source"),
     design_file_path: z.string().optional().describe("Direct path to DESIGN.md; overrides project configuration"),
     baseline: z.literal("raven-canonical").optional().describe("Baseline id; defaults to raven-canonical"),
-    platform: z.string().optional().describe("Target platform; overrides project configuration")
+    platform: z.enum(["web-pointer", "web-touch", "ios", "android"]).optional().describe("Target platform; overrides project configuration")
   },
   async function({ project_dir, design_file_path, baseline, platform }) {
     try {
-      var config = project_dir ? readSourceConfig(project_dir) : null;
+      var config = project_dir && !design_file_path ? readSourceConfig(project_dir) : null;
       var path = resolveDesignSystemPath(project_dir, design_file_path);
       var report = diffDesignSystem(inventoryFromDesignMd(path), baseline || "raven-canonical", { platform: platform || (config ? config.platform : "web-pointer"), projectAliases: config && config.aliases ? config.aliases : undefined });
       return { content: [{ type: "text" as const, text: JSON.stringify(report, null, 2) }] };
@@ -6449,7 +6450,7 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 70 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 82 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });
