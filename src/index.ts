@@ -2593,7 +2593,7 @@ server.tool(
 
 server.tool(
   "get_grabbed_elements",
-  "Drain the current grab queue, optionally waiting up to timeout_ms for the next selection.",
+  "Drain the current grab queue, optionally waiting up to timeout_ms for the next selection. A grabbed element may include an ordered multiSelect array with 1-based indices for spatial instructions such as move 1 above 2.",
   {
     timeout_ms: z.number().int().positive().optional().describe("Optional wait timeout in milliseconds")
   },
@@ -2602,7 +2602,7 @@ server.tool(
       var grabbed = await getGrabbedElements(timeout_ms);
       var payload: Record<string, unknown> = { ...grabbed };
       if (grabbed.count > 0) {
-        payload.agent_protocol = "Respond to the user NOW about these selections: summarize each requested change in one line (element, token swaps, style edits, instruction), then ask whether to (a) write a goal/plan and implement the fixes, or (b) wait for direction. Do not implement anything until the user chooses, and do not leave the selections unacknowledged.";
+        payload.agent_protocol = "Respond to the user NOW about these selections: summarize each requested change in one line (element, ordered multiSelect indices when present, token swaps, style edits, instruction). Treat multiSelect as click-ordered and 1-based, so instructions like move 1 above 2 are grounded in that array. Then ask whether to (a) write a goal/plan and implement the fixes, or (b) wait for direction. Do not implement anything until the user chooses, and do not leave the selections unacknowledged.";
       }
       return {
         content: [{

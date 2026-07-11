@@ -50,6 +50,8 @@
 
   var bridgeTokens = [];
   var selectedElement = null;
+  var multiSelections = [];
+  var multiBadges = [];
   var hoveredElement = null;
   var currentSelection = null;
   var reactMetadata = null;
@@ -116,6 +118,11 @@
       font: 600 11px/1.25 var(--raven-grab-mono);
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
       box-shadow: 0 0 0 1px rgba(0, 191, 255, .6), 0 4px 16px rgba(0, 191, 255, .35);
+    }
+    .raven-grab-multi-badge {
+      position: fixed; display: flex; align-items: center; justify-content: center; width: 18px; height: 18px;
+      color: #fff; background: var(--raven-grab-bg); border: 1px solid var(--raven-grab-accent); border-radius: 50%;
+      pointer-events: none; font: 600 10px/1 var(--raven-grab-ui); box-shadow: 0 2px 8px rgba(0, 0, 0, .45);
     }
     .raven-grab-panel {
       position: fixed; top: 20px; right: 20px; display: none; width: min(360px, calc(100vw - 40px));
@@ -1542,6 +1549,8 @@
     rollbackTokenPreviews();
     rollbackStyleEdits();
     selectedElement = null;
+    multiSelections = [];
+    clearMultiBadges();
     hoveredElement = null;
     currentSelection = null;
     reactMetadata = null;
@@ -1656,6 +1665,18 @@
     if (reactMetadata) {
       Object.keys(reactMetadata).forEach(function (key) {
         if (reactMetadata[key] !== undefined) payload[key] = reactMetadata[key];
+      });
+    }
+    if (multiSelections.length >= 2) {
+      payload.multiSelect = multiSelections.map(function (element, index) {
+        var selection = selectionFor(element);
+        return {
+          index: index + 1,
+          selector: selection.selector,
+          html: selection.html,
+          rect: selection.rect,
+          styles: selection.styles
+        };
       });
     }
     return payload;
@@ -2028,6 +2049,58 @@
     return !!target.closest("[data-raven-grab-ignore], vercel-live-feedback, [data-vercel-toolbar], vercel-toolbar, nextjs-portal");
   }
 
+  function clearMultiBadges() {
+    multiBadges.forEach(function (badge) {
+      if (badge.parentNode && typeof badge.parentNode.removeChild === "function") badge.parentNode.removeChild(badge);
+    });
+    multiBadges = [];
+  }
+
+  function renderMultiBadges() {
+    clearMultiBadges();
+    if (multiSelections.length < 2) return;
+    multiSelections.forEach(function (element, index) {
+      if (!element || typeof element.getBoundingClientRect !== "function" || !document.documentElement.contains(element)) return;
+      var rect = element.getBoundingClientRect();
+      var badge = document.createElement("span");
+      badge.className = "raven-grab-multi-badge";
+      badge.textContent = String(index + 1);
+      badge.style.left = Math.max(2, Math.min(rect.left - 9, innerWidth - 20)) + "px";
+      badge.style.top = Math.max(2, Math.min(rect.top - 9, innerHeight - 20)) + "px";
+      shadow.appendChild(badge);
+      multiBadges.push(badge);
+    });
+  }
+
+  function selectTarget(target, shiftKey) {
+    if (shiftKey && selectedElement) {
+      if (multiSelections.indexOf(target) === -1) multiSelections.push(target);
+      // Shift-click also starts a native text selection on the page; clear it.
+      if (window.getSelection) window.getSelection().removeAllRanges();
+      setHighlight(selectedElement);
+      renderMultiBadges();
+      return;
+    }
+    rollbackTokenPreviews();
+    rollbackStyleEdits();
+    tokenIntents = Object.create(null);
+    styleEdits = Object.create(null);
+    styleEditOriginalInline = Object.create(null);
+    activeTab = "design";
+    expandedSections = { tokens: false, styles: false };
+    instructionDraft = "";
+    componentRequestStep = "form";
+    componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
+    componentRequestId = "";
+    multiSelections = [target];
+    clearMultiBadges();
+    selectedElement = target;
+    openPanel();
+    setHighlight(target);
+    currentSelection = selectionFor(target);
+    renderPanel();
+  }
+
   document.addEventListener("mousemove", function (event) {
     if (!armed || collapsed) return;
     var path = event.composedPath ? event.composedPath() : [];
@@ -2049,22 +2122,7 @@
     if (event.altKey && target.parentElement) target = target.parentElement;
     event.preventDefault();
     event.stopImmediatePropagation();
-    rollbackTokenPreviews();
-    rollbackStyleEdits();
-    tokenIntents = Object.create(null);
-    styleEdits = Object.create(null);
-    styleEditOriginalInline = Object.create(null);
-    activeTab = "design";
-    expandedSections = { tokens: false, styles: false };
-    instructionDraft = "";
-    componentRequestStep = "form";
-    componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
-    componentRequestId = "";
-    selectedElement = target;
-    openPanel();
-    setHighlight(target);
-    currentSelection = selectionFor(target);
-    renderPanel();
+    selectTarget(target, event.shiftKey === true);
   }, true);
 
   document.addEventListener("keydown", function (event) {
@@ -2076,9 +2134,11 @@
   window.addEventListener("resize", function () {
     clampPanelToViewport();
     if (selectedElement && !collapsed) setHighlight(selectedElement);
+    renderMultiBadges();
   });
   window.addEventListener("scroll", function () {
     if (selectedElement && !collapsed) setHighlight(selectedElement);
+    renderMultiBadges();
   }, true);
 
   // Always listen — react-grab may load after this script.

@@ -11,15 +11,76 @@ var PKG_ROOT = resolve(join(__dirname, ".."));
 var GRAB_ASSET_PATH = process.env.RAVEN_GRAB_ASSET_PATH ? resolve(process.env.RAVEN_GRAB_ASSET_PATH) : join(PKG_ROOT, "browser", "raven-grab.js");
 type GrabRole = "consumer" | "maintainer";
 
+var GrabRectSchema = z.object({
+  x: z.number().optional(),
+  y: z.number().optional(),
+  top: z.number().optional(),
+  right: z.number().optional(),
+  bottom: z.number().optional(),
+  left: z.number().optional(),
+  width: z.number().optional(),
+  height: z.number().optional()
+}).passthrough();
+var GrabStylesSchema = z.record(z.string());
+var GrabTokenSchema = z.object({
+  property: z.string().optional(),
+  cssVar: z.string().optional(),
+  value: z.string().optional(),
+  name: z.string().optional(),
+  group: z.string().optional(),
+  path: z.string().optional(),
+  bridgeToken: z.object({ path: z.string().optional() }).passthrough().nullable().optional()
+}).passthrough();
+var GrabStateDeclarationSchema = z.object({
+  property: z.string(),
+  value: z.string(),
+  important: z.boolean().optional()
+}).passthrough();
+var GrabStateStyleSchema = z.object({
+  declarations: z.array(GrabStateDeclarationSchema),
+  tokens: z.array(GrabTokenSchema).optional(),
+  active: z.boolean().optional()
+}).passthrough();
+var GrabStateStylesSchema = z.record(GrabStateStyleSchema);
+var GrabTokenIntentSchema = z.object({
+  property: z.string(),
+  oldToken: z.string(),
+  oldTokenPath: z.string(),
+  newToken: z.string().optional(),
+  newTokenPath: z.string().optional(),
+  newTokenValue: z.string().optional()
+}).passthrough();
+var GrabStyleEditSchema = z.object({
+  property: z.string(),
+  oldValue: z.string(),
+  newValue: z.string()
+}).passthrough();
+var GrabMultiSelectionSchema = z.object({
+  index: z.number().int().min(1),
+  selector: z.string().min(1),
+  html: z.string(),
+  rect: GrabRectSchema,
+  styles: GrabStylesSchema
+}).passthrough();
+
+type GrabRect = z.infer<typeof GrabRectSchema>;
+type GrabStyles = z.infer<typeof GrabStylesSchema>;
+type GrabToken = z.infer<typeof GrabTokenSchema>;
+type GrabStateStyles = z.infer<typeof GrabStateStylesSchema>;
+type GrabTokenIntent = z.infer<typeof GrabTokenIntentSchema>;
+type GrabStyleEdit = z.infer<typeof GrabStyleEditSchema>;
+type GrabMultiSelection = z.infer<typeof GrabMultiSelectionSchema>;
+
 var GrabPayloadSchema = z.object({
   selector: z.string().min(1),
   html: z.string().optional(),
-  rect: z.record(z.any()).optional(),
-  styles: z.record(z.any()).optional(),
-  tokens: z.any().optional(),
-  stateStyles: z.any().optional(),
-  tokenIntents: z.array(z.any()).optional(),
-  styleEdits: z.array(z.any()).optional(),
+  rect: GrabRectSchema.optional(),
+  styles: GrabStylesSchema.optional(),
+  tokens: z.array(GrabTokenSchema).optional(),
+  stateStyles: GrabStateStylesSchema.optional(),
+  tokenIntents: z.array(GrabTokenIntentSchema).optional(),
+  styleEdits: z.array(GrabStyleEditSchema).optional(),
+  multiSelect: z.array(GrabMultiSelectionSchema).optional(),
   instruction: z.string().optional(),
   intent: z.literal("create-component").optional(),
   userNotes: z.string().optional(),
@@ -38,12 +99,13 @@ var GrabPayloadSchema = z.object({
 export interface GrabBridgeSelection {
   selector: string;
   html?: string;
-  rect?: Record<string, any>;
-  styles?: Record<string, any>;
-  tokens?: any;
-  stateStyles?: any;
-  tokenIntents?: any[];
-  styleEdits?: any[];
+  rect?: GrabRect;
+  styles?: GrabStyles;
+  tokens?: GrabToken[];
+  stateStyles?: GrabStateStyles;
+  tokenIntents?: GrabTokenIntent[];
+  styleEdits?: GrabStyleEdit[];
+  multiSelect?: GrabMultiSelection[];
   instruction?: string;
   intent?: "create-component";
   userNotes?: string;
@@ -264,6 +326,7 @@ export function queueGrabSelection(selection: unknown): GrabBridgeSelection {
     column: parsed.column,
     receivedAt: new Date().toISOString()
   };
+  if (parsed.multiSelect !== undefined) item.multiSelect = parsed.multiSelect;
   currentSession.queue.push(item);
   resolveWaiters(currentSession);
   return item;

@@ -113,6 +113,8 @@ async function loadOverlayInternals(options = {}) {
     cancelStyleEdit: cancelStyleEdit,
     dismiss: dismiss,
     payloadForSend: payloadForSend,
+    selectTarget: typeof selectTarget === "function" ? selectTarget : undefined,
+    getMultiSelectionCount: function () { return typeof multiSelections === "undefined" ? 0 : multiSelections.length; },
     styleEditsForSend: styleEditsForSend,
     renderPanel: renderPanel,
     setArmed: typeof setArmed === "function" ? setArmed : undefined,
@@ -370,6 +372,34 @@ test('start_grab_session requires its capability key, serves DESIGN.md tokens, q
     const stopped = await client.callTool({ name: 'stop_grab_session', arguments: {} });
     assert.ok(!stopped.isError);
     assert.equal(JSON.parse(stopped.content[0].text).stopped, true);
+  });
+});
+
+test('grab bridge drains ordered multiSelect entries without changing their order', async () => {
+  const designPath = await makeDesignFixture();
+  await withClient(indexMod.buildServer({}), async (client) => {
+    const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath } });
+    assert.ok(!started.isError);
+    const session = JSON.parse(started.content[0].text);
+    const key = sessionKey(session);
+    const multiSelect = [
+      { index: 1, selector: '#first', html: '<div id="first"></div>', rect: { x: 1, y: 2, top: 2, right: 11, bottom: 12, left: 1, width: 10, height: 10 }, styles: { color: 'red' } },
+      { index: 2, selector: '#second', html: '<div id="second"></div>', rect: { x: 3, y: 4, top: 4, right: 23, bottom: 24, left: 3, width: 20, height: 20 }, styles: { color: 'blue' } },
+      { index: 3, selector: '#third', html: '<div id="third"></div>', rect: { x: 5, y: 6, top: 6, right: 35, bottom: 36, left: 5, width: 30, height: 30 }, styles: { color: 'green' } }
+    ];
+
+    const grabResponse = await fetch(`${session.url}/grab?key=${key}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selector: '#first', multiSelect })
+    });
+    assert.equal(grabResponse.status, 202);
+
+    const drained = await client.callTool({ name: 'get_grabbed_elements', arguments: {} });
+    assert.ok(!drained.isError);
+    const grabbed = JSON.parse(drained.content[0].text);
+    assert.deepEqual(grabbed.elements[0].multiSelect, multiSelect);
+    await client.callTool({ name: 'stop_grab_session', arguments: {} });
   });
 });
 
@@ -913,6 +943,56 @@ test('overlay grab payload includes computed style edits', async () => {
   assert.deepEqual(Array.from(internals.payloadForSend().styleEdits, (edit) => ({ ...edit })), [
     { property: 'color', oldValue: 'rgb(0, 0, 0)', newValue: 'rgb(20, 20, 20)' }
   ]);
+});
+
+test('overlay shift-click builds an ordered three-element multi-select payload', async () => {
+  const { internals, document } = await loadOverlayInternals();
+  const first = document.createElement('header');
+  const second = document.createElement('main');
+  const third = document.createElement('footer');
+  first.localName = 'header';
+  second.localName = 'main';
+  third.localName = 'footer';
+  for (const element of [first, second, third]) element.closest = () => null;
+
+  internals.selectTarget(first, false);
+  internals.selectTarget(second, true);
+  internals.selectTarget(third, true);
+
+  const payload = internals.payloadForSend();
+  assert.deepEqual(Array.from(payload.multiSelect, (selection) => ({
+    index: selection.index,
+    selector: selection.selector
+  })), [
+    { index: 1, selector: 'header' },
+    { index: 2, selector: 'main' },
+    { index: 3, selector: 'footer' }
+  ]);
+});
+
+test('overlay plain click after multi-select resets and omits multiSelect', async () => {
+  const { internals, document } = await loadOverlayInternals();
+  const first = document.createElement('header');
+  const second = document.createElement('main');
+  const reset = document.createElement('footer');
+  first.localName = 'header';
+  second.localName = 'main';
+  reset.localName = 'footer';
+  for (const element of [first, second, reset]) element.closest = () => null;
+
+  internals.selectTarget(first, false);
+  internals.selectTarget(second, true);
+  assert.equal(internals.getMultiSelectionCount(), 2);
+  internals.selectTarget(reset, false);
+
+  assert.equal(internals.getMultiSelectionCount(), 1);
+  assert.equal(Object.hasOwn(internals.payloadForSend(), 'multiSelect'), false);
+});
+
+test('overlay single-select payload has no multiSelect key', async () => {
+  const { internals } = await loadOverlayInternals();
+  internals.setStyleContext({ style: fakeStyle() }, { color: 'rgb(0, 0, 0)' }, [], '#single');
+  assert.equal(Object.hasOwn(internals.payloadForSend(), 'multiSelect'), false);
 });
 
 test('overlay appends its script capability key to bridge requests', async () => {
