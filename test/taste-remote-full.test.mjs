@@ -3,7 +3,7 @@
  *
  * The FULL authed taste subset over a per-user Redis store (fake client):
  *   - gating: remote+store = 55 tools (45 + all 10); remote bare = golden 45;
- *     stdio = 78
+ *     stdio = 84
  *   - the whole loop via the registered tool handlers on a remote+store
  *     server: create → interview → bind → record_decision → list_decisions →
  *     audit_taste (binding echoed in design_notes) → label_finding →
@@ -53,7 +53,7 @@ async function call(server, name, args) {
 }
 function safeParse(t) { try { return JSON.parse(t); } catch { return null; } }
 
-test('gating: remote+store = 55 (45 + all 10 taste); bare remote = golden 45; stdio = 78', () => {
+test('gating: remote+store = 55 (45 + all 10 taste); bare remote = golden 45; stdio = 84', () => {
   const bare = buildServer({ remote: true });
   const bareNames = Object.keys(bare._registeredTools).sort();
   assert.equal(bareNames.length, 45);
@@ -65,7 +65,7 @@ test('gating: remote+store = 55 (45 + all 10 taste); bare remote = golden 45; st
   const extras = authedNames.filter((n) => !bareNames.includes(n)).sort();
   assert.deepEqual(extras, ALL_TASTE.slice().sort());
 
-  assert.equal(Object.keys(buildServer({})._registeredTools).length, 78, 'stdio unchanged');
+  assert.equal(Object.keys(buildServer({})._registeredTools).length, 84, 'stdio: 78 + 6 template/layers grab tools');
 });
 
 test('full loop over the remote+store server handlers', async () => {

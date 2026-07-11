@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { z } from "zod";
-import { flattenDesignTokens, parseDesignMd } from "./designmd.js";
+import { flattenDesignTokens, parseDesignMd, updateDesignMd, type DesignMdNode } from "./designmd.js";
 
 var __dirname = dirname(fileURLToPath(import.meta.url));
 var PKG_ROOT = resolve(join(__dirname, ".."));
@@ -96,6 +96,68 @@ var GrabPayloadSchema = z.object({
   column: z.number().optional()
 }).passthrough();
 
+var TemplateSlotSchema = z.object({
+  slotId: z.string().min(1),
+  selector: z.string().min(1),
+  role: z.enum(["fixed", "flexible"])
+}).strict();
+var TemplatePayloadSchema = z.object({
+  page: z.string().min(1),
+  templateId: z.string().min(1).optional().default("default"),
+  slots: z.array(TemplateSlotSchema)
+}).strict();
+var TemplateValidationResultSchema = z.object({
+  slotId: z.string().min(1),
+  selector: z.string().min(1),
+  resolved: z.boolean()
+}).strict();
+var TemplateValidationPayloadSchema = z.object({
+  page: z.string().min(1),
+  results: z.array(TemplateValidationResultSchema)
+}).strict();
+var LayersPayloadSchema = z.object({
+  page: z.string().min(1),
+  tree: z.unknown()
+}).strict().refine(function (payload) {
+  return Object.prototype.hasOwnProperty.call(payload, "tree");
+}, { message: "tree is required" });
+var MeasuredRectSchema = z.object({
+  selector: z.string().min(1),
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number()
+}).strict();
+var LayersIntentSchema = z.object({
+  operation: z.literal("reorder"),
+  page: z.string().min(1),
+  parentSelector: z.string().min(1),
+  fromIndex: z.number().int().min(0),
+  toIndex: z.number().int().min(0),
+  orderedSelectors: z.array(z.string().min(1)),
+  selectionOrder: z.array(z.number().int().min(1)).optional(),
+  measuredRects: z.array(MeasuredRectSchema),
+  approximate: z.boolean(),
+  domSnapshotHash: z.string().min(1)
+}).strict().refine(function (intent) {
+  return intent.fromIndex !== intent.toIndex
+    && intent.orderedSelectors.length >= 2
+    && intent.fromIndex < intent.orderedSelectors.length
+    && intent.toIndex < intent.orderedSelectors.length;
+}, { message: "reorder intent must have distinct in-bounds fromIndex/toIndex within orderedSelectors" });
+
+type TemplateSlot = z.infer<typeof TemplateSlotSchema>;
+type TemplateValidationResult = z.infer<typeof TemplateValidationResultSchema>;
+type LayersIntent = z.infer<typeof LayersIntentSchema>;
+type GrabOperationState = "proposed" | "previewed" | "applied" | "rejected";
+
+export interface GrabOperation {
+  id: string;
+  state: GrabOperationState;
+  intent: LayersIntent;
+  receivedAt: string;
+}
+
 export interface GrabBridgeSelection {
   selector: string;
   html?: string;
@@ -152,6 +214,9 @@ interface BridgeSession {
   role: GrabRole;
   queue: GrabBridgeSelection[];
   waiters: Array<(items: GrabBridgeSelection[]) => void>;
+  layersSnapshot: Record<string, { page: string; tree: unknown; receivedAt: string }>;
+  templateValidation: Record<string, TemplateValidationResult[]>;
+  operations: GrabOperation[];
 }
 
 var currentSession: BridgeSession | null = null;
@@ -206,7 +271,10 @@ export async function startGrabSession(path: string, port?: number, proxyTarget?
       proxyTarget: normalizedTarget,
       role: role,
       queue: [],
-      waiters: []
+      waiters: [],
+      layersSnapshot: Object.create(null),
+      templateValidation: Object.create(null),
+      operations: []
     };
   } catch (err) {
     if (server.listening) {
@@ -228,7 +296,10 @@ export async function startGrabSession(path: string, port?: number, proxyTarget?
       mode: "shim",
       role: role,
       queue: [],
-      waiters: []
+      waiters: [],
+      layersSnapshot: Object.create(null),
+      templateValidation: Object.create(null),
+      operations: []
     };
   }
 
@@ -332,11 +403,153 @@ export function queueGrabSelection(selection: unknown): GrabBridgeSelection {
   return item;
 }
 
+export function getPageTemplate(page: string): { templateId: string; page: string; slots: Array<TemplateSlot & { orphaned?: boolean; validated?: false }>; validation: TemplateValidationResult[] | null } {
+  var session = requireGrabSession();
+  var raw = readFileSync(session.path, "utf8");
+  var parsed = parseDesignMd(raw);
+  var templates = objectNode(parsed.frontmatter.templates);
+  var templateIds = Object.keys(templates);
+  var templateId = "default";
+  var slotNode: DesignMdNode = {};
+  for (var i = 0; i < templateIds.length; i++) {
+    var candidateId = templateIds[i];
+    var candidate = objectNode(templates[candidateId]);
+    var pages = objectNode(candidate.pages);
+    var pageKey = encodePageKey(page);
+    if (pages[pageKey] !== undefined) {
+      templateId = candidateId;
+      var storedSlots = objectNode(pages[pageKey]).slots;
+      if (typeof storedSlots === "string") {
+        try {
+          slotNode = objectNode(JSON.parse(storedSlots));
+        } catch (_err) {
+          slotNode = {};
+        }
+      } else {
+        slotNode = objectNode(storedSlots);
+      }
+      break;
+    }
+  }
+  var validation = session.templateValidation[page] || null;
+  var slots = Object.keys(slotNode).map(function (slotId) {
+    var stored = objectNode(slotNode[slotId]);
+    var slot: TemplateSlot & { orphaned?: boolean; validated?: false } = {
+      slotId: slotId,
+      selector: typeof stored.selector === "string" ? stored.selector : "",
+      role: stored.role === "fixed" ? "fixed" : "flexible"
+    };
+    if (!validation) {
+      slot.validated = false;
+    } else {
+      var result = validation.find(function (entry) { return entry.slotId === slotId && entry.selector === slot.selector; });
+      if (result && !result.resolved) slot.orphaned = true;
+    }
+    return slot;
+  });
+  return { templateId: templateId, page: page, slots: slots, validation: validation };
+}
+
+export function setTemplateSlots(page: string, templateId: string, slots: unknown): { saved: true; count: number } {
+  var session = requireGrabSession();
+  var parsedSlots = z.array(TemplateSlotSchema).parse(slots);
+  if (!/^[A-Za-z0-9_-]+$/.test(templateId)) {
+    throw new Error("templateId must contain only letters, digits, hyphens, and underscores: " + templateId);
+  }
+  var slotValues: DesignMdNode = Object.create(null);
+  for (var i = 0; i < parsedSlots.length; i++) {
+    var slotId = parsedSlots[i].slotId;
+    if (slotId === "__proto__" || slotId === "constructor" || slotId === "prototype") {
+      throw new Error("slotId is not allowed: " + slotId);
+    }
+    if (Object.prototype.hasOwnProperty.call(slotValues, slotId)) {
+      throw new Error("Duplicate slotId: " + slotId);
+    }
+    slotValues[slotId] = { role: parsedSlots[i].role, selector: parsedSlots[i].selector };
+  }
+  updateDesignMd(session.path, {
+    set: {
+      group: "templates",
+      name: templateId + ".pages." + encodePageKey(page) + ".slots",
+      value: JSON.stringify(slotValues)
+    }
+  });
+  return { saved: true, count: parsedSlots.length };
+}
+
+export function listTemplates(): Array<{ templateId: string; pages: string[] }> {
+  var session = requireGrabSession();
+  var parsed = parseDesignMd(readFileSync(session.path, "utf8"));
+  var templates = objectNode(parsed.frontmatter.templates);
+  return Object.keys(templates).map(function (templateId) {
+    return { templateId: templateId, pages: Object.keys(objectNode(objectNode(templates[templateId]).pages)).map(decodePageKey) };
+  });
+}
+
+export function getGrabLayers(page?: string): unknown {
+  var session = requireGrabSession();
+  if (page !== undefined) return session.layersSnapshot[page] || null;
+  return Object.keys(session.layersSnapshot).map(function (key) { return session.layersSnapshot[key]; });
+}
+
+export function moveGrabLayer(intent: unknown): GrabOperation {
+  var parsed = LayersIntentSchema.parse(intent);
+  return createGrabOperation(parsed, parsed.measuredRects.length > 0 ? "previewed" : "proposed");
+}
+
+export function getGrabOperation(operationId?: string, mark?: "applied" | "rejected"): GrabOperation | GrabOperation[] {
+  var session = requireGrabSession();
+  if (!operationId) {
+    if (mark) throw new Error("operationId is required when mark is provided");
+    return session.operations.slice();
+  }
+  var operation = session.operations.find(function (item) { return item.id === operationId; });
+  if (!operation) throw new Error("Grab operation not found: " + operationId);
+  if (mark) {
+    if (operation.state !== "previewed") {
+      throw new Error("Only previewed operations can be marked applied or rejected");
+    }
+    operation.state = mark;
+  }
+  return operation;
+}
+
+function requireGrabSession(): BridgeSession {
+  if (!currentSession) throw new Error("No active grab session");
+  return currentSession;
+}
+
+function objectNode(value: unknown): DesignMdNode {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as DesignMdNode : {};
+}
+
+function encodePageKey(page: string): string {
+  return encodeURIComponent(page).replace(/\./g, "%2E");
+}
+
+function decodePageKey(page: string): string {
+  return decodeURIComponent(page);
+}
+
+function createGrabOperation(intent: LayersIntent, state: GrabOperationState): GrabOperation {
+  var session = requireGrabSession();
+  var operation: GrabOperation = {
+    id: randomBytes(16).toString("hex"),
+    state: state,
+    intent: intent,
+    receivedAt: new Date().toISOString()
+  };
+  session.operations.push(operation);
+  if (session.operations.length > MAX_QUEUE_LENGTH) session.operations.splice(0, session.operations.length - MAX_QUEUE_LENGTH);
+  return operation;
+}
+
 async function handleGrabRequest(designMdPath: string, key: string, req: IncomingMessage, res: ServerResponse, proxyTarget?: string, role: GrabRole = "consumer"): Promise<void> {
   var method = req.method || "GET";
   var requestUrl = req.url || "/";
   var pathname = new URL(requestUrl, "http://127.0.0.1").pathname;
-  var bridgeRoute = pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/grab";
+  var bridgeRoute = pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/grab"
+    || pathname === "/template" || pathname === "/template-validation" || pathname === "/layers" || pathname === "/layers-intent";
   if (proxyTarget && method !== "OPTIONS" && !bridgeRoute) {
     await proxyGrabRequest(proxyTarget, key, method, requestUrl, req, res, role);
     return;
@@ -485,8 +698,8 @@ async function buildGrabResponse(designMdPath: string, key: string, method: stri
     return { status: 204, headers: {}, body: "" };
   }
 
-  var protectedRoute = (method === "GET" && (pathname === "/raven-grab.js" || pathname === "/tokens"))
-    || (method === "POST" && pathname === "/grab");
+  var protectedRoute = (method === "GET" && (pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/template"))
+    || (method === "POST" && (pathname === "/grab" || pathname === "/template" || pathname === "/template-validation" || pathname === "/layers" || pathname === "/layers-intent"));
   if (protectedRoute && parsedUrl.searchParams.get("key") !== key) {
     return { status: 403, headers: { "Content-Type": "text/plain; charset=utf-8" }, body: "Forbidden" };
   }
@@ -535,7 +748,59 @@ async function buildGrabResponse(designMdPath: string, key: string, method: stri
     }
   }
 
+  if (method === "POST" && pathname === "/template") {
+    try {
+      var templatePayload = TemplatePayloadSchema.parse(bodyText ? JSON.parse(bodyText) : {});
+      return jsonResponse(200, setTemplateSlots(templatePayload.page, templatePayload.templateId, templatePayload.slots));
+    } catch (err) {
+      return jsonResponse(400, { error: (err as Error).message });
+    }
+  }
+
+  if (method === "GET" && pathname === "/template") {
+    try {
+      var page = z.string().min(1).parse(parsedUrl.searchParams.get("page"));
+      return jsonResponse(200, getPageTemplate(page));
+    } catch (err) {
+      return jsonResponse(400, { error: (err as Error).message });
+    }
+  }
+
+  if (method === "POST" && pathname === "/template-validation") {
+    try {
+      var validationPayload = TemplateValidationPayloadSchema.parse(bodyText ? JSON.parse(bodyText) : {});
+      requireGrabSession().templateValidation[validationPayload.page] = validationPayload.results;
+      return jsonResponse(200, { ok: true });
+    } catch (err) {
+      return jsonResponse(400, { error: (err as Error).message });
+    }
+  }
+
+  if (method === "POST" && pathname === "/layers") {
+    try {
+      var layersPayload = LayersPayloadSchema.parse(bodyText ? JSON.parse(bodyText) : {});
+      requireGrabSession().layersSnapshot[layersPayload.page] = { page: layersPayload.page, tree: layersPayload.tree, receivedAt: new Date().toISOString() };
+      return jsonResponse(200, { ok: true });
+    } catch (err) {
+      return jsonResponse(400, { error: (err as Error).message });
+    }
+  }
+
+  if (method === "POST" && pathname === "/layers-intent") {
+    try {
+      var layersIntent = LayersIntentSchema.parse(bodyText ? JSON.parse(bodyText) : {});
+      var operation = createGrabOperation(layersIntent, layersIntent.measuredRects.length > 0 ? "previewed" : "proposed");
+      return jsonResponse(202, { queued: true, operationId: operation.id });
+    } catch (err) {
+      return jsonResponse(400, { error: (err as Error).message });
+    }
+  }
+
   return { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" }, body: "Not found" };
+}
+
+function jsonResponse(status: number, value: unknown): GrabResponse {
+  return { status: status, headers: { "Content-Type": "application/json; charset=utf-8" }, body: JSON.stringify(value, null, 2) };
 }
 
 function installFetchShim(): void {

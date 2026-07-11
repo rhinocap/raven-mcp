@@ -40,7 +40,7 @@ import { readFile } from "fs/promises";
 import { registerCalls } from "./calls.js";
 import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
 import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet } from "./designmd.js";
-import { startGrabSession, getGrabbedElements, stopGrabSession } from "./grab-bridge.js";
+import { startGrabSession, getGrabbedElements, stopGrabSession, getPageTemplate, setTemplateSlots, listTemplates, getGrabLayers, moveGrabLayer, getGrabOperation } from "./grab-bridge.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -1634,7 +1634,9 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   "talon_scan", "talon_rules",
   // DESIGN.md and grab bridge stateful tools.
   "read_design_md", "init_design_md", "update_design_md",
-  "start_grab_session", "get_grabbed_elements", "stop_grab_session"
+  "start_grab_session", "get_grabbed_elements", "stop_grab_session",
+  "get_page_template", "set_template_slot", "list_templates",
+  "get_grab_layers", "move_grab_layer", "get_grab_operation"
 ]);
 
 // Taste tools served to AUTHENTICATED remote users when a per-user store is
@@ -2643,6 +2645,111 @@ server.tool(
         }],
         isError: true
       };
+    }
+  }
+);
+
+server.tool(
+  "get_page_template",
+  "Read the page-scoped template slots from the active grab session's DESIGN.md and merge the overlay's latest selector validation. fixed/flexible roles and allowedTokens are cooperative advisory metadata: display labels only, not enforced.",
+  {
+    page: z.string().min(1).describe("Page pathname, matching location.pathname")
+  },
+  async ({ page }) => {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(getPageTemplate(page), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "set_template_slot",
+  "Persist an array of page-scoped template slots in one batched DESIGN.md update. fixed/flexible roles and allowedTokens are cooperative advisory metadata: display labels only, not enforced.",
+  {
+    page: z.string().min(1).describe("Page pathname, matching location.pathname"),
+    template_id: z.string().min(1).optional().default("default").describe("Template identifier; defaults to default"),
+    slots: z.array(z.object({
+      slotId: z.string().min(1),
+      selector: z.string().min(1),
+      role: z.enum(["fixed", "flexible"])
+    }).strict()).describe("All template slots to persist in this batched call")
+  },
+  async ({ page, template_id, slots }) => {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(setTemplateSlots(page, template_id, slots), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "list_templates",
+  "List templates and their registered page pathnames from the active grab session. Template permissions and allowedTokens are cooperative advisory metadata: display labels only, not enforced.",
+  {},
+  async () => {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(listTemplates(), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "get_grab_layers",
+  "Read the latest non-mutating layer-tree snapshot captured by the active local grab session. Any fixed/flexible permissions are cooperative advisory metadata: display labels only, not enforced.",
+  {
+    page: z.string().min(1).optional().describe("Optional page pathname; omit to list all latest page snapshots")
+  },
+  async ({ page }) => {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(getGrabLayers(page), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "move_grab_layer",
+  "Queue a same-page layer reorder intent (previewed when measuredRects are supplied, otherwise proposed) without mutating the live page. Permissions and fixed/flexible roles are cooperative advisory metadata: display labels only, not enforced; caller-supplied roles are rejected.",
+  {
+    operation: z.literal("reorder"),
+    page: z.string().min(1),
+    parentSelector: z.string().min(1),
+    fromIndex: z.number().int().min(0),
+    toIndex: z.number().int().min(0),
+    orderedSelectors: z.array(z.string().min(1)),
+    selectionOrder: z.array(z.number().int().min(1)).optional(),
+    measuredRects: z.array(z.object({ selector: z.string().min(1), x: z.number(), y: z.number(), width: z.number(), height: z.number() }).strict()),
+    approximate: z.boolean(),
+    domSnapshotHash: z.string().min(1),
+    role: z.never().optional().describe("Rejected: roles are never accepted from callers")
+  },
+  async (intent) => {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(moveGrabLayer(intent), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "get_grab_operation",
+  "Read queued layer operations or mark a previewed operation applied/rejected after review. This state gate is cooperative bookkeeping, not enforcement, and does not mutate the live page.",
+  {
+    operation_id: z.string().min(1).optional().describe("Operation ID; omit to list all operations"),
+    mark: z.enum(["applied", "rejected"]).optional().describe("Only valid when the operation is currently previewed")
+  },
+  async ({ operation_id, mark }) => {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(getGrabOperation(operation_id, mark), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
     }
   }
 );

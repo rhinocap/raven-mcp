@@ -187,6 +187,7 @@ ${marker}`);
       getBoundingClientRect() { return { x: 0, y: 0, top: 0, right: 0, bottom: 0, left: 0, width: 0, height: 0 }; },
       attachShadow() { return { appendChild() {} }; },
       querySelector(selector) { return queries[selector] || null; },
+      querySelectorAll() { return []; },
       setQuery(selector, value) { queries[selector] = value; }
     };
   }
@@ -270,7 +271,7 @@ function fakeClock() {
   };
 }
 
-test('tool gating keeps the anonymous remote surface at 45 and gates the six DESIGN.md/grab tools', async () => {
+test('tool gating keeps the anonymous remote surface at 45 and gates the local DESIGN.md/grab tools', async () => {
   const stdio = indexMod.buildServer({});
   const remote = indexMod.buildServer({ remote: true });
 
@@ -282,15 +283,192 @@ test('tool gating keeps the anonymous remote surface at 45 and gates the six DES
     'update_design_md',
     'start_grab_session',
     'get_grabbed_elements',
-    'stop_grab_session'
+    'stop_grab_session',
+    'get_page_template',
+    'set_template_slot',
+    'list_templates',
+    'get_grab_layers',
+    'move_grab_layer',
+    'get_grab_operation'
   ];
 
-  assert.equal(stdioNames.length, 78);
+  assert.equal(stdioNames.length, 84);
   for (const name of newTools) {
     assert.equal(stdioNames.includes(name), true, `${name} should be registered on stdio`);
     assert.equal(remoteNames.includes(name), false, `${name} should be gated off remote anonymous`);
   }
   assert.equal(remoteNames.length, 45, 'remote anonymous endpoint must stay at 45 tools');
+});
+
+test('template routes batch page-scoped slots, round-trip, and flag validation orphans', async () => {
+  const designPath = await makeDesignFixture();
+  await withClient(indexMod.buildServer({}), async (client) => {
+    const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath } });
+    const session = JSON.parse(started.content[0].text);
+    const key = sessionKey(session);
+    const slots = [
+      { slotId: 'hero', selector: '#hero', role: 'fixed' },
+      { slotId: 'body', selector: 'main', role: 'flexible' }
+    ];
+
+    const savedResponse = await fetch(`${session.url}/template?key=${key}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ page: '/pricing', templateId: 'marketing', slots })
+    });
+    assert.equal(savedResponse.status, 200);
+    assert.deepEqual(await savedResponse.json(), { saved: true, count: 2 });
+    const persisted = await readFile(designPath, 'utf8');
+    assert.match(persisted, /templates:/);
+    assert.match(persisted, /marketing:/);
+    assert.match(persisted, /pricing:/);
+    assert.match(persisted, /hero/);
+    assert.match(persisted, /body/);
+
+    const initial = await fetch(`${session.url}/template?page=%2Fpricing&key=${key}`);
+    assert.equal(initial.status, 200);
+    const initialTemplate = await initial.json();
+    assert.equal(initialTemplate.templateId, 'marketing');
+    assert.deepEqual(initialTemplate.slots, slots.map((slot) => ({ ...slot, validated: false })));
+    assert.equal(initialTemplate.validation, null);
+
+    const validation = { page: '/pricing', results: [
+      { slotId: 'hero', selector: '#hero', resolved: true },
+      { slotId: 'body', selector: 'main', resolved: false }
+    ] };
+    const validationResponse = await fetch(`${session.url}/template-validation?key=${key}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(validation)
+    });
+    assert.equal(validationResponse.status, 200);
+    assert.deepEqual(await validationResponse.json(), { ok: true });
+
+    const validated = await fetch(`${session.url}/template?page=%2Fpricing&key=${key}`);
+    const validatedTemplate = await validated.json();
+    assert.deepEqual(validatedTemplate.validation, validation.results);
+    assert.equal(validatedTemplate.slots[0].orphaned, undefined);
+    assert.equal(validatedTemplate.slots[1].orphaned, true);
+    await client.callTool({ name: 'stop_grab_session', arguments: {} });
+  });
+});
+
+test('all new bridge routes require the session key and stay local in proxy mode', async () => {
+  const designPath = await makeDesignFixture();
+  await withClient(indexMod.buildServer({}), async (client) => {
+      const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath, proxy_target: 'http://127.0.0.1:9' } });
+      const session = JSON.parse(started.content[0].text);
+      const routes = [
+        ['GET', '/template?page=%2F'],
+        ['POST', '/template'],
+        ['POST', '/template-validation'],
+        ['POST', '/layers'],
+        ['POST', '/layers-intent']
+      ];
+      for (const [method, route] of routes) {
+        const separator = route.includes('?') ? '&' : '?';
+        const forbidden = await fetch(`${session.url}${route}${separator}key=wrong`, {
+          method, headers: { 'Content-Type': 'application/json' }, body: method === 'POST' ? '{}' : undefined
+        });
+        assert.equal(forbidden.status, 403, `${method} ${route} should reject an unregistered key`);
+      }
+      await client.callTool({ name: 'stop_grab_session', arguments: {} });
+  });
+});
+
+test('layers intents create the expected state and enforce operation transitions', async () => {
+  const designPath = await makeDesignFixture();
+  await withClient(indexMod.buildServer({}), async (client) => {
+    const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath } });
+    const session = JSON.parse(started.content[0].text);
+    const key = sessionKey(session);
+    const baseIntent = {
+      operation: 'reorder', page: '/pricing', parentSelector: 'main', fromIndex: 0, toIndex: 1,
+      orderedSelectors: ['#b', '#a'], measuredRects: [], approximate: false, domSnapshotHash: 'abc123'
+    };
+    const layerTree = { id: 1, label: 'main', children: [{ id: 2, label: 'section', children: [] }] };
+    const layerResponse = await fetch(`${session.url}/layers?key=${key}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: '/pricing', tree: layerTree })
+    });
+    assert.equal(layerResponse.status, 200);
+    assert.deepEqual(await layerResponse.json(), { ok: true });
+    const layers = await client.callTool({ name: 'get_grab_layers', arguments: { page: '/pricing' } });
+    assert.deepEqual(JSON.parse(layers.content[0].text).tree, layerTree);
+
+    const proposedResponse = await fetch(`${session.url}/layers-intent?key=${key}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(baseIntent)
+    });
+    assert.equal(proposedResponse.status, 202);
+    const proposed = await proposedResponse.json();
+    const proposedOperation = await client.callTool({ name: 'get_grab_operation', arguments: { operation_id: proposed.operationId } });
+    assert.equal(JSON.parse(proposedOperation.content[0].text).state, 'proposed');
+
+    const previewResponse = await fetch(`${session.url}/layers-intent?key=${key}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...baseIntent, measuredRects: [{ selector: '#b', x: 0, y: 0, width: 100, height: 20 }] })
+    });
+    const preview = await previewResponse.json();
+    const applied = await client.callTool({ name: 'get_grab_operation', arguments: { operation_id: preview.operationId, mark: 'applied' } });
+    assert.equal(JSON.parse(applied.content[0].text).state, 'applied');
+    const invalid = await client.callTool({ name: 'get_grab_operation', arguments: { operation_id: preview.operationId, mark: 'rejected' } });
+    assert.equal(invalid.isError, true);
+    assert.match(invalid.content[0].text, /previewed/);
+
+    const secondPreviewResponse = await fetch(`${session.url}/layers-intent?key=${key}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...baseIntent, measuredRects: [{ selector: '#a', x: 0, y: 20, width: 100, height: 20 }] })
+    });
+    const secondPreview = await secondPreviewResponse.json();
+    const rejected = await client.callTool({ name: 'get_grab_operation', arguments: { operation_id: secondPreview.operationId, mark: 'rejected' } });
+    assert.equal(JSON.parse(rejected.content[0].text).state, 'rejected');
+    await client.callTool({ name: 'stop_grab_session', arguments: {} });
+  });
+});
+
+test('move_grab_layer rejects caller-supplied role fields', async () => {
+  const designPath = await makeDesignFixture();
+  await withClient(indexMod.buildServer({}), async (client) => {
+    await client.callTool({ name: 'start_grab_session', arguments: { path: designPath } });
+    const result = await client.callTool({ name: 'move_grab_layer', arguments: {
+      operation: 'reorder', page: '/', parentSelector: 'main', fromIndex: 0, toIndex: 1,
+      orderedSelectors: ['#b', '#a'], measuredRects: [], approximate: false, domSnapshotHash: 'hash', role: 'designer'
+    } });
+    assert.equal(result.isError, true);
+    assert.match(result.content[0].text, /role|unrecognized/i);
+    await client.callTool({ name: 'stop_grab_session', arguments: {} });
+  });
+});
+
+test('move_grab_layer validates intents and set_template_slot validates identifiers', async () => {
+  const designPath = await makeDesignFixture();
+  await withClient(indexMod.buildServer({}), async (client) => {
+    await client.callTool({ name: 'start_grab_session', arguments: { path: designPath } });
+    const baseIntent = {
+      operation: 'reorder', page: '/', parentSelector: 'main', fromIndex: 0, toIndex: 1,
+      orderedSelectors: ['#b', '#a'], approximate: false, domSnapshotHash: 'hash'
+    };
+
+    const previewed = await client.callTool({ name: 'move_grab_layer', arguments: {
+      ...baseIntent, measuredRects: [{ selector: '#b', x: 0, y: 0, width: 100, height: 20 }]
+    } });
+    assert.equal(JSON.parse(previewed.content[0].text).state, 'previewed');
+
+    const proposed = await client.callTool({ name: 'move_grab_layer', arguments: { ...baseIntent, measuredRects: [] } });
+    assert.equal(JSON.parse(proposed.content[0].text).state, 'proposed');
+
+    const outOfBounds = await client.callTool({ name: 'move_grab_layer', arguments: { ...baseIntent, toIndex: 5, measuredRects: [] } });
+    assert.equal(outOfBounds.isError, true);
+    const samePosition = await client.callTool({ name: 'move_grab_layer', arguments: { ...baseIntent, toIndex: 0, measuredRects: [] } });
+    assert.equal(samePosition.isError, true);
+
+    const slot = { slotId: 'hero', selector: '#hero', role: 'fixed' };
+    const dottedTemplate = await client.callTool({ name: 'set_template_slot', arguments: { page: '/', template_id: 'a.b', slots: [slot] } });
+    assert.equal(dottedTemplate.isError, true);
+    assert.match(dottedTemplate.content[0].text, /templateId/);
+    const dupSlots = await client.callTool({ name: 'set_template_slot', arguments: { page: '/', slots: [slot, { ...slot, selector: '#other' }] } });
+    assert.equal(dupSlots.isError, true);
+    assert.match(dupSlots.content[0].text, /Duplicate/);
+    const protoSlot = await client.callTool({ name: 'set_template_slot', arguments: { page: '/', slots: [{ ...slot, slotId: '__proto__' }] } });
+    assert.equal(protoSlot.isError, true);
+    await client.callTool({ name: 'stop_grab_session', arguments: {} });
+  });
 });
 
 test('start_grab_session requires its capability key, serves DESIGN.md tokens, queues grabs, and stops cleanly', async () => {

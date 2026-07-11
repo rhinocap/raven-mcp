@@ -65,6 +65,18 @@
   var componentRequestStep = "form";
   var componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
   var componentRequestId = "";
+  var templateId = "default";
+  var templateSlots = [];
+  var templateDrafts = [];
+  var templateLoaded = false;
+  var templateLoading = false;
+  var layerRuntimeId = 0;
+  var layerElements = new Map();
+  var layerTree = null;
+  var layerDragId = null;
+  var layerNotice = "";
+  var layerPreview = null;
+  var pendingFixedMove = "";
   var requestHintDismissed = false;
   try {
     requestHintDismissed = window.localStorage.getItem("raven-grab-request-hint-dismissed") === "true";
@@ -150,8 +162,8 @@
       font: 18px/1 var(--raven-grab-ui); transition: color 150ms ease, background 150ms ease;
     }
     .raven-grab-icon-button:hover { color: var(--raven-grab-text); background: rgba(255, 255, 255, .12); }
-    .raven-grab-tabs { display: grid; grid-template-columns: 1fr 1fr; min-height: 44px; background: rgba(255, 255, 255, .01); border-bottom: 1px solid rgba(255, 255, 255, .12); backdrop-filter: blur(6px); }
-    .raven-grab-tab { min-height: 44px; padding: 12px 20px; color: var(--raven-grab-text); background: transparent; border: 0; border-bottom: 1px solid transparent; cursor: pointer; font: 400 13px/1 var(--raven-grab-mono); }
+    .raven-grab-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); min-height: 44px; background: rgba(255, 255, 255, .01); border-bottom: 1px solid rgba(255, 255, 255, .12); backdrop-filter: blur(6px); }
+    .raven-grab-tab { min-height: 44px; padding: 12px 6px; color: var(--raven-grab-text); background: transparent; border: 0; border-bottom: 1px solid transparent; cursor: pointer; font: 400 11px/1 var(--raven-grab-mono); }
     .raven-grab-tab[aria-selected="true"] { color: var(--raven-grab-accent); border-bottom-color: rgba(0, 191, 255, .3); font-weight: 500; }
     .raven-grab-tab:hover { color: var(--raven-grab-accent); }
     .raven-grab-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #3c3c47 #212129; }
@@ -238,6 +250,24 @@
     .raven-grab-style-format, .raven-grab-style-unit { flex: 0 0 auto; }
     .raven-grab-style-select:focus, .raven-grab-style-format:focus, .raven-grab-style-unit:focus { box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
     .raven-grab-empty { margin: 0; padding: 12px; color: var(--raven-grab-muted); background: var(--raven-grab-raised); border: 1px dashed rgba(255, 255, 255, .1); border-radius: 12px; font: 400 12px/1.45 var(--raven-grab-ui); }
+    .raven-grab-note { margin: 0; color: var(--raven-grab-muted); font: 400 11px/1.45 var(--raven-grab-ui); }
+    .raven-grab-slot { margin-top: 8px; padding: 10px; background: var(--raven-grab-raised); border: 1px solid rgba(255,255,255,.08); border-radius: 10px; }
+    .raven-grab-slot-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+    .raven-grab-slot-selector { min-width: 0; flex: 1; overflow: hidden; color: var(--raven-grab-muted); font: 400 10px/1.35 var(--raven-grab-mono); text-overflow: ellipsis; white-space: nowrap; }
+    .raven-grab-role { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px; }
+    .raven-grab-role button { min-height: 36px; color: var(--raven-grab-muted); background: var(--raven-grab-bg); border: 1px solid rgba(255,255,255,.1); border-radius: 8px; cursor: pointer; }
+    .raven-grab-role button:hover, .raven-grab-role button[data-active="true"] { color: var(--raven-grab-accent); border-color: rgba(0,191,255,.45); }
+    .raven-grab-badge { flex: 0 0 auto; padding: 2px 5px; color: var(--raven-grab-accent); background: rgba(0,191,255,.1); border: 1px solid rgba(0,191,255,.25); border-radius: 999px; font: 600 9px/1.3 var(--raven-grab-mono); }
+    .raven-grab-badge[data-kind="orphan"] { color: var(--raven-grab-error); background: rgba(255,64,96,.1); border-color: rgba(255,64,96,.3); }
+    .raven-grab-layer-list { margin: 0; padding: 0; list-style: none; }
+    .raven-grab-layer-row { display: flex; align-items: center; gap: 5px; min-height: 30px; padding: 4px 6px; padding-left: calc(6px + var(--layer-depth) * 12px); overflow: hidden; border-bottom: 1px solid rgba(255,255,255,.04); cursor: grab; }
+    .raven-grab-layer-row:hover { background: rgba(255,255,255,.04); }
+    .raven-grab-layer-row[data-dragging="true"] { opacity: .45; }
+    .raven-grab-layer-label { min-width: 0; flex: 1; overflow: hidden; color: var(--raven-grab-text); font: 400 10px/1.3 var(--raven-grab-mono); text-overflow: ellipsis; white-space: nowrap; }
+    .raven-grab-layer-notice { margin: 8px 0 0; color: var(--raven-grab-error); font: 500 10px/1.35 var(--raven-grab-ui); }
+    .raven-grab-wireframe { position: relative; width: 240px; height: 112px; margin: 0 auto 12px; overflow: hidden; background: var(--raven-grab-bg); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; }
+    .raven-grab-wire-box { position: absolute; display: flex; align-items: center; justify-content: center; min-width: 12px; min-height: 12px; color: var(--raven-grab-text); background: rgba(0,191,255,.08); border: 1px solid rgba(0,191,255,.45); font: 600 9px/1 var(--raven-grab-mono); }
+    .raven-grab-wire-box[data-moved="true"] { color: #0a1018; background: var(--raven-grab-accent); }
     .raven-grab-actions { flex: 0 0 auto; padding: 12px 16px 16px; background: #212129; border-top: 1px solid rgba(255, 255, 255, .06); }
     .raven-grab-request-hint { display: flex; align-items: flex-start; gap: 6px; margin: 0 0 8px; color: var(--raven-grab-muted); font: 400 11px/1.35 var(--raven-grab-ui); }
     .raven-grab-request-hint-dismiss { flex: 0 0 auto; margin: -4px -4px -4px 0; padding: 4px; color: var(--raven-grab-muted); background: transparent; border: 0; cursor: pointer; font: 400 14px/1 var(--raven-grab-ui); }
@@ -1322,6 +1352,297 @@
     return grabRole === "maintainer" && activeTab === "request";
   }
 
+  function shortSlotId(element, index) {
+    var tag = element && element.localName ? element.localName.toLowerCase() : "slot";
+    return (tag + "-" + (index + 1)).replace(/[^a-z0-9-]+/g, "-").slice(0, 32);
+  }
+
+  function selectedTemplateElements() {
+    return multiSelections.length ? multiSelections.slice() : (selectedElement ? [selectedElement] : []);
+  }
+
+  function ensureTemplateDrafts() {
+    var elements = selectedTemplateElements();
+    elements.forEach(function (element, index) {
+      var selector = stableSelector(element);
+      var existing = templateDrafts.filter(function (slot) { return slot.selector === selector; })[0];
+      if (!existing) templateDrafts.push({ slotId: shortSlotId(element, index), selector: selector, role: "flexible" });
+    });
+  }
+
+  function captureTemplateDrafts() {
+    var inputs = panel.querySelectorAll("[data-template-slot-id]");
+    Array.prototype.forEach.call(inputs, function (input) {
+      var index = Number(input.getAttribute("data-template-slot-id"));
+      if (templateDrafts[index]) templateDrafts[index].slotId = input.value;
+    });
+  }
+
+  function queryResolves(selector) {
+    try { return !!document.querySelector(selector); } catch (error) { return false; }
+  }
+
+  function loadTemplate() {
+    if (templateLoading || templateLoaded) return;
+    templateLoading = true;
+    fetch(bridgeUrl("/template") + "&page=" + encodeURIComponent(location.pathname))
+      .then(function (response) {
+        if (!response.ok) throw new Error("Bridge returned " + response.status);
+        return response.json();
+      })
+      .then(function (data) {
+        templateId = data.templateId || "default";
+        templateSlots = Array.isArray(data.slots) ? data.slots.map(function (slot) {
+          return { slotId: slot.slotId, selector: slot.selector, role: slot.role, resolved: queryResolves(slot.selector) };
+        }) : [];
+        templateLoaded = true;
+        templateLoading = false;
+        return fetch(bridgeUrl("/template-validation"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ page: location.pathname, results: templateSlots.map(function (slot) {
+            return { slotId: slot.slotId, selector: slot.selector, resolved: slot.resolved };
+          }) })
+        });
+      })
+      .then(function () { if (activeTab === "template") renderPanel(); })
+      .catch(function (error) {
+        templateLoading = false;
+        if (activeTab === "template") setPanelStatus("Could not load template slots", "error");
+        console.error("[Raven Grab] GET /template failed.", error);
+      });
+  }
+
+  function setTemplateRole(index, role) {
+    captureTemplateDrafts();
+    if (!templateDrafts[index]) return;
+    templateDrafts[index].role = role;
+    renderPanel();
+  }
+
+  function saveTemplate() {
+    capturePanelDrafts();
+    var slots = templateDrafts.filter(function (slot) { return !!slot.slotId.trim() && !!slot.selector; }).map(function (slot) {
+      return { slotId: slot.slotId.trim(), selector: slot.selector, role: slot.role };
+    });
+    templateSlots.forEach(function (existing) {
+      var superseded = slots.some(function (slot) { return slot.slotId === existing.slotId || slot.selector === existing.selector; });
+      if (!superseded) slots.push({ slotId: existing.slotId, selector: existing.selector, role: existing.role });
+    });
+    fetch(bridgeUrl("/template"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ page: location.pathname, templateId: templateId, slots: slots })
+    }).then(function (response) {
+      if (!response.ok) throw new Error("Bridge returned " + response.status);
+      return response.json();
+    }).then(function (result) {
+      templateLoaded = false;
+      templateSlots = [];
+      templateDrafts = [];
+      setPanelStatus("Saved " + result.count + (result.count === 1 ? " slot" : " slots"), "success");
+      loadTemplate();
+    }).catch(function (error) {
+      setPanelStatus("Could not save template", "error");
+      console.error("[Raven Grab] POST /template failed.", error);
+    });
+  }
+
+  function shortenedLayerText(element) {
+    var text = String(element.textContent || "").replace(/\s+/g, " ").trim();
+    if (text.length > 40) text = text.slice(0, 37) + "…";
+    return text;
+  }
+
+  function buildLayerTree(root) {
+    layerRuntimeId = 0;
+    layerElements = new Map();
+    var total = 0;
+    var stopped = false;
+    var skipped = { SCRIPT: true, STYLE: true, LINK: true, META: true };
+    function visit(element, parentId, depth) {
+      if (!element || element.nodeType !== 1 || skipped[element.tagName] || element === host || element.hasAttribute("data-raven-grab-overlay")) return null;
+      if (total >= 500 || depth > 12) {
+        stopped = true;
+        return { id: "truncated-" + total, parentId: parentId, depth: depth, label: "truncated", badges: ["truncated"], children: [], truncated: true };
+      }
+      total += 1;
+      layerRuntimeId += 1;
+      var id = layerRuntimeId;
+      layerElements.set(id, element);
+      var badges = [];
+      var shadowRoot = element.shadowRoot;
+      if (shadowRoot) badges.push("#shadow");
+      if (element.tagName === "IFRAME") badges.push("iframe");
+      var text = shortenedLayerText(element);
+      var node = { id: id, parentId: parentId, depth: depth, label: element.localName.toLowerCase() + (text ? " · " + text : ""), badges: badges, children: [] };
+      if (!shadowRoot && element.tagName !== "IFRAME") {
+        for (var i = 0; i < element.children.length; i += 1) {
+          var child = visit(element.children[i], id, depth + 1);
+          if (child) node.children.push(child);
+          if (stopped) break;
+        }
+      }
+      return node;
+    }
+    return visit(root, null, 0);
+  }
+
+  function serializableLayerTree(node) {
+    if (!node) return null;
+    return { id: node.id, parentId: node.parentId, label: node.label, badges: node.badges, children: node.children.map(serializableLayerTree) };
+  }
+
+  function postLayerSnapshot() {
+    if (!layerTree) return;
+    fetch(bridgeUrl("/layers"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ page: location.pathname, tree: serializableLayerTree(layerTree) })
+    }).catch(function (error) { console.error("[Raven Grab] POST /layers failed.", error); });
+  }
+
+  function findLayerNode(node, id) {
+    if (!node) return null;
+    if (String(node.id) === String(id)) return node;
+    for (var i = 0; i < node.children.length; i += 1) {
+      var found = findLayerNode(node.children[i], id);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function slotRoleForElement(element) {
+    for (var i = 0; i < templateSlots.length; i += 1) {
+      try { if (element.matches(templateSlots[i].selector)) return templateSlots[i].role; } catch (error) { /* invalid saved selector */ }
+    }
+    return "";
+  }
+
+  function layerRowsMarkup(node) {
+    if (!node) return "";
+    if (node.truncated) return '<li class="raven-grab-layer-row" style="--layer-depth:' + node.depth + '"><span class="raven-grab-layer-label">truncated</span></li>';
+    var element = layerElements.get(node.id);
+    var role = element ? slotRoleForElement(element) : "";
+    var badges = node.badges.slice();
+    if (role) badges.push(role);
+    var markup = '<li class="raven-grab-layer-row" draggable="true" data-layer-id="' + node.id + '" data-layer-parent="' + (node.parentId == null ? "" : node.parentId) + '" style="--layer-depth:' + node.depth + '"><span class="raven-grab-layer-label">' + escapeHtml(node.label) + "</span>" + badges.map(function (badge) { return '<span class="raven-grab-badge">' + escapeHtml(badge) + "</span>"; }).join("") + "</li>";
+    node.children.forEach(function (child) { markup += layerRowsMarkup(child); });
+    return markup;
+  }
+
+  function domSnapshotHash(parent) {
+    var html = parent.innerHTML || "";
+    var sample = html.slice(0, 160) + html.slice(-160);
+    var hash = 0;
+    for (var i = 0; i < sample.length; i += 1) hash = ((hash << 5) - hash + sample.charCodeAt(i)) | 0;
+    return String(html.length) + ":" + Math.abs(hash).toString(36);
+  }
+
+  function cloneMeasuredPreview(parent, fromIndex, toIndex, orderedElements) {
+    if (parent.querySelectorAll("*").length > 300) return { unavailable: "preview unavailable (too large)" };
+    var computed = getComputedStyle(parent);
+    var approximate = computed.display === "inline" || computed.display === "inline-block" || computed.position === "absolute" || computed.position === "fixed";
+    orderedElements.forEach(function (element) {
+      var style = getComputedStyle(element);
+      if (style.position === "absolute" || style.position === "fixed") approximate = true;
+    });
+    var container = document.createElement("div");
+    container.setAttribute("data-raven-grab-preview", "");
+    container.style.cssText = "position:fixed;left:-99999px;top:0;visibility:hidden;width:" + computed.width + ";";
+    var clone = parent.cloneNode(true);
+    container.appendChild(clone);
+    document.body.appendChild(container);
+    var cloneChildren = Array.prototype.slice.call(clone.children);
+    var liveChildren = Array.prototype.slice.call(parent.children);
+    for (var f = 0; f < cloneChildren.length && f < liveChildren.length; f += 1) {
+      var cloneRect = cloneChildren[f].getBoundingClientRect();
+      var liveRect = liveChildren[f].getBoundingClientRect();
+      if (Math.abs(cloneRect.width - liveRect.width) > 2 || Math.abs(cloneRect.height - liveRect.height) > 2) { approximate = true; break; }
+    }
+    var movedClone = cloneChildren.splice(fromIndex, 1)[0];
+    cloneChildren.splice(toIndex, 0, movedClone);
+    cloneChildren.forEach(function (child) { clone.appendChild(child); });
+    clone.getBoundingClientRect();
+    var parentRect = clone.getBoundingClientRect();
+    var measuredRects = cloneChildren.map(function (child, index) {
+      var rect = child.getBoundingClientRect();
+      return { selector: stableSelector(orderedElements[index]), x: rect.left - parentRect.left, y: rect.top - parentRect.top, width: rect.width, height: rect.height };
+    });
+    container.remove();
+    return { measuredRects: measuredRects, approximate: approximate, parentWidth: parentRect.width, parentHeight: parentRect.height };
+  }
+
+  function reorderLayer(fromId, toId) {
+    var fromNode = findLayerNode(layerTree, fromId);
+    var toNode = findLayerNode(layerTree, toId);
+    if (!fromNode || !toNode || fromNode.parentId !== toNode.parentId || fromNode.parentId == null) {
+      layerNotice = "same-parent reorders only";
+      renderPanel();
+      return;
+    }
+    var movedRole = slotRoleForElement(layerElements.get(fromNode.id));
+    if (movedRole === "fixed" && pendingFixedMove !== String(fromId) + ":" + String(toId)) {
+      pendingFixedMove = String(fromId) + ":" + String(toId);
+      layerNotice = "slot is marked fixed in the template (advisory) — drop again to override";
+      renderPanel();
+      return;
+    }
+    pendingFixedMove = "";
+    var parentNode = findLayerNode(layerTree, fromNode.parentId);
+    var fromIndex = parentNode.children.indexOf(fromNode);
+    var toIndex = parentNode.children.indexOf(toNode);
+    var parentElement = layerElements.get(parentNode.id);
+    var orderedNodes = parentNode.children.slice();
+    orderedNodes.splice(fromIndex, 1);
+    orderedNodes.splice(toIndex, 0, fromNode);
+    var orderedElements = orderedNodes.map(function (node) { return layerElements.get(node.id); });
+    var preview = cloneMeasuredPreview(parentElement, fromIndex, toIndex, orderedElements);
+    parentNode.children = orderedNodes;
+    layerNotice = preview.unavailable || "";
+    layerPreview = {
+      parentElement: parentElement, fromIndex: fromIndex, toIndex: toIndex,
+      orderedElements: orderedElements, measuredRects: preview.measuredRects || [],
+      approximate: !!preview.approximate, parentWidth: preview.parentWidth || 0, parentHeight: preview.parentHeight || 0,
+      movedElement: layerElements.get(fromNode.id), unavailable: preview.unavailable || ""
+    };
+    postLayerSnapshot();
+    renderPanel();
+  }
+
+  function wireframeMarkup() {
+    if (!layerPreview) return "";
+    if (layerPreview.unavailable) return '<p class="raven-grab-empty">' + escapeHtml(layerPreview.unavailable) + "</p>";
+    var scale = Math.min(220 / Math.max(1, layerPreview.parentWidth), 92 / Math.max(1, layerPreview.parentHeight));
+    var boxes = layerPreview.measuredRects.map(function (rect, index) {
+      return '<span class="raven-grab-wire-box" data-moved="' + (layerPreview.orderedElements[index] === layerPreview.movedElement ? "true" : "false") + '" style="left:' + (10 + rect.x * scale) + "px;top:" + (10 + rect.y * scale) + "px;width:" + Math.max(12, rect.width * scale) + "px;height:" + Math.max(12, rect.height * scale) + 'px">' + (index + 1) + "</span>";
+    }).join("");
+    return '<div class="raven-grab-wireframe">' + boxes + '</div>' + (layerPreview.approximate ? '<span class="raven-grab-badge">preview approximate</span>' : "");
+  }
+
+  function sendLayerIntent() {
+    if (!layerPreview) return;
+    var selectionOrder = [];
+    multiSelections.forEach(function (element) {
+      var index = layerPreview.orderedElements.indexOf(element);
+      if (index !== -1) selectionOrder.push(index + 1);
+    });
+    var body = {
+      operation: "reorder", page: location.pathname,
+      parentSelector: stableSelector(layerPreview.parentElement),
+      fromIndex: layerPreview.fromIndex, toIndex: layerPreview.toIndex,
+      orderedSelectors: layerPreview.orderedElements.map(stableSelector),
+      selectionOrder: selectionOrder,
+      measuredRects: layerPreview.measuredRects,
+      approximate: layerPreview.approximate,
+      domSnapshotHash: domSnapshotHash(layerPreview.parentElement)
+    };
+    fetch(bridgeUrl("/layers-intent"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(function (response) { if (!response.ok) throw new Error("Bridge returned " + response.status); return response.json(); })
+      .then(function (result) { setPanelStatus("Queued " + result.operationId, "success"); })
+      .catch(function (error) { setPanelStatus("Could not send layer intent", "error"); console.error("[Raven Grab] POST /layers-intent failed.", error); });
+  }
+
   function capturePanelDrafts() {
     var instruction = panel.querySelector("[data-instruction]");
     if (instruction) instructionDraft = instruction.value;
@@ -1333,6 +1654,7 @@
     if (issueSize) componentRequest.issueSize = issueSize.value;
     if (useCase) componentRequest.useCase = useCase.value;
     if (email) componentRequest.email = email.value;
+    captureTemplateDrafts();
   }
 
   function selectedTokenChoice(index, alternatives) {
@@ -1486,16 +1808,42 @@
         '<h2 class="raven-grab-section-title">COMPONENT NOTES</h2>' +
         '<textarea class="raven-grab-textarea raven-grab-use-case" data-use-case spellcheck="true" placeholder="Describe the reusable component, variants, or behavior…">' + escapeHtml(componentRequest.useCase) + '</textarea>' +
       '</section>';
+    if (activeTab === "template") ensureTemplateDrafts();
+    var templateDraftMarkup = templateDrafts.length ? templateDrafts.map(function (slot, index) {
+      return '<div class="raven-grab-slot">' +
+        '<div class="raven-grab-slot-head"><span class="raven-grab-slot-selector" title="' + escapeHtml(slot.selector) + '">' + escapeHtml(slot.selector) + '</span></div>' +
+        '<label class="raven-grab-field"><span>Slot ID</span><input class="raven-grab-input" type="text" data-template-slot-id="' + index + '" value="' + escapeHtml(slot.slotId) + '" spellcheck="false"></label>' +
+        '<div class="raven-grab-role" role="group" aria-label="Slot role"><button type="button" data-template-role="fixed" data-template-index="' + index + '" data-active="' + (slot.role === "fixed" ? "true" : "false") + '">Fixed</button><button type="button" data-template-role="flexible" data-template-index="' + index + '" data-active="' + (slot.role === "flexible" ? "true" : "false") + '">Flexible</button></div>' +
+      '</div>';
+    }).join("") : '<p class="raven-grab-empty">Select one or more elements to define template slots.</p>';
+    var templateSlotMarkup = templateLoading
+      ? '<p class="raven-grab-empty">Loading template slots…</p>'
+      : (templateSlots.length ? templateSlots.map(function (slot) {
+          return '<div class="raven-grab-slot"><div class="raven-grab-slot-head"><strong>' + escapeHtml(slot.slotId) + '</strong>' + (!slot.resolved ? '<span class="raven-grab-badge" data-kind="orphan">orphan</span>' : '') + '</div><div class="raven-grab-slot-selector" title="' + escapeHtml(slot.selector) + '">' + escapeHtml(slot.selector) + '</div><span class="raven-grab-badge">' + escapeHtml(slot.role) + '</span></div>';
+        }).join("") : '<p class="raven-grab-empty">No saved slots for this page.</p>');
+    var templateMarkup = '<section class="raven-grab-section"><h2 class="raven-grab-section-title">SELECTED ELEMENT SLOTS</h2>' + templateDraftMarkup + '</section>' +
+      '<section class="raven-grab-section"><h2 class="raven-grab-section-title">PAGE TEMPLATE SLOTS</h2>' + templateSlotMarkup + '</section>' +
+      '<section class="raven-grab-section"><p class="raven-grab-note">Annotations live in DESIGN.md, not page markup; slots re-resolve by selector on reload. Roles are cooperative/advisory.</p></section>';
+    var layersMarkup = '<section class="raven-grab-section"><h2 class="raven-grab-section-title">REORDER PREVIEW</h2><div data-layer-preview>' + wireframeMarkup() + '</div>' + (layerNotice ? '<p class="raven-grab-layer-notice">' + escapeHtml(layerNotice) + '</p>' : '') + '</section>' +
+      '<section class="raven-grab-section"><h2 class="raven-grab-section-title">LAYERS</h2>' + (layerTree ? '<ul class="raven-grab-layer-list">' + layerRowsMarkup(layerTree) + '</ul>' : '<p class="raven-grab-empty">No layer tree available.</p>') + '<p class="raven-grab-note">same-parent reorders only</p></section>';
     var bodyMarkup = activeTab === "design"
       ? designMarkup
-      : (grabRole === "maintainer" ? maintainerFormMarkup : (componentRequestStep === "email" ? emailMarkup : requestFormMarkup));
+      : (activeTab === "template"
+          ? templateMarkup
+          : (activeTab === "layers"
+              ? layersMarkup
+              : (grabRole === "maintainer" ? maintainerFormMarkup : (componentRequestStep === "email" ? emailMarkup : requestFormMarkup))));
     var actionMarkup = activeTab === "design"
       ? '<button class="raven-grab-send" type="button" data-send data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Send to agent</span></button>'
-      : (grabRole === "maintainer"
+      : (activeTab === "template"
+          ? '<button class="raven-grab-send" type="button" data-save-template data-send-state="default"><span class="raven-grab-send-label">Save template</span></button>'
+          : (activeTab === "layers"
+          ? '<button class="raven-grab-send" type="button" data-send-layer-intent data-send-state="default"' + (layerPreview ? "" : " disabled") + '><span class="raven-grab-send-label">Send to agent</span></button>'
+          : (grabRole === "maintainer"
           ? '<button class="raven-grab-send" type="button" data-send data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Add to design system</span></button>'
           : (componentRequestStep === "email"
           ? '<button class="raven-grab-send" type="button" data-send-email data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">' + (emailFlow ? "Send email" : "Create request") + '</span></button>'
-          : '<button class="raven-grab-send" type="button" data-request-next data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">' + (emailFlow ? "Continue" : "Send component request to design") + '</span></button>'));
+          : '<button class="raven-grab-send" type="button" data-request-next data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">' + (emailFlow ? "Continue" : "Send component request to design") + '</span></button>'))));
     var requestTabLabel = grabRole === "maintainer" ? "Add component" : "Request Component";
     var requestHintText = "No destination configured — requests can't be sent yet. Ask your agent to set up GitHub routing.";
     var requestHintMarkup = activeTab === "request" && grabRole !== "maintainer" && copyOnlyRequest && !requestHintDismissed
@@ -1511,6 +1859,8 @@
         <div class="raven-grab-tabs" role="tablist" aria-label="Raven design actions">
           <button class="raven-grab-tab" type="button" role="tab" data-tab="design" aria-selected="${activeTab === "design" ? "true" : "false"}">Design</button>
           <button class="raven-grab-tab" type="button" role="tab" data-tab="request" aria-selected="${activeTab === "request" ? "true" : "false"}">${requestTabLabel}</button>
+          <button class="raven-grab-tab" type="button" role="tab" data-tab="template" aria-selected="${activeTab === "template" ? "true" : "false"}">Template</button>
+          <button class="raven-grab-tab" type="button" role="tab" data-tab="layers" aria-selected="${activeTab === "layers" ? "true" : "false"}">Layers</button>
         </div>
       </div>
       <div class="raven-grab-body"><div class="raven-grab-content">${bodyMarkup}</div></div>
@@ -1525,9 +1875,16 @@
   }
 
   function switchTab(tab) {
-    if (tab !== "design" && tab !== "request") return;
+    if (tab !== "design" && tab !== "request" && tab !== "template" && tab !== "layers") return;
     capturePanelDrafts();
     activeTab = tab;
+    if (tab === "template") loadTemplate();
+    if (tab === "layers") {
+      layerTree = buildLayerTree(document.body);
+      layerPreview = null;
+      layerNotice = "";
+      postLayerSnapshot();
+    }
     renderPanel();
   }
 
@@ -1975,7 +2332,11 @@
     if (event.target.closest("[data-send]")) sendSelection();
     if (event.target.closest("[data-request-next]")) advanceComponentRequest();
     if (event.target.closest("[data-send-email]")) sendComponentRequest();
+    if (event.target.closest("[data-save-template]")) saveTemplate();
+    if (event.target.closest("[data-send-layer-intent]")) sendLayerIntent();
     if (event.target.closest("[data-dismiss-request-hint]")) dismissRequestHint();
+    var templateRole = event.target.closest("[data-template-role]");
+    if (templateRole) setTemplateRole(Number(templateRole.getAttribute("data-template-index")), templateRole.getAttribute("data-template-role"));
     var tab = event.target.closest("[data-tab]");
     if (tab) switchTab(tab.getAttribute("data-tab"));
     var sectionToggle = event.target.closest("[data-section-toggle]");
@@ -2018,6 +2379,35 @@
     }
     if (event.target.getAttribute("data-use-case") !== null) componentRequest.useCase = event.target.value;
     if (event.target.getAttribute("data-component-email") !== null) componentRequest.email = event.target.value;
+  });
+  panel.addEventListener("dragstart", function (event) {
+    var row = event.target.closest("[data-layer-id]");
+    if (!row) return;
+    layerDragId = row.getAttribute("data-layer-id");
+    row.setAttribute("data-dragging", "true");
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", layerDragId);
+    }
+  });
+  panel.addEventListener("dragover", function (event) {
+    var row = event.target.closest("[data-layer-id]");
+    if (!row || layerDragId === null) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  });
+  panel.addEventListener("drop", function (event) {
+    var row = event.target.closest("[data-layer-id]");
+    if (!row || layerDragId === null) return;
+    event.preventDefault();
+    var fromId = layerDragId;
+    layerDragId = null;
+    reorderLayer(fromId, row.getAttribute("data-layer-id"));
+  });
+  panel.addEventListener("dragend", function (event) {
+    var row = event.target.closest("[data-layer-id]");
+    if (row) row.removeAttribute("data-dragging");
+    layerDragId = null;
   });
   panel.addEventListener("keydown", function (event) {
     if (event.key !== "Enter") return;
