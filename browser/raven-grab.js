@@ -59,7 +59,8 @@
   var styleEdits = Object.create(null);
   var styleEditOriginalInline = Object.create(null);
   var previewOriginals = Object.create(null);
-  var activeTab = "design";
+  var activeTabA = "design";
+  var activeTabB = "template";
   var expandedSections = { tokens: false, styles: false };
   var instructionDraft = "";
   var componentRequestStep = "form";
@@ -138,16 +139,20 @@
     }
     .raven-grab-panel {
       position: fixed; top: 20px; right: 20px; display: none; width: min(360px, calc(100vw - 40px));
-      max-height: calc(100vh - 40px); overflow: hidden; pointer-events: auto; flex-direction: column;
-      color: var(--raven-grab-text); background: #212129;
-      border: 1px solid rgba(255, 255, 255, .12); border-radius: 20px;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 0 32px rgba(0, 191, 255, .06),
-        0 8px 16px -4px rgba(0, 0, 0, .35), 0 24px 48px -12px rgba(0, 0, 0, .5);
-      backdrop-filter: blur(12px); font: 13px/1.45 var(--raven-grab-ui);
+      max-height: calc(100vh - 40px); pointer-events: auto; flex-direction: column; gap: 12px;
+      color: var(--raven-grab-text); font: 13px/1.45 var(--raven-grab-ui);
       overscroll-behavior: contain; transform: translateX(0); transition: transform 200ms ease;
     }
     .raven-grab-panel[aria-hidden="false"] { display: flex; }
     .raven-grab-panel[data-collapsed="true"] { display: flex; transform: translateX(calc(100vw + 100%)); pointer-events: none; }
+    .raven-grab-card {
+      display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+      background: #212129;
+      border: 1px solid rgba(255, 255, 255, .12); border-radius: 20px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 0 32px rgba(0, 191, 255, .06),
+        0 8px 16px -4px rgba(0, 0, 0, .35), 0 24px 48px -12px rgba(0, 0, 0, .5);
+      backdrop-filter: blur(12px);
+    }
     .raven-grab-top { flex: 0 0 auto; background: #212129; }
     .raven-grab-header {
       display: flex; align-items: center; min-height: 56px; padding: 12px 16px;
@@ -162,7 +167,7 @@
       font: 18px/1 var(--raven-grab-ui); transition: color 150ms ease, background 150ms ease;
     }
     .raven-grab-icon-button:hover { color: var(--raven-grab-text); background: rgba(255, 255, 255, .12); }
-    .raven-grab-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); min-height: 44px; background: rgba(255, 255, 255, .01); border-bottom: 1px solid rgba(255, 255, 255, .12); backdrop-filter: blur(6px); }
+    .raven-grab-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-height: 44px; background: rgba(255, 255, 255, .01); border-bottom: 1px solid rgba(255, 255, 255, .12); backdrop-filter: blur(6px); }
     .raven-grab-tab { min-height: 44px; padding: 12px 6px; color: var(--raven-grab-text); background: transparent; border: 0; border-bottom: 1px solid transparent; cursor: pointer; font: 400 11px/1 var(--raven-grab-mono); }
     .raven-grab-tab[aria-selected="true"] { color: var(--raven-grab-accent); border-bottom-color: rgba(0, 191, 255, .3); font-weight: 500; }
     .raven-grab-tab:hover { color: var(--raven-grab-accent); }
@@ -1349,7 +1354,7 @@
   }
 
   function isMaintainerCreateFlow() {
-    return grabRole === "maintainer" && activeTab === "request";
+    return grabRole === "maintainer" && activeTabA === "request";
   }
 
   function shortSlotId(element, index) {
@@ -1405,10 +1410,10 @@
           }) })
         });
       })
-      .then(function () { if (activeTab === "template") renderPanel(); })
+      .then(function () { if (activeTabB === "template") renderPanel(); })
       .catch(function (error) {
         templateLoading = false;
-        if (activeTab === "template") setPanelStatus("Could not load template slots", "error");
+        if (activeTabB === "template") setPanelStatus("Could not load template slots", "error", "b");
         console.error("[Raven Grab] GET /template failed.", error);
       });
   }
@@ -1440,10 +1445,10 @@
       templateLoaded = false;
       templateSlots = [];
       templateDrafts = [];
-      setPanelStatus("Saved " + result.count + (result.count === 1 ? " slot" : " slots"), "success");
+      setPanelStatus("Saved " + result.count + (result.count === 1 ? " slot" : " slots"), "success", "b");
       loadTemplate();
     }).catch(function (error) {
-      setPanelStatus("Could not save template", "error");
+      setPanelStatus("Could not save template", "error", "b");
       console.error("[Raven Grab] POST /template failed.", error);
     });
   }
@@ -1639,8 +1644,8 @@
     };
     fetch(bridgeUrl("/layers-intent"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       .then(function (response) { if (!response.ok) throw new Error("Bridge returned " + response.status); return response.json(); })
-      .then(function (result) { setPanelStatus("Queued " + result.operationId, "success"); })
-      .catch(function (error) { setPanelStatus("Could not send layer intent", "error"); console.error("[Raven Grab] POST /layers-intent failed.", error); });
+      .then(function (result) { setPanelStatus("Queued " + result.operationId, "success", "b"); })
+      .catch(function (error) { setPanelStatus("Could not send layer intent", "error", "b"); console.error("[Raven Grab] POST /layers-intent failed.", error); });
   }
 
   function capturePanelDrafts() {
@@ -1808,7 +1813,8 @@
         '<h2 class="raven-grab-section-title">COMPONENT NOTES</h2>' +
         '<textarea class="raven-grab-textarea raven-grab-use-case" data-use-case spellcheck="true" placeholder="Describe the reusable component, variants, or behavior…">' + escapeHtml(componentRequest.useCase) + '</textarea>' +
       '</section>';
-    if (activeTab === "template") ensureTemplateDrafts();
+    if (activeTabB === "template") ensureTemplateDrafts();
+    if (activeTabB === "template" && !grabConfig) loadTemplate();
     var templateDraftMarkup = templateDrafts.length ? templateDrafts.map(function (slot, index) {
       return '<div class="raven-grab-slot">' +
         '<div class="raven-grab-slot-head"><span class="raven-grab-slot-selector" title="' + escapeHtml(slot.selector) + '">' + escapeHtml(slot.selector) + '</span></div>' +
@@ -1826,45 +1832,55 @@
       '<section class="raven-grab-section"><p class="raven-grab-note">Annotations live in DESIGN.md, not page markup; slots re-resolve by selector on reload. Roles are cooperative/advisory.</p></section>';
     var layersMarkup = '<section class="raven-grab-section"><h2 class="raven-grab-section-title">REORDER PREVIEW</h2><div data-layer-preview>' + wireframeMarkup() + '</div>' + (layerNotice ? '<p class="raven-grab-layer-notice">' + escapeHtml(layerNotice) + '</p>' : '') + '</section>' +
       '<section class="raven-grab-section"><h2 class="raven-grab-section-title">LAYERS</h2>' + (layerTree ? '<ul class="raven-grab-layer-list">' + layerRowsMarkup(layerTree) + '</ul>' : '<p class="raven-grab-empty">No layer tree available.</p>') + '<p class="raven-grab-note">same-parent reorders only</p></section>';
-    var bodyMarkup = activeTab === "design"
+    var bodyMarkupA = activeTabA === "design"
       ? designMarkup
-      : (activeTab === "template"
-          ? templateMarkup
-          : (activeTab === "layers"
-              ? layersMarkup
-              : (grabRole === "maintainer" ? maintainerFormMarkup : (componentRequestStep === "email" ? emailMarkup : requestFormMarkup))));
-    var actionMarkup = activeTab === "design"
+      : (grabRole === "maintainer" ? maintainerFormMarkup : (componentRequestStep === "email" ? emailMarkup : requestFormMarkup));
+    var bodyMarkupB = activeTabB === "template" ? templateMarkup : layersMarkup;
+    var actionMarkupA = activeTabA === "design"
       ? '<button class="raven-grab-send" type="button" data-send data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Send to agent</span></button>'
-      : (activeTab === "template"
-          ? '<button class="raven-grab-send" type="button" data-save-template data-send-state="default"><span class="raven-grab-send-label">Save template</span></button>'
-          : (activeTab === "layers"
-          ? '<button class="raven-grab-send" type="button" data-send-layer-intent data-send-state="default"' + (layerPreview ? "" : " disabled") + '><span class="raven-grab-send-label">Send to agent</span></button>'
-          : (grabRole === "maintainer"
+      : (grabRole === "maintainer"
           ? '<button class="raven-grab-send" type="button" data-send data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Add to design system</span></button>'
           : (componentRequestStep === "email"
           ? '<button class="raven-grab-send" type="button" data-send-email data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">' + (emailFlow ? "Send email" : "Create request") + '</span></button>'
-          : '<button class="raven-grab-send" type="button" data-request-next data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">' + (emailFlow ? "Continue" : "Send component request to design") + '</span></button>'))));
+          : '<button class="raven-grab-send" type="button" data-request-next data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">' + (emailFlow ? "Continue" : "Send component request to design") + '</span></button>'));
+    var actionMarkupB = activeTabB === "template"
+      ? '<button class="raven-grab-send" type="button" data-save-template data-send-state="default"><span class="raven-grab-send-label">Save template</span></button>'
+      : '<button class="raven-grab-send" type="button" data-send-layer-intent data-send-state="default"' + (layerPreview ? "" : " disabled") + '><span class="raven-grab-send-label">Send to agent</span></button>';
     var requestTabLabel = grabRole === "maintainer" ? "Add component" : "Request Component";
     var requestHintText = "No destination configured — requests can't be sent yet. Ask your agent to set up GitHub routing.";
-    var requestHintMarkup = activeTab === "request" && grabRole !== "maintainer" && copyOnlyRequest && !requestHintDismissed
+    var requestHintMarkup = activeTabA === "request" && grabRole !== "maintainer" && copyOnlyRequest && !requestHintDismissed
       ? '<p class="raven-grab-request-hint" data-request-hint><span>' + escapeHtml(requestHintText) + '</span><button class="raven-grab-request-hint-dismiss" type="button" data-dismiss-request-hint aria-label="' + escapeHtml("Dismiss setup hint") + '">' + escapeHtml("×") + "</button></p>"
       : "";
 
     panel.innerHTML = `
-      <div class="raven-grab-top">
-        <div class="raven-grab-header">
-          <div class="raven-grab-title"><strong>Raven design</strong></div>
-          <button class="raven-grab-icon-button" type="button" data-collapse aria-label="Collapse Raven panel">&gt;</button>
+      <div class="raven-grab-card">
+        <div class="raven-grab-top">
+          <div class="raven-grab-header">
+            <div class="raven-grab-title"><strong>Raven design</strong></div>
+            <button class="raven-grab-icon-button" type="button" data-collapse aria-label="Collapse Raven panels">&gt;</button>
+          </div>
+          <div class="raven-grab-tabs" role="tablist" aria-label="Raven design actions">
+            <button class="raven-grab-tab" type="button" role="tab" data-tab="design" aria-selected="${activeTabA === "design" ? "true" : "false"}">Design</button>
+            <button class="raven-grab-tab" type="button" role="tab" data-tab="request" aria-selected="${activeTabA === "request" ? "true" : "false"}">${requestTabLabel}</button>
+          </div>
         </div>
-        <div class="raven-grab-tabs" role="tablist" aria-label="Raven design actions">
-          <button class="raven-grab-tab" type="button" role="tab" data-tab="design" aria-selected="${activeTab === "design" ? "true" : "false"}">Design</button>
-          <button class="raven-grab-tab" type="button" role="tab" data-tab="request" aria-selected="${activeTab === "request" ? "true" : "false"}">${requestTabLabel}</button>
-          <button class="raven-grab-tab" type="button" role="tab" data-tab="template" aria-selected="${activeTab === "template" ? "true" : "false"}">Template</button>
-          <button class="raven-grab-tab" type="button" role="tab" data-tab="layers" aria-selected="${activeTab === "layers" ? "true" : "false"}">Layers</button>
-        </div>
+        <div class="raven-grab-body"><div class="raven-grab-content">${bodyMarkupA}</div></div>
+        <div class="raven-grab-actions">${requestHintMarkup}${actionMarkupA}<p class="raven-grab-status" data-status aria-live="polite"></p></div>
       </div>
-      <div class="raven-grab-body"><div class="raven-grab-content">${bodyMarkup}</div></div>
-      <div class="raven-grab-actions">${requestHintMarkup}${actionMarkup}<p class="raven-grab-status" data-status aria-live="polite"></p></div>`;
+      <div class="raven-grab-card">
+        <div class="raven-grab-top">
+          <div class="raven-grab-header">
+            <div class="raven-grab-title"><strong>Structure</strong></div>
+            <button class="raven-grab-icon-button" type="button" data-collapse aria-label="Collapse Raven panels">&gt;</button>
+          </div>
+          <div class="raven-grab-tabs" role="tablist" aria-label="Raven structure actions">
+            <button class="raven-grab-tab" type="button" role="tab" data-tab="template" aria-selected="${activeTabB === "template" ? "true" : "false"}">Template</button>
+            <button class="raven-grab-tab" type="button" role="tab" data-tab="layers" aria-selected="${activeTabB === "layers" ? "true" : "false"}">Layers</button>
+          </div>
+        </div>
+        <div class="raven-grab-body"><div class="raven-grab-content">${bodyMarkupB}</div></div>
+        <div class="raven-grab-actions">${actionMarkupB}<p class="raven-grab-status" data-status-b aria-live="polite"></p></div>
+      </div>`;
     panel.setAttribute("aria-hidden", "false");
     panel.setAttribute("data-collapsed", collapsed ? "true" : "false");
   }
@@ -1877,7 +1893,8 @@
   function switchTab(tab) {
     if (tab !== "design" && tab !== "request" && tab !== "template" && tab !== "layers") return;
     capturePanelDrafts();
-    activeTab = tab;
+    if (tab === "design" || tab === "request") activeTabA = tab;
+    else activeTabB = tab;
     if (tab === "template") loadTemplate();
     if (tab === "layers") {
       layerTree = buildLayerTree(document.body);
@@ -1911,7 +1928,8 @@
     hoveredElement = null;
     currentSelection = null;
     reactMetadata = null;
-    activeTab = "design";
+    activeTabA = "design";
+    activeTabB = "template";
     expandedSections = { tokens: false, styles: false };
     instructionDraft = "";
     componentRequestStep = "form";
@@ -2185,8 +2203,8 @@
     }
   }
 
-  function setPanelStatus(message, kind) {
-    var status = panel.querySelector("[data-status]");
+  function setPanelStatus(message, kind, card) {
+    var status = panel.querySelector(card === "b" ? "[data-status-b]" : "[data-status]");
     if (!status) return;
     status.textContent = message;
     if (kind) status.setAttribute("data-kind", kind);
@@ -2476,7 +2494,7 @@
     tokenIntents = Object.create(null);
     styleEdits = Object.create(null);
     styleEditOriginalInline = Object.create(null);
-    activeTab = "design";
+    activeTabA = "design";
     expandedSections = { tokens: false, styles: false };
     instructionDraft = "";
     componentRequestStep = "form";

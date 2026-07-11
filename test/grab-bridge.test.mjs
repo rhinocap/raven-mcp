@@ -1824,7 +1824,8 @@ test('overlay renders color swatches beside custom token values and inline color
 
 test('overlay panel CSS keeps only the body scrollable and provides the collapsed edge tab', async () => {
   const source = await readFile(path.resolve(__dirname, '../browser/raven-grab.js'), 'utf8');
-  assert.match(source, /\.raven-grab-panel \{[\s\S]*max-height: calc\(100vh - 40px\); overflow: hidden;[\s\S]*flex-direction: column;/);
+  assert.match(source, /\.raven-grab-panel \{[\s\S]*max-height: calc\(100vh - 40px\);[\s\S]*flex-direction: column;/);
+  assert.match(source, /\.raven-grab-card \{[\s\S]*min-height: 0; overflow: hidden;/);
   assert.match(source, /\.raven-grab-top \{ flex: 0 0 auto;/);
   assert.match(source, /\.raven-grab-body \{ flex: 1 1 auto; min-height: 0; overflow-y: auto;/);
   assert.match(source, /\.raven-grab-actions \{ flex: 0 0 auto;/);
