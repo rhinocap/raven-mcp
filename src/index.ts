@@ -4,7 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { readFileSync, readdirSync, existsSync, realpathSync } from "fs";
-import { join, dirname } from "path";
+import { join, dirname, resolve } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { auditContainerWidth } from "./audit-container.js";
 import { capturePage, CaptureUnavailableError, annotateVideoArtifacts, verifyFindings } from "./capture.js";
@@ -41,6 +41,7 @@ import { registerCalls } from "./calls.js";
 import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
 import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet } from "./designmd.js";
 import { startGrabSession, getGrabbedElements, stopGrabSession } from "./grab-bridge.js";
+import { configureSource, readSourceConfig, inventoryFromDesignMd, diffDesignSystem, listBaselineComponents } from "./design-system-diff.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -53,6 +54,13 @@ var BUSINESS_DIR = join(DATA_DIR, "business");
 var TOKENS_DIR = join(DATA_DIR, "tokens");
 var SYSTEMS_DIR = join(TOKENS_DIR, "systems");
 var CONTENT_DIR = join(DATA_DIR, "content");
+
+function resolveDesignSystemPath(projectDir?: string, designFilePath?: string): string {
+  if (designFilePath) return resolve(designFilePath);
+  if (!projectDir) throw new Error("Provide project_dir or design_file_path");
+  var config = readSourceConfig(projectDir);
+  return resolve(projectDir, config.source.path);
+}
 var CONTENT_SYSTEMS_DIR = join(CONTENT_DIR, "systems");
 var CONTENT_PRINCIPLES_DIR = join(CONTENT_DIR, "principles");
 var CONTENT_PATTERNS_DIR = join(CONTENT_DIR, "patterns");
@@ -1599,7 +1607,7 @@ function maybeComputeDailyDigest(): void {
 
 // ── Server ──────────────────────────────────────────────────────────
 
-// The 31 tools NOT served on a shared remote server (buildServer({remote:true})).
+// The 35 tools NOT served on a shared remote server (buildServer({remote:true})).
 // 20 are stateful/local (per-user ~/.raven files, or the create_generation_job
 // subprocess), 5 reach the filesystem/network or have an external side effect,
 // and 6 are the DESIGN.md / grab-bridge tools (local file I/O plus a single
@@ -1634,6 +1642,7 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   "talon_scan", "talon_rules",
   // DESIGN.md and grab bridge stateful tools.
   "read_design_md", "init_design_md", "update_design_md",
+  "configure_design_system_source", "inventory_design_system", "diff_design_system", "list_design_system_components",
   "start_grab_session", "get_grabbed_elements", "stop_grab_session"
 ]);
 
@@ -2442,6 +2451,77 @@ server.tool(
 );
 
 // ── DESIGN.md / grab bridge tools ──────────────────────────────────
+
+server.tool(
+  "configure_design_system_source",
+  "Save which local DESIGN.md file Raven should use for design-system inventory and comparison.",
+  {
+    project_dir: z.string().describe("Project directory where .raven configuration is stored"),
+    source_kind: z.literal("design-file").describe("MVP source kind; only design-file is supported"),
+    design_file_path: z.string().optional().describe("DESIGN.md path relative to the project directory; defaults to DESIGN.md"),
+    platform: z.string().optional().describe("Target platform such as web-pointer or web-touch"),
+    aliases: z.record(z.string()).optional().describe("Project component id to Raven canonical component id aliases")
+  },
+  async function({ project_dir, source_kind, design_file_path, platform, aliases }) {
+    try {
+      var config = configureSource(project_dir, { source: { kind: source_kind, path: design_file_path || "DESIGN.md" }, platform: platform || "web-pointer", aliases: aliases });
+      return { content: [{ type: "text" as const, text: JSON.stringify(config, null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "inventory_design_system",
+  "Read component declarations and tokens from a local DESIGN.md file.",
+  {
+    project_dir: z.string().optional().describe("Project directory with a configured design-system source"),
+    design_file_path: z.string().optional().describe("Direct path to DESIGN.md; overrides project configuration")
+  },
+  async function({ project_dir, design_file_path }) {
+    try {
+      var path = resolveDesignSystemPath(project_dir, design_file_path);
+      return { content: [{ type: "text" as const, text: JSON.stringify(inventoryFromDesignMd(path), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "diff_design_system",
+  "Compare a local DESIGN.md component inventory with the Raven canonical baseline.",
+  {
+    project_dir: z.string().optional().describe("Project directory with a configured design-system source"),
+    design_file_path: z.string().optional().describe("Direct path to DESIGN.md; overrides project configuration"),
+    baseline: z.literal("raven-canonical").optional().describe("Baseline id; defaults to raven-canonical"),
+    platform: z.string().optional().describe("Target platform; overrides project configuration")
+  },
+  async function({ project_dir, design_file_path, baseline, platform }) {
+    try {
+      var config = project_dir ? readSourceConfig(project_dir) : null;
+      var path = resolveDesignSystemPath(project_dir, design_file_path);
+      var report = diffDesignSystem(inventoryFromDesignMd(path), baseline || "raven-canonical", { platform: platform || (config ? config.platform : "web-pointer"), projectAliases: config && config.aliases ? config.aliases : undefined });
+      return { content: [{ type: "text" as const, text: JSON.stringify(report, null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "list_design_system_components",
+  "List the components and provenance in the Raven canonical baseline.",
+  { baseline: z.literal("raven-canonical").optional().describe("Baseline id; defaults to raven-canonical") },
+  async function({ baseline }) {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(listBaselineComponents(baseline || "raven-canonical"), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
 
 server.tool(
   "read_design_md",

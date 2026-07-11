@@ -1,0 +1,27 @@
+{
+  "id": "raven-canonical",
+  "label": "Raven canonical baseline",
+  "provenance": {
+    "source": "raven-curated",
+    "reviewed": "2026-07-10",
+    "note": "Raven-curated cross-industry baseline; not derived from or representing any branded design system."
+  },
+  "components": [
+    { "id": "button", "level": "core", "aliases": ["btn"], "variants": ["primary", "secondary"], "states": ["hover", "focus-visible", "active", "disabled", "loading"], "anatomy": ["label"] },
+    { "id": "input", "level": "core", "aliases": ["text-field"], "variants": ["default"], "states": ["hover", "focus-visible", "disabled", "error", "readonly"], "anatomy": ["label", "field", "message"] },
+    { "id": "select", "level": "core", "aliases": ["dropdown"], "variants": ["default"], "states": ["hover", "focus-visible", "disabled", "error", "expanded"], "anatomy": ["label", "trigger", "menu"] },
+    { "id": "checkbox", "level": "core", "aliases": [], "variants": ["default"], "states": ["hover", "focus-visible", "disabled", "checked"], "anatomy": ["control", "label"] },
+    { "id": "radio", "level": "core", "aliases": ["radio-button"], "variants": ["default"], "states": ["hover", "focus-visible", "disabled", "checked"], "anatomy": ["control", "label"] },
+    { "id": "switch", "level": "core", "aliases": ["toggle"], "variants": ["default"], "states": ["hover", "focus-visible", "disabled", "checked"], "anatomy": ["track", "thumb", "label"] },
+    { "id": "textarea", "level": "recommended", "aliases": ["text-area"], "variants": ["default"], "states": ["hover", "focus-visible", "disabled", "error", "readonly"], "anatomy": ["label", "field", "message"] },
+    { "id": "link", "level": "core", "aliases": ["anchor"], "variants": ["default"], "states": ["hover", "focus-visible", "active", "disabled"], "anatomy": ["label"] },
+    { "id": "dialog", "level": "recommended", "aliases": ["modal", "sheet"], "variants": ["modal", "sheet"], "states": ["expanded"], "anatomy": ["title", "body", "actions"] },
+    { "id": "tooltip", "level": "optional", "aliases": [], "variants": ["default"], "states": ["hover", "focus-visible", "expanded"], "anatomy": ["trigger", "content"] },
+    { "id": "tabs", "level": "recommended", "aliases": ["tab-list"], "variants": ["default"], "states": ["hover", "focus-visible", "selected", "disabled"], "anatomy": ["list", "tab", "panel"] },
+    { "id": "card", "level": "recommended", "aliases": ["panel"], "variants": ["default"], "states": ["hover", "focus-visible", "selected"], "anatomy": ["header", "body", "footer"] },
+    { "id": "badge", "level": "optional", "aliases": ["tag"], "variants": ["default"], "states": [], "anatomy": ["label"] },
+    { "id": "alert", "level": "recommended", "aliases": ["notice"], "variants": ["info", "success", "warning", "error"], "states": ["error"], "anatomy": ["title", "message"] },
+    { "id": "table", "level": "recommended", "aliases": ["data-table"], "variants": ["default"], "states": ["hover", "focus-visible", "selected", "loading"], "anatomy": ["header", "row", "cell"] },
+    { "id": "avatar", "level": "optional", "aliases": ["profile-image"], "variants": ["image", "initials"], "states": ["loading"], "anatomy": ["image", "fallback"] }
+  ]
+}
