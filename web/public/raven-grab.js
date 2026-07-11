@@ -273,6 +273,8 @@
     .raven-grab-layer-row { display: flex; align-items: center; gap: 5px; min-height: 30px; padding: 4px 6px; padding-left: calc(6px + var(--layer-depth) * 12px); overflow: hidden; border-bottom: 1px solid rgba(255,255,255,.04); cursor: grab; }
     .raven-grab-layer-row:hover { background: rgba(255,255,255,.04); }
     .raven-grab-layer-row[data-dragging="true"] { opacity: .45; }
+    .raven-grab-layer-row[data-selected="true"] { background: rgba(0, 191, 255, .08); }
+    .raven-grab-layer-row[data-selected="true"] .raven-grab-layer-label { color: var(--raven-grab-accent); }
     .raven-grab-layer-label { min-width: 0; flex: 1; overflow: hidden; color: var(--raven-grab-text); font: 400 10px/1.3 var(--raven-grab-mono); text-overflow: ellipsis; white-space: nowrap; }
     .raven-grab-layer-notice { margin: 8px 0 0; color: var(--raven-grab-error); font: 500 10px/1.35 var(--raven-grab-ui); }
     .raven-grab-wireframe { position: relative; width: 240px; height: 112px; margin: 0 auto 12px; overflow: hidden; background: var(--raven-grab-bg); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; }
@@ -1601,7 +1603,8 @@
     var role = element ? slotRoleForElement(element) : "";
     var badges = node.badges.slice();
     if (role) badges.push(role);
-    var markup = '<li class="raven-grab-layer-row" draggable="true" data-layer-id="' + node.id + '" data-layer-parent="' + (node.parentId == null ? "" : node.parentId) + '" style="--layer-depth:' + node.depth + '"><span class="raven-grab-layer-label">' + escapeHtml(node.label) + "</span>" + badges.map(function (badge) { return '<span class="raven-grab-badge">' + escapeHtml(badge) + "</span>"; }).join("") + "</li>";
+    var isSelected = element && element === selectedElement;
+    var markup = '<li class="raven-grab-layer-row" draggable="true" data-layer-id="' + node.id + '" data-layer-parent="' + (node.parentId == null ? "" : node.parentId) + '"' + (isSelected ? ' data-selected="true"' : "") + ' style="--layer-depth:' + node.depth + '"><span class="raven-grab-layer-label">' + escapeHtml(node.label) + "</span>" + badges.map(function (badge) { return '<span class="raven-grab-badge">' + escapeHtml(badge) + "</span>"; }).join("") + "</li>";
     node.children.forEach(function (child) { markup += layerRowsMarkup(child); });
     return markup;
   }
@@ -2578,7 +2581,16 @@
     openPanel();
     setHighlight(target);
     currentSelection = selectionFor(target);
+    if (activeTabB === "layers") {
+      var inTree = false;
+      layerElements.forEach(function (element) { if (element === target) inTree = true; });
+      if (!inTree) layerTree = buildLayerTree(document.body);
+    }
     renderPanel();
+    if (activeTabB === "layers") {
+      var selectedRow = panelQuery('.raven-grab-layer-row[data-selected="true"]');
+      if (selectedRow && typeof selectedRow.scrollIntoView === "function") selectedRow.scrollIntoView({ block: "nearest" });
+    }
   }
 
   document.addEventListener("mousemove", function (event) {

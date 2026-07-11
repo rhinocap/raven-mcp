@@ -1888,6 +1888,8 @@ test('overlay panel CSS keeps only the body scrollable and provides the collapse
   assert.match(source, /\.raven-grab-body \{ flex: 1 1 auto; min-height: 0; overflow-y: auto;/);
   assert.match(source, /\.raven-grab-actions \{ flex: 0 1 auto; min-height: 0; overflow-y: auto;/);
   assert.match(source, /\.raven-grab-composer \.raven-grab-textarea \{[^}]*max-height: 30vh;/);
+  assert.match(source, /\.raven-grab-layer-row\[data-selected="true"\] \{ background: rgba\(0, 191, 255, \.08\); \}/);
+  assert.match(source, /var isSelected = element && element === selectedElement;/);
   assert.match(source, /\.raven-grab-collapsible-inner \{[^}]*visibility: visible;[^}]*transition: visibility 0s linear;/);
   assert.match(source, /\.raven-grab-collapsible\[data-open="false"\] \.raven-grab-collapsible-inner \{ visibility: hidden; transition-delay: 150ms; \}/);
   assert.doesNotMatch(source, /\.raven-grab-arm\b/);
