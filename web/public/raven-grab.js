@@ -151,6 +151,10 @@
     .raven-grab-panel[aria-hidden="false"] { display: flex; }
     .raven-grab-panel[data-collapsed="true"] { display: flex; transform: translateX(calc(100vw + 100%)); pointer-events: none; }
     .raven-grab-panel[data-side="left"][data-collapsed="true"] { transform: translateX(calc(-100vw - 100%)); }
+    @media (max-width: 760px) {
+      .raven-grab-panel { max-height: calc(50vh - 30px); }
+      .raven-grab-panel[data-side="left"] { top: auto; bottom: 20px; }
+    }
     .raven-grab-top { flex: 0 0 auto; background: #212129; }
     .raven-grab-header {
       display: flex; align-items: center; min-height: 56px; padding: 12px 16px;
@@ -434,6 +438,7 @@
     collapsed = true;
     setPanelsCollapsed(true);
     edgeTab.setAttribute("aria-hidden", "false");
+    if (typeof edgeTab.focus === "function") edgeTab.focus();
     hoveredElement = null;
     highlight.style.display = "none";
     label.style.display = "none";
