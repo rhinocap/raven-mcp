@@ -180,7 +180,7 @@
     .raven-grab-content { padding: 16px; }
     .raven-grab-section + .raven-grab-section { margin-top: 16px; }
     .raven-grab-composer { margin: 0 0 12px; }
-    .raven-grab-composer .raven-grab-textarea { width: 100%; box-sizing: border-box; }
+    .raven-grab-composer .raven-grab-textarea { width: 100%; box-sizing: border-box; max-height: 30vh; }
     .raven-grab-section-title { margin: 0 0 8px; color: var(--raven-grab-tertiary); font: 500 12px/1.3 var(--raven-grab-mono); letter-spacing: .96px; text-transform: uppercase; }
     .raven-grab-section-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; margin: 0; padding: 0; color: var(--raven-grab-tertiary); background: transparent; border: 0; cursor: pointer; text-align: left; font: 500 12px/1.3 var(--raven-grab-mono); letter-spacing: .96px; text-transform: uppercase; }
     .raven-grab-section-toggle:hover { color: var(--raven-grab-text); }
@@ -278,7 +278,7 @@
     .raven-grab-wireframe { position: relative; width: 240px; height: 112px; margin: 0 auto 12px; overflow: hidden; background: var(--raven-grab-bg); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; }
     .raven-grab-wire-box { position: absolute; display: flex; align-items: center; justify-content: center; min-width: 12px; min-height: 12px; color: var(--raven-grab-text); background: rgba(0,191,255,.08); border: 1px solid rgba(0,191,255,.45); font: 600 9px/1 var(--raven-grab-mono); }
     .raven-grab-wire-box[data-moved="true"] { color: #0a1018; background: var(--raven-grab-accent); }
-    .raven-grab-actions { flex: 0 0 auto; padding: 12px 16px 16px; background: #212129; border-top: 1px solid rgba(255, 255, 255, .06); }
+    .raven-grab-actions { flex: 0 1 auto; min-height: 0; overflow-y: auto; padding: 12px 16px 16px; background: #212129; border-top: 1px solid rgba(255, 255, 255, .06); }
     .raven-grab-request-hint { display: flex; align-items: flex-start; gap: 6px; margin: 0 0 8px; color: var(--raven-grab-muted); font: 400 11px/1.35 var(--raven-grab-ui); }
     .raven-grab-request-hint-dismiss { flex: 0 0 auto; margin: -4px -4px -4px 0; padding: 4px; color: var(--raven-grab-muted); background: transparent; border: 0; cursor: pointer; font: 400 14px/1 var(--raven-grab-ui); }
     .raven-grab-request-hint-dismiss:hover { color: var(--raven-grab-text); }
