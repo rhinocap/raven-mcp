@@ -262,7 +262,7 @@
     .raven-grab-slot-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
     .raven-grab-slot-selector { min-width: 0; flex: 1; overflow: hidden; color: var(--raven-grab-muted); font: 400 10px/1.35 var(--raven-grab-mono); text-overflow: ellipsis; white-space: nowrap; }
     .raven-grab-role { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px; }
-    .raven-grab-role button { min-height: 36px; color: var(--raven-grab-muted); background: var(--raven-grab-bg); border: 1px solid rgba(255,255,255,.1); border-radius: 8px; cursor: pointer; }
+    .raven-grab-role button { min-height: 44px; color: var(--raven-grab-muted); background: var(--raven-grab-bg); border: 1px solid rgba(255,255,255,.1); border-radius: 8px; cursor: pointer; }
     .raven-grab-role button:hover, .raven-grab-role button[data-active="true"] { color: var(--raven-grab-accent); border-color: rgba(0,191,255,.45); }
     .raven-grab-badge { flex: 0 0 auto; padding: 2px 5px; color: var(--raven-grab-accent); background: rgba(0,191,255,.1); border: 1px solid rgba(0,191,255,.25); border-radius: 999px; font: 600 9px/1.3 var(--raven-grab-mono); }
     .raven-grab-badge[data-kind="orphan"] { color: var(--raven-grab-error); background: rgba(255,64,96,.1); border-color: rgba(255,64,96,.3); }
