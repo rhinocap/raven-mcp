@@ -123,6 +123,17 @@ async function loadOverlayInternals(options = {}) {
     switchTab: typeof switchTab === "function" ? switchTab : undefined,
     toggleSection: typeof toggleSection === "function" ? toggleSection : undefined,
     updateIntent: updateIntent,
+    layerRowsMarkup: typeof layerRowsMarkup === "function" ? layerRowsMarkup : undefined,
+    wireframeMarkup: typeof wireframeMarkup === "function" ? wireframeMarkup : undefined,
+    setLayerTestState: function (tree, elements, selected, preview, notice, fixedPending) {
+      layerTree = tree;
+      layerElements = new Map(elements);
+      selectedElement = selected || null;
+      layerPreview = preview || null;
+      layerNotice = notice || "";
+      pendingFixedMove = fixedPending || "";
+      activeTabB = "layers";
+    },
     rollbackTokenPreviews: rollbackTokenPreviews,
     sendComponentRequest: typeof sendComponentRequest === "function" ? sendComponentRequest : undefined,
     sendSelection: sendSelection,
@@ -2050,6 +2061,70 @@ test('overlay panel CSS keeps only the body scrollable and provides the collapse
   assert.match(source, /@keyframes raven-grab-trace-border[\s\S]*stroke-dashoffset: 0;/);
   assert.match(source, /\.raven-grab-sent-message[\s\S]*clip-path/);
   assert.match(source, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.raven-grab-panel, \.raven-grab-send, \.raven-grab-textarea \{ transition: none !important; \}/);
+});
+
+test('layers tree renders sibling numerals and recomputes them from preview order', async () => {
+  const { internals, document } = await loadOverlayInternals();
+  const first = document.createElement('div');
+  const moved = document.createElement('div');
+  const tree = {
+    id: 1, parentId: null, depth: 0, label: 'body', badges: [], children: [
+      { id: 2, parentId: 1, depth: 1, label: 'div · First', badges: [], children: [] },
+      { id: 3, parentId: 1, depth: 1, label: 'div · Moved', badges: [], children: [] }
+    ]
+  };
+  internals.setLayerTestState(tree, [[1, document.body], [2, first], [3, moved]], moved);
+  assert.match(internals.layerRowsMarkup(tree), /raven-grab-layer-index">1<[^>]*>[\s\S]*First[\s\S]*raven-grab-layer-index">2<[^>]*>[\s\S]*Moved/);
+
+  tree.children = [tree.children[1], tree.children[0]];
+  const previewMarkup = internals.layerRowsMarkup(tree);
+  assert.match(previewMarkup, /raven-grab-layer-index">1<[^>]*>[\s\S]*Moved[\s\S]*raven-grab-layer-index">2<[^>]*>[\s\S]*First/);
+  assert.match(previewMarkup, /data-layer-id="3"[^>]*data-selected="true"/);
+});
+
+test('layers preview has a fixed-height idle dropzone and gated send button', async () => {
+  const { internals, document } = await loadOverlayInternals();
+  const tree = { id: 1, parentId: null, depth: 0, label: 'body', badges: [], children: [] };
+  internals.setLayerTestState(tree, [[1, document.body]], null, null);
+  internals.renderPanel();
+  const idleHtml = internals.getPanelLeftHtml();
+  assert.match(idleHtml, /class="raven-grab-layer-preview raven-grab-layer-dropzone"/);
+  assert.match(idleHtml, /Drag a layer to preview the change\. \(layers must have the same parent\)/);
+  assert.match(idleHtml, /data-send-layer-intent[^>]*aria-disabled="true"[^>]*disabled/);
+
+  internals.setLayerTestState(tree, [[1, document.body]], null, {
+    parentElement: document.body,
+    fromIndex: 1,
+    toIndex: 0,
+    orderedElements: [],
+    measuredRects: [],
+    approximate: false,
+    parentWidth: 100,
+    parentHeight: 100,
+    movedElement: null,
+    unavailable: ''
+  });
+  internals.renderPanel();
+  const enabledButton = internals.getPanelLeftHtml().match(/<button[^>]*data-send-layer-intent[^>]*>/)[0];
+  assert.match(enabledButton, /aria-disabled="false"/);
+  assert.doesNotMatch(enabledButton, /\sdisabled(?:\s|>)/);
+});
+
+test('fixed-slot move warning uses the red warning treatment and approval copy', async () => {
+  const { internals, document } = await loadOverlayInternals();
+  const tree = { id: 1, parentId: null, depth: 0, label: 'body', badges: [], children: [] };
+  internals.setLayerTestState(tree, [[1, document.body]], null, null,
+    'Element is marked Fixed in the template - requires design approval', '2:3');
+  internals.renderPanel();
+  assert.match(internals.getPanelLeftHtml(), /class="raven-grab-layer-notice raven-grab-layer-warning"/);
+  assert.match(internals.getPanelLeftHtml(), /Element is marked Fixed in the template - requires design approval/);
+});
+
+test('layers preview CSS reserves the standard content height and styles the idle dropzone', async () => {
+  const source = await readFile(path.resolve(__dirname, '../browser/raven-grab.js'), 'utf8');
+  assert.match(source, /\.raven-grab-layer-preview \{[^}]*height: 120px;/);
+  assert.match(source, /\.raven-grab-layer-dropzone \{[^}]*border: 1px dashed/);
+  assert.match(source, /\.raven-grab-layer-warning \{[^}]*color: #ff5c5c;/);
 });
 
 test('browser overlay mirrors the web overlay byte-for-byte', async () => {

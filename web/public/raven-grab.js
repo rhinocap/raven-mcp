@@ -275,9 +275,13 @@
     .raven-grab-layer-row[data-dragging="true"] { opacity: .45; }
     .raven-grab-layer-row[data-selected="true"] { background: rgba(0, 191, 255, .08); }
     .raven-grab-layer-row[data-selected="true"] .raven-grab-layer-label { color: var(--raven-grab-accent); }
+    .raven-grab-layer-index { flex: 0 0 14px; color: var(--raven-grab-muted); font: 400 9px/1 var(--raven-grab-mono); text-align: right; }
     .raven-grab-layer-label { min-width: 0; flex: 1; overflow: hidden; color: var(--raven-grab-text); font: 400 10px/1.3 var(--raven-grab-mono); text-overflow: ellipsis; white-space: nowrap; }
     .raven-grab-layer-notice { margin: 8px 0 0; color: var(--raven-grab-error); font: 500 10px/1.35 var(--raven-grab-ui); }
-    .raven-grab-wireframe { position: relative; width: 240px; height: 112px; margin: 0 auto 12px; overflow: hidden; background: var(--raven-grab-bg); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; }
+    .raven-grab-layer-warning { color: #ff5c5c; }
+    .raven-grab-layer-preview { display: flex; align-items: center; justify-content: center; width: 100%; height: 120px; overflow: hidden; border-radius: 10px; }
+    .raven-grab-layer-dropzone { padding: 16px; color: var(--raven-grab-muted); border: 1px dashed rgba(255,255,255,.24); font: 400 10px/1.4 var(--raven-grab-ui); text-align: center; }
+    .raven-grab-wireframe { position: relative; width: 240px; height: 112px; overflow: hidden; background: var(--raven-grab-bg); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; }
     .raven-grab-wire-box { position: absolute; display: flex; align-items: center; justify-content: center; min-width: 12px; min-height: 12px; color: var(--raven-grab-text); background: rgba(0,191,255,.08); border: 1px solid rgba(0,191,255,.45); font: 600 9px/1 var(--raven-grab-mono); }
     .raven-grab-wire-box[data-moved="true"] { color: #0a1018; background: var(--raven-grab-accent); }
     .raven-grab-actions { flex: 0 1 auto; min-height: 0; overflow-y: auto; padding: 12px 16px 16px; background: #212129; border-top: 1px solid rgba(255, 255, 255, .06); }
@@ -1596,16 +1600,17 @@
     return "";
   }
 
-  function layerRowsMarkup(node) {
+  function layerRowsMarkup(node, siblingIndex) {
     if (!node) return "";
-    if (node.truncated) return '<li class="raven-grab-layer-row" style="--layer-depth:' + node.depth + '"><span class="raven-grab-layer-label">truncated</span></li>';
+    var displayIndex = typeof siblingIndex === "number" ? siblingIndex + 1 : 1;
+    if (node.truncated) return '<li class="raven-grab-layer-row" style="--layer-depth:' + node.depth + '"><span class="raven-grab-layer-index">' + displayIndex + '</span><span class="raven-grab-layer-label">truncated</span></li>';
     var element = layerElements.get(node.id);
     var role = element ? slotRoleForElement(element) : "";
     var badges = node.badges.slice();
     if (role) badges.push(role);
     var isSelected = element && element === selectedElement;
-    var markup = '<li class="raven-grab-layer-row" draggable="true" data-layer-id="' + node.id + '" data-layer-parent="' + (node.parentId == null ? "" : node.parentId) + '"' + (isSelected ? ' data-selected="true"' : "") + ' style="--layer-depth:' + node.depth + '"><span class="raven-grab-layer-label">' + escapeHtml(node.label) + "</span>" + badges.map(function (badge) { return '<span class="raven-grab-badge">' + escapeHtml(badge) + "</span>"; }).join("") + "</li>";
-    node.children.forEach(function (child) { markup += layerRowsMarkup(child); });
+    var markup = '<li class="raven-grab-layer-row" draggable="true" data-layer-id="' + node.id + '" data-layer-parent="' + (node.parentId == null ? "" : node.parentId) + '"' + (isSelected ? ' data-selected="true"' : "") + ' style="--layer-depth:' + node.depth + '"><span class="raven-grab-layer-index">' + displayIndex + '</span><span class="raven-grab-layer-label">' + escapeHtml(node.label) + "</span>" + badges.map(function (badge) { return '<span class="raven-grab-badge">' + escapeHtml(badge) + "</span>"; }).join("") + "</li>";
+    node.children.forEach(function (child, index) { markup += layerRowsMarkup(child, index); });
     return markup;
   }
 
@@ -1662,7 +1667,7 @@
     var movedRole = slotRoleForElement(layerElements.get(fromNode.id));
     if (movedRole === "fixed" && pendingFixedMove !== String(fromId) + ":" + String(toId)) {
       pendingFixedMove = String(fromId) + ":" + String(toId);
-      layerNotice = "slot is marked fixed in the template (advisory) — drop again to override";
+      layerNotice = "Element is marked Fixed in the template - requires design approval";
       renderPanel();
       return;
     }
@@ -1904,7 +1909,10 @@
     var templateMarkup = '<section class="raven-grab-section"><h2 class="raven-grab-section-title">SELECTED ELEMENT SLOTS</h2>' + templateDraftMarkup + '</section>' +
       '<section class="raven-grab-section"><h2 class="raven-grab-section-title">PAGE TEMPLATE SLOTS</h2>' + templateSlotMarkup + '</section>' +
       '<section class="raven-grab-section"><p class="raven-grab-note">Annotations live in DESIGN.md, not page markup; slots re-resolve by selector on reload. Roles are cooperative/advisory.</p></section>';
-    var layersMarkup = '<section class="raven-grab-section"><h2 class="raven-grab-section-title">REORDER PREVIEW</h2><div data-layer-preview>' + wireframeMarkup() + '</div>' + (layerNotice ? '<p class="raven-grab-layer-notice">' + escapeHtml(layerNotice) + '</p>' : '') + '</section>' +
+    var previewMarkup = layerPreview
+      ? '<div class="raven-grab-layer-preview" data-layer-preview>' + wireframeMarkup() + '</div>'
+      : '<div class="raven-grab-layer-preview raven-grab-layer-dropzone" data-layer-preview>Drag a layer to preview the change. (layers must have the same parent)</div>';
+    var layersMarkup = '<section class="raven-grab-section"><h2 class="raven-grab-section-title">REORDER PREVIEW</h2>' + previewMarkup + (layerNotice ? '<p class="raven-grab-layer-notice' + (pendingFixedMove ? ' raven-grab-layer-warning' : '') + '">' + escapeHtml(layerNotice) + '</p>' : '') + '</section>' +
       '<section class="raven-grab-section"><h2 class="raven-grab-section-title">LAYERS</h2>' + (layerTree ? '<ul class="raven-grab-layer-list">' + layerRowsMarkup(layerTree) + '</ul>' : '<p class="raven-grab-empty">No layer tree available.</p>') + '<p class="raven-grab-note">same-parent reorders only</p></section>';
     var bodyMarkupA = activeTabA === "design"
       ? designMarkup
@@ -1919,7 +1927,7 @@
           : '<button class="raven-grab-send" type="button" data-request-next data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">' + (emailFlow ? "Continue" : "Send component request to design") + '</span></button>'));
     var actionMarkupB = activeTabB === "template"
       ? '<button class="raven-grab-send" type="button" data-save-template data-send-state="default"><span class="raven-grab-send-label">Save template</span></button>'
-      : '<button class="raven-grab-send" type="button" data-send-layer-intent data-send-state="default"' + (layerPreview ? "" : " disabled") + '><span class="raven-grab-send-label">Send to agent</span></button>';
+      : '<button class="raven-grab-send" type="button" data-send-layer-intent data-send-state="default" aria-disabled="' + (layerPreview ? "false" : "true") + '"' + (layerPreview ? "" : " disabled") + '><span class="raven-grab-send-label">Send to agent</span></button>';
     var requestTabLabel = grabRole === "maintainer" ? "Add component" : "Request Component";
     var requestHintText = "No destination configured — requests can't be sent yet. Ask your agent to set up GitHub routing.";
     var requestHintMarkup = activeTabA === "request" && grabRole !== "maintainer" && copyOnlyRequest && !requestHintDismissed
