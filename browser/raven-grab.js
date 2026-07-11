@@ -139,20 +139,18 @@
     }
     .raven-grab-panel {
       position: fixed; top: 20px; right: 20px; display: none; width: min(360px, calc(100vw - 40px));
-      max-height: calc(100vh - 40px); pointer-events: auto; flex-direction: column; gap: 12px;
-      color: var(--raven-grab-text); font: 13px/1.45 var(--raven-grab-ui);
-      overscroll-behavior: contain; transform: translateX(0); transition: transform 200ms ease;
-    }
-    .raven-grab-panel[aria-hidden="false"] { display: flex; }
-    .raven-grab-panel[data-collapsed="true"] { display: flex; transform: translateX(calc(100vw + 100%)); pointer-events: none; }
-    .raven-grab-card {
-      display: flex; flex-direction: column; min-height: 0; overflow: hidden;
-      background: #212129;
+      max-height: calc(100vh - 40px); overflow: hidden; pointer-events: auto; flex-direction: column;
+      color: var(--raven-grab-text); background: #212129;
       border: 1px solid rgba(255, 255, 255, .12); border-radius: 20px;
       box-shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 0 32px rgba(0, 191, 255, .06),
         0 8px 16px -4px rgba(0, 0, 0, .35), 0 24px 48px -12px rgba(0, 0, 0, .5);
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px); font: 13px/1.45 var(--raven-grab-ui);
+      overscroll-behavior: contain; transform: translateX(0); transition: transform 200ms ease;
     }
+    .raven-grab-panel[data-side="left"] { right: auto; left: 20px; }
+    .raven-grab-panel[aria-hidden="false"] { display: flex; }
+    .raven-grab-panel[data-collapsed="true"] { display: flex; transform: translateX(calc(100vw + 100%)); pointer-events: none; }
+    .raven-grab-panel[data-side="left"][data-collapsed="true"] { transform: translateX(calc(-100vw - 100%)); }
     .raven-grab-top { flex: 0 0 auto; background: #212129; }
     .raven-grab-header {
       display: flex; align-items: center; min-height: 56px; padding: 12px 16px;
@@ -365,6 +363,29 @@
   panel.setAttribute("aria-hidden", "true");
   panel.setAttribute("data-collapsed", collapsed ? "true" : "false");
   if (collapsed) panel.setAttribute("inert", "");
+  var panelLeft = document.createElement("aside");
+  panelLeft.className = "raven-grab-panel";
+  panelLeft.setAttribute("data-side", "left");
+  panelLeft.setAttribute("aria-label", "Raven structure");
+  panelLeft.setAttribute("aria-hidden", "true");
+  panelLeft.setAttribute("data-collapsed", collapsed ? "true" : "false");
+  if (collapsed) panelLeft.setAttribute("inert", "");
+  var panels = [panel, panelLeft];
+  function onPanels(type, handler) {
+    for (var i = 0; i < panels.length; i++) panels[i].addEventListener(type, handler);
+  }
+  function panelQuery(selector) {
+    return panel["querySelector"](selector) || panelLeft["querySelector"](selector);
+  }
+  function panelQueryAll(selector) {
+    var a = panel["querySelectorAll"](selector);
+    var b = panelLeft["querySelectorAll"](selector);
+    var out = [];
+    var i;
+    for (i = 0; i < a.length; i++) out.push(a[i]);
+    for (i = 0; i < b.length; i++) out.push(b[i]);
+    return out;
+  }
   var edgeTab = document.createElement("button");
   edgeTab.className = "raven-grab-edge-tab";
   edgeTab.type = "button";
@@ -375,14 +396,23 @@
   shadow.appendChild(highlight);
   shadow.appendChild(label);
   shadow.appendChild(panel);
+  shadow.appendChild(panelLeft);
   shadow.appendChild(edgeTab);
 
   var armed = true;
+  // Both panels share one collapse state: collapsing either collapses both.
+  function setPanelsCollapsed(next) {
+    var i;
+    for (i = 0; i < panels.length; i++) {
+      panels[i].setAttribute("data-collapsed", next ? "true" : "false");
+      panels[i].setAttribute("aria-hidden", next ? "true" : "false");
+      if (next) panels[i].setAttribute("inert", "");
+      else panels[i].removeAttribute("inert");
+    }
+  }
   function expandPanel() {
     collapsed = false;
-    panel.setAttribute("data-collapsed", "false");
-    panel.setAttribute("aria-hidden", "false");
-    panel.removeAttribute("inert");
+    setPanelsCollapsed(false);
     edgeTab.setAttribute("aria-hidden", "true");
     if (selectedElement) setHighlight(selectedElement);
   }
@@ -392,9 +422,7 @@
   function openPanel() {
     if (window.innerWidth <= 640) {
       collapsed = true;
-      panel.setAttribute("data-collapsed", "true");
-      panel.setAttribute("aria-hidden", "true");
-      panel.setAttribute("inert", "");
+      setPanelsCollapsed(true);
       edgeTab.setAttribute("aria-hidden", "false");
       if (selectedElement) setHighlight(selectedElement);
     } else {
@@ -404,9 +432,7 @@
   function collapsePanel() {
     if (!armed || panel.getAttribute("aria-hidden") === "true") return;
     collapsed = true;
-    panel.setAttribute("data-collapsed", "true");
-    panel.setAttribute("aria-hidden", "true");
-    panel.setAttribute("inert", "");
+    setPanelsCollapsed(true);
     edgeTab.setAttribute("aria-hidden", "false");
     hoveredElement = null;
     highlight.style.display = "none";
@@ -457,53 +483,64 @@
     };
   }
 
-  function placePanel(left, top, width, height) {
+  function placePanel(el, left, top, width, height) {
     var next = clampPanelCoordinate(left, top, width, height);
-    panelPosition = { left: next.left, top: next.top, width: width, height: height };
-    panel.style.right = "auto";
-    panel.style.left = next.left + "px";
-    panel.style.top = next.top + "px";
+    el.__ravenPosition = { left: next.left, top: next.top, width: width, height: height };
+    if (el === panel) panelPosition = el.__ravenPosition;
+    el.style.right = "auto";
+    el.style.left = next.left + "px";
+    el.style.top = next.top + "px";
   }
 
   function clampPanelToViewport() {
-    if (!panelPosition) return;
-    var rect = collapsed ? null : panel.getBoundingClientRect();
-    var width = rect && rect.width ? rect.width : panelPosition.width;
-    var height = rect && rect.height ? rect.height : panelPosition.height;
-    placePanel(panelPosition.left, panelPosition.top, width, height);
+    var i;
+    for (i = 0; i < panels.length; i++) {
+      var el = panels[i];
+      var pos = el.__ravenPosition;
+      if (!pos) continue;
+      var rect = collapsed ? null : el.getBoundingClientRect();
+      var width = rect && rect.width ? rect.width : pos.width;
+      var height = rect && rect.height ? rect.height : pos.height;
+      placePanel(el, pos.left, pos.top, width, height);
+    }
   }
 
-  panel.addEventListener("pointerdown", function (event) {
-    var target = event.target && event.target.closest ? event.target : null;
-    var header = target ? target.closest(".raven-grab-header") : null;
-    if (!header || target.closest("button") || collapsed || (event.button !== undefined && event.button !== 0)) return;
-    var rect = panel.getBoundingClientRect();
-    panelDrag = {
-      pointerId: event.pointerId,
-      offsetX: event.clientX - rect.left,
-      offsetY: event.clientY - rect.top,
-      width: rect.width,
-      height: rect.height
-    };
-    panel.setPointerCapture(event.pointerId);
-    panel.setAttribute("data-dragging", "true");
-    if (event.preventDefault) event.preventDefault();
-  });
+  function wirePanelDrag(el) {
+    el.addEventListener("pointerdown", function (event) {
+      var target = event.target && event.target.closest ? event.target : null;
+      var header = target ? target.closest(".raven-grab-header") : null;
+      if (!header || target.closest("button") || collapsed || (event.button !== undefined && event.button !== 0)) return;
+      var rect = el.getBoundingClientRect();
+      panelDrag = {
+        el: el,
+        pointerId: event.pointerId,
+        offsetX: event.clientX - rect.left,
+        offsetY: event.clientY - rect.top,
+        width: rect.width,
+        height: rect.height
+      };
+      el.setPointerCapture(event.pointerId);
+      el.setAttribute("data-dragging", "true");
+      if (event.preventDefault) event.preventDefault();
+    });
 
-  panel.addEventListener("pointermove", function (event) {
-    if (!panelDrag || event.pointerId !== panelDrag.pointerId) return;
-    placePanel(event.clientX - panelDrag.offsetX, event.clientY - panelDrag.offsetY, panelDrag.width, panelDrag.height);
-  });
+    el.addEventListener("pointermove", function (event) {
+      if (!panelDrag || panelDrag.el !== el || event.pointerId !== panelDrag.pointerId) return;
+      placePanel(el, event.clientX - panelDrag.offsetX, event.clientY - panelDrag.offsetY, panelDrag.width, panelDrag.height);
+    });
 
-  function endPanelDrag(event) {
-    if (!panelDrag || event.pointerId !== panelDrag.pointerId) return;
-    if (panel.hasPointerCapture && panel.hasPointerCapture(event.pointerId)) panel.releasePointerCapture(event.pointerId);
-    panelDrag = null;
-    panel.removeAttribute("data-dragging");
+    function endPanelDrag(event) {
+      if (!panelDrag || panelDrag.el !== el || event.pointerId !== panelDrag.pointerId) return;
+      if (el.hasPointerCapture && el.hasPointerCapture(event.pointerId)) el.releasePointerCapture(event.pointerId);
+      panelDrag = null;
+      el.removeAttribute("data-dragging");
+    }
+
+    el.addEventListener("pointerup", endPanelDrag);
+    el.addEventListener("pointercancel", endPanelDrag);
   }
-
-  panel.addEventListener("pointerup", endPanelDrag);
-  panel.addEventListener("pointercancel", endPanelDrag);
+  wirePanelDrag(panel);
+  wirePanelDrag(panelLeft);
 
   function escapeCss(value) {
     if (window.CSS && typeof window.CSS.escape === "function") return window.CSS.escape(value);
@@ -1376,7 +1413,7 @@
   }
 
   function captureTemplateDrafts() {
-    var inputs = panel.querySelectorAll("[data-template-slot-id]");
+    var inputs = panelQueryAll("[data-template-slot-id]");
     Array.prototype.forEach.call(inputs, function (input) {
       var index = Number(input.getAttribute("data-template-slot-id"));
       if (templateDrafts[index]) templateDrafts[index].slotId = input.value;
@@ -1649,12 +1686,12 @@
   }
 
   function capturePanelDrafts() {
-    var instruction = panel.querySelector("[data-instruction]");
+    var instruction = panelQuery("[data-instruction]");
     if (instruction) instructionDraft = instruction.value;
-    var issueType = panel.querySelector("[data-issue-type]");
-    var issueSize = panel.querySelector("[data-issue-size]");
-    var useCase = panel.querySelector("[data-use-case]");
-    var email = panel.querySelector("[data-component-email]");
+    var issueType = panelQuery("[data-issue-type]");
+    var issueSize = panelQuery("[data-issue-size]");
+    var useCase = panelQuery("[data-use-case]");
+    var email = panelQuery("[data-component-email]");
     if (issueType) componentRequest.issueType = issueType.value;
     if (issueSize) componentRequest.issueSize = issueSize.value;
     if (useCase) componentRequest.useCase = useCase.value;
@@ -1853,40 +1890,39 @@
       : "";
 
     panel.innerHTML = `
-      <div class="raven-grab-card">
-        <div class="raven-grab-top">
-          <div class="raven-grab-header">
-            <div class="raven-grab-title"><strong>Raven design</strong></div>
-            <button class="raven-grab-icon-button" type="button" data-collapse aria-label="Collapse Raven panels">&gt;</button>
-          </div>
-          <div class="raven-grab-tabs" role="tablist" aria-label="Raven design actions">
-            <button class="raven-grab-tab" type="button" role="tab" data-tab="design" aria-selected="${activeTabA === "design" ? "true" : "false"}">Design</button>
-            <button class="raven-grab-tab" type="button" role="tab" data-tab="request" aria-selected="${activeTabA === "request" ? "true" : "false"}">${requestTabLabel}</button>
-          </div>
+      <div class="raven-grab-top">
+        <div class="raven-grab-header">
+          <div class="raven-grab-title"><strong>Raven design</strong></div>
+          <button class="raven-grab-icon-button" type="button" data-collapse aria-label="Collapse Raven panels">&gt;</button>
         </div>
-        <div class="raven-grab-body"><div class="raven-grab-content">${bodyMarkupA}</div></div>
-        <div class="raven-grab-actions">${requestHintMarkup}${actionMarkupA}<p class="raven-grab-status" data-status aria-live="polite"></p></div>
+        <div class="raven-grab-tabs" role="tablist" aria-label="Raven design actions">
+          <button class="raven-grab-tab" type="button" role="tab" data-tab="design" aria-selected="${activeTabA === "design" ? "true" : "false"}">Design</button>
+          <button class="raven-grab-tab" type="button" role="tab" data-tab="request" aria-selected="${activeTabA === "request" ? "true" : "false"}">${requestTabLabel}</button>
+        </div>
       </div>
-      <div class="raven-grab-card">
-        <div class="raven-grab-top">
-          <div class="raven-grab-header">
-            <div class="raven-grab-title"><strong>Structure</strong></div>
-            <button class="raven-grab-icon-button" type="button" data-collapse aria-label="Collapse Raven panels">&gt;</button>
-          </div>
-          <div class="raven-grab-tabs" role="tablist" aria-label="Raven structure actions">
-            <button class="raven-grab-tab" type="button" role="tab" data-tab="template" aria-selected="${activeTabB === "template" ? "true" : "false"}">Template</button>
-            <button class="raven-grab-tab" type="button" role="tab" data-tab="layers" aria-selected="${activeTabB === "layers" ? "true" : "false"}">Layers</button>
-          </div>
+      <div class="raven-grab-body"><div class="raven-grab-content">${bodyMarkupA}</div></div>
+      <div class="raven-grab-actions">${requestHintMarkup}${actionMarkupA}<p class="raven-grab-status" data-status aria-live="polite"></p></div>`;
+    panelLeft.innerHTML = `
+      <div class="raven-grab-top">
+        <div class="raven-grab-header">
+          <div class="raven-grab-title"><strong>Structure</strong></div>
+          <button class="raven-grab-icon-button" type="button" data-collapse aria-label="Collapse Raven panels">&gt;</button>
         </div>
-        <div class="raven-grab-body"><div class="raven-grab-content">${bodyMarkupB}</div></div>
-        <div class="raven-grab-actions">${actionMarkupB}<p class="raven-grab-status" data-status-b aria-live="polite"></p></div>
-      </div>`;
-    panel.setAttribute("aria-hidden", "false");
-    panel.setAttribute("data-collapsed", collapsed ? "true" : "false");
+        <div class="raven-grab-tabs" role="tablist" aria-label="Raven structure actions">
+          <button class="raven-grab-tab" type="button" role="tab" data-tab="template" aria-selected="${activeTabB === "template" ? "true" : "false"}">Template</button>
+          <button class="raven-grab-tab" type="button" role="tab" data-tab="layers" aria-selected="${activeTabB === "layers" ? "true" : "false"}">Layers</button>
+        </div>
+      </div>
+      <div class="raven-grab-body"><div class="raven-grab-content">${bodyMarkupB}</div></div>
+      <div class="raven-grab-actions">${actionMarkupB}<p class="raven-grab-status" data-status-b aria-live="polite"></p></div>`;
+    for (var pi = 0; pi < panels.length; pi++) {
+      panels[pi].setAttribute("aria-hidden", "false");
+      panels[pi].setAttribute("data-collapsed", collapsed ? "true" : "false");
+    }
   }
 
   function syncSendButtonDisabled() {
-    var button = panel.querySelector("[data-send]");
+    var button = panelQuery("[data-send]");
     if (button) button.disabled = !currentSelection;
   }
 
@@ -1908,8 +1944,8 @@
   function toggleSection(section) {
     if (section !== "tokens" && section !== "styles") return;
     expandedSections[section] = !expandedSections[section];
-    var toggle = panel.querySelector('[data-section-toggle="' + section + '"]');
-    var body = panel.querySelector('[data-section-body="' + section + '"]');
+    var toggle = panelQuery('[data-section-toggle="' + section + '"]');
+    var body = panelQuery('[data-section-body="' + section + '"]');
     if (!toggle || !body) {
       renderPanel();
       return;
@@ -1936,18 +1972,20 @@
     componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
     componentRequestId = "";
     collapsed = window.innerWidth <= 640;
-    panel.setAttribute("data-collapsed", collapsed ? "true" : "false");
-    panel.removeAttribute("inert");
     edgeTab.setAttribute("aria-hidden", "true");
-    panel.setAttribute("aria-hidden", "true");
-    panel.innerHTML = "";
+    for (var pi = 0; pi < panels.length; pi++) {
+      panels[pi].setAttribute("data-collapsed", collapsed ? "true" : "false");
+      panels[pi].removeAttribute("inert");
+      panels[pi].setAttribute("aria-hidden", "true");
+      panels[pi].innerHTML = "";
+    }
     setHighlight(null);
   }
 
   function updateIntent(index) {
     var token = currentSelection.tokens[index];
-    var select = panel.querySelector('[data-token-choice="' + index + '"]');
-    var newFields = panel.querySelector('[data-new-token="' + index + '"]');
+    var select = panelQuery('[data-token-choice="' + index + '"]');
+    var newFields = panelQuery('[data-new-token="' + index + '"]');
     var choice = select.value;
     newFields.setAttribute("data-open", choice === "__new__" ? "true" : "false");
     // Preview on the selected element: an inline custom property there beats any
@@ -1973,8 +2011,8 @@
       };
     }
     if (choice === "__new__") {
-      var nameInput = panel.querySelector('[data-new-name="' + index + '"]');
-      var valueInput = panel.querySelector('[data-new-value="' + index + '"]');
+      var nameInput = panelQuery('[data-new-name="' + index + '"]');
+      var valueInput = panelQuery('[data-new-value="' + index + '"]');
       var customValue = valueInput.value.trim();
       if (customValue && window.CSS && typeof window.CSS.supports === "function" && !window.CSS.supports(token.property, customValue)) {
         newFields.setAttribute("data-error", "true");
@@ -2114,7 +2152,7 @@
     button.setAttribute("aria-label", sentMessage);
     var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     var finish = function () {
-      if (panel.querySelector(selector) !== button) return;
+      if (panelQuery(selector) !== button) return;
       setSendButtonState(button, "default", defaultLabel);
       button.disabled = false;
       if (selector === "[data-send]") syncSendButtonDisabled();
@@ -2129,15 +2167,15 @@
     }
     setSendButtonState(button, "collapse", defaultLabel);
     setTimeout(function () {
-      if (panel.querySelector(selector) !== button) return;
+      if (panelQuery(selector) !== button) return;
       setSendButtonState(button, "dot", sentMessage);
     }, SEND_TIMINGS.collapse);
     setTimeout(function () {
-      if (panel.querySelector(selector) !== button) return;
+      if (panelQuery(selector) !== button) return;
       setSendButtonState(button, "trace", sentMessage);
     }, SEND_TIMINGS.collapse + SEND_TIMINGS.dot);
     setTimeout(function () {
-      if (panel.querySelector(selector) !== button) return;
+      if (panelQuery(selector) !== button) return;
       setSendButtonState(button, "sent", sentMessage);
     }, SEND_TIMINGS.collapse + SEND_TIMINGS.dot + SEND_TIMINGS.trace);
     setTimeout(finish, SEND_TIMINGS.collapse + SEND_TIMINGS.dot + SEND_TIMINGS.trace + SEND_TIMINGS.expand + SEND_TIMINGS.hold);
@@ -2145,7 +2183,7 @@
 
   function clearInstructionText() {
     instructionDraft = "";
-    var field = panel.querySelector("[data-instruction]");
+    var field = panelQuery("[data-instruction]");
     if (!field || !field.value) return;
     var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reducedMotion) {
@@ -2154,14 +2192,14 @@
     }
     field.setAttribute("data-clearing", "");
     setTimeout(function () {
-      if (panel.querySelector("[data-instruction]") === field) field.value = "";
+      if (panelQuery("[data-instruction]") === field) field.value = "";
       field.removeAttribute("data-clearing");
     }, 250);
   }
 
   async function sendSelection() {
-    var button = panel.querySelector("[data-send]");
-    var status = panel.querySelector("[data-status]");
+    var button = panelQuery("[data-send]");
+    var status = panelQuery("[data-status]");
     capturePanelDrafts();
     button.disabled = true;
     button.setAttribute("aria-busy", "true");
@@ -2204,7 +2242,7 @@
   }
 
   function setPanelStatus(message, kind, card) {
-    var status = panel.querySelector(card === "b" ? "[data-status-b]" : "[data-status]");
+    var status = panelQuery(card === "b" ? "[data-status-b]" : "[data-status]");
     if (!status) return;
     status.textContent = message;
     if (kind) status.setAttribute("data-kind", kind);
@@ -2246,8 +2284,8 @@
     } else {
       capturePanelDrafts();
     }
-    var button = panel.querySelector("[data-send-email]");
-    var emailInput = panel.querySelector("[data-component-email]");
+    var button = panelQuery("[data-send-email]");
+    var emailInput = panelQuery("[data-component-email]");
     var emailFlow = !!(grabConfig && grabConfig.componentRequestFlow === "email");
     componentRequest.email = componentRequest.email.trim();
     if ((emailFlow || componentRequest.email) && !validEmail(componentRequest.email)) {
@@ -2298,7 +2336,7 @@
       }
       var result = await response.json();
       componentRequestId = "";
-      var status = panel.querySelector("[data-status]");
+      var status = panelQuery("[data-status]");
       // Only render server-supplied URLs that are plain https links; escapeHtml
       // does not neutralize a javascript: scheme inside href.
       var safeUrl = typeof result.url === "string" && /^https:\/\//i.test(result.url) ? result.url : "";
@@ -2342,7 +2380,7 @@
     }
   }
 
-  panel.addEventListener("click", function (event) {
+  onPanels("click", function (event) {
     event.stopPropagation();
     var elementChip = event.target.closest("[data-element-selector]");
     if (elementChip) copyElementSelector(elementChip);
@@ -2362,7 +2400,7 @@
     var styleValue = event.target.closest("[data-style-value]");
     if (styleValue) beginStyleEdit(styleValue);
   });
-  panel.addEventListener("keydown", function (event) {
+  onPanels("keydown", function (event) {
     var elementChip = event.target.closest("[data-element-selector]");
     if (elementChip && (event.key === "Enter" || event.key === " ")) {
       event.preventDefault();
@@ -2374,17 +2412,17 @@
       beginStyleEdit(styleValue);
     }
   });
-  panel.addEventListener("change", function (event) {
+  onPanels("change", function (event) {
     var index = event.target.getAttribute("data-token-choice");
     if (index !== null) updateIntent(Number(index));
     syncSendButtonDisabled();
     if (event.target.getAttribute("data-issue-type") !== null) componentRequest.issueType = event.target.value;
     if (event.target.getAttribute("data-issue-size") !== null) componentRequest.issueSize = event.target.value;
   });
-  panel.addEventListener("input", function (event) {
+  onPanels("input", function (event) {
     var colorIndex = event.target.getAttribute("data-new-color");
     if (colorIndex !== null) {
-      var colorValueInput = panel.querySelector('[data-new-value="' + colorIndex + '"]');
+      var colorValueInput = panelQuery('[data-new-value="' + colorIndex + '"]');
       if (colorValueInput) colorValueInput.value = event.target.value;
     }
     var index = event.target.getAttribute("data-new-name");
@@ -2398,7 +2436,7 @@
     if (event.target.getAttribute("data-use-case") !== null) componentRequest.useCase = event.target.value;
     if (event.target.getAttribute("data-component-email") !== null) componentRequest.email = event.target.value;
   });
-  panel.addEventListener("dragstart", function (event) {
+  onPanels("dragstart", function (event) {
     var row = event.target.closest("[data-layer-id]");
     if (!row) return;
     layerDragId = row.getAttribute("data-layer-id");
@@ -2408,13 +2446,13 @@
       event.dataTransfer.setData("text/plain", layerDragId);
     }
   });
-  panel.addEventListener("dragover", function (event) {
+  onPanels("dragover", function (event) {
     var row = event.target.closest("[data-layer-id]");
     if (!row || layerDragId === null) return;
     event.preventDefault();
     if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
   });
-  panel.addEventListener("drop", function (event) {
+  onPanels("drop", function (event) {
     var row = event.target.closest("[data-layer-id]");
     if (!row || layerDragId === null) return;
     event.preventDefault();
@@ -2422,12 +2460,12 @@
     layerDragId = null;
     reorderLayer(fromId, row.getAttribute("data-layer-id"));
   });
-  panel.addEventListener("dragend", function (event) {
+  onPanels("dragend", function (event) {
     var row = event.target.closest("[data-layer-id]");
     if (row) row.removeAttribute("data-dragging");
     layerDragId = null;
   });
-  panel.addEventListener("keydown", function (event) {
+  onPanels("keydown", function (event) {
     if (event.key !== "Enter") return;
     var target = event.target;
     if (!target || !target.getAttribute) return;
@@ -2447,7 +2485,7 @@
       return;
     }
     event.preventDefault();
-    var sendButton = panel.querySelector(isInstruction || (grabRole === "maintainer" && isUseCase) ? "[data-send]" : "[data-send-email], [data-request-next]");
+    var sendButton = panelQuery(isInstruction || (grabRole === "maintainer" && isUseCase) ? "[data-send]" : "[data-send-email], [data-request-next]");
     if (sendButton && !sendButton.disabled) sendButton.click();
   });
 
