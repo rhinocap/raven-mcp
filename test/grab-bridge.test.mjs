@@ -1773,7 +1773,8 @@ test('overlay header drag captures the pointer and clamps the panel inside an 8p
   internals.dispatchPanel('pointermove', { pointerId: 7, clientX: 2000, clientY: 0 });
   assert.equal(internals.getPanelStyle('right'), 'auto');
   assert.equal(internals.getPanelStyle('left'), '1072px');
-  assert.equal(internals.getPanelStyle('top'), '8px');
+  // Panels are pinned full-height; drag is horizontal-only and never sets top.
+  assert.equal(internals.getPanelStyle('top'), undefined);
 
   internals.dispatchPanel('pointerup', { pointerId: 7 });
   assert.equal(internals.getPanelCapturedPointer(), null);
@@ -1880,7 +1881,7 @@ test('overlay renders color swatches beside custom token values and inline color
 
 test('overlay panel CSS keeps only the body scrollable and provides the collapsed edge tab', async () => {
   const source = await readFile(path.resolve(__dirname, '../browser/raven-grab.js'), 'utf8');
-  assert.match(source, /\.raven-grab-panel \{[\s\S]*max-height: calc\(100vh - 40px\);[\s\S]*flex-direction: column;/);
+  assert.match(source, /\.raven-grab-panel \{[\s\S]*top: 20px; right: 20px; bottom: 20px;[\s\S]*flex-direction: column;/);
   assert.match(source, /\.raven-grab-panel\[data-side="left"\] \{ right: auto; left: 20px; \}/);
   assert.match(source, /\.raven-grab-panel\[data-side="left"\]\[data-collapsed="true"\] \{ transform: translateX\(calc\(-100vw - 100%\)\); \}/);
   assert.match(source, /\.raven-grab-top \{ flex: 0 0 auto;/);

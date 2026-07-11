@@ -138,8 +138,8 @@
       pointer-events: none; font: 600 10px/1 var(--raven-grab-ui); box-shadow: 0 2px 8px rgba(0, 0, 0, .45);
     }
     .raven-grab-panel {
-      position: fixed; top: 20px; right: 20px; display: none; width: min(360px, calc(100vw - 40px));
-      max-height: calc(100vh - 40px); overflow: hidden; pointer-events: auto; flex-direction: column;
+      position: fixed; top: 20px; right: 20px; bottom: 20px; display: none; width: min(360px, calc(100vw - 40px));
+      overflow: hidden; pointer-events: auto; flex-direction: column;
       color: var(--raven-grab-text); background: #212129;
       border: 1px solid rgba(255, 255, 255, .12); border-radius: 20px;
       box-shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 0 32px rgba(0, 191, 255, .06),
@@ -152,7 +152,7 @@
     .raven-grab-panel[data-collapsed="true"] { display: flex; transform: translateX(calc(100vw + 100%)); pointer-events: none; }
     .raven-grab-panel[data-side="left"][data-collapsed="true"] { transform: translateX(calc(-100vw - 100%)); }
     @media (max-width: 760px) {
-      .raven-grab-panel { max-height: calc(50vh - 30px); }
+      .raven-grab-panel { bottom: auto; height: calc(50vh - 30px); }
       .raven-grab-panel[data-side="left"] { top: auto; bottom: 20px; }
     }
     .raven-grab-top { flex: 0 0 auto; background: #212129; }
@@ -179,6 +179,8 @@
     .raven-grab-body::-webkit-scrollbar-thumb { background: #3c3c47; border-radius: 999px; }
     .raven-grab-content { padding: 16px; }
     .raven-grab-section + .raven-grab-section { margin-top: 16px; }
+    .raven-grab-composer { margin: 0 0 12px; }
+    .raven-grab-composer .raven-grab-textarea { width: 100%; box-sizing: border-box; }
     .raven-grab-section-title { margin: 0 0 8px; color: var(--raven-grab-tertiary); font: 500 12px/1.3 var(--raven-grab-mono); letter-spacing: .96px; text-transform: uppercase; }
     .raven-grab-section-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; margin: 0; padding: 0; color: var(--raven-grab-tertiary); background: transparent; border: 0; cursor: pointer; text-align: left; font: 500 12px/1.3 var(--raven-grab-mono); letter-spacing: .96px; text-transform: uppercase; }
     .raven-grab-section-toggle:hover { color: var(--raven-grab-text); }
@@ -520,7 +522,7 @@
     if (el === panel) panelPosition = el.__ravenPosition;
     el.style.right = "auto";
     el.style.left = next.left + "px";
-    el.style.top = next.top + "px";
+    // Panels are pinned full-height (top/bottom 20px); drag moves them horizontally only.
   }
 
   function clampPanelToViewport() {
@@ -1843,8 +1845,9 @@
       <section class="raven-grab-section">
         <button class="raven-grab-section-toggle" type="button" data-section-toggle="styles" aria-expanded="${expandedSections.styles ? "true" : "false"}" aria-controls="raven-grab-styles"><span>Computed styles</span><span class="raven-grab-caret" aria-hidden="true">▾</span></button>
         <div class="raven-grab-collapsible" id="raven-grab-styles" data-section-body="styles" data-open="${expandedSections.styles ? "true" : "false"}" aria-hidden="${expandedSections.styles ? "false" : "true"}"><div class="raven-grab-collapsible-inner"><ul class="raven-grab-styles">${stylesMarkup}</ul>${stateStylesMarkup}</div></div>
-      </section>
-      <section class="raven-grab-section">
+      </section>`;
+    var instructionsMarkup = `
+      <section class="raven-grab-section raven-grab-composer">
         <h2 class="raven-grab-section-title">INSTRUCTIONS</h2>
         <textarea class="raven-grab-textarea" data-instruction spellcheck="true" placeholder="Tell the agent what to change…">${escapeHtml(instructionDraft)}</textarea>
       </section>`;
@@ -1905,7 +1908,7 @@
       : (grabRole === "maintainer" ? maintainerFormMarkup : (componentRequestStep === "email" ? emailMarkup : requestFormMarkup));
     var bodyMarkupB = activeTabB === "template" ? templateMarkup : layersMarkup;
     var actionMarkupA = activeTabA === "design"
-      ? '<button class="raven-grab-send" type="button" data-send data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Send to agent</span></button>'
+      ? instructionsMarkup + '<button class="raven-grab-send" type="button" data-send data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Send to agent</span></button>'
       : (grabRole === "maintainer"
           ? '<button class="raven-grab-send" type="button" data-send data-send-state="default"' + (hasSelection ? "" : " disabled") + '><span class="raven-grab-send-label">Add to design system</span></button>'
           : (componentRequestStep === "email"
