@@ -9,7 +9,19 @@
 - **Decisions locked (don't re-litigate):** free-beta access via AuthKit only; canonical host = mcp.ravenmcp.ai on the `site` project; ChatGPT support is a hard P4.4 exit gate; WorkOS+Upstash is the current stack; 400KB remote body cap is measurement-derived; Next.js `web/` is the committed replacement for static `site/`.
 - **State ledger / session logs:** `docs/remote-mcp-phase4-progress.md` (read on `origin/p4-remote-taste` for truth, NOT main), `docs/remote-mcp-phase4-scope.md`, `docs/remote-mcp-progress.md` + `docs/remote-mcp-scope.md` (predecessor phases), `conversations/2026-07-06-p4-close-out.md`, `conversations/2026-07-06-nextjs-migration.md`, `conversations/PROMOTION-QUEUE.md`, `.claude/skills/release/SKILL.md`.
 
-## Target customer (customer-lens-kickoff, 2026-07-09)
+## Target customer (customer-lens-kickoff, 2026-07-09; evolved 2026-07-12)
+**Strategic evolution (Andrew, 2026-07-12): the TEAM is now the primary customer.** Raven is evolving into a team paid service; the solo indie dev remains served forever via the free open-source tier. Judge new features through the team lens first (shared workflows, multi-user consent, admin approval, org data handling), while never regressing the indie dev's free "under a minute" path. New-feature kickoffs default to asking the delta question against BOTH lenses.
+
+### Primary lens — the paying team (2026-07-12)
+- We are a product/design team (designers + engineers) with an existing design practice and shared tooling (Slack, Figma, a design system in some state of maturity)
+- We are trying to make our design decisions, taste, and system knowledge durable and enforceable across people and AI agents
+- But our decisions live scattered in Slack threads, meeting notes, and heads — they get re-litigated and lost
+- Because no tool maintains a living, queryable decision/taste graph that both humans and coding agents consult
+- Which makes us feel like we're paying a coordination tax on every project
+- Meets the product: via a team member (often the indie-dev free user) advocating internally; evaluated with IT/admin approval, procurement, and data-handling questions in the room
+- Bounces on: anything requiring broad data access without clear consent controls, unclear data retention/LLM handling, per-seat pricing with no obvious team-level win over the free tier
+
+### Free tier lens — the solo indie dev (2026-07-09, retained verbatim)
 - I am a solo indie developer/builder, working alone, moderately technical but not deep into the design-tooling space
 - I am trying to figure out whether this "design-intelligence MCP server" thing is worth adding to my coding-agent workflow
 - But I've never heard of this category before landing here — I don't yet know what an MCP design/taste server even does
@@ -22,3 +34,4 @@
 
 ### Feature overrides
 - **grab / DESIGN.md feature (2026-07-09):** dual customer — the bound solo indie dev AND design-system-mature teams (existing token vocabulary). Verify both ways: under-a-minute setup + concrete copy for the indie dev; token fidelity, naming rigor, no dumbing-down for the mature team.
+- **Slack/messaging decision ingestion (2026-07-12):** TEAM-lens feature (paid tier candidate). Consent, admin approval, and shared-graph semantics are core requirements, not phase 2. Keep a paste-a-thread path that works for the free solo user with zero credentials.
