@@ -450,6 +450,37 @@
       <strong>No configuration needed.</strong> Once added, Claude automatically queries Raven when you ask it to build, evaluate, or improve UI. The tools fire behind the scenes.
     </div>
 
+    <h3 class="reveal">Cursor — local (full toolset)</h3>
+    <p>Add Raven as a local stdio server in Cursor's <code>mcp.json</code> (<strong>Settings → MCP</strong>, or edit <code>~/.cursor/mcp.json</code> / your project's <code>.cursor/mcp.json</code> directly). This runs the full local server &mdash; every tool, including Grab (click-to-change) and the file-backed Taste Engine:</p>
+    <pre><code>{
+  "mcpServers": {
+    "raven": {
+      "command": "npx",
+      "args": ["-y", "raven-mcp"]
+    }
+  }
+}</code></pre>
+
+    <h3 class="reveal">Cursor — remote (hosted, nothing to install)</h3>
+    <p>Prefer not to run anything locally? Point Cursor at the hosted endpoint instead:</p>
+    <pre><code>{
+  "mcpServers": {
+    "raven-remote": {
+      "url": "https://mcp.ravenmcp.ai/api/mcp"
+    }
+  }
+}</code></pre>
+    <p>This public endpoint is <strong>no-auth and stateless</strong> &mdash; it serves a <strong>~45-tool</strong> subset (the stateless audits, principles, patterns, and tokens layers) and does not include Grab or the Taste Engine, both of which need a local file store to be meaningful.</p>
+    <div class="callout reveal">
+      <strong>Want the Taste Engine remotely?</strong> A separate authenticated endpoint, <code>https://mcp.ravenmcp.ai/api/mcp-user</code>, adds the Taste Engine's tools back for signed-in users (Cursor's "Connect" OAuth flow, per-user storage) &mdash; still no Grab, since click-to-change requires a local browser session. Point the same <code>url</code> field at <code>/api/mcp-user</code> to use it; Cursor will prompt you to authenticate.
+    </div>
+
+    <h3 class="reveal">Codex (config.toml)</h3>
+    <p>Add Raven under <code>mcp_servers</code> in Codex's <code>config.toml</code> for the full local toolset:</p>
+    <pre><code>[mcp_servers.raven]
+command = "npx"
+args = ["-y", "raven-mcp"]</code></pre>
+
     <h3 class="reveal">Team config (.mcp.json)</h3>
     <p>Add a <code>.mcp.json</code> to your project root so everyone on the team gets Raven automatically:</p>
     <pre><code>{
@@ -479,7 +510,7 @@
     <div class="install-card reveal">
       <div class="install-copy">
         <h4>Raven for Claude Desktop</h4>
-        <p>macOS &middot; Windows &middot; Linux &nbsp;•&nbsp; ~4 MB &middot; v1.1.1</p>
+        <p>macOS &middot; Windows &middot; Linux &nbsp;•&nbsp; ~4 MB &middot; v1.17.0</p>
       </div>
       <a href="/raven.mcpb" class="install-btn" download>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -499,7 +530,7 @@ cd raven-mcp && npm install && npm run build</code></pre>
 
     <!-- ── Tool Reference ── -->
     <h2 id="tools" class="reveal">Tool Reference</h2>
-    <p>Raven provides 56 tools across 9 knowledge layers. Claude calls them automatically based on what you're asking for. Below, the original 13 tools have full docs; the newer tools from v1.2–v1.11 are listed with summary descriptions.</p>
+    <p>Raven provides <strong>95 tools</strong> across 9 knowledge layers when run locally (npx, Claude Code/Desktop, or Cursor's local <code>mcp.json</code>). Claude calls them automatically based on what you're asking for. The hosted remote endpoint is smaller: the public, no-auth endpoint serves <strong>~45 stateless tools</strong>, and the authenticated endpoint adds the Taste Engine's tools back for signed-in users &mdash; Grab (click-to-change) is local-only in every case, since it requires a live browser session on your machine. Below, the original 13 tools have full docs; the newer tools from v1.2–v1.17 are listed with summary descriptions.</p>
 
     <h3>Principles Layer</h3>
 
@@ -1093,7 +1124,7 @@ get_design_system({ id: "stripe", format: "flat" })
     <p>No. All data is bundled locally in the npm package. No external API calls, no latency, no auth tokens needed. It's 272KB of curated JSON that runs on your machine.</p>
 
     <h3>Does it work with other AI coding tools?</h3>
-    <p>Raven works with any MCP-compatible client. Claude Code and Claude Desktop have native MCP support. Other tools are adding MCP support — check your client's documentation.</p>
+    <p>Raven works with any MCP-compatible client. Claude Code and Claude Desktop have native MCP support, and so do Cursor (<code>mcp.json</code>, local or remote &mdash; see <a href="#quickstart">Get Started</a>) and Codex (<code>mcp_servers</code> in <code>config.toml</code>). Other tools are adding MCP support — check your client's documentation.</p>
 
     <h3>Can I add my own design system tokens?</h3>
     <p>Yes. Add a JSON file to <code>src/data/tokens/systems/</code> following the W3C DTCG format, and register it in <code>registry.json</code>. See <code>stripe.json</code> as a reference.</p>

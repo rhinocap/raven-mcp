@@ -22,10 +22,20 @@ Raven gives Claude access to a comprehensive design knowledge base:
 
 ## Install
 
+Local stdio (npx / from source) is the **full product**: **78 tools**, including Grab and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
+
+| Path | How | Tools | Taste | Grab |
+|------|-----|-------|-------|------|
+| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **78** | Yes | Yes |
+| Public remote | `https://mcp.ravenmcp.ai/api/mcp` | **~45** | No | No |
+| Auth remote | `https://mcp.ravenmcp.ai/api/mcp-user` (OAuth) | Taste + audits (no Grab) | Yes | **No** |
+
 ### Claude Code — one command
 ```bash
 claude mcp add raven -- npx -y raven-mcp
 ```
+
+Prefer **one** Raven entry. If both a local `raven` and a `claude.ai` / remote Raven are connected, the agent sees two overlapping toolsets — disable or rename one (e.g. `raven-local` vs `raven-cloud`) so it is obvious which product you are talking to.
 
 ### Manual config (Claude Desktop or team `.mcp.json`)
 ```json
@@ -39,8 +49,24 @@ claude mcp add raven -- npx -y raven-mcp
 }
 ```
 
+### Cursor
+Same `mcp.json` snippet as above (`~/.cursor/mcp.json` or project `.cursor/mcp.json`) runs the **full local** server (Grab + Taste). Hosted options:
+
+- Public: `"url": "https://mcp.ravenmcp.ai/api/mcp"` — ~45 stateless tools; **no Grab, no Taste**.
+- Authenticated Taste: `"url": "https://mcp.ravenmcp.ai/api/mcp-user"` — OAuth; Taste yes, **Grab still local-only**.
+
+### Codex
+Add under `mcp_servers` in `config.toml`:
+```toml
+[mcp_servers.raven]
+command = "npx"
+args = ["-y", "raven-mcp"]
+```
+
+Codex may prompt to approve many Raven tools on first use — that is client approval policy, not a smaller Raven.
+
 ### Claude Desktop — one-click extension
-Prefer not to edit JSON? Download [raven.mcpb](https://ravenmcp.ai/raven.mcpb) and double-click it. Claude Desktop installs Raven automatically — no Node, no terminal.
+Prefer not to edit JSON? Download [raven.mcpb](https://ravenmcp.ai/raven.mcpb) and double-click it. Claude Desktop installs Raven automatically — no Node, no terminal. Package version tracks npm (`1.17.x`).
 
 ### From source
 ```bash
@@ -64,7 +90,7 @@ cd raven-mcp && npm install && npm run build
 | `compose_system` | Mix tokens from different systems |
 | `get_brand_system` | Get a full system styled like a well-known brand |
 | `audit_page` | Audit HTML/CSS against Raven's quality standards — pass `html` for static audit, or `url` to render headless with optional `scroll_settle` (scroll to bottom + settle reveals) and `viewport` parameters; `containerMaxWidth` makes container checks token-aware. Also flags inline SVG icons that hardcode a color instead of using `currentColor`/a token. Pass `compact: true` to return only scores, violations, and fix_priority (drops embedded base64 screenshots) when the full payload is too large. |
-| `score_page` | Return a per-category (0–10) design score for a page — typography, accessibility, spacing, color, responsive layout, design tokens, structure — derived from the same checks as `audit_page`, plus the overall score/grade, the weakest category, and categories Raven does not mechanically assess (brand, conversion, motion) |
+| `score_page` | Return a per-category (0–10) design score for a page — typography, accessibility, spacing, color, responsive layout, design tokens, structure — derived from the same checks as `audit_page`, plus the overall score/grade, the weakest category, and categories Raven does not mechanically assess (brand, conversion, motion). Pass `html` and/or `url` (url capture is local/stdio only; remote rejects `url`) |
 | `audit_layout` | Evaluate visual rhythm, alignment, and optical balance; detects orphan-stretch (a lonely last-row grid/flex card stretching far wider than siblings) |
 | `audit_responsive_visibility` | Render a URL at multiple breakpoints and flag content elements that are visible on desktop but hidden on mobile (display:none/opacity:0/zero-size) — categorises each as likely-oversight (content vanishing on mobile) vs intentional (decorative) |
 | `audit_contrast` | Compute WCAG contrast ratios for every text element on a rendered page and report AA (4.5:1 / 3:1 large) and AAA pass-fail per element, with delta-to-pass for failures |
@@ -116,7 +142,29 @@ cd raven-mcp && npm install && npm run build
 | `generate_taste_portrait` | Render a bound taste surface as a self-contained designed HTML page (its rules, notes, voice, decisions, and wrong→right corpus) that obeys the surface it describes — art direction routes by the surface's own color permissions; sparse surfaces degrade gracefully. Omit `project` to render every binding plus a gallery. Every portrait passes `audit_taste` (`document_kind:'portrait'`) against its own surface |
 | `raven_reflect` | Summarize your local Raven usage log to find patterns + gaps |
 
+## Decision Graph
+
+The local Decision Graph keeps three node kinds: decisions, evidence, and sources. Five edge types connect them: `supersedes`, `scoped_alongside`, `supports`, `contradicts`, and `derived_from`. Decisions are superseded or contested; nodes are not hard-deleted.
+
+- `decision_add` — add an active decision with its scope, component, rationale, and rejected alternatives.
+- `decision_get` — return one node and its connected neighbors.
+- `decision_list` — list active, superseded, contested, or draft decisions.
+- `decision_draft` — capture a decision before its rationale is confirmed.
+- `decision_commit` — confirm a rationale and surface similar active decisions for review.
+- `decision_supersede` — replace a decision while keeping both nodes and their lineage.
+- `decision_scope` — narrow two active decisions so they can coexist.
+- `decision_history` — return a supersession lineage from oldest to newest.
+- `ingest_transcript` — store a Source node and return the extraction prompt for the calling model.
+- `ingest_transcript_results` — turn extracted JSON into low-trust drafts linked with `derived_from` edges.
+- `gap_scan` — rank uncovered components, missing or thin rationales, contested decisions, and derived staleness; `digest_only:true` is quiet when no action is needed.
+
+The end-to-end flow is: transcript → `ingest_transcript` (Source node plus extraction prompt) → the calling model extracts decisions → `ingest_transcript_results` creates low-trust drafts with `derived_from` edges → review and `decision_commit` run the conflict check → resolve conflicts with `decision_supersede` or `decision_scope` → use `decision_history` for lineage → run the `gap_scan` digest for hands-off health checks.
+
+Evidence nodes and `supports` / `contradicts` edges are in the schema for quantitative and qualitative results. Tools for attaching evidence are a later stage.
+
 ## Click-to-change (grab) + DESIGN.md
+
+**Grab is local-stdio only.** Hosted Cursor/Claude remote endpoints do not expose Grab — click-to-change needs a loopback bridge on your machine. Use local `npx` / Cursor local `mcp.json` when you need Grab.
 
 Raven Grab connects a local page to your agent so you can click an element, describe the change, and send its selector, computed styles, matching DESIGN.md tokens, and token choices back to the session. The bridge runs on loopback and the returned script tag carries the capability key required by its routes.
 Computed styles are editable inline, and edits are sent to the agent as `styleEdits`.
@@ -124,10 +172,10 @@ Computed styles are editable inline, and edits are sent to the agent as `styleEd
 Setup takes under a minute:
 
 1. Start your local dev server.
-2. Call `start_grab_session` with the path to your `DESIGN.md` and `proxy_target` set to the local server URL.
+2. Call `start_grab_session` with `proxy_target` set to the local server URL. `path` to a `DESIGN.md` is optional when `proxy_target` is set (Raven creates a minimal temp DESIGN.md); required when you only inject the script without a proxy.
 3. Open the returned bridge URL. The overlay is already included on HTML pages served through it.
 4. Click elements and enter the changes you want in the Grab panel.
-5. Call `get_grabbed_elements` to receive the queued selections and instructions.
+5. Call `get_grabbed_elements` to receive the queued selections and instructions (draining frees queue capacity for later sends).
 
 For a page you control, you can omit `proxy_target` and paste the returned `<script>` tag into the page instead.
 

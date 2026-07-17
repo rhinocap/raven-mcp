@@ -1599,3 +1599,76 @@ test('browser overlay mirrors the web overlay byte-for-byte', async () => {
   const mirror = await readFile(path.resolve(__dirname, '../web/public/raven-grab.js'), 'utf8');
   assert.equal(source, mirror);
 });
+
+test('start_grab_session succeeds with only proxy_target set and no path, using an auto-created temp DESIGN.md', async () => {
+  await withClient(indexMod.buildServer({}), async (client) => {
+    try {
+      const started = await client.callTool({
+        name: 'start_grab_session',
+        arguments: { proxy_target: 'http://127.0.0.1:9' }
+      });
+      assert.equal(started.isError, undefined, `expected success, got: ${started.content && started.content[0] && started.content[0].text}`);
+      const session = JSON.parse(started.content[0].text);
+      assert.equal(typeof session.path, 'string');
+      assert.ok(session.path.length > 0, 'session.path should be populated with the auto-created temp DESIGN.md path');
+      assert.match(session.path, /raven-grab-design-.*\.md$/);
+    } finally {
+      await client.callTool({ name: 'stop_grab_session', arguments: {} });
+    }
+  });
+});
+
+
+test('start_grab_session rejects when both path and proxy_target are omitted', async () => {
+  await withClient(indexMod.buildServer({}), async (client) => {
+    const started = await client.callTool({
+      name: 'start_grab_session',
+      arguments: {}
+    });
+    if (!started.isError) {
+      await client.callTool({ name: 'stop_grab_session', arguments: {} });
+    }
+    assert.equal(started.isError, true);
+    assert.match(started.content[0].text, /path.*proxy_target|proxy_target.*path/i);
+  });
+});
+
+test('drain frees grab queue capacity so later sends succeed after filling the cap', async () => {
+  const grabMod = await import(path.resolve(__dirname, '../dist/grab-bridge.js'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'raven-grab-cap-'));
+  const designPath = path.join(dir, 'DESIGN.md');
+  await writeFile(designPath, `---\ncolors:\n  primary: "#111111"\n---\n# Cap fixture\n`, 'utf8');
+
+  try {
+    await grabMod.startGrabSession(designPath);
+    for (let i = 0; i < 200; i++) {
+      grabMod.queueGrabSelection({
+        selector: `#el-${i}`,
+        html: `<div id="el-${i}">x</div>`,
+        rect: { x: 0, y: 0, w: 10, h: 10 },
+        instruction: `change ${i}`
+      });
+    }
+    await assert.rejects(
+      async () => grabMod.queueGrabSelection({
+        selector: '#overflow',
+        html: '<div id="overflow">x</div>',
+        rect: { x: 0, y: 0, w: 10, h: 10 },
+        instruction: 'overflow'
+      }),
+      /queue is full/i
+    );
+    const drained = await grabMod.getGrabbedElements();
+    assert.equal(drained.count, 200);
+    // After drain, capacity must free — this was the regression from mark-only drain.
+    const after = grabMod.queueGrabSelection({
+      selector: '#after-drain',
+      html: '<div id="after-drain">x</div>',
+      rect: { x: 0, y: 0, w: 10, h: 10 },
+      instruction: 'after drain'
+    });
+    assert.equal(after.selector, '#after-drain');
+  } finally {
+    await grabMod.stopGrabSession();
+  }
+});

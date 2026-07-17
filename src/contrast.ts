@@ -38,6 +38,55 @@ export type ContrastResult = {
 };
 
 // ---------------------------------------------------------------------------
+// Glyph / motion-split collapsing — exported for audit_url and tests
+// ---------------------------------------------------------------------------
+
+/**
+ * One or more aa_failures rows that should be reported as a single finding.
+ * `isShortTextGroup` is true when every row's trimmed text is 0-2 characters
+ * long (icon glyphs, single letters left over from a motion-split animation,
+ * etc.) — these are noisy to report per-letter and are usually not
+ * independent contrast bugs, so callers should collapse them into one
+ * likely-artifact finding instead of one confirmed error per fragment.
+ */
+export type ContrastFailureGroup = {
+  rows: ContrastRow[];
+  isShortTextGroup: boolean;
+};
+
+const SHORT_TEXT_MAX_LEN = 2;
+
+/**
+ * Group `aa_failures` rows so short-text (glyph/motion-split) fragments that
+ * share the same rendering context — (foreground, background, required_aa) —
+ * collapse into a single group instead of firing one finding per fragment.
+ * Longer-text failures are never grouped with anything else; each keeps its
+ * own single-row group so it can still be reported as a confirmed error.
+ */
+export function collapseShortTextContrastFailures(rows: ContrastRow[]): ContrastFailureGroup[] {
+  const groups: ContrastFailureGroup[] = [];
+  const shortGroupIndex = new Map<string, number>();
+
+  for (const row of rows) {
+    const len = (row.text || "").trim().length;
+    if (len <= SHORT_TEXT_MAX_LEN) {
+      const key = row.foreground + "|" + row.background + "|" + row.required_aa;
+      const idx = shortGroupIndex.get(key);
+      if (idx !== undefined) {
+        groups[idx].rows.push(row);
+      } else {
+        shortGroupIndex.set(key, groups.length);
+        groups.push({ rows: [row], isShortTextGroup: true });
+      }
+    } else {
+      groups.push({ rows: [row], isShortTextGroup: false });
+    }
+  }
+
+  return groups;
+}
+
+// ---------------------------------------------------------------------------
 // Pure WCAG math — exported for tests
 // ---------------------------------------------------------------------------
 

@@ -1,25 +1,87 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "http";
 import { randomBytes } from "crypto";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
+import { tmpdir } from "os";
 import { z } from "zod";
-import { flattenDesignTokens, parseDesignMd } from "./designmd.js";
+import { flattenDesignTokens, parseDesignMd, updateDesignMd, type DesignMdNode } from "./designmd.js";
 
 var __dirname = dirname(fileURLToPath(import.meta.url));
 var PKG_ROOT = resolve(join(__dirname, ".."));
 var GRAB_ASSET_PATH = process.env.RAVEN_GRAB_ASSET_PATH ? resolve(process.env.RAVEN_GRAB_ASSET_PATH) : join(PKG_ROOT, "browser", "raven-grab.js");
 type GrabRole = "consumer" | "maintainer";
 
+var GrabRectSchema = z.object({
+  x: z.number().optional(),
+  y: z.number().optional(),
+  top: z.number().optional(),
+  right: z.number().optional(),
+  bottom: z.number().optional(),
+  left: z.number().optional(),
+  width: z.number().optional(),
+  height: z.number().optional()
+}).passthrough();
+var GrabStylesSchema = z.record(z.string());
+var GrabTokenSchema = z.object({
+  property: z.string().optional(),
+  cssVar: z.string().optional(),
+  value: z.string().optional(),
+  name: z.string().optional(),
+  group: z.string().optional(),
+  path: z.string().optional(),
+  bridgeToken: z.object({ path: z.string().optional() }).passthrough().nullable().optional()
+}).passthrough();
+var GrabStateDeclarationSchema = z.object({
+  property: z.string(),
+  value: z.string(),
+  important: z.boolean().optional()
+}).passthrough();
+var GrabStateStyleSchema = z.object({
+  declarations: z.array(GrabStateDeclarationSchema),
+  tokens: z.array(GrabTokenSchema).optional(),
+  active: z.boolean().optional()
+}).passthrough();
+var GrabStateStylesSchema = z.record(GrabStateStyleSchema);
+var GrabTokenIntentSchema = z.object({
+  property: z.string(),
+  oldToken: z.string(),
+  oldTokenPath: z.string(),
+  newToken: z.string().optional(),
+  newTokenPath: z.string().optional(),
+  newTokenValue: z.string().optional()
+}).passthrough();
+var GrabStyleEditSchema = z.object({
+  property: z.string(),
+  oldValue: z.string(),
+  newValue: z.string()
+}).passthrough();
+var GrabMultiSelectionSchema = z.object({
+  index: z.number().int().min(1),
+  selector: z.string().min(1),
+  html: z.string(),
+  rect: GrabRectSchema,
+  styles: GrabStylesSchema
+}).passthrough();
+
+type GrabRect = z.infer<typeof GrabRectSchema>;
+type GrabStyles = z.infer<typeof GrabStylesSchema>;
+type GrabToken = z.infer<typeof GrabTokenSchema>;
+type GrabStateStyles = z.infer<typeof GrabStateStylesSchema>;
+type GrabTokenIntent = z.infer<typeof GrabTokenIntentSchema>;
+type GrabStyleEdit = z.infer<typeof GrabStyleEditSchema>;
+type GrabMultiSelection = z.infer<typeof GrabMultiSelectionSchema>;
+
 var GrabPayloadSchema = z.object({
   selector: z.string().min(1),
   html: z.string().optional(),
-  rect: z.record(z.any()).optional(),
-  styles: z.record(z.any()).optional(),
-  tokens: z.any().optional(),
-  stateStyles: z.any().optional(),
-  tokenIntents: z.array(z.any()).optional(),
-  styleEdits: z.array(z.any()).optional(),
+  rect: GrabRectSchema.optional(),
+  styles: GrabStylesSchema.optional(),
+  tokens: z.array(GrabTokenSchema).optional(),
+  stateStyles: GrabStateStylesSchema.optional(),
+  tokenIntents: z.array(GrabTokenIntentSchema).optional(),
+  styleEdits: z.array(GrabStyleEditSchema).optional(),
+  multiSelect: z.array(GrabMultiSelectionSchema).optional(),
   instruction: z.string().optional(),
   intent: z.literal("create-component").optional(),
   userNotes: z.string().optional(),
@@ -35,15 +97,166 @@ var GrabPayloadSchema = z.object({
   column: z.number().optional()
 }).passthrough();
 
-export interface GrabBridgeSelection {
+var TemplateSlotSchema = z.object({
+  slotId: z.string().min(1),
+  selector: z.string().min(1),
+  role: z.enum(["fixed", "flexible"]).default("fixed"),
+  note: z.string().trim().max(2000).optional()
+}).strict();
+var TemplatePayloadSchema = z.object({
+  page: z.string().min(1),
+  templateId: z.string().min(1).optional().default("default"),
+  slots: z.array(TemplateSlotSchema)
+}).strict();
+var TemplateValidationResultSchema = z.object({
+  slotId: z.string().min(1),
+  selector: z.string().min(1),
+  resolved: z.boolean()
+}).strict();
+var TemplateValidationPayloadSchema = z.object({
+  page: z.string().min(1),
+  results: z.array(TemplateValidationResultSchema)
+}).strict();
+type ComponentSubtree = { selector: string; children: ComponentSubtree[] };
+var ComponentSubtreeSchema: z.ZodType<ComponentSubtree> = z.lazy(function () {
+  return z.object({
+    selector: z.string().min(1),
+    children: z.array(ComponentSubtreeSchema)
+  }).strict();
+});
+var ComponentArtifactSchema = z.object({
+  componentId: z.string().min(1).regex(/^[A-Za-z0-9_-]+$/, "componentId must contain only letters, digits, hyphens, and underscores"),
+  name: z.string().min(1),
+  page: z.string().min(1),
+  rootSelector: z.string().min(1),
+  subtree: ComponentSubtreeSchema,
+  note: z.string().trim().max(2000).optional(),
+  capturedAt: z.string().optional()
+}).strict();
+var ComponentPayloadSchema = ComponentArtifactSchema;
+var LayersPayloadSchema = z.object({
+  page: z.string().min(1),
+  tree: z.unknown()
+}).strict().refine(function (payload) {
+  return Object.prototype.hasOwnProperty.call(payload, "tree");
+}, { message: "tree is required" });
+var MeasuredRectSchema = z.object({
+  selector: z.string().min(1),
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number()
+}).strict();
+var LayersReorderIntentSchema = z.object({
+  operation: z.literal("reorder"),
+  page: z.string().min(1),
+  parentSelector: z.string().min(1),
+  fromSelector: z.string().min(1).optional(),
+  fromIndex: z.number().int().min(0),
+  toIndex: z.number().int().min(0),
+  orderedSelectors: z.array(z.string().min(1)),
+  baselineOrder: z.array(z.string().min(1)).optional(),
+  selectionOrder: z.array(z.number().int().min(1)).optional(),
+  measuredRects: z.array(MeasuredRectSchema),
+  approximate: z.boolean(),
+  domSnapshotHash: z.string().min(1),
+  movedRole: z.enum(["fixed", "flexible"]).optional(),
+  fixedMove: z.boolean().optional(),
+  note: z.string().trim().max(2000).optional()
+}).strict().refine(function (intent) {
+  return intent.fromIndex !== intent.toIndex
+    && intent.orderedSelectors.length >= 2
+    && intent.fromIndex < intent.orderedSelectors.length
+    && intent.toIndex < intent.orderedSelectors.length;
+}, { message: "reorder intent must have distinct in-bounds fromIndex/toIndex within orderedSelectors" }).refine(function (intent) {
+  return intent.fixedMove !== true || intent.movedRole === "fixed";
+}, { message: "fixedMove true requires movedRole fixed" }).refine(function (intent) {
+  return intent.movedRole !== "fixed" || intent.fixedMove === true;
+}, { message: "movedRole fixed requires fixedMove true" });
+
+var LayersReparentIntentSchema = z.object({
+  operation: z.literal("reparent"),
+  page: z.string().min(1),
+  fromParentSelector: z.string().min(1),
+  toParentSelector: z.string().min(1),
+  fromSelector: z.string().min(1).optional(),
+  fromIndex: z.number().int().min(0),
+  toIndex: z.number().int().min(0),
+  orderedSelectors: z.array(z.string().min(1)),
+  baselineOrder: z.array(z.string().min(1)).optional(),
+  toBaselineOrder: z.array(z.string().min(1)).optional(),
+  selectionOrder: z.array(z.number().int().min(1)).optional(),
+  measuredRects: z.array(MeasuredRectSchema),
+  approximate: z.boolean(),
+  domSnapshotHash: z.string().min(1),
+  toDomSnapshotHash: z.string().min(1).optional(),
+  movedRole: z.enum(["fixed", "flexible"]).optional(),
+  fixedMove: z.boolean().optional(),
+  note: z.string().trim().max(2000).optional()
+}).strict().refine(function (intent) {
+  return intent.fromParentSelector !== intent.toParentSelector
+    && intent.orderedSelectors.length >= 1
+    && intent.toIndex >= 0
+    && intent.toIndex < intent.orderedSelectors.length
+    && intent.fromIndex >= 0;
+}, { message: "reparent intent must name distinct parents and an in-bounds toIndex within orderedSelectors" }).refine(function (intent) {
+  return intent.fixedMove !== true || intent.movedRole === "fixed";
+}, { message: "fixedMove true requires movedRole fixed" }).refine(function (intent) {
+  return intent.movedRole !== "fixed" || intent.fixedMove === true;
+}, { message: "movedRole fixed requires fixedMove true" });
+
+var LayersIntentSchema = z.union([LayersReorderIntentSchema, LayersReparentIntentSchema]);
+
+type TemplateSlot = z.infer<typeof TemplateSlotSchema>;
+type TemplateValidationResult = z.infer<typeof TemplateValidationResultSchema>;
+type LayersIntent = z.infer<typeof LayersIntentSchema>;
+type LayersReorderIntent = z.infer<typeof LayersReorderIntentSchema>;
+type LayersReparentIntent = z.infer<typeof LayersReparentIntentSchema>;
+
+function layerIntentParentKeys(intent: LayersIntent): string[] {
+  if (intent.operation === "reparent") return [intent.fromParentSelector, intent.toParentSelector];
+  return [intent.parentSelector];
+}
+
+function layerIntentPrimaryParent(intent: LayersIntent): string {
+  if (intent.operation === "reparent") return intent.toParentSelector;
+  return intent.parentSelector;
+}
+type GrabOperationState = "proposed" | "previewed" | "applied" | "rejected";
+type GrabStyleState = "sent" | "applied" | "rejected" | "superseded";
+
+interface GrabChangeEnvelope {
+  id: string;
+  batchId: string;
+  sequence: number;
+  kind: "reorder" | "style";
+  target: string;
+  payload: unknown;
+  state: GrabOperationState | GrabStyleState;
+  receivedAt: string;
+  updatedAt: string;
+}
+
+export interface GrabOperation extends GrabChangeEnvelope {
+  kind: "reorder";
+  payload: LayersIntent;
+  state: GrabOperationState;
+  intent: LayersIntent;
+}
+
+export interface GrabBridgeSelection extends GrabChangeEnvelope {
+  kind: "style";
+  payload: Record<string, unknown>;
+  state: GrabStyleState;
   selector: string;
   html?: string;
-  rect?: Record<string, any>;
-  styles?: Record<string, any>;
-  tokens?: any;
-  stateStyles?: any;
-  tokenIntents?: any[];
-  styleEdits?: any[];
+  rect?: GrabRect;
+  styles?: GrabStyles;
+  tokens?: GrabToken[];
+  stateStyles?: GrabStateStyles;
+  tokenIntents?: GrabTokenIntent[];
+  styleEdits?: GrabStyleEdit[];
+  multiSelect?: GrabMultiSelection[];
   instruction?: string;
   intent?: "create-component";
   userNotes?: string;
@@ -57,13 +270,29 @@ export interface GrabBridgeSelection {
   filePath?: string;
   line?: number;
   column?: number;
-  receivedAt: string;
+  drainedAt?: string;
+  supersededProperties?: string[];
+}
+
+interface GrabBatchCommit {
+  batchId: string;
+  committedAt: string;
+  deliveredAt?: string;
+}
+
+interface GrabBatchResult {
+  batchId: string | null;
+  committedAt: string | null;
+  changes: Array<GrabOperation | GrabBridgeSelection>;
+  pending: Array<GrabOperation | GrabBridgeSelection>;
 }
 
 export interface GrabBridgeStartResult {
   port: number;
   url: string;
   script_tag: string;
+  wait_url: string;
+  watch_command: string;
   path: string;
   mode: "server" | "shim";
   destination: {
@@ -78,6 +307,8 @@ export interface GrabBridgeStartResult {
 export interface GrabBridgeDrainResult {
   count: number;
   elements: GrabBridgeSelection[];
+  batchCommit?: { batchId: string; committedAt: string };
+  batch?: GrabBatchResult;
 }
 
 interface BridgeSession {
@@ -89,7 +320,13 @@ interface BridgeSession {
   proxyTarget?: string;
   role: GrabRole;
   queue: GrabBridgeSelection[];
-  waiters: Array<(items: GrabBridgeSelection[]) => void>;
+  waiters: Array<(result: GrabBridgeDrainResult) => void>;
+  layersSnapshot: Record<string, { page: string; tree: unknown; receivedAt: string }>;
+  templateValidation: Record<string, TemplateValidationResult[]>;
+  operations: GrabOperation[];
+  currentBatchId: string | null;
+  nextSequence: number;
+  batchCommits: Record<string, GrabBatchCommit>;
 }
 
 var currentSession: BridgeSession | null = null;
@@ -99,12 +336,8 @@ function grabRoleConfigTag(role: GrabRole): string {
   return role === "maintainer" ? '<script>window.ravenGrabConfig={"role":"maintainer"};</script>' : "";
 }
 
-export async function startGrabSession(path: string, port?: number, proxyTarget?: string, role: GrabRole = "consumer"): Promise<GrabBridgeStartResult> {
+export async function startGrabSession(path?: string, port?: number, proxyTarget?: string, role: GrabRole = "consumer"): Promise<GrabBridgeStartResult> {
   await stopGrabSession();
-  var abs = resolve(path);
-  if (!existsSync(abs)) {
-    throw new Error("DESIGN.md not found at " + abs);
-  }
   var normalizedTarget: string | undefined;
   if (proxyTarget !== undefined) {
     var targetUrl: URL;
@@ -118,6 +351,22 @@ export async function startGrabSession(path: string, port?: number, proxyTarget?
     }
     normalizedTarget = targetUrl.origin;
   }
+
+  var abs: string;
+  if (path === undefined || path === null || path.trim() === "") {
+    if (normalizedTarget === undefined) {
+      throw new Error("start_grab_session requires either 'path' (to a DESIGN.md file) or 'proxy_target' (a running local dev server).");
+    }
+    var tempDesignPath = join(tmpdir(), "raven-grab-design-" + randomBytes(8).toString("hex") + ".md");
+    writeFileSync(tempDesignPath, "# Design\n\n## Tokens\n\n", "utf8");
+    abs = tempDesignPath;
+  } else {
+    abs = resolve(path);
+    if (!existsSync(abs)) {
+      throw new Error("DESIGN.md not found at " + abs);
+    }
+  }
+
   var key = randomBytes(32).toString("hex");
 
   var server = createServer(function (req, res) {
@@ -144,7 +393,13 @@ export async function startGrabSession(path: string, port?: number, proxyTarget?
       proxyTarget: normalizedTarget,
       role: role,
       queue: [],
-      waiters: []
+      waiters: [],
+      layersSnapshot: Object.create(null),
+      templateValidation: Object.create(null),
+      operations: [],
+      currentBatchId: null,
+      nextSequence: 1,
+      batchCommits: Object.create(null)
     };
   } catch (err) {
     if (server.listening) {
@@ -166,7 +421,13 @@ export async function startGrabSession(path: string, port?: number, proxyTarget?
       mode: "shim",
       role: role,
       queue: [],
-      waiters: []
+      waiters: [],
+      layersSnapshot: Object.create(null),
+      templateValidation: Object.create(null),
+      operations: [],
+      currentBatchId: null,
+      nextSequence: 1,
+      batchCommits: Object.create(null)
     };
   }
 
@@ -177,10 +438,18 @@ export async function startGrabSession(path: string, port?: number, proxyTarget?
   if (warning && normalizedTarget) {
     warning += " proxy_target is ignored in shim mode.";
   }
+  var bridgeUrl = "http://127.0.0.1:" + actualPort;
+  // Watcher only exists in server mode — shim has no HTTP listener for curl to reach.
+  var waitUrl = mode === "server" ? bridgeUrl + "/agent/wait?key=" + key + "&timeout_ms=240000" : "";
+  var watchCommand = waitUrl
+    ? "f=0; while :; do r=$(curl -sf '" + waitUrl + "') || { f=$((f+1)); [ \"$f\" -ge 5 ] && exit 1; sleep 2; continue; }; f=0; if [ -n \"$r\" ] && { ! printf '%s' \"$r\" | grep -q '\"count\": 0' || printf '%s' \"$r\" | grep -q '\"batchCommit\"'; }; then printf '%s\\n' \"$r\"; exit 0; fi; done"
+    : "";
   return {
     port: actualPort,
-    url: "http://127.0.0.1:" + actualPort,
+    url: bridgeUrl,
     script_tag: grabRoleConfigTag(role) + '<script src="http://127.0.0.1:' + actualPort + '/raven-grab.js?key=' + key + '"></script>',
+    wait_url: waitUrl,
+    watch_command: watchCommand,
     path: abs,
     mode: mode,
     destination: {
@@ -199,7 +468,7 @@ export async function stopGrabSession(): Promise<{ stopped: boolean }> {
   var session = currentSession;
   currentSession = null;
   session.waiters.splice(0).forEach(function (resolveItems) {
-    resolveItems([]);
+    resolveItems({ count: 0, elements: [] });
   });
 
   if (session.mode === "shim") {
@@ -224,7 +493,7 @@ export async function getGrabbedElements(timeoutMs?: number): Promise<GrabBridge
     throw new Error("No active grab session");
   }
 
-  if (currentSession.queue.length > 0) {
+  if (hasDrainableChanges(currentSession)) {
     return drainCurrentQueue(currentSession);
   }
 
@@ -232,8 +501,7 @@ export async function getGrabbedElements(timeoutMs?: number): Promise<GrabBridge
     return { count: 0, elements: [] };
   }
 
-  var items = await waitForGrabItems(currentSession, timeoutMs);
-  return { count: items.length, elements: items };
+  return waitForGrabItems(currentSession, timeoutMs);
 }
 
 export function queueGrabSelection(selection: unknown): GrabBridgeSelection {
@@ -241,11 +509,21 @@ export function queueGrabSelection(selection: unknown): GrabBridgeSelection {
     throw new Error("No active grab session");
   }
 
-  if (currentSession.queue.length >= MAX_QUEUE_LENGTH) {
+  if (pendingChangeCount(currentSession) >= MAX_QUEUE_LENGTH) {
     throw new Error("Grab queue is full (" + MAX_QUEUE_LENGTH + "); drain with get_grabbed_elements");
   }
   var parsed = GrabPayloadSchema.parse(selection);
+  var now = new Date().toISOString();
+  var batch = nextChangePosition(currentSession);
+  var payload = { ...parsed } as Record<string, unknown>;
   var item: GrabBridgeSelection = {
+    id: randomBytes(16).toString("hex"),
+    batchId: batch.batchId,
+    sequence: batch.sequence,
+    kind: "style",
+    target: parsed.selector,
+    payload: payload,
+    state: "sent",
     selector: parsed.selector,
     html: parsed.html,
     rect: parsed.rect,
@@ -262,18 +540,451 @@ export function queueGrabSelection(selection: unknown): GrabBridgeSelection {
     filePath: parsed.filePath,
     line: parsed.line,
     column: parsed.column,
-    receivedAt: new Date().toISOString()
+    receivedAt: now,
+    updatedAt: now
   };
+  if (parsed.multiSelect !== undefined) item.multiSelect = parsed.multiSelect;
+  supersedeOlderStyleProperties(currentSession, item);
   currentSession.queue.push(item);
   resolveWaiters(currentSession);
   return item;
+}
+
+export function getPageTemplate(page: string): { templateId: string; page: string; slots: Array<TemplateSlot & { orphaned?: boolean; validated?: false }>; validation: TemplateValidationResult[] | null } {
+  var session = requireGrabSession();
+  var raw = readFileSync(session.path, "utf8");
+  var parsed = parseDesignMd(raw);
+  var templates = objectNode(parsed.frontmatter.templates);
+  var templateIds = Object.keys(templates);
+  var templateId = "default";
+  var slotNode: DesignMdNode = {};
+  for (var i = 0; i < templateIds.length; i++) {
+    var candidateId = templateIds[i];
+    var candidate = objectNode(templates[candidateId]);
+    var pages = objectNode(candidate.pages);
+    var pageKey = encodePageKey(page);
+    if (pages[pageKey] !== undefined) {
+      templateId = candidateId;
+      var storedSlots = objectNode(pages[pageKey]).slots;
+      if (typeof storedSlots === "string") {
+        try {
+          slotNode = objectNode(JSON.parse(storedSlots));
+        } catch (_err) {
+          slotNode = {};
+        }
+      } else {
+        slotNode = objectNode(storedSlots);
+      }
+      break;
+    }
+  }
+  var validation = session.templateValidation[page] || null;
+  var slots = Object.keys(slotNode).map(function (slotId) {
+    var stored = objectNode(slotNode[slotId]);
+    var slot: TemplateSlot & { orphaned?: boolean; validated?: false } = {
+      slotId: slotId,
+      selector: typeof stored.selector === "string" ? stored.selector : "",
+      role: stored.role === "flexible" ? "flexible" : "fixed"
+    };
+    if (typeof stored.note === "string") slot.note = stored.note;
+    if (!validation) {
+      slot.validated = false;
+    } else {
+      var result = validation.find(function (entry) { return entry.slotId === slotId && entry.selector === slot.selector; });
+      if (result && !result.resolved) slot.orphaned = true;
+    }
+    return slot;
+  });
+  return { templateId: templateId, page: page, slots: slots, validation: validation };
+}
+
+export function setTemplateSlots(page: string, templateId: string, slots: unknown): { saved: true; count: number } {
+  var session = requireGrabSession();
+  var parsedSlots = z.array(TemplateSlotSchema).parse(slots);
+  if (!/^[A-Za-z0-9_-]+$/.test(templateId)) {
+    throw new Error("templateId must contain only letters, digits, hyphens, and underscores: " + templateId);
+  }
+  var slotValues: DesignMdNode = Object.create(null);
+  for (var i = 0; i < parsedSlots.length; i++) {
+    var parsedSlot = parsedSlots[i];
+    var slotId = parsedSlot.slotId;
+    if (slotId === "__proto__" || slotId === "constructor" || slotId === "prototype") {
+      throw new Error("slotId is not allowed: " + slotId);
+    }
+    if (Object.prototype.hasOwnProperty.call(slotValues, slotId)) {
+      throw new Error("Duplicate slotId: " + slotId);
+    }
+    var slotValue: DesignMdNode = { role: parsedSlot.role, selector: parsedSlot.selector };
+    if (parsedSlot.note !== undefined) slotValue.note = parsedSlot.note;
+    slotValues[slotId] = slotValue;
+  }
+  updateDesignMd(session.path, {
+    set: {
+      group: "templates",
+      name: templateId + ".pages." + encodePageKey(page) + ".slots",
+      value: JSON.stringify(slotValues)
+    }
+  });
+  return { saved: true, count: parsedSlots.length };
+}
+
+export function listTemplates(): Array<{ templateId: string; pages: string[] }> {
+  var session = requireGrabSession();
+  var parsed = parseDesignMd(readFileSync(session.path, "utf8"));
+  var templates = objectNode(parsed.frontmatter.templates);
+  return Object.keys(templates).map(function (templateId) {
+    return { templateId: templateId, pages: Object.keys(objectNode(objectNode(templates[templateId]).pages)).map(decodePageKey) };
+  });
+}
+
+export function setComponent(artifact: unknown): { saved: true; componentId: string } {
+  var session = requireGrabSession();
+  var parsed = ComponentArtifactSchema.parse(artifact);
+  if (parsed.componentId === "__proto__" || parsed.componentId === "constructor" || parsed.componentId === "prototype") {
+    throw new Error("componentId is not allowed: " + parsed.componentId);
+  }
+  var record: DesignMdNode = {
+    name: parsed.name,
+    page: parsed.page,
+    rootSelector: parsed.rootSelector,
+    subtree: JSON.stringify(parsed.subtree),
+    capturedAt: parsed.capturedAt || new Date().toISOString()
+  };
+  if (parsed.note !== undefined) record.note = parsed.note;
+  updateDesignMd(session.path, {
+    set: {
+      group: "components",
+      name: parsed.componentId,
+      value: JSON.stringify(record)
+    }
+  });
+  return { saved: true, componentId: parsed.componentId };
+}
+
+export function listComponents(page?: string): Array<{ componentId: string; name: string; page: string; rootSelector: string }> {
+  var session = requireGrabSession();
+  var parsed = parseDesignMd(readFileSync(session.path, "utf8"));
+  var components = objectNode(parsed.frontmatter.components);
+  return Object.keys(components).map(function (componentId) {
+    var raw = components[componentId];
+    var stored: DesignMdNode = {};
+    if (typeof raw === "string") {
+      try { stored = objectNode(JSON.parse(raw)); } catch (_err) { stored = {}; }
+    } else {
+      stored = objectNode(raw);
+    }
+    return {
+      componentId: componentId,
+      name: typeof stored.name === "string" ? stored.name : componentId,
+      page: typeof stored.page === "string" ? stored.page : "",
+      rootSelector: typeof stored.rootSelector === "string" ? stored.rootSelector : ""
+    };
+  }).filter(function (entry) {
+    return !page || entry.page === page;
+  });
+}
+
+export function getComponent(componentId: string): { componentId: string; name: string; page: string; rootSelector: string; subtree: ComponentSubtree | null; note?: string; capturedAt?: string } {
+  var session = requireGrabSession();
+  var parsed = parseDesignMd(readFileSync(session.path, "utf8"));
+  var components = objectNode(parsed.frontmatter.components);
+  if (components[componentId] === undefined) {
+    throw new Error("Component not found: " + componentId);
+  }
+  var raw = components[componentId];
+  var stored: DesignMdNode = {};
+  if (typeof raw === "string") {
+    try { stored = objectNode(JSON.parse(raw)); } catch (_err) { stored = {}; }
+  } else {
+    stored = objectNode(raw);
+  }
+  var subtree: ComponentSubtree | null = null;
+  if (typeof stored.subtree === "string") {
+    try { subtree = JSON.parse(stored.subtree) as ComponentSubtree; } catch (_err) { subtree = null; }
+  } else if (stored.subtree && typeof stored.subtree === "object") {
+    subtree = stored.subtree as unknown as ComponentSubtree;
+  }
+  var result: { componentId: string; name: string; page: string; rootSelector: string; subtree: ComponentSubtree | null; note?: string; capturedAt?: string } = {
+    componentId: componentId,
+    name: typeof stored.name === "string" ? stored.name : componentId,
+    page: typeof stored.page === "string" ? stored.page : "",
+    rootSelector: typeof stored.rootSelector === "string" ? stored.rootSelector : "",
+    subtree: subtree
+  };
+  if (typeof stored.note === "string") result.note = stored.note;
+  if (typeof stored.capturedAt === "string") result.capturedAt = stored.capturedAt;
+  return result;
+}
+
+export function getGrabLayers(page?: string): unknown {
+  var session = requireGrabSession();
+  if (page !== undefined) return session.layersSnapshot[page] || null;
+  return Object.keys(session.layersSnapshot).map(function (key) { return session.layersSnapshot[key]; });
+}
+
+export function moveGrabLayer(intent: unknown): GrabOperation {
+  var parsed = LayersIntentSchema.parse(intent);
+  return createGrabOperation(parsed, parsed.measuredRects.length > 0 ? "previewed" : "proposed");
+}
+
+export function getGrabOperation(operationId?: string, mark?: "applied" | "rejected", batch?: boolean): GrabOperation | GrabBridgeSelection | GrabOperation[] | GrabBatchResult {
+  var session = requireGrabSession();
+  if (batch) {
+    if (operationId || mark) throw new Error("batch cannot be combined with operation_id or mark");
+    return getGrabBatch(session);
+  }
+  if (!operationId) {
+    if (mark) throw new Error("operationId is required when mark is provided");
+    return session.operations.slice();
+  }
+  var operation: GrabOperation | GrabBridgeSelection | undefined = session.operations.find(function (item) { return item.id === operationId; });
+  if (!operation) operation = session.queue.find(function (item) { return item.id === operationId; });
+  if (!operation) throw new Error("Grab change not found: " + operationId);
+  if (mark) {
+    if (operation.kind === "reorder") {
+      if (operation.state !== "previewed") {
+        throw new Error("Only previewed operations can be marked applied or rejected");
+      }
+      if (mark === "applied") assertPriorReordersResolved(session, operation);
+    } else if (operation.state !== "sent") {
+      throw new Error("Only sent style changes can be marked applied or rejected");
+    }
+    operation.state = mark;
+    operation.updatedAt = new Date().toISOString();
+    if (operation.kind === "reorder" && mark === "rejected") rejectDependentReorders(session, operation);
+  }
+  return operation;
+}
+
+export function currentGrabBatch(batchId?: string): GrabBatchResult {
+  return getGrabBatch(requireGrabSession(), batchId);
+}
+
+function requireGrabSession(): BridgeSession {
+  if (!currentSession) throw new Error("No active grab session");
+  return currentSession;
+}
+
+function objectNode(value: unknown): DesignMdNode {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as DesignMdNode : {};
+}
+
+function encodePageKey(page: string): string {
+  return encodeURIComponent(page).replace(/\./g, "%2E");
+}
+
+function decodePageKey(page: string): string {
+  return decodeURIComponent(page);
+}
+
+function nextChangePosition(session: BridgeSession): { batchId: string; sequence: number } {
+  if (!session.currentBatchId || session.batchCommits[session.currentBatchId]) {
+    session.currentBatchId = randomBytes(16).toString("hex");
+    session.nextSequence = 1;
+  }
+  var result = { batchId: session.currentBatchId, sequence: session.nextSequence };
+  session.nextSequence += 1;
+  return result;
+}
+
+function createGrabOperation(intent: LayersIntent, state: GrabOperationState): GrabOperation {
+  var session = requireGrabSession();
+  var now = new Date().toISOString();
+  var batch = nextChangePosition(session);
+  var target = intent.fromSelector || (intent.baselineOrder && intent.baselineOrder[intent.fromIndex]) || intent.orderedSelectors[intent.toIndex];
+  var operation: GrabOperation = {
+    id: randomBytes(16).toString("hex"),
+    batchId: batch.batchId,
+    sequence: batch.sequence,
+    kind: "reorder",
+    target: target,
+    payload: intent,
+    state: state,
+    intent: intent,
+    receivedAt: now,
+    updatedAt: now
+  };
+  session.operations.push(operation);
+  if (session.operations.length > MAX_QUEUE_LENGTH) session.operations.splice(0, session.operations.length - MAX_QUEUE_LENGTH);
+  return operation;
+}
+
+function styleProperties(item: GrabBridgeSelection): string[] {
+  var properties: string[] = [];
+  var edits = item.payload.styleEdits;
+  if (Array.isArray(edits)) {
+    for (var i = 0; i < edits.length; i++) {
+      var edit = edits[i] as { property?: unknown };
+      if (typeof edit.property === "string" && properties.indexOf(edit.property) === -1) properties.push(edit.property);
+    }
+  }
+  var intents = item.payload.tokenIntents;
+  if (Array.isArray(intents)) {
+    for (var j = 0; j < intents.length; j++) {
+      var intent = intents[j] as { property?: unknown };
+      if (typeof intent.property === "string" && properties.indexOf(intent.property) === -1) properties.push(intent.property);
+    }
+  }
+  return properties;
+}
+
+function supersedeOlderStyleProperties(session: BridgeSession, newest: GrabBridgeSelection): void {
+  var newestProperties = styleProperties(newest);
+  if (newestProperties.length === 0) return;
+  for (var i = 0; i < session.queue.length; i++) {
+    var older = session.queue[i];
+    if (older.batchId !== newest.batchId || older.target !== newest.target || older.state !== "sent") continue;
+    var olderProperties = styleProperties(older);
+    var collisions = olderProperties.filter(function (property) { return newestProperties.indexOf(property) !== -1; });
+    if (collisions.length === 0) continue;
+    older.supersededProperties = (older.supersededProperties || []).concat(collisions.filter(function (property) {
+      return !older.supersededProperties || older.supersededProperties.indexOf(property) === -1;
+    }));
+    if (olderProperties.length > 0 && olderProperties.every(function (property) { return older.supersededProperties!.indexOf(property) !== -1; })) {
+      older.state = "superseded";
+    }
+    older.updatedAt = newest.receivedAt;
+  }
+}
+
+function assertPriorReordersResolved(session: BridgeSession, operation: GrabOperation): void {
+  if (!session.batchCommits[operation.batchId]) return;
+  var parents = layerIntentParentKeys(operation.payload);
+  var prior = session.operations.find(function (candidate) {
+    if (candidate.batchId !== operation.batchId || candidate.sequence >= operation.sequence) return false;
+    if (candidate.state === "applied" || candidate.state === "rejected") return false;
+    var candidateParents = layerIntentParentKeys(candidate.payload);
+    return parents.some(function (parent) { return candidateParents.indexOf(parent) !== -1; });
+  });
+  if (prior) throw new Error("Apply same-parent reorders by sequence; resolve " + prior.id + " first");
+}
+
+function rejectDependentReorders(session: BridgeSession, operation: GrabOperation): void {
+  if (!session.batchCommits[operation.batchId]) return;
+  var parents = layerIntentParentKeys(operation.payload);
+  for (var i = 0; i < session.operations.length; i++) {
+    var dependent = session.operations[i];
+    if (dependent.batchId !== operation.batchId || dependent.sequence <= operation.sequence) continue;
+    if (dependent.state === "applied" || dependent.state === "rejected") continue;
+    var dependentParents = layerIntentParentKeys(dependent.payload);
+    if (!parents.some(function (parent) { return dependentParents.indexOf(parent) !== -1; })) continue;
+    dependent.state = "rejected";
+    dependent.updatedAt = operation.updatedAt;
+  }
+}
+
+function isPendingChange(change: GrabOperation | GrabBridgeSelection): boolean {
+  return change.state !== "applied" && change.state !== "rejected" && change.state !== "superseded";
+}
+
+function allChanges(session: BridgeSession): Array<GrabOperation | GrabBridgeSelection> {
+  return ([] as Array<GrabOperation | GrabBridgeSelection>).concat(session.operations, session.queue).sort(function (a, b) {
+    return a.batchId === b.batchId ? a.sequence - b.sequence : a.batchId.localeCompare(b.batchId);
+  });
+}
+
+function getGrabBatch(session: BridgeSession, batchId?: string): GrabBatchResult {
+  var selectedBatchId = batchId || session.currentBatchId;
+  var changes = selectedBatchId ? allChanges(session).filter(function (change) { return change.batchId === selectedBatchId; }) : [];
+  var commit = selectedBatchId ? session.batchCommits[selectedBatchId] : undefined;
+  return {
+    batchId: selectedBatchId,
+    committedAt: commit ? commit.committedAt : null,
+    changes: changes,
+    pending: changes.filter(isPendingChange)
+  };
+}
+
+function commitGrabBatch(batchId?: string): { committed: true; batchId: string; committedAt: string; count: number } {
+  var session = requireGrabSession();
+  var selectedBatchId = batchId || session.currentBatchId;
+  if (!selectedBatchId) throw new Error("No grab batch to commit");
+  var batch = getGrabBatch(session, selectedBatchId);
+  if (batch.changes.length === 0) throw new Error("Grab batch not found: " + selectedBatchId);
+  var existing = session.batchCommits[selectedBatchId];
+  var committedAt = existing ? existing.committedAt : new Date().toISOString();
+  if (!existing) {
+    session.batchCommits[selectedBatchId] = { batchId: selectedBatchId, committedAt: committedAt };
+    resolveWaiters(session);
+  }
+  return { committed: true, batchId: selectedBatchId, committedAt: committedAt, count: batch.pending.length };
+}
+
+function persistFixedMove(intent: LayersIntent): void {
+  var session = requireGrabSession();
+  var templateId = getPageTemplate(intent.page).templateId;
+  var parsed = parseDesignMd(readFileSync(session.path, "utf8"));
+  var templates = objectNode(parsed.frontmatter.templates);
+  var pages = objectNode(objectNode(templates[templateId]).pages);
+  var pageKey = encodePageKey(intent.page);
+  var stored = objectNode(pages[pageKey]).fixedMoves;
+  var fixedMoves: unknown[] = [];
+  if (typeof stored === "string") {
+    var decoded = JSON.parse(stored);
+    if (!Array.isArray(decoded)) throw new Error("Stored fixedMoves must be an array");
+    fixedMoves = decoded;
+  } else if (Array.isArray(stored)) {
+    fixedMoves = stored.slice();
+  } else if (stored !== undefined) {
+    throw new Error("Stored fixedMoves must be an array");
+  }
+  var record: Record<string, unknown> = {
+    selector: intent.fromSelector || intent.orderedSelectors[intent.toIndex],
+    from: intent.fromIndex,
+    to: intent.toIndex,
+    note: intent.note || "",
+    at: new Date().toISOString(),
+    operation: intent.operation,
+    parent: layerIntentPrimaryParent(intent)
+  };
+  if (intent.operation === "reparent") {
+    record.fromParent = intent.fromParentSelector;
+    record.toParent = intent.toParentSelector;
+  }
+  fixedMoves.push(record);
+  updateDesignMd(session.path, {
+    set: {
+      group: "templates",
+      name: templateId + ".pages." + pageKey + ".fixedMoves",
+      value: JSON.stringify(fixedMoves)
+    }
+  });
+}
+
+function notifyFixedMove(intent: LayersIntent): void {
+  var webhook = process.env.RAVEN_GRAB_NOTIFY_WEBHOOK;
+  if (!webhook) return;
+  // ponytail: This webhook is a stub; a real Slack integration is the production upgrade path.
+  try {
+    void fetch(webhook, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "fixed-layer-move",
+        page: intent.page,
+        operation: intent.operation,
+        selector: intent.fromSelector || intent.orderedSelectors[intent.toIndex],
+        from: intent.fromIndex,
+        to: intent.toIndex,
+        parent: layerIntentPrimaryParent(intent),
+        fromParent: intent.operation === "reparent" ? intent.fromParentSelector : undefined,
+        toParent: intent.operation === "reparent" ? intent.toParentSelector : undefined,
+        note: intent.note || ""
+      })
+    }).catch(function (err) {
+      console.error("[Raven Grab] fixed-layer-move webhook failed", err);
+    });
+  } catch (err) {
+    console.error("[Raven Grab] fixed-layer-move webhook failed", err);
+  }
 }
 
 async function handleGrabRequest(designMdPath: string, key: string, req: IncomingMessage, res: ServerResponse, proxyTarget?: string, role: GrabRole = "consumer"): Promise<void> {
   var method = req.method || "GET";
   var requestUrl = req.url || "/";
   var pathname = new URL(requestUrl, "http://127.0.0.1").pathname;
-  var bridgeRoute = pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/grab";
+  var bridgeRoute = pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/grab" || pathname === "/batch" || pathname === "/batch-commit" || pathname === "/agent/wait"
+    || pathname === "/template" || pathname === "/template-validation" || pathname === "/components" || pathname === "/layers" || pathname === "/layers-intent" || pathname === "/layers-operation";
   if (proxyTarget && method !== "OPTIONS" && !bridgeRoute) {
     await proxyGrabRequest(proxyTarget, key, method, requestUrl, req, res, role);
     return;
@@ -422,8 +1133,8 @@ async function buildGrabResponse(designMdPath: string, key: string, method: stri
     return { status: 204, headers: {}, body: "" };
   }
 
-  var protectedRoute = (method === "GET" && (pathname === "/raven-grab.js" || pathname === "/tokens"))
-    || (method === "POST" && pathname === "/grab");
+  var protectedRoute = (method === "GET" && (pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/template" || pathname === "/components" || pathname === "/batch" || pathname === "/agent/wait" || pathname === "/layers-operation"))
+    || (method === "POST" && (pathname === "/grab" || pathname === "/batch-commit" || pathname === "/template" || pathname === "/template-validation" || pathname === "/components" || pathname === "/layers" || pathname === "/layers-intent"));
   if (protectedRoute && parsedUrl.searchParams.get("key") !== key) {
     return { status: 403, headers: { "Content-Type": "text/plain; charset=utf-8" }, body: "Forbidden" };
   }
@@ -454,6 +1165,17 @@ async function buildGrabResponse(designMdPath: string, key: string, method: stri
     }
   }
 
+  if (method === "GET" && pathname === "/agent/wait") {
+    try {
+      var timeoutParam = parsedUrl.searchParams.get("timeout_ms");
+      var timeoutMs = timeoutParam && /^\d+$/.test(timeoutParam) && Number(timeoutParam) > 0 ? Number(timeoutParam) : 240000;
+      timeoutMs = Math.min(timeoutMs, 240000);
+      return jsonResponse(200, await getGrabbedElements(timeoutMs));
+    } catch (err) {
+      return jsonResponse(500, { error: (err as Error).message });
+    }
+  }
+
   if (method === "POST" && pathname === "/grab") {
     try {
       var payload = bodyText ? JSON.parse(bodyText) : {};
@@ -472,7 +1194,112 @@ async function buildGrabResponse(designMdPath: string, key: string, method: stri
     }
   }
 
+  if (method === "POST" && pathname === "/batch-commit") {
+    try {
+      var commitPayload = z.object({ batchId: z.string().min(1).optional() }).strict().parse(bodyText ? JSON.parse(bodyText) : {});
+      return jsonResponse(200, commitGrabBatch(commitPayload.batchId));
+    } catch (err) {
+      return jsonResponse(400, { error: (err as Error).message });
+    }
+  }
+
+  if (method === "GET" && pathname === "/batch") {
+    try {
+      var batchId = parsedUrl.searchParams.get("batchId") || undefined;
+      return jsonResponse(200, currentGrabBatch(batchId));
+    } catch (err) {
+      return jsonResponse(500, { error: (err as Error).message });
+    }
+  }
+
+  if (method === "POST" && pathname === "/template") {
+    try {
+      var templatePayload = TemplatePayloadSchema.parse(bodyText ? JSON.parse(bodyText) : {});
+      return jsonResponse(200, setTemplateSlots(templatePayload.page, templatePayload.templateId, templatePayload.slots));
+    } catch (err) {
+      return jsonResponse(400, { error: (err as Error).message });
+    }
+  }
+
+  if (method === "GET" && pathname === "/template") {
+    try {
+      var page = z.string().min(1).parse(parsedUrl.searchParams.get("page"));
+      return jsonResponse(200, getPageTemplate(page));
+    } catch (err) {
+      return jsonResponse(400, { error: (err as Error).message });
+    }
+  }
+
+  if (method === "POST" && pathname === "/template-validation") {
+    try {
+      var validationPayload = TemplateValidationPayloadSchema.parse(bodyText ? JSON.parse(bodyText) : {});
+      requireGrabSession().templateValidation[validationPayload.page] = validationPayload.results;
+      return jsonResponse(200, { ok: true });
+    } catch (err) {
+      return jsonResponse(400, { error: (err as Error).message });
+    }
+  }
+
+  if (method === "POST" && pathname === "/components") {
+    try {
+      var componentPayload = ComponentPayloadSchema.parse(bodyText ? JSON.parse(bodyText) : {});
+      return jsonResponse(200, setComponent(componentPayload));
+    } catch (err) {
+      return jsonResponse(400, { error: (err as Error).message });
+    }
+  }
+
+  if (method === "GET" && pathname === "/components") {
+    try {
+      var componentPage = parsedUrl.searchParams.get("page") || undefined;
+      var componentId = parsedUrl.searchParams.get("componentId") || undefined;
+      if (componentId) return jsonResponse(200, getComponent(componentId));
+      return jsonResponse(200, { components: listComponents(componentPage || undefined) });
+    } catch (err) {
+      return jsonResponse(400, { error: (err as Error).message });
+    }
+  }
+
+  if (method === "POST" && pathname === "/layers") {
+    try {
+      var layersPayload = LayersPayloadSchema.parse(bodyText ? JSON.parse(bodyText) : {});
+      requireGrabSession().layersSnapshot[layersPayload.page] = { page: layersPayload.page, tree: layersPayload.tree, receivedAt: new Date().toISOString() };
+      return jsonResponse(200, { ok: true });
+    } catch (err) {
+      return jsonResponse(400, { error: (err as Error).message });
+    }
+  }
+
+  if (method === "POST" && pathname === "/layers-intent") {
+    try {
+      var layersIntent = LayersIntentSchema.parse(bodyText ? JSON.parse(bodyText) : {});
+      if (layersIntent.fixedMove === true) {
+        persistFixedMove(layersIntent);
+      }
+      var operation = createGrabOperation(layersIntent, layersIntent.measuredRects.length > 0 ? "previewed" : "proposed");
+      if (layersIntent.fixedMove === true) notifyFixedMove(layersIntent);
+      return jsonResponse(202, { queued: true, operationId: operation.id, batchId: operation.batchId, sequence: operation.sequence });
+    } catch (err) {
+      return jsonResponse(400, { error: (err as Error).message });
+    }
+  }
+
+  if (method === "GET" && pathname === "/layers-operation") {
+    var operationId = parsedUrl.searchParams.get("id");
+    if (!operationId) return jsonResponse(400, { error: "operation id is required" });
+    try {
+      var operation = getGrabOperation(operationId) as GrabOperation;
+      return jsonResponse(200, { id: operation.id, state: operation.state, updatedAt: operation.updatedAt });
+    } catch (err) {
+      return jsonResponse(404, { error: (err as Error).message });
+    }
+  }
+
   return { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" }, body: "Not found" };
+}
+
+function jsonResponse(status: number, value: unknown): GrabResponse {
+  return { status: status, headers: { "Content-Type": "application/json; charset=utf-8" }, body: JSON.stringify(value, null, 2) };
 }
 
 function installFetchShim(): void {
@@ -506,33 +1333,65 @@ function allocateShimPort(): number {
 }
 
 function drainCurrentQueue(session: BridgeSession): GrabBridgeDrainResult {
-  var items = session.queue.splice(0);
-  return { count: items.length, elements: items };
+  var now = new Date().toISOString();
+  var items = session.queue.filter(function (item) { return item.state === "sent" && !item.drainedAt; });
+  for (var i = 0; i < items.length; i++) items[i].drainedAt = now;
+  var result: GrabBridgeDrainResult = { count: items.length, elements: items };
+  var commit = latestUndeliveredCommit(session);
+  if (commit) {
+    commit.deliveredAt = now;
+    result.batchCommit = { batchId: commit.batchId, committedAt: commit.committedAt };
+    result.batch = getGrabBatch(session, commit.batchId);
+  }
+  return result;
 }
 
 function resolveWaiters(session: BridgeSession): void {
-  if (session.queue.length === 0 || session.waiters.length === 0) return;
-  var items = session.queue.splice(0);
+  if (!hasDrainableChanges(session) || session.waiters.length === 0) return;
+  var result = drainCurrentQueue(session);
   var waiters = session.waiters.splice(0);
-  for (var i = 0; i < waiters.length; i++) {
-    waiters[i](items);
+  waiters[0](result);
+  var followUp: GrabBridgeDrainResult = { count: result.count, elements: result.elements };
+  for (var i = 1; i < waiters.length; i++) {
+    waiters[i](followUp);
   }
 }
 
-function waitForGrabItems(session: BridgeSession, timeoutMs: number): Promise<GrabBridgeSelection[]> {
+function waitForGrabItems(session: BridgeSession, timeoutMs: number): Promise<GrabBridgeDrainResult> {
   return new Promise(function (resolveItems) {
-    var wrapper = function (items: GrabBridgeSelection[]) {
+    var wrapper = function (result: GrabBridgeDrainResult) {
       clearTimeout(timer);
       var idx = session.waiters.indexOf(wrapper);
       if (idx !== -1) session.waiters.splice(idx, 1);
-      resolveItems(items);
+      resolveItems(result);
     };
     var timer = setTimeout(function () {
       var idx = session.waiters.indexOf(wrapper);
       if (idx !== -1) session.waiters.splice(idx, 1);
-      resolveItems([]);
+      resolveItems({ count: 0, elements: [] });
     }, timeoutMs);
 
     session.waiters.push(wrapper);
   });
+}
+
+function latestUndeliveredCommit(session: BridgeSession): GrabBatchCommit | undefined {
+  return Object.keys(session.batchCommits).map(function (batchId) { return session.batchCommits[batchId]; })
+    .filter(function (commit) { return !commit.deliveredAt; })
+    .sort(function (a, b) { return a.committedAt.localeCompare(b.committedAt); })[0];
+}
+
+function hasDrainableChanges(session: BridgeSession): boolean {
+  return session.queue.some(function (item) { return item.state === "sent" && !item.drainedAt; }) || !!latestUndeliveredCommit(session);
+}
+
+function pendingChangeCount(session: BridgeSession): number {
+  // Capacity is for undrained work only. Drain marks drainedAt but keeps
+  // history for batch/commit — counting drained items made the 200-cap
+  // permanent and made "drain with get_grabbed_elements" a false remediation.
+  return allChanges(session).filter(function (change) {
+    if (!isPendingChange(change)) return false;
+    if ("drainedAt" in change && (change as GrabBridgeSelection).drainedAt) return false;
+    return true;
+  }).length;
 }
