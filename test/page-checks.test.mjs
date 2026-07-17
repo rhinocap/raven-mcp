@@ -325,3 +325,49 @@ test("runPageChecks svg-color: normal full page with currentColor icon — no wa
     "a pass string mentions '0 hardcoded'"
   );
 });
+
+// ── Designer-journey: flex-wrap only when multi-column layout is suggested ──
+
+function wrapHtmlNoFlex(bodyContent, extraStyle = "") {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test page</title>
+  <style>
+    :root { --c: #fff; }
+    body { padding: clamp(16px, 4vw, 24px); }
+    ${extraStyle}
+  </style>
+</head>
+<body>
+${bodyContent}
+</body>
+</html>`;
+}
+
+test("runPageChecks flex-wrap: full-bleed single-column page passes without flex-wrap warning", () => {
+  const html = wrapHtmlNoFlex(`<main><h1>Hero</h1><p>One column marketing copy.</p></main>`);
+  const res = runPageChecks(html);
+  assert.strictEqual(findIssue(res, "responsive/flex-wrap"), undefined);
+  assert.ok(hasPass(res, "No multi-column card layout"), "should pass: flex-wrap not required");
+});
+
+test("runPageChecks flex-wrap: warns when card-like classes suggest multi-column without flex-wrap", () => {
+  const html = wrapHtmlNoFlex(`
+    <div class="card">A</div>
+    <div class="card">B</div>
+    <div class="card">C</div>
+  `);
+  const res = runPageChecks(html);
+  const issue = findIssue(res, "responsive/flex-wrap");
+  assert.ok(issue, "responsive/flex-wrap warning expected for 3+ card classes");
+  assert.strictEqual(issue.severity, "warning");
+});
+
+test("runPageChecks flex-wrap: warns when grid-template-columns present without flex-wrap", () => {
+  const html = wrapHtmlNoFlex(`<div class="grid">tiles</div>`, ".grid { grid-template-columns: 1fr 1fr; }");
+  const res = runPageChecks(html);
+  assert.ok(findIssue(res, "responsive/flex-wrap"), "grid-template-columns should trigger flex-wrap warning");
+});

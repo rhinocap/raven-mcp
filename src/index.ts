@@ -1704,7 +1704,7 @@ const REMOTE_URL_GUARDED_TOOLS: { [tool: string]: string } = {
   audit_taste: "url"
 };
 
-// buildServer() returns a FRESH McpServer with all 70 tools + the usage-log/
+// buildServer() returns a FRESH McpServer with all 78 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
@@ -1715,7 +1715,7 @@ export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }
 // stateful/local + 5 fs/network/side-effect capability tools; evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 70.
+// without threading opts. stdio callers pass nothing → remote=false → all 78.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -6396,7 +6396,7 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 70 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 78 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });

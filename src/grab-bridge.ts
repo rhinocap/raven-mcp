@@ -1386,5 +1386,12 @@ function hasDrainableChanges(session: BridgeSession): boolean {
 }
 
 function pendingChangeCount(session: BridgeSession): number {
-  return allChanges(session).filter(isPendingChange).length;
+  // Capacity is for undrained work only. Drain marks drainedAt but keeps
+  // history for batch/commit — counting drained items made the 200-cap
+  // permanent and made "drain with get_grabbed_elements" a false remediation.
+  return allChanges(session).filter(function (change) {
+    if (!isPendingChange(change)) return false;
+    if ("drainedAt" in change && (change as GrabBridgeSelection).drainedAt) return false;
+    return true;
+  }).length;
 }

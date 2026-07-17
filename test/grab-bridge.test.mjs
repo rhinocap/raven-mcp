@@ -1632,3 +1632,43 @@ test('start_grab_session rejects when both path and proxy_target are omitted', a
     assert.match(started.content[0].text, /path.*proxy_target|proxy_target.*path/i);
   });
 });
+
+test('drain frees grab queue capacity so later sends succeed after filling the cap', async () => {
+  const grabMod = await import(path.resolve(__dirname, '../dist/grab-bridge.js'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'raven-grab-cap-'));
+  const designPath = path.join(dir, 'DESIGN.md');
+  await writeFile(designPath, `---\ncolors:\n  primary: "#111111"\n---\n# Cap fixture\n`, 'utf8');
+
+  try {
+    await grabMod.startGrabSession(designPath);
+    for (let i = 0; i < 200; i++) {
+      grabMod.queueGrabSelection({
+        selector: `#el-${i}`,
+        html: `<div id="el-${i}">x</div>`,
+        rect: { x: 0, y: 0, w: 10, h: 10 },
+        instruction: `change ${i}`
+      });
+    }
+    await assert.rejects(
+      async () => grabMod.queueGrabSelection({
+        selector: '#overflow',
+        html: '<div id="overflow">x</div>',
+        rect: { x: 0, y: 0, w: 10, h: 10 },
+        instruction: 'overflow'
+      }),
+      /queue is full/i
+    );
+    const drained = await grabMod.getGrabbedElements();
+    assert.equal(drained.count, 200);
+    // After drain, capacity must free — this was the regression from mark-only drain.
+    const after = grabMod.queueGrabSelection({
+      selector: '#after-drain',
+      html: '<div id="after-drain">x</div>',
+      rect: { x: 0, y: 0, w: 10, h: 10 },
+      instruction: 'after drain'
+    });
+    assert.equal(after.selector, '#after-drain');
+  } finally {
+    await grabMod.stopGrabSession();
+  }
+});
