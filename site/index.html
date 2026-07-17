@@ -1978,7 +1978,7 @@
             "name": "What is RavenMCP?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "RavenMCP (Raven) is an open-source Model Context Protocol (MCP) server that gives AI agents like Claude design intelligence — the design knowledge once locked in expert heads. It exposes 70 tools spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits, and a Taste Engine that holds every build to the owner's own design judgment."
+              "text": "RavenMCP (Raven) is an open-source Model Context Protocol (MCP) server that gives AI agents like Claude design intelligence — the design knowledge once locked in expert heads. It exposes 90+ tools locally (npx, Claude Code/Desktop, or Cursor) spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits, and a Taste Engine that holds every build to the owner's own design judgment. The public remote endpoint serves a smaller stateless subset."
             }
           },
           {
@@ -2002,7 +2002,7 @@
             "name": "Which AI agents work with RavenMCP?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "RavenMCP works with any client that supports the Model Context Protocol — Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's 70 tools directly during a conversation."
+              "text": "RavenMCP works with any client that supports the Model Context Protocol — Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed locally, the agent can call all 90+ of Raven's tools directly during a conversation; the public remote endpoint serves a smaller stateless subset."
             }
           },
           {
@@ -2072,6 +2072,7 @@
         </button>
       </div>
       <div class="hero-text-links reveal reveal-delay-3">
+        <a href="/docs.html#quickstart" class="btn-text-link">Install in Cursor →</a>
         <a href="/docs.html" class="btn-text-link">Docs →</a>
         <a href="https://github.com/rhinocap/raven-mcp" class="btn-text-link">View on GitHub →</a>
       </div>
@@ -3434,7 +3435,7 @@
       <div class="faq-list reveal reveal-delay-3">
         <div class="faq-item">
           <h3>What is RavenMCP?</h3>
-          <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server that gives AI agents like Claude design intelligence &mdash; the design knowledge once locked in expert heads. It exposes 70 tools spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits, and a Taste Engine that holds every build to the owner's own design judgment.</p>
+          <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server that gives AI agents like Claude design intelligence &mdash; the design knowledge once locked in expert heads. It exposes 90+ tools locally (npx, Claude Code/Desktop, or Cursor) spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits, and a Taste Engine that holds every build to the owner's own design judgment. The public remote endpoint trades local-only tools (Grab, the Taste Engine's file store) for a smaller stateless subset &mdash; see the <a href="/docs.html#quickstart">docs</a> for the exact split.</p>
         </div>
         <div class="faq-item">
           <h3>How do I install RavenMCP?</h3>
@@ -3446,7 +3447,7 @@
         </div>
         <div class="faq-item">
           <h3>Which AI agents work with RavenMCP?</h3>
-          <p>Raven works with any client that supports the Model Context Protocol &mdash; Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's 70 tools directly during a conversation.</p>
+          <p>Raven works with any client that supports the Model Context Protocol &mdash; Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed locally, the agent can call all 90+ of Raven's tools directly during a conversation; connecting to the public remote endpoint instead trades local-only tools for a smaller stateless subset (see the docs for details).</p>
         </div>
         <div class="faq-item">
           <h3>What platforms can RavenMCP audit?</h3>

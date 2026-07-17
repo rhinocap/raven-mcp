@@ -22,7 +22,7 @@ import { capturePage, verifyFindings, CaptureUnavailableError } from "./capture.
 import type { Interaction, Theme, VerifiableFinding, FindingVerdict } from "./capture.js";
 import { runPageChecks } from "./page-checks.js";
 import { captureResponsiveVisibility } from "./responsive.js";
-import { auditContrastUrl } from "./contrast.js";
+import { auditContrastUrl, collapseShortTextContrastFailures } from "./contrast.js";
 import { auditImageEdges } from "./asset-integrity.js";
 import { diffScreenshots } from "./image-diff.js";
 
@@ -307,41 +307,79 @@ export async function auditUrl(url: string, opts: AuditUrlOptions = {}): Promise
       // ── Per-element WCAG contrast ────────────────────────────────────────────
       try {
         const contrast = await auditContrastUrl(url, { viewport: { w: vp.w, h: vp.h }, theme, timeoutMs });
-        for (const row of contrast.aa_failures) {
-          findings.push({
-            source: "contrast",
-            rule: "contrast/aa",
-            severity: "error",
-            message:
-              "Text fails WCAG AA contrast (" +
-              row.ratio +
-              ":1, needs " +
-              row.required_aa +
-              ":1)" +
-              (row.text ? ': "' + row.text + '"' : ""),
-            fix:
-              "Increase contrast by " +
-              row.delta_to_aa +
-              " — darken the text or lighten the background until the ratio reaches " +
-              row.required_aa +
-              ":1.",
-            selector: row.selector,
-            viewport: vpLabel,
-            theme,
-            verdict: "confirmed",
-            evidence:
-              "computed ratio " +
-              row.ratio +
-              ":1 between " +
-              row.foreground +
-              " on " +
-              row.background +
-              " at " +
-              row.fontPx +
-              "px (required AA " +
-              row.required_aa +
-              ":1)"
-          });
+        const contrastGroups = collapseShortTextContrastFailures(contrast.aa_failures);
+        for (const group of contrastGroups) {
+          const rep = group.rows[0];
+          if (group.isShortTextGroup) {
+            const sampleTexts = group.rows.slice(0, 5).map((r) => JSON.stringify(r.text));
+            findings.push({
+              source: "contrast",
+              rule: "contrast/aa",
+              severity: "warning",
+              message:
+                group.rows.length +
+                (group.rows.length === 1 ? " short text fragment fails" : " short text fragments fail") +
+                " WCAG AA contrast (ratio " +
+                rep.ratio +
+                ":1, needs " +
+                rep.required_aa +
+                ":1) — likely motion-split or icon glyphs; inspect parent, not each letter",
+              fix:
+                "Check contrast on the parent element or shared style rule (not each fragment) — darken text or lighten background until the ratio reaches " +
+                rep.required_aa +
+                ":1. If this is a deliberate icon glyph, no action is needed.",
+              selector: rep.selector,
+              viewport: vpLabel,
+              theme,
+              verdict: "likely-artifact",
+              evidence:
+                "computed ratio " +
+                rep.ratio +
+                ":1 between " +
+                rep.foreground +
+                " on " +
+                rep.background +
+                " across " +
+                group.rows.length +
+                " short text fragment(s); sample texts: " +
+                sampleTexts.join(", ")
+            });
+          } else {
+            findings.push({
+              source: "contrast",
+              rule: "contrast/aa",
+              severity: "error",
+              message:
+                "Text fails WCAG AA contrast (" +
+                rep.ratio +
+                ":1, needs " +
+                rep.required_aa +
+                ":1)" +
+                (rep.text ? ': "' + rep.text + '"' : ""),
+              fix:
+                "Increase contrast by " +
+                rep.delta_to_aa +
+                " — darken the text or lighten the background until the ratio reaches " +
+                rep.required_aa +
+                ":1.",
+              selector: rep.selector,
+              viewport: vpLabel,
+              theme,
+              verdict: "confirmed",
+              evidence:
+                "computed ratio " +
+                rep.ratio +
+                ":1 between " +
+                rep.foreground +
+                " on " +
+                rep.background +
+                " at " +
+                rep.fontPx +
+                "px (required AA " +
+                rep.required_aa +
+                ":1)"
+            });
+          }
         }
       } catch (error) {
         if (error instanceof CaptureUnavailableError) {

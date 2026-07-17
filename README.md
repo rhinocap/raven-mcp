@@ -39,6 +39,17 @@ claude mcp add raven -- npx -y raven-mcp
 }
 ```
 
+### Cursor
+Same `mcp.json` snippet as above (`~/.cursor/mcp.json` or project `.cursor/mcp.json`) runs the full local server. To use the hosted endpoint instead of installing anything, point `url` at `https://mcp.ravenmcp.ai/api/mcp` — that's a public, no-auth, ~45-tool stateless subset (no Grab, no Taste Engine). Full details, including the authenticated Taste Engine endpoint, are in the [docs](https://ravenmcp.ai/docs.html#quickstart).
+
+### Codex
+Add under `mcp_servers` in `config.toml`:
+```toml
+[mcp_servers.raven]
+command = "npx"
+args = ["-y", "raven-mcp"]
+```
+
 ### Claude Desktop — one-click extension
 Prefer not to edit JSON? Download [raven.mcpb](https://ravenmcp.ai/raven.mcpb) and double-click it. Claude Desktop installs Raven automatically — no Node, no terminal.
 
@@ -115,6 +126,26 @@ cd raven-mcp && npm install && npm run build
 | `audit_taste` | Judge HTML, copy text, or a live URL against a taste profile — deterministic detectors for gradients, glow/neon, second accent hue, and banned words; `owner: raven` rules route through Raven's existing page/contrast/tap-target engines; every finding cites a rule_id + concrete evidence (undetectable clauses are reported as `not_assessed`, never guessed); scope-tagged rules activate per `surface` (skipped elsewhere, warn-only when surface is omitted); pass `project` to apply a saved surface binding automatically; `document_kind:'portrait'` skips note-fidelity for documents *about* a surface (rules still run); `data-taste-quote` regions are exempt from detectors so a page is never convicted for quoting the law; verdict BLOCK / WARN / PASS |
 | `generate_taste_portrait` | Render a bound taste surface as a self-contained designed HTML page (its rules, notes, voice, decisions, and wrong→right corpus) that obeys the surface it describes — art direction routes by the surface's own color permissions; sparse surfaces degrade gracefully. Omit `project` to render every binding plus a gallery. Every portrait passes `audit_taste` (`document_kind:'portrait'`) against its own surface |
 | `raven_reflect` | Summarize your local Raven usage log to find patterns + gaps |
+
+## Decision Graph
+
+The local Decision Graph keeps three node kinds: decisions, evidence, and sources. Five edge types connect them: `supersedes`, `scoped_alongside`, `supports`, `contradicts`, and `derived_from`. Decisions are superseded or contested; nodes are not hard-deleted.
+
+- `decision_add` — add an active decision with its scope, component, rationale, and rejected alternatives.
+- `decision_get` — return one node and its connected neighbors.
+- `decision_list` — list active, superseded, contested, or draft decisions.
+- `decision_draft` — capture a decision before its rationale is confirmed.
+- `decision_commit` — confirm a rationale and surface similar active decisions for review.
+- `decision_supersede` — replace a decision while keeping both nodes and their lineage.
+- `decision_scope` — narrow two active decisions so they can coexist.
+- `decision_history` — return a supersession lineage from oldest to newest.
+- `ingest_transcript` — store a Source node and return the extraction prompt for the calling model.
+- `ingest_transcript_results` — turn extracted JSON into low-trust drafts linked with `derived_from` edges.
+- `gap_scan` — rank uncovered components, missing or thin rationales, contested decisions, and derived staleness; `digest_only:true` is quiet when no action is needed.
+
+The end-to-end flow is: transcript → `ingest_transcript` (Source node plus extraction prompt) → the calling model extracts decisions → `ingest_transcript_results` creates low-trust drafts with `derived_from` edges → review and `decision_commit` run the conflict check → resolve conflicts with `decision_supersede` or `decision_scope` → use `decision_history` for lineage → run the `gap_scan` digest for hands-off health checks.
+
+Evidence nodes and `supports` / `contradicts` edges are in the schema for quantitative and qualitative results. Tools for attaching evidence are a later stage.
 
 ## Click-to-change (grab) + DESIGN.md
 

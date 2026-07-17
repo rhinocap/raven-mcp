@@ -69,8 +69,14 @@ export function runPageChecks(html: string, opts?: PageChecksOptions): PageCheck
 
   // ── Responsive checks
   var hasFlexWrap = /flex-wrap\s*:\s*wrap/.test(html);
+  // flex-wrap only matters for multi-column card/grid layouts — a single-column
+  // full-bleed marketing page has nothing that needs to wrap, so don't nag it.
+  var hasGridTemplateColumns = /grid-template-columns/.test(html);
+  var cardLikeClassMatches = html.match(/class\s*=\s*"[^"]*\b(?:card|grid-item|tile|column)s?\b[^"]*"/gi) || [];
+  var suggestsMultiColumnLayout = hasGridTemplateColumns || cardLikeClassMatches.length >= 3;
   if (hasFlexWrap) passes.push("Uses flex-wrap for fluid layout");
-  else issues.push({ severity: "warning", rule: "responsive/flex-wrap", message: "No flex-wrap detected. Cards and grids should use display:flex; flex-wrap:wrap with min-width on children", fix: "Replace grid-template-columns with display:flex; flex-wrap:wrap and flex:1 1 280px; min-width:280px on children" });
+  else if (suggestsMultiColumnLayout) issues.push({ severity: "warning", rule: "responsive/flex-wrap", message: "No flex-wrap detected. Cards and grids should use display:flex; flex-wrap:wrap with min-width on children", fix: "Replace grid-template-columns with display:flex; flex-wrap:wrap and flex:1 1 280px; min-width:280px on children" });
+  else passes.push("No multi-column card layout detected — flex-wrap not required");
 
   var gridInMedia = html.match(/@media[\s\S]*?grid-template-columns/g) || [];
   if (gridInMedia.length === 0) passes.push("No grid-template-columns in media queries");

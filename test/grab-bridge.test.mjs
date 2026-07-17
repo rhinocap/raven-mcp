@@ -1599,3 +1599,36 @@ test('browser overlay mirrors the web overlay byte-for-byte', async () => {
   const mirror = await readFile(path.resolve(__dirname, '../web/public/raven-grab.js'), 'utf8');
   assert.equal(source, mirror);
 });
+
+test('start_grab_session succeeds with only proxy_target set and no path, using an auto-created temp DESIGN.md', async () => {
+  await withClient(indexMod.buildServer({}), async (client) => {
+    try {
+      const started = await client.callTool({
+        name: 'start_grab_session',
+        arguments: { proxy_target: 'http://127.0.0.1:9' }
+      });
+      assert.equal(started.isError, undefined, `expected success, got: ${started.content && started.content[0] && started.content[0].text}`);
+      const session = JSON.parse(started.content[0].text);
+      assert.equal(typeof session.path, 'string');
+      assert.ok(session.path.length > 0, 'session.path should be populated with the auto-created temp DESIGN.md path');
+      assert.match(session.path, /raven-grab-design-.*\.md$/);
+    } finally {
+      await client.callTool({ name: 'stop_grab_session', arguments: {} });
+    }
+  });
+});
+
+
+test('start_grab_session rejects when both path and proxy_target are omitted', async () => {
+  await withClient(indexMod.buildServer({}), async (client) => {
+    const started = await client.callTool({
+      name: 'start_grab_session',
+      arguments: {}
+    });
+    if (!started.isError) {
+      await client.callTool({ name: 'stop_grab_session', arguments: {} });
+    }
+    assert.equal(started.isError, true);
+    assert.match(started.content[0].text, /path.*proxy_target|proxy_target.*path/i);
+  });
+});

@@ -36,6 +36,7 @@ let auditContrastUrl;
 let CaptureUnavailableError;
 let compositeBackground;
 let suggestContrastFix;
+let collapseShortTextContrastFailures;
 
 try {
   const mod = await import(distContrast);
@@ -48,6 +49,7 @@ try {
   // CaptureUnavailableError may be re-exported from contrast.ts or the error class itself
   CaptureUnavailableError = mod.CaptureUnavailableError;
   suggestContrastFix = mod.suggestContrastFix;
+  collapseShortTextContrastFailures = mod.collapseShortTextContrastFailures;
 } catch (err) {
   const msg = `dist/contrast.js not found — run \`npm run build\` first. (${err.message})`;
   test('contrast module available', (t) => { t.skip(msg); });
@@ -618,4 +620,97 @@ test('suggestContrastFix: purity — each call returns a fresh object', () => {
   if (a.fgFix !== null && b.fgFix !== null) {
     assert.ok(a.fgFix !== b.fgFix, 'Each call should return a distinct fgFix object reference');
   }
+});
+
+// ── collapseShortTextContrastFailures ─────────────────────────────────────────
+
+function row(overrides) {
+  return {
+    selector: 'div',
+    text: '',
+    foreground: 'rgb(170,170,170)',
+    background: 'rgb(255,255,255)',
+    fontPx: 16,
+    bold: false,
+    large: false,
+    ratio: 2.3,
+    aa: false,
+    aaa: false,
+    required_aa: 4.5,
+    delta_to_aa: 2.2,
+    ...overrides,
+  };
+}
+
+test('collapseShortTextContrastFailures: 1/2-char rows sharing context collapse into one group', () => {
+  const rows = [
+    row({ selector: '.split-a', text: 'H' }),
+    row({ selector: '.split-b', text: 'i' }),
+    row({ selector: '.split-c', text: '!' }),
+  ];
+  const groups = collapseShortTextContrastFailures(rows);
+  assert.strictEqual(groups.length, 1, 'all three short fragments collapse into one group');
+  assert.strictEqual(groups[0].isShortTextGroup, true, 'group is flagged as a short-text group');
+  assert.strictEqual(groups[0].rows.length, 3, 'group retains all 3 rows');
+});
+
+test('collapseShortTextContrastFailures: 0-length text counts as short (icon glyphs)', () => {
+  const rows = [row({ selector: '.icon-a', text: '' }), row({ selector: '.icon-b', text: '   ' })];
+  const groups = collapseShortTextContrastFailures(rows);
+  assert.strictEqual(groups.length, 1);
+  assert.strictEqual(groups[0].isShortTextGroup, true);
+  assert.strictEqual(groups[0].rows.length, 2);
+});
+
+test('collapseShortTextContrastFailures: 3+ char text is never grouped, stays a single-row group', () => {
+  const rows = [
+    row({ selector: '.para-a', text: 'Low contrast paragraph text' }),
+    row({ selector: '.para-b', text: 'Another low contrast paragraph' }),
+  ];
+  const groups = collapseShortTextContrastFailures(rows);
+  assert.strictEqual(groups.length, 2, 'each long-text failure stays its own group');
+  for (const g of groups) {
+    assert.strictEqual(g.isShortTextGroup, false);
+    assert.strictEqual(g.rows.length, 1);
+  }
+});
+
+test('collapseShortTextContrastFailures: short-text rows only collapse when context (fg/bg/required_aa) matches', () => {
+  const rows = [
+    row({ selector: '.a', text: 'a', foreground: 'rgb(1,1,1)' }),
+    row({ selector: '.b', text: 'b', foreground: 'rgb(2,2,2)' }),
+    row({ selector: '.c', text: 'c', required_aa: 3 }),
+  ];
+  const groups = collapseShortTextContrastFailures(rows);
+  assert.strictEqual(groups.length, 3, 'different (fg/bg/required_aa) contexts do not collapse together');
+  for (const g of groups) assert.strictEqual(g.isShortTextGroup, true);
+});
+
+test('collapseShortTextContrastFailures: a lone short-text failure is still a short-text group (size 1)', () => {
+  const rows = [row({ selector: '.lone', text: 'x' })];
+  const groups = collapseShortTextContrastFailures(rows);
+  assert.strictEqual(groups.length, 1);
+  assert.strictEqual(groups[0].isShortTextGroup, true, 'a single short fragment is still marked as a short-text group');
+  assert.strictEqual(groups[0].rows.length, 1);
+});
+
+test('collapseShortTextContrastFailures: mixed short + long rows partition correctly', () => {
+  const rows = [
+    row({ selector: '.long', text: 'A full sentence of low-contrast copy' }),
+    row({ selector: '.g1', text: 'A' }),
+    row({ selector: '.g2', text: 'B' }),
+  ];
+  const groups = collapseShortTextContrastFailures(rows);
+  assert.strictEqual(groups.length, 2, 'one long-text group + one collapsed short-text group');
+  const shortGroup = groups.find((g) => g.isShortTextGroup);
+  const longGroup = groups.find((g) => !g.isShortTextGroup);
+  assert.ok(shortGroup, 'short-text group exists');
+  assert.ok(longGroup, 'long-text group exists');
+  assert.strictEqual(shortGroup.rows.length, 2, 'short-text group has both single-letter rows');
+  assert.strictEqual(longGroup.rows.length, 1);
+});
+
+test('collapseShortTextContrastFailures: empty input returns empty array', () => {
+  const groups = collapseShortTextContrastFailures([]);
+  assert.deepEqual(groups, []);
 });
