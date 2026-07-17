@@ -181,6 +181,8 @@
       font-size: 14px;
       line-height: 1.7;
       color: var(--text-secondary);
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
     }
     .code-label {
       position: absolute;
@@ -231,7 +233,7 @@
       margin-left: var(--space-2);
     }
     .tool-card .params dt .optional {
-      color: var(--text-tertiary);
+      color: #86888E;
       font-size: 11px;
       font-weight: 600;
       margin-left: var(--space-2);

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import DesignSystemScripts from '@/components/DesignSystemScripts'
 import './design-system.css'
+import { TOOL_COUNT, LAYER_COUNT } from '@/lib/counts'
 
 
 export const metadata: Metadata = {
@@ -74,7 +75,7 @@ export default function DesignSystemPage() {
           <div className="sec-head"><span className="sec-num">06</span><h2>Voice &amp; Tone</h2><span className="desc">Bold but clear. Lead with the noun or verb that matters; never trade clarity for cleverness.</span></div>
           <div className="voice-grid">
             <div className="voice-card do"><h3>Do</h3><ul>
-              <li><b>Front-load meaning.</b> "Seventy tools, organized by job."</li>
+              <li><b>Front-load meaning.</b> "{TOOL_COUNT} tools, organized by job."</li>
               <li><b>Be specific.</b> "Render a live URL at every viewport" beats "powerful auditing."</li>
               <li><b>Speak to "you,"</b> the developer driving the agent.</li>
               <li><b>Punchy is fine.</b> "No Figma file. No designer."</li>
@@ -98,7 +99,7 @@ export default function DesignSystemPage() {
           <div className="guard">
             <div className="guard-item"><span className="k">contrast</span><span className="v">Body text <b>≥ 4.5:1</b>, large <b>≥ 3:1</b>. Never sacrifice contrast for a neon-on-dark gradient.</span></div>
             <div className="guard-item"><span className="k">one primary focus</span><span className="v">Exactly <b>one</b> high-contrast primary CTA (a real verb — Install / Get started). Everything else is ghost/secondary.</span></div>
-            <div className="guard-item"><span className="k">consistent terms</span><span className="v">One word per concept. Groupings are <b>layers</b>. Keep counts current — <b>56 tools, 9 layers</b>.</span></div>
+            <div className="guard-item"><span className="k">consistent terms</span><span className="v">One word per concept. Groupings are <b>layers</b>. Keep counts current — <b>{TOOL_COUNT} tools, {LAYER_COUNT} layers</b>.</span></div>
             <div className="guard-item"><span className="k">tap targets</span><span className="v">Every interactive target <b>≥ 44px</b>.</span></div>
             <div className="guard-item"><span className="k">limit the palette</span><span className="v">Five supporting accents are <b>accents</b>, not a rainbow.</span></div>
             <div className="guard-item"><span className="k">logo restraint</span><span className="v">The brand shows through <b>type, color, and voice</b> without leaning on the mark.</span></div>

@@ -4,6 +4,7 @@ import Script from 'next/script'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import RevealAndCopy from '@/components/RevealAndCopy'
+import { TOOL_COUNT } from '@/lib/counts'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -22,8 +23,7 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL('https://ravenmcp.ai'),
   title: 'RavenMCP — Design Intelligence MCP for Claude · Open Source',
-  description:
-    'Pair-design with your coding agent: click any element on your page, edit its tokens and styles, and package the change for Claude — plus 70 tools for UI audits, design-system tokens, and taste checks.',
+  description: `Pair-design with your coding agent: click any element on your page, edit its tokens and styles, and package the change for Claude — plus ${TOOL_COUNT} tools for UI audits, design-system tokens, and taste checks.`,
   applicationName: 'RavenMCP',
   authors: [{ name: 'Andrew Cunliffe' }],
   keywords: [
@@ -40,8 +40,7 @@ export const metadata: Metadata = {
     type: 'website',
     siteName: 'RavenMCP',
     title: 'RavenMCP — Design Intelligence for AI',
-    description:
-      'Pair-design with your coding agent: click any element on your page, edit its tokens and styles, and package the change for Claude — plus 70 tools for UI audits, design-system tokens, and taste checks.',
+    description: `Pair-design with your coding agent: click any element on your page, edit its tokens and styles, and package the change for Claude — plus ${TOOL_COUNT} tools for UI audits, design-system tokens, and taste checks.`,
     url: 'https://ravenmcp.ai',
     images: [
       {
@@ -55,8 +54,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'RavenMCP — Design Intelligence for AI',
-    description:
-      '129 principles · 22 patterns · 70 tools · 12 design systems · a Taste Engine · web, iOS, Android & React Native audits · content voice · research · service blueprints. Design intelligence for AI, in one install.',
+    description: `129 principles · 22 patterns · ${TOOL_COUNT} tools · 12 design systems · a Taste Engine · web, iOS, Android & React Native audits · content voice · research · service blueprints. Design intelligence for AI, in one install.`,
     images: ['/assets/og-image.jpg'],
   },
   robots: { index: true, follow: true },
@@ -111,8 +109,7 @@ const jsonLd = {
       url: 'https://ravenmcp.ai/',
       downloadUrl: 'https://www.npmjs.com/package/raven-mcp',
       softwareHelp: 'https://ravenmcp.ai/docs.html',
-      description:
-        "RavenMCP is an open-source Model Context Protocol server that gives AI agents like Claude design intelligence: 70 tools spanning 129 design principles, 22 UI patterns, 12 design-system token libraries, content voice, brand, research, service blueprints, design audits for web, iOS, Android, and React Native, and a Taste Engine that holds every build to the owner's own design judgment.",
+      description: `RavenMCP is an open-source Model Context Protocol server that gives AI agents like Claude design intelligence: ${TOOL_COUNT} tools spanning 129 design principles, 22 UI patterns, 12 design-system token libraries, content voice, brand, research, service blueprints, design audits for web, iOS, Android, and React Native, and a Taste Engine that holds every build to the owner's own design judgment.`,
       license: 'https://opensource.org/licenses/MIT',
       isAccessibleForFree: true,
       author: { '@type': 'Person', name: 'Andrew Cunliffe' },
@@ -137,7 +134,7 @@ const jsonLd = {
           name: 'What is RavenMCP?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'RavenMCP (Raven) is an open-source Model Context Protocol (MCP) server. Add it to Claude or Cursor, and your agent can call 70 local tools for design principles, UI patterns, design-system tokens, content voice, research methods, service blueprints, multi-platform audits, and project-specific taste checks.',
+            text: `RavenMCP (Raven) is an open-source Model Context Protocol (MCP) server. Add it to Claude or Cursor, and your agent can call ${TOOL_COUNT} local tools for design principles, UI patterns, design-system tokens, content voice, research methods, service blueprints, multi-platform audits, and project-specific taste checks.`,
           },
         },
         {
@@ -161,7 +158,7 @@ const jsonLd = {
           name: 'Which AI agents work with RavenMCP?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: "RavenMCP works with any client that supports the Model Context Protocol — Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's 70 tools directly during a conversation.",
+            text: `RavenMCP works with any client that supports the Model Context Protocol — Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's ${TOOL_COUNT} tools directly during a conversation.`,
           },
         },
         {

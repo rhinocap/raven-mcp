@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
 import DocsScripts from '@/components/DocsScripts'
 import './docs.css'
+import { TOOL_COUNT, LAYER_COUNT } from '@/lib/counts'
 
 
 export const metadata: Metadata = {
   title: 'Docs — RavenMCP',
-  description:
-    'Install RavenMCP and use its 70 design-intelligence tools with Claude. Full setup for Claude Code, Claude Desktop, and any MCP client.',
+  description: `Install RavenMCP and use its ${TOOL_COUNT} design-intelligence tools with Claude. Full setup for Claude Code, Claude Desktop, and any MCP client.`,
   alternates: { canonical: '/docs' },
 };
 
@@ -98,11 +98,11 @@ export default function DocsPage() {
       
           {/* ── Tool Reference ── */}
           <h2 id="tools" className="reveal">Tool Reference</h2>
-          <p>Raven provides 70 tools across 9 knowledge layers. Claude calls the relevant tool based on the task; the cards below show what each tool returns.</p>
+          <p>Raven provides {TOOL_COUNT} tools across {LAYER_COUNT} knowledge layers. Claude calls the relevant tool based on the task; the cards below show what each tool returns.</p>
       
           <h3>Principles Layer</h3>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>get_principles</h3>
             <p className="tool-desc">Get design principles relevant to a UI context. Returns usability heuristics, Laws of UX, Gestalt principles, accessibility rules, typography, color theory, mobile UX, and responsive layout.</p>
             <dl className="params">
@@ -119,7 +119,7 @@ export default function DocsPage() {
       "Check this against Nielsen's heuristics"</code></pre>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>evaluate_design</h3>
             <p className="tool-desc">Evaluate a design description against UX principles. Returns relevant principles, potential violations, and improvement suggestions.</p>
             <dl className="params">
@@ -135,7 +135,7 @@ export default function DocsPage() {
        button says Submit. Evaluate it for conversion."</code></pre>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>get_d4d_framework</h3>
             <p className="tool-desc">Get Design for Delight (D4D) templates — customer problem statement, ideal state, hypothesis, LOFAs, and experiment design.</p>
             <dl className="params">
@@ -146,7 +146,7 @@ export default function DocsPage() {
       
           <h3>Patterns Layer</h3>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>get_pattern</h3>
             <p className="tool-desc">Get UI/UX pattern guidance for a specific design type. Returns do's, don'ts, evidence, and checklists.</p>
             <dl className="params">
@@ -162,7 +162,7 @@ export default function DocsPage() {
       "What does a high-converting pricing page need?"</code></pre>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>get_checklist</h3>
             <p className="tool-desc">Get a pre-publish checklist for a UI type. Returns actionable yes/no items to verify before shipping.</p>
             <dl className="params">
@@ -178,7 +178,7 @@ export default function DocsPage() {
       
           <h3>Business Layer</h3>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>get_business_strategy</h3>
             <p className="tool-desc">Get business and monetization strategies for digital products. Covers monetization, retention, onboarding, growth, and metrics.</p>
             <dl className="params">
@@ -191,7 +191,7 @@ export default function DocsPage() {
       
           <h3>Tokens Layer</h3>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>list_design_systems</h3>
             <p className="tool-desc">Browse available design systems. Filter by category or search by name.</p>
             <dl className="params">
@@ -202,7 +202,7 @@ export default function DocsPage() {
             </dl>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>get_design_system</h3>
             <p className="tool-desc">Get design tokens for a specific system. Returns colors, typography, spacing, radii, elevation, and motion tokens.</p>
             <dl className="params">
@@ -218,7 +218,7 @@ export default function DocsPage() {
       "Give me Linear's typography scale as CSS variables"</code></pre>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>compose_system</h3>
             <p className="tool-desc">Mix tokens from different design systems to create a custom composite.</p>
             <dl className="params">
@@ -234,7 +234,7 @@ export default function DocsPage() {
       
           <h3>Search</h3>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>search_knowledge</h3>
             <p className="tool-desc">Search across all principles, patterns, and strategies. Use when you need to find specific guidance or don't know which category to look in.</p>
             <dl className="params">
@@ -247,7 +247,7 @@ export default function DocsPage() {
       
           <h3>Advanced Tools</h3>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>audit_page</h3>
             <p className="tool-desc">Audit an HTML page against design standards. Returns a score, grade, passes, and errors with specific fix recommendations.</p>
             <dl className="params">
@@ -263,7 +263,7 @@ export default function DocsPage() {
       "Check this signup form for WCAG compliance"</code></pre>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>get_brand_system</h3>
             <p className="tool-desc">Get a complete brand design system for a well-known company. Returns colors, typography, spacing, CSS variables, and implementation rules.</p>
             <dl className="params">
@@ -277,7 +277,7 @@ export default function DocsPage() {
       "Use Apple's design language for this landing page"</code></pre>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>generate_design_system</h3>
             <p className="tool-desc">Generate a complete, custom design system with full token set. Provide a brand color to auto-generate a harmonious palette, pick a style preset, and export as visual HTML documentation, CSS variables, W3C DTCG JSON, Figma Variables, or SVG palette card.</p>
             <dl className="params">
@@ -302,13 +302,13 @@ export default function DocsPage() {
       
           <h3>Content Design Layer <span style={{ color: 'var(--accent-blue)', fontSize: '13px', letterSpacing: '0.08em', fontWeight: '600' }}>v1.2</span></h3>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>list_content_systems</h3>
             <p className="tool-desc">Browse the registry of brand voice &amp; tone systems. Four live: Mailchimp, GOV.UK, Shopify Polaris, Atlassian. Filter by category or tag.</p>
             <pre><code>"Which brand voice guides does Raven know about?"</code></pre>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>get_content_system</h3>
             <p className="tool-desc">Full voice &amp; tone system for one brand — attributes, tone shifts by context (onboarding/errors/billing/success), vocabulary (use/avoid/never), grammar rules, content patterns, inclusive language.</p>
             <dl className="params">
@@ -321,12 +321,12 @@ export default function DocsPage() {
       "Use GOV.UK plain-language guidelines for these forms"</code></pre>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>get_content_principles</h3>
             <p className="tool-desc">11 UX-writing principles: clarity over cleverness, front-load meaning, active voice, be specific, acknowledge the user, match words to mental model, consistent terminology, error-message anatomy, scannable structure, inclusive language, voice vs tone.</p>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>get_content_pattern</h3>
             <p className="tool-desc">Copy recipes — full do/don't with examples and evidence — for error messages, empty-state copy, notifications, form validation.</p>
             <dl className="params">
@@ -337,7 +337,7 @@ export default function DocsPage() {
       
           <h3>Research &amp; Data Layer <span style={{ color: 'var(--accent-blue)', fontSize: '13px', letterSpacing: '0.08em', fontWeight: '600' }}>v1.3</span></h3>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>get_research_method</h3>
             <p className="tool-desc">Qualitative (interviews, contextual inquiry, diary, field, intercepts), quantitative (surveys, analytics, A/B tests, benchmarking, clickstream), or usability (moderated, unmoderated, 5-sec, card sort, tree test, heuristic eval). Each with protocols, do/don'ts, evidence, and checklists.</p>
             <dl className="params">
@@ -348,7 +348,7 @@ export default function DocsPage() {
       "How do I run a proper A/B test on this pricing change?"</code></pre>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>get_metrics_framework</h3>
             <p className="tool-desc">Six canonical frameworks: HEART (Google), AARRR / Pirate Metrics (McClure), North Star Metric, Conversion Funnel, RICE Scoring (Intercom), OKRs. Each with structure, when-to-use, pitfalls, and examples.</p>
             <dl className="params">
@@ -361,7 +361,7 @@ export default function DocsPage() {
       
           <h3>Service Design Layer <span style={{ color: 'var(--accent-blue)', fontSize: '13px', letterSpacing: '0.08em', fontWeight: '600' }}>v1.3</span></h3>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>get_service_pattern</h3>
             <p className="tool-desc">Service blueprinting, human handoff, signup-as-service, omnichannel continuity, moments of truth / recovery. Each with do/don'ts, evidence, and a checklist.</p>
             <dl className="params">
@@ -370,12 +370,12 @@ export default function DocsPage() {
             </dl>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>get_service_standard</h3>
             <p className="tool-desc">The GOV.UK Service Standard — 14 points the UK government uses to assess whether a public service is ready to launch. Widely applicable as a rigorous service-quality checklist beyond government.</p>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>generate_service_blueprint</h3>
             <p className="tool-desc">Render a Shostack/Stickdorn-style service blueprint as a self-contained HTML page. Two modes: classic single-actor, or <strong>two-actor HI-loop</strong> (customer&#x2194;lawyer, patient&#x2194;doctor, buyer&#x2194;agent) with swim lanes + line of interaction. Pass <code>ideal</code> for a current-vs-ideal side-by-side.</p>
             <dl className="params">
@@ -394,7 +394,7 @@ export default function DocsPage() {
       
           <h3>Brand &amp; Visual Layer <span style={{ color: 'var(--accent-blue)', fontSize: '13px', letterSpacing: '0.08em', fontWeight: '600' }}>v1.3</span></h3>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>get_brand_principles</h3>
             <p className="tool-desc">Logo usage (clear space, min sizes, variants, placement, restraint), gradient usage (hierarchy, palette, contrast, trend vs signature), imagery (consistency, representation, purpose), visual hierarchy, and brand-as-system thinking.</p>
             <dl className="params">
@@ -405,14 +405,14 @@ export default function DocsPage() {
       "What are the rules for gradient overuse?"</code></pre>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>get_brand_trends</h3>
             <p className="tool-desc">Current 2026 brand &amp; visual-design trends with when-it-works / when-it-fails guidance — bento grids, monospace for tone, neon-on-dark-glass, generative patterns, brutalism rebound, AI-generated imagery, aggressive lowercase. Time-stamped (retire-before 2027-04) so it doesn't rot silently.</p>
           </div>
       
           <h3>Mobile &amp; Native Audit Layer <span style={{ color: 'var(--accent-blue)', fontSize: '13px', letterSpacing: '0.08em', fontWeight: '600' }}>v1.5</span></h3>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>audit_swiftui</h3>
             <p className="tool-desc">Static-analyze SwiftUI source against Apple's HIG — flags hardcoded <code>.font(.system(size:))</code> below ~13pt and tiny semantic fonts, hardcoded <code>Color(red:green:blue:)</code>/hex vs semantic + asset-catalog colors, an empty/undefined AccentColor, interactive frames under 44×44pt, and spacing off the 4/8-pt grid. None of the web-only rules run on iOS input.</p>
             <dl className="params">
@@ -424,17 +424,17 @@ export default function DocsPage() {
             <pre><code>"Audit this SwiftUI screen against Apple's HIG"</code></pre>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>audit_screen <span className="optional">(alias: audit_ios_screen)</span></h3>
             <p className="tool-desc">Score a rendered iOS or Android screen from a view-hierarchy / accessibility snapshot (<code>{'{'}platform,elements:[{'{'}label,rect,role,fontPt,fgColor,bgColor{'}'}],viewport{'}'}</code>) — touch targets (44pt iOS / 48dp Android), contrast (platform-standard muted roles — iOS <code>secondaryLabel</code>, Material <code>onSurfaceVariant</code> — warn, not fail), and alignment / gap-rhythm / optical balance. Pass <code>platform:"android"</code> for the Material thresholds; defaults to iOS. RN renders native, so this scores RN screens too. <code>audit_ios_screen</code> remains as a back-compat alias.</p>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>audit_ios_privacy</h3>
             <p className="tool-desc">The "no sketchy issues" gate. Reads a native <code>Info.plist</code> or an Expo <code>app.json</code> (+ optional PRIVACY.md, entitlements, source). Flags usage-string claims that contradict the code (e.g. a HealthKit write the app never performs), unused entitlements and Android permissions, ATS cleartext exceptions, secrets shipped in the bundle or <code>expo.extra</code>, and default data-egress not disclosed at the point of choice.</p>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>audit_rn</h3>
             <p className="tool-desc">Audit React Native / Expo source (JSX + StyleSheet) against the iOS HIG + Android Material conventions RN must satisfy — touchables missing <code>accessibilityLabel</code>/<code>accessibilityRole</code>, sub-44pt targets without <code>hitSlop</code>, <code>allowFontScaling={'{'}false{'}'}</code>, fontSize below ~13, screens with no <code>SafeAreaView</code>, and (multi-mode apps) hardcoded colors with no <code>useColorScheme</code>.</p>
             <dl className="params">
@@ -448,75 +448,75 @@ export default function DocsPage() {
       
           <h3>Render &amp; Audit Layer <span style={{ color: 'var(--accent-blue)', fontSize: '13px', letterSpacing: '0.08em', fontWeight: '600' }}>v1.7–v1.10</span></h3>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>audit_url</h3>
             <p className="tool-desc">Layer 0 render-and-capture audit. Renders a live URL at every viewport &amp; theme, scroll-settles reveals and plays videos, fires hover/click/focus, then runs the page-check engine plus pixel checks — sliced-image edge symmetry and hover-state white-wash — tagging each finding <code>confirmed</code> / <code>likely-artifact</code> / <code>inconclusive</code>. Requires headless Chromium.</p>
             <pre><code>"Render and audit https://example.com on mobile and desktop, light and dark"</code></pre>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>audit_contrast</h3>
             <p className="tool-desc">Compute WCAG 2.1 contrast ratios for every text element on a rendered page. Returns per-element ratio, AA/AAA pass-fail, and delta-to-pass for failures. Replaces the manual eyedropper + ratio math.</p>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>audit_responsive_visibility</h3>
             <p className="tool-desc">Render a page at multiple breakpoints and flag content visible on desktop but hidden on mobile — detecting <code>display:none</code> / zero-size and Tailwind <code>hidden md:block</code> patterns. Categorizes each as likely-oversight vs intentional-decorative.</p>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>audit_tap_targets</h3>
             <p className="tool-desc">WCAG 2.5.5 / Apple 44pt web tap-target audit. Collects every interactive element and emits a per-element fix table for any below the minimum — selector, role, measured w/h, per-axis pixel deficit, and a concrete CSS fix, sorted worst-first.</p>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>audit_typography</h3>
             <p className="tool-desc">Typographic-scale report over rendered DOM text. Detects the dominant modular-scale ratio, flags off-scale sizes, checks line-height consistency against the body rhythm, and flags weight ladders with &gt;4 weights or non-standard values.</p>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>audit_content</h3>
             <p className="tool-desc">Per-item content evaluation for UX writing. Each item (heading/prose/cta/label/caption/metric) returns a pass/warn/fail verdict with the matched principle, concrete issues, and a before→after rewrite — metrics need a number+unit, CTAs stay action-led ≤4 words, prose loses passive voice, jargon, and hedging.</p>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>audit_asset_integrity</h3>
             <p className="tool-desc">Given PNG file paths, measures per-pixel luminance variance in the bottom strip and flags high-variance rows as <code>likely-sliced</code> — catching content cut off inside a correctly-sized export that dimension checks cannot detect.</p>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>audit_device_frame</h3>
             <p className="tool-desc">Flags content cropped inside a device-mockup frame: <code>object-fit:cover</code> aspect-ratio crop loss (names the cropped edges and hidden fraction), baked-in pan/zoom (Ken Burns) drift via block-matched displacement, and content truncated at a frame edge. Catches a 16:9 clip silently sliced inside a ~1.82-aspect screen cutout.</p>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>audit_ios_a11y</h3>
             <p className="tool-desc">Score an accessibility-enriched iOS snapshot — missing <code>accessibilityLabel</code>/value/traits on interactive elements, sub-44pt targets, per-text WCAG contrast, Dynamic-Type clipping, and VoiceOver reading order. Returns grade, score, errors, warnings, and <code>voiceover_order</code>.</p>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>audit_parity</h3>
             <p className="tool-desc">Compare an iOS element snapshot to an Android one against a checklist of named spatial relationships (vertically-centered, baseline-aligned, equal-gap, equal-size, present…) and return per-relation match / mismatch / uncertain with measured deltas — catching cross-platform drift past device-verified parity claims.</p>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>audit_contract</h3>
             <p className="tool-desc">Verify a wire contract (ordered token list / field set / <code>schemaVersion</code>) is identical across N source files — iOS Swift, proxy JS, Android Kotlin. Flags tokens missing in some layers, schemaVersion drift, and the prefix-ordering bug that silently corrupts directive parsing. Returns a per-layer report + BLOCK/PASS verdict.</p>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>audit_api_contract</h3>
             <p className="tool-desc">Run adversarial queries against a live endpoint and return a per-query verdict — shape-valid / shape-invalid / confident-wrong / uncertain — against an expected shape schema plus per-query contains/equals expectations. Catches responses that pass shape but are wrong.</p>
           </div>
       
           <h3>Reflection &amp; Registration</h3>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>raven_reflect</h3>
             <p className="tool-desc">Summarize your local Raven usage log over the last N days — tool counts, recurring audit warnings (likely knowledge gaps), patterns requested most, design systems reached for. Reads only <code>~/.raven/usage.jsonl</code> locally. Never fetches.</p>
           </div>
       
-          <div className="tool-card reveal">
+          <div className="tool-card">
             <h3>raven_register</h3>
             <p className="tool-desc">Register an email to receive release updates from the Raven team. One email per minor/major release — patches stay silent.</p>
           </div>

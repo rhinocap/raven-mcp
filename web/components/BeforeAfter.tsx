@@ -240,7 +240,7 @@ export default function BeforeAfter({
           color: var(--text-primary);
           padding: 6px 12px;
           font-family: var(--font-mono);
-          font-size: 11px;
+          font-size: 13px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
           line-height: 1;
