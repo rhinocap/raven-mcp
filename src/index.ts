@@ -3,8 +3,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { readFileSync, readdirSync, existsSync, realpathSync } from "fs";
-import { join, dirname } from "path";
+import { execFile } from "node:child_process";
+import { closeSync, openSync, readFileSync, readSync, readdirSync, existsSync, realpathSync } from "fs";
+import { join, dirname, relative, resolve } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { auditContainerWidth } from "./audit-container.js";
 import { capturePage, CaptureUnavailableError, annotateVideoArtifacts, verifyFindings } from "./capture.js";
@@ -41,7 +42,7 @@ import { registerCalls } from "./calls.js";
 import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
 import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet } from "./designmd.js";
 import { startGrabSession, getGrabbedElements, stopGrabSession } from "./grab-bridge.js";
-import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode } from "./decision-graph.js";
+import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
 import { proposePolish, reviewDiff } from "./design-review.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
@@ -1634,12 +1635,214 @@ function maybeComputeDailyDigest(): void {
 
 // ── Server ──────────────────────────────────────────────────────────
 
-// The 47 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
+var DEFAULT_DECISION_IMPORT_GLOBS = [
+  "docs/adr/**/*.md",
+  "docs/decisions/**/*.md",
+  "docs/decision*/*.md",
+  "DECISIONS.md",
+  "DESIGN.md",
+];
+
+type ImportMaterialItem = { ref: string; text: string };
+type ImportGitResult = { items: ImportMaterialItem[]; note: string | null; malformed: number };
+type ImportDocResult = { content: string | null; reason: string | null; truncated: boolean };
+
+function importGlobRegex(glob: string): RegExp {
+  var normalized = glob.replace(/\\/g, "/");
+  var pattern = "^";
+  for (var i = 0; i < normalized.length; i += 1) {
+    var character = normalized.charAt(i);
+    if (character === "*" && normalized.charAt(i + 1) === "*") {
+      i += 1;
+      if (normalized.charAt(i + 1) === "/") {
+        i += 1;
+        pattern += "(?:.*/)?";
+      } else {
+        pattern += ".*";
+      }
+    } else if (character === "*") {
+      pattern += "[^/]*";
+    } else {
+      pattern += character.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+  }
+  return new RegExp(pattern + "$");
+}
+
+function decisionImportFiles(repo: string, globs: string[]): string[] {
+  var matchers = globs.map(importGlobRegex);
+  var matches: string[] = [];
+  function walk(directory: string): void {
+    var entries = readdirSync(directory, { withFileTypes: true });
+    for (var entry of entries) {
+      if (entry.name === ".git" || entry.name === "node_modules") continue;
+      var absolute = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        walk(absolute);
+      } else if (entry.isFile()) {
+        var repoRelative = relative(repo, absolute).replace(/\\/g, "/");
+        if (matchers.some(function(matcher) { return matcher.test(repoRelative); })) matches.push(repoRelative);
+      }
+    }
+  }
+  walk(repo);
+  return matches.sort();
+}
+
+function readDecisionImportDoc(repo: string, repoRelative: string): ImportDocResult {
+  var absolute = join(repo, repoRelative);
+  var fileSize: number;
+  try {
+    fileSize = statSync(absolute).size;
+  } catch (error) {
+    return { content: null, reason: "could not stat document: " + (error as Error).message, truncated: false };
+  }
+  var size = Math.min(fileSize, 100 * 1024);
+  var file: number;
+  try {
+    file = openSync(absolute, "r");
+  } catch (error) {
+    return { content: null, reason: "could not open document: " + (error as Error).message, truncated: false };
+  }
+  try {
+    var buffer = Buffer.alloc(size);
+    var bytesRead = readSync(file, buffer, 0, size, 0);
+    var content = buffer.subarray(0, bytesRead);
+    if (content.indexOf(0) !== -1) return { content: null, reason: "binary document contains NUL bytes", truncated: fileSize > size };
+    var maxTrim = fileSize > size ? Math.min(3, content.length) : 0;
+    for (var trim = 0; trim <= maxTrim; trim += 1) {
+      try {
+        return {
+          content: new TextDecoder("utf-8", { fatal: true }).decode(content.subarray(0, content.length - trim)),
+          reason: null,
+          truncated: fileSize > size,
+        };
+      } catch (_error) {
+        // A truncated UTF-8 code point is at most three trailing bytes beyond its lead byte.
+      }
+    }
+    return { content: null, reason: "document is not valid UTF-8", truncated: fileSize > size };
+  } catch (error) {
+    return { content: null, reason: "could not read document: " + (error as Error).message, truncated: fileSize > size };
+  } finally {
+    closeSync(file);
+  }
+}
+
+function execGitImport(repo: string, args: string[]): Promise<{ error: Error | null; stdout: string }> {
+  return new Promise(function(resolveResult) {
+    execFile(
+      "git",
+      ["-C", repo].concat(args),
+      { timeout: 10000, maxBuffer: 10 * 1024 * 1024, encoding: "utf8" },
+      function(error, stdout) {
+        resolveResult({ error: error, stdout: stdout || "" });
+      }
+    );
+  });
+}
+
+async function gitDecisionImportItems(repo: string, maxCommits: number): Promise<ImportGitResult> {
+  var revList = await execGitImport(repo, ["rev-list", "--max-count=" + maxCommits, "HEAD"]);
+  if (revList.error !== null) {
+    return { items: [], note: "Git history unavailable; continuing with decision documents only (" + revList.error.message + ").", malformed: 0 };
+  }
+  var importedHashes = new Set(revList.stdout.trim().split(/\r?\n/).filter(function(hash) { return /^[0-9a-f]{40}$/.test(hash); }));
+  var log = await execGitImport(repo, ["log", "--no-color", "-n" + maxCommits, "--pretty=format:%H%x1f%aI%x1f%s%x1f%b%x1e"]);
+  if (log.error !== null) {
+    return { items: [], note: "Git history unavailable; continuing with decision documents only (" + log.error.message + ").", malformed: 0 };
+  }
+  var items: ImportMaterialItem[] = [];
+  var malformed = 0;
+  for (var rawRecord of log.stdout.split("\x1e")) {
+    var record = rawRecord.trim();
+    if (record.length === 0) continue;
+    var fields = record.split("\x1f");
+    var hash = fields[0] || "";
+    if (fields.length !== 4 || !/^[0-9a-f]{40}$/.test(hash) || !importedHashes.has(hash)) {
+      malformed += 1;
+      continue;
+    }
+    var date = fields[1];
+    var subject = fields[2];
+    var body = fields[3].trim();
+    items.push({
+      ref: hash,
+      text: "commit " + hash + " (" + date + "): " + subject + (body.length > 0 ? "\n" + body : ""),
+    });
+  }
+  return { items: items, note: null, malformed: malformed };
+}
+
+function chunkImportItems(items: ImportMaterialItem[], maxChunkChars: number): string[] {
+  var chunks: string[] = [];
+  var current = "";
+  for (var item of items) {
+    if (item.text.length > maxChunkChars) {
+      if (current.length > 0) {
+        chunks.push(current);
+        current = "";
+      }
+      var estimatedTotal = Math.max(2, Math.ceil(item.text.length / Math.max(1, maxChunkChars - 32)));
+      var labelLength = ("[continuation " + estimatedTotal + "/" + estimatedTotal + "]\n").length;
+      var payloadSize = Math.max(1, maxChunkChars - labelLength);
+      var total = Math.ceil(item.text.length / payloadSize);
+      labelLength = ("[continuation " + total + "/" + total + "]\n").length;
+      payloadSize = Math.max(1, maxChunkChars - labelLength);
+      total = Math.ceil(item.text.length / payloadSize);
+      for (var continuation = 0; continuation < total; continuation += 1) {
+        var label = "[continuation " + (continuation + 1) + "/" + total + "]\n";
+        chunks.push(label + item.text.slice(continuation * payloadSize, (continuation + 1) * payloadSize));
+      }
+      continue;
+    }
+    var joined = current.length === 0 ? item.text : current + "\n\n" + item.text;
+    if (current.length > 0 && joined.length > maxChunkChars) {
+      chunks.push(current);
+      current = item.text;
+    } else {
+      current = joined;
+    }
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function validatedImportedSourceRef(source: SourceNode, sourceRef: string | null): { accepted: string | null; reason: string | null } {
+  if (sourceRef === null) return { accepted: null, reason: null };
+  if (source.kind === "git-history") {
+    var hashes = source.commit_hashes || [];
+    var normalized = sourceRef.toLowerCase();
+    var matches = /^[0-9a-f]{1,40}$/.test(normalized)
+      ? hashes.filter(function(hash) { return hash.startsWith(normalized); })
+      : [];
+    if (matches.length === 1) return { accepted: matches[0], reason: null };
+    return { accepted: null, reason: matches.length > 1 ? "source_ref is an ambiguous imported commit prefix" : "source_ref is not an imported commit hash" };
+  }
+  if (source.kind === "doc") {
+    var validDocRef = new RegExp("^" + escapeRegExp(source.ref) + "(?:#L[0-9]+|#[^\\r\\n]+)?$");
+    if (validDocRef.test(sourceRef)) return { accepted: sourceRef, reason: null };
+    return { accepted: null, reason: "source_ref does not match imported document " + source.ref };
+  }
+  return { accepted: sourceRef, reason: null };
+}
+
+function numberedDocMaterial(repoRelative: string, content: string): string {
+  return "document " + repoRelative + "\n" + content.split(/\r?\n/).map(function(line, index) {
+    return "L" + (index + 1) + ": " + line;
+  }).join("\n");
+}
+
+// The 48 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
 // 32 are stateful/local (per-user ~/.raven files, or the create_generation_job
-// subprocess), 5 reach the filesystem/network or have an external side effect,
+// subprocess), 6 reach the filesystem/network or have an external side effect,
 // 2 are Talon tools pending a remote-safety pass, and 8 are DESIGN.md / review /
 // grab-bridge tools. Everything else (45 stateless tools, including the 5
-// guarded browser URL audits added in Phase 3) is remote-safe, from 92 local tools.
+// guarded browser URL audits added in Phase 3) is remote-safe, from 93 local tools.
 // Traced to docs/remote-mcp-scope.md §2; asserted at build time.
 const REMOTE_GATED_TOOLS = new Set<string>([
   // stateful / local (32)
@@ -1653,7 +1856,7 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   "decision_supersede", "decision_scope", "decision_history",
   "ingest_transcript", "ingest_transcript_results",
   "gap_scan",
-  // filesystem/network/side-effect capability tools (5) — read caller-supplied
+  // filesystem/network/side-effect capability tools (6) — read caller-supplied
   // local paths (readFileSync), fetch caller-supplied URLs (SSRF), or trigger an
   // external side effect. A no-auth remote endpoint must not expose a file-read
   // oracle, an outbound-request proxy, or an unauthenticated action, so these are
@@ -1663,7 +1866,7 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   // raven_register → POSTs caller-controlled email/name to the welcome endpoint,
   // which sends mail + subscribes via Resend with no rate limit/CAPTCHA/auth — a
   // no-auth spam/abuse amplifier if left remote-exposed.)
-  "audit_contract", "audit_asset_integrity", "audit_device_frame", "audit_api_contract",
+  "audit_contract", "audit_asset_integrity", "audit_device_frame", "audit_api_contract", "decision_import",
   "raven_register",
   // Talon detector engine (P1, parity-roadmap Gap 1) — talon_scan takes the
   // same url → capturePage() fetch surface as audit_api_contract; gate both
@@ -1747,18 +1950,18 @@ const REMOTE_URL_GUARDED_TOOLS: { [tool: string]: string } = {
   audit_taste: "url"
 };
 
-// buildServer() returns a FRESH McpServer with all 92 local tools + the usage-log/
+// buildServer() returns a FRESH McpServer with all 93 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
 export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }): McpServer {
-// remote = serve only the 45 stateless remote-safe tools (gate off the 47 gated tools
+// remote = serve only the 45 stateless remote-safe tools (gate off the 48 gated tools
 // as appropriate; authenticated stores selectively restore taste tools). evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 92.
+// without threading opts. stdio callers pass nothing → remote=false → all 93.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -6297,6 +6500,7 @@ server.tool(
     var updated = await decisionGraphStore.updateNode(id, {
       rationale: rationale,
       rationale_trust: "confirmed",
+      status: existing.status === "candidate" ? "active" : existing.status,
     }) as DecisionNode;
     var threshold = similarity_threshold === undefined ? similarityThreshold() : similarity_threshold;
     var matches = await decisionGraphStore.findSimilarActiveDecisions(updated, threshold, updated.id);
@@ -6429,15 +6633,19 @@ server.tool(
   "decision_list",
   "List decisions in the local Decision Graph. Defaults to active decisions.",
   {
-    status: z.enum(["active", "superseded", "contested"]).optional().describe("Decision status to list. Omit to list active decisions."),
+    status: z.enum(["candidate", "active", "superseded", "contested"]).optional().describe("Decision status to list. Omit to list active decisions."),
+    include_candidates: z.boolean().optional().describe("When true and status is omitted, include uncommitted imported candidates with active decisions."),
     drafts_only: z.boolean().optional().describe("When true, return active decisions awaiting a rationale or confirmation."),
   },
-  async function ({ status, drafts_only }) {
+  async function ({ status, include_candidates, drafts_only }) {
     var decisions: DecisionNode[] = status === undefined
       ? await decisionGraphStore.listActiveDecisions()
       : await decisionGraphStore.listDecisions(status);
+    if (status === undefined && include_candidates === true) {
+      decisions = decisions.concat(await decisionGraphStore.listDecisions("candidate"));
+    }
     if (drafts_only === true) {
-      decisions = (await decisionGraphStore.listActiveDecisions()).filter(function (decision) {
+      decisions = decisions.filter(function (decision) {
         return decision.rationale_missing || decision.rationale_trust === "extracted";
       });
     }
@@ -6467,6 +6675,100 @@ server.tool(
       return { content: [{ type: "text" as const, text: JSON.stringify(digest) }] };
     }
     return { content: [{ type: "text" as const, text: JSON.stringify(digest, null, 2) }] };
+  }
+);
+
+server.tool(
+  "decision_import",
+  "Mine local git history and decision-bearing Markdown into provenance-tagged Decision Graph extraction prompts. Imported history remains review-only until decision_commit.",
+  {
+    repo_path: z.string().min(1).describe("Local repository directory to inspect."),
+    doc_globs: z.array(z.string().min(1)).optional().default(DEFAULT_DECISION_IMPORT_GLOBS).describe("Repository-relative Markdown globs. Supports * and **."),
+    max_commits: z.number().int().min(1).max(1000).optional().default(200).describe("Maximum git commits to inspect (cap 1000)."),
+    max_chunk_chars: z.number().int().min(1).max(60000).optional().default(24000).describe("Maximum material characters per extraction chunk. Oversized single items are continuation-split (cap 60000)."),
+  },
+  async function ({ repo_path, doc_globs, max_commits, max_chunk_chars }) {
+    var repo = resolve(repo_path);
+    var directoryExists = false;
+    try {
+      directoryExists = existsSync(repo) && statSync(repo).isDirectory();
+    } catch (_error) {
+      directoryExists = false;
+    }
+    if (!directoryExists) {
+      return { content: [{ type: "text" as const, text: "repo_path must be an existing directory: " + repo }], isError: true };
+    }
+
+    var chunks: Array<{ source_id: string; kind: string; ref: string; extraction_prompt: string }> = [];
+    var notes: string[] = [];
+    var gitResult = await gitDecisionImportItems(repo, max_commits);
+    if (gitResult.note !== null) notes.push(gitResult.note);
+    if (gitResult.items.length > 0) {
+      var newestHash = gitResult.items[0].ref;
+      var oldestHash = gitResult.items[gitResult.items.length - 1].ref;
+      var oldestParent = await execGitImport(repo, ["rev-parse", "--verify", oldestHash + "^"]);
+      // A root commit has no inclusive two-dot form. In that case the newest
+      // revision alone lets git rev-list cover the full root-inclusive window.
+      var gitRange = oldestParent.error === null ? oldestHash + "^.." + newestHash : newestHash;
+      var gitRef = repo + "@" + gitRange;
+      var gitSource = await decisionGraphStore.addNode({
+        node_kind: "source" as const,
+        id: "src_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+        kind: "git-history",
+        ref: gitRef,
+        commit_hashes: gitResult.items.map(function(item) { return item.ref; }),
+        created_at: new Date().toISOString(),
+      });
+      for (var gitChunk of chunkImportItems(gitResult.items, max_chunk_chars)) {
+        chunks.push({
+          source_id: gitSource.id,
+          kind: "git-history",
+          ref: gitRef,
+          extraction_prompt: buildImportExtractionPrompt(gitChunk, "git-history"),
+        });
+      }
+    }
+
+    var docCount = 0;
+    var skippedDocs: Array<{ path: string; reason: string }> = [];
+    for (var docPath of decisionImportFiles(repo, doc_globs)) {
+      var docResult = readDecisionImportDoc(repo, docPath);
+      if (docResult.content === null) {
+        skippedDocs.push({ path: docPath, reason: docResult.reason || "document could not be imported" });
+        continue;
+      }
+      docCount += 1;
+      var docSource = await decisionGraphStore.addNode({
+        node_kind: "source" as const,
+        id: "src_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+        kind: "doc",
+        ref: docPath,
+        created_at: new Date().toISOString(),
+      });
+      var docItems = [{ ref: docPath, text: numberedDocMaterial(docPath, docResult.content) }];
+      for (var docChunk of chunkImportItems(docItems, max_chunk_chars)) {
+        chunks.push({
+          source_id: docSource.id,
+          kind: "doc",
+          ref: docPath,
+          extraction_prompt: buildImportExtractionPrompt(docChunk, "doc"),
+        });
+      }
+    }
+
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({
+          repo_path: repo,
+          chunks: chunks,
+          counts: { commits: gitResult.items.length, malformed_commits: gitResult.malformed, doc_files: docCount, chunks: chunks.length },
+          skipped_docs: skippedDocs,
+          notes: notes,
+          next: "Run each extraction prompt with your model, then call ingest_transcript_results with each source_id + JSON. Candidates require decision_commit — imported history is never auto-committed.",
+        }, null, 2),
+      }],
+    };
   }
 );
 
@@ -6513,23 +6815,27 @@ server.tool(
     if (source === null || source.node_kind !== "source") {
       return { content: [{ type: "text" as const, text: "Transcript source not found: " + source_id }], isError: true };
     }
+    var extractionSource = source as SourceNode;
     var parsed = parseExtractionJson(extraction_json);
     if (!parsed.ok) {
       return { content: [{ type: "text" as const, text: parsed.error }], isError: true };
     }
 
-    var candidates: Array<{ node: DecisionNode; edge_id: string }> = [];
-    for (var item of parsed.items) {
+    var rejectedSourceRefs: Array<{ index: number; source_ref: string; reason: string }> = [];
+    // The file-backed store has no multi-file transaction. Per-item isolation keeps
+    // later items moving and surfaces failures, but cannot roll back writes already
+    // completed inside a failed item.
+    var persisted = await persistItemsIndependently(parsed.items, async function(item, index) {
       var node = flagRationaleMissing({
         node_kind: "decision" as const,
         id: "dec_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
         statement: item.statement,
         rationale: item.rationale,
         rationale_trust: item.rationale === null ? null : "extracted" as const,
-        scope: source.ref,
-        component_ref: source.ref,
+        scope: extractionSource.ref,
+        component_ref: extractionSource.ref,
         alternatives_rejected: item.alternatives_rejected,
-        status: "active" as const,
+        status: "candidate" as const,
         superseded_by: null,
         created_at: new Date().toISOString(),
       });
@@ -6542,14 +6848,40 @@ server.tool(
         type: "derived_from",
         created_at: new Date().toISOString(),
       });
-      candidates.push({ node: created, edge_id: edgeId });
-    }
+      var validation = validatedImportedSourceRef(extractionSource, item.source_ref || null);
+      var sourceRef = validation.accepted;
+      if (item.source_ref && validation.reason !== null) {
+        rejectedSourceRefs.push({ index: index, source_ref: item.source_ref, reason: validation.reason });
+      }
+      if (sourceRef !== null) {
+        var evidenceId = "evidence_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
+        await decisionGraphStore.addEvidenceWithEdge(created.id, {
+          node_kind: "evidence" as const,
+          id: evidenceId,
+          type: "imported" as const,
+          source_ref: sourceRef,
+          result_summary: "imported provenance (" + extractionSource.kind + ")",
+          confidence: "low" as const,
+          confounds: [],
+          timestamp: new Date().toISOString(),
+        }, {
+          id: "edge_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+          from: evidenceId,
+          to: created.id,
+          type: "supports" as const,
+          created_at: new Date().toISOString(),
+        });
+      }
+      return { node: created, edge_id: edgeId, source_ref: sourceRef };
+    });
     return {
       content: [{
         type: "text" as const,
         text: JSON.stringify({
-          candidates: candidates,
+          candidates: persisted.results,
           skipped: parsed.skipped,
+          rejected_source_refs: rejectedSourceRefs,
+          item_errors: persisted.item_errors,
           review_note: "Nothing is auto-confirmed. Review each candidate and call decision_commit for every keeper.",
         }, null, 2),
       }],
@@ -6928,7 +7260,7 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 92 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 93 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });

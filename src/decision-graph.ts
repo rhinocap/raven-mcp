@@ -12,7 +12,7 @@ export interface DecisionNode {
   scope: string;
   component_ref: string;
   alternatives_rejected: string[];
-  status: "active" | "superseded" | "contested";
+  status: "candidate" | "active" | "superseded" | "contested";
   superseded_by: string | null;
   created_at: string;
   embedding?: number[] | null;
@@ -21,10 +21,10 @@ export interface DecisionNode {
 export interface EvidenceNode {
   node_kind: "evidence";
   id: string;
-  type: "quant" | "qual";
+  type: "quant" | "qual" | "imported";
   source_ref: string;
   result_summary: string;
-  confidence: number;
+  confidence: number | "low";
   confounds: string[];
   timestamp: string;
 }
@@ -34,6 +34,7 @@ export interface SourceNode {
   id: string;
   kind: string;
   ref: string;
+  commit_hashes?: string[];
   created_at: string;
 }
 
@@ -330,10 +331,27 @@ export function flagRationaleMissing<T extends { rationale?: string | null }>(in
   });
 }
 
+export async function persistItemsIndependently<T, R>(
+  items: T[],
+  persist: (item: T, index: number) => Promise<R>
+): Promise<{ results: R[]; item_errors: Array<{ index: number; error: string }> }> {
+  var results: R[] = [];
+  var itemErrors: Array<{ index: number; error: string }> = [];
+  for (var index = 0; index < items.length; index += 1) {
+    try {
+      results.push(await persist(items[index], index));
+    } catch (error) {
+      itemErrors.push({ index: index, error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return { results: results, item_errors: itemErrors };
+}
+
 export type ExtractionItem = {
   statement: string;
   rationale: string | null;
   alternatives_rejected: string[];
+  source_ref?: string | null;
 };
 
 export type ExtractionParseResult =
@@ -376,10 +394,14 @@ export function parseExtractionJson(raw: string): ExtractionParseResult {
     var alternatives = Array.isArray(input.alternatives_rejected)
       ? input.alternatives_rejected.filter(function(value): value is string { return typeof value === "string"; })
       : [];
+    var sourceRef = typeof input.source_ref === "string" && input.source_ref.trim().length > 0
+      ? input.source_ref.trim()
+      : null;
     items.push({
       statement: input.statement.trim(),
       rationale: rationale,
       alternatives_rejected: alternatives,
+      source_ref: sourceRef,
     });
   }
 
@@ -400,6 +422,24 @@ export function buildExtractionPrompt(transcript: string): string {
     "",
     "TRANSCRIPT:",
     transcript,
+  ].join("\n");
+}
+
+export function buildImportExtractionPrompt(material: string, streamKind: string): string {
+  var provenanceInstruction = streamKind === "git-history"
+    ? "For every item, source_ref MUST be the exact commit hash it came from."
+    : "For every item, source_ref MUST be path#L<line-or-heading> identifying where the decision appears.";
+  return [
+    "Extract DISTINCT durable design or architecture decisions only from the imported " + streamKind + " material below.",
+    "Discard mechanical commits and content such as version bumps, typo fixes, merges, formatting, and routine maintenance.",
+    "Return a STRICT JSON array of objects with exactly these fields:",
+    '{"statement":"...","rationale":"... or null","alternatives_rejected":["..."],"source_ref":"..."}',
+    provenanceInstruction,
+    "Use rationale null when the source never states why the decision was made.",
+    "Return no prose outside the JSON.",
+    "",
+    "IMPORTED MATERIAL:",
+    material,
   ].join("\n");
 }
 

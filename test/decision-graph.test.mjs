@@ -18,10 +18,12 @@ const {
   buildGapDigest,
   buildConflictPayload,
   buildExtractionPrompt,
+  buildImportExtractionPrompt,
   cosineSimilarity,
   flagRationaleMissing,
   gapScanConfig,
   parseExtractionJson,
+  persistItemsIndependently,
   scanGaps,
   similarityThreshold,
 } = await import('../dist/decision-graph.js');
@@ -118,11 +120,21 @@ test('flagRationaleMissing flags null, undefined, and blank rationale only', () 
   assert.equal(flagRationaleMissing({ rationale: 'Because it reduces risk.' }).rationale_missing, false);
 });
 
+test('persistItemsIndependently continues after one item fails and reports its index', async () => {
+  const persisted = await persistItemsIndependently(['first', 'broken', 'third'], async (item) => {
+    if (item === 'broken') throw new Error('disk write failed');
+    return item.toUpperCase();
+  });
+  assert.deepEqual(persisted.results, ['FIRST', 'THIRD']);
+  assert.deepEqual(persisted.item_errors, [{ index: 1, error: 'disk write failed' }]);
+});
+
 test('parseExtractionJson accepts arrays, wrappers, and fenced JSON', () => {
-  const expected = [{ statement: 'Use cards', rationale: 'They scan well.', alternatives_rejected: ['Use a table'] }];
-  assert.deepEqual(parseExtractionJson(JSON.stringify(expected)), { ok: true, items: expected, skipped: 0 });
-  assert.deepEqual(parseExtractionJson(JSON.stringify({ decisions: expected })), { ok: true, items: expected, skipped: 0 });
-  assert.deepEqual(parseExtractionJson('```json\n' + JSON.stringify(expected) + '\n```'), { ok: true, items: expected, skipped: 0 });
+  const input = [{ statement: 'Use cards', rationale: 'They scan well.', alternatives_rejected: ['Use a table'] }];
+  const expected = [{ ...input[0], source_ref: null }];
+  assert.deepEqual(parseExtractionJson(JSON.stringify(input)), { ok: true, items: expected, skipped: 0 });
+  assert.deepEqual(parseExtractionJson(JSON.stringify({ decisions: input })), { ok: true, items: expected, skipped: 0 });
+  assert.deepEqual(parseExtractionJson('```json\n' + JSON.stringify(input) + '\n```'), { ok: true, items: expected, skipped: 0 });
 });
 
 test('parseExtractionJson rejects malformed or empty input', () => {
@@ -133,12 +145,27 @@ test('parseExtractionJson rejects malformed or empty input', () => {
 test('parseExtractionJson normalizes fields and counts skipped items', () => {
   const result = parseExtractionJson(JSON.stringify([
     { rationale: 'missing statement' },
-    { statement: '  Keep the sidebar  ', rationale: '', alternatives_rejected: ['Keep tabs', 42, null] },
+    { statement: '  Keep the sidebar  ', rationale: '', alternatives_rejected: ['Keep tabs', 42, null], source_ref: '  abc123  ' },
   ]));
   assert.deepEqual(result, {
     ok: true,
-    items: [{ statement: 'Keep the sidebar', rationale: null, alternatives_rejected: ['Keep tabs'] }],
+    items: [{ statement: 'Keep the sidebar', rationale: null, alternatives_rejected: ['Keep tabs'], source_ref: 'abc123' }],
     skipped: 1,
+  });
+});
+
+test('parseExtractionJson treats missing and non-string source_ref as null', () => {
+  const result = parseExtractionJson(JSON.stringify([
+    { statement: 'Use cards', rationale: null, alternatives_rejected: [] },
+    { statement: 'Use tokens', rationale: 'They centralize change.', alternatives_rejected: [], source_ref: 42 },
+  ]));
+  assert.deepEqual(result, {
+    ok: true,
+    items: [
+      { statement: 'Use cards', rationale: null, alternatives_rejected: [], source_ref: null },
+      { statement: 'Use tokens', rationale: 'They centralize change.', alternatives_rejected: [], source_ref: null },
+    ],
+    skipped: 0,
   });
 });
 
@@ -150,6 +177,16 @@ test('buildExtractionPrompt requires distinct decisions and strict JSON only', (
   assert.match(prompt, /rationale.*null/i);
   assert.match(prompt, /no prose outside/i);
   assert.match(prompt, /Speaker: We chose cards because they scan well\./);
+});
+
+test('buildImportExtractionPrompt requires durable decisions and item provenance', () => {
+  const prompt = buildImportExtractionPrompt('commit abc123: Use Redis because it isolates users.', 'git-history');
+  assert.match(prompt, /durable design or architecture decisions/i);
+  assert.match(prompt, /source_ref/);
+  assert.match(prompt, /commit hash/i);
+  assert.match(prompt, /mechanical commits/i);
+  assert.match(prompt, /rationale null/i);
+  assert.match(prompt, /commit abc123: Use Redis because it isolates users\./);
 });
 
 test('updateNode merges patches and leaves unpatched fields intact', async () => {
@@ -913,7 +950,7 @@ test('decision MCP tools add, get with neighbors, list by status, and stay remot
 
     const draftsOnlyResult = await client.callTool({ name: 'decision_list', arguments: { drafts_only: true } });
     const draftsOnly = JSON.parse(draftsOnlyResult.content[0].text);
-    assert.deepEqual(draftsOnly.map((node) => node.id).sort(), [added.id, candidates.candidates[0].node.id].sort());
+    assert.deepEqual(draftsOnly.map((node) => node.id), [added.id]);
 
     const getResult = await client.callTool({ name: 'decision_get', arguments: { id: added.id } });
     const fetched = JSON.parse(getResult.content[0].text);
@@ -924,7 +961,7 @@ test('decision MCP tools add, get with neighbors, list by status, and stay remot
     const activeResult = await client.callTool({ name: 'decision_list', arguments: {} });
     assert.deepEqual(
       JSON.parse(activeResult.content[0].text).map((node) => node.id).sort(),
-      [added.id, committed.id, candidates.candidates[0].node.id].sort(),
+      [added.id, committed.id].sort(),
     );
 
     const contestedResult = await client.callTool({
