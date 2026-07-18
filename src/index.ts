@@ -41,6 +41,7 @@ import { registerCalls } from "./calls.js";
 import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
 import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet } from "./designmd.js";
 import { startGrabSession, getGrabbedElements, stopGrabSession } from "./grab-bridge.js";
+import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode } from "./decision-graph.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -56,6 +57,7 @@ var CONTENT_DIR = join(DATA_DIR, "content");
 var CONTENT_SYSTEMS_DIR = join(CONTENT_DIR, "systems");
 var CONTENT_PRINCIPLES_DIR = join(CONTENT_DIR, "principles");
 var CONTENT_PATTERNS_DIR = join(CONTENT_DIR, "patterns");
+var decisionGraphStore = new FsDecisionGraphStore(new LexicalEmbedder());
 var RESEARCH_DIR = join(DATA_DIR, "research");
 var RESEARCH_PRINCIPLES_DIR = join(RESEARCH_DIR, "principles");
 var RESEARCH_METHODS_DIR = join(RESEARCH_DIR, "methods");
@@ -173,6 +175,38 @@ function loadAllData() {
     loadJsonDir<Principle>(BRAND_PRINCIPLES_DIR)
   );
   allPatterns = allPatterns.concat(loadJsonDir<Pattern>(SERVICE_PATTERNS_DIR));
+}
+
+function isHighTrafficComponent(name: string): boolean {
+  return /button|cta|form|input|navigation|nav\b/i.test(name);
+}
+
+function referenceComponents(systemIds?: string[]): { components: Array<{ name: string; source: string; traffic?: "high" | "normal" }>; unresolved: string[] } {
+  var ids = systemIds === undefined
+    ? allPatterns.slice().sort(function(a, b) { return a.id.localeCompare(b.id); }).slice(0, 5).map(function(pattern) { return pattern.id; })
+    : systemIds;
+  var components: Array<{ name: string; source: string; traffic?: "high" | "normal" }> = [];
+  var unresolved: string[] = [];
+  for (var id of ids) {
+    var pattern = allPatterns.find(function(candidate) { return candidate.id === id; });
+    if (pattern) {
+      var names = pattern.patterns.length > 0 ? pattern.patterns.map(function(item) { return item.name; }) : [pattern.name];
+      for (var name of names) {
+        components.push({ name: name, source: pattern.id, traffic: isHighTrafficComponent(name) ? "high" : "normal" });
+      }
+      continue;
+    }
+    var system = loadSystem(id);
+    if (system) {
+      for (var group of Object.keys(system).filter(function(key) { return !key.startsWith("$"); })) {
+        components.push({ name: group, source: id, traffic: isHighTrafficComponent(group) ? "high" : "normal" });
+      }
+      continue;
+    }
+    // A typo'd id silently scanning nothing would read as "healthy" — surface it.
+    unresolved.push(id);
+  }
+  return { components: components, unresolved: unresolved };
 }
 
 loadAllData();
@@ -1599,21 +1633,25 @@ function maybeComputeDailyDigest(): void {
 
 // ── Server ──────────────────────────────────────────────────────────
 
-// The 31 tools NOT served on a shared remote server (buildServer({remote:true})).
-// 20 are stateful/local (per-user ~/.raven files, or the create_generation_job
+// The 50 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
+// 31 are stateful/local (per-user ~/.raven files, or the create_generation_job
 // subprocess), 5 reach the filesystem/network or have an external side effect,
-// and 6 are the DESIGN.md / grab-bridge tools (local file I/O plus a single
-// loopback HTTP session). Everything else (45 stateless tools, including the 5
+// 2 are Talon tools pending a remote-safety pass, and 12 are DESIGN.md /
+// grab-bridge tools. Everything else (45 stateless tools, including the 5
 // guarded browser URL audits added in Phase 3) is remote-safe.
 // Traced to docs/remote-mcp-scope.md §2; asserted at build time.
 const REMOTE_GATED_TOOLS = new Set<string>([
-  // stateful / local (20)
+  // stateful / local (31)
   "create_taste_profile", "get_taste_profile", "list_taste_profiles",
   "get_taste_interview", "bind_taste_surface", "record_taste_decision",
   "list_taste_decisions", "generate_taste_portrait", "label_finding", "audit_taste",
   "create_brand_profile", "get_brand_profile", "list_brand_profiles",
   "register_creative_asset", "create_character_profile", "create_generation_job",
   "get_generation_job", "list_generation_jobs", "plan_creative_campaign", "raven_reflect",
+  "decision_add", "decision_get", "decision_list", "decision_draft", "decision_commit",
+  "decision_supersede", "decision_scope", "decision_history",
+  "ingest_transcript", "ingest_transcript_results",
+  "gap_scan",
   // filesystem/network/side-effect capability tools (5) — read caller-supplied
   // local paths (readFileSync), fetch caller-supplied URLs (SSRF), or trigger an
   // external side effect. A no-auth remote endpoint must not expose a file-read
@@ -6024,6 +6062,369 @@ server.tool(
 );
 
 // ── Taste Engine: profiles, growth loop, and taste audits ──────────────────
+
+async function decisionEvidenceSummaries(id: string): Promise<string[]> {
+  var supports = await decisionGraphStore.neighbors(id, "supports");
+  var contradicts = await decisionGraphStore.neighbors(id, "contradicts");
+  return supports.concat(contradicts).filter(function(node): node is EvidenceNode {
+    return node.node_kind === "evidence";
+  }).map(function(node) { return node.result_summary; });
+}
+
+function historyEntry(node: DecisionNode): object {
+  return {
+    id: node.id,
+    statement: node.statement,
+    rationale: node.rationale,
+    status: node.status,
+    created_at: node.created_at,
+  };
+}
+
+async function decisionLineage(start: DecisionNode): Promise<object[]> {
+  var edges = await decisionGraphStore.listEdges("supersedes");
+  var visited = new Set<string>([start.id]);
+  var older: DecisionNode[] = [];
+  var current = start;
+  while (true) {
+    var olderEdge = edges.find(function(edge) { return edge.from === current.id; });
+    if (!olderEdge || visited.has(olderEdge.to)) break;
+    var olderNode = await decisionGraphStore.getNode(olderEdge.to);
+    if (olderNode === null || olderNode.node_kind !== "decision") break;
+    visited.add(olderNode.id);
+    older.push(olderNode);
+    current = olderNode;
+  }
+
+  var lineage = older.reverse().concat([start]);
+  current = start;
+  while (true) {
+    var newerId = current.superseded_by;
+    if (!newerId) {
+      var newerEdge = edges.find(function(edge) { return edge.to === current.id; });
+      newerId = newerEdge ? newerEdge.from : null;
+    }
+    if (!newerId || visited.has(newerId)) break;
+    var newerNode = await decisionGraphStore.getNode(newerId);
+    if (newerNode === null || newerNode.node_kind !== "decision") break;
+    visited.add(newerNode.id);
+    lineage.push(newerNode);
+    current = newerNode;
+  }
+  return lineage.map(historyEntry);
+}
+
+server.tool(
+  "decision_add",
+  "Add an active decision to the local Decision Graph.",
+  {
+    statement: z.string().min(1).describe("Decision statement."),
+    rationale: z.string().optional().describe("Reason for the decision. Omit when no rationale was recorded."),
+    scope: z.string().min(1).describe("Scope where the decision applies."),
+    component_ref: z.string().min(1).describe("Component or surface the decision refers to."),
+    alternatives_rejected: z.array(z.string()).optional().describe("Alternatives considered and rejected."),
+  },
+  async function ({ statement, rationale, scope, component_ref, alternatives_rejected }) {
+    var node = flagRationaleMissing({
+      node_kind: "decision" as const,
+      id: "dec_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+      statement: statement,
+      rationale: rationale === undefined ? null : rationale,
+      scope: scope,
+      component_ref: component_ref,
+      alternatives_rejected: alternatives_rejected || [],
+      status: "active" as const,
+      superseded_by: null,
+      rationale_trust: null,
+      created_at: new Date().toISOString(),
+    });
+    var created = await decisionGraphStore.addNode(node);
+    return { content: [{ type: "text" as const, text: JSON.stringify(created, null, 2) }] };
+  }
+);
+
+server.tool(
+  "decision_draft",
+  "Capture a decision from working context with the why deferred for later confirmation.",
+  {
+    statement: z.string().min(1).describe("Decision statement."),
+    scope: z.string().min(1).describe("Scope where the decision applies."),
+    component_ref: z.string().min(1).describe("Component or surface the decision refers to."),
+    alternatives_rejected: z.array(z.string()).optional().describe("Alternatives considered and rejected."),
+  },
+  async function ({ statement, scope, component_ref, alternatives_rejected }) {
+    var node = flagRationaleMissing({
+      node_kind: "decision" as const,
+      id: "dec_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+      statement: statement,
+      rationale: null,
+      rationale_trust: null,
+      scope: scope,
+      component_ref: component_ref,
+      alternatives_rejected: alternatives_rejected || [],
+      status: "active" as const,
+      superseded_by: null,
+      created_at: new Date().toISOString(),
+    });
+    var created = await decisionGraphStore.addNode(node);
+    return { content: [{ type: "text" as const, text: JSON.stringify(created, null, 2) }] };
+  }
+);
+
+server.tool(
+  "decision_commit",
+  "Commit or confirm the rationale for a draft or extracted decision.",
+  {
+    id: z.string().min(1).describe("Decision node id to commit."),
+    rationale: z.string().trim().min(1).describe("Confirmed rationale for the decision."),
+    similarity_threshold: z.number().min(0).max(1).optional().describe("Similarity threshold from 0 to 1. Overrides RAVEN_DECISION_SIMILARITY_THRESHOLD for this commit."),
+  },
+  async function ({ id, rationale, similarity_threshold }) {
+    var existing = await decisionGraphStore.getNode(id);
+    if (existing === null || existing.node_kind !== "decision") {
+      return { content: [{ type: "text" as const, text: "Decision not found: " + id }], isError: true };
+    }
+    var updated = await decisionGraphStore.updateNode(id, {
+      rationale: rationale,
+      rationale_trust: "confirmed",
+    }) as DecisionNode;
+    var threshold = similarity_threshold === undefined ? similarityThreshold() : similarity_threshold;
+    var matches = await decisionGraphStore.findSimilarActiveDecisions(updated, threshold, updated.id);
+    var potentialConflicts = [];
+    for (var match of matches) {
+      potentialConflicts.push(await buildConflictPayload(updated, match.decision, match.similarity, decisionEvidenceSummaries));
+    }
+    return { content: [{ type: "text" as const, text: JSON.stringify({ decision: updated, potential_conflicts: potentialConflicts }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "decision_supersede",
+  "Explicitly supersede one decision with another while preserving both nodes and their lineage.",
+  {
+    old_id: z.string().min(1).describe("Existing decision id that is being superseded."),
+    new_id: z.string().min(1).describe("Existing replacement decision id."),
+  },
+  async function ({ old_id, new_id }) {
+    if (old_id === new_id) {
+      return { content: [{ type: "text" as const, text: "old_id and new_id must be distinct decisions." }], isError: true };
+    }
+    var oldNode = await decisionGraphStore.getNode(old_id);
+    var newNode = await decisionGraphStore.getNode(new_id);
+    if (oldNode === null || oldNode.node_kind !== "decision" || newNode === null || newNode.node_kind !== "decision") {
+      return { content: [{ type: "text" as const, text: "Both old_id and new_id must identify existing decisions." }], isError: true };
+    }
+    var updatedOld = await decisionGraphStore.updateNode(old_id, { status: "superseded", superseded_by: new_id }) as DecisionNode;
+    var edge = await decisionGraphStore.addEdge({
+      id: "edge_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+      from: new_id,
+      to: old_id,
+      type: "supersedes",
+      created_at: new Date().toISOString(),
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify({ old_decision: updatedOld, new_decision: newNode, edge: edge }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "decision_scope",
+  "Narrow two decisions to distinct scopes so both can remain active alongside one another.",
+  {
+    id_a: z.string().min(1).describe("First existing decision id."),
+    id_b: z.string().min(1).describe("Second existing decision id."),
+    scope_a: z.string().trim().min(1).describe("Narrowed scope for the first decision."),
+    scope_b: z.string().trim().min(1).describe("Narrowed scope for the second decision."),
+  },
+  async function ({ id_a, id_b, scope_a, scope_b }) {
+    if (id_a === id_b) {
+      return { content: [{ type: "text" as const, text: "id_a and id_b must be distinct decisions." }], isError: true };
+    }
+    var nodeA = await decisionGraphStore.getNode(id_a);
+    var nodeB = await decisionGraphStore.getNode(id_b);
+    if (nodeA === null || nodeA.node_kind !== "decision" || nodeB === null || nodeB.node_kind !== "decision") {
+      return { content: [{ type: "text" as const, text: "Both id_a and id_b must identify existing decisions." }], isError: true };
+    }
+    // Scoping resolves a conflict between two LIVE decisions — refusing
+    // non-active inputs keeps the "both remain active" guarantee without
+    // silently resurrecting a superseded/contested decision.
+    if (nodeA.status !== "active" || nodeB.status !== "active") {
+      return { content: [{ type: "text" as const, text: "Both decisions must be active to scope them alongside one another (got " + nodeA.status + " / " + nodeB.status + ")." }], isError: true };
+    }
+    var updatedA = await decisionGraphStore.updateNode(id_a, { scope: scope_a }) as DecisionNode;
+    var updatedB = await decisionGraphStore.updateNode(id_b, { scope: scope_b }) as DecisionNode;
+    var edge = await decisionGraphStore.addEdge({
+      id: "edge_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+      from: id_a,
+      to: id_b,
+      type: "scoped_alongside",
+      created_at: new Date().toISOString(),
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify({ decision_a: updatedA, decision_b: updatedB, edge: edge }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "decision_history",
+  "Return the complete supersession lineage for a decision, ordered oldest to newest.",
+  {
+    id: z.string().min(1).describe("Existing decision id anywhere in the supersession lineage."),
+  },
+  async function ({ id }) {
+    var node = await decisionGraphStore.getNode(id);
+    if (node === null || node.node_kind !== "decision") {
+      return { content: [{ type: "text" as const, text: "Decision not found: " + id }], isError: true };
+    }
+    return { content: [{ type: "text" as const, text: JSON.stringify(await decisionLineage(node), null, 2) }] };
+  }
+);
+
+server.tool(
+  "decision_get",
+  "Get a Decision Graph node and every node connected to it by an edge in either direction.",
+  {
+    id: z.string().min(1).describe("Decision Graph node id."),
+  },
+  async function ({ id }) {
+    var node = await decisionGraphStore.getNode(id);
+    if (node === null) {
+      return { content: [{ type: "text" as const, text: "Decision Graph node not found: " + id }], isError: true };
+    }
+    var neighbors = await decisionGraphStore.neighbors(id);
+    return { content: [{ type: "text" as const, text: JSON.stringify({ node: node, neighbors: neighbors }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "decision_list",
+  "List decisions in the local Decision Graph. Defaults to active decisions.",
+  {
+    status: z.enum(["active", "superseded", "contested"]).optional().describe("Decision status to list. Omit to list active decisions."),
+    drafts_only: z.boolean().optional().describe("When true, return active decisions awaiting a rationale or confirmation."),
+  },
+  async function ({ status, drafts_only }) {
+    var decisions: DecisionNode[] = status === undefined
+      ? await decisionGraphStore.listActiveDecisions()
+      : await decisionGraphStore.listDecisions(status);
+    if (drafts_only === true) {
+      decisions = (await decisionGraphStore.listActiveDecisions()).filter(function (decision) {
+        return decision.rationale_missing || decision.rationale_trust === "extracted";
+      });
+    }
+    return { content: [{ type: "text" as const, text: JSON.stringify(decisions, null, 2) }] };
+  }
+);
+
+server.tool(
+  "gap_scan",
+  "Scan the local Decision Graph for uncovered components, weak rationales, contested decisions, and derived staleness. Schedulers should call with digest_only:true and treat actionable:false as a no-op.",
+  {
+    use_cases: z.array(z.string()).optional().describe("Use-case descriptions whose component terms should be covered by active decisions."),
+    reference_systems: z.array(z.string()).optional().describe("Pattern or design-system ids from Raven's existing registries. Omit for a small built-in pattern set."),
+    digest_only: z.boolean().optional().describe("Hands-off mode. When healthy, return only the quiet actionable:false digest."),
+  },
+  async function ({ use_cases, reference_systems, digest_only }) {
+    var references = referenceComponents(reference_systems);
+    if (references.unresolved.length > 0) {
+      return { content: [{ type: "text" as const, text: "Unknown reference system id(s): " + references.unresolved.join(", ") + ". Use list_design_systems or the patterns registry ids." }], isError: true };
+    }
+    var digest = buildGapDigest(await scanGaps(decisionGraphStore, {
+      use_cases: use_cases,
+      reference_components: references.components,
+      config: gapScanConfig(),
+    }));
+    if (digest_only === true && !digest.actionable) {
+      return { content: [{ type: "text" as const, text: JSON.stringify(digest) }] };
+    }
+    return { content: [{ type: "text" as const, text: JSON.stringify(digest, null, 2) }] };
+  }
+);
+
+server.tool(
+  "ingest_transcript",
+  "Store a transcript source and return an extraction prompt for the calling agent's model. Raven makes no model or network call.",
+  {
+    text: z.string().min(1).describe("Transcript text to extract design decisions from."),
+    source_meta: z.object({
+      ref: z.string().min(1).describe("Source reference, such as a meeting title, URL, or date."),
+      kind: z.string().optional().describe("Source kind. Defaults to meeting."),
+    }).describe("Metadata identifying the transcript source."),
+  },
+  async function ({ text, source_meta }) {
+    var source = await decisionGraphStore.addNode({
+      node_kind: "source" as const,
+      id: "src_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+      kind: source_meta.kind || "meeting",
+      ref: source_meta.ref,
+      created_at: new Date().toISOString(),
+    });
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({
+          source_id: source.id,
+          extraction_prompt: buildExtractionPrompt(text),
+          next: "Run the extraction prompt against the transcript with your model, then call ingest_transcript_results with the JSON.",
+        }, null, 2),
+      }],
+    };
+  }
+);
+
+server.tool(
+  "ingest_transcript_results",
+  "Parse model-produced extraction JSON into reviewable Decision Graph candidates linked to their source. Nothing is auto-confirmed.",
+  {
+    source_id: z.string().min(1).describe("Existing transcript Source node id."),
+    extraction_json: z.string().min(1).describe("Raw JSON returned by the calling agent's model."),
+  },
+  async function ({ source_id, extraction_json }) {
+    var source = await decisionGraphStore.getNode(source_id);
+    if (source === null || source.node_kind !== "source") {
+      return { content: [{ type: "text" as const, text: "Transcript source not found: " + source_id }], isError: true };
+    }
+    var parsed = parseExtractionJson(extraction_json);
+    if (!parsed.ok) {
+      return { content: [{ type: "text" as const, text: parsed.error }], isError: true };
+    }
+
+    var candidates: Array<{ node: DecisionNode; edge_id: string }> = [];
+    for (var item of parsed.items) {
+      var node = flagRationaleMissing({
+        node_kind: "decision" as const,
+        id: "dec_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+        statement: item.statement,
+        rationale: item.rationale,
+        rationale_trust: item.rationale === null ? null : "extracted" as const,
+        scope: source.ref,
+        component_ref: source.ref,
+        alternatives_rejected: item.alternatives_rejected,
+        status: "active" as const,
+        superseded_by: null,
+        created_at: new Date().toISOString(),
+      });
+      var created = await decisionGraphStore.addNode(node) as DecisionNode;
+      var edgeId = "edge_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
+      await decisionGraphStore.addEdge({
+        id: edgeId,
+        from: created.id,
+        to: source_id,
+        type: "derived_from",
+        created_at: new Date().toISOString(),
+      });
+      candidates.push({ node: created, edge_id: edgeId });
+    }
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({
+          candidates: candidates,
+          skipped: parsed.skipped,
+          review_note: "Nothing is auto-confirmed. Review each candidate and call decision_commit for every keeper.",
+        }, null, 2),
+      }],
+    };
+  }
+);
 
 server.tool(
   "create_taste_profile",
