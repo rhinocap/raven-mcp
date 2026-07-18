@@ -42,6 +42,7 @@ import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
 import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet } from "./designmd.js";
 import { startGrabSession, getGrabbedElements, stopGrabSession } from "./grab-bridge.js";
 import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode } from "./decision-graph.js";
+import { reviewDiff } from "./design-review.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -1633,12 +1634,12 @@ function maybeComputeDailyDigest(): void {
 
 // ── Server ──────────────────────────────────────────────────────────
 
-// The 44 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
+// The 45 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
 // 31 are stateful/local (per-user ~/.raven files, or the create_generation_job
 // subprocess), 5 reach the filesystem/network or have an external side effect,
-// 2 are Talon tools pending a remote-safety pass, and 6 are DESIGN.md /
+// 2 are Talon tools pending a remote-safety pass, and 7 are DESIGN.md / review /
 // grab-bridge tools. Everything else (45 stateless tools, including the 5
-// guarded browser URL audits added in Phase 3) is remote-safe, from 89 local tools.
+// guarded browser URL audits added in Phase 3) is remote-safe, from 90 local tools.
 // Traced to docs/remote-mcp-scope.md §2; asserted at build time.
 const REMOTE_GATED_TOOLS = new Set<string>([
   // stateful / local (31)
@@ -1670,10 +1671,14 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   // anonymous 45-tool golden hash unchanged. Revisit if/when Talon gets its
   // own remote-safety pass (URL-guard like audit_page, or an authed lane).
   "talon_scan", "talon_rules",
-  // DESIGN.md and grab bridge stateful tools.
+  // DESIGN.md, design review, and grab bridge stateful tools.
   "read_design_md", "init_design_md", "update_design_md",
-  "start_grab_session", "get_grabbed_elements", "stop_grab_session"
+  "start_grab_session", "get_grabbed_elements", "stop_grab_session",
+  "review_diff"
 ]);
+
+// Structured-output tools consumed by CI must stay byte-deterministic.
+const DIGEST_EXEMPT_TOOLS = new Set<string>(["review_diff"]);
 
 // Taste tools served to AUTHENTICATED remote users when a per-user store is
 // injected into buildServer (P4.2+: api/mcp-user.js passes a
@@ -1742,18 +1747,18 @@ const REMOTE_URL_GUARDED_TOOLS: { [tool: string]: string } = {
   audit_taste: "url"
 };
 
-// buildServer() returns a FRESH McpServer with all 78 local tools + the usage-log/
+// buildServer() returns a FRESH McpServer with all 90 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
 export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }): McpServer {
-// remote = serve only the 45 stateless remote-safe tools (gate off the 20
-// stateful/local + 5 fs/network/side-effect capability tools; evaluate_design
+// remote = serve only the 45 stateless remote-safe tools (gate off the 45 gated tools
+// as appropriate; authenticated stores selectively restore taste tools). evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 78.
+// without threading opts. stdio callers pass nothing → remote=false → all 90.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -1827,21 +1832,23 @@ var originalTool: any = server.tool.bind(server);
       if (!remote) {
         logUsage(toolName, input, result, Date.now() - start);
         maybeComputeDailyDigest();
-        // Collect any notices to prepend — daily digest first, then update.
-        var notices: string[] = [];
-        if (pendingDailyDigest) {
-          notices.push(pendingDailyDigest);
-          pendingDailyDigest = null;
-        }
-        if (pendingUpdateNotice && !noticeShown) {
-          notices.push(pendingUpdateNotice);
-          noticeShown = true;
-        }
-        if (notices.length > 0 && result && Array.isArray(result.content)) {
-          for (var i = 0; i < result.content.length; i++) {
-            if (result.content[i] && result.content[i].type === "text") {
-              result.content[i].text = notices.join("\n") + "\n\n" + result.content[i].text;
-              break;
+        if (!DIGEST_EXEMPT_TOOLS.has(toolName)) {
+          // Collect any notices to prepend — daily digest first, then update.
+          var notices: string[] = [];
+          if (pendingDailyDigest) {
+            notices.push(pendingDailyDigest);
+            pendingDailyDigest = null;
+          }
+          if (pendingUpdateNotice && !noticeShown) {
+            notices.push(pendingUpdateNotice);
+            noticeShown = true;
+          }
+          if (notices.length > 0 && result && Array.isArray(result.content)) {
+            for (var i = 0; i < result.content.length; i++) {
+              if (result.content[i] && result.content[i].type === "text") {
+                result.content[i].text = notices.join("\n") + "\n\n" + result.content[i].text;
+                break;
+              }
             }
           }
         }
@@ -2510,6 +2517,36 @@ server.tool(
         }],
         isError: true
       };
+    }
+  }
+);
+
+server.tool(
+  "review_diff",
+  "Review added UI-code lines in a unified diff against the project's own DESIGN.md tokens and active recorded design decisions. Returns a structured CI verdict with file/line findings and nearest-token suggestions. Agents should call this on every PR or diff that touches UI code before merge.",
+  {
+    diff: z.string().max(409600).describe("Unified diff to review (maximum 400KB)."),
+    project: z.string().optional().describe("Project directory used to resolve DESIGN.md and match decision scopes. Omit when design_md is supplied and no project hint is needed."),
+    design_md: z.string().optional().describe("Inline DESIGN.md content. Overrides project file lookup when supplied."),
+  },
+  async function ({ diff, project, design_md }) {
+    try {
+      if (Buffer.byteLength(diff, "utf8") > 400 * 1024) {
+        return { content: [{ type: "text" as const, text: "diff exceeds maximum size of 400KB (409600 bytes)" }], isError: true };
+      }
+      var designContent: string | null = design_md === undefined ? null : design_md;
+      if (design_md === undefined && project !== undefined) {
+        var designPath = /(?:^|[\\/])DESIGN\.md$/i.test(project) ? project : join(project, "DESIGN.md");
+        if (existsSync(designPath)) {
+          var designDoc = readDesignMd(designPath);
+          designContent = serializeDesignMd({ frontmatter: designDoc.frontmatter, body: designDoc.body });
+        }
+      }
+      var decisions = await decisionGraphStore.listActiveDecisions();
+      var result = reviewDiff(diff, designContent, decisions, project);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
     }
   }
 );
@@ -6805,7 +6842,7 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 89 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 90 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });
