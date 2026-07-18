@@ -709,6 +709,9 @@ export async function getTasteInterview(store: TasteStore, profileName: string, 
   };
 }
 
+// Upserts by case-insensitive project name. On a re-bind, omitted optional
+// fields inherit the stored value; pass an explicit empty value to clear one.
+// carried_forward is response-only and is never written to the binding store.
 export async function bindTasteSurface(store: TasteStore, profileName: string, input: {
   project: string;
   surface: string;
@@ -718,7 +721,7 @@ export async function bindTasteSurface(store: TasteStore, profileName: string, i
   design_notes?: unknown;
   references?: unknown;
   uncalibrated_ack?: unknown;
-}): Promise<SurfaceBinding> {
+}): Promise<SurfaceBinding & { carried_forward?: string[] }> {
   const profile = await getTasteProfile(store, profileName);
   if (typeof input.project !== "string" || !/^[a-z0-9][a-z0-9-_.]{0,63}$/i.test(input.project)) {
     throw new Error("project must match /^[a-z0-9][a-z0-9-_.]{0,63}$/i");
@@ -726,21 +729,53 @@ export async function bindTasteSurface(store: TasteStore, profileName: string, i
   if (typeof input.surface !== "string" || input.surface.trim().length === 0) {
     throw new Error("surface is required — the phrase scoped rules match against (e.g. 'product-site')");
   }
+  const storedBindings = await listSurfaceBindings(store, profile.name);
+  const existingBinding = storedBindings.find(function(existing) {
+    return existing.project.toLowerCase() === input.project.toLowerCase();
+  });
+  // Inheriting an empty prior value is a no-op, so carry-forward (and its
+  // report) only fires when the stored field actually held content.
+  const carriedForward: string[] = [];
+  let referencesInput = input.references;
+  if (referencesInput === undefined && existingBinding && existingBinding.references && existingBinding.references.length > 0) {
+    referencesInput = existingBinding.references;
+    carriedForward.push("references");
+  }
+  let designNotesInput = input.design_notes;
+  if (designNotesInput === undefined && existingBinding && Object.keys(existingBinding.design_notes || {}).length > 0) {
+    designNotesInput = existingBinding.design_notes;
+    carriedForward.push("design_notes");
+  }
+  let voiceNoteInput = input.voice_note;
+  if (voiceNoteInput === undefined && existingBinding && existingBinding.voice_note.trim().length > 0) {
+    voiceNoteInput = existingBinding.voice_note;
+    carriedForward.push("voice_note");
+  }
+  let overridesInput = input.overrides;
+  if (overridesInput === undefined && existingBinding && existingBinding.overrides.length > 0) {
+    overridesInput = existingBinding.overrides;
+    carriedForward.push("overrides");
+  }
+  let hostsInput = input.hosts;
+  if (hostsInput === undefined && existingBinding && existingBinding.hosts.length > 0) {
+    hostsInput = existingBinding.hosts;
+    carriedForward.push("hosts");
+  }
   const hosts: string[] = [];
-  if (input.hosts !== undefined) {
-    if (!Array.isArray(input.hosts)) throw new Error("hosts must be an array of hostnames");
-    for (const raw of input.hosts) {
+  if (hostsInput !== undefined) {
+    if (!Array.isArray(hostsInput)) throw new Error("hosts must be an array of hostnames");
+    for (const raw of hostsInput) {
       if (typeof raw !== "string" || raw.trim().length === 0) throw new Error("hosts entries must be non-empty strings");
       hosts.push(normalizeHost(raw));
     }
   }
   const ruleIds = new Set(profile.rules.map(function(rule) { return rule.rule_id; }));
   const overrides: SurfaceOverride[] = [];
-  if (input.overrides !== undefined) {
-    if (!Array.isArray(input.overrides)) throw new Error("overrides must be an array of {rule_id, severity}");
+  if (overridesInput !== undefined) {
+    if (!Array.isArray(overridesInput)) throw new Error("overrides must be an array of {rule_id, severity}");
     const seen = new Set<string>();
-    for (let i = 0; i < input.overrides.length; i += 1) {
-      const raw = input.overrides[i];
+    for (let i = 0; i < overridesInput.length; i += 1) {
+      const raw = overridesInput[i];
       if (!isRecord(raw)) throw new Error("overrides[" + i + "] must be an object");
       const ruleId = readNonEmptyString(raw, "rule_id", "overrides[" + i + "]");
       if (!ruleIds.has(ruleId)) throw new Error("overrides[" + i + "].rule_id does not exist in profile.rules: " + ruleId);
@@ -751,9 +786,9 @@ export async function bindTasteSurface(store: TasteStore, profileName: string, i
       overrides.push({ rule_id: ruleId, severity: severity as TasteSeverity | "off" });
     }
   }
-  const voiceNote = optionalString(input.voice_note);
-  const designNotes = validateDesignNotes(input.design_notes, "design_notes");
-  const references = validateReferences(input.references, "references");
+  const voiceNote = optionalString(voiceNoteInput);
+  const designNotes = validateDesignNotes(designNotesInput, "design_notes");
+  const references = validateReferences(referencesInput, "references");
 
   // Interview-enforcement gate. A bind whose RESULT carries zero taste
   // calibration — no design_notes, no non-blank voice_note, no references, no
@@ -764,20 +799,24 @@ export async function bindTasteSurface(store: TasteStore, profileName: string, i
   // interviewed and chose to skip every dimension, recorded on the binding so
   // the skip is auditable, never silent.
   //
-  // This gates NEW surfaces and re-binds alike, on purpose: bind is an upsert
-  // that REPLACES every field, so an empty re-bind erases prior calibration
-  // exactly as a fresh identity-only bind never had it (keying the exemption on
-  // project would let `same-project, new surface, empty notes` silently wipe a
-  // calibrated binding). Hosts are identity/matching, not taste, so they do NOT
+  // This evaluates the merged result: omitted re-bind fields carry forward,
+  // while explicitly empty fields clear prior calibration and can still make
+  // the bind fail. Hosts are identity/matching, not taste, so they do NOT
   // satisfy the gate. Blank strings are trimmed before counting, so whitespace
   // cannot smuggle a bind through. A meaningful design_note is trusted; a
   // deliberately fabricated one is a lie no deterministic gate can detect.
-  const ack = optionalString(input.uncalibrated_ack).trim();
+  let ack = optionalString(input.uncalibrated_ack).trim();
   const hasCalibration =
     Object.keys(designNotes).length > 0 ||
     voiceNote.trim().length > 0 ||
     overrides.length > 0 ||
     (references !== undefined && references.length > 0);
+  // A stored uncalibrated_ack is durable consent: an acked-uncalibrated
+  // binding can be re-bound (new surface/hosts) without repeating the ack.
+  if (!hasCalibration && ack.length === 0 && existingBinding && typeof existingBinding.uncalibrated_ack === "string" && existingBinding.uncalibrated_ack.trim().length > 0) {
+    ack = existingBinding.uncalibrated_ack.trim();
+    carriedForward.push("uncalibrated_ack");
+  }
   if (!hasCalibration && ack.length === 0) {
     throw new Error(
       "Refusing to bind surface ('" + input.project + "') with no calibration content — this is the fingerprint of a skipped taste interview (and an empty re-bind would erase prior calibration). " +
@@ -798,13 +837,14 @@ export async function bindTasteSurface(store: TasteStore, profileName: string, i
   };
   if (references !== undefined) binding.references = references;
   if (!hasCalibration && ack.length > 0) binding.uncalibrated_ack = ack;
-  const bindings = (await listSurfaceBindings(store, profile.name)).filter(function(existing) {
+  const bindings = storedBindings.filter(function(existing) {
     return existing.project.toLowerCase() !== binding.project.toLowerCase();
   });
   bindings.push(binding);
   bindings.sort(function(a, b) { return a.project.localeCompare(b.project); });
   await store.putSurfaces(profile.name, bindings);
-  return binding;
+  if (carriedForward.length === 0) return binding;
+  return Object.assign({}, binding, { carried_forward: carriedForward });
 }
 
 const DECISION_SOURCES: TasteDecisionSource[] = ["user-directed", "user-approved", "user-corrected"];
