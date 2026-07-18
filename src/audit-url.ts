@@ -52,6 +52,7 @@ export type AuditUrlFinding = {
 export type AuditUrlCapture = {
   viewport: string;
   theme: Theme;
+  mobile_emulation?: boolean;
   scrolledToBottom: boolean;
   animationsSettled: boolean;
   screenshot_bytes: number;
@@ -174,6 +175,7 @@ export async function auditUrl(url: string, opts: AuditUrlOptions = {}): Promise
       captures.push({
         viewport: vpLabel,
         theme,
+        mobile_emulation: cap.mobile_emulation,
         scrolledToBottom: cap.scrolledToBottom,
         animationsSettled: cap.animationsSettled,
         screenshot_bytes: cap.screenshotBase64 ? cap.screenshotBase64.length : 0,
@@ -197,6 +199,13 @@ export async function auditUrl(url: string, opts: AuditUrlOptions = {}): Promise
           verifiable,
           { viewport: { w: vp.w, h: vp.h }, timeoutMs }
         );
+        const verificationWarnings = new Set<string>();
+        for (const verdict of verdicts) {
+          for (const warning of verdict.warnings || []) verificationWarnings.add(warning);
+        }
+        for (const warning of verificationWarnings) {
+          warnings.push(vpLabel + "/" + theme + " verification: " + warning);
+        }
       } catch (error) {
         warnings.push("page-check verification failed (" + vpLabel + "/" + theme + "): " + errorMessage(error));
       }
