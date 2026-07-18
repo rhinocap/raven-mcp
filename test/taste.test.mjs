@@ -631,6 +631,245 @@ test('banned-word lists only extract from vocabulary sentences, not descriptive 
   });
 });
 
+test('source_text substitution becomes a warn PORT-DIFF finding and raises the audit verdict', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, { name: 'port-warn', rules: [] });
+    const result = await taste.auditTaste(store, {
+      profile,
+      text: 'Built from proven patterns for teams.',
+      source_text: 'Built from field-tested patterns for teams.'
+    });
+    assert.equal(result.port_fidelity.verdict, 'diverged');
+    assert.deepEqual(result.port_fidelity.substituted.map((entry) => [entry.source, entry.target]), [['field-tested', 'proven']]);
+    const finding = result.fidelity_findings.find((entry) => entry.rule_id === 'PORT-DIFF');
+    assert.equal(finding.severity, 'warn');
+    assert.equal(result.verdict, 'WARN');
+  });
+});
+
+test('source_text substitution introducing a profile-banned word blocks', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, {
+      name: 'port-block',
+      rules: [{
+        rule_id: 'VOICE-no-hype',
+        clause_text: 'Restrained voice.',
+        category: 'voice',
+        severity_default: 'block',
+        negative_prompt: 'Do NOT use persuasion verbs (proven, shipped, unlock).',
+        owner: 'taste',
+        delegate_to: ''
+      }]
+    });
+    const result = await taste.auditTaste(store, {
+      profile,
+      text: 'Built from proven patterns.',
+      source_text: 'Built from field-tested patterns.'
+    });
+    const finding = result.fidelity_findings.find((entry) => entry.rule_id === 'PORT-DIFF');
+    assert.equal(finding.severity, 'block');
+    assert.match(finding.evidence, /field-tested.*proven/i);
+    assert.equal(result.verdict, 'BLOCK');
+  });
+});
+
+test('whole-text banned phrase spanning a substitution boundary blocks only when newly introduced', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, {
+      name: 'port-bigram-block',
+      rules: [{
+        rule_id: 'VOICE-no-battle-tested',
+        clause_text: 'Avoid hype phrases.',
+        category: 'voice',
+        severity_default: 'block',
+        negative_prompt: 'Do NOT use phrases (battle tested, proven).',
+        owner: 'raven',
+        delegate_to: 'audit_content'
+      }]
+    });
+
+    const introduced = await taste.auditTaste(store, {
+      profile,
+      text: 'the battle tested pattern',
+      source_text: 'the field tested pattern'
+    });
+    assert.equal(introduced.verdict, 'BLOCK');
+    assert.ok(introduced.fidelity_findings.some((entry) =>
+      entry.rule_id === 'PORT-DIFF' && entry.severity === 'block' && /battle tested/i.test(entry.evidence)
+    ));
+
+    const alreadyPresent = await taste.auditTaste(store, {
+      profile,
+      text: 'the battle tested pattern beside a battle tested example',
+      source_text: 'the field tested pattern beside a battle tested example'
+    });
+    const portFindings = alreadyPresent.fidelity_findings.filter((entry) => entry.rule_id === 'PORT-DIFF');
+    assert.ok(portFindings.length > 0);
+    assert.ok(portFindings.every((entry) => entry.severity === 'warn'));
+    assert.equal(alreadyPresent.verdict, 'WARN');
+  });
+});
+
+test('binding-demoted rules do not contribute PORT-DIFF escalation terms', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, {
+      name: 'port-demoted-ban',
+      rules: [{
+        rule_id: 'VOICE-no-proven',
+        clause_text: 'Avoid hype language.',
+        category: 'voice',
+        severity_default: 'block',
+        negative_prompt: 'Do NOT use persuasion verbs (proven, shipped).',
+        owner: 'raven',
+        delegate_to: 'audit_content'
+      }]
+    });
+    const binding = {
+      project: 'demoted-binding', surface: 'product-site', active_scopes: [],
+      overrides: [{ rule_id: 'VOICE-no-proven', severity: 'warn' }],
+      voice_note: '', url_hosts: [], design_notes: {}, references: [], uncalibrated_ack: 'test fixture'
+    };
+    const result = await taste.auditTaste(store, {
+      profile,
+      binding,
+      text: 'Built from proven patterns.',
+      source_text: 'Built from field-tested patterns.'
+    });
+    const portFindings = result.fidelity_findings.filter((entry) => entry.rule_id === 'PORT-DIFF');
+    assert.ok(portFindings.length > 0);
+    assert.ok(portFindings.every((entry) => entry.severity === 'warn'));
+    assert.equal(result.verdict, 'WARN');
+  });
+});
+
+test('PORT-DIFF banned-term escalation uses only rules active for the audited surface', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, {
+      name: 'port-scoped-ban',
+      rules: [{
+        rule_id: 'PORTFOLIO-no-proven',
+        clause_text: 'Avoid persuasion verbs (proven, shipped).',
+        category: 'voice',
+        severity_default: 'block',
+        negative_prompt: 'Do NOT use persuasion verbs (proven, shipped).',
+        owner: 'taste',
+        delegate_to: '',
+        scope: 'portfolio'
+      }]
+    });
+    const input = {
+      profile,
+      text: 'Built from proven patterns.',
+      source_text: 'Built from field-tested patterns.'
+    };
+
+    const product = await taste.auditTaste(store, { ...input, surface: 'product-site' });
+    assert.equal(product.fidelity_findings.find((entry) => entry.rule_id === 'PORT-DIFF').severity, 'warn');
+    assert.equal(product.verdict, 'WARN');
+
+    const portfolio = await taste.auditTaste(store, { ...input, surface: 'portfolio' });
+    assert.equal(portfolio.fidelity_findings.find((entry) => entry.rule_id === 'PORT-DIFF').severity, 'block');
+    assert.equal(portfolio.verdict, 'BLOCK');
+
+    const binding = {
+      project: 'off-binding', surface: 'portfolio', active_scopes: [],
+      overrides: [{ rule_id: 'PORTFOLIO-no-proven', severity: 'off' }],
+      voice_note: '', url_hosts: [], design_notes: {}, references: [], uncalibrated_ack: 'test fixture'
+    };
+    const disabled = await taste.auditTaste(store, { ...input, binding });
+    assert.equal(disabled.fidelity_findings.find((entry) => entry.rule_id === 'PORT-DIFF').severity, 'warn');
+  });
+});
+
+test('capped port comparison always contributes a warn even when another change was classified', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, { name: 'port-cap', rules: [] });
+    const source = Array.from({ length: 5001 }, () => 'same');
+    const target = source.slice();
+    target[0] = 'Same';
+    target[target.length - 1] = 'changed';
+    const result = await taste.auditTaste(store, {
+      profile,
+      text: target.join(' '),
+      source_text: source.join(' ')
+    });
+    assert.equal(result.port_fidelity.token_counts.capped, true);
+    assert.ok(result.fidelity_findings.some((entry) => entry.rule_id === 'PORT-DIFF' && entry.severity === 'warn' && /capped/i.test(entry.evidence)));
+    assert.equal(result.verdict, 'WARN');
+  });
+});
+
+test('multi-block reorder produces moved nits only and keeps the audit verdict PASS', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, { name: 'port-moves', rules: [] });
+    const result = await taste.auditTaste(store, {
+      profile,
+      source_text: 'Alpha opening introduction common shared ending. Beta middle conclusion common shared ending.',
+      text: 'Beta middle conclusion common shared ending. Alpha opening introduction common shared ending.'
+    });
+    const portFindings = result.fidelity_findings.filter((entry) => entry.rule_id === 'PORT-DIFF');
+    assert.ok(portFindings.length > 0);
+    assert.ok(portFindings.every((entry) => entry.severity === 'nit'));
+    assert.deepEqual(result.port_fidelity.dropped, []);
+    assert.deepEqual(result.port_fidelity.added, []);
+    assert.equal(result.verdict, 'PASS');
+  });
+});
+
+test('plain audit without source_text omits port fidelity data and findings', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, { name: 'plain-audit', rules: [] });
+    const result = await taste.auditTaste(store, { profile, text: 'Plain audit copy.' });
+    assert.equal(Object.prototype.hasOwnProperty.call(result, 'port_fidelity'), false);
+    assert.equal(result.fidelity_findings?.some((entry) => entry.rule_id === 'PORT-DIFF') || false, false);
+  });
+});
+
+test('source_text case-only change creates a nit PORT-DIFF finding without raising PASS', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, { name: 'port-case', rules: [] });
+    const result = await taste.auditTaste(store, {
+      profile,
+      text: 'design systems endure.',
+      source_text: 'Design systems endure.'
+    });
+    assert.equal(result.port_fidelity.case_changed.length, 1);
+    assert.equal(result.fidelity_findings.find((entry) => entry.rule_id === 'PORT-DIFF').severity, 'nit');
+    assert.equal(result.verdict, 'PASS');
+  });
+});
+
+test('audit_taste html mode compares source_text with extracted visible text through the real MCP handler', async () => {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'port-html', rules: [] });
+    const result = await callTasteTool(store, 'audit_taste', {
+      profile: 'port-html',
+      source_text: 'Field-tested tools & careful systems.',
+      html: '<style>.hidden{display:none}</style><main><h1>Field-tested tools &amp; careful systems.</h1></main>'
+    });
+    assert.equal(result.target, 'html');
+    assert.equal(result.port_fidelity.verdict, 'verbatim');
+    assert.deepEqual(result.fidelity_findings, []);
+    assert.equal(result.verdict, 'PASS');
+  });
+});
+
+test('audit_taste html mode preserves bare less-than comparison prose verbatim', async () => {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'port-html-comparisons', rules: [] });
+    const source = 'a < b and c > d, 5<6';
+    const result = await callTasteTool(store, 'audit_taste', {
+      profile: 'port-html-comparisons',
+      source_text: source,
+      html: source
+    });
+    assert.equal(result.target, 'html');
+    assert.equal(result.port_fidelity.verdict, 'verbatim');
+    assert.deepEqual(result.fidelity_findings, []);
+    assert.equal(result.verdict, 'PASS');
+  });
+});
+
 test('mixed fence markers, cross-sentence cue leaks, and abbreviation boundaries are handled', async () => {
   await withTasteHome(async (_home, store) => {
     // 1. A ~~~ inside a ``` fence must NOT close it.

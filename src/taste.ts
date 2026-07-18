@@ -1,5 +1,6 @@
 import { extractStaticTraits, type PageTraits } from "./capture.js";
 import { assessDesignNotes, referenceDeltas, restraintGuard, buildHints, type NoteAssessment, type BuildHint } from "./taste-fidelity.js";
+import { diffPortText, extractVisibleText, introducedBannedTerms, type PortFidelityResult } from "./port-fidelity.js";
 import type { TasteStore } from "./taste-store.js";
 export { tasteHome } from "./taste-store.js";
 
@@ -62,6 +63,9 @@ export type TasteAuditResult = {
   // (TASTE-restraint-earned), and reference deltas (REF-*). They count toward
   // the verdict but never pass through corpus suppression or rule filtering.
   fidelity_findings?: TasteFinding[];
+  // Deterministic source-vs-target word diff for content ports. Present only
+  // when source_text was supplied, so existing audit payloads stay unchanged.
+  port_fidelity?: PortFidelityResult;
   // Concrete build recipes + canonical public example sources for any expensive
   // technique named in the design_notes — so a failing audit hands the builder
   // the HOW next to the missing finding. Present only when a note triggers one.
@@ -1230,6 +1234,7 @@ export async function auditTaste(store: TasteStore, input: {
   profile: string | TasteProfile;
   html?: string;
   text?: string;
+  source_text?: string;
   page_issues?: PageIssueInput[];
   surface?: string;
   project?: string;
@@ -1259,6 +1264,7 @@ export async function auditTaste(store: TasteStore, input: {
   const notAssessed: { rule_id: string; reason: string }[] = [];
   const skippedOutOfScope: { rule_id: string; scope: string }[] = [];
   const disabledByBinding: { rule_id: string; severity: "off" }[] = [];
+  const activeRules: TasteRule[] = [];
   const attachedIssueIndexes = new Set<number>();
   // undefined binding = "resolve from the project hint"; null = "already
   // resolved upstream, none found" (the url-mode handler resolves early so
@@ -1295,6 +1301,7 @@ export async function auditTaste(store: TasteStore, input: {
         rule = Object.assign({}, rule, { severity_default: "warn" as TasteSeverity });
       }
     }
+    activeRules.push(rule);
     if (rule.owner === "raven") {
       if (input.page_issues === undefined) {
         notAssessed.push({
@@ -1376,6 +1383,76 @@ export async function auditTaste(store: TasteStore, input: {
     }
   }
 
+  let portFidelity: PortFidelityResult | undefined = undefined;
+  if (input.source_text !== undefined) {
+    const visibleTarget = targetKind === "html" ? extractVisibleText(rawTarget) : rawTarget;
+    portFidelity = diffPortText(input.source_text, visibleTarget);
+    const bannedTerms = Array.from(new Set(activeRules.filter(function(rule) {
+      return rule.severity_default === "block";
+    }).flatMap(function(rule) {
+      return extractBannedTerms(rule.negative_prompt + " " + rule.clause_text);
+    })));
+    const sourceBannedTerms = new Set(introducedBannedTerms(input.source_text, bannedTerms).map(function(term) {
+      return term.toLocaleLowerCase();
+    }));
+    const newlyIntroducedTerms = introducedBannedTerms(visibleTarget, bannedTerms).filter(function(term) {
+      return !sourceBannedTerms.has(term.toLocaleLowerCase());
+    });
+    const matchedIntroducedTerms = new Set<string>();
+    const introducedInFinding = function(target: string, context: string): string[] {
+      const targetText = target.toLocaleLowerCase();
+      const contextText = context.toLocaleLowerCase();
+      return newlyIntroducedTerms.filter(function(term) {
+        const normalizedTerm = term.toLocaleLowerCase();
+        const matched = targetText.includes(normalizedTerm) || contextText.includes(normalizedTerm);
+        if (matched) matchedIntroducedTerms.add(term.toLocaleLowerCase());
+        return matched;
+      });
+    };
+    const portFindings: TasteFinding[] = [];
+    const baseFinding = function(severity: TasteSeverity, evidence: string): TasteFinding {
+      return {
+        rule_id: "PORT-DIFF",
+        clause_cited: "Port target text must remain verbatim against source_text.",
+        severity,
+        owner: "taste",
+        source: "raven",
+        evidence,
+        fix: "Restore the source wording exactly, or explicitly approve and update source_text before re-running the audit.",
+      };
+    };
+    for (const entry of portFidelity.substituted) {
+      const banned = introducedInFinding(entry.target, entry.context);
+      const suffix = banned.length > 0 ? "; introduced banned profile term(s): " + banned.join(", ") : "";
+      portFindings.push(baseFinding(banned.length > 0 ? "block" : "warn",
+        'substituted "' + entry.source + '" → "' + entry.target + '"; context: ' + entry.context + suffix));
+    }
+    for (const entry of portFidelity.dropped) {
+      portFindings.push(baseFinding("warn", 'dropped "' + entry.source + '"; context: ' + entry.context));
+    }
+    for (const entry of portFidelity.added) {
+      const banned = introducedInFinding(entry.target, entry.context);
+      const suffix = banned.length > 0 ? "; introduced banned profile term(s): " + banned.join(", ") : "";
+      portFindings.push(baseFinding(banned.length > 0 ? "block" : "warn",
+        'added "' + entry.target + '"; context: ' + entry.context + suffix));
+    }
+    for (const entry of portFidelity.moved) {
+      portFindings.push(baseFinding("nit", 'moved "' + entry.text + '"; context: ' + entry.context));
+    }
+    for (const entry of portFidelity.case_changed) {
+      portFindings.push(baseFinding("nit", 'case changed "' + entry.source + '" → "' + entry.target + '"; context: ' + entry.context));
+    }
+    for (const term of newlyIntroducedTerms) {
+      if (!matchedIntroducedTerms.has(term.toLocaleLowerCase())) {
+        portFindings.push(baseFinding("block", 'introduced banned profile term spanning a port-diff boundary: "' + term + '"'));
+      }
+    }
+    if (portFidelity.token_counts.capped && portFidelity.warnings.length > 0) {
+      portFindings.push(baseFinding("warn", portFidelity.warnings.join(" ")));
+    }
+    fidelityFindings = (fidelityFindings || []).concat(portFindings);
+  }
+
   const countable = fidelityFindings === undefined ? activeFindings : activeFindings.concat(fidelityFindings);
   const blockCount = countable.filter(function(finding) { return finding.severity === "block"; }).length;
   const warnCount = countable.filter(function(finding) { return finding.severity === "warn"; }).length;
@@ -1407,6 +1484,7 @@ export async function auditTaste(store: TasteStore, input: {
   if (binding && Object.keys(binding.design_notes).length > 0) result.design_notes = binding.design_notes;
   if (noteAssessments !== undefined) result.note_assessments = noteAssessments;
   if (fidelityFindings !== undefined) result.fidelity_findings = fidelityFindings;
+  if (portFidelity !== undefined) result.port_fidelity = portFidelity;
   // Attach build recipes for any expensive technique named in the notes — this
   // does not need traits, so a failing audit ALWAYS carries the fix ammunition.
   // Portraits skip them: with note-fidelity off there is no missing finding to fix.
