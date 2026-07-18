@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Permanently Hidden Content Fixture</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    main { padding: 40px; }
+    .hidden { opacity: 0; }
+  </style>
+</head>
+<body>
+  <main>
+    <p>Visible control content</p>
+    <p>Second visible control</p>
+    <p>Third visible control</p>
+    <section class="hidden">
+      <h1>Hidden heading</h1>
+      <img alt="Hidden content image" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='40'%3E%3Crect width='80' height='40' fill='black'/%3E%3C/svg%3E" />
+    </section>
+  </main>
+</body>
+</html>

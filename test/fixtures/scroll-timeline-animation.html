@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Scroll Timeline Animation Fixture</title>
+  <style>
+    body { min-height: 300vh; margin: 0; font-family: sans-serif; }
+    @keyframes drift { from { transform: translateX(0); } to { transform: translateX(200px); } }
+    #indicator {
+      width: 100px;
+      height: 100px;
+      background: #5628ee;
+      animation-name: drift;
+      animation-duration: auto;
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-timeline: scroll();
+    }
+  </style>
+</head>
+<body>
+  <div id="indicator"></div>
+  <p>Scroll-driven animation content</p>
+</body>
+</html>

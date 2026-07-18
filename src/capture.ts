@@ -113,6 +113,10 @@ export type CaptureResult = {
    * no `document.getAnimations` support (older engines / the file:// no-browser fallback).
    */
   animationsSettled: boolean;
+  /** Vertical scroll position at the moment the capture was taken. */
+  captureScrollY: number;
+  /** Capture-integrity warnings that can make downstream audit findings untrustworthy. */
+  capture_warnings: string[];
   videoArtifacts: VideoArtifact[];
   imageEdges?: ImageEdgeSample[];
   traits?: PageTraits;
@@ -129,6 +133,8 @@ export type CaptureOptions = {
   collectImageEdges?: boolean;
   collectTraits?: boolean;
   timeoutMs?: number;
+  /** Maximum time to wait for finite entrance animations. Default 3000ms; hard-capped at 10000ms. */
+  animation_settle_timeout_ms?: number;
 };
 
 export async function capturePage(url: string, opts?: CaptureOptions): Promise<CaptureResult> {
@@ -138,8 +144,14 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
   const theme = opts && opts.theme ? opts.theme : undefined;
   const collectImageEdges = opts ? opts.collectImageEdges === true : false;
   const collectTraits = opts ? opts.collectTraits === true : false;
+  const animationSettleTimeoutMs = boundedAnimationSettleTimeout(
+    opts && typeof opts.animation_settle_timeout_ms === "number"
+      ? opts.animation_settle_timeout_ms
+      : ANIMATION_SETTLE_TIMEOUT_MS
+  );
   let browser: BrowserLike | null = null;
   const warnings: string[] = [];
+  const captureWarnings: string[] = [];
 
   try {
     try {
@@ -190,33 +202,26 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
     }
 
     let scrolledToBottom = false;
+    let scrollAnimationsSettled = true;
     let videoArtifacts: VideoArtifact[] = [];
 
     if (scrollSettle) {
-      await page.evaluate(function () {
-        window.scrollTo(0, 0);
-      });
-
-      const scrollHeight = await page.evaluate(function () {
-        return document.body.scrollHeight;
-      });
-
-      const stepHeight = viewport.h;
-      for (let y = 0; y < scrollHeight; y += stepHeight) {
-        await page.evaluate(function (step) {
-          window.scrollBy(0, step);
-        }, stepHeight);
-      }
-
-      await page.evaluate(function () {
-        window.scrollTo(0, document.body.scrollHeight);
-      });
-      await page.waitForTimeout(300);
-      scrolledToBottom = true;
+      const scrollResult = await settleScrollReveals(
+        page,
+        viewport.h,
+        warnings,
+        captureWarnings
+      );
+      scrolledToBottom = scrollResult.scrolledToBottom;
+      scrollAnimationsSettled = scrollResult.animationsSettled;
       videoArtifacts = await detectVideoArtifacts(page, warnings);
+      await returnToTopAndSettle(page, warnings, captureWarnings);
     }
 
     const interactions = opts && Array.isArray(opts.interactions) ? opts.interactions : [];
+    // Run requested states after the canonical return-to-top settle. Playwright
+    // may intentionally bring an offscreen interaction target into view; do not
+    // force another top scroll afterward because that would cancel real :hover.
     for (const interaction of interactions) {
       const selector = interaction.selector;
       const event = interaction.event;
@@ -241,7 +246,17 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
       await page.waitForTimeout(delayMs);
     }
 
-    const animationsSettled = await waitForAnimationsToSettle(page, warnings);
+    const viewportAnimationsSettled = await waitForAnimationsToSettle(
+      page,
+      warnings,
+      animationSettleTimeoutMs
+    );
+    const animationsSettled = scrollAnimationsSettled && viewportAnimationsSettled;
+
+    const falseBlankWarning = await detectFalseBlankCapture(page, warnings, captureWarnings);
+    if (falseBlankWarning !== null) {
+      captureWarnings.push(falseBlankWarning);
+    }
 
     let traits: PageTraits | undefined = undefined;
     if (collectTraits) {
@@ -254,6 +269,9 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
     }
 
     const renderedHtml = await page.content();
+    const captureScrollY = await page.evaluate(function () {
+      return window.scrollY;
+    });
     const screenshotBuffer = await page.screenshot({ fullPage: true });
     const screenshotBase64 = screenshotBuffer.toString("base64");
 
@@ -265,6 +283,8 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
       theme: theme,
       scrolledToBottom: scrolledToBottom,
       animationsSettled: animationsSettled,
+      captureScrollY: captureScrollY,
+      capture_warnings: captureWarnings,
       videoArtifacts: videoArtifacts,
       imageEdges: imageEdges,
       traits: traits,
@@ -967,6 +987,8 @@ function captureFileUrlWithoutBrowser(
     scrolledToBottom: scrollSettle,
     // No live browser in this fallback path, so there is no Animations API to poll.
     animationsSettled: false,
+    captureScrollY: 0,
+    capture_warnings: ["capture-integrity: browser unavailable — reveal/settle checks not run"],
     videoArtifacts: scrollSettle ? extractVideoArtifactsFromHtml(renderedHtml) : [],
     traits: traits,
     warnings: warnings
@@ -1062,6 +1084,417 @@ function attributeValue(tag: string, name: string): string | null {
 }
 
 const ANIMATION_SETTLE_TIMEOUT_MS = 3000;
+const MAX_ANIMATION_SETTLE_TIMEOUT_MS = 10000;
+const SCROLL_SETTLE_STEP_DELAY_MS = 80;
+const SCROLL_SETTLE_BOTTOM_POLL_MS = 120;
+const SCROLL_SETTLE_BOTTOM_QUIESCENCE_MS = 400;
+const SCROLL_SETTLE_BOTTOM_STABLE_CHECKS = 2;
+const SCROLL_SETTLE_RETURN_DELAY_MS = 160;
+const SCROLL_SETTLE_TOTAL_TIMEOUT_MS = 4000;
+const SCROLL_SETTLE_ANIMATION_RESERVE_MS = 2000;
+const SCROLL_SETTLE_WALK_TIMEOUT_MS =
+  SCROLL_SETTLE_TOTAL_TIMEOUT_MS - SCROLL_SETTLE_ANIMATION_RESERVE_MS;
+const SCROLL_SETTLE_FORCE_GRACE_MS = 600;
+const ANIMATION_SETTLE_QUIESCENCE_MS = 180;
+const FALSE_BLANK_THRESHOLD = 0.3;
+
+function boundedAnimationSettleTimeout(timeoutMs: number): number {
+  if (!Number.isFinite(timeoutMs)) {
+    return ANIMATION_SETTLE_TIMEOUT_MS;
+  }
+  // Playwright interprets timeout:0 as "no timeout", so the lower bound must
+  // remain positive to preserve the hard-cap guarantee.
+  return Math.max(1, Math.min(MAX_ANIMATION_SETTLE_TIMEOUT_MS, Math.round(timeoutMs)));
+}
+
+async function scrollToInstantly(
+  page: PageLike,
+  targetY: number
+): Promise<{ scrollY: number; scrollHeight: number; viewportHeight: number }> {
+  return page.evaluate(function (nextY) {
+    var root = document.documentElement;
+    var body = document.body;
+    // ScrollOptions behavior:"instant" overrides CSS scroll-behavior:smooth at
+    // the spec level. An inline style override is NOT reliable here: Blink can
+    // resolve the scroll behavior from a stale computed style when the override
+    // is set in the same synchronous script, silently starting a smooth
+    // animation that leaves scrollY mid-flight at capture time.
+    window.scrollTo({ top: nextY, left: 0, behavior: "instant" });
+
+    return {
+      scrollY: window.scrollY,
+      scrollHeight: Math.max(root ? root.scrollHeight : 0, body ? body.scrollHeight : 0),
+      viewportHeight: window.innerHeight
+    };
+  }, targetY);
+}
+
+async function installBottomMutationObserver(page: PageLike): Promise<void> {
+  await page.evaluate(function () {
+    var captureWindow = window as typeof window & {
+      __ravenCaptureBottomMutations?: {
+        lastMutationAt: number;
+        observer: MutationObserver;
+      };
+    };
+    if (captureWindow.__ravenCaptureBottomMutations) {
+      return;
+    }
+    var state: { lastMutationAt: number; observer: MutationObserver } = {
+      lastMutationAt: performance.now(),
+      observer: null as unknown as MutationObserver
+    };
+    var observer = new MutationObserver(function () {
+      state.lastMutationAt = performance.now();
+    });
+    state.observer = observer;
+    captureWindow.__ravenCaptureBottomMutations = state;
+    observer.observe(document.documentElement || document.body, {
+      childList: true,
+      subtree: true
+    });
+  });
+}
+
+async function bottomMutationQuietForMs(page: PageLike): Promise<number> {
+  return page.evaluate(function () {
+    var captureWindow = window as typeof window & {
+      __ravenCaptureBottomMutations?: { lastMutationAt: number };
+    };
+    var state = captureWindow.__ravenCaptureBottomMutations;
+    return state ? Math.max(0, performance.now() - state.lastMutationAt) : 0;
+  });
+}
+
+async function removeBottomMutationObserver(page: PageLike): Promise<void> {
+  await page.evaluate(function () {
+    var captureWindow = window as typeof window & {
+      __ravenCaptureBottomMutations?: { observer: MutationObserver };
+    };
+    var state = captureWindow.__ravenCaptureBottomMutations;
+    if (state) {
+      state.observer.disconnect();
+      delete captureWindow.__ravenCaptureBottomMutations;
+    }
+  });
+}
+
+async function settleScrollReveals(
+  page: PageLike,
+  viewportHeight: number,
+  warnings: string[],
+  captureWarnings: string[]
+): Promise<{ scrolledToBottom: boolean; animationsSettled: boolean }> {
+  const startedAt = Date.now();
+  const walkDeadline = startedAt + SCROLL_SETTLE_WALK_TIMEOUT_MS;
+  const settleDeadline = startedAt + SCROLL_SETTLE_TOTAL_TIMEOUT_MS;
+  let observerInstalled = false;
+  try {
+    let metrics = await scrollToInstantly(page, 0);
+    await page.waitForTimeout(SCROLL_SETTLE_STEP_DELAY_MS);
+    metrics = await scrollToInstantly(page, metrics.scrollY);
+    const stepHeight = Math.max(1, viewportHeight || metrics.viewportHeight || 1);
+    let reachedBottom = false;
+    let stableBottomChecks = 0;
+
+    while (Date.now() < walkDeadline) {
+      const maxScrollY = Math.max(0, metrics.scrollHeight - metrics.viewportHeight);
+      if (metrics.scrollY >= maxScrollY - 1) {
+        if (!observerInstalled) {
+          await installBottomMutationObserver(page);
+          observerInstalled = true;
+        }
+        const priorHeight = metrics.scrollHeight;
+        const waitMs = Math.min(
+          SCROLL_SETTLE_BOTTOM_POLL_MS,
+          Math.max(0, walkDeadline - Date.now())
+        );
+        if (waitMs <= 0) {
+          break;
+        }
+        await page.waitForTimeout(waitMs);
+        metrics = await scrollToInstantly(page, metrics.scrollY);
+        const currentMaxScrollY = Math.max(0, metrics.scrollHeight - metrics.viewportHeight);
+        if (metrics.scrollHeight === priorHeight && metrics.scrollY >= currentMaxScrollY - 1) {
+          stableBottomChecks += 1;
+          const quietForMs = await bottomMutationQuietForMs(page);
+          if (
+            stableBottomChecks >= SCROLL_SETTLE_BOTTOM_STABLE_CHECKS &&
+            quietForMs >= SCROLL_SETTLE_BOTTOM_QUIESCENCE_MS
+          ) {
+            reachedBottom = true;
+            break;
+          }
+        } else {
+          stableBottomChecks = 0;
+        }
+        continue;
+      }
+      stableBottomChecks = 0;
+      const nextY = Math.min(maxScrollY, metrics.scrollY + stepHeight);
+      metrics = await scrollToInstantly(page, nextY);
+      await page.waitForTimeout(SCROLL_SETTLE_STEP_DELAY_MS);
+      metrics = await scrollToInstantly(page, metrics.scrollY);
+    }
+
+    if (!reachedBottom) {
+      captureWarnings.push(
+        "scroll-settle-cap-reached: stepwise reveal walk exceeded " +
+        SCROLL_SETTLE_WALK_TIMEOUT_MS +
+        "ms; middle content on a very long page may remain unrevealed"
+      );
+      metrics = await scrollToInstantly(page, Number.MAX_SAFE_INTEGER);
+      if (!observerInstalled) {
+        await installBottomMutationObserver(page);
+        observerInstalled = true;
+      }
+      stableBottomChecks = 0;
+      const graceDeadline = Date.now() + SCROLL_SETTLE_FORCE_GRACE_MS;
+      while (Date.now() < graceDeadline) {
+        const priorHeight = metrics.scrollHeight;
+        const waitMs = Math.min(
+          SCROLL_SETTLE_BOTTOM_POLL_MS,
+          Math.max(0, graceDeadline - Date.now())
+        );
+        if (waitMs <= 0) {
+          break;
+        }
+        await page.waitForTimeout(waitMs);
+        metrics = await scrollToInstantly(page, metrics.scrollY);
+        const currentMaxScrollY = Math.max(0, metrics.scrollHeight - metrics.viewportHeight);
+        if (metrics.scrollHeight === priorHeight && metrics.scrollY >= currentMaxScrollY - 1) {
+          stableBottomChecks += 1;
+          const quietForMs = await bottomMutationQuietForMs(page);
+          if (
+            stableBottomChecks >= SCROLL_SETTLE_BOTTOM_STABLE_CHECKS &&
+            quietForMs >= SCROLL_SETTLE_BOTTOM_QUIESCENCE_MS
+          ) {
+            reachedBottom = true;
+            break;
+          }
+        } else {
+          stableBottomChecks = 0;
+          metrics = await scrollToInstantly(page, Number.MAX_SAFE_INTEGER);
+        }
+      }
+    }
+
+    if (observerInstalled) {
+      await removeBottomMutationObserver(page);
+      observerInstalled = false;
+    }
+
+    const remainingMs = Math.max(1, settleDeadline - Date.now());
+    const animationsSettled = await waitForAnimationsToSettle(
+      page,
+      warnings,
+      remainingMs,
+      true
+    );
+    if (!animationsSettled) {
+      captureWarnings.push(
+        "scroll-animation-settle-cap-reached: finite reveal animations were still running after the " +
+        SCROLL_SETTLE_TOTAL_TIMEOUT_MS +
+        "ms scroll-settle cap"
+      );
+    }
+
+    return { scrolledToBottom: reachedBottom, animationsSettled: animationsSettled };
+  } catch (error) {
+    const warning = "Failed to step-scroll reveal content: " + errorMessage(error);
+    warnings.push(warning);
+    captureWarnings.push("capture-integrity: " + warning);
+    if (observerInstalled) {
+      try {
+        await removeBottomMutationObserver(page);
+      } catch {
+        // Preserve the original capture-integrity failure.
+      }
+    }
+    return { scrolledToBottom: false, animationsSettled: false };
+  }
+}
+
+async function returnToTopAndSettle(
+  page: PageLike,
+  warnings: string[],
+  captureWarnings: string[]
+): Promise<void> {
+  try {
+    await scrollToInstantly(page, 0);
+    await page.waitForTimeout(SCROLL_SETTLE_RETURN_DELAY_MS);
+  } catch (error) {
+    const warning = "Failed to return to top after scroll settle: " + errorMessage(error);
+    warnings.push(warning);
+    captureWarnings.push("capture-integrity: " + warning);
+  }
+}
+
+async function detectFalseBlankCapture(
+  page: PageLike,
+  warnings: string[],
+  captureWarnings: string[]
+): Promise<string | null> {
+  try {
+    const result = await page.evaluate(function (threshold) {
+      function colorIsTransparent(value: string): boolean {
+        if (value === "transparent") {
+          return true;
+        }
+        var match = /rgba\([^)]*[,/]\s*([0-9.]+)\s*\)$/i.exec(value);
+        if (match !== null && Number(match[1]) <= 0.01) {
+          return true;
+        }
+        return /\/\s*(?:0(?:\.0+)?|0%)\s*\)$/i.test(value);
+      }
+
+      function effectivelyInvisible(element: Element, checkTextColor: boolean): boolean {
+        var elementStyle = window.getComputedStyle(element);
+        if (elementStyle.visibility === "hidden" || elementStyle.visibility === "collapse") {
+          return true;
+        }
+        var node: Element | null = element;
+        var opacity = 1;
+        while (node) {
+          var style = window.getComputedStyle(node);
+          var nodeOpacity = Number(style.opacity);
+          if (Number.isFinite(nodeOpacity)) {
+            opacity *= nodeOpacity;
+          }
+          if (opacity <= 0.01) {
+            return true;
+          }
+          node = node.parentElement;
+        }
+        var backgroundClip =
+          elementStyle.getPropertyValue("background-clip") ||
+          elementStyle.getPropertyValue("-webkit-background-clip");
+        return (
+          checkTextColor &&
+          colorIsTransparent(elementStyle.color || "") &&
+          backgroundClip.trim().toLowerCase() !== "text"
+        );
+      }
+
+      function excludedFromRenderedContent(element: Element): boolean {
+        var node: Element | null = element;
+        while (node) {
+          if (
+            node.hasAttribute("hidden") ||
+            node.getAttribute("aria-hidden") === "true" ||
+            node.hasAttribute("inert")
+          ) {
+            return true;
+          }
+          if (node.tagName === "DIALOG" && !node.hasAttribute("open")) {
+            return true;
+          }
+          if (node.hasAttribute("popover")) {
+            try {
+              if (!node.matches(":popover-open")) {
+                return true;
+              }
+            } catch {
+              return true;
+            }
+          }
+
+          var style = window.getComputedStyle(node);
+          var rect = node.getBoundingClientRect();
+          var clip = (style.clip || "").replace(/\s+/g, "").toLowerCase();
+          var clipPath = (style.clipPath || "").replace(/\s+/g, "").toLowerCase();
+          var clippedAssistiveText =
+            style.position === "absolute" &&
+            rect.width <= 1 &&
+            rect.height <= 1 &&
+            (clip === "rect(0px,0px,0px,0px)" ||
+              clip === "rect(0,0,0,0)" ||
+              clipPath === "inset(50%)" ||
+              clipPath === "inset(50%50%50%50%)");
+          if (clippedAssistiveText) {
+            return true;
+          }
+          node = node.parentElement;
+        }
+        return false;
+      }
+
+      var documentHeight = Math.max(
+        document.documentElement ? document.documentElement.scrollHeight : 0,
+        document.body ? document.body.scrollHeight : 0
+      );
+      var elements = Array.prototype.slice.call(
+        document.querySelectorAll("body *")
+      ) as Element[];
+      var total = 0;
+      var invisible = 0;
+
+      for (var i = 0; i < elements.length; i += 1) {
+        var element = elements[i];
+        if (/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(element.tagName)) {
+          continue;
+        }
+        if (excludedFromRenderedContent(element)) {
+          continue;
+        }
+        var text = (element.textContent || "").trim();
+        var isContentElement = /^(IMG|VIDEO|CANVAS|SVG|IFRAME|OBJECT|EMBED)$/.test(element.tagName);
+        if (text.length === 0 && !isContentElement) {
+          continue;
+        }
+        var hasTextBearingChild = false;
+        for (var j = 0; j < element.children.length; j += 1) {
+          if ((element.children[j].textContent || "").trim().length > 0) {
+            hasTextBearingChild = true;
+            break;
+          }
+        }
+        if (hasTextBearingChild && !isContentElement) {
+          continue;
+        }
+        var rect = element.getBoundingClientRect();
+        var absoluteTop = rect.top + window.scrollY;
+        var absoluteBottom = rect.bottom + window.scrollY;
+        if (
+          rect.width <= 0 ||
+          rect.height <= 0 ||
+          rect.right <= 0 ||
+          rect.left >= window.innerWidth ||
+          absoluteBottom <= 0 ||
+          absoluteTop >= documentHeight
+        ) {
+          continue;
+        }
+        total += 1;
+        if (effectivelyInvisible(element, text.length > 0)) {
+          invisible += 1;
+        }
+      }
+
+      var ratio = total > 0 ? invisible / total : 0;
+      return {
+        total: total,
+        invisible: invisible,
+        ratio: ratio,
+        warn: total > 0 && ratio > threshold
+      };
+    }, FALSE_BLANK_THRESHOLD);
+
+    if (!result.warn) {
+      return null;
+    }
+    return (
+      "reveal-gate-false-blank: " +
+      Math.round(result.ratio * 100) +
+      "% of text/content nodes invisible at capture"
+    );
+  } catch (error) {
+    const warning = "Failed to inspect capture for invisible content: " + errorMessage(error);
+    warnings.push(warning);
+    captureWarnings.push("capture-integrity: " + warning);
+    return null;
+  }
+}
 
 /**
  * Waits for time-based CSS entrance animations/transitions (animation-delay + backwards
@@ -1073,16 +1506,23 @@ const ANIMATION_SETTLE_TIMEOUT_MS = 3000;
  * count. Infinite-iteration animations (spinners, loading loops) are deliberately
  * excluded from the check so they never block capture. Capped at
  * {@link ANIMATION_SETTLE_TIMEOUT_MS}; a timeout — or the absence of the Animations
- * API on older engines — never fails the capture, it only reports `false`.
+ * API on older engines — never fails the capture, it only reports `false`. The
+ * scroll-settle pass opts into all-page checking because it has intentionally
+ * triggered offscreen reveals; ordinary entrance settle remains viewport-scoped.
  */
 async function waitForAnimationsToSettle(
   page: PageLike,
   warnings: string[],
-  timeoutMs: number = ANIMATION_SETTLE_TIMEOUT_MS
+  timeoutMs: number = ANIMATION_SETTLE_TIMEOUT_MS,
+  includeOffscreen: boolean = false
 ): Promise<boolean> {
   let hasAnimationsApi = false;
   try {
     hasAnimationsApi = await page.evaluate(function () {
+      var captureWindow = window as typeof window & {
+        __ravenAnimationQuietSince?: number;
+      };
+      delete captureWindow.__ravenAnimationQuietSince;
       return typeof document.getAnimations === "function";
     });
   } catch (error) {
@@ -1096,7 +1536,10 @@ async function waitForAnimationsToSettle(
 
   try {
     await page.waitForFunction(
-      function () {
+      function (config: { waitForOffscreen: boolean; quietMs: number }) {
+        var captureWindow = window as typeof window & {
+          __ravenAnimationQuietSince?: number;
+        };
         var animations = document.getAnimations();
         for (var i = 0; i < animations.length; i += 1) {
           var animation = animations[i];
@@ -1104,10 +1547,22 @@ async function waitForAnimationsToSettle(
             continue;
           }
 
+          var animationTimeline = "timeline" in animation ? animation.timeline : null;
+          var documentTimeline = "timeline" in document ? document.timeline : null;
+          if (
+            animationTimeline &&
+            documentTimeline &&
+            animationTimeline !== documentTimeline
+          ) {
+            // ScrollTimeline/ViewTimeline progress depends on scroll position,
+            // not elapsed wall time, so waiting cannot make it finish.
+            continue;
+          }
+
           var effect = animation.effect;
           var timing =
-            effect && typeof effect.getComputedTiming === "function"
-              ? effect.getComputedTiming()
+            effect && typeof effect.getTiming === "function"
+              ? effect.getTiming()
               : null;
           var iterations = timing ? timing.iterations : undefined;
 
@@ -1116,11 +1571,33 @@ async function waitForAnimationsToSettle(
             continue;
           }
 
+          var target = effect && "target" in effect ? effect.target : null;
+          if (!config.waitForOffscreen && target instanceof Element) {
+            var rect = target.getBoundingClientRect();
+            var nearViewport =
+              rect.bottom >= -window.innerHeight &&
+              rect.top <= window.innerHeight * 2 &&
+              rect.right >= -window.innerWidth &&
+              rect.left <= window.innerWidth * 2;
+            if (!nearViewport) {
+              continue;
+            }
+          }
+
+          delete captureWindow.__ravenAnimationQuietSince;
           return false;
         }
-        return true;
+        var now = performance.now();
+        if (typeof captureWindow.__ravenAnimationQuietSince !== "number") {
+          captureWindow.__ravenAnimationQuietSince = now;
+          return false;
+        }
+        return now - captureWindow.__ravenAnimationQuietSince >= config.quietMs;
       },
-      undefined,
+      {
+        waitForOffscreen: includeOffscreen,
+        quietMs: ANIMATION_SETTLE_QUIESCENCE_MS
+      },
       { timeout: timeoutMs }
     );
     return true;
@@ -1158,7 +1635,9 @@ async function detectVideoArtifacts(
 
     try {
       await el.evaluate(function (video) {
-        video.scrollIntoView({ block: "center" });
+        // "instant" so pages with CSS scroll-behavior:smooth don't leave a
+        // scroll animation in flight when the probe reads video state.
+        video.scrollIntoView({ block: "center", behavior: "instant" });
       });
     } catch (error) {
       warnings.push("Failed to scroll video into view: " + errorMessage(error));

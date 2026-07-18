@@ -151,8 +151,31 @@ test('case 6 — every finding carries a confirmed/likely-artifact/inconclusive 
 
 test('result shape — top-level keys present', (t) => {
   if (!guard(t)) return;
-  for (const key of ['tool', 'url', 'viewports', 'themes', 'findings', 'counts', 'summary', 'captures', 'warnings']) {
+  for (const key of ['tool', 'url', 'viewports', 'themes', 'findings', 'counts', 'summary', 'captures', 'capture_warnings', 'warnings']) {
     assert.ok(key in result, `AuditUrlResult missing key: ${key}`);
   }
   assert.strictEqual(result.tool, 'audit_url');
+  assert.ok(Array.isArray(result.capture_warnings), 'capture_warnings is an array');
+  for (const capture of result.captures) {
+    assert.ok(Array.isArray(capture.capture_warnings), 'each capture exposes its capture_warnings');
+  }
+});
+
+test('false-blank warning contents propagate through audit_url and its capture metadata', async (t) => {
+  if (unavailable) {
+    t.skip('Playwright chromium not installed. Run `npx playwright install chromium`.');
+    return;
+  }
+  const hiddenResult = await auditUrl(fixtureUrl('permanently-hidden.html'), {
+    viewports: [{ w: 1200, h: 800, label: 'desktop' }],
+    themes: ['light'],
+  });
+  assert.ok(
+    hiddenResult.capture_warnings.some((warning) => warning.includes('reveal-gate-false-blank:')),
+    'audit_url top-level output preserves false-blank warning contents'
+  );
+  assert.ok(
+    hiddenResult.captures[0].capture_warnings.some((warning) => warning.startsWith('reveal-gate-false-blank:')),
+    'audit_url capture metadata preserves false-blank warning contents'
+  );
 });

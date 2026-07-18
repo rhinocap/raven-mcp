@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Stepwise IntersectionObserver Reveal Fixture</title>
+  <style>
+    html { scroll-behavior: smooth; }
+    body { margin: 0; font-family: sans-serif; }
+    .scene {
+      box-sizing: border-box;
+      min-height: 760px;
+      padding: 80px 40px;
+      opacity: 0;
+      transition: opacity 1400ms linear;
+    }
+    .scene.revealed { opacity: 1; }
+  </style>
+</head>
+<body>
+  <section class="scene"><h1>First revealed scene</h1></section>
+  <section class="scene"><h2>Second revealed scene</h2></section>
+  <section class="scene"><h2>Third revealed scene</h2></section>
+  <section class="scene"><h2>Fourth revealed scene</h2></section>
+  <script>
+    (function () {
+      var scenes = document.querySelectorAll('.scene');
+      var appended = false;
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          var target = entry.target;
+          setTimeout(function () {
+            target.classList.add('revealed');
+            observer.unobserve(target);
+            if (!appended && target.textContent.indexOf('Third') !== -1) {
+              appended = true;
+              var lateScene = document.createElement('section');
+              lateScene.className = 'scene';
+              lateScene.innerHTML = '<h2>Late appended fifth scene</h2>';
+              watch(lateScene);
+              document.body.appendChild(lateScene);
+            }
+          }, 180);
+        });
+      }, { threshold: 0.5 });
+      function watch(scene) {
+        scene.addEventListener('transitionend', function (event) {
+          if (event.propertyName === 'opacity') scene.classList.add('settled');
+        });
+        observer.observe(scene);
+      }
+      scenes.forEach(watch);
+    })();
+  </script>
+</body>
+</html>
