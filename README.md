@@ -22,11 +22,11 @@ Raven gives Claude access to a comprehensive design knowledge base:
 
 ## Install
 
-Local stdio (npx / from source) is the **full product**: **92 tools**, including Grab and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
+Local stdio (npx / from source) is the **full product**: **93 tools**, including Grab and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
 
 | Path | How | Tools | Taste | Grab |
 |------|-----|-------|-------|------|
-| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **92** | Yes | Yes |
+| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **93** | Yes | Yes |
 | Public remote | `https://mcp.ravenmcp.ai/api/mcp` | **~45** | No | No |
 | Auth remote | `https://mcp.ravenmcp.ai/api/mcp-user` (OAuth) | Taste + audits (no Grab) | Yes | **No** |
 
@@ -144,22 +144,27 @@ cd raven-mcp && npm install && npm run build
 
 ## Decision Graph
 
-The local Decision Graph keeps three node kinds: decisions, evidence, and sources. Five edge types connect them: `supersedes`, `scoped_alongside`, `supports`, `contradicts`, and `derived_from`. Decisions are superseded or contested; nodes are not hard-deleted.
+The local Decision Graph keeps three node kinds: decisions, evidence, and sources. Five edge types connect them: `supersedes`, `scoped_alongside`, `supports`, `contradicts`, and `derived_from`. Decision status is candidate, active, superseded, or contested; nodes are not hard-deleted.
 
 - `decision_add` — add an active decision with its scope, component, rationale, and rejected alternatives.
 - `decision_evidence` — attach quantitative or qualitative evidence to a decision.
 - `decision_get` — return one node, its connected neighbors, and attached evidence.
-- `decision_list` — list active, superseded, contested, or draft decisions.
+- `decision_list` — list active, superseded, contested, or candidate decisions. Candidates are excluded unless `include_candidates:true` or `status:"candidate"` is passed.
 - `decision_draft` — capture a decision before its rationale is confirmed.
 - `decision_commit` — confirm a rationale and surface similar active decisions for review.
 - `decision_supersede` — replace a decision while keeping both nodes and their lineage.
 - `decision_scope` — narrow two active decisions so they can coexist.
 - `decision_history` — return a supersession lineage from oldest to newest.
 - `ingest_transcript` — store a Source node and return the extraction prompt for the calling model.
-- `ingest_transcript_results` — turn extracted JSON into low-trust drafts linked with `derived_from` edges.
+- `decision_import` — read local git history and matching decision documents, then return source-bound extraction prompts.
+- `ingest_transcript_results` — turn extracted JSON into candidate decisions linked with `derived_from` edges.
 - `gap_scan` — rank uncovered components, missing or thin rationales, contested decisions, and derived staleness; `digest_only:true` is quiet when no action is needed.
 
-The end-to-end flow is: transcript → `ingest_transcript` (Source node plus extraction prompt) → the calling model extracts decisions → `ingest_transcript_results` creates low-trust drafts with `derived_from` edges → review and `decision_commit` run the conflict check → resolve conflicts with `decision_supersede` or `decision_scope` → use `decision_history` for lineage → run the `gap_scan` digest for hands-off health checks.
+For a cold start: call `decision_import` → run the returned extraction prompts with a model → pass each result to `ingest_transcript_results` → review the candidates → call `decision_commit` for each decision to keep. Candidates remain available through `decision_get`, but default `decision_list` and `gap_scan` ignore them until commit changes their status to `active`.
+
+Imported provenance is checked against its Source node before evidence is attached. Git references must be a full or unique-prefix match for a commit included by that import. Document references must match the imported path, optionally followed by a line (`#L12`) or heading fragment. Rejected references are returned in `rejected_source_refs`; the candidate remains available without an evidence node.
+
+For transcripts: call `ingest_transcript` → run its extraction prompt → pass the result to `ingest_transcript_results` → review and commit the candidates. Resolve active conflicts with `decision_supersede` or `decision_scope`, inspect lineage with `decision_history`, and use `gap_scan` for health checks.
 
 Evidence nodes and `supports` / `contradicts` edges capture quantitative and qualitative results linked to decisions.
 
