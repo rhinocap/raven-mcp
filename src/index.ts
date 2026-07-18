@@ -3178,6 +3178,7 @@ server.tool(
       var debunkedCount = 0;
       var confirmedCount = 0;
       var inconclusiveCount = 0;
+      var verificationWarnings: string[] = [];
 
       for (var verifyIndex = 0; verifyIndex < findings.length; verifyIndex++) {
         var verification = verificationResults[verifyIndex];
@@ -3189,6 +3190,14 @@ server.tool(
           }
           if (verification.evidence !== undefined && verification.evidence !== null) {
             evidence = verification.evidence;
+          }
+          if (Array.isArray(verification.warnings)) {
+            for (var verificationWarningIndex = 0; verificationWarningIndex < verification.warnings.length; verificationWarningIndex++) {
+              var verificationWarning = verification.warnings[verificationWarningIndex];
+              if (verificationWarnings.indexOf(verificationWarning) === -1) {
+                verificationWarnings.push(verificationWarning);
+              }
+            }
           }
         }
 
@@ -3213,7 +3222,8 @@ server.tool(
         debunked_count: debunkedCount,
         confirmed_count: confirmedCount,
         inconclusive_count: inconclusiveCount,
-        total: findings.length
+        total: findings.length,
+        warnings: verificationWarnings
       };
       result.summary = result.summary + " — " + debunkedCount + " likely artifacts (adversarially debunked)";
     }
