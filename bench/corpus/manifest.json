@@ -1,0 +1,221 @@
+[
+  {
+    "id": "contrast-low-on-light",
+    "file": "contrast-low-on-light.html",
+    "family": "contrast",
+    "seeded_defect": "16px #aaa text on #fff is about 2.32:1, below WCAG AA 4.5:1.",
+    "audit": { "tool": "audit_contrast", "viewport": { "w": 390, "h": 844 } },
+    "expected": { "collection": "aa_failures", "selector_includes": "contrast-low" }
+  },
+  {
+    "id": "contrast-low-on-dark",
+    "file": "contrast-low-on-dark.html",
+    "family": "contrast",
+    "seeded_defect": "16px #555 text on #111 is about 2.53:1, below WCAG AA 4.5:1.",
+    "audit": { "tool": "audit_contrast", "viewport": { "w": 390, "h": 844 } },
+    "expected": { "collection": "aa_failures", "selector_includes": "contrast-low-dark" }
+  },
+  {
+    "id": "contrast-gradient-panel",
+    "file": "contrast-gradient-panel.html",
+    "family": "contrast",
+    "seeded_defect": "16px #5f5f5f text is below AA across the #111-to-#1a1a1a dark CSS gradient panel.",
+    "audit": { "tool": "audit_contrast", "viewport": { "w": 390, "h": 844 } },
+    "expected": { "collection": "aa_failures", "selector_includes": "contrast-gradient" }
+  },
+  {
+    "id": "contrast-clean",
+    "file": "contrast-clean.html",
+    "family": "contrast",
+    "seeded_defect": "none",
+    "audit": { "tool": "audit_contrast", "viewport": { "w": 390, "h": 844 } },
+    "expected": "clean"
+  },
+  {
+    "id": "contrast-boundary-fail",
+    "file": "contrast-boundary-fail.html",
+    "family": "contrast",
+    "seeded_defect": "16px #777 text on #fff measures about 4.48:1, just below WCAG AA 4.5:1.",
+    "audit": { "tool": "audit_contrast", "viewport": { "w": 390, "h": 844 } },
+    "expected": { "collection": "aa_failures", "selector_includes": "contrast-boundary-fail" }
+  },
+  {
+    "id": "contrast-boundary-clean",
+    "file": "contrast-boundary-clean.html",
+    "family": "contrast",
+    "seeded_defect": "none; 16px #767676 text on #fff measures about 4.54:1, just above WCAG AA 4.5:1",
+    "audit": { "tool": "audit_contrast", "viewport": { "w": 390, "h": 844 } },
+    "expected": "clean"
+  },
+  {
+    "id": "tap-tiny-button",
+    "file": "tap-tiny-button.html",
+    "family": "tap-targets",
+    "seeded_defect": "A 24x24 close button is below the shipped 44x44 minimum on both axes.",
+    "audit": { "tool": "audit_tap_targets", "viewport": { "w": 390, "h": 844 } },
+    "expected": { "collection": "fix_table", "selector_includes": "tap-tiny" }
+  },
+  {
+    "id": "tap-short-link",
+    "file": "tap-short-link.html",
+    "family": "tap-targets",
+    "seeded_defect": "A 112x20 link target is below the shipped 44px minimum on its height axis.",
+    "audit": { "tool": "audit_tap_targets", "viewport": { "w": 390, "h": 844 } },
+    "expected": { "collection": "fix_table", "selector_includes": "tap-short" }
+  },
+  {
+    "id": "tap-small-pair",
+    "file": "tap-small-pair.html",
+    "family": "tap-targets",
+    "seeded_defect": "Two adjacent 32x32 controls are each below the shipped 44x44 minimum.",
+    "audit": { "tool": "audit_tap_targets", "viewport": { "w": 390, "h": 844 } },
+    "expected": { "collection": "fix_table", "selector_includes": "tap-small" }
+  },
+  {
+    "id": "tap-clean",
+    "file": "tap-clean.html",
+    "family": "tap-targets",
+    "seeded_defect": "none",
+    "audit": { "tool": "audit_tap_targets", "viewport": { "w": 390, "h": 844 } },
+    "expected": "clean"
+  },
+  {
+    "id": "tap-boundary-fail",
+    "file": "tap-boundary-fail.html",
+    "family": "tap-targets",
+    "seeded_defect": "A 43x43 control is one pixel below the shipped 44x44 minimum.",
+    "audit": { "tool": "audit_tap_targets", "viewport": { "w": 390, "h": 844 } },
+    "expected": { "collection": "fix_table", "selector_includes": "tap-boundary-fail" }
+  },
+  {
+    "id": "tap-boundary-clean",
+    "file": "tap-boundary-clean.html",
+    "family": "tap-targets",
+    "seeded_defect": "none; a 44x44 control meets the shipped minimum exactly",
+    "audit": { "tool": "audit_tap_targets", "viewport": { "w": 390, "h": 844 } },
+    "expected": "clean"
+  },
+  {
+    "id": "type-nonstandard-weight",
+    "file": "type-nonstandard-weight.html",
+    "family": "typography",
+    "seeded_defect": "One text style uses non-standard font-weight 450.",
+    "audit": { "tool": "audit_typography", "viewport": { "w": 390, "h": 844 } },
+    "expected": { "collection": "findings", "rule_equals": "typography/non-standard-weight" }
+  },
+  {
+    "id": "type-line-height-outlier",
+    "file": "type-line-height-outlier.html",
+    "family": "typography",
+    "seeded_defect": "One paragraph uses a 3.0 line-height ratio against a dominant 1.5 ratio.",
+    "audit": { "tool": "audit_typography", "viewport": { "w": 390, "h": 844 } },
+    "expected": { "collection": "findings", "rule_equals": "typography/line-height-outlier" }
+  },
+  {
+    "id": "type-too-many-weights",
+    "file": "type-too-many-weights.html",
+    "family": "typography",
+    "seeded_defect": "The page uses six distinct standard font weights, exceeding the shipped maximum of four.",
+    "audit": { "tool": "audit_typography", "viewport": { "w": 390, "h": 844 } },
+    "expected": { "collection": "findings", "rule_equals": "typography/too-many-weights" }
+  },
+  {
+    "id": "type-clean",
+    "file": "type-clean.html",
+    "family": "typography",
+    "seeded_defect": "none",
+    "audit": { "tool": "audit_typography", "viewport": { "w": 390, "h": 844 } },
+    "expected": "clean"
+  },
+  {
+    "id": "type-line-height-boundary-fail",
+    "file": "type-line-height-boundary-fail.html",
+    "family": "typography",
+    "seeded_defect": "One paragraph uses a 1.66 line-height ratio against the dominant 1.5 ratio, exceeding the 0.15 tolerance.",
+    "audit": { "tool": "audit_typography", "viewport": { "w": 390, "h": 844 } },
+    "expected": { "collection": "findings", "rule_equals": "typography/line-height-outlier" }
+  },
+  {
+    "id": "type-line-height-boundary-clean",
+    "file": "type-line-height-boundary-clean.html",
+    "family": "typography",
+    "seeded_defect": "none; one paragraph uses a 1.65 line-height ratio against the dominant 1.5 ratio, exactly at the 0.15 tolerance",
+    "audit": { "tool": "audit_typography", "viewport": { "w": 390, "h": 844 } },
+    "expected": "clean"
+  },
+  {
+    "id": "type-weight-boundary-fail",
+    "file": "type-weight-boundary-fail.html",
+    "family": "typography",
+    "seeded_defect": "The page uses five distinct standard font weights, exceeding the shipped maximum of four.",
+    "audit": { "tool": "audit_typography", "viewport": { "w": 390, "h": 844 } },
+    "expected": { "collection": "findings", "rule_equals": "typography/too-many-weights" }
+  },
+  {
+    "id": "type-weight-boundary-clean",
+    "file": "type-weight-boundary-clean.html",
+    "family": "typography",
+    "seeded_defect": "none; the page uses exactly four distinct standard font weights",
+    "audit": { "tool": "audit_typography", "viewport": { "w": 390, "h": 844 } },
+    "expected": "clean"
+  },
+  {
+    "id": "responsive-hidden-lede",
+    "file": "responsive-hidden-lede.html",
+    "family": "responsive-visibility",
+    "seeded_defect": "A content lede is displayed at desktop width and display:none below 600px.",
+    "audit": { "tool": "audit_responsive_visibility", "breakpoints": [390, 1440], "viewport_height": 844 },
+    "expected": { "collection": "flagged", "category_equals": "likely-oversight", "selector_includes": "#responsive-lede" }
+  },
+  {
+    "id": "responsive-hidden-list-item",
+    "file": "responsive-hidden-list-item.html",
+    "family": "responsive-visibility",
+    "seeded_defect": "A substantive list item is visible at desktop and visibility:hidden below 600px.",
+    "audit": { "tool": "audit_responsive_visibility", "breakpoints": [390, 1440], "viewport_height": 844 },
+    "expected": { "collection": "flagged", "category_equals": "likely-oversight", "selector_includes": "#responsive-item" }
+  },
+  {
+    "id": "responsive-hidden-caption",
+    "file": "responsive-hidden-caption.html",
+    "family": "responsive-visibility",
+    "seeded_defect": "A meaningful figure caption is visible at desktop and opacity:0 below 600px.",
+    "audit": { "tool": "audit_responsive_visibility", "breakpoints": [390, 1440], "viewport_height": 844 },
+    "expected": { "collection": "flagged", "category_equals": "likely-oversight", "selector_includes": "#responsive-caption" }
+  },
+  {
+    "id": "responsive-clean",
+    "file": "responsive-clean.html",
+    "family": "responsive-visibility",
+    "seeded_defect": "none",
+    "audit": { "tool": "audit_responsive_visibility", "breakpoints": [390, 1440], "viewport_height": 844 },
+    "expected": "clean"
+  },
+  {
+    "id": "taste-proven-substitution",
+    "file": "taste-proven-target.txt",
+    "family": "taste-banned-language",
+    "seeded_defect": "The target substitutes the banned persuasion term 'proven' for restrained source copy.",
+    "source": "taste-proven-source.txt",
+    "audit": { "tool": "audit_taste", "profile": "bench-content-port" },
+    "expected": { "collection": "findings", "rule_id_equals": "CONTENT-RESTRAINT", "evidence_includes": "proven" }
+  },
+  {
+    "id": "taste-unlock-substitution",
+    "file": "taste-unlock-target.txt",
+    "family": "taste-banned-language",
+    "seeded_defect": "The target substitutes the banned persuasion term 'unlocks' for restrained source copy.",
+    "source": "taste-unlock-source.txt",
+    "audit": { "tool": "audit_taste", "profile": "bench-content-port" },
+    "expected": { "collection": "findings", "rule_id_equals": "CONTENT-RESTRAINT", "evidence_includes": "unlocks" }
+  },
+  {
+    "id": "taste-verbatim-control",
+    "file": "taste-verbatim-target.txt",
+    "family": "taste-banned-language",
+    "seeded_defect": "none; the target is byte-for-byte identical to the source",
+    "source": "taste-verbatim-source.txt",
+    "audit": { "tool": "audit_taste", "profile": "bench-content-port" },
+    "expected": "clean"
+  }
+]
