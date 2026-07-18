@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -38,6 +38,11 @@ export interface SourceNode {
 }
 
 export type GraphNode = DecisionNode | EvidenceNode | SourceNode;
+
+export type AddEvidenceResult =
+  | { status: "created" | "existing"; evidence: EvidenceNode }
+  | { status: "not_found" }
+  | { status: "not_decision"; node_kind: GraphNode["node_kind"] };
 
 export interface GraphEdge {
   id: string;
@@ -107,6 +112,7 @@ export function similarityThreshold(): number {
 
 export interface DecisionGraphStore {
   addNode(node: GraphNode): Promise<GraphNode>;
+  addEvidenceWithEdge(decisionId: string, evidence: EvidenceNode, edge: GraphEdge): Promise<AddEvidenceResult>;
   getNode(id: string): Promise<GraphNode | null>;
   updateNode(id: string, patch: Partial<GraphNode>): Promise<GraphNode | null>;
   addEdge(edge: GraphEdge): Promise<GraphEdge>;
@@ -399,7 +405,6 @@ export function buildExtractionPrompt(transcript: string): string {
 
 export class FsDecisionGraphStore implements DecisionGraphStore {
   private embedder: Embedder;
-  // ponytail: in-process serialization only; cross-process file lock if multi-instance teams need it
   private writeLock: Promise<void> = Promise.resolve();
 
   constructor(embedder: Embedder = new NullEmbedder()) {
@@ -422,6 +427,39 @@ export class FsDecisionGraphStore implements DecisionGraphStore {
   async getNode(id: string): Promise<GraphNode | null> {
     var nodes = readNodes();
     return nodes.find(function(node) { return node.id === id; }) || null;
+  }
+
+  async addEvidenceWithEdge(decisionId: string, evidence: EvidenceNode, edge: GraphEdge): Promise<AddEvidenceResult> {
+    return this.withWriteLock(async function() {
+      var nodes = readNodes();
+      var edges = readEdges();
+      var target = nodes.find(function(node) { return node.id === decisionId; });
+      if (target === undefined) return { status: "not_found" };
+      if (target.node_kind !== "decision") {
+        return { status: "not_decision", node_kind: target.node_kind };
+      }
+
+      var existing = nodes.find(function(node): node is EvidenceNode {
+        if (node.node_kind !== "evidence") return false;
+        var attached = edges.some(function(candidate) {
+          return candidate.type === "supports" && candidate.from === node.id && candidate.to === decisionId;
+        });
+        return attached
+          && node.type === evidence.type
+          && node.source_ref === evidence.source_ref
+          && node.result_summary === evidence.result_summary
+          && node.confidence === evidence.confidence
+          && JSON.stringify(node.confounds) === JSON.stringify(evidence.confounds);
+      });
+      if (existing !== undefined) return { status: "existing", evidence: existing };
+
+      nodes.push(evidence);
+      edges.push(edge);
+      // Nodes land first so a process crash can leave an orphan node, never a dangling edge.
+      writeNodes(nodes);
+      writeEdges(edges);
+      return { status: "created", evidence: evidence };
+    });
   }
 
   async updateNode(id: string, patch: Partial<GraphNode>): Promise<GraphNode | null> {
@@ -509,9 +547,56 @@ export class FsDecisionGraphStore implements DecisionGraphStore {
   }
 
   private withWriteLock<T>(mutation: () => Promise<T>): Promise<T> {
-    var result = this.writeLock.then(mutation);
+    var result = this.writeLock.then(async function() {
+      var lockInode = await acquireFileLock();
+      try {
+        return await mutation();
+      } finally {
+        releaseFileLock(lockInode);
+      }
+    });
     this.writeLock = result.then(function() {}, function() {});
     return result;
+  }
+}
+
+function fileLockPath(): string {
+  return join(decisionsHome(), ".write-lock");
+}
+
+async function acquireFileLock(): Promise<number> {
+  mkdirSync(decisionsHome(), { recursive: true });
+  var lock = fileLockPath();
+  while (true) {
+    try {
+      mkdirSync(lock);
+      return statSync(lock).ino;
+    } catch (error) {
+      var code = (error as NodeJS.ErrnoException).code;
+      if (code !== "EEXIST") throw error;
+    }
+
+    try {
+      if (Date.now() - statSync(lock).mtimeMs > 10000) {
+        rmdirSync(lock);
+        continue;
+      }
+    } catch (error) {
+      var staleCode = (error as NodeJS.ErrnoException).code;
+      if (staleCode === "ENOENT" || staleCode === "ENOTEMPTY") continue;
+      throw error;
+    }
+    await new Promise<void>(function(resolve) { setTimeout(resolve, 15); });
+  }
+}
+
+function releaseFileLock(lockInode: number): void {
+  var lock = fileLockPath();
+  try {
+    if (statSync(lock).ino === lockInode) rmdirSync(lock);
+  } catch (error) {
+    var code = (error as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT") throw error;
   }
 }
 
@@ -531,8 +616,7 @@ function readNodes(): GraphNode[] {
 }
 
 function writeNodes(nodes: GraphNode[]): void {
-  mkdirSync(decisionsHome(), { recursive: true });
-  writeFileSync(nodesPath(), JSON.stringify({ version: 1, nodes: nodes }, null, 2) + "\n", "utf8");
+  atomicWriteJson(nodesPath(), { version: 1, nodes: nodes });
 }
 
 function readEdges(): GraphEdge[] {
@@ -543,6 +627,16 @@ function readEdges(): GraphEdge[] {
 }
 
 function writeEdges(edges: GraphEdge[]): void {
+  atomicWriteJson(edgesPath(), { version: 1, edges: edges });
+}
+
+function atomicWriteJson(target: string, value: unknown): void {
   mkdirSync(decisionsHome(), { recursive: true });
-  writeFileSync(edgesPath(), JSON.stringify({ version: 1, edges: edges }, null, 2) + "\n", "utf8");
+  var temporary = target + ".tmp-" + process.pid + "-" + Math.random().toString(36).slice(2);
+  try {
+    writeFileSync(temporary, JSON.stringify(value, null, 2) + "\n", "utf8");
+    renameSync(temporary, target);
+  } finally {
+    if (existsSync(temporary)) unlinkSync(temporary);
+  }
 }

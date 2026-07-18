@@ -22,11 +22,11 @@ Raven gives Claude access to a comprehensive design knowledge base:
 
 ## Install
 
-Local stdio (npx / from source) is the **full product**: **90 tools**, including Grab and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
+Local stdio (npx / from source) is the **full product**: **91 tools**, including Grab and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
 
 | Path | How | Tools | Taste | Grab |
 |------|-----|-------|-------|------|
-| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **90** | Yes | Yes |
+| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **91** | Yes | Yes |
 | Public remote | `https://mcp.ravenmcp.ai/api/mcp` | **~45** | No | No |
 | Auth remote | `https://mcp.ravenmcp.ai/api/mcp-user` (OAuth) | Taste + audits (no Grab) | Yes | **No** |
 
@@ -147,7 +147,8 @@ cd raven-mcp && npm install && npm run build
 The local Decision Graph keeps three node kinds: decisions, evidence, and sources. Five edge types connect them: `supersedes`, `scoped_alongside`, `supports`, `contradicts`, and `derived_from`. Decisions are superseded or contested; nodes are not hard-deleted.
 
 - `decision_add` — add an active decision with its scope, component, rationale, and rejected alternatives.
-- `decision_get` — return one node and its connected neighbors.
+- `decision_evidence` — attach quantitative or qualitative evidence to a decision.
+- `decision_get` — return one node, its connected neighbors, and attached evidence.
 - `decision_list` — list active, superseded, contested, or draft decisions.
 - `decision_draft` — capture a decision before its rationale is confirmed.
 - `decision_commit` — confirm a rationale and surface similar active decisions for review.
@@ -160,7 +161,7 @@ The local Decision Graph keeps three node kinds: decisions, evidence, and source
 
 The end-to-end flow is: transcript → `ingest_transcript` (Source node plus extraction prompt) → the calling model extracts decisions → `ingest_transcript_results` creates low-trust drafts with `derived_from` edges → review and `decision_commit` run the conflict check → resolve conflicts with `decision_supersede` or `decision_scope` → use `decision_history` for lineage → run the `gap_scan` digest for hands-off health checks.
 
-Evidence nodes and `supports` / `contradicts` edges are in the schema for quantitative and qualitative results. Tools for attaching evidence are a later stage.
+Evidence nodes and `supports` / `contradicts` edges capture quantitative and qualitative results linked to decisions.
 
 ## Click-to-change (grab) + DESIGN.md
 
