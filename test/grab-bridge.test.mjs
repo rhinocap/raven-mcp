@@ -281,10 +281,11 @@ test('tool gating keeps the anonymous remote surface at 45 and gates the DESIGN.
     'start_grab_session',
     'get_grabbed_elements',
     'stop_grab_session',
-    'review_diff'
+    'review_diff',
+    'polish_diff'
   ];
 
-  assert.equal(stdioNames.length, 91);
+  assert.equal(stdioNames.length, 92);
   for (const name of newTools) {
     assert.equal(stdioNames.includes(name), true, `${name} should be registered on stdio`);
     assert.equal(remoteNames.includes(name), false, `${name} should be gated off remote anonymous`);
