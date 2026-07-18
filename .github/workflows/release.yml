@@ -43,6 +43,14 @@ jobs:
       - name: Install deps
         run: npm ci
 
+      - name: Install Playwright chromium (tests render pages)
+        run: npx playwright install --with-deps chromium
+
+      - name: Run tests (release gate)
+        env:
+          RAVEN_NO_USAGE_LOG: "1"
+        run: npm test
+
       - name: Configure git identity
         run: |
           git config user.name "raven-bot"
