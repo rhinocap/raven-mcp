@@ -34,6 +34,34 @@ export interface DesignReviewResult {
   };
 }
 
+export type PolishKind = "color" | "spacing" | "font";
+
+export interface ProposedPolishChange {
+  file: string;
+  line: number;
+  before: string;
+  after: string;
+  token: string;
+  kind: PolishKind;
+  substitutions?: Array<{ token: string; kind: PolishKind }>;
+}
+
+export interface PolishResult {
+  verdict: DesignReviewResult["verdict"];
+  findings: DesignReviewFinding[];
+  proposed_changes: ProposedPolishChange[];
+  patch: string;
+  manual: Array<{ file: string; line: number; summary: string; why: string }>;
+  post_polish: {
+    findings_resolved: number;
+    findings_remaining: number;
+    remaining: string[];
+  };
+  decisions: DesignReviewResult["applicable_decisions"];
+  checks_skipped?: DesignReviewResult["checks_skipped"];
+  note?: string;
+}
+
 interface ReviewToken {
   name: string;
   value: string;
@@ -50,6 +78,58 @@ interface ReviewVocabulary {
   fontSizes: Array<ReviewToken & { px: number }>;
   fontFamilies: ReviewToken[];
   spacing: Array<ReviewToken & { px: number }>;
+}
+
+interface AutoFixCandidate {
+  file: string;
+  line: number;
+  start: number;
+  end: number;
+  replacement: string;
+  token: string;
+  kind: PolishKind;
+  finding: DesignReviewFinding;
+}
+
+interface ReviewContext {
+  files: ParsedDiffFile[];
+  uiFiles: ParsedDiffFile[];
+  postImages: FinalPostImageFile[];
+  vocabulary: ReviewVocabulary;
+  result: DesignReviewResult;
+  autoFixes: AutoFixCandidate[];
+}
+
+interface DiffBodyLine {
+  kind: " " | "+" | "-";
+  content: string;
+  noNewline: boolean;
+}
+
+interface DiffSectionHunk {
+  oldStart: number;
+  oldCount: number;
+  newStart: number;
+  newCount: number;
+  lines: DiffBodyLine[];
+}
+
+interface DiffFileSection {
+  file: string;
+  hunks: DiffSectionHunk[];
+  crlf: boolean;
+}
+
+interface FinalPostImageFile extends ParsedDiffFile {
+  crlf: boolean;
+  noNewlineLines: Set<number>;
+  knownLines: Map<number, { content: string; noNewline: boolean }>;
+}
+
+interface VirtualPostImageLine {
+  content: string;
+  changed: boolean;
+  noNewline: boolean;
 }
 
 var UI_EXTENSIONS = new Set(["css", "scss", "tsx", "jsx", "ts", "js", "html", "vue", "svelte", "swift", "kt"]);
@@ -124,29 +204,110 @@ export function parseUnifiedDiff(diff: string): ParsedDiffFile[] {
 }
 
 export function reviewDiff(diff: string, designMd: string | null, decisions: DecisionNode[], project?: string): DesignReviewResult {
+  return performReview(diff, designMd, decisions, project, false).result;
+}
+
+export function proposePolish(diff: string, designMd: string | null, decisions: DecisionNode[], project?: string): PolishResult {
+  var reviewed = performReview(diff, designMd, decisions, project, true);
+  var grouped = new Map<string, AutoFixCandidate[]>();
+  for (var fixIndex = 0; fixIndex < reviewed.autoFixes.length; fixIndex++) {
+    var fix = reviewed.autoFixes[fixIndex];
+    var fixKey = fix.file + "\u0000" + fix.line;
+    var existingFixes = grouped.get(fixKey) || [];
+    existingFixes.push(fix);
+    grouped.set(fixKey, existingFixes);
+  }
+
+  var proposedChanges: ProposedPolishChange[] = [];
+  var replacementLines = new Map<string, string>();
+  grouped.forEach(function(lineFixes, key) {
+    var parts = key.split("\u0000");
+    var file = parts[0];
+    var line = Number(parts[1]);
+    var parsedFile = reviewed.uiFiles.find(function(item) { return item.file === file; });
+    var added = parsedFile && parsedFile.addedLines.find(function(item) { return item.line === line; });
+    if (!added) return;
+    var ordered = lineFixes.slice().sort(function(a, b) { return b.start - a.start; });
+    var after = added.content;
+    for (var orderedIndex = 0; orderedIndex < ordered.length; orderedIndex++) {
+      var orderedFix = ordered[orderedIndex];
+      after = after.slice(0, orderedFix.start) + orderedFix.replacement + after.slice(orderedFix.end);
+    }
+    if (after === added.content) return;
+    var first = lineFixes[0];
+    var change: ProposedPolishChange = {
+      file: file,
+      line: line,
+      before: added.content,
+      after: after,
+      token: first.token,
+      kind: first.kind,
+    };
+    if (lineFixes.length > 1) {
+      change.substitutions = lineFixes.map(function(item) { return { token: item.token, kind: item.kind }; });
+    }
+    proposedChanges.push(change);
+    replacementLines.set(key, after);
+  });
+  proposedChanges.sort(function(a, b) { return a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file); });
+
+  var autoFixedFindings = new Set(reviewed.autoFixes.filter(function(fix) {
+    return replacementLines.has(fix.file + "\u0000" + fix.line);
+  }).map(function(fix) { return fix.finding; }));
+  var manual = reviewed.result.findings.filter(function(finding) {
+    return isViolationFinding(finding) && !autoFixedFindings.has(finding);
+  }).map(function(finding) {
+    return {
+      file: finding.file,
+      line: finding.line,
+      summary: finding.message,
+      why: finding.rule === "bare-hex-color" && /alpha/.test(finding.message)
+        ? "alpha color — needs design judgment"
+        : "no deterministic token substitution",
+    };
+  });
+
+  var postReview = reviewDiff(buildPostImageReviewDiff(reviewed.files, replacementLines), designMd, decisions, project);
+  var initialViolations = reviewed.result.findings.filter(isViolationFinding);
+  var remainingViolations = postReview.findings.filter(isViolationFinding);
+
+  var result: PolishResult = {
+    verdict: reviewed.result.verdict,
+    findings: reviewed.result.findings,
+    proposed_changes: proposedChanges,
+    patch: buildPolishPatch(proposedChanges, reviewed.postImages),
+    manual: manual,
+    post_polish: {
+      findings_resolved: Math.max(0, initialViolations.length - remainingViolations.length),
+      findings_remaining: remainingViolations.length,
+      remaining: remainingViolations.map(function(finding) {
+        return finding.file + ":" + finding.line + " [" + finding.rule + "] " + finding.message;
+      }),
+    },
+    decisions: reviewed.result.applicable_decisions,
+  };
+  if (reviewed.result.checks_skipped) result.checks_skipped = reviewed.result.checks_skipped;
+  if (reviewed.result.note) result.note = reviewed.result.note;
+  return result;
+}
+
+function performReview(diff: string, designMd: string | null, decisions: DecisionNode[], project: string | undefined, collectAutoFixes: boolean): ReviewContext {
   if (diff.trim().length === 0) throw new Error("empty diff");
-  var files = parseUnifiedDiff(diff);
-  if (files.length === 0) throw new Error("not a unified diff");
+  var postImages = reconstructFinalPostImages(diff);
+  if (postImages.length === 0) throw new Error("not a unified diff");
+  var files: ParsedDiffFile[] = postImages.map(function(file) {
+    return { file: file.file, addedLines: file.addedLines };
+  });
   var uiFiles = files.filter(function(file) { return isUiFile(file.file); });
   var vocabulary = designMd === null ? emptyVocabulary() : extractVocabulary(designMd);
   var findings: DesignReviewFinding[] = [];
+  var autoFixes: AutoFixCandidate[] = [];
+  reviewFiles(uiFiles, vocabulary, findings, collectAutoFixes ? autoFixes : undefined);
 
-  for (var i = 0; i < uiFiles.length; i++) {
-    var file = uiFiles[i];
-    var extension = fileExtension(file.file);
-    var tracksStyleBlock = extension === "vue" || extension === "svelte";
-    var inStyleBlock = false;
-    for (var j = 0; j < file.addedLines.length; j++) {
-      var addedLine = file.addedLines[j];
-      if (tracksStyleBlock && /<style\b/i.test(addedLine.content)) inStyleBlock = true;
-      reviewLine(file.file, addedLine, vocabulary, findings, inStyleBlock);
-      if (tracksStyleBlock && /<\/style\s*>/i.test(addedLine.content)) inStyleBlock = false;
-    }
-  }
-
-  var verdict: DesignReviewResult["verdict"] = findings.some(function(finding) {
+  var violations = findings.filter(isViolationFinding);
+  var verdict: DesignReviewResult["verdict"] = violations.some(function(finding) {
     return finding.severity === "error";
-  }) ? "fail" : findings.some(function(finding) {
+  }) ? "fail" : violations.some(function(finding) {
     return finding.severity === "warn";
   }) ? "warn" : "pass";
 
@@ -168,10 +329,25 @@ export function reviewDiff(diff: string, designMd: string | null, decisions: Dec
     result.checks_skipped = checksSkipped;
     result.note = "token checks skipped: no DESIGN.md tokens found — pass reflects only universal rules";
   }
-  return result;
+  return { files: files, uiFiles: uiFiles, postImages: postImages, vocabulary: vocabulary, result: result, autoFixes: autoFixes };
 }
 
-function reviewLine(file: string, added: DiffAddedLine, vocabulary: ReviewVocabulary, findings: DesignReviewFinding[], inStyleBlock: boolean): void {
+function reviewFiles(files: ParsedDiffFile[], vocabulary: ReviewVocabulary, findings: DesignReviewFinding[], autoFixes?: AutoFixCandidate[]): void {
+  for (var i = 0; i < files.length; i++) {
+    var file = files[i];
+    var extension = fileExtension(file.file);
+    var tracksStyleBlock = extension === "vue" || extension === "svelte";
+    var inStyleBlock = false;
+    for (var j = 0; j < file.addedLines.length; j++) {
+      var addedLine = file.addedLines[j];
+      if (tracksStyleBlock && /<style\b/i.test(addedLine.content)) inStyleBlock = true;
+      reviewLine(file.file, addedLine, vocabulary, findings, inStyleBlock, autoFixes);
+      if (tracksStyleBlock && /<\/style\s*>/i.test(addedLine.content)) inStyleBlock = false;
+    }
+  }
+}
+
+function reviewLine(file: string, added: DiffAddedLine, vocabulary: ReviewVocabulary, findings: DesignReviewFinding[], inStyleBlock: boolean, autoFixes?: AutoFixCandidate[]): void {
   var content = added.content;
   var trimmed = content.trim();
   // ponytail: line heuristics deliberately stop short of parsing every host language and embedded style grammar.
@@ -197,8 +373,13 @@ function reviewLine(file: string, added: DiffAddedLine, vocabulary: ReviewVocabu
       var rgb = parseColor(colorMatch[0]);
       if (rgb === null) continue;
       var parsedRgb = rgb as Rgb;
-      var nearestColor = nearestByDistance(vocabulary.colors, function(token) { return colorDistance(parsedRgb, token.rgb); });
       var alpha = colorHasAlpha(colorMatch[0]);
+      var exactColor = findExactColorToken(colorMatch[0], vocabulary.colors);
+      if (exactColor) {
+        findings.push(tokenValueMatchFinding(file, added.line, colorMatch[0], exactColor.name));
+        continue;
+      }
+      var nearestColor = nearestByDistance(vocabulary.colors, function(token) { return colorDistance(parsedRgb, token.rgb); });
       var colorFinding: DesignReviewFinding = {
         file: file,
         line: added.line,
@@ -208,11 +389,15 @@ function reviewLine(file: string, added: DiffAddedLine, vocabulary: ReviewVocabu
       };
       if (!alpha) colorFinding.suggestion = "Use " + nearestColor.name + " (" + nearestColor.value + ").";
       findings.push(colorFinding);
+      if (!alpha && autoFixes) autoFixes.push({
+        file: file, line: added.line, start: colorMatch.index, end: colorMatch.index + colorMatch[0].length,
+        replacement: nearestColor.value, token: nearestColor.name, kind: "color", finding: colorFinding,
+      });
     }
   }
 
   if (vocabulary.fontSizes.length > 0) {
-    var fontSizes: Array<{ raw: string; px: number }> = [];
+    var fontSizes: Array<{ raw: string; px: number; normalizedPx: number | null; start: number; end: number }> = [];
     var fontSizePattern = /(?:font-size|fontSize)\s*[:=]\s*["']?(\d+(?:\.\d+)?)\s*(px|rem|em|\.?sp|pt)?\b/g;
     var fontSizeMatch: RegExpExecArray | null;
     while ((fontSizeMatch = fontSizePattern.exec(content)) !== null) {
@@ -220,63 +405,107 @@ function reviewLine(file: string, added: DiffAddedLine, vocabulary: ReviewVocabu
       if (!hasCssPropertyContext(content, fontLiteralIndex)) continue;
       var fontUnit = (fontSizeMatch[2] || "").replace(/^\./, "");
       var fontNumber = Number(fontSizeMatch[1]);
-      fontSizes.push({ raw: fontSizeMatch[1] + fontUnit, px: fontUnit === "rem" || fontUnit === "em" ? fontNumber * 16 : fontNumber });
+      var fontRaw = fontSizeMatch[1] + fontUnit;
+      var normalizedFontPx = fontUnit === "px"
+        ? fontNumber
+        : fontUnit === "rem" || fontUnit === "em"
+          ? fontNumber * 16
+          : fontUnit === "pt"
+            ? fontNumber * 4 / 3
+            : null;
+      fontSizes.push({
+        raw: fontRaw,
+        px: fontUnit === "rem" || fontUnit === "em" ? fontNumber * 16 : fontNumber,
+        normalizedPx: normalizedFontPx,
+        start: fontLiteralIndex,
+        end: fontLiteralIndex + fontRaw.length,
+      });
     }
     var swiftFontSizePattern = /\.font\(\.(?:system\(size:|custom\([^,]+,\s*size:)\s*(\d+(?:\.\d+)?)/g;
     var swiftFontSizeMatch: RegExpExecArray | null;
     while ((swiftFontSizeMatch = swiftFontSizePattern.exec(content)) !== null) {
       var swiftLiteralIndex = swiftFontSizeMatch.index + swiftFontSizeMatch[0].lastIndexOf(swiftFontSizeMatch[1]);
       if (!hasCssPropertyContext(content, swiftLiteralIndex)) continue;
-      fontSizes.push({ raw: swiftFontSizeMatch[1], px: Number(swiftFontSizeMatch[1]) });
+      fontSizes.push({ raw: swiftFontSizeMatch[1], px: Number(swiftFontSizeMatch[1]), normalizedPx: null, start: swiftLiteralIndex, end: swiftLiteralIndex + swiftFontSizeMatch[1].length });
     }
     for (var fontSizeIndex = 0; fontSizeIndex < fontSizes.length; fontSizeIndex++) {
       var fontSize = fontSizes[fontSizeIndex];
-      var fontPx = fontSize.px;
+      var fontPx = fontSize.normalizedPx === null ? fontSize.px : fontSize.normalizedPx;
+      var exactFontSize = fontSize.normalizedPx === null ? undefined : vocabulary.fontSizes.find(function(token) {
+        return token.px === fontSize.normalizedPx;
+      });
+      if (exactFontSize) {
+        findings.push(tokenValueMatchFinding(file, added.line, fontSize.raw, exactFontSize.name));
+        continue;
+      }
       var nearestFontSize = nearestByDistance(vocabulary.fontSizes, function(token) { return Math.abs(fontPx - token.px); });
-      findings.push({
+      var fontSizeFinding: DesignReviewFinding = {
         file: file,
         line: added.line,
         severity: "warn",
         rule: "hardcoded-font-size",
         message: "Hardcoded font size " + fontSize.raw + " bypasses the project typography tokens.",
         suggestion: "Use " + nearestFontSize.name + " (" + nearestFontSize.value + ").",
+      };
+      findings.push(fontSizeFinding);
+      if (autoFixes) autoFixes.push({
+        file: file, line: added.line, start: fontSize.start, end: fontSize.end,
+        replacement: nearestFontSize.value, token: nearestFontSize.name, kind: "font", finding: fontSizeFinding,
       });
     }
   }
 
   if (vocabulary.fontFamilies.length > 0) {
-    var families: string[] = [];
+    var families: Array<{ value: string; start: number; end: number }> = [];
     var cssFamilyPattern = /font-family\s*:\s*([^;}]+)/g;
     var cssFamilyMatch: RegExpExecArray | null;
     while ((cssFamilyMatch = cssFamilyPattern.exec(content)) !== null) {
       if (!hasCssPropertyContext(content, cssFamilyMatch.index + cssFamilyMatch[0].indexOf(cssFamilyMatch[1]))) continue;
-      families.push(cssFamilyMatch[1].trim().replace(/^["']|["']$/g, ""));
+      var cssFamilyRaw = cssFamilyMatch[1];
+      var cssFamilyTrimmed = cssFamilyRaw.trim();
+      var cssFamilyStart = cssFamilyMatch.index + cssFamilyMatch[0].indexOf(cssFamilyRaw) + cssFamilyRaw.indexOf(cssFamilyTrimmed);
+      families.push({ value: cssFamilyTrimmed, start: cssFamilyStart, end: cssFamilyStart + cssFamilyTrimmed.length });
     }
     var jsFamilyPattern = /fontFamily\s*:\s*(["'])(.*?)\1/g;
     var jsFamilyMatch: RegExpExecArray | null;
     while ((jsFamilyMatch = jsFamilyPattern.exec(content)) !== null) {
       if (!hasCssPropertyContext(content, jsFamilyMatch.index + jsFamilyMatch[0].indexOf(jsFamilyMatch[2]))) continue;
-      families.push(jsFamilyMatch[2]);
+      var jsFamilyStart = jsFamilyMatch.index + jsFamilyMatch[0].indexOf(jsFamilyMatch[2]);
+      families.push({ value: jsFamilyMatch[2], start: jsFamilyStart, end: jsFamilyStart + jsFamilyMatch[2].length });
     }
     var swiftFamilyPattern = /\.font\(\.custom\(\s*(["'])(.*?)\1\s*,/g;
     var swiftFamilyMatch: RegExpExecArray | null;
     while ((swiftFamilyMatch = swiftFamilyPattern.exec(content)) !== null) {
       if (!hasCssPropertyContext(content, swiftFamilyMatch.index + swiftFamilyMatch[0].indexOf(swiftFamilyMatch[2]))) continue;
-      families.push(swiftFamilyMatch[2]);
+      var swiftFamilyStart = swiftFamilyMatch.index + swiftFamilyMatch[0].indexOf(swiftFamilyMatch[2]);
+      families.push({ value: swiftFamilyMatch[2], start: swiftFamilyStart, end: swiftFamilyStart + swiftFamilyMatch[2].length });
     }
     for (var familyIndex = 0; familyIndex < families.length; familyIndex++) {
-      var family = families[familyIndex];
+      var familyLiteral = families[familyIndex];
+      var family = familyLiteral.value;
       if (family.indexOf("var(") !== -1) continue;
+      var exactFontFamily = vocabulary.fontFamilies.find(function(token) {
+        return normalizeFontFamilyValue(family) === normalizeFontFamilyValue(token.value);
+      });
+      if (exactFontFamily) {
+        findings.push(tokenValueMatchFinding(file, added.line, family, exactFontFamily.name));
+        continue;
+      }
       var nearestFontFamily = nearestByDistance(vocabulary.fontFamilies, function(token) {
         return levenshtein(normalizeText(family), normalizeText(token.value));
       });
-      findings.push({
+      var fontFamilyFinding: DesignReviewFinding = {
         file: file,
         line: added.line,
         severity: "warn",
         rule: "hardcoded-font-family",
         message: "Hardcoded font family " + family + " bypasses the project typography tokens.",
         suggestion: "Use " + nearestFontFamily.name + " (" + nearestFontFamily.value + ").",
+      };
+      findings.push(fontFamilyFinding);
+      if (autoFixes) autoFixes.push({
+        file: file, line: added.line, start: familyLiteral.start, end: familyLiteral.end,
+        replacement: nearestFontFamily.value, token: nearestFontFamily.name, kind: "font", finding: fontFamilyFinding,
       });
     }
   }
@@ -291,18 +520,294 @@ function reviewLine(file: string, added: DiffAddedLine, vocabulary: ReviewVocabu
         var spacingLiteralIndex = spacingPropertyMatch.index + spacingPropertyMatch[0].indexOf(spacingPropertyMatch[1]) + pxMatch.index;
         if (!hasCssPropertyContext(content, spacingLiteralIndex)) continue;
         var spacingPx = Number(pxMatch[1]);
+        var spacingRaw = pxMatch[0];
+        var exactSpacing = vocabulary.spacing.find(function(token) { return token.px === spacingPx; });
+        if (exactSpacing) {
+          findings.push(tokenValueMatchFinding(file, added.line, spacingRaw, exactSpacing.name));
+          continue;
+        }
         var nearestSpacing = nearestByDistance(vocabulary.spacing, function(token) { return Math.abs(spacingPx - token.px); });
-        findings.push({
+        var spacingFinding: DesignReviewFinding = {
           file: file,
           line: added.line,
           severity: "info",
           rule: "hardcoded-spacing",
           message: "Hardcoded spacing " + pxMatch[1] + "px bypasses the project spacing tokens.",
           suggestion: "Use " + nearestSpacing.name + " (" + nearestSpacing.value + ").",
+        };
+        findings.push(spacingFinding);
+        if (autoFixes) autoFixes.push({
+          file: file, line: added.line, start: spacingLiteralIndex, end: spacingLiteralIndex + spacingRaw.length,
+          replacement: nearestSpacing.value, token: nearestSpacing.name, kind: "spacing", finding: spacingFinding,
         });
       }
     }
   }
+}
+
+function isViolationFinding(finding: DesignReviewFinding): boolean {
+  return finding.rule !== "token-value-match";
+}
+
+function tokenValueMatchFinding(file: string, line: number, value: string, tokenName: string): DesignReviewFinding {
+  return {
+    file: file,
+    line: line,
+    severity: "info",
+    rule: "token-value-match",
+    message: "Value " + value + " matches " + tokenName + " — consider referencing the token instead of inlining the literal.",
+  };
+}
+
+function findExactColorToken(value: string, tokens: Array<ReviewToken & { rgb: Rgb }>): (ReviewToken & { rgb: Rgb }) | undefined {
+  var normalized = normalizeColorValue(value);
+  if (normalized === null) return undefined;
+  return tokens.find(function(token) { return normalizeColorValue(token.value) === normalized; });
+}
+
+function normalizeColorValue(value: string): string | null {
+  var trimmed = value.trim();
+  var hex = trimmed.match(/^#([0-9a-fA-F]{3,8})$/);
+  if (hex) {
+    var digits = hex[1];
+    if (digits.length === 3 || digits.length === 4) {
+      digits = digits.split("").map(function(digit) { return digit + digit; }).join("");
+    }
+    if (digits.length === 6) digits += "ff";
+    if (digits.length !== 8) return null;
+    return [
+      parseInt(digits.slice(0, 2), 16),
+      parseInt(digits.slice(2, 4), 16),
+      parseInt(digits.slice(4, 6), 16),
+      parseInt(digits.slice(6, 8), 16) / 255,
+    ].join(",");
+  }
+  var rgb = trimmed.match(/^rgba?\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)(?:\s*,\s*(\d+(?:\.\d+)?|\.\d+))?\s*\)$/i);
+  if (!rgb) return null;
+  return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3]), rgb[4] === undefined ? 1 : Number(rgb[4])].join(",");
+}
+
+function buildPostImageReviewDiff(files: ParsedDiffFile[], replacementLines: Map<string, string>): string {
+  var sections: string[] = [];
+  for (var fileIndex = 0; fileIndex < files.length; fileIndex++) {
+    var file = files[fileIndex];
+    var lines = [
+      "diff --git a/" + file.file + " b/" + file.file,
+      "--- a/" + file.file,
+      "+++ b/" + file.file,
+    ];
+    if (file.addedLines.length === 0) lines.push("@@ -0,0 +0,0 @@");
+    for (var lineIndex = 0; lineIndex < file.addedLines.length; lineIndex++) {
+      var added = file.addedLines[lineIndex];
+      var content = replacementLines.get(file.file + "\u0000" + added.line) || added.content;
+      lines.push("@@ -" + Math.max(0, added.line - 1) + ",0 +" + added.line + ",1 @@");
+      lines.push("+" + content);
+    }
+    sections.push(lines.join("\n"));
+  }
+  return sections.join("\n");
+}
+
+function reconstructFinalPostImages(diff: string): FinalPostImageFile[] {
+  var sections = parseDiffFileSections(diff);
+  var order: string[] = [];
+  var states = new Map<string, { lines: Map<number, VirtualPostImageLine>; crlf: boolean }>();
+  for (var sectionIndex = 0; sectionIndex < sections.length; sectionIndex++) {
+    var section = sections[sectionIndex];
+    if (!section.file) continue;
+    var state = states.get(section.file);
+    if (!state) {
+      state = { lines: new Map<number, VirtualPostImageLine>(), crlf: false };
+      states.set(section.file, state);
+      order.push(section.file);
+    }
+    state.crlf = state.crlf || section.crlf;
+    var sectionDelta = 0;
+    for (var hunkIndex = 0; hunkIndex < section.hunks.length; hunkIndex++) {
+      var hunk = section.hunks[hunkIndex];
+      var adjustedOldStart = hunk.oldStart + sectionDelta;
+      var oldSnapshot = new Map<number, VirtualPostImageLine>();
+      for (var oldOffset = 0; oldOffset < hunk.oldCount; oldOffset++) {
+        var oldPosition = adjustedOldStart + oldOffset;
+        var oldValue = state.lines.get(oldPosition);
+        if (oldValue) oldSnapshot.set(oldPosition, oldValue);
+      }
+
+      var delta = hunk.newCount - hunk.oldCount;
+      var shifted = new Map<number, VirtualPostImageLine>();
+      state.lines.forEach(function(value, position) {
+        if (hunk.oldCount > 0 && position >= adjustedOldStart && position < adjustedOldStart + hunk.oldCount) return;
+        var afterOldRange = hunk.oldCount === 0 ? position > adjustedOldStart : position >= adjustedOldStart + hunk.oldCount;
+        shifted.set(afterOldRange ? position + delta : position, value);
+      });
+      state.lines = shifted;
+
+      var oldCursor = adjustedOldStart;
+      var newCursor = hunk.newStart;
+      for (var bodyIndex = 0; bodyIndex < hunk.lines.length; bodyIndex++) {
+        var body = hunk.lines[bodyIndex];
+        if (body.kind === "-") {
+          oldCursor++;
+          continue;
+        }
+        if (body.kind === " ") {
+          var prior = oldSnapshot.get(oldCursor);
+          state.lines.set(newCursor, {
+            content: body.content,
+            changed: prior ? prior.changed : false,
+            noNewline: body.noNewline,
+          });
+          oldCursor++;
+          newCursor++;
+          continue;
+        }
+        state.lines.set(newCursor, { content: body.content, changed: true, noNewline: body.noNewline });
+        newCursor++;
+      }
+      sectionDelta += delta;
+    }
+  }
+
+  return order.map(function(file) {
+    var state = states.get(file) as { lines: Map<number, VirtualPostImageLine>; crlf: boolean };
+    var addedLines: DiffAddedLine[] = [];
+    var noNewlineLines = new Set<number>();
+    var knownLines = new Map<number, { content: string; noNewline: boolean }>();
+    Array.from(state.lines.keys()).sort(function(a, b) { return a - b; }).forEach(function(line) {
+      var value = state.lines.get(line) as VirtualPostImageLine;
+      knownLines.set(line, { content: value.content, noNewline: value.noNewline });
+      if (!value.changed) return;
+      addedLines.push({ line: line, content: value.content });
+      if (value.noNewline) noNewlineLines.add(line);
+    });
+    return { file: file, addedLines: addedLines, crlf: state.crlf, noNewlineLines: noNewlineLines, knownLines: knownLines };
+  });
+}
+
+function parseDiffFileSections(diff: string): DiffFileSection[] {
+  var rawLines = diff.split("\n");
+  var sections: DiffFileSection[] = [];
+  var current: DiffFileSection | null = null;
+
+  function normalized(raw: string): string {
+    return raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+  }
+
+  function beginSection(file: string): DiffFileSection {
+    var section = { file: file, hunks: [], crlf: false };
+    sections.push(section);
+    return section;
+  }
+
+  for (var i = 0; i < rawLines.length; i++) {
+    var rawLine = rawLines[i];
+    var line = normalized(rawLine);
+    if (line.indexOf("diff --git ") === 0) {
+      var gitHeader = line.match(/^diff --git (?:"?a\/.*?) (?:"?b\/)(.*)"?$/);
+      current = beginSection(gitHeader ? stripDiffPath(gitHeader[1]) : "");
+      continue;
+    }
+    if (line.indexOf("--- ") === 0 && i + 1 < rawLines.length && normalized(rawLines[i + 1]).indexOf("+++ ") === 0) {
+      if (current === null || current.hunks.length > 0) {
+        var oldPath = line.slice(4).trim();
+        current = beginSection(oldPath === "/dev/null" ? "" : stripDiffPath(oldPath));
+      }
+      continue;
+    }
+    if (current === null) continue;
+    if (line.indexOf("rename to ") === 0) {
+      current.file = stripDiffPath(line.slice("rename to ".length));
+      continue;
+    }
+    if (line.indexOf("+++ ") === 0) {
+      var addedPath = line.slice(4).trim();
+      if (addedPath !== "/dev/null") current.file = stripDiffPath(addedPath);
+      continue;
+    }
+    var header = line.match(/^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/);
+    if (!header) continue;
+    var hunk: DiffSectionHunk = {
+      oldStart: Number(header[1]),
+      oldCount: header[2] === undefined ? 1 : Number(header[2]),
+      newStart: Number(header[3]),
+      newCount: header[4] === undefined ? 1 : Number(header[4]),
+      lines: [],
+    };
+    for (i = i + 1; i < rawLines.length; i++) {
+      rawLine = rawLines[i];
+      line = normalized(rawLine);
+      if (line.indexOf("diff --git ") === 0 || line.indexOf("@@ ") === 0 || line.indexOf("--- ") === 0) {
+        i--;
+        break;
+      }
+      var kind = line.charAt(0);
+      if (kind === "+" || kind === "-" || kind === " ") {
+        var body: DiffBodyLine = { kind: kind as DiffBodyLine["kind"], content: line.slice(1), noNewline: false };
+        hunk.lines.push(body);
+        if (rawLine.endsWith("\r")) current.crlf = true;
+      } else if (line === "\\ No newline at end of file") {
+        if (hunk.lines.length > 0) hunk.lines[hunk.lines.length - 1].noNewline = true;
+      } else {
+        i--;
+        break;
+      }
+    }
+    current.hunks.push(hunk);
+  }
+  return sections.filter(function(section) { return section.file.length > 0 && section.hunks.length > 0; });
+}
+
+function buildPolishPatch(changes: ProposedPolishChange[], postImages: FinalPostImageFile[]): string {
+  var changesByFile = new Map<string, ProposedPolishChange[]>();
+  for (var i = 0; i < changes.length; i++) {
+    var change = changes[i];
+    var fileChanges = changesByFile.get(change.file) || [];
+    fileChanges.push(change);
+    changesByFile.set(change.file, fileChanges);
+  }
+  var sections: string[] = [];
+  changesByFile.forEach(function(fileChanges, file) {
+    var postImage = postImages.find(function(item) { return item.file === file; });
+    if (!postImage) return;
+    var lines = ["--- a/" + file, "+++ b/" + file];
+    fileChanges.sort(function(a, b) { return a.line - b.line; });
+    var changesByLine = new Map<number, ProposedPolishChange>();
+    for (var changeIndex = 0; changeIndex < fileChanges.length; changeIndex++) {
+      changesByLine.set(fileChanges[changeIndex].line, fileChanges[changeIndex]);
+    }
+    var knownPositions = Array.from(postImage.knownLines.keys()).sort(function(a, b) { return a - b; });
+    var segmentStart = 0;
+    while (segmentStart < knownPositions.length) {
+      var segmentEnd = segmentStart;
+      while (segmentEnd + 1 < knownPositions.length && knownPositions[segmentEnd + 1] === knownPositions[segmentEnd] + 1) segmentEnd++;
+      var firstKnown = knownPositions[segmentStart];
+      var lastKnown = knownPositions[segmentEnd];
+      var segmentChanges = fileChanges.filter(function(item) { return item.line >= firstKnown && item.line <= lastKnown; });
+      if (segmentChanges.length > 0) {
+        var hunkStart = Math.max(firstKnown, segmentChanges[0].line - 3);
+        var hunkEnd = Math.min(lastKnown, segmentChanges[segmentChanges.length - 1].line + 3);
+        var hunkCount = hunkEnd - hunkStart + 1;
+        lines.push("@@ -" + hunkStart + "," + hunkCount + " +" + hunkStart + "," + hunkCount + " @@");
+        for (var position = hunkStart; position <= hunkEnd; position++) {
+          var known = postImage.knownLines.get(position) as { content: string; noNewline: boolean };
+          var substitution = changesByLine.get(position);
+          var suffix = postImage.crlf ? "\r" : "";
+          if (substitution) {
+            lines.push("-" + substitution.before + suffix);
+            if (known.noNewline) lines.push("\\ No newline at end of file");
+            lines.push("+" + substitution.after + suffix);
+            if (known.noNewline) lines.push("\\ No newline at end of file");
+          } else {
+            lines.push(" " + known.content + suffix);
+            if (known.noNewline) lines.push("\\ No newline at end of file");
+          }
+        }
+      }
+      segmentStart = segmentEnd + 1;
+    }
+    sections.push(lines.join("\n"));
+  });
+  return sections.length === 0 ? "" : sections.join("\n") + "\n";
 }
 
 function extractVocabulary(designMd: string): ReviewVocabulary {
@@ -483,6 +988,12 @@ function nearestByDistance<T>(tokens: T[], distance: (token: T) => number): T {
 
 function normalizeText(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function normalizeFontFamilyValue(value: string): string {
+  return value.split(",").map(function(part) {
+    return part.trim().replace(/^(?:["'])(.*)(?:["'])$/, "$1").toLowerCase();
+  }).join(",");
 }
 
 function isFontSizeName(name: string, group: string): boolean {

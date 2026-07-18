@@ -1,6 +1,8 @@
 import { beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -86,6 +88,55 @@ test('flags a bare hex color and suggests the nearest project color token', () =
     message: 'Hardcoded color #121212 bypasses the project color tokens.',
     suggestion: 'Use colors.ink (#111111).',
   });
+});
+
+test('exact token values are advisory infos and keep review_diff passing', () => {
+  const designMd = `---
+colors:
+  accent: "#6c5ce7"
+spacing:
+  md: "16px"
+---
+`;
+  const result = reviewDiff(diffFor('src/card.css', [
+    '.card { color: #6c5ce7; padding: 16px; }',
+  ]), designMd, []);
+
+  assert.equal(result.verdict, 'pass');
+  assert.equal(result.findings.length, 2);
+  assert.deepEqual(result.findings.map((finding) => [finding.severity, finding.rule]), [
+    ['info', 'token-value-match'],
+    ['info', 'token-value-match'],
+  ]);
+  assert.match(result.findings[0].message, /#6c5ce7 matches colors\.accent/);
+  assert.match(result.findings[1].message, /16px matches spacing\.md/);
+});
+
+test('typography lookalikes with different units or family-list structure remain violations', () => {
+  const result = reviewDiff(diffFor('src/card.css', [
+    '.points { font-size: 16pt; }',
+    '.scaled { font-size: 16sp; }',
+    '.family { font-family: Inter sans-serif; }',
+  ]), DESIGN_MD, []);
+
+  assert.equal(result.verdict, 'warn');
+  assert.deepEqual(result.findings.map((finding) => [finding.severity, finding.rule]), [
+    ['warn', 'hardcoded-font-size'],
+    ['warn', 'hardcoded-font-size'],
+    ['warn', 'hardcoded-font-family'],
+  ]);
+});
+
+test('quoted CSS family items normalize to the same token family list', () => {
+  const result = reviewDiff(diffFor('src/card.css', [
+    '.family { font-family: "Inter", sans-serif; }',
+  ]), DESIGN_MD, []);
+
+  assert.equal(result.verdict, 'pass');
+  assert.deepEqual(result.findings.map((finding) => [finding.severity, finding.rule]), [
+    ['info', 'token-value-match'],
+  ]);
+  assert.match(result.findings[0].message, /matches typography\.body\.fontFamily/);
 });
 
 test('code using only project tokens passes with zero findings', () => {
@@ -362,6 +413,14 @@ test('8-digit hex and translucent rgba colors omit token suggestions', () => {
 });
 
 async function callReviewDiff(args) {
+  return callDesignReviewTool('review_diff', args);
+}
+
+async function callPolishDiff(args) {
+  return callDesignReviewTool('polish_diff', args);
+}
+
+async function callDesignReviewTool(name, args) {
   const { buildServer } = await import('../dist/index.js');
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
   const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
@@ -371,12 +430,349 @@ async function callReviewDiff(args) {
   await server.connect(serverTransport);
   await client.connect(clientTransport);
   try {
-    return await client.callTool({ name: 'review_diff', arguments: args });
+    return await client.callTool({ name, arguments: args });
   } finally {
     await client.close();
     await server.close();
   }
 }
+
+function createPolishRepo(content) {
+  const repo = mkdtempSync(path.join(tmpdir(), 'raven-polish-apply-'));
+  execSync('git init -q', { cwd: repo });
+  execSync('git config user.name "Raven Test"', { cwd: repo });
+  execSync('git config user.email raven-test@example.com', { cwd: repo });
+  writeFileSync(path.join(repo, 'card.css'), content, 'utf8');
+  execSync('git add card.css', { cwd: repo });
+  execSync('git commit -qm baseline', { cwd: repo });
+  return repo;
+}
+
+function gitDiff(repo) {
+  return execSync('git diff -- card.css', { cwd: repo, encoding: 'utf8' });
+}
+
+async function applyPolishPatch(repo, violatingContent) {
+  writeFileSync(path.join(repo, 'card.css'), violatingContent, 'utf8');
+  const inputDiff = gitDiff(repo);
+  const call = await callPolishDiff({ diff: inputDiff, design_md: DESIGN_MD });
+  assert.equal(call.isError, undefined);
+  const result = JSON.parse(call.content[0].text);
+  writeFileSync(path.join(repo, 'polish.patch'), result.patch, 'utf8');
+  execSync('git apply polish.patch', { cwd: repo });
+  return result;
+}
+
+test('polish_diff patch applies with plain git apply and leaves a clean review', async () => {
+  const repo = createPolishRepo([
+    '.card {',
+    '  color: var(--ink);',
+    '}',
+    '',
+  ].join('\n'));
+
+  await applyPolishPatch(repo, [
+    '.card {',
+    '  color: #121212;',
+    '}',
+    '',
+  ].join('\n'));
+
+  assert.equal(readFileSync(path.join(repo, 'card.css'), 'utf8'), [
+    '.card {',
+    '  color: #111111;',
+    '}',
+    '',
+  ].join('\n'));
+  const review = await callReviewDiff({ diff: gitDiff(repo) });
+  assert.equal(review.isError, undefined);
+  assert.deepEqual(JSON.parse(review.content[0].text).findings, []);
+});
+
+test('polish_diff post-review matches review_diff after applying its patch in a real repo', async () => {
+  const repo = createPolishRepo([
+    '.card {',
+    '  color: var(--ink);',
+    '  padding: var(--space-md);',
+    '}',
+    '',
+  ].join('\n'));
+
+  const polish = await applyPolishPatch(repo, [
+    '.card {',
+    '  color: #121212;',
+    '  padding: 13px;',
+    '}',
+    '',
+  ].join('\n'));
+  const reviewCall = await callReviewDiff({ diff: gitDiff(repo), design_md: DESIGN_MD });
+  assert.equal(reviewCall.isError, undefined);
+  const review = JSON.parse(reviewCall.content[0].text);
+  const reviewViolations = review.findings.filter((finding) => finding.rule !== 'token-value-match');
+
+  assert.equal(review.verdict, 'pass');
+  assert.equal(reviewViolations.length, 0);
+  assert.ok(review.findings.every((finding) => finding.severity === 'info' && finding.rule === 'token-value-match'));
+  assert.equal(polish.post_polish.findings_remaining, reviewViolations.length);
+  assert.equal(polish.post_polish.findings_remaining, 0);
+});
+
+test('polish_diff emits and applies one contextual patch hunk per separated input hunk', async () => {
+  const baseline = Array.from({ length: 16 }, (_, index) => {
+    if (index === 1 || index === 14) return `.region-${index} { color: var(--ink); }`;
+    return `.context-${index} { display: block; }`;
+  });
+  const violating = baseline.slice();
+  violating[1] = '.region-1 { color: #121212; }';
+  violating[14] = '.region-14 { padding: 13px; }';
+  const repo = createPolishRepo(baseline.join('\n') + '\n');
+
+  const result = await applyPolishPatch(repo, violating.join('\n') + '\n');
+
+  assert.equal((result.patch.match(/^@@/gm) || []).length, 2);
+  const expected = baseline.slice();
+  expected[1] = '.region-1 { color: #111111; }';
+  expected[14] = '.region-14 { padding: 16px; }';
+  assert.equal(readFileSync(path.join(repo, 'card.css'), 'utf8'), expected.join('\n') + '\n');
+});
+
+test('polish_diff patch applies when the substituted last line has no trailing newline', async () => {
+  const repo = createPolishRepo('.card { color: var(--ink); }');
+
+  const result = await applyPolishPatch(repo, '.card { color: #121212; }');
+
+  assert.match(result.patch, /\\ No newline at end of file/);
+  assert.equal(readFileSync(path.join(repo, 'card.css'), 'utf8'), '.card { color: #111111; }');
+});
+
+test('polish_diff proposes a post-image patch and re-verifies deterministic color and spacing fixes', async () => {
+  const call = await callPolishDiff({
+    diff: diffFor('src/card.css', [
+      '.card { color: #121212; }',
+      '.card__body { padding: 13px; }',
+    ]),
+    design_md: DESIGN_MD,
+  });
+  assert.equal(call.isError, undefined);
+  const result = JSON.parse(call.content[0].text);
+
+  assert.equal(result.verdict, 'warn');
+  assert.deepEqual(result.proposed_changes, [
+    {
+      file: 'src/card.css', line: 1,
+      before: '.card { color: #121212; }', after: '.card { color: #111111; }',
+      token: 'colors.ink', kind: 'color',
+    },
+    {
+      file: 'src/card.css', line: 2,
+      before: '.card__body { padding: 13px; }', after: '.card__body { padding: 16px; }',
+      token: 'spacing.md', kind: 'spacing',
+    },
+  ]);
+  assert.deepEqual(parseUnifiedDiff(result.patch), [{
+    file: 'src/card.css',
+    addedLines: [
+      { line: 1, content: '.card { color: #111111; }' },
+      { line: 2, content: '.card__body { padding: 16px; }' },
+    ],
+  }]);
+  assert.deepEqual(result.post_polish, { findings_resolved: 2, findings_remaining: 0, remaining: [] });
+  assert.deepEqual(result.manual, []);
+});
+
+test('polish_diff leaves alpha colors manual and counts them after re-verification', async () => {
+  const call = await callPolishDiff({
+    diff: diffFor('src/card.css', ['.card { color: #12121280; }']),
+    design_md: DESIGN_MD,
+  });
+  const result = JSON.parse(call.content[0].text);
+
+  assert.deepEqual(result.proposed_changes, []);
+  assert.equal(result.patch, '');
+  assert.deepEqual(result.manual, [{
+    file: 'src/card.css',
+    line: 1,
+    summary: 'Hardcoded color #12121280 bypasses the project color tokens. It has alpha — no token suggestion.',
+    why: 'alpha color — needs design judgment',
+  }]);
+  assert.equal(result.post_polish.findings_resolved, 0);
+  assert.equal(result.post_polish.findings_remaining, 1);
+  assert.match(result.post_polish.remaining[0], /bare-hex-color/);
+});
+
+test('polish_diff combines multiple substitutions on one line into one proposed change', async () => {
+  const call = await callPolishDiff({
+    diff: diffFor('src/card.css', ['.card { color: #121212; padding: 13px; }']),
+    design_md: DESIGN_MD,
+  });
+  const result = JSON.parse(call.content[0].text);
+
+  assert.equal(result.proposed_changes.length, 1);
+  assert.equal(result.proposed_changes[0].before, '.card { color: #121212; padding: 13px; }');
+  assert.equal(result.proposed_changes[0].after, '.card { color: #111111; padding: 16px; }');
+  assert.deepEqual(result.proposed_changes[0].substitutions, [
+    { token: 'colors.ink', kind: 'color' },
+    { token: 'spacing.md', kind: 'spacing' },
+  ]);
+  assert.deepEqual(result.post_polish, { findings_resolved: 2, findings_remaining: 0, remaining: [] });
+});
+
+test('polish_diff substitutes font size and family values through the shared checker', async () => {
+  const call = await callPolishDiff({
+    diff: diffFor('src/card.css', ['.card { font-size: 17px; font-family: Arial, sans-serif; }']),
+    design_md: DESIGN_MD,
+  });
+  const result = JSON.parse(call.content[0].text);
+
+  assert.equal(result.proposed_changes.length, 1);
+  assert.equal(result.proposed_changes[0].after, '.card { font-size: 16px; font-family: Inter, sans-serif; }');
+  assert.deepEqual(result.proposed_changes[0].substitutions, [
+    { token: 'typography.body.fontSize', kind: 'font' },
+    { token: 'typography.body.fontFamily', kind: 'font' },
+  ]);
+  assert.deepEqual(result.post_polish, { findings_resolved: 2, findings_remaining: 0, remaining: [] });
+});
+
+test('polish_diff reconstructs repeated file sections against the final sequential post-image', async () => {
+  const repo = mkdtempSync(path.join(tmpdir(), 'raven-polish-sequential-'));
+  execSync('git init -q', { cwd: repo });
+  execSync('git config user.name "Raven Test"', { cwd: repo });
+  execSync('git config user.email raven-test@example.com', { cwd: repo });
+  writeFileSync(path.join(repo, 'card.css'), '.card { color: var(--ink); }\n', 'utf8');
+  writeFileSync(path.join(repo, 'notes.txt'), 'before\n', 'utf8');
+  execSync('git add card.css notes.txt', { cwd: repo });
+  execSync('git commit -qm baseline', { cwd: repo });
+
+  writeFileSync(path.join(repo, 'card.css'), '.card { color: #121212; }\n', 'utf8');
+  const firstCardSection = execSync('git diff -- card.css', { cwd: repo, encoding: 'utf8' });
+  execSync('git add card.css', { cwd: repo });
+  writeFileSync(path.join(repo, 'notes.txt'), 'after\n', 'utf8');
+  const middleSection = execSync('git diff -- notes.txt', { cwd: repo, encoding: 'utf8' });
+  writeFileSync(path.join(repo, 'card.css'), '.card { padding: 13px; }\n', 'utf8');
+  const finalCardSection = execSync('git diff -- card.css', { cwd: repo, encoding: 'utf8' });
+
+  const call = await callPolishDiff({
+    diff: firstCardSection + middleSection + finalCardSection,
+    design_md: DESIGN_MD,
+  });
+  assert.equal(call.isError, undefined);
+  const result = JSON.parse(call.content[0].text);
+  assert.equal(result.findings.some((finding) => finding.rule === 'bare-hex-color'), false);
+  assert.deepEqual(result.proposed_changes.map(({ file, line, before, after }) => ({ file, line, before, after })), [{
+    file: 'card.css',
+    line: 1,
+    before: '.card { padding: 13px; }',
+    after: '.card { padding: 16px; }',
+  }]);
+
+  writeFileSync(path.join(repo, 'polish.patch'), result.patch, 'utf8');
+  execSync('git apply --check polish.patch', { cwd: repo });
+  execSync('git apply polish.patch', { cwd: repo });
+  assert.equal(readFileSync(path.join(repo, 'card.css'), 'utf8'), '.card { padding: 16px; }\n');
+
+  const reviewCall = await callReviewDiff({ diff: execSync('git diff -- card.css', { cwd: repo, encoding: 'utf8' }), design_md: DESIGN_MD });
+  assert.equal(reviewCall.isError, undefined);
+  const review = JSON.parse(reviewCall.content[0].text);
+  const reviewViolations = review.findings.filter((finding) => finding.rule !== 'token-value-match');
+  assert.equal(result.post_polish.findings_resolved, 1);
+  assert.equal(result.post_polish.findings_remaining, reviewViolations.length);
+  assert.equal(result.post_polish.findings_remaining, 0);
+});
+
+test('polish_diff emits a CRLF-preserving patch that git applies to a CRLF post-image', async () => {
+  const repo = createPolishRepo('.card { color: var(--ink); }\r\n');
+  writeFileSync(path.join(repo, 'card.css'), '.card { color: #121212; }\r\n', 'utf8');
+  const inputDiff = gitDiff(repo);
+  assert.match(inputDiff, /^\+.*\r$/m, 'fixture diff must preserve CR on hunk body lines');
+
+  const call = await callPolishDiff({ diff: inputDiff, design_md: DESIGN_MD });
+  assert.equal(call.isError, undefined);
+  const result = JSON.parse(call.content[0].text);
+  writeFileSync(path.join(repo, 'polish.patch'), result.patch, 'utf8');
+  execSync('git apply --check polish.patch', { cwd: repo });
+  execSync('git apply polish.patch', { cwd: repo });
+
+  const polished = readFileSync(path.join(repo, 'card.css'));
+  assert.deepEqual(polished, Buffer.from('.card { color: #111111; }\r\n'));
+  assert.equal(polished.toString('utf8').replace(/\r\n/g, '').includes('\n'), false);
+  assert.equal(result.post_polish.findings_remaining, 0);
+});
+
+test('polish_diff selects nearest font token using the px-normalized pt value', async () => {
+  const pointDesignMd = `---
+typography:
+  small:
+    fontSize: "16px"
+  large:
+    fontSize: "24px"
+---
+`;
+  const call = await callPolishDiff({
+    diff: diffFor('src/card.css', ['.card { font-size: 17pt; }']),
+    design_md: pointDesignMd,
+  });
+  assert.equal(call.isError, undefined);
+  const result = JSON.parse(call.content[0].text);
+
+  assert.equal(result.proposed_changes.length, 1);
+  assert.equal(result.proposed_changes[0].after, '.card { font-size: 24px; }');
+  assert.equal(result.proposed_changes[0].token, 'typography.large.fontSize');
+});
+
+test('polish_diff keeps valid deletion-only diffs on the shared post-review path', async () => {
+  const diff = [
+    'diff --git a/card.css b/card.css',
+    '--- a/card.css',
+    '+++ b/card.css',
+    '@@ -1 +0,0 @@',
+    '-.card { color: #121212; }',
+  ].join('\n');
+  const call = await callPolishDiff({ diff, design_md: DESIGN_MD });
+
+  assert.equal(call.isError, undefined);
+  const result = JSON.parse(call.content[0].text);
+  assert.deepEqual(result.proposed_changes, []);
+  assert.equal(result.patch, '');
+  assert.deepEqual(result.post_polish, { findings_resolved: 0, findings_remaining: 0, remaining: [] });
+});
+
+test('polish_diff fails closed for malformed diffs and propagates missing-token checks', async () => {
+  const malformed = await callPolishDiff({ diff: 'this is not a unified diff' });
+  assert.equal(malformed.isError, true);
+  assert.equal(malformed.content[0].text, 'not a unified diff');
+
+  const missing = await callPolishDiff({ diff: diffFor('src/card.css', ['.card { color: #121212; }']) });
+  const result = JSON.parse(missing.content[0].text);
+  assert.deepEqual(result.checks_skipped, ['color-tokens', 'spacing-tokens', 'typography-tokens']);
+  assert.match(result.note, /token checks skipped/);
+});
+
+test('polish_diff never creates or modifies project files', async () => {
+  const project = mkdtempSync(path.join(tmpdir(), 'raven-polish-no-write-'));
+  const sentinel = path.join(project, 'sentinel.txt');
+  writeFileSync(sentinel, 'unchanged', 'utf8');
+  const before = statSync(sentinel);
+
+  const call = await callPolishDiff({
+    diff: diffFor('src/card.css', ['.card { color: #121212; }']),
+    project,
+    design_md: DESIGN_MD,
+  });
+  assert.equal(call.isError, undefined);
+  assert.deepEqual(readdirSync(project), ['sentinel.txt']);
+  assert.equal(readFileSync(sentinel, 'utf8'), 'unchanged');
+  assert.equal(statSync(sentinel).mtimeMs, before.mtimeMs);
+});
+
+test('polish_diff enforces the 400KB limit by UTF-8 byte length through MCP', async () => {
+  const oversized = diffFor('src/card.css', ['.card { color: #121212; }']) + '\n' + 'é'.repeat(205000);
+  assert.equal(oversized.length < 400 * 1024, true, 'fixture must pass the zod character pre-check');
+  assert.equal(Buffer.byteLength(oversized, 'utf8') > 400 * 1024, true);
+
+  const call = await callPolishDiff({ diff: oversized, design_md: DESIGN_MD });
+  assert.equal(call.isError, true);
+  assert.equal(call.content[0].text, 'diff exceeds maximum size of 400KB (409600 bytes)');
+});
 
 test('review_diff stays parseable when usage logging has a pending daily digest', async () => {
   const call = await callReviewDiff({
@@ -464,12 +860,15 @@ test('review_diff is callable through MCP and uses active stored decisions', asy
 
 test('tool-count comments match the registered local and anonymous surfaces', async () => {
   const { buildServer } = await import('../dist/index.js');
-  assert.equal(Object.keys(buildServer({ remote: false })._registeredTools).length, 91);
-  assert.equal(Object.keys(buildServer({ remote: true })._registeredTools).length, 45);
+  assert.equal(Object.keys(buildServer({ remote: false })._registeredTools).length, 92);
+  const remoteNames = Object.keys(buildServer({ remote: true })._registeredTools).sort();
+  assert.equal(remoteNames.length, 45);
+  assert.equal(remoteNames.includes('polish_diff'), false);
+  assert.equal(createHash('sha256').update(remoteNames.join('\n')).digest('hex'), 'f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6');
 
   const source = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
-  assert.match(source, /FRESH McpServer with all 91 local tools/);
+  assert.match(source, /FRESH McpServer with all 92 local tools/);
   assert.match(source, /remote = serve only the 45 stateless remote-safe tools/);
-  assert.match(source, /gate off the 46 gated tools/);
-  assert.match(source, /all 91\./);
+  assert.match(source, /gate off the 47 gated tools/);
+  assert.match(source, /all 92\./);
 });
