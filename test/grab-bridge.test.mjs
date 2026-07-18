@@ -268,7 +268,7 @@ function fakeClock() {
   };
 }
 
-test('tool gating keeps the anonymous remote surface at 45 and gates the six DESIGN.md/grab tools', async () => {
+test('tool gating keeps the anonymous remote surface at 45 and gates the DESIGN.md/review/grab tools', async () => {
   const stdio = indexMod.buildServer({});
   const remote = indexMod.buildServer({ remote: true });
 
@@ -280,10 +280,12 @@ test('tool gating keeps the anonymous remote surface at 45 and gates the six DES
     'update_design_md',
     'start_grab_session',
     'get_grabbed_elements',
-    'stop_grab_session'
+    'stop_grab_session',
+    'review_diff',
+    'polish_diff'
   ];
 
-  assert.equal(stdioNames.length, 78);
+  assert.equal(stdioNames.length, 93);
   for (const name of newTools) {
     assert.equal(stdioNames.includes(name), true, `${name} should be registered on stdio`);
     assert.equal(remoteNames.includes(name), false, `${name} should be gated off remote anonymous`);

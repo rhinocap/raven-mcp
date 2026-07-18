@@ -3,8 +3,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { readFileSync, readdirSync, existsSync, realpathSync } from "fs";
-import { join, dirname } from "path";
+import { execFile } from "node:child_process";
+import { closeSync, openSync, readFileSync, readSync, readdirSync, existsSync, realpathSync } from "fs";
+import { join, dirname, relative, resolve } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { auditContainerWidth } from "./audit-container.js";
 import { capturePage, CaptureUnavailableError, annotateVideoArtifacts, verifyFindings } from "./capture.js";
@@ -13,7 +14,7 @@ import { runPageChecks } from "./page-checks.js";
 import { scorePage } from "./score-page.js";
 import { auditUrl } from "./audit-url.js";
 import { captureResponsiveVisibility } from "./responsive.js";
-import { auditContrastUrl, auditContrastSnapshot, suggestContrastFix } from "./contrast.js";
+import { auditContrastUrl, auditContrastSnapshot, suggestContrastFix, filterSuggestibleContrastPairs } from "./contrast.js";
 import { diffScreenshots } from "./image-diff.js";
 import { auditAssetIntegrity } from "./asset-integrity.js";
 import { auditParity } from "./parity.js";
@@ -41,6 +42,8 @@ import { registerCalls } from "./calls.js";
 import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
 import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet } from "./designmd.js";
 import { startGrabSession, getGrabbedElements, stopGrabSession } from "./grab-bridge.js";
+import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
+import { proposePolish, reviewDiff } from "./design-review.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -56,6 +59,7 @@ var CONTENT_DIR = join(DATA_DIR, "content");
 var CONTENT_SYSTEMS_DIR = join(CONTENT_DIR, "systems");
 var CONTENT_PRINCIPLES_DIR = join(CONTENT_DIR, "principles");
 var CONTENT_PATTERNS_DIR = join(CONTENT_DIR, "patterns");
+var decisionGraphStore = new FsDecisionGraphStore(new LexicalEmbedder());
 var RESEARCH_DIR = join(DATA_DIR, "research");
 var RESEARCH_PRINCIPLES_DIR = join(RESEARCH_DIR, "principles");
 var RESEARCH_METHODS_DIR = join(RESEARCH_DIR, "methods");
@@ -173,6 +177,38 @@ function loadAllData() {
     loadJsonDir<Principle>(BRAND_PRINCIPLES_DIR)
   );
   allPatterns = allPatterns.concat(loadJsonDir<Pattern>(SERVICE_PATTERNS_DIR));
+}
+
+function isHighTrafficComponent(name: string): boolean {
+  return /button|cta|form|input|navigation|nav\b/i.test(name);
+}
+
+function referenceComponents(systemIds?: string[]): { components: Array<{ name: string; source: string; traffic?: "high" | "normal" }>; unresolved: string[] } {
+  var ids = systemIds === undefined
+    ? allPatterns.slice().sort(function(a, b) { return a.id.localeCompare(b.id); }).slice(0, 5).map(function(pattern) { return pattern.id; })
+    : systemIds;
+  var components: Array<{ name: string; source: string; traffic?: "high" | "normal" }> = [];
+  var unresolved: string[] = [];
+  for (var id of ids) {
+    var pattern = allPatterns.find(function(candidate) { return candidate.id === id; });
+    if (pattern) {
+      var names = pattern.patterns.length > 0 ? pattern.patterns.map(function(item) { return item.name; }) : [pattern.name];
+      for (var name of names) {
+        components.push({ name: name, source: pattern.id, traffic: isHighTrafficComponent(name) ? "high" : "normal" });
+      }
+      continue;
+    }
+    var system = loadSystem(id);
+    if (system) {
+      for (var group of Object.keys(system).filter(function(key) { return !key.startsWith("$"); })) {
+        components.push({ name: group, source: id, traffic: isHighTrafficComponent(group) ? "high" : "normal" });
+      }
+      continue;
+    }
+    // A typo'd id silently scanning nothing would read as "healthy" — surface it.
+    unresolved.push(id);
+  }
+  return { components: components, unresolved: unresolved };
 }
 
 loadAllData();
@@ -1599,22 +1635,228 @@ function maybeComputeDailyDigest(): void {
 
 // ── Server ──────────────────────────────────────────────────────────
 
-// The 31 tools NOT served on a shared remote server (buildServer({remote:true})).
-// 20 are stateful/local (per-user ~/.raven files, or the create_generation_job
-// subprocess), 5 reach the filesystem/network or have an external side effect,
-// and 6 are the DESIGN.md / grab-bridge tools (local file I/O plus a single
-// loopback HTTP session). Everything else (45 stateless tools, including the 5
-// guarded browser URL audits added in Phase 3) is remote-safe.
+var DEFAULT_DECISION_IMPORT_GLOBS = [
+  "docs/adr/**/*.md",
+  "docs/decisions/**/*.md",
+  "docs/decision*/*.md",
+  "DECISIONS.md",
+  "DESIGN.md",
+];
+
+type ImportMaterialItem = { ref: string; text: string };
+type ImportGitResult = { items: ImportMaterialItem[]; note: string | null; malformed: number };
+type ImportDocResult = { content: string | null; reason: string | null; truncated: boolean };
+
+function importGlobRegex(glob: string): RegExp {
+  var normalized = glob.replace(/\\/g, "/");
+  var pattern = "^";
+  for (var i = 0; i < normalized.length; i += 1) {
+    var character = normalized.charAt(i);
+    if (character === "*" && normalized.charAt(i + 1) === "*") {
+      i += 1;
+      if (normalized.charAt(i + 1) === "/") {
+        i += 1;
+        pattern += "(?:.*/)?";
+      } else {
+        pattern += ".*";
+      }
+    } else if (character === "*") {
+      pattern += "[^/]*";
+    } else {
+      pattern += character.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+  }
+  return new RegExp(pattern + "$");
+}
+
+function decisionImportFiles(repo: string, globs: string[]): string[] {
+  var matchers = globs.map(importGlobRegex);
+  var matches: string[] = [];
+  function walk(directory: string): void {
+    var entries = readdirSync(directory, { withFileTypes: true });
+    for (var entry of entries) {
+      if (entry.name === ".git" || entry.name === "node_modules") continue;
+      var absolute = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        walk(absolute);
+      } else if (entry.isFile()) {
+        var repoRelative = relative(repo, absolute).replace(/\\/g, "/");
+        if (matchers.some(function(matcher) { return matcher.test(repoRelative); })) matches.push(repoRelative);
+      }
+    }
+  }
+  walk(repo);
+  return matches.sort();
+}
+
+function readDecisionImportDoc(repo: string, repoRelative: string): ImportDocResult {
+  var absolute = join(repo, repoRelative);
+  var fileSize: number;
+  try {
+    fileSize = statSync(absolute).size;
+  } catch (error) {
+    return { content: null, reason: "could not stat document: " + (error as Error).message, truncated: false };
+  }
+  var size = Math.min(fileSize, 100 * 1024);
+  var file: number;
+  try {
+    file = openSync(absolute, "r");
+  } catch (error) {
+    return { content: null, reason: "could not open document: " + (error as Error).message, truncated: false };
+  }
+  try {
+    var buffer = Buffer.alloc(size);
+    var bytesRead = readSync(file, buffer, 0, size, 0);
+    var content = buffer.subarray(0, bytesRead);
+    if (content.indexOf(0) !== -1) return { content: null, reason: "binary document contains NUL bytes", truncated: fileSize > size };
+    var maxTrim = fileSize > size ? Math.min(3, content.length) : 0;
+    for (var trim = 0; trim <= maxTrim; trim += 1) {
+      try {
+        return {
+          content: new TextDecoder("utf-8", { fatal: true }).decode(content.subarray(0, content.length - trim)),
+          reason: null,
+          truncated: fileSize > size,
+        };
+      } catch (_error) {
+        // A truncated UTF-8 code point is at most three trailing bytes beyond its lead byte.
+      }
+    }
+    return { content: null, reason: "document is not valid UTF-8", truncated: fileSize > size };
+  } catch (error) {
+    return { content: null, reason: "could not read document: " + (error as Error).message, truncated: fileSize > size };
+  } finally {
+    closeSync(file);
+  }
+}
+
+function execGitImport(repo: string, args: string[]): Promise<{ error: Error | null; stdout: string }> {
+  return new Promise(function(resolveResult) {
+    execFile(
+      "git",
+      ["-C", repo].concat(args),
+      { timeout: 10000, maxBuffer: 10 * 1024 * 1024, encoding: "utf8" },
+      function(error, stdout) {
+        resolveResult({ error: error, stdout: stdout || "" });
+      }
+    );
+  });
+}
+
+async function gitDecisionImportItems(repo: string, maxCommits: number): Promise<ImportGitResult> {
+  var revList = await execGitImport(repo, ["rev-list", "--max-count=" + maxCommits, "HEAD"]);
+  if (revList.error !== null) {
+    return { items: [], note: "Git history unavailable; continuing with decision documents only (" + revList.error.message + ").", malformed: 0 };
+  }
+  var importedHashes = new Set(revList.stdout.trim().split(/\r?\n/).filter(function(hash) { return /^[0-9a-f]{40}$/.test(hash); }));
+  var log = await execGitImport(repo, ["log", "--no-color", "-n" + maxCommits, "--pretty=format:%H%x1f%aI%x1f%s%x1f%b%x1e"]);
+  if (log.error !== null) {
+    return { items: [], note: "Git history unavailable; continuing with decision documents only (" + log.error.message + ").", malformed: 0 };
+  }
+  var items: ImportMaterialItem[] = [];
+  var malformed = 0;
+  for (var rawRecord of log.stdout.split("\x1e")) {
+    var record = rawRecord.trim();
+    if (record.length === 0) continue;
+    var fields = record.split("\x1f");
+    var hash = fields[0] || "";
+    if (fields.length !== 4 || !/^[0-9a-f]{40}$/.test(hash) || !importedHashes.has(hash)) {
+      malformed += 1;
+      continue;
+    }
+    var date = fields[1];
+    var subject = fields[2];
+    var body = fields[3].trim();
+    items.push({
+      ref: hash,
+      text: "commit " + hash + " (" + date + "): " + subject + (body.length > 0 ? "\n" + body : ""),
+    });
+  }
+  return { items: items, note: null, malformed: malformed };
+}
+
+function chunkImportItems(items: ImportMaterialItem[], maxChunkChars: number): string[] {
+  var chunks: string[] = [];
+  var current = "";
+  for (var item of items) {
+    if (item.text.length > maxChunkChars) {
+      if (current.length > 0) {
+        chunks.push(current);
+        current = "";
+      }
+      var estimatedTotal = Math.max(2, Math.ceil(item.text.length / Math.max(1, maxChunkChars - 32)));
+      var labelLength = ("[continuation " + estimatedTotal + "/" + estimatedTotal + "]\n").length;
+      var payloadSize = Math.max(1, maxChunkChars - labelLength);
+      var total = Math.ceil(item.text.length / payloadSize);
+      labelLength = ("[continuation " + total + "/" + total + "]\n").length;
+      payloadSize = Math.max(1, maxChunkChars - labelLength);
+      total = Math.ceil(item.text.length / payloadSize);
+      for (var continuation = 0; continuation < total; continuation += 1) {
+        var label = "[continuation " + (continuation + 1) + "/" + total + "]\n";
+        chunks.push(label + item.text.slice(continuation * payloadSize, (continuation + 1) * payloadSize));
+      }
+      continue;
+    }
+    var joined = current.length === 0 ? item.text : current + "\n\n" + item.text;
+    if (current.length > 0 && joined.length > maxChunkChars) {
+      chunks.push(current);
+      current = item.text;
+    } else {
+      current = joined;
+    }
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function validatedImportedSourceRef(source: SourceNode, sourceRef: string | null): { accepted: string | null; reason: string | null } {
+  if (sourceRef === null) return { accepted: null, reason: null };
+  if (source.kind === "git-history") {
+    var hashes = source.commit_hashes || [];
+    var normalized = sourceRef.toLowerCase();
+    var matches = /^[0-9a-f]{1,40}$/.test(normalized)
+      ? hashes.filter(function(hash) { return hash.startsWith(normalized); })
+      : [];
+    if (matches.length === 1) return { accepted: matches[0], reason: null };
+    return { accepted: null, reason: matches.length > 1 ? "source_ref is an ambiguous imported commit prefix" : "source_ref is not an imported commit hash" };
+  }
+  if (source.kind === "doc") {
+    var validDocRef = new RegExp("^" + escapeRegExp(source.ref) + "(?:#L[0-9]+|#[^\\r\\n]+)?$");
+    if (validDocRef.test(sourceRef)) return { accepted: sourceRef, reason: null };
+    return { accepted: null, reason: "source_ref does not match imported document " + source.ref };
+  }
+  return { accepted: sourceRef, reason: null };
+}
+
+function numberedDocMaterial(repoRelative: string, content: string): string {
+  return "document " + repoRelative + "\n" + content.split(/\r?\n/).map(function(line, index) {
+    return "L" + (index + 1) + ": " + line;
+  }).join("\n");
+}
+
+// The 48 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
+// 32 are stateful/local (per-user ~/.raven files, or the create_generation_job
+// subprocess), 6 reach the filesystem/network or have an external side effect,
+// 2 are Talon tools pending a remote-safety pass, and 8 are DESIGN.md / review /
+// grab-bridge tools. Everything else (45 stateless tools, including the 5
+// guarded browser URL audits added in Phase 3) is remote-safe, from 93 local tools.
 // Traced to docs/remote-mcp-scope.md §2; asserted at build time.
 const REMOTE_GATED_TOOLS = new Set<string>([
-  // stateful / local (20)
+  // stateful / local (32)
   "create_taste_profile", "get_taste_profile", "list_taste_profiles",
   "get_taste_interview", "bind_taste_surface", "record_taste_decision",
   "list_taste_decisions", "generate_taste_portrait", "label_finding", "audit_taste",
   "create_brand_profile", "get_brand_profile", "list_brand_profiles",
   "register_creative_asset", "create_character_profile", "create_generation_job",
   "get_generation_job", "list_generation_jobs", "plan_creative_campaign", "raven_reflect",
-  // filesystem/network/side-effect capability tools (5) — read caller-supplied
+  "decision_add", "decision_evidence", "decision_get", "decision_list", "decision_draft", "decision_commit",
+  "decision_supersede", "decision_scope", "decision_history",
+  "ingest_transcript", "ingest_transcript_results",
+  "gap_scan",
+  // filesystem/network/side-effect capability tools (6) — read caller-supplied
   // local paths (readFileSync), fetch caller-supplied URLs (SSRF), or trigger an
   // external side effect. A no-auth remote endpoint must not expose a file-read
   // oracle, an outbound-request proxy, or an unauthenticated action, so these are
@@ -1624,7 +1866,7 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   // raven_register → POSTs caller-controlled email/name to the welcome endpoint,
   // which sends mail + subscribes via Resend with no rate limit/CAPTCHA/auth — a
   // no-auth spam/abuse amplifier if left remote-exposed.)
-  "audit_contract", "audit_asset_integrity", "audit_device_frame", "audit_api_contract",
+  "audit_contract", "audit_asset_integrity", "audit_device_frame", "audit_api_contract", "decision_import",
   "raven_register",
   // Talon detector engine (P1, parity-roadmap Gap 1) — talon_scan takes the
   // same url → capturePage() fetch surface as audit_api_contract; gate both
@@ -1632,10 +1874,14 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   // anonymous 45-tool golden hash unchanged. Revisit if/when Talon gets its
   // own remote-safety pass (URL-guard like audit_page, or an authed lane).
   "talon_scan", "talon_rules",
-  // DESIGN.md and grab bridge stateful tools.
+  // DESIGN.md, design review, and grab bridge stateful tools.
   "read_design_md", "init_design_md", "update_design_md",
-  "start_grab_session", "get_grabbed_elements", "stop_grab_session"
+  "start_grab_session", "get_grabbed_elements", "stop_grab_session",
+  "review_diff", "polish_diff"
 ]);
+
+// Structured-output tools consumed by CI must stay byte-deterministic.
+const DIGEST_EXEMPT_TOOLS = new Set<string>(["review_diff", "polish_diff"]);
 
 // Taste tools served to AUTHENTICATED remote users when a per-user store is
 // injected into buildServer (P4.2+: api/mcp-user.js passes a
@@ -1704,18 +1950,18 @@ const REMOTE_URL_GUARDED_TOOLS: { [tool: string]: string } = {
   audit_taste: "url"
 };
 
-// buildServer() returns a FRESH McpServer with all 78 local tools + the usage-log/
+// buildServer() returns a FRESH McpServer with all 93 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
 export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }): McpServer {
-// remote = serve only the 45 stateless remote-safe tools (gate off the 20
-// stateful/local + 5 fs/network/side-effect capability tools; evaluate_design
+// remote = serve only the 45 stateless remote-safe tools (gate off the 48 gated tools
+// as appropriate; authenticated stores selectively restore taste tools). evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 78.
+// without threading opts. stdio callers pass nothing → remote=false → all 93.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -1789,21 +2035,23 @@ var originalTool: any = server.tool.bind(server);
       if (!remote) {
         logUsage(toolName, input, result, Date.now() - start);
         maybeComputeDailyDigest();
-        // Collect any notices to prepend — daily digest first, then update.
-        var notices: string[] = [];
-        if (pendingDailyDigest) {
-          notices.push(pendingDailyDigest);
-          pendingDailyDigest = null;
-        }
-        if (pendingUpdateNotice && !noticeShown) {
-          notices.push(pendingUpdateNotice);
-          noticeShown = true;
-        }
-        if (notices.length > 0 && result && Array.isArray(result.content)) {
-          for (var i = 0; i < result.content.length; i++) {
-            if (result.content[i] && result.content[i].type === "text") {
-              result.content[i].text = notices.join("\n") + "\n\n" + result.content[i].text;
-              break;
+        if (!DIGEST_EXEMPT_TOOLS.has(toolName)) {
+          // Collect any notices to prepend — daily digest first, then update.
+          var notices: string[] = [];
+          if (pendingDailyDigest) {
+            notices.push(pendingDailyDigest);
+            pendingDailyDigest = null;
+          }
+          if (pendingUpdateNotice && !noticeShown) {
+            notices.push(pendingUpdateNotice);
+            noticeShown = true;
+          }
+          if (notices.length > 0 && result && Array.isArray(result.content)) {
+            for (var i = 0; i < result.content.length; i++) {
+              if (result.content[i] && result.content[i].type === "text") {
+                result.content[i].text = notices.join("\n") + "\n\n" + result.content[i].text;
+                break;
+              }
             }
           }
         }
@@ -2477,6 +2725,66 @@ server.tool(
 );
 
 server.tool(
+  "review_diff",
+  "Review added UI-code lines in a unified diff against the project's own DESIGN.md tokens and active recorded design decisions. Returns a structured CI verdict with file/line findings and nearest-token suggestions. Agents should call this on every PR or diff that touches UI code before merge.",
+  {
+    diff: z.string().max(409600).describe("Unified diff to review (maximum 400KB)."),
+    project: z.string().optional().describe("Project directory used to resolve DESIGN.md and match decision scopes. Omit when design_md is supplied and no project hint is needed."),
+    design_md: z.string().optional().describe("Inline DESIGN.md content. Overrides project file lookup when supplied."),
+  },
+  async function ({ diff, project, design_md }) {
+    try {
+      if (Buffer.byteLength(diff, "utf8") > 400 * 1024) {
+        return { content: [{ type: "text" as const, text: "diff exceeds maximum size of 400KB (409600 bytes)" }], isError: true };
+      }
+      var designContent: string | null = design_md === undefined ? null : design_md;
+      if (design_md === undefined && project !== undefined) {
+        var designPath = /(?:^|[\\/])DESIGN\.md$/i.test(project) ? project : join(project, "DESIGN.md");
+        if (existsSync(designPath)) {
+          var designDoc = readDesignMd(designPath);
+          designContent = serializeDesignMd({ frontmatter: designDoc.frontmatter, body: designDoc.body });
+        }
+      }
+      var decisions = await decisionGraphStore.listActiveDecisions();
+      var result = reviewDiff(diff, designContent, decisions, project);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "polish_diff",
+  "Review added UI-code lines and propose deterministic DESIGN.md token substitutions without writing files. The returned unified patch applies on top of the reviewed diff's post-image; applying it is an explicit, separate step by the caller. Re-verifies the hypothetical polished lines and leaves judgment-heavy findings in manual.",
+  {
+    diff: z.string().max(409600).describe("Unified diff to review and polish (maximum 400KB)."),
+    project: z.string().optional().describe("Project directory used to resolve DESIGN.md and match decision scopes. Omit when design_md is supplied and no project hint is needed."),
+    design_md: z.string().optional().describe("Inline DESIGN.md content. Overrides project file lookup when supplied."),
+  },
+  async function ({ diff, project, design_md }) {
+    try {
+      if (Buffer.byteLength(diff, "utf8") > 400 * 1024) {
+        return { content: [{ type: "text" as const, text: "diff exceeds maximum size of 400KB (409600 bytes)" }], isError: true };
+      }
+      var designContent: string | null = design_md === undefined ? null : design_md;
+      if (design_md === undefined && project !== undefined) {
+        var designPath = /(?:^|[\\/])DESIGN\.md$/i.test(project) ? project : join(project, "DESIGN.md");
+        if (existsSync(designPath)) {
+          var designDoc = readDesignMd(designPath);
+          designContent = serializeDesignMd({ frontmatter: designDoc.frontmatter, body: designDoc.body });
+        }
+      }
+      var decisions = await decisionGraphStore.listActiveDecisions();
+      var result = proposePolish(diff, designContent, decisions, project);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
   "init_design_md",
   "Initialize a DESIGN.md file from a stored Raven token system, a getdesign.md starter slug, or a blank template.",
   {
@@ -2871,6 +3179,7 @@ server.tool(
       var debunkedCount = 0;
       var confirmedCount = 0;
       var inconclusiveCount = 0;
+      var verificationWarnings: string[] = [];
 
       for (var verifyIndex = 0; verifyIndex < findings.length; verifyIndex++) {
         var verification = verificationResults[verifyIndex];
@@ -2882,6 +3191,14 @@ server.tool(
           }
           if (verification.evidence !== undefined && verification.evidence !== null) {
             evidence = verification.evidence;
+          }
+          if (Array.isArray(verification.warnings)) {
+            for (var verificationWarningIndex = 0; verificationWarningIndex < verification.warnings.length; verificationWarningIndex++) {
+              var verificationWarning = verification.warnings[verificationWarningIndex];
+              if (verificationWarnings.indexOf(verificationWarning) === -1) {
+                verificationWarnings.push(verificationWarning);
+              }
+            }
           }
         }
 
@@ -2906,7 +3223,8 @@ server.tool(
         debunked_count: debunkedCount,
         confirmed_count: confirmedCount,
         inconclusive_count: inconclusiveCount,
-        total: findings.length
+        total: findings.length,
+        warnings: verificationWarnings
       };
       result.summary = result.summary + " — " + debunkedCount + " likely artifacts (adversarially debunked)";
     }
@@ -2934,11 +3252,19 @@ server.tool(
   },
   async function({ html, url, strict, containerMaxWidth }) {
     var captureWarnings: string[] = [];
+    var scoreContrast: Awaited<ReturnType<typeof auditContrastUrl>> | undefined;
     if (url !== undefined && url !== null) {
       try {
         var cap = await capturePage(url, {});
         html = cap.renderedHtml;
         captureWarnings = cap.capture_warnings;
+        try {
+          scoreContrast = await auditContrastUrl(url);
+        } catch (contrastError) {
+          if (!(contrastError instanceof CaptureUnavailableError)) throw contrastError;
+          // The rendered-DOM scorer can still return its existing result when a
+          // second browser launch for contrast is unavailable in constrained sandboxes.
+        }
       } catch (e) {
         if (e instanceof CaptureUnavailableError) {
           return {
@@ -2960,7 +3286,11 @@ server.tool(
         }]
       };
     }
-    const result: any = scorePage(html, { strict, containerMaxWidth });
+    const result: any = scorePage(html, {
+      strict,
+      containerMaxWidth,
+      contrastRows: typeof scoreContrast === "undefined" ? undefined : scoreContrast.rows,
+    });
     if (url !== undefined && url !== null) {
       result.capture_warnings = captureWarnings;
     }
@@ -3234,7 +3564,9 @@ server.tool(
       bg: z.string(),
       fontPx: z.number().optional(),
       bold: z.boolean().optional(),
-      targetRatio: z.number().optional()
+      targetRatio: z.number().optional(),
+      status: z.enum(["pass", "fail", "indeterminate"]).optional(),
+      ratio: z.number().nullable().optional()
     })).optional().describe("Color pairs to remediate. Each: { selector?, fg, bg, fontPx?, bold?, targetRatio? }. fontPx/bold pick the large-text threshold; targetRatio overrides the level."),
     level: z.enum(["AA", "AAA"]).optional().describe("WCAG level when targetRatio is not given per-pair. Default AA.")
   },
@@ -3243,7 +3575,8 @@ server.tool(
       return { content: [{ type: "text" as const, text: "Provide pairs: [{ selector?, fg, bg, fontPx?, bold?, targetRatio? }]. Returns the minimal fg/bg change that clears the WCAG target for each pair. Set level to 'AA' (default) or 'AAA'." }] };
     }
     var lvl = level || "AA";
-    var results = pairs.map(function(p) {
+    var suggestiblePairs = filterSuggestibleContrastPairs(pairs);
+    var results = suggestiblePairs.map(function(p) {
       var fix = suggestContrastFix(p.fg, p.bg, { targetRatio: p.targetRatio, level: lvl, fontPx: p.fontPx, bold: p.bold });
       if (p.selector !== undefined && p.selector !== null) {
         return Object.assign({ selector: p.selector }, fix);
@@ -3253,8 +3586,9 @@ server.tool(
     var alreadyPassing = results.filter(function(r) { return r.passes; }).length;
     var unreachable = results.filter(function(r) { return !r.passes && !r.reachable; }).length;
     var fixed = results.length - alreadyPassing - unreachable;
-    var summary = "suggest_contrast_fix — " + fixed + " fixable, " + alreadyPassing + " already passing, " + unreachable + " unreachable (need both colors changed)";
-    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "suggest_contrast_fix", level: lvl, results: results, summary: summary }, null, 2) }] };
+    var skippedIndeterminate = pairs.length - suggestiblePairs.length;
+    var summary = "suggest_contrast_fix — " + fixed + " fixable, " + alreadyPassing + " already passing, " + unreachable + " unreachable (need both colors changed), " + skippedIndeterminate + " non-failing/indeterminate skipped";
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "suggest_contrast_fix", level: lvl, results: results, skipped: skippedIndeterminate, summary: summary }, null, 2) }] };
   }
 );
 
@@ -6031,6 +6365,562 @@ server.tool(
 
 // ── Taste Engine: profiles, growth loop, and taste audits ──────────────────
 
+async function decisionEvidenceSummaries(id: string): Promise<string[]> {
+  var supports = await decisionGraphStore.neighbors(id, "supports");
+  var contradicts = await decisionGraphStore.neighbors(id, "contradicts");
+  return supports.concat(contradicts).filter(function(node): node is EvidenceNode {
+    return node.node_kind === "evidence";
+  }).map(function(node) { return node.result_summary; });
+}
+
+function historyEntry(node: DecisionNode): object {
+  return {
+    id: node.id,
+    statement: node.statement,
+    rationale: node.rationale,
+    status: node.status,
+    created_at: node.created_at,
+  };
+}
+
+async function decisionLineage(start: DecisionNode): Promise<object[]> {
+  var edges = await decisionGraphStore.listEdges("supersedes");
+  var visited = new Set<string>([start.id]);
+  var older: DecisionNode[] = [];
+  var current = start;
+  while (true) {
+    var olderEdge = edges.find(function(edge) { return edge.from === current.id; });
+    if (!olderEdge || visited.has(olderEdge.to)) break;
+    var olderNode = await decisionGraphStore.getNode(olderEdge.to);
+    if (olderNode === null || olderNode.node_kind !== "decision") break;
+    visited.add(olderNode.id);
+    older.push(olderNode);
+    current = olderNode;
+  }
+
+  var lineage = older.reverse().concat([start]);
+  current = start;
+  while (true) {
+    var newerId = current.superseded_by;
+    if (!newerId) {
+      var newerEdge = edges.find(function(edge) { return edge.to === current.id; });
+      newerId = newerEdge ? newerEdge.from : null;
+    }
+    if (!newerId || visited.has(newerId)) break;
+    var newerNode = await decisionGraphStore.getNode(newerId);
+    if (newerNode === null || newerNode.node_kind !== "decision") break;
+    visited.add(newerNode.id);
+    lineage.push(newerNode);
+    current = newerNode;
+  }
+  return lineage.map(historyEntry);
+}
+
+server.tool(
+  "decision_add",
+  "Add an active decision to the local Decision Graph.",
+  {
+    statement: z.string().min(1).describe("Decision statement."),
+    rationale: z.string().optional().describe("Reason for the decision. Omit when no rationale was recorded."),
+    scope: z.string().min(1).describe("Scope where the decision applies."),
+    component_ref: z.string().min(1).describe("Component or surface the decision refers to."),
+    alternatives_rejected: z.array(z.string()).optional().describe("Alternatives considered and rejected."),
+  },
+  async function ({ statement, rationale, scope, component_ref, alternatives_rejected }) {
+    var node = flagRationaleMissing({
+      node_kind: "decision" as const,
+      id: "dec_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+      statement: statement,
+      rationale: rationale === undefined ? null : rationale,
+      scope: scope,
+      component_ref: component_ref,
+      alternatives_rejected: alternatives_rejected || [],
+      status: "active" as const,
+      superseded_by: null,
+      rationale_trust: null,
+      created_at: new Date().toISOString(),
+    });
+    var created = await decisionGraphStore.addNode(node);
+    return { content: [{ type: "text" as const, text: JSON.stringify(created, null, 2) }] };
+  }
+);
+
+server.tool(
+  "decision_evidence",
+  "Attach quantitative or qualitative evidence to an existing decision.",
+  {
+    decision_id: z.string().min(1).describe("Existing decision node id."),
+    type: z.enum(["quant", "qual"]).describe("Evidence type."),
+    source_ref: z.string().trim().min(1).max(2000).describe("URL, experiment name, ticket, or transcript reference."),
+    result_summary: z.string().trim().min(1).max(5000).describe("Concise summary of the evidence result."),
+    confidence: z.number().min(0).max(1).describe("Confidence from 0 to 1."),
+    confounds: z.array(z.string().max(500)).max(50).optional().default([]).describe("Known factors that may confound the result."),
+  },
+  async function ({ decision_id, type, source_ref, result_summary, confidence, confounds }) {
+    var evidence = {
+      node_kind: "evidence" as const,
+      id: "evidence_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+      type: type,
+      source_ref: source_ref,
+      result_summary: result_summary,
+      confidence: confidence,
+      confounds: confounds || [],
+      timestamp: new Date().toISOString(),
+    };
+    var edge = {
+      id: "edge_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+      from: evidence.id,
+      to: decision_id,
+      type: "supports" as const,
+      created_at: new Date().toISOString(),
+    };
+    var attached = await decisionGraphStore.addEvidenceWithEdge(decision_id, evidence, edge);
+    if (attached.status === "not_found") {
+      return { content: [{ type: "text" as const, text: "Decision not found: " + decision_id }], isError: true };
+    }
+    if (attached.status === "not_decision") {
+      return {
+        content: [{ type: "text" as const, text: "node " + decision_id + " exists but is not a decision (node_kind: " + attached.node_kind + ")" }],
+        isError: true,
+      };
+    }
+    return { content: [{ type: "text" as const, text: JSON.stringify(attached.evidence, null, 2) }] };
+  }
+);
+
+server.tool(
+  "decision_draft",
+  "Capture a decision from working context with the why deferred for later confirmation.",
+  {
+    statement: z.string().min(1).describe("Decision statement."),
+    scope: z.string().min(1).describe("Scope where the decision applies."),
+    component_ref: z.string().min(1).describe("Component or surface the decision refers to."),
+    alternatives_rejected: z.array(z.string()).optional().describe("Alternatives considered and rejected."),
+  },
+  async function ({ statement, scope, component_ref, alternatives_rejected }) {
+    var node = flagRationaleMissing({
+      node_kind: "decision" as const,
+      id: "dec_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+      statement: statement,
+      rationale: null,
+      rationale_trust: null,
+      scope: scope,
+      component_ref: component_ref,
+      alternatives_rejected: alternatives_rejected || [],
+      status: "active" as const,
+      superseded_by: null,
+      created_at: new Date().toISOString(),
+    });
+    var created = await decisionGraphStore.addNode(node);
+    return { content: [{ type: "text" as const, text: JSON.stringify(created, null, 2) }] };
+  }
+);
+
+server.tool(
+  "decision_commit",
+  "Commit or confirm the rationale for a draft or extracted decision.",
+  {
+    id: z.string().min(1).describe("Decision node id to commit."),
+    rationale: z.string().trim().min(1).describe("Confirmed rationale for the decision."),
+    similarity_threshold: z.number().min(0).max(1).optional().describe("Similarity threshold from 0 to 1. Overrides RAVEN_DECISION_SIMILARITY_THRESHOLD for this commit."),
+  },
+  async function ({ id, rationale, similarity_threshold }) {
+    var existing = await decisionGraphStore.getNode(id);
+    if (existing === null || existing.node_kind !== "decision") {
+      return { content: [{ type: "text" as const, text: "Decision not found: " + id }], isError: true };
+    }
+    var updated = await decisionGraphStore.updateNode(id, {
+      rationale: rationale,
+      rationale_trust: "confirmed",
+      status: existing.status === "candidate" ? "active" : existing.status,
+    }) as DecisionNode;
+    var threshold = similarity_threshold === undefined ? similarityThreshold() : similarity_threshold;
+    var matches = await decisionGraphStore.findSimilarActiveDecisions(updated, threshold, updated.id);
+    var potentialConflicts = [];
+    for (var match of matches) {
+      potentialConflicts.push(await buildConflictPayload(updated, match.decision, match.similarity, decisionEvidenceSummaries));
+    }
+    return { content: [{ type: "text" as const, text: JSON.stringify({ decision: updated, potential_conflicts: potentialConflicts }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "decision_supersede",
+  "Explicitly supersede one decision with another while preserving both nodes and their lineage.",
+  {
+    old_id: z.string().min(1).describe("Existing decision id that is being superseded."),
+    new_id: z.string().min(1).describe("Existing replacement decision id."),
+  },
+  async function ({ old_id, new_id }) {
+    var oldNode = await decisionGraphStore.getNode(old_id);
+    var newNode = await decisionGraphStore.getNode(new_id);
+    if (oldNode === null || oldNode.node_kind !== "decision" || newNode === null || newNode.node_kind !== "decision") {
+      return { content: [{ type: "text" as const, text: "Both old_id and new_id must identify existing decisions." }], isError: true };
+    }
+    var lineageNode: DecisionNode | null = newNode;
+    var visitedLineage = new Set<string>();
+    while (lineageNode !== null && !visitedLineage.has(lineageNode.id)) {
+      if (lineageNode.id === old_id) {
+        return { content: [{ type: "text" as const, text: "would create a cyclic supersede lineage" }], isError: true };
+      }
+      visitedLineage.add(lineageNode.id);
+      if (lineageNode.superseded_by === null) break;
+      var nextLineageNode = await decisionGraphStore.getNode(lineageNode.superseded_by);
+      lineageNode = nextLineageNode !== null && nextLineageNode.node_kind === "decision" ? nextLineageNode : null;
+    }
+    var updatedOld = await decisionGraphStore.updateNode(old_id, { status: "superseded", superseded_by: new_id }) as DecisionNode;
+    var edge = await decisionGraphStore.addEdge({
+      id: "edge_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+      from: new_id,
+      to: old_id,
+      type: "supersedes",
+      created_at: new Date().toISOString(),
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify({ old_decision: updatedOld, new_decision: newNode, edge: edge }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "decision_scope",
+  "Narrow two decisions to distinct scopes so both can remain active alongside one another.",
+  {
+    id_a: z.string().min(1).describe("First existing decision id."),
+    id_b: z.string().min(1).describe("Second existing decision id."),
+    scope_a: z.string().trim().min(1).describe("Narrowed scope for the first decision."),
+    scope_b: z.string().trim().min(1).describe("Narrowed scope for the second decision."),
+  },
+  async function ({ id_a, id_b, scope_a, scope_b }) {
+    if (id_a === id_b) {
+      return { content: [{ type: "text" as const, text: "id_a and id_b must be distinct decisions." }], isError: true };
+    }
+    var nodeA = await decisionGraphStore.getNode(id_a);
+    var nodeB = await decisionGraphStore.getNode(id_b);
+    if (nodeA === null || nodeA.node_kind !== "decision" || nodeB === null || nodeB.node_kind !== "decision") {
+      return { content: [{ type: "text" as const, text: "Both id_a and id_b must identify existing decisions." }], isError: true };
+    }
+    // Scoping resolves a conflict between two LIVE decisions — refusing
+    // non-active inputs keeps the "both remain active" guarantee without
+    // silently resurrecting a superseded/contested decision.
+    if (nodeA.status !== "active" || nodeB.status !== "active") {
+      return { content: [{ type: "text" as const, text: "Both decisions must be active to scope them alongside one another (got " + nodeA.status + " / " + nodeB.status + ")." }], isError: true };
+    }
+    var updatedA = await decisionGraphStore.updateNode(id_a, { scope: scope_a }) as DecisionNode;
+    var updatedB = await decisionGraphStore.updateNode(id_b, { scope: scope_b }) as DecisionNode;
+    var edge = await decisionGraphStore.addEdge({
+      id: "edge_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+      from: id_a,
+      to: id_b,
+      type: "scoped_alongside",
+      created_at: new Date().toISOString(),
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify({ decision_a: updatedA, decision_b: updatedB, edge: edge }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "decision_history",
+  "Return the complete supersession lineage for a decision, ordered oldest to newest.",
+  {
+    id: z.string().min(1).describe("Existing decision id anywhere in the supersession lineage."),
+  },
+  async function ({ id }) {
+    var node = await decisionGraphStore.getNode(id);
+    if (node === null || node.node_kind !== "decision") {
+      return { content: [{ type: "text" as const, text: "Decision not found: " + id }], isError: true };
+    }
+    return { content: [{ type: "text" as const, text: JSON.stringify(await decisionLineage(node), null, 2) }] };
+  }
+);
+
+server.tool(
+  "decision_get",
+  "Get a Decision Graph node and every node connected to it by an edge in either direction.",
+  {
+    id: z.string().min(1).describe("Decision Graph node id."),
+  },
+  async function ({ id }) {
+    var node = await decisionGraphStore.getNode(id);
+    if (node === null) {
+      return { content: [{ type: "text" as const, text: "Decision Graph node not found: " + id }], isError: true };
+    }
+    var neighbors = await decisionGraphStore.neighbors(id);
+    var evidence = neighbors.filter(function(neighbor): neighbor is EvidenceNode {
+      return neighbor.node_kind === "evidence";
+    }).map(function(evidenceNode) {
+      return {
+        id: evidenceNode.id,
+        type: evidenceNode.type,
+        source_ref: evidenceNode.source_ref,
+        result_summary: evidenceNode.result_summary,
+        confidence: evidenceNode.confidence,
+        confounds: evidenceNode.confounds,
+        timestamp: evidenceNode.timestamp,
+      };
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify({ node: node, neighbors: neighbors, evidence: evidence }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "decision_list",
+  "List decisions in the local Decision Graph. Defaults to active decisions.",
+  {
+    status: z.enum(["candidate", "active", "superseded", "contested"]).optional().describe("Decision status to list. Omit to list active decisions."),
+    include_candidates: z.boolean().optional().describe("When true and status is omitted, include uncommitted imported candidates with active decisions."),
+    drafts_only: z.boolean().optional().describe("When true, return active decisions awaiting a rationale or confirmation."),
+  },
+  async function ({ status, include_candidates, drafts_only }) {
+    var decisions: DecisionNode[] = status === undefined
+      ? await decisionGraphStore.listActiveDecisions()
+      : await decisionGraphStore.listDecisions(status);
+    if (status === undefined && include_candidates === true) {
+      decisions = decisions.concat(await decisionGraphStore.listDecisions("candidate"));
+    }
+    if (drafts_only === true) {
+      decisions = decisions.filter(function (decision) {
+        return decision.rationale_missing || decision.rationale_trust === "extracted";
+      });
+    }
+    return { content: [{ type: "text" as const, text: JSON.stringify(decisions, null, 2) }] };
+  }
+);
+
+server.tool(
+  "gap_scan",
+  "Scan the local Decision Graph for uncovered components, weak rationales, contested decisions, and derived staleness. Schedulers should call with digest_only:true and treat actionable:false as a no-op.",
+  {
+    use_cases: z.array(z.string()).optional().describe("Use-case descriptions whose component terms should be covered by active decisions."),
+    reference_systems: z.array(z.string()).optional().describe("Pattern or design-system ids from Raven's existing registries. Omit for a small built-in pattern set."),
+    digest_only: z.boolean().optional().describe("Hands-off mode. When healthy, return only the quiet actionable:false digest."),
+  },
+  async function ({ use_cases, reference_systems, digest_only }) {
+    var references = referenceComponents(reference_systems);
+    if (references.unresolved.length > 0) {
+      return { content: [{ type: "text" as const, text: "Unknown reference system id(s): " + references.unresolved.join(", ") + ". Use list_design_systems or the patterns registry ids." }], isError: true };
+    }
+    var digest = buildGapDigest(await scanGaps(decisionGraphStore, {
+      use_cases: use_cases,
+      reference_components: references.components,
+      config: gapScanConfig(),
+    }));
+    if (digest_only === true && !digest.actionable) {
+      return { content: [{ type: "text" as const, text: JSON.stringify(digest) }] };
+    }
+    return { content: [{ type: "text" as const, text: JSON.stringify(digest, null, 2) }] };
+  }
+);
+
+server.tool(
+  "decision_import",
+  "Mine local git history and decision-bearing Markdown into provenance-tagged Decision Graph extraction prompts. Imported history remains review-only until decision_commit.",
+  {
+    repo_path: z.string().min(1).describe("Local repository directory to inspect."),
+    doc_globs: z.array(z.string().min(1)).optional().default(DEFAULT_DECISION_IMPORT_GLOBS).describe("Repository-relative Markdown globs. Supports * and **."),
+    max_commits: z.number().int().min(1).max(1000).optional().default(200).describe("Maximum git commits to inspect (cap 1000)."),
+    max_chunk_chars: z.number().int().min(1).max(60000).optional().default(24000).describe("Maximum material characters per extraction chunk. Oversized single items are continuation-split (cap 60000)."),
+  },
+  async function ({ repo_path, doc_globs, max_commits, max_chunk_chars }) {
+    var repo = resolve(repo_path);
+    var directoryExists = false;
+    try {
+      directoryExists = existsSync(repo) && statSync(repo).isDirectory();
+    } catch (_error) {
+      directoryExists = false;
+    }
+    if (!directoryExists) {
+      return { content: [{ type: "text" as const, text: "repo_path must be an existing directory: " + repo }], isError: true };
+    }
+
+    var chunks: Array<{ source_id: string; kind: string; ref: string; extraction_prompt: string }> = [];
+    var notes: string[] = [];
+    var gitResult = await gitDecisionImportItems(repo, max_commits);
+    if (gitResult.note !== null) notes.push(gitResult.note);
+    if (gitResult.items.length > 0) {
+      var newestHash = gitResult.items[0].ref;
+      var oldestHash = gitResult.items[gitResult.items.length - 1].ref;
+      var oldestParent = await execGitImport(repo, ["rev-parse", "--verify", oldestHash + "^"]);
+      // A root commit has no inclusive two-dot form. In that case the newest
+      // revision alone lets git rev-list cover the full root-inclusive window.
+      var gitRange = oldestParent.error === null ? oldestHash + "^.." + newestHash : newestHash;
+      var gitRef = repo + "@" + gitRange;
+      var gitSource = await decisionGraphStore.addNode({
+        node_kind: "source" as const,
+        id: "src_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+        kind: "git-history",
+        ref: gitRef,
+        commit_hashes: gitResult.items.map(function(item) { return item.ref; }),
+        created_at: new Date().toISOString(),
+      });
+      for (var gitChunk of chunkImportItems(gitResult.items, max_chunk_chars)) {
+        chunks.push({
+          source_id: gitSource.id,
+          kind: "git-history",
+          ref: gitRef,
+          extraction_prompt: buildImportExtractionPrompt(gitChunk, "git-history"),
+        });
+      }
+    }
+
+    var docCount = 0;
+    var skippedDocs: Array<{ path: string; reason: string }> = [];
+    for (var docPath of decisionImportFiles(repo, doc_globs)) {
+      var docResult = readDecisionImportDoc(repo, docPath);
+      if (docResult.content === null) {
+        skippedDocs.push({ path: docPath, reason: docResult.reason || "document could not be imported" });
+        continue;
+      }
+      docCount += 1;
+      var docSource = await decisionGraphStore.addNode({
+        node_kind: "source" as const,
+        id: "src_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+        kind: "doc",
+        ref: docPath,
+        created_at: new Date().toISOString(),
+      });
+      var docItems = [{ ref: docPath, text: numberedDocMaterial(docPath, docResult.content) }];
+      for (var docChunk of chunkImportItems(docItems, max_chunk_chars)) {
+        chunks.push({
+          source_id: docSource.id,
+          kind: "doc",
+          ref: docPath,
+          extraction_prompt: buildImportExtractionPrompt(docChunk, "doc"),
+        });
+      }
+    }
+
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({
+          repo_path: repo,
+          chunks: chunks,
+          counts: { commits: gitResult.items.length, malformed_commits: gitResult.malformed, doc_files: docCount, chunks: chunks.length },
+          skipped_docs: skippedDocs,
+          notes: notes,
+          next: "Run each extraction prompt with your model, then call ingest_transcript_results with each source_id + JSON. Candidates require decision_commit — imported history is never auto-committed.",
+        }, null, 2),
+      }],
+    };
+  }
+);
+
+server.tool(
+  "ingest_transcript",
+  "Store a transcript source and return an extraction prompt for the calling agent's model. Raven makes no model or network call.",
+  {
+    text: z.string().min(1).describe("Transcript text to extract design decisions from."),
+    source_meta: z.object({
+      ref: z.string().min(1).describe("Source reference, such as a meeting title, URL, or date."),
+      kind: z.string().optional().describe("Source kind. Defaults to meeting."),
+    }).describe("Metadata identifying the transcript source."),
+  },
+  async function ({ text, source_meta }) {
+    var source = await decisionGraphStore.addNode({
+      node_kind: "source" as const,
+      id: "src_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+      kind: source_meta.kind || "meeting",
+      ref: source_meta.ref,
+      created_at: new Date().toISOString(),
+    });
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({
+          source_id: source.id,
+          extraction_prompt: buildExtractionPrompt(text),
+          next: "Run the extraction prompt against the transcript with your model, then call ingest_transcript_results with the JSON.",
+        }, null, 2),
+      }],
+    };
+  }
+);
+
+server.tool(
+  "ingest_transcript_results",
+  "Parse model-produced extraction JSON into reviewable Decision Graph candidates linked to their source. Nothing is auto-confirmed.",
+  {
+    source_id: z.string().min(1).describe("Existing transcript Source node id."),
+    extraction_json: z.string().min(1).describe("Raw JSON returned by the calling agent's model."),
+  },
+  async function ({ source_id, extraction_json }) {
+    var source = await decisionGraphStore.getNode(source_id);
+    if (source === null || source.node_kind !== "source") {
+      return { content: [{ type: "text" as const, text: "Transcript source not found: " + source_id }], isError: true };
+    }
+    var extractionSource = source as SourceNode;
+    var parsed = parseExtractionJson(extraction_json);
+    if (!parsed.ok) {
+      return { content: [{ type: "text" as const, text: parsed.error }], isError: true };
+    }
+
+    var rejectedSourceRefs: Array<{ index: number; source_ref: string; reason: string }> = [];
+    // The file-backed store has no multi-file transaction. Per-item isolation keeps
+    // later items moving and surfaces failures, but cannot roll back writes already
+    // completed inside a failed item.
+    var persisted = await persistItemsIndependently(parsed.items, async function(item, index) {
+      var node = flagRationaleMissing({
+        node_kind: "decision" as const,
+        id: "dec_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+        statement: item.statement,
+        rationale: item.rationale,
+        rationale_trust: item.rationale === null ? null : "extracted" as const,
+        scope: extractionSource.ref,
+        component_ref: extractionSource.ref,
+        alternatives_rejected: item.alternatives_rejected,
+        status: "candidate" as const,
+        superseded_by: null,
+        created_at: new Date().toISOString(),
+      });
+      var created = await decisionGraphStore.addNode(node) as DecisionNode;
+      var edgeId = "edge_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
+      await decisionGraphStore.addEdge({
+        id: edgeId,
+        from: created.id,
+        to: source_id,
+        type: "derived_from",
+        created_at: new Date().toISOString(),
+      });
+      var validation = validatedImportedSourceRef(extractionSource, item.source_ref || null);
+      var sourceRef = validation.accepted;
+      if (item.source_ref && validation.reason !== null) {
+        rejectedSourceRefs.push({ index: index, source_ref: item.source_ref, reason: validation.reason });
+      }
+      if (sourceRef !== null) {
+        var evidenceId = "evidence_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
+        await decisionGraphStore.addEvidenceWithEdge(created.id, {
+          node_kind: "evidence" as const,
+          id: evidenceId,
+          type: "imported" as const,
+          source_ref: sourceRef,
+          result_summary: "imported provenance (" + extractionSource.kind + ")",
+          confidence: "low" as const,
+          confounds: [],
+          timestamp: new Date().toISOString(),
+        }, {
+          id: "edge_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+          from: evidenceId,
+          to: created.id,
+          type: "supports" as const,
+          created_at: new Date().toISOString(),
+        });
+      }
+      return { node: created, edge_id: edgeId, source_ref: sourceRef };
+    });
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({
+          candidates: persisted.results,
+          skipped: parsed.skipped,
+          rejected_source_refs: rejectedSourceRefs,
+          item_errors: persisted.item_errors,
+          review_note: "Nothing is auto-confirmed. Review each candidate and call decision_commit for every keeper.",
+        }, null, 2),
+      }],
+    };
+  }
+);
+
 server.tool(
   "create_taste_profile",
   "Create (or overwrite) a named taste profile — a portable design-judgment ruleset + precedent corpus persisted locally under ~/.raven/taste/<name>.json (override dir with RAVEN_TASTE_HOME). Pass explicit rules[] (rule_id, clause_text, category, severity_default block|warn|nit, negative_prompt, owner taste|raven, delegate_to), and/or a DESIGN.md-style markdown doc to ingest (## headings = categories; '- ' bullets = rules; '(block)'/'(warn)'/'(nit)' severity markers; '(raven:<tool>)' delegates a rule to an existing Raven audit tool; '(scope:<surface>)' scopes a rule to one surface; 'Do NOT …' sentences become the rule's negative prompt). Ingest RULES-SHAPED docs only (actionable design constraints under category headings) — brand-story/mythology docs produce noise rules, not judgment. Local-first: nothing leaves the machine. Pass template:'portfolio'|'saas-marketing'|'app' for a cold start — seeds a small starter ruleset (color restraint, typography floor, spacing, voice, tap targets) BEFORE any calibration interview has run; template rules are added first, then any explicit rules/markdown you also pass are merged in on top. Still run get_taste_interview afterward — the template is a floor, not a substitute for calibrating to the actual person's taste.",
@@ -6093,7 +6983,7 @@ server.tool(
 
 server.tool(
   "bind_taste_surface",
-  "Persist a project's surface calibration for a taste profile — the answers from get_taste_interview. A binding records: the surface string scoped rules match against (e.g. 'product-site'), URL hosts that identify the project in url-mode audits, per-rule severity overrides (block|warn|nit|off — 'off' silences a rule on this surface), an optional voice/tone note, per-dimension design_notes (typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries, special — the interview's design:* answers), and a first-class `references` array — the example sites the person pointed to. References are NOT lossy prose: each url is captured live and its PageTraits (scheme, luminance, animation/scroll motion, text density) are stored on the binding, then design_notes are consistency-checked against what the references ACTUALLY are. A 'dark, cinematic' color note against two references that both render light comes back as a consistency_warning to surface to the user. Upserts by project name (~/.raven/taste/<profile>.surfaces.json). When the design_notes name an expensive technique (three.js/WebGL, GSAP scroll choreography, anime.js staggered motion, glassmorphism, a branded loader, lottie, kinetic display type…), the result carries build_hints — a concrete recipe + canonical public example sources per technique, so the builder sees the HOW at kickoff, BEFORE building; an expensive note is not license to drop it. After binding, audit_taste with project:'<name>' or a bound url applies the calibration automatically: matching scoped rules run at full severity, non-matching ones are skipped, overrides re-tune the rest. ENFORCED: binding a BRAND-NEW surface with no calibration content (no design_notes/voice_note/references/overrides) is REFUSED — that is the fingerprint of a skipped kickoff interview. Run get_taste_interview, ask the USER, and bind their answers; the uncalibrated_ack escape hatch exists only for a user who was interviewed and deliberately skipped every dimension.",
+  "Persist a project's surface calibration for a taste profile — the answers from get_taste_interview. A binding records: the surface string scoped rules match against (e.g. 'product-site'), URL hosts that identify the project in url-mode audits, per-rule severity overrides (block|warn|nit|off — 'off' silences a rule on this surface), an optional voice/tone note, per-dimension design_notes (typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries, special — the interview's design:* answers), and a first-class `references` array — the example sites the person pointed to. References are NOT lossy prose: each url is captured live and its PageTraits (scheme, luminance, animation/scroll motion, text density) are stored on the binding, then design_notes are consistency-checked against what the references ACTUALLY are. A 'dark, cinematic' color note against two references that both render light comes back as a consistency_warning to surface to the user. Upserts by project name (~/.raven/taste/<profile>.surfaces.json); on a re-bind, omitted references/design_notes/voice_note/overrides/hosts carry forward and are reported in carried_forward, while explicit empty values clear them. When the design_notes name an expensive technique (three.js/WebGL, GSAP scroll choreography, anime.js staggered motion, glassmorphism, a branded loader, lottie, kinetic display type…), the result carries build_hints — a concrete recipe + canonical public example sources per technique, so the builder sees the HOW at kickoff, BEFORE building; an expensive note is not license to drop it. After binding, audit_taste with project:'<name>' or a bound url applies the calibration automatically: matching scoped rules run at full severity, non-matching ones are skipped, overrides re-tune the rest. ENFORCED: a bind whose RESULT has no calibration content (no design_notes/voice_note/references/overrides) is REFUSED — a brand-new surface bound bare (the fingerprint of a skipped kickoff interview) and a re-bind that explicitly clears every calibration field alike; a stored uncalibrated_ack carries forward on re-binds, so only a NEW clear-everything requires a fresh ack. Run get_taste_interview, ask the USER, and bind their answers; the uncalibrated_ack escape hatch exists only for a user who was interviewed and deliberately skipped every dimension.",
   {
     profile: z.string().min(1).describe("Taste profile name."),
     project: z.string().min(1).describe("Project identifier, e.g. 'raven-mcp', 'portfolio'."),
@@ -6113,7 +7003,7 @@ server.tool(
   },
   async function ({ profile, project, surface, hosts, overrides, voice_note, design_notes, references, uncalibrated_ack }) {
     var warnings: string[] = [];
-    var capturedRefs: ReferenceCapture[] | undefined = undefined;
+    var capturedRefs: ReferenceCapture[] | undefined = references === undefined ? undefined : [];
     if (references && references.length > 0) {
       capturedRefs = [];
       for (var i = 0; i < references.length; i += 1) {
@@ -6167,6 +7057,11 @@ server.tool(
     if (consistencyWarnings.length > 0) {
       payload.consistency_warnings = consistencyWarnings;
       payload.action_required = "The design_notes contradict what the captured references actually are. Surface each consistency_warning to the USER and re-ask — do not silently keep both the note and the reference. design_notes are acceptance criteria for the build.";
+      // Carried-forward references were NOT recaptured on this bind — their
+      // traits are from the original capture and the site may have changed.
+      if (binding.carried_forward !== undefined && binding.carried_forward.indexOf("references") !== -1) {
+        payload.consistency_note = "These warnings compare against reference traits captured when the references were first bound, not recaptured on this re-bind — if a reference site has changed since, re-pass the references array to recapture before re-asking the user.";
+      }
     }
     var hints = buildHints(binding.design_notes);
     if (hints.length > 0) {
@@ -6265,17 +7160,18 @@ server.tool(
 
 server.tool(
   "audit_taste",
-  "Judge a target against a taste profile. Pass html (static page/CSS), text (a copy block), or url (rendered headless; also runs delegated WCAG-contrast/tap-target measurements for owner:raven rules). owner:taste rules run deterministic detectors — gradients, glow/neon (large-blur colored shadows), second accent hue, banned-word lists from the rule's negative prompt; clauses with no deterministic detector are reported honestly under not_assessed instead of guessed. owner:raven rules route through Raven's existing audit engines (page checks, contrast, tap targets) and fold results in under the delegating rule_id. Every finding cites an existing rule_id + concrete evidence — the engine prefers silence over a speculative nit. accept-verdict corpus precedents suppress previously-approved patterns. When the resolved binding carries design_notes, audit_taste VERIFIES each note against the artifact instead of only echoing it: url mode measures the rendered page's traits (scheme/luminance, canvas+WebGL, animations, scroll effects, text density, fonts, heading scale, loader, backdrop-filter), html mode extracts what it can statically, and every note comes back in note_assessments as present/partial/missing/unverifiable with trait-number evidence — design_notes are ACCEPTANCE CRITERIA for a build, not mood words. Missing notes become fidelity_findings (NOTE-<key>, warn — block when a named library like three.js/gsap/lottie/anime.js or a branded loader is wholly absent), the target is compared against the binding's captured references (REF-* deltas on scheme, density, motion, type scale), and sparse-and-empty pages are flagged (TASTE-restraint-earned: sparseness must be earned by craft density, not achieved by deletion). fidelity_findings count toward the verdict. When a note names an expensive technique (three.js/WebGL, GSAP scroll choreography, anime.js staggered motion, glassmorphism, a branded loader, lottie, kinetic display type…), the result carries build_hints — a concrete recipe + canonical public example sources for that technique, so a failing audit hands the fix ammunition next to the missing finding; an expensive note is never license to drop it. Rules may carry a scope (e.g. portfolio-monochrome); pass surface to say what you're judging — scoped rules run at full severity on a matching surface, are skipped (reported under skipped_out_of_scope) on a non-matching one, and can warn but never block when surface is omitted. Better: pass project (or audit a bound url host) so a saved surface binding supplies the surface, per-rule overrides, and voice note automatically — on a NEW project with no binding, run get_taste_interview first (results carry a calibration_hint when calibration is missing). Verdict: BLOCK (any block finding) / WARN (any warn) / PASS.",
+  "Judge a target against a taste profile. Pass html (static page/CSS), text (a copy block), or url (rendered headless; also runs delegated WCAG-contrast/tap-target measurements for owner:raven rules). Pass source_text to deterministically verify that the target's visible text remains verbatim through a content port. owner:taste rules run deterministic detectors — gradients, glow/neon (large-blur colored shadows), second accent hue, banned-word lists from the rule's negative prompt; clauses with no deterministic detector are reported honestly under not_assessed instead of guessed. owner:raven rules route through Raven's existing audit engines (page checks, contrast, tap targets) and fold results in under the delegating rule_id. Every finding cites an existing rule_id + concrete evidence — the engine prefers silence over a speculative nit. accept-verdict corpus precedents suppress previously-approved patterns. When the resolved binding carries design_notes, audit_taste VERIFIES each note against the artifact instead of only echoing it: url mode measures the rendered page's traits (scheme/luminance, canvas+WebGL, animations, scroll effects, text density, fonts, heading scale, loader, backdrop-filter), html mode extracts what it can statically, and every note comes back in note_assessments as present/partial/missing/unverifiable with trait-number evidence — design_notes are ACCEPTANCE CRITERIA for a build, not mood words. Missing notes become fidelity_findings (NOTE-<key>, warn — block when a named library like three.js/gsap/lottie/anime.js or a branded loader is wholly absent), the target is compared against the binding's captured references (REF-* deltas on scheme, density, motion, type scale), and sparse-and-empty pages are flagged (TASTE-restraint-earned: sparseness must be earned by craft density, not achieved by deletion). fidelity_findings count toward the verdict. When a note names an expensive technique (three.js/WebGL, GSAP scroll choreography, anime.js staggered motion, glassmorphism, a branded loader, lottie, kinetic display type…), the result carries build_hints — a concrete recipe + canonical public example sources for that technique, so a failing audit hands the fix ammunition next to the missing finding; an expensive note is never license to drop it. Rules may carry a scope (e.g. portfolio-monochrome); pass surface to say what you're judging — scoped rules run at full severity on a matching surface, are skipped (reported under skipped_out_of_scope) on a non-matching one, and can warn but never block when surface is omitted. Better: pass project (or audit a bound url host) so a saved surface binding supplies the surface, per-rule overrides, and voice note automatically — on a NEW project with no binding, run get_taste_interview first (results carry a calibration_hint when calibration is missing). Verdict: BLOCK (any block finding) / WARN (any warn) / PASS.",
   {
     profile: z.string().min(1).describe("Taste profile name (see list_taste_profiles)."),
     html: z.string().optional().describe("Full HTML/CSS of the page to judge."),
     text: z.string().optional().describe("A copy/text block to judge (voice/banned-word rules)."),
+    source_text: z.string().optional().describe("Original source copy for a deterministic word-token fidelity diff against the target's visible text."),
     url: z.string().optional().describe("Live URL — rendered headless with scroll-settle; enables delegated contrast/tap-target measurement."),
     surface: z.string().optional().describe("What surface is being judged (e.g. 'portfolio', 'product-site', 'deck') — activates/skips scope-tagged rules by token match. Omit if unsure: scoped rules then warn instead of block."),
     project: z.string().optional().describe("Project identifier — resolves a saved surface binding (see get_taste_interview / bind_taste_surface) that supplies the surface and per-rule overrides automatically. url-mode audits also resolve bindings by hostname."),
     document_kind: z.enum(["artifact", "portrait"]).optional().describe("'artifact' (default): the target is a build OF the surface — design_notes bind it as acceptance criteria (note_assessments/fidelity_findings run). 'portrait': the target is a document ABOUT the surface (e.g. generate_taste_portrait output) — note-fidelity is skipped and the result announces it in note_fidelity_skipped. Profile rules run in full either way.")
   },
-  async function ({ profile, html, text, url, surface, project, document_kind }) {
+  async function ({ profile, html, text, source_text, url, surface, project, document_kind }) {
     if (typeof url === "string" && url.trim() === "") url = undefined;
     var providedInputs = [html !== undefined, text !== undefined, url !== undefined].filter(Boolean).length;
     if (providedInputs !== 1) {
@@ -6283,7 +7179,7 @@ server.tool(
     }
     var prof = await getTasteProfile(tasteStore, profile);
     var targetHtml = html;
-    var pageIssues: { rule: string; severity: string; message: string; fix?: string }[] = [];
+    var pageIssues: { rule: string; severity: string; status?: "pass" | "fail" | "indeterminate"; message: string; fix?: string }[] = [];
     // Resolve any surface binding up front: delegate audits must be filtered by
     // the same calibrated surface + off-overrides the rule loop will use.
     var binding = await resolveSurfaceBinding(tasteStore, prof.name, { project: project, url: url });
@@ -6303,7 +7199,13 @@ server.tool(
         liveCaptureWarnings = cap.capture_warnings;
         if (delegates.has("audit_contrast")) {
           var c = await auditContrastUrl(url);
-          for (var row of c.aa_failures) pageIssues.push({ rule: "contrast/aa", severity: "error", message: row.selector + " \"" + row.text.slice(0, 40) + "\" contrast " + row.ratio + ":1 < required " + row.required_aa + ":1 (fg " + row.foreground + " on bg " + row.background + ")", fix: "Adjust fg/bg to clear " + row.required_aa + ":1 (delta " + row.delta_to_aa + ")." });
+          for (var row of c.rows) {
+            if (row.status === "fail") {
+              pageIssues.push({ status: row.status, rule: "contrast/aa", severity: "error", message: row.selector + " \"" + row.text.slice(0, 40) + "\" contrast " + row.ratio + ":1 < required " + row.required_aa + ":1 (fg " + row.foreground + " on bg " + row.background + ")", fix: "Adjust fg/bg to clear " + row.required_aa + ":1 (delta " + row.delta_to_aa + ")." });
+            } else if (row.status === "indeterminate") {
+              pageIssues.push({ status: row.status, rule: "contrast/background-indeterminate", severity: "warning", message: row.selector + " contrast not assessed (" + (row.indeterminate_reason || "unknown-backdrop") + ")", fix: "Inspect the rendered backdrop; no color-fix suggestion is safe without a determinate ratio." });
+            }
+          }
         }
         if (delegates.has("audit_tap_targets")) {
           var t = await auditTapTargetsUrl(url);
@@ -6320,7 +7222,7 @@ server.tool(
       var pc = runPageChecks(targetHtml);
       for (var iss of pc.issues) pageIssues.push({ rule: iss.rule, severity: iss.severity, message: iss.message, fix: iss.fix });
     }
-    var result = await auditTaste(tasteStore, { profile: prof, html: targetHtml, text: targetHtml === undefined ? text : undefined, page_issues: pageIssues.length > 0 ? pageIssues : undefined, surface: surface, binding: binding, traits: liveTraits, document_kind: document_kind });
+    var result = await auditTaste(tasteStore, { profile: prof, html: targetHtml, text: targetHtml === undefined ? text : undefined, source_text: source_text, page_issues: pageIssues.length > 0 ? pageIssues : undefined, surface: surface, binding: binding, traits: liveTraits, document_kind: document_kind });
     var out: any = result;
     if (url) out = Object.assign({}, result, { target: "url", url: url, capture_warnings: liveCaptureWarnings });
     return { content: [{ type: "text" as const, text: JSON.stringify(out, null, 2) }] };
@@ -6412,7 +7314,7 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 78 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 93 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });

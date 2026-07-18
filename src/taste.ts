@@ -1,5 +1,6 @@
 import { extractStaticTraits, type PageTraits } from "./capture.js";
 import { assessDesignNotes, referenceDeltas, restraintGuard, buildHints, type NoteAssessment, type BuildHint } from "./taste-fidelity.js";
+import { diffPortText, extractVisibleText, introducedBannedTerms, type PortFidelityResult } from "./port-fidelity.js";
 import type { TasteStore } from "./taste-store.js";
 export { tasteHome } from "./taste-store.js";
 
@@ -62,6 +63,9 @@ export type TasteAuditResult = {
   // (TASTE-restraint-earned), and reference deltas (REF-*). They count toward
   // the verdict but never pass through corpus suppression or rule filtering.
   fidelity_findings?: TasteFinding[];
+  // Deterministic source-vs-target word diff for content ports. Present only
+  // when source_text was supplied, so existing audit payloads stay unchanged.
+  port_fidelity?: PortFidelityResult;
   // Concrete build recipes + canonical public example sources for any expensive
   // technique named in the design_notes — so a failing audit hands the builder
   // the HOW next to the missing finding. Present only when a note triggers one.
@@ -211,7 +215,13 @@ export type TasteInterviewQuestion = {
   suggestions?: string[];
 };
 
-type PageIssueInput = { rule: string; severity: string; message: string; fix?: string };
+type PageIssueInput = {
+  rule: string;
+  severity: string;
+  status?: "pass" | "fail" | "indeterminate";
+  message: string;
+  fix?: string;
+};
 
 const SEVERITIES: TasteSeverity[] = ["block", "warn", "nit"];
 const RULE_OWNERS = ["taste", "raven"];
@@ -709,6 +719,9 @@ export async function getTasteInterview(store: TasteStore, profileName: string, 
   };
 }
 
+// Upserts by case-insensitive project name. On a re-bind, omitted optional
+// fields inherit the stored value; pass an explicit empty value to clear one.
+// carried_forward is response-only and is never written to the binding store.
 export async function bindTasteSurface(store: TasteStore, profileName: string, input: {
   project: string;
   surface: string;
@@ -718,7 +731,7 @@ export async function bindTasteSurface(store: TasteStore, profileName: string, i
   design_notes?: unknown;
   references?: unknown;
   uncalibrated_ack?: unknown;
-}): Promise<SurfaceBinding> {
+}): Promise<SurfaceBinding & { carried_forward?: string[] }> {
   const profile = await getTasteProfile(store, profileName);
   if (typeof input.project !== "string" || !/^[a-z0-9][a-z0-9-_.]{0,63}$/i.test(input.project)) {
     throw new Error("project must match /^[a-z0-9][a-z0-9-_.]{0,63}$/i");
@@ -726,21 +739,53 @@ export async function bindTasteSurface(store: TasteStore, profileName: string, i
   if (typeof input.surface !== "string" || input.surface.trim().length === 0) {
     throw new Error("surface is required — the phrase scoped rules match against (e.g. 'product-site')");
   }
+  const storedBindings = await listSurfaceBindings(store, profile.name);
+  const existingBinding = storedBindings.find(function(existing) {
+    return existing.project.toLowerCase() === input.project.toLowerCase();
+  });
+  // Inheriting an empty prior value is a no-op, so carry-forward (and its
+  // report) only fires when the stored field actually held content.
+  const carriedForward: string[] = [];
+  let referencesInput = input.references;
+  if (referencesInput === undefined && existingBinding && existingBinding.references && existingBinding.references.length > 0) {
+    referencesInput = existingBinding.references;
+    carriedForward.push("references");
+  }
+  let designNotesInput = input.design_notes;
+  if (designNotesInput === undefined && existingBinding && Object.keys(existingBinding.design_notes || {}).length > 0) {
+    designNotesInput = existingBinding.design_notes;
+    carriedForward.push("design_notes");
+  }
+  let voiceNoteInput = input.voice_note;
+  if (voiceNoteInput === undefined && existingBinding && existingBinding.voice_note.trim().length > 0) {
+    voiceNoteInput = existingBinding.voice_note;
+    carriedForward.push("voice_note");
+  }
+  let overridesInput = input.overrides;
+  if (overridesInput === undefined && existingBinding && existingBinding.overrides.length > 0) {
+    overridesInput = existingBinding.overrides;
+    carriedForward.push("overrides");
+  }
+  let hostsInput = input.hosts;
+  if (hostsInput === undefined && existingBinding && existingBinding.hosts.length > 0) {
+    hostsInput = existingBinding.hosts;
+    carriedForward.push("hosts");
+  }
   const hosts: string[] = [];
-  if (input.hosts !== undefined) {
-    if (!Array.isArray(input.hosts)) throw new Error("hosts must be an array of hostnames");
-    for (const raw of input.hosts) {
+  if (hostsInput !== undefined) {
+    if (!Array.isArray(hostsInput)) throw new Error("hosts must be an array of hostnames");
+    for (const raw of hostsInput) {
       if (typeof raw !== "string" || raw.trim().length === 0) throw new Error("hosts entries must be non-empty strings");
       hosts.push(normalizeHost(raw));
     }
   }
   const ruleIds = new Set(profile.rules.map(function(rule) { return rule.rule_id; }));
   const overrides: SurfaceOverride[] = [];
-  if (input.overrides !== undefined) {
-    if (!Array.isArray(input.overrides)) throw new Error("overrides must be an array of {rule_id, severity}");
+  if (overridesInput !== undefined) {
+    if (!Array.isArray(overridesInput)) throw new Error("overrides must be an array of {rule_id, severity}");
     const seen = new Set<string>();
-    for (let i = 0; i < input.overrides.length; i += 1) {
-      const raw = input.overrides[i];
+    for (let i = 0; i < overridesInput.length; i += 1) {
+      const raw = overridesInput[i];
       if (!isRecord(raw)) throw new Error("overrides[" + i + "] must be an object");
       const ruleId = readNonEmptyString(raw, "rule_id", "overrides[" + i + "]");
       if (!ruleIds.has(ruleId)) throw new Error("overrides[" + i + "].rule_id does not exist in profile.rules: " + ruleId);
@@ -751,9 +796,9 @@ export async function bindTasteSurface(store: TasteStore, profileName: string, i
       overrides.push({ rule_id: ruleId, severity: severity as TasteSeverity | "off" });
     }
   }
-  const voiceNote = optionalString(input.voice_note);
-  const designNotes = validateDesignNotes(input.design_notes, "design_notes");
-  const references = validateReferences(input.references, "references");
+  const voiceNote = optionalString(voiceNoteInput);
+  const designNotes = validateDesignNotes(designNotesInput, "design_notes");
+  const references = validateReferences(referencesInput, "references");
 
   // Interview-enforcement gate. A bind whose RESULT carries zero taste
   // calibration — no design_notes, no non-blank voice_note, no references, no
@@ -764,20 +809,24 @@ export async function bindTasteSurface(store: TasteStore, profileName: string, i
   // interviewed and chose to skip every dimension, recorded on the binding so
   // the skip is auditable, never silent.
   //
-  // This gates NEW surfaces and re-binds alike, on purpose: bind is an upsert
-  // that REPLACES every field, so an empty re-bind erases prior calibration
-  // exactly as a fresh identity-only bind never had it (keying the exemption on
-  // project would let `same-project, new surface, empty notes` silently wipe a
-  // calibrated binding). Hosts are identity/matching, not taste, so they do NOT
+  // This evaluates the merged result: omitted re-bind fields carry forward,
+  // while explicitly empty fields clear prior calibration and can still make
+  // the bind fail. Hosts are identity/matching, not taste, so they do NOT
   // satisfy the gate. Blank strings are trimmed before counting, so whitespace
   // cannot smuggle a bind through. A meaningful design_note is trusted; a
   // deliberately fabricated one is a lie no deterministic gate can detect.
-  const ack = optionalString(input.uncalibrated_ack).trim();
+  let ack = optionalString(input.uncalibrated_ack).trim();
   const hasCalibration =
     Object.keys(designNotes).length > 0 ||
     voiceNote.trim().length > 0 ||
     overrides.length > 0 ||
     (references !== undefined && references.length > 0);
+  // A stored uncalibrated_ack is durable consent: an acked-uncalibrated
+  // binding can be re-bound (new surface/hosts) without repeating the ack.
+  if (!hasCalibration && ack.length === 0 && existingBinding && typeof existingBinding.uncalibrated_ack === "string" && existingBinding.uncalibrated_ack.trim().length > 0) {
+    ack = existingBinding.uncalibrated_ack.trim();
+    carriedForward.push("uncalibrated_ack");
+  }
   if (!hasCalibration && ack.length === 0) {
     throw new Error(
       "Refusing to bind surface ('" + input.project + "') with no calibration content — this is the fingerprint of a skipped taste interview (and an empty re-bind would erase prior calibration). " +
@@ -798,13 +847,14 @@ export async function bindTasteSurface(store: TasteStore, profileName: string, i
   };
   if (references !== undefined) binding.references = references;
   if (!hasCalibration && ack.length > 0) binding.uncalibrated_ack = ack;
-  const bindings = (await listSurfaceBindings(store, profile.name)).filter(function(existing) {
+  const bindings = storedBindings.filter(function(existing) {
     return existing.project.toLowerCase() !== binding.project.toLowerCase();
   });
   bindings.push(binding);
   bindings.sort(function(a, b) { return a.project.localeCompare(b.project); });
   await store.putSurfaces(profile.name, bindings);
-  return binding;
+  if (carriedForward.length === 0) return binding;
+  return Object.assign({}, binding, { carried_forward: carriedForward });
 }
 
 const DECISION_SOURCES: TasteDecisionSource[] = ["user-directed", "user-approved", "user-corrected"];
@@ -1230,6 +1280,7 @@ export async function auditTaste(store: TasteStore, input: {
   profile: string | TasteProfile;
   html?: string;
   text?: string;
+  source_text?: string;
   page_issues?: PageIssueInput[];
   surface?: string;
   project?: string;
@@ -1259,6 +1310,7 @@ export async function auditTaste(store: TasteStore, input: {
   const notAssessed: { rule_id: string; reason: string }[] = [];
   const skippedOutOfScope: { rule_id: string; scope: string }[] = [];
   const disabledByBinding: { rule_id: string; severity: "off" }[] = [];
+  const activeRules: TasteRule[] = [];
   const attachedIssueIndexes = new Set<number>();
   // undefined binding = "resolve from the project hint"; null = "already
   // resolved upstream, none found" (the url-mode handler resolves early so
@@ -1295,6 +1347,7 @@ export async function auditTaste(store: TasteStore, input: {
         rule = Object.assign({}, rule, { severity_default: "warn" as TasteSeverity });
       }
     }
+    activeRules.push(rule);
     if (rule.owner === "raven") {
       if (input.page_issues === undefined) {
         notAssessed.push({
@@ -1376,6 +1429,76 @@ export async function auditTaste(store: TasteStore, input: {
     }
   }
 
+  let portFidelity: PortFidelityResult | undefined = undefined;
+  if (input.source_text !== undefined) {
+    const visibleTarget = targetKind === "html" ? extractVisibleText(rawTarget) : rawTarget;
+    portFidelity = diffPortText(input.source_text, visibleTarget);
+    const bannedTerms = Array.from(new Set(activeRules.filter(function(rule) {
+      return rule.severity_default === "block";
+    }).flatMap(function(rule) {
+      return extractBannedTerms(rule.negative_prompt + " " + rule.clause_text);
+    })));
+    const sourceBannedTerms = new Set(introducedBannedTerms(input.source_text, bannedTerms).map(function(term) {
+      return term.toLocaleLowerCase();
+    }));
+    const newlyIntroducedTerms = introducedBannedTerms(visibleTarget, bannedTerms).filter(function(term) {
+      return !sourceBannedTerms.has(term.toLocaleLowerCase());
+    });
+    const matchedIntroducedTerms = new Set<string>();
+    const introducedInFinding = function(target: string, context: string): string[] {
+      const targetText = target.toLocaleLowerCase();
+      const contextText = context.toLocaleLowerCase();
+      return newlyIntroducedTerms.filter(function(term) {
+        const normalizedTerm = term.toLocaleLowerCase();
+        const matched = targetText.includes(normalizedTerm) || contextText.includes(normalizedTerm);
+        if (matched) matchedIntroducedTerms.add(term.toLocaleLowerCase());
+        return matched;
+      });
+    };
+    const portFindings: TasteFinding[] = [];
+    const baseFinding = function(severity: TasteSeverity, evidence: string): TasteFinding {
+      return {
+        rule_id: "PORT-DIFF",
+        clause_cited: "Port target text must remain verbatim against source_text.",
+        severity,
+        owner: "taste",
+        source: "raven",
+        evidence,
+        fix: "Restore the source wording exactly, or explicitly approve and update source_text before re-running the audit.",
+      };
+    };
+    for (const entry of portFidelity.substituted) {
+      const banned = introducedInFinding(entry.target, entry.context);
+      const suffix = banned.length > 0 ? "; introduced banned profile term(s): " + banned.join(", ") : "";
+      portFindings.push(baseFinding(banned.length > 0 ? "block" : "warn",
+        'substituted "' + entry.source + '" → "' + entry.target + '"; context: ' + entry.context + suffix));
+    }
+    for (const entry of portFidelity.dropped) {
+      portFindings.push(baseFinding("warn", 'dropped "' + entry.source + '"; context: ' + entry.context));
+    }
+    for (const entry of portFidelity.added) {
+      const banned = introducedInFinding(entry.target, entry.context);
+      const suffix = banned.length > 0 ? "; introduced banned profile term(s): " + banned.join(", ") : "";
+      portFindings.push(baseFinding(banned.length > 0 ? "block" : "warn",
+        'added "' + entry.target + '"; context: ' + entry.context + suffix));
+    }
+    for (const entry of portFidelity.moved) {
+      portFindings.push(baseFinding("nit", 'moved "' + entry.text + '"; context: ' + entry.context));
+    }
+    for (const entry of portFidelity.case_changed) {
+      portFindings.push(baseFinding("nit", 'case changed "' + entry.source + '" → "' + entry.target + '"; context: ' + entry.context));
+    }
+    for (const term of newlyIntroducedTerms) {
+      if (!matchedIntroducedTerms.has(term.toLocaleLowerCase())) {
+        portFindings.push(baseFinding("block", 'introduced banned profile term spanning a port-diff boundary: "' + term + '"'));
+      }
+    }
+    if (portFidelity.token_counts.capped && portFidelity.warnings.length > 0) {
+      portFindings.push(baseFinding("warn", portFidelity.warnings.join(" ")));
+    }
+    fidelityFindings = (fidelityFindings || []).concat(portFindings);
+  }
+
   const countable = fidelityFindings === undefined ? activeFindings : activeFindings.concat(fidelityFindings);
   const blockCount = countable.filter(function(finding) { return finding.severity === "block"; }).length;
   const warnCount = countable.filter(function(finding) { return finding.severity === "warn"; }).length;
@@ -1407,6 +1530,7 @@ export async function auditTaste(store: TasteStore, input: {
   if (binding && Object.keys(binding.design_notes).length > 0) result.design_notes = binding.design_notes;
   if (noteAssessments !== undefined) result.note_assessments = noteAssessments;
   if (fidelityFindings !== undefined) result.fidelity_findings = fidelityFindings;
+  if (portFidelity !== undefined) result.port_fidelity = portFidelity;
   // Attach build recipes for any expensive technique named in the notes — this
   // does not need traits, so a failing audit ALWAYS carries the fix ammunition.
   // Portraits skip them: with note-fidelity off there is no missing finding to fix.
@@ -1669,8 +1793,9 @@ function foldRavenRule(
   // Only a hard "error" issue earns the rule's full severity; anything else — advisory
   // "warning" or an unrecognized severity string from an external caller — caps at warn,
   // so a suggestion can never surface as a block.
-  const severity: TasteSeverity =
-    issue.severity !== "error" && rule.severity_default === "block" ? "warn" : rule.severity_default;
+  const severity: TasteSeverity = issue.status === "indeterminate"
+    ? "warn"
+    : issue.severity !== "error" && rule.severity_default === "block" ? "warn" : rule.severity_default;
   findings.push({
     rule_id: rule.rule_id,
     clause_cited: rule.clause_text,
@@ -1678,7 +1803,9 @@ function foldRavenRule(
     owner: rule.owner,
     source: "raven",
     evidence: issue.rule + ": " + issue.message,
-    fix: issue.fix || fixFromNegativePrompt(rule.negative_prompt),
+    fix: issue.status === "indeterminate"
+      ? issue.fix || "Inspect the rendered surface; delegated contrast evidence was indeterminate."
+      : issue.fix || fixFromNegativePrompt(rule.negative_prompt),
   });
 }
 

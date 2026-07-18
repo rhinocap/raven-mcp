@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Interleaved shadow cap fixture</title>
+    <style>button, a { display: block; width: 20px; height: 20px; }</style>
+  </head>
+  <body>
+    <button data-testid="first-light">First</button>
+    <early-actions data-testid="early-host"></early-actions>
+    <script>
+      customElements.define("early-actions", class extends HTMLElement {
+        connectedCallback() {
+          const root = this.attachShadow({ mode: "open" });
+          root.innerHTML = '<a data-testid="early-shadow-target" href="#shadow">Shadow</a>';
+        }
+      });
+      for (let i = 0; i < 510; i += 1) {
+        const button = document.createElement("button");
+        button.textContent = "Later " + i;
+        document.body.appendChild(button);
+      }
+    </script>
+  </body>
+</html>

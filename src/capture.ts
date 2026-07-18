@@ -31,6 +31,9 @@ type PageLike = {
   focus: (selector: string, options?: { timeout?: number }) => Promise<void>;
   screenshot: (options: { fullPage: boolean }) => Promise<Buffer>;
   setViewportSize: (viewport: { width: number; height: number }) => Promise<void>;
+  context?: () => {
+    newCDPSession: (page: any) => Promise<CDPSessionLike>;
+  };
   waitForFunction: (
     fn: (arg?: any) => boolean,
     arg?: any,
@@ -39,6 +42,243 @@ type PageLike = {
   waitForTimeout: (timeout: number) => Promise<void>;
   $$: (selector: string) => Promise<ElementHandleLike[]>;
 };
+
+type CDPSessionLike = {
+  send: (...args: any[]) => Promise<any>;
+};
+
+type DeviceEmulationPageLike = {
+  setViewportSize: (viewport: { width: number; height: number }) => Promise<void>;
+  context?: () => {
+    newCDPSession: (page: any) => Promise<CDPSessionLike>;
+  };
+};
+
+type HydrationPageLike = {
+  evaluate: <T, A>(fn: (arg: A) => T | Promise<T>, arg: A) => Promise<T>;
+};
+
+const MOBILE_VIEWPORT_MAX_WIDTH = 812;
+const MOBILE_USER_AGENT =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) " +
+  "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1";
+const mobileEmulationSessions = new WeakMap<object, CDPSessionLike>();
+
+/**
+ * Applies phone input/device characteristics to narrow viewport captures while
+ * preserving browser.newPage() so the remote runtime's URL guard stays attached.
+ * CDP is Chromium-only, so any failure degrades to the historical width-only
+ * viewport and records a warning instead of failing the audit.
+ */
+export async function applyDeviceEmulation(
+  page: DeviceEmulationPageLike,
+  viewport: { w: number; h: number },
+  warnings: string[] = []
+): Promise<boolean> {
+  await page.setViewportSize({ width: viewport.w, height: viewport.h });
+
+  if (viewport.w > MOBILE_VIEWPORT_MAX_WIDTH) {
+    const staleSession = mobileEmulationSessions.get(page as object);
+    if (staleSession) {
+      const reset = await clearDeviceEmulation(staleSession);
+      mobileEmulationSessions.delete(page as object);
+      await forceViewportReapply(page, viewport);
+      if (!reset) {
+        warnings.push(
+          "previous mobile emulation may persist — desktop capture may retain mobile characteristics"
+        );
+      }
+    }
+    return false;
+  }
+
+  let session: CDPSessionLike | null = null;
+  try {
+    if (typeof page.context !== "function") {
+      throw new Error("CDP session unavailable");
+    }
+    session = await page.context().newCDPSession(page);
+    await session.send("Emulation.setDeviceMetricsOverride", {
+      width: viewport.w,
+      height: viewport.h,
+      deviceScaleFactor: 3,
+      mobile: true
+    });
+    await session.send("Emulation.setTouchEmulationEnabled", {
+      enabled: true,
+      maxTouchPoints: 5
+    });
+    await session.send("Emulation.setUserAgentOverride", {
+      userAgent: MOBILE_USER_AGENT,
+      platform: "iPhone"
+    });
+    mobileEmulationSessions.set(page as object, session);
+    return true;
+  } catch {
+    if (session) {
+      await clearDeviceEmulation(session);
+    }
+    mobileEmulationSessions.delete(page as object);
+    await forceViewportReapply(page, viewport);
+    warnings.push(
+      "mobile emulation unavailable — audited at mobile width with desktop input characteristics"
+    );
+    return false;
+  }
+}
+
+/**
+ * Re-applies the Playwright viewport after a raw-CDP clearDeviceMetricsOverride.
+ * Playwright caches the last requested size and no-ops a same-size
+ * setViewportSize call, so a plain re-set leaves the page at the browser
+ * default — nudge to a different height first to force a real override.
+ */
+async function forceViewportReapply(
+  page: DeviceEmulationPageLike,
+  viewport: { w: number; h: number }
+): Promise<void> {
+  await page.setViewportSize({ width: viewport.w, height: viewport.h + 1 });
+  await page.setViewportSize({ width: viewport.w, height: viewport.h });
+}
+
+async function clearDeviceEmulation(session: CDPSessionLike): Promise<boolean> {
+  const resets: Array<[string, Record<string, unknown>?]> = [
+    ["Emulation.clearDeviceMetricsOverride"],
+    ["Emulation.setTouchEmulationEnabled", { enabled: false }],
+    ["Emulation.setUserAgentOverride", { userAgent: "" }]
+  ];
+  let success = true;
+  for (let i = 0; i < resets.length; i += 1) {
+    try {
+      await session.send(resets[i][0], resets[i][1]);
+    } catch {
+      success = false;
+      // Attempt every reset even if one CDP domain command is unsupported.
+    }
+  }
+  return success;
+}
+
+/**
+ * Waits for custom elements present in the document to upgrade, then waits for
+ * two stable animation frames based on body height, scroll height, and open
+ * shadow-root structure. The bounded wait is advisory: timeouts warn and
+ * measurement continues.
+ */
+export async function waitForCustomElementsHydration(
+  page: HydrationPageLike,
+  warnings: string[],
+  timeoutMs: number = 3500
+): Promise<boolean> {
+  try {
+    let outerTimer: ReturnType<typeof setTimeout> | undefined;
+    const evaluation = page.evaluate(async function (limits) {
+      var started = Date.now();
+      var deadline = started + limits.total;
+      var tags: string[] = [];
+      var seenTags: Record<string, true> = {};
+      var all = document.querySelectorAll("*");
+      for (var i = 0; i < all.length; i += 1) {
+        var tag = all[i].tagName.toLowerCase();
+        if (tag.indexOf("-") !== -1 && !seenTags[tag]) {
+          seenTags[tag] = true;
+          tags.push(tag);
+        }
+      }
+
+      var definitionsReady = true;
+      if (tags.length > 0) {
+        definitionsReady = await Promise.race([
+          Promise.all(tags.map(function (tag) {
+            return customElements.whenDefined(tag);
+          })).then(function () { return true; }),
+          new Promise<boolean>(function (resolve) {
+            setTimeout(function () { resolve(false); }, Math.min(limits.definitions, limits.total));
+          })
+        ]);
+      }
+
+      function shadowSignals(): { roots: number; elements: number } {
+        var roots = 0;
+        var elements = 0;
+        function walk(root: Document | ShadowRoot): void {
+          var nodes = root.querySelectorAll("*");
+          for (var j = 0; j < nodes.length; j += 1) {
+            var shadow = nodes[j].shadowRoot;
+            if (shadow && shadow.childNodes.length > 0) {
+              roots += 1;
+              elements += shadow.querySelectorAll("*").length;
+              walk(shadow);
+            }
+          }
+        }
+        walk(document);
+        return { roots: roots, elements: elements };
+      }
+
+      function snapshot(): string {
+        var height = document.body ? document.body.getBoundingClientRect().height : 0;
+        var scrollHeight = document.body ? document.body.scrollHeight : 0;
+        var shadow = shadowSignals();
+        return [
+          String(Math.round(height * 10) / 10),
+          String(scrollHeight),
+          String(shadow.roots),
+          String(shadow.elements)
+        ].join(":");
+      }
+
+      var previous = snapshot();
+      var stableFrames = 0;
+      var stabilityStarted = Date.now();
+      // Ceiling: async rendering that changes none of these signals can still be
+      // measured early. This wait is advisory by design, not a readiness proof.
+      while (
+        Date.now() < deadline &&
+        (stableFrames < 2 || Date.now() - stabilityStarted < limits.observation)
+      ) {
+        var remaining = Math.max(0, deadline - Date.now());
+        await Promise.race([
+          new Promise<void>(function (resolve) {
+            requestAnimationFrame(function () { resolve(); });
+          }),
+          new Promise<void>(function (resolve) {
+            setTimeout(function () { resolve(); }, remaining);
+          })
+        ]);
+        var current = snapshot();
+        stableFrames = current === previous ? stableFrames + 1 : 0;
+        previous = current;
+      }
+
+      return definitionsReady && stableFrames >= 2;
+    }, {
+      definitions: Math.min(3000, timeoutMs),
+      total: timeoutMs,
+      observation: Math.min(250, timeoutMs)
+    });
+
+    let hydrated: boolean;
+    try {
+      hydrated = await Promise.race([
+        evaluation,
+        new Promise<boolean>(function (resolve) {
+          outerTimer = setTimeout(function () { resolve(false); }, 5000);
+        })
+      ]);
+    } finally {
+      if (outerTimer !== undefined) clearTimeout(outerTimer);
+    }
+
+    if (!hydrated) {
+      warnings.push("custom elements may not have finished hydrating");
+    }
+    return hydrated;
+  } catch {
+    warnings.push("custom elements may not have finished hydrating");
+    return false;
+  }
+}
 
 export type Theme = "light" | "dark";
 
@@ -105,6 +345,7 @@ export type CaptureResult = {
   renderedHtml: string;
   screenshotBase64: string;
   viewport: { w: number; h: number };
+  mobile_emulation?: boolean;
   theme?: Theme;
   scrolledToBottom: boolean;
   /**
@@ -173,7 +414,7 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
     }
 
     const page = await browser.newPage();
-    await page.setViewportSize({ width: viewport.w, height: viewport.h });
+    const mobileEmulation = await applyDeviceEmulation(page, viewport, warnings);
 
     if (theme && typeof page.emulateMedia === "function") {
       try {
@@ -184,6 +425,7 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
     }
 
     await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
+    await waitForCustomElementsHydration(page, warnings);
 
     if (theme) {
       // Many sites toggle dark mode via a documentElement attribute/class rather
@@ -280,6 +522,7 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
       renderedHtml: renderedHtml,
       screenshotBase64: screenshotBase64,
       viewport: viewport,
+      mobile_emulation: mobileEmulation,
       theme: theme,
       scrolledToBottom: scrolledToBottom,
       animationsSettled: animationsSettled,
@@ -984,6 +1227,7 @@ function captureFileUrlWithoutBrowser(
     renderedHtml: renderedHtml,
     screenshotBase64: EMPTY_PNG_BASE64,
     viewport: viewport,
+    mobile_emulation: false,
     scrolledToBottom: scrollSettle,
     // No live browser in this fallback path, so there is no Animations API to poll.
     animationsSettled: false,
@@ -1925,16 +2169,23 @@ export type FindingVerdict = {
   key: string;
   verdict: Verdict;
   evidence: string;
+  warnings?: string[];
 };
 
 export type VerifyTarget = { url?: string; html?: string };
 
 type VerifyPageLike = {
-  evaluate: <T>(fn: () => T | Promise<T>) => Promise<T>;
+  evaluate: {
+    <T>(fn: () => T | Promise<T>): Promise<T>;
+    <T, A>(fn: (arg: A) => T | Promise<T>, arg: A): Promise<T>;
+  };
   goto: (url: string, options: { waitUntil: "load" }) => Promise<unknown>;
   setContent: (html: string, options: { waitUntil: "load" }) => Promise<void>;
   setDefaultTimeout?: (timeout: number) => void;
   setViewportSize: (viewport: { width: number; height: number }) => Promise<void>;
+  context?: () => {
+    newCDPSession: (page: any) => Promise<CDPSessionLike>;
+  };
 };
 
 const LIVE_VERIFICATION_UNAVAILABLE_EVIDENCE =
@@ -1965,7 +2216,8 @@ export async function verifyFindings(
     }
 
     const page = (await browser.newPage()) as unknown as VerifyPageLike;
-    await page.setViewportSize({ width: viewport.w, height: viewport.h });
+    const verificationWarnings: string[] = [];
+    await applyDeviceEmulation(page, viewport, verificationWarnings);
 
     if (opts && typeof opts.timeoutMs === "number" && typeof page.setDefaultTimeout === "function") {
       page.setDefaultTimeout(opts.timeoutMs);
@@ -1976,10 +2228,16 @@ export async function verifyFindings(
     } else if (target.html) {
       await page.setContent(target.html, { waitUntil: "load" });
     }
+    await waitForCustomElementsHydration(page, verificationWarnings);
 
     const verdicts: FindingVerdict[] = [];
     for (const finding of findings) {
       verdicts.push(await verifyFinding(page, finding));
+    }
+    if (verificationWarnings.length > 0) {
+      for (const verdict of verdicts) {
+        verdict.warnings = verificationWarnings.slice();
+      }
     }
     return verdicts;
   } finally {

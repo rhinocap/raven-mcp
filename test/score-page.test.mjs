@@ -620,6 +620,24 @@ test('AC8: scorePage handles minimal valid HTML without throwing', () => {
   assert.doesNotThrow(() => scorePage(minHtml));
 });
 
+test('scorePage: contrast status counts determinate failures and keeps indeterminate rows out of metrics', () => {
+  const result = scorePage('<main><p>Text</p></main>', {
+    contrastRows: [
+      { status: 'pass', ratio: 7 },
+      { status: 'fail', ratio: 2 },
+      { status: 'indeterminate', ratio: null },
+    ],
+  });
+  assert.deepEqual(result.contrast, {
+    pass_count: 1,
+    fail_count: 1,
+    indeterminate_count: 1,
+    note: '1 contrast row not assessed because its rendered backdrop is indeterminate.',
+  });
+  const a11y = result.categories.find((row) => row.category === 'a11y');
+  assert.ok(a11y.errors >= 1, 'the determinate contrast failure should affect accessibility');
+});
+
 test('AC8: scorePage handler output is JSON-serialisable (tool can return it as JSON text)', () => {
   const result = scorePage(CLEAN_HTML);
   let serialized;
@@ -629,7 +647,7 @@ test('AC8: scorePage handler output is JSON-serialisable (tool can return it as 
   const roundtripped = JSON.parse(serialized);
   assert.deepEqual(
     Object.keys(roundtripped).sort(),
-    ['categories', 'not_assessed', 'overall', 'weakest_category'].sort(),
+    ['categories', 'contrast', 'not_assessed', 'overall', 'weakest_category'].sort(),
     'round-tripped result must have the same top-level keys'
   );
 });

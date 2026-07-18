@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Delayed shadow target fixture</title>
+  </head>
+  <body>
+    <delayed-nav data-testid="delayed-host"></delayed-nav>
+    <script>
+      customElements.define("delayed-nav", class extends HTMLElement {
+        connectedCallback() {
+          const root = this.attachShadow({ mode: "open" });
+          setTimeout(function () {
+            root.innerHTML = '<style>a{box-sizing:border-box;display:block;width:100px;height:48px}</style>' +
+              '<a data-testid="shadow-link" href="#ready">Ready</a>';
+          }, 200);
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -22,11 +22,11 @@ Raven gives Claude access to a comprehensive design knowledge base:
 
 ## Install
 
-Local stdio (npx / from source) is the **full product**: **78 tools**, including Grab and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
+Local stdio (npx / from source) is the **full product**: **93 tools**, including Grab and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
 
 | Path | How | Tools | Taste | Grab |
 |------|-----|-------|-------|------|
-| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **78** | Yes | Yes |
+| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **93** | Yes | Yes |
 | Public remote | `https://mcp.ravenmcp.ai/api/mcp` | **~45** | No | No |
 | Auth remote | `https://mcp.ravenmcp.ai/api/mcp-user` (OAuth) | Taste + audits (no Grab) | Yes | **No** |
 
@@ -90,10 +90,10 @@ cd raven-mcp && npm install && npm run build
 | `compose_system` | Mix tokens from different systems |
 | `get_brand_system` | Get a full system styled like a well-known brand |
 | `audit_page` | Audit HTML/CSS against Raven's quality standards — pass `html` for static audit, or `url` to render headless with optional `scroll_settle` (step through reveal gates, then return to top) and `viewport` parameters; `containerMaxWidth` makes container checks token-aware. Also flags inline SVG icons that hardcode a color instead of using `currentColor`/a token. Pass `compact: true` to return only scores, violations, and fix_priority (drops embedded base64 screenshots) when the full payload is too large. |
-| `score_page` | Return a per-category (0–10) design score for a page — typography, accessibility, spacing, color, responsive layout, design tokens, structure — derived from the same checks as `audit_page`, plus the overall score/grade, the weakest category, and categories Raven does not mechanically assess (brand, conversion, motion). Pass `html` and/or `url` (url capture is local/stdio only; remote rejects `url`) |
+| `score_page` | Return a per-category (0–10) design score for a page — typography, accessibility, spacing, color, responsive layout, design tokens, structure — derived from the same checks as `audit_page`, plus the overall score/grade, the weakest category, and categories Raven does not mechanically assess (brand, conversion, motion). URL mode also counts determinate contrast failures while keeping indeterminate rows out of numeric scoring. Pass `html` and/or `url` (url capture is local/stdio only; remote rejects `url`) |
 | `audit_layout` | Evaluate visual rhythm, alignment, and optical balance; detects orphan-stretch (a lonely last-row grid/flex card stretching far wider than siblings) |
 | `audit_responsive_visibility` | Render a URL at multiple breakpoints and flag content elements that are visible on desktop but hidden on mobile (display:none/opacity:0/zero-size) — categorises each as likely-oversight (content vanishing on mobile) vs intentional (decorative) |
-| `audit_contrast` | Compute WCAG contrast ratios for every text element on a rendered page and report AA (4.5:1 / 3:1 large) and AAA pass-fail per element, with delta-to-pass for failures |
+| `audit_contrast` | Compute WCAG contrast for rendered text with tri-state `status` (`pass`, `fail`, `indeterminate`), effective backdrops, ratio ranges, and delta-to-pass only where the backdrop is determinate |
 | `suggest_contrast_fix` | Given failing WCAG color pairs, return the minimal fg/bg change that clears the AA/AAA target — concrete passing values to fix `audit_contrast` failures |
 | `audit_url` | Render a live URL at each viewport×theme, scroll-settle, fire interactions, capture real pixels + DOM, then run the page/contrast/responsive/blank-media checks **plus** sliced-image edge-symmetry and hover-state white-wash detection over the captures — every finding tagged confirmed/likely-artifact/inconclusive, ranked by severity. Pass `compact: true` to return only findings and summary (drops per-capture base64 screenshots) when the full payload is too large. |
 | `audit_content` | Per-item content verdicts (pass/warn/fail) for headings, prose, CTAs, labels, captions, metrics & outcomes against UX-writing principles + deterministic heuristics (metric needs number+unit; CTA action-led ≤4 words; prose flags passive/jargon/hedging; caption-vs-heading duplication) — with a before→after rewrite suggestion per item. Pure offline |
@@ -135,32 +135,38 @@ cd raven-mcp && npm install && npm run build
 | `list_taste_profiles` | List locally stored taste profiles with rule/corpus counts |
 | `label_finding` | Append a human accept/revise/reject precedent to a profile's corpus — the growth loop; append-only, and accept-verdicts suppress that pattern in future audits |
 | `get_taste_interview` | Calibration interview, two modes. `kickoff` (default, for a NEW project): a deterministic interview built from the profile's voice rules and eleven design dimensions (typography, spacing, color, layout, motion, imagery, entrance/hero animation, loading states, navigation pattern, aesthetic family, specialty libraries — with Next.js suggested as the default build target for sites) — most questions carry plain-language multiple-choice options, the voice question renders the same message in three registers so you pick by ear, a references question invites example URLs/screenshots to be interviewed about, and an open-ended closer captures signature touches (suggesting the ones you chose on other surfaces once it knows them). Every question is skippable (only identity is required). `refine` (for an ALREADY-bound project you're unhappy with): re-interviews against the stored binding — what fell short, keep/tighten/replace each stored note, voice, optional reject precedent. Answers persist via `bind_taste_surface` |
-| `bind_taste_surface` | Persist a project's surface calibration — surface string, URL hosts, per-rule severity overrides (incl. `off`), voice note — auto-applied by `audit_taste` via `project` or a bound url host |
+| `bind_taste_surface` | Persist a project's surface calibration — surface string, URL hosts, per-rule severity overrides (incl. `off`), voice note, references — auto-applied by `audit_taste` via `project` or a bound url host. Upserts by project; on a re-bind, omitted fields carry forward from the stored binding (reported as `carried_forward`), while explicit empty values clear them |
 | `record_taste_decision` | The learning loop — record a taste/direction/design decision the moment it's made during real work (what was chosen, what was rejected, why, and whether the user directed, approved, or corrected it). Recorded decisions evolve future kickoff interviews: recurring choices return as suggested defaults on their dimension's question, and decision categories no standard question covers become new interview questions |
 | `list_taste_decisions` | The decision ledger, filterable by project or dimension |
-| `audit_taste` | Judge HTML, copy text, or a live URL against a taste profile — deterministic detectors for gradients, glow/neon, second accent hue, and banned words; `owner: raven` rules route through Raven's existing page/contrast/tap-target engines; every finding cites a rule_id + concrete evidence (undetectable clauses are reported as `not_assessed`, never guessed); scope-tagged rules activate per `surface` (skipped elsewhere, warn-only when surface is omitted); pass `project` to apply a saved surface binding automatically; `document_kind:'portrait'` skips note-fidelity for documents *about* a surface (rules still run); `data-taste-quote` regions are exempt from detectors so a page is never convicted for quoting the law; verdict BLOCK / WARN / PASS |
+| `audit_taste` | Judge HTML, copy text, or a live URL against a taste profile — deterministic detectors for gradients, glow/neon, second accent hue, and banned words; pass `source_text` to verify a content port's visible text verbatim with a deterministic word diff; `owner: raven` rules route through Raven's existing page/contrast/tap-target engines; every finding cites a rule_id + concrete evidence (undetectable clauses are reported as `not_assessed`, never guessed); scope-tagged rules activate per `surface` (skipped elsewhere, warn-only when surface is omitted); pass `project` to apply a saved surface binding automatically; `document_kind:'portrait'` skips note-fidelity for documents *about* a surface (rules still run); `data-taste-quote` regions are exempt from detectors so a page is never convicted for quoting the law; verdict BLOCK / WARN / PASS |
 | `generate_taste_portrait` | Render a bound taste surface as a self-contained designed HTML page (its rules, notes, voice, decisions, and wrong→right corpus) that obeys the surface it describes — art direction routes by the surface's own color permissions; sparse surfaces degrade gracefully. Omit `project` to render every binding plus a gallery. Every portrait passes `audit_taste` (`document_kind:'portrait'`) against its own surface |
 | `raven_reflect` | Summarize your local Raven usage log to find patterns + gaps |
 
 ## Decision Graph
 
-The local Decision Graph keeps three node kinds: decisions, evidence, and sources. Five edge types connect them: `supersedes`, `scoped_alongside`, `supports`, `contradicts`, and `derived_from`. Decisions are superseded or contested; nodes are not hard-deleted.
+The local Decision Graph keeps three node kinds: decisions, evidence, and sources. Five edge types connect them: `supersedes`, `scoped_alongside`, `supports`, `contradicts`, and `derived_from`. Decision status is candidate, active, superseded, or contested; nodes are not hard-deleted.
 
 - `decision_add` — add an active decision with its scope, component, rationale, and rejected alternatives.
-- `decision_get` — return one node and its connected neighbors.
-- `decision_list` — list active, superseded, contested, or draft decisions.
+- `decision_evidence` — attach quantitative or qualitative evidence to a decision.
+- `decision_get` — return one node, its connected neighbors, and attached evidence.
+- `decision_list` — list active, superseded, contested, or candidate decisions. Candidates are excluded unless `include_candidates:true` or `status:"candidate"` is passed.
 - `decision_draft` — capture a decision before its rationale is confirmed.
 - `decision_commit` — confirm a rationale and surface similar active decisions for review.
 - `decision_supersede` — replace a decision while keeping both nodes and their lineage.
 - `decision_scope` — narrow two active decisions so they can coexist.
 - `decision_history` — return a supersession lineage from oldest to newest.
 - `ingest_transcript` — store a Source node and return the extraction prompt for the calling model.
-- `ingest_transcript_results` — turn extracted JSON into low-trust drafts linked with `derived_from` edges.
+- `decision_import` — read local git history and matching decision documents, then return source-bound extraction prompts.
+- `ingest_transcript_results` — turn extracted JSON into candidate decisions linked with `derived_from` edges.
 - `gap_scan` — rank uncovered components, missing or thin rationales, contested decisions, and derived staleness; `digest_only:true` is quiet when no action is needed.
 
-The end-to-end flow is: transcript → `ingest_transcript` (Source node plus extraction prompt) → the calling model extracts decisions → `ingest_transcript_results` creates low-trust drafts with `derived_from` edges → review and `decision_commit` run the conflict check → resolve conflicts with `decision_supersede` or `decision_scope` → use `decision_history` for lineage → run the `gap_scan` digest for hands-off health checks.
+For a cold start: call `decision_import` → run the returned extraction prompts with a model → pass each result to `ingest_transcript_results` → review the candidates → call `decision_commit` for each decision to keep. Candidates remain available through `decision_get`, but default `decision_list` and `gap_scan` ignore them until commit changes their status to `active`.
 
-Evidence nodes and `supports` / `contradicts` edges are in the schema for quantitative and qualitative results. Tools for attaching evidence are a later stage.
+Imported provenance is checked against its Source node before evidence is attached. Git references must be a full or unique-prefix match for a commit included by that import. Document references must match the imported path, optionally followed by a line (`#L12`) or heading fragment. Rejected references are returned in `rejected_source_refs`; the candidate remains available without an evidence node.
+
+For transcripts: call `ingest_transcript` → run its extraction prompt → pass the result to `ingest_transcript_results` → review and commit the candidates. Resolve active conflicts with `decision_supersede` or `decision_scope`, inspect lineage with `decision_history`, and use `gap_scan` for health checks.
+
+Evidence nodes and `supports` / `contradicts` edges capture quantitative and qualitative results linked to decisions.
 
 ## Click-to-change (grab) + DESIGN.md
 
@@ -228,13 +234,15 @@ Returns flagged elements with selector, hiding class, visibility at each breakpo
 
 ## Contrast audits
 
-`audit_contrast` computes WCAG contrast ratios for every text element on a rendered page, reporting AA (4.5:1 normal text, 3:1 large) and AAA (7:1 normal, 4.5:1 large) pass-fail. Useful for catching small-text / low-contrast pairs that a screenshot eyedropper would catch manually — Raven replaces the math. The background color is composited from the full ancestor stack (nearest opaque layer onward) for accurate contrast on layered UIs.
+`audit_contrast` computes WCAG contrast for every text element, reporting a tri-state `status`: `pass`, `fail`, or `indeterminate`. Determinate rows include `ratio`, `aa`, `aaa`, and `delta_to_aa`; indeterminate rows keep `required_aa` but publish those four metrics as `null`. Gradient and layered backgrounds expose `effective_bg` plus `ratio_min` / `ratio_max` when a trustworthy candidate range exists, and results summarize `indeterminate_bg_rows` / `indeterminate_bg_count` separately from AA failures.
+
+Real-backdrop compositing applies to **URL mode**. Raven walks the rendered DOM ancestor chain, composites parseable colors and gradient layers in CSS paint order, samples gradient interiors, and normalizes modern computed colors through the browser canvas. This intentionally stops at the DOM-ancestor ceiling: opacity, `display:contents`, positioned transparent chains, photos, unsupported layers, and cross-stacking-context sibling backdrops are reported indeterminate; Raven does not pixel-sample across stacking contexts. Snapshot mode retains the pre-existing supplied-`bgColor` / over-white model and announces that scope in `mode_note`.
 
 **Usage:**
 - `audit_contrast(url)` — render a live page and audit all text.
 - `audit_contrast(dom_snapshot: [{ selector, color, bgColor, fontPx?, bold?, text? }])` — audit a pre-captured snapshot (useful for dynamic or cookie-protected pages).
 
-Returns all text elements scored, failures highlighted with delta-to-pass, and a summary of AA/AAA failure count.
+Returns all text rows with status, determinate failures with delta-to-pass, effective background evidence/ranges, and separate indeterminate summaries. `suggest_contrast_fix` accepts only determinate failing rows; indeterminate or null-ratio evidence is skipped rather than converted into a fake color recommendation.
 
 **WCAG math:** Contrast ratio uses linearised luminance (WCAG 2.1 § 1.4.3) — black-on-white is exactly 21, white-on-black is exactly 21. Large text (18.66pt+ bold or 24pt+) needs only 3:1 / 4.5:1 AAA; regular text needs 4.5:1 / 7:1.
 
