@@ -422,6 +422,29 @@ test('raven-rule folding attaches delegated page issues once and marks missing d
   });
 });
 
+test('delegated contrast with only indeterminate evidence warns instead of clean passing', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, {
+      name: 'indeterminate-contrast',
+      rules: [{
+        rule_id: 'COLOR-CONTRAST', clause_text: 'Contrast must be readable.', category: 'a11y',
+        severity_default: 'block', negative_prompt: 'Do NOT ship unreadable text.',
+        owner: 'raven', delegate_to: 'audit_contrast',
+      }],
+    });
+    const result = await taste.auditTaste(store, {
+      profile,
+      html: '<p>Copy</p>',
+      page_issues: [{
+        rule: 'contrast/background-indeterminate', severity: 'warning', status: 'indeterminate',
+        message: 'Backdrop cannot be derived from the DOM ancestor chain.',
+      }],
+    });
+    assert.strictEqual(result.verdict, 'WARN');
+    assert.ok(result.findings.some((finding) => finding.rule_id === 'COLOR-CONTRAST'));
+  });
+});
+
 test('detectors cover gradient, banned words, second hue positive and restrained PASS negative', async () => {
   await withTasteHome(async (_home, store) => {
     const profile = await taste.createTasteProfile(store, { name: 'detectors', rules: baseRules() });

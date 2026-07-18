@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Gradient contrast regression</title>
+    <style>
+      html,
+      body {
+        min-height: 100%;
+        margin: 0;
+      }
+
+      body {
+        background-image: linear-gradient(#111, #222);
+        color: #fff;
+        font: 16px/1.5 sans-serif;
+      }
+
+      .alpha {
+        color: rgba(255, 255, 255, 0.85);
+      }
+    </style>
+  </head>
+  <body>
+    <p>Opaque white on a dark gradient</p>
+    <p class="alpha">Alpha white on a dark gradient</p>
+  </body>
+</html>
