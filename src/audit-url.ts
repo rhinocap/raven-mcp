@@ -55,6 +55,7 @@ export type AuditUrlCapture = {
   mobile_emulation?: boolean;
   scrolledToBottom: boolean;
   animationsSettled: boolean;
+  capture_warnings: string[];
   screenshot_bytes: number;
   screenshot?: string;
 };
@@ -75,6 +76,7 @@ export type AuditUrlResult = {
   };
   summary: string;
   captures: AuditUrlCapture[];
+  capture_warnings: string[];
   warnings: string[];
 };
 
@@ -112,6 +114,7 @@ export async function auditUrl(url: string, opts: AuditUrlOptions = {}): Promise
 
   const findings: AuditUrlFinding[] = [];
   const captures: AuditUrlCapture[] = [];
+  const captureWarnings: string[] = [];
   const warnings: string[] = [];
 
   // ── Responsive visibility (run ONCE across all viewport widths) ─────────────
@@ -178,9 +181,13 @@ export async function auditUrl(url: string, opts: AuditUrlOptions = {}): Promise
         mobile_emulation: cap.mobile_emulation,
         scrolledToBottom: cap.scrolledToBottom,
         animationsSettled: cap.animationsSettled,
+        capture_warnings: cap.capture_warnings,
         screenshot_bytes: cap.screenshotBase64 ? cap.screenshotBase64.length : 0,
         screenshot: includeScreenshots ? cap.screenshotBase64 : undefined
       });
+      for (const warning of cap.capture_warnings) {
+        captureWarnings.push(vpLabel + "/" + theme + ": " + warning);
+      }
       for (const w of cap.warnings) warnings.push(vpLabel + "/" + theme + ": " + w);
 
       // ── Page checks over the rendered DOM, then adversarially verify ─────────
@@ -464,6 +471,7 @@ export async function auditUrl(url: string, opts: AuditUrlOptions = {}): Promise
     counts,
     summary,
     captures,
+    capture_warnings: captureWarnings,
     warnings
   };
 }
@@ -483,6 +491,7 @@ function unavailableResult(url: string, viewports: ViewportSpec[], themes: Theme
     counts: { total: 0, confirmed: 0, likely_artifact: 0, inconclusive: 0, errors: 0, warnings: 0 },
     summary: "audit_url needs headless chromium. Run: npx playwright install chromium",
     captures: [],
+    capture_warnings: [],
     warnings: ["Playwright chromium not available. Run: npx playwright install chromium"]
   };
 }

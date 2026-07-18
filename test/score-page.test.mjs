@@ -692,9 +692,17 @@ if (indexMod) {
     });
   });
 
-  test('AC9: score_page tool schema allows a url argument without a schema-validation error', async () => {
+  test('AC9: score_page tool schema allows a url argument without a schema-validation error', async (t) => {
     await withClient(indexMod.buildServer({}), async (client) => {
-      const fixtureUrl = pathToFileURL(path.join(__dirname, 'fixtures', 'audit-url-fixture.html')).href;
+      const fixtureUrl = pathToFileURL(path.join(__dirname, 'fixtures', 'permanently-hidden.html')).href;
+      const preflight = await client.callTool({ name: 'audit_page', arguments: { url: fixtureUrl } });
+      if (!preflight.isError) {
+        const preflightParsed = JSON.parse(preflight.content[0].text);
+        if (preflightParsed.capture && preflightParsed.capture.animationsSettled === false) {
+          t.skip('browser unavailable — static fallback cannot inspect computed visibility');
+          return;
+        }
+      }
       const res = await client.callTool({ name: 'score_page', arguments: { url: fixtureUrl } });
       // Either it succeeds (chromium available) or fails with the chromium-unavailable
       // message — both prove the schema accepts `url`. A zod schema-validation error
@@ -708,7 +716,35 @@ if (indexMod) {
       } else {
         const parsed = JSON.parse(res.content[0].text);
         assert.ok('overall' in parsed, 'result must have overall');
+        assert.ok(Array.isArray(parsed.capture_warnings), 'url-mode score_page exposes capture_warnings');
+        assert.ok(
+          parsed.capture_warnings.some((warning) => warning.startsWith('reveal-gate-false-blank:')),
+          'url-mode score_page preserves false-blank warning contents'
+        );
       }
+    });
+  });
+
+  test('audit_page url mode exposes capture_warnings from capturePage', async (t) => {
+    await withClient(indexMod.buildServer({}), async (client) => {
+      const fixtureUrl = pathToFileURL(path.join(__dirname, 'fixtures', 'permanently-hidden.html')).href;
+      const res = await client.callTool({ name: 'audit_page', arguments: { url: fixtureUrl } });
+      if (res.isError) {
+        assert.match(res.content[0].text, /Playwright chromium not available/);
+        return;
+      }
+      const parsed = JSON.parse(res.content[0].text);
+      if (parsed.capture && parsed.capture.animationsSettled === false) {
+        t.skip('browser unavailable — static fallback cannot inspect computed visibility');
+        return;
+      }
+      assert.ok(Array.isArray(parsed.capture_warnings), 'audit_page exposes capture_warnings');
+      assert.ok(Array.isArray(parsed.capture.capture_warnings), 'audit_page capture metadata exposes capture_warnings');
+      assert.ok(
+        parsed.capture_warnings.some((warning) => warning.startsWith('reveal-gate-false-blank:')),
+        'audit_page preserves false-blank warning contents'
+      );
+      assert.deepStrictEqual(parsed.capture.capture_warnings, parsed.capture_warnings);
     });
   });
 

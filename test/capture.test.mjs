@@ -116,6 +116,54 @@ test('scroll_settle:true — reveal target HAS class "revealed"', async (t) => {
   });
 });
 
+test('scroll_settle:true — pauses at each viewport step so every IO-gated scene reveals, then returns to top', async (t) => {
+  await runOrSkip(t, async () => {
+    const result = await capturePage(fixtureUrl('io-stepwise-reveal.html'), {
+      scroll_settle: true,
+      viewport: { w: 1200, h: 800 },
+    });
+
+    if (usedFileFallback(result)) { t.skip('browser unavailable — file:// fallback cannot exercise IntersectionObserver timing'); return; }
+    const revealedCount = (result.renderedHtml.match(/class="scene revealed settled"/g) || []).length;
+    assert.strictEqual(revealedCount, 5, 'all initial and dynamically appended IO-gated scenes must reveal and settle');
+    assert.strictEqual(result.scrolledToBottom, true, 'scroll settle should report that the bottom was visited');
+    assert.strictEqual(result.captureScrollY, 0, 'capture must occur back at the top of the page');
+    assert.deepStrictEqual(result.capture_warnings, [], 'fully revealed content must not emit a false-blank warning');
+  });
+});
+
+test('io-late-bottom-append.html — waits through a late bottom append and reveals the new scene', async (t) => {
+  await runOrSkip(t, async () => {
+    const result = await capturePage(fixtureUrl('io-late-bottom-append.html'), {
+      scroll_settle: true,
+      viewport: { w: 1200, h: 800 },
+    });
+
+    if (usedFileFallback(result)) { t.skip('browser unavailable — file:// fallback cannot exercise late IntersectionObserver content'); return; }
+    assert.strictEqual(result.scrolledToBottom, true, 'late content must settle at the real final bottom');
+    assert.ok(
+      result.renderedHtml.includes('late-scene revealed'),
+      'the scene appended 300ms after first reaching bottom must be revealed before capture'
+    );
+  });
+});
+
+test('unbounded-scroll-growth.html — reports the walk cap without claiming the final bottom', async (t) => {
+  await runOrSkip(t, async () => {
+    const result = await capturePage(fixtureUrl('unbounded-scroll-growth.html'), {
+      scroll_settle: true,
+      viewport: { w: 1200, h: 800 },
+    });
+
+    if (usedFileFallback(result)) { t.skip('browser unavailable — file:// fallback cannot exercise the scroll walk cap'); return; }
+    assert.strictEqual(result.scrolledToBottom, false, 'continuous growth through the grace window must not report bottom reached');
+    assert.ok(
+      result.capture_warnings.some((warning) => warning.includes('scroll-settle-cap-reached: stepwise reveal walk exceeded 2000ms')),
+      `expected the computed 2000ms walk-cap warning, got ${JSON.stringify(result.capture_warnings)}`
+    );
+  });
+});
+
 // ── animation-settle ─────────────────────────────────────────────────────────
 
 test('entrance-animation.html — finite entrance animation settles before capture (animationsSettled true)', async (t) => {
@@ -134,20 +182,85 @@ test('entrance-animation.html — finite entrance animation settles before captu
       result.renderedHtml.includes('animation-done'),
       'rendered HTML must contain "animation-done" once the entrance animation has settled'
     );
+    assert.deepStrictEqual(result.capture_warnings, [], 'settled entrance content must not be flagged false-blank');
   });
 });
 
 test('entrance-animation.html — infinite spinner does not block animation-settle', async (t) => {
   await runOrSkip(t, async () => {
+    const startedAt = Date.now();
     const result = await capturePage(fixtureUrl('entrance-animation.html'), {
       viewport: { w: 1440, h: 900 },
     });
+    const elapsedMs = Date.now() - startedAt;
 
     // The page also contains an `infinite` spinner animation; settle must still
     // report true (the spinner is excluded from the running/finite check) rather
     // than hanging for the full 3s cap.
     if (usedFileFallback(result)) { t.skip('browser unavailable — file:// fallback has no Animations API'); return; }
     assert.strictEqual(result.animationsSettled, true, 'an infinite-loop animation must not block animation-settle');
+    assert.ok(elapsedMs < 2800, `infinite spinner must not consume the 3s settle cap (elapsed ${elapsedMs}ms)`);
+  });
+});
+
+test('delayed-entrance-animation.html — an animation starting 150ms after load is included in settle', async (t) => {
+  await runOrSkip(t, async () => {
+    const result = await capturePage(fixtureUrl('delayed-entrance-animation.html'), {
+      viewport: { w: 1200, h: 800 },
+    });
+
+    if (usedFileFallback(result)) { t.skip('browser unavailable — file:// fallback has no Animations API'); return; }
+    assert.strictEqual(result.animationsSettled, true);
+    assert.ok(
+      result.renderedHtml.includes('transition-done'),
+      'capture must wait for the delayed opacity transition to end'
+    );
+  });
+});
+
+test('scroll-timeline-animation.html — scroll-driven animation does not consume the animation cap', async (t) => {
+  await runOrSkip(t, async () => {
+    const startedAt = Date.now();
+    const result = await capturePage(fixtureUrl('scroll-timeline-animation.html'), {
+      viewport: { w: 1200, h: 800 },
+    });
+    const elapsedMs = Date.now() - startedAt;
+
+    if (usedFileFallback(result)) { t.skip('browser unavailable — file:// fallback has no Animations API'); return; }
+    assert.strictEqual(result.animationsSettled, true, 'non-document timelines must not block settle');
+    assert.ok(elapsedMs < 2800, `scroll-driven animation must not consume the 3s cap (elapsed ${elapsedMs}ms)`);
+  });
+});
+
+test('permanently-hidden.html — capture completes without waiting and emits a false-blank warning', async (t) => {
+  await runOrSkip(t, async () => {
+    const startedAt = Date.now();
+    const result = await capturePage(fixtureUrl('permanently-hidden.html'), {
+      viewport: { w: 1200, h: 800 },
+    });
+    const elapsedMs = Date.now() - startedAt;
+
+    if (usedFileFallback(result)) { t.skip('browser unavailable — file:// fallback cannot inspect computed visibility'); return; }
+    assert.ok(elapsedMs < 2800, `permanently hidden content must not consume the settle cap (elapsed ${elapsedMs}ms)`);
+    assert.ok(Array.isArray(result.capture_warnings), 'capture_warnings must be an additive array field');
+    assert.ok(
+      result.capture_warnings.some((warning) => /^reveal-gate-false-blank: \d+% of text\/content nodes invisible at capture$/.test(warning)),
+      `expected false-blank warning, got ${JSON.stringify(result.capture_warnings)}`
+    );
+  });
+});
+
+test('false-blank-exclusions.html — intentional hidden and clipped content does not trigger the reveal gate', async (t) => {
+  await runOrSkip(t, async () => {
+    const result = await capturePage(fixtureUrl('false-blank-exclusions.html'), {
+      viewport: { w: 1200, h: 800 },
+    });
+
+    if (usedFileFallback(result)) { t.skip('browser unavailable — file:// fallback cannot inspect computed visibility'); return; }
+    assert.ok(
+      !result.capture_warnings.some((warning) => warning.startsWith('reveal-gate-false-blank:')),
+      `intentional non-rendered content and gradient text must be excluded, got ${JSON.stringify(result.capture_warnings)}`
+    );
   });
 });
 
@@ -157,10 +270,40 @@ test('long-entrance-animation.html — settle wait times out but capture still s
       viewport: { w: 1440, h: 900 },
     });
 
+    if (usedFileFallback(result)) { t.skip('browser unavailable — file:// fallback has no Animations API'); return; }
     assert.strictEqual(result.animationsSettled, false, 'animationsSettled should be false when a finite animation outlives the settle cap');
     // Capture must not fail/throw — it should still return a full result.
     assert.ok(typeof result.screenshotBase64 === 'string' && result.screenshotBase64.length > 0, 'screenshot is still produced after a settle timeout');
     assert.ok(typeof result.renderedHtml === 'string' && result.renderedHtml.length > 0, 'rendered HTML is still produced after a settle timeout');
+  });
+});
+
+test('scroll_settle preserves an all-page animation timeout in capture metadata', async (t) => {
+  await runOrSkip(t, async () => {
+    const result = await capturePage(fixtureUrl('long-entrance-animation.html'), {
+      scroll_settle: true,
+      viewport: { w: 1440, h: 900 },
+    });
+
+    if (usedFileFallback(result)) { t.skip('browser unavailable — file:// fallback has no Animations API'); return; }
+    assert.strictEqual(result.animationsSettled, false, 'a scroll-settle timeout must not be overwritten by the later viewport settle');
+    assert.ok(
+      result.capture_warnings.some((warning) => warning.startsWith('scroll-animation-settle-cap-reached:')),
+      `expected scroll animation cap warning, got ${JSON.stringify(result.capture_warnings)}`
+    );
+  });
+});
+
+test('animation_settle_timeout_ms:0 remains bounded instead of disabling the Playwright timeout', async (t) => {
+  await runOrSkip(t, async () => {
+    const startedAt = Date.now();
+    const result = await capturePage(fixtureUrl('long-entrance-animation.html'), {
+      animation_settle_timeout_ms: 0,
+    });
+    const elapsedMs = Date.now() - startedAt;
+    if (usedFileFallback(result)) { t.skip('browser unavailable — file:// fallback has no Animations API'); return; }
+    assert.strictEqual(result.animationsSettled, false);
+    assert.ok(elapsedMs < 2800, `zero timeout must stay bounded (elapsed ${elapsedMs}ms)`);
   });
 });
 
@@ -241,6 +384,8 @@ test('CaptureResult shape is complete for a simple page', async (t) => {
       'viewport',
       'scrolledToBottom',
       'animationsSettled',
+      'captureScrollY',
+      'capture_warnings',
       'videoArtifacts',
       'warnings',
     ];
@@ -252,6 +397,19 @@ test('CaptureResult shape is complete for a simple page', async (t) => {
     assert.ok(typeof result.viewport.w === 'number', 'viewport.w is a number');
     assert.ok(typeof result.viewport.h === 'number', 'viewport.h is a number');
     assert.ok(Array.isArray(result.warnings), 'warnings is an array');
+  });
+});
+
+test('file URL fallback marks reveal and settle checks as unavailable', async (t) => {
+  await runOrSkip(t, async () => {
+    const result = await capturePage(fixtureUrl('reveal.html'), {
+      scroll_settle: true,
+    });
+    if (!usedFileFallback(result)) { t.skip('browser available — fallback path not used'); return; }
+    assert.ok(
+      result.capture_warnings.includes('capture-integrity: browser unavailable — reveal/settle checks not run'),
+      `fallback must carry an integrity warning, got ${JSON.stringify(result.capture_warnings)}`
+    );
   });
 });
 

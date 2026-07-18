@@ -3024,7 +3024,7 @@ server.tool(
   {
     html: z.string().optional().describe("The full HTML content of the page to audit"),
     url: z.string().optional().describe("If set, Raven launches headless chromium, renders the page, and audits the RENDERED DOM."),
-    scroll_settle: z.boolean().optional().describe("Before capturing, scroll to bottom and settle IntersectionObserver/whileInView reveals (300ms), and play preload=none videos. Prevents blank-section false positives."),
+    scroll_settle: z.boolean().optional().describe("Before capturing, step through the page with short pauses so IntersectionObserver/whileInView reveals fire, then return to the top and settle. Also plays preload=none videos. Prevents blank-section false positives."),
     interactions: z.array(z.object({
       selector: z.string(),
       event: z.enum(["hover", "click", "focus"]),
@@ -3047,7 +3047,7 @@ server.tool(
       try {
         var cap = await capturePage(url, { scroll_settle: scroll_settle, interactions: interactions, viewport: viewport });
         html = cap.renderedHtml;
-        capMeta = { url: url, viewport: cap.viewport, scrolledToBottom: cap.scrolledToBottom, animationsSettled: cap.animationsSettled, screenshot_bytes: cap.screenshotBase64 };
+        capMeta = { url: url, viewport: cap.viewport, scrolledToBottom: cap.scrolledToBottom, animationsSettled: cap.animationsSettled, captureScrollY: cap.captureScrollY, capture_warnings: cap.capture_warnings, screenshot_bytes: cap.screenshotBase64 };
         if (cap.videoArtifacts !== undefined && cap.videoArtifacts !== null) {
           videoArtifacts = cap.videoArtifacts;
         }
@@ -3095,6 +3095,7 @@ server.tool(
 
     if (capMeta !== null) {
       result.capture = capMeta;
+      result.capture_warnings = capMeta.capture_warnings;
       result.unloaded_video_artifacts = videoArtifacts;
       if (videoArtifacts.length > 0) {
         var notes: string[] = [];
@@ -3250,11 +3251,13 @@ server.tool(
     containerMaxWidth: z.number().optional().describe("Your design system's canonical content-container width in px (e.g. 1152). Forwarded to the responsive/max-width check.")
   },
   async function({ html, url, strict, containerMaxWidth }) {
+    var captureWarnings: string[] = [];
     var scoreContrast: Awaited<ReturnType<typeof auditContrastUrl>> | undefined;
     if (url !== undefined && url !== null) {
       try {
         var cap = await capturePage(url, {});
         html = cap.renderedHtml;
+        captureWarnings = cap.capture_warnings;
         try {
           scoreContrast = await auditContrastUrl(url);
         } catch (contrastError) {
@@ -3283,11 +3286,14 @@ server.tool(
         }]
       };
     }
-    const result = scorePage(html, {
+    const result: any = scorePage(html, {
       strict,
       containerMaxWidth,
       contrastRows: typeof scoreContrast === "undefined" ? undefined : scoreContrast.rows,
     });
+    if (url !== undefined && url !== null) {
+      result.capture_warnings = captureWarnings;
+    }
     return {
       content: [{
         type: "text" as const,
@@ -3599,7 +3605,7 @@ server.tool(
       label: z.string().optional()
     })).optional().describe("Viewports to render. Default: iphone 393×852, desktop 1440×900, wide 2160×1200"),
     themes: z.array(z.enum(["light", "dark"])).optional().describe("Themes to toggle (prefers-color-scheme + data-theme/class). Default: ['light','dark']"),
-    scroll_settle: z.boolean().optional().describe("Scroll to bottom to fire reveal-on-scroll/IntersectionObserver content and play videos before capture. Default: true"),
+    scroll_settle: z.boolean().optional().describe("Step through the page with short pauses to fire reveal-on-scroll/IntersectionObserver content, play videos, then return to the top before capture. Default: true"),
     interactions: z.array(z.object({
       selector: z.string(),
       event: z.enum(["hover", "click", "focus"]),
@@ -7032,6 +7038,9 @@ server.tool(
           } else {
             var refCap = await capturePage(refInput.url, { scroll_settle: true, collectTraits: true });
             if (refCap.traits) entry.traits = refCap.traits;
+            for (var refWarning of refCap.capture_warnings) {
+              warnings.push("reference " + refInput.url + ": " + refWarning);
+            }
             entry.captured_at = new Date().toISOString();
           }
         } catch (err) {
@@ -7181,11 +7190,13 @@ server.tool(
     var delegates = new Set(prof.rules.filter(function (r) { return r.owner === "raven" && !offRuleIds.has(r.rule_id) && ruleInScope(r, effectiveSurface); }).map(function (r) { return r.delegate_to; }));
 
     var liveTraits: PageTraits | undefined = undefined;
+    var liveCaptureWarnings: string[] = [];
     if (url) {
       try {
         var cap = await capturePage(url, { scroll_settle: true, collectTraits: true });
         targetHtml = cap.renderedHtml;
         liveTraits = cap.traits;
+        liveCaptureWarnings = cap.capture_warnings;
         if (delegates.has("audit_contrast")) {
           var c = await auditContrastUrl(url);
           for (var row of c.rows) {
@@ -7213,7 +7224,7 @@ server.tool(
     }
     var result = await auditTaste(tasteStore, { profile: prof, html: targetHtml, text: targetHtml === undefined ? text : undefined, source_text: source_text, page_issues: pageIssues.length > 0 ? pageIssues : undefined, surface: surface, binding: binding, traits: liveTraits, document_kind: document_kind });
     var out: any = result;
-    if (url) out = Object.assign({}, result, { target: "url", url: url });
+    if (url) out = Object.assign({}, result, { target: "url", url: url, capture_warnings: liveCaptureWarnings });
     return { content: [{ type: "text" as const, text: JSON.stringify(out, null, 2) }] };
   }
 );
@@ -7245,10 +7256,12 @@ server.tool(
   },
   async function ({ html, url, elements, viewport, surface, project, profile }) {
     var targetHtml = html;
+    var captureWarnings: string[] = [];
     if (url !== undefined && url !== null) {
       try {
         var cap = await capturePage(url, { scroll_settle: true });
         targetHtml = cap.renderedHtml;
+        captureWarnings = cap.capture_warnings;
       } catch (e) {
         if (e instanceof CaptureUnavailableError) {
           return { content: [{ type: "text" as const, text: "Playwright chromium not available. Run: npx playwright install chromium" }] };
@@ -7276,7 +7289,10 @@ server.tool(
       passes: result.passes,
       waived_by_taste_count: waivedCount
     };
-    if (url) out.url = url;
+    if (url) {
+      out.url = url;
+      out.capture_warnings = captureWarnings;
+    }
     if (binding) out.binding = binding.project;
     return { content: [{ type: "text" as const, text: JSON.stringify(out, null, 2) }] };
   }

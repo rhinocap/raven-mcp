@@ -53,11 +53,13 @@ function makeFullAuditPageResult() {
     passes: ['rule/a', 'rule/b', 'rule/c'],
     errors: [{ severity: 'error', rule: 'color-contrast', message: 'Insufficient contrast', fix: 'Increase contrast ratio' }],
     warnings: [],
+    capture_warnings: ['reveal-gate-false-blank: 50% of text nodes invisible at capture'],
     fix_priority: ['color-contrast: Increase contrast ratio'],
     capture: {
       url: 'http://example.com',
       viewport: { w: 1440, h: 900 },
       scrolledToBottom: true,
+      capture_warnings: ['reveal-gate-false-blank: 50% of text nodes invisible at capture'],
       screenshot_bytes: FAKE_BASE64,
     },
   };
@@ -117,6 +119,7 @@ function makeFullAuditUrlResult() {
         viewport: 'desktop 1440×900',
         theme: 'light',
         scrolledToBottom: true,
+        capture_warnings: ['reveal-gate-false-blank: 50% of text/content nodes invisible at capture'],
         screenshot_bytes: 1234,
         screenshot: FAKE_SCREENSHOT,
       },
@@ -127,6 +130,7 @@ function makeFullAuditUrlResult() {
     counts: { errors: 1, warnings: 0, passes: 12 },
     summary: 'One critical error found.',
     warnings: ['capture failed (wide 2160×1200/dark): timeout'],
+    capture_warnings: ['desktop 1440×900/light: reveal-gate-false-blank: 50% of text nodes invisible at capture'],
   };
 }
 
@@ -161,6 +165,8 @@ test('compactAuditPage: preserves score, grade, summary, errors, warnings, fix_p
   assert.deepEqual(compact.errors, full.errors);
   assert.deepEqual(compact.warnings, full.warnings);
   assert.deepEqual(compact.fix_priority, full.fix_priority);
+  assert.deepEqual(compact.capture_warnings, full.capture_warnings, 'capture integrity warnings preserved');
+  assert.deepEqual(compact.capture.capture_warnings, full.capture.capture_warnings, 'per-capture warnings preserved');
 });
 
 test('compactAuditPage: preserves optional notes, unloaded_video_artifacts, adversarial_verification when present', () => {
@@ -293,6 +299,8 @@ test('compactAuditUrl: preserves findings, counts, summary verbatim', () => {
   assert.deepEqual(compact.counts, full.counts, 'counts preserved');
   assert.equal(compact.summary, full.summary, 'summary preserved');
   assert.deepEqual(compact.warnings, full.warnings, 'warnings preserved verbatim');
+  assert.deepEqual(compact.capture_warnings, full.capture_warnings, 'capture integrity warnings preserved');
+  assert.deepEqual(compact.captures[0].capture_warnings, full.captures[0].capture_warnings, 'per-capture warnings preserved');
 });
 
 test('compactAuditUrl: does not mutate input (no-mutation)', () => {
