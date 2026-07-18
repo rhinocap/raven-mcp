@@ -1,8 +1,12 @@
 import { beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 process.env.RAVEN_DECISIONS_HOME = mkdtempSync(path.join(tmpdir(), 'raven-decisions-'));
 process.env.RAVEN_NO_USAGE_LOG = '1';
@@ -25,6 +29,23 @@ const {
 beforeEach(() => {
   process.env.RAVEN_DECISIONS_HOME = mkdtempSync(path.join(tmpdir(), 'raven-decisions-'));
 });
+
+async function withDecisionClient(run) {
+  const { buildServer } = await import('../dist/index.js');
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
+  const server = buildServer({});
+  const client = new Client({ name: 'decision-evidence-test', version: '1.0.0' }, { capabilities: {} });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  try {
+    return await run(client);
+  } finally {
+    await client.close();
+    await server.close();
+  }
+}
 
 function decision(id, overrides = {}) {
   return flagRationaleMissing({
@@ -523,6 +544,306 @@ test('gapScanConfig environment weight overrides change ordering', async () => {
   }
 });
 
+test('decision_evidence creates evidence and decision_get returns it', async () => {
+  await withDecisionClient(async (client) => {
+    const decisionNode = JSON.parse((await client.callTool({
+      name: 'decision_add',
+      arguments: { statement: 'Use cards', scope: 'checkout', component_ref: 'Checkout' },
+    })).content[0].text);
+    const evidenceResult = await client.callTool({
+      name: 'decision_evidence',
+      arguments: {
+        decision_id: decisionNode.id,
+        type: 'quant',
+        source_ref: 'experiment-checkout-42',
+        result_summary: 'Completion increased by 12%.',
+        confidence: 0.9,
+        confounds: ['small sample'],
+      },
+    });
+    const created = JSON.parse(evidenceResult.content[0].text);
+    assert.match(created.id, /^evidence_/);
+    assert.equal(created.node_kind, 'evidence');
+    assert.equal(created.type, 'quant');
+    assert.equal(created.source_ref, 'experiment-checkout-42');
+    assert.equal(created.result_summary, 'Completion increased by 12%.');
+    assert.equal(created.confidence, 0.9);
+    assert.deepEqual(created.confounds, ['small sample']);
+    assert.ok(!Number.isNaN(Date.parse(created.timestamp)));
+    const supportEdges = await new FsDecisionGraphStore().listEdges('supports');
+    assert.equal(supportEdges.length, 1);
+    assert.equal(supportEdges[0].from, created.id);
+    assert.equal(supportEdges[0].to, decisionNode.id);
+    assert.equal(supportEdges[0].type, 'supports');
+
+    const fetched = JSON.parse((await client.callTool({
+      name: 'decision_get',
+      arguments: { id: decisionNode.id },
+    })).content[0].text);
+    assert.deepEqual(fetched.evidence, [{
+      id: created.id,
+      type: 'quant',
+      source_ref: 'experiment-checkout-42',
+      result_summary: 'Completion increased by 12%.',
+      confidence: 0.9,
+      confounds: ['small sample'],
+      timestamp: created.timestamp,
+    }]);
+  });
+});
+
+test('decision_evidence is idempotent for identical attached evidence', async () => {
+  await withDecisionClient(async (client) => {
+    const decisionNode = JSON.parse((await client.callTool({
+      name: 'decision_add',
+      arguments: { statement: 'Use cards', scope: 'checkout', component_ref: 'Checkout' },
+    })).content[0].text);
+    const input = {
+      decision_id: decisionNode.id,
+      type: 'quant',
+      source_ref: 'experiment-checkout-42',
+      result_summary: 'Completion increased by 12%.',
+      confidence: 0.9,
+      confounds: ['small sample'],
+    };
+    const first = JSON.parse((await client.callTool({ name: 'decision_evidence', arguments: input })).content[0].text);
+    const retry = JSON.parse((await client.callTool({ name: 'decision_evidence', arguments: input })).content[0].text);
+
+    assert.equal(retry.id, first.id);
+    const nodes = JSON.parse(readFileSync(path.join(process.env.RAVEN_DECISIONS_HOME, 'nodes.json'), 'utf8')).nodes;
+    const edges = JSON.parse(readFileSync(path.join(process.env.RAVEN_DECISIONS_HOME, 'edges.json'), 'utf8')).edges;
+    assert.equal(nodes.filter((node) => node.node_kind === 'evidence').length, 1);
+    assert.equal(edges.filter((edge) => edge.type === 'supports' && edge.to === decisionNode.id).length, 1);
+  });
+});
+
+test('decision_evidence rejects whitespace-only provenance and leaves contested gap unsatisfied', async () => {
+  await withDecisionClient(async (client) => {
+    const decisionNode = JSON.parse((await client.callTool({
+      name: 'decision_add',
+      arguments: {
+        statement: 'Use cards', rationale: 'They scan well.',
+        scope: 'checkout', component_ref: 'Checkout',
+      },
+    })).content[0].text);
+    await new FsDecisionGraphStore().updateNode(decisionNode.id, { status: 'contested' });
+    const blankSource = await client.callTool({
+      name: 'decision_evidence',
+      arguments: {
+        decision_id: decisionNode.id, type: 'qual', source_ref: '   ',
+        result_summary: 'Participants preferred cards.', confidence: 0.8,
+      },
+    });
+    const blankSummary = await client.callTool({
+      name: 'decision_evidence',
+      arguments: {
+        decision_id: decisionNode.id, type: 'qual', source_ref: 'interview-7',
+        result_summary: '\t  ', confidence: 0.8,
+      },
+    });
+    assert.equal(blankSource.isError, true);
+    assert.match(blankSource.content[0].text, /source_ref/i);
+    assert.equal(blankSummary.isError, true);
+    assert.match(blankSummary.content[0].text, /result_summary/i);
+
+    const scan = JSON.parse((await client.callTool({
+      name: 'gap_scan',
+      arguments: { reference_systems: [], digest_only: false },
+    })).content[0].text);
+    assert.equal(scan.findings.find((item) => item.decision_id === decisionNode.id).gap_type, 'contested');
+  });
+});
+
+test('decision_evidence schema enforces provenance and confound bounds', async () => {
+  await withDecisionClient(async (client) => {
+    const decisionNode = JSON.parse((await client.callTool({
+      name: 'decision_add',
+      arguments: { statement: 'Use cards', scope: 'checkout', component_ref: 'Checkout' },
+    })).content[0].text);
+    const result = await client.callTool({
+      name: 'decision_evidence',
+      arguments: {
+        decision_id: decisionNode.id,
+        type: 'quant',
+        source_ref: 'experiment-42',
+        result_summary: 'Completion increased.',
+        confidence: 0.8,
+        confounds: Array.from({ length: 51 }, (_, index) => 'confound-' + index),
+      },
+    });
+    assert.equal(result.isError, true);
+    assert.match(result.content[0].text, /confounds/i);
+  });
+});
+
+test('decision_evidence reports missing and non-decision targets distinctly', async () => {
+  await withDecisionClient(async (client) => {
+    const missing = await client.callTool({
+      name: 'decision_evidence',
+      arguments: {
+        decision_id: 'missing-target', type: 'qual', source_ref: 'interview-7',
+        result_summary: 'Participants preferred cards.', confidence: 0.8,
+      },
+    });
+    assert.equal(missing.isError, true);
+    assert.equal(missing.content[0].text, 'Decision not found: missing-target');
+
+    const decisionNode = JSON.parse((await client.callTool({
+      name: 'decision_add',
+      arguments: { statement: 'Use cards', scope: 'checkout', component_ref: 'Checkout' },
+    })).content[0].text);
+    const evidenceNode = JSON.parse((await client.callTool({
+      name: 'decision_evidence',
+      arguments: {
+        decision_id: decisionNode.id, type: 'qual', source_ref: 'interview-7',
+        result_summary: 'Participants preferred cards.', confidence: 0.8,
+      },
+    })).content[0].text);
+    const wrongKind = await client.callTool({
+      name: 'decision_evidence',
+      arguments: {
+        decision_id: evidenceNode.id, type: 'qual', source_ref: 'interview-8',
+        result_summary: 'Follow-up notes.', confidence: 0.7,
+      },
+    });
+    assert.equal(wrongKind.isError, true);
+    assert.equal(wrongKind.content[0].text, 'node ' + evidenceNode.id + ' exists but is not a decision (node_kind: evidence)');
+  });
+});
+
+test('decision_evidence preserves every attachment across real concurrent processes', { timeout: 10000 }, async () => {
+  const decisionsHome = process.env.RAVEN_DECISIONS_HOME;
+  let decisionId;
+  await withDecisionClient(async (client) => {
+    decisionId = JSON.parse((await client.callTool({
+      name: 'decision_add',
+      arguments: { statement: 'Use cards', scope: 'checkout', component_ref: 'Checkout' },
+    })).content[0].text).id;
+  });
+  const childScript = `
+    const { buildServer } = await import('./dist/index.js');
+    const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+    const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
+    const server = buildServer({});
+    const client = new Client({ name: 'race-child', version: '1.0.0' }, { capabilities: {} });
+    const pair = InMemoryTransport.createLinkedPair();
+    await server.connect(pair[1]);
+    await client.connect(pair[0]);
+    const index = process.env.EVIDENCE_INDEX;
+    const result = await client.callTool({ name: 'decision_evidence', arguments: {
+      decision_id: process.env.DECISION_ID, type: 'quant', source_ref: 'race-' + index,
+      result_summary: 'Result ' + index, confidence: 0.8, confounds: []
+    }});
+    if (result.isError) throw new Error(result.content[0].text);
+    await client.close();
+    await server.close();
+  `;
+  await Promise.all(Array.from({ length: 16 }, (_, index) => execFileAsync(process.execPath, [
+    '--input-type=module', '-e', childScript,
+  ], {
+    cwd: process.cwd(),
+    timeout: 9000,
+    env: {
+      ...process.env,
+      RAVEN_DECISIONS_HOME: decisionsHome,
+      RAVEN_NO_USAGE_LOG: '1',
+      DECISION_ID: decisionId,
+      EVIDENCE_INDEX: String(index),
+    },
+  })));
+
+  const nodes = JSON.parse(readFileSync(path.join(decisionsHome, 'nodes.json'), 'utf8')).nodes;
+  const edges = JSON.parse(readFileSync(path.join(decisionsHome, 'edges.json'), 'utf8')).edges;
+  const evidenceNodes = nodes.filter((node) => node.node_kind === 'evidence');
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  assert.equal(evidenceNodes.length, 16);
+  assert.equal(edges.filter((edge) => edge.type === 'supports' && edge.to === decisionId).length, 16);
+  assert.deepEqual(evidenceNodes.map((node) => node.source_ref).sort(), Array.from({ length: 16 }, (_, index) => 'race-' + index).sort());
+  assert.deepEqual(edges.filter((edge) => !nodeIds.has(edge.from) || !nodeIds.has(edge.to)), []);
+});
+
+test('decision_evidence rejects missing ids and evidence-node ids', async () => {
+  await withDecisionClient(async (client) => {
+    const missing = await client.callTool({
+      name: 'decision_evidence',
+      arguments: {
+        decision_id: 'missing', type: 'qual', source_ref: 'interview-7',
+        result_summary: 'Participants preferred cards.', confidence: 0.8,
+      },
+    });
+    assert.equal(missing.isError, true);
+
+    const decisionNode = JSON.parse((await client.callTool({
+      name: 'decision_add',
+      arguments: { statement: 'Use cards', scope: 'checkout', component_ref: 'Checkout' },
+    })).content[0].text);
+    const evidenceNode = JSON.parse((await client.callTool({
+      name: 'decision_evidence',
+      arguments: {
+        decision_id: decisionNode.id, type: 'qual', source_ref: 'interview-7',
+        result_summary: 'Participants preferred cards.', confidence: 0.8,
+      },
+    })).content[0].text);
+    assert.deepEqual(evidenceNode.confounds, []);
+    const wrongKind = await client.callTool({
+      name: 'decision_evidence',
+      arguments: {
+        decision_id: evidenceNode.id, type: 'qual', source_ref: 'interview-8',
+        result_summary: 'Follow-up notes.', confidence: 0.7,
+      },
+    });
+    assert.equal(wrongKind.isError, true);
+  });
+});
+
+test('decision_evidence schema rejects confidence outside zero to one', async () => {
+  await withDecisionClient(async (client) => {
+    const tools = await client.listTools();
+    const evidenceSchema = tools.tools.find((tool) => tool.name === 'decision_evidence').inputSchema;
+    assert.deepEqual(evidenceSchema.properties.confounds.default, []);
+    const decisionNode = JSON.parse((await client.callTool({
+      name: 'decision_add',
+      arguments: { statement: 'Use cards', scope: 'checkout', component_ref: 'Checkout' },
+    })).content[0].text);
+    const result = await client.callTool({
+      name: 'decision_evidence',
+      arguments: {
+        decision_id: decisionNode.id, type: 'quant', source_ref: 'experiment-42',
+        result_summary: 'Completion increased.', confidence: 1.1,
+      },
+    });
+    assert.equal(result.isError, true);
+    assert.match(result.content[0].text, /confidence/i);
+  });
+});
+
+test('gap_scan classifies contested decisions with attached evidence', async () => {
+  await withDecisionClient(async (client) => {
+    const decisionNode = JSON.parse((await client.callTool({
+      name: 'decision_add',
+      arguments: {
+        statement: 'Use cards', rationale: 'They scan well.',
+        scope: 'checkout', component_ref: 'Checkout',
+      },
+    })).content[0].text);
+    await new FsDecisionGraphStore().updateNode(decisionNode.id, { status: 'contested' });
+    await client.callTool({
+      name: 'decision_evidence',
+      arguments: {
+        decision_id: decisionNode.id, type: 'quant', source_ref: 'experiment-42',
+        result_summary: 'Completion increased by 12%.', confidence: 0.9,
+      },
+    });
+    const scan = JSON.parse((await client.callTool({
+      name: 'gap_scan',
+      arguments: { reference_systems: [], digest_only: false },
+    })).content[0].text);
+    const finding = scan.findings.find((item) => item.decision_id === decisionNode.id);
+    assert.equal(finding.gap_type, 'contested_with_evidence');
+    assert.notEqual(finding.gap_type, 'contested');
+  });
+});
+
 test('decision MCP tools add, get with neighbors, list by status, and stay remote-gated', async () => {
   const { buildServer } = await import('../dist/index.js');
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
@@ -598,6 +919,7 @@ test('decision MCP tools add, get with neighbors, list by status, and stay remot
     const fetched = JSON.parse(getResult.content[0].text);
     assert.equal(fetched.node.id, added.id);
     assert.deepEqual(fetched.neighbors, []);
+    assert.deepEqual(fetched.evidence, []);
 
     const activeResult = await client.callTool({ name: 'decision_list', arguments: {} });
     assert.deepEqual(
@@ -719,6 +1041,7 @@ test('decision MCP tools add, get with neighbors, list by status, and stay remot
 
   const remoteNames = Object.keys(buildServer({ remote: true })._registeredTools);
   assert.equal(remoteNames.includes('decision_add'), false);
+  assert.equal(remoteNames.includes('decision_evidence'), false);
   assert.equal(remoteNames.includes('decision_get'), false);
   assert.equal(remoteNames.includes('decision_list'), false);
   assert.equal(remoteNames.includes('decision_draft'), false);

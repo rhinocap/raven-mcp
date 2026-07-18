@@ -1634,22 +1634,22 @@ function maybeComputeDailyDigest(): void {
 
 // ── Server ──────────────────────────────────────────────────────────
 
-// The 45 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
-// 31 are stateful/local (per-user ~/.raven files, or the create_generation_job
+// The 46 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
+// 32 are stateful/local (per-user ~/.raven files, or the create_generation_job
 // subprocess), 5 reach the filesystem/network or have an external side effect,
 // 2 are Talon tools pending a remote-safety pass, and 7 are DESIGN.md / review /
 // grab-bridge tools. Everything else (45 stateless tools, including the 5
-// guarded browser URL audits added in Phase 3) is remote-safe, from 90 local tools.
+// guarded browser URL audits added in Phase 3) is remote-safe, from 91 local tools.
 // Traced to docs/remote-mcp-scope.md §2; asserted at build time.
 const REMOTE_GATED_TOOLS = new Set<string>([
-  // stateful / local (31)
+  // stateful / local (32)
   "create_taste_profile", "get_taste_profile", "list_taste_profiles",
   "get_taste_interview", "bind_taste_surface", "record_taste_decision",
   "list_taste_decisions", "generate_taste_portrait", "label_finding", "audit_taste",
   "create_brand_profile", "get_brand_profile", "list_brand_profiles",
   "register_creative_asset", "create_character_profile", "create_generation_job",
   "get_generation_job", "list_generation_jobs", "plan_creative_campaign", "raven_reflect",
-  "decision_add", "decision_get", "decision_list", "decision_draft", "decision_commit",
+  "decision_add", "decision_evidence", "decision_get", "decision_list", "decision_draft", "decision_commit",
   "decision_supersede", "decision_scope", "decision_history",
   "ingest_transcript", "ingest_transcript_results",
   "gap_scan",
@@ -1747,18 +1747,18 @@ const REMOTE_URL_GUARDED_TOOLS: { [tool: string]: string } = {
   audit_taste: "url"
 };
 
-// buildServer() returns a FRESH McpServer with all 90 local tools + the usage-log/
+// buildServer() returns a FRESH McpServer with all 91 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
 export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }): McpServer {
-// remote = serve only the 45 stateless remote-safe tools (gate off the 45 gated tools
+// remote = serve only the 45 stateless remote-safe tools (gate off the 46 gated tools
 // as appropriate; authenticated stores selectively restore taste tools). evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 90.
+// without threading opts. stdio callers pass nothing → remote=false → all 91.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -6181,6 +6181,49 @@ server.tool(
 );
 
 server.tool(
+  "decision_evidence",
+  "Attach quantitative or qualitative evidence to an existing decision.",
+  {
+    decision_id: z.string().min(1).describe("Existing decision node id."),
+    type: z.enum(["quant", "qual"]).describe("Evidence type."),
+    source_ref: z.string().trim().min(1).max(2000).describe("URL, experiment name, ticket, or transcript reference."),
+    result_summary: z.string().trim().min(1).max(5000).describe("Concise summary of the evidence result."),
+    confidence: z.number().min(0).max(1).describe("Confidence from 0 to 1."),
+    confounds: z.array(z.string().max(500)).max(50).optional().default([]).describe("Known factors that may confound the result."),
+  },
+  async function ({ decision_id, type, source_ref, result_summary, confidence, confounds }) {
+    var evidence = {
+      node_kind: "evidence" as const,
+      id: "evidence_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+      type: type,
+      source_ref: source_ref,
+      result_summary: result_summary,
+      confidence: confidence,
+      confounds: confounds || [],
+      timestamp: new Date().toISOString(),
+    };
+    var edge = {
+      id: "edge_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+      from: evidence.id,
+      to: decision_id,
+      type: "supports" as const,
+      created_at: new Date().toISOString(),
+    };
+    var attached = await decisionGraphStore.addEvidenceWithEdge(decision_id, evidence, edge);
+    if (attached.status === "not_found") {
+      return { content: [{ type: "text" as const, text: "Decision not found: " + decision_id }], isError: true };
+    }
+    if (attached.status === "not_decision") {
+      return {
+        content: [{ type: "text" as const, text: "node " + decision_id + " exists but is not a decision (node_kind: " + attached.node_kind + ")" }],
+        isError: true,
+      };
+    }
+    return { content: [{ type: "text" as const, text: JSON.stringify(attached.evidence, null, 2) }] };
+  }
+);
+
+server.tool(
   "decision_draft",
   "Capture a decision from working context with the why deferred for later confirmation.",
   {
@@ -6335,7 +6378,20 @@ server.tool(
       return { content: [{ type: "text" as const, text: "Decision Graph node not found: " + id }], isError: true };
     }
     var neighbors = await decisionGraphStore.neighbors(id);
-    return { content: [{ type: "text" as const, text: JSON.stringify({ node: node, neighbors: neighbors }, null, 2) }] };
+    var evidence = neighbors.filter(function(neighbor): neighbor is EvidenceNode {
+      return neighbor.node_kind === "evidence";
+    }).map(function(evidenceNode) {
+      return {
+        id: evidenceNode.id,
+        type: evidenceNode.type,
+        source_ref: evidenceNode.source_ref,
+        result_summary: evidenceNode.result_summary,
+        confidence: evidenceNode.confidence,
+        confounds: evidenceNode.confounds,
+        timestamp: evidenceNode.timestamp,
+      };
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify({ node: node, neighbors: neighbors, evidence: evidence }, null, 2) }] };
   }
 );
 
@@ -6842,7 +6898,7 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 90 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 91 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });

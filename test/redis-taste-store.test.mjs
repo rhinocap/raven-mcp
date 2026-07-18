@@ -111,5 +111,5 @@ test('buildServer gating: store injection un-gates exactly the profile trio', as
 test('stdio (non-remote) surface is unaffected by the P4.2 change', async () => {
   const local = buildServer({});
   const names = Object.keys(local._registeredTools);
-  assert.equal(names.length, 90, 'stdio keeps all tools, including review_diff and 11 local Decision Graph tools');
+  assert.equal(names.length, 91, 'stdio keeps all tools, including review_diff and 12 local Decision Graph tools');
 });
