@@ -38,6 +38,17 @@ export type ScorePageResult = {
   categories: CategoryScore[];
   weakest_category: string;
   not_assessed: NotAssessed;
+  contrast: {
+    pass_count: number;
+    fail_count: number;
+    indeterminate_count: number;
+    note: string;
+  };
+};
+
+type ContrastStatusRow = {
+  status: "pass" | "fail" | "indeterminate";
+  ratio: number | null;
 };
 
 // ── Canonical category definitions ───────────────────────────────────────────
@@ -80,18 +91,30 @@ function buildRationale(errors: number, warnings: number): string {
 
 export function scorePage(
   html: string,
-  opts?: { strict?: boolean; containerMaxWidth?: number }
+  opts?: { strict?: boolean; containerMaxWidth?: number; contrastRows?: ContrastStatusRow[] }
 ): ScorePageResult {
   const strict = opts && opts.strict === true;
   const containerMaxWidth = opts ? opts.containerMaxWidth : undefined;
 
-  const { passes, issues } = runPageChecks(html, { containerMaxWidth });
+  const checked = runPageChecks(html, { containerMaxWidth });
+  const passes = checked.passes;
+  const contrastRows = opts?.contrastRows ?? [];
+  const contrastPassCount = contrastRows.filter((row) => row.status === "pass" && row.ratio !== null).length;
+  const contrastFailCount = contrastRows.filter((row) => row.status === "fail" && row.ratio !== null).length;
+  const contrastIndeterminateCount = contrastRows.filter((row) => row.status === "indeterminate" || row.ratio === null).length;
+  const contrastIssues = Array.from({ length: contrastFailCount }, () => ({
+    severity: "error" as const,
+    rule: "a11y/contrast",
+    message: "A determinate text/background pair fails WCAG contrast.",
+    fix: "Use audit_contrast for the failing selector and concrete ratio.",
+  }));
+  const issues = checked.issues.concat(contrastIssues);
 
   const errors  = issues.filter(i => i.severity === "error");
   const warnings = issues.filter(i => i.severity === "warning");
 
   // ── Overall (byte-identical to audit_page arithmetic) ─────────────────────
-  const totalChecks = passes.length + issues.length;
+  const totalChecks = passes.length + issues.length + contrastPassCount;
   const failCount   = strict ? issues.length : errors.length;
   const overallScore =
     totalChecks > 0 ? Math.round(((totalChecks - failCount) / totalChecks) * 100) : 100;
@@ -140,6 +163,17 @@ export function scorePage(
     not_assessed: {
       categories: NOT_ASSESSED_CATEGORIES,
       note: NOT_ASSESSED_NOTE,
+    },
+    contrast: {
+      pass_count: contrastPassCount,
+      fail_count: contrastFailCount,
+      indeterminate_count: contrastIndeterminateCount,
+      note: contrastIndeterminateCount === 0
+        ? "No contrast rows were indeterminate."
+        : contrastIndeterminateCount + " contrast " +
+          (contrastIndeterminateCount === 1 ? "row not assessed" : "rows not assessed") +
+          " because " + (contrastIndeterminateCount === 1 ? "its" : "their") +
+          " rendered backdrop is indeterminate.",
     },
   };
 }

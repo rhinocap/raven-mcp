@@ -307,7 +307,9 @@ export async function auditUrl(url: string, opts: AuditUrlOptions = {}): Promise
       // ── Per-element WCAG contrast ────────────────────────────────────────────
       try {
         const contrast = await auditContrastUrl(url, { viewport: { w: vp.w, h: vp.h }, theme, timeoutMs });
-        const contrastGroups = collapseShortTextContrastFailures(contrast.aa_failures);
+        const contrastGroups = collapseShortTextContrastFailures(
+          contrast.rows.filter((row) => row.status === "fail")
+        );
         for (const group of contrastGroups) {
           const rep = group.rows[0];
           if (group.isShortTextGroup) {
@@ -380,6 +382,28 @@ export async function auditUrl(url: string, opts: AuditUrlOptions = {}): Promise
                 ":1)"
             });
           }
+        }
+        for (const row of contrast.rows.filter((candidate) => candidate.status === "indeterminate")) {
+          findings.push({
+            source: "contrast",
+            rule: "contrast/background-indeterminate",
+            severity: "warning",
+            message:
+              "Text contrast needs review because its rendered background varies or cannot be derived from CSS" +
+              (row.text ? ': "' + row.text + '"' : ""),
+            fix:
+              "Inspect the rendered text over the full image/gradient range; this row is not counted as a WCAG AA failure.",
+            selector: row.selector,
+            viewport: vpLabel,
+            theme,
+            verdict: "inconclusive",
+            evidence:
+              "effective background " +
+              row.effective_bg +
+              (row.ratio_min !== undefined && row.ratio_max !== undefined
+                ? "; computed contrast range " + row.ratio_min + ":1–" + row.ratio_max + ":1"
+                : "; no trustworthy CSS color range available")
+          });
         }
       } catch (error) {
         if (error instanceof CaptureUnavailableError) {

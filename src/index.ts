@@ -13,7 +13,7 @@ import { runPageChecks } from "./page-checks.js";
 import { scorePage } from "./score-page.js";
 import { auditUrl } from "./audit-url.js";
 import { captureResponsiveVisibility } from "./responsive.js";
-import { auditContrastUrl, auditContrastSnapshot, suggestContrastFix } from "./contrast.js";
+import { auditContrastUrl, auditContrastSnapshot, suggestContrastFix, filterSuggestibleContrastPairs } from "./contrast.js";
 import { diffScreenshots } from "./image-diff.js";
 import { auditAssetIntegrity } from "./asset-integrity.js";
 import { auditParity } from "./parity.js";
@@ -2932,10 +2932,18 @@ server.tool(
     containerMaxWidth: z.number().optional().describe("Your design system's canonical content-container width in px (e.g. 1152). Forwarded to the responsive/max-width check.")
   },
   async function({ html, url, strict, containerMaxWidth }) {
+    var scoreContrast: Awaited<ReturnType<typeof auditContrastUrl>> | undefined;
     if (url !== undefined && url !== null) {
       try {
         var cap = await capturePage(url, {});
         html = cap.renderedHtml;
+        try {
+          scoreContrast = await auditContrastUrl(url);
+        } catch (contrastError) {
+          if (!(contrastError instanceof CaptureUnavailableError)) throw contrastError;
+          // The rendered-DOM scorer can still return its existing result when a
+          // second browser launch for contrast is unavailable in constrained sandboxes.
+        }
       } catch (e) {
         if (e instanceof CaptureUnavailableError) {
           return {
@@ -2957,7 +2965,11 @@ server.tool(
         }]
       };
     }
-    const result = scorePage(html, { strict, containerMaxWidth });
+    const result = scorePage(html, {
+      strict,
+      containerMaxWidth,
+      contrastRows: typeof scoreContrast === "undefined" ? undefined : scoreContrast.rows,
+    });
     return {
       content: [{
         type: "text" as const,
@@ -3228,7 +3240,9 @@ server.tool(
       bg: z.string(),
       fontPx: z.number().optional(),
       bold: z.boolean().optional(),
-      targetRatio: z.number().optional()
+      targetRatio: z.number().optional(),
+      status: z.enum(["pass", "fail", "indeterminate"]).optional(),
+      ratio: z.number().nullable().optional()
     })).optional().describe("Color pairs to remediate. Each: { selector?, fg, bg, fontPx?, bold?, targetRatio? }. fontPx/bold pick the large-text threshold; targetRatio overrides the level."),
     level: z.enum(["AA", "AAA"]).optional().describe("WCAG level when targetRatio is not given per-pair. Default AA.")
   },
@@ -3237,7 +3251,8 @@ server.tool(
       return { content: [{ type: "text" as const, text: "Provide pairs: [{ selector?, fg, bg, fontPx?, bold?, targetRatio? }]. Returns the minimal fg/bg change that clears the WCAG target for each pair. Set level to 'AA' (default) or 'AAA'." }] };
     }
     var lvl = level || "AA";
-    var results = pairs.map(function(p) {
+    var suggestiblePairs = filterSuggestibleContrastPairs(pairs);
+    var results = suggestiblePairs.map(function(p) {
       var fix = suggestContrastFix(p.fg, p.bg, { targetRatio: p.targetRatio, level: lvl, fontPx: p.fontPx, bold: p.bold });
       if (p.selector !== undefined && p.selector !== null) {
         return Object.assign({ selector: p.selector }, fix);
@@ -3247,8 +3262,9 @@ server.tool(
     var alreadyPassing = results.filter(function(r) { return r.passes; }).length;
     var unreachable = results.filter(function(r) { return !r.passes && !r.reachable; }).length;
     var fixed = results.length - alreadyPassing - unreachable;
-    var summary = "suggest_contrast_fix — " + fixed + " fixable, " + alreadyPassing + " already passing, " + unreachable + " unreachable (need both colors changed)";
-    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "suggest_contrast_fix", level: lvl, results: results, summary: summary }, null, 2) }] };
+    var skippedIndeterminate = pairs.length - suggestiblePairs.length;
+    var summary = "suggest_contrast_fix — " + fixed + " fixable, " + alreadyPassing + " already passing, " + unreachable + " unreachable (need both colors changed), " + skippedIndeterminate + " non-failing/indeterminate skipped";
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "suggest_contrast_fix", level: lvl, results: results, skipped: skippedIndeterminate, summary: summary }, null, 2) }] };
   }
 );
 
@@ -6274,7 +6290,7 @@ server.tool(
     }
     var prof = await getTasteProfile(tasteStore, profile);
     var targetHtml = html;
-    var pageIssues: { rule: string; severity: string; message: string; fix?: string }[] = [];
+    var pageIssues: { rule: string; severity: string; status?: "pass" | "fail" | "indeterminate"; message: string; fix?: string }[] = [];
     // Resolve any surface binding up front: delegate audits must be filtered by
     // the same calibrated surface + off-overrides the rule loop will use.
     var binding = await resolveSurfaceBinding(tasteStore, prof.name, { project: project, url: url });
@@ -6292,7 +6308,13 @@ server.tool(
         liveTraits = cap.traits;
         if (delegates.has("audit_contrast")) {
           var c = await auditContrastUrl(url);
-          for (var row of c.aa_failures) pageIssues.push({ rule: "contrast/aa", severity: "error", message: row.selector + " \"" + row.text.slice(0, 40) + "\" contrast " + row.ratio + ":1 < required " + row.required_aa + ":1 (fg " + row.foreground + " on bg " + row.background + ")", fix: "Adjust fg/bg to clear " + row.required_aa + ":1 (delta " + row.delta_to_aa + ")." });
+          for (var row of c.rows) {
+            if (row.status === "fail") {
+              pageIssues.push({ status: row.status, rule: "contrast/aa", severity: "error", message: row.selector + " \"" + row.text.slice(0, 40) + "\" contrast " + row.ratio + ":1 < required " + row.required_aa + ":1 (fg " + row.foreground + " on bg " + row.background + ")", fix: "Adjust fg/bg to clear " + row.required_aa + ":1 (delta " + row.delta_to_aa + ")." });
+            } else if (row.status === "indeterminate") {
+              pageIssues.push({ status: row.status, rule: "contrast/background-indeterminate", severity: "warning", message: row.selector + " contrast not assessed (" + (row.indeterminate_reason || "unknown-backdrop") + ")", fix: "Inspect the rendered backdrop; no color-fix suggestion is safe without a determinate ratio." });
+            }
+          }
         }
         if (delegates.has("audit_tap_targets")) {
           var t = await auditTapTargetsUrl(url);

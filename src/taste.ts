@@ -211,7 +211,13 @@ export type TasteInterviewQuestion = {
   suggestions?: string[];
 };
 
-type PageIssueInput = { rule: string; severity: string; message: string; fix?: string };
+type PageIssueInput = {
+  rule: string;
+  severity: string;
+  status?: "pass" | "fail" | "indeterminate";
+  message: string;
+  fix?: string;
+};
 
 const SEVERITIES: TasteSeverity[] = ["block", "warn", "nit"];
 const RULE_OWNERS = ["taste", "raven"];
@@ -1669,8 +1675,9 @@ function foldRavenRule(
   // Only a hard "error" issue earns the rule's full severity; anything else — advisory
   // "warning" or an unrecognized severity string from an external caller — caps at warn,
   // so a suggestion can never surface as a block.
-  const severity: TasteSeverity =
-    issue.severity !== "error" && rule.severity_default === "block" ? "warn" : rule.severity_default;
+  const severity: TasteSeverity = issue.status === "indeterminate"
+    ? "warn"
+    : issue.severity !== "error" && rule.severity_default === "block" ? "warn" : rule.severity_default;
   findings.push({
     rule_id: rule.rule_id,
     clause_cited: rule.clause_text,
@@ -1678,7 +1685,9 @@ function foldRavenRule(
     owner: rule.owner,
     source: "raven",
     evidence: issue.rule + ": " + issue.message,
-    fix: issue.fix || fixFromNegativePrompt(rule.negative_prompt),
+    fix: issue.status === "indeterminate"
+      ? issue.fix || "Inspect the rendered surface; delegated contrast evidence was indeterminate."
+      : issue.fix || fixFromNegativePrompt(rule.negative_prompt),
   });
 }
 
