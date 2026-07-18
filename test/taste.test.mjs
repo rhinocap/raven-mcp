@@ -1286,16 +1286,166 @@ test('bind_taste_surface REFUSES a new surface with no calibration content (inte
     assert.equal(rebound.surface, 'product-site v2');
     assert.equal(rebound.uncalibrated_ack, undefined);
 
-    // But an EMPTY re-bind of an already-calibrated project is REFUSED — an
-    // upsert replaces all fields, so this would silently erase the calibration
-    // (the same-project/new-surface hole). It must not be exempt.
+    // An omitted calibration field on a re-bind carries forward, so updating
+    // only the surface remains calibrated and does not need an escape hatch.
+    const carried = await taste.bindTasteSurface(store, 'gate', { project: 'with-notes', surface: 'product-site v3' });
+    assert.deepEqual(carried.design_notes, { color: 'monochrome' });
+    assert.ok(carried.carried_forward.includes('design_notes'));
+    assert.equal(carried.surface, 'product-site v3');
+  });
+});
+
+test('bindTasteSurface carries omitted re-bind fields forward while explicit empty values clear them', async () => {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'carry', rules: baseRules() });
+
+    const fresh = await taste.bindTasteSurface(store, 'carry', {
+      project: 'vision-app',
+      surface: 'product-site',
+      hosts: ['old.example.com'],
+      overrides: [{ rule_id: 'HUE-NIT', severity: 'off' }],
+      voice_note: 'Plain and concrete.',
+      design_notes: { color: 'Dark, cinematic palette.' },
+      references: [{ url: 'https://example.com', liked: 'The restraint.' }],
+    });
+    assert.equal(fresh.carried_forward, undefined, 'fresh binds do not report carry-forward');
+
+    const keptReferences = await taste.bindTasteSurface(store, 'carry', {
+      project: 'VISION-APP',
+      surface: 'product-site v2',
+      design_notes: { color: 'Light, editorial palette.' },
+    });
+    assert.deepEqual(keptReferences.references, fresh.references);
+    assert.deepEqual(keptReferences.hosts, ['old.example.com']);
+    assert.deepEqual(keptReferences.overrides, [{ rule_id: 'HUE-NIT', severity: 'off' }]);
+    assert.equal(keptReferences.voice_note, 'Plain and concrete.');
+    assert.ok(keptReferences.carried_forward.includes('references'));
+    assert.ok(keptReferences.carried_forward.includes('voice_note'));
+    assert.ok(keptReferences.carried_forward.includes('overrides'));
+    assert.ok(keptReferences.carried_forward.includes('hosts'));
+
+    const clearedReferences = await taste.bindTasteSurface(store, 'carry', {
+      project: 'vision-app',
+      surface: 'product-site v3',
+      references: [],
+    });
+    assert.deepEqual(clearedReferences.references, []);
+    assert.equal(clearedReferences.carried_forward.includes('references'), false);
+    const storedAfterClear = (await taste.listSurfaceBindings(store, 'carry'))[0];
+    assert.deepEqual(storedAfterClear.references, []);
+    assert.equal(storedAfterClear.carried_forward, undefined, 'carried_forward is response-only');
+
+    await taste.bindTasteSurface(store, 'carry', {
+      project: 'notes-and-voice',
+      surface: 'product-site',
+      design_notes: { typography: 'Restrained grotesque.' },
+      voice_note: 'Technical, not promotional.',
+    });
+    const keptNotesAndVoice = await taste.bindTasteSurface(store, 'carry', {
+      project: 'notes-and-voice',
+      surface: 'developer docs',
+      hosts: ['docs.example.com'],
+    });
+    assert.deepEqual(keptNotesAndVoice.design_notes, { typography: 'Restrained grotesque.' });
+    assert.equal(keptNotesAndVoice.voice_note, 'Technical, not promotional.');
+    assert.ok(keptNotesAndVoice.carried_forward.includes('design_notes'));
+    assert.ok(keptNotesAndVoice.carried_forward.includes('voice_note'));
+
+    const hostsOnly = await taste.bindTasteSurface(store, 'carry', {
+      project: 'VISION-APP',
+      surface: 'product-site v4',
+      hosts: ['new.example.com'],
+    });
+    assert.deepEqual(hostsOnly.hosts, ['new.example.com']);
+    assert.deepEqual(hostsOnly.design_notes, { color: 'Light, editorial palette.' });
+    assert.equal(hostsOnly.voice_note, 'Plain and concrete.');
+    // an emptied field does not carry forward — it comes back absent, not []
+    assert.deepEqual(hostsOnly.references ?? [], []);
+    assert.equal(hostsOnly.carried_forward.includes('references'), false);
+
     await assert.rejects(
-      () => taste.bindTasteSurface(store, 'gate', { project: 'with-notes', surface: 'product-site v3' }),
+      () => taste.bindTasteSurface(store, 'carry', {
+        project: 'vision-app',
+        surface: 'product-site rejected-clear',
+        hosts: [],
+        overrides: [],
+        voice_note: '',
+        design_notes: {},
+        references: [],
+      }),
       /Refusing to bind surface/
     );
-    // The prior calibrated binding is untouched by the refused call.
-    assert.deepEqual((await taste.listSurfaceBindings(store, 'gate')).find((b) => b.project === 'with-notes').design_notes, { color: 'monochrome' });
-    assert.equal((await taste.listSurfaceBindings(store, 'gate')).find((b) => b.project === 'with-notes').surface, 'product-site v2');
+    const storedAfterRejectedClear = (await taste.listSurfaceBindings(store, 'carry')).find((binding) => binding.project === 'VISION-APP');
+    assert.equal(storedAfterRejectedClear.surface, 'product-site v4');
+    assert.deepEqual(storedAfterRejectedClear.design_notes, { color: 'Light, editorial palette.' });
+
+    const clearedOtherFields = await taste.bindTasteSurface(store, 'carry', {
+      project: 'vision-app',
+      surface: 'product-site v5',
+      hosts: [],
+      overrides: [],
+      voice_note: '',
+      design_notes: {},
+      references: [],
+      uncalibrated_ack: 'test fixture — explicit clear of all calibration',
+    });
+    assert.deepEqual(clearedOtherFields.hosts, []);
+    assert.deepEqual(clearedOtherFields.overrides, []);
+    assert.equal(clearedOtherFields.voice_note, '');
+    assert.deepEqual(clearedOtherFields.design_notes, {});
+    assert.deepEqual(clearedOtherFields.references, []);
+    assert.equal(clearedOtherFields.carried_forward, undefined, 'every optional field was explicit, so nothing was carried');
+
+    await assert.rejects(
+      () => taste.bindTasteSurface(store, 'carry', { project: 'fresh-empty', surface: 'product-site' }),
+      /Refusing to bind surface/
+    );
+
+    // A stored uncalibrated_ack is durable consent: re-binding the acked
+    // project (new surface/hosts, still no calibration) needs no fresh ack.
+    const ackRebind = await taste.bindTasteSurface(store, 'carry', {
+      project: 'vision-app',
+      surface: 'product-site v6',
+      hosts: ['acked.example.com'],
+    });
+    assert.equal(ackRebind.uncalibrated_ack, 'test fixture — explicit clear of all calibration');
+    assert.ok(ackRebind.carried_forward.includes('uncalibrated_ack'));
+    const storedAckRebind = (await taste.listSurfaceBindings(store, 'carry')).find((binding) => binding.project === 'vision-app');
+    assert.equal(storedAckRebind.uncalibrated_ack, 'test fixture — explicit clear of all calibration');
+  });
+});
+
+test('bind_taste_surface handler consistency-checks references carried forward on re-bind', async () => {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'carry-handler', rules: baseRules() });
+    await taste.bindTasteSurface(store, 'carry-handler', {
+      project: 'reference-check',
+      surface: 'product-site',
+      design_notes: { color: 'Dark, cinematic palette.' },
+      references: [{ url: 'https://example.com', traits: makeTraits({ scheme: 'light', bg_luminance: 0.98 }) }],
+    });
+
+    const payload = await callTasteTool(store, 'bind_taste_surface', {
+      profile: 'carry-handler',
+      project: 'reference-check',
+      surface: 'product-site v2',
+      hosts: ['reference-check.example.com'],
+    });
+    assert.ok(payload.binding.carried_forward.includes('references'));
+    assert.equal(payload.binding.references.length, 1);
+    assert.ok(payload.consistency_warnings.length > 0, 'inherited references must still be consistency-checked');
+    assert.equal(typeof payload.consistency_note, 'string', 'warnings from carried-forward references must carry the staleness note');
+    assert.ok(payload.consistency_note.includes('not recaptured'), 'staleness note must say traits were not recaptured');
+
+    const clearedPayload = await callTasteTool(store, 'bind_taste_surface', {
+      profile: 'carry-handler',
+      project: 'reference-check',
+      surface: 'product-site v3',
+      references: [],
+    });
+    assert.deepEqual(clearedPayload.binding.references, []);
+    assert.equal(clearedPayload.binding.carried_forward.includes('references'), false);
+    assert.equal(clearedPayload.consistency_warnings, undefined);
   });
 });
 

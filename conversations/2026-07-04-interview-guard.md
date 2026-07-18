@@ -7,3 +7,6 @@
 **Verify:** 481/481 tests pass (new dedicated guard test); tsc clean; live runtime probe reproduced the exact ai-reader-raven scenario → REFUSED, plus all 4 Codex-found holes → REFUSED, legit paths → ALLOWED, ack persists through reload, empty re-bind preserves prior calibration.
 **Codex devil's-advocate:** ran report-only; found 4 real holes (whitespace voice_note, whitespace ack, same-project/new-surface rebind wipe, garbage design_note) → 3 fixed (trim + drop isNewSurface exemption), #4 (fabricated meaningful note) documented as out-of-scope for a deterministic gate.
 **Pushed:** local on main, built to dist, NOT pushed (takes effect on Raven MCP restart).
+
+## Update 2026-07-18 — re-bind carry-forward supersedes the empty-re-bind erase
+The 'upsert replaces all fields → empty re-bind erases calibration' behavior described above is superseded: `bindTasteSurface` now carries forward omitted non-empty fields (references/design_notes/voice_note/overrides/hosts, plus a stored `uncalibrated_ack`) on re-binds, reporting them in a response-only `carried_forward` array. Explicit empty values (`[]`/`{}`/`""`) still clear, and a clear-everything re-bind is refused without a fresh ack — the gate now evaluates the merged result. See branch rebind-guard.
