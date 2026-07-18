@@ -49,6 +49,9 @@ npm version "$BUMP" --no-git-tag-version
 NEW=$(node -p "require('./package.json').version")
 echo "  New version: $NEW"
 
+echo "→ Compiling stdio server for manifest sync"
+npm run build
+
 echo "→ Syncing version into manifest.json"
 node -e '
   const fs = require("fs");
@@ -56,6 +59,7 @@ node -e '
   m.version = require("./package.json").version;
   fs.writeFileSync("manifest.json", JSON.stringify(m, null, 2) + "\n");
 '
+node scripts/sync-manifest-tools.mjs
 
 echo "→ Syncing version into server.json (MCP Registry / marketplace metadata)"
 node -e '
@@ -70,7 +74,7 @@ node -e '
 '
 
 echo "→ Rebuilding .mcpb"
-npm run build:mcpb
+SKIP_BUILD=1 npm run build:mcpb
 
 echo "→ Publishing to npm"
 npm publish

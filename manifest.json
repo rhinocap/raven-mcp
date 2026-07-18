@@ -54,207 +54,375 @@
   "tools": [
     {
       "name": "get_principles",
-      "description": "Get design principles relevant to a UI context"
+      "description": "Get design principles relevant to a UI context."
     },
     {
       "name": "get_pattern",
-      "description": "Get proven patterns for a specific UI type"
+      "description": "Get proven UI/UX patterns for a specific design type."
     },
     {
       "name": "get_business_strategy",
-      "description": "Get business/monetization strategies"
+      "description": "Get business and monetization strategies for digital products."
     },
     {
       "name": "evaluate_design",
-      "description": "Evaluate a design description against principles. Pass before_screenshot and after_screenshot (base64 PNGs) to get a structured pixel diff with fix_confirmed, changed_ratio, and changed_region."
+      "description": "Evaluate a design description against UX principles."
     },
     {
       "name": "search_knowledge",
-      "description": "Search across all principles, patterns, and strategies"
+      "description": "Search across all design principles, UI patterns, and business strategies."
     },
     {
       "name": "get_checklist",
-      "description": "Get a pre-publish checklist for a UI type"
+      "description": "Get a pre-publish checklist for a specific UI type."
     },
     {
       "name": "get_d4d_framework",
-      "description": "Get Design for Delight framework templates"
+      "description": "Get the Design for Delight (D4D) framework templates."
     },
     {
       "name": "list_design_systems",
-      "description": "Browse available design systems"
+      "description": "Browse available design systems for tokens."
     },
     {
       "name": "get_design_system",
-      "description": "Get tokens for a specific design system"
+      "description": "Get design tokens for a specific design system."
     },
     {
       "name": "read_design_md",
-      "description": "Parse a DESIGN.md file and return its tokens plus Markdown body"
+      "description": "Parse a DESIGN.md file and return its frontmatter, Markdown body, and flattened token index."
+    },
+    {
+      "name": "review_diff",
+      "description": "Review added UI-code lines in a unified diff against the project's own DESIGN.md tokens and active recorded design…"
+    },
+    {
+      "name": "polish_diff",
+      "description": "Review added UI-code lines and propose deterministic DESIGN.md token substitutions without writing files."
     },
     {
       "name": "init_design_md",
-      "description": "Initialize a DESIGN.md file from a stored system, starter slug, or blank template"
+      "description": "Initialize a DESIGN.md file from a stored Raven token system, a getdesign.md starter slug, or a blank template."
     },
     {
       "name": "update_design_md",
-      "description": "Update one DESIGN.md token surgically while preserving the Markdown body"
+      "description": "Update one DESIGN.md token surgically while preserving the Markdown body."
     },
     {
       "name": "start_grab_session",
-      "description": "Start the Raven grab bridge on loopback for a DESIGN.md path"
+      "description": "Start a capability-keyed Raven grab bridge on loopback."
     },
     {
       "name": "get_grabbed_elements",
-      "description": "Drain the Raven grab queue, optionally waiting for the next selection"
+      "description": "Drain the current grab queue, optionally waiting up to timeout_ms for the next selection."
     },
     {
       "name": "stop_grab_session",
-      "description": "Stop the Raven grab bridge and clear any queued selections"
+      "description": "Stop the current grab bridge and clear its queued selections."
     },
     {
       "name": "compose_system",
-      "description": "Mix tokens from different systems"
-    },
-    {
-      "name": "get_brand_system",
-      "description": "Get a full design system styled like a well-known brand"
+      "description": "Mix tokens from different design systems to create a custom composite."
     },
     {
       "name": "audit_page",
-      "description": "Audit HTML/CSS against Raven's design quality standards — pass html for static audit, or url to render the page headless with optional scroll_settle and viewport parameters (containerMaxWidth checks container widths against your design-system token). Set adversarial_verify to independently re-check findings against the live DOM, tagging each confirmed/likely-artifact/inconclusive with evidence."
+      "description": "Audit HTML/CSS against Raven's design quality standards."
     },
     {
-      "name": "generate_design_system",
-      "description": "Generate a complete custom design system from a brand color"
+      "name": "score_page",
+      "description": "Score an HTML/CSS page across 7 design categories (Structure, Typography, Color & palette, Spacing & rhythm,…"
     },
     {
-      "name": "audit_layout",
-      "description": "Evaluate visual rhythm, alignment, and optical balance of a rendered page"
-    },
-    {
-      "name": "audit_responsive_visibility",
-      "description": "Render a URL at multiple breakpoints and flag content elements that are visible on desktop but hidden on mobile"
-    },
-    {
-      "name": "audit_contrast",
-      "description": "Compute WCAG contrast ratios for every text element on a rendered page and report AA/AAA pass-fail"
-    },
-    {
-      "name": "audit_content",
-      "description": "Per-item content verdicts (pass/warn/fail) for headings, prose, CTAs, labels, captions, metrics against UX-writing principles + heuristics, with before→after suggestions"
-    },
-    {
-      "name": "audit_typography",
-      "description": "Typographic-scale report over rendered text nodes — modular-scale ratio detection + off-scale outliers, line-height consistency, and weight-ladder checks"
-    },
-    {
-      "name": "audit_tap_targets",
-      "description": "WCAG 2.5.5 / Apple 44pt web tap-target audit — per-element fix table with measured size, per-axis pixel deficit, and a concrete CSS fix"
+      "name": "audit_asset_integrity",
+      "description": "Detect PNG exports whose content is sliced/cut off at the bottom edge (e.g. a Figma export that ended mid-form)."
     },
     {
       "name": "audit_device_frame",
-      "description": "Flag cropped content in device-mockup frames: object-fit:cover crop loss (container AR vs media AR), baked-in pan/zoom (Ken Burns) from first/last clip frames, and content truncated at a frame edge"
+      "description": "Detect cropped content in device-mockup frames (phone/MacBook screenshots, app-preview clips)."
+    },
+    {
+      "name": "audit_contract",
+      "description": "Verify a wire contract (token list / field set / schemaVersion) is identical across N independent source files (iOS…"
+    },
+    {
+      "name": "audit_api_contract",
+      "description": "Run adversarial queries against a live endpoint and return per-query verdict (shape-valid / shape-invalid /…"
+    },
+    {
+      "name": "audit_parity",
+      "description": "Compare iOS vs Android element snapshots against a checklist of named spatial relationships (vertical centering,…"
+    },
+    {
+      "name": "audit_ios_a11y",
+      "description": "Score an accessibility-enriched iOS element snapshot — missing accessibilityLabel/value/traits, sub-44pt tap targets,…"
+    },
+    {
+      "name": "audit_responsive_visibility",
+      "description": "Render a URL at multiple breakpoints and flag content elements that are visible on desktop but hidden on mobile…"
+    },
+    {
+      "name": "audit_contrast",
+      "description": "Compute WCAG contrast ratios for every text element on a rendered page (pass url) or from a supplied dom_snapshot."
+    },
+    {
+      "name": "suggest_contrast_fix",
+      "description": "Given failing WCAG color pairs, return the MINIMAL color change that clears the target ratio."
+    },
+    {
+      "name": "audit_url",
+      "description": "Layer 0 render-and-capture audit: renders a LIVE URL at each viewport×theme, scroll-settles (fires…"
+    },
+    {
+      "name": "audit_content",
+      "description": "Evaluate an array of content items (headings, prose, CTAs, labels, captions, metrics, outcomes) against UX-writing…"
+    },
+    {
+      "name": "audit_typography",
+      "description": "Audit the typographic SCALE of a rendered page (pass url) or a pre-collected snapshot of text nodes."
+    },
+    {
+      "name": "audit_tap_targets",
+      "description": "WCAG 2.5.5 / Apple 44pt tap-target audit for the web."
+    },
+    {
+      "name": "get_brand_system",
+      "description": "Get a complete design system for building an app with branding like a specific company."
+    },
+    {
+      "name": "generate_design_system",
+      "description": "Generate a complete, custom design system with full token set."
+    },
+    {
+      "name": "audit_layout",
+      "description": "Evaluate visual rhythm from a rendered page's geometry."
+    },
+    {
+      "name": "audit_swiftui",
+      "description": "Audit SwiftUI source against Apple's Human Interface Guidelines."
+    },
+    {
+      "name": "audit_screen",
+      "description": "Audit a rendered mobile screen (iOS or Android) from a view-hierarchy/accessibility snapshot."
+    },
+    {
+      "name": "audit_ios_screen",
+      "description": "Audit a rendered iOS screen from a view-hierarchy/accessibility snapshot (and optional screenshot)."
+    },
+    {
+      "name": "audit_ios_privacy",
+      "description": "Audit an iOS or React Native/Expo app's privacy posture for App Review and user trust."
+    },
+    {
+      "name": "audit_rn",
+      "description": "Audit React Native / Expo source (JSX/TSX + StyleSheet) against the iOS HIG + Android Material conventions RN must…"
     },
     {
       "name": "list_content_systems",
-      "description": "Browse available brand voice & tone systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian)"
+      "description": "Browse available content design systems — brand voice and tone guides from real companies (Mailchimp, GOV.UK, Shopify…"
     },
     {
       "name": "get_content_system",
-      "description": "Get a brand's content design system — voice, tone shifts, vocabulary, grammar, content patterns, inclusive language"
+      "description": "Get a brand's content design system — voice attributes, tone shifts by context, vocabulary (use/avoid/never), grammar…"
     },
     {
       "name": "get_content_principles",
-      "description": "Get UX-writing principles — clarity, active voice, error-message anatomy, inclusive language, voice vs tone, and more"
+      "description": "Get UX-writing principles — clarity over cleverness, active voice, error-message anatomy, inclusive language, voice vs…"
     },
     {
       "name": "get_content_pattern",
-      "description": "Get content design patterns — copy recipes for error messages, empty-state copy, notifications, and form validation"
+      "description": "Get content design patterns — copy recipes for error messages, empty-state copy, notifications, and form validation."
     },
     {
       "name": "get_research_method",
-      "description": "Get research method details — qualitative, quantitative, or usability — with protocols, do/don't guidance, and checklists"
+      "description": "Get research method details — qualitative (interviews, contextual inquiry, diary, field, intercept), quantitative…"
     },
     {
       "name": "get_metrics_framework",
-      "description": "Get a product-metrics framework — HEART, AARRR, North Star, conversion funnel, RICE, or OKRs"
+      "description": "Get a product-metrics framework — HEART (Google), AARRR/Pirate (Dave McClure), North Star Metric, Conversion Funnel,…"
     },
     {
       "name": "get_service_pattern",
-      "description": "Get a service design pattern — service blueprinting, human handoff, signup-as-service, omnichannel continuity, or moments of truth / recovery"
+      "description": "Get a service design pattern — service blueprinting, human handoff, signup-as-service, omnichannel continuity, or…"
     },
     {
       "name": "get_service_standard",
-      "description": "Get the GOV.UK Service Standard — 14 points for assessing whether a service is ready to launch"
+      "description": "Get the GOV.UK Service Standard — 14 points the UK government uses to assess whether a public service is ready to…"
     },
     {
       "name": "generate_service_blueprint",
-      "description": "Render a service blueprint as a self-contained HTML page — with optional current-vs-ideal state comparison"
+      "description": "Render a service blueprint as a self-contained HTML page."
     },
     {
       "name": "get_brand_principles",
-      "description": "Get brand and visual-design principles — logo usage, gradient usage, imagery, visual hierarchy, brand-as-system"
+      "description": "Get brand and visual-design principles — logo usage (clear space, min sizes, variants, placement, restraint), gradient…"
     },
     {
       "name": "get_brand_trends",
-      "description": "Get current brand and visual-design trends (2026) — bento grids, monospace type, neon-on-glass, generative patterns, brutalism rebound, and more"
+      "description": "Get current brand and visual-design trends — what's working in 2026 and where each trend fits or fails."
     },
     {
       "name": "list_creative_models",
-      "description": "Browse Raven creative model slots for image, video, 3D, audio, character consistency, and analysis"
+      "description": "Browse Raven's provider-agnostic creative model catalog."
     },
     {
       "name": "list_creative_presets",
-      "description": "Browse creative presets for product photoshoots, marketplace cards, UGC ads, TV spots, social packs, storyboards, and infographics"
+      "description": "Browse Raven creative presets for product photoshoots, marketplace cards, UGC ads, TV spots, cinematic reveals, social…"
     },
     {
       "name": "create_brand_profile",
-      "description": "Create or update a local brand profile for brand-aware creative generation jobs"
+      "description": "Create or update a local brand profile used by Raven creative jobs."
     },
     {
       "name": "get_brand_profile",
-      "description": "Read a local Raven creative brand profile"
+      "description": "Read a local Raven creative brand profile by ID."
     },
     {
       "name": "list_brand_profiles",
-      "description": "List local Raven creative brand profiles"
+      "description": "List local Raven creative brand profiles."
     },
     {
       "name": "register_creative_asset",
-      "description": "Register a local or remote creative asset reference for generation jobs"
+      "description": "Register a local or remote creative asset for Raven jobs."
     },
     {
       "name": "create_character_profile",
-      "description": "Create a local character/identity reference profile for consistent generations"
+      "description": "Create a local character/identity reference profile for consistent image or video generation."
     },
     {
       "name": "create_generation_job",
-      "description": "Create a provider-agnostic image, video, audio, 3D, campaign, or analysis generation job"
+      "description": "Create a Raven creative generation job for image, video, 3D, audio, campaign, or analysis."
     },
     {
       "name": "get_generation_job",
-      "description": "Read a Raven creative generation job"
+      "description": "Read a Raven creative generation job by ID."
     },
     {
       "name": "list_generation_jobs",
-      "description": "List local Raven creative generation jobs"
+      "description": "List local Raven creative generation jobs."
     },
     {
       "name": "plan_creative_campaign",
-      "description": "Plan a multi-asset creative campaign and optionally create draft generation jobs"
+      "description": "Plan a multi-asset creative campaign and optionally create draft generation jobs."
     },
     {
       "name": "score_creative",
-      "description": "Score creative prompts, scripts, and concepts for hook strength, benefit clarity, channel fit, and brand fit"
+      "description": "Score a creative prompt, script, or ad concept for hook strength, benefit clarity, product signal, call-to-action,…"
+    },
+    {
+      "name": "audit_consistency",
+      "description": "Audit multiple pages for cross-page consistency of content-container width and hero heading tier."
     },
     {
       "name": "raven_reflect",
-      "description": "Summarize your local Raven usage log — tool counts, recurring audit warnings, and likely knowledge gaps. Reads only the local log file; never fetches."
+      "description": "Summarize how Raven has been used on this machine over the last N days."
     },
     {
       "name": "raven_register",
-      "description": "Register to receive design updates and send feedback"
+      "description": "Register your email to receive design updates and provide feedback to the Raven creator."
+    },
+    {
+      "name": "audit_video_playback",
+      "description": "Render a page in headless Chromium and observe whether each <video> actually advances (samples currentTime before/after…"
+    },
+    {
+      "name": "decision_add",
+      "description": "Add an active decision to the local Decision Graph."
+    },
+    {
+      "name": "decision_evidence",
+      "description": "Attach quantitative or qualitative evidence to an existing decision."
+    },
+    {
+      "name": "decision_draft",
+      "description": "Capture a decision from working context with the why deferred for later confirmation."
+    },
+    {
+      "name": "decision_commit",
+      "description": "Commit or confirm the rationale for a draft or extracted decision."
+    },
+    {
+      "name": "decision_supersede",
+      "description": "Explicitly supersede one decision with another while preserving both nodes and their lineage."
+    },
+    {
+      "name": "decision_scope",
+      "description": "Narrow two decisions to distinct scopes so both can remain active alongside one another."
+    },
+    {
+      "name": "decision_history",
+      "description": "Return the complete supersession lineage for a decision, ordered oldest to newest."
+    },
+    {
+      "name": "decision_get",
+      "description": "Get a Decision Graph node and every node connected to it by an edge in either direction."
+    },
+    {
+      "name": "decision_list",
+      "description": "List decisions in the local Decision Graph."
+    },
+    {
+      "name": "gap_scan",
+      "description": "Scan the local Decision Graph for uncovered components, weak rationales, contested decisions, and derived staleness."
+    },
+    {
+      "name": "decision_import",
+      "description": "Mine local git history and decision-bearing Markdown into provenance-tagged Decision Graph extraction prompts."
+    },
+    {
+      "name": "ingest_transcript",
+      "description": "Store a transcript source and return an extraction prompt for the calling agent's model."
+    },
+    {
+      "name": "ingest_transcript_results",
+      "description": "Parse model-produced extraction JSON into reviewable Decision Graph candidates linked to their source."
+    },
+    {
+      "name": "create_taste_profile",
+      "description": "Create (or overwrite) a named taste profile — a portable design-judgment ruleset + precedent corpus persisted locally…"
+    },
+    {
+      "name": "get_taste_profile",
+      "description": "Load a locally stored taste profile by name — returns its full rule catalog, precedent corpus, and per-project surface…"
+    },
+    {
+      "name": "get_taste_interview",
+      "description": "START HERE on a NEW project: returns a deterministic calibration interview."
+    },
+    {
+      "name": "bind_taste_surface",
+      "description": "Persist a project's surface calibration for a taste profile — the answers from get_taste_interview."
+    },
+    {
+      "name": "record_taste_decision",
+      "description": "The Taste Engine's learning loop — record a taste, direction, or design decision the MOMENT it is made during real work…"
+    },
+    {
+      "name": "list_taste_decisions",
+      "description": "List the taste/direction/design decisions recorded for a profile (see record_taste_decision), optionally filtered by…"
+    },
+    {
+      "name": "generate_taste_portrait",
+      "description": "Render a bound Taste Engine surface as a self-contained designed HTML portrait."
+    },
+    {
+      "name": "list_taste_profiles",
+      "description": "List locally stored taste profiles with rule/corpus counts and last-updated timestamps."
+    },
+    {
+      "name": "label_finding",
+      "description": "Append a labeled precedent to a taste profile's corpus — the growth loop."
+    },
+    {
+      "name": "audit_taste",
+      "description": "Judge a target against a taste profile."
+    },
+    {
+      "name": "talon_scan",
+      "description": "Run Raven's deterministic detector engine over a page — no LLM, pure measurement."
+    },
+    {
+      "name": "talon_rules",
+      "description": "Enumerate Raven's Talon detector rule corpus — id, category, severity, taste scope, and the src/data/principles/*.json…"
     }
   ],
   "compatibility": {
