@@ -1,6 +1,6 @@
 import { beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -76,6 +76,18 @@ test('addNode and getNode round-trip all three node kinds', async () => {
     if (node.node_kind === 'decision') assert.equal(added.embedding, null);
     assert.deepEqual(await store.getNode(node.id), added);
   }
+});
+
+test('concurrent addNode calls persist every node', async () => {
+  const store = new FsDecisionGraphStore();
+  const nodes = Array.from({ length: 10 }, (_, index) => decision('decision-concurrent-' + index));
+
+  await Promise.all(nodes.map((node) => store.addNode(node)));
+
+  assert.deepEqual(
+    (await store.listActiveDecisions()).map((node) => node.id).sort(),
+    nodes.map((node) => node.id).sort(),
+  );
 });
 
 test('flagRationaleMissing flags null, undefined, and blank rationale only', () => {
@@ -656,16 +668,16 @@ test('decision MCP tools add, get with neighbors, list by status, and stay remot
       JSON.parse(historyResult.content[0].text).map((node) => node.id),
       [oldDecision.id, newerDecision.id, newestDecision.id],
     );
-    await client.callTool({
+    const nodesBeforeRejectedCycle = readFileSync(path.join(process.env.RAVEN_DECISIONS_HOME, 'nodes.json'), 'utf8');
+    const edgesBeforeRejectedCycle = readFileSync(path.join(process.env.RAVEN_DECISIONS_HOME, 'edges.json'), 'utf8');
+    const rejectedCycle = await client.callTool({
       name: 'decision_supersede',
       arguments: { old_id: newestDecision.id, new_id: oldDecision.id },
     });
-    const cyclicHistory = JSON.parse((await client.callTool({
-      name: 'decision_history',
-      arguments: { id: newerDecision.id },
-    })).content[0].text);
-    assert.equal(cyclicHistory.length, 3, 'cycle guard returns each lineage node once');
-    assert.equal(new Set(cyclicHistory.map((node) => node.id)).size, 3);
+    assert.equal(rejectedCycle.isError, true);
+    assert.match(rejectedCycle.content[0].text, /would create a cyclic supersede lineage/);
+    assert.equal(readFileSync(path.join(process.env.RAVEN_DECISIONS_HOME, 'nodes.json'), 'utf8'), nodesBeforeRejectedCycle);
+    assert.equal(readFileSync(path.join(process.env.RAVEN_DECISIONS_HOME, 'edges.json'), 'utf8'), edgesBeforeRejectedCycle);
 
     const scopeA = JSON.parse((await client.callTool({
       name: 'decision_add',

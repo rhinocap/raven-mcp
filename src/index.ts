@@ -1633,12 +1633,12 @@ function maybeComputeDailyDigest(): void {
 
 // ── Server ──────────────────────────────────────────────────────────
 
-// The 50 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
+// The 44 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
 // 31 are stateful/local (per-user ~/.raven files, or the create_generation_job
 // subprocess), 5 reach the filesystem/network or have an external side effect,
-// 2 are Talon tools pending a remote-safety pass, and 12 are DESIGN.md /
+// 2 are Talon tools pending a remote-safety pass, and 6 are DESIGN.md /
 // grab-bridge tools. Everything else (45 stateless tools, including the 5
-// guarded browser URL audits added in Phase 3) is remote-safe.
+// guarded browser URL audits added in Phase 3) is remote-safe, from 89 local tools.
 // Traced to docs/remote-mcp-scope.md §2; asserted at build time.
 const REMOTE_GATED_TOOLS = new Set<string>([
   // stateful / local (31)
@@ -6206,13 +6206,21 @@ server.tool(
     new_id: z.string().min(1).describe("Existing replacement decision id."),
   },
   async function ({ old_id, new_id }) {
-    if (old_id === new_id) {
-      return { content: [{ type: "text" as const, text: "old_id and new_id must be distinct decisions." }], isError: true };
-    }
     var oldNode = await decisionGraphStore.getNode(old_id);
     var newNode = await decisionGraphStore.getNode(new_id);
     if (oldNode === null || oldNode.node_kind !== "decision" || newNode === null || newNode.node_kind !== "decision") {
       return { content: [{ type: "text" as const, text: "Both old_id and new_id must identify existing decisions." }], isError: true };
+    }
+    var lineageNode: DecisionNode | null = newNode;
+    var visitedLineage = new Set<string>();
+    while (lineageNode !== null && !visitedLineage.has(lineageNode.id)) {
+      if (lineageNode.id === old_id) {
+        return { content: [{ type: "text" as const, text: "would create a cyclic supersede lineage" }], isError: true };
+      }
+      visitedLineage.add(lineageNode.id);
+      if (lineageNode.superseded_by === null) break;
+      var nextLineageNode = await decisionGraphStore.getNode(lineageNode.superseded_by);
+      lineageNode = nextLineageNode !== null && nextLineageNode.node_kind === "decision" ? nextLineageNode : null;
     }
     var updatedOld = await decisionGraphStore.updateNode(old_id, { status: "superseded", superseded_by: new_id }) as DecisionNode;
     var edge = await decisionGraphStore.addEdge({
@@ -6797,7 +6805,7 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 78 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 89 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });

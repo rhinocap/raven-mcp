@@ -399,20 +399,24 @@ export function buildExtractionPrompt(transcript: string): string {
 
 export class FsDecisionGraphStore implements DecisionGraphStore {
   private embedder: Embedder;
+  // ponytail: in-process serialization only; cross-process file lock if multi-instance teams need it
+  private writeLock: Promise<void> = Promise.resolve();
 
   constructor(embedder: Embedder = new NullEmbedder()) {
     this.embedder = embedder;
   }
 
   async addNode(node: GraphNode): Promise<GraphNode> {
-    var nodes = readNodes();
-    var stored = node;
-    if (node.node_kind === "decision") {
-      stored = await this.prepareDecision(flagRationaleMissing(node));
-    }
-    nodes.push(stored);
-    writeNodes(nodes);
-    return stored;
+    return this.withWriteLock(async () => {
+      var nodes = readNodes();
+      var stored = node;
+      if (node.node_kind === "decision") {
+        stored = await this.prepareDecision(flagRationaleMissing(node));
+      }
+      nodes.push(stored);
+      writeNodes(nodes);
+      return stored;
+    });
   }
 
   async getNode(id: string): Promise<GraphNode | null> {
@@ -421,29 +425,33 @@ export class FsDecisionGraphStore implements DecisionGraphStore {
   }
 
   async updateNode(id: string, patch: Partial<GraphNode>): Promise<GraphNode | null> {
-    var nodes = readNodes();
-    var index = nodes.findIndex(function(node) { return node.id === id; });
-    if (index === -1) return null;
+    return this.withWriteLock(async () => {
+      var nodes = readNodes();
+      var index = nodes.findIndex(function(node) { return node.id === id; });
+      if (index === -1) return null;
 
-    var current = nodes[index];
-    var updated = Object.assign({}, current, patch) as GraphNode;
-    if (updated.node_kind === "decision") {
-      updated = flagRationaleMissing(updated);
-      if (current.node_kind !== "decision" || "statement" in patch || "rationale" in patch) {
-        updated = await this.prepareDecision(updated);
+      var current = nodes[index];
+      var updated = Object.assign({}, current, patch) as GraphNode;
+      if (updated.node_kind === "decision") {
+        updated = flagRationaleMissing(updated);
+        if (current.node_kind !== "decision" || "statement" in patch || "rationale" in patch) {
+          updated = await this.prepareDecision(updated);
+        }
       }
-    }
 
-    nodes[index] = updated;
-    writeNodes(nodes);
-    return updated;
+      nodes[index] = updated;
+      writeNodes(nodes);
+      return updated;
+    });
   }
 
   async addEdge(edge: GraphEdge): Promise<GraphEdge> {
-    var edges = readEdges();
-    edges.push(edge);
-    writeEdges(edges);
-    return edge;
+    return this.withWriteLock(async () => {
+      var edges = readEdges();
+      edges.push(edge);
+      writeEdges(edges);
+      return edge;
+    });
   }
 
   async listEdges(edgeType?: GraphEdge["type"]): Promise<GraphEdge[]> {
@@ -498,6 +506,12 @@ export class FsDecisionGraphStore implements DecisionGraphStore {
   private async prepareDecision(node: DecisionNode): Promise<DecisionNode> {
     var text = node.statement + "\n" + (node.rationale || "");
     return Object.assign({}, node, { embedding: await this.embedder.embed(text) });
+  }
+
+  private withWriteLock<T>(mutation: () => Promise<T>): Promise<T> {
+    var result = this.writeLock.then(mutation);
+    this.writeLock = result.then(function() {}, function() {});
+    return result;
   }
 }
 
