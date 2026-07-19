@@ -6,7 +6,8 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "raven-mcp": "dist/index.js"
+    "raven-mcp": "dist/index.js",
+    "raven-polish": "scripts/raven-polish.mjs"
   },
   "files": [
     "dist/",
@@ -15,6 +16,7 @@
     "scripts/postinstall.cjs",
     "scripts/ios-audit.mjs",
     "scripts/rn-audit.mjs",
+    "scripts/raven-polish.mjs",
     "scripts/AccessibilitySnapshot.swift",
     "README.md",
     "LICENSE",

@@ -1,0 +1,22 @@
+# EXAMPLE ONLY — copy this file into .github/workflows/ to activate it.
+name: Raven polish diff
+
+on:
+  pull_request:
+
+jobs:
+  raven-polish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # Dry-run exits 1 when polish is proposed or any error finding remains.
+      # (or node scripts/raven-polish.mjs in this repo)
+      - run: RAVEN_NO_USAGE_LOG=1 npx raven-polish --range "origin/${{ github.base_ref }}...HEAD"
