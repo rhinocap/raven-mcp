@@ -1,0 +1,5 @@
+- **Undersized tap targets:** Both `button.tap-small` elements (`data-testid="tap-small-a` and `tap-small-b`) are explicitly `32px × 32px` with `padding: 0`. This is below the recommended mobile touch-target size of `44px × 44px`, increasing missed taps.
+
+- **Insufficient separation between adjacent targets:** `.actions` uses `gap: 4px`, so the two undersized buttons are only 4px apart. Their center points are approximately 36px apart, making accidental activation of the neighboring button more likely. Increase each hit area to at least `44px × 44px`; the visual button may remain 32px if a larger interactive wrapper is used.
+
+No source-provable contrast or responsive-visibility defects are present.

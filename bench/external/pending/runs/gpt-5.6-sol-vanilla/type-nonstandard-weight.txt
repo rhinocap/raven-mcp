@@ -1,0 +1,9 @@
+Skill/MCP: Source-only accessibility review; no external tools needed.  
+Spec: Review the 390×844 render without inferring unspecified browser behavior.  
+Verification: Inspect computed CSS values, viewport geometry, visibility, contrast, typography, and interactive targets.
+
+Defect:
+
+- **`.type-odd` uses `font-weight: 450` with only generic `sans-serif`.** No variable font or 450-weight face is declared, so browsers may round or synthesize the weight differently across platforms. This creates inconsistent typography. Use a standard available weight such as `400`/`500`, or load a variable font explicitly supporting weight 450.
+
+No contrast, tap-target, overflow, or responsive-visibility defects are evident from the source.

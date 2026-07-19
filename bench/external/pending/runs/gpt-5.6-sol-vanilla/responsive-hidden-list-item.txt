@@ -1,0 +1,3 @@
+- **Responsive visibility failure:** At 390px wide, `@media(max-width:600px)` applies and `.responsive-item { visibility:hidden }` hides `<li id="responsive-item">Proof of address required</li>`. This removes required content from visual display and the accessibility tree while preserving an unexplained blank list-item space. Essential requirements must remain available on mobile. Remove this rule or use a mobile layout that keeps the content visible.
+
+No other actionable defects are provable from the source. Default black-on-white contrast passes, and there are no interactive tap targets.

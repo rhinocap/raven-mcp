@@ -1,0 +1,8 @@
+Skill/MCP: Direct text diff; no tool needed.  
+Spec: Compare exact wording and voice.  
+Verification: Word-for-word comparison.
+
+Task: Content-port fidelity  
+Decision: Proceed.
+
+Defect found: **“Field-tested” → “Proven.”** This is not a faithful port. “Proven” shifts the voice toward a stronger, more promotional claim.

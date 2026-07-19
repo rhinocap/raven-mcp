@@ -1,0 +1,10 @@
+Skill/MCP: Source review only; no tool needed.  
+Spec: Identify source-proven mobile design/accessibility defects.  
+Verification: Check declared CSS against WCAG thresholds at 390×844.
+
+Task: Mobile accessibility review  
+Decision: Proceed
+
+- **Insufficient text contrast:** `<p class="contrast-low">` uses `color: #aaa` on `background: #fff`, producing approximately **2.32:1** contrast. The 16px normal-weight text requires at least **4.5:1** under WCAG AA (1.4.3). Darken the text to approximately `#767676` or darker.
+
+No other actionable defects are evident from the source.

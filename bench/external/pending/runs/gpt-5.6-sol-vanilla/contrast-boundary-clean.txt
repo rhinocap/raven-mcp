@@ -1,0 +1,5 @@
+Skill/MCP: Source-only accessibility review; no external tools needed.  
+Spec: Check the supplied mobile HTML for concrete, source-verifiable defects.  
+Verification: Compare declared values against WCAG AA and inspect responsive/layout rules.
+
+No actionable defects found. `#767676` on `#ffffff` has approximately 4.54:1 contrast, passing WCAG AA for 16px normal text.
