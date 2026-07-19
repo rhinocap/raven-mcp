@@ -1,7 +1,7 @@
 # W2 review-outcome benchmark
 
 BENCH_DATE: 2026-07-18
-COMMIT: 5ed8647
+COMMIT: a175dd4-dirty
 
 | Family | TP | FP | FN | TN | UNEXECUTED | Precision | Recall |
 |---|---:|---:|---:|---:|---:|---:|---:|

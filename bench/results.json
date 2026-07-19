@@ -1,0 +1,195 @@
+{
+  "generated_with": "a175dd4-dirty",
+  "bench_date": "2026-07-18",
+  "cases": [
+    {
+      "id": "contrast-low-on-light",
+      "family": "contrast",
+      "expected": "seeded",
+      "outcome": "TP",
+      "fp_count": 0
+    },
+    {
+      "id": "contrast-low-on-dark",
+      "family": "contrast",
+      "expected": "seeded",
+      "outcome": "TP",
+      "fp_count": 0
+    },
+    {
+      "id": "contrast-gradient-panel",
+      "family": "contrast",
+      "expected": "seeded",
+      "outcome": "TP",
+      "fp_count": 0
+    },
+    {
+      "id": "contrast-clean",
+      "family": "contrast",
+      "expected": "clean",
+      "outcome": "TN",
+      "fp_count": 0
+    },
+    {
+      "id": "contrast-boundary-fail",
+      "family": "contrast",
+      "expected": "seeded",
+      "outcome": "TP",
+      "fp_count": 0
+    },
+    {
+      "id": "contrast-boundary-clean",
+      "family": "contrast",
+      "expected": "clean",
+      "outcome": "TN",
+      "fp_count": 0
+    },
+    {
+      "id": "tap-tiny-button",
+      "family": "tap-targets",
+      "expected": "seeded",
+      "outcome": "TP",
+      "fp_count": 0
+    },
+    {
+      "id": "tap-short-link",
+      "family": "tap-targets",
+      "expected": "seeded",
+      "outcome": "TP",
+      "fp_count": 0
+    },
+    {
+      "id": "tap-small-pair",
+      "family": "tap-targets",
+      "expected": "seeded",
+      "outcome": "TP",
+      "fp_count": 0
+    },
+    {
+      "id": "tap-clean",
+      "family": "tap-targets",
+      "expected": "clean",
+      "outcome": "TN",
+      "fp_count": 0
+    },
+    {
+      "id": "tap-boundary-fail",
+      "family": "tap-targets",
+      "expected": "seeded",
+      "outcome": "TP",
+      "fp_count": 0
+    },
+    {
+      "id": "tap-boundary-clean",
+      "family": "tap-targets",
+      "expected": "clean",
+      "outcome": "TN",
+      "fp_count": 0
+    },
+    {
+      "id": "type-nonstandard-weight",
+      "family": "typography",
+      "expected": "seeded",
+      "outcome": "TP",
+      "fp_count": 0
+    },
+    {
+      "id": "type-line-height-outlier",
+      "family": "typography",
+      "expected": "seeded",
+      "outcome": "TP",
+      "fp_count": 0
+    },
+    {
+      "id": "type-too-many-weights",
+      "family": "typography",
+      "expected": "seeded",
+      "outcome": "TP",
+      "fp_count": 0
+    },
+    {
+      "id": "type-clean",
+      "family": "typography",
+      "expected": "clean",
+      "outcome": "TN",
+      "fp_count": 0
+    },
+    {
+      "id": "type-line-height-boundary-fail",
+      "family": "typography",
+      "expected": "seeded",
+      "outcome": "TP",
+      "fp_count": 0
+    },
+    {
+      "id": "type-line-height-boundary-clean",
+      "family": "typography",
+      "expected": "clean",
+      "outcome": "TN",
+      "fp_count": 0
+    },
+    {
+      "id": "type-weight-boundary-fail",
+      "family": "typography",
+      "expected": "seeded",
+      "outcome": "TP",
+      "fp_count": 0
+    },
+    {
+      "id": "type-weight-boundary-clean",
+      "family": "typography",
+      "expected": "clean",
+      "outcome": "TN",
+      "fp_count": 0
+    },
+    {
+      "id": "responsive-hidden-lede",
+      "family": "responsive-visibility",
+      "expected": "seeded",
+      "outcome": "TP",
+      "fp_count": 0
+    },
+    {
+      "id": "responsive-hidden-list-item",
+      "family": "responsive-visibility",
+      "expected": "seeded",
+      "outcome": "TP",
+      "fp_count": 0
+    },
+    {
+      "id": "responsive-hidden-caption",
+      "family": "responsive-visibility",
+      "expected": "seeded",
+      "outcome": "TP",
+      "fp_count": 0
+    },
+    {
+      "id": "responsive-clean",
+      "family": "responsive-visibility",
+      "expected": "clean",
+      "outcome": "TN",
+      "fp_count": 0
+    },
+    {
+      "id": "taste-proven-substitution",
+      "family": "taste-banned-language",
+      "expected": "seeded",
+      "outcome": "TP",
+      "fp_count": 0
+    },
+    {
+      "id": "taste-unlock-substitution",
+      "family": "taste-banned-language",
+      "expected": "seeded",
+      "outcome": "TP",
+      "fp_count": 0
+    },
+    {
+      "id": "taste-verbatim-control",
+      "family": "taste-banned-language",
+      "expected": "clean",
+      "outcome": "TN",
+      "fp_count": 0
+    }
+  ]
+}

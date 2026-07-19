@@ -11,6 +11,7 @@ const rootDir = path.resolve(benchDir, "..");
 const corpusDir = path.join(benchDir, "corpus");
 const distDir = path.join(rootDir, "dist");
 const resultsPath = path.join(benchDir, "RESULTS.md");
+const resultsJsonPath = path.join(benchDir, "results.json");
 const manifestPath = path.join(corpusDir, "manifest.json");
 const fixedViewport = { w: 390, h: 844 };
 
@@ -242,9 +243,26 @@ async function main() {
   try {
     const { execFileSync } = await import("node:child_process");
     commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: rootDir, encoding: "utf8" }).trim();
+    const dirty = execFileSync("git", ["status", "--porcelain"], { cwd: rootDir, encoding: "utf8" }).trim() !== "";
+    if (dirty) commit += "-dirty";
   } catch { /* provenance is best-effort; report still renders */ }
   const report = renderReport(caseRows, scores, commit);
   await writeFile(resultsPath, report, "utf8");
+  await writeFile(resultsJsonPath, JSON.stringify({
+    generated_with: commit,
+    bench_date: process.env.BENCH_DATE ?? "unset",
+    cases: caseRows.map((row) => {
+      const result = {
+        id: row.id,
+        family: row.family,
+        expected: row.seeded ? "seeded" : "clean",
+        outcome: row.status === "FP" ? "FP-control" : row.status,
+        fp_count: row.fpCount,
+      };
+      if (row.status === "UNEXECUTED") result.error = row.error;
+      return result;
+    }),
+  }, null, 2) + "\n", "utf8");
   process.stdout.write(report);
   if (scores.total.unexecuted > 0) process.exitCode = 1;
 }
