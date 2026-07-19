@@ -1,0 +1,21 @@
+# Optional: `brew install xcodegen && xcodegen` in this directory.
+# A checked-in .xcodeproj is also provided for open-in-Xcode without xcodegen.
+name: RavenMobileGrabSample
+options:
+  bundleIdPrefix: ai.ravenmcp
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  BASE_SDK: iphoneos
+targets:
+  RavenMobileGrabSample:
+    type: application
+    platform: iOS
+    sources:
+      - RavenMobileGrabSample
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: ai.ravenmcp.MobileGrabSample
+      TARGETED_DEVICE_FAMILY: "1"
+      INFOPLIST_KEY_UILaunchScreen_Generation: YES
+      INFOPLIST_KEY_CFBundleDisplayName: Raven Mobile Grab
+      SWIFT_VERSION: "5.0"

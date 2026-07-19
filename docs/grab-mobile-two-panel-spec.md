@@ -1,8 +1,10 @@
 # Spec: Raven Design two-panel Grab for mobile apps
 
-**Status:** draft planning spec (2026-07-19)  
+**Status:** draft planning spec (2026-07-19) · **M0 scaffolding live in `mobile-grab/`**  
 **Owner:** product / grab  
 **Related:** `docs/grab-designmd-spec.md`, `docs/grab-panel-v2-spec.md`, f23 two-panel Structure + Design chrome, existing `audit_ios_*` / `audit_rn` tools
+
+**Code home (collision-safe):** everything for Path A M0 lives under `mobile-grab/` — own server on port **49911**, own shell, own SwiftUI sample. Does not modify `browser/raven-grab.js` or `src/grab-bridge.ts`.
 
 ---
 
@@ -322,10 +324,29 @@ Not in M1. When we do build it: one panel visible at a time, whole viewport, tog
 **Resolved product decisions:**
 1. **M1 = Path A** — agent is the destination, not Xcode. Thin Path C samples OK in M0 only.
 2. **Phone full-viewport panel toggle** — wanted later for mobile-browser use of the Raven shell; **hold off** until after M1 desktop Path A (§6.1 / §9.1).
+3. **First sample app = SwiftUI** (2026-07-19) — not Expo/RN for M0/M1 proof.
 
 **Still open (need Andrew call):**
-1. Is RN (Expo) the first sample app, or SwiftUI?
-2. OK to depend on `idb` / simctl as system prerequisites (like Xcode)?
+1. M0 capture stack preference — see §12.1 (`idb` explained). Default proposal: start with **simctl + Apple AX / AccessibilitySnapshot** (already in Raven’s iOS audit story); treat Facebook `idb` as optional later if the mirror needs a richer driver.
+
+### 12.1 What “idb” is (plain English)
+
+**idb** = *iOS Development Bridge* (open-source, from Meta/Facebook). A CLI/daemon that talks to the iOS Simulator (and devices) so tools can:
+
+- take screenshots / stream the screen  
+- dump the **accessibility tree** (labels, roles, frames)  
+- tap / swipe at coordinates  
+
+It is **not** part of Xcode and **not** something end users install for normal app development. Agent/mirror tools (sim-grab-class stacks) often use it because Apple’s built-in `simctl` is weaker for “click this AX node.”
+
+| Tool | Who makes it | What Raven needs it for |
+|------|----------------|-------------------------|
+| **Xcode + Simulator** | Apple | Build & run the SwiftUI app (already assumed) |
+| **`simctl`** | Apple (`xcrun simctl`) | Boot sim, install/launch, basic screenshot |
+| **AccessibilitySnapshot / XCUITest** | Apple + open libs Raven already references | Structured a11y dumps for audits |
+| **`idb`** | Meta (optional) | Richer remote control + AX for a browser mirror |
+
+**For you:** you do not need to learn or install `idb` to decide Path A. M0 can prove point-select → grab JSON with Simulator + existing Raven iOS capture paths first; only pull in `idb` if mirroring gets stuck without it.
 
 ---
 
@@ -344,4 +365,9 @@ Not in M1. When we do build it: one panel visible at a time, whole viewport, tog
 
 ## 14. Suggested next action
 
-Run **M0 spike** on one Expo app + one SwiftUI app: AX point-select → grab-shaped JSON → paste into a static Raven two-panel HTML shell (no full product yet). Decide Path A vs B priority from that evidence, then implement M1 behind `start_mobile_grab_session`.
+**M0 scaffold is in `mobile-grab/`** — run `node mobile-grab/server.mjs` → http://127.0.0.1:49911 (fixture AX + SVG screen). Optional: `mobile-grab/scripts/run-sample.sh` then **Refresh from Simulator**.
+
+Next toward M1:
+1. Live AX dump from the SwiftUI sample (AccessibilitySnapshot / XCUITest) instead of fixture-only tree
+2. Wire queue drain into MCP `get_grabbed_elements` (or mobile-specific remote-gated tool) without colliding with web grab
+3. Keep phone full-viewport toggle deferred (§6.1)
