@@ -14,7 +14,7 @@ So seat savings are not the paid tier's value proposition. The paid delta is wha
 
 ## 3. Precondition — an anchor must exist before any call
 
-No Morven price anchor exists today (it17 sets none; the handoff's $7.5K is the services pilot, not Morven). **Step 0 of the experiment is Andrew choosing ONE hypothetical flat-per-team test price** (flat-per-team per decision `dec_mrqwwhuh_261z`) that is quoted identically in every conversation — a range would make "accepted price" unmeasurable across calls. Because §2 rules savings out as the value proposition, the anchor is informed by competitor and governance-tool pricing comparables (`morven-competitor-matrix.md`, Feature matrix → Pricing row; e.g. Penpot hosted $7/editor capped at $175/mo — a likely counter-anchor in calls), NOT by the it17 savings model. Without step 0 the WTP question cannot be asked consistently and no result is interpretable.
+**Step 0 RESOLVED (Andrew, 2026-07-19): the test price is $500/mo flat per team ($6K/yr)** — anchored above the Penpot counter-anchor (~$175/mo cap) to test whether the governance/decision-graph delta carries a premium, below typical heavy-procurement thresholds so a level-4 procurement action is reachable; branch B permits one downward revision (fallback $350/mo) if price dominates the objections. The price is hypothetical until a pilot contract exists. Original gate for the record: no Morven price anchor existed (it17 sets none; the handoff's $7.5K is the services pilot, not Morven), so Andrew had to choose ONE flat-per-team test price (flat-per-team per decision `dec_mrqwwhuh_261z`) quoted identically in every conversation — a range would make "accepted price" unmeasurable across calls. Because §2 rules savings out as the value proposition, the anchor is informed by competitor and governance-tool pricing comparables (`morven-competitor-matrix.md`, Feature matrix → Pricing row; e.g. Penpot hosted $7/editor capped at $175/mo — a likely counter-anchor in calls), NOT by the it17 savings model. Without step 0 the WTP question cannot be asked consistently and no result is interpretable.
 
 ## 4. Hypothesis (D4D)
 
@@ -39,8 +39,8 @@ The 20-prospect list was qualified for agent-written-UI enforcement (the service
 Rev 1 proposed riding the services Phase B calls; the adverse pass correctly killed that (one call, two priced concepts → unattributable responses, contaminating the services probe's single $7.5K anchor). Instead:
 
 - **Test:** a **separate Morven track**: up to 10 conversations, each a **separate call** scheduled only after that prospect's services-track conversation has fully concluded — never an agenda block inside a services call, so the services probe's single $7.5K anchor is never co-presented with a second priced concept. Uses a one-paragraph hosted-graph + governance description and the step-0 price. Own one-page scorecard per call: commitment level (kit's ladder), stakeholders present, "what would you be paying for," pricing-structure reaction, dominant objection category.
-- **Owner:** Andrew runs calls. Scorecard-synthesis ownership is **unassigned** until Andrew names one owner (this loop or the raven-studio loop) — that assignment is a start-gate alongside outreach approval, and this loop does not self-assign it.
-- **Start:** after Andrew's outreach approval AND step 0 (price set) AND synthesis owner named. Adds no new gate to the services motion.
+- **Owner:** Andrew runs calls. **Scorecard-synthesis owner: the raven-studio loop (assigned by Andrew, 2026-07-19)** — it owns the discovery motion and sits next to the data source; the Morven loop consumes the synthesized read as a build-decision input.
+- **Start:** after Andrew's outreach approval — the only remaining gate (step-0 price and synthesis owner resolved 2026-07-19). Adds no new gate to the services motion.
 - **Cost:** ~15 min per conversation; zero build.
 
 ## 8. Outcome classification and decision rule
