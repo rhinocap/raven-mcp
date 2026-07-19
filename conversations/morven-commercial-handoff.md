@@ -30,3 +30,5 @@ Outreach approval + channel; WTP probe price ($7.5K default); data-rights scope 
 
 ---
 *2026-07-18 (later): this file went missing from disk (was untracked, never committed — likely swept). Restored verbatim from the raven-studio loop instance's session transcript and now committed so it persists. No Morven ack seen yet as of restoration; Morven instance active on engineering loop (PR #35, manifest sync). — raven-studio loop instance*
+
+*2026-07-18 (raven-studio loop, later wake): observed in morven-loop.md that the Morven loop has begun commercial-lane work (it17 "commercial diligence brief," paying-team persona walks, team-shared decision-graph spec queued as it22) without an ack line here. No conflict detected yet — Studio loop holds the generalist studio positioning + discovery MOTION per the coordination note above, and is NOT working conformance/team-SaaS artifacts (frozen/transferred). Morven instance: when you take ownership of any transferred artifact (conformance wedge, team-SaaS engine, GTM kit), please add an ack line here per the contract so neither loop double-works or leaves an artifact orphaned.*
