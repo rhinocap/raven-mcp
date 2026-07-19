@@ -25,6 +25,7 @@ export interface DesignReviewResult {
   verdict: "pass" | "warn" | "fail";
   findings: DesignReviewFinding[];
   applicable_decisions: Array<{ id: string; statement: string; scope: string }>;
+  severity_policy?: { fail_on: string[] };
   checks_skipped?: Array<"color-tokens" | "spacing-tokens" | "typography-tokens">;
   note?: string;
   stats: {
@@ -133,6 +134,7 @@ interface VirtualPostImageLine {
 }
 
 var UI_EXTENSIONS = new Set(["css", "scss", "tsx", "jsx", "ts", "js", "html", "vue", "svelte", "swift", "kt"]);
+export const FAIL_ON_RULES = ["important", "bare-hex-color", "hardcoded-font-size", "hardcoded-font-family", "hardcoded-spacing"] as const;
 var DECISION_STOP_WORDS = new Set([
   "and", "are", "card", "for", "from", "into", "keep", "must", "not", "only", "our", "the", "this", "use", "with",
 ]);
@@ -203,8 +205,8 @@ export function parseUnifiedDiff(diff: string): ParsedDiffFile[] {
   return files;
 }
 
-export function reviewDiff(diff: string, designMd: string | null, decisions: DecisionNode[], project?: string): DesignReviewResult {
-  return performReview(diff, designMd, decisions, project, false).result;
+export function reviewDiff(diff: string, designMd: string | null, decisions: DecisionNode[], project?: string, failOn?: string[]): DesignReviewResult {
+  return performReview(diff, designMd, decisions, project, false, failOn).result;
 }
 
 export function proposePolish(diff: string, designMd: string | null, decisions: DecisionNode[], project?: string): PolishResult {
@@ -291,7 +293,7 @@ export function proposePolish(diff: string, designMd: string | null, decisions: 
   return result;
 }
 
-function performReview(diff: string, designMd: string | null, decisions: DecisionNode[], project: string | undefined, collectAutoFixes: boolean): ReviewContext {
+function performReview(diff: string, designMd: string | null, decisions: DecisionNode[], project: string | undefined, collectAutoFixes: boolean, failOn?: string[]): ReviewContext {
   if (diff.trim().length === 0) throw new Error("empty diff");
   var postImages = reconstructFinalPostImages(diff);
   if (postImages.length === 0) throw new Error("not a unified diff");
@@ -303,6 +305,15 @@ function performReview(diff: string, designMd: string | null, decisions: Decisio
   var findings: DesignReviewFinding[] = [];
   var autoFixes: AutoFixCandidate[] = [];
   reviewFiles(uiFiles, vocabulary, findings, collectAutoFixes ? autoFixes : undefined);
+
+  var appliedFailOn = Array.from(new Set(failOn || [])).sort();
+  if (appliedFailOn.length > 0) {
+    var failOnSet = new Set(appliedFailOn);
+    for (var findingIndex = 0; findingIndex < findings.length; findingIndex++) {
+      var finding = findings[findingIndex];
+      if (isViolationFinding(finding) && failOnSet.has(finding.rule)) finding.severity = "error";
+    }
+  }
 
   var violations = findings.filter(isViolationFinding);
   var verdict: DesignReviewResult["verdict"] = violations.some(function(finding) {
@@ -321,13 +332,16 @@ function performReview(diff: string, designMd: string | null, decisions: Decisio
       added_lines_checked: uiFiles.reduce(function(total, file) { return total + file.addedLines.length; }, 0),
     },
   };
+  if (appliedFailOn.length > 0) result.severity_policy = { fail_on: appliedFailOn };
   var checksSkipped: DesignReviewResult["checks_skipped"] = [];
   if (vocabulary.colors.length === 0) checksSkipped.push("color-tokens");
   if (vocabulary.spacing.length === 0) checksSkipped.push("spacing-tokens");
   if (vocabulary.fontSizes.length === 0 && vocabulary.fontFamilies.length === 0) checksSkipped.push("typography-tokens");
   if (checksSkipped.length > 0) {
     result.checks_skipped = checksSkipped;
-    result.note = "token checks skipped: no DESIGN.md tokens found — pass reflects only universal rules";
+    result.note = appliedFailOn.length > 0
+      ? "token checks skipped: no DESIGN.md tokens found — verdict reflects only universal rules"
+      : "token checks skipped: no DESIGN.md tokens found — pass reflects only universal rules";
   }
   return { files: files, uiFiles: uiFiles, postImages: postImages, vocabulary: vocabulary, result: result, autoFixes: autoFixes };
 }

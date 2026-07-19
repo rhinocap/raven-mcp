@@ -437,6 +437,123 @@ async function callDesignReviewTool(name, args) {
   }
 }
 
+test('review_diff escalates selected violations and echoes a normalized severity policy', () => {
+  const result = reviewDiff(diffFor('src/card.css', [
+    '.card { color: #121212; }',
+  ]), DESIGN_MD, [], undefined, ['bare-hex-color']);
+
+  assert.equal(result.verdict, 'fail');
+  assert.equal(result.findings[0].severity, 'error');
+  assert.deepEqual(result.severity_policy, { fail_on: ['bare-hex-color'] });
+});
+
+test('review_diff leaves the verdict unchanged when fail_on selects an unviolated rule', () => {
+  const result = reviewDiff(diffFor('src/card.css', [
+    '.card { color: #121212; }',
+  ]), DESIGN_MD, [], undefined, ['important']);
+
+  assert.equal(result.verdict, 'warn');
+  assert.equal(result.findings.some((finding) => finding.severity === 'error'), false);
+  assert.deepEqual(result.severity_policy, { fail_on: ['important'] });
+});
+
+test('review_diff without fail_on preserves the prior result shape and advisory severities', () => {
+  const result = reviewDiff(diffFor('src/card.css', [
+    '.card { color: #121212; }',
+  ]), DESIGN_MD, []);
+
+  assert.deepEqual(result, {
+    verdict: 'warn',
+    findings: [{
+      file: 'src/card.css',
+      line: 1,
+      severity: 'warn',
+      rule: 'bare-hex-color',
+      message: 'Hardcoded color #121212 bypasses the project color tokens.',
+      suggestion: 'Use colors.ink (#111111).',
+    }],
+    applicable_decisions: [],
+    stats: { files_changed: 1, ui_files: 1, added_lines_checked: 1 },
+  });
+  assert.equal('severity_policy' in result, false);
+  assert.equal(result.findings.some((finding) => finding.severity === 'error'), false);
+});
+
+test('review_diff tool rejects unknown fail_on rules and names the valid list', async () => {
+  const call = await callReviewDiff({
+    diff: diffFor('src/card.css', ['.card { color: #121212; }']),
+    design_md: DESIGN_MD,
+    fail_on: ['not-a-rule'],
+  });
+
+  assert.equal(call.isError, true);
+  assert.match(call.content[0].text, /not-a-rule/);
+  assert.match(call.content[0].text, /important.*bare-hex-color.*hardcoded-font-size.*hardcoded-font-family.*hardcoded-spacing/);
+});
+
+test('review_diff tool rejects token-value-match as a non-escalatable info rule', async () => {
+  const call = await callReviewDiff({
+    diff: diffFor('src/card.css', ['.card { color: #111111; }']),
+    design_md: DESIGN_MD,
+    fail_on: ['token-value-match'],
+  });
+
+  assert.equal(call.isError, true);
+  assert.match(call.content[0].text, /token-value-match/);
+  assert.match(call.content[0].text, /important.*bare-hex-color.*hardcoded-font-size.*hardcoded-font-family.*hardcoded-spacing/);
+});
+
+test('review_diff sorts and deduplicates the applied fail_on policy', () => {
+  const result = reviewDiff(diffFor('src/card.css', [
+    '.card { color: #121212 !important; }',
+  ]), DESIGN_MD, [], undefined, ['important', 'important', 'bare-hex-color']);
+
+  assert.equal(result.verdict, 'fail');
+  assert.deepEqual(result.severity_policy, { fail_on: ['bare-hex-color', 'important'] });
+  assert.deepEqual(result.findings.map((finding) => finding.severity), ['error', 'error']);
+});
+
+test('review_diff tool applies a valid fail_on policy end-to-end', async () => {
+  const call = await callReviewDiff({
+    diff: diffFor('src/card.css', ['.card { color: red !important; }']),
+    design_md: DESIGN_MD,
+    fail_on: ['important'],
+  });
+
+  assert.notEqual(call.isError, true);
+  const result = JSON.parse(call.content[0].text);
+  assert.equal(result.verdict, 'fail');
+  assert.deepEqual(result.severity_policy, { fail_on: ['important'] });
+});
+
+test('review_diff tool treats fail_on: [] identically to absent on the wire', async () => {
+  const args = { diff: diffFor('src/card.css', ['.card { color: red !important; }']), design_md: DESIGN_MD };
+  const absent = await callReviewDiff(args);
+  const empty = await callReviewDiff({ ...args, fail_on: [] });
+
+  assert.equal(empty.content[0].text, absent.content[0].text);
+  assert.equal(JSON.parse(absent.content[0].text).severity_policy, undefined);
+});
+
+test('review_diff escalates hardcoded-spacing from info to error', () => {
+  const result = reviewDiff(diffFor('src/card.css', [
+    '.card { padding: 13px; }',
+  ]), DESIGN_MD, [], undefined, ['hardcoded-spacing']);
+
+  const spacing = result.findings.find((finding) => finding.rule === 'hardcoded-spacing');
+  assert.equal(spacing.severity, 'error');
+  assert.equal(result.verdict, 'fail');
+});
+
+test('review_diff note names verdict, not pass, when a fail_on policy is active without tokens', () => {
+  const result = reviewDiff(diffFor('src/card.css', [
+    '.card { color: red !important; }',
+  ]), null, [], undefined, ['important']);
+
+  assert.equal(result.verdict, 'fail');
+  assert.match(result.note, /verdict reflects only universal rules/);
+});
+
 function createPolishRepo(content) {
   const repo = mkdtempSync(path.join(tmpdir(), 'raven-polish-apply-'));
   execSync('git init -q', { cwd: repo });

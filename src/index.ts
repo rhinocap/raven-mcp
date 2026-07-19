@@ -43,7 +43,7 @@ import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
 import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet } from "./designmd.js";
 import { startGrabSession, getGrabbedElements, stopGrabSession } from "./grab-bridge.js";
 import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
-import { proposePolish, reviewDiff } from "./design-review.js";
+import { FAIL_ON_RULES, proposePolish, reviewDiff } from "./design-review.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -2731,11 +2731,18 @@ server.tool(
     diff: z.string().max(409600).describe("Unified diff to review (maximum 400KB)."),
     project: z.string().optional().describe("Project directory used to resolve DESIGN.md and match decision scopes. Omit when design_md is supplied and no project hint is needed."),
     design_md: z.string().optional().describe("Inline DESIGN.md content. Overrides project file lookup when supplied."),
+    fail_on: z.array(z.string()).optional().describe("Rule names to escalate to a failing CI verdict. Valid values: important, bare-hex-color, hardcoded-font-size, hardcoded-font-family, hardcoded-spacing. Default: advisory-only (verdict caps at warn)."),
   },
-  async function ({ diff, project, design_md }) {
+  async function ({ diff, project, design_md, fail_on }) {
     try {
       if (Buffer.byteLength(diff, "utf8") > 400 * 1024) {
         return { content: [{ type: "text" as const, text: "diff exceeds maximum size of 400KB (409600 bytes)" }], isError: true };
+      }
+      var invalidFailOn = fail_on && fail_on.find(function(rule) {
+        return (FAIL_ON_RULES as readonly string[]).indexOf(rule) === -1;
+      });
+      if (invalidFailOn !== undefined) {
+        return { content: [{ type: "text" as const, text: "invalid fail_on rule \"" + invalidFailOn + "\"; valid rules: " + FAIL_ON_RULES.join(", ") }], isError: true };
       }
       var designContent: string | null = design_md === undefined ? null : design_md;
       if (design_md === undefined && project !== undefined) {
@@ -2746,7 +2753,7 @@ server.tool(
         }
       }
       var decisions = await decisionGraphStore.listActiveDecisions();
-      var result = reviewDiff(diff, designContent, decisions, project);
+      var result = reviewDiff(diff, designContent, decisions, project, fail_on);
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     } catch (err) {
       return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };

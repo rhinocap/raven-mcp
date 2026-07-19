@@ -168,6 +168,14 @@ For transcripts: call `ingest_transcript` → run its extraction prompt → pass
 
 Evidence nodes and `supports` / `contradicts` edges capture quantitative and qualitative results linked to decisions.
 
+### `review_diff` severity policy
+`fail_on` escalates matching violation rules to `error`, producing a failing CI verdict.
+Valid rules: `important`, `bare-hex-color`, `hardcoded-font-size`, `hardcoded-font-family`, `hardcoded-spacing`.
+Start with `important`; add token rules once DESIGN.md tokens are mature.
+Escalation is diff-scoped: only newly added lines can fail — existing violations don't block until a diff touches them. Note that `important` findings can include intentional uses (email-client compatibility, responsive overrides), so expect to justify or restructure those hunks when the policy is on; token rules only fire when DESIGN.md defines tokens (`checks_skipped` tells you when they didn't run).
+`review_diff` is local-stdio only (not exposed on the hosted remote endpoints), so wire the policy into CI via `npx raven-mcp`.
+Omitting `fail_on` keeps the existing advisory behavior unchanged (verdict capped at `warn`).
+
 ## Click-to-change (grab) + DESIGN.md
 
 **Grab is local-stdio only.** Hosted Cursor/Claude remote endpoints do not expose Grab — click-to-change needs a loopback bridge on your machine. Use local `npx` / Cursor local `mcp.json` when you need Grab.
