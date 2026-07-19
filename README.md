@@ -174,6 +174,12 @@ Archive your Figma comment history to durable JSON/Markdown before you lose acce
 `FIGMA_TOKEN=<pat> node scripts/figma-comments-archive.mjs --md <fileKey>`
 The PAT needs `file_comments:read`. Add `--resolve-nodes` for best-effort node names; it also needs `file_content:read`, and archival still succeeds if resolution is unavailable.
 
+Without credentials: in Figma, first show resolved comments and clear any comment filters (hidden threads won't be in what you copy — and they're unrecoverable after cancellation). Figma has no bulk "copy all comments", so select and copy the thread text from the comments panel, then run (macOS):
+`pbpaste | node scripts/figma-comments-archive.mjs --paste design-review`
+(the last word is your archive label — any name without spaces; add `--out somedir` to choose the folder). Or run the command bare and paste into the terminal, ending with Ctrl-D.
+Separate threads with a blank line; within a thread, an author line followed by a timestamp line ("2 days ago", "Yesterday", "Mar 4, 2026") starts each comment.
+Paste mode writes `<label>.txt` (your paste, byte-verbatim — the durable record) and always renders the readable `<label>.md` archive. Skim the `.md` against your paste: message lines that themselves look like a timestamp, or blank lines inside one comment, can shift how the `.md` groups things — the `.txt` is always exact. An existing label is never overwritten; pass `--force` to replace it.
+
 ## Click-to-change (grab) + DESIGN.md
 
 **Grab is local-stdio only.** Hosted Cursor/Claude remote endpoints do not expose Grab — click-to-change needs a loopback bridge on your machine. Use local `npx` / Cursor local `mcp.json` when you need Grab.
