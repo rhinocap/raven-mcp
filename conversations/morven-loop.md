@@ -293,3 +293,13 @@ it18: .mcpb manifest drift 51→93 fixed generatively (PR #35, sync-manifest-too
 **Verify:** full suite 778/0/1 vs clean-main 768/0/1 (+10 tests); default-path byte-identity asserted at the wire.
 **Matrix cell:** none moves (it30 ruling — merge-gated). On merge, engineer-persona "fail unreachable in severity model" hole closes.
 **Next candidate:** it30 top-10 #4 — external-grading packet (vanilla-LLM baseline run + preserved raw output + per-case evidence, handed to Andrew ready-to-grade). it32.
+
+## Iteration 32 — 2026-07-19 — external-grading packet: vanilla gpt-5.6-sol baseline, ready-to-grade (PR #41)
+**Picked:** it30 top-10 #4 — convert the it29 harness from infrastructure into comparative evidence. The cheapest remaining distance to a real W2 credibility artifact that doesn't need Andrew's Figma seat.
+**Shipped (PR #41, branch external-packet @ cb81fc4, stacked on #39, off release path):** vanilla gpt-5.6-sol (medium) run over all 27 corpus cases (24 HTML at 390x844 + 3 taste content-port pairs) with zero Raven context — raw output preserved verbatim per case; RUN-MANIFEST.md with exact command, verbatim prompt templates, and sha256 of every output; prefilled gpt-5.6-sol-vanilla.json with detected:null on all 27; PACKET.md grading procedure. Lives in bench/external/pending/ — compare.mjs's non-recursive scan ignores it until Andrew grades and moves it up, so the no-automatic-matching rule holds structurally, not just by convention.
+**Honest observation for the grader (not a grade):** the vanilla baseline reads strong on source-declared defects (it computes contrast ratios from CSS and quotes WCAG). The corpus is source-readable by construction; Raven's differential claim is rendered-surface measurement, boundary precision, taste bindings, and repeatability — PACKET.md discloses this as the product-level framing.
+**Adverse:** Sol pass → 3 findings (P1 unauditable provenance → RUN-MANIFEST added; P2 baseline-asymmetry framing → "What this measures" section; P2 case-level-boolean asymmetry unwarned → grading note). All folded. Split: Sol-only 3/3.
+**Verify:** 27/27 outputs non-empty; packet JSON valid; compare.mjs exit 0 with packet in place (Raven-only table unchanged).
+**Matrix cell:** none moves (merge-gated + human-grade-gated). On Andrew's grade, matrix gap #3 gets its first real two-column table.
+**Andrew's queue:** grade PACKET.md (~20 min) · PRs #35–#41 · release cut · decision-graph go/no-go · comments PAT · video nod.
+**Next candidate (it33):** it30 top-10 #5 residual — restore the zero-credential comments paste path (Phase A ships a PAT-only clone script; the paste path needs no credentials at all), OR in-product comment-history parity spike. Re-score at pick time.
