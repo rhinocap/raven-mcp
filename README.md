@@ -168,6 +168,12 @@ For transcripts: call `ingest_transcript` → run its extraction prompt → pass
 
 Evidence nodes and `supports` / `contradicts` edges capture quantitative and qualitative results linked to decisions.
 
+## Archive Figma comments
+
+Archive your Figma comment history to durable JSON/Markdown before you lose access:
+`FIGMA_TOKEN=<pat> node scripts/figma-comments-archive.mjs --md <fileKey>`
+The PAT needs `file_comments:read`. Add `--resolve-nodes` for best-effort node names; it also needs `file_content:read`, and archival still succeeds if resolution is unavailable.
+
 ## Click-to-change (grab) + DESIGN.md
 
 **Grab is local-stdio only.** Hosted Cursor/Claude remote endpoints do not expose Grab — click-to-change needs a loopback bridge on your machine. Use local `npx` / Cursor local `mcp.json` when you need Grab.
