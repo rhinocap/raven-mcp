@@ -82,3 +82,25 @@ After #40 and #43 land (both touch `src/index.ts` tool registration): re-run `sy
 ## Next
 
 it42: build + smoke #37–#43 from source in the recommended cumulative order (the second half of the de-risk program) — surface any real bug and per-PR build evidence on the combined tip. it45 is the next zoom-out.
+
+---
+
+# it42 addendum — combined-tip build+test proof
+
+*2026-07-19. The it41 packet cleared conflicts but build-verified only #35+#36. This closes that gap: the **full 2.0 set built and tested on one combined tip.***
+
+**What ran:** throwaway worktree at `origin/main` (8274331), merged the minimal-containing set `#35→#36→#41(+#39)→#42(+#38)→#43→#37→#40` in the recommended order. Six merges clean; **#40's README.md conflict resolved by `git merge-file --union`** (keep both blocks) — exactly the one conflict it41 predicted, and it is auto-resolvable.
+
+**Result on the combined tip (`18dd96c`):**
+- **All 9 PR branch tips reachable** from the tip (`is-ancestor` true for every one) — and the 9 open PRs #35–#43 map exactly to these branches (verified against `gh pr list` head refs). All merges except #40's README were clean (no resolution that could revert content), so every PR's code is present unmodified.
+- **`tsc` build clean** (RC 0).
+- **Canonical `npm test` (`node --test "test/**/*.test.mjs"`, the repo's own script): `tests 821 / pass 820 / fail 0 / skipped 1`, exit 0.** Baseline main is 768/1-skip → +52 passing tests from the PRs, **skip count unchanged at 1** (no net skip regression).
+- **93 tools**, `sync-manifest-tools.mjs` idempotent (manifest clean after re-run).
+- **Merged README coherent:** 0 conflict markers; the unioned region reads as clean distinct blocks (Figma-comments-archive, `review_diff` severity policy, `raven-polish` loop, upgrade notes) — no interleaving or duplication (eyeballed).
+- **Dependency env valid:** the only `package.json` change across all PRs is #36 adding `scripts/sync-codex-approvals.mjs` to the `files` array — **no dependency delta** — so the dev `node_modules` is representative (nothing to `npm ci`).
+
+**Honest scope (what this is / isn't):** this proves the combined tip **builds and passes the canonical suite in a dev environment**. It is **integration-health evidence, not release certification** — it is not a clean-room `npm ci` install, not a multi-platform run, not a packaging/publish check, and the single skip's identity was not isolated (only its count, held at baseline, is shown). Those belong to the actual release run, which is Andrew's.
+
+**Net for Andrew:** the 2.0 set is now conflict-cleared **and** build+test-green on the combined tip. Merge order stands; expect the one auto-unionable README conflict; then `npm test` should read 821/820/0/1 on the integrated branch before you cut the release.
+
+**Adverse:** Sol (constrained, minimal CODEX_HOME, report-only, ~10k tokens) → **VERDICT: FLAWED**, 9 findings. The substantive ones (combined tip ≠ all-9 without a reachability/head-map check; symlinked deps vs #36's package.json; union-merge coherence; glob completeness) were **resolved by running the checks** above — all-9 is-ancestor, PR-head mapping, #36 package.json diff, canonical `npm test`, README eyeball. The rest (release-readiness over-claim, skip-identity, aggregate-count limits) were **scoped down** in the "Honest scope" paragraph rather than asserted. No Fable (Andrew on usage credits).
