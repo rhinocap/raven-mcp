@@ -13,6 +13,7 @@
     "browser/",
     "src/data/",
     "scripts/postinstall.cjs",
+    "scripts/sync-codex-approvals.mjs",
     "scripts/ios-audit.mjs",
     "scripts/rn-audit.mjs",
     "scripts/AccessibilitySnapshot.swift",

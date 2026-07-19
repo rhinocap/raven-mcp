@@ -291,6 +291,16 @@ Raven ships new principles, patterns, and brand systems regularly. For one email
 
 No marketing, unsubscribe anytime. Powered by Resend.
 
+### After you upgrade
+
+Claude Code snapshots the tool list when the MCP server connects. After upgrading, restart the session or use `/mcp` to reconnect and see new tools.
+
+Claude Desktop snapshots the tool list when the MCP server connects. After upgrading, restart the app to see new tools.
+
+Codex CLI also requires a per-tool `approval_mode` entry in `~/.codex/config.toml`; without it, calls to new tools are cancelled. Run `node scripts/sync-codex-approvals.mjs` to see what is missing, then add `--write` to append the entries.
+
+The appended entries auto-approve those tools, so review the printed list; newer Codex versions can alternatively set a server-level `default_tools_approval_mode`.
+
 ## Start every project calibrated
 
 Taste is per-surface: the same designer wants monochrome one-accent rules enforced on their portfolio and *none* of them on a product site, with a slightly different voice on each. The Taste Engine handles this with a **kickoff interview** (once per project — every question skippable, most with plain-language multiple-choice options, from navigation pattern to aesthetic family to specialty libraries) whose answers persist as a surface binding that every future audit applies automatically. And when generated work misses, `mode:'refine'` turns that dissatisfaction into a re-interview against the stored binding instead of a dead end.

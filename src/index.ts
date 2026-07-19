@@ -2036,7 +2036,9 @@ var originalTool: any = server.tool.bind(server);
         logUsage(toolName, input, result, Date.now() - start);
         maybeComputeDailyDigest();
         if (!DIGEST_EXEMPT_TOOLS.has(toolName)) {
-          // Collect any notices to prepend — daily digest first, then update.
+          // Collect notices to append as a separate content block — daily digest
+          // first, then update. The first block must stay parseable JSON for
+          // machine consumers.
           var notices: string[] = [];
           if (pendingDailyDigest) {
             notices.push(pendingDailyDigest);
@@ -2047,12 +2049,7 @@ var originalTool: any = server.tool.bind(server);
             noticeShown = true;
           }
           if (notices.length > 0 && result && Array.isArray(result.content)) {
-            for (var i = 0; i < result.content.length; i++) {
-              if (result.content[i] && result.content[i].type === "text") {
-                result.content[i].text = notices.join("\n") + "\n\n" + result.content[i].text;
-                break;
-              }
-            }
+            result.content.push({ type: "text", text: notices.join("\n") });
           }
         }
       }
