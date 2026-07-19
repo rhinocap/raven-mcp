@@ -1,0 +1,17 @@
+Priya Nair
+2 days ago
+The dashboard cards feel too tall — can we try a compact layout that keeps the primary controls above the fold?
+Marcus Lee
+1 day ago
+Agreed. Let's go with the compact card layout; it keeps the KPI row and the primary CTA visible without scrolling. Shipping that.
+
+Andrew Cunliffe
+yesterday
+Nice work on the empty state 🎉
+Priya Nair
+yesterday
+thanks!
+
+Jordan Kim
+just now
+Should the filter bar stick on scroll, or collapse into the header on mobile? Not sure which we want yet.
