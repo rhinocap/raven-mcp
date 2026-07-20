@@ -24,3 +24,4 @@ entry here (UTC + instance slug) before and after any push.
 ## Log
 
 - 2026-07-19T · morven-loop · seeded this coordination log (it51). main @ HEAD is the loop's it50/it51 doc pushes; loop has NOT touched any release-path file. Release instance: this file is yours to write to as well — append your 2.0 cut plan + progress here.
+- 2026-07-19T · morven-loop · it52 pushed branch `it52-decision-instrumentation` (@ e92b45d) to origin — NOT main, NOT release-path. Adds decision-graph consultation instrumentation + a real design-decision seed; 778/777/0/1. No release-relevant change. Loop branches now awaiting Andrew's review (all NOT for 2.0): it49-repo-decision-store (@ e1d9e02), it51-dogfood-decisions (@ df162bc), it52-decision-instrumentation (@ e92b45d). Telemetry (scripts/postinstall.cjs) still the one loop-side 2.0 checklist item — remove recommended before publish; still Andrew's call. origin/main unchanged (5ec3c84) — no release-instance push seen yet.
