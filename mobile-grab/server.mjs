@@ -48,11 +48,17 @@ function findHitAncestors(tree, targetId, trail) {
   return null;
 }
 
-function mime(path) {
-  switch (extname(path)) {
+function mime(pathOrExt) {
+  // path.extname(".html") is "" — treat bare extensions too
+  var ext = pathOrExt.indexOf("/") >= 0 || pathOrExt.indexOf("\\") >= 0
+    ? extname(pathOrExt).toLowerCase()
+    : (pathOrExt.charAt(0) === "." ? pathOrExt.toLowerCase() : extname(pathOrExt).toLowerCase());
+  if (!ext && pathOrExt.charAt(0) === ".") ext = pathOrExt.toLowerCase();
+  switch (ext) {
     case ".html": return "text/html; charset=utf-8";
     case ".css": return "text/css; charset=utf-8";
     case ".js": return "text/javascript; charset=utf-8";
+    case ".mjs": return "text/javascript; charset=utf-8";
     case ".json": return "application/json; charset=utf-8";
     case ".svg": return "image/svg+xml";
     case ".png": return "image/png";
@@ -138,11 +144,14 @@ var server = createServer(async function (req, res) {
   var path = url.pathname;
 
   try {
-    if (req.method === "GET" && (path === "/" || path === "/index.html")) {
-      return send(res, 200, readFileSync(join(SHELL, "index.html")), mime(".html"));
+    // Browsers may probe with HEAD — answer same as GET for the shell.
+    if ((req.method === "GET" || req.method === "HEAD") && (path === "/" || path === "/index.html")) {
+      var html = readFileSync(join(SHELL, "index.html"));
+      return send(res, 200, req.method === "HEAD" ? Buffer.alloc(0) : html, "text/html; charset=utf-8");
     }
-    if (req.method === "GET" && (path === "/shell.css" || path === "/shell.js")) {
-      return send(res, 200, readFileSync(join(SHELL, path.slice(1))), mime(path));
+    if ((req.method === "GET" || req.method === "HEAD") && (path === "/shell.css" || path === "/shell.js")) {
+      var asset = readFileSync(join(SHELL, path.slice(1)));
+      return send(res, 200, req.method === "HEAD" ? Buffer.alloc(0) : asset, mime(path));
     }
     if (req.method === "GET" && path === "/api/session") {
       return sendJson(res, 200, sessionPayload());
