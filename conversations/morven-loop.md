@@ -832,3 +832,116 @@ Everything else is blocked, not ordered:
 **Standing value of this iteration:** items 2 and 3 of the it75 program are now done, and item 4's mechanics are confirmed by execution. The queue's real shape is: one packaging group ready for Andrew (#35/#36/#37), one ungraded packet (#41), two product-blocked branches (#42/#43), one design decision (#40), and two contained branches (#38/#39). The loop found a second live distribution defect — a shipped-but-unpublished CLI — of the same class as the manifest bug, which is the strongest argument yet that the distribution axis is where already-written code is closest to reaching users.
 
 **Next (it78):** item 4 — write up the `fail_on` (#40) / `fail_on_governed` collision as a one-read decision for Andrew: both call sites, both schemas, the options-bag vs supersede shapes, and what each costs `review_diff` byte-identity for existing callers. Mechanics only; the decision stays Andrew's. it80 is the next zoom-out.
+
+---
+
+## it78 — merge-readiness item 4: the `fail_on` / `fail_on_governed` collision, as a decision memo
+
+**Hold-check:** `origin/main` @ `a64ddd7` (loop's own it77 doc push, no new Andrew commit) · npm `raven-mcp` `1.17.1` · coord tail unchanged · no gate event, no new instruction. Governance build stays gated.
+
+**Scope:** MECHANICS ONLY. No shape picked, nothing implemented, no PR branch pushed. This exists so Andrew's decision is one read instead of one investigation.
+
+### (a) Both call sites
+
+**`src/design-review.ts`**
+```ts
+// main (a64ddd7)
+export function reviewDiff(diff, designMd, decisions, project?, failOnGoverned?: boolean): DesignReviewResult
+severity_policy?: { fail_on_governed?: boolean };
+
+// #40 (2cee698)
+export function reviewDiff(diff, designMd, decisions, project?, failOn?: string[]): DesignReviewResult
+severity_policy?: { fail_on: string[] };
+```
+
+**`src/index.ts` — the `review_diff` schema**
+```ts
+// main
+fail_on_governed: z.boolean().optional().describe("When true, findings a recorded decision governs become fail-eligible …")
+// #40
+fail_on: z.array(z.string()).optional().describe("Rule names to escalate to a failing CI verdict. Valid values: important, bare-hex-color, hardcoded-font-size, hardcoded-font-family, hardcoded-spacing …")
+```
+
+Replaying #40 onto main conflicts in exactly two files — four hunks in `design-review.ts`, three in `index.ts`. **`test/design-review.test.mjs` (+117) and `README.md` (+8) auto-merge cleanly**; only the two src files need a human. One hunk is incidental: #40's import line predates main's `recordConsultation`, so the resolution is main's import list plus `FAIL_ON_RULES`.
+
+### (b) What each mechanism does — different predicates
+
+**main — `fail_on_governed: boolean`**, escalating on *decision association*:
+```ts
+if (failOnGoverned) { for (…) if (violations[vi].governed_by) violations[vi].severity = "error"; }
+```
+**#40 — `fail_on: string[]`**, escalating on *rule identity*, over five rules (`important`, `bare-hex-color`, `hardcoded-font-size`, `hardcoded-font-family`, `hardcoded-spacing`):
+```ts
+var appliedFailOn = Array.from(new Set(failOn || [])).sort();
+if (appliedFailOn.length > 0) { … if (isViolationFinding(finding) && failOnSet.has(finding.rule)) finding.severity = "error"; }
+```
+
+Measured, on a diff carrying a bare hex + hardcoded spacing + hardcoded font-size:
+
+| | zero decisions | one governing decision |
+|---|---|---|
+| main `fail_on_governed=true` | verdict **warn** (no-op) | verdict **fail**, governed_findings=1 |
+| #40 `fail_on=['bare-hex-color']` | verdict **fail** | not measured — #40's tip predates the decision graph |
+
+The two predicates differ, but they are not cleanly separable: they overlap on findings, and they compete at the API and policy level (one schema, one 5th positional param). **The combining semantics are UNSPECIFIED and are part of what Andrew is deciding** — OR vs AND, precedence when both fire, and how `severity_policy` serialises. On that last point, concretely: both sides write it by plain assignment —
+
+```ts
+main: if (failOnGoverned)          result.severity_policy = { fail_on_governed: true };
+#40:  if (appliedFailOn.length > 0) result.severity_policy = { fail_on: appliedFailOn };
+```
+
+— so a naive options bag that keeps both writes would have the second **clobber** the first, silently dropping one policy echo. Any coexist shape has to merge that object explicitly.
+
+Note also that main's mechanism cannot reach `fail` without a populated decision graph. The local `.raven` graph has 0 decisions (it65) and npm is still 1.17.1 (pre-merge), so reachable use is likely thin — but that is an inference about adoption, not a verified claim that no source-built consumer uses it.
+
+### (b2) Defect found in #40 while measuring — unknown rule names silently accepted
+
+```
+fail_on=['not-a-real-rule']  →  verdict=warn,  severity_policy={"fail_on":["not-a-real-rule"]}
+```
+
+The schema is `z.array(z.string())`; valid values live only in `.describe()` prose. A typo (`bare-hex` for `bare-hex-color`) yields a gate that **echoes back as configured and never fails** — the worst failure mode for a CI blocker. `z.array(z.enum(FAIL_ON_RULES))` would close it. Scope: this only matters in shapes that keep `fail_on`; it disappears if #40 is closed.
+
+### (c) The three shapes and their cost to `review_diff` byte-identity
+
+**Measured first, at both boundaries, on main:**
+- library `reviewDiff`: omitted / `undefined` / `false` → **byte-identical** (456 bytes); `true` → 500
+- MCP tool `review_diff` over stdio: omitted / `false` → **byte-identical** (434 bytes); `true` → 498
+- #40's side: omitted / `undefined` / `[]` → byte-identical; a non-empty list differs
+
+So **both mechanisms are strictly opt-in and byte-inert when not passed.**
+
+Caller classes: **(1)** MCP clients calling `review_diff` without the param; **(2)** MCP clients already passing `fail_on_governed`; **(3)** in-repo library callers of `reviewDiff()`; **(4)** `polish_diff`, which calls `performReview` with no escalation argument.
+
+**The table below is EXPECTED, not measured** — no shape was built, so none of these cells was observed:
+
+| Shape | Diff size | Class 1 | Class 2 | Class 3 | Class 4 |
+|---|---|---|---|---|---|
+| **Options bag** (both coexist; 5th positional → `{ failOnGoverned?, failOn? }`) | largest: both call sites + every internal `performReview` caller | expected preserved | expected preserved if the schema keeps `fail_on_governed` | **breaks** — 5th positional type changes (compile error, enumerable) | expected preserved |
+| **`fail_on` supersedes** (drop `fail_on_governed`) | medium | expected preserved | **breaks** — param disappears | breaks | expected preserved |
+| **`fail_on_governed` supersedes** (close #40) | zero | preserved | preserved | preserved | preserved |
+
+Caveats that do not fit the table:
+- Class 2's size is unknown. npm 1.17.1 predates the it49→it64 merge, so this class is plausibly small, but a source-built consumer could exist and none was checked.
+- #40 also changes one `note` string when its policy is active (`"verdict reflects only universal rules"` vs main's `"pass reflects only universal rules"`). Gated on `appliedFailOn.length > 0`, so it cannot affect a default caller — but under any coexist shape it is a second place the two sides disagree and needs an explicit call.
+- Default-path inertness is measured on the CURRENT implementations. A reconciliation that rewires `performReview`'s call sites could itself regress the default path; that risk is not covered by the measurements above.
+
+### (d) Tool count and the anonymous golden hash
+
+`git diff` of #40 against its merge base shows **no `server.tool(` line added or removed** and **no tool name string touched** — it changes one existing tool's input schema only. On the current #40 diff the count stays 93 and the anonymous 45-tool hash `f64bb18…2bb0a6` (computed over sorted tool *names*) has nothing to move. Consistent with it77. Not re-verified by recomputing the hash, and not validated against any reconciled tree.
+
+### What is actually being decided
+
+Whether the `fail` verdict should be reachable by rule identity, by decision governance, or by both — and if both, with what combining semantics and merged `severity_policy` shape. Today only governance can reach it.
+
+**Adverse:** constrained Sol (report-only, medium) → **FLAWED**, 7 findings, **0 P0**. Nothing here needed a new experiment (the shapes do not exist to measure), so all seven were resolved by correction rather than by running: the compatibility table relabelled *expected* not measured; "orthogonal, not competing / the options bag is the union" **withdrawn** as steering that silently assumed OR semantics — replaced with the explicit unspecified-semantics gap and the `severity_policy` clobber finding, which is the constructive answer to that objection; "which is nobody yet" withdrawn as unsupported; the defect's scope narrowed to shapes that keep `fail_on`; "risk is entirely in the opt-in path" narrowed to exclude reconciliation-introduced regressions; the hash claim scoped to the current diff; steering phrases removed. Split: Sol-only 7/7; no Fable (Andrew on usage credits).
+
+**NOT verified (scope honesty):** no merges, no PR-branch pushes, no reconciliation implemented — so no shape's post-merge suite was run and every cell in the (c) table except the "close #40" row is expectation, not observation. #40's `fail_on` was measured on its own branch tip, which predates the decision graph, so the two mechanisms were never observed running in the same binary. The golden hash was not recomputed. Class 2's size is inferred from the npm version, not verified against real clients.
+
+**Matrix cell moved:** none (it30 merge-gated ruling; nothing merged).
+
+**Standing value of this iteration:** item 4 is done, which closes the it75 merge-readiness program (items 1–4 all complete). Two things surfaced that Andrew would otherwise have hit during the reconciliation itself: the `severity_policy` clobber under any coexist shape, and #40's silently-accepted unknown rule names. The queue's disposition is now fully characterised: one packaging group ready (#35/#36/#37), one ungraded packet (#41), two product-blocked (#42/#43), one decision (#40), two contained (#38/#39).
+
+**Process note:** this firing tripped the destructive-op guard by combining `rm -rf` of a stale worktree path with the git commit chain in one command — the exact pattern the loop's own guardrail bars. Correct form is a fresh worktree path, or cleanup as its own command. No data lost; the guard fired before anything ran.
+
+**Next (it79):** the it75 program is exhausted and every remaining item is Andrew-owed. Unless a gate event lands, it79 is a hold-check — and the honest question it should ask is whether the loop has anything left that is not waiting on Andrew, since manufacturing new surface is exactly what it35 and it65 barred. it80 is the next zoom-out and should take that question head-on.
