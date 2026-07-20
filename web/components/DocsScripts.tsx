@@ -4,41 +4,84 @@ import { useEffect } from 'react'
 
 export default function DocsScripts() {
   useEffect(() => {
-    eval(String.raw`
-    // Highlight active TOC item on scroll
-    var tocLinks = document.querySelectorAll('.toc a');
-    var sections = [];
-    tocLinks.forEach(function(link) {
-      var id = link.getAttribute('href').replace('#', '');
-      var el = document.getElementById(id);
-      if (el) sections.push({ id: id, el: el, link: link });
-    });
+    const root = document.getElementById('raven-docs-v3')
+    if (!root) return
 
-    // Nav glass darkening on scroll
-    window.addEventListener('scroll', function() {
-      var navEl = document.querySelector('nav');
-      if (navEl && window.scrollY > 50) {
-        navEl.style.borderColor = 'rgba(0, 191, 255, 0.12)';
-        navEl.style.background = 'rgba(36, 36, 46, 0.82)';
-        navEl.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.2), 0 0 20px rgba(0, 191, 255, 0.04)';
-      } else if (navEl) {
-        navEl.style.borderColor = '';
-        navEl.style.background = '';
-        navEl.style.boxShadow = '';
+    const sections = Array.from(root.querySelectorAll<HTMLElement>('.rd-section[id]'))
+    const navLinks = Array.from(root.querySelectorAll<HTMLAnchorElement>('.rd-nav a, .rd-mobile-nav a'))
+    const packetSection = root.querySelector<HTMLElement>('#rd-packet-section')
+    const packetIntent = root.querySelector<HTMLElement>('#rd-packet-intent')
+    const agentRoute = root.querySelector<HTMLElement>('#rd-agent-route')
+
+    let activeId = ''
+    function setActive(section: HTMLElement) {
+      if (section.id === activeId) return
+      activeId = section.id
+      const intent = section.getAttribute('data-intent') || ''
+      if (packetSection) packetSection.textContent = section.id
+      if (packetIntent) packetIntent.textContent = intent
+      if (agentRoute) agentRoute.textContent = '/docs#' + section.id
+      navLinks.forEach(function (link) {
+        const on = link.getAttribute('href') === '#' + section.id
+        if (on) link.setAttribute('aria-current', 'true')
+        else link.removeAttribute('aria-current')
+      })
+    }
+
+    function onScroll() {
+      let candidate = sections[0]
+      for (const s of sections) {
+        if (s.getBoundingClientRect().top <= 150) candidate = s
       }
+      if (candidate) setActive(candidate)
+    }
 
-      // TOC highlight
-      var scrollY = window.scrollY + 100;
-      var current = '';
-      sections.forEach(function(s) {
-        if (s.el.offsetTop <= scrollY) current = s.id;
-      });
-      tocLinks.forEach(function(link) {
-        link.classList.toggle('active', link.getAttribute('href') === '#' + current);
-      });
-    });
-    // Scroll reveal is handled site-wide by RevealAndCopy (app/layout.tsx).
-  `)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll, { passive: true })
+
+    // Copy handlers on code-shell blocks
+    const timers = new Set<ReturnType<typeof setTimeout>>()
+    function legacyCopy(text: string) {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      document.body.appendChild(ta)
+      ta.select()
+      let ok = false
+      try { ok = document.execCommand('copy') } catch (_) { ok = false }
+      document.body.removeChild(ta)
+      return ok
+    }
+    function onClick(e: MouseEvent) {
+      const btn = (e.target as HTMLElement).closest('[data-copy]') as HTMLButtonElement | null
+      if (!btn) return
+      const shell = btn.closest('.rd-code-shell')
+      const code = shell ? shell.querySelector('code') : null
+      if (!code) return
+      const text = (code as HTMLElement).innerText
+      const flash = function (label: string) {
+        const prev = btn.textContent
+        btn.textContent = label
+        btn.classList.add('rd-copied')
+        const t = setTimeout(function () { btn.textContent = prev; btn.classList.remove('rd-copied'); timers.delete(t) }, 1400)
+        timers.add(t)
+      }
+      const done = function () { flash('Copied') }
+      const fail = function () { flash(legacyCopy(text) ? 'Copied' : 'Copy failed') }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(fail)
+      } else {
+        flash(legacyCopy(text) ? 'Copied' : 'Copy failed')
+      }
+    }
+    root.addEventListener('click', onClick)
+
+    return function () {
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+      root.removeEventListener('click', onClick)
+      timers.forEach(clearTimeout)
+    }
   }, [])
 
   return null
