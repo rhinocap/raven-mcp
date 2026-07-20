@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 export interface DecisionNode {
   node_kind: "decision";
@@ -321,8 +321,33 @@ export async function buildConflictPayload(
   };
 }
 
+// Store resolution (it49, repo-store slice i): an explicit RAVEN_DECISIONS_HOME
+// always wins; otherwise a project opts into a shared, git-backed decision store
+// by checking in a `.raven/decisions/` directory — we discover the nearest one by
+// walking up from cwd (the normal one-server-per-project MCP layout). When present
+// it fully SHADOWS the global ~/.raven store (spec §1a: shadowing, not union).
+// ponytail: presence of the dir = opt-in; no schema-v2/merge-driver here (spec
+// phase ii — only needed under concurrent git-merge writes, not serialized sharing).
+export function discoverRepoStore(startDir: string): string | null {
+  var current = startDir;
+  while (true) {
+    var candidate = join(current, ".raven", "decisions");
+    try {
+      if (statSync(candidate).isDirectory()) return candidate;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    var parent = dirname(current);
+    if (parent === current) return null; // reached filesystem root
+    current = parent;
+  }
+}
+
 export function decisionsHome(): string {
-  return process.env.RAVEN_DECISIONS_HOME || join(homedir(), ".raven", "decisions");
+  if (process.env.RAVEN_DECISIONS_HOME) return process.env.RAVEN_DECISIONS_HOME;
+  var repoStore = discoverRepoStore(process.cwd());
+  if (repoStore) return repoStore;
+  return join(homedir(), ".raven", "decisions");
 }
 
 export function flagRationaleMissing<T extends { rationale?: string | null }>(input: T): T & { rationale_missing: boolean } {
@@ -648,11 +673,27 @@ function edgesPath(): string {
   return join(decisionsHome(), "edges.json");
 }
 
-function readNodes(): GraphNode[] {
-  var file = nodesPath();
+// Fail-closed read (it49, spec §4): the store files are untrusted input (a repo
+// store arrives via git). A missing file is legitimately empty; a file that EXISTS
+// but doesn't parse to { <key>: [...] } is corrupt and must raise, never silently
+// return [] — silent-empty would let the next write clobber a store we failed to read.
+function readArrayFile<T>(file: string, key: "nodes" | "edges"): T[] {
   if (!existsSync(file)) return [];
-  var parsed = JSON.parse(readFileSync(file, "utf8"));
-  return Array.isArray(parsed.nodes) ? parsed.nodes : [];
+  var parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(file, "utf8"));
+  } catch (error) {
+    throw new Error("Corrupt decision store " + file + ": invalid JSON (" + (error instanceof Error ? error.message : String(error)) + ")");
+  }
+  var value = (parsed as Record<string, unknown> | null)?.[key];
+  if (!Array.isArray(value)) {
+    throw new Error("Corrupt decision store " + file + ": expected an object with a \"" + key + "\" array");
+  }
+  return value as T[];
+}
+
+function readNodes(): GraphNode[] {
+  return readArrayFile<GraphNode>(nodesPath(), "nodes");
 }
 
 function writeNodes(nodes: GraphNode[]): void {
@@ -660,10 +701,7 @@ function writeNodes(nodes: GraphNode[]): void {
 }
 
 function readEdges(): GraphEdge[] {
-  var file = edgesPath();
-  if (!existsSync(file)) return [];
-  var parsed = JSON.parse(readFileSync(file, "utf8"));
-  return Array.isArray(parsed.edges) ? parsed.edges : [];
+  return readArrayFile<GraphEdge>(edgesPath(), "edges");
 }
 
 function writeEdges(edges: GraphEdge[]): void {
