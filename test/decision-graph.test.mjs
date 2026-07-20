@@ -131,7 +131,7 @@ test('persistItemsIndependently continues after one item fails and reports its i
 
 test('parseExtractionJson accepts arrays, wrappers, and fenced JSON', () => {
   const input = [{ statement: 'Use cards', rationale: 'They scan well.', alternatives_rejected: ['Use a table'] }];
-  const expected = [{ ...input[0], source_ref: null }];
+  const expected = [{ ...input[0], source_ref: null, author: null }];
   assert.deepEqual(parseExtractionJson(JSON.stringify(input)), { ok: true, items: expected, skipped: 0 });
   assert.deepEqual(parseExtractionJson(JSON.stringify({ decisions: input })), { ok: true, items: expected, skipped: 0 });
   assert.deepEqual(parseExtractionJson('```json\n' + JSON.stringify(input) + '\n```'), { ok: true, items: expected, skipped: 0 });
@@ -149,7 +149,7 @@ test('parseExtractionJson normalizes fields and counts skipped items', () => {
   ]));
   assert.deepEqual(result, {
     ok: true,
-    items: [{ statement: 'Keep the sidebar', rationale: null, alternatives_rejected: ['Keep tabs'], source_ref: 'abc123' }],
+    items: [{ statement: 'Keep the sidebar', rationale: null, alternatives_rejected: ['Keep tabs'], source_ref: 'abc123', author: null }],
     skipped: 1,
   });
 });
@@ -162,10 +162,36 @@ test('parseExtractionJson treats missing and non-string source_ref as null', () 
   assert.deepEqual(result, {
     ok: true,
     items: [
-      { statement: 'Use cards', rationale: null, alternatives_rejected: [], source_ref: null },
-      { statement: 'Use tokens', rationale: 'They centralize change.', alternatives_rejected: [], source_ref: null },
+      { statement: 'Use cards', rationale: null, alternatives_rejected: [], source_ref: null, author: null },
+      { statement: 'Use tokens', rationale: 'They centralize change.', alternatives_rejected: [], source_ref: null, author: null },
     ],
     skipped: 0,
+  });
+});
+
+test('authored extraction items retain author through candidate ingestion', async () => {
+  const parsed = parseExtractionJson(JSON.stringify([
+    { statement: 'Use cards', rationale: null, alternatives_rejected: [], author: 'jordan' },
+    { statement: 'Use tokens', rationale: null, alternatives_rejected: [] },
+  ]));
+  assert.equal(parsed.items[0].author, 'jordan');
+  assert.equal(parsed.items[1].author, null);
+
+  await withDecisionClient(async (client) => {
+    const ingest = JSON.parse((await client.callTool({
+      name: 'ingest_transcript',
+      arguments: { text: 'Jordan: Use cards.', source_meta: { ref: 'Review thread' } },
+    })).content[0].text);
+    const candidates = JSON.parse((await client.callTool({
+      name: 'ingest_transcript_results',
+      arguments: {
+        source_id: ingest.source_id,
+        extraction_json: JSON.stringify([
+          { statement: 'Use cards', rationale: null, alternatives_rejected: [], author: 'jordan' },
+        ]),
+      },
+    })).content[0].text);
+    assert.equal(candidates.candidates[0].node.author, 'jordan');
   });
 });
 

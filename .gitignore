@@ -10,3 +10,6 @@ dist/
 .env.*
 !.env.example
 .gstack/
+
+# decision-store runtime consultation trace (it52) — not source of truth
+.raven/decisions/consultations.jsonl
