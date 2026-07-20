@@ -6,6 +6,10 @@ export interface DecisionNode {
   node_kind: "decision";
   id: string;
   author?: string | null;
+  // Mirrors rationale_trust: a model-extracted author name is spoofable/hallucination-prone
+  // and must not establish non-authorship for the leading metric until a human confirms it (Sol #2, it57).
+  // ponytail: extracted|confirmed covers it; add "declared" when a self-declared-identity path exists.
+  author_trust?: "extracted" | "confirmed" | null;
   statement: string;
   rationale: string | null;
   rationale_trust?: "extracted" | "confirmed" | null;
@@ -688,6 +692,7 @@ export function recordConsultation(readerId: string, tool: string, decisions: De
       tool: tool,
       decision_ids: decisions.map(function(decision) { return decision.id; }),
       authors: decisions.map(function(decision) { return decision.author === undefined ? null : decision.author; }),
+      author_trusts: decisions.map(function(decision) { return decision.author_trust === undefined ? null : decision.author_trust; }),
     }) + "\n", "utf8");
   } catch (_error) {
     // Consultation tracing is observational only and must never affect tool reads.

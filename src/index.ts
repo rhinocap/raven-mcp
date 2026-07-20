@@ -6440,6 +6440,9 @@ server.tool(
       status: "active" as const,
       superseded_by: null,
       rationale_trust: null,
+      // Direct add: author is the first-party runtime identity (RAVEN_AGENT_ID) or an explicit
+      // caller assertion — not a model guess — so it is trusted enough to establish non-authorship.
+      author_trust: "confirmed" as const,
       created_at: new Date().toISOString(),
     });
     var created = await decisionGraphStore.addNode(node);
@@ -6534,6 +6537,9 @@ server.tool(
     var updated = await decisionGraphStore.updateNode(id, {
       rationale: rationale,
       rationale_trust: "confirmed",
+      // Committing reviews the whole candidate, author included, so a human commit confirms the
+      // attribution too — the only path that lets an author establish non-authorship (Sol #2, it57).
+      author_trust: existing.author ? "confirmed" as const : (existing.author_trust ?? null),
       status: existing.status === "candidate" ? "active" : existing.status,
     }) as DecisionNode;
     var threshold = similarity_threshold === undefined ? similarityThreshold() : similarity_threshold;
@@ -6877,6 +6883,7 @@ server.tool(
         component_ref: extractionSource.ref,
         alternatives_rejected: item.alternatives_rejected,
         author: item.author ?? null,
+        author_trust: item.author ? "extracted" as const : null,
         status: "candidate" as const,
         superseded_by: null,
         created_at: new Date().toISOString(),

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -73,6 +73,7 @@ test('a targeted decision_get by a non-author is reported as a consultation; a l
       per_reader: { engineer: 1 },
       scans_excluded: 1,
       ambiguous_provenance_excluded: 0,
+      untrusted_author_excluded: 0,
     });
   });
 });
@@ -94,7 +95,85 @@ test('an author reading their own decision does not increment the non-author cou
       per_reader: {},
       scans_excluded: 0,
       ambiguous_provenance_excluded: 0,
+      untrusted_author_excluded: 0,
     });
+  });
+});
+
+test('an extracted-author read is DROPPED; committing the author promotes trust and the same read COUNTS', async () => {
+  const store = newStore();
+  process.env.RAVEN_DECISIONS_HOME = store;
+  delete process.env.RAVEN_NO_CONSULTATION_TRACE;
+  await withDecisionClient(async (client) => {
+    // Capture a decision from a transcript: author 'jordan' is MODEL-EXTRACTED, not confirmed.
+    process.env.RAVEN_AGENT_ID = 'engineer';
+    const ingest = JSON.parse((await client.callTool({
+      name: 'ingest_transcript',
+      arguments: { text: 'Jordan: Use cards.', source_meta: { ref: 'Review thread' } },
+    })).content[0].text);
+    const candidates = JSON.parse((await client.callTool({
+      name: 'ingest_transcript_results',
+      arguments: {
+        source_id: ingest.source_id,
+        extraction_json: JSON.stringify([
+          { statement: 'Use cards', rationale: null, alternatives_rejected: [], author: 'jordan' },
+        ]),
+      },
+    })).content[0].text);
+    const id = candidates.candidates[0].node.id;
+    assert.equal(candidates.candidates[0].node.author_trust, 'extracted');
+
+    // engineer (≠ jordan) reads it while the author is only extracted.
+    await client.callTool({ name: 'decision_get', arguments: { id } });
+    let events = traceEvents(store);
+    assert.deepEqual(events[0].author_trusts, ['extracted'], 'trust is snapshotted at read time');
+    // DROPPED: a spoofable extracted author cannot establish non-authorship (Sol #2).
+    assert.deepEqual(report(store), {
+      non_author_consultations: 0,
+      per_reader: {},
+      scans_excluded: 0,
+      ambiguous_provenance_excluded: 0,
+      untrusted_author_excluded: 1,
+    });
+
+    // A human commit confirms the attribution.
+    const committed = JSON.parse((await client.callTool({
+      name: 'decision_commit', arguments: { id, rationale: 'Cards scan well.' },
+    })).content[0].text);
+    assert.equal(committed.decision.author_trust, 'confirmed');
+
+    // The SAME engineer reads the SAME decision — now with a confirmed author.
+    await client.callTool({ name: 'decision_get', arguments: { id } });
+    events = traceEvents(store);
+    assert.deepEqual(events[1].author_trusts, ['confirmed']);
+    // COUNTS now; the earlier extracted-era read stays dropped.
+    assert.deepEqual(report(store), {
+      non_author_consultations: 1,
+      per_reader: { engineer: 1 },
+      scans_excluded: 0,
+      ambiguous_provenance_excluded: 0,
+      untrusted_author_excluded: 1,
+    });
+  });
+});
+
+test('a mixed-trust decision (one confirmed + one extracted author) is DROPPED, not counted', () => {
+  // Directly craft the trace: the confirmed author would normally establish non-authorship, but the
+  // extracted "jordn" may be a misspelling of reader "jordan" — a mis-attributed real author. The
+  // gate must not count this (Sol it58 adverse #1: multi-author bypass).
+  const store = newStore();
+  writeFileSync(path.join(store, 'consultations.jsonl'),
+    JSON.stringify({ ts: '2026-01-01T00:00:00.000Z', reader: 'jordan', tool: 'decision_get',
+      decision_ids: ['dec_x'], authors: ['andrew', 'jordn'], author_trusts: ['confirmed', 'extracted'] }) + '\n' +
+    // Control: same shape but both authors confirmed and neither is the reader → counts.
+    JSON.stringify({ ts: '2026-01-01T00:00:01.000Z', reader: 'engineer', tool: 'decision_get',
+      decision_ids: ['dec_y'], authors: ['andrew', 'jordan'], author_trusts: ['confirmed', 'confirmed'] }) + '\n');
+  assert.deepEqual(report(store), {
+    non_author_consultations: 1,           // only the all-confirmed control
+    per_reader: { engineer: 1 },
+    scans_excluded: 0,
+    ambiguous_provenance_excluded: 0,
+    untrusted_author_excluded: 1,          // the mixed-trust read is dropped
   });
 });
 
