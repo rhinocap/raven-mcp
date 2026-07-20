@@ -378,6 +378,7 @@ export type ExtractionItem = {
   rationale: string | null;
   alternatives_rejected: string[];
   source_ref?: string | null;
+  author?: string | null;
 };
 
 export type ExtractionParseResult =
@@ -423,11 +424,15 @@ export function parseExtractionJson(raw: string): ExtractionParseResult {
     var sourceRef = typeof input.source_ref === "string" && input.source_ref.trim().length > 0
       ? input.source_ref.trim()
       : null;
+    var author = typeof input.author === "string" && input.author.trim().length > 0
+      ? input.author.trim()
+      : null;
     items.push({
       statement: input.statement.trim(),
       rationale: rationale,
       alternatives_rejected: alternatives,
       source_ref: sourceRef,
+      author: author,
     });
   }
 
@@ -442,8 +447,9 @@ export function buildExtractionPrompt(transcript: string): string {
     "Extract DISTINCT genuine design decisions only from the transcript below.",
     "Discard chatter, questions, and unresolved debates.",
     "Return a STRICT JSON array of objects with exactly these fields:",
-    '{"statement":"...","rationale":"... or null","alternatives_rejected":["..."]}',
+    '{"statement":"...","rationale":"... or null","alternatives_rejected":["..."],"author":"... or null"}',
     "Use rationale null when the transcript never states why the decision was made.",
+    "Set author to the participant who MADE each decision when the material attributes it to a named person (e.g. a comment thread, a code review, or an attributed transcript). Use null when no author is identifiable.",
     "Return no prose outside the JSON.",
     "",
     "TRANSCRIPT:",
@@ -459,8 +465,9 @@ export function buildImportExtractionPrompt(material: string, streamKind: string
     "Extract DISTINCT durable design or architecture decisions only from the imported " + streamKind + " material below.",
     "Discard mechanical commits and content such as version bumps, typo fixes, merges, formatting, and routine maintenance.",
     "Return a STRICT JSON array of objects with exactly these fields:",
-    '{"statement":"...","rationale":"... or null","alternatives_rejected":["..."],"source_ref":"..."}',
+    '{"statement":"...","rationale":"... or null","alternatives_rejected":["..."],"source_ref":"...","author":"... or null"}',
     provenanceInstruction,
+    "Set author to the participant who MADE each decision when the material attributes it to a named person (e.g. a commit author, a reviewer, or an attributed comment). Use null when no author is identifiable.",
     "Use rationale null when the source never states why the decision was made.",
     "Return no prose outside the JSON.",
     "",

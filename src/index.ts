@@ -6876,6 +6876,7 @@ server.tool(
         scope: extractionSource.ref,
         component_ref: extractionSource.ref,
         alternatives_rejected: item.alternatives_rejected,
+        author: item.author ?? null,
         status: "candidate" as const,
         superseded_by: null,
         created_at: new Date().toISOString(),
