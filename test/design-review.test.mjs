@@ -914,3 +914,48 @@ test('a scope-matching decision that never mentions the finding category does NO
   // proves the decision WAS path-applicable — suppression came from keyword-gating, not path mismatch
   assert.deepEqual(result.applicable_decisions.map((d) => d.id), ['checkout-primitive']);
 });
+
+test('fail_on_governed escalates a governed finding to fail; verdict + severity + policy echoed', () => {
+  const gov = decision('checkout-color', {
+    statement: 'Checkout uses the accent color token, never a raw hex',
+    scope: 'checkout',
+  });
+  const diff = diffFor('src/checkout/Card.tsx', [
+    'export const Card = () => <div style={{ color: "#ff5722" }} />;',
+  ]);
+  const result = reviewDiff(diff, DESIGN_MD, [gov], undefined, true);
+
+  assert.equal(result.verdict, 'fail');
+  assert.equal(result.findings[0].severity, 'error');
+  assert.equal(result.governed_findings.length, 1);
+  assert.deepEqual(result.severity_policy, { fail_on_governed: true });
+});
+
+test('fail_on_governed does NOT escalate when no decision governs (verdict stays warn)', () => {
+  const diff = diffFor('src/checkout/Card.tsx', [
+    'export const Card = () => <div style={{ color: "#ff5722" }} />;',
+  ]);
+  const result = reviewDiff(diff, DESIGN_MD, [decision('checkout-primitive')], undefined, true);
+
+  assert.equal(result.verdict, 'warn');
+  assert.equal(result.findings.every((finding) => finding.severity !== 'error'), true);
+  assert.equal(result.governed_findings, undefined);
+  assert.deepEqual(result.severity_policy, { fail_on_governed: true });
+});
+
+test('fail_on_governed omitted → byte-identical to advisory result (regression guard)', () => {
+  const gov = decision('checkout-color', {
+    statement: 'Checkout uses the accent color token, never a raw hex',
+    scope: 'checkout',
+  });
+  const diff = diffFor('src/checkout/Card.tsx', [
+    'export const Card = () => <div style={{ color: "#ff5722" }} />;',
+  ]);
+  const omitted = reviewDiff(diff, DESIGN_MD, [gov]);
+  const explicitFalse = reviewDiff(diff, DESIGN_MD, [gov], undefined, false);
+
+  assert.deepEqual(omitted, explicitFalse);
+  assert.equal(omitted.verdict, 'warn');
+  assert.equal(omitted.severity_policy, undefined);
+  assert.equal(omitted.findings[0].severity, 'warn');
+});

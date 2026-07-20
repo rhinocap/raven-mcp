@@ -2731,8 +2731,9 @@ server.tool(
     diff: z.string().max(409600).describe("Unified diff to review (maximum 400KB)."),
     project: z.string().optional().describe("Project directory used to resolve DESIGN.md and match decision scopes. Omit when design_md is supplied and no project hint is needed."),
     design_md: z.string().optional().describe("Inline DESIGN.md content. Overrides project file lookup when supplied."),
+    fail_on_governed: z.boolean().optional().describe("When true, findings a recorded decision governs become fail-eligible (severity error → verdict fail). Governance is a lexical scope+category association, NOT a verified contradiction of the decision — opt in as a team strict-mode signal, not a turnkey safe blocker. Default: advisory-only."),
   },
-  async function ({ diff, project, design_md }) {
+  async function ({ diff, project, design_md, fail_on_governed }) {
     try {
       if (Buffer.byteLength(diff, "utf8") > 400 * 1024) {
         return { content: [{ type: "text" as const, text: "diff exceeds maximum size of 400KB (409600 bytes)" }], isError: true };
@@ -2746,7 +2747,7 @@ server.tool(
         }
       }
       var decisions = await decisionGraphStore.listActiveDecisions();
-      var result = reviewDiff(diff, designContent, decisions, project);
+      var result = reviewDiff(diff, designContent, decisions, project, fail_on_governed);
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     } catch (err) {
       return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };

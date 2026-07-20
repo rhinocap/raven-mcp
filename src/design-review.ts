@@ -31,6 +31,9 @@ export interface DesignReviewResult {
   // Violation findings a recorded decision governs (same category + scope); present only when
   // non-empty. Association for review attention — does NOT assert the diff contradicts the decision.
   governed_findings?: Array<{ decision_id: string; file: string; line: number; rule: string }>;
+  // Echoes an active opt-in escalation policy. fail_on_governed escalates findings a recorded
+  // decision GOVERNS (it63 lexical scope+category association, NOT verified contradiction) to error.
+  severity_policy?: { fail_on_governed?: boolean };
   checks_skipped?: Array<"color-tokens" | "spacing-tokens" | "typography-tokens">;
   note?: string;
   stats: {
@@ -209,8 +212,8 @@ export function parseUnifiedDiff(diff: string): ParsedDiffFile[] {
   return files;
 }
 
-export function reviewDiff(diff: string, designMd: string | null, decisions: DecisionNode[], project?: string): DesignReviewResult {
-  return performReview(diff, designMd, decisions, project, false).result;
+export function reviewDiff(diff: string, designMd: string | null, decisions: DecisionNode[], project?: string, failOnGoverned?: boolean): DesignReviewResult {
+  return performReview(diff, designMd, decisions, project, false, failOnGoverned).result;
 }
 
 export function proposePolish(diff: string, designMd: string | null, decisions: DecisionNode[], project?: string): PolishResult {
@@ -297,7 +300,7 @@ export function proposePolish(diff: string, designMd: string | null, decisions: 
   return result;
 }
 
-function performReview(diff: string, designMd: string | null, decisions: DecisionNode[], project: string | undefined, collectAutoFixes: boolean): ReviewContext {
+function performReview(diff: string, designMd: string | null, decisions: DecisionNode[], project: string | undefined, collectAutoFixes: boolean, failOnGoverned?: boolean): ReviewContext {
   if (diff.trim().length === 0) throw new Error("empty diff");
   var postImages = reconstructFinalPostImages(diff);
   if (postImages.length === 0) throw new Error("not a unified diff");
@@ -311,14 +314,18 @@ function performReview(diff: string, designMd: string | null, decisions: Decisio
   reviewFiles(uiFiles, vocabulary, findings, collectAutoFixes ? autoFixes : undefined);
 
   var violations = findings.filter(isViolationFinding);
+  var applicable = applicableDecisions(files, decisions, project);
+  var decisionViolations = attributeDecisions(violations, applicable, project);
+  if (failOnGoverned) {
+    for (var vi = 0; vi < violations.length; vi++) {
+      if (violations[vi].governed_by) violations[vi].severity = "error";
+    }
+  }
   var verdict: DesignReviewResult["verdict"] = violations.some(function(finding) {
     return finding.severity === "error";
   }) ? "fail" : violations.some(function(finding) {
     return finding.severity === "warn";
   }) ? "warn" : "pass";
-
-  var applicable = applicableDecisions(files, decisions, project);
-  var decisionViolations = attributeDecisions(violations, applicable, project);
 
   var result: DesignReviewResult = {
     verdict: verdict,
@@ -331,6 +338,7 @@ function performReview(diff: string, designMd: string | null, decisions: Decisio
     },
   };
   if (decisionViolations.length > 0) result.governed_findings = decisionViolations;
+  if (failOnGoverned) result.severity_policy = { fail_on_governed: true };
   var checksSkipped: DesignReviewResult["checks_skipped"] = [];
   if (vocabulary.colors.length === 0) checksSkipped.push("color-tokens");
   if (vocabulary.spacing.length === 0) checksSkipped.push("spacing-tokens");
