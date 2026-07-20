@@ -1651,7 +1651,7 @@
       transition: border-color var(--duration-normal) var(--ease-out);
     }
     .faq-item:hover { border-color: var(--border-accent); }
-    .layer-card p a, .faq-item p a { color: var(--text-accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 200ms; }
+    .layer-card p a, .faq-item p a { color: var(--text-accent); text-decoration: none; transition: color 200ms; }
     .layer-card p a,
     .faq-item p a {
       display: inline-flex;
@@ -1660,7 +1660,7 @@
       padding: 0 var(--space-1);
       margin: -12px 0;
     }
-    .layer-card p a:hover, .faq-item p a:hover { border-bottom-color: var(--text-accent); }
+    .layer-card p a:hover, .faq-item p a:hover { color: var(--bg-accent-hover); }
     .faq-item h3 {
       font-size: clamp(18px, 2vw, 21px);
       font-weight: 600;
