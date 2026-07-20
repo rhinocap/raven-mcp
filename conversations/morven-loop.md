@@ -430,3 +430,31 @@ it18: .mcpb manifest drift 51→93 fixed generatively (PR #35, sync-manifest-too
 **Single biggest blocker:** the human merge #35 + release cut (shipping axis) — but preceded by the loop's own bounded release audit, which is not yet done.
 **Matrix cell moved:** none (zoom-out). No taste ruling → no record_taste_decision.
 **Next candidate:** it46 — open the **bounded release audit**: start with **per-PR review evidence** for the 9 PRs (the un-delivered it40 leg, highest-value, no-Andrew), then clean-room pack-smoke. it50 is the next zoom-out.
+
+## Iteration 46 — 2026-07-19 — STRATEGIC REDIRECT: reframed North Star (Andrew-authorized, no build)
+**What this is:** not a build iteration — a **North Star + backlog reframe**, driven by Andrew directly ("how do we get this to compete with Figma") and decided by him after a parallel **Fable 5 (planner) + Sol (medium, report-only)** consult. Andrew said "Yes, rewrite it." This entry is now the **operative North Star** the loop's ORIENT step reads; the `/loop` harness prompt still literally reads the old "drop your Figma licenses" line, but *this recorded reframe overrides it* until Andrew edits the harness prompt.
+
+**The consult (both advisers, independent, converged):**
+- **"Replace Figma / drop your licenses" is fantasy for a canvas-less MCP server.** No canvas, prototyping, multiplayer, history, or governance — and Figma Make/Agent are already eating W1 (prompt→prototype, 0→1 gen) natively. Racing the incumbent onto its own canvas is the one fight Morven structurally loses.
+- **The winnable fight: commoditize the canvas.** Be the **canvas-agnostic system of record for design *intent*** that sits *above* whatever canvas exists. Fable's framing: **the repo is the truth surface** — Figma audits `.fig` files; Morven audits *shipped code*. Figma's critique dies inside documents; Morven's taste + decision graph is portable, provenance-carrying, consumed by every coding agent regardless of canvas.
+- **The wallet is seat *downgrades*, not cancellation.** Full → Dev/Collab is a real, immediate line item Figma's pricing actively defends. (Fable, from the it17 brief: Morven-attributable savings ≈$2k/yr, but the $3.8–5k downgrade envelope is capturable now.)
+
+**REFRAMED NORTH STAR (operative):** *Morven wins when it is the canvas-agnostic system of record for design intent — "CI for design intent" — that governs (and safely fixes) shipped UI across every canvas and codebase, so a paying design team **downgrades** Full Figma seats to Dev/Collab because design judgment now lives in Morven. Not license replacement — category change: sit above the canvas, don't rebuild it.*
+
+**Wedges, re-weighted:** W3 (engineers pull intent) is now the **spine**, powered by a *shared* decision graph. W2 (evaluate+polish) sharpens into **own the merge gate** — W2 as CI that can block a PR, not critique that dies in a file. W1 (design faster / greenfield generation) is **demoted/cut** as a head-to-head canvas fight; keep only grab/edit/code loops that *feed intent*, never product-UI generation.
+
+**THE ONE THING (both landed here):** **make the decision graph multiplayer.** Sol: *"make team-specific taste + decision memory automatically govern and safely fix shipped UI across every canvas and codebase."* Fable: *"ship the git-backed shared store — the moment two people's agents consult one shared graph in one repo, Morven becomes a team product, and Figma, whose memory lives in `.fig` files, cannot follow without rebuilding its architecture."* Everything defensible (taste engine, provenance, D4D) is worthless as a *team* product while it lives in one person's home directory. **This is now the loop's next real BUILD**, after the release audit (the distribution gate) clears.
+
+**REPRIORITIZED BACKLOG (top-5, around the reframe):**
+1. **Distribution + category reframe** *(Andrew-gated)* — merge #35/#36, cut the release, reposition as "CI for design intent" (never "Figma replacement"). The loop's gate-work here = the **bounded release audit** (it45 backlog #2), reordered per this consult: **clean-room pack-smoke first** (objective, higher-signal), smoke *both* the `main+#35` tip *and* the combined tip (the actual first-merge artifact, not just the combined one), then risk-based review of #35/#36 only + mechanical scan of the rest. Per-PR prose review of all 9 = theater; cut.
+2. **Team-shared (multiplayer) decision graph** — git-backed `.raven/decisions/` in the team repo (it23 spec, free-tier, buildable now), then hosted org graph (SSO/consent/retention) as the paid tier. **THE ONE THING.** The loop's next real build.
+3. **Own the merge gate** — `fail` severity tier + calibration so `review_diff`/polish can gate PRs without false-stop rage. Proof: a real team keeps the gate on 30 days voluntarily.
+4. **One earned "better" claim** — human-graded benchmark vs Figma Agent critique on a **neutral** (non-self-authored) corpus; ties directly to the it43 self-corpus blind spot. One citable precision/recall number.
+5. **Comments→decision capture as onboarding** — reframe #38: not "safe to leave Figma," but "your 3 years of design arguments become a queryable graph day one."
+
+**CUT AS VANITY (both agreed):** W1 product-UI generation · persistent canvas · multiplayer vector editor · code-to-design reconstruction (it39) · marketing video before distribution · the "cancel Figma" savings math · **the 93-tool sprawl** (clients truncate at ~50 — a 93-item menu is a liability, not a moat). Never out-canvas Figma+Paper+Stitch simultaneously; two-panel Grab is a debugging surface, not a design home.
+
+**THE METRIC THAT MATTERS:** **decisions consulted-per-week by an agent *other than the author*** — currently **zero**. That number going positive is the whole ballgame; it is the single leading indicator that Morven has become a team product.
+
+**Matrix cell moved:** none (strategy reframe, not a merge; it30). No taste ruling → no record_taste_decision.
+**Next candidate:** it47 — begin the release audit as *reordered* (clean-room pack-smoke ×2 first), the distribution gate for Bet 1; then it48+ opens **Bet 2 — the git-backed shared decision graph** (the operative build). it50 is the next zoom-out. Consult was Fable 5 + Sol per Andrew's explicit instruction (Fable authorized this turn only).
