@@ -65,11 +65,17 @@ no prior decision. This is the first ladder rung and it holds.
 **One qualifier, found by eyes-on at 414×896 on a responsive page** (`host-content-site.html`; the
 earlier capture used the non-responsive app fixture, which understated the open-state obstruction —
 two 360×388 panels leave ~6 lines of copy visible). In the collapsed state the design reads fine, but
-both edge tabs are placed at `top=33`, overlapping the host header (`0,0,414,56`) on the nav row, and
-the right tab sits at `left=406` on a 414px viewport — 8px of its 44px width is reachable. The tabs
-are correctly 44×44; the failure is placement, not size. Design-judge: BLOCK on
-`SPACING-tap-targets-44px`. `clampPanelCoordinate` (`f23:1625`) already exists and isn't applied to
-the collapsed tab. E is still the answer for obstruction; this is a separate small placement bug.
+both edge tabs are placed at `top=33`, overlapping the host header (`0,0,414,56`) on the nav row.
+E is still the answer for obstruction; the header overlap is a separate small placement bug.
+
+**RETRACTED (same session, 2026-07-20):** this paragraph originally also reported the right edge tab
+at `left=406` on a 414px viewport — 8px of its 44px width reachable — and raised a design-judge BLOCK
+on `SPACING-tap-targets-44px`. That finding was false. It was an artifact of my own capture harness:
+Playwright's `isMobile: true` yields a 450px *layout* viewport inside a 414px *visual* viewport, so
+the tab was measured against the wrong width. Re-probed without `isMobile` (`deviceScaleFactor: 3`
+only): `innerWidth 414 / visualViewport 414`, and the tabs measure exactly 44×44 fully on-screen. The
+BLOCK is withdrawn — there was no tap-target defect. Lesson: never set `isMobile` on a Playwright
+context used for geometry assertions.
 
 ### C — a better default, not a fix
 
