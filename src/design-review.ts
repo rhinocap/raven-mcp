@@ -19,12 +19,18 @@ export interface DesignReviewFinding {
   rule: string;
   message: string;
   suggestion?: string;
+  // Set only when a recorded decision governs this finding's category+scope (association,
+  // NOT a verified contradiction of the decision's rule — see attributeDecisions).
+  governed_by?: { id: string; statement: string };
 }
 
 export interface DesignReviewResult {
   verdict: "pass" | "warn" | "fail";
   findings: DesignReviewFinding[];
   applicable_decisions: Array<{ id: string; statement: string; scope: string }>;
+  // Violation findings a recorded decision governs (same category + scope); present only when
+  // non-empty. Association for review attention — does NOT assert the diff contradicts the decision.
+  governed_findings?: Array<{ decision_id: string; file: string; line: number; rule: string }>;
   checks_skipped?: Array<"color-tokens" | "spacing-tokens" | "typography-tokens">;
   note?: string;
   stats: {
@@ -311,16 +317,20 @@ function performReview(diff: string, designMd: string | null, decisions: Decisio
     return finding.severity === "warn";
   }) ? "warn" : "pass";
 
+  var applicable = applicableDecisions(files, decisions, project);
+  var decisionViolations = attributeDecisions(violations, applicable, project);
+
   var result: DesignReviewResult = {
     verdict: verdict,
     findings: findings,
-    applicable_decisions: applicableDecisions(files, decisions, project),
+    applicable_decisions: applicable,
     stats: {
       files_changed: files.length,
       ui_files: uiFiles.length,
       added_lines_checked: uiFiles.reduce(function(total, file) { return total + file.addedLines.length; }, 0),
     },
   };
+  if (decisionViolations.length > 0) result.governed_findings = decisionViolations;
   var checksSkipped: DesignReviewResult["checks_skipped"] = [];
   if (vocabulary.colors.length === 0) checksSkipped.push("color-tokens");
   if (vocabulary.spacing.length === 0) checksSkipped.push("spacing-tokens");
@@ -868,6 +878,73 @@ function extractInlineTokens(designMd: string): FlattenedDesignToken[] {
     if (tableMatch) addToken(tableMatch[1], tableMatch[2]);
   }
   return tokens;
+}
+
+// Which finding rules a recorded decision must lexically mention to govern that finding.
+// Deterministic category match — NOT semantic contradiction. token-value-match is info-only
+// (never a violation) so it is intentionally absent.
+var DECISION_RULE_KEYWORDS: { [rule: string]: string[] } = {
+  "bare-hex-color": ["color", "colour", "hex", "palette", "accent", "token"],
+  "hardcoded-font-size": ["font", "type", "typography", "size", "weight", "scale"],
+  "hardcoded-font-family": ["font", "type", "typography", "family", "weight"],
+  "hardcoded-spacing": ["spacing", "space", "gap", "padding", "margin", "scale", "rhythm"],
+  "important": ["important", "override", "specificity", "cascade"],
+};
+
+// Path tokens for a SINGLE file (mirrors applicableDecisions' tokenizing, scoped to one path)
+// so a checkout-scoped decision governs only findings in checkout files, not the whole diff.
+function filePathTokens(filePath: string, project?: string): Set<string> {
+  var tokens = new Set<string>();
+  var paths = project ? [filePath, project] : [filePath];
+  for (var pathIndex = 0; pathIndex < paths.length; pathIndex++) {
+    var segments = paths[pathIndex].toLowerCase().split(/[\\/]+/).filter(Boolean);
+    for (var segmentIndex = 0; segmentIndex < segments.length - 1; segmentIndex++) tokens.add(segments[segmentIndex]);
+    if (segments.length > 0) {
+      var filename = segments[segments.length - 1].replace(/\.[^.]+$/, "");
+      var words = filename.split(/[-_.]+/).filter(Boolean);
+      for (var wordIndex = 0; wordIndex < words.length; wordIndex++) tokens.add(words[wordIndex]);
+    }
+  }
+  return tokens;
+}
+
+function decisionMatchesPath(scope: string, statement: string, pathTokens: Set<string>): boolean {
+  var terms = (scope + " " + statement).toLowerCase().split(/[^a-z0-9]+/).filter(function(term) {
+    return term.length >= 3 && !DECISION_STOP_WORDS.has(term);
+  });
+  return terms.some(function(term) { return pathTokens.has(term); });
+}
+
+function statementHasCategoryKeyword(rule: string, statement: string): boolean {
+  var keywords = DECISION_RULE_KEYWORDS[rule];
+  if (!keywords) return false;
+  var words = new Set(statement.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+  return keywords.some(function(keyword) { return words.has(keyword) || words.has(keyword + "s"); });
+}
+
+// A decision GOVERNS a violation finding when it is applicable to the diff, its scope/statement
+// matches the finding's own file path, AND its statement mentions the finding rule's category.
+// Mutates governed findings in place (adds governed_by) and returns the escalated subset.
+function attributeDecisions(
+  violations: DesignReviewFinding[],
+  applicable: Array<{ id: string; statement: string; scope: string }>,
+  project?: string,
+): Array<{ decision_id: string; file: string; line: number; rule: string }> {
+  var out: Array<{ decision_id: string; file: string; line: number; rule: string }> = [];
+  if (applicable.length === 0) return out;
+  for (var vIndex = 0; vIndex < violations.length; vIndex++) {
+    var finding = violations[vIndex];
+    var fileTokens = filePathTokens(finding.file, project);
+    for (var dIndex = 0; dIndex < applicable.length; dIndex++) {
+      var decision = applicable[dIndex];
+      if (!decisionMatchesPath(decision.scope, decision.statement, fileTokens)) continue;
+      if (!statementHasCategoryKeyword(finding.rule, decision.statement)) continue;
+      finding.governed_by = { id: decision.id, statement: decision.statement };
+      out.push({ decision_id: decision.id, file: finding.file, line: finding.line, rule: finding.rule });
+      break;
+    }
+  }
+  return out;
 }
 
 function applicableDecisions(files: ParsedDiffFile[], decisions: DecisionNode[], project?: string): Array<{ id: string; statement: string; scope: string }> {
