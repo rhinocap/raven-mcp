@@ -42,7 +42,7 @@ import { registerCalls } from "./calls.js";
 import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
 import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet } from "./designmd.js";
 import { startGrabSession, getGrabbedElements, stopGrabSession } from "./grab-bridge.js";
-import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
+import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, recordConsultation, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
 import { proposePolish, reviewDiff } from "./design-review.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
@@ -6425,11 +6425,13 @@ server.tool(
     scope: z.string().min(1).describe("Scope where the decision applies."),
     component_ref: z.string().min(1).describe("Component or surface the decision refers to."),
     alternatives_rejected: z.array(z.string()).optional().describe("Alternatives considered and rejected."),
+    author: z.string().nullable().optional().describe("Agent or person authoring the decision. Defaults to RAVEN_AGENT_ID or unknown."),
   },
-  async function ({ statement, rationale, scope, component_ref, alternatives_rejected }) {
+  async function ({ statement, rationale, scope, component_ref, alternatives_rejected, author }) {
     var node = flagRationaleMissing({
       node_kind: "decision" as const,
       id: "dec_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+      author: author === undefined ? (process.env.RAVEN_AGENT_ID || "unknown") : author,
       statement: statement,
       rationale: rationale === undefined ? null : rationale,
       scope: scope,
@@ -6613,6 +6615,7 @@ server.tool(
       type: "scoped_alongside",
       created_at: new Date().toISOString(),
     });
+    recordConsultation(process.env.RAVEN_AGENT_ID || "unknown", "decision_scope", [updatedA, updatedB]);
     return { content: [{ type: "text" as const, text: JSON.stringify({ decision_a: updatedA, decision_b: updatedB, edge: edge }, null, 2) }] };
   }
 );
@@ -6657,6 +6660,11 @@ server.tool(
         timestamp: evidenceNode.timestamp,
       };
     });
+    var returnedDecisions = neighbors.filter(function(neighbor): neighbor is DecisionNode {
+      return neighbor.node_kind === "decision";
+    });
+    if (node.node_kind === "decision") returnedDecisions.unshift(node);
+    recordConsultation(process.env.RAVEN_AGENT_ID || "unknown", "decision_get", returnedDecisions);
     return { content: [{ type: "text" as const, text: JSON.stringify({ node: node, neighbors: neighbors, evidence: evidence }, null, 2) }] };
   }
 );
@@ -6681,6 +6689,7 @@ server.tool(
         return decision.rationale_missing || decision.rationale_trust === "extracted";
       });
     }
+    recordConsultation(process.env.RAVEN_AGENT_ID || "unknown", "decision_list", decisions);
     return { content: [{ type: "text" as const, text: JSON.stringify(decisions, null, 2) }] };
   }
 );

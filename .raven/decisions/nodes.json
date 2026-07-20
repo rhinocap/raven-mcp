@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "node_kind": "decision",
+      "id": "dec_design_01",
+      "author": "andrew",
+      "statement": "Give the particle field and scroll-collapse morph the same perceptual contrast in light/default mode as in dark. Use ink-black points at full opacity (SceneField opacity 1, size 2.9) and a high-alpha near-black additive base (ParticleReveal restA 0.60, base 0.05).",
+      "rationale": "Light is the default surface, so the signature moment cannot be a dark-mode-only feature.",
+      "rationale_missing": false,
+      "scope": "motion",
+      "component_ref": "portfolio/home/SceneField-and-ParticleReveal",
+      "alternatives_rejected": [
+        "Deliberately subdued light-mode field (old restA 0.26 / base 0.14 — read as barely-there)",
+        "Raising dark mode down to meet light instead"
+      ],
+      "status": "active",
+      "superseded_by": null,
+      "created_at": "2026-07-19T00:00:00.000Z"
+    },
+    {
+      "node_kind": "decision",
+      "id": "dec_design_02",
+      "author": "andrew",
+      "statement": "Never clip atmospheric orbs or place them directly behind text. Separate text with distorted glass or a dark scrim; any orb bleeding toward text must use blur(80px)+ and huge low-alpha radials so it only barely touches.",
+      "rationale": "Andrew corrected the generated atmosphere page because its colored orbs were cut off and placed directly behind text without glass to distort them.",
+      "rationale_missing": false,
+      "scope": "atmosphere-orbs",
+      "component_ref": "taste-portraits/atmosphere-sections",
+      "alternatives_rejected": [
+        "Orbs cut off at section edges by overflow:hidden",
+        "Orbs painted directly behind body text at readable intensity"
+      ],
+      "status": "active",
+      "superseded_by": null,
+      "created_at": "2026-07-19T00:00:00.000Z"
+    },
+    {
+      "node_kind": "decision",
+      "id": "dec_design_03",
+      "author": "andrew",
+      "statement": "Set display-serif line-height to at least 120%; reject compressed headline leading.",
+      "rationale": "Andrew said the line height should be at least 120% and that the design judge should catch violations.",
+      "rationale_missing": false,
+      "scope": "typography",
+      "component_ref": "marin-thermal-landscapes/display-headlines",
+      "alternatives_rejected": [
+        "compressed 0.74 or 0.77 display line-height",
+        "tight editorial headline stacking on this surface"
+      ],
+      "status": "active",
+      "superseded_by": null,
+      "created_at": "2026-07-19T00:00:00.000Z"
+    },
+    {
+      "node_kind": "decision",
+      "id": "dec_design_04",
+      "author": "andrew",
+      "statement": "Treat collapsed overlay panels as fully paused: leave the page normally clickable and navigable, and enable grab selection only when the user deliberately expands a panel.",
+      "rationale": "Hijacking clicks while the tool is out of view is infuriating when the user is simply navigating their own site.",
+      "rationale_missing": false,
+      "scope": "interaction",
+      "component_ref": "raven-mcp/grab-overlay-panels",
+      "alternatives_rejected": [
+        "Cold-open arming where the first page click selects an element and reveals the panel"
+      ],
+      "status": "active",
+      "superseded_by": null,
+      "created_at": "2026-07-19T00:00:00.000Z"
+    },
+    {
+      "node_kind": "decision",
+      "id": "dec_design_05",
+      "author": "andrew",
+      "statement": "Do not place cards inside cards in panel UIs. Keep content groups flat and distinguish them with hairlines and group labels instead of nested raised rounded containers.",
+      "rationale": "Nested cards create card-soup; the panel already supplies the container, so hairline rules and labels should carry the grouping.",
+      "rationale_missing": false,
+      "scope": "layout",
+      "component_ref": "raven-mcp/panel-ui",
+      "alternatives_rejected": [
+        "Raised rounded bordered card per section/category nested inside the panel card",
+        "Card-wrapped individual form fields"
+      ],
+      "status": "active",
+      "superseded_by": null,
+      "created_at": "2026-07-19T00:00:00.000Z"
+    },
+    {
+      "node_kind": "decision",
+      "id": "dec_design_06",
+      "author": "andrew",
+      "statement": "Restrict orange (#FFAB40) to code and terminal output, including code strings and semantic warning severities. Use blue (#00BFFF) for all page chrome, including kicker indices, step numbers, and required badges.",
+      "rationale": null,
+      "rationale_missing": true,
+      "scope": "accent-orange-scope",
+      "component_ref": "raven-mcp/docs/color-system",
+      "alternatives_rejected": [
+        "orange promoted as a general chrome/signal accent across kickers, step numbers, and badges"
+      ],
+      "status": "active",
+      "superseded_by": null,
+      "created_at": "2026-07-19T00:00:00.000Z"
+    }
+  ]
+}

@@ -1,10 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 export interface DecisionNode {
   node_kind: "decision";
   id: string;
+  author?: string | null;
   statement: string;
   rationale: string | null;
   rationale_trust?: "extracted" | "confirmed" | null;
@@ -667,6 +668,23 @@ function releaseFileLock(lockInode: number): void {
 
 function nodesPath(): string {
   return join(decisionsHome(), "nodes.json");
+}
+
+export function recordConsultation(readerId: string, tool: string, decisions: DecisionNode[]): void {
+  if (process.env.RAVEN_NO_CONSULTATION_TRACE === "1" || decisions.length === 0) return;
+  try {
+    var storeDir = dirname(nodesPath());
+    mkdirSync(storeDir, { recursive: true });
+    appendFileSync(join(storeDir, "consultations.jsonl"), JSON.stringify({
+      ts: new Date().toISOString(),
+      reader: readerId || "unknown",
+      tool: tool,
+      decision_ids: decisions.map(function(decision) { return decision.id; }),
+      authors: decisions.map(function(decision) { return decision.author === undefined ? null : decision.author; }),
+    }) + "\n", "utf8");
+  } catch (_error) {
+    // Consultation tracing is observational only and must never affect tool reads.
+  }
 }
 
 function edgesPath(): string {
