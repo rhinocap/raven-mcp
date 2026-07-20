@@ -755,3 +755,80 @@ it18: .mcpb manifest drift 51→93 fixed generatively (PR #35, sync-manifest-too
 **Matrix cell moved:** none (it30 merge-gated ruling; nothing merged).
 **Standing value of this iteration:** it cost the loop one firing to learn that its own it75 headline finding was wrong in its specifics while right in its posture — the queue IS unmeasured, but the first branch measured came back clean. That is an argument for continuing item 2 (measure the rest) and against the loop's instinct to narrate risk it has not measured.
 **Next (it77):** item 2 — smoke #37–#43 from source against merged main, per-branch: does it replay, does it build, does its own test pass, does it conflict with merged decision-graph code. Report per-PR, no merges. it80 is the next zoom-out.
+
+---
+
+## it77 — merge-readiness item 2: #37–#43 smoked against merged main (DIAGNOSIS ONLY)
+
+**Hold-check:** `origin/main` @ `aad52ad` (loop's own it76 doc push, no new Andrew commit) · npm `raven-mcp` `1.17.1` · coord tail unchanged · no gate event. Governance build stays gated; merge-readiness program is not gated and continues.
+
+**Method:** one throwaway detached worktree per branch at `origin/main`, `node_modules` symlinked, `RAVEN_NO_USAGE_LOG=1`, replay every branch commit, `npm run build`, **isolated** `node --test <own file>`, then `npm test`. Clean-main baseline 807 / 806 pass / 0 fail / 1 skip (skip pre-existing).
+
+### Per-branch result
+
+| PR | branch | replay | build | own tests (isolated) | suite | note |
+|----|--------|--------|-------|----------------------|-------|------|
+| #37 | polish-apply-loop | CLEAN (no-op on 2 files) | PASS | 6/6 — already on main | 807 | packaging; install-verified |
+| #38 | comments-archive | CLEAN | PASS | 11/11 | 818 | ⊂ #42, rewritten by it |
+| #39 | bench-compare | CLEAN | PASS | 10/10 | 817 | ⊂ #41, unmodified by it |
+| #40 | fail-severity-tier | **CONFLICT** (2 files) | — | — | — | design decision |
+| #41 | external-packet | CLEAN | PASS | 10/10 (adds none) | 817 | ungraded data packet |
+| #42 | comments-paste-path | CLEAN | PASS | 18/18 | 825 | product-blocked |
+| #43 | comments-to-decisions | CLEAN | PASS | **15/16, 1 fail** | 812, 1 fail | product-blocked + red |
+
+### The finding that reframes it77: #37's substance ALREADY LANDED on main
+
+`scripts/raven-polish.mjs` (239 lines) and `test/raven-polish.test.mjs` (6 tests) are present on `origin/main` **byte-identical** to the branch (equal blob hashes) — they came in with the it49→it64 stack. So cherry-picking #37 is a no-op on both files, and its 6 tests were already inside the 807 baseline. Checked across all seven branches; only #37 has this condition.
+
+What #37 still adds is 33 lines of packaging: the `bin` entry, the `files` entry, a README section, an example GH workflow. Verified through a **real pack → clean install → invoke chain** (not `--dry-run`, which an earlier revision wrongly relied on):
+
+- `origin/main` tarball = 83 files, `scripts/raven-polish.mjs` **ABSENT**; with #37 = 84 files, **PRESENT**
+- `npm pack` → real tgz; `tar tzf` confirms `package/scripts/raven-polish.mjs`
+- `npm i -g --prefix <tmp>` → install OK; bin shim `raven-polish -> …/scripts/raven-polish.mjs` created
+- invoking the **installed** binary prints its usage line
+
+So main ships the raven-polish CLI in the repo but not in the published package. **This overturns my earlier "close/park #37" recommendation** — it is not speculative feature work, it is the packaging change that makes an already-merged, already-tested CLI reachable by npm consumers. Same defect class as the live 51-vs-93 manifest bug #35 fixes.
+
+*Incidental (main's code, not #37's): `--help` is an unrecognized argument and that error path exits 0. Not a blocker; flagged for Andrew.*
+
+### Structure: the queue is 5 units, not 7 — with one caveat
+
+`git merge-base --is-ancestor` confirms #39's **tip** is an ancestor of #41's, and #38's of #42's. But containment ≠ preservation: #41 touches only new `bench/external/pending/` files (modifies nothing #39 added), whereas **#42 substantially rewrites #38** — 207 insertions / 10 deletions / 108 lines changed in `scripts/figma-comments-archive.mjs`. An earlier revision claimed "closing #38 and #39 costs nothing"; that is **withdrawn for #38**, since #42 is itself product-blocked and closing #38 could discard the only independently-reviewed version. Andrew's judgment call, not a free action.
+
+### Integration: the recommended prefix tested on its own
+
+Testing only the seven-commit stack would let a later commit mask an earlier failure, so **#35 + #36 + #37 alone**: 3 clean picks, build PASS, **810 / 809 pass / 0 fail / 1 skip**, zero ✖ marks. The larger seven-commit tree (prefix + #41 + #42) also builds green at 838 / 837 / 0 fail / 1 skip with #35's manifest gate passing 1/1 — reported as measurement only, since it includes product-blocked #42.
+
+### #40 — the only replay conflict, and it is a DESIGN conflict
+
+Conflicts in `src/index.ts` and `src/design-review.ts`. main has `reviewDiff(diff, designContent, decisions, project, fail_on_governed)` with a boolean on the `review_diff` schema; #40 has `reviewDiff(…, fail_on)` with `string[]` on the **same** schema. Both claim the 5th positional parameter. No rebase resolves this — coexist as an options bag, or one supersedes. Andrew's call, exactly as flagged since it71. #40 modifies an existing tool's schema and adds no tool, so it cannot stale #35's manifest. This is item 4 of the it75 program, now confirmed by execution rather than inference.
+
+### #43 — red, diagnosis bounded
+
+String snapshot at `test/decision-import.test.mjs:81`. Diff is additive — two `+` lines (author field spec, author instruction), zero removals — both from main's author feature, which postdates #43's expected literal. Four sibling **behavioral** tests pass on the merged tree (plain-doc classification, archive tagging, glob discovery, thread-boundary chunking). But none exercise author attribution, so **semantic equivalence is untested**; additive prompt text does not prove preserved extraction behavior. Bounded claim: consistent with a stale literal, no evidence of behavior loss found. The one-line fix is prospective — not applied, not tested.
+
+### Recommendation
+
+**#37 joins the #35/#36 release group.** The three were verified together as a set (810/809/0 fail); no internal ordering is evidenced and none is claimed. This iteration provides **no independent evidence for #35/#36's own merit** — that rests on it76 and is not re-established here.
+
+Everything else is blocked, not ordered:
+- **#41** — mechanically clean, cumulatively green, but an ungraded data packet. `bench/` is not in `files`, so its 38 packet files do not ship. Grade or close is Andrew's; not recommended for merge. #41 contains #39's tip and modifies none of its files, but whether that supersedes #39 depends on #41's own disposition, which is ungraded.
+- **#42, #43** — blocked on one real Figma-clipboard paste. The parser is unvalidated against real clipboard text and is known to fabricate replies from timestamp-looking lines. Branch health above is measurement, not a merge argument.
+- **#40** — blocked on Andrew's `fail_on` / `fail_on_governed` decision.
+
+**Net effect on the earlier recommendation:** #35+#36 first, #40 Andrew's call, #41 ungraded, #42/#43 product-blocked — all unchanged. **#37 overturned** from park to merge. #38's closure downgraded from free to a judgment call.
+
+### Methodology corrections made this iteration (two of mine, both caught by running more)
+
+1. **The it77 smoke harness was unreliable in two ways.** `declare -A` is invalid on macOS bash 3.2, so the per-branch "own test" column mapped to the wrong files — every row read `pass 11`. Re-run isolated, the real numbers are in the table above. Separately, a `-q` cherry-pick with suppressed output silently failed in one worktree and I briefly read the resulting unchanged tree as evidence that #37 does *not* fix the packaging gap. Both are the same failure mode: **suppressed output read as a result.** Rule for future firings: never `>/dev/null` a step whose success is the measurement.
+2. **A rev-1 "methodology self-correction" was itself wrong and is retracted.** I claimed the suite-total metric was non-additive because #37's tests ran while the total stayed 807. The real cause was that #37's tests were already on main. Totals reconcile exactly for every branch measured (807+11=818, +10=817, +18=825, +5=812, prefix 807+3=810, cumulative 838). Scope: this is a consistency check for the branches measured, not proof the metric detects replaced or undiscovered tests. A 199-vs-83 tarball count I flagged mid-run was a build-state difference (dist/ populated vs empty), not package growth.
+
+**Adverse:** constrained Sol (report-only, medium), **four rounds** — rev 1 NOT SOUND (2 P0), rev 2 NOT SOUND (3 P0), rev 3 NOT SOUND (3 P0), rev 4 NOT SOUND (1 P0, 1 P1, 1 P2). Five P0s across the run were answered by **running more**: isolated own-test runs, the already-landed blob-hash check, `npm pack`, the real install+invoke chain, and the isolated prefix suite. Two were conceded without running (#42/#43 cannot be recommended while the parser is unvalidated; "closing #38 is free" withdrawn). Rev 4's residual P0 — that this report gives no independent evidence for #35/#36 — is **accepted and stated above**; it is partly an artifact of the judge-from-pasted-text-only constraint, since it76 carries that evidence and Sol cannot see it. Residual P1/P2 (the "safely superseded" phrasing for #39, and the cosmetic `#35 → #36 → #37` arrow) are resolved in the text above. Split: Sol-only 9 findings in the final round's lineage; no Fable (Andrew on usage credits).
+
+**NOT verified (scope honesty):** no merges, no PR-branch pushes. #43's prospective fix not applied or tested; its author-instruction semantics untested. `release.sh` still unexercised. No host-level `.mcpb` install. No prefix test of #35+#36 without #37 or of other sub-combinations. `scripts/figma-comments-archive.mjs` is absent from the tarball on the cumulative tree — same shape as #37's gap, but whether that script is meant to be published is unknown and no defect is claimed.
+
+**Matrix cell moved:** none (it30 merge-gated ruling; nothing merged).
+
+**Standing value of this iteration:** items 2 and 3 of the it75 program are now done, and item 4's mechanics are confirmed by execution. The queue's real shape is: one packaging group ready for Andrew (#35/#36/#37), one ungraded packet (#41), two product-blocked branches (#42/#43), one design decision (#40), and two contained branches (#38/#39). The loop found a second live distribution defect — a shipped-but-unpublished CLI — of the same class as the manifest bug, which is the strongest argument yet that the distribution axis is where already-written code is closest to reaching users.
+
+**Next (it78):** item 4 — write up the `fail_on` (#40) / `fail_on_governed` collision as a one-read decision for Andrew: both call sites, both schemas, the options-bag vs supersede shapes, and what each costs `review_diff` byte-identity for existing callers. Mechanics only; the decision stays Andrew's. it80 is the next zoom-out.
