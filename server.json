@@ -3,7 +3,7 @@
   "name": "ai.ravenmcp/raven-mcp",
   "title": "Raven",
   "description": "Design intelligence MCP server — principles, UI patterns, content systems, research methods, service design, brand, business strategy, and production design tokens for AI-generated UI.",
-  "version": "1.17.1",
+  "version": "2.0.0",
   "websiteUrl": "https://ravenmcp.ai",
   "repository": {
     "url": "https://github.com/rhinocap/raven-mcp",
@@ -14,7 +14,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "raven-mcp",
-      "version": "1.17.1",
+      "version": "2.0.0",
       "transport": {
         "type": "stdio"
       }
