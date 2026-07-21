@@ -151,6 +151,9 @@
   var activeTabB = "layers";
   var activeGlobalActionSurface = "design";
   var expandedSections = { styles: true };
+  // Pending-changes tray sections start expanded; the user can collapse each to
+  // reclaim vertical space (critical on the mobile sheet). Keyed by section role.
+  var changeTrayCollapsed = Object.create(null);
   var instructionDraft = "";
   var componentRequestStep = "form";
   var componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
@@ -652,6 +655,8 @@
     .raven-grab-stroke-segmented button { min-height: 30px; padding: 5px 8px; color: var(--raven-grab-muted); background: transparent; border: 0; border-radius: 7px; cursor: pointer; font: 600 calc(10px * var(--raven-grab-font-scale))/1.2 var(--raven-grab-ui); }
     .raven-grab-stroke-segmented button:hover { color: var(--raven-grab-text); background: rgba(255, 255, 255, .06); }
     .raven-grab-stroke-segmented button[aria-pressed="true"] { color: #0a1018; background: var(--raven-grab-accent); }
+    .raven-grab-stroke-sides { grid-template-columns: repeat(5, 1fr); }
+    .raven-grab-stroke-sides button { min-height: 28px; padding: 5px 4px; }
     .raven-grab-stroke-disclosure { grid-column: 1 / -1; margin: -2px 0 0; color: var(--raven-grab-muted); font: 400 calc(9px * var(--raven-grab-font-scale))/1.35 var(--raven-grab-ui); }
     .raven-grab-style-editor[data-control="stroke"] > .raven-grab-color-suggestions,
     .raven-grab-style-editor[data-control="text-decoration"] > .raven-grab-color-suggestions,
@@ -906,6 +911,11 @@
     .raven-grab-changes { margin: 0 0 10px; padding: 10px; background: var(--raven-grab-raised); border: 1px solid rgba(255,255,255,.08); border-radius: 10px; }
     .raven-grab-changes-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; color: var(--raven-grab-text); font: 600 calc(11px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-ui); }
     .raven-grab-changes-header span { color: var(--raven-grab-muted); font-weight: 400; }
+    .raven-grab-changes-toggle { color: var(--raven-grab-text); font: 600 calc(11px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-ui); }
+    .raven-grab-changes-toggle:hover { color: var(--raven-grab-text); }
+    .raven-grab-changes-heading { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+    .raven-grab-changes-heading span { color: var(--raven-grab-muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .raven-grab-collapsible[data-change-tray-body] .raven-grab-change-list { margin-top: 8px; }
     .raven-grab-change-list { display: grid; gap: 6px; margin: 0 0 8px; padding: 0; list-style: none; }
     .raven-grab-change-row { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto auto; align-items: center; gap: 6px; min-height: 28px; color: var(--raven-grab-text); }
     .raven-grab-change-icon { color: var(--raven-grab-accent); font: 600 calc(11px * var(--raven-grab-font-scale))/1 var(--raven-grab-ui); text-align: center; }
@@ -1900,6 +1910,10 @@
     return "";
   }
 
+  function sameTag(element, tag) {
+    return !!element && element.nodeType === 1 && String(element.localName || "").toLowerCase() === tag;
+  }
+
   function componentSignatureFor(element) {
     if (!element || element.nodeType !== 1) return null;
     var tag = String(element.localName || element.tagName || "").toLowerCase();
@@ -1920,12 +1934,36 @@
     if (!signature) return { matchSelector: "", matchCount: 0 };
     var componentName = componentNameFor(element, metadata);
     var hasComponentAttr = !!(element && typeof element.getAttribute === "function" && element.getAttribute("data-raven-component"));
-    // Named component attribute is authoritative. Otherwise require at least one
-    // non-utility class so Tailwind atoms never open a huge "All N" set.
+    // Named component attribute is authoritative. A class-less element (bare
+    // <h2>/<blockquote>/<li> in hand-written semantic markup) can't open a
+    // document-wide tag set — "every <p> on the page" — so instead scope it to
+    // same-signature siblings under the SAME parent. That makes "All siblings"
+    // work for content HTML while staying bounded: a tag match never escapes
+    // its parent, and the MATCH_CAP still applies.
     if (!hasComponentAttr && signature.classes.length === 0) {
-      var emptyScope = { matchSelector: "", matchCount: 0 };
-      if (componentName) emptyScope.componentName = componentName;
-      return emptyScope;
+      var parent = element.parentElement;
+      var siblingCount = parent
+        ? Array.prototype.filter.call(parent.children, function (child) {
+            return sameTag(child, signature.tag);
+          }).length
+        : 0;
+      if (!parent || siblingCount > COMPONENT_SCOPE_MATCH_CAP) {
+        var emptyScope = { matchSelector: "", matchCount: 0 };
+        if (parent) emptyScope.tooBroad = true;
+        if (componentName) emptyScope.componentName = componentName;
+        return emptyScope;
+      }
+      // matchSelector is a best-effort parent-qualified selector for the sent
+      // payload; the local count/preview re-derives from parent.children (exact),
+      // so an ambiguous parent selector never widens what we show or apply here.
+      var parentSelector = stableSelector(parent);
+      var siblingScope = {
+        matchSelector: parentSelector ? parentSelector + " > " + signature.tag : signature.tag,
+        matchCount: siblingCount,
+        siblingScoped: true
+      };
+      if (componentName) siblingScope.componentName = componentName;
+      return siblingScope;
     }
     var matchSelector;
     if (hasComponentAttr && componentName) {
@@ -3012,7 +3050,18 @@
   // without committing/dismissing first can leave a sibling override in place.
   function componentScopeSiblingElements() {
     if (editScope !== "component" || !selectedElement || !currentSelection || !currentSelection.componentScope) return [];
-    var selector = currentSelection.componentScope.matchSelector;
+    var scope = currentSelection.componentScope;
+    // Class-less scope is same-parent, same-signature — re-derived live from the
+    // parent's children (there is no global selector that means "these siblings").
+    if (scope.siblingScoped) {
+      var parent = selectedElement.parentElement;
+      if (!parent) return [];
+      var tag = String(selectedElement.localName || "").toLowerCase();
+      return Array.prototype.filter.call(parent.children, function (element) {
+        return element !== selectedElement && sameTag(element, tag);
+      });
+    }
+    var selector = scope.matchSelector;
     if (!selector) return [];
     var matches;
     try { matches = Array.prototype.slice.call(document.querySelectorAll(selector)); }
@@ -3177,10 +3226,17 @@
     return true;
   }
 
+  var STROKE_SIDES = ["top", "right", "bottom", "left"];
+  var STROKE_SIDE_LABEL = { top: "Top", right: "Right", bottom: "Bottom", left: "Left" };
+  var STROKE_SIDE_PROPERTIES = [];
+  STROKE_SIDES.forEach(function (side) {
+    ["width", "style", "color"].forEach(function (prop) { STROKE_SIDE_PROPERTIES.push("border-" + side + "-" + prop); });
+  });
+
   var STROKE_PROPERTIES = [
     "border-width", "border-style", "border-color", "box-sizing",
     "outline-width", "outline-style", "outline-color", "outline-offset"
-  ];
+  ].concat(STROKE_SIDE_PROPERTIES);
 
   function isSvgGraphicsElement(element) {
     if (!element || element.nodeType !== 1) return false;
@@ -3202,6 +3258,41 @@
     return strokePropertyValueForDraft(property, null);
   }
 
+  // A per-side longhand read that also honours a uniform shorthand edit — the
+  // editor may have committed either border-width or border-left-width, and the
+  // display must reflect whichever is live.
+  function strokeSideValueForDraft(side, prop, draft) {
+    var edits = draft ? draft.styleEdits : styleEdits;
+    if (!edits["border-" + side + "-" + prop] && edits["border-" + prop]) return edits["border-" + prop].newValue;
+    return strokePropertyValueForDraft("border-" + side + "-" + prop, draft);
+  }
+
+  function strokeSideModel(side, draft) {
+    return {
+      width: strokeSideValueForDraft(side, "width", draft) || "0px",
+      style: strokeSideValueForDraft(side, "style", draft) || "none",
+      color: strokeSideValueForDraft(side, "color", draft) || "rgb(0, 0, 0)"
+    };
+  }
+
+  function strokeSideVisible(side) {
+    return !!side && (parseFloat(side.width) || 0) > 0 && side.style !== "none";
+  }
+
+  function strokeSidesUniform(sides) {
+    var first = sides.top;
+    return STROKE_SIDES.every(function (name) {
+      var s = sides[name];
+      return s.width === first.width && s.style === first.style && s.color === first.color;
+    });
+  }
+
+  function strokeSidesForDraft(draft) {
+    var sides = {};
+    STROKE_SIDES.forEach(function (name) { sides[name] = strokeSideModel(name, draft); });
+    return sides;
+  }
+
   function strokeModelForDraft(draft) {
     var outlineWidth = strokePropertyValueForDraft("outline-width", draft) || "0px";
     var outlineStyle = strokePropertyValueForDraft("outline-style", draft) || "none";
@@ -3214,12 +3305,13 @@
         color: strokePropertyValueForDraft("outline-color", draft) || "rgb(0, 0, 0)"
       };
     }
-    return {
-      position: "inside",
-      width: strokePropertyValueForDraft("border-width", draft) || "0px",
-      style: strokePropertyValueForDraft("border-style", draft) || "none",
-      color: strokePropertyValueForDraft("border-color", draft) || "rgb(0, 0, 0)"
-    };
+    // Borders are per-side. Read the four longhands (the border-width shorthand
+    // resolves EMPTY for a non-uniform border, which read as "None" before) and
+    // collapse to the uniform shape only when every side truly matches.
+    var sides = strokeSidesForDraft(draft);
+    if (!strokeSidesUniform(sides)) return { position: "inside", perSide: true, sides: sides };
+    var uniform = sides.top;
+    return { position: "inside", width: uniform.width, style: uniform.style, color: uniform.color };
   }
 
   function strokeModelForSelection() {
@@ -3244,11 +3336,28 @@
     return { position: position, width: width, style: styleName, color: color };
   }
 
+  function strokeColorDisplay(color) {
+    return parseColorParts(color) ? formatColorValue(color, "hex").toUpperCase() : color;
+  }
+
+  function strokePerSideSummary(model) {
+    var visible = STROKE_SIDES.filter(function (name) { return strokeSideVisible(model.sides[name]); });
+    if (!visible.length) return "None";
+    var sidesLabel = visible.map(function (name) { return STROKE_SIDE_LABEL[name]; }).join("+");
+    var ref = model.sides[visible[0]];
+    var sameLook = visible.every(function (name) {
+      var s = model.sides[name];
+      return s.width === ref.width && s.style === ref.style && s.color === ref.color;
+    });
+    if (!sameLook) return "Mixed · " + sidesLabel;
+    return ref.width + " " + ref.style + " " + strokeColorDisplay(ref.color) + " · " + sidesLabel;
+  }
+
   function strokeSummary(model) {
+    if (model && model.perSide) return strokePerSideSummary(model);
     var normalized = normalizeStrokeModel(model, model);
     if (!normalized || (parseFloat(normalized.width) || 0) <= 0 || normalized.style === "none") return "None";
-    var displayColor = parseColorParts(normalized.color) ? formatColorValue(normalized.color, "hex").toUpperCase() : normalized.color;
-    return normalized.width + " " + normalized.style + " " + displayColor + " · " + (normalized.position === "outside" ? "Outside" : "Inside");
+    return normalized.width + " " + normalized.style + " " + strokeColorDisplay(normalized.color) + " · " + (normalized.position === "outside" ? "Outside" : "Inside");
   }
 
   function copyStrokeRecord(record) {
@@ -3321,25 +3430,21 @@
     styleEditTarget = snapshot.styleEditTarget;
   }
 
-  function commitStrokeEdit(model, previousModel, editorSnapshot) {
-    if (!selectedElement || !currentSelection || !window.CSS || typeof window.CSS.supports !== "function") return false;
-    var normalized = normalizeStrokeModel(model, previousModel);
-    if (!normalized) return false;
-    var emitted = normalized.position === "outside"
-      ? [
-          { property: "outline-width", value: normalized.width },
-          { property: "outline-style", value: normalized.style },
-          { property: "outline-color", value: normalized.color },
-          { property: "outline-offset", value: "0px" },
-          { property: "border-width", value: "0px" }
-        ]
-      : [
-          { property: "border-width", value: normalized.width },
-          { property: "border-style", value: normalized.style },
-          { property: "border-color", value: normalized.color },
-          { property: "box-sizing", value: "border-box" },
-          { property: "outline-width", value: "0px" }
-        ];
+  function normalizeStrokeSide(side) {
+    var parsed = parseNumericValue(side && side.width);
+    var styleName = side && String(side.style || "").toLowerCase();
+    var color = side && String(side.color || "").trim();
+    var allowedStyles = ["none", "solid", "dashed", "dotted", "double"];
+    if (!parsed || Number(parsed.number) < 0 || allowedStyles.indexOf(styleName) === -1 || !color) return null;
+    var unit = parsed.unit || "px";
+    if (styleName === "none" || Number(parsed.number) <= 0) return { width: "0" + unit, style: "none", color: color };
+    return { width: formatNumericResult(Number(parsed.number)) + unit, style: styleName, color: color };
+  }
+
+  // Shared writer for the Stroke group: validate every entry, restore any stroke
+  // edit it no longer emits (so switching uniform↔per-side or inside↔outside never
+  // strands a stale border-*/outline-* longhand), then apply and record the group.
+  function applyStrokeEmission(emitted, editorSnapshot) {
     for (var validationIndex = 0; validationIndex < emitted.length; validationIndex += 1) {
       if (!window.CSS.supports(emitted[validationIndex].property, emitted[validationIndex].value)) return false;
     }
@@ -3375,7 +3480,50 @@
       return false;
     }
     syncActiveStyleDraftKey();
-    return normalized;
+    return true;
+  }
+
+  // Per-side commit: writes all four sides as longhands (never the shorthand), so
+  // editing one side keeps the other three exactly as they were. Outside/outline
+  // is always uniform, so it never routes here.
+  function commitStrokeSidesEdit(model, editorSnapshot) {
+    var normalizedSides = {};
+    var emitted = [];
+    for (var i = 0; i < STROKE_SIDES.length; i += 1) {
+      var name = STROKE_SIDES[i];
+      var n = normalizeStrokeSide(model.sides[name]);
+      if (!n) return false;
+      normalizedSides[name] = n;
+      emitted.push({ property: "border-" + name + "-width", value: n.width });
+      emitted.push({ property: "border-" + name + "-style", value: n.style });
+      emitted.push({ property: "border-" + name + "-color", value: n.color });
+    }
+    emitted.push({ property: "box-sizing", value: "border-box" });
+    emitted.push({ property: "outline-width", value: "0px" });
+    return applyStrokeEmission(emitted, editorSnapshot) ? { position: "inside", perSide: true, sides: normalizedSides } : false;
+  }
+
+  function commitStrokeEdit(model, previousModel, editorSnapshot) {
+    if (!selectedElement || !currentSelection || !window.CSS || typeof window.CSS.supports !== "function") return false;
+    if (model && model.perSide) return commitStrokeSidesEdit(model, editorSnapshot);
+    var normalized = normalizeStrokeModel(model, previousModel);
+    if (!normalized) return false;
+    var emitted = normalized.position === "outside"
+      ? [
+          { property: "outline-width", value: normalized.width },
+          { property: "outline-style", value: normalized.style },
+          { property: "outline-color", value: normalized.color },
+          { property: "outline-offset", value: "0px" },
+          { property: "border-width", value: "0px" }
+        ]
+      : [
+          { property: "border-width", value: normalized.width },
+          { property: "border-style", value: normalized.style },
+          { property: "border-color", value: normalized.color },
+          { property: "box-sizing", value: "border-box" },
+          { property: "outline-width", value: "0px" }
+        ];
+    return applyStrokeEmission(emitted, editorSnapshot) ? normalized : false;
   }
 
   function removeStrokeEditGroup() {
@@ -3640,7 +3788,7 @@
   function classifyStyleControl(property, value) {
     if (property === "__raven-stroke__") return "stroke";
     if (property === "text-decoration") return "text-decoration";
-    if (property === "box-shadow") return "box-shadow";
+    if (property === "box-shadow") return shadowLayerCount(value) > 1 ? "text" : "box-shadow";
     if (property === "overflow") return "overflow";
     if (property === "width" || property === "height") return "size";
     if (property === "font-family") return "enum";
@@ -3878,6 +4026,16 @@
     return parts.join(" ");
   }
 
+  // The structured box-shadow editor models a SINGLE layer; parseBoxShadowModel
+  // keeps only split(...)[0], so opening it on a stacked shadow would drop every
+  // layer after the first on commit. Count comma-separated layers (ignoring commas
+  // inside rgb()/rgba()) so multi-layer values route to the lossless text editor.
+  function shadowLayerCount(value) {
+    var text = String(value || "").trim();
+    if (!text || text === "none") return 0;
+    return text.split(/,(?![^(]*\))/).filter(function (part) { return part.trim(); }).length;
+  }
+
   // Reformat a color between hex and rgb WITHOUT losing alpha (a passive
   // format-flip must never turn rgba(0,0,0,0) into opaque black). Unparseable
   // values pass through unchanged.
@@ -3962,11 +4120,17 @@
     var editorTarget = selectedElement;
     var row = valueCell.parentElement;
     var previousModel = strokeModelForSelection();
+    var sides = strokeSidesForDraft(null);
+    // A non-uniform border opens straight into per-side mode on its first visible
+    // side; a uniform border (or outline) opens in "all" mode like before.
+    var firstVisibleSide = STROKE_SIDES.filter(function (name) { return strokeSideVisible(sides[name]); })[0] || "top";
+    var activeSide = previousModel.perSide ? firstVisibleSide : "all";
+    var seedSide = previousModel.perSide ? sides[activeSide] : previousModel;
     var model = {
-      position: previousModel.position,
-      width: previousModel.width,
-      style: previousModel.style,
-      color: previousModel.color
+      position: previousModel.perSide ? "inside" : previousModel.position,
+      width: seedSide.width,
+      style: seedSide.style,
+      color: seedSide.color
     };
     var openState = snapshotStrokeEditState(editorTarget);
     var finished = false;
@@ -3974,6 +4138,26 @@
     var editor = document.createElement("div");
     editor.className = "raven-grab-style-editor";
     editor.setAttribute("data-control", "stroke");
+
+    var sideField = document.createElement("div");
+    sideField.className = "raven-grab-stroke-field raven-grab-stroke-position";
+    var sideLabel = document.createElement("span");
+    sideLabel.textContent = "Sides";
+    var sideGroup = document.createElement("div");
+    sideGroup.className = "raven-grab-stroke-segmented raven-grab-stroke-sides";
+    sideGroup.setAttribute("role", "group");
+    sideGroup.setAttribute("aria-label", "Border side");
+    var sideButtons = {};
+    [["all", "All"]].concat(STROKE_SIDES.map(function (name) { return [name, STROKE_SIDE_LABEL[name]]; })).forEach(function (entry) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.textContent = entry[1];
+      button.setAttribute("data-stroke-side", entry[0]);
+      sideButtons[entry[0]] = button;
+      sideGroup.appendChild(button);
+    });
+    sideField.appendChild(sideLabel);
+    sideField.appendChild(sideGroup);
 
     var widthField = document.createElement("label");
     widthField.className = "raven-grab-stroke-field";
@@ -4068,6 +4252,7 @@
     disclosure.className = "raven-grab-stroke-disclosure";
     disclosure.textContent = "Inside uses CSS border-box; Outside uses outline.";
 
+    editor.appendChild(sideField);
     editor.appendChild(widthField);
     editor.appendChild(styleField);
     editor.appendChild(colorField);
@@ -4088,26 +4273,72 @@
       outsideButton.setAttribute("aria-pressed", model.position === "outside" ? "true" : "false");
     }
 
+    function updateSideButtons() {
+      STROKE_SIDES.concat(["all"]).forEach(function (name) {
+        if (sideButtons[name]) sideButtons[name].setAttribute("aria-pressed", activeSide === name ? "true" : "false");
+      });
+      // Per-side is inside-only (outline can't be one-sided); the side picker hides
+      // for Outside, and the position control hides while editing a single side.
+      sideField.style.display = model.position === "outside" ? "none" : "";
+      positionField.style.display = activeSide === "all" ? "" : "none";
+      disclosure.style.display = activeSide === "all" ? "" : "none";
+    }
+
+    function loadControlsFromValues(width, style, color) {
+      var parsed = parseNumericValue(width) || { number: "0", unit: "px" };
+      widthInput.value = parsed.number;
+      if (parsed.unit) widthUnit.value = parsed.unit;
+      var strokeStyleOptions = ["none", "solid", "dashed", "dotted", "double"];
+      styleSelect.value = strokeStyleOptions.indexOf(style) === -1 ? "none" : style;
+      colorText.value = color;
+      colorInput.value = colorInputValue(color);
+    }
+
     function readModel() {
       var expression = parseNumericExpression(widthInput.value.trim(), widthUnit.value || "px");
       if (!expression) return null;
-      return {
-        position: model.position,
-        width: formatNumericResult(expression.number) + (expression.unit || "px"),
-        style: styleSelect.value,
-        color: normalizeColorEntry(colorText.value, model.color, colorFormat.value)
-      };
+      var width = formatNumericResult(expression.number) + (expression.unit || "px");
+      var color = normalizeColorEntry(colorText.value, model.color, colorFormat.value);
+      var style = styleSelect.value;
+      if (activeSide === "all") return { position: model.position, width: width, style: style, color: color };
+      var nextSides = {};
+      STROKE_SIDES.forEach(function (name) {
+        nextSides[name] = name === activeSide
+          ? { width: width, style: style, color: color }
+          : { width: sides[name].width, style: sides[name].style, color: sides[name].color };
+      });
+      return { perSide: true, sides: nextSides };
     }
 
     function syncControls(nextModel) {
-      var parsed = parseNumericValue(nextModel.width) || { number: "0", unit: "px" };
-      widthInput.value = parsed.number;
-      if (parsed.unit) widthUnit.value = parsed.unit;
-      styleSelect.value = nextModel.style;
-      colorText.value = nextModel.color;
-      colorInput.value = colorInputValue(nextModel.color);
-      model = nextModel;
+      if (nextModel && nextModel.perSide) {
+        sides = nextModel.sides;
+        var s = sides[activeSide] || sides.top;
+        loadControlsFromValues(s.width, s.style, s.color);
+        model.position = "inside";
+      } else {
+        loadControlsFromValues(nextModel.width, nextModel.style, nextModel.color);
+        model = { position: nextModel.position, width: nextModel.width, style: nextModel.style, color: nextModel.color };
+        STROKE_SIDES.forEach(function (name) { sides[name] = { width: nextModel.width, style: nextModel.style, color: nextModel.color }; });
+      }
       updatePositionButtons();
+      updateSideButtons();
+    }
+
+    function switchSide(nextSide) {
+      if (nextSide === activeSide) return;
+      // Live edits already committed via preview(), so `sides`/`model` are current.
+      activeSide = nextSide;
+      if (nextSide === "all") {
+        if (model.position !== "outside") model.position = "inside";
+        loadControlsFromValues(model.width, model.style, model.color);
+      } else {
+        model.position = "inside";
+        var s = sides[nextSide] || { width: "0px", style: "none", color: model.color };
+        loadControlsFromValues(s.width, s.style, s.color);
+      }
+      updatePositionButtons();
+      updateSideButtons();
     }
 
     function markError() {
@@ -4190,13 +4421,20 @@
       colorText.value = formatColorValue(colorText.value, colorFormat.value);
       preview();
     });
-    insideButton.addEventListener("click", function () { model.position = "inside"; updatePositionButtons(); preview(); });
-    outsideButton.addEventListener("click", function () { model.position = "outside"; updatePositionButtons(); preview(); });
+    insideButton.addEventListener("click", function () { model.position = "inside"; updatePositionButtons(); updateSideButtons(); preview(); });
+    outsideButton.addEventListener("click", function () { activeSide = "all"; model.position = "outside"; updatePositionButtons(); updateSideButtons(); preview(); });
+    STROKE_SIDES.concat(["all"]).forEach(function (name) {
+      if (!sideButtons[name]) return;
+      // Switching side only re-targets the controls — it never writes until the
+      // user actually edits, so a stray click can't convert a uniform border.
+      sideButtons[name].addEventListener("click", function () { switchSide(name); });
+    });
     // colorInput excluded: opening its native OS color panel blurs it immediately
     // with relatedTarget === null (same as "clicked elsewhere"), which closed the
     // editor before a color could be picked. Its own input/change listeners above
     // already call preview(), which is enough to keep the edit live.
-    var controls = [widthInput, widthUnit, styleSelect, colorText, colorFormat, insideButton, outsideButton];
+    var controls = [widthInput, widthUnit, styleSelect, colorText, colorFormat, insideButton, outsideButton]
+      .concat(STROKE_SIDES.concat(["all"]).map(function (name) { return sideButtons[name]; }));
     controls.forEach(function (control) {
       control.addEventListener("keydown", function (event) {
         if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); }
@@ -4208,6 +4446,7 @@
       });
     });
     updatePositionButtons();
+    updateSideButtons();
     activeStyleEditorFlush = commit;
     widthInput.focus();
     widthInput.select();
@@ -5202,7 +5441,13 @@
     var styleState = row.getAttribute("data-style-state");
     if (property === "__raven-stroke__") return beginStrokeEdit(valueCell);
     if (property === "text-decoration") return beginTextDecorationEdit(valueCell);
-    if (property === "box-shadow") return beginBoxShadowEdit(valueCell);
+    if (property === "box-shadow") {
+      // Only the single-layer structured editor is safe here; a stacked shadow
+      // falls through to the plain-text editor so its extra layers survive commit.
+      var shadowRaw = valueCell.getAttribute("data-style-raw");
+      if (shadowRaw == null) shadowRaw = valueCell.textContent;
+      if (shadowLayerCount(shadowRaw) <= 1) return beginBoxShadowEdit(valueCell);
+    }
     if (property === "overflow") return beginOverflowEdit(valueCell);
     if (property === "width" || property === "height") return beginSizeEdit(valueCell);
     // Edit the ORIGINAL unrounded computed value, not the display-rounded text —
@@ -7518,9 +7763,16 @@
     return rows;
   }
 
-  function changeTraySectionMarkup(items, heading, summary) {
+  function changeTraySectionMarkup(items, heading, summary, role) {
     if (!items.length) return "";
-    return '<section class="raven-grab-changes" aria-label="' + escapeHtml(heading) + '"><div class="raven-grab-changes-header"><strong>' + escapeHtml(heading) + '</strong><span>' + escapeHtml(summary) + '</span></div><ul class="raven-grab-change-list">' + changeTrayRowsMarkup(items) + '</ul></section>';
+    var collapsed = !!changeTrayCollapsed[role];
+    var bodyId = "raven-grab-tray-" + role;
+    return '<section class="raven-grab-changes" aria-label="' + escapeHtml(heading) + '">'
+      + '<button class="raven-grab-section-toggle raven-grab-changes-toggle" type="button" data-change-tray-toggle="' + escapeHtml(role) + '" aria-expanded="' + (collapsed ? "false" : "true") + '" aria-controls="' + bodyId + '">'
+      + '<span class="raven-grab-changes-heading"><strong>' + escapeHtml(heading) + '</strong><span>' + escapeHtml(summary) + '</span></span>'
+      + '<span class="raven-grab-caret" aria-hidden="true">▾</span></button>'
+      + '<div class="raven-grab-collapsible" id="' + bodyId + '" data-change-tray-body="' + escapeHtml(role) + '" data-open="' + (collapsed ? "false" : "true") + '" aria-hidden="' + (collapsed ? "true" : "false") + '"><div class="raven-grab-collapsible-inner"><ul class="raven-grab-change-list">' + changeTrayRowsMarkup(items) + '</ul></div></div>'
+      + '</section>';
   }
 
   function changesTrayMarkup() {
@@ -7530,10 +7782,10 @@
     var localItems = items.filter(function (item) { return !!item.local; });
     var submittedItems = items.filter(function (item) { return !item.local; });
     if (dispatchState !== "idle" && localItems.length) {
-      return changeTraySectionMarkup(submittedItems, "Applying", activeDispatch ? activeDispatch.logicalCount + " active" : submittedItems.length + " active") + changeTraySectionMarkup(localItems, "Next changes", count + " pending");
+      return changeTraySectionMarkup(submittedItems, "Applying", activeDispatch ? activeDispatch.logicalCount + " active" : submittedItems.length + " active", "applying") + changeTraySectionMarkup(localItems, "Next changes", count + " pending", "next");
     }
-    if (dispatchState !== "idle") return changeTraySectionMarkup(items, "Applying", activeDispatch ? activeDispatch.logicalCount + " active" : submittedItems.length + " active");
-    return changeTraySectionMarkup(items, "Pending changes", count + " pending");
+    if (dispatchState !== "idle") return changeTraySectionMarkup(items, "Applying", activeDispatch ? activeDispatch.logicalCount + " active" : submittedItems.length + " active", "applying");
+    return changeTraySectionMarkup(items, "Pending changes", count + " pending", "pending");
   }
 
   function styleDraftForClientKey(clientKey) {
@@ -8724,6 +8976,21 @@
     body.setAttribute("aria-hidden", expandedSections[section] ? "false" : "true");
   }
 
+  function toggleChangeTraySection(role) {
+    if (!role) return;
+    changeTrayCollapsed[role] = !changeTrayCollapsed[role];
+    var toggle = panelQuery('[data-change-tray-toggle="' + role + '"]');
+    var body = panelQuery('[data-change-tray-body="' + role + '"]');
+    if (!toggle || !body) {
+      renderPanel();
+      return;
+    }
+    var collapsed = !!changeTrayCollapsed[role];
+    toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    body.setAttribute("data-open", collapsed ? "false" : "true");
+    body.setAttribute("aria-hidden", collapsed ? "true" : "false");
+  }
+
   function dismiss() {
     hidePanelPresetTooltip();
     if (layerDrag) endLayerDrag();
@@ -9358,6 +9625,8 @@
     if (tab) switchTab(tab.getAttribute("data-tab"));
     var sectionToggle = event.target.closest("[data-section-toggle]");
     if (sectionToggle) toggleSection(sectionToggle.getAttribute("data-section-toggle"));
+    var trayToggle = event.target.closest("[data-change-tray-toggle]");
+    if (trayToggle) toggleChangeTraySection(trayToggle.getAttribute("data-change-tray-toggle"));
     var styleValue = event.target.closest("[data-style-value]");
     if (styleValue && !event.target.closest("[data-token-detach]")) beginStyleEdit(styleValue);
     var detachBtn = event.target.closest("[data-token-detach]");

@@ -5449,6 +5449,10 @@ test('REGRESSION: keyword styles use enums/structured editors; exotic CSS goes t
   assert.equal(internals.classifyStyleControl('overflow', 'hidden'), 'overflow');
   assert.equal(internals.classifyStyleControl('text-decoration', 'underline'), 'text-decoration');
   assert.equal(internals.classifyStyleControl('box-shadow', 'none'), 'box-shadow');
+  assert.equal(internals.classifyStyleControl('box-shadow', '0 1px 2px rgba(0,0,0,0.3)'), 'box-shadow', 'single-layer shadow keeps the structured editor');
+  // A stacked (multi-layer) shadow must NOT open the one-layer structured editor —
+  // parseBoxShadowModel keeps only the first layer, so it routes to lossless text.
+  assert.equal(internals.classifyStyleControl('box-shadow', '0 1px 2px rgba(0,0,0,0.3), 0 4px 8px rgba(0,0,0,0.15)'), 'text', 'multi-layer shadow falls back to text to avoid dropping layers');
   assert.equal(internals.classifyStyleControl('font-family', 'Geist, sans-serif'), 'enum');
   assert.equal(internals.classifyStyleControl('width', 'auto'), 'size');
   assert.equal(internals.classifyStyleControl('width', '320px'), 'size');
@@ -8587,6 +8591,10 @@ test('[phase1 tray] a draft becomes Sent in the Changes tray and Apply marks the
   assert.match(internals.getGlobalActionsHtml(), /1 pending/);
   assert.match(internals.getGlobalActionsHtml(), /Pending</);
   assert.match(internals.getGlobalActionsHtml(), /Remove/);
+  // The pending tray is collapsible (reclaims vertical space on the mobile sheet):
+  // a header toggle + a collapsible body, defaulting to expanded.
+  assert.match(internals.getGlobalActionsHtml(), /data-change-tray-toggle="pending"/);
+  assert.match(internals.getGlobalActionsHtml(), /data-change-tray-body="pending" data-open="true"/);
 
   internals.dispatchPendingBatch();
   await flushOverlayPromises();
@@ -9628,8 +9636,10 @@ test('REGRESSION: opening the native color picker does not close the STROKE edit
   // The fake DOM harness has no real Node.contains(); stub it to mirror what a
   // real Element.contains() returns for its own descendants (true).
   editor.contains = function () { return true; };
-  const widthInput = editor.children[0].children[1].children[0];
-  const colorInput = editor.children[2].children[1].children.find((child) => child.type === 'color');
+  // editor children are [sideField, widthField, styleField, colorField, positionField, disclosure];
+  // the per-side selector is children[0], so width is [1] and color is [3].
+  const widthInput = editor.children[1].children[1].children[0];
+  const colorInput = editor.children[3].children[1].children.find((child) => child.type === 'color');
   assert.ok(colorInput && colorInput.type === 'color', 'stroke editor renders the native color swatch');
 
   // Simulate dragging inside the native panel: previews live via preview(), editor stays open.
