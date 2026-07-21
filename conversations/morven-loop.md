@@ -973,3 +973,21 @@ Yes, nothing. The two standing assists — (a) point Andrew's MCP at a local bui
 - **Coord-doc polling detects pushed edits only** — immaterial, because a gate event *is* a pushed/landed change; an unpushed local edit isn't a gate event yet.
 
 **Net:** the loop is now a slow watchdog, not a worker. Everything that advances Morven from here is Andrew's call. **Metric 0** — and it stays 0 until distribution opens or real usage lands, neither of which the loop can manufacture. Cadence set to 3600s until a gate event. it85 is the next zoom-out (or sooner if a gate event re-activates the loop).
+
+## it81 — RE-ACTIVATION: 2.0.0 cut and published (gate event)
+
+**2026-07-20** · doc-only. The 3600s watchdog caught a real gate event on its first tick. **Dropped back to 1800s.**
+
+**What landed** (not a loop doc push — a real release-instance): `origin/main` advanced past it80 with `fc71824` **Merge #35** (manifest sync 51→93), `f076fb3` **Merge #36** (release-enablement pack), `78f2c61` **Add Raven Design overlay + feedback API + decision-graph review tooling** (new feature, ~6 new tools), `75c608b` **Merge into 2.0 release prep**, `d27b98b` auto-save. **npm `raven-mcp` is now `2.0.0`** (was 1.17.1). PR states: **#35 MERGED, #36 MERGED**; #37/#38/#39/#40/#41/#42/#43 still OPEN.
+
+**Verified against the published 2.0.0 tarball + a live invoke** (scratchpad, node_modules symlinked, RAVEN_NO_USAGE_LOG=1):
+- Published server runs; **99 stdio tools** (was 93 @ 1.17.1 — the overlay/feedback-API feature added ~6). `polish_diff`, `review_diff`, and 10 `decision_*` tools all present.
+- Tarball = 201 files; `package.json` version `2.0.0`; `bin` = `{raven-mcp: dist/index.js}` only.
+
+**Two Andrew-owed items shipped UNRESOLVED in the cut** (flags, not loop-fixable):
+1. **The #37 distribution defect is now live in 2.0.0.** #37 stayed open, so the raven-polish CLI is still absent from the published package — `bin` has no `raven-polish` entry and `files[]` omits `scripts/raven-polish.mjs`. Confirmed by grepping the 2.0.0 tarball (no raven-polish present). The defect I proved in it77 shipped.
+2. **`scripts/postinstall.cjs` telemetry is still in the published `files[]`** — the removal flagged for the 2.0 cut didn't happen.
+
+**Ledger:** updated CLAUDE.md ground-truth version + tool-count (1.17.1→2.0.0, 93→99), honestly scoped — only those two facts re-verified for 2.0; the rest of the block stays dated 2026-07-18. Did NOT rewrite the remote/anon-45 claims (not verified for 2.0, overclaim risk).
+
+**Re-scoped queue (post-2.0):** #35/#36 DONE (shipped). Still Andrew-owed: **#37** (now a shipped defect — merge + a 2.0.1 patch, or accept), telemetry removal, **#40** reconciliation, #41 grade/close, #42/#43 Figma-paste, #38/#39 close. The dogfood gate and the shared-graph/distribution gate are unchanged. **Metric still 0** (2.0 is a surface/version event, not adoption). Loop back to 1800s; next firing is a normal hold-check, re-scoping on any further 2.0.x activity.
