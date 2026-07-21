@@ -96,7 +96,7 @@
       margin-bottom: var(--space-10);
     }
     .cl-pill {
-      min-height: 40px;
+      min-height: 44px;
       padding: 0 var(--space-4);
       border-radius: 999px;
       border: 1px solid var(--border-strong);
@@ -261,12 +261,18 @@
       font-size: 14px;
     }
     .cl-foot-primary {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
       color: var(--text-accent);
       text-decoration: none;
       transition: opacity 0.2s;
     }
     .cl-foot-primary:hover { opacity: 0.8; }
     .cl-foot-secondary {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
       color: var(--text-secondary);
       text-decoration: none;
       transition: color 0.2s;
@@ -315,10 +321,30 @@
             <h2 class="cl-title">Raven Design: tokens, components, and templates on the page</h2>
             <ul class="cl-changes">
               <li>Raven Design — click any element on your dev server and an overlay opens next to it: a Structure panel with a layers tree drilled to that node, and a Design panel showing its computed styles and the DESIGN.md tokens it uses, editable inline with live preview. Page templates and a component pass round it out. Six new tools back it (get_page_template, set_template_slot, list_templates, get_grab_layers, move_grab_layer, get_grab_operation).</li>
-              <li>Decision Graph — a project keeps a durable, queryable memory of its design decisions, with provenance and evidence on every entry and a cross-process-safe store. decision_import cold-starts the graph from a repo's existing history.</li>
+              <li>Decision Graph — a project keeps a queryable memory of its design decisions, with provenance and evidence on every entry and a cross-process-safe store. decision_import cold-starts the graph from a repo's existing history.</li>
               <li>review_diff and polish_diff — CI-shaped design review of a code diff against your DESIGN.md tokens and recorded decisions, and a path that turns those findings into a verified, ready-to-apply patch.</li>
+              <li>audit_taste can verify a content port kept its copy intact — pass source_text and it runs a deterministic word-token diff of the original against the target's visible text, so a redesign can't silently reword shipped copy.</li>
               <li>The packaged .mcpb bundle now advertises exactly the tools it ships, derived from the built server rather than a hand-maintained list.</li>
               <li>No breaking changes: every existing tool keeps its name and behavior; this release only adds. 99 tools total.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.0.1</span>
+              <span class="cl-badge kind-fix">Fix</span>
+              <time datetime="2026-07-20" class="cl-date">July 20, 2026</time>
+            </header>
+            <h2 class="cl-title">Per-side border editing in the Raven Design overlay</h2>
+            <ul class="cl-changes">
+              <li>The Stroke control now edits borders per side — an All/Top/Right/Bottom/Left selector that multi-selects, so you can set a border on just the left, or the left and right together, not only all four at once.</li>
+              <li>A one-sided border reads correctly again: a bare border-left shows its real width, style, color, and side instead of "None".</li>
+              <li>The pending-changes panel collapses and expands from its header, so it stays out of the way on narrow and mobile viewports.</li>
+              <li>Editing a stacked multi-layer box-shadow no longer drops the extra layers, and bare semantic elements (a classless h2, blockquote, or li) can be scoped to their siblings again.</li>
+              <li>Overlay-only changes — the 99-tool stdio surface is unchanged.</li>
             </ul>
           </article>
         </li>

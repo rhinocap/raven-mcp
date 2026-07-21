@@ -26,6 +26,20 @@
   },
   "releases": [
     {
+      "version": "v2.0.1",
+      "date": "2026-07-20",
+      "category": "tooling",
+      "kind": "fix",
+      "title": "Per-side border editing in the Raven Design overlay",
+      "changes": [
+        "The Stroke control now edits borders per side — an All/Top/Right/Bottom/Left selector that multi-selects, so you can set a border on just the left, or the left and right together, not only all four at once.",
+        "A one-sided border reads correctly again: a bare border-left shows its real width, style, color, and side instead of \"None\".",
+        "The pending-changes panel collapses and expands from its header, so it stays out of the way on narrow and mobile viewports.",
+        "Editing a stacked multi-layer box-shadow no longer drops the extra layers, and bare semantic elements (a classless h2, blockquote, or li) can be scoped to their siblings again.",
+        "Overlay-only changes — the 99-tool stdio surface is unchanged."
+      ]
+    },
+    {
       "version": "v2.0.0",
       "date": "2026-07-20",
       "category": "tooling",

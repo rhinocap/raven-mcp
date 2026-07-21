@@ -6,6 +6,19 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-07-20
+
+Raven Design overlay editing fixes. No tool changes — the 99-tool stdio surface is unchanged.
+
+### Added
+- Per-side border editor in the overlay Stroke control: an All/Top/Right/Bottom/Left selector that multi-selects, so you can edit one, two, or all four sides at once (borders on just the left, or left and right, are now first-class).
+- The pending-changes panel collapses and expands from its header, reclaiming space on narrow/mobile viewports.
+
+### Fixed
+- The Stroke row now reports a one-sided border correctly — a bare `border-left` shows its real width, style, color, and side instead of "None" (it was reading the collapsing shorthands instead of the per-side longhands).
+- Editing a multi-layer `box-shadow` no longer silently drops the extra layers on commit; stacked shadows route to the lossless text editor.
+- Classless semantic elements (a bare `<h2>`, `<blockquote>`, or `<li>`) again qualify for same-parent, same-tag sibling scoping, so "All siblings" reappears for bare headings and list items.
+
 ## [2.0.0] - 2026-07-20
 
 Raven 2.0 headlines **Raven Design** — an on-page overlay that surfaces your design tokens, components, and page templates on the live page — alongside the Decision Graph and diff-shaped design review. No breaking changes: every one of the 93 existing tools keeps its name and schema; 6 tools are added, for 99 total.
