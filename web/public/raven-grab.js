@@ -4124,10 +4124,13 @@
     // A non-uniform border opens straight into per-side mode on its first visible
     // side; a uniform border (or outline) opens in "all" mode like before.
     var firstVisibleSide = STROKE_SIDES.filter(function (name) { return strokeSideVisible(sides[name]); })[0] || "top";
-    var activeSide = previousModel.perSide ? firstVisibleSide : "all";
-    var seedSide = previousModel.perSide ? sides[activeSide] : previousModel;
+    // "All" is uniform mode (single border + position control). Otherwise the user
+    // edits one or more selected sides at once; selectedSides is the live multi-select.
+    var uniform = !previousModel.perSide;
+    var selectedSides = uniform ? [] : [firstVisibleSide];
+    var seedSide = uniform ? previousModel : sides[firstVisibleSide];
     var model = {
-      position: previousModel.perSide ? "inside" : previousModel.position,
+      position: uniform ? previousModel.position : "inside",
       width: seedSide.width,
       style: seedSide.style,
       color: seedSide.color
@@ -4146,7 +4149,7 @@
     var sideGroup = document.createElement("div");
     sideGroup.className = "raven-grab-stroke-segmented raven-grab-stroke-sides";
     sideGroup.setAttribute("role", "group");
-    sideGroup.setAttribute("aria-label", "Border side");
+    sideGroup.setAttribute("aria-label", "Border sides (select one or more)");
     var sideButtons = {};
     [["all", "All"]].concat(STROKE_SIDES.map(function (name) { return [name, STROKE_SIDE_LABEL[name]]; })).forEach(function (entry) {
       var button = document.createElement("button");
@@ -4274,14 +4277,15 @@
     }
 
     function updateSideButtons() {
-      STROKE_SIDES.concat(["all"]).forEach(function (name) {
-        if (sideButtons[name]) sideButtons[name].setAttribute("aria-pressed", activeSide === name ? "true" : "false");
+      sideButtons.all.setAttribute("aria-pressed", uniform ? "true" : "false");
+      STROKE_SIDES.forEach(function (name) {
+        if (sideButtons[name]) sideButtons[name].setAttribute("aria-pressed", (!uniform && selectedSides.indexOf(name) !== -1) ? "true" : "false");
       });
       // Per-side is inside-only (outline can't be one-sided); the side picker hides
-      // for Outside, and the position control hides while editing a single side.
+      // for Outside, and the position control hides while editing individual sides.
       sideField.style.display = model.position === "outside" ? "none" : "";
-      positionField.style.display = activeSide === "all" ? "" : "none";
-      disclosure.style.display = activeSide === "all" ? "" : "none";
+      positionField.style.display = uniform ? "" : "none";
+      disclosure.style.display = uniform ? "" : "none";
     }
 
     function loadControlsFromValues(width, style, color) {
@@ -4300,10 +4304,10 @@
       var width = formatNumericResult(expression.number) + (expression.unit || "px");
       var color = normalizeColorEntry(colorText.value, model.color, colorFormat.value);
       var style = styleSelect.value;
-      if (activeSide === "all") return { position: model.position, width: width, style: style, color: color };
+      if (uniform) return { position: model.position, width: width, style: style, color: color };
       var nextSides = {};
       STROKE_SIDES.forEach(function (name) {
-        nextSides[name] = name === activeSide
+        nextSides[name] = selectedSides.indexOf(name) !== -1
           ? { width: width, style: style, color: color }
           : { width: sides[name].width, style: sides[name].style, color: sides[name].color };
       });
@@ -4313,7 +4317,7 @@
     function syncControls(nextModel) {
       if (nextModel && nextModel.perSide) {
         sides = nextModel.sides;
-        var s = sides[activeSide] || sides.top;
+        var s = sides[selectedSides[0]] || sides.top;
         loadControlsFromValues(s.width, s.style, s.color);
         model.position = "inside";
       } else {
@@ -4325,20 +4329,40 @@
       updateSideButtons();
     }
 
-    function switchSide(nextSide) {
-      if (nextSide === activeSide) return;
-      // Live edits already committed via preview(), so `sides`/`model` are current.
-      activeSide = nextSide;
-      if (nextSide === "all") {
-        if (model.position !== "outside") model.position = "inside";
-        loadControlsFromValues(model.width, model.style, model.color);
-      } else {
-        model.position = "inside";
-        var s = sides[nextSide] || { width: "0px", style: "none", color: model.color };
-        loadControlsFromValues(s.width, s.style, s.color);
-      }
+    function selectUniform() {
+      uniform = true;
+      if (model.position !== "outside") model.position = "inside";
+      loadControlsFromValues(model.width, model.style, model.color);
       updatePositionButtons();
       updateSideButtons();
+    }
+
+    function toggleSide(name) {
+      if (uniform) {
+        // First per-side pick: narrow the controls to this side. Other sides keep
+        // their existing border; nothing is written until the user edits.
+        uniform = false;
+        model.position = "inside";
+        selectedSides = [name];
+        var seed = sides[name] || { width: model.width, style: model.style, color: model.color };
+        loadControlsFromValues(seed.width, seed.style, seed.color);
+        updatePositionButtons();
+        updateSideButtons();
+        return;
+      }
+      var i = selectedSides.indexOf(name);
+      if (i === -1) {
+        // Add the side — it takes the border currently in the controls (preview writes it).
+        selectedSides = selectedSides.concat([name]);
+      } else if (selectedSides.length > 1) {
+        // Deselecting a side means "no border here": drop it, then preview clears it.
+        selectedSides = selectedSides.filter(function (n) { return n !== name; });
+        sides[name] = { width: "0px", style: "none", color: sides[name].color };
+      } else {
+        return; // keep at least one side selected
+      }
+      updateSideButtons();
+      preview();
     }
 
     function markError() {
@@ -4422,12 +4446,11 @@
       preview();
     });
     insideButton.addEventListener("click", function () { model.position = "inside"; updatePositionButtons(); updateSideButtons(); preview(); });
-    outsideButton.addEventListener("click", function () { activeSide = "all"; model.position = "outside"; updatePositionButtons(); updateSideButtons(); preview(); });
-    STROKE_SIDES.concat(["all"]).forEach(function (name) {
+    outsideButton.addEventListener("click", function () { uniform = true; model.position = "outside"; updatePositionButtons(); updateSideButtons(); preview(); });
+    sideButtons.all.addEventListener("click", selectUniform);
+    STROKE_SIDES.forEach(function (name) {
       if (!sideButtons[name]) return;
-      // Switching side only re-targets the controls — it never writes until the
-      // user actually edits, so a stray click can't convert a uniform border.
-      sideButtons[name].addEventListener("click", function () { switchSide(name); });
+      sideButtons[name].addEventListener("click", function () { toggleSide(name); });
     });
     // colorInput excluded: opening its native OS color panel blurs it immediately
     // with relatedTarget === null (same as "clicked elsewhere"), which closed the
