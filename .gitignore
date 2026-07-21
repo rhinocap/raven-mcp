@@ -10,3 +10,34 @@ dist/
 .env.*
 !.env.example
 .gstack/
+
+# Locally-installed cross-agent skills (skills.sh) — not part of the package
+.agents/
+
+# skills.sh installer artifacts (symlinks into .agents/, + lockfile) — local only
+/skills-lock.json
+/.claude/skills/captions-overlay
+/.claude/skills/changelog-video
+/.claude/skills/cut-the-curve
+/.claude/skills/embedded-captions
+/.claude/skills/faceless-explainer
+/.claude/skills/figma
+/.claude/skills/general-video
+/.claude/skills/hyperframes
+/.claude/skills/hyperframes-animation
+/.claude/skills/hyperframes-cli
+/.claude/skills/hyperframes-core
+/.claude/skills/hyperframes-creative
+/.claude/skills/hyperframes-keyframes
+/.claude/skills/hyperframes-registry
+/.claude/skills/media-use
+/.claude/skills/motion-doctrine
+/.claude/skills/motion-graphics
+/.claude/skills/music-to-video
+/.claude/skills/oversized-cursor
+/.claude/skills/pr-to-video
+/.claude/skills/product-launch-video
+/.claude/skills/remotion-to-hyperframes
+/.claude/skills/seam-craft
+/.claude/skills/slideshow
+/.claude/skills/talking-head-recut
