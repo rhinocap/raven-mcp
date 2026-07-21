@@ -6,7 +6,7 @@ import './docs.css'
 export const metadata: Metadata = {
   title: 'Docs — RavenMCP',
   description:
-    'Install RavenMCP and use its 70 design-intelligence tools with Claude. Full setup for Claude Code, Claude Desktop, and any MCP client.',
+    'Install RavenMCP and use its 99 design-intelligence tools with Claude. Full setup for Claude Code, Claude Desktop, and any MCP client.',
   alternates: { canonical: '/docs' },
 };
 
@@ -78,7 +78,7 @@ export default function DocsPage() {
           <div className="install-card reveal">
             <div className="install-copy">
               <h4>Raven for Claude Desktop</h4>
-              <p>macOS &middot; Windows &middot; Linux &nbsp;•&nbsp; ~4 MB &middot; v1.1.1</p>
+              <p>macOS &middot; Windows &middot; Linux &nbsp;•&nbsp; ~5 MB &middot; v2.0.0</p>
             </div>
             <a href="/raven.mcpb" className="install-btn" download>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -98,7 +98,7 @@ export default function DocsPage() {
       
           {/* ── Tool Reference ── */}
           <h2 id="tools" className="reveal">Tool Reference</h2>
-          <p>Raven provides 70 tools across 9 knowledge layers. Claude calls the relevant tool based on the task; the cards below show what each tool returns.</p>
+          <p>Raven provides 99 tools. Claude calls the relevant tool based on the task; the cards below show what each tool returns. This reference covers the most-used ones — the full 99, grouped by job, are on the <a href="/#tools">home page</a>.</p>
       
           <h3>Principles Layer</h3>
       
@@ -509,6 +509,48 @@ export default function DocsPage() {
             <p className="tool-desc">Run adversarial queries against a live endpoint and return a per-query verdict — shape-valid / shape-invalid / confident-wrong / uncertain — against an expected shape schema plus per-query contains/equals expectations. Catches responses that pass shape but are wrong.</p>
           </div>
       
+          <h3>Raven Design <span style={{ color: 'var(--accent-blue)', fontSize: '13px', letterSpacing: '0.08em', fontWeight: '600' }}>v2.0</span></h3>
+
+          <div className="tool-card reveal">
+            <h3>start_grab_session <span className="optional">local stdio only</span></h3>
+            <p className="tool-desc">Start the Raven Design bridge on loopback. Click any element on your running dev server and its Structure panel (a layers tree drilled to that node) and Design panel (its computed styles and matching DESIGN.md tokens, editable inline with live preview) open on the page. Edits land as you make them, then get packaged for your agent. Pass <code>proxy_target</code> to point at your local server; <code>stop_grab_session</code> ends it and clears the queue.</p>
+            <pre><code>"Start a Raven Design session on http://localhost:3000"</code></pre>
+          </div>
+
+          <div className="tool-card reveal">
+            <h3>get_grabbed_elements</h3>
+            <p className="tool-desc">Read the elements you clicked — selector, computed styles, matching DESIGN.md tokens, and the change you asked for — so your agent can apply them. <code>get_grab_layers</code>, <code>get_grab_operation</code>, and <code>move_grab_layer</code> back the Structure panel's layer tree and same-page reorder / reparent intents.</p>
+          </div>
+
+          <div className="tool-card reveal">
+            <h3>get_page_template <span className="optional">+ set_template_slot, list_templates</span></h3>
+            <p className="tool-desc">Read and persist the page's template slots in DESIGN.md — each slot's <code>fixed</code> / <code>flexible</code> role and its allowed tokens — so layout structure is a contract, not a guess. <code>init_design_md</code> / <code>read_design_md</code> / <code>update_design_md</code> create and edit DESIGN.md itself, one token at a time, without rewriting the file.</p>
+          </div>
+
+          <div className="tool-card reveal">
+            <h3>review_diff <span className="optional">+ polish_diff</span></h3>
+            <p className="tool-desc">Review the added UI-code lines of a unified diff against the project's own DESIGN.md tokens and recorded design decisions — a CI-shaped design check that can fail the diff when it touches a decision the graph governs, via <code>fail_on_governed</code>. <code>polish_diff</code> turns those findings into deterministic token substitutions, ready to apply, without writing files. <code>talon_scan</code> runs the same detector engine over a page as pure measurement, no LLM; <code>talon_rules</code> enumerates its rule corpus.</p>
+            <pre><code>"Review this diff against our DESIGN.md and fail on any governed decision"</code></pre>
+          </div>
+
+          <h3>Decision Graph <span style={{ color: 'var(--accent-blue)', fontSize: '13px', letterSpacing: '0.08em', fontWeight: '600' }}>v2.0</span></h3>
+
+          <div className="tool-card reveal">
+            <h3>decision_add <span className="optional">+ draft, commit, evidence</span></h3>
+            <p className="tool-desc">Give a project a queryable design-decision memory that both people and coding agents consult — so decisions stop getting re-litigated and lost. <code>decision_add</code> records an active decision with its scope, component, rationale, and rejected alternatives; <code>decision_draft</code> captures one now and confirms the why later; <code>decision_commit</code> confirms it and surfaces similar decisions; <code>decision_evidence</code> attaches quantitative or qualitative results. Everything is local — under your project, or <code>~/.raven</code> when there's no project store — no account, no upload.</p>
+            <pre><code>"Record that we chose tabs over a segmented control, and why"</code></pre>
+          </div>
+
+          <div className="tool-card reveal">
+            <h3>decision_get <span className="optional">+ list, history, scope, supersede</span></h3>
+            <p className="tool-desc">Query the graph: <code>decision_get</code> returns one node with its evidence and connected neighbors; <code>decision_list</code> filters by status; <code>decision_history</code> traces a full supersession lineage. Resolve conflicts without deleting anything — <code>decision_supersede</code> replaces a decision while keeping both nodes and their lineage, and <code>decision_scope</code> narrows two decisions so both can stay active.</p>
+          </div>
+
+          <div className="tool-card reveal">
+            <h3>decision_import <span className="optional">+ ingest_transcript, gap_scan</span></h3>
+            <p className="tool-desc">Cold-start the graph from what you already have: <code>decision_import</code> mines local git history and decision-bearing Markdown into source-tagged extraction prompts; <code>ingest_transcript</code> / <code>ingest_transcript_results</code> turn a meeting or thread into reviewable candidate decisions. <code>gap_scan</code> ranks uncovered components, thin rationales, contested decisions, and stale derivations, so the graph stays honest.</p>
+          </div>
+
           <h3>Reflection &amp; Registration</h3>
       
           <div className="tool-card reveal">
@@ -689,7 +731,7 @@ export default function DocsPage() {
           <h2 id="faq" className="reveal">FAQ</h2>
       
           <h3>Does Raven make API calls?</h3>
-          <p>No. All data is bundled locally in the npm package. No external API calls, no latency, no auth tokens needed. It's 272KB of curated JSON that runs on your machine.</p>
+          <p>No. All data is bundled locally in the npm package. No external API calls, no latency, no auth tokens needed. It's ~640KB of curated JSON that runs on your machine.</p>
       
           <h3>Does it work with other AI coding tools?</h3>
           <p>Raven works with any MCP-compatible client. Claude Code and Claude Desktop have native MCP support. Other tools are adding MCP support — check your client's documentation.</p>

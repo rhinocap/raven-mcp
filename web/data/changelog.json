@@ -33,8 +33,9 @@
       "title": "Raven Design: tokens, components, and templates on the page",
       "changes": [
         "Raven Design — click any element on your dev server and an overlay opens next to it: a Structure panel with a layers tree drilled to that node, and a Design panel showing its computed styles and the DESIGN.md tokens it uses, editable inline with live preview. Page templates and a component pass round it out. Six new tools back it (get_page_template, set_template_slot, list_templates, get_grab_layers, move_grab_layer, get_grab_operation).",
-        "Decision Graph — a project keeps a durable, queryable memory of its design decisions, with provenance and evidence on every entry and a cross-process-safe store. decision_import cold-starts the graph from a repo's existing history.",
+        "Decision Graph — a project keeps a queryable memory of its design decisions, with provenance and evidence on every entry and a cross-process-safe store. decision_import cold-starts the graph from a repo's existing history.",
         "review_diff and polish_diff — CI-shaped design review of a code diff against your DESIGN.md tokens and recorded decisions, and a path that turns those findings into a verified, ready-to-apply patch.",
+        "audit_taste can verify a content port kept its copy intact — pass source_text and it runs a deterministic word-token diff of the original against the target's visible text, so a redesign can't silently reword shipped copy.",
         "The packaged .mcpb bundle now advertises exactly the tools it ships, derived from the built server rather than a hand-maintained list.",
         "No breaking changes: every existing tool keeps its name and behavior; this release only adds. 99 tools total."
       ]

@@ -78,6 +78,7 @@
     .nav-actions { display: flex; align-items: center; gap: var(--space-3, 12px); }\
     .nav-page-links { display: flex; align-items: center; gap: var(--space-6, 24px); margin-right: var(--space-4, 16px); }\
     .nav-page-links a {\
+      display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px;\
       font-size: 15px; font-weight: 500; color: var(--text-secondary);\
       transition: color 150ms cubic-bezier(0.16, 1, 0.3, 1);\
     }\

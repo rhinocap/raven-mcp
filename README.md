@@ -26,7 +26,7 @@ Local stdio (npx / from source) is the **full product**: **99 tools**, including
 
 | Path | How | Tools | Taste | Grab |
 |------|-----|-------|-------|------|
-| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **93** | Yes | Yes |
+| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **99** | Yes | Yes |
 | Public remote | `https://mcp.ravenmcp.ai/api/mcp` | **~45** | No | No |
 | Auth remote | `https://mcp.ravenmcp.ai/api/mcp-user` (OAuth) | Taste + audits (no Grab) | Yes | **No** |
 

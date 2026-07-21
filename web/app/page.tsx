@@ -744,7 +744,7 @@ export default function Home() {
               <div className="glow-card pricing-open-card">
                 <div className="pricing-open-stats">
                   <div className="pricing-open-stat">
-                    <span className="pricing-open-num">70</span>
+                    <span className="pricing-open-num">99</span>
                     <span className="pricing-open-label">Tools</span>
                   </div>
                   <div className="pricing-open-stat">
@@ -784,7 +784,7 @@ export default function Home() {
             <div className="faq-list reveal reveal-delay-3">
               <div className="faq-item">
                 <h3>What is RavenMCP?</h3>
-                <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server. Add it to Claude or Cursor, and your agent can call 70 local tools for design principles, UI patterns, design-system tokens, content voice, research methods, service blueprints, multi-platform audits, and project-specific taste checks.</p>
+                <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server. Add it to Claude or Cursor, and your agent can call 99 local tools for design principles, UI patterns, design-system tokens, content voice, research methods, service blueprints, multi-platform audits, click-to-edit Raven Design, a local Decision Graph, and project-specific taste checks.</p>
               </div>
               <div className="faq-item">
                 <h3>How do I install RavenMCP?</h3>
@@ -796,7 +796,7 @@ export default function Home() {
               </div>
               <div className="faq-item">
                 <h3>Which AI agents work with RavenMCP?</h3>
-                <p>Raven works with any client that supports the Model Context Protocol &mdash; Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's 70 tools directly during a conversation.</p>
+                <p>Raven works with any client that supports the Model Context Protocol &mdash; Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's 99 tools directly during a conversation.</p>
               </div>
               <div className="faq-item">
                 <h3>What platforms can RavenMCP audit?</h3>
