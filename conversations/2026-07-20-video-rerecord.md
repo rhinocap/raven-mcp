@@ -31,6 +31,7 @@ A host-content-only Raven demo was rerecorded and rendered, but its handoff path
 | Handed off a media path without proving Andrew's click resolved to the newly rendered bytes, so he saw the original video. | Verification gap | Before handing off media, always verify the resolved path, metadata, and first frame against the new render, then use a collision-proof filename. |
 | Built an arbitrary panel click tour instead of a coherent design task, making the demo story unrealistic. | Comm gap | Before recording a product demo, always script one credible end-to-end user job with observable state changes so the story matches real product use. |
 | The first desktop send take stopped on `3 pending`; the blockquote token draft prevented a filmed transition despite independent bridge receipt. | Verification gap | A demo send beat must visibly reach the product's post-click state in the shipped footage; external transport proof cannot substitute for that causal visual proof. |
+| Applied a camera zoom and chapter caption to nearly every interaction, making the workflow feel over-directed; mobile should remain spatially stable. | Accuracy gap | Before animating product-demo footage, always reserve camera emphasis for a few narrative choices, keep mobile footage at a stable scale, and let the product UI carry the sequence without redundant captions. |
 
 ## State at end of session
 - Corrected artifact: 1440x900, 30 fps, H.264 + 48 kHz stereo AAC, 70.485 seconds, zero black/silent events, 70/70 unique sampled frames, byte-identical Desktop copy
