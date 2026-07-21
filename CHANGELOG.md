@@ -6,19 +6,31 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-07-20
+
+Raven 2.0 headlines **Raven Design** — an on-page overlay that surfaces your design tokens, components, and page templates on the live page — alongside the Decision Graph and diff-shaped design review. No breaking changes: every one of the 93 existing tools keeps its name and schema; 6 tools are added, for 99 total.
+
 ### Added
+- Two-panel Grab overlay. Clicking an element on your dev server now opens a Structure panel (a layers tree drilled to the clicked node) alongside the Design panel (its computed styles and DESIGN.md tokens, editable inline with live preview). Both panels are open on load, either edge tab opens both, and the layout tiles put one panel on screen on purpose. Six new tools back it: `get_page_template`, `set_template_slot`, `list_templates`, `get_grab_layers`, `move_grab_layer`, `get_grab_operation`.
+- Overlay settings, opened from the project bar — text size, layout, and the tour.
+- A feedback box in the overlay. Reports route to a private issue tracker; when delivery is not configured the endpoint answers `{ok: true, delivered: false}` and the overlay says so rather than pretending the message was filed.
 - Decision Graph — 11 local-only `decision_*` tools (add, get, list, history, scope, supersede, draft, commit, plus `gap_scan` and transcript ingestion) that give a project durable, queryable design-decision memory (#22), with provenance/evidence on every decision and a cross-process-safe store (#24), and `decision_import` to cold-start the graph from existing repo history (#27).
 - `review_diff` — CI-shaped design review of a code diff against DESIGN.md tokens and recorded decisions (#33).
 - `polish_diff` — turns design findings into a verified, ready-to-apply patch (#25).
 - `audit_taste` `source_text` — content-port fidelity diff between a source text and the ported target (#31).
 - `bench/` — deterministic review-outcome benchmark: 27 labeled cases across 5 audit families scored for precision/recall against ground truth (#32).
+- `scripts/sync-codex-approvals.mjs` — reports (and with `--write` appends) the per-tool `approval_mode` entries the Codex CLI needs so calls to newly added tools aren't silently cancelled; the README gains an "After you upgrade" section on reconnecting the server to pick up new tools (#36).
 
 ### Changed
+- The `.mcpb` bundle manifest now derives its advertised tool list from the built server, so the packaged bundle advertises exactly the tools it ships instead of a hand-maintained subset (#35).
 - Contrast audit composites text over the real rendered backdrop, eliminating the dark-page false-positive class (#28).
 - URL capture settles animations and scroll reveals before snapshotting (#29).
 - Tap-target audit uses real mobile emulation and hydrates shadow DOM (#26).
 - `bind_taste_surface` re-binds carry forward omitted binding fields instead of erasing them (#30).
 - Weekly release workflow now runs the full test suite as a release gate.
+
+### Fixed
+- The daily-digest notice no longer corrupts machine-readable tool output — notices are appended as a separate content block so JSON consumers get clean payloads (#36).
 
 ## [1.16.0] - 2026-07-05
 

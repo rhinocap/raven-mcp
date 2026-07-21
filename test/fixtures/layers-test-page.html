@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Raven layers test page</title>
+<style>
+  body { font: 16px/1.4 system-ui; margin: 24px; }
+  .flex-row { display: flex; gap: 12px; margin-bottom: 32px; }
+  .flex-row .card { padding: 16px; border-radius: 8px; color: #fff; }
+  .card-1 { width: 120px; background: #c0392b; }
+  .card-2 { width: 220px; background: #2980b9; }
+  .card-3 { width: 90px;  background: #27ae60; }
+  .card-4 { width: 170px; background: #8e44ad; }
+  .grid-section { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 32px; }
+  .grid-section .cell { padding: 24px; color: #fff; border-radius: 6px; }
+  .cell-1 { background: #16a085; } .cell-2 { background: #d35400; }
+  .cell-3 { background: #2c3e50; } .cell-4 { background: #7f8c8d; }
+  .cell-5 { background: #f39c12; } .cell-6 { background: #9b59b6; }
+  .abs-container { position: relative; height: 120px; border: 1px dashed #999; }
+  .abs-container .floater { position: absolute; padding: 10px; color: #fff; background: #34495e; }
+  .floater-a { top: 10px; left: 10px; } .floater-b { top: 50px; left: 140px; }
+</style>
+</head>
+<body>
+  <h1>Layers test page</h1>
+  <section class="flex-row" id="flex-row">
+    <div class="card card-1">1</div>
+    <div class="card card-2">2</div>
+    <div class="card card-3">3</div>
+    <div class="card card-4">4</div>
+  </section>
+  <section class="grid-section" id="grid-section">
+    <div class="cell cell-1">1</div><div class="cell cell-2">2</div><div class="cell cell-3">3</div>
+    <div class="cell cell-4">4</div><div class="cell cell-5">5</div><div class="cell cell-6">6</div>
+  </section>
+  <section class="abs-container" id="abs-container">
+    <div class="floater floater-a">A</div>
+    <div class="floater floater-b">B</div>
+  </section>
+</body>
+</html>

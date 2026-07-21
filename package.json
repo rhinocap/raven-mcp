@@ -27,6 +27,7 @@
     "build:mcpb": "bash scripts/build-mcpb.sh",
     "release": "bash scripts/release.sh",
     "dev": "tsx src/index.ts",
+    "grab:dev": "npm run build && node scripts/grab-dev.mjs",
     "start": "node dist/index.js",
     "pretest": "npm run build",
     "test": "node --test \"test/**/*.test.mjs\"",

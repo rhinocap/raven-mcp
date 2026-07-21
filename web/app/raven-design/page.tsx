@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Coachmarks from './Coachmarks'
+import FeatureCard from './FeatureCard'
 
 export const metadata: Metadata = {
   title: 'Raven Design — Live Demo | RavenMCP',
@@ -14,6 +15,11 @@ export const metadata: Metadata = {
 
 const ravenGrabConfig = {
   mode: 'standalone',
+  // Names the wireframe, not the marketing site. Left unset the overlay falls back to
+  // document.title ("Raven Design — Live Demo | RavenMCP"), which reads as Raven talking
+  // about itself and truncates at 28 characters. On a real dev server this slot holds the
+  // visitor's own project, so the demo has to show someone else's name in it.
+  projectName: 'Northstar Workspace',
   // cssVar must match the --demo-* custom properties on .playground-wireframe,
   // or the overlay can't map grabbed declarations back to these tokens.
   tokens: {
@@ -67,7 +73,7 @@ export default function PlaygroundPage() {
         <div className="container">
           <div className="playground-stage-heading">
             <p className="label">Live wireframe</p>
-            <p>Select any block, type style, control, or section to inspect it.</p>
+            <p>Select a FeatureCard under Features to see Scope (“All 3 like this”) and tokenized Styles.</p>
           </div>
 
           <Coachmarks config={ravenGrabConfig} />
@@ -116,21 +122,15 @@ export default function PlaygroundPage() {
             </section>
 
             <section className="wireframe-features" id="features" aria-label="Features">
-              <article className="wireframe-feature-card">
-                <div className="wireframe-icon" aria-hidden="true" />
-                <h3>Project status</h3>
-                <p>See owners, dates, and progress for each active workstream.</p>
-              </article>
-              <article className="wireframe-feature-card">
-                <div className="wireframe-icon" aria-hidden="true" />
-                <h3>Shared notes</h3>
-                <p>Keep decisions and working context attached to the project.</p>
-              </article>
-              <article className="wireframe-feature-card">
-                <div className="wireframe-icon" aria-hidden="true" />
-                <h3>Weekly updates</h3>
-                <p>Send a concise record of what changed and what comes next.</p>
-              </article>
+              <FeatureCard title="Project status">
+                See owners, dates, and progress for each active workstream.
+              </FeatureCard>
+              <FeatureCard title="Shared notes">
+                Keep decisions and working context attached to the project.
+              </FeatureCard>
+              <FeatureCard title="Weekly updates">
+                Send a concise record of what changed and what comes next.
+              </FeatureCard>
             </section>
 
             <section className="wireframe-form-section" id="contact">
@@ -678,6 +678,32 @@ export default function PlaygroundPage() {
           border: 1px solid var(--border-strong);
           border-radius: var(--radius-md);
           box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        /* The tail is a rotated square sharing the card's fill and border, with the
+           two edges facing the card masked by a matching-coloured overlay — a border
+           on a CSS triangle isn't possible, and a real notch keeps the 1px outline
+           continuous around the whole shape. */
+        .playground-tour__card[data-tail]::after {
+          content: '';
+          position: absolute;
+          left: var(--tail-left, 50%);
+          width: 12px;
+          height: 12px;
+          margin-left: -6px;
+          background: var(--bg-surface);
+          border: 1px solid var(--border-strong);
+          transform: rotate(45deg);
+        }
+
+        .playground-tour__card[data-tail='bottom']::after {
+          bottom: -7px;
+          clip-path: polygon(100% 0, 100% 100%, 0 100%);
+        }
+
+        .playground-tour__card[data-tail='top']::after {
+          top: -7px;
+          clip-path: polygon(0 0, 100% 0, 0 100%);
         }
 
         .playground-tour__card h3 {

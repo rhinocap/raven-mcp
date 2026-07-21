@@ -78,7 +78,7 @@ export default function Home() {
                 muted
                 loop
                 playsInline
-                aria-label="Screen capture of the Raven Design playground: an element is selected, its design tokens and computed styles are opened, the accent token and an underline are applied visibly on the page, and the change is packaged for the agent."
+                aria-label="Screen capture of the Raven Design playground: a heading on the page is clicked, the Structure panel expands its layers tree down to that element and the Design panel fills with its computed styles, the layout tiles are hovered, and the project bar opens settings and a feedback box."
               />
             </figure>
           </div>

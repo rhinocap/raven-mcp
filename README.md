@@ -22,7 +22,7 @@ Raven gives Claude access to a comprehensive design knowledge base:
 
 ## Install
 
-Local stdio (npx / from source) is the **full product**: **93 tools**, including Grab and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
+Local stdio (npx / from source) is the **full product**: **99 tools**, including Grab and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
 
 | Path | How | Tools | Taste | Grab |
 |------|-----|-------|-------|------|

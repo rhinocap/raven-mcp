@@ -114,11 +114,35 @@
     },
     {
       "name": "get_grabbed_elements",
-      "description": "Drain the current grab queue, optionally waiting up to timeout_ms for the next selection."
+      "description": "Read newly sent grab selections without deleting their durable change records, optionally waiting up to timeout_ms."
     },
     {
       "name": "stop_grab_session",
       "description": "Stop the current grab bridge and clear its queued selections."
+    },
+    {
+      "name": "get_page_template",
+      "description": "Read the page-scoped template slots from the active grab session's DESIGN.md and merge the overlay's latest selector…"
+    },
+    {
+      "name": "set_template_slot",
+      "description": "Persist an array of page-scoped template slots in one batched DESIGN.md update. fixed/flexible roles and allowedTokens…"
+    },
+    {
+      "name": "list_templates",
+      "description": "List templates and their registered page pathnames from the active grab session."
+    },
+    {
+      "name": "get_grab_layers",
+      "description": "Read the latest non-mutating layer-tree snapshot captured by the active local grab session."
+    },
+    {
+      "name": "move_grab_layer",
+      "description": "Queue a same-page layer reorder or reparent intent (previewed when measuredRects are supplied, otherwise proposed)…"
+    },
+    {
+      "name": "get_grab_operation",
+      "description": "Read or update one durable grab change, list legacy reorder operations, or request the unified style+reorder batch."
     },
     {
       "name": "compose_system",

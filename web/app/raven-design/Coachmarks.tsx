@@ -15,6 +15,13 @@ type Step = {
   anchor: string
 }
 
+const TIP_WIDTH = 320
+// Distance from the card to the element it points at — the tail lives in this gap.
+const TAIL_GAP = 14
+const EDGE_GAP = 16
+// Below this much headroom the card would clip the top of the viewport, so it flips.
+const FLIP_THRESHOLD = 220
+
 const STEPS: Step[] = [
   {
     title: 'Raven Design',
@@ -23,17 +30,12 @@ const STEPS: Step[] = [
   },
   {
     title: 'Click to inspect',
-    body: 'Try any block — a button, heading, or section. A cyan box tracks what you’re pointing at; clicking selects it and opens the panel.',
-    anchor: 'target:.wireframe-button--primary',
+    body: 'Try a feature card under Features — three FeatureCard instances share the same styles. Scope shows “All 3 like this,” and Styles lists the --demo-* tokens on that card.',
+    anchor: 'target:.wireframe-feature-card',
   },
   {
-    title: 'Design tokens',
-    body: 'The panel lists the design tokens the element resolves to — including HOVER, FOCUS, ACTIVE, and DISABLED state groups. Swap a token to preview the change live.',
-    anchor: 'panel',
-  },
-  {
-    title: 'Computed styles',
-    body: 'Everything that is not tokenized shows up under Computed Styles, so you can see exactly what a token does not cover yet.',
+    title: 'Styles',
+    body: 'Styles opens by default. Tokenized properties show as name · value; open one to swap tokens or edit the raw value. Interactive state groups stay underneath.',
     anchor: 'panel',
   },
   {
@@ -52,8 +54,13 @@ const STEPS: Step[] = [
     anchor: 'target:.playground-role-toggle',
   },
   {
+    title: 'Settings and feedback',
+    body: 'The bar at the bottom of the Structure panel shows the project Raven is running in — here that is Northstar Workspace, on your machine it is yours. Click it, or press Cmd+K with the panel focused, for panel text size and a box that sends us what is wrong or missing.',
+    anchor: 'panel',
+  },
+  {
     title: 'Collapse and reopen',
-    body: 'The caret in the panel header tucks it away to the right edge — no overlay chrome while it’s closed. Drag the panel by its header, or the edge tab up and down, if either is in your way.',
+    body: 'The collapse icon in either panel header tucks both panels away, leaving a small tab on each edge of the screen — click either tab to bring them back. Drag a panel by its header, or an edge tab up and down, if any are in your way.',
     anchor: 'panel',
   },
 ]
@@ -164,12 +171,45 @@ export default function Coachmarks({ config }: { config: Record<string, unknown>
   }
 
   const current = step >= 0 ? STEPS[step] : null
+
+  // Spotlight coachmarks sit ABOVE their target, centred on it, with a tail pointing
+  // down at what they describe — matching the panel's icon tooltips. Below-and-
+  // left-aligned made the reader hunt for which element the card was about.
+  const spotlightStyle = (): React.CSSProperties => {
+    if (!targetRect) return {}
+    const viewportWidth = typeof window === 'undefined' ? 1440 : window.innerWidth
+    const centre = targetRect.left + targetRect.width / 2
+    const half = TIP_WIDTH / 2
+    // Clamped so a target near either edge doesn't push the card off-screen.
+    const left = Math.min(Math.max(centre, half + EDGE_GAP), viewportWidth - half - EDGE_GAP)
+    // Not enough headroom (target near the top of the viewport) → flip underneath,
+    // and the tail flips with it rather than pointing away from the target.
+    const below = targetRect.top < FLIP_THRESHOLD
+    return {
+      position: 'fixed',
+      top: below ? targetRect.top + targetRect.height + TAIL_GAP : targetRect.top - TAIL_GAP,
+      left,
+      width: TIP_WIDTH,
+      transform: below ? 'translateX(-50%)' : 'translate(-50%, -100%)',
+      // The tail tracks the target's real centre, so it still points correctly
+      // once the card has been clamped away from that centre.
+      ['--tail-left' as string]: `${centre - (left - half)}px`,
+    }
+  }
+
   const cardStyle: React.CSSProperties =
     current?.anchor === 'panel'
-      ? { position: 'fixed', top: 96, right: 400, width: 320 }
+      ? { position: 'fixed', top: 96, right: 400, width: TIP_WIDTH }
       : current?.anchor.startsWith('target:') && targetRect
-        ? { position: 'fixed', top: targetRect.top + targetRect.height + 16, left: Math.max(16, targetRect.left), width: 320 }
+        ? spotlightStyle()
         : { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 360 }
+
+  const tailSide =
+    current?.anchor.startsWith('target:') && targetRect
+      ? targetRect.top < FLIP_THRESHOLD
+        ? 'top'
+        : 'bottom'
+      : undefined
 
   return (
     <>
@@ -205,7 +245,7 @@ export default function Coachmarks({ config }: { config: Record<string, unknown>
               }}
             />
           )}
-          <div className="playground-tour__card" style={cardStyle}>
+          <div className="playground-tour__card" style={cardStyle} data-tail={tailSide}>
             <p className="playground-tour__count">
               {step + 1} / {STEPS.length}
             </p>

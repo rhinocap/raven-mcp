@@ -1,15 +1,16 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "http";
 import { randomBytes } from "crypto";
 import { existsSync, readFileSync, writeFileSync } from "fs";
-import { join, dirname, resolve } from "path";
+import { basename, join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { tmpdir } from "os";
 import { z } from "zod";
-import { flattenDesignTokens, parseDesignMd, updateDesignMd, type DesignMdNode } from "./designmd.js";
+import { flattenDesignTokens, parseDesignMd, readDesignMd, updateDesignMd, type DesignMdNode } from "./designmd.js";
 
 var __dirname = dirname(fileURLToPath(import.meta.url));
 var PKG_ROOT = resolve(join(__dirname, ".."));
 var GRAB_ASSET_PATH = process.env.RAVEN_GRAB_ASSET_PATH ? resolve(process.env.RAVEN_GRAB_ASSET_PATH) : join(PKG_ROOT, "browser", "raven-grab.js");
+var RAVEN_VERSION = JSON.parse(readFileSync(join(PKG_ROOT, "package.json"), "utf8")).version || "";
 type GrabRole = "consumer" | "maintainer";
 
 var GrabRectSchema = z.object({
@@ -294,6 +295,8 @@ export interface GrabBridgeStartResult {
   wait_url: string;
   watch_command: string;
   path: string;
+  project_name: string;
+  raven_version: string;
   mode: "server" | "shim";
   destination: {
     active: string;
@@ -316,6 +319,7 @@ interface BridgeSession {
   port: number;
   key: string;
   path: string;
+  projectName: string;
   mode: "server" | "shim";
   proxyTarget?: string;
   role: GrabRole;
@@ -332,8 +336,30 @@ interface BridgeSession {
 var currentSession: BridgeSession | null = null;
 var originalFetch: typeof fetch | null = null;
 
-function grabRoleConfigTag(role: GrabRole): string {
-  return role === "maintainer" ? '<script>window.ravenGrabConfig={"role":"maintainer"};</script>' : "";
+function grabProjectName(designMdPath: string): string {
+  try {
+    var name = readDesignMd(designMdPath).frontmatter.name;
+    if (typeof name === "string" && name.trim()) return name.trim();
+  } catch (_err) {
+    // Session startup already validates the file; naming should not block the bridge.
+  }
+  return basename(process.cwd()) || "";
+}
+
+function grabConfigTag(role: GrabRole, projectName: string, bridgeOrigin: string): string {
+  var config: Record<string, string> = {
+    bridgeOrigin: bridgeOrigin,
+    projectName: projectName,
+    ravenVersion: RAVEN_VERSION
+  };
+  if (role === "maintainer") config.role = "maintainer";
+  // A DESIGN.md name can contain markup; escaping '<' keeps it data inside the
+  // bootstrap script instead of letting local project metadata close the tag.
+  // The replacement must be the six-character sequence backslash-u-0-0-3-c, not
+  // "\u003c" -- that literal IS '<', so the old version replaced the character
+  // with itself and a project named "</script><script>..." executed in the host page.
+  var serialized = JSON.stringify(config).replace(/</g, "\\u003c");
+  return '<script>window.ravenGrabConfig=' + serialized + ';</script>';
 }
 
 export async function startGrabSession(path?: string, port?: number, proxyTarget?: string, role: GrabRole = "consumer"): Promise<GrabBridgeStartResult> {
@@ -368,6 +394,7 @@ export async function startGrabSession(path?: string, port?: number, proxyTarget
   }
 
   var key = randomBytes(32).toString("hex");
+  var projectName = grabProjectName(abs);
 
   var server = createServer(function (req, res) {
     void handleGrabRequest(abs, key, req, res, normalizedTarget, role);
@@ -389,6 +416,7 @@ export async function startGrabSession(path?: string, port?: number, proxyTarget
       port: actualPort,
       key: key,
       path: abs,
+      projectName: projectName,
       mode: "server",
       proxyTarget: normalizedTarget,
       role: role,
@@ -418,6 +446,7 @@ export async function startGrabSession(path?: string, port?: number, proxyTarget
       port: actualPort,
       key: key,
       path: abs,
+      projectName: projectName,
       mode: "shim",
       role: role,
       queue: [],
@@ -447,10 +476,12 @@ export async function startGrabSession(path?: string, port?: number, proxyTarget
   return {
     port: actualPort,
     url: bridgeUrl,
-    script_tag: grabRoleConfigTag(role) + '<script src="http://127.0.0.1:' + actualPort + '/raven-grab.js?key=' + key + '"></script>',
+    script_tag: grabConfigTag(role, projectName, bridgeUrl) + '<script src="http://127.0.0.1:' + actualPort + '/raven-grab.js?key=' + key + '"></script>',
     wait_url: waitUrl,
     watch_command: watchCommand,
     path: abs,
+    project_name: projectName,
+    raven_version: RAVEN_VERSION,
     mode: mode,
     destination: {
       active: "agent-session",
@@ -1056,7 +1087,9 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
     var contentType = upstream.headers.get("content-type") || "";
     if (/\btext\/html\b/i.test(contentType)) {
       var html = responseBody.toString("utf8");
-      var script = grabRoleConfigTag(role) + '<script src="/raven-grab.js?key=' + key + '"></script>';
+      var proxyBridgeOrigin = currentSession ? 'http://127.0.0.1:' + currentSession.port : '';
+      var proxyProjectName = currentSession ? currentSession.projectName : '';
+      var script = grabConfigTag(role, proxyProjectName, proxyBridgeOrigin) + '<script src="/raven-grab.js?key=' + key + '"></script>';
       if (/<\/body>/i.test(html)) {
         html = html.replace(/<\/body>/i, function (closingTag) {
           return script + closingTag;
@@ -1175,6 +1208,12 @@ async function buildGrabResponse(designMdPath: string, key: string, method: stri
       return jsonResponse(500, { error: (err as Error).message });
     }
   }
+
+  // There is deliberately no POST /api/feedback route here. The overlay posts to the
+  // hosted endpoint directly. A relay on the loopback bridge took no key, validated
+  // nothing, and forwarded any body it was handed -- so anything able to reach the
+  // port could file feedback that arrived from the machine owner's IP, spending their
+  // rate limit and attributing the spam to them. Do not reintroduce it.
 
   if (method === "POST" && pathname === "/grab") {
     try {

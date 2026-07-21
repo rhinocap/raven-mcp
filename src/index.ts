@@ -41,7 +41,7 @@ import { readFile } from "fs/promises";
 import { registerCalls } from "./calls.js";
 import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
 import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet } from "./designmd.js";
-import { startGrabSession, getGrabbedElements, stopGrabSession } from "./grab-bridge.js";
+import { startGrabSession, getGrabbedElements, stopGrabSession, getPageTemplate, setTemplateSlots, listTemplates, getGrabLayers, moveGrabLayer, getGrabOperation } from "./grab-bridge.js";
 import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
 import { proposePolish, reviewDiff } from "./design-review.js";
 
@@ -1837,12 +1837,12 @@ function numberedDocMaterial(repoRelative: string, content: string): string {
   }).join("\n");
 }
 
-// The 48 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
+// The 54 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
 // 32 are stateful/local (per-user ~/.raven files, or the create_generation_job
 // subprocess), 6 reach the filesystem/network or have an external side effect,
-// 2 are Talon tools pending a remote-safety pass, and 8 are DESIGN.md / review /
+// 2 are Talon tools pending a remote-safety pass, and 14 are DESIGN.md / review /
 // grab-bridge tools. Everything else (45 stateless tools, including the 5
-// guarded browser URL audits added in Phase 3) is remote-safe, from 93 local tools.
+// guarded browser URL audits added in Phase 3) is remote-safe, from 99 local tools.
 // Traced to docs/remote-mcp-scope.md §2; asserted at build time.
 const REMOTE_GATED_TOOLS = new Set<string>([
   // stateful / local (32)
@@ -1877,6 +1877,8 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   // DESIGN.md, design review, and grab bridge stateful tools.
   "read_design_md", "init_design_md", "update_design_md",
   "start_grab_session", "get_grabbed_elements", "stop_grab_session",
+  "get_page_template", "set_template_slot", "list_templates",
+  "get_grab_layers", "move_grab_layer", "get_grab_operation",
   "review_diff", "polish_diff"
 ]);
 
@@ -1950,18 +1952,18 @@ const REMOTE_URL_GUARDED_TOOLS: { [tool: string]: string } = {
   audit_taste: "url"
 };
 
-// buildServer() returns a FRESH McpServer with all 93 local tools + the usage-log/
+// buildServer() returns a FRESH McpServer with all 99 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
 export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }): McpServer {
-// remote = serve only the 45 stateless remote-safe tools (gate off the 48 gated tools
+// remote = serve only the 45 stateless remote-safe tools (gate off the 54 gated tools
 // as appropriate; authenticated stores selectively restore taste tools). evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 93.
+// without threading opts. stdio callers pass nothing → remote=false → all 99.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -2905,7 +2907,7 @@ server.tool(
 
 server.tool(
   "get_grabbed_elements",
-  "Drain the current grab queue, optionally waiting up to timeout_ms for the next selection.",
+  "Read newly sent grab selections without deleting their durable change records, optionally waiting up to timeout_ms. A batchCommit marker is the deterministic signal to implement the unified pending batch.",
   {
     timeout_ms: z.number().int().positive().optional().describe("Optional wait timeout in milliseconds")
   },
@@ -2913,8 +2915,10 @@ server.tool(
     try {
       var grabbed = await getGrabbedElements(timeout_ms);
       var payload: Record<string, unknown> = { ...grabbed };
-      if (grabbed.count > 0) {
-        payload.agent_protocol = "Respond to the user NOW about these selections: summarize each requested change in one line (element, token swaps, style edits, instruction), then ask whether to (a) write a goal/plan and implement the fixes, or (b) wait for direction. Do not implement anything until the user chooses, and do not leave the selections unacknowledged.";
+      if (grabbed.batchCommit) {
+        payload.agent_protocol = "Implement this committed batch now in one patch. Use batch.pending in ascending sequence, resolve every style and reorder target against the batch baseline before structural changes, apply same-parent reorders strictly by sequence, and mark each successful change applied with get_grab_operation. Reject ambiguous or disconnected targets instead of guessing.";
+      } else if (grabbed.count > 0) {
+        payload.agent_protocol = "Acknowledge these sent selections, but do not implement them yet. The user may keep editing; wait for the batchCommit marker from Apply.";
       }
       return {
         content: [{
@@ -2955,6 +2959,118 @@ server.tool(
         }],
         isError: true
       };
+    }
+  }
+);
+
+server.tool(
+  "get_page_template",
+  "Read the page-scoped template slots from the active grab session's DESIGN.md and merge the overlay's latest selector validation. fixed/flexible roles and allowedTokens are cooperative advisory metadata: display labels only, not enforced.",
+  {
+    page: z.string().min(1).describe("Page pathname, matching location.pathname")
+  },
+  async ({ page }) => {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(getPageTemplate(page), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "set_template_slot",
+  "Persist an array of page-scoped template slots in one batched DESIGN.md update. fixed/flexible roles and allowedTokens are cooperative advisory metadata: display labels only, not enforced.",
+  {
+    page: z.string().min(1).describe("Page pathname, matching location.pathname"),
+    template_id: z.string().min(1).optional().default("default").describe("Template identifier; defaults to default"),
+    slots: z.array(z.object({
+      slotId: z.string().min(1),
+      selector: z.string().min(1),
+      role: z.enum(["fixed", "flexible"])
+    }).strict()).describe("All template slots to persist in this batched call")
+  },
+  async ({ page, template_id, slots }) => {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(setTemplateSlots(page, template_id, slots), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "list_templates",
+  "List templates and their registered page pathnames from the active grab session. Template permissions and allowedTokens are cooperative advisory metadata: display labels only, not enforced.",
+  {},
+  async () => {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(listTemplates(), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "get_grab_layers",
+  "Read the latest non-mutating layer-tree snapshot captured by the active local grab session. Any fixed/flexible permissions are cooperative advisory metadata: display labels only, not enforced.",
+  {
+    page: z.string().min(1).optional().describe("Optional page pathname; omit to list all latest page snapshots")
+  },
+  async ({ page }) => {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(getGrabLayers(page), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "move_grab_layer",
+  "Queue a same-page layer reorder or reparent intent (previewed when measuredRects are supplied, otherwise proposed) without mutating the live page. Reparent moves a node to a different parent (toParentSelector); reorder keeps a single parentSelector. Permissions and fixed/flexible roles are cooperative advisory metadata: display labels only, not enforced; caller-supplied roles are rejected. Shadow-root and iframe boundaries are out of scope.",
+  {
+    operation: z.enum(["reorder", "reparent"]),
+    page: z.string().min(1),
+    parentSelector: z.string().min(1).optional().describe("Required for reorder — single parent"),
+    fromParentSelector: z.string().min(1).optional().describe("Required for reparent — source parent"),
+    toParentSelector: z.string().min(1).optional().describe("Required for reparent — destination parent"),
+    fromIndex: z.number().int().min(0),
+    toIndex: z.number().int().min(0),
+    orderedSelectors: z.array(z.string().min(1)),
+    baselineOrder: z.array(z.string().min(1)).optional(),
+    toBaselineOrder: z.array(z.string().min(1)).optional(),
+    selectionOrder: z.array(z.number().int().min(1)).optional(),
+    measuredRects: z.array(z.object({ selector: z.string().min(1), x: z.number(), y: z.number(), width: z.number(), height: z.number() }).strict()),
+    approximate: z.boolean(),
+    domSnapshotHash: z.string().min(1),
+    toDomSnapshotHash: z.string().min(1).optional(),
+    fromSelector: z.string().min(1).optional(),
+    role: z.never().optional().describe("Rejected: roles are never accepted from callers")
+  },
+  async (intent) => {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(moveGrabLayer(intent), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "get_grab_operation",
+  "Read or update one durable grab change, list legacy reorder operations, or request the unified style+reorder batch. Applied/rejected/superseded changes leave the pending set.",
+  {
+    operation_id: z.string().min(1).optional().describe("Operation ID; omit to list all operations"),
+    mark: z.enum(["applied", "rejected"]).optional().describe("Mark a previewed reorder or sent style change"),
+    batch: z.boolean().optional().describe("Return the unified current batch of reorder and style records; cannot be combined with operation_id or mark")
+  },
+  async ({ operation_id, mark, batch }) => {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(getGrabOperation(operation_id, mark, batch), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
     }
   }
 );
@@ -6549,6 +6665,9 @@ server.tool(
     new_id: z.string().min(1).describe("Existing replacement decision id."),
   },
   async function ({ old_id, new_id }) {
+    if (old_id === new_id) {
+      return { content: [{ type: "text" as const, text: "old_id and new_id must be distinct decisions." }], isError: true };
+    }
     var oldNode = await decisionGraphStore.getNode(old_id);
     var newNode = await decisionGraphStore.getNode(new_id);
     if (oldNode === null || oldNode.node_kind !== "decision" || newNode === null || newNode.node_kind !== "decision") {
@@ -7311,7 +7430,7 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 93 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 99 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });
