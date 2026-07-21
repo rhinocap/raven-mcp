@@ -12,8 +12,10 @@ echo "→ Cleaning stage"
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
 
-echo "→ Compiling TypeScript"
-npm run build
+if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
+  echo "→ Compiling TypeScript"
+  npm run build
+fi
 
 echo "→ Staging bundle contents"
 cp manifest.json "$STAGE/manifest.json"
