@@ -949,3 +949,27 @@ Whether the `fail` verdict should be reachable by rule identity, by decision gov
 ## it79 — HOLD-CHECK (no change)
 
 **2026-07-20** · doc-only. Hold-check ran, no gate event. `origin/main` tip = the loop's own it78 push (`9025700`); coord tail unchanged (stack-merged record); npm `raven-mcp` still `1.17.1`. No merge, no new Andrew instruction, no dogfood feedback. The it75 merge-readiness program is exhausted (items 1-4 done across it76/it77/it78) and every remaining item is Andrew-owed: merge call on #35+#36+#37, 2.0 cut + telemetry, #40 reconciliation (memo written it78), grade/close #41, one real Figma paste for #42/#43, #38 close-or-keep, and the dogfood pass. No surface manufactured (it35/it65 bar). **Metric 0.** it80 (next zoom-out) takes the standing question head-on: if everything left is Andrew-owed, keep firing at 1800s or drop to a slow heartbeat until a gate event lands.
+
+## it80 — ZOOM-OUT: what is the loop for, and at what cadence?
+
+**2026-07-20** · doc-only, no build. Every-5th zoom-out. **Adverse:** constrained Sol (report-only, medium) → FLAWED, 3 findings, 0 P0 — all precision fixes that strengthen the conclusion; resolved inline below.
+
+**Hold-check:** no change. `origin/main` tip = the loop's own it79 push (`2d04ec1`); coord tail unchanged (stack-merged record); npm `raven-mcp` still `1.17.1`; all 9 queue PRs (#35–#43) still OPEN, none merged. No gate event, no new instruction.
+
+### The question this iteration forces
+The it75 merge-readiness program is exhausted (items 1–4 across it76/it77/it78). Every remaining item is Andrew-owed. At 1800s the loop can now only re-run a hold-check that returns no-change — it79 already did exactly that, and it72–it74 were three such firings retrospectively judged a scope mistake (idling while calling it work). So: what is the loop *for* right now, and should it keep firing at 1800s?
+
+### Answer
+**The loop's movable work is drained; its only remaining function is gate detection — noticing the moment Andrew merges, cuts a release, publishes, edits the coordination doc, or gives a new instruction, and re-scoping to real work in that same turn.** Gate detection does not benefit from a fast poll: the events are human merge/decision actions with no deadline the loop must beat, so a 60-min detection lag costs nothing a 30-min lag saves. Continuing at 1800s just reproduces the it72–it74 pattern at double the idle token spend.
+
+**Decision: drop to a 3600s heartbeat** (the ScheduleWakeup clamp ceiling — the slowest a single poll can go without stopping). Each slow firing is a bare hold-check: no-change → instantly re-arm at 3600s; any gate event → jump back to 1800s and real work in the same turn. **Not stopping** — Andrew hasn't said stop, and stopping would lose auto-detection entirely. A slow heartbeat is the honest posture between "pretend there's work" and "abandon the watch."
+
+### Pressure-test (is there genuinely nothing non-Andrew-owed left?)
+Yes, nothing. The two standing assists — (a) point Andrew's MCP at a local build of origin/main, (b) generate a starter DESIGN.md + seed decisions for a project — both require Andrew to name a project or ask, so they remain offers, not loop-actionable work. The loop is barred from manufacturing investigation surface (it35/it65). Confirmed drained.
+
+### Sol corrections (all strengthen the slow-down)
+- **The queue is 9 PRs, all Andrew-owed — not 6.** #35+#36+#37 (merge call), #38 (close-or-keep judgment), #39 (safe close), #40 (design decision, memo written it78), #41 (grade/close), #42+#43 (blocked on one real Figma-clipboard paste). Every one is owner-owned; none is loop-movable. The drained-of-loop-work claim is *stronger* at 9-of-9 than the draft's mislabelled "6."
+- **A new Andrew instruction is NOT git/gh/npm-detectable** — it arrives as an in-session user message, independent of cadence. So of the five gate classes, four (merge / release / publish / coord-edit) are polled and have no deadline; the fifth (new instruction) interrupts regardless of poll rate. Slowing the poll costs *nothing* for instruction-detection. This is the cleanest argument for slowing.
+- **Coord-doc polling detects pushed edits only** — immaterial, because a gate event *is* a pushed/landed change; an unpushed local edit isn't a gate event yet.
+
+**Net:** the loop is now a slow watchdog, not a worker. Everything that advances Morven from here is Andrew's call. **Metric 0** — and it stays 0 until distribution opens or real usage lands, neither of which the loop can manufacture. Cadence set to 3600s until a gate event. it85 is the next zoom-out (or sooner if a gate event re-activates the loop).
