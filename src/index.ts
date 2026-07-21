@@ -42,7 +42,7 @@ import { registerCalls } from "./calls.js";
 import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
 import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet } from "./designmd.js";
 import { startGrabSession, getGrabbedElements, stopGrabSession, getPageTemplate, setTemplateSlots, listTemplates, getGrabLayers, moveGrabLayer, getGrabOperation } from "./grab-bridge.js";
-import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
+import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, recordConsultation, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
 import { proposePolish, reviewDiff } from "./design-review.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
@@ -2730,8 +2730,9 @@ server.tool(
     diff: z.string().max(409600).describe("Unified diff to review (maximum 400KB)."),
     project: z.string().optional().describe("Project directory used to resolve DESIGN.md and match decision scopes. Omit when design_md is supplied and no project hint is needed."),
     design_md: z.string().optional().describe("Inline DESIGN.md content. Overrides project file lookup when supplied."),
+    fail_on_governed: z.boolean().optional().describe("When true, findings a recorded decision governs become fail-eligible (severity error → verdict fail). Governance is a lexical scope+category association, NOT a verified contradiction of the decision — opt in as a team strict-mode signal, not a turnkey safe blocker. Default: advisory-only."),
   },
-  async function ({ diff, project, design_md }) {
+  async function ({ diff, project, design_md, fail_on_governed }) {
     try {
       if (Buffer.byteLength(diff, "utf8") > 400 * 1024) {
         return { content: [{ type: "text" as const, text: "diff exceeds maximum size of 400KB (409600 bytes)" }], isError: true };
@@ -2745,7 +2746,7 @@ server.tool(
         }
       }
       var decisions = await decisionGraphStore.listActiveDecisions();
-      var result = reviewDiff(diff, designContent, decisions, project);
+      var result = reviewDiff(diff, designContent, decisions, project, fail_on_governed);
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     } catch (err) {
       return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
@@ -6538,11 +6539,13 @@ server.tool(
     scope: z.string().min(1).describe("Scope where the decision applies."),
     component_ref: z.string().min(1).describe("Component or surface the decision refers to."),
     alternatives_rejected: z.array(z.string()).optional().describe("Alternatives considered and rejected."),
+    author: z.string().nullable().optional().describe("Agent or person authoring the decision. Defaults to RAVEN_AGENT_ID or unknown."),
   },
-  async function ({ statement, rationale, scope, component_ref, alternatives_rejected }) {
+  async function ({ statement, rationale, scope, component_ref, alternatives_rejected, author }) {
     var node = flagRationaleMissing({
       node_kind: "decision" as const,
       id: "dec_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+      author: author === undefined ? (process.env.RAVEN_AGENT_ID || "unknown") : author,
       statement: statement,
       rationale: rationale === undefined ? null : rationale,
       scope: scope,
@@ -6551,6 +6554,9 @@ server.tool(
       status: "active" as const,
       superseded_by: null,
       rationale_trust: null,
+      // Direct add: author is the first-party runtime identity (RAVEN_AGENT_ID) or an explicit
+      // caller assertion — not a model guess — so it is trusted enough to establish non-authorship.
+      author_trust: "confirmed" as const,
       created_at: new Date().toISOString(),
     });
     var created = await decisionGraphStore.addNode(node);
@@ -6645,6 +6651,9 @@ server.tool(
     var updated = await decisionGraphStore.updateNode(id, {
       rationale: rationale,
       rationale_trust: "confirmed",
+      // Committing reviews the whole candidate, author included, so a human commit confirms the
+      // attribution too — the only path that lets an author establish non-authorship (Sol #2, it57).
+      author_trust: existing.author ? "confirmed" as const : (existing.author_trust ?? null),
       status: existing.status === "candidate" ? "active" : existing.status,
     }) as DecisionNode;
     var threshold = similarity_threshold === undefined ? similarityThreshold() : similarity_threshold;
@@ -6729,6 +6738,7 @@ server.tool(
       type: "scoped_alongside",
       created_at: new Date().toISOString(),
     });
+    recordConsultation(process.env.RAVEN_AGENT_ID || "unknown", "decision_scope", [updatedA, updatedB]);
     return { content: [{ type: "text" as const, text: JSON.stringify({ decision_a: updatedA, decision_b: updatedB, edge: edge }, null, 2) }] };
   }
 );
@@ -6773,6 +6783,11 @@ server.tool(
         timestamp: evidenceNode.timestamp,
       };
     });
+    var returnedDecisions = neighbors.filter(function(neighbor): neighbor is DecisionNode {
+      return neighbor.node_kind === "decision";
+    });
+    if (node.node_kind === "decision") returnedDecisions.unshift(node);
+    recordConsultation(process.env.RAVEN_AGENT_ID || "unknown", "decision_get", returnedDecisions);
     return { content: [{ type: "text" as const, text: JSON.stringify({ node: node, neighbors: neighbors, evidence: evidence }, null, 2) }] };
   }
 );
@@ -6797,6 +6812,7 @@ server.tool(
         return decision.rationale_missing || decision.rationale_trust === "extracted";
       });
     }
+    recordConsultation(process.env.RAVEN_AGENT_ID || "unknown", "decision_list", decisions);
     return { content: [{ type: "text" as const, text: JSON.stringify(decisions, null, 2) }] };
   }
 );
@@ -6983,6 +6999,8 @@ server.tool(
         scope: extractionSource.ref,
         component_ref: extractionSource.ref,
         alternatives_rejected: item.alternatives_rejected,
+        author: item.author ?? null,
+        author_trust: item.author ? "extracted" as const : null,
         status: "candidate" as const,
         superseded_by: null,
         created_at: new Date().toISOString(),

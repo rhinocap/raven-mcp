@@ -1,10 +1,15 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 export interface DecisionNode {
   node_kind: "decision";
   id: string;
+  author?: string | null;
+  // Mirrors rationale_trust: a model-extracted author name is spoofable/hallucination-prone
+  // and must not establish non-authorship for the leading metric until a human confirms it (Sol #2, it57).
+  // ponytail: extracted|confirmed covers it; add "declared" when a self-declared-identity path exists.
+  author_trust?: "extracted" | "confirmed" | null;
   statement: string;
   rationale: string | null;
   rationale_trust?: "extracted" | "confirmed" | null;
@@ -321,8 +326,33 @@ export async function buildConflictPayload(
   };
 }
 
+// Store resolution (it49, repo-store slice i): an explicit RAVEN_DECISIONS_HOME
+// always wins; otherwise a project opts into a shared, git-backed decision store
+// by checking in a `.raven/decisions/` directory — we discover the nearest one by
+// walking up from cwd (the normal one-server-per-project MCP layout). When present
+// it fully SHADOWS the global ~/.raven store (spec §1a: shadowing, not union).
+// ponytail: presence of the dir = opt-in; no schema-v2/merge-driver here (spec
+// phase ii — only needed under concurrent git-merge writes, not serialized sharing).
+export function discoverRepoStore(startDir: string): string | null {
+  var current = startDir;
+  while (true) {
+    var candidate = join(current, ".raven", "decisions");
+    try {
+      if (statSync(candidate).isDirectory()) return candidate;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    var parent = dirname(current);
+    if (parent === current) return null; // reached filesystem root
+    current = parent;
+  }
+}
+
 export function decisionsHome(): string {
-  return process.env.RAVEN_DECISIONS_HOME || join(homedir(), ".raven", "decisions");
+  if (process.env.RAVEN_DECISIONS_HOME) return process.env.RAVEN_DECISIONS_HOME;
+  var repoStore = discoverRepoStore(process.cwd());
+  if (repoStore) return repoStore;
+  return join(homedir(), ".raven", "decisions");
 }
 
 export function flagRationaleMissing<T extends { rationale?: string | null }>(input: T): T & { rationale_missing: boolean } {
@@ -352,6 +382,7 @@ export type ExtractionItem = {
   rationale: string | null;
   alternatives_rejected: string[];
   source_ref?: string | null;
+  author?: string | null;
 };
 
 export type ExtractionParseResult =
@@ -397,11 +428,15 @@ export function parseExtractionJson(raw: string): ExtractionParseResult {
     var sourceRef = typeof input.source_ref === "string" && input.source_ref.trim().length > 0
       ? input.source_ref.trim()
       : null;
+    var author = typeof input.author === "string" && input.author.trim().length > 0
+      ? input.author.trim()
+      : null;
     items.push({
       statement: input.statement.trim(),
       rationale: rationale,
       alternatives_rejected: alternatives,
       source_ref: sourceRef,
+      author: author,
     });
   }
 
@@ -416,8 +451,9 @@ export function buildExtractionPrompt(transcript: string): string {
     "Extract DISTINCT genuine design decisions only from the transcript below.",
     "Discard chatter, questions, and unresolved debates.",
     "Return a STRICT JSON array of objects with exactly these fields:",
-    '{"statement":"...","rationale":"... or null","alternatives_rejected":["..."]}',
+    '{"statement":"...","rationale":"... or null","alternatives_rejected":["..."],"author":"... or null"}',
     "Use rationale null when the transcript never states why the decision was made.",
+    "Set author to the participant who MADE each decision when the material attributes it to a named person (e.g. a comment thread, a code review, or an attributed transcript). Use null when no author is identifiable.",
     "Return no prose outside the JSON.",
     "",
     "TRANSCRIPT:",
@@ -433,8 +469,9 @@ export function buildImportExtractionPrompt(material: string, streamKind: string
     "Extract DISTINCT durable design or architecture decisions only from the imported " + streamKind + " material below.",
     "Discard mechanical commits and content such as version bumps, typo fixes, merges, formatting, and routine maintenance.",
     "Return a STRICT JSON array of objects with exactly these fields:",
-    '{"statement":"...","rationale":"... or null","alternatives_rejected":["..."],"source_ref":"..."}',
+    '{"statement":"...","rationale":"... or null","alternatives_rejected":["..."],"source_ref":"...","author":"... or null"}',
     provenanceInstruction,
+    "Set author to the participant who MADE each decision when the material attributes it to a named person (e.g. a commit author, a reviewer, or an attributed comment). Use null when no author is identifiable.",
     "Use rationale null when the source never states why the decision was made.",
     "Return no prose outside the JSON.",
     "",
@@ -644,15 +681,49 @@ function nodesPath(): string {
   return join(decisionsHome(), "nodes.json");
 }
 
+export function recordConsultation(readerId: string, tool: string, decisions: DecisionNode[]): void {
+  if (process.env.RAVEN_NO_CONSULTATION_TRACE === "1" || decisions.length === 0) return;
+  try {
+    var storeDir = dirname(nodesPath());
+    mkdirSync(storeDir, { recursive: true });
+    appendFileSync(join(storeDir, "consultations.jsonl"), JSON.stringify({
+      ts: new Date().toISOString(),
+      reader: readerId || "unknown",
+      tool: tool,
+      decision_ids: decisions.map(function(decision) { return decision.id; }),
+      authors: decisions.map(function(decision) { return decision.author === undefined ? null : decision.author; }),
+      author_trusts: decisions.map(function(decision) { return decision.author_trust === undefined ? null : decision.author_trust; }),
+    }) + "\n", "utf8");
+  } catch (_error) {
+    // Consultation tracing is observational only and must never affect tool reads.
+  }
+}
+
 function edgesPath(): string {
   return join(decisionsHome(), "edges.json");
 }
 
-function readNodes(): GraphNode[] {
-  var file = nodesPath();
+// Fail-closed read (it49, spec §4): the store files are untrusted input (a repo
+// store arrives via git). A missing file is legitimately empty; a file that EXISTS
+// but doesn't parse to { <key>: [...] } is corrupt and must raise, never silently
+// return [] — silent-empty would let the next write clobber a store we failed to read.
+function readArrayFile<T>(file: string, key: "nodes" | "edges"): T[] {
   if (!existsSync(file)) return [];
-  var parsed = JSON.parse(readFileSync(file, "utf8"));
-  return Array.isArray(parsed.nodes) ? parsed.nodes : [];
+  var parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(file, "utf8"));
+  } catch (error) {
+    throw new Error("Corrupt decision store " + file + ": invalid JSON (" + (error instanceof Error ? error.message : String(error)) + ")");
+  }
+  var value = (parsed as Record<string, unknown> | null)?.[key];
+  if (!Array.isArray(value)) {
+    throw new Error("Corrupt decision store " + file + ": expected an object with a \"" + key + "\" array");
+  }
+  return value as T[];
+}
+
+function readNodes(): GraphNode[] {
+  return readArrayFile<GraphNode>(nodesPath(), "nodes");
 }
 
 function writeNodes(nodes: GraphNode[]): void {
@@ -660,10 +731,7 @@ function writeNodes(nodes: GraphNode[]): void {
 }
 
 function readEdges(): GraphEdge[] {
-  var file = edgesPath();
-  if (!existsSync(file)) return [];
-  var parsed = JSON.parse(readFileSync(file, "utf8"));
-  return Array.isArray(parsed.edges) ? parsed.edges : [];
+  return readArrayFile<GraphEdge>(edgesPath(), "edges");
 }
 
 function writeEdges(edges: GraphEdge[]): void {

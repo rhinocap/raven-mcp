@@ -41,3 +41,6 @@ dist/
 /.claude/skills/seam-craft
 /.claude/skills/slideshow
 /.claude/skills/talking-head-recut
+
+# decision-store runtime consultation trace (it52) — not source of truth
+.raven/decisions/consultations.jsonl
