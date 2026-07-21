@@ -991,3 +991,7 @@ Yes, nothing. The two standing assists — (a) point Andrew's MCP at a local bui
 **Ledger:** updated CLAUDE.md ground-truth version + tool-count (1.17.1→2.0.0, 93→99), honestly scoped — only those two facts re-verified for 2.0; the rest of the block stays dated 2026-07-18. Did NOT rewrite the remote/anon-45 claims (not verified for 2.0, overclaim risk).
 
 **Re-scoped queue (post-2.0):** #35/#36 DONE (shipped). Still Andrew-owed: **#37** (now a shipped defect — merge + a 2.0.1 patch, or accept), telemetry removal, **#40** reconciliation, #41 grade/close, #42/#43 Figma-paste, #38/#39 close. The dogfood gate and the shared-graph/distribution gate are unchanged. **Metric still 0** (2.0 is a surface/version event, not adoption). Loop back to 1800s; next firing is a normal hold-check, re-scoping on any further 2.0.x activity.
+
+## it81b — DECISION: raven-polish (#37) deferred, not a defect
+
+**2026-07-20 · Andrew:** "Let's not release it for now." **Resolves the #37 flag.** The raven-polish CLI being absent from the published 2.0.0 package is now a **deliberate deferral, not a distribution defect** — the it77/it81 "shipped defect" framing is withdrawn. PR #37 stays OPEN (deferred, "for now" ≠ closed); no 2.0.1 republish is owed on its account. The loop will no longer flag raven-polish-not-in-package. Telemetry (postinstall.cjs) is a SEPARATE open item, not covered by this decision. Queue now: #37 DEFERRED; still Andrew-owed = #40 reconciliation, #41 grade/close, #42/#43 Figma-paste, #38/#39 close, telemetry decision, dogfood pass.
