@@ -47,8 +47,8 @@ export default function Home() {
                 <div className="raven-stat-label">Releases</div>
               </div>
               <div className="raven-stat-card">
-                <div className="raven-stat-num" id="rs-dl">—<span className="unit">/wk</span></div>
-                <div className="raven-stat-label">npm Downloads</div>
+                <div className="raven-stat-num" id="rs-dl">—</div>
+                <div className="raven-stat-label">Total installs</div>
               </div>
             </div>
 

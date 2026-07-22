@@ -1599,15 +1599,15 @@
 /* ---- section-scoped styles (watch section) ---- */
         .raven-stats-row {
           display: flex;
-          gap: 16px;
+          gap: 20px;
           margin-top: 32px;
           flex-wrap: wrap;
-          max-width: 560px;
+          max-width: 720px;
         }
         .raven-stat-card {
           flex: 1;
-          min-width: 130px;
-          padding: 20px;
+          min-width: 180px;
+          padding: 28px 32px;
           background: var(--bg-raised);
           border: 1px solid var(--border, rgba(255,255,255,0.06));
           border-radius: 12px;
