@@ -309,6 +309,22 @@
       </div>
 
       <ol class="cl-timeline">
+        <li class="cl-item" data-category="audits">
+          <span aria-hidden="true" class="cl-node cat-audits"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
+              <span class="cl-version">v2.1.0</span>
+              <span class="cl-badge kind-new">New</span>
+              <time datetime="2026-07-22" class="cl-date">July 22, 2026</time>
+            </header>
+            <h2 class="cl-title">One audit tool that picks the right checks for you</h2>
+            <ul class="cl-changes">
+              <li>New `audit` tool: point it at a web page, iOS screen, React Native source, a code diff, or a video, and it runs the audits that fit and returns a single merged report.</li>
+              <li>You no longer need to know which of the individual audit tools applies — the granular tools are still there when you want a targeted run.</li>
+            </ul>
+          </article>
+        </li>
         <li class="cl-item" data-category="tooling">
           <span aria-hidden="true" class="cl-node cat-tooling"></span>
           <article class="cl-card">
@@ -331,6 +347,25 @@
           <article class="cl-card">
             <header class="cl-card-head">
               <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.0.1</span>
+              <span class="cl-badge kind-fix">Fix</span>
+              <time datetime="2026-07-20" class="cl-date">July 20, 2026</time>
+            </header>
+            <h2 class="cl-title">Per-side border editing in the Raven Design overlay</h2>
+            <ul class="cl-changes">
+              <li>The Stroke control now edits borders per side — an All/Top/Right/Bottom/Left selector that multi-selects, so you can set a border on just the left, or the left and right together, not only all four at once.</li>
+              <li>A one-sided border reads correctly again: a bare border-left shows its real width, style, color, and side instead of "None".</li>
+              <li>The pending-changes panel collapses and expands from its header, so it stays out of the way on narrow and mobile viewports.</li>
+              <li>Editing a stacked multi-layer box-shadow no longer drops the extra layers, and bare semantic elements (a classless h2, blockquote, or li) can be scoped to their siblings again.</li>
+              <li>Overlay-only changes — the 99-tool stdio surface is unchanged.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
               <span class="cl-version">v2.0.0</span>
               <span class="cl-badge kind-new">New</span>
               <time datetime="2026-07-20" class="cl-date">July 20, 2026</time>
@@ -343,25 +378,6 @@
               <li>audit_taste can verify a content port kept its copy intact — pass source_text and it runs a deterministic word-token diff of the original against the target's visible text, so a redesign can't silently reword shipped copy.</li>
               <li>The packaged .mcpb bundle now advertises exactly the tools it ships, derived from the built server rather than a hand-maintained list.</li>
               <li>No breaking changes: every existing tool keeps its name and behavior; this release only adds. 99 tools total.</li>
-            </ul>
-          </article>
-        </li>
-        <li class="cl-item" data-category="tooling">
-          <span aria-hidden="true" class="cl-node cat-tooling"></span>
-          <article class="cl-card">
-            <header class="cl-card-head">
-              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
-              <span class="cl-version">v2.0.1</span>
-              <span class="cl-badge kind-fix">Fix</span>
-              <time datetime="2026-07-20" class="cl-date">July 20, 2026</time>
-            </header>
-            <h2 class="cl-title">Per-side border editing in the Raven Design overlay</h2>
-            <ul class="cl-changes">
-              <li>The Stroke control now edits borders per side — an All/Top/Right/Bottom/Left selector that multi-selects, so you can set a border on just the left, or the left and right together, not only all four at once.</li>
-              <li>A one-sided border reads correctly again: a bare border-left shows its real width, style, color, and side instead of "None".</li>
-              <li>The pending-changes panel collapses and expands from its header, so it stays out of the way on narrow and mobile viewports.</li>
-              <li>Editing a stacked multi-layer box-shadow no longer drops the extra layers, and bare semantic elements (a classless h2, blockquote, or li) can be scoped to their siblings again.</li>
-              <li>Overlay-only changes — the 99-tool stdio surface is unchanged.</li>
             </ul>
           </article>
         </li>
@@ -439,23 +455,6 @@
             </ul>
           </article>
         </li>
-        <li class="cl-item" data-category="audits">
-          <span aria-hidden="true" class="cl-node cat-audits"></span>
-          <article class="cl-card">
-            <header class="cl-card-head">
-              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
-              <span class="cl-version">v1.11.0</span>
-              <span class="cl-badge kind-feature">Feature</span>
-              <time datetime="2026-06-21" class="cl-date">June 21, 2026</time>
-            </header>
-            <h2 class="cl-title">Catch cropped device mockups before they ship</h2>
-            <ul class="cl-changes">
-              <li>New audit_device_frame — flags content sliced off inside phone and laptop mockups, checking frame geometry, baked-in pan/zoom drift, and edge truncation.</li>
-              <li>Added color-systems principles — palette discipline of ten or fewer page colors on a role-based token set.</li>
-              <li>Added spacing-systems principles — an 8px base grid and a tight, limited spacing scale.</li>
-            </ul>
-          </article>
-        </li>
         <li class="cl-item" data-category="tooling">
           <span aria-hidden="true" class="cl-node cat-tooling"></span>
           <article class="cl-card">
@@ -478,15 +477,15 @@
           <article class="cl-card">
             <header class="cl-card-head">
               <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
-              <span class="cl-version">v1.9.0</span>
-              <span class="cl-badge kind-new">New</span>
-              <time datetime="2026-06-19" class="cl-date">June 19, 2026</time>
+              <span class="cl-version">v1.11.0</span>
+              <span class="cl-badge kind-feature">Feature</span>
+              <time datetime="2026-06-21" class="cl-date">June 21, 2026</time>
             </header>
-            <h2 class="cl-title">Raven now renders and looks at real pixels</h2>
+            <h2 class="cl-title">Catch cropped device mockups before they ship</h2>
             <ul class="cl-changes">
-              <li>New audit_url — renders a live URL at every viewport and theme, scroll-settles reveals, plays videos, and fires hover, click, and focus before capturing.</li>
-              <li>Catches the real-world nits that HTML-only audits miss: cropped images, blank videos, hover white-wash, sliced exports, and content hidden on mobile.</li>
-              <li>Every finding is tagged confirmed, likely-artifact, or inconclusive and ranked by severity — so you only fix what's real.</li>
+              <li>New audit_device_frame — flags content sliced off inside phone and laptop mockups, checking frame geometry, baked-in pan/zoom drift, and edge truncation.</li>
+              <li>Added color-systems principles — palette discipline of ten or fewer page colors on a role-based token set.</li>
+              <li>Added spacing-systems principles — an 8px base grid and a tight, limited spacing scale.</li>
             </ul>
           </article>
         </li>
@@ -513,16 +512,15 @@
           <article class="cl-card">
             <header class="cl-card-head">
               <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
-              <span class="cl-version">v1.7.0</span>
-              <span class="cl-badge kind-feature">Feature</span>
-              <time datetime="2026-06-18" class="cl-date">June 18, 2026</time>
+              <span class="cl-version">v1.9.0</span>
+              <span class="cl-badge kind-new">New</span>
+              <time datetime="2026-06-19" class="cl-date">June 19, 2026</time>
             </header>
-            <h2 class="cl-title">Contrast, responsive, and interaction-state audits</h2>
+            <h2 class="cl-title">Raven now renders and looks at real pixels</h2>
             <ul class="cl-changes">
-              <li>New audit_contrast — exact WCAG 2.1 ratios for every text element, with the delta needed to pass.</li>
-              <li>New audit_responsive_visibility — renders at multiple breakpoints and flags content shown on desktop but hidden on mobile.</li>
-              <li>audit_page can now fire hover, click, and focus before the screenshot — so transient defects like a theme-toggle white-wash become visible.</li>
-              <li>Optional adversarial_verify re-checks each finding a second way and tags it confirmed or likely-artifact.</li>
+              <li>New audit_url — renders a live URL at every viewport and theme, scroll-settles reveals, plays videos, and fires hover, click, and focus before capturing.</li>
+              <li>Catches the real-world nits that HTML-only audits miss: cropped images, blank videos, hover white-wash, sliced exports, and content hidden on mobile.</li>
+              <li>Every finding is tagged confirmed, likely-artifact, or inconclusive and ranked by severity — so you only fix what's real.</li>
             </ul>
           </article>
         </li>
@@ -549,13 +547,16 @@
           <article class="cl-card">
             <header class="cl-card-head">
               <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
-              <span class="cl-version">v1.6.2</span>
-              <span class="cl-badge kind-fix">Fix</span>
-              <time datetime="2026-06-12" class="cl-date">June 12, 2026</time>
+              <span class="cl-version">v1.7.0</span>
+              <span class="cl-badge kind-feature">Feature</span>
+              <time datetime="2026-06-18" class="cl-date">June 18, 2026</time>
             </header>
-            <h2 class="cl-title">Token-aware container widths</h2>
+            <h2 class="cl-title">Contrast, responsive, and interaction-state audits</h2>
             <ul class="cl-changes">
-              <li>audit_page's max-width check now flags containers that diverge from your design system's canonical content width, instead of a generic heuristic.</li>
+              <li>New audit_contrast — exact WCAG 2.1 ratios for every text element, with the delta needed to pass.</li>
+              <li>New audit_responsive_visibility — renders at multiple breakpoints and flags content shown on desktop but hidden on mobile.</li>
+              <li>audit_page can now fire hover, click, and focus before the screenshot — so transient defects like a theme-toggle white-wash become visible.</li>
+              <li>Optional adversarial_verify re-checks each finding a second way and tags it confirmed or likely-artifact.</li>
             </ul>
           </article>
         </li>
@@ -564,14 +565,13 @@
           <article class="cl-card">
             <header class="cl-card-head">
               <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
-              <span class="cl-version">v1.5.0</span>
-              <span class="cl-badge kind-new">New</span>
-              <time datetime="2026-05-25" class="cl-date">May 25, 2026</time>
+              <span class="cl-version">v1.6.2</span>
+              <span class="cl-badge kind-fix">Fix</span>
+              <time datetime="2026-06-12" class="cl-date">June 12, 2026</time>
             </header>
-            <h2 class="cl-title">iOS, SwiftUI, and React Native audits</h2>
+            <h2 class="cl-title">Token-aware container widths</h2>
             <ul class="cl-changes">
-              <li>New iOS and SwiftUI audit suite — audit_swiftui, audit_ios_screen, and audit_ios_privacy.</li>
-              <li>New React Native and Expo audit — audit_rn plus Expo privacy checks.</li>
+              <li>audit_page's max-width check now flags containers that diverge from your design system's canonical content width, instead of a generic heuristic.</li>
             </ul>
           </article>
         </li>
@@ -589,6 +589,22 @@
               <li>Cross-platform audit_screen routes web, iOS, Android, and React Native through one entry point.</li>
               <li>Android screens join the native audit lineup.</li>
               <li>The mobile and native audit tools are now surfaced directly on the site.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="audits">
+          <span aria-hidden="true" class="cl-node cat-audits"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
+              <span class="cl-version">v1.5.0</span>
+              <span class="cl-badge kind-new">New</span>
+              <time datetime="2026-05-25" class="cl-date">May 25, 2026</time>
+            </header>
+            <h2 class="cl-title">iOS, SwiftUI, and React Native audits</h2>
+            <ul class="cl-changes">
+              <li>New iOS and SwiftUI audit suite — audit_swiftui, audit_ios_screen, and audit_ios_privacy.</li>
+              <li>New React Native and Expo audit — audit_rn plus Expo privacy checks.</li>
             </ul>
           </article>
         </li>

@@ -6,6 +6,11 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-07-22
+
+### Added
+- `audit` — a single dispatcher tool that detects the surface (web page / iOS screen / React Native / code diff / video) and fans out to the applicable audits, returning one merged report (`ran`, `skipped` with reasons, a `summary` rollup, each sub-audit's native payload under `findings`, and a `next` pointer). Use it instead of choosing among the individual `audit_*` tools; the granular tools remain available for targeted runs. The stdio surface is now 100 tools; `audit` is excluded from the anonymous remote surface, which stays at its frozen 45. (#45)
+
 ## [2.0.2] - 2026-07-22
 
 ### Added

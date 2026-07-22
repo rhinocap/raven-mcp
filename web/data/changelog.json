@@ -26,6 +26,17 @@
   },
   "releases": [
     {
+      "version": "v2.1.0",
+      "date": "2026-07-22",
+      "category": "audits",
+      "kind": "new",
+      "title": "One audit tool that picks the right checks for you",
+      "changes": [
+        "New `audit` tool: point it at a web page, iOS screen, React Native source, a code diff, or a video, and it runs the audits that fit and returns a single merged report.",
+        "You no longer need to know which of the individual audit tools applies — the granular tools are still there when you want a targeted run."
+      ]
+    },
+    {
       "version": "v2.0.2",
       "date": "2026-07-22",
       "category": "tooling",
