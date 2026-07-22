@@ -40,6 +40,31 @@ The Raven homepage video needed to be rebuilt from the actual production Raven D
 **Why:** This directly verifies zoom count, depth, target, release, and preservation of the phone/transition behavior.
 **Pushed:** Not applicable.
 
+### Smoothed scene transitions
+**What:** Extended every outgoing clip through the end of its blend, replaced same-canvas blur pulses with 0.6-second `sine.inOut` cross-dissolves, and retained a restrained 0.8-second low-blur Focus Pull only for desktop-to-phone and phone-to-desktop context changes. Separated the single Layers zoom from adjacent transitions so its release does not collide with the next beat.
+**Why:** The prior clips expired mid-transition and whole-screen blur between closely related desktop states made the edit snap and flash despite softened easing.
+**Pushed:** Not applicable; MP4 render remains gated on Andrew's Player approval.
+
+### Transition verification
+**What:** Asserted all five outgoing clips overlap their full transition endpoints. Hyperframes strict check passed in the recorder container with 0 lint errors, 0 warnings, 0 runtime issues, 0 layout issues across 59 samples, 0 motion issues, and 0 contrast issues. Frame-stepped 30 exact transition moments at full resolution across all five transitions; desktop beats now dissolve continuously and device changes retain the native cinematic Focus Pull without blue or white flashes.
+**Why:** Motion correctness requires checking the rendered transition sequence, not just the easing values in source.
+**Pushed:** Not applicable.
+
+### Production homepage release
+**What:** Rendered the approved 26.5-second composition as a 1600x900 H.264/yuv420p MP4 with no audio, generated its opening-frame poster, updated the homepage accessibility label, and replaced the three homepage assets in an isolated worktree based on exact `origin/main`. Committed and pushed `5f11903`, then deployed the `web/` project to Vercel production. The Ready deployment `dpl_6xoXLxDQ7PWoZTp4iRohu7z35arB` is aliased to `https://ravenmcp.ai`.
+**Why:** Andrew approved the final Player cut and explicitly authorized the production promotion.
+**Pushed:** `5f11903` (`Replace homepage playground video`)
+
+### Production verification
+**What:** Ran the root suite on the exact release worktree (1,012 passed, 0 failed, 50 browser-dependent skipped) and completed the Next.js production build. The canonical MP4 matches the approved render SHA256 `c2fad09f2dc5f46b6134bf6b449663d1737f070970b60bba0f5452f6f7befca1`; the canonical poster matches the committed source SHA256 `49e5c82ec012ba8a76839891773e4a3804b246aefe9816c75ef9654da25cc3c6`. A throttled production byte-range request returned HTTP 206 and the full requested range; FFmpeg decoded the downloaded production MP4 through every frame. Full-resolution production desktop and mobile screenshots show the Northstar poster and correct responsive layout. An independent GPT-5.6-Sol falsification pass accepted the release with the disclosed limitation below after its sole poster-hash objection was resolved.
+**Why:** The production proof covers the actual canonical bytes, responsive rendered surface, transport behavior, build, tests, and deployment state rather than relying on localhost or source alone.
+**Pushed:** Not applicable.
+
+### Verification limitation
+**What:** Direct live H.264 browser playback could not be observed in the available automation environment: Raven's playback/page audits lacked headless Chromium, the in-app browser had no browser available, host Chromium was blocked by macOS MachPort permissions, and the Linux browser lacked H.264 codec support. The exact production bytes, codec/profile, range delivery, full decode, poster, page render, and approved-render frame review all passed.
+**Why:** Preserve the boundary between verified production evidence and the one unavailable browser-playback check.
+**Pushed:** Not applicable.
+
 ## Mistakes & lessons
 
 | Mistake | Type | Rule added |
@@ -50,10 +75,11 @@ The Raven homepage video needed to be rebuilt from the actual production Raven D
 | Left the overall edit too slow and used a static phone hold with no product action. | Accuracy gap | Before handing back a product demo, always confirm every beat advances either the product state or the story, and remove or replace any hold that does neither. |
 | Patched the host recorder but initially ran the stale script copy inside the container. | Verification gap | Before a container recording pass, copy the edited recorder in and confirm the in-container file is the version being executed. |
 | Kept a second agent-handoff zoom and used a two-target pan inside the Layers beat. | Accuracy gap | Before adding editorial camera motion, always assign one load-bearing beat and one stationary target so product-state changes—not repeated camera movement—carry the rest of the story. |
+| Let outgoing clips expire before their transition tweens completed and used whole-screen blur between same-canvas states. | Accuracy gap | Verify clip lifecycle overlap at every transition endpoint; cross-dissolve related canvas states and reserve Focus Pull for real context changes. |
 
 ## State at end of session
-- Current clean Player: `http://localhost:4708` (26.5-second Playground cut with one shallow Layers zoom and active phone interaction)
-- Strict/container verification: passed; single zoom, production Playground identity, and phone interaction checked full-resolution
+- Production: `https://ravenmcp.ai/#raven-design` on Vercel deployment `dpl_6xoXLxDQ7PWoZTp4iRohu7z35arB` (`Ready`)
+- Release commit: `5f11903` on `origin/main`
+- Production verification: tests, build, byte identity, HTTP 206 range delivery, full MP4 decode, and desktop/mobile visual review passed
 - Pending (carried forward):
-  - Andrew approves the faster clean Player
-  - Render and open the MP4 only after Player approval
+  - Direct live H.264 browser-playback observation remains unavailable in this automation environment
