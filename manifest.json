@@ -447,6 +447,10 @@
     {
       "name": "talon_rules",
       "description": "Enumerate Raven's Talon detector rule corpus — id, category, severity, taste scope, and the src/data/principles/*.json…"
+    },
+    {
+      "name": "audit",
+      "description": "Run **all applicable** Raven audits for a target."
     }
   ],
   "compatibility": {
