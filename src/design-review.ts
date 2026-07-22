@@ -31,9 +31,11 @@ export interface DesignReviewResult {
   // Violation findings a recorded decision governs (same category + scope); present only when
   // non-empty. Association for review attention — does NOT assert the diff contradicts the decision.
   governed_findings?: Array<{ decision_id: string; file: string; line: number; rule: string }>;
-  // Echoes an active opt-in escalation policy. fail_on_governed escalates findings a recorded
-  // decision GOVERNS (it63 lexical scope+category association, NOT verified contradiction) to error.
-  severity_policy?: { fail_on_governed?: boolean };
+  // Echoes an active opt-in escalation policy. Present only when a policy is applied.
+  // fail_on escalates violation findings whose rule is in the caller's allowlist to error.
+  // fail_on_governed escalates findings a recorded decision GOVERNS (it63 lexical scope+category
+  // association, NOT verified contradiction) to error. The two axes are independent and combine.
+  severity_policy?: { fail_on?: string[]; fail_on_governed?: boolean };
   checks_skipped?: Array<"color-tokens" | "spacing-tokens" | "typography-tokens">;
   note?: string;
   stats: {
@@ -142,6 +144,11 @@ interface VirtualPostImageLine {
 }
 
 var UI_EXTENSIONS = new Set(["css", "scss", "tsx", "jsx", "ts", "js", "html", "vue", "svelte", "swift", "kt"]);
+// Violation rules a caller may escalate to a failing (error) verdict via fail_on. Excludes
+// token-value-match (an info, non-violation finding). The tool validates fail_on against this list.
+export const FAIL_ON_RULES = ["important", "bare-hex-color", "hardcoded-font-size", "hardcoded-font-family", "hardcoded-spacing"] as const;
+// Opt-in severity escalation. Omit (or leave both fields empty/false) for advisory-only behavior.
+export interface SeverityPolicy { failOn?: string[]; failOnGoverned?: boolean; }
 var DECISION_STOP_WORDS = new Set([
   "and", "are", "card", "for", "from", "into", "keep", "must", "not", "only", "our", "the", "this", "use", "with",
 ]);
@@ -212,8 +219,8 @@ export function parseUnifiedDiff(diff: string): ParsedDiffFile[] {
   return files;
 }
 
-export function reviewDiff(diff: string, designMd: string | null, decisions: DecisionNode[], project?: string, failOnGoverned?: boolean): DesignReviewResult {
-  return performReview(diff, designMd, decisions, project, false, failOnGoverned).result;
+export function reviewDiff(diff: string, designMd: string | null, decisions: DecisionNode[], project?: string, policy?: SeverityPolicy): DesignReviewResult {
+  return performReview(diff, designMd, decisions, project, false, policy).result;
 }
 
 export function proposePolish(diff: string, designMd: string | null, decisions: DecisionNode[], project?: string): PolishResult {
@@ -300,7 +307,7 @@ export function proposePolish(diff: string, designMd: string | null, decisions: 
   return result;
 }
 
-function performReview(diff: string, designMd: string | null, decisions: DecisionNode[], project: string | undefined, collectAutoFixes: boolean, failOnGoverned?: boolean): ReviewContext {
+function performReview(diff: string, designMd: string | null, decisions: DecisionNode[], project: string | undefined, collectAutoFixes: boolean, policy?: SeverityPolicy): ReviewContext {
   if (diff.trim().length === 0) throw new Error("empty diff");
   var postImages = reconstructFinalPostImages(diff);
   if (postImages.length === 0) throw new Error("not a unified diff");
@@ -316,6 +323,15 @@ function performReview(diff: string, designMd: string | null, decisions: Decisio
   var violations = findings.filter(isViolationFinding);
   var applicable = applicableDecisions(files, decisions, project);
   var decisionViolations = attributeDecisions(violations, applicable, project);
+  // Independent, combinable escalation axes — either can raise a violation to error.
+  var appliedFailOn = Array.from(new Set(policy && policy.failOn ? policy.failOn : [])).sort();
+  var failOnGoverned = !!(policy && policy.failOnGoverned);
+  if (appliedFailOn.length > 0) {
+    var failOnSet = new Set(appliedFailOn);
+    for (var fi = 0; fi < violations.length; fi++) {
+      if (failOnSet.has(violations[fi].rule)) violations[fi].severity = "error";
+    }
+  }
   if (failOnGoverned) {
     for (var vi = 0; vi < violations.length; vi++) {
       if (violations[vi].governed_by) violations[vi].severity = "error";
@@ -338,14 +354,20 @@ function performReview(diff: string, designMd: string | null, decisions: Decisio
     },
   };
   if (decisionViolations.length > 0) result.governed_findings = decisionViolations;
-  if (failOnGoverned) result.severity_policy = { fail_on_governed: true };
+  if (appliedFailOn.length > 0 || failOnGoverned) {
+    result.severity_policy = {};
+    if (appliedFailOn.length > 0) result.severity_policy.fail_on = appliedFailOn;
+    if (failOnGoverned) result.severity_policy.fail_on_governed = true;
+  }
   var checksSkipped: DesignReviewResult["checks_skipped"] = [];
   if (vocabulary.colors.length === 0) checksSkipped.push("color-tokens");
   if (vocabulary.spacing.length === 0) checksSkipped.push("spacing-tokens");
   if (vocabulary.fontSizes.length === 0 && vocabulary.fontFamilies.length === 0) checksSkipped.push("typography-tokens");
   if (checksSkipped.length > 0) {
     result.checks_skipped = checksSkipped;
-    result.note = "token checks skipped: no DESIGN.md tokens found — pass reflects only universal rules";
+    result.note = (appliedFailOn.length > 0 || failOnGoverned)
+      ? "token checks skipped: no DESIGN.md tokens found — verdict reflects only universal rules"
+      : "token checks skipped: no DESIGN.md tokens found — pass reflects only universal rules";
   }
   return { files: files, uiFiles: uiFiles, postImages: postImages, vocabulary: vocabulary, result: result, autoFixes: autoFixes };
 }
