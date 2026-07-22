@@ -26,6 +26,18 @@
   },
   "releases": [
     {
+      "version": "v2.0.2",
+      "date": "2026-07-22",
+      "category": "tooling",
+      "kind": "feature",
+      "title": "review_diff can fail CI on the rules you choose",
+      "changes": [
+        "review_diff gains an opt-in fail_on policy: name the rules that should block a merge — important, bare-hex-color, hardcoded-font-size, hardcoded-font-family, hardcoded-spacing — and matching violations on newly added lines turn the verdict to fail.",
+        "It combines with fail_on_governed (escalate findings a recorded decision governs); both echo back under one severity_policy so CI can see exactly what was enforced.",
+        "Advisory by default — leave the policy off and review_diff behaves exactly as before. No tool changes; 99 tools total."
+      ]
+    },
+    {
       "version": "v2.0.1",
       "date": "2026-07-20",
       "category": "tooling",

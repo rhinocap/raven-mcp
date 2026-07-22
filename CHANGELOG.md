@@ -6,6 +6,13 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [2.0.2] - 2026-07-22
+
+### Added
+- `review_diff`: opt-in `fail_on` severity policy — escalate matching violation rules (`important`, `bare-hex-color`, `hardcoded-font-size`, `hardcoded-font-family`, `hardcoded-spacing`) to a failing CI verdict. Combines with the existing `fail_on_governed`; both echo under a unified `severity_policy`. Diff-scoped and advisory by default — omitting both keeps the prior behavior byte-for-byte. (#44)
+
+No tool changes — the 99-tool stdio surface is unchanged.
+
 ## [2.0.1] - 2026-07-20
 
 Raven Design overlay editing fixes. No tool changes — the 99-tool stdio surface is unchanged.
