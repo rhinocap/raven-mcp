@@ -715,6 +715,26 @@ export default function PlaygroundPage() {
           clip-path: polygon(0 0, 100% 0, 0 100%);
         }
 
+        /* Sideways tails for the panel steps — the card sits beside a panel and
+           points horizontally at it, so the tail lives on the card's left/right
+           edge, vertically centred, instead of top/bottom. */
+        .playground-tour__card[data-tail='right']::after {
+          left: auto;
+          right: -7px;
+          top: 50%;
+          margin-left: 0;
+          margin-top: -6px;
+          clip-path: polygon(0 0, 100% 0, 100% 100%);
+        }
+
+        .playground-tour__card[data-tail='left']::after {
+          left: -7px;
+          top: 50%;
+          margin-left: 0;
+          margin-top: -6px;
+          clip-path: polygon(0 0, 0 100%, 100% 100%);
+        }
+
         .playground-tour__card h3 {
           margin: 0 0 var(--space-2);
           font-size: 16px;
