@@ -28,7 +28,7 @@ import { auditTapTargetsUrl, auditTapTargetsSnapshot } from "./tap-targets.js";
 import { compactAuditPage, compactEvaluation, compactAuditUrl } from "./compact.js";
 import { auditVideoPlaybackUrl, auditVideoPlaybackSnapshot } from "./video-playback.js";
 import { auditConsistency } from "./audit-consistency.js";
-import { detectOrphanStretch } from "./layout-orphans.js";
+import { auditLayoutSnapshot, dispatchAudit, type AuditInput } from "./audit-dispatch.js";
 import { createTasteProfile, getTasteProfile, listTasteProfiles, labelFinding, auditTaste, ruleInScope, getTasteInterview, bindTasteSurface, listSurfaceBindings, resolveSurfaceBinding, recordTasteDecision, listTasteDecisions, checkBindingConsistency, isPngPathReference } from "./taste.js";
 import type { ReferenceCapture, SurfaceBinding } from "./taste.js";
 import { generateTastePortrait, generateTastePortraitInline } from "./taste-portrait.js";
@@ -43,7 +43,7 @@ import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
 import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet } from "./designmd.js";
 import { startGrabSession, getGrabbedElements, stopGrabSession, getPageTemplate, setTemplateSlots, listTemplates, getGrabLayers, moveGrabLayer, getGrabOperation } from "./grab-bridge.js";
 import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, recordConsultation, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
-import { proposePolish, reviewDiff } from "./design-review.js";
+import { FAIL_ON_RULES, proposePolish, reviewDiff } from "./design-review.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -1837,12 +1837,13 @@ function numberedDocMaterial(repoRelative: string, content: string): string {
   }).join("\n");
 }
 
-// The 54 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
+// The 55 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
 // 32 are stateful/local (per-user ~/.raven files, or the create_generation_job
 // subprocess), 6 reach the filesystem/network or have an external side effect,
 // 2 are Talon tools pending a remote-safety pass, and 14 are DESIGN.md / review /
-// grab-bridge tools. Everything else (45 stateless tools, including the 5
-// guarded browser URL audits added in Phase 3) is remote-safe, from 99 local tools.
+// grab-bridge tools, plus the local audit dispatcher. Everything else (45 stateless
+// tools, including the 5 guarded browser URL audits added in Phase 3) is remote-safe,
+// from 100 local tools.
 // Traced to docs/remote-mcp-scope.md §2; asserted at build time.
 const REMOTE_GATED_TOOLS = new Set<string>([
   // stateful / local (32)
@@ -1879,7 +1880,10 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   "start_grab_session", "get_grabbed_elements", "stop_grab_session",
   "get_page_template", "set_template_slot", "list_templates",
   "get_grab_layers", "move_grab_layer", "get_grab_operation",
-  "review_diff", "polish_diff"
+  "review_diff", "polish_diff",
+  // Local orchestration over existing tool handlers; excluded to preserve the
+  // frozen anonymous 45-tool surface and hash.
+  "audit"
 ]);
 
 // Structured-output tools consumed by CI must stay byte-deterministic.
@@ -1952,18 +1956,18 @@ const REMOTE_URL_GUARDED_TOOLS: { [tool: string]: string } = {
   audit_taste: "url"
 };
 
-// buildServer() returns a FRESH McpServer with all 99 local tools + the usage-log/
+// buildServer() returns a FRESH McpServer with all 100 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
 export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }): McpServer {
-// remote = serve only the 45 stateless remote-safe tools (gate off the 54 gated tools
+// remote = serve only the 45 stateless remote-safe tools (gate off the 55 gated tools
 // as appropriate; authenticated stores selectively restore taste tools). evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 99.
+// without threading opts. stdio callers pass nothing → remote=false → all 100.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -2730,12 +2734,19 @@ server.tool(
     diff: z.string().max(409600).describe("Unified diff to review (maximum 400KB)."),
     project: z.string().optional().describe("Project directory used to resolve DESIGN.md and match decision scopes. Omit when design_md is supplied and no project hint is needed."),
     design_md: z.string().optional().describe("Inline DESIGN.md content. Overrides project file lookup when supplied."),
-    fail_on_governed: z.boolean().optional().describe("When true, findings a recorded decision governs become fail-eligible (severity error → verdict fail). Governance is a lexical scope+category association, NOT a verified contradiction of the decision — opt in as a team strict-mode signal, not a turnkey safe blocker. Default: advisory-only."),
+    fail_on: z.array(z.string()).optional().describe("Rule names to escalate to a failing CI verdict. Valid values: important, bare-hex-color, hardcoded-font-size, hardcoded-font-family, hardcoded-spacing. Diff-scoped: only newly added lines can fail. Default: advisory-only (verdict caps at warn)."),
+    fail_on_governed: z.boolean().optional().describe("When true, findings a recorded decision governs become fail-eligible (severity error → verdict fail). Governance is a lexical scope+category association, NOT a verified contradiction of the decision — opt in as a team strict-mode signal, not a turnkey safe blocker. Combines with fail_on. Default: advisory-only."),
   },
-  async function ({ diff, project, design_md, fail_on_governed }) {
+  async function ({ diff, project, design_md, fail_on, fail_on_governed }) {
     try {
       if (Buffer.byteLength(diff, "utf8") > 400 * 1024) {
         return { content: [{ type: "text" as const, text: "diff exceeds maximum size of 400KB (409600 bytes)" }], isError: true };
+      }
+      var invalidFailOn = fail_on && fail_on.find(function(rule) {
+        return (FAIL_ON_RULES as readonly string[]).indexOf(rule) === -1;
+      });
+      if (invalidFailOn !== undefined) {
+        return { content: [{ type: "text" as const, text: "invalid fail_on rule \"" + invalidFailOn + "\"; valid rules: " + FAIL_ON_RULES.join(", ") }], isError: true };
       }
       var designContent: string | null = design_md === undefined ? null : design_md;
       if (design_md === undefined && project !== undefined) {
@@ -2746,7 +2757,7 @@ server.tool(
         }
       }
       var decisions = await decisionGraphStore.listActiveDecisions();
-      var result = reviewDiff(diff, designContent, decisions, project, fail_on_governed);
+      var result = reviewDiff(diff, designContent, decisions, project, { failOn: fail_on, failOnGoverned: fail_on_governed });
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     } catch (err) {
       return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
@@ -4495,115 +4506,11 @@ server.tool(
       };
     }
 
-    var rects = elements.map(function(e) { return e.rect; });
-
-    // ── Alignment: cluster left edges (x) within 2px
-    var clusterTol = 2;
-    var colCounts = new Map<number, number>();
-    for (var r of rects) {
-      var matched: number | null = null;
-      for (var c of colCounts.keys()) {
-        if (Math.abs(r.x - c) <= clusterTol) { matched = c; break; }
-      }
-      if (matched !== null) colCounts.set(matched, (colCounts.get(matched) || 0) + 1);
-      else colCounts.set(r.x, 1);
-    }
-    var sharedCols = Array.from(colCounts.values()).filter(function(n) { return n >= 2; }).length;
-    var singletonCols = Array.from(colCounts.values()).filter(function(n) { return n === 1; }).length;
-    var alignedElements = 0;
-    colCounts.forEach(function(n) { if (n >= 2) alignedElements += n; });
-    var alignmentRatio = rects.length > 0 ? alignedElements / rects.length : 0;
-
-    // ── Gap rhythm: vertical gaps between horizontally-overlapping siblings
-    var vGaps: number[] = [];
-    var sortedByY = rects.slice().sort(function(a, b) { return a.y - b.y; });
-    for (var i = 1; i < sortedByY.length; i++) {
-      var prev = sortedByY[i - 1];
-      var cur = sortedByY[i];
-      var xOverlap = Math.min(prev.x + prev.w, cur.x + cur.w) - Math.max(prev.x, cur.x);
-      if (xOverlap > 0) {
-        var gap = cur.y - (prev.y + prev.h);
-        if (gap > 0 && gap < 200) vGaps.push(gap);
-      }
-    }
-    var gapMedian = 0, gapStdev = 0, gapCV = 0;
-    if (vGaps.length >= 3) {
-      var sortedGaps = vGaps.slice().sort(function(a, b) { return a - b; });
-      gapMedian = sortedGaps[Math.floor(sortedGaps.length / 2)];
-      var gapMean = vGaps.reduce(function(a, b) { return a + b; }, 0) / vGaps.length;
-      var gapVar = vGaps.reduce(function(a, b) { return a + (b - gapMean) * (b - gapMean); }, 0) / vGaps.length;
-      gapStdev = Math.sqrt(gapVar);
-      gapCV = gapMean > 0 ? gapStdev / gapMean : 0;
-    }
-
-    // ── Optical balance: visual weight (area) left vs right of content-bounds midline
-    // Measure relative to content's own bounding box, not the viewport — otherwise any
-    // intentionally left-anchored content column on a wide viewport registers as "skewed."
-    var contentMinX = Infinity, contentMaxX = -Infinity;
-    for (var rb of rects) {
-      if (rb.x < contentMinX) contentMinX = rb.x;
-      if (rb.x + rb.w > contentMaxX) contentMaxX = rb.x + rb.w;
-    }
-    var contentMid = (contentMinX + contentMaxX) / 2;
-    var contentHalfWidth = (contentMaxX - contentMinX) / 2;
-    // Torque = area × distance from midline. Normalized against the maximum possible
-    // net torque (if all mass were at one extreme edge) so that perfectly centered
-    // elements contribute 0 and the score reflects actual imbalance fraction.
-    var leftTorque = 0, rightTorque = 0, totalArea = 0;
-    for (var r2 of rects) {
-      var area = r2.w * r2.h;
-      var cx = r2.x + r2.w / 2;
-      var dist = Math.abs(cx - contentMid);
-      totalArea += area;
-      if (cx < contentMid) leftTorque += area * dist;
-      else if (cx > contentMid) rightTorque += area * dist;
-    }
-    var maxPossibleTorque = totalArea * contentHalfWidth;
-    var netTorque = Math.abs(leftTorque - rightTorque);
-    var balanceSkew = maxPossibleTorque > 0 ? netTorque / maxPossibleTorque : 0;
-    var leftWeight = Math.round(leftTorque);
-    var rightWeight = Math.round(rightTorque);
-
-    var findings: Array<{ check: string; status: "pass" | "warn"; message: string; fix?: string }> = [];
-
-    if (alignmentRatio >= 0.6) {
-      findings.push({ check: "alignment", status: "pass", message: Math.round(alignmentRatio * 100) + "% of elements share a left edge with another (" + sharedCols + " alignment column" + (sharedCols === 1 ? "" : "s") + ", " + singletonCols + " one-off" + (singletonCols === 1 ? "" : "s") + ")" });
-    } else {
-      findings.push({ check: "alignment", status: "warn", message: "Weak alignment — only " + Math.round(alignmentRatio * 100) + "% of elements align with any sibling (" + singletonCols + " unique left edges across " + rects.length + " elements). Elements should live on a small number of alignment columns.", fix: "Wrap siblings in a flex/grid parent and let the parent dictate alignment. Remove ad-hoc left margins that push children off the grid." });
-    }
-
-    if (vGaps.length >= 3) {
-      if (gapCV <= 0.5) {
-        findings.push({ check: "gap-rhythm", status: "pass", message: "Vertical gaps are consistent (median " + Math.round(gapMedian) + "px, CV " + gapCV.toFixed(2) + " across " + vGaps.length + " pairs)" });
-      } else {
-        findings.push({ check: "gap-rhythm", status: "warn", message: "Inconsistent vertical rhythm — gap coefficient of variation " + gapCV.toFixed(2) + " (median " + Math.round(gapMedian) + "px, σ " + Math.round(gapStdev) + "px across " + vGaps.length + " pairs)", fix: "Siblings should share one gap value. Move spacing from per-child margin-top/bottom to a single gap: on the parent flex/grid container." });
-      }
-    } else {
-      findings.push({ check: "gap-rhythm", status: "pass", message: "Not enough vertical sibling pairs to score (" + vGaps.length + " found)" });
-    }
-
-    if (balanceSkew <= 0.2) {
-      findings.push({ check: "optical-balance", status: "pass", message: "Horizontal weight is balanced (skew " + Math.round(balanceSkew * 100) + "%)" });
-    } else {
-      findings.push({ check: "optical-balance", status: "warn", message: "Layout is " + (leftWeight > rightWeight ? "left-heavy" : "right-heavy") + " — visual weight skewed by " + Math.round(balanceSkew * 100) + "%", fix: balanceSkew > 0.4 ? "Redistribute dense blocks (images, tables) toward center, or add counterweight on the lighter side." : "Minor imbalance — review whether it's intentional asymmetry or accidental." });
-    }
-
-    var orphanStretch = detectOrphanStretch(elements);
-
+    var result = auditLayoutSnapshot(elements, viewport);
     return {
       content: [{
         type: "text" as const,
-        text: JSON.stringify({
-          elements_analyzed: rects.length,
-          viewport: viewport,
-          findings: findings,
-          metrics: {
-            alignment: { total_columns: colCounts.size, shared_columns: sharedCols, singleton_columns: singletonCols, aligned_ratio: Number(alignmentRatio.toFixed(2)) },
-            gap_rhythm: vGaps.length >= 3 ? { samples: vGaps.length, median_px: Math.round(gapMedian), stdev_px: Math.round(gapStdev), coef_variation: Number(gapCV.toFixed(2)) } : { samples: vGaps.length, note: "not enough horizontally-overlapping vertical sibling pairs" },
-            balance: { left_weight: Math.round(leftWeight), right_weight: Math.round(rightWeight), skew_pct: Math.round(balanceSkew * 100) }
-          },
-          orphan_stretch: orphanStretch
-        }, null, 2)
+        text: JSON.stringify(result, null, 2)
       }]
     };
   }
@@ -7442,13 +7349,58 @@ server.tool(
   }
 );
 
+server.tool(
+  "audit",
+  "Run **all applicable** Raven audits for a target. Detects the surface (web page / iOS screen / React Native / code diff / video) and fans out to the right checks — contrast, tap targets, typography, layout, responsive, and taste for web; the iOS or RN set for native; parity/contract for diffs. **Use this instead of choosing individual audit_* tools.** Pass `project` to judge against bound taste.",
+  {
+    url: z.string().optional().describe("Web page or video URL."),
+    html: z.string().optional().describe("Static web HTML."),
+    nodes: z.any().optional().describe("Pre-collected snapshot data for the applicable audits."),
+    source: z.string().optional().describe("iOS/SwiftUI or React Native source."),
+    screenshot: z.string().optional().describe("Screenshot input for native/device audits."),
+    diff: z.string().optional().describe("Unified diff or patch."),
+    surface: z.enum(["web", "ios", "react-native", "diff", "video"]).optional().describe("Surface override; otherwise detected from the supplied target."),
+    intent: z.string().optional().describe("Optional focus such as accessibility, contrast, content, copy, or pre-ship."),
+    project: z.string().optional().describe("Project identifier for taste binding and project-aware audits."),
+    profile: z.string().optional().describe("Taste profile id for audit_taste.")
+  },
+  async function(input: AuditInput) {
+    var report = await dispatchAudit(input, {
+      run: async function(toolName, toolArgs) {
+        var registered = (server as any)._registeredTools[toolName];
+        if (!registered || typeof registered.handler !== "function") {
+          throw new Error("tool is not registered");
+        }
+        var result = await registered.handler(toolArgs, {});
+        var first = result && Array.isArray(result.content) ? result.content[0] : null;
+        var text = first && typeof first.text === "string" ? first.text : "";
+        if (result && result.isError) throw new Error(text || "tool returned an error");
+        try {
+          var payload = JSON.parse(text);
+          if (payload && typeof payload === "object" && typeof payload.error === "string") throw new Error(payload.error);
+          return payload;
+        } catch (error) {
+          if (error instanceof SyntaxError) throw new Error(text || "tool returned no JSON payload");
+          throw error;
+        }
+      },
+      remote: remote,
+      remoteGatedTools: REMOTE_GATED_TOOLS,
+      remoteArgGuards: REMOTE_ARG_GUARDS,
+      remoteUrlGuardedTools: REMOTE_URL_GUARDED_TOOLS,
+      remoteUrlGuardError: remoteUrlGuardError
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify(report, null, 2) }] };
+  }
+);
+
   return server;
 }
 
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 99 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 100 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });
