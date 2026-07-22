@@ -580,14 +580,11 @@ export default function PlaygroundPage() {
         }
 
         @media (min-width: 900px) {
-          /* Reserve a right-side gutter so the fixed grab panel (~380px, right:20px)
-             never underlaps the hero H1, label, and description. */
-          .playground-intro {
-            padding-right: 400px;
-          }
-          /* Nav lives in layout.tsx as a sibling of .playground-intro, so the
-             gutter above can't reach it — narrow the nav's own max-width so its
-             right-side content also clears the fixed panel between 900–1439px. */
+          /* Two symmetric grab panels (~380px each side) frame the page now, so the
+             hero and wireframe both center on the viewport — which is the center of
+             the gap between the panels. (Was an asymmetric right-only 400px gutter
+             from the single-panel era, which shoved the hero 200px left of the
+             wireframe.) Narrow the site nav so its right content clears the right panel. */
           raven-nav {
             --max-width: calc(100vw - 440px);
           }
@@ -599,13 +596,25 @@ export default function PlaygroundPage() {
             --max-width: min(1140px, calc(100vw - 704px));
           }
 
+          /* Center the role toggle at the bottom of the page, matching the grab
+             panels' 20px margin from the bottom of the viewport. The pill wraps
+             only the toggle so it lands on the true viewport centre; the replay
+             link floats to its right rather than shifting the toggle off-centre. */
           .playground-controls {
             position: fixed;
-            top: 12px;
-            left: 16px;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 100;
-            height: var(--nav-height, 64px);
             margin-bottom: 0;
+          }
+
+          .playground-replay {
+            position: absolute;
+            left: calc(100% + var(--space-4));
+            top: 50%;
+            transform: translateY(-50%);
+            white-space: nowrap;
           }
         }
 

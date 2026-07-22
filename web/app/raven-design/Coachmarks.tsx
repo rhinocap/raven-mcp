@@ -11,7 +11,7 @@ const TOUR_STEP_KEY = 'raven-grab-tour-step'
 type Step = {
   title: string
   body: string
-  // 'center' | 'target:<selector>' | 'panel' (fixed top-right panel area)
+  // 'center' | 'target:<selector>' | 'panel' (top-right inspector) | 'panel-left' (top-left Raven Design panel)
   anchor: string
 }
 
@@ -30,37 +30,37 @@ const STEPS: Step[] = [
   },
   {
     title: 'Click to inspect',
-    body: 'Try a feature card under Features — three FeatureCard instances share the same styles. Scope shows “All 3 like this,” and Styles lists the --demo-* tokens on that card.',
+    body: 'Click a feature card under Features — three FeatureCard instances share the same styles. The inspector panel fills in: Scope shows “All 3 like this,” and Styles lists the --demo-* tokens on that card.',
     anchor: 'target:.wireframe-feature-card',
   },
   {
     title: 'Styles',
-    body: 'Styles opens by default. Tokenized properties show as name · value; open one to swap tokens or edit the raw value. Interactive state groups stay underneath.',
+    body: 'In the inspector panel, Styles opens by default — Layout, Size, Spacing, Typography, Fill and more. Tokenized properties show as name · value; open one to swap tokens or edit the raw value. Hover, focus, active, and disabled states stack underneath.',
     anchor: 'panel',
   },
   {
     title: 'Send to your agent',
-    body: 'Type an instruction and press Enter to send (Cmd+Enter for a new line). The payload carries the selector, token intents, and style edits.',
+    body: 'At the bottom of the inspector, type an instruction and press Enter to send (Cmd+Enter for a new line). The payload carries the selector, token intents, and style edits.',
     anchor: 'panel',
   },
   {
-    title: 'Two roles, two second tabs',
-    body: 'Engineers get "Request Component" — in this playground, it emails you the captured request packet to try the flow. The design system side gets "Add to Design System" — instructions to create the component and update DESIGN.md.',
-    anchor: 'panel',
+    title: 'Layers and Assets',
+    body: 'The Raven Design panel has two tabs. Layers is the element tree — drag a row to reorder or reparent it. Assets captures a whole component into DESIGN.md: an engineer sends a component request; the design system side adds the component and updates DESIGN.md.',
+    anchor: 'panel-left',
   },
   {
     title: 'Switch roles here',
-    body: 'This toggle switches the panel between the Engineer view and the Design system view — same element, two workflows.',
+    body: 'This toggle switches between the Engineer and Design system views — same element, two workflows. It also changes what the Assets tab does.',
     anchor: 'target:.playground-role-toggle',
   },
   {
     title: 'Settings and feedback',
-    body: 'The bar at the bottom of the Structure panel shows the project Raven is running in — here that is Northstar Workspace, on your machine it is yours. Click it, or press Cmd+K with the panel focused, for panel text size and a box that sends us what is wrong or missing.',
-    anchor: 'panel',
+    body: 'The footer at the bottom of the Raven Design panel shows the project Raven is running in — here that is Northstar Workspace, on your machine it is yours. Click it, or press Cmd+K with a panel focused, for text size, the shortcut list, and a box that tells us what is wrong or missing.',
+    anchor: 'panel-left',
   },
   {
-    title: 'Collapse and reopen',
-    body: 'The collapse icon in either panel header tucks both panels away, leaving a small tab on each edge of the screen — click either tab to bring them back. Drag a panel by its header, or an edge tab up and down, if any are in your way.',
+    title: 'Arrange the panels',
+    body: 'The tiles in each panel header set the layout — open both, show just one, or close both (Cmd+. toggles while grab is armed). A closed panel leaves a tab on the screen edge; click it to reopen. Drag a panel by its header, or an edge tab, to move it out of your way.',
     anchor: 'panel',
   },
 ]
@@ -200,9 +200,11 @@ export default function Coachmarks({ config }: { config: Record<string, unknown>
   const cardStyle: React.CSSProperties =
     current?.anchor === 'panel'
       ? { position: 'fixed', top: 96, right: 400, width: TIP_WIDTH }
-      : current?.anchor.startsWith('target:') && targetRect
-        ? spotlightStyle()
-        : { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 360 }
+      : current?.anchor === 'panel-left'
+        ? { position: 'fixed', top: 96, left: 400, width: TIP_WIDTH }
+        : current?.anchor.startsWith('target:') && targetRect
+          ? spotlightStyle()
+          : { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 360 }
 
   const tailSide =
     current?.anchor.startsWith('target:') && targetRect

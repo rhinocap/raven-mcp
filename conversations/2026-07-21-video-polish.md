@@ -15,11 +15,17 @@ The restrained Raven demo reduced camera motion, but still carried synthetic tit
 **Why:** The product shift needs one premium beat without bringing back repetitive camera motion or generic synthetic music.
 **Pushed:** Not applicable; Raven taste-ledger sync was blocked by connector reauthentication, so the decision is preserved here and Andrew will reconnect later.
 
+### Homepage video audience correction
+**What:** Bound the homepage-video audience as any builder whose coding velocity has outrun their design confidence—especially designers trying to keep up—and locked the silent cut to transformation first, with reuse and agent handoff as supporting proof.
+**Why:** The story is about an urgent design-quality gap created by accelerating code output—not skepticism about Raven or the MCP category.
+**Pushed:** Pending; storyboard interview and homepage implementation remain in progress.
+
 ## Mistakes & lessons
 | Mistake | Type | Rule added |
 |---------|------|-----------|
 | Left editorial text, cyan flash transitions, a side-panel typography crop, and a poor music bed in a product demo that should let the recorded UI explain itself. | Accuracy gap | Before rendering a restrained product demo, always remove nonessential editorial layers, use clean cuts, frame state changes around their visible product result, and choose deliberate silence when the score is not clearly excellent. |
 | Initially ended V4 on two seconds of pixel-static `Applying changes...`, which read as a hung workflow. | Accuracy gap | Motion QA must compare the final seconds frame-to-frame and remove or fade any frozen loading tail before handoff. |
+| Narrowed the homepage video audience to a skeptical solo evaluator when Andrew meant any builder feeling design judgment fall behind code velocity. | Accuracy gap | Before framing a product story, always name the customer's active pressure in their words so the narrative centers the felt problem rather than an inferred attitude toward the category. |
 
 ## State at end of session
 - Final artifact: `/Users/accunliffe/Desktop/RAVEN_MARGINALIA_2_0_1_CLEAN_SILENT_V3_HYPERFRAMES.mp4` (11,831,957 bytes; SHA-256 `266bde59fe3e540d06a3b5c007fdebec511fff643f83f27ccbe459dcafd22437`)
@@ -31,3 +37,4 @@ The restrained Raven demo reduced camera motion, but still carried synthetic tit
 - Final independent once-over: passed; no additional or shared material defects
 - Cleanup: superseded V4 moved to Trash and temporary render copies removed; three non-running Docker containers from failed mount attempts remain because Docker Desktop hangs when deleting them
 - Pending (carried forward): Andrew's taste check on the new music; Raven taste-decision sync after connector reauthentication
+- Homepage-video goal: audience and silent-audio direction bound; story pacing interview pending
