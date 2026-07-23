@@ -197,6 +197,12 @@
   var dispatchState = "idle";
   var activeDispatch = null;
   var dispatchDoneTimer = null;
+  // Un-sent changes carried over from a prior page load (see the persistence
+  // block near freezePendingDispatch); populated at boot once PENDING_STORE_KEY exists.
+  var carriedPending = [];
+  // Set when Send is pressed while a dispatch is in flight; the next batch
+  // auto-fires when the active one finishes (single-slot conveyor, never concurrent).
+  var sendQueued = false;
   var layerDrag = null; // pointer-drag state: source block, floating clone, sibling bounds
   var collapsedLayerElements = new WeakSet();
   var hoveredLayerElement = null;
@@ -7702,7 +7708,7 @@
   }
 
   function pendingLogicalCount() {
-    return pendingLogicalRows().length;
+    return pendingLogicalRows().length + carriedPending.length;
   }
 
   function hasInvalidDrafts() {
@@ -7719,7 +7725,7 @@
     var hasStyleDraft = allStyleDrafts().some(function (draft) {
       return !!draft.target && draft.target.isConnected !== false && rowsForStyleDraft(draft, draft.clientKey === activeStyleDraftKey).length > 0;
     });
-    return hasStyleDraft || localLayerDrafts().some(validLayerDraft);
+    return hasStyleDraft || carriedPending.length > 0 || localLayerDrafts().some(validLayerDraft);
   }
 
   function activeDispatchCounts() {
@@ -7744,7 +7750,7 @@
     if (dispatchState === "registering") return { state: "registering", label: "Sending " + activeCount + " changes…", enabled: false, count: activeCount };
     if (dispatchState === "committing") return { state: "committing", label: "Sending " + activeCount + " changes…", enabled: false, count: activeCount };
     if (dispatchState === "applying") {
-      if (nextCount) return { state: "applying-with-next", label: "Applying " + activeCount + " · " + nextCount + " next", enabled: false, count: nextCount };
+      if (nextCount) return { state: "applying-with-next", label: sendQueued ? "Applying " + activeCount + " · " + nextCount + " queued" : "Applying " + activeCount + " · send " + nextCount + " next", enabled: !sendQueued, count: nextCount };
       return { state: "applying", label: "Applying " + activeCount + " changes…", enabled: false, count: activeCount };
     }
     if (dispatchState === "done") {
@@ -7786,6 +7792,9 @@
       logicalRows.forEach(function (logicalRow, index) {
         items.push({ id: id + ":" + index, sourceId: id, batchId: change.batchId, kind: logicalRow.kind || "style", type: logicalRow.type || "Style", target: logicalRow.target || change.target, status: status, removable: false, retryable: change.state === "rejected" });
       });
+    });
+    carriedPending.forEach(function (entry) {
+      items.push({ id: "carried:" + entry.key, kind: "change", type: "Carried", target: entry.label || "element", status: "Pending", local: true, removable: true });
     });
     return items;
   }
@@ -7875,6 +7884,14 @@
   }
 
   function removeChange(id) {
+    if (id.indexOf("carried:") === 0) {
+      var carriedKey = id.slice("carried:".length);
+      carriedPending = carriedPending.filter(function (entry) { return entry.key !== carriedKey; });
+      persistPendingNow();
+      renderPanel();
+      syncSendButtonDisabled();
+      return;
+    }
     if (id.indexOf("draft-stroke:") === 0) {
       var strokeClientKey = id.slice("draft-stroke:".length);
       var strokeDraft = styleDraftForClientKey(strokeClientKey);
@@ -8151,6 +8168,96 @@
     };
   }
 
+  // --- Cross-navigation persistence of un-sent changes --------------------
+  // A full page load reruns this whole IIFE fresh (the __RAVEN_GRAB__ guard is
+  // per-document), wiping every in-memory draft. Users accumulate several edits
+  // across pages before sending, so losing them on navigation is data loss.
+  // We serialize each live draft into the exact send-ready payload the freeze
+  // path builds (while its node is still connected) and stash it in
+  // sessionStorage. On the next load those become "carried" rows: detached from
+  // any live node, not re-editable, but still sendable — they POST the frozen
+  // payload straight to the bridge, bypassing the freeze/dispatch state machine
+  // entirely (no live target, no clientKey collision, no batch interaction).
+  var PENDING_STORE_KEY = "raven-grab-pending-v1";
+  var pendingPersistTimer = null;
+
+  function readCarriedPending() {
+    try {
+      var raw = window.sessionStorage.getItem(PENDING_STORE_KEY);
+      if (!raw) return [];
+      var arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return [];
+      return arr.filter(function (entry) { return entry && entry.payload && entry.endpoint; });
+    } catch (error) { return []; }
+  }
+
+  function serializeLivePending() {
+    var out = [];
+    allStyleDrafts().forEach(function (draft) {
+      if (!draft.target || draft.target.isConnected === false) return;
+      var instruction = draft.instruction || "";
+      var hasWork = Object.keys(draft.styleEdits || {}).length
+        || Object.keys(draft.stateStyleEdits || {}).length
+        || Object.keys(draft.tokenIntents || {}).length
+        || !!draft.textEdit
+        || !!instruction.trim();
+      if (!hasWork) return;
+      try {
+        var ctx = styleDraftContextForFreeze(draft, instruction);
+        var payload = JSON.parse(JSON.stringify(payloadForSend(true, draft.target, ctx)));
+        out.push({
+          key: "live:" + draft.clientKey,
+          pathname: location.pathname,
+          endpoint: grabConfig ? grabConfig.grabEndpoint : bridgeUrl("/grab"),
+          label: payload.selector || draft.selector || "element",
+          payload: payload
+        });
+      } catch (error) { /* selection resolved to nothing mid-serialize — skip it */ }
+    });
+    return out;
+  }
+
+  function persistPendingNow() {
+    if (pendingPersistTimer !== null) { clearTimeout(pendingPersistTimer); pendingPersistTimer = null; }
+    try {
+      // One writer: carried (prior-page) entries + this page's live drafts. A
+      // freeze/delete that drops a live draft naturally drops it from storage
+      // on the next persist, so already-sent work never resurrects as a zombie.
+      var all = carriedPending.concat(serializeLivePending());
+      if (all.length) window.sessionStorage.setItem(PENDING_STORE_KEY, JSON.stringify(all.slice(-100)));
+      else window.sessionStorage.removeItem(PENDING_STORE_KEY);
+    } catch (error) { /* storage unavailable or over quota — keep in memory */ }
+  }
+
+  function schedulePersistPending() {
+    if (pendingPersistTimer !== null) return;
+    pendingPersistTimer = setTimeout(function () { pendingPersistTimer = null; persistPendingNow(); }, 250);
+  }
+
+  function drainCarriedPending() {
+    if (!carriedPending.length) return;
+    var batch = carriedPending;
+    carriedPending = [];
+    persistPendingNow();
+    renderPanel();
+    batch.forEach(function (entry) {
+      fetch(entry.endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(entry.payload)
+      }).then(function (response) {
+        if (!response.ok) throw new Error("Bridge returned " + response.status);
+      }).catch(function (error) {
+        // Re-carry a failed send so it is neither lost nor silently dropped.
+        carriedPending.push(entry);
+        persistPendingNow();
+        renderPanel();
+        setGlobalActionStatus("Couldn't send a carried change — it's still pending", "error");
+        console.error("[Raven Grab] Carried change failed to send.", error);
+      });
+    });
+  }
+
   function freezePendingDispatch() {
     var allRows = pendingLogicalRows();
     var activeBeforeFreeze = activeStyleDraft();
@@ -8389,6 +8496,9 @@
   }
 
   function dispatchPendingBatch() {
+    // Carried rows send independently of the dispatch state machine — POST their
+    // frozen payloads straight away, even mid-flight, so Send always flushes them.
+    if (carriedPending.length) drainCarriedPending();
     if (dispatchState === "registration-error") {
       if (activeDispatch && !activeDispatch.registrationErrors.batchMismatch) {
         if (grabConfig) completeStandaloneDispatch();
@@ -8404,7 +8514,17 @@
       }
       return;
     }
-    if (dispatchState !== "idle") return;
+    if (dispatchState !== "idle") {
+      // A dispatch is in flight. Don't start a second one (single activeDispatch
+      // slot) — queue, and finishActiveDispatch fires the next batch when this
+      // one lands. Only queue when there is genuinely new pending work.
+      if (hasDispatchableDrafts()) {
+        sendQueued = true;
+        setGlobalActionStatus("Queued — sends when the current batch finishes", "");
+        renderPanel();
+      }
+      return;
+    }
     // The copy edit is already staged via live input; exit edit mode cleanly (keeps the staged
     // textEdit) so the sent element carries no lingering contenteditable/spellcheck attributes.
     if (textEditingElement) teardownTextEditing(textEditingElement);
@@ -8555,6 +8675,11 @@
       activeDispatch = null;
       dispatchState = "idle";
       renderPanel();
+      // Conveyor: a Send pressed while this batch was in flight fires now.
+      if (sendQueued) {
+        sendQueued = false;
+        if (hasDispatchableDrafts()) dispatchPendingBatch();
+      }
     }, SEND_TIMINGS.hold);
   }
 
@@ -8984,6 +9109,7 @@
 
   function syncSendButtonDisabled() {
     mountGlobalActions();
+    schedulePersistPending();
   }
 
   function switchTab(tab) {
@@ -10930,6 +11056,9 @@
     paintSelectionOverlays();
   }, true);
   window.addEventListener("blur", hidePanelPresetTooltip);
+  // Synchronous final flush: pagehide fires on real navigation/tab close where
+  // the debounced persist may not have run yet, so un-sent changes survive.
+  window.addEventListener("pagehide", persistPendingNow);
 
   // Always listen — react-grab may load after this script.
   var captureReactMetadata = function (event) {
@@ -10945,6 +11074,10 @@
   };
   window.addEventListener("react-grab:element-selected", captureReactMetadata);
   document.addEventListener("react-grab:element-selected", captureReactMetadata);
+
+  // Restore un-sent changes from a prior page load before the first render so
+  // they show in the tray immediately (see the persistence block).
+  carriedPending = readCarriedPending();
 
   renderPanel();
 
