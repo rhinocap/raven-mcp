@@ -8405,6 +8405,9 @@
       return;
     }
     if (dispatchState !== "idle") return;
+    // The copy edit is already staged via live input; exit edit mode cleanly (keeps the staged
+    // textEdit) so the sent element carries no lingering contenteditable/spellcheck attributes.
+    if (textEditingElement) teardownTextEditing(textEditingElement);
     if (activeStyleEditorFlush) activeStyleEditorFlush();
     capturePanelDrafts();
     var ui = batchUiState();
@@ -10291,6 +10294,11 @@
 
   onPanels("mousedown", function (event) {
     if (event.button !== 0) return;
+    // A copy edit stages live on input, so clicking Send must NOT blur the editable: a blur here
+    // commits + re-renders the tray between mousedown and mouseup, so the two land on different
+    // nodes and the browser fires no click at all (the "had to click Send twice" bug). Keep focus;
+    // dispatchPendingBatch tears the edit down itself.
+    if (textEditingElement && event.target.closest("[data-send-batch]")) { event.preventDefault(); return; }
     var styleLabel = event.target.closest("[data-style-label]");
     if (styleLabel && beginStyleScrub(styleLabel, event)) return;
     var row = event.target.closest("[data-layer-id], [data-template-layer-id]");
