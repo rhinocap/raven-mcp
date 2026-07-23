@@ -26,6 +26,17 @@
   },
   "releases": [
     {
+      "version": "v2.2.0",
+      "date": "2026-07-22",
+      "category": "tooling",
+      "kind": "improvement",
+      "title": "Now licensed under Apache 2.0",
+      "changes": [
+        "Raven is now licensed under the Apache License, Version 2.0 — still permissive and free, with an added explicit patent grant and trademark clause.",
+        "Nothing changes for how you use Raven. Versions published before this stay under MIT; this and later releases are Apache 2.0."
+      ]
+    },
+    {
       "version": "v2.1.0",
       "date": "2026-07-22",
       "category": "audits",
