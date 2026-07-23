@@ -6,6 +6,9 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+### Changed
+- License changed from MIT to Apache License, Version 2.0. Apache-2.0 adds an explicit patent grant and trademark clause while remaining a permissive, business-friendly license. Versions published before this change remain under MIT; this and later releases are Apache-2.0. Redistributors should retain the `LICENSE` and `NOTICE` files.
+
 ## [2.1.0] - 2026-07-22
 
 ### Added
