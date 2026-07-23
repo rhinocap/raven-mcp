@@ -10692,9 +10692,18 @@
     commitTextEditLive();
   }
 
+  function textEditInput() {
+    // Stage live as the user types so "Send" lights up the moment the copy differs —
+    // no hidden Enter/blur commit gesture required.
+    if (!textEditingElement) return;
+    refreshTextEditDraft(textEditingElement);
+    renderPanel();
+  }
+
   function teardownTextEditing(el) {
     if (!el) return;
     el.removeEventListener("keydown", textEditKeydown, true);
+    el.removeEventListener("input", textEditInput, true);
     el.removeEventListener("blur", textEditBlur, true);
     if (el.__ravenPrevContentEditable == null) el.removeAttribute("contenteditable");
     else el.setAttribute("contenteditable", el.__ravenPrevContentEditable);
@@ -10718,6 +10727,7 @@
     el.spellcheck = true;
     el.setAttribute("data-raven-text-editing", "true");
     el.addEventListener("keydown", textEditKeydown, true);
+    el.addEventListener("input", textEditInput, true);
     el.addEventListener("blur", textEditBlur, true);
     if (typeof el.focus === "function") el.focus();
     selectAllText(el);
@@ -10725,22 +10735,28 @@
     return true;
   }
 
+  // Reconcile the staged text edit against the element's current copy. Reads the ORIGINAL
+  // from __ravenTextOriginal (still present — call BEFORE teardown deletes it). Shared by the
+  // live input handler and commit so the tray/Send state stays identical on both paths.
+  function refreshTextEditDraft(el) {
+    if (!el || selectedElement !== el) return;
+    var oldText = el.__ravenTextOriginal != null ? el.__ravenTextOriginal : (el.innerText || el.textContent || "");
+    var newText = el.innerText || el.textContent || "";
+    if (newText.trim() === oldText.trim()) {
+      // No real change (or user typed the original back) — drop any staged edit for this element.
+      textEdit = null;
+      syncActiveStyleDraftKey();
+    } else {
+      textEdit = { target: el, selector: currentSelection ? currentSelection.selector : stableSelector(el), oldText: oldText, newText: newText };
+      ensureActiveStyleDraftKey();
+    }
+  }
+
   function commitTextEditLive() {
     var el = textEditingElement;
     if (!el) return;
-    var oldText = el.__ravenTextOriginal != null ? el.__ravenTextOriginal : (el.innerText || el.textContent || "");
-    var newText = el.innerText || el.textContent || "";
+    refreshTextEditDraft(el);
     teardownTextEditing(el);
-    if (selectedElement === el) {
-      if (newText.trim() === oldText.trim()) {
-        // No real change (or user typed the original back) — drop any staged edit for this element.
-        textEdit = null;
-        syncActiveStyleDraftKey();
-      } else {
-        textEdit = { target: el, selector: currentSelection ? currentSelection.selector : stableSelector(el), oldText: oldText, newText: newText };
-        ensureActiveStyleDraftKey();
-      }
-    }
     renderPanel();
   }
 
