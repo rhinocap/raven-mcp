@@ -2901,11 +2901,12 @@
     });
   }
 
-  function restoreStyleDraftPreview(draft) {
+  function restoreStyleDraftPreview(draft, revertText) {
     if (!draft) return;
-    // An inline copy edit left new text live on the page; dropping/reverting the draft
-    // must put the original copy back on the real element.
-    if (draft.textEdit && draft.textEdit.target && draft.textEdit.target.isConnected !== false) {
+    // Copy edits are content the user is evaluating on the page — unlike a style preview,
+    // the new text must STAY after Send/rebase (the whole point is "see what works"). Only a
+    // genuine discard reverts it; callers that keep the copy pass revertText === false.
+    if (revertText !== false && draft.textEdit && draft.textEdit.target && draft.textEdit.target.isConnected !== false) {
       draft.textEdit.target.textContent = draft.textEdit.oldText;
     }
     var target = draft.styleEditTarget || draft.target;
@@ -8216,7 +8217,7 @@
     styleRecords.forEach(function (record) { styleChanges[record.id] = record; });
     if (styleRecords.length) {
       frozenDrafts.forEach(function (draft) {
-        restoreStyleDraftPreview(draft);
+        restoreStyleDraftPreview(draft, false); // keep sent copy visible on the page
         if (styleDrafts[draft.clientKey] === draft) delete styleDrafts[draft.clientKey];
       });
       instructionDraft = "";
@@ -8439,7 +8440,7 @@
       tokenKeys.forEach(function (key) { draft.tokenIntents[key].needsRecheck = true; });
       return;
     }
-    restoreStyleDraftPreview(draft);
+    restoreStyleDraftPreview(draft, false); // keep any sent copy; rebase only re-previews styles
     // Rebase re-previews on every element the draft was selected across, not
     // just its primary — otherwise a pending multi-select edit visually
     // collapses to one element after another dispatch completes.
