@@ -7494,11 +7494,12 @@ test('[f23 #5] panels start expanded and collapsed panels always pause grab', as
   assert.equal(internals.getEdgeTabLeftAttribute('aria-hidden'), 'false');
 
   // While both panels are collapsed the page behaves normally — the canvas
-  // mousemove/click handlers bail before touching the event, with NO cold-open
+  // mousemove/click/dblclick handlers bail before touching the event, with NO cold-open
   // exception (Andrew, 2026-07-18: collapsed panels must never hijack clicks).
+  // Three gates: mousemove (hover), click (select), dblclick (inline copy edit).
   const source = await readFile(path.resolve(__dirname, '../browser/raven-grab.js'), 'utf8');
   const gates = source.match(/if \(!armed \|\| bothCollapsed\(\)\) return;/g) || [];
-  assert.equal(gates.length, 2);
+  assert.equal(gates.length, 3);
   assert.doesNotMatch(source, /coldOpen/);
 
   // Opening a panel via its edge tab is the deliberate act that engages grab.

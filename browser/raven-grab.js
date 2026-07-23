@@ -135,6 +135,11 @@
   var tokenIntents = Object.create(null);
   var styleEdits = Object.create(null);
   var stateStyleEdits = Object.create(null);
+  // Inline copy edit for the active draft's element: { target, selector, oldText, newText } or null.
+  // Singular per element (an element has one text body), so it mirrors the stateStyleEdits sibling
+  // rather than the keyed styleEdits map. textEditingElement is the transient live-edit target.
+  var textEdit = null;
+  var textEditingElement = null;
   var activeStateStylePreview = null;
   var styleDrafts = Object.create(null);
   var activeStyleDraftKey = null;
@@ -2786,7 +2791,7 @@
   }
 
   function activeStyleDraft(force) {
-    var hasWork = Object.keys(styleEdits).length > 0 || Object.keys(stateStyleEdits).length > 0 || Object.keys(tokenIntents).length > 0;
+    var hasWork = Object.keys(styleEdits).length > 0 || Object.keys(stateStyleEdits).length > 0 || Object.keys(tokenIntents).length > 0 || !!textEdit;
     if (!force && !hasWork && !instructionDraft.trim()) return null;
     ensureActiveStyleDraftKey();
     return {
@@ -2798,6 +2803,7 @@
       selectionElements: multiSelections.slice(),
       styleEdits: styleEdits,
       stateStyleEdits: stateStyleEdits,
+      textEdit: textEdit,
       styleEditOriginalInline: styleEditOriginalInline,
       styleEditScopeSiblingsOriginal: styleEditScopeSiblingsOriginal,
       styleEditScopeSiblingsTarget: styleEditScopeSiblingsTarget,
@@ -2821,7 +2827,7 @@
   }
 
   function syncActiveStyleDraftKey() {
-    if (Object.keys(styleEdits).length || Object.keys(stateStyleEdits).length || Object.keys(tokenIntents).length) ensureActiveStyleDraftKey();
+    if (Object.keys(styleEdits).length || Object.keys(stateStyleEdits).length || Object.keys(tokenIntents).length || textEdit) ensureActiveStyleDraftKey();
     else activeStyleDraftKey = null;
   }
 
@@ -2829,6 +2835,7 @@
     tokenIntents = Object.create(null);
     styleEdits = Object.create(null);
     stateStyleEdits = Object.create(null);
+    textEdit = null;
     activeStateStylePreview = null;
     styleEditOriginalInline = Object.create(null);
     styleEditScopeSiblingsOriginal = Object.create(null);
@@ -2840,7 +2847,7 @@
   }
 
   function stashActiveStyleDraft() {
-    if (!Object.keys(styleEdits).length && !Object.keys(stateStyleEdits).length && !Object.keys(tokenIntents).length) {
+    if (!Object.keys(styleEdits).length && !Object.keys(stateStyleEdits).length && !Object.keys(tokenIntents).length && !textEdit) {
       activeStyleDraftKey = null;
       return null;
     }
@@ -2860,6 +2867,7 @@
     activeStyleDraftKey = draft.clientKey;
     styleEdits = draft.styleEdits;
     stateStyleEdits = draft.stateStyleEdits || Object.create(null);
+    textEdit = draft.textEdit || null;
     styleEditOriginalInline = draft.styleEditOriginalInline;
     styleEditScopeSiblingsOriginal = draft.styleEditScopeSiblingsOriginal || Object.create(null);
     styleEditScopeSiblingsTarget = draft.styleEditScopeSiblingsTarget || null;
@@ -2895,6 +2903,11 @@
 
   function restoreStyleDraftPreview(draft) {
     if (!draft) return;
+    // An inline copy edit left new text live on the page; dropping/reverting the draft
+    // must put the original copy back on the real element.
+    if (draft.textEdit && draft.textEdit.target && draft.textEdit.target.isConnected !== false) {
+      draft.textEdit.target.textContent = draft.textEdit.oldText;
+    }
     var target = draft.styleEditTarget || draft.target;
     Object.keys(draft.styleEditOriginalInline || {}).forEach(function (property) {
       restoreStyleOriginalEntries(property, draft.styleEditOriginalInline[property], target);
@@ -7653,6 +7666,9 @@
       });
       rows.push({ id: "draft-stroke:" + draft.clientKey, kind: "stroke", type: "Stroke", target: selector + " · " + strokeSummary(strokeModelForDraft(draft)), status: strokeNeedsRecheck ? "Needs recheck" : "Pending", removable: true, local: true });
     }
+    if (draft.textEdit) {
+      rows.push({ id: "draft-text:" + draft.clientKey, kind: "text", type: "Copy", target: selector + " · “" + truncateCopy(draft.textEdit.oldText) + "” → “" + truncateCopy(draft.textEdit.newText) + "”", status: "Pending", removable: true, local: true });
+    }
     // The active draft's instruction lives in the shared box; a stored/retry draft
     // carries its own on draft.instruction. Resolve by which this draft is.
     var effectiveInstruction = isActive ? instructionDraft : (draft.instruction || "");
@@ -7847,7 +7863,7 @@
   function pruneEmptyStyleDraft(draft) {
     // stateStyleEdits (hover/focus edits) count as real work too — a draft holding
     // only those must survive pruning (pre-existing omission alongside styleEdits/tokens).
-    if (!draft || Object.keys(draft.styleEdits).length || Object.keys(draft.tokenIntents).length || Object.keys(draft.stateStyleEdits || {}).length) return;
+    if (!draft || Object.keys(draft.styleEdits).length || Object.keys(draft.tokenIntents).length || Object.keys(draft.stateStyleEdits || {}).length || draft.textEdit) return;
     if (draft.clientKey === activeStyleDraftKey) {
       if (!instructionDraft.trim()) activeStyleDraftKey = null;
     }
@@ -7879,6 +7895,17 @@
         delete styleEditOriginalInline[property];
       } else restoreDraftStyleProperty(styleDraft, property);
       pruneEmptyStyleDraft(styleDraft);
+    } else if (id.indexOf("draft-text:") === 0) {
+      var textClientKey = id.slice("draft-text:".length);
+      var textDraft = styleDraftForClientKey(textClientKey);
+      if (!textDraft || !textDraft.textEdit) return;
+      if (textEditingElement === textDraft.textEdit.target) cancelTextEditLive();
+      if (textDraft.textEdit.target && textDraft.textEdit.target.isConnected !== false) {
+        textDraft.textEdit.target.textContent = textDraft.textEdit.oldText;
+      }
+      if (textClientKey === activeStyleDraftKey) textEdit = null;
+      else textDraft.textEdit = null;
+      pruneEmptyStyleDraft(textDraft);
     } else if (id.indexOf("draft-token:") === 0) {
       var tokenParts = id.slice("draft-token:".length).split(":");
       var tokenClientKey = tokenParts.shift();
@@ -7930,6 +7957,8 @@
       selection: selection,
       selectionElements: target ? [target] : [],
       styleEdits: Object.create(null),
+      stateStyleEdits: Object.create(null),
+      textEdit: null,
       styleEditOriginalInline: Object.create(null),
       styleEditScopeSiblingsOriginal: Object.create(null),
       styleEditScopeSiblingsTarget: null,
@@ -8107,6 +8136,8 @@
       selection: draft.selection,
       selectionElements: draft.selectionElements,
       styleEdits: draft.styleEdits,
+      stateStyleEdits: draft.stateStyleEdits,
+      textEdit: draft.textEdit || null,
       styleEditOriginalInline: draft.styleEditOriginalInline,
       styleEditScopeSiblingsOriginal: draft.styleEditScopeSiblingsOriginal,
       styleEditScopeSiblingsTarget: draft.styleEditScopeSiblingsTarget,
@@ -9158,6 +9189,7 @@
     var selection;
     var payloadStyleEdits;
     var payloadTokenIntents;
+    var payloadTextEdit;
     var payloadInstruction;
     var payloadMetadata;
     var payloadSelectionElements;
@@ -9172,6 +9204,7 @@
       draftContext.selector = selection.selector;
       payloadStyleEdits = draftContext.styleEdits;
       payloadTokenIntents = draftContext.tokenIntents;
+      payloadTextEdit = draftContext.textEdit || null;
       payloadInstruction = draftContext.instructionDraft || "";
       payloadMetadata = draftContext.reactMetadata;
       payloadSelectionElements = draftContext.selectionElements || [payloadTarget];
@@ -9184,6 +9217,7 @@
       payloadTarget = selectedElement;
       payloadStyleEdits = styleEdits;
       payloadTokenIntents = tokenIntents;
+      payloadTextEdit = textEdit;
       payloadInstruction = instructionDraft;
       payloadMetadata = reactMetadata;
       payloadSelectionElements = orderedSelection();
@@ -9205,6 +9239,9 @@
       stateStyleEdits: stateStyleEditsForSend(draftContext ? draftContext.stateStyleEdits : stateStyleEdits).map(function (intent) { return scopedIntentForSend(intent, payloadTarget, draftContext); }),
       instruction: payloadInstruction
     };
+    if (payloadTextEdit && payloadTextEdit.newText !== payloadTextEdit.oldText) {
+      payload.textEdit = { oldText: payloadTextEdit.oldText, newText: payloadTextEdit.newText };
+    }
     if (!draftContext) payload.stateStyles = ({ stateStyles: currentSelection.stateStyles }).stateStyles;
     if (!draftContext && isMaintainerCreateFlow()) {
       var userNotes = componentRequest.useCase.trim();
@@ -10490,7 +10527,7 @@
     // truly changes, transfer its singleton maps into a persistent element draft;
     // previews stay applied until removal, dispatch, detachment, or dismissal.
     var previousPrimary = selectedElement;
-    var hasUnsentEdits = Object.keys(styleEdits).length > 0 || Object.keys(stateStyleEdits).length > 0 || Object.keys(tokenIntents).length > 0 || instructionDraft !== "" || componentRequestHasDraft();
+    var hasUnsentEdits = Object.keys(styleEdits).length > 0 || Object.keys(stateStyleEdits).length > 0 || Object.keys(tokenIntents).length > 0 || !!textEdit || instructionDraft !== "" || componentRequestHasDraft();
     if (hasUnsentEdits && selectedElement && elements.indexOf(selectedElement) !== -1) primary = selectedElement;
     if (previousPrimary !== primary) {
       if (activeStyleEditorFlush) activeStyleEditorFlush();
@@ -10610,7 +10647,115 @@
     return node.nodeType === 1 ? node : node.parentElement;
   }
 
+  var TEXT_UNEDITABLE_TAGS = { input: 1, textarea: 1, select: 1, option: 1, button: 1, img: 1, svg: 1, video: 1, audio: 1, canvas: 1, iframe: 1, br: 1, hr: 1 };
+
+  // A copy edit only makes sense on a leaf-ish text element: it has visible text and its
+  // children are text/inline line breaks, so retyping replaces one caption, not a container's
+  // worth of nested markup. ponytail: leaf + <br> only; nested-markup editing is a later ask.
+  function isTextEditableElement(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (host.contains && host.contains(el)) return false;
+    var tag = el.tagName ? el.tagName.toLowerCase() : "";
+    if (TEXT_UNEDITABLE_TAGS[tag]) return false;
+    var text = (el.innerText || el.textContent || "").trim();
+    if (!text) return false;
+    for (var i = 0; i < el.childNodes.length; i++) {
+      var child = el.childNodes[i];
+      if (child.nodeType === 1 && child.tagName && child.tagName.toLowerCase() !== "br") return false;
+    }
+    return true;
+  }
+
+  function truncateCopy(text) {
+    var value = (text || "").replace(/\s+/g, " ").trim();
+    return value.length > 32 ? value.slice(0, 31) + "…" : value;
+  }
+
+  function selectAllText(el) {
+    try {
+      var range = document.createRange();
+      range.selectNodeContents(el);
+      var selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } catch (rangeError) { }
+  }
+
+  function textEditKeydown(event) {
+    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancelTextEditLive(); }
+    else if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); commitTextEditLive(); }
+    else event.stopPropagation();
+  }
+
+  function textEditBlur() {
+    // A blur means focus left the caption (clicked away, tabbed out) — treat it as commit.
+    commitTextEditLive();
+  }
+
+  function teardownTextEditing(el) {
+    if (!el) return;
+    el.removeEventListener("keydown", textEditKeydown, true);
+    el.removeEventListener("blur", textEditBlur, true);
+    if (el.__ravenPrevContentEditable == null) el.removeAttribute("contenteditable");
+    else el.setAttribute("contenteditable", el.__ravenPrevContentEditable);
+    el.removeAttribute("data-raven-text-editing");
+    delete el.__ravenPrevContentEditable;
+    delete el.__ravenTextOriginal;
+    if (textEditingElement === el) textEditingElement = null;
+  }
+
+  function beginTextEdit(el) {
+    if (!isTextEditableElement(el)) return false;
+    if (textEditingElement && textEditingElement !== el) commitTextEditLive();
+    if (selectedElement !== el) selectTarget(el, false, "canvas");
+    textEditingElement = el;
+    // Re-editing an already-staged caption resumes from the ORIGINAL copy so the tray keeps
+    // one before→after, not a chain of intermediate edits.
+    var original = (textEdit && textEdit.target === el) ? textEdit.oldText : (el.innerText || el.textContent || "");
+    el.__ravenTextOriginal = original;
+    el.__ravenPrevContentEditable = el.getAttribute("contenteditable");
+    el.setAttribute("contenteditable", "true");
+    el.spellcheck = true;
+    el.setAttribute("data-raven-text-editing", "true");
+    el.addEventListener("keydown", textEditKeydown, true);
+    el.addEventListener("blur", textEditBlur, true);
+    if (typeof el.focus === "function") el.focus();
+    selectAllText(el);
+    setHighlight(el);
+    return true;
+  }
+
+  function commitTextEditLive() {
+    var el = textEditingElement;
+    if (!el) return;
+    var oldText = el.__ravenTextOriginal != null ? el.__ravenTextOriginal : (el.innerText || el.textContent || "");
+    var newText = el.innerText || el.textContent || "";
+    teardownTextEditing(el);
+    if (selectedElement === el) {
+      if (newText.trim() === oldText.trim()) {
+        // No real change (or user typed the original back) — drop any staged edit for this element.
+        textEdit = null;
+        syncActiveStyleDraftKey();
+      } else {
+        textEdit = { target: el, selector: currentSelection ? currentSelection.selector : stableSelector(el), oldText: oldText, newText: newText };
+        ensureActiveStyleDraftKey();
+      }
+    }
+    renderPanel();
+  }
+
+  function cancelTextEditLive() {
+    var el = textEditingElement;
+    if (!el) return;
+    var oldText = el.__ravenTextOriginal;
+    teardownTextEditing(el);
+    if (oldText != null && el.isConnected !== false) el.textContent = oldText;
+    // Escape abandons the in-progress typing but keeps any previously-staged edit intact.
+    renderPanel();
+  }
+
   document.addEventListener("mousemove", function (event) {
+    if (textEditingElement) return;
     if (!armed || bothCollapsed()) return;
     var path = event.composedPath ? event.composedPath() : [];
     if (path.indexOf(host) !== -1) {
@@ -10631,6 +10776,10 @@
   }, true);
 
   document.addEventListener("click", function (event) {
+    // While a caption is being edited, let clicks reach it (caret placement, text
+    // selection). Clicking a DIFFERENT element blurs the caption first (blur commits),
+    // clearing textEditingElement before this fires, so re-selection still works.
+    if (textEditingElement) return;
     if (!armed || bothCollapsed()) return;
     var path = event.composedPath ? event.composedPath() : [];
     if (path.indexOf(host) !== -1) return;
@@ -10640,6 +10789,20 @@
     event.preventDefault();
     event.stopImmediatePropagation();
     selectTarget(target, event.shiftKey === true);
+  }, true);
+
+  // Double-click a text element to edit its copy inline — the standard "edit text"
+  // gesture. Falls through silently on non-text elements (containers, media, controls).
+  document.addEventListener("dblclick", function (event) {
+    if (!armed || bothCollapsed()) return;
+    var path = event.composedPath ? event.composedPath() : [];
+    if (path.indexOf(host) !== -1) return;
+    var target = composedTarget(event);
+    if (!target || inIgnoredRegion(target)) return;
+    if (!isTextEditableElement(target)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    beginTextEdit(target);
   }, true);
 
   document.addEventListener("keydown", function (event) {

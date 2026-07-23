@@ -57,6 +57,10 @@ var GrabStyleEditSchema = z.object({
   oldValue: z.string(),
   newValue: z.string()
 }).passthrough();
+var GrabTextEditSchema = z.object({
+  oldText: z.string(),
+  newText: z.string()
+}).passthrough();
 var GrabMultiSelectionSchema = z.object({
   index: z.number().int().min(1),
   selector: z.string().min(1),
@@ -71,6 +75,7 @@ type GrabToken = z.infer<typeof GrabTokenSchema>;
 type GrabStateStyles = z.infer<typeof GrabStateStylesSchema>;
 type GrabTokenIntent = z.infer<typeof GrabTokenIntentSchema>;
 type GrabStyleEdit = z.infer<typeof GrabStyleEditSchema>;
+type GrabTextEdit = z.infer<typeof GrabTextEditSchema>;
 type GrabMultiSelection = z.infer<typeof GrabMultiSelectionSchema>;
 
 var GrabPayloadSchema = z.object({
@@ -82,6 +87,7 @@ var GrabPayloadSchema = z.object({
   stateStyles: GrabStateStylesSchema.optional(),
   tokenIntents: z.array(GrabTokenIntentSchema).optional(),
   styleEdits: z.array(GrabStyleEditSchema).optional(),
+  textEdit: GrabTextEditSchema.optional(),
   multiSelect: z.array(GrabMultiSelectionSchema).optional(),
   instruction: z.string().optional(),
   intent: z.literal("create-component").optional(),
@@ -257,6 +263,7 @@ export interface GrabBridgeSelection extends GrabChangeEnvelope {
   stateStyles?: GrabStateStyles;
   tokenIntents?: GrabTokenIntent[];
   styleEdits?: GrabStyleEdit[];
+  textEdit?: GrabTextEdit;
   multiSelect?: GrabMultiSelection[];
   instruction?: string;
   intent?: "create-component";
@@ -563,6 +570,7 @@ export function queueGrabSelection(selection: unknown): GrabBridgeSelection {
     stateStyles: parsed.stateStyles,
     tokenIntents: parsed.tokenIntents,
     styleEdits: parsed.styleEdits,
+    textEdit: parsed.textEdit,
     instruction: parsed.instruction,
     intent: parsed.intent,
     userNotes: parsed.userNotes,
