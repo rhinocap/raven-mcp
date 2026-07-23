@@ -48,7 +48,7 @@ export default function Home() {
               </div>
               <div className="raven-stat-card">
                 <div className="raven-stat-num" id="rs-dl">—</div>
-                <div className="raven-stat-label">Total installs</div>
+                <div className="raven-stat-label">Installs</div>
               </div>
             </div>
 
