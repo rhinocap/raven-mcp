@@ -6,6 +6,15 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [2.2.2] - 2026-07-23
+
+Raven Design overlay reliability. No tool changes — the 100-tool stdio surface is unchanged.
+
+### Fixed
+- Un-sent overlay changes now survive page navigation: queue edits across several pages and each is restored as a pending change on the next page, so you can send a whole batch to your agent at once instead of losing everything on a page load.
+- Send to agent stays available while a batch is applying — a press queues the next batch, which sends automatically when the current one finishes.
+- Single-click Send now holds for every field, not just inline copy edits: sending with a style input or the instruction box focused no longer needs a second click.
+
 ## [2.2.1] - 2026-07-23
 
 Raven Design overlay editing. No tool changes — the 100-tool stdio surface is unchanged.

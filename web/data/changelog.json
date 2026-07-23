@@ -26,6 +26,18 @@
   },
   "releases": [
     {
+      "version": "v2.2.2",
+      "date": "2026-07-23",
+      "category": "tooling",
+      "kind": "fix",
+      "title": "Un-sent Raven Design changes survive page navigation",
+      "changes": [
+        "Queue edits across several pages and each is restored as a pending change on the next page — send a whole batch to your agent at once instead of losing them on a page load.",
+        "Send stays available while a batch is applying; a press queues the next batch to send automatically when the current one finishes.",
+        "Single-click Send now works with any field focused, not just inline copy edits."
+      ]
+    },
+    {
       "version": "v2.2.1",
       "date": "2026-07-23",
       "category": "tooling",
