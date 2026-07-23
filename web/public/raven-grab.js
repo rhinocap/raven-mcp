@@ -2847,7 +2847,7 @@
   }
 
   function stashActiveStyleDraft() {
-    if (!Object.keys(styleEdits).length && !Object.keys(stateStyleEdits).length && !Object.keys(tokenIntents).length && !textEdit) {
+    if (!Object.keys(styleEdits).length && !Object.keys(stateStyleEdits).length && !Object.keys(tokenIntents).length && !textEdit && !instructionDraft.trim()) {
       activeStyleDraftKey = null;
       return null;
     }
@@ -10541,7 +10541,7 @@
     if (previousPrimary !== primary) {
       if (activeStyleEditorFlush) activeStyleEditorFlush();
       capturePanelDrafts();
-      if (Object.keys(styleEdits).length || Object.keys(stateStyleEdits).length || Object.keys(tokenIntents).length) stashActiveStyleDraft();
+      if (Object.keys(styleEdits).length || Object.keys(stateStyleEdits).length || Object.keys(tokenIntents).length || !!textEdit || instructionDraft.trim()) stashActiveStyleDraft();
       resetSelectionContext();
     }
     multiSelections = elements.slice();
