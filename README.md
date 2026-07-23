@@ -345,11 +345,11 @@ npm start      # Run compiled output
 
 ## License & attribution
 
-Raven MCP is released under the [MIT License](./LICENSE) — Copyright (c) 2026 Andrew Cunliffe.
+Raven MCP is released under the [Apache License, Version 2.0](./LICENSE) — Copyright (c) 2026 Andrew Cunliffe.
 
-If you fork, embed, or redistribute Raven (in whole or in part), retain the MIT license notice and the `LICENSE` file. If you ship Raven inside another product, include attribution to "Raven MCP — https://ravenmcp.ai" in your acknowledgements.
+If you fork, embed, or redistribute Raven (in whole or in part), retain the Apache-2.0 license notice, the `LICENSE` file, and the `NOTICE` file. If you ship Raven inside another product, include attribution to "Raven MCP — https://ravenmcp.ai" in your acknowledgements.
 
-Raven's knowledge base paraphrases and references work from many third-party sources — Nielsen Norman Group, Laws of UX (CC BY-NC-ND 4.0), Gestalt principles, WCAG (W3C), Mailchimp (CC BY-NC 4.0), GOV.UK (Open Government Licence v3.0), Shopify Polaris, Atlassian Design, and others. Each entry carries a `sources` URL field. See [NOTICE](./NOTICE) for the full list of upstream sources and license terms; some carry their own conditions beyond MIT.
+Raven's knowledge base paraphrases and references work from many third-party sources — Nielsen Norman Group, Laws of UX (CC BY-NC-ND 4.0), Gestalt principles, WCAG (W3C), Mailchimp (CC BY-NC 4.0), GOV.UK (Open Government Licence v3.0), Shopify Polaris, Atlassian Design, and others. Each entry carries a `sources` URL field. See [NOTICE](./NOTICE) for the full list of upstream sources and license terms; some carry their own conditions beyond Apache-2.0.
 
 This is a personal project. It is not endorsed by Intuit Inc. or any other company referenced in its source data.
 

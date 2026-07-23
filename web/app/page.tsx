@@ -21,7 +21,7 @@ export default function Home() {
           <div className="glow glow-3"></div>
           <div className="container">
             <div className="hero-badge reveal">
-              Open-source MCP Server · MIT
+              Open-source MCP Server · Apache 2.0
             </div>
             <h1 className="reveal reveal-delay-1"><span className="line-glow">Pair-design</span><span className="line-accent">with your coding agent</span></h1>
             <p className="subtitle reveal reveal-delay-2">Raven is an open-source MCP server. Click any element on your running page, edit its tokens and styles with real controls, and package the change for your agent &mdash; backed by audits that name the broken design rule and return the fix with evidence.</p>
@@ -737,7 +737,7 @@ export default function Home() {
             <div className="section-header">
               <p className="label reveal">Open Source</p>
               <h2 className="reveal reveal-delay-1">Free. All of it.</h2>
-              <p className="subtitle reveal reveal-delay-2">Every tool, token, and principle is included under the MIT license. No account, hosted plan, or usage meter.</p>
+              <p className="subtitle reveal reveal-delay-2">Every tool, token, and principle is included under the Apache 2.0 license. No account, hosted plan, or usage meter.</p>
             </div>
 
             <div className="pricing-open-source reveal reveal-delay-3">
@@ -792,7 +792,7 @@ export default function Home() {
               </div>
               <div className="faq-item">
                 <h3>Is RavenMCP free?</h3>
-                <p>Yes. RavenMCP is 100% free and open source under the MIT license. Every tool, token, and principle is included &mdash; no tiers, no usage limits, and no account required.</p>
+                <p>Yes. RavenMCP is 100% free and open source under the Apache 2.0 license. Every tool, token, and principle is included &mdash; no tiers, no usage limits, and no account required.</p>
               </div>
               <div className="faq-item">
                 <h3>Which AI agents work with RavenMCP?</h3>
