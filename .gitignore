@@ -10,6 +10,7 @@ dist/
 .env.*
 !.env.example
 .gstack/
+.worktrees/
 
 # Locally-installed cross-agent skills (skills.sh) — not part of the package
 .agents/
