@@ -10294,11 +10294,12 @@
 
   onPanels("mousedown", function (event) {
     if (event.button !== 0) return;
-    // A copy edit stages live on input, so clicking Send must NOT blur the editable: a blur here
-    // commits + re-renders the tray between mousedown and mouseup, so the two land on different
-    // nodes and the browser fires no click at all (the "had to click Send twice" bug). Keep focus;
-    // dispatchPendingBatch tears the edit down itself.
-    if (textEditingElement && event.target.closest("[data-send-batch]")) { event.preventDefault(); return; }
+    // Clicking Send must NOT blur whatever field is focused (a style-editor input, the instruction
+    // textarea, or a live copy edit): the blur commits + calls mountGlobalActions, which REPLACES the
+    // send button node between mousedown and mouseup, so the two land on different nodes and the browser
+    // fires no click at all (the "had to click Send twice" bug). Keep focus for any focused field;
+    // dispatchPendingBatch flushes the style editor, tears down copy editing, and captures drafts itself.
+    if (event.target.closest("[data-send-batch]")) { event.preventDefault(); return; }
     var styleLabel = event.target.closest("[data-style-label]");
     if (styleLabel && beginStyleScrub(styleLabel, event)) return;
     var row = event.target.closest("[data-layer-id], [data-template-layer-id]");
