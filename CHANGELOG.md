@@ -6,6 +6,17 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-07-23
+
+Raven Design overlay editing. No tool changes — the 100-tool stdio surface is unchanged.
+
+### Added
+- Inline copy editing in the overlay: edit an element's text directly on the page (an H1, a subheadline, a button label) and the change stages like any style edit — it flows through the pending-changes tray and sends to your agent. Edits stage live as you type, and the edited copy stays on the page after sending.
+
+### Fixed
+- Instructions and copy edits now persist when you move between elements: type an instruction or edit text on one element, select another, and the first is kept. You can stack changes across many elements and send them in one batch instead of losing all but the last.
+- Sending an inline copy edit no longer takes two clicks — a single click on Send dispatches while the text field is still focused.
+
 ## [2.2.0] - 2026-07-22
 
 ### Changed

@@ -26,6 +26,18 @@
   },
   "releases": [
     {
+      "version": "v2.2.1",
+      "date": "2026-07-23",
+      "category": "tooling",
+      "kind": "feature",
+      "title": "Edit copy directly in the Raven Design overlay",
+      "changes": [
+        "Inline copy editing: change an element's text right on the page and send it to your agent alongside style and token edits.",
+        "Instructions and copy edits now persist as you move between elements, so you can stack many changes and send them in one batch.",
+        "Sending an inline copy edit takes a single click."
+      ]
+    },
+    {
       "version": "v2.2.0",
       "date": "2026-07-22",
       "category": "tooling",
