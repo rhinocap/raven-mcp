@@ -12,3 +12,47 @@ Machine crashed mid-session; prior instance had the f23 E2E release gate green (
 ## State at end
 - Gate 60/0, tree clean, server on :4705 from the worktree.
 - Open for Andrew: (1) reverse or keep "collapse pauses inspector"; (2) confirm right-click symptom gone post-reboot; (3) manual eyes-on pass per the test instructions given in-session.
+
+## Ship: live-move ported onto main
+
+**What:** the f23 branch turned out to be redundant with `main` (main already had
+`reorderLayer`/`reparentLayer`/`buildLayerTree` plus `selectedSides` the branch
+lacked; a merge produced 82 conflict hunks). Only `applyLiveMovePreview` and its
+undo log were missing. Ported the ~205-line overlay change + 10 tests onto a
+fresh branch `grab-live-move-preview` off `origin/main` (4174bfa) instead.
+
+**Why:** an 82-hunk merge of a 150-commit redundant branch is all risk and no
+gain; main's `reorderLayer` was byte-identical to the branch's except the four
+added lines, so the port applied nearly verbatim.
+
+**Verified on the main-based build:**
+- `RAVEN_NO_USAGE_LOG=1 npm test` → 1087 tests, 0 fail, 3 skipped
+- kill matrix re-derived against the ported overlay and re-proven exact
+  (a → 2 tests, b/d/e → 1 each, nothing else)
+- E2E release gate 69 pass / 2 fail; the 2 are pre-existing mobile tap-target
+  failures, proven by running the same gate against the pristine main overlay
+  (67 pass / 4 fail — the extra 2 being the collapse-highlight and live-move
+  checks this port fixes)
+- eyes-on: 5 full-res frames, select → drag → moved → discard → settle
+
+**Pushed:** `b8a5c34` on `origin/grab-live-move-preview`.
+
+**Blocked:** PR creation — GitHub returns HTTP 500 on `POST /repos/.../pulls`
+(8 attempts over ~5 min, including a minimal one-line body; `gh api` on reads
+works fine, so it's a GitHub-side incident, not the payload). Branch is on the
+remote; PR needs re-firing when GitHub recovers.
+
+**Mistakes/Lessons:** the e2e row-lookup and eyes-capture both broke first on
+hand-rolled selectors — reusing the gate's own `sr()`/section-11 setup verbatim
+fixed both immediately. Reuse the last-good harness, don't re-derive it.
+
+## State at end
+
+- `grab-live-move-preview` pushed, tests + gate + eyes-on green, PR pending on
+  GitHub recovery.
+- npm publish NOT started — Andrew asked to be told when it's ready; it needs
+  the PR merged to main first, then the `release` skill runbook.
+- Feature B (canvas-direct drag) remains spec-only, deferred.
+- `f23-templates-layers` (150 local commits, unpushed) is now redundant except
+  for the mobile tap-target work, which is still unlanded — that's the only
+  reason to keep it.
