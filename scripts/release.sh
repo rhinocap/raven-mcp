@@ -95,3 +95,9 @@ echo ""
 echo "✓ Released v$NEW"
 echo "  npm:  https://www.npmjs.com/package/raven-mcp/v/$NEW"
 echo "  mcpb: https://ravenmcp.ai/raven.mcpb  (auto-deploys via Vercel)"
+
+if [[ "${CI:-}" != "true" && "${RAVEN_SKIP_MARKETING_PREVIEW:-0}" != "1" ]]; then
+  echo "→ Preparing approval-gated marketing preview"
+  node scripts/prepare-marketing-preview.mjs --version "$NEW" ||
+    echo "⚠ Release succeeded; marketing preview needs a manual rerun: npm run marketing:preview -- --version $NEW"
+fi

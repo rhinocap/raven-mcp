@@ -33,7 +33,8 @@
     "test": "node --test \"test/**/*.test.mjs\"",
     "postinstall": "node scripts/postinstall.cjs || true",
     "prepublishOnly": "npm run build",
-    "check:site": "node scripts/check-site-drift.mjs"
+    "check:site": "node scripts/check-site-drift.mjs",
+    "marketing:preview": "node scripts/prepare-marketing-preview.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

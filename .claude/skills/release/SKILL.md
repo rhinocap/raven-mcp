@@ -122,6 +122,16 @@ git log --oneline -2 origin/main        # Release commit pushed
 ```
 The `.mcpb` at https://ravenmcp.ai/raven.mcpb auto-deploys via Vercel from the pushed `site/raven.mcpb` — confirm the changelog page / deploy if the public bundle matters this release.
 
+### Step 4b — Marketing preview (automatic, approval-gated)
+
+`release.sh` ends by running `node scripts/prepare-marketing-preview.mjs --version $NEW` (best-effort — a preview failure never fails a published release; skip with `RAVEN_SKIP_MARKETING_PREVIEW=1` or `CI=true`).
+
+It gates on `npm run check:site`: if the site is already in sync and `web/data/changelog.json` has the entry, it prints "site in sync" and stops. Otherwise it creates a worktree at `/tmp/raven-marketing-v<version>` on branch `marketing-preview/v<version>`, has a model leg propose `web/`-only edits grounded in the release's commit range, builds, and serves the result with the Grab overlay attached. It **never** commits, pushes, or deploys, and refuses to serve if any changed path escapes `web/`.
+
+Review the two bridge URLs it prints, then merge (or discard) `marketing-preview/v<version>` yourself. The process blocks while serving — Ctrl-C shuts the server down and removes the worktree. Rerun any time with `npm run marketing:preview -- --version X.Y.Z`.
+
+Copy judgment stays yours: the leg reliably catches *drift* (a missing tool, a blurb the release invalidated, a spelled-out tool count) and is not trusted on *voice*.
+
 ### Step 5 — Propagate to your machine's instances (the step release.sh can't do)
 
 ```bash
