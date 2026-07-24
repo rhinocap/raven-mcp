@@ -1184,7 +1184,9 @@ async function buildGrabResponse(designMdPath: string, key: string, method: stri
     if (!existsSync(GRAB_ASSET_PATH)) {
       return { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" }, body: "raven-grab.js not found" };
     }
-    return { status: 200, headers: { "Content-Type": "application/javascript; charset=utf-8" }, body: readFileSync(GRAB_ASSET_PATH, "utf8") };
+    // no-store: the overlay is read from disk per-request so fixes land on plain reload —
+    // without it Chrome's heuristic cache kept serving stale overlays across reloads.
+    return { status: 200, headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-store" }, body: readFileSync(GRAB_ASSET_PATH, "utf8") };
   }
 
   if (method === "GET" && pathname === "/tokens") {
