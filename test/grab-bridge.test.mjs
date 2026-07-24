@@ -11114,3 +11114,40 @@ test('drain frees grab queue capacity so later sends succeed after filling the c
     await grabMod.stopGrabSession();
   }
 });
+
+test('[scroll fix] document wheel listener drives the panel scroller on the main thread and contains page scroll under panels', async () => {
+  // Real trackpad wheels are hit-tested on the compositor thread, which misses the
+  // pointer-events:none host's auto descendants — the blocking document listener is the
+  // deterministic main-thread fallback. Revert the listener and every assertion here dies.
+  const { document } = await loadOverlayInternals();
+  const scroller = { tagName: 'DIV', classList: { contains: (n) => n === 'raven-grab-body' }, scrollHeight: 500, clientHeight: 200, scrollTop: 0 };
+  const panel = { tagName: 'DIV', classList: { contains: (n) => n === 'raven-grab-panel' } };
+  let prevented = false;
+  const wheel = (path, deltaY, deltaMode = 0) => {
+    prevented = false;
+    document.dispatch('wheel', { deltaY, deltaMode, composedPath() { return path; }, preventDefault() { prevented = true; } });
+  };
+
+  // Over the scroller: the body scrolls and the page never does.
+  wheel([scroller, panel], 120);
+  assert.equal(scroller.scrollTop, 120);
+  assert.equal(prevented, true);
+
+  // deltaMode 1 (line mode) scales by 16.
+  wheel([scroller, panel], 2, 1);
+  assert.equal(scroller.scrollTop, 152);
+
+  // Over the panel header (no scroller in path): contained — nothing moves, page blocked.
+  wheel([panel], 120);
+  assert.equal(prevented, true);
+
+  // Outside the overlay entirely: native page scroll untouched.
+  wheel([{ tagName: 'DIV', classList: { contains: () => false } }], 120);
+  assert.equal(prevented, false);
+
+  // An overflowing composer textarea inside the panel keeps its native internal scroll.
+  const textarea = { tagName: 'TEXTAREA', classList: { contains: () => false }, scrollHeight: 300, clientHeight: 100, scrollTop: 0 };
+  wheel([textarea, scroller, panel], 50);
+  assert.equal(prevented, false);
+  assert.equal(scroller.scrollTop, 152);
+});

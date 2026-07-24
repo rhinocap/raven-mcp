@@ -10906,6 +10906,28 @@
     renderPanel();
   }
 
+  // Real trackpad/wheel scrolls are hit-tested on the compositor thread, and the
+  // full-viewport pointer-events:none host (plus backdrop-filter/mask layerization on
+  // the panels) makes that fast path miss the panel's scroller — the gesture latches
+  // the page's root scroller instead, so panels never scroll under hardware wheel.
+  // A blocking (non-passive) document-level wheel listener forces every wheel to the
+  // main thread, where hit-testing is correct, and we drive the panel scroller there.
+  document.addEventListener("wheel", function (event) {
+    var path = event.composedPath ? event.composedPath() : [];
+    var panel = null;
+    var scroller = null;
+    for (var i = 0; i < path.length; i++) {
+      var el = path[i];
+      if (!el || !el.classList) continue;
+      if (!scroller && el.scrollHeight > el.clientHeight && (el.tagName === "TEXTAREA" || el.classList.contains("raven-grab-body"))) scroller = el;
+      if (el.classList.contains("raven-grab-panel")) { panel = el; break; }
+    }
+    if (!panel) return; // not over the overlay: native scroll untouched
+    if (scroller && scroller.tagName === "TEXTAREA") return; // let an overflowing composer scroll natively
+    if (scroller) scroller.scrollTop += (event.deltaMode === 1 ? 16 : 1) * event.deltaY;
+    event.preventDefault(); // never let the page scroll under a panel
+  }, { passive: false, capture: true });
+
   document.addEventListener("mousemove", function (event) {
     if (textEditingElement) return;
     if (!armed || bothCollapsed()) return;
