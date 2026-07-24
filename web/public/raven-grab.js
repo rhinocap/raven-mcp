@@ -10913,12 +10913,11 @@
     renderPanel();
   }
 
-  // Real trackpad/wheel scrolls are hit-tested on the compositor thread, and the
-  // full-viewport pointer-events:none host (plus backdrop-filter/mask layerization on
-  // the panels) makes that fast path miss the panel's scroller — the gesture latches
-  // the page's root scroller instead, so panels never scroll under hardware wheel.
-  // A blocking (non-passive) document-level wheel listener forces every wheel to the
-  // main thread, where hit-testing is correct, and we drive the panel scroller there.
+  // A blocking (non-passive) capture-phase document listener owns every wheel while
+  // the overlay is armed: it drives the panel's scroller directly and swallows the
+  // rest, so neither native scrolling nor a host page's smooth-scroll library
+  // (Lenis-style: own wheel listener + scrollTo animation, immune to preventDefault)
+  // can move the page under the panels.
   document.addEventListener("wheel", function (event) {
     var path = event.composedPath ? event.composedPath() : [];
     var panel = null;
@@ -10929,18 +10928,27 @@
       if (!scroller && el.scrollHeight > el.clientHeight && (el.tagName === "TEXTAREA" || el.classList.contains("raven-grab-body"))) scroller = el;
       if (el.classList.contains("raven-grab-panel")) { panel = el; break; }
     }
+    // Swallowing a wheel means preventDefault AND stopping propagation: smooth-scroll
+    // libraries (Lenis et al.) read the raw deltas from their own window-level wheel
+    // listener and drive the page with scrollTo() — preventDefault alone is invisible
+    // to them, so the page kept scrolling under the panel on hosts that use one.
+    function swallow() {
+      event.preventDefault();
+      if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
+      else if (typeof event.stopPropagation === "function") event.stopPropagation();
+    }
     if (!panel) {
       // While panels are open the page ignores plain wheel scrolling — accidental
       // two-finger drift under the overlay was moving the canvas out from under the
       // work (Andrew, 2026-07-23). Cmd/Ctrl+scroll deliberately pans the page.
       if (!armed || bothCollapsed()) return;
       if (event.metaKey || event.ctrlKey) return;
-      event.preventDefault();
+      swallow();
       return;
     }
     if (scroller && scroller.tagName === "TEXTAREA") return; // let an overflowing composer scroll natively
     if (scroller) scroller.scrollTop += (event.deltaMode === 1 ? 16 : 1) * event.deltaY;
-    event.preventDefault(); // never let the page scroll under a panel
+    swallow(); // never let the page (or its smooth-scroll library) scroll under a panel
   }, { passive: false, capture: true });
 
   document.addEventListener("mousemove", function (event) {

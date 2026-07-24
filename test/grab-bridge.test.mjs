@@ -11125,22 +11125,29 @@ test('[scroll fix] document wheel listener drives the panel scroller on the main
   const panel = { tagName: 'DIV', classList: { contains: (n) => n === 'raven-grab-panel' } };
   const pageEl = { tagName: 'DIV', classList: { contains: () => false } };
   let prevented = false;
+  let stopped = false;
   const wheel = (path, deltaY, opts = {}) => {
     prevented = false;
+    stopped = false;
     document.dispatch('wheel', {
       deltaY,
       deltaMode: opts.deltaMode || 0,
       metaKey: opts.metaKey === true,
       ctrlKey: opts.ctrlKey === true,
       composedPath() { return path; },
-      preventDefault() { prevented = true; }
+      preventDefault() { prevented = true; },
+      // Smooth-scroll libraries (Lenis) read deltas from their own listener and
+      // scrollTo() the page — swallowed wheels must stop propagation to starve them.
+      stopImmediatePropagation() { stopped = true; }
     });
   };
 
-  // Over the scroller: the body scrolls and the page never does.
+  // Over the scroller: the body scrolls and the page never does — propagation
+  // stops too, so a Lenis-style library never sees the delta.
   wheel([scroller, panel], 120);
   assert.equal(scroller.scrollTop, 120);
   assert.equal(prevented, true);
+  assert.equal(stopped, true);
 
   // deltaMode 1 (line mode) scales by 16.
   wheel([scroller, panel], 2, { deltaMode: 1 });
@@ -11154,12 +11161,16 @@ test('[scroll fix] document wheel listener drives the panel scroller on the main
   // must not drift out from under the work (Andrew, 2026-07-23).
   wheel([pageEl], 120);
   assert.equal(prevented, true);
+  assert.equal(stopped, true);
 
-  // Cmd/Ctrl+scroll deliberately pans the page.
+  // Cmd/Ctrl+scroll deliberately pans the page — propagation must survive so the
+  // host page's own scroll machinery (native or Lenis) receives it.
   wheel([pageEl], 120, { metaKey: true });
   assert.equal(prevented, false);
+  assert.equal(stopped, false);
   wheel([pageEl], 120, { ctrlKey: true });
   assert.equal(prevented, false);
+  assert.equal(stopped, false);
 
   // With both panels collapsed the page behaves completely normally.
   internals.setPanelCollapsedTestState('left', true);
