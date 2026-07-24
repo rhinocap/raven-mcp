@@ -61,7 +61,6 @@ export default function PlaygroundPage() {
     <main id="main" className="playground-page">
       <section className="playground-intro">
         <div className="container">
-          <p className="label">Playground</p>
           <h1>Raven Design — pair designing with your agent</h1>
           <p>
             Click any element, swap tokens, edit styles, or request a component.
@@ -72,7 +71,6 @@ export default function PlaygroundPage() {
       <section className="playground-stage" aria-labelledby="wireframe-title">
         <div className="container">
           <div className="playground-stage-heading">
-            <p className="label">Live wireframe</p>
             <p>Select a FeatureCard under Features to see Scope (“All 3 like this”) and tokenized Styles.</p>
           </div>
 

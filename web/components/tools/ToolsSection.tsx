@@ -72,7 +72,8 @@ const ACTS: Act[] = [
       { name: "get_grabbed_elements", desc: "Read what you clicked—selector, computed styles, matching DESIGN.md tokens, and the change you asked for" },
       { name: "get_grab_layers", desc: "Read the layer tree captured around the clicked element, drilled to that node" },
       { name: "get_grab_operation", desc: "Read or update one saved grab change, or request the unified style-and-reorder batch" },
-      { name: "move_grab_layer", desc: "Queue a same-page layer reorder or reparent, previewed from measured rects" },
+      // v2.2.3: layer drags live-move the host DOM; the old measured-preview description is no longer accurate.
+      { name: "move_grab_layer", desc: "Live-move a same-page layer reorder or reparent in the host DOM while keeping the change queued for the agent" },
       { name: "get_page_template", desc: "Read the page's template slots from DESIGN.md, merged with the overlay's latest selections" },
       { name: "set_template_slot", desc: "Persist page-scoped template slots in one batched DESIGN.md update—fixed/flexible roles and allowed tokens" },
       { name: "list_templates", desc: "List the page templates and their registered routes from the active session" },
@@ -92,6 +93,7 @@ const ACTS: Act[] = [
     purpose: "Check the work — web, native, and cross-platform — against the standards, with evidence.",
     marquee: ["audit_url", "audit_contrast", "audit_swiftui"],
     tools: [
+      { name: "audit", desc: "Choose the relevant checks for a web page, iOS screen, React Native source, code diff, or video, then return one merged report" },
       { name: "audit_url", desc: "Render a live URL at every viewport & theme, then catch cropped images, blank videos, hover white-wash, and hidden-on-mobile content" },
       { name: "audit_contrast", desc: "WCAG 2.1 contrast ratios for every text element on a rendered page—AA/AAA pass-fail with delta-to-pass" },
       { name: "audit_swiftui", desc: "Audit SwiftUI source against Apple's HIG—Dynamic Type, semantic colors, 44pt targets, AccentColor" },
@@ -177,10 +179,9 @@ export default function ToolsSection() {
     <section id="tools" className="tools-section">
       <div className="container">
         <div className="section-header">
-          <p className="label reveal">Ninety-Nine Tools</p>
-          <h2 className="reveal reveal-delay-1">Ninety-nine tools, organized by job</h2>
+          <h2 className="reveal reveal-delay-1">One hundred tools, organized by job</h2>
           <p className="subtitle reveal reveal-delay-2">
-            Ninety-nine focused calls, grouped by what they do&mdash;<strong>know</strong>, <strong>create</strong>,{" "}
+            One hundred focused calls, grouped by what they do&mdash;<strong>know</strong>, <strong>create</strong>,{" "}
             <strong>design</strong>, <strong>audit</strong>, <strong>judge</strong>, <strong>decide</strong>. Claude calls them automatically, with no special syntax.
           </p>
         </div>

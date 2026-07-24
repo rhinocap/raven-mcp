@@ -16,7 +16,6 @@ export default function DesignSystemPage() {
       <div className="wrap">
 
         <header className="hero">
-          <div className="eyebrow">RavenMCP · Design System</div>
           <h1>The system behind <span className="g">every prompt</span></h1>
           <p>The tokens, type, motion, and voice that define RavenMCP — generated from the live site <span className="mono">:root</span> and the canonical brand profile. Every text/surface pairing below is scored for WCAG AA in your browser, live.</p>
           <div className="meta-row">
