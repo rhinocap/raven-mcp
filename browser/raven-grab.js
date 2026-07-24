@@ -1592,6 +1592,16 @@
     // Collapsed = paused: secondary highlights/badges clear with the panels and
     // return when a panel reopens (paintSelectionOverlays self-gates on bothCollapsed).
     paintSelectionOverlays();
+    // The primary selection box pauses with the panels too, whatever route
+    // collapsed them (layout tiles, keyboard toggle, mobile snap, edge buttons).
+    // The else restores it when any panel opens: preset switches (left-only ->
+    // right-only) transit a transient both-collapsed state that would otherwise
+    // strand the highlight hidden until an unrelated scroll/resize repaint.
+    if (bothCollapsed()) {
+      hoveredElement = null;
+      highlight.style.display = "none";
+      label.style.display = "none";
+    } else if (selectedElement) setHighlight(selectedElement);
   }
   function setPanelsCollapsed(next) {
     for (var i = 0; i < panels.length; i++) setPanelCollapsed(panels[i], next);
@@ -1638,11 +1648,6 @@
     setPanelCollapsed(el, true);
     var focusTab = fromLeft ? edgeTabLeft : edgeTab;
     if (typeof focusTab.focus === "function") focusTab.focus();
-    if (bothCollapsed()) {
-      hoveredElement = null;
-      highlight.style.display = "none";
-      label.style.display = "none";
-    }
   }
   function applyPanelPreset(key) {
     if (key !== "both" && key !== "left" && key !== "right" && key !== "page") return;
@@ -1670,9 +1675,6 @@
     else {
       propertiesDismissed = true;
       setPanelsCollapsed(true);
-      hoveredElement = null;
-      highlight.style.display = "none";
-      label.style.display = "none";
     }
   }
   function setArmed(next) {
@@ -2388,7 +2390,9 @@
     // isConnected, not documentElement.contains(): contains() is light-DOM only and
     // reports false for every node inside a shadow root, which hid the highlight on
     // exactly the design-system components people most want to inspect.
-    if (!element || element === host || typeof element.getBoundingClientRect !== "function" || !element.isConnected) {
+    // bothCollapsed(): collapsed = paused — callers that re-apply the selection
+    // highlight after a state change must not repaint it over a closed workspace.
+    if (!element || bothCollapsed() || element === host || typeof element.getBoundingClientRect !== "function" || !element.isConnected) {
       highlight.style.display = "none";
       label.style.display = "none";
       return;
@@ -6440,6 +6444,139 @@
     return layerOrdersMatch(currentChildren, expectedChildren);
   }
 
+  // Element-sibling snapshot for the undo log. children (not nextSibling) so the
+  // fake test DOM works, and because element order — including scripts/styles
+  // between measured layers — is what sibling combinators and restore care about.
+  function domNextElementSibling(element) {
+    var container = element.parentElement || element.parentNode;
+    if (!container || !container.children) return null;
+    var siblings = container.children;
+    var at = Array.prototype.indexOf.call(siblings, element);
+    return at >= 0 && at + 1 < siblings.length ? siblings[at + 1] : null;
+  }
+
+  function replayLiveMoveUndo(undo) {
+    for (var i = undo.length - 1; i >= 0; i -= 1) {
+      var entry = undo[i];
+      if (!entry.el || entry.el.isConnected === false || !entry.parent || entry.parent.isConnected === false || typeof entry.parent.insertBefore !== "function") continue;
+      var ref = entry.next && entry.next.isConnected !== false && (entry.next.parentElement || entry.next.parentNode) === entry.parent ? entry.next : null;
+      entry.parent.insertBefore(entry.el, ref);
+    }
+  }
+
+  function applyLiveMovePreview(draft) {
+    if (!draft || draft.livePreviewApplied || !draft.preview || draft.preview.unavailable) return;
+    var isReparent = draft.operation === "reparent";
+    var fromExpected = isReparent ? (draft.baselineChildren || []).filter(function (child) {
+      return child !== draft.movedElement;
+    }) : null;
+    var parentElements = isReparent
+      ? [draft.fromParentElement, draft.toParentElement]
+      : [draft.parentElement];
+    var baselineSets = isReparent
+      ? [draft.baselineChildren || [], draft.toBaselineChildren || []]
+      : [draft.baselineChildren || []];
+    var expectedSets = isReparent
+      ? [fromExpected, draft.expectedChildren || []]
+      : [draft.expectedChildren || []];
+    for (var parentIndex = 0; parentIndex < parentElements.length; parentIndex += 1) {
+      var parentElement = parentElements[parentIndex];
+      var baselineSet = baselineSets[parentIndex];
+      var liveChildren = liveLayerChildElements(parentElement);
+      if (!parentElement || parentElement.isConnected === false || typeof parentElement.insertBefore !== "function") return;
+      if (liveChildren.length !== baselineSet.length) return;
+      for (var childIndex = 0; childIndex < baselineSet.length; childIndex += 1) {
+        var child = baselineSet[childIndex];
+        var childParent = child && (child.parentElement || child.parentNode);
+        if (!child || child.isConnected === false || childParent !== parentElement || liveChildren.indexOf(child) === -1) return;
+      }
+    }
+    if (isReparent) {
+      if (baselineSets[0].indexOf(draft.movedElement) === -1
+        || expectedSets[1].length !== baselineSets[1].length + 1
+        || expectedSets[1].indexOf(draft.movedElement) === -1) return;
+      for (var expectedIndex = 0; expectedIndex < expectedSets[1].length; expectedIndex += 1) {
+        var expectedChild = expectedSets[1][expectedIndex];
+        if (!expectedChild || expectedChild.isConnected === false) return;
+        if (expectedChild !== draft.movedElement && baselineSets[1].indexOf(expectedChild) === -1) return;
+      }
+    } else {
+      if (expectedSets[0].length !== baselineSets[0].length) return;
+      for (var reorderIndex = 0; reorderIndex < expectedSets[0].length; reorderIndex += 1) {
+        if (baselineSets[0].indexOf(expectedSets[0][reorderIndex]) === -1) return;
+      }
+    }
+    // Every insertBefore records where the node really sat first — among ALL
+    // element siblings, scripts included — so revert can restore the exact
+    // pre-preview order, not just the order of measured layers.
+    var undo = [];
+    try {
+      var applyOrder = isReparent ? [1, 0] : [0];
+      for (var orderIndex = 0; orderIndex < applyOrder.length; orderIndex += 1) {
+        var applyIndex = applyOrder[orderIndex];
+        var applyParent = parentElements[applyIndex];
+        var applyExpected = expectedSets[applyIndex];
+        for (var applyChildIndex = 0; applyChildIndex < applyExpected.length; applyChildIndex += 1) {
+          var currentExpected = Array.prototype.filter.call(applyParent.children || [], function (candidate) {
+            return applyExpected.indexOf(candidate) !== -1;
+          });
+          if (currentExpected[applyChildIndex] !== applyExpected[applyChildIndex]) {
+            var movingChild = applyExpected[applyChildIndex];
+            undo.push({
+              el: movingChild,
+              parent: movingChild.parentElement || movingChild.parentNode,
+              next: domNextElementSibling(movingChild)
+            });
+            applyParent.insertBefore(movingChild, currentExpected[applyChildIndex] || null);
+          }
+        }
+      }
+      for (var verifyIndex = 0; verifyIndex < parentElements.length; verifyIndex += 1) {
+        if (!layerOrdersMatch(liveLayerChildElements(parentElements[verifyIndex]), expectedSets[verifyIndex])) {
+          replayLiveMoveUndo(undo);
+          return;
+        }
+      }
+    } catch (error) {
+      replayLiveMoveUndo(undo);
+      return;
+    }
+    draft.livePreviewApplied = true;
+    draft.livePreviewUndo = undo;
+    if (selectedElement && !bothCollapsed()) setHighlight(selectedElement);
+  }
+
+  function revertLiveMovePreview(draft) {
+    if (!draft || !draft.livePreviewApplied) return;
+    draft.livePreviewApplied = false;
+    var undo = draft.livePreviewUndo || [];
+    draft.livePreviewUndo = null;
+    // Only touch the DOM while the preview is still exactly what's live: any
+    // order OR membership drift means the host re-rendered, so leave its DOM
+    // alone and just drop the flag.
+    var isReparent = draft.operation === "reparent";
+    var fromExpected = isReparent ? (draft.baselineChildren || []).filter(function (child) {
+      return child !== draft.movedElement;
+    }) : null;
+    var parentElements = isReparent
+      ? [draft.fromParentElement, draft.toParentElement]
+      : [draft.parentElement];
+    var liveSets = isReparent
+      ? [fromExpected, draft.expectedChildren || []]
+      : [draft.expectedChildren || []];
+    for (var parentIndex = 0; parentIndex < parentElements.length; parentIndex += 1) {
+      var parentElement = parentElements[parentIndex];
+      if (!parentElement || parentElement.isConnected === false || typeof parentElement.insertBefore !== "function") return;
+      if (!layerOrdersMatch(liveLayerChildElements(parentElement), liveSets[parentIndex])) return;
+    }
+    try {
+      replayLiveMoveUndo(undo);
+    } catch (error) {
+      return;
+    }
+    if (selectedElement && !bothCollapsed()) setHighlight(selectedElement);
+  }
+
   function layerOrderIsActive(order) {
     return !!order && (order.state === "registering" || order.state === "queued" || order.state === "applying");
   }
@@ -6717,6 +6854,10 @@
     appliedLayerTree = tree;
     layerTree = tree;
     layerElements = elements;
+    // The source edit landed: the previewed order is now the real order, so the
+    // preview is spent — an applied receipt must never be revert-eligible.
+    order.livePreviewApplied = false;
+    order.livePreviewUndo = null;
     order.state = "applied";
     if (appliedLayerReceipts.indexOf(order) === -1) appliedLayerReceipts.push(order);
     removePendingLayerOrder(order);
@@ -7120,6 +7261,9 @@
       return;
     }
     var movedElement = layerElements.get(fromNode.id);
+    // Composing onto a previewed draft: put the DOM back first so the baseline,
+    // snapshot hash, and preview measurements below all read real pre-move state.
+    revertLiveMovePreview(localLayerDraftForParent(parentSelector));
     var liveBaselineChildren = liveLayerChildElements(parentElement);
     var liveFromIndex = liveBaselineChildren.indexOf(movedElement);
     if (liveFromIndex < 0) liveFromIndex = fromIndex;
@@ -7188,10 +7332,11 @@
     layerOrderDrafts[nextDraft.clientKey] = nextDraft;
     activeLayerOrderDraftKey = nextDraft.clientKey;
     projectLayerOrderOntoTree(nextDraft);
+    applyLiveMovePreview(nextDraft);
     renderPanel();
   }
 
-  // Cross-parent move intent. Overlay records only — agent applies later.
+  // Cross-parent move intent with optimistic DOM preview; agent applies source later.
   // v1: no shadow-root/iframe destinations or sources; no cycles; depth cap 12.
   function reparentLayer(fromId, toParentId, toIndex) {
     captureTemplateDrafts();
@@ -7258,6 +7403,10 @@
     var movedRole = slotRoleForElement(movedElement);
     pendingFixedMove = movedRole === "fixed" ? String(fromId) + "->" + String(toParentId) + ":" + String(safeToIndex) : "";
     fixedMoveNote = "";
+    // Composing onto a previewed draft at either endpoint: restore the DOM first
+    // so both baselines and both snapshot hashes read real pre-move state.
+    revertLiveMovePreview(localLayerDraftForParent(toParentSelector));
+    revertLiveMovePreview(localLayerDraftForParent(fromParentSelector));
     var liveFromBaseline = liveLayerChildElements(fromParentElement);
     var liveToBaseline = liveLayerChildElements(toParentElement);
     var liveFromIndex = liveFromBaseline.indexOf(movedElement);
@@ -7322,6 +7471,7 @@
     layerOrderDrafts[nextDraft.clientKey] = nextDraft;
     activeLayerOrderDraftKey = nextDraft.clientKey;
     projectLayerOrderOntoTree(nextDraft);
+    applyLiveMovePreview(nextDraft);
     renderPanel();
   }
 
@@ -7337,19 +7487,7 @@
   function sendLayerIntent(draft) {
     if (!draft || draft.state !== "draft" || !draft.preview || templateLoadPending || (draft.preview.movedRole === "fixed" && draft.preview.unavailable)) return null;
     var isReparent = draft.operation === "reparent";
-    if (isReparent) {
-      if (!liveLayerChildrenMatch(draft.fromParentElement, draft.baselineChildren)
-        || !liveLayerChildrenMatch(draft.toParentElement, draft.toBaselineChildren)) {
-        draft.state = "needs-recheck";
-        if (draft.clientKey === activeLayerOrderDraftKey) {
-          layerPreview = null;
-          pendingFixedMove = "";
-          fixedMoveNote = "";
-        }
-        layerNotice = "Page changed — re-propose the move";
-        return null;
-      }
-    } else if (!liveLayerChildrenMatch(draft.parentElement, draft.baselineChildren)) {
+    if (!liveLayerDraftParentsMatch(draft)) {
       draft.state = "needs-recheck";
       if (draft.clientKey === activeLayerOrderDraftKey) {
         layerPreview = null;
@@ -7551,6 +7689,7 @@
     if (!order) return;
     var priorState = order.state;
     if (result.state === "rejected") {
+      revertLiveMovePreview(order);
       order.state = "rejected";
       layerNotice = "Layer move rejected";
       var rejectedElement = order.movedElement;
@@ -7648,8 +7787,21 @@
   function liveLayerDraftParentsMatch(draft) {
     if (!draft) return false;
     if (draft.operation === "reparent") {
+      if (draft.livePreviewApplied) {
+        var fromExpected = (draft.baselineChildren || []).filter(function (child) {
+          return child !== draft.movedElement;
+        });
+        return !!draft.fromParentElement && draft.fromParentElement.isConnected !== false
+          && !!draft.toParentElement && draft.toParentElement.isConnected !== false
+          && layerOrdersMatch(liveLayerChildElements(draft.fromParentElement), fromExpected)
+          && layerOrdersMatch(liveLayerChildElements(draft.toParentElement), draft.expectedChildren);
+      }
       return liveLayerChildrenMatch(draft.fromParentElement, draft.baselineChildren)
         && liveLayerChildrenMatch(draft.toParentElement, draft.toBaselineChildren);
+    }
+    if (draft.livePreviewApplied) {
+      return !!draft.parentElement && draft.parentElement.isConnected !== false
+        && layerOrdersMatch(liveLayerChildElements(draft.parentElement), draft.expectedChildren);
     }
     return liveLayerChildrenMatch(draft.parentElement, draft.baselineChildren);
   }
@@ -7956,6 +8108,7 @@
     } else if (layerOrderDrafts[id]) {
       var clearedDraft = layerOrderDrafts[id];
       var clearedElement = clearedDraft ? clearedDraft.movedElement : null;
+      revertLiveMovePreview(clearedDraft);
       delete layerOrderDrafts[id];
       if (activeLayerOrderDraftKey === id) {
         var remainingDrafts = localLayerDrafts();
@@ -9185,6 +9338,12 @@
   function dismiss() {
     hidePanelPresetTooltip();
     if (layerDrag) endLayerDrag();
+    var previewedLayerDrafts = localLayerDrafts().concat(allLayerOrders().filter(function (order) {
+      return !!order.livePreviewApplied && order.state !== "mismatch" && order.state !== "stale" && order.state !== "applied";
+    }));
+    for (var previewIndex = 0; previewIndex < previewedLayerDrafts.length; previewIndex += 1) {
+      revertLiveMovePreview(previewedLayerDrafts[previewIndex]);
+    }
     if (activeStyleScrub) activeStyleScrub.cancel();
     activeStyleEditorFlush = null;
     clearAllStyleDrafts(true);

@@ -219,6 +219,7 @@ async function loadOverlayInternals(options = {}) {
     reorderLayer: typeof reorderLayer === "function" ? reorderLayer : undefined,
     reparentLayer: typeof reparentLayer === "function" ? reparentLayer : undefined,
     resolveLayerReparentDrop: typeof resolveLayerReparentDrop === "function" ? resolveLayerReparentDrop : undefined,
+    validLayerDraft: typeof validLayerDraft === "function" ? validLayerDraft : undefined,
     liveLayerDraftParentsMatch: typeof liveLayerDraftParentsMatch === "function" ? liveLayerDraftParentsMatch : undefined,
     sendLayerIntent: typeof sendLayerIntent === "function" ? sendLayerIntent : undefined,
     pollLayerOperation: typeof pollLayerOperation === "function" ? pollLayerOperation : undefined,
@@ -823,6 +824,39 @@ function makeNestedLayerFixture(internals, document) {
   ];
   internals.setLayerTestState(tree, pairs, null);
   return { tree, pairs, elements };
+}
+
+function enableLiveMovePreviewFixture(document, ...parents) {
+  const cloneElement = (element) => {
+    const clone = document.createElement(element.localName || 'div');
+    clone.localName = element.localName;
+    clone.tagName = element.tagName;
+    clone.getBoundingClientRect = element.getBoundingClientRect;
+    clone.appendChild = function (child) {
+      const existing = this.children.indexOf(child);
+      if (existing !== -1) this.children.splice(existing, 1);
+      this.children.push(child);
+      child.parentElement = this;
+      child.parentNode = this;
+    };
+    clone.children = Array.from(element.children || [], cloneElement);
+    clone.children.forEach((child) => { child.parentElement = clone; child.parentNode = clone; });
+    return clone;
+  };
+  parents.forEach((parent) => {
+    parent.querySelectorAll = () => [];
+    parent.cloneNode = () => cloneElement(parent);
+    Array.from(parent.children || []).forEach((child) => { child.cloneNode = () => cloneElement(child); });
+    const insertBefore = parent.insertBefore;
+    parent.insertBefore = function (node, anchor) {
+      const previousParent = node.parentElement;
+      if (previousParent && previousParent !== this) {
+        const previousIndex = previousParent.children.indexOf(node);
+        if (previousIndex !== -1) previousParent.children.splice(previousIndex, 1);
+      }
+      insertBefore.call(this, node, anchor);
+    };
+  });
 }
 
 test('tool gating keeps the anonymous remote surface at 45 and gates the local DESIGN.md/grab tools', async () => {
@@ -11199,4 +11233,250 @@ test('[scroll fix] panel scroller stays compositor-clean: no mask on the body, n
   assert.ok(src.includes('.raven-grab-body::after'), 'sticky fade overlay replaces the mask');
   const panelRule = src.match(/\.raven-grab-panel \{[\s\S]*?\n    \}/)[0];
   assert.ok(!/backdrop-filter\s*:/.test(panelRule), 'no backdrop-filter declaration on the panel');
+});
+
+test('[live-move preview] reorder applies immediately and keeps the draft valid', async () => {
+  const { internals, document } = await loadOverlayInternals();
+  const { elements } = makeLayerDragFixture(internals, document);
+  const parent = elements[0].parentElement;
+  enableLiveMovePreviewFixture(document, parent);
+
+  internals.reorderLayer('4', '2');
+  const draft = internals.getLayerOrderDraft();
+
+  assert.ok(draft, 'reorder creates a draft');
+  assert.deepEqual(parent.children, draft.expectedChildren, 'live DOM order must match the proposal immediately');
+  assert.equal(draft.livePreviewApplied, true);
+  assert.equal(internals.validLayerDraft(draft), true);
+  assert.equal(internals.batchUiState().enabled, true, 'Send stays enabled for a previewed valid draft');
+});
+
+test('[live-move preview] removeChange restores reorder baseline and clears the preview flag', async () => {
+  const { internals, document } = await loadOverlayInternals();
+  const { elements } = makeLayerDragFixture(internals, document);
+  const parent = elements[0].parentElement;
+  const baseline = parent.children.slice();
+  enableLiveMovePreviewFixture(document, parent);
+
+  internals.reorderLayer('4', '2');
+  const draft = internals.getLayerOrderDraft();
+  assert.equal(draft.livePreviewApplied, true, 'precondition: preview was applied');
+
+  internals.removeChange(draft.clientKey);
+
+  assert.deepEqual(parent.children, baseline);
+  assert.equal(draft.livePreviewApplied, false);
+  assert.equal(internals.getLayerOrderDraft(), null);
+});
+
+test('[live-move preview] dismiss restores reorder baseline', async () => {
+  const { internals, document } = await loadOverlayInternals();
+  const { elements } = makeLayerDragFixture(internals, document);
+  const parent = elements[0].parentElement;
+  const baseline = parent.children.slice();
+  enableLiveMovePreviewFixture(document, parent);
+
+  internals.reorderLayer('4', '2');
+  const draft = internals.getLayerOrderDraft();
+  assert.equal(draft.livePreviewApplied, true, 'precondition: preview was applied');
+
+  internals.dismiss();
+
+  assert.deepEqual(parent.children, baseline);
+  assert.equal(draft.livePreviewApplied, false);
+});
+
+test('[live-move preview] reparent moves across parents and discard restores both baselines', async () => {
+  const { internals, document } = await loadOverlayInternals();
+  const { elements } = makeNestedLayerFixture(internals, document);
+  const sourceParent = elements.section;
+  const targetParent = elements.footer;
+  const sourceBaseline = sourceParent.children.slice();
+  const targetBaseline = targetParent.children.slice();
+  enableLiveMovePreviewFixture(document, sourceParent, targetParent);
+
+  internals.reparentLayer('3', '6', 0);
+  const draft = internals.getLayerOrderDraft();
+
+  assert.equal(draft.livePreviewApplied, true);
+  assert.deepEqual(sourceParent.children, [elements.aside]);
+  assert.deepEqual(targetParent.children, [elements.article]);
+
+  internals.removeChange(draft.clientKey);
+
+  assert.deepEqual(sourceParent.children, sourceBaseline);
+  assert.deepEqual(targetParent.children, targetBaseline);
+  assert.equal(draft.livePreviewApplied, false);
+});
+
+test('[live-move preview] membership drift leaves DOM untouched and flags the draft invalid', async () => {
+  const { internals, document } = await loadOverlayInternals();
+  const { elements } = makeLayerDragFixture(internals, document);
+  const parent = elements[0].parentElement;
+  enableLiveMovePreviewFixture(document, parent);
+
+  internals.reorderLayer('4', '2');
+  const draft = internals.getLayerOrderDraft();
+  assert.equal(draft.livePreviewApplied, true, 'precondition: preview was applied');
+  parent.removeChild(elements[1]);
+  const driftedOrder = parent.children.slice();
+
+  assert.doesNotThrow(() => internals.dismiss());
+
+  assert.deepEqual(parent.children, driftedOrder, 'revert must not mutate a drifted child set');
+  assert.equal(draft.livePreviewApplied, false);
+  assert.equal(internals.validLayerDraft(draft), false, 'membership drift remains visibly invalid');
+});
+
+test('[live-move fix] script-interleaved sibling order restores byte-exact on discard', async () => {
+  const { internals, document } = await loadOverlayInternals();
+  const parent = document.createElement('section');
+  const a = document.createElement('header');
+  const script = document.createElement('script');
+  const b = document.createElement('main');
+  parent.localName = 'section';
+  parent.tagName = 'SECTION';
+  a.localName = 'header';
+  a.tagName = 'HEADER';
+  script.localName = 'script';
+  script.tagName = 'SCRIPT';
+  b.localName = 'main';
+  b.tagName = 'MAIN';
+  parent.parentElement = document.body;
+  parent.children = [a, script, b];
+  parent.children.forEach((child) => { child.parentElement = parent; child.parentNode = parent; });
+  const tree = { id: 1, parentId: null, depth: 0, label: 'section', badges: [], children: [
+    { id: 2, parentId: 1, depth: 1, label: 'header', badges: [], children: [] },
+    { id: 3, parentId: 1, depth: 1, label: 'main', badges: [], children: [] }
+  ] };
+  internals.setLayerTestState(tree, [[1, parent], [2, a], [3, b]], b);
+  enableLiveMovePreviewFixture(document, parent);
+
+  assert.equal(internals.shouldSkipLayerElement(script), true, 'precondition: SCRIPT is excluded from the layers tree');
+  internals.reorderLayer('3', '2');
+  const draft = internals.getLayerOrderDraft();
+  assert.deepEqual(parent.children, [b, a, script], 'precondition: B moves before A optimistically');
+
+  internals.removeChange(draft.clientKey);
+
+  assert.deepEqual(parent.children, [a, script, b]);
+});
+
+test('[live-move fix] composed reparent chain discard restores the element to its original parent', async () => {
+  const { internals, document } = await loadOverlayInternals();
+  const { tree, pairs, elements } = makeNestedLayerFixture(internals, document);
+  elements.root.localName = 'body';
+  elements.root.tagName = 'BODY';
+  document.body.children = [elements.root];
+  const thirdParent = document.createElement('nav');
+  thirdParent.localName = 'nav';
+  thirdParent.tagName = 'NAV';
+  thirdParent.parentElement = elements.root;
+  thirdParent.parentNode = elements.root;
+  elements.root.children.push(thirdParent);
+  tree.children.push({ id: 7, parentId: 1, depth: 1, label: 'nav', badges: [], children: [] });
+  pairs.push([7, thirdParent]);
+  internals.setLayerTestState(tree, pairs, elements.article);
+  const originalChildren = elements.section.children.slice();
+  enableLiveMovePreviewFixture(document, elements.section, elements.footer, thirdParent);
+
+  internals.reparentLayer('3', '6', 0);
+  const firstDraft = internals.getLayerOrderDraft();
+  assert.equal(elements.article.parentElement, elements.footer, 'precondition: first preview reparents P to Q');
+
+  internals.reparentLayer('3', '7', 0);
+  const composedDraft = internals.getLayerOrderDraft();
+  assert.equal(composedDraft.fromParentSelector, firstDraft.toParentSelector, 'the second drag starts from Q');
+  assert.equal(composedDraft.clientKey, firstDraft.clientKey, 'the Q to R drag composes into the same draft');
+
+  internals.removeChange(composedDraft.clientKey);
+
+  assert.equal(elements.article.parentElement, elements.section);
+  assert.deepEqual(elements.section.children, originalChildren);
+});
+
+test('[live-move fix] host order drift then rejection leaves the DOM alone', async () => {
+  const { internals, document } = await loadOverlayInternals({
+    fetch: async (url) => {
+      if (String(url).includes('/layers-intent')) return { ok: true, json: async () => ({ operationId: 'op-live-drift', batchId: 'batch-live-drift' }) };
+      if (String(url).includes('/batch-commit')) return { ok: true, json: async () => ({}) };
+      return { ok: true, json: async () => ({ tokens: [] }) };
+    }
+  });
+  const { elements } = makeLayerDragFixture(internals, document);
+  const parent = elements[0].parentElement;
+  document.body.children = [parent];
+  enableLiveMovePreviewFixture(document, parent);
+
+  internals.reorderLayer('4', '2');
+  await internals.dispatchPendingBatch();
+  await flushOverlayPromises();
+  const order = internals.getPendingLayerOrder();
+  assert.equal(order.operationId, 'op-live-drift', 'precondition: the preview is a registered operation');
+  const driftedOrder = [elements[0], elements[2], elements[1]];
+  parent.children = driftedOrder.slice();
+  parent.children.forEach((child) => { child.parentElement = parent; child.parentNode = parent; });
+
+  internals.handleLayerOperationResult({ id: 'op-live-drift', state: 'rejected', updatedAt: 'now' });
+
+  assert.deepEqual(parent.children, driftedOrder, 'rejection must not overwrite same-membership host order drift');
+  assert.equal(order.livePreviewApplied, false);
+});
+
+test('[live-move fix] adoption clears the preview flag on the applied receipt', async () => {
+  const { internals, document } = await loadOverlayInternals({
+    fetch: async (url) => {
+      if (String(url).includes('/layers-intent')) return { ok: true, json: async () => ({ operationId: 'op-live-adopt', batchId: 'batch-live-adopt' }) };
+      if (String(url).includes('/batch-commit')) return { ok: true, json: async () => ({}) };
+      return { ok: true, json: async () => ({ tokens: [] }) };
+    }
+  });
+  const { elements } = makeLayerDragFixture(internals, document);
+  const parent = elements[0].parentElement;
+  document.body.children = [parent];
+  enableLiveMovePreviewFixture(document, parent);
+
+  internals.reorderLayer('4', '2');
+  const expectedOrder = parent.children.slice();
+  await internals.dispatchPendingBatch();
+  await flushOverlayPromises();
+  const receipt = internals.getPendingLayerOrder();
+  assert.equal(receipt.operationId, 'op-live-adopt', 'precondition: the preview is a registered operation');
+
+  internals.handleLayerOperationResult({ id: 'op-live-adopt', state: 'applied', updatedAt: 'now' });
+
+  assert.equal(receipt.livePreviewApplied, false);
+  assert.equal(receipt.livePreviewUndo ?? null, null);
+  internals.dismiss();
+  assert.deepEqual(parent.children, expectedOrder, 'dismiss must keep the adopted order');
+});
+
+test('[live-move fix] composed same-parent second drag keeps the pristine domSnapshotHash', async () => {
+  const { internals, document } = await loadOverlayInternals();
+  const { elements } = makeLayerDragFixture(internals, document);
+  const parent = elements[0].parentElement;
+  parent.localName = 'section';
+  parent.tagName = 'SECTION';
+  document.body.children = [parent];
+  const pristineOrder = parent.children.slice();
+  Object.defineProperty(parent, 'innerHTML', {
+    configurable: true,
+    get() {
+      return this.children.map((child) => String(pristineOrder.indexOf(child))).join('');
+    }
+  });
+  enableLiveMovePreviewFixture(document, parent);
+
+  internals.reorderLayer('4', '2');
+  const firstDraft = internals.getLayerOrderDraft();
+  const h1 = firstDraft.domSnapshotHash;
+
+  internals.reorderLayer('3', '4');
+  const composedDraft = internals.getLayerOrderDraft();
+
+  assert.equal(composedDraft.parentSelector, firstDraft.parentSelector);
+  assert.equal(composedDraft.clientKey, firstDraft.clientKey);
+  assert.equal(composedDraft.domSnapshotHash, h1);
+  internals.removeChange(composedDraft.clientKey);
+  assert.deepEqual(parent.children, pristineOrder);
 });
