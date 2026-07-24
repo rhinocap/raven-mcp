@@ -91,10 +91,25 @@ svg.fig .marker-line{ stroke: var(--fig-accent, #7E9CB8); stroke-width: calc(var
   stroke-dasharray: 3 4 }
 svg.fig .wash{ fill: var(--fig-wash, #7E9CB8); fill-opacity: var(--fig-wash-o, 0.14) }
 svg.fig .seat{ fill: var(--fig-muted, #8A9299) }
+svg.fig .seat-accent{ fill: var(--fig-accent, #7E9CB8) }
 svg.fig .seat-empty{ fill: none; stroke: var(--fig-accent, #7E9CB8);
   stroke-width: calc(var(--fig-stroke, 2) * 1px); stroke-dasharray: 4 4 }
 svg.fig .table-edge{ fill: none; stroke: var(--fig-muted, #8A9299);
   stroke-width: calc(var(--fig-hair, 1) * 1px) }
+svg.fig .box{ fill: none; stroke: var(--fig-muted, #8A9299);
+  stroke-width: calc(var(--fig-hair, 1) * 1px) }
+svg.fig .box-accent{ fill: none; stroke: var(--fig-accent, #7E9CB8);
+  stroke-width: calc(var(--fig-stroke, 2) * 1px); stroke-dasharray: 4 4 }
+svg.fig .seg{ fill: var(--fig-rule, #2B3036); stroke: var(--fig-muted, #8A9299);
+  stroke-width: calc(var(--fig-hair, 1) * 1px) }
+svg.fig .seg-design{ fill: var(--fig-muted, #8A9299) }
+svg.fig .seg-user{ fill: var(--fig-accent, #7E9CB8) }
+svg.fig .tick{ stroke: var(--fig-ink, #E8EAED);
+  stroke-width: calc(var(--fig-stroke, 2) * 1px); stroke-linecap: round }
+svg.fig .tick-accent{ stroke: var(--fig-accent, #7E9CB8);
+  stroke-width: calc(var(--fig-stroke, 2) * 1px); stroke-linecap: round }
+svg.fig .link{ fill: none; stroke: var(--fig-accent, #7E9CB8);
+  stroke-width: calc(var(--fig-hair, 1) * 1px); stroke-dasharray: 3 4 }
 """
 
 
@@ -152,12 +167,17 @@ def axis(ticks, now_year=None):
 # ============================================================ FIG 01
 # Production cost: flat-high, steep collapse through NOW, flat-low after.
 # Judgment cost: flat, and the production curve crosses it at NOW.
-Y_HI, Y_LO, K, U0 = 158.0, 366.0, 9.0, 0.62
-prod = [(X0 + u / 200 * SPAN, Y_LO + (Y_HI - Y_LO) / (1 + math.exp(K * (u / 200 - U0))))
-        for u in range(201)]
+Y_HI, Y_LO, K = 158.0, 366.0, 9.0
+# Judgment sits 20% higher above the baseline than the old crossing level; the
+# collapse is re-phased (U0 solved, not tuned) so the curve still crosses it at
+# 2026 rather than drifting off the labelled tick.
 U_NOW = (2026 - YEAR0) / (YEAR1 - YEAR0)
 X_NOW = yr(2026)
-Y_JUDGE = Y_LO + (Y_HI - Y_LO) / (1 + math.exp(K * (U_NOW - U0)))
+Y_JUDGE = YBASE - (YBASE - 283.5) * 1.20
+U0 = U_NOW - math.log((Y_LO - Y_HI) / (Y_LO - Y_JUDGE) - 1) / K
+prod = [(X0 + u / 200 * SPAN, Y_LO + (Y_HI - Y_LO) / (1 + math.exp(K * (u / 200 - U0))))
+        for u in range(201)]
+assert abs((Y_LO + (Y_HI - Y_LO) / (1 + math.exp(K * (U_NOW - U0)))) - Y_JUDGE) < 0.01
 
 fig01_body = f"""{head("Production got cheap. Judgment didn&#8217;t.")}
   <line class="marker-line" x1="{X_NOW:.1f}" y1="150" x2="{X_NOW:.1f}" y2="{YBASE}"/>
@@ -237,30 +257,6 @@ fig03_body = f"""{head("One confusing flow, itemised.")}
   <text class="label-key" x="{L}" y="{e2 + 92}">Days of human life</text>
   <text class="total" x="{R}" y="{e2 + 100}" text-anchor="end">{round(DAYS)}</text>"""
 
-# ============================================================ FIG 04  (the room)
-# Design is not a peer function around the table — it is the role that occupies
-# the head seat for the party who is not in the room.
-CX, CY = 382.0, 288.0
-# The head of the table carries ONE seat: the user's, drawn as a dashed outline,
-# with Design filled solid inside it. Design is not a fourth peer around the
-# table — it is the role that occupies the user's seat on the user's behalf.
-HX = CX - 187.0
-fig04_body = f"""{head("Design&#8217;s whole job is that seat.")}
-  <rect class="table-edge" x="{CX - 158}" y="{CY - 62}" width="316" height="124" rx="62"/>
-  <text class="note" x="{CX}" y="{CY + 5}" text-anchor="middle">Release review</text>
-
-  <rect class="seat" x="{CX - 19}" y="{CY - 118}" width="38" height="26" rx="6"/>
-  <text class="label-key" x="{CX}" y="{CY - 134}" text-anchor="middle">Product</text>
-
-  <rect class="seat" x="{CX - 19}" y="{CY + 92}" width="38" height="26" rx="6"/>
-  <text class="label-key" x="{CX}" y="{CY + 142}" text-anchor="middle">Engineering</text>
-
-  <text class="label-key accent" x="{HX}" y="{CY - 46}" text-anchor="middle">Design</text>
-  <rect class="seat-empty" x="{HX - 21}" y="{CY - 27}" width="42" height="54" rx="9"/>
-  <rect x="{HX - 12}" y="{CY - 18}" width="24" height="36" rx="5"
-        fill="var(--fig-accent, #7E9CB8)"/>
-  <text class="label-key accent" x="{HX}" y="{CY + 88}" text-anchor="middle">the user&#8217;s seat</text>"""
-
 # ============================================================ emit
 plates = [
     (1, "fig-01-production-judgment.svg", 720, 400,
@@ -280,12 +276,6 @@ plates = [
      "seconds, done by 100,000 people. Outputs: 2 minutes 50 seconds wasted each, 17,000,000 "
      "seconds, 4,722 hours. The total, set large in the accent colour, is 197 days of human "
      "life.", fig03_body),
-    (4, "fig-04-empty-seat.svg", 720, 420,
-     "Figure 4. Design's whole job is that seat.",
-     "A diagram of a review table seen from above, on a dark ground. Product and Engineering are "
-     "seated along the long sides. At the head of the table is a single seat drawn as a dashed "
-     "outline in the accent colour and labelled 'the user's seat'; Design sits filled solid "
-     "inside that same outline \u2014 occupying it on behalf of the party the release is for.", fig04_body),
 ]
 
 D.mkdir(parents=True, exist_ok=True)

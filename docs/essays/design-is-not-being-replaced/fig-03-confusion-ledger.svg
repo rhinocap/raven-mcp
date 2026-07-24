@@ -68,10 +68,25 @@ svg.fig .marker-line{ stroke: var(--fig-accent, #7E9CB8); stroke-width: calc(var
   stroke-dasharray: 3 4 }
 svg.fig .wash{ fill: var(--fig-wash, #7E9CB8); fill-opacity: var(--fig-wash-o, 0.14) }
 svg.fig .seat{ fill: var(--fig-muted, #8A9299) }
+svg.fig .seat-accent{ fill: var(--fig-accent, #7E9CB8) }
 svg.fig .seat-empty{ fill: none; stroke: var(--fig-accent, #7E9CB8);
   stroke-width: calc(var(--fig-stroke, 2) * 1px); stroke-dasharray: 4 4 }
 svg.fig .table-edge{ fill: none; stroke: var(--fig-muted, #8A9299);
   stroke-width: calc(var(--fig-hair, 1) * 1px) }
+svg.fig .box{ fill: none; stroke: var(--fig-muted, #8A9299);
+  stroke-width: calc(var(--fig-hair, 1) * 1px) }
+svg.fig .box-accent{ fill: none; stroke: var(--fig-accent, #7E9CB8);
+  stroke-width: calc(var(--fig-stroke, 2) * 1px); stroke-dasharray: 4 4 }
+svg.fig .seg{ fill: var(--fig-rule, #2B3036); stroke: var(--fig-muted, #8A9299);
+  stroke-width: calc(var(--fig-hair, 1) * 1px) }
+svg.fig .seg-design{ fill: var(--fig-muted, #8A9299) }
+svg.fig .seg-user{ fill: var(--fig-accent, #7E9CB8) }
+svg.fig .tick{ stroke: var(--fig-ink, #E8EAED);
+  stroke-width: calc(var(--fig-stroke, 2) * 1px); stroke-linecap: round }
+svg.fig .tick-accent{ stroke: var(--fig-accent, #7E9CB8);
+  stroke-width: calc(var(--fig-stroke, 2) * 1px); stroke-linecap: round }
+svg.fig .link{ fill: none; stroke: var(--fig-accent, #7E9CB8);
+  stroke-width: calc(var(--fig-hair, 1) * 1px); stroke-dasharray: 3 4 }
 
 </style>
 <rect width="720" height="555" fill="var(--fig-ground, #0E1013)"/>
