@@ -110,15 +110,16 @@ def plate(n, w, h, title, desc, body, extra_css=""):
 {extra_css}
 </style>
 <rect width="{w}" height="{h}" fill="var(--fig-ground, #0E1013)"/>
+<g transform="translate(0,-30)">
 {body}
+</g>
 </svg>
 """
 
 
-def head(n, title, w=720):
-    """Figure marker, title, and the rule that sits under it."""
-    return f"""  <text class="marker" x="56" y="48">FIG. {n:02d}</text>
-  <text class="title" x="56" y="98">{title}</text>
+def head(title, w=720):
+    """Title and the rule under it. No figure marker — the essay numbers them."""
+    return f"""  <text class="title" x="56" y="98">{title}</text>
   <line class="rule" x1="56" y1="124" x2="{w - 40}" y2="124"/>"""
 
 
@@ -158,17 +159,14 @@ U_NOW = (2026 - YEAR0) / (YEAR1 - YEAR0)
 X_NOW = yr(2026)
 Y_JUDGE = Y_LO + (Y_HI - Y_LO) / (1 + math.exp(K * (U_NOW - U0)))
 
-fig01_body = f"""{head(1, "Production got cheap. Judgment didn&#8217;t.")}
+fig01_body = f"""{head("Production got cheap. Judgment didn&#8217;t.")}
   <line class="marker-line" x1="{X_NOW:.1f}" y1="150" x2="{X_NOW:.1f}" y2="{YBASE}"/>
-  <text class="flag" x="{X_NOW + 10:.1f}" y="150">NOW</text>
   <line class="series-a" x1="{X0}" y1="{Y_JUDGE:.1f}" x2="{X1}" y2="{Y_JUDGE:.1f}"/>
   <path class="series-b" d="{path_from(prod)}"/>
   <circle cx="{X_NOW:.1f}" cy="{Y_JUDGE:.1f}" r="4" fill="var(--fig-accent, #7E9CB8)"/>
   <text class="label-key accent" x="{X1}" y="{Y_JUDGE - 16:.1f}" text-anchor="end">Cost of judgment</text>
   <text class="label-key" x="{X0 + 8}" y="{Y_HI + 32:.1f}">Cost of production</text>
-{axis([2014, 2020, 2026, 2032], now_year=2026)}
-  <text class="note" x="56" y="{YBASE + 62}">Vertical axis is relative cost, deliberately</text>
-  <text class="note" x="56" y="{YBASE + 84}">unlabelled. The shape is the argument.</text>"""
+{axis([2014, 2020, 2026, 2032], now_year=2026)}"""
 
 # ============================================================ FIG 02
 A = 3.0
@@ -188,34 +186,32 @@ U_TAX = 0.86
 X_TAX = X0 + U_TAX * SPAN
 Y_TAX = (supply(U_TAX) + Y_ATT) / 2
 
-fig02_body = f"""{head(2, "Infinite supply. Fixed attention.")}
+fig02_body = f"""{head("Infinite supply. Fixed attention.")}
   <path class="wash" d="{wedge_d}"/>
   <path class="series-b" d="{path_from(sup_pts)}"/>
   <line class="series-a" x1="{X0}" y1="{Y_ATT}" x2="{X1}" y2="{Y_ATT}"/>
-  <text class="flag" x="{X_TAX:.1f}" y="{Y_TAX + 5:.1f}" text-anchor="middle">THE TAX</text>
   <text class="label-key" x="{X1}" y="{Y_TOP - 18:.1f}" text-anchor="end">Products shipped</text>
   <text class="label-key accent" x="{X0}" y="{Y_ATT - 18:.1f}">Attention available</text>
-{axis([2014, 2020, 2026, 2032])}
-  <text class="note" x="56" y="{YBASE + 62}">Both axes are relative. Attention is flat because</text>
-  <text class="note" x="56" y="{YBASE + 84}">there is no mechanism by which it could rise.</text>"""
+{axis([2014, 2020, 2026, 2032])}"""
 
 # ============================================================ FIG 03  (ledger)
-# 13 min x 100,000 people x 4 releases = 5,200,000 min/yr
-#   = 86,666.7 h = 3,611.1 d = 9.89 yr of continuous human life.
-MIN_PER_YEAR = 13 * 100_000 * 4
-HOURS = MIN_PER_YEAR / 60
+# 100,000 people spend 3 min on something that should take 10 s.
+#   170 s wasted each x 100,000 = 17,000,000 s = 4,722.2 h = 196.8 d.
+TAKES_S, SHOULD_S, PEOPLE = 180, 10, 100_000
+WASTE_S = TAKES_S - SHOULD_S
+TOTAL_S = WASTE_S * PEOPLE
+HOURS = TOTAL_S / 3600
 DAYS = HOURS / 24
-YEARS = HOURS / 8760
-assert MIN_PER_YEAR == 5_200_000
-assert round(HOURS) == 86_667 and round(DAYS) == 3_611 and round(YEARS, 1) == 9.9
+assert WASTE_S == 170 and TOTAL_S == 17_000_000
+assert round(HOURS) == 4_722 and round(DAYS) == 197
 
 L, R = 56, 680
-rows_in = [("Extra time one confusing flow costs a person", "13 min"),
-           ("People who meet that flow", "100,000"),
-           ("Releases in a year", "4")]
-rows_out = [("Minutes lost, every year", f"{MIN_PER_YEAR:,}"),
-            ("Hours", f"{round(HOURS):,}"),
-            ("Days", f"{round(DAYS):,}")]
+rows_in = [("What it takes", "3 min"),
+           ("What it should take", "10 sec"),
+           ("People who do it", f"{PEOPLE:,}")]
+rows_out = [("Wasted, per person", "2 min 50 sec"),
+            ("Seconds", f"{TOTAL_S:,}"),
+            ("Hours", f"{round(HOURS):,}")]
 
 
 def ledger(rows, y, step=44):
@@ -230,7 +226,7 @@ def ledger(rows, y, step=44):
 blk1, e1 = ledger(rows_in, 190)
 blk2, e2 = ledger(rows_out, e1 + 116)
 
-fig03_body = f"""{head(3, "One confusing flow, itemised.")}
+fig03_body = f"""{head("One confusing flow, itemised.")}
   <text class="marker" x="{L}" y="156">WHAT GOES IN</text>
 {blk1}
   <line class="rule" x1="{L}" y1="{e1 + 34}" x2="{R}" y2="{e1 + 34}"/>
@@ -238,57 +234,58 @@ fig03_body = f"""{head(3, "One confusing flow, itemised.")}
 {blk2}
   <line class="rule" x1="{L}" y1="{e2 + 34}" x2="{R}" y2="{e2 + 34}"
         stroke="var(--fig-accent, #7E9CB8)"/>
-  <text class="label-key" x="{L}" y="{e2 + 92}">Human-years, every year</text>
-  <text class="total" x="{R}" y="{e2 + 100}" text-anchor="end">9.9</text>
-  <text class="note" x="{L}" y="{e2 + 150}">13 &#215; 100,000 &#215; 4 = 5,200,000 minutes. At 60 minutes</text>
-  <text class="note" x="{L}" y="{e2 + 172}">to the hour and 8,760 hours to the year, that is 9.9</text>
-  <text class="note" x="{L}" y="{e2 + 194}">years of continuous human life, every year, from one flow.</text>"""
+  <text class="label-key" x="{L}" y="{e2 + 92}">Days of human life</text>
+  <text class="total" x="{R}" y="{e2 + 100}" text-anchor="end">{round(DAYS)}</text>"""
 
 # ============================================================ FIG 04  (the room)
-CX, CY = 424.0, 288.0
-fig04_body = f"""{head(4, "Nobody in the room represents them.")}
+# Design is not a peer function around the table — it is the role that occupies
+# the head seat for the party who is not in the room.
+CX, CY = 382.0, 288.0
+# The head of the table carries ONE seat: the user's, drawn as a dashed outline,
+# with Design filled solid inside it. Design is not a fourth peer around the
+# table — it is the role that occupies the user's seat on the user's behalf.
+HX = CX - 187.0
+fig04_body = f"""{head("Design&#8217;s whole job is that seat.")}
   <rect class="table-edge" x="{CX - 158}" y="{CY - 62}" width="316" height="124" rx="62"/>
   <text class="note" x="{CX}" y="{CY + 5}" text-anchor="middle">Release review</text>
 
-  <rect class="seat" x="{CX - 110}" y="{CY - 118}" width="38" height="26" rx="6"/>
-  <text class="label-key" x="{CX - 91}" y="{CY - 134}" text-anchor="middle">Product</text>
+  <rect class="seat" x="{CX - 19}" y="{CY - 118}" width="38" height="26" rx="6"/>
+  <text class="label-key" x="{CX}" y="{CY - 134}" text-anchor="middle">Product</text>
 
   <rect class="seat" x="{CX - 19}" y="{CY + 92}" width="38" height="26" rx="6"/>
   <text class="label-key" x="{CX}" y="{CY + 142}" text-anchor="middle">Engineering</text>
 
-  <rect class="seat" x="{CX + 72}" y="{CY - 118}" width="38" height="26" rx="6"/>
-  <text class="label-key" x="{CX + 91}" y="{CY - 134}" text-anchor="middle">Design</text>
-
-  <rect class="seat-empty" x="{CX - 210}" y="{CY - 19}" width="26" height="38" rx="6"/>
-  <text class="label-key accent" x="{CX - 226}" y="{CY + 6}" text-anchor="end">the user</text>
-
-  <text class="note" x="56" y="482">Three functions are represented. The seat at the head</text>
-  <text class="note" x="56" y="504">belongs to the party the release is for, and it is the</text>
-  <text class="note" x="56" y="526">one nobody is sitting in.</text>"""
+  <text class="label-key accent" x="{HX}" y="{CY - 46}" text-anchor="middle">Design</text>
+  <rect class="seat-empty" x="{HX - 21}" y="{CY - 27}" width="42" height="54" rx="9"/>
+  <rect x="{HX - 12}" y="{CY - 18}" width="24" height="36" rx="5"
+        fill="var(--fig-accent, #7E9CB8)"/>
+  <text class="label-key accent" x="{HX}" y="{CY + 88}" text-anchor="middle">the user&#8217;s seat</text>"""
 
 # ============================================================ emit
 plates = [
-    (1, "fig-01-production-judgment.svg", 720, 520,
+    (1, "fig-01-production-judgment.svg", 720, 400,
      "Figure 1. Production got cheap. Judgment didn't.",
      "A line chart on a dark ground. The cost of production holds high, collapses steeply, then "
      "flattens near zero. The cost of judgment is a flat horizontal line. The production curve "
-     "crosses the judgment line at a point marked NOW; after that crossing, production is the "
-     "cheap input and judgment is the expensive one.", fig01_body),
-    (2, "fig-02-supply-attention.svg", 720, 520,
+     "crosses the judgment line near the present; after that crossing, production is the cheap "
+     "input and judgment is the expensive one.", fig01_body),
+    (2, "fig-02-supply-attention.svg", 720, 400,
      "Figure 2. Infinite supply. Fixed attention.",
      "A line chart on a dark ground. Products shipped rises exponentially. Attention available is "
-     "a flat horizontal line. Where the rising curve passes above the flat line, the widening gap "
-     "between them is shaded and labelled THE TAX.", fig02_body),
-    (3, "fig-03-confusion-ledger.svg", 720, 694,
+     "a flat horizontal line. Where the rising curve passes above the flat line, the widening "
+     "distance between them is shaded.", fig02_body),
+    (3, "fig-03-confusion-ledger.svg", 720, 555,
      "Figure 3. One confusing flow, itemised.",
-     "A ledger on a dark ground. Inputs: 13 minutes lost per person, 100,000 people, 4 releases a "
-     "year. Outputs: 5,200,000 minutes, 86,667 hours, 3,611 days. The total, set large in the "
-     "accent colour, is 9.9 human-years every year, from a single confusing flow.", fig03_body),
-    (4, "fig-04-empty-seat.svg", 720, 566,
-     "Figure 4. Nobody in the room represents them.",
-     "A diagram of a review table seen from above, on a dark ground. Three seats are filled and "
-     "labelled Product, Design and Engineering, all along the long sides. The one seat at an end of "
-     "the table is drawn as an empty dashed outline in the accent colour and labelled 'the user'.", fig04_body),
+     "A ledger on a dark ground. Inputs: something that takes 3 minutes and should take 10 "
+     "seconds, done by 100,000 people. Outputs: 2 minutes 50 seconds wasted each, 17,000,000 "
+     "seconds, 4,722 hours. The total, set large in the accent colour, is 197 days of human "
+     "life.", fig03_body),
+    (4, "fig-04-empty-seat.svg", 720, 420,
+     "Figure 4. Design's whole job is that seat.",
+     "A diagram of a review table seen from above, on a dark ground. Product and Engineering are "
+     "seated along the long sides. At the head of the table is a single seat drawn as a dashed "
+     "outline in the accent colour and labelled 'the user's seat'; Design sits filled solid "
+     "inside that same outline \u2014 occupying it on behalf of the party the release is for.", fig04_body),
 ]
 
 D.mkdir(parents=True, exist_ok=True)
@@ -357,7 +354,7 @@ figcaption{{
 
 print(f"crossing NOW at x={X_NOW:.1f}  judgment y={Y_JUDGE:.1f}")
 print(f"supply crosses attention at x={X_CROSS:.1f} (u={U_CROSS:.3f})")
-print(f"arithmetic: {MIN_PER_YEAR:,} min = {HOURS:,.1f} h = {DAYS:,.1f} d = {YEARS:.4f} yr")
+print(f"arithmetic: {TOTAL_S:,} s = {HOURS:,.1f} h = {DAYS:,.1f} d")
 for name, size in written:
     print(f"{name:38} {size/1024:6.1f} KB")
 print(f"{'figures-contact-sheet.html':38} {(D/'figures-contact-sheet.html').stat().st_size/1024:6.1f} KB")
