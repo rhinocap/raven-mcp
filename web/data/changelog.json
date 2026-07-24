@@ -26,6 +26,19 @@
   },
   "releases": [
     {
+      "version": "v2.2.5",
+      "date": "2026-07-24",
+      "category": "audits",
+      "kind": "fix",
+      "title": "A heavy page can no longer stall a capture",
+      "changes": [
+        "Capturing a page that animates continuously and never goes network-idle could wait forever with no error — it now aborts after 90 seconds and says why.",
+        "Affects anything that renders a live URL: audit_url, audit_taste in url mode, and the reference sites captured by bind_taste_surface.",
+        "Pass overall_timeout_ms to raise the ceiling for a page worth waiting on.",
+        "No tool changes — the 100-tool surface is unchanged."
+      ]
+    },
+    {
       "version": "v2.2.4",
       "date": "2026-07-24",
       "category": "tooling",

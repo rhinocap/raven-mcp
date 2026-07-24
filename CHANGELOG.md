@@ -6,6 +6,10 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [2.2.5] - 2026-07-24
+
+Capture reliability fix. No tool changes — the 100-tool stdio surface is unchanged.
+
 ### Fixed
 - Page capture can no longer block indefinitely. Individual browser calls were bounded, but the steps after page load — hydration, scroll settle, animation settle, trait collection — could each wait on a signal a continuously-animating page never sends, so capturing a heavy reference site (`bind_taste_surface` with `references`, `audit_url`, `audit_taste` in url mode) could hang with no error and no timeout. Capture now has a 90-second wall-clock ceiling and fails with a clear `CaptureTimeoutError`; pass `overall_timeout_ms` to raise it for a page worth waiting on.
 

@@ -309,6 +309,24 @@
       </div>
 
       <ol class="cl-timeline">
+        <li class="cl-item" data-category="audits">
+          <span aria-hidden="true" class="cl-node cat-audits"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
+              <span class="cl-version">v2.2.5</span>
+              <span class="cl-badge kind-fix">Fix</span>
+              <time datetime="2026-07-24" class="cl-date">July 24, 2026</time>
+            </header>
+            <h2 class="cl-title">A heavy page can no longer stall a capture</h2>
+            <ul class="cl-changes">
+              <li>Capturing a page that animates continuously and never goes network-idle could wait forever with no error — it now aborts after 90 seconds and says why.</li>
+              <li>Affects anything that renders a live URL: audit_url, audit_taste in url mode, and the reference sites captured by bind_taste_surface.</li>
+              <li>Pass overall_timeout_ms to raise the ceiling for a page worth waiting on.</li>
+              <li>No tool changes — the 100-tool surface is unchanged.</li>
+            </ul>
+          </article>
+        </li>
         <li class="cl-item" data-category="tooling">
           <span aria-hidden="true" class="cl-node cat-tooling"></span>
           <article class="cl-card">
