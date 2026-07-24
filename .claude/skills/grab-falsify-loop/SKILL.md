@@ -30,6 +30,8 @@ Every substantive change to `browser/raven-grab.js` runs this loop until a falsi
 
 ## Gotchas
 
+- Page scrolls even though every wheel event is preventDefaulted → a host smooth-scroll library (Lenis) is reading deltas from its own listener and driving `scrollTo()`; patch `scrollTo`/`scrollIntoView`/`focus` with stack-trace logging in the live tab BEFORE theorizing about compositor hit-testing — two CSS "fixes" were shipped against the wrong cause. Swallowed wheels need `stopImmediatePropagation()`, not just `preventDefault()`.
+
 - Codex agent edits get auto-staged — use `git diff HEAD`, not `git diff`.
 - Keep workflow `agent()` return schemas tiny (or schemaless): a large JSON return killed a leg on the StructuredOutput retry cap AFTER all its work was done (recover from the transcript, don't re-run).
 - A codex wrapper that narrates timers with no findings is stalled — fire a fresh pass.
