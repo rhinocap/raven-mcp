@@ -366,7 +366,10 @@
       border: 1px solid rgba(255, 255, 255, .12); border-radius: 20px;
       box-shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 0 32px rgba(0, 191, 255, .06),
         0 8px 16px -4px rgba(0, 0, 0, .35), 0 24px 48px -12px rgba(0, 0, 0, .5);
-      backdrop-filter: blur(12px); font: calc(13px * var(--raven-grab-font-scale))/1.45 var(--raven-grab-ui);
+      font: calc(13px * var(--raven-grab-font-scale))/1.45 var(--raven-grab-ui);
+      /* No backdrop-filter here: the background is opaque so the blur was invisible,
+         and it layerized the panel in a way that broke compositor scroll hit-testing
+         (trackpad wheels scrolled the page under the panel). */
       overscroll-behavior: contain; transform: translateX(0); transition: transform 200ms ease;
     }
     .raven-grab-panel[data-side="left"] { right: auto; left: 20px; }
@@ -487,7 +490,11 @@
        scrollIntoView({block:"nearest"}) both park an element flush against the
        bottom edge, which would otherwise leave a real focus ring half faded on a
        control that is still focused and operable. */
-    .raven-grab-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; scroll-padding-bottom: 18px; scrollbar-width: thin; scrollbar-color: #3c3c47 #212129; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent 100%); mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent 100%); }
+    .raven-grab-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; scroll-padding-bottom: 18px; scrollbar-width: thin; scrollbar-color: #3c3c47 #212129; }
+    /* Bottom fade as a sticky overlay, NOT a mask: masking the scrolling contents
+       corrupted the compositor's scroll hit-test data for this scroller, so real
+       trackpad wheels latched the page underneath instead of the panel. */
+    .raven-grab-body::after { content: ""; position: sticky; bottom: 0; display: block; height: 16px; margin-top: -16px; background: linear-gradient(to bottom, rgba(33, 33, 41, 0), var(--raven-grab-surface)); pointer-events: none; }
     .raven-grab-body::-webkit-scrollbar { width: 6px; }
     .raven-grab-body::-webkit-scrollbar-thumb { background: #3c3c47; border-radius: 999px; }
     .raven-grab-content { padding: 16px; }

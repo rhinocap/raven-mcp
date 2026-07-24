@@ -11175,3 +11175,17 @@ test('[scroll fix] document wheel listener drives the panel scroller on the main
   assert.equal(prevented, false);
   assert.equal(scroller.scrollTop, 152);
 });
+
+test('[scroll fix] panel scroller stays compositor-clean: no mask on the body, no backdrop-filter on the panel', async () => {
+  // Masking the scrolling contents (and layerizing the panel with a backdrop-filter
+  // that was invisible over its opaque background) corrupted compositor scroll
+  // hit-test data — real trackpad wheels latched the page underneath the panel
+  // while synthetic wheels worked fine. The fade is a sticky ::after overlay now.
+  const overlayPath = process.env.RAVEN_GRAB_TEST_OVERLAY || path.resolve(__dirname, '../browser/raven-grab.js');
+  const src = await readFile(overlayPath, 'utf8');
+  const bodyRule = src.match(/\.raven-grab-body \{[^}]*\}/)[0];
+  assert.ok(!/mask-image/.test(bodyRule), 'no mask on the scrolling body');
+  assert.ok(src.includes('.raven-grab-body::after'), 'sticky fade overlay replaces the mask');
+  const panelRule = src.match(/\.raven-grab-panel \{[\s\S]*?\n    \}/)[0];
+  assert.ok(!/backdrop-filter\s*:/.test(panelRule), 'no backdrop-filter declaration on the panel');
+});
