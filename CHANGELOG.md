@@ -6,6 +6,13 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [2.2.4] - 2026-07-24
+
+Grab bridge proxy fix. No tool changes — the 100-tool stdio surface is unchanged.
+
+### Fixed
+- Serving a dev server through the grab bridge's proxy mode no longer breaks it. The bridge did not forward WebSocket upgrades, so the dev server's hot-reload socket failed in a retry loop; on Next.js 16 that also stopped the page hydrating, leaving the proxied app blank with no error to go on. Hot reload now works through the bridge, and framework dev sockets in general are passed straight through.
+
 ## [2.2.3] - 2026-07-24
 
 Raven Design overlay layer moves. No tool changes — the 100-tool stdio surface is unchanged.
