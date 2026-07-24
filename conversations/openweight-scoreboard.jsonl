@@ -1,0 +1,2 @@
+{"task":"AC1-smoke","subtask":"one-sentence: what is a design token?","bucket":"open-weight","model":"z-ai/glm-5.2","quality_1to10":8,"cost_usd":0.0012009,"wall_sec":4.66,"notes":"crisp, platform-agnostic framing; reasoning model","date":"2026-07-23"}
+{"task":"AC1-smoke","subtask":"one-sentence: what is a design token?","bucket":"open-weight","model":"moonshotai/kimi-k3","quality_1to10":8,"cost_usd":0.0060735,"wall_sec":11.74,"notes":"equal quality; 5x cost + 2.5x slower than GLM","date":"2026-07-23"}
