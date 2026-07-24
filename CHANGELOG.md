@@ -6,6 +6,18 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [2.2.3] - 2026-07-24
+
+Raven Design overlay layer moves. No tool changes — the 100-tool stdio surface is unchanged.
+
+### Added
+- Dragging a row in the overlay's layers tree now moves the real element on the page immediately, the way browser devtools does, instead of only queueing a pending change. The move is a preview: the pending-changes tray still carries the intent, and your agent's source edit remains what actually ships.
+- Discarding a pending move puts the page back exactly as it was, including any non-visual elements (scripts, styles) that sat between the siblings you moved.
+
+### Fixed
+- Moving the same element twice before sending no longer stacks the second move on top of the preview — the second drag measures from the page's real pre-move state.
+- If the page re-renders underneath a pending move, the overlay leaves its DOM alone instead of trying to restore a layout that no longer exists.
+
 ## [2.2.2] - 2026-07-23
 
 Raven Design overlay reliability. No tool changes — the 100-tool stdio surface is unchanged.

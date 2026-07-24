@@ -314,6 +314,24 @@
           <article class="cl-card">
             <header class="cl-card-head">
               <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.2.3</span>
+              <span class="cl-badge kind-feature">Feature</span>
+              <time datetime="2026-07-24" class="cl-date">July 24, 2026</time>
+            </header>
+            <h2 class="cl-title">Layer drags move the page live</h2>
+            <ul class="cl-changes">
+              <li>Drag a row in the layers tree and the real element moves on the page immediately, the way browser devtools does — no waiting on the agent to see the result.</li>
+              <li>The move is still a pending change: the tray carries the intent and your agent's source edit remains what ships.</li>
+              <li>Discarding a move restores the page exactly, including scripts and styles that sat between the siblings you moved.</li>
+              <li>Moving the same element twice before sending measures from the real pre-move state, and a page that re-renders underneath a pending move is left alone.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
               <span class="cl-version">v2.2.2</span>
               <span class="cl-badge kind-fix">Fix</span>
               <time datetime="2026-07-23" class="cl-date">July 23, 2026</time>
