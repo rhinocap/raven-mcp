@@ -3,8 +3,10 @@
 # output + tokens + real cost + wall-clock as one JSON line. The open-weight
 # bucket primitive for the routing lane (idea_2) and fan-out benchmark (idea_4).
 #
-# Usage:  echo "your prompt" | ow-run <model> [max_tokens]
+# Usage:  echo "your prompt" | ow-run <model> [max_tokens] [reasoning]
 #         ow-run z-ai/glm-5.2 <<< "what is a design token?"
+#         ow-run moonshotai/kimi-k3 8000 low   <<< "..."   # cap reasoning: low|medium|high effort
+#         ow-run moonshotai/kimi-k3 8000 2000  <<< "..."   # ...or a hard reasoning-token budget
 # Env:    OPENROUTER_KEY_FILE (default ~/.openrouter_key)
 #
 # ponytail: direct OpenRouter API, NOT proxy+headless-claude. The proxy is only
@@ -14,16 +16,21 @@ set -euo pipefail
 
 MODEL="${1:?usage: echo prompt | ow-run <model> [max_tokens]}"
 MAX_TOKENS="${2:-4096}"   # generous: GLM/Kimi are reasoning models; low budgets get eaten by reasoning tokens
+REASONING="${3:-}"        # optional: low|medium|high effort, or a number = reasoning max_tokens; without it Kimi can eat 16k+ on a long input and return empty
 KEY_FILE="${OPENROUTER_KEY_FILE:-$HOME/.openrouter_key}"
 [ -r "$KEY_FILE" ] || { echo "ow-run: no readable key at $KEY_FILE" >&2; exit 1; }
 
-OW_MODEL="$MODEL" OW_MAX="$MAX_TOKENS" OW_KEY="$(cat "$KEY_FILE")" OW_PROMPT="$(cat)" python3 <<'PY'
+OW_MODEL="$MODEL" OW_MAX="$MAX_TOKENS" OW_REASONING="$REASONING" OW_KEY="$(cat "$KEY_FILE")" OW_PROMPT="$(cat)" python3 <<'PY'
 import os, sys, json, time, urllib.request, urllib.error
 model, mx, key, prompt = os.environ["OW_MODEL"], int(os.environ["OW_MAX"]), os.environ["OW_KEY"], os.environ["OW_PROMPT"]
 if not prompt.strip():
     print("ow-run: empty prompt on stdin", file=sys.stderr); sys.exit(1)
-body = json.dumps({"model": model, "messages": [{"role": "user", "content": prompt}],
-                   "max_tokens": mx, "usage": {"include": True}}).encode()
+payload = {"model": model, "messages": [{"role": "user", "content": prompt}],
+           "max_tokens": mx, "usage": {"include": True}}
+r = os.environ.get("OW_REASONING", "")
+if r:
+    payload["reasoning"] = {"max_tokens": int(r)} if r.isdigit() else {"effort": r}
+body = json.dumps(payload).encode()
 req = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions", data=body,
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
 start = time.time()
