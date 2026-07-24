@@ -1,4 +1,6 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "http";
+import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse } from "http";
+import { request as httpsRequest } from "https";
+import type { Duplex } from "stream";
 import { randomBytes } from "crypto";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { basename, join, dirname, resolve } from "path";
@@ -405,6 +407,15 @@ export async function startGrabSession(path?: string, port?: number, proxyTarget
 
   var server = createServer(function (req, res) {
     void handleGrabRequest(abs, key, req, res, normalizedTarget, role);
+  });
+
+  // Dev servers talk to their client over a WebSocket (Next/Turbopack HMR, Vite
+  // HMR, RSC dev). Without an upgrade handler the request falls through to the
+  // fetch()-based proxy above, which cannot upgrade, so the socket 502s in a
+  // retry loop — and on Next 16 the client never finishes hydrating, leaving a
+  // fully blank page with no console error. Pipe upgrades straight through.
+  server.on("upgrade", function (req, socket, head) {
+    proxyGrabUpgrade(normalizedTarget, req, socket, head);
   });
 
   var actualPort = 0;
@@ -1051,6 +1062,44 @@ function setCorsHeaders(res: ServerResponse): void {
 var MAX_BODY_BYTES = 1024 * 1024;
 var MAX_PROXY_BODY_BYTES = 25 * 1024 * 1024;
 var MAX_QUEUE_LENGTH = 200;
+
+function proxyGrabUpgrade(proxyTarget: string | undefined, req: IncomingMessage, socket: Duplex, head: Buffer): void {
+  if (!proxyTarget) {
+    socket.destroy();
+    return;
+  }
+  var target = new URL(proxyTarget);
+  var makeRequest = target.protocol === "https:" ? httpsRequest : httpRequest;
+  var upstream = makeRequest({
+    protocol: target.protocol,
+    hostname: target.hostname,
+    port: target.port || (target.protocol === "https:" ? 443 : 80),
+    method: req.method,
+    path: req.url,
+    headers: Object.assign({}, req.headers, { host: target.host })
+  });
+  upstream.on("upgrade", function (upstreamRes, upstreamSocket, upstreamHead) {
+    var lines = ["HTTP/1.1 " + upstreamRes.statusCode + " " + (upstreamRes.statusMessage || "Switching Protocols")];
+    for (var i = 0; i < upstreamRes.rawHeaders.length; i += 2) {
+      lines.push(upstreamRes.rawHeaders[i] + ": " + upstreamRes.rawHeaders[i + 1]);
+    }
+    socket.write(lines.join("\r\n") + "\r\n\r\n");
+    if (upstreamHead && upstreamHead.length) socket.write(upstreamHead);
+    if (head && head.length) upstreamSocket.write(head);
+    upstreamSocket.on("error", function () { socket.destroy(); });
+    socket.on("error", function () { upstreamSocket.destroy(); });
+    upstreamSocket.pipe(socket);
+    socket.pipe(upstreamSocket);
+  });
+  upstream.on("response", function (upstreamRes) {
+    // Upstream refused the upgrade — mirror its status instead of hanging.
+    socket.write("HTTP/1.1 " + upstreamRes.statusCode + " " + (upstreamRes.statusMessage || "") + "\r\n\r\n");
+    socket.destroy();
+  });
+  upstream.on("error", function () { socket.destroy(); });
+  socket.on("error", function () { upstream.destroy(); });
+  upstream.end();
+}
 
 async function proxyGrabRequest(proxyTarget: string, key: string, method: string, requestUrl: string, req: IncomingMessage, res: ServerResponse, role: GrabRole): Promise<void> {
   var targetPath = new URL(requestUrl, "http://127.0.0.1");
