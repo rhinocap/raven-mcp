@@ -56,3 +56,11 @@ fixed both immediately. Reuse the last-good harness, don't re-derive it.
 - `f23-templates-layers` (150 local commits, unpushed) is now redundant except
   for the mobile tap-target work, which is still unlanded — that's the only
   reason to keep it.
+
+## Release v2.2.3 (partial — npm pending)
+- `e58f0a4` Changelog: v2.2.3 (CHANGELOG.md + web/data/changelog.json + regenerated site/changelog.html)
+- `403aa61` Release v2.2.3 (version bump, manifest/server sync, site/raven.mcpb rebuild), tag `v2.2.3` pushed
+- `vercel deploy --prod` from `web/` → dpl_Bsq5yeJBm896eGeMQzkw8P7zY2XZ READY. Live apex verified: changelog shows v2.2.3; ravenmcp.ai/raven-grab.js has applyLiveMovePreview (3 hits).
+- Frozen anon surface re-verified post-deploy: 45 tools, sha256 f64bb18…2bb0a6 OK. Manifest holds 100 stdio tools.
+- Local `dist/` rebuilt at 2.2.3.
+- BLOCKED: `npm whoami` → E401. Andrew must `! npm login` then `! npm publish`. npm still shows 2.2.2.
