@@ -66,3 +66,39 @@ fixed both immediately. Reuse the last-good harness, don't re-derive it.
 - BLOCKED: `npm whoami` → E401. Andrew must `! npm login` then `! npm publish`. npm still shows 2.2.2.
 - PUBLISHED: npm raven-mcp@2.2.3 (tarball sha 30b6fd36…). Root cause of the E404: `npm login` never wrote ~/.npmrc (mtime still Jul 23) — an unauthenticated PUT on an existing package 404s rather than 403s. Cleared the dead _authToken (backup ~/.npmrc.bak-2026-07-24), Andrew re-logged in, publish succeeded.
 - Published dist/ verified byte-identical (`diff -rq`) to the local build the 1084-pass suite ran against.
+
+## Release marketing preview + site grabs (afternoon)
+
+**What:** Built `scripts/prepare-marketing-preview.mjs` (`6d95cc1`) — the approval-gated
+release preview that was planned on 2026-07-23 and never implemented. `release.sh` now
+calls it best-effort after the push. It gates on `check-site-drift`, worktrees, runs a
+Codex leg confined to `web/`, builds, and serves with the Grab overlay. Never commits,
+pushes, or deploys.
+
+**Why:** tool #100 shipped in v2.1.0 and the site still said "99 tools" three releases
+later. Caught by hand 2026-07-24; nothing was watching.
+
+**Pushed:** `6d95cc1` (script + hook + release SKILL.md), `3692aaf` (site edits), apex
+deployed and verified live.
+
+**Site changes from Andrew's grabs on the preview:** eyebrow labels removed everywhere
+(hero badge, 15 section labels, changelog + design-system page eyebrows), hero text-link
+row removed, prose link underlines removed. Plus the preview's own finds: the `audit`
+dispatcher card, the stale `move_grab_layer` blurb, and three headings that spelled the
+count out as "ninety-nine" — invisible to the numeric drift checker.
+
+**Mistakes/Lessons:**
+- Containment check trimmed git porcelain lines before slicing the status column, so
+  every path was mangled and a clean run read as a violation. Bare paths from
+  `diff --name-only` + `ls-files -o` avoid the whole class.
+- `--version X` resolved its range to `HEAD` instead of tag `vX`, so a rerun after the
+  tag diffed the wrong commits.
+- The model leg needs `--ephemeral --ignore-user-config` AND an explicit ban on builds
+  and verification rituals, or it burns budget on session skills and sandboxed installs.
+- Foreground `sleep` is a no-op in this harness — poll with a background `until` loop.
+- The leg is trusted on drift, not on voice: it rewrote the v2.2.3 changelog bullets into
+  engineer-log ("Cache-Control: no-store", "compositing"). Rejected; shipped copy kept.
+
+**Still open:** `web/public/llms.txt` says "99 tools" and "MIT license" (Apache-2.0 since
+v2.2.0) — `check-site-drift.mjs` only scans `web/app/**`. `/docs` documents 42 of 100.
+390px responsive unverified (the extension's resize_window didn't change the viewport).
