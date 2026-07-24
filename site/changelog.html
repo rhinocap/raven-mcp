@@ -314,6 +314,23 @@
           <article class="cl-card">
             <header class="cl-card-head">
               <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.2.4</span>
+              <span class="cl-badge kind-fix">Fix</span>
+              <time datetime="2026-07-24" class="cl-date">July 24, 2026</time>
+            </header>
+            <h2 class="cl-title">Hot reload survives the grab bridge</h2>
+            <ul class="cl-changes">
+              <li>Serving your dev server through the bridge's proxy mode no longer breaks it — WebSocket upgrades are passed straight through, so hot reload keeps working.</li>
+              <li>On Next.js 16 the dropped socket also stopped the page hydrating, leaving the proxied app blank with no error to go on. That case is fixed.</li>
+              <li>No tool changes — the 100-tool surface is unchanged.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
               <span class="cl-version">v2.2.3</span>
               <span class="cl-badge kind-feature">Feature</span>
               <time datetime="2026-07-24" class="cl-date">July 24, 2026</time>

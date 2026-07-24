@@ -26,6 +26,18 @@
   },
   "releases": [
     {
+      "version": "v2.2.4",
+      "date": "2026-07-24",
+      "category": "tooling",
+      "kind": "fix",
+      "title": "Hot reload survives the grab bridge",
+      "changes": [
+        "Serving your dev server through the bridge's proxy mode no longer breaks it — WebSocket upgrades are passed straight through, so hot reload keeps working.",
+        "On Next.js 16 the dropped socket also stopped the page hydrating, leaving the proxied app blank with no error to go on. That case is fixed.",
+        "No tool changes — the 100-tool surface is unchanged."
+      ]
+    },
+    {
       "version": "v2.2.3",
       "date": "2026-07-24",
       "category": "tooling",
