@@ -14,6 +14,7 @@ const checks = {
     markdownVersion: null,
     siteVersion: null,
   },
+  bundle: { status: "PASS", version: null },
 };
 
 function addError(check, message, extra = {}) {
@@ -251,6 +252,29 @@ if (
   );
 }
 
+// release.sh rebuilds site/raven.mcpb, but the apex is served by the `web`
+// project's own copy — it sat four releases behind at v2.0.0 before this check.
+{
+  const bundlePath = "web/public/raven.mcpb";
+  const { execFileSync } = await import("node:child_process");
+  try {
+    const raw = execFileSync("unzip", ["-p", path.join(root, bundlePath), "manifest.json"], {
+      encoding: "utf8",
+      maxBuffer: 1 << 24,
+    });
+    checks.bundle.version = JSON.parse(raw).version;
+    if (manifestVersion !== null && checks.bundle.version !== manifestVersion) {
+      addError(
+        "bundle",
+        `${bundlePath} is v${checks.bundle.version}; manifest.json is v${manifestVersion} — copy site/raven.mcpb over it`,
+        { file: bundlePath },
+      );
+    }
+  } catch (error) {
+    addError("bundle", `Cannot read ${bundlePath}: ${error.message}`, { file: bundlePath });
+  }
+}
+
 const result = {
   ok: errors.length === 0,
   manifest: {
@@ -311,6 +335,15 @@ if (jsonOutput) {
     lines.push(`  PASS: newest version is ${checks.changelog.markdownVersion}`);
   } else {
     for (const error of errors.filter((item) => item.check === "changelog")) {
+      lines.push(`  ERROR: ${error.message}`);
+    }
+  }
+
+  lines.push("\nBUNDLE");
+  if (checks.bundle.status === "PASS") {
+    lines.push(`  PASS: web/public/raven.mcpb is v${checks.bundle.version}`);
+  } else {
+    for (const error of errors.filter((item) => item.check === "bundle")) {
       lines.push(`  ERROR: ${error.message}`);
     }
   }
