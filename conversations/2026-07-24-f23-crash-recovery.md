@@ -64,3 +64,5 @@ fixed both immediately. Reuse the last-good harness, don't re-derive it.
 - Frozen anon surface re-verified post-deploy: 45 tools, sha256 f64bb18…2bb0a6 OK. Manifest holds 100 stdio tools.
 - Local `dist/` rebuilt at 2.2.3.
 - BLOCKED: `npm whoami` → E401. Andrew must `! npm login` then `! npm publish`. npm still shows 2.2.2.
+- PUBLISHED: npm raven-mcp@2.2.3 (tarball sha 30b6fd36…). Root cause of the E404: `npm login` never wrote ~/.npmrc (mtime still Jul 23) — an unauthenticated PUT on an existing package 404s rather than 403s. Cleared the dead _authToken (backup ~/.npmrc.bak-2026-07-24), Andrew re-logged in, publish succeeded.
+- Published dist/ verified byte-identical (`diff -rq`) to the local build the 1084-pass suite ran against.
