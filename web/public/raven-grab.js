@@ -10922,7 +10922,15 @@
       if (!scroller && el.scrollHeight > el.clientHeight && (el.tagName === "TEXTAREA" || el.classList.contains("raven-grab-body"))) scroller = el;
       if (el.classList.contains("raven-grab-panel")) { panel = el; break; }
     }
-    if (!panel) return; // not over the overlay: native scroll untouched
+    if (!panel) {
+      // While panels are open the page ignores plain wheel scrolling — accidental
+      // two-finger drift under the overlay was moving the canvas out from under the
+      // work (Andrew, 2026-07-23). Cmd/Ctrl+scroll deliberately pans the page.
+      if (!armed || bothCollapsed()) return;
+      if (event.metaKey || event.ctrlKey) return;
+      event.preventDefault();
+      return;
+    }
     if (scroller && scroller.tagName === "TEXTAREA") return; // let an overflowing composer scroll natively
     if (scroller) scroller.scrollTop += (event.deltaMode === 1 ? 16 : 1) * event.deltaY;
     event.preventDefault(); // never let the page scroll under a panel

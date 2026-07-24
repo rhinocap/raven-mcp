@@ -7496,10 +7496,11 @@ test('[f23 #5] panels start expanded and collapsed panels always pause grab', as
   // While both panels are collapsed the page behaves normally — the canvas
   // mousemove/click/dblclick handlers bail before touching the event, with NO cold-open
   // exception (Andrew, 2026-07-18: collapsed panels must never hijack clicks).
-  // Three gates: mousemove (hover), click (select), dblclick (inline copy edit).
+  // Four gates: mousemove (hover), click (select), dblclick (inline copy edit),
+  // wheel (page-scroll containment while panels are open).
   const source = await readFile(path.resolve(__dirname, '../browser/raven-grab.js'), 'utf8');
   const gates = source.match(/if \(!armed \|\| bothCollapsed\(\)\) return;/g) || [];
-  assert.equal(gates.length, 3);
+  assert.equal(gates.length, 4);
   assert.doesNotMatch(source, /coldOpen/);
 
   // Opening a panel via its edge tab is the deliberate act that engages grab.
@@ -11119,13 +11120,21 @@ test('[scroll fix] document wheel listener drives the panel scroller on the main
   // Real trackpad wheels are hit-tested on the compositor thread, which misses the
   // pointer-events:none host's auto descendants — the blocking document listener is the
   // deterministic main-thread fallback. Revert the listener and every assertion here dies.
-  const { document } = await loadOverlayInternals();
+  const { internals, document } = await loadOverlayInternals();
   const scroller = { tagName: 'DIV', classList: { contains: (n) => n === 'raven-grab-body' }, scrollHeight: 500, clientHeight: 200, scrollTop: 0 };
   const panel = { tagName: 'DIV', classList: { contains: (n) => n === 'raven-grab-panel' } };
+  const pageEl = { tagName: 'DIV', classList: { contains: () => false } };
   let prevented = false;
-  const wheel = (path, deltaY, deltaMode = 0) => {
+  const wheel = (path, deltaY, opts = {}) => {
     prevented = false;
-    document.dispatch('wheel', { deltaY, deltaMode, composedPath() { return path; }, preventDefault() { prevented = true; } });
+    document.dispatch('wheel', {
+      deltaY,
+      deltaMode: opts.deltaMode || 0,
+      metaKey: opts.metaKey === true,
+      ctrlKey: opts.ctrlKey === true,
+      composedPath() { return path; },
+      preventDefault() { prevented = true; }
+    });
   };
 
   // Over the scroller: the body scrolls and the page never does.
@@ -11134,16 +11143,31 @@ test('[scroll fix] document wheel listener drives the panel scroller on the main
   assert.equal(prevented, true);
 
   // deltaMode 1 (line mode) scales by 16.
-  wheel([scroller, panel], 2, 1);
+  wheel([scroller, panel], 2, { deltaMode: 1 });
   assert.equal(scroller.scrollTop, 152);
 
   // Over the panel header (no scroller in path): contained — nothing moves, page blocked.
   wheel([panel], 120);
   assert.equal(prevented, true);
 
-  // Outside the overlay entirely: native page scroll untouched.
-  wheel([{ tagName: 'DIV', classList: { contains: () => false } }], 120);
+  // Over the page while panels are open: plain scroll is swallowed — the canvas
+  // must not drift out from under the work (Andrew, 2026-07-23).
+  wheel([pageEl], 120);
+  assert.equal(prevented, true);
+
+  // Cmd/Ctrl+scroll deliberately pans the page.
+  wheel([pageEl], 120, { metaKey: true });
   assert.equal(prevented, false);
+  wheel([pageEl], 120, { ctrlKey: true });
+  assert.equal(prevented, false);
+
+  // With both panels collapsed the page behaves completely normally.
+  internals.setPanelCollapsedTestState('left', true);
+  internals.setPanelCollapsedTestState('right', true);
+  wheel([pageEl], 120);
+  assert.equal(prevented, false);
+  internals.setPanelCollapsedTestState('left', false);
+  internals.setPanelCollapsedTestState('right', false);
 
   // An overflowing composer textarea inside the panel keeps its native internal scroll.
   const textarea = { tagName: 'TEXTAREA', classList: { contains: () => false }, scrollHeight: 300, clientHeight: 100, scrollTop: 0 };
