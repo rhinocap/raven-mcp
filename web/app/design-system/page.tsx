@@ -98,7 +98,7 @@ export default function DesignSystemPage() {
           <div className="guard">
             <div className="guard-item"><span className="k">contrast</span><span className="v">Body text <b>≥ 4.5:1</b>, large <b>≥ 3:1</b>. Never sacrifice contrast for a neon-on-dark gradient.</span></div>
             <div className="guard-item"><span className="k">one primary focus</span><span className="v">Exactly <b>one</b> high-contrast primary CTA (a real verb — Install / Get started). Everything else is ghost/secondary.</span></div>
-            <div className="guard-item"><span className="k">consistent terms</span><span className="v">One word per concept. Groupings are <b>layers</b>. Keep counts current — <b>99 tools, 9 layers</b>.</span></div>
+            <div className="guard-item"><span className="k">consistent terms</span><span className="v">One word per concept. Groupings are <b>layers</b>. Keep counts current — <b>100 tools, 9 layers</b>.</span></div>
             <div className="guard-item"><span className="k">tap targets</span><span className="v">Every interactive target <b>≥ 44px</b>.</span></div>
             <div className="guard-item"><span className="k">limit the palette</span><span className="v">Five supporting accents are <b>accents</b>, not a rainbow.</span></div>
             <div className="guard-item"><span className="k">logo restraint</span><span className="v">The brand shows through <b>type, color, and voice</b> without leaning on the mark.</span></div>

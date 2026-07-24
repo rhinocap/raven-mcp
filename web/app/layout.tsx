@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://ravenmcp.ai'),
   title: 'RavenMCP — Design Intelligence MCP for Claude · Open Source',
   description:
-    'Pair-design with your coding agent: click any element on your page, edit its tokens and styles, and package the change for Claude — plus 99 tools for UI audits, design-system tokens, decision memory, and taste checks.',
+    'Pair-design with your coding agent: click any element on your page, edit its tokens and styles, and package the change for Claude — plus 100 tools for UI audits, design-system tokens, decision memory, and taste checks.',
   applicationName: 'RavenMCP',
   authors: [{ name: 'Andrew Cunliffe' }],
   keywords: [
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     siteName: 'RavenMCP',
     title: 'RavenMCP — Design Intelligence for AI',
     description:
-      'Pair-design with your coding agent: click any element on your page, edit its tokens and styles, and package the change for Claude — plus 99 tools for UI audits, design-system tokens, decision memory, and taste checks.',
+      'Pair-design with your coding agent: click any element on your page, edit its tokens and styles, and package the change for Claude — plus 100 tools for UI audits, design-system tokens, decision memory, and taste checks.',
     url: 'https://ravenmcp.ai',
     images: [
       {
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'RavenMCP — Design Intelligence for AI',
     description:
-      '129 principles · 22 patterns · 99 tools · 12 design systems · Raven Design · a Decision Graph · a Taste Engine · web, iOS, Android & React Native audits. Design intelligence for AI, in one install.',
+      '129 principles · 22 patterns · 100 tools · 12 design systems · Raven Design · a Decision Graph · a Taste Engine · web, iOS, Android & React Native audits. Design intelligence for AI, in one install.',
     images: ['/assets/og-image.jpg'],
   },
   robots: { index: true, follow: true },
@@ -112,7 +112,7 @@ const jsonLd = {
       downloadUrl: 'https://www.npmjs.com/package/raven-mcp',
       softwareHelp: 'https://ravenmcp.ai/docs.html',
       description:
-        "RavenMCP is an open-source Model Context Protocol server that gives AI agents like Claude design intelligence: 99 tools spanning 129 design principles, 22 UI patterns, 12 design-system token libraries, content voice, brand, research, service blueprints, design audits for web, iOS, Android, and React Native, Raven Design (click-to-edit on the live page), a Decision Graph that keeps design decisions queryable with provenance, and a Taste Engine that holds every build to the owner's own design judgment.",
+        "RavenMCP is an open-source Model Context Protocol server that gives AI agents like Claude design intelligence: 100 tools spanning 129 design principles, 22 UI patterns, 12 design-system token libraries, content voice, brand, research, service blueprints, design audits for web, iOS, Android, and React Native, Raven Design (click-to-edit on the live page), a Decision Graph that keeps design decisions queryable with provenance, and a Taste Engine that holds every build to the owner's own design judgment.",
       license: 'https://opensource.org/licenses/MIT',
       isAccessibleForFree: true,
       author: { '@type': 'Person', name: 'Andrew Cunliffe' },
@@ -163,7 +163,7 @@ const jsonLd = {
           name: 'Which AI agents work with RavenMCP?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: "RavenMCP works with any client that supports the Model Context Protocol — Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's 99 tools directly during a conversation.",
+            text: "RavenMCP works with any client that supports the Model Context Protocol — Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's 100 tools directly during a conversation.",
           },
         },
         {

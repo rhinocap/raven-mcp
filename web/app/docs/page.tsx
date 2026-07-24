@@ -98,7 +98,7 @@ export default function DocsPage() {
       
           {/* ── Tool Reference ── */}
           <h2 id="tools" className="reveal">Tool Reference</h2>
-          <p>Raven provides 99 tools. Claude calls the relevant tool based on the task; the cards below show what each tool returns. This reference covers the most-used ones — the full 99, grouped by job, are on the <a href="/#tools">home page</a>.</p>
+          <p>Raven provides 100 tools. Claude calls the relevant tool based on the task; the cards below show what each tool returns. This reference covers the most-used ones — the full 99, grouped by job, are on the <a href="/#tools">home page</a>.</p>
       
           <h3>Principles Layer</h3>
       

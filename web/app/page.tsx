@@ -796,7 +796,7 @@ export default function Home() {
               </div>
               <div className="faq-item">
                 <h3>Which AI agents work with RavenMCP?</h3>
-                <p>Raven works with any client that supports the Model Context Protocol &mdash; Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's 99 tools directly during a conversation.</p>
+                <p>Raven works with any client that supports the Model Context Protocol &mdash; Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's 100 tools directly during a conversation.</p>
               </div>
               <div className="faq-item">
                 <h3>What platforms can RavenMCP audit?</h3>
