@@ -6,7 +6,7 @@ import './docs.css'
 export const metadata: Metadata = {
   title: 'Docs — RavenMCP',
   description:
-    'Install RavenMCP and use its 99 design-intelligence tools with Claude. Full setup for Claude Code, Claude Desktop, and any MCP client.',
+    'Install RavenMCP and use its 100 design-intelligence tools with Claude. Full setup for Claude Code, Claude Desktop, and any MCP client.',
   alternates: { canonical: '/docs' },
 };
 
@@ -98,7 +98,7 @@ export default function DocsPage() {
       
           {/* ── Tool Reference ── */}
           <h2 id="tools" className="reveal">Tool Reference</h2>
-          <p>Raven provides 100 tools. Claude calls the relevant tool based on the task; the cards below show what each tool returns. This reference covers the most-used ones — the full 99, grouped by job, are on the <a href="/#tools">home page</a>.</p>
+          <p>Raven provides 100 tools. Claude calls the relevant tool based on the task; the cards below show what each tool returns. Every tool appears here, grouped by job — related tools share a card.</p>
       
           <h3>Principles Layer</h3>
       
@@ -263,6 +263,12 @@ export default function DocsPage() {
       "Check this signup form for WCAG compliance"</code></pre>
           </div>
       
+          <div className="tool-card reveal">
+            <h3>score_page <span className="optional">+ suggest_contrast_fix, audit_layout, audit_consistency, audit_video_playback</span></h3>
+            <p className="tool-desc"><code>score_page</code> grades HTML/CSS across seven categories — structure, typography, color, spacing, and the rest — where <code>audit_page</code> returns pass/fail findings. <code>suggest_contrast_fix</code> takes failing WCAG pairs and returns the smallest color change that clears the ratio, so a fix doesn&apos;t redesign the palette. <code>audit_layout</code> reads visual rhythm from a rendered page&apos;s real geometry; <code>audit_consistency</code> compares several pages for container-width and heading-tier drift; <code>audit_video_playback</code> renders in headless Chromium and checks each <code>&lt;video&gt;</code> actually advances.</p>
+            <pre><code>"Score this page and tell me the two lowest categories"</code></pre>
+          </div>
+
           <div className="tool-card reveal">
             <h3>get_brand_system</h3>
             <p className="tool-desc">Get a complete brand design system for a well-known company. Returns colors, typography, spacing, CSS variables, and implementation rules.</p>
@@ -549,6 +555,39 @@ export default function DocsPage() {
           <div className="tool-card reveal">
             <h3>decision_import <span className="optional">+ ingest_transcript, gap_scan</span></h3>
             <p className="tool-desc">Cold-start the graph from what you already have: <code>decision_import</code> mines local git history and decision-bearing Markdown into source-tagged extraction prompts; <code>ingest_transcript</code> / <code>ingest_transcript_results</code> turn a meeting or thread into reviewable candidate decisions. <code>gap_scan</code> ranks uncovered components, thin rationales, contested decisions, and stale derivations, so the graph stays honest.</p>
+          </div>
+
+          <h3>Taste Engine <span style={{ color: 'var(--accent-blue)', fontSize: '13px', letterSpacing: '0.08em', fontWeight: '600' }}>v1.13</span></h3>
+
+          <div className="tool-card reveal">
+            <h3>get_taste_interview <span className="optional">+ bind_taste_surface, create_taste_profile, list_taste_profiles, get_taste_profile</span></h3>
+            <p className="tool-desc">Taste is per-surface: the same person wants different rules on a portfolio than on a product site. <code>get_taste_interview</code> returns a calibration interview to ask at the start of a project — identity, how it should read, voice register, which hosts identify it — and <code>bind_taste_surface</code> persists the answers so every later audit judges against them. <code>create_taste_profile</code> starts a ruleset from a template; <code>list_taste_profiles</code> and <code>get_taste_profile</code> read what&apos;s stored locally.</p>
+            <pre><code>"Calibrate Raven for this project before we pick a direction"</code></pre>
+          </div>
+
+          <div className="tool-card reveal">
+            <h3>audit_taste <span className="optional">+ label_finding, record_taste_decision, list_taste_decisions, generate_taste_portrait</span></h3>
+            <p className="tool-desc"><code>audit_taste</code> judges a screenshot, component, or copy block against the bound profile rather than a generic rulebook. The loop grows from use: <code>label_finding</code> appends a corrected precedent when a verdict was wrong, <code>record_taste_decision</code> captures a direction the moment it&apos;s chosen, and <code>list_taste_decisions</code> reads them back. <code>generate_taste_portrait</code> renders a bound surface as a self-contained HTML page you can share with the rest of the team.</p>
+            <pre><code>"Is this in voice for the project? Then remember my correction"</code></pre>
+          </div>
+
+          <h3>Creative Layer</h3>
+
+          <div className="tool-card reveal">
+            <h3>create_generation_job <span className="optional">+ get_generation_job, list_generation_jobs, list_creative_models, list_creative_presets</span></h3>
+            <p className="tool-desc">A provider-agnostic job queue for image, video, 3D, audio, and campaign work. <code>list_creative_models</code> browses the model catalog and <code>list_creative_presets</code> the shot recipes — product photoshoots, marketplace cards, UGC ads, cinematic reveals. <code>create_generation_job</code> queues one; <code>get_generation_job</code> and <code>list_generation_jobs</code> read state. Raven writes the brief and tracks the job; it does not ship its own renderer.</p>
+            <pre><code>"Queue a product photoshoot for this SKU using our brand profile"</code></pre>
+          </div>
+
+          <div className="tool-card reveal">
+            <h3>create_brand_profile <span className="optional">+ get_brand_profile, list_brand_profiles, create_character_profile, register_creative_asset</span></h3>
+            <p className="tool-desc">Keep a campaign consistent across jobs. <code>create_brand_profile</code> stores the palette, type, and voice a job should inherit — <code>get_brand_profile</code> and <code>list_brand_profiles</code> read them back. <code>create_character_profile</code> holds an identity reference so the same person or mascot survives across renders, and <code>register_creative_asset</code> registers a local or remote file a job can draw on.</p>
+          </div>
+
+          <div className="tool-card reveal">
+            <h3>plan_creative_campaign <span className="optional">+ score_creative</span></h3>
+            <p className="tool-desc"><code>plan_creative_campaign</code> turns one brief into a multi-asset plan and can create the draft jobs for it. <code>score_creative</code> reads a prompt, script, or ad concept for hook strength, benefit clarity, product signal, and call-to-action — a cheap directional check before you spend a render budget on the wrong idea.</p>
+            <pre><code>"Score these three ad concepts before we generate any of them"</code></pre>
           </div>
 
           <h3>Reflection &amp; Registration</h3>

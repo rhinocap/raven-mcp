@@ -113,7 +113,7 @@ const jsonLd = {
       softwareHelp: 'https://ravenmcp.ai/docs.html',
       description:
         "RavenMCP is an open-source Model Context Protocol server that gives AI agents like Claude design intelligence: 100 tools spanning 129 design principles, 22 UI patterns, 12 design-system token libraries, content voice, brand, research, service blueprints, design audits for web, iOS, Android, and React Native, Raven Design (click-to-edit on the live page), a Decision Graph that keeps design decisions queryable with provenance, and a Taste Engine that holds every build to the owner's own design judgment.",
-      license: 'https://opensource.org/licenses/MIT',
+      license: 'https://www.apache.org/licenses/LICENSE-2.0',
       isAccessibleForFree: true,
       author: { '@type': 'Person', name: 'Andrew Cunliffe' },
       publisher: { '@id': 'https://ravenmcp.ai/#organization' },
@@ -139,7 +139,7 @@ const jsonLd = {
           name: 'What is RavenMCP?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'RavenMCP (Raven) is an open-source Model Context Protocol (MCP) server. Add it to Claude or Cursor, and your agent can call 99 local tools for design principles, UI patterns, design-system tokens, content voice, research methods, service blueprints, multi-platform audits, click-to-edit Raven Design, a local Decision Graph, and project-specific taste checks.',
+            text: 'RavenMCP (Raven) is an open-source Model Context Protocol (MCP) server. Add it to Claude or Cursor, and your agent can call 100 local tools for design principles, UI patterns, design-system tokens, content voice, research methods, service blueprints, multi-platform audits, click-to-edit Raven Design, a local Decision Graph, and project-specific taste checks.',
           },
         },
         {
@@ -155,7 +155,7 @@ const jsonLd = {
           name: 'Is RavenMCP free?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'Yes. RavenMCP is 100% free and open source under the MIT license. Every tool, token, and principle is included — no tiers, no usage limits, no account required.',
+            text: 'Yes. RavenMCP is 100% free and open source under the Apache-2.0 license. Every tool, token, and principle is included — no tiers, no usage limits, no account required.',
           },
         },
         {

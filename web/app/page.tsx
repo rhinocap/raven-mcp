@@ -765,7 +765,7 @@ export default function Home() {
             <div className="faq-list reveal reveal-delay-3">
               <div className="faq-item">
                 <h3>What is RavenMCP?</h3>
-                <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server. Add it to Claude or Cursor, and your agent can call 99 local tools for design principles, UI patterns, design-system tokens, content voice, research methods, service blueprints, multi-platform audits, click-to-edit Raven Design, a local Decision Graph, and project-specific taste checks.</p>
+                <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server. Add it to Claude or Cursor, and your agent can call 100 local tools for design principles, UI patterns, design-system tokens, content voice, research methods, service blueprints, multi-platform audits, click-to-edit Raven Design, a local Decision Graph, and project-specific taste checks.</p>
               </div>
               <div className="faq-item">
                 <h3>How do I install RavenMCP?</h3>

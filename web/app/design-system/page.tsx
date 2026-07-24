@@ -73,7 +73,7 @@ export default function DesignSystemPage() {
           <div className="sec-head"><span className="sec-num">06</span><h2>Voice &amp; Tone</h2><span className="desc">Bold but clear. Lead with the noun or verb that matters; never trade clarity for cleverness.</span></div>
           <div className="voice-grid">
             <div className="voice-card do"><h3>Do</h3><ul>
-              <li><b>Front-load meaning.</b> "Ninety-nine tools, organized by job."</li>
+              <li><b>Front-load meaning.</b> "One hundred tools, organized by job."</li>
               <li><b>Be specific.</b> "Render a live URL at every viewport" beats "powerful auditing."</li>
               <li><b>Speak to "you,"</b> the developer driving the agent.</li>
               <li><b>Punchy is fine.</b> "No Figma file. No designer."</li>

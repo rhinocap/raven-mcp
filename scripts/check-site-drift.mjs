@@ -44,7 +44,7 @@ function parseJson(source, relativePath, check) {
   }
 }
 
-async function findTsxFiles(relativeDirectory) {
+async function findTsxFiles(relativeDirectory, extensions = [".tsx"]) {
   const absoluteDirectory = path.join(root, relativeDirectory);
   let entries;
   try {
@@ -60,12 +60,23 @@ async function findTsxFiles(relativeDirectory) {
   for (const entry of entries) {
     const relativePath = path.join(relativeDirectory, entry.name);
     if (entry.isDirectory()) {
-      files.push(...(await findTsxFiles(relativePath)));
-    } else if (entry.isFile() && entry.name.endsWith(".tsx")) {
+      files.push(...(await findTsxFiles(relativePath, extensions)));
+    } else if (entry.isFile() && extensions.some((ext) => entry.name.endsWith(ext))) {
       files.push(relativePath);
     }
   }
   return files;
+}
+
+const TENS = { seventy: 70, eighty: 80, ninety: 90, hundred: 100 };
+const ONES = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9 };
+
+function spelledCount(phrase) {
+  const words = phrase.toLowerCase().split(/[\s-]+/);
+  if (words[0] === "one") words.shift(); // "one hundred" === "hundred"
+  let total = 0;
+  for (const word of words) total += TENS[word] ?? ONES[word] ?? 0;
+  return total;
 }
 
 function lineNumberAt(source, index) {
@@ -108,12 +119,18 @@ if (toolNames === null) {
     file: "manifest.json",
   });
 } else {
-  const tsxFiles = (await findTsxFiles("web/app")).sort();
-  for (const file of tsxFiles) {
+  const countFiles = [
+    ...(await findTsxFiles("web/app")),
+    // Public text surfaces claim counts too — llms.txt drifted to 99 unnoticed.
+    ...(await findTsxFiles("web/public", [".txt", ".md"])),
+  ].sort();
+  for (const file of countFiles) {
     const source = await read(file, "count");
     if (source === null) continue;
 
-    const pattern = /\b(\d+) tools\b/g;
+    // Allow up to two qualifier words: "100 tools", "100 local tools",
+    // "100 design-intelligence tools".
+    const pattern = /\b(\d+)(?:\s+[a-z][a-z-]*){0,2}\s+tools\b/gi;
     for (const match of source.matchAll(pattern)) {
       const claimed = Number(match[1]);
       if (claimed !== toolNames.length) {
@@ -130,6 +147,27 @@ if (toolNames === null) {
           mismatch,
         );
       }
+    }
+
+    // Spelled-out counts ("Ninety-Nine Tools") are invisible to the numeric
+    // scan — the release preview caught three of those by eye once.
+    // ponytail: only the 70–100 band appears in this copy; widen if it moves.
+    const spelled = /\b((?:one[\s-]+)?(?:hundred|ninety|eighty|seventy)(?:[\s-]+(?:one|two|three|four|five|six|seven|eight|nine))?)\s+tools\b/gi;
+    for (const match of source.matchAll(spelled)) {
+      const claimed = spelledCount(match[1]);
+      if (claimed === toolNames.length) continue;
+      const mismatch = {
+        file,
+        line: lineNumberAt(source, match.index),
+        claimed: match[1],
+        expected: toolNames.length,
+      };
+      checks.count.mismatches.push(mismatch);
+      addError(
+        "count",
+        `${file}:${mismatch.line} spells out "${match[1]} tools"; expected ${toolNames.length}`,
+        mismatch,
+      );
     }
   }
 }
@@ -155,12 +193,11 @@ if (toolsSection !== null && toolNames !== null) {
 const docsPath = "web/app/docs/page.tsx";
 const docsSource = await read(docsPath, "docs");
 if (docsSource !== null && toolNames !== null) {
-  const documented = new Set(
-    [...docsSource.matchAll(/<h3(?:\s[^>]*)?>\s*([^<]+?)\s*<\/h3>/g)].map(
-      (match) => match[1].trim(),
-    ),
+  // The page groups related tools into one narrative card and names the
+  // siblings inline, so an h3-only scan under-reports by ~30 tools.
+  checks.docs.missing = toolNames.filter(
+    (name) => !new RegExp(`\\b${name}\\b`).test(docsSource),
   );
-  checks.docs.missing = toolNames.filter((name) => !documented.has(name));
 }
 
 const markdownChangelog = await read("CHANGELOG.md", "changelog");
@@ -231,7 +268,7 @@ if (jsonOutput) {
 
   lines.push("COUNT");
   if (checks.count.status === "PASS") {
-    lines.push(`  PASS: all web/app tool counts equal ${toolNames.length}`);
+    lines.push(`  PASS: all web/app + web/public tool counts equal ${toolNames.length}`);
   } else {
     for (const mismatch of checks.count.mismatches) {
       lines.push(
