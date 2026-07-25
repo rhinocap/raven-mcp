@@ -25,11 +25,12 @@ FONT_FACE = f"""
 # --essay-fig-* on any ancestor retints all four plates at once.
 TOKENS = """
 svg.fig{
-  --fig-ground: var(--essay-fig-ground, #0E1013);
-  --fig-ink:    var(--essay-fig-ink,    #E8EAED);
-  --fig-muted:  var(--essay-fig-muted,  #8A9299);
+  --fig-ground: var(--essay-fig-ground, #1c1c1c);
+  --fig-ink:    var(--essay-fig-ink,    #ffffff);
+  --fig-muted:  var(--essay-fig-muted,  #b8b8b8);
   --fig-accent: var(--essay-fig-accent, #7E9CB8);
-  --fig-rule:   var(--essay-fig-rule,   #2B3036);
+  --fig-rule:   var(--essay-fig-rule,   #363636);
+  --fig-line:   var(--essay-fig-line,   #363636);
   --fig-wash:   var(--essay-fig-wash,   #7E9CB8);
   --fig-wash-o: var(--essay-fig-wash-o, 0.14);
   --fig-font:   var(--essay-fig-font,   'Untitled Sans');
@@ -65,46 +66,46 @@ svg.fig{
 """
 
 TYPE = """
-svg.fig text{ font-family: var(--fig-font, 'Untitled Sans'); fill: var(--fig-ink, #E8EAED);
+svg.fig text{ font-family: var(--fig-font, 'Untitled Sans'); fill: var(--fig-ink, #ffffff);
   font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1 }
 svg.fig .marker{ font-size: calc(var(--fig-fs-marker, 13) * 1px); font-weight: 500;
-  letter-spacing: 0.14em; fill: var(--fig-muted, #8A9299) }
+  letter-spacing: 0.14em; fill: var(--fig-muted, #b8b8b8) }
 svg.fig .title{ font-size: calc(var(--fig-fs-title, 27) * 1px); font-weight: 500; letter-spacing: -0.012em }
 svg.fig .label{ font-size: calc(var(--fig-fs-label, 15) * 1px); font-weight: 400 }
 svg.fig .label-key{ font-size: calc(var(--fig-fs-label, 15) * 1px); font-weight: 500 }
-svg.fig .axis{ font-size: calc(var(--fig-fs-axis, 14) * 1px); font-weight: 400; fill: var(--fig-muted, #8A9299) }
+svg.fig .axis{ font-size: calc(var(--fig-fs-axis, 14) * 1px); font-weight: 400; fill: var(--fig-muted, #b8b8b8) }
 svg.fig .value{ font-size: calc(var(--fig-fs-value, 18) * 1px); font-weight: 500 }
 svg.fig .total{ font-size: calc(var(--fig-fs-total, 36) * 1px); font-weight: 500;
   fill: var(--fig-accent, #7E9CB8); letter-spacing: -0.02em }
-svg.fig .note{ font-size: calc(var(--fig-fs-note, 13) * 1px); font-weight: 400; fill: var(--fig-muted, #8A9299) }
-svg.fig .muted{ fill: var(--fig-muted, #8A9299) }
+svg.fig .note{ font-size: calc(var(--fig-fs-note, 13) * 1px); font-weight: 400; fill: var(--fig-muted, #b8b8b8) }
+svg.fig .muted{ fill: var(--fig-muted, #b8b8b8) }
 svg.fig .accent{ fill: var(--fig-accent, #7E9CB8) }
 svg.fig .flag{ font-size: calc(var(--fig-fs-label, 15) * 1px); font-weight: 500;
   letter-spacing: 0.16em; fill: var(--fig-accent, #7E9CB8) }
-svg.fig .rule{ stroke: var(--fig-rule, #2B3036); stroke-width: calc(var(--fig-hair, 1) * 1px) }
-svg.fig .axisline{ stroke: var(--fig-muted, #8A9299); stroke-width: calc(var(--fig-hair, 1) * 1px) }
+svg.fig .rule{ stroke: var(--fig-rule, #363636); stroke-width: calc(var(--fig-hair, 1) * 1px) }
+svg.fig .axisline{ stroke: var(--fig-muted, #b8b8b8); stroke-width: calc(var(--fig-hair, 1) * 1px) }
 svg.fig .series-a{ fill: none; stroke: var(--fig-accent, #7E9CB8);
   stroke-width: calc(var(--fig-stroke, 2) * 1px); stroke-linecap: round; stroke-linejoin: round }
-svg.fig .series-b{ fill: none; stroke: var(--fig-ink, #E8EAED);
+svg.fig .series-b{ fill: none; stroke: var(--fig-ink, #ffffff);
   stroke-width: calc(var(--fig-stroke, 2) * 1px); stroke-linecap: round; stroke-linejoin: round }
 svg.fig .marker-line{ stroke: var(--fig-accent, #7E9CB8); stroke-width: calc(var(--fig-hair, 1) * 1px);
   stroke-dasharray: 3 4 }
 svg.fig .wash{ fill: var(--fig-wash, #7E9CB8); fill-opacity: var(--fig-wash-o, 0.14) }
-svg.fig .seat{ fill: var(--fig-muted, #8A9299) }
+svg.fig .seat{ fill: var(--fig-muted, #b8b8b8) }
 svg.fig .seat-accent{ fill: var(--fig-accent, #7E9CB8) }
 svg.fig .seat-empty{ fill: none; stroke: var(--fig-accent, #7E9CB8);
   stroke-width: calc(var(--fig-stroke, 2) * 1px); stroke-dasharray: 4 4 }
-svg.fig .table-edge{ fill: none; stroke: var(--fig-muted, #8A9299);
+svg.fig .table-edge{ fill: none; stroke: var(--fig-muted, #b8b8b8);
   stroke-width: calc(var(--fig-hair, 1) * 1px) }
-svg.fig .box{ fill: none; stroke: var(--fig-muted, #8A9299);
+svg.fig .box{ fill: none; stroke: var(--fig-muted, #b8b8b8);
   stroke-width: calc(var(--fig-hair, 1) * 1px) }
 svg.fig .box-accent{ fill: none; stroke: var(--fig-accent, #7E9CB8);
   stroke-width: calc(var(--fig-stroke, 2) * 1px); stroke-dasharray: 4 4 }
-svg.fig .seg{ fill: var(--fig-rule, #2B3036); stroke: var(--fig-muted, #8A9299);
+svg.fig .seg{ fill: var(--fig-rule, #363636); stroke: var(--fig-muted, #b8b8b8);
   stroke-width: calc(var(--fig-hair, 1) * 1px) }
-svg.fig .seg-design{ fill: var(--fig-muted, #8A9299) }
+svg.fig .seg-design{ fill: var(--fig-muted, #b8b8b8) }
 svg.fig .seg-user{ fill: var(--fig-accent, #7E9CB8) }
-svg.fig .tick{ stroke: var(--fig-ink, #E8EAED);
+svg.fig .tick{ stroke: var(--fig-ink, #ffffff);
   stroke-width: calc(var(--fig-stroke, 2) * 1px); stroke-linecap: round }
 svg.fig .tick-accent{ stroke: var(--fig-accent, #7E9CB8);
   stroke-width: calc(var(--fig-stroke, 2) * 1px); stroke-linecap: round }
@@ -124,7 +125,9 @@ def plate(n, w, h, title, desc, body, extra_css=""):
 {TYPE.strip()}
 {extra_css}
 </style>
-<rect width="{w}" height="{h}" fill="var(--fig-ground, #0E1013)"/>
+<rect width="{w}" height="{h}" fill="var(--fig-ground, #1c1c1c)"/>
+<rect x="0.5" y="0.5" width="{w - 1}" height="{h - 1}" fill="none"
+      stroke="var(--fig-line, #363636)" stroke-width="1"/>
 <g transform="translate(0,-30)">
 {body}
 </g>
@@ -270,7 +273,7 @@ plates = [
      "A line chart on a dark ground. Products shipped rises exponentially. Attention available is "
      "a flat horizontal line. Where the rising curve passes above the flat line, the widening "
      "distance between them is shaded.", fig02_body),
-    (3, "fig-03-confusion-ledger.svg", 720, 555,
+    (3, "fig-03-confusion-ledger.svg", 720, 612,
      "Figure 3. One confusing flow, itemised.",
      "A ledger on a dark ground. Inputs: something that takes 3 minutes and should take 10 "
      "seconds, done by 100,000 people. Outputs: 2 minutes 50 seconds wasted each, 17,000,000 "
@@ -298,10 +301,10 @@ sheet = f"""<!doctype html>
 <style>
 {FONT_FACE}
 :root{{
-  --sheet-ground: #0E1013;
-  --sheet-ink: #E8EAED;
-  --sheet-muted: #8A9299;
-  --sheet-rule: #2B3036;
+  --sheet-ground: #050505;
+  --sheet-ink: #ffffff;
+  --sheet-muted: #b8b8b8;
+  --sheet-rule: #363636;
   --sheet-font: 'Untitled Sans';
   --sheet-measure: 720px;
 }}
@@ -309,8 +312,8 @@ sheet = f"""<!doctype html>
 html,body{{margin:0;padding:0}}
 html{{font-family: var(--sheet-font, 'Untitled Sans')}}
 body{{
-  background: var(--sheet-ground, #0E1013);
-  color: var(--sheet-ink, #E8EAED);
+  background: var(--sheet-ground, #050505);
+  color: var(--sheet-ink, #ffffff);
   font-family: var(--sheet-font, 'Untitled Sans');
   font-weight: 400;
   line-height: 1.5;
@@ -319,13 +322,13 @@ body{{
 main{{max-width: var(--sheet-measure, 720px); margin: 0 auto; padding: clamp(48px, 8vw, 96px) clamp(16px, 4vw, 24px) 128px}}
 header{{margin-bottom: 96px}}
 h1{{font-size: 32px; font-weight: 500; letter-spacing: -0.014em; line-height: 1.35; margin: 0 0 16px}}
-header p{{margin:0; color: var(--sheet-muted, #8A9299); font-size: 16px}}
+header p{{margin:0; color: var(--sheet-muted, #b8b8b8); font-size: 16px}}
 figure{{margin: 0 0 96px}}
 figure svg{{display:block; width:100%; height:auto}}
 figcaption{{
   margin-top: 24px; padding-top: 16px;
-  border-top: 1px solid var(--sheet-rule, #2B3036);
-  color: var(--sheet-muted, #8A9299); font-size: 14px;
+  border-top: 1px solid var(--sheet-rule, #363636);
+  color: var(--sheet-muted, #b8b8b8); font-size: 14px;
 }}
 </style>
 </head>
