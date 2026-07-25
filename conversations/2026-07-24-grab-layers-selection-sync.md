@@ -84,3 +84,15 @@ single focused overlay bug: canvas selection not reflected in the Raven Design L
   recheck); accepted-by-design. P2 offscreen/visibility:hidden aria-hidden leaves now
   get rows — matches the tree's existing policy for plain hidden elements;
   accepted-by-design.
+
+### v2.2.7 shipped to all user surfaces
+- npm 2.2.7 published (Andrew's passkey); tarball overlay verified (fix present).
+- Release commit `97e58b7`, tag v2.2.7 pushed.
+- Apex deployed twice: changelog v2.2.7 + hosted raven-grab.js verified live.
+- **Fixed a launch-blocking pre-existing bug found during the surface audit:** build-mcpb.sh
+  never staged browser/, so EVERY .mcpb install had a 404'ing grab overlay (Raven Design
+  dead in Desktop-extension installs since the feature shipped). One-line fix, rebuilt
+  2.2.7 bundle now carries the overlay, hosted copy verified (`dda007e`).
+- Anon remote hash re-verified unchanged: 45 tools / f64bb18.
+- Known limit: npx users with a cached older version keep it until their cache re-resolves
+  (npx pins @latest at first use) — nothing shippable from our side.
