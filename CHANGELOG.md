@@ -6,6 +6,17 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+No tool changes — the 100-tool stdio surface is unchanged. Every tool now carries MCP annotations, which changes what `tools/list` reports about each tool but not which tools exist or what they accept.
+
+### Added
+- MCP tool annotations on all 100 tools: a human-readable `title`, plus `readOnlyHint` / `destructiveHint` / `openWorldHint`. 70 tools are read-only, 30 write local or hosted state, and 11 drive a browser or fetch against a URL you supply. Clients can now show what a tool will do before it runs, and directory listings can classify the surface without reading the source.
+- `privacy_policies` in `manifest.json`, pointing at the published policy.
+
+### Fixed
+- `audit_url` against an unreachable host, a wrong port, or an auth-walled URL returned `0 findings across N viewport(s)` — indistinguishable from a clean page, with the real cause buried in `warnings[]`. When no capture succeeds, the summary now says the audit did not run.
+- `server.json`'s remote URL pointed at `ravenmcp.ai/api/mcp`, which 404s. It is `mcp.ravenmcp.ai/api/mcp`.
+- `manifest.json` declared MIT; the project is Apache-2.0.
+
 ## [2.2.7] - 2026-07-24
 
 Raven Design overlay layers-tree fix. No tool changes — the 100-tool stdio surface is unchanged.
