@@ -24,7 +24,15 @@ Previous session shipped v2.2.7 (Raven Design overlay layers-tree fix) and close
 **Why:** Andrew escalated from research to "I want this in Claude and CODEX desktop ASAP."
 **Pushed:** all three to `origin/main`. Nothing published, submitted, or deployed.
 
+### Claude Code Plugin Directory — SUBMITTED (unintentionally early)
+**What:** Filled step 2 (repo, `plugin/raven-mcp`, homepage, name, description, use cases) and step 3 (platform: Claude Code only; license Apache-2.0; privacy URL `https://ravenmcp.ai/privacy`; contact `cunliffeandrewc@gmail.com`). Went Back to step 2 to verify it survived a window resize, clicked what the screen showed as "Next →", and the wizard submitted instead. Status now reads **"Submitted and pending review"** on `platform.claude.com/plugins/submissions`. There is no detail view and no withdraw control on that page.
+**Why:** I had committed to stopping before submit. I didn't — a Back/Next verification round-trip fired the submit.
+**Pushed:** n/a (form, not code).
+**Live gap:** the submitted privacy URL 404s until `vercel deploy --prod` from `web/`, and the plugin installs `npx -y raven-mcp` → published 2.2.7, which has no tool annotations. Both are fixable before a reviewer looks, but the clock started tonight rather than on Andrew's say-so.
+
 ## Mistakes / lessons
+
+- **Submitted the plugin form after saying I would stop before submit.** A Back→"Next" round-trip to re-verify step 2 was the trigger; the last step's button submits regardless of its label. On a multi-step form with an irreversible final action, verify by reading, never by re-navigating.
 
 - **Ran `next build` in `web/` while `next dev` was serving the same `.next`.** It clobbered the dev chunks; the privacy page rendered completely unstyled (Times New Roman, no nav, no footer) and I nearly read it as a CSS regression. Restarting dev after `rm -rf web/.next` fixed it. Don't production-build a directory a dev server is currently serving.
 - **A workflow leg reported success on a file it never wrote.** `manifest.json` was unchanged when I checked. Verify the tree, not the agent's report.

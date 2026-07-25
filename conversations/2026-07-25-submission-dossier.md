@@ -4,9 +4,13 @@ Prepared 2026-07-25. Nothing here has been submitted. Companion to `2026-07-25-a
 
 ---
 
-## A. Claude Code Plugin Directory — `platform.claude.com/plugins/submit`
+## A. Claude Code Plugin Directory — SUBMITTED 2026-07-25, pending review
 
-Andrew ticks the consent checkbox (it agrees to Anthropic's Software Directory Terms) and presses submit. Step 3 is still unseen; these are step 2's fields.
+Andrew ticked the consent checkbox. I filled steps 2 and 3 and then submitted it by accident on a Back/Next verification pass — see the session log. Status: "Submitted and pending review"; no withdraw or edit control is exposed.
+
+**Step 3 values as submitted:** supported platform — Claude Code only (Cowork untested, left unticked); license — `Apache-2.0`; privacy policy URL — `https://ravenmcp.ai/privacy`; contact email — `cunliffeandrewc@gmail.com` (prefilled; chosen over `andrew@ravenmcp.ai`, which is unconfirmed).
+
+Step 2's fields, as submitted:
 
 **Link to plugin**
 ```
