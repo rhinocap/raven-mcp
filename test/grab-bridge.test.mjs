@@ -140,6 +140,7 @@ async function loadOverlayInternals(options = {}) {
     selectionDisplayLabel: typeof selectionDisplayLabel === "function" ? selectionDisplayLabel : undefined,
     shouldSkipLayerElement: typeof shouldSkipLayerElement === "function" ? shouldSkipLayerElement : undefined,
     buildLayerTree: typeof buildLayerTree === "function" ? buildLayerTree : undefined,
+    layerMeasurable: typeof layerMeasurable === "function" ? layerMeasurable : undefined,
     shortenedLayerText: typeof shortenedLayerText === "function" ? shortenedLayerText : undefined,
     parseNumericExpression: typeof parseNumericExpression === "function" ? parseNumericExpression : undefined,
     alternativesFor: alternativesFor,
@@ -11518,4 +11519,26 @@ test('REGRESSION: a branch past the depth cap does not truncate the rest of the 
   assert.ok(flat.some((node) => node.label === 'a' && !node.truncated), 'descendants of the later sibling are in the tree');
   const truncatedIds = flat.filter((node) => node.truncated).map((node) => node.id);
   assert.equal(new Set(truncatedIds).size, truncatedIds.length, 'truncated placeholder ids stay unique');
+});
+
+test('REGRESSION: a non-layer sibling does not shift reorder indices off the layer tree', async () => {
+  // layerMeasurable kept its own copy of buildLayerTree's exclusion list and had drifted:
+  // a <template>/<noscript>/ld+json sibling was measured but never got a tree node, so the
+  // live index ran one ahead of orderedElements and the bridge rejected the intent.
+  const { internals, document } = await loadOverlayInternals();
+  const parent = document.createElement('section');
+  parent.localName = 'section';
+  const first = document.createElement('div');
+  first.localName = 'div';
+  const skipped = document.createElement('template');
+  skipped.localName = 'template';
+  skipped.tagName = 'TEMPLATE';
+  const last = document.createElement('div');
+  last.localName = 'div';
+  [first, skipped, last].forEach((child) => parent.appendChild(child));
+
+  const measured = parent.children.filter((child) => internals.layerMeasurable(child));
+  const tree = internals.buildLayerTree(parent);
+  assert.equal(measured.length, tree.children.length, 'measured children align 1:1 with tree nodes');
+  assert.equal(measured.indexOf(last), 1, 'the excluded sibling does not advance the live index');
 });

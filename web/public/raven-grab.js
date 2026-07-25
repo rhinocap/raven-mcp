@@ -7123,9 +7123,12 @@
   // orderedElements: skip SCRIPT/STYLE/LINK/META (e.g. the injected overlay <script>) and the
   // overlay's own host. Without this, a non-layer child maps to orderedElements[undefined] and
   // emits an empty selector the bridge rejects.
-  var LAYER_MEASURE_SKIP = { SCRIPT: true, STYLE: true, LINK: true, META: true };
+  // Delegate rather than restate: a hand-kept copy of the list drifted (it missed
+  // NOSCRIPT/TEMPLATE/ld+json/data-raven-grab-ignore/empty aria-hidden), so a container
+  // holding one of those measured a wider child set than the tree and every reorder index
+  // past it was off by one.
   function layerMeasurable(element) {
-    if (!element || element.nodeType !== 1 || LAYER_MEASURE_SKIP[element.tagName]) return false;
+    if (!element || element.nodeType !== 1 || shouldSkipLayerElement(element)) return false;
     if (element === host) return false;
     if (typeof element.hasAttribute === "function" && element.hasAttribute("data-raven-grab-overlay")) return false;
     return true;
