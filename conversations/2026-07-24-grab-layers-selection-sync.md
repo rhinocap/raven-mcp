@@ -57,3 +57,24 @@ single focused overlay bug: canvas selection not reflected in the Raven Design L
   eyes-on; stop with `stop_grab_session`.
 - Residual, not fixed: elements deeper than 12 levels or past the 500-node budget are still
   absent from the tree, so canvas selection there still has no row. Not hit on this page.
+
+### Evening /goal: "layer selection is super erratic" (screen recording)
+- **What:** Andrew's recording (8:13 PM) showed clicking a portfolio video updating the
+  inspector while the Layers list never selected or expanded anything. Root cause found
+  live on 127.0.0.1:64784: `shouldSkipLayerElement` dropped every childless
+  `aria-hidden="true"` element from the tree — and decorative media (muted looping
+  video, icon img) is exactly that, while remaining fully clickable on the canvas.
+  Selection had no row to reveal. Plain elements (h2/a/li) synced fine → "erratic".
+- **Fix:** skip childless aria-hidden nodes only when they render at zero size
+  (a11y plumbing); sized decorative media now gets a row. One guard in
+  `shouldSkipLayerElement`, which layerMeasurable already delegates to.
+- **Verified:** reproduced pre-fix and confirmed post-fix on Andrew's real surface —
+  clicking the exact video from the recording expands main → section → div → div →
+  ul → li → a → video and paints the row selected, in view; h2 click still syncs.
+  Regression test kill-proofed against the pre-fix overlay; 1088 pass / 0 fail.
+- **Gotcha logged:** navigating a Chrome tab to the same URL+hash does NOT reload the
+  page — the old IIFE kept running while fetch returned the fixed file; diagnose via
+  performance resource decodedBodySize before trusting a "reload".
+- **Pushed:** `401fd49` on main. NOT yet in any published artifact — npm 2.2.6 and the
+  apex .mcpb/raven-grab.js predate it; needs a 2.2.7 (or next release) to ship publicly.
+  Andrew's local bridge serves the overlay from repo disk, so a page reload is enough.
