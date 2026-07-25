@@ -448,8 +448,13 @@ export async function auditUrl(url: string, opts: AuditUrlOptions = {}): Promise
     warnings: findings.filter((f) => f.severity === "warning").length
   };
 
-  const summary =
-    findings.length +
+  // Every capture failing (dead host, wrong port, auth wall) previously produced
+  // "0 findings across N viewport(s)" — indistinguishable from a clean page, with
+  // the real cause buried in warnings[]. Say it in the summary instead.
+  const summary = captures.length === 0
+    ? "AUDIT DID NOT RUN — every capture of " + url + " failed; see warnings. " +
+      "No page was rendered, so this is not a clean result."
+    : findings.length +
     " findings across " +
     viewports.length +
     " viewport(s) × " +

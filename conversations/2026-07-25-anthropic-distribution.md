@@ -198,3 +198,71 @@ Publish as a `web/app/privacy/page.tsx` route (the Next.js `web` project is the 
 **Out of scope, flagged by the completeness critic:** non-Anthropic distribution (Smithery, Glama, awesome-mcp-servers, VS Code/Cursor/Windsurf marketplaces, npm `mcp` keyword). The goal scoped to Anthropic channels; these are a separate backlog item.
 
 **Open-weight benchmark** (3 rows appended to `conversations/openweight-scoreboard.jsonl`, bucket `reasoning`): GLM 5.2 $0.0044/30s/6, Kimi K3 $0.081/184s/7, GPT-5.6 Sol sub/190s/9. Sol won on the only axis that mattered — it fetched live docs and cited them, surfacing the tool-annotation requirement and the AI-media policy risk that neither open-weight model could know. Both open-weight models ranked the registry #1 on an assumption the sourced answer contradicts. **Lesson for the ladder: on any bucket whose answer depends on current external process, uncited open-weight output is a prior, not an answer.** Kimi's first run at `max_tokens 2000` burned out on reasoning with empty content — reasoning models need ≥6k on this bucket.
+
+---
+
+## 10. Implementation pass — 2026-07-25
+
+Two commits on `main`. Nothing submitted, published, or deployed.
+
+- **`ef7b392`** — tool annotations (title + readOnlyHint/destructiveHint on all 100 stdio tools), `manifest.json` license → Apache-2.0 + `privacy_policies`, `server.json` remotes URL → `mcp.ravenmcp.ai`, `plugin/raven-mcp/` package, `web/app/privacy/`, `mcp-publisher publish` step in `release.sh` + the release skill.
+- **`d0c0fdb`** — `openWorldHint` on all 100 tools, privacy-policy completeness against OpenAI's five required elements, `/privacy` linked from the footer and the sitemap.
+
+**Gap table status.**
+
+| # | Gap | Status |
+|---|---|---|
+| 1 | No privacy policy page | **Built, not deployed** — `web/app/privacy/`. `ravenmcp.ai/privacy` still 404s; `web` has no git integration, so it needs Andrew's `vercel deploy --prod` from `web/`. |
+| 2 | Zero tool annotations | **Done.** 100/100 annotated, 70 read-only / 30 destructive / 11 open-world. Tool names, count, and schemas unchanged; anon-45 hash re-verified `f64bb18…2bb0a6`; 1088 tests pass / 0 fail. |
+| 3 | `server.json` remotes URL dead | **Done.** |
+| 4 | Registry record stale at 1.3.3 | **Wired, not run.** `release.sh` now publishes it after npm. The publish itself is gated behind the npm publish, which needs Andrew's passkey. |
+| 5 | Claude.ai org tier | **Answered — closed.** Max plan, no org settings. Connectors Directory needs a Team seat; it's a cost decision, not a blocker. Plugin Directory is open on the current plan (Console admin). |
+| 6 | `manifest.json` license says MIT | **Done.** |
+| 7 | No `icon.png` at repo root | **Retracted — was not a gap.** `scripts/build-mcpb.sh:29` copies `site/assets/raven-logo.png` into the bundle as `icon.png`. The manifest reference resolves correctly inside the `.mcpb`. |
+| 8 | No reviewer test account | **Open.** Needed for both Anthropic and OpenAI review; must work with no MFA. |
+| 9 | No `plugin/` package | **Done and pushed** — the submission form takes a GitHub URL, so it had to be on `main` before submitting. |
+
+**Correction to the byte-identity invariant.** Annotations change the `tools/list` payload — that is the point of the change, and it's what both directories require. What is preserved is the tool surface: same 100 names, same schemas, same handlers, same anon-45 remote hash. Recorded here because the ledger's "stdio must stay byte-identical" line will otherwise read as violated.
+
+**Privacy policy content.** Rewritten past the first draft to cover the five elements OpenAI names: categories of personal data (the hosted OAuth identity's email + user ID), purpose, recipients, retention, and controls. The first draft had a real contradiction — a "Third-party sharing: none" line sitting directly below a paragraph naming WorkOS and Upstash. That section now names both processors and what each holds. Design-judge: PASS, no findings, verified at 1440 and 393 against the running page.
+
+**Unverifiable claims deliberately cut from the policy:** a 30-day backup-deletion window (Upstash's backup retention is not something I can verify) and a usage-log rotation cap (no cap exists in the code). Neither is in the shipped copy.
+
+---
+
+## 11. Channel: Codex CLI / ChatGPT desktop
+
+Not an Anthropic channel — added because the ask expanded to "Claude and Codex desktop." Sources fetched live 2026-07-25.
+
+**Install works today, no listing required.** Codex reads `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.raven-mcp]
+command = "npx"
+args = ["-y", "raven-mcp"]
+```
+
+Or `codex mcp add raven-mcp -- npx -y raven-mcp`. Codex supports streamable-HTTP natively — no `mcp-remote` bridge — so the hosted endpoint also works directly:
+
+```toml
+[mcp_servers.raven-mcp]
+url = "https://mcp.ravenmcp.ai/api/mcp"
+```
+
+For the authenticated surface, point at `/api/mcp-user` and run `codex mcp login raven-mcp` to trigger the AuthKit flow. **Untested by me** — the anonymous URL form is the one I'd document first.
+
+**ChatGPT desktop** takes third-party MCP connectors behind Developer Mode (Plus/Pro/Team/Enterprise/Edu; not Free). This is a different mechanism from Codex's TOML. The help-center page 403s to automated fetch, so the exact in-app path is search-snippet-sourced, not page-verified — check it signed in.
+
+**There is a submission directory**, at `platform.openai.com/plugins`. Requirements, quoted from the live docs:
+
+- Verified developer or business identity in the OpenAI Platform, plus **Apps Management** write access.
+- Domain control proven by serving the token at `https://<host>/.well-known/openai-apps-challenge` — bare token, no JSON wrapper.
+- A published privacy policy explaining *"the categories of personal data collected, the purposes of use, the categories of recipients, data retention timelines, and any controls offered."*
+- Customer support contact details.
+- Correct `readOnlyHint` / `openWorldHint` / `destructiveHint` — *"Incorrect or missing action labels are a common cause of rejection."*
+- Five positive and three negative test cases, with demo credentials that work **without MFA, SMS, email confirmation, or private-network access**.
+- No terms-of-service page required.
+
+**One conflict worth knowing before submitting.** OpenAI's reviewer guidance defines `openWorldHint` as *"tools that change publicly visible internet state (posting, publishing, sending external messages)"*. The MCP schema defines it as interacting with an open set of external entities — a web search is open, a memory tool is not. Raven's 11 URL-driving audit tools are open-world under the spec and closed under OpenAI's phrasing. I set them per the spec, because Claude Desktop and every other spec-following client is the larger install base and reading an arbitrary URL is the thing a user should be told about. If an OpenAI reviewer reads it their way, the answer is that these tools fetch, they don't publish — worth pre-empting in the submission notes rather than flipping the flag.
+
+**Codex-channel gaps not shared with the Anthropic channels:** the `.well-known/openai-apps-challenge` token (needs a value from the portal), OpenAI identity verification (Andrew's, in OpenAI's dashboard), and the test-case dossier.
