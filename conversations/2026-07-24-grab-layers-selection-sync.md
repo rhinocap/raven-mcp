@@ -78,3 +78,9 @@ single focused overlay bug: canvas selection not reflected in the Raven Design L
 - **Pushed:** `401fd49` on main. NOT yet in any published artifact — npm 2.2.6 and the
   apex .mcpb/raven-grab.js predate it; needs a 2.2.7 (or next release) to ship publicly.
   Andrew's local bridge serves the overlay from repo disk, so a page reload is enough.
+- **Adverse (Sol, report-only):** P1 geometry-dependent membership can abort live drag
+  preview if an aria-hidden decoration resizes to zero between build and drag — verified
+  the abort path is the safe designed degrade (falls back to draft + "re-propose"
+  recheck); accepted-by-design. P2 offscreen/visibility:hidden aria-hidden leaves now
+  get rows — matches the tree's existing policy for plain hidden elements;
+  accepted-by-design.
