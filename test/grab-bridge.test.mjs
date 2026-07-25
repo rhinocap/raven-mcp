@@ -11480,3 +11480,42 @@ test('[live-move fix] composed same-parent second drag keeps the pristine domSna
   internals.removeChange(composedDraft.clientKey);
   assert.deepEqual(parent.children, pristineOrder);
 });
+
+test('REGRESSION: a branch past the depth cap does not truncate the rest of the page out of the layer tree', async () => {
+  // A deep nav (>12 levels) used to set the SHARED `stopped` flag, which broke out of
+  // every remaining sibling loop — so `main` and everything after it never entered
+  // layerElements, and a canvas selection there had no row to select or reveal.
+  const { internals, document } = await loadOverlayInternals();
+  const deep = document.createElement('nav');
+  deep.localName = 'nav';
+  document.body.appendChild(deep);
+  let cursor = deep;
+  for (let i = 0; i < 15; i += 1) {
+    const next = document.createElement('div');
+    next.localName = 'div';
+    cursor.appendChild(next);
+    cursor = next;
+  }
+  const main = document.createElement('main');
+  main.localName = 'main';
+  const link = document.createElement('a');
+  link.localName = 'a';
+  main.appendChild(link);
+  document.body.appendChild(main);
+
+  const tree = internals.buildLayerTree(document.body);
+  // buildLayerTree runs in the overlay's vm realm, so its arrays fail deepStrictEqual's
+  // prototype check — compare joined labels instead.
+  assert.equal(tree.children.map((child) => child.label).join(','), 'nav,main', 'the sibling after the deep branch still gets a node');
+
+  const flat = [];
+  const pending = [tree];
+  while (pending.length) {
+    const node = pending.pop();
+    flat.push(node);
+    (node.children || []).forEach((child) => pending.push(child));
+  }
+  assert.ok(flat.some((node) => node.label === 'a' && !node.truncated), 'descendants of the later sibling are in the tree');
+  const truncatedIds = flat.filter((node) => node.truncated).map((node) => node.id);
+  assert.equal(new Set(truncatedIds).size, truncatedIds.length, 'truncated placeholder ids stay unique');
+});

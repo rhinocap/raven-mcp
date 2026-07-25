@@ -6360,11 +6360,17 @@
     layerElements = new Map();
     var total = 0;
     var stopped = false;
+    var truncatedCount = 0;
     function visit(element, parentId, depth) {
       if (!element || element.nodeType !== 1 || shouldSkipLayerElement(element) || element === host || (typeof element.hasAttribute === "function" && element.hasAttribute("data-raven-grab-overlay"))) return null;
-      if (total >= 500 || depth > 12) {
-        stopped = true;
-        return { id: "truncated-" + total, parentId: parentId, depth: depth, label: "truncated", badges: ["truncated"], children: [], truncated: true };
+      // Only the 500-node budget is GLOBAL. The depth cap prunes one branch: setting
+      // `stopped` for it aborted every remaining sibling in the whole tree, so one deep
+      // nav dropped the rest of the page out of layerElements and canvas selection had
+      // no row to select or reveal.
+      if (total >= 500) stopped = true;
+      if (stopped || depth > 12) {
+        truncatedCount += 1;
+        return { id: "truncated-" + truncatedCount, parentId: parentId, depth: depth, label: "truncated", badges: ["truncated"], children: [], truncated: true };
       }
       total += 1;
       layerRuntimeId += 1;
