@@ -21,6 +21,9 @@ echo "→ Staging bundle contents"
 cp manifest.json "$STAGE/manifest.json"
 cp README.md LICENSE "$STAGE/"
 cp -R dist "$STAGE/dist"
+# The grab bridge serves browser/raven-grab.js from PKG_ROOT at runtime — without
+# this the bundled server 404s the overlay and Raven Design is dead in .mcpb installs.
+cp -R browser "$STAGE/browser"
 mkdir -p "$STAGE/src"
 cp -R src/data "$STAGE/src/data"
 cp site/assets/raven-logo.png "$STAGE/icon.png"
