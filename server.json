@@ -23,7 +23,7 @@
   "remotes": [
     {
       "type": "streamable-http",
-      "url": "https://ravenmcp.ai/api/mcp"
+      "url": "https://mcp.ravenmcp.ai/api/mcp"
     }
   ]
 }

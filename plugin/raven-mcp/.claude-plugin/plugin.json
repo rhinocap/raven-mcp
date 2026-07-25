@@ -1,0 +1,11 @@
+{
+  "name": "raven-mcp",
+  "displayName": "Raven",
+  "description": "Design-intelligence MCP server: audits pages, screens, and diffs for contrast, layout, tap targets, and consistency; carries a design system and a taste profile an agent can consult before writing UI code.",
+  "version": "2.2.7",
+  "author": { "name": "Andrew Cunliffe", "url": "https://ravenmcp.ai" },
+  "homepage": "https://ravenmcp.ai",
+  "repository": "https://github.com/rhinocap/raven-mcp",
+  "license": "Apache-2.0",
+  "keywords": ["design", "design-system", "accessibility", "audit", "ui", "taste"]
+}

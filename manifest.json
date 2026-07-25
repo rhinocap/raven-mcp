@@ -17,7 +17,7 @@
     "type": "git",
     "url": "https://github.com/rhinocap/raven-mcp"
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
   "keywords": [
     "design",
     "design-system",
@@ -41,6 +41,9 @@
     "campaigns"
   ],
   "icon": "icon.png",
+  "privacy_policies": [
+    "https://ravenmcp.ai/privacy"
+  ],
   "server": {
     "type": "node",
     "entry_point": "dist/index.js",

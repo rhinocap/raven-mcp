@@ -1956,6 +1956,133 @@ const REMOTE_URL_GUARDED_TOOLS: { [tool: string]: string } = {
   audit_taste: "url"
 };
 
+// MCP annotations are injected at the shared registration boundary below.
+// Classifications come from each handler and its called helpers, not name prefixes.
+const TOOL_ACCESS: Record<string, "readOnly" | "destructive"> = {
+  get_principles: "readOnly",
+  get_pattern: "readOnly",
+  get_business_strategy: "readOnly",
+  evaluate_design: "readOnly",
+  search_knowledge: "readOnly",
+  get_checklist: "readOnly",
+  get_d4d_framework: "readOnly",
+  list_design_systems: "readOnly",
+  get_design_system: "readOnly",
+  read_design_md: "readOnly",
+  review_diff: "readOnly",
+  polish_diff: "readOnly",
+  init_design_md: "destructive",
+  update_design_md: "destructive",
+  start_grab_session: "destructive",
+  get_grabbed_elements: "destructive",
+  stop_grab_session: "destructive",
+  get_page_template: "readOnly",
+  set_template_slot: "destructive",
+  list_templates: "readOnly",
+  get_grab_layers: "readOnly",
+  move_grab_layer: "destructive",
+  get_grab_operation: "destructive",
+  compose_system: "readOnly",
+  audit_page: "readOnly",
+  score_page: "readOnly",
+  audit_asset_integrity: "readOnly",
+  audit_device_frame: "readOnly",
+  audit_contract: "readOnly",
+  audit_api_contract: "readOnly",
+  audit_parity: "readOnly",
+  audit_ios_a11y: "readOnly",
+  audit_responsive_visibility: "readOnly",
+  audit_contrast: "readOnly",
+  suggest_contrast_fix: "readOnly",
+  audit_url: "readOnly",
+  audit_content: "readOnly",
+  audit_typography: "readOnly",
+  audit_tap_targets: "readOnly",
+  get_brand_system: "readOnly",
+  generate_design_system: "readOnly",
+  audit_layout: "readOnly",
+  audit_swiftui: "readOnly",
+  audit_screen: "readOnly",
+  audit_ios_screen: "readOnly",
+  audit_ios_privacy: "readOnly",
+  audit_rn: "readOnly",
+  list_content_systems: "readOnly",
+  get_content_system: "readOnly",
+  get_content_principles: "readOnly",
+  get_content_pattern: "readOnly",
+  get_research_method: "readOnly",
+  get_metrics_framework: "readOnly",
+  get_service_pattern: "readOnly",
+  get_service_standard: "readOnly",
+  generate_service_blueprint: "readOnly",
+  get_brand_principles: "readOnly",
+  get_brand_trends: "readOnly",
+  list_creative_models: "readOnly",
+  list_creative_presets: "readOnly",
+  create_brand_profile: "destructive",
+  get_brand_profile: "readOnly",
+  list_brand_profiles: "readOnly",
+  register_creative_asset: "destructive",
+  create_character_profile: "destructive",
+  create_generation_job: "destructive",
+  get_generation_job: "readOnly",
+  list_generation_jobs: "readOnly",
+  plan_creative_campaign: "destructive",
+  score_creative: "readOnly",
+  audit_consistency: "readOnly",
+  raven_reflect: "readOnly",
+  raven_register: "destructive",
+  audit_video_playback: "readOnly",
+  decision_add: "destructive",
+  decision_evidence: "destructive",
+  decision_draft: "destructive",
+  decision_commit: "destructive",
+  decision_supersede: "destructive",
+  decision_scope: "destructive",
+  decision_history: "readOnly",
+  decision_get: "destructive",
+  decision_list: "destructive",
+  gap_scan: "readOnly",
+  decision_import: "destructive",
+  ingest_transcript: "destructive",
+  ingest_transcript_results: "destructive",
+  create_taste_profile: "destructive",
+  get_taste_profile: "readOnly",
+  get_taste_interview: "readOnly",
+  bind_taste_surface: "destructive",
+  record_taste_decision: "destructive",
+  list_taste_decisions: "readOnly",
+  generate_taste_portrait: "destructive",
+  list_taste_profiles: "readOnly",
+  label_finding: "destructive",
+  audit_taste: "readOnly",
+  talon_scan: "readOnly",
+  talon_rules: "readOnly",
+  audit: "readOnly"
+};
+
+function toolTitle(toolName: string): string {
+  var terms: Record<string, string> = {
+    api: "API",
+    d4d: "D4D",
+    ios: "iOS",
+    rn: "React Native",
+    url: "URL",
+    a11y: "Accessibility"
+  };
+  return toolName.replace("design_md", "DESIGN.md").split("_").map(function (word) {
+    return terms[word] || word.charAt(0).toUpperCase() + word.slice(1);
+  }).join(" ");
+}
+
+function toolAnnotations(toolName: string): { title: string; readOnlyHint?: true; destructiveHint?: true } {
+  var access = TOOL_ACCESS[toolName];
+  if (!access) throw new Error("Missing MCP tool classification: " + toolName);
+  return access === "destructive"
+    ? { title: toolTitle(toolName), destructiveHint: true }
+    : { title: toolTitle(toolName), readOnlyHint: true };
+}
+
 // buildServer() returns a FRESH McpServer with all 100 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
@@ -2062,6 +2189,7 @@ var originalTool: any = server.tool.bind(server);
       return result;
     };
   }
+  args.splice(args.length - 1, 0, toolAnnotations(toolName));
   return originalTool.apply(null, args);
 };
 

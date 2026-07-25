@@ -3,6 +3,7 @@
 #   - Bumps version (patch by default)
 #   - Rebuilds the .mcpb into site/
 #   - Publishes to npm
+#   - Publishes to the MCP Registry
 #   - Commits, tags, and pushes
 #
 # Usage:
@@ -38,7 +39,7 @@ echo "→ Current version: $CURRENT"
 
 if [[ "$DRY_RUN" == "1" ]]; then
   NEW=$(node -p "const s='${CURRENT}'.split('.').map(Number); const b='${BUMP}'; if(b==='major'){s[0]++;s[1]=0;s[2]=0}else if(b==='minor'){s[1]++;s[2]=0}else{s[2]++}; s.join('.')")
-  echo "  [dry-run] would bump to $NEW, rebuild .mcpb, publish to npm, commit, tag, push"
+  echo "  [dry-run] would bump to $NEW, rebuild .mcpb, publish to npm + MCP Registry, commit, tag, push"
   exit 0
 fi
 
@@ -78,6 +79,13 @@ SKIP_BUILD=1 npm run build:mcpb
 
 echo "→ Publishing to npm"
 npm publish
+
+echo "→ Publishing to MCP Registry"
+if ! command -v mcp-publisher >/dev/null 2>&1; then
+  echo "✗ mcp-publisher CLI not found on PATH. Install it before releasing."
+  exit 1
+fi
+mcp-publisher publish
 
 echo "→ Committing + tagging"
 git add package.json package-lock.json manifest.json server.json site/raven.mcpb
