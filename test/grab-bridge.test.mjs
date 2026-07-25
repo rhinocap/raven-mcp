@@ -11542,3 +11542,26 @@ test('REGRESSION: a non-layer sibling does not shift reorder indices off the lay
   assert.equal(measured.length, tree.children.length, 'measured children align 1:1 with tree nodes');
   assert.equal(measured.indexOf(last), 1, 'the excluded sibling does not advance the live index');
 });
+
+test('REGRESSION: a visible aria-hidden leaf (decorative video) gets a layer row', async () => {
+  // Decorative media is aria-hidden="true" with no element children — but it renders at
+  // real size and is fully clickable on the canvas. The old skip dropped it from the tree,
+  // so clicking a portfolio video updated the right panel while the layers list showed no
+  // selection at all. Zero-size aria-hidden nodes (a11y plumbing) must still stay out.
+  const { internals, document } = await loadOverlayInternals();
+  const link = document.createElement('a');
+  link.localName = 'a';
+  const video = document.createElement('video');
+  video.localName = 'video';
+  video.setAttribute('aria-hidden', 'true');
+  video.getBoundingClientRect = () => ({ width: 400, height: 225, top: 0, left: 0, right: 400, bottom: 225 });
+  const srOnly = document.createElement('span');
+  srOnly.localName = 'span';
+  srOnly.setAttribute('aria-hidden', 'true');
+  srOnly.getBoundingClientRect = () => ({ width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0 });
+  link.appendChild(video);
+  link.appendChild(srOnly);
+
+  const tree = internals.buildLayerTree(link);
+  assert.equal(tree.children.map((child) => child.label).join(','), 'video', 'sized aria-hidden media is in the tree, zero-size plumbing is not');
+});

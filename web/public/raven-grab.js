@@ -6350,7 +6350,14 @@
       var type = String(element.getAttribute("type") || "").toLowerCase();
       if (type === "application/ld+json") return true;
       if (element.getAttribute("data-raven-grab-ignore") != null) return true;
-      if (element.getAttribute("aria-hidden") === "true" && !(element.children && element.children.length)) return true;
+      if (element.getAttribute("aria-hidden") === "true" && !(element.children && element.children.length)) {
+        // Childless aria-hidden nodes are usually a11y plumbing, but decorative media
+        // (a muted looping video, an icon img) is aria-hidden AND fully clickable on
+        // the canvas. Anything selectable must have a layers row, so only skip the
+        // ones that render at zero size.
+        var hiddenRect = typeof element.getBoundingClientRect === "function" ? element.getBoundingClientRect() : null;
+        if (!hiddenRect || !(hiddenRect.width > 0 && hiddenRect.height > 0)) return true;
+      }
     }
     return false;
   }
