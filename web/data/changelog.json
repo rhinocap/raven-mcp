@@ -26,6 +26,18 @@
   },
   "releases": [
     {
+      "version": "v2.2.7",
+      "date": "2026-07-24",
+      "category": "tooling",
+      "kind": "fix",
+      "title": "Decorative media now selects in the layers tree",
+      "changes": [
+        "Clicking a decorative video or icon image on the canvas now expands its ancestors and highlights its row in the Layers tree — previously aria-hidden media had no layers row at all, so selection looked like it silently failed.",
+        "Zero-size aria-hidden nodes (accessibility plumbing) stay out of the tree; only media that actually renders gets a row.",
+        "No tool changes — the 100-tool stdio surface is unchanged."
+      ]
+    },
+    {
       "version": "v2.2.6",
       "date": "2026-07-24",
       "category": "tooling",

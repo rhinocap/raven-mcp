@@ -6,6 +6,13 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [2.2.7] - 2026-07-24
+
+Raven Design overlay layers-tree fix. No tool changes — the 100-tool stdio surface is unchanged.
+
+### Fixed
+- Visible aria-hidden media (decorative videos, icon images) now gets a row in the Layers tree, so selecting it on the canvas expands its ancestors and highlights the row. Previously any childless `aria-hidden="true"` element was skipped, leaving canvas-clickable media with no layers row at all — selection looked like it silently failed. Zero-size aria-hidden nodes (accessibility plumbing) stay out of the tree.
+
 ## [2.2.6] - 2026-07-24
 
 Raven Design overlay layers-tree fix. No tool changes — the 100-tool stdio surface is unchanged.

@@ -314,6 +314,23 @@
           <article class="cl-card">
             <header class="cl-card-head">
               <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.2.7</span>
+              <span class="cl-badge kind-fix">Fix</span>
+              <time datetime="2026-07-24" class="cl-date">July 24, 2026</time>
+            </header>
+            <h2 class="cl-title">Decorative media now selects in the layers tree</h2>
+            <ul class="cl-changes">
+              <li>Clicking a decorative video or icon image on the canvas now expands its ancestors and highlights its row in the Layers tree — previously aria-hidden media had no layers row at all, so selection looked like it silently failed.</li>
+              <li>Zero-size aria-hidden nodes (accessibility plumbing) stay out of the tree; only media that actually renders gets a row.</li>
+              <li>No tool changes — the 100-tool stdio surface is unchanged.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
               <span class="cl-version">v2.2.6</span>
               <span class="cl-badge kind-fix">Fix</span>
               <time datetime="2026-07-24" class="cl-date">July 24, 2026</time>
