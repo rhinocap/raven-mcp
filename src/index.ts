@@ -2075,12 +2075,39 @@ function toolTitle(toolName: string): string {
   }).join(" ");
 }
 
-function toolAnnotations(toolName: string): { title: string; readOnlyHint?: true; destructiveHint?: true } {
+// openWorldHint defaults to TRUE in the MCP spec, so the interesting statement is
+// the explicit `false` on the other 89 tools: they read bundled knowledge, local
+// ~/.raven state, or caller-pasted markup and never reach an unpredictable host.
+// These 11 take a caller-supplied URL/endpoint and drive a real browser or fetch
+// against it. `audit` is a dispatcher that fans out to this same set.
+// init_design_md is deliberately absent — its fetch targets one fixed starter
+// base URL, a closed set, not an open world.
+const TOOL_OPEN_WORLD: string[] = [
+  "audit_url",
+  "audit_contrast",
+  "audit_tap_targets",
+  "audit_responsive_visibility",
+  "audit_video_playback",
+  "audit_taste",
+  "audit_page",
+  "score_page",
+  "audit_typography",
+  "audit_api_contract",
+  "audit"
+];
+
+function toolAnnotations(toolName: string): {
+  title: string;
+  readOnlyHint?: true;
+  destructiveHint?: true;
+  openWorldHint: boolean;
+} {
   var access = TOOL_ACCESS[toolName];
   if (!access) throw new Error("Missing MCP tool classification: " + toolName);
+  var openWorld = TOOL_OPEN_WORLD.indexOf(toolName) !== -1;
   return access === "destructive"
-    ? { title: toolTitle(toolName), destructiveHint: true }
-    : { title: toolTitle(toolName), readOnlyHint: true };
+    ? { title: toolTitle(toolName), destructiveHint: true, openWorldHint: openWorld }
+    : { title: toolTitle(toolName), readOnlyHint: true, openWorldHint: openWorld };
 }
 
 // buildServer() returns a FRESH McpServer with all 100 local tools + the usage-log/

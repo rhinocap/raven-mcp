@@ -7,3 +7,8 @@
   margin: 0 auto;
   padding: calc(var(--nav-height) + var(--space-16) + 12px) var(--space-6) var(--space-20);
 }
+
+.privacy-updated {
+  margin-top: var(--space-12);
+  color: var(--text-tertiary);
+}
