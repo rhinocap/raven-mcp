@@ -309,6 +309,24 @@
       </div>
 
       <ol class="cl-timeline">
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.2.6</span>
+              <span class="cl-badge kind-fix">Fix</span>
+              <time datetime="2026-07-24" class="cl-date">July 24, 2026</time>
+            </header>
+            <h2 class="cl-title">Selecting on the page now selects in the layers tree</h2>
+            <ul class="cl-changes">
+              <li>Clicking an element on the page selects its row in the Raven Design layers tree and expands every parent above it.</li>
+              <li>The tree used to stop building at the first branch nested deeper than twelve levels, so most of a real page was missing from it and a click below that point had nothing to reveal. Deep branches are now trimmed on their own.</li>
+              <li>Dragging a layer next to a non-visual sibling — a &lt;template&gt;, &lt;noscript&gt;, JSON-LD script, or empty aria-hidden node — no longer produces a move the bridge rejects.</li>
+              <li>No tool changes — the 100-tool surface is unchanged.</li>
+            </ul>
+          </article>
+        </li>
         <li class="cl-item" data-category="audits">
           <span aria-hidden="true" class="cl-node cat-audits"></span>
           <article class="cl-card">

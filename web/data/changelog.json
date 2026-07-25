@@ -26,6 +26,19 @@
   },
   "releases": [
     {
+      "version": "v2.2.6",
+      "date": "2026-07-24",
+      "category": "tooling",
+      "kind": "fix",
+      "title": "Selecting on the page now selects in the layers tree",
+      "changes": [
+        "Clicking an element on the page selects its row in the Raven Design layers tree and expands every parent above it.",
+        "The tree used to stop building at the first branch nested deeper than twelve levels, so most of a real page was missing from it and a click below that point had nothing to reveal. Deep branches are now trimmed on their own.",
+        "Dragging a layer next to a non-visual sibling — a <template>, <noscript>, JSON-LD script, or empty aria-hidden node — no longer produces a move the bridge rejects.",
+        "No tool changes — the 100-tool surface is unchanged."
+      ]
+    },
+    {
       "version": "v2.2.5",
       "date": "2026-07-24",
       "category": "audits",

@@ -6,7 +6,13 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
-## [2.2.5] - 2026-07-24
+## [2.2.6] - 2026-07-24
+
+Raven Design overlay layers-tree fix. No tool changes — the 100-tool stdio surface is unchanged.
+
+### Fixed
+- Selecting an element on the page now selects it in the overlay's layers tree and expands every parent above it. On a real page the tree stopped building at the first branch nested deeper than twelve levels, so most of the page was missing from it — a click below that point had no row to highlight and nothing to reveal. Deeply nested branches are now trimmed on their own without cutting off the rest of the page.
+- Dragging a layer next to a non-visual sibling (`<template>`, `<noscript>`, a JSON-LD script, an empty `aria-hidden` node) no longer produces a move the bridge rejects — the tree and the drag now count children the same way.
 
 Capture reliability fix. No tool changes — the 100-tool stdio surface is unchanged.
 
