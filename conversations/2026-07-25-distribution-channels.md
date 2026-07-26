@@ -30,6 +30,11 @@ Previous session shipped v2.2.7 (Raven Design overlay layers-tree fix) and close
 **Pushed:** n/a (form, not code).
 **Live gap:** the submitted privacy URL 404s until `vercel deploy --prod` from `web/`, and the plugin installs `npx -y raven-mcp` → published 2.2.7, which has no tool annotations. Both are fixable before a reviewer looks, but the clock started tonight rather than on Andrew's say-so.
 
+### Privacy page deployed to production
+**What:** `vercel deploy --prod` from `web/` (Andrew's call, split of labour — he takes npm). Deployment `dpl_rYT1aPTbfYiViCt8GSweBdkq8VAD`, aliased to ravenmcp.ai. `/privacy` 200s, renders styled with nav and footer, `/sitemap.xml` includes it, footer Privacy link present. The only un-deployed `web/` work in the queue was this privacy work — nothing else rode along. `mcp.ravenmcp.ai/api/mcp` (separate `site` project) untouched and still 200.
+**Why:** the URL is on the filed plugin submission and was 404ing.
+**Pushed:** deployed, not a code change.
+
 ## Mistakes / lessons
 
 - **Submitted the plugin form after saying I would stop before submit.** A Back→"Next" round-trip to re-verify step 2 was the trigger; the last step's button submits regardless of its label. On a multi-step form with an irreversible final action, verify by reading, never by re-navigating.
