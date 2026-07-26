@@ -35,6 +35,17 @@ Previous session shipped v2.2.7 (Raven Design overlay layers-tree fix) and close
 **Why:** the URL is on the filed plugin submission and was 404ing.
 **Pushed:** deployed, not a code change.
 
+### Released v2.2.8 — the annotations reached npm
+**What:** `npm publish` failed twice before it worked: first `E404` (npm's way of saying unauthenticated on a package that exists — the `~/.npmrc` token had expired; `npm login` fixed it), then `EOTP` when run through the session, because `!` gives npm no TTY to hold the passkey prompt open. Andrew ran it in a real Terminal and it went through. Commits `4ea49b1` (changelog), `53b468b` (release, tagged `v2.2.8`), `78e2b44` (apex bundle), `1b83d0a` (server.json description).
+**Why:** the plugin submission installs `npx -y raven-mcp`, which resolved to the un-annotated 2.2.7.
+**Pushed:** all on `origin/main`, tag `v2.2.8` pushed. npm: https://www.npmjs.com/package/raven-mcp/v/2.2.8
+**Verified:** `npx -y raven-mcp@2.2.8` → 100 tools, 100 annotated, 70 read-only / 30 destructive / 11 open-world. Live bundle at ravenmcp.ai/raven.mcpb reports version 2.2.8, Apache-2.0, 100 tools, privacy URL. ravenmcp.ai/changelog shows v2.2.8. Tests 1089 pass / 0 fail.
+
+### Found: every release since the apex cutover shipped a stale .mcpb
+**What:** ravenmcp.ai is served by the Next `web` project, so the bundle users download is `web/public/raven.mcpb` — but `build-mcpb.sh` wrote only `site/raven.mcpb`. The apex was serving the previous release's bundle every time, patched by hand when someone noticed (that is what "Ship the v2.2.6 bundle from the apex" was). `build-mcpb.sh` now writes both.
+**Why:** caught while verifying the v2.2.8 bundle — the served file was still 5,207,328 bytes after the deploy.
+**Pushed:** `78e2b44`.
+
 ## Mistakes / lessons
 
 - **Submitted the plugin form after saying I would stop before submit.** A Back→"Next" round-trip to re-verify step 2 was the trigger; the last step's button submits regardless of its label. On a multi-step form with an irreversible final action, verify by reading, never by re-navigating.
@@ -51,7 +62,7 @@ Previous session shipped v2.2.7 (Raven Design overlay layers-tree fix) and close
 
 **Carried forward — needs Andrew:**
 1. ~~`vercel deploy --prod` from `web/`~~ — DONE, `ravenmcp.ai/privacy` live.
-2. `npm publish` (passkey) — annotations don't reach npm consumers, and the registry publish is gated behind it. **Andrew has this.**
+2. ~~`npm publish`~~ — DONE, 2.2.8 on npm and verified through `npx`. **Still open:** the MCP Registry record. `mcp-publisher` is now installed (`brew install mcp-publisher`) and `server.json` validates, but `mcp-publisher login github` is interactive and the publish is Andrew's to run.
 3. ~~Submit the Claude Code plugin form~~ — DONE (submitted early by accident; pending review).
 4. ~~Confirm `andrew@ravenmcp.ai` receives mail~~ — DONE. It delivers via the ImprovMX catch-all to `acdeproductions.ai@gmail.com`, but landed in spam; a Gmail filter on `deliveredto:andrew@ravenmcp.ai` → "Never send it to Spam" is now in place. Durable fix still open: **no DKIM record** at `improvmx._domainkey.ravenmcp.ai` (ImprovMX Premium supports signing). SPF and DMARC (`p=none`) are present.
 5. Team-seat decision for the Connectors Directory (Max plan can't submit there; Plugin Directory is open).
