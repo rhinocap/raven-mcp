@@ -53,6 +53,12 @@ rm -f "$OUT"
 echo "→ Cleaning stage"
 rm -rf "$STAGE"
 
+# ravenmcp.ai is served by the Next `web` project, not `site` — so the bundle
+# users actually download is web/public/raven.mcpb. Building only into site/
+# left the apex serving the previous release's bundle until someone noticed.
+echo "→ Copying bundle to the apex (web/public)"
+cp "$OUT" "$(dirname "$0")/../web/public/raven.mcpb"
+
 SIZE=$(du -h "$OUT" | cut -f1)
 echo ""
 echo "✓ Built: $OUT ($SIZE)"
