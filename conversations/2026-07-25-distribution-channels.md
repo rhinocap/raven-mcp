@@ -46,6 +46,13 @@ Previous session shipped v2.2.7 (Raven Design overlay layers-tree fix) and close
 **Why:** caught while verifying the v2.2.8 bundle — the served file was still 5,207,328 bytes after the deploy.
 **Pushed:** `78e2b44`.
 
+### MCP Registry record published — and it was 30 releases stale
+**What:** `ai.ravenmcp/raven-mcp` now shows **2.2.8** as `isLatest`, with the npm package and the corrected remote `https://mcp.ravenmcp.ai/api/mcp`. The record it replaced was **1.3.3, published 2026-05-04** — the registry had been advertising a May version the entire time.
+**Why:** `mcp-publisher login github` only grants `io.github.rhinocap/*`; the `ai.ravenmcp` namespace needs domain proof, and the original DNS-auth private key is nowhere on the machine (checked dotfiles, keychain, CI, `~/.mcp*`). Switched to HTTP domain proof, which is recoverable because we control the site: fresh ed25519 keypair, public half served at `https://ravenmcp.ai/.well-known/mcp-registry-auth` (commit `b7dd6e2`, deployed), private half at `~/.raven-mcp-registry-key` mode 0600 — **not in the repo, never printed**. Re-auth is `mcp-publisher login http --domain ravenmcp.ai --private-key "$(cat ~/.raven-mcp-registry-key)"`; the JWT expires in about an hour, so expect to re-run it before each publish.
+**Also fixed:** `server.json.description` was 175 chars against the registry's 100-char cap — `mcp-publisher validate` would have failed the publish on validation regardless of auth (`1b83d0a`).
+**Pushed:** `b7dd6e2`, `1b83d0a`. `release.sh` already runs `mcp-publisher publish`, so the record won't drift again.
+**Back up `~/.raven-mcp-registry-key`.** Losing the first one is exactly why this recovery was needed.
+
 ## Mistakes / lessons
 
 - **Submitted the plugin form after saying I would stop before submit.** A Back→"Next" round-trip to re-verify step 2 was the trigger; the last step's button submits regardless of its label. On a multi-step form with an irreversible final action, verify by reading, never by re-navigating.
@@ -62,7 +69,7 @@ Previous session shipped v2.2.7 (Raven Design overlay layers-tree fix) and close
 
 **Carried forward — needs Andrew:**
 1. ~~`vercel deploy --prod` from `web/`~~ — DONE, `ravenmcp.ai/privacy` live.
-2. ~~`npm publish`~~ — DONE, 2.2.8 on npm and verified through `npx`. **Still open:** the MCP Registry record. `mcp-publisher` is now installed (`brew install mcp-publisher`) and `server.json` validates, but `mcp-publisher login github` is interactive and the publish is Andrew's to run.
+2. ~~`npm publish`~~ — DONE, 2.2.8 on npm and verified through `npx`. ~~MCP Registry record~~ — DONE, see below.
 3. ~~Submit the Claude Code plugin form~~ — DONE (submitted early by accident; pending review).
 4. ~~Confirm `andrew@ravenmcp.ai` receives mail~~ — DONE. It delivers via the ImprovMX catch-all to `acdeproductions.ai@gmail.com`, but landed in spam; a Gmail filter on `deliveredto:andrew@ravenmcp.ai` → "Never send it to Spam" is now in place. Durable fix still open: **no DKIM record** at `improvmx._domainkey.ravenmcp.ai` (ImprovMX Premium supports signing). SPF and DMARC (`p=none`) are present.
 5. Team-seat decision for the Connectors Directory (Max plan can't submit there; Plugin Directory is open).
