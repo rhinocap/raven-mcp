@@ -58,6 +58,18 @@ Previous session shipped v2.2.7 (Raven Design overlay layers-tree fix) and close
 **Blocked:** **Demo Recording URL is hard-required on the Info step** — a video recorded in ChatGPT Developer Mode covering all main use cases and tools "across all platforms (web, iOS, Android)". Nothing after Info is reachable until it exists, including the MCP step where the domain-verification challenge token is issued. That's Andrew's to record (his ChatGPT account, screen capture); hosting it at `ravenmcp.ai/demo.mp4` is a one-line add once it exists.
 **Pushed:** n/a (form).
 
+### Demo video recorded, twice — shipped at ravenmcp.ai/demo.mp4
+**What:** Five takes in Screen Studio (area 2560×1410 at 0,30; the project's `recording/channel-1-display-0.m3u8` is directly ffmpeg-readable, so the Screen Studio exporter is never needed). Take 4 shipped first (`fc8d93d`), then was replaced by take 5 (`4ff2df6`, 101.5s, 1,202,547 bytes, 1600×882 h264, md5 `3ddf5b17…`). Two turns, no narration/music/captions:
+1. contrast + tap-target audits on `https://ravenmcp.ai` → 373 text elements, 373 AA passes, 0 failures; 27 tap targets at 44px, 27 passes, 0 failures.
+2. a deliberately-bad component → audit → fix → re-audit → **Raven score 93/B → 100/A**, contrast 2 failures → 0, tap target 1 failure → 0, with the corrected HTML on screen.
+**Why take 5 replaced take 4:** take 4 drove the **local stdio** `raven` server. OpenAI's own docs say ChatGPT does not support local stdio MCP servers, so a reviewer could not reproduce it. Take 5 runs in ChatGPT desktop Work mode against the **hosted** Raven MCP app (`mcp.ravenmcp.ai/api/mcp-user`), with the local `raven` server toggled off during the recording so it could not silently substitute.
+**Pushed:** `4ff2df6` to `origin/main`; `vercel deploy --prod` from `web/` (`dpl_Hu2zYw9nGR6rjuzW2PMLsM2vz3oD`, aliased to ravenmcp.ai). Served bytes md5-identical to local.
+**Privacy scrub for each recording window (all restored after, MD5-verified):** `~/.codex/AGENTS.md`, `~/AGENTS.md`, and `~/.codex/hooks.json` moved aside; sidebar collapsed; per-chat permission chip lowered to "Approve for me". The hooks were the real leak — `return-briefing`, `goal-gate-reminder`, `save-context`, and the Ponytail injector put Andrew's private operating doctrine into the model's narration on camera ("the active Ponytail guidance", then "Reading MEMORY.md"). Verified frame-by-frame with a 7×8 contact sheet at fps=1/2 plus full-resolution crops.
+
+**iOS/Android is not possible.** OpenAI's `developers.openai.com/api/docs/guides/developer-mode` states developer mode is "Available to Pro, Plus, Business, Enterprise, and Education accounts on the web", and help article 12584461 (2026-07-21) answers the mobile question "No - web only." The form's "across all platforms (web, iOS, Android)" cannot be satisfied on mobile by anyone.
+
+**Open decision for the MCP step:** the ChatGPT plugin is connected to `/api/mcp-user` (OAuth, per-user Redis taste storage) while `server.json` and the MCP Registry advertise `/api/mcp` (anonymous, 45 tools). Both are real and deliberate. Which one goes on the submission is Andrew's call.
+
 ### Added a Terms of Service page
 **What:** `web/app/terms/page.tsx`, reusing the privacy page's shell verbatim. States what is actually true: Apache-2.0 governs the code, the hosted endpoint is free/as-is/beta with changeable limits, audit findings are advisory and not a compliance certification, no-warranty and liability-cap clauses. Linked from the footer and sitemap.
 **Why:** the OpenAI form rejects Continue without a Terms URL. There was no `/terms`.
@@ -88,6 +100,7 @@ Previous session shipped v2.2.7 (Raven Design overlay layers-tree fix) and close
 3. ~~Submit the Claude Code plugin form~~ — DONE (submitted early by accident; pending review).
 4. ~~Confirm `andrew@ravenmcp.ai` receives mail~~ — DONE. It delivers via the ImprovMX catch-all to `acdeproductions.ai@gmail.com`, but landed in spam; a Gmail filter on `deliveredto:andrew@ravenmcp.ai` → "Never send it to Spam" is now in place. Durable fix still open: **no DKIM record** at `improvmx._domainkey.ravenmcp.ai` (ImprovMX Premium supports signing). SPF and DMARC (`p=none`) are present.
 5. Team-seat decision for the Connectors Directory (Max plan can't submit there; Plugin Directory is open).
-6. OpenAI identity verification + the `.well-known/openai-apps-challenge` token, if pursuing that channel.
+6. OpenAI identity verification (government ID — Andrew only) + the `.well-known/openai-apps-challenge` token, which is issued on the MCP step once Info accepts the demo URL.
+7. Pick the endpoint for the OpenAI MCP step: `/api/mcp-user` (OAuth) or `/api/mcp` (anonymous). See the demo-video entry above.
 
 **Open decision:** `audit_page` with no arguments returns `Provide either html or url` as a normal text result, not `isError: true`. Correct MCP behavior is the error flag, but fixing it touches every tool's validation path and changes output for existing consumers. Deferred, not forgotten.
