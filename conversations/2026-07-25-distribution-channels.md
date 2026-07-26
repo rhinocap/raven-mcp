@@ -53,6 +53,21 @@ Previous session shipped v2.2.7 (Raven Design overlay layers-tree fix) and close
 **Pushed:** `b7dd6e2`, `1b83d0a`. `release.sh` already runs `mcp-publisher publish`, so the record won't drift again.
 **Back up `~/.raven-mcp-registry-key`.** Losing the first one is exactly why this recovery was needed.
 
+### OpenAI plugin submission — Info step complete, blocked on the demo video
+**What:** Draft at `platform.openai.com/plugins/edit/asdk_app_6a66585c4de081918b6f4ce61eee463d/…`, created as **With MCP → Standard** (one MCP URL for all users). Info step filled and verified: name Raven, subtitle "Audit and fix UI design", description, category Developer Tools, identity Individual, author "Andrew Cunliffe", website/support/privacy/terms URLs, commerce unticked. Directory icon (512) and composer icon (256) uploaded to both light and dark slots — dark tile with the site's cyan rim glow, legible at composer size.
+**Blocked:** **Demo Recording URL is hard-required on the Info step** — a video recorded in ChatGPT Developer Mode covering all main use cases and tools "across all platforms (web, iOS, Android)". Nothing after Info is reachable until it exists, including the MCP step where the domain-verification challenge token is issued. That's Andrew's to record (his ChatGPT account, screen capture); hosting it at `ravenmcp.ai/demo.mp4` is a one-line add once it exists.
+**Pushed:** n/a (form).
+
+### Added a Terms of Service page
+**What:** `web/app/terms/page.tsx`, reusing the privacy page's shell verbatim. States what is actually true: Apache-2.0 governs the code, the hosted endpoint is free/as-is/beta with changeable limits, audit findings are advisory and not a compliance certification, no-warranty and liability-cap clauses. Linked from the footer and sitemap.
+**Why:** the OpenAI form rejects Continue without a Terms URL. There was no `/terms`.
+**Pushed:** `e6bec4b` to `origin/main`; `vercel deploy --prod` from `web/`. `https://ravenmcp.ai/terms` 200s with the right title, sitemap includes it, `/privacy` still 200, `mcp.ravenmcp.ai/api/mcp` untouched.
+
+### Fixed the design-judge stop hook's false positives
+**What:** `~/.claude/scripts/design-judge-gate.sh` fired three times on turns with no design surface. Two root causes: `DESIGN_TOOL_RE` matched `claude-in-chrome__(computer|navigate|read_page)`, so opening any browser tab armed the gate for every later turn (the 400-line evidence window kept it armed); and a `Read` of any `.png` counted, including screenshots Andrew handed me from `~/Pictures`. Browser tools removed from the design-tool list; image Reads now exclude `~/Pictures|Desktop|Downloads`. The 400-line window was left alone deliberately — it's what makes "built last turn, claimed done this turn" work.
+**Also:** wrote `~/.claude/scripts/design-judge-gate.test.py` — 10 cases, 10/10 pass, covering the three false positives and four true positives.
+**Lesson:** the script already accepts `Verdict: N/A` as a valid disposition. Use it instead of arguing with the gate in prose.
+
 ## Mistakes / lessons
 
 - **Submitted the plugin form after saying I would stop before submit.** A Back→"Next" round-trip to re-verify step 2 was the trigger; the last step's button submits regardless of its label. On a multi-step form with an irreversible final action, verify by reading, never by re-navigating.
