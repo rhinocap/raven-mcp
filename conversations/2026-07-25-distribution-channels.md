@@ -50,10 +50,10 @@ Previous session shipped v2.2.7 (Raven Design overlay layers-tree fix) and close
 **Status:** all distribution prerequisites that don't need Andrew are done and pushed. Tests 1089 pass / 0 fail. Tool count 100. Anon-45 hash `f64bb18…2bb0a6` unchanged.
 
 **Carried forward — needs Andrew:**
-1. `vercel deploy --prod` from `web/` — `ravenmcp.ai/privacy` 404s until then, and `manifest.json` now points at it.
-2. `npm publish` (passkey) — annotations don't reach npm consumers, and the registry publish is gated behind it.
-3. Submit the Claude Code plugin form — step 2 values drafted in `conversations/2026-07-25-submission-dossier.md`; step 3 unseen. The consent checkbox is Andrew's to tick.
-4. Confirm `andrew@ravenmcp.ai` receives mail — it's the support contact on two submissions.
+1. ~~`vercel deploy --prod` from `web/`~~ — DONE, `ravenmcp.ai/privacy` live.
+2. `npm publish` (passkey) — annotations don't reach npm consumers, and the registry publish is gated behind it. **Andrew has this.**
+3. ~~Submit the Claude Code plugin form~~ — DONE (submitted early by accident; pending review).
+4. ~~Confirm `andrew@ravenmcp.ai` receives mail~~ — DONE. It delivers via the ImprovMX catch-all to `acdeproductions.ai@gmail.com`, but landed in spam; a Gmail filter on `deliveredto:andrew@ravenmcp.ai` → "Never send it to Spam" is now in place. Durable fix still open: **no DKIM record** at `improvmx._domainkey.ravenmcp.ai` (ImprovMX Premium supports signing). SPF and DMARC (`p=none`) are present.
 5. Team-seat decision for the Connectors Directory (Max plan can't submit there; Plugin Directory is open).
 6. OpenAI identity verification + the `.well-known/openai-apps-challenge` token, if pursuing that channel.
 
