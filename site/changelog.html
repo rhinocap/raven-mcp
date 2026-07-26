@@ -314,6 +314,24 @@
           <article class="cl-card">
             <header class="cl-card-head">
               <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.2.8</span>
+              <span class="cl-badge kind-improvement">Improvement</span>
+              <time datetime="2026-07-25" class="cl-date">July 25, 2026</time>
+            </header>
+            <h2 class="cl-title">Every tool now says what it will do before it runs</h2>
+            <ul class="cl-changes">
+              <li>All 100 tools carry MCP annotations — a readable title plus read-only, destructive, and open-world hints. 70 read, 30 write local or hosted state, and 11 drive a browser or fetch against a URL you supply, so a client can show the consequence before the call.</li>
+              <li>An audit against an unreachable host, a wrong port, or an auth wall used to return “0 findings” — indistinguishable from a clean page. It now says the audit did not run.</li>
+              <li>The registry’s remote URL pointed at a path that 404s; it is mcp.ravenmcp.ai/api/mcp. The bundle manifest also declares the correct license and links the privacy policy.</li>
+              <li>No tool changes — the 100-tool stdio surface is unchanged.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
               <span class="cl-version">v2.2.7</span>
               <span class="cl-badge kind-fix">Fix</span>
               <time datetime="2026-07-24" class="cl-date">July 24, 2026</time>

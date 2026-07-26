@@ -26,6 +26,19 @@
   },
   "releases": [
     {
+      "version": "v2.2.8",
+      "date": "2026-07-25",
+      "category": "tooling",
+      "kind": "improvement",
+      "title": "Every tool now says what it will do before it runs",
+      "changes": [
+        "All 100 tools carry MCP annotations — a readable title plus read-only, destructive, and open-world hints. 70 read, 30 write local or hosted state, and 11 drive a browser or fetch against a URL you supply, so a client can show the consequence before the call.",
+        "An audit against an unreachable host, a wrong port, or an auth wall used to return “0 findings” — indistinguishable from a clean page. It now says the audit did not run.",
+        "The registry’s remote URL pointed at a path that 404s; it is mcp.ravenmcp.ai/api/mcp. The bundle manifest also declares the correct license and links the privacy policy.",
+        "No tool changes — the 100-tool stdio surface is unchanged."
+      ]
+    },
+    {
       "version": "v2.2.7",
       "date": "2026-07-24",
       "category": "tooling",

@@ -6,6 +6,8 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [2.2.8] - 2026-07-25
+
 No tool changes — the 100-tool stdio surface is unchanged. Every tool now carries MCP annotations, which changes what `tools/list` reports about each tool but not which tools exist or what they accept.
 
 ### Added
