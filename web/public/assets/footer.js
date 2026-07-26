@@ -43,6 +43,7 @@
           <li><a href="/docs">Docs</a></li>\
           <li><a href="/#systems">Systems</a></li>\
           <li><a href="/privacy">Privacy</a></li>\
+          <li><a href="/terms">Terms</a></li>\
         </ul>\
       </div>\
     </footer>\

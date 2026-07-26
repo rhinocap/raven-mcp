@@ -11,6 +11,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: '/design-system', priority: 0.7 },
     { path: '/changelog', priority: 0.6 },
     { path: '/privacy', priority: 0.3 },
+    { path: '/terms', priority: 0.3 },
   ]
 
   return routes.map(({ path, priority }) => ({
