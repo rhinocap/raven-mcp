@@ -167,3 +167,19 @@ Session was pure backend/protocol/infra work (remote MCP `delete_taste_data` too
 2026-07-24 | stale data-layer-id rows if agent rejects a layer move while the style editor holds the panel render | grab falsify wave (live-move preview) | invalidate/refresh layer rows on rejection even under activeStyleEditorFlush | P3
 2026-07-24 | selection highlight re-anchors to the parent container ~1.5s after a layer-move discard (layer-poll tick), instead of staying on the element | live-move preview port eyes-on | overlay: re-derive the highlight rect from the selected element on every layer-poll rebuild, not the rebuilt tree row | P3
 2026-07-21 | coachmark anchoring bug found via manual JS geometry probing, not an automated audit | Raven Design playground coachmark rework | the wireframe-off-center bug (stale `padding-right:400px`) and the fixed-pixel coachmark-anchoring failure (broken on all 4 axes at real viewport widths) were both diagnosed by hand-writing shadow-DOM traversal scripts and eyeballing screenshots at each tour step — no Raven audit tool currently flags hardcoded pixel offsets anchored against a resizable/reflowable or shadow-DOM target. A lightweight `audit_layout`-family check that scans for fixed-offset positioning near flex/grid containers or elements inside a shadowRoot (a common tour/coachmark/tooltip anti-pattern) could have caught this class of bug before manual eyes-on found it | P3
+
+## 2026-07-27 — captured from MORVEN flagship scroll build (capture-only, not started)
+
+- **`audit_scroll_coverage`** — sweep a scrollable page at a fixed pixel step, compute "ink"
+  (fraction of pixels differing from the modal background by >6), flag any frame under a
+  threshold. Found two stretches of pure black on a page whose metrics pass was fully green
+  (0 console, 0 errors, correct transfer weight). Generalises the "eyes overrule metrics"
+  rule into a runnable audit. Highest-value of this batch.
+- **`audit_scroll_pin_timing`** — for sticky/pinned scroll narratives, report each section's
+  true timeline progress at the moment it pins, and flag animation that completes during the
+  rise (before the reader's eye is on it). Pin progress is per-section arithmetic
+  (viewportHeight / (sectionHeight - viewportHeight)) and is routinely assumed wrong.
+- **`audit_state_exclusivity`** — assert two mutually-exclusive states (conflict/pass,
+  error/success) never render simultaneously across a scrubbed timeline. Crossfades in the
+  same grid cell default to showing both at 50%, which is the one state such a beat must
+  never show.
