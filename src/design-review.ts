@@ -977,18 +977,18 @@ function attributeDecisions(
   return out;
 }
 
-// The file->decision resolver, shared by review_diff and the Morven agent hooks/CLI
-// (SPEC-agent-integration §3). Lexical: directory segments plus the extension-stripped
+// The file->decision resolver, shared by review_diff and by agent hooks that need the
+// same answer outside a diff. Lexical: directory segments plus the extension-stripped
 // filename split on [-_.] form a token set; a decision matches when any >=3-char
 // non-stop-word term of its scope+statement is in that set.
 //
 // Extracted verbatim from applicableDecisions so the two callers cannot drift apart.
-// Semantics are UNCHANGED from the shipped behaviour on purpose: the spec's recall
-// widening (camelCase split, component_ref in the term set) is a deliberate behaviour
-// change to review_diff that must re-baseline the design-review tests, and is NOT part
+// Semantics are UNCHANGED from the shipped behaviour on purpose: widening recall
+// (camelCase split, component_ref in the term set) is a deliberate behaviour change to
+// review_diff that would have to re-baseline the design-review tests, and is not part
 // of this extraction. Callers wanting binding-only decisions filter to status "active"
 // themselves — this returns everything but "superseded", as review_diff always has.
-// ponytail: no glob/anchor resolution here; that is the §3 upgrade path, not v1.
+// ponytail: no glob/anchor resolution here; that is the upgrade path, not v1.
 export function decisionsForPaths(paths: string[], decisions: DecisionNode[], project?: string): DecisionNode[] {
   var pathTokens = new Set<string>();
   var allPaths = paths.concat(project ? [project] : []);
