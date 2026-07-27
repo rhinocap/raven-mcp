@@ -105,6 +105,16 @@ function sameIds(actual, expected) {
   });
 }
 
+// ponytail: subset, not equality. The store is meant to accumulate real
+// decisions, so an exact-count assertion fails the first time anyone records
+// one. What dogfooding proves is that the seeds are retrievable, not that
+// they are alone.
+function containsAll(actual, expected) {
+  return expected.every(function (id) {
+    return actual.indexOf(id) !== -1;
+  });
+}
+
 function fail(reason) {
   console.log("FAIL: " + reason);
   if (rawActive !== null) console.log("RAW active decision_list: " + JSON.stringify(rawActive));
@@ -144,14 +154,16 @@ try {
   const activeIds = sortedIds(parseDecisions(rawActive));
   const candidateDecisions = parseDecisions(rawCandidate);
   const candidateIds = sortedIds(candidateDecisions);
-  if (!sameIds(activeIds, expectedActive)) {
-    throw new Error("default active ids mismatch: expected exactly 7 active ids, got " + activeIds.length + " [" + activeIds.join(", ") + "]");
+  if (!containsAll(activeIds, expectedActive)) {
+    const missing = expectedActive.filter(function (id) { return activeIds.indexOf(id) === -1; });
+    throw new Error("active seeds missing: [" + missing.join(", ") + "] not in [" + activeIds.join(", ") + "]");
   }
-  if (!sameIds(candidateIds, [candidateId])) {
-    throw new Error("candidate ids mismatch: expected exactly " + candidateId + ", got " + candidateIds.length + " [" + candidateIds.join(", ") + "]");
+  if (!containsAll(candidateIds, [candidateId])) {
+    throw new Error("candidate seed missing: " + candidateId + " not in [" + candidateIds.join(", ") + "]");
   }
-  if (candidateDecisions[0].status !== "candidate") {
-    throw new Error("candidate status mismatch: expected candidate, got " + candidateDecisions[0].status);
+  const seededCandidate = candidateDecisions.filter(function (d) { return d.id === candidateId; })[0];
+  if (seededCandidate.status !== "candidate") {
+    throw new Error("candidate status mismatch: expected candidate, got " + seededCandidate.status);
   }
 
   console.log("PASS: active=[" + activeIds.join(", ") + "] candidate=[" + candidateIds.join(", ") + "]");
