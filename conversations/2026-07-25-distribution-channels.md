@@ -328,3 +328,38 @@ git push origin --delete merge-p4-into-main p4-merge-main p4-merge-main-2
 `origin/p4-remote-taste` is also fully merged but left out deliberately — it's the historical phase-4 branch and deleting it is a call worth making on purpose.
 
 Then mine, unprompted, once it's on npm: `vercel deploy --prod` from `web/` so the public changelog shows 2.2.9, and stage the `web/public/raven.mcpb` copy that `release.sh` omits.
+
+---
+
+## 2026-07-27 — v2.2.9 shipped
+
+Andrew logged into npm; everything else was mine. **v2.2.9 is live on all four surfaces.**
+
+**Preflight caught three blockers past the npm login** — the point of running it as one sweep instead of discovering them serially:
+
+1. **Local `main` was 6 ahead / 31 behind `origin/main`.** `release.sh` opens with `git pull --ff-only`, which dies on any local-only commit — and local main is stale by construction, because auto-save commits stay local. `git cherry origin/main main` marked exactly one commit `+`: `6890228`, the grab inert-guard WIP that adds a fifth guard where `test/grab-bridge.test.mjs` asserts four (the same commit behind the phantom test failure two days ago). Preserved on branch **`grab-inert-wip`**, then fast-forwarded main. The other five were upstream duplicates.
+2. **The MCP Registry JWT had expired** (2026-07-25 23:44). Re-authenticated via HTTP domain auth against ravenmcp.ai using `~/.raven-mcp-registry-key`.
+3. **`release.sh` staged only `site/raven.mcpb`.** Fixed in `c8dc811` to stage `web/public/raven.mcpb` too.
+
+**The release still half-failed, and the reason is worth keeping.** The registry token I minted at ~11:22 was good until 12:17; `release.sh` reached `mcp-publisher publish` at 12:22. npm published fine, then the registry 401'd on an expired token — bumped files uncommitted, no tag, no registry record. Recovered per Step 3a minus the npm publish: re-login, `mcp-publisher publish` (✓ 2.2.9), then the explicit-path commit `ebb9759`, tag `v2.2.9`, push.
+
+The real lesson isn't "the token expired" — it's that I *checked* the token an hour early and treated a passing check as a standing guarantee. The token lives minutes, `release.sh` spends it dead last, and `mcp-publisher validate` passes without auth so it proves nothing about it. Re-login is one non-interactive second. The runbook now mints a fresh token in Step 0 immediately before the release rather than checking one, and Step 0 also checks main's divergence before anything gets bumped.
+
+**Verified, every surface:**
+
+| Surface | Check | Result |
+|---|---|---|
+| npm | `npm view raven-mcp version` | 2.2.9 |
+| Real install path | `npx -y raven-mcp@2.2.9` → `tools/list` | 100 tools, serverInfo 2.2.9, `audit` present |
+| MCP Registry | `ai.ravenmcp/raven-mcp` | 2.2.9 |
+| Apex changelog | https://ravenmcp.ai/changelog | v2.2.9 top |
+| Apex `.mcpb` | manifest inside the downloaded bundle | 2.2.9 — **first release it didn't lag** |
+| Live endpoint | `mcp.ravenmcp.ai` initialize + anon `tools/list` | serverInfo 2.2.9, 45 tools, `f64bb18…` unchanged |
+| Local `dist/` | rebuilt from `main` | 2.2.9 |
+
+Git: `origin/main` at `ebb9759`, tag `v2.2.9` pushed, Vercel `site` deploy of `ebb9759` READY, `web` deployed manually (no git integration).
+
+### Left for Andrew
+
+1. Nothing blocking. Running Claude Code sessions need `/mcp` → reconnect `raven` to pick up the rebuilt `dist/` (new sessions get it automatically). Claude Desktop, only if used, needs `site/raven.mcpb` reinstalled as the extension — it never auto-updates.
+2. Still open from earlier: the three merged remote branches (`git push origin --delete merge-p4-into-main p4-merge-main p4-merge-main-2`), and `grab-inert-wip` is now parked with real WIP on it.
