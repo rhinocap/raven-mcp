@@ -6,6 +6,15 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [2.2.9] - 2026-07-26
+
+No tool changes — the 100-tool stdio surface is unchanged. `tools/list` now reports all three behaviour hints on every tool instead of omitting the one the spec calls inapplicable.
+
+### Fixed
+- Every tool's annotations now state `readOnlyHint`, `destructiveHint`, and `openWorldHint` explicitly. Previously only the applicable hint was emitted — legal under the spec, which says `destructiveHint` applies only when `readOnlyHint` is false, but it reads as "unanswered" to a client that treats annotations as a flat capability record. No meaning changed: the 70 read-only tools now also carry `destructiveHint: false`, and the 30 that write local or hosted state carry `readOnlyHint: false`. Tool names, titles, and `openWorldHint` are untouched.
+- `server.json`'s description was 175 characters against the MCP Registry's 100-character cap, so registry validation failed before a publish could start. It is now a 98-character summary.
+- The `.mcpb` build now writes the bundle to both `site/` and `web/public/`. ravenmcp.ai is served by the `web` project, so building only into `site/` left the public download one release behind.
+
 ## [2.2.8] - 2026-07-25
 
 No tool changes — the 100-tool stdio surface is unchanged. Every tool now carries MCP annotations, which changes what `tools/list` reports about each tool but not which tools exist or what they accept.
