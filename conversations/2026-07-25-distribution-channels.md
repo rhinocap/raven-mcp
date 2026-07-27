@@ -217,3 +217,55 @@ Andrew then said: *"Run it as a /goal and fan out a workflow"* on a three-item l
 - Demo video is 101s — the likeliest review bounce. **Do not re-record on spec**; wait for actual review feedback.
 - Local `main` is stale by construction and carries one unique auto-save (`6890228`, `browser/raven-grab.js` WIP). Left alone deliberately.
 - DKIM at `improvmx._domainkey.ravenmcp.ai`. Team-seat decision for the Anthropic Connectors Directory. Back up `~/.raven-mcp-registry-key`. Delete preview branches `p4-merge-main` and `p4-merge-main-2`.
+
+---
+
+## /goal three-track run — 2026-07-26
+
+Workflow `wf_e715c2fd-3cc`, 9 agents, 0 errors: 3 assessors in parallel, each followed by two adversarial verifiers (correctness lens + safety lens). The verify leg paid for itself twice — see "What the adverse pass caught".
+
+### Track 3 — ground-truth refresh — DONE, pushed `677a3b3`
+
+The block was eight releases stale. Corrected against live evidence: v2.2.0 → **v2.2.8**; 768 tests → **1092 tests / 1089 pass / 0 fail / 3 skipped** (~44s); 100 stdio tools, now all 100 carrying full annotations. Rewrote the Deploy and Landmine bullets around the real constraint (`mcp.ravenmcp.ai` carries `gitBranch: p4-remote-taste`, so `vercel deploy --prod` never reaches it) and stated the ordering that makes unpinning safe. Added two gotchas a successor would otherwise hit:
+
+- **`buildServer()` bare is not the stdio path.** `src/index.ts:2127` falls back to `process.env.RAVEN_REMOTE` whenever `opts.remote` is not an explicit boolean. A gate script that calls `buildServer()` and labels the result "stdio" measures the remote server whenever `RAVEN_REMOTE` is set. Use `buildServer({ remote: false, tasteStore: new FsTasteStore() })`.
+- **`.mcpb` staging gap.** `scripts/build-mcpb.sh` writes to both `site/` and `web/public/`; `scripts/release.sh` stages only `site/raven.mcpb`. Stage both or the public download lags a release.
+
+### Track 2 — p4 merge — MERGED AND VERIFIED on a branch, awaiting Andrew
+
+`origin/merge-p4-into-main` (`99aff19`), merged in a throwaway worktree off `origin/main`. **Zero conflicts.** Delta is 14 files: `api/_ratelimit.js`, `delete_taste_data`, per-user Redis store additions, docs, tests.
+
+Gate results — the load-bearing evidence:
+
+| Check | main (baseline) | merged | |
+|---|---|---|---|
+| stdio tool count | 100 | 100 | ok |
+| **stdio full-surface sha** | `f753c753…99212` | `f753c753…99212` | **identical** |
+| anon tool count | 45 | 45 | ok |
+| anon name sha (frozen) | `f64bb18…2bb0a6` | `f64bb18…2bb0a6` | **unchanged** |
+| anon full-surface sha | `b22cef9d…9ea2e` | `b22cef9d…9ea2e` | identical |
+| `npm test` | 1092 / 1089 pass / 0 fail | **1101 / 1098 pass / 0 fail** | ok |
+
+The full-surface sha covers name, title, description, annotations, input-schema key set, and the `McpServer` instructions string — not just the name list. `delete_taste_data` registers only under `remote && hasUserStore`, which is why stdio and anon never see it.
+
+**ORDERING IS THE WHOLE RISK.** Unpinning before merged-main deploys would strip the per-user rate limiter and the data-delete path off a live OAuth-bearing endpoint, because production builds from main and main has neither. Merge → wait for production READY → verify the production alias serves 45 / `f64bb18…` → then unpin. Named revert: re-set `Git Branch` to `p4-remote-taste` in the same Vercel Domains UI.
+
+### Track 1 — 2.2.9 prep — changelog pushed `0fb183f`, blocked on `npm login`
+
+`CHANGELOG.md` + `web/data/changelog.json` + regenerated `site/changelog.html` (30 releases). Patch bump is correct: no tool added or removed, no schema change. Preflight: `mcp-publisher validate` → **valid** (98-char description now under the 100 cap). **`npm whoami` → E401** — the documented #1 blocker; `npm login` must happen before `scripts/release.sh` gets anywhere.
+
+**New risk, decision needed before Friday:** `.github/workflows/release.yml` is a scheduled `0 17 * * 5` auto-release with `bump:auto`. p4 carries one `feat(p4.4)` commit, so landing the merge makes the next cron run compute a **minor** and auto-publish 2.3.0 over OIDC — bypassing the passkey rule, for a release whose stdio surface is byte-identical to 2.2.8. Skip, disable, or accept.
+
+### What the adverse pass caught
+
+1. **The critical gate was built wrong.** The merge assessor's own "THE critical gate" called bare `buildServer()` and labelled it stdio — the `RAVEN_REMOTE` fallback above. It also diffed tool *names* only, while the frozen contract is byte-identity. Rebuilt as a full-surface hash before trusting it.
+2. **Three false facts headed into a checked-in ledger.** The ground-truth draft pinned a moving HEAD sha, had the p4 delta wrong, and asserted a failing local test as a successor-critical fact. That last one was per-machine transient state — exactly what the block exists to prevent. Dropped.
+3. **A phantom test failure.** The release assessor reported `npm test` failing 1 of 1094. It was measuring local `main`'s tree (which carries the unpushed `6890228` grab work, adding a fifth guard where the test asserts four) while I moved the primary checkout to `ckpt-goal` mid-flight. On what actually ships, the suite is green. **Lesson: don't switch branches in the primary worktree while subagents are reading it.**
+
+### Left for Andrew
+
+1. `gh pr create --base main --head merge-p4-into-main`, then merge — landing on main triggers the production deploy.
+2. Wait for production READY, verify the alias serves 45 / `f64bb18…`, **then** unpin `mcp.ravenmcp.ai` (Vercel → `site` → Settings → Domains → clear the `Git Branch` field).
+3. `npm login` (currently E401), then `scripts/release.sh patch` — passkey publish, his terminal only.
+4. Decide the Friday auto-release question.
+5. After 2.2.9 publishes: `vercel deploy --prod` from `web/` so the public changelog shows it (the `web` project has no git integration).
