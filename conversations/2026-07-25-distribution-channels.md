@@ -185,3 +185,35 @@ The chained command used `;` after `git branch -D`, so the chain did not short-c
 - A no-op `str.replace()` fails silently. Any scripted edit against an anchor string must `assert` the anchor exists first.
 - When pushes go out via temp branches, local `main` is stale by construction. Edit from a branch cut off `origin/main`, or fetch and rebase first — never assume the working tree matches what was pushed.
 - `&& ... ;` in a chained shell command breaks the guard. If a step is a precondition, keep it in the `&&` chain.
+
+---
+
+## Checkpoint — 2026-07-26, compaction boundary
+
+Raven **1.0.0 is SUBMITTED** to the OpenAI plugin directory, status **Review** (verified by screenshot of `platform.openai.com/plugins`, not by report). All form work done and pushed at `240b5ee`.
+
+Andrew then said: *"Run it as a /goal and fan out a workflow"* on a three-item list. Workflow `wf_e715c2fd-3cc` (`raven-three-track`) is running — assess + adversarially verify, **no writes, no pushes, no publishes** by any subagent.
+
+### The three tracks
+
+1. **2.2.9 release prep.** Local `package.json` 2.2.8, npm latest 2.2.8. Only real src change since the `v2.2.8` tag is `fe20692` "State all three MCP tool hints explicitly instead of relying on defaults" (this is what unblocked the OpenAI annotation scan). Needs: CHANGELOG, version bump, build, `.mcpb`, tag. **`npm publish` is Andrew-only (passkey) — hard rule.**
+2. **Merge `p4-remote-taste` → `main`, then unpin `mcp.ravenmcp.ai`.** Highest value: the domain is pinned to that branch via `gitBranch`, so `vercel deploy --prod` silently never reaches the live MCP endpoint. That pin is the trap that cost most of this session. **Unpinning is a live-endpoint config change — Andrew-gated, not mine.** Closes CLAUDE.md's headline landmine ("main is months behind reality").
+3. **Refresh the CLAUDE.md ground-truth block.** Still claims v2.2.0 and 768 tests; reality is 2.2.8 and 1089 tests, 100 stdio tools.
+
+### Verification bar (unchanged, non-negotiable)
+
+- `RAVEN_NO_USAGE_LOG=1 npm test` — the env var is required or the daily-digest notice corrupts a JSON assertion.
+- Anon-45 golden hash `f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6` must not change. POST `tools/list` to `https://mcp.ravenmcp.ai/api/mcp`, sha256 of newline-joined sorted tool names.
+- stdio MCP behavior stays byte-identical.
+
+### Blockers / human gates
+
+- `npm publish` — Andrew's passkey, his terminal.
+- The `mcp.ravenmcp.ai` unpin and any promote — Andrew only.
+
+### Still carried forward
+
+- `outputSchema` missing on every tool. OpenAI flags it "Recommended", not an error. Backlog, not a blocker.
+- Demo video is 101s — the likeliest review bounce. **Do not re-record on spec**; wait for actual review feedback.
+- Local `main` is stale by construction and carries one unique auto-save (`6890228`, `browser/raven-grab.js` WIP). Left alone deliberately.
+- DKIM at `improvmx._domainkey.ravenmcp.ai`. Team-seat decision for the Anthropic Connectors Directory. Back up `~/.raven-mcp-registry-key`. Delete preview branches `p4-merge-main` and `p4-merge-main-2`.
