@@ -160,12 +160,28 @@ The code is fine. `toolAnnotations()` (`src/index.ts:2099`) is spliced into *eve
 
 ## State at end
 
-**Status:** OpenAI plugin form complete through Global. Sitting on the Submit step with one blocker: **Policy compliance — 7 checkboxes and the 18+ radio are Andrew's to tick.** `Submit for Review` stays disabled until then, and the submit itself is Andrew's click.
+**Status:** **SUBMITTED.** Andrew ticked the 7 policy-compliance boxes and the under-18 radio and hit Submit for Review on 2026-07-26. `platform.openai.com/plugins` lists Raven **1.0.0 — Review**. Verified by screenshot, not by report.
 
 **Carried forward:**
-1. Tick the 7 policy-compliance boxes + the under-18 radio, then **Submit for Review**.
+1. ~~Tick the policy-compliance boxes and Submit for Review~~ — DONE 2026-07-26, now in review. Likeliest bounce is the demo video: 101s, and OpenAI asked for coverage of the main use cases and tools "across all platforms (web, iOS, Android)" — unsatisfiable by anyone, since ChatGPT developer mode is web-only per OpenAI's own docs. If it comes back, the fix is a longer recording, not a form change.
 2. **npm patch release** so the package's `tools/list` matches the endpoint — the explicit-hints change altered stdio output too. Andrew-only (passkey).
 3. Merge `p4-remote-taste` into `main` and unpin `mcp.ravenmcp.ai` from the branch, so the endpoint follows production. Closes the headline landmine in CLAUDE.md.
 4. Refresh the CLAUDE.md ground-truth block: it still says v2.2.0 / 768 tests; reality is v2.2.8 / ~1100.
 5. `outputSchema` is missing on every tool — OpenAI shows it as "Recommended", not an error. Real work across 100 tools; backlog, not blocker.
 6. Still open from before: DKIM at `improvmx._domainkey.ravenmcp.ai`; team-seat decision for the Connectors Directory; back up `~/.raven-mcp-registry-key`; delete preview branches `p4-merge-main`, `p4-merge-main-2`.
+
+---
+
+### Mistake — published an auto-save by cherry-picking a stale local `main`
+
+Two failures compounded, both mine.
+
+Every push this session went out via a temp branch cut from `origin/main`, so **local `main` was never fast-forwarded** — it sat several commits behind with its own duplicate history. A `python3` edit run from local `main` therefore operated on a copy of this log that predated the sections I had already pushed, so both `str.replace()` anchors missed and **the edit silently did nothing**. `git commit` then correctly said "nothing to commit" — which I read as noise rather than as the signal it was.
+
+The chained command used `;` after `git branch -D`, so the chain did not short-circuit on that failed commit. `git cherry-pick $(git rev-parse main)` then picked up whatever local `main`'s HEAD happened to be — an auto-save of `.claude/linear-backlog-queue.jsonl` — and published it as `74af837`. Content is harmless (two backlog ideas, which is that file's purpose), so it stays rather than being rewritten out of published history.
+
+**Rules this earns:**
+- Never `cherry-pick $(git rev-parse main)`. Cherry-pick the **explicit sha of the commit you just made**, and read its `--stat` before pushing. Auto-save commits are exactly what a blind HEAD pick will grab.
+- A no-op `str.replace()` fails silently. Any scripted edit against an anchor string must `assert` the anchor exists first.
+- When pushes go out via temp branches, local `main` is stale by construction. Edit from a branch cut off `origin/main`, or fetch and rebase first — never assume the working tree matches what was pushed.
+- `&& ... ;` in a chained shell command breaks the guard. If a step is a precondition, keep it in the `&&` chain.
