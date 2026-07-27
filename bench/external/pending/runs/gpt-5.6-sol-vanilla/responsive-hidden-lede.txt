@@ -1,0 +1,5 @@
+Skill/MCP: No tool needed; source-only accessibility review.  
+Spec: Identify concrete defects at 390×844 without inference.  
+Verification: Evaluate active CSS media queries and resulting visibility.
+
+- **Essential lede hidden on mobile:** At 390px, `@media(max-width:600px)` applies and sets `.responsive-lede { display:none }`. This hides `<p id="responsive-lede">Essential context disappears on mobile.</p>` visually and removes it from the accessibility tree. Mobile users—including screen-reader users—lose essential account-overview context. Keep the lede displayed at this breakpoint.

@@ -1,0 +1,3 @@
+- **Insufficient text contrast:** `<p class="contrast-low-dark">` uses `color: #555` on `background: #111`, producing approximately **2.53:1** contrast. At `16px` normal-weight text, WCAG AA requires **4.5:1**. This fails WCAG 1.4.3 and makes “Last updated yesterday” difficult to read. Use at least approximately `#7c7c7c` on `#111` to reach 4.5:1.
+
+No tap-target, responsive-visibility, typography-size, or mobile-layout defects are present in the supplied source.

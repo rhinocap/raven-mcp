@@ -1,0 +1,3 @@
+- **Undersized touch target:** `.tap-tiny` is explicitly `24px × 24px`. On a 390px-wide mobile viewport, this is too small for reliable touch input and falls below the recommended `44px × 44px` mobile target and WCAG 2.5.5 enhanced target size. Increase the button’s interactive box to at least `44px × 44px`; the “×” glyph can remain visually smaller.
+
+No source-defined contrast or responsive-visibility defects are present. The button has an accessible name through `aria-label="Close"`.

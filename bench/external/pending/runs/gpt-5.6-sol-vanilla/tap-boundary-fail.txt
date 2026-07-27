@@ -1,0 +1,9 @@
+Skill/MCP: None needed; source-only review.  
+Spec: Check the 390×844 rendering for concrete defects.  
+Verification: Compare declared dimensions and semantics against accessibility criteria.
+
+- `button#tap-boundary-fail` is `43px × 43px`. This is below the commonly recommended mobile touch-target minimum of `44px × 44px`, increasing mistap risk. Increase both dimensions to at least `44px`. It does, however, exceed WCAG 2.2 AA’s `24px × 24px` minimum.
+
+- The button’s accessible name is only `"43"`. The label does not describe the button’s purpose, failing to provide a meaningful control label. Replace it with descriptive text or add an appropriate `aria-label`.
+
+No content is hidden at this viewport. Color contrast cannot be evaluated from the source because the button uses unspecified browser-default colors.

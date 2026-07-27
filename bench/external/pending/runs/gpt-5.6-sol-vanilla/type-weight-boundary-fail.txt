@@ -1,0 +1,3 @@
+- **Typography:** `<p class="w1">Light</p>` renders at `16px`, `line-height: 24px`, and `font-weight: 300`. Weight 300 is too light for normal-size body text and can produce fragile, low-legibility strokes. Use at least `font-weight: 400`.
+
+No other source-provable defects: no content is hidden at 390×844, no interactive tap targets exist, and the layout does not overflow.
