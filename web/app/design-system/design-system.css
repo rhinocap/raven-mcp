@@ -1,16 +1,4 @@
   :root {
-    /* Surfaces — dark grey base, NOT black */
-    --bg-base: #1a1a22; --bg-surface: #212129; --bg-raised: #2a2a33;
-    --bg-overlay: #32323d; --bg-alt: #16161e;
-    /* Accents — neon blue primary + supporting */
-    --accent-blue: #00BFFF; --accent-cyan: #00E5FF; --accent-green: #00E676;
-    --accent-orange: #FFAB40; --accent-pink: #FF4081;
-    /* Text */
-    --text-primary: #F0F0F2; --text-secondary: #9498A0; --text-tertiary: #8E929C;
-    --text-accent: #00BFFF; --text-on-accent: #0a0a12;
-    /* Borders */
-    --border: rgba(255,255,255,0.06); --border-strong: rgba(255,255,255,0.1);
-    --border-accent: rgba(0,191,255,0.3);
     /* Type */
     --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
@@ -40,7 +28,7 @@
   }
   header.hero { margin-bottom: var(--space-20); }
   header.hero h1 { font-size: clamp(40px,6vw,68px); font-weight:700; letter-spacing:-0.02em; line-height:1.05; }
-  header.hero h1 .g { background: linear-gradient(120deg,#00BFFF,#00E5FF); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  header.hero h1 .g { background: linear-gradient(120deg,var(--accent-blue),var(--accent-cyan)); -webkit-background-clip:text; background-clip:text; color:transparent; }
   header.hero p { color: var(--text-secondary); font-size:18px; max-width:62ch; margin-top: var(--space-5); }
   .meta-row { display:flex; flex-wrap:wrap; gap: var(--space-3); margin-top: var(--space-6); }
   .pill {
@@ -71,9 +59,9 @@
   table.aa th { font-family: var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color: var(--text-tertiary); }
   table.aa td.sample { font-family: var(--font-mono); }
   .badge { font-family: var(--font-mono); font-size:11px; padding:2px 8px; border-radius: var(--radius-full); border:1px solid var(--border-strong); }
-  .badge.pass { color:#00E676; border-color: rgba(0,230,118,0.4); }
-  .badge.fail { color:#FF4081; border-color: rgba(255,64,129,0.4); }
-  .badge.aaa { color:#00BFFF; border-color: rgba(0,191,255,0.4); }
+  .badge.pass { color: var(--accent-green); border-color: rgba(0,230,118,0.4); }
+  .badge.fail { color: var(--accent-pink); border-color: rgba(255,64,129,0.4); }
+  .badge.aaa { color: var(--accent-blue); border-color: rgba(0,191,255,0.4); }
   .ratio { font-family: var(--font-mono); color: var(--text-secondary); }
 
   /* Type scale */
@@ -84,7 +72,7 @@
   /* Spacing */
   .space-row { display:flex; align-items:center; gap: var(--space-4); padding: var(--space-2) 0; }
   .space-row .tok { font-family: var(--font-mono); font-size:12px; color: var(--text-tertiary); width:120px; }
-  .space-row .bar { height:14px; background: linear-gradient(90deg,#00BFFF,#00E5FF); border-radius:3px; }
+  .space-row .bar { height:14px; background: linear-gradient(90deg,var(--accent-blue),var(--accent-cyan)); border-radius:3px; }
   .space-row .val { font-family: var(--font-mono); font-size:12px; color: var(--text-secondary); }
 
   /* Radius */
@@ -108,12 +96,12 @@
   .voice-grid { display:grid; grid-template-columns:1fr 1fr; gap: var(--space-4); }
   .voice-card { border:1px solid var(--border-strong); border-radius: var(--radius-lg); padding: var(--space-6); background: var(--bg-surface); }
   .voice-card h3 { font-size:15px; margin-bottom: var(--space-4); display:flex; align-items:center; gap: var(--space-2); }
-  .voice-card.do h3 { color:#00E676; } .voice-card.dont h3 { color:#FF4081; }
+  .voice-card.do h3 { color: var(--accent-green); } .voice-card.dont h3 { color: var(--accent-pink); }
   .voice-card ul { list-style:none; display:flex; flex-direction:column; gap: var(--space-3); }
   .voice-card li { font-size:14px; color: var(--text-secondary); padding-left: var(--space-5); position:relative; }
   .voice-card li::before { position:absolute; left:0; }
-  .voice-card.do li::before { content:"✓"; color:#00E676; }
-  .voice-card.dont li::before { content:"✕"; color:#FF4081; }
+  .voice-card.do li::before { content:"✓"; color: var(--accent-green); }
+  .voice-card.dont li::before { content:"✕"; color: var(--accent-pink); }
   .voice-card li b { color: var(--text-primary); font-weight:600; }
   .attrs { display:flex; flex-wrap:wrap; gap: var(--space-2); margin-top: var(--space-5); }
   .attr { font-family: var(--font-mono); font-size:12px; color: var(--text-primary); background: rgba(0,0,0,0.2); border:1px solid var(--border); padding:4px 10px; border-radius: var(--radius-full); }

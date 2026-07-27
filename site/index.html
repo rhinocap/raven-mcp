@@ -45,6 +45,9 @@
       --bg-accent: #00BFFF;
       --bg-accent-hover: #33CFFF;
       --bg-accent-subtle: rgba(0, 191, 255, 0.06);
+      --bg-cta-install: rgba(14, 30, 46, 0.82);
+      --bg-cta-install-hover: rgba(22, 44, 66, 0.9);
+      --hero-scrim-rgb: 10, 11, 16;
 
       --border: rgba(255, 255, 255, 0.06);
       --border-strong: rgba(255, 255, 255, 0.1);
@@ -192,6 +195,20 @@
       pointer-events: none;
       mask-image: radial-gradient(ellipse 82% 74% at 50% 44%, #000 52%, transparent 100%);
       -webkit-mask-image: radial-gradient(ellipse 82% 74% at 50% 44%, #000 52%, transparent 100%);
+      opacity: 0.72;
+    }
+    /* Readability scrim: darkens the grid + glow directly behind the hero content
+       so lit gridlines never wash out the H1 / subtitle / install button. */
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background: radial-gradient(ellipse 58% 46% at 50% 42%,
+        rgba(var(--hero-scrim-rgb), 0.62) 0%,
+        rgba(var(--hero-scrim-rgb), 0.30) 46%,
+        transparent 72%);
     }
     .hero .container { z-index: 2; }
 
@@ -348,7 +365,7 @@
     .hero .glow-1 {
       top: -120px; left: 50%; transform: translateX(-50%);
       width: 1400px; height: 800px;
-      background: radial-gradient(ellipse, rgba(0,191,255,0.40) 0%, rgba(0,229,255,0.18) 30%, rgba(0,191,255,0.06) 55%, transparent 80%);
+      background: radial-gradient(ellipse, rgba(0,191,255,0.26) 0%, rgba(0,229,255,0.11) 30%, rgba(0,191,255,0.04) 55%, transparent 80%);
     }
     .hero .glow-2 {
       top: 100px; left: 15%;
@@ -1564,7 +1581,9 @@
       display: flex; align-items: center; gap: var(--space-3);
       min-height: 44px;
       padding: var(--space-3) var(--space-5);
-      background: var(--bg-accent-subtle);
+      background: var(--bg-cta-install);
+      backdrop-filter: blur(12px) saturate(1.4);
+      -webkit-backdrop-filter: blur(12px) saturate(1.4);
       border: 1px solid var(--border-accent);
       border-radius: var(--radius-full);
       font-family: var(--font-mono); font-size: 13px;
@@ -1575,7 +1594,7 @@
     .cta-install svg { color: var(--accent-blue); flex-shrink: 0; }
     .cta-install:hover {
       border-color: var(--accent-blue);
-      background: rgba(0, 191, 255, 0.1);
+      background: var(--bg-cta-install-hover);
     }
 
     /* ══════════════════════════════════════════
@@ -1931,7 +1950,7 @@
         "downloadUrl": "https://www.npmjs.com/package/raven-mcp",
         "softwareHelp": "https://ravenmcp.ai/docs.html",
         "description": "RavenMCP is an open-source Model Context Protocol server that gives AI agents like Claude design intelligence: 70 tools spanning 129 design principles, 22 UI patterns, 12 design-system token libraries, content voice, brand, research, service blueprints, design audits for web, iOS, Android, and React Native, and a Taste Engine that holds every build to the owner's own design judgment.",
-        "license": "https://opensource.org/licenses/MIT",
+        "license": "https://opensource.org/licenses/Apache-2.0",
         "isAccessibleForFree": true,
         "author": { "@type": "Person", "name": "Andrew Cunliffe" },
         "publisher": { "@id": "https://ravenmcp.ai/#organization" },
@@ -1947,7 +1966,7 @@
           "Design audits for web, iOS/SwiftUI, Android, and React Native",
           "Content voice guides, brand profiles, research methods, and service blueprints",
           "A Taste Engine that makes a person's design judgment portable — audit_taste returns a BLOCK/WARN/PASS verdict citing the rule behind every finding",
-          "Cinematic build recipes that name their paid external dependency and a still-photo fallback before spending"
+          "Cinematic build recipes that name their paid external dependency and a still-photography fallback before spending"
         ]
       },
       {
@@ -1959,7 +1978,7 @@
             "name": "What is RavenMCP?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "RavenMCP (Raven) is an open-source Model Context Protocol (MCP) server that gives AI agents like Claude design intelligence — the design knowledge once locked in expert heads. It exposes 70 tools spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits, and a Taste Engine that holds every build to the owner's own design judgment."
+              "text": "RavenMCP (Raven) is an open-source Model Context Protocol (MCP) server that gives AI agents like Claude design intelligence — the design knowledge once locked in expert heads. It exposes 90+ tools locally (npx, Claude Code/Desktop, or Cursor) spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits, and a Taste Engine that holds every build to the owner's own design judgment. The public remote endpoint serves a smaller stateless subset."
             }
           },
           {
@@ -1975,7 +1994,7 @@
             "name": "Is RavenMCP free?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Yes. RavenMCP is 100% free and open source under the MIT license. Every tool, token, and principle is included — no tiers, no usage limits, no account required."
+              "text": "Yes. RavenMCP is 100% free and open source under the Apache 2.0 license. Every tool, token, and principle is included — no tiers, no usage limits, no account required."
             }
           },
           {
@@ -1983,7 +2002,7 @@
             "name": "Which AI agents work with RavenMCP?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "RavenMCP works with any client that supports the Model Context Protocol — Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's 70 tools directly during a conversation."
+              "text": "RavenMCP works with any client that supports the Model Context Protocol — Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed locally, the agent can call all 90+ of Raven's tools directly during a conversation; the public remote endpoint serves a smaller stateless subset."
             }
           },
           {
@@ -2042,7 +2061,7 @@
     <canvas class="hero-grid-canvas" id="hero-grid" aria-hidden="true"></canvas>
     <div class="container">
       <div class="hero-badge reveal">
-        Open-source MCP Server · MIT
+        Open-source MCP Server · Apache 2.0
       </div>
       <h1 class="reveal reveal-delay-1"><span class="line-glow">Design intelligence</span><span class="line-accent">for every prompt</span></h1>
       <p class="subtitle reveal reveal-delay-2">The judgment layer for AI agents — 70 tools that audit what your agent builds, hold it to your taste, and cite the rule behind every finding. Claude, Cursor, or any MCP client.</p>
@@ -2053,6 +2072,7 @@
         </button>
       </div>
       <div class="hero-text-links reveal reveal-delay-3">
+        <a href="/docs.html#quickstart" class="btn-text-link">Install in Cursor →</a>
         <a href="/docs.html" class="btn-text-link">Docs →</a>
         <a href="https://github.com/rhinocap/raven-mcp" class="btn-text-link">View on GitHub →</a>
       </div>
@@ -2204,8 +2224,8 @@
 
     function drawBeacon(time, mx, my, active) {
       baseGrid(0.02, 40); if (!active) return;
-      radialFill(mx, my, 320, "rgba(0,191,255,0.05)", "rgba(0,191,255,0)");
-      softSpotlightGrid(mx, my, 300, 40, "214,224,240", 0.55);
+      radialFill(mx, my, 320, "rgba(0,191,255,0.032)", "rgba(0,191,255,0)");
+      softSpotlightGrid(mx, my, 300, 40, "214,224,240", 0.36);
     }
     function drawLoom(time, mx, my, active) {
       baseGrid(0.032, 46); if (!active) return;
@@ -3098,8 +3118,8 @@
         <div class="watch-row reveal">
           <div class="watch-text">
             <span class="wc-tool">evaluate_design</span>
-            <h3>Evaluated, then fixed</h3>
-            <p>The finished app scored against Raven's principles and patterns. Raven flags pure-black backgrounds, color-only indicators, and motion gaps&mdash;then fixes them.</p>
+            <h3>Evaluated, with the fix</h3>
+            <p>The finished app scored against Raven's principles and patterns. Raven flags pure-black backgrounds, color-only indicators, and motion gaps&mdash;and returns the fix for each.</p>
           </div>
           <div class="watch-media">
             <div class="mb">
@@ -3415,7 +3435,7 @@
       <div class="faq-list reveal reveal-delay-3">
         <div class="faq-item">
           <h3>What is RavenMCP?</h3>
-          <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server that gives AI agents like Claude design intelligence &mdash; the design knowledge once locked in expert heads. It exposes 70 tools spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits, and a Taste Engine that holds every build to the owner's own design judgment.</p>
+          <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server that gives AI agents like Claude design intelligence &mdash; the design knowledge once locked in expert heads. It exposes 90+ tools locally (npx, Claude Code/Desktop, or Cursor) spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits, and a Taste Engine that holds every build to the owner's own design judgment. The public remote endpoint trades local-only tools (Grab, the Taste Engine's file store) for a smaller stateless subset &mdash; see the <a href="/docs.html#quickstart">docs</a> for the exact split.</p>
         </div>
         <div class="faq-item">
           <h3>How do I install RavenMCP?</h3>
@@ -3423,11 +3443,11 @@
         </div>
         <div class="faq-item">
           <h3>Is RavenMCP free?</h3>
-          <p>Yes. RavenMCP is 100% free and open source under the MIT license. Every tool, token, and principle is included &mdash; no tiers, no usage limits, and no account required.</p>
+          <p>Yes. RavenMCP is 100% free and open source under the Apache 2.0 license. Every tool, token, and principle is included &mdash; no tiers, no usage limits, and no account required.</p>
         </div>
         <div class="faq-item">
           <h3>Which AI agents work with RavenMCP?</h3>
-          <p>Raven works with any client that supports the Model Context Protocol &mdash; Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's 70 tools directly during a conversation.</p>
+          <p>Raven works with any client that supports the Model Context Protocol &mdash; Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed locally, the agent can call all 90+ of Raven's tools directly during a conversation; connecting to the public remote endpoint instead trades local-only tools for a smaller stateless subset (see the docs for details).</p>
         </div>
         <div class="faq-item">
           <h3>What platforms can RavenMCP audit?</h3>

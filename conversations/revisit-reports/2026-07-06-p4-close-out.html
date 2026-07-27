@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revisit — 2026-07-06 (P4.3/P4.4 ship + P4.5 spec)</title>
+<style>
+  :root {
+    --bg-base: #1a1a22;
+    --bg-surface: #212129;
+    --bg-raised: #2a2a33;
+    --border: rgba(255, 255, 255, 0.06);
+    --border-strong: rgba(255, 255, 255, 0.1);
+    --text-primary: #F0F0F2;
+    --text-secondary: #9498A0;
+    --text-tertiary: #5C5F68;
+    --text-accent: #0077c5;
+    --accent-blue: #0077c5;
+    --accent-green: #00E676;
+    --accent-orange: #FFAB40;
+    --accent-pink: #FF4081;
+    --accent-yellow: #FFD740;
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+    --max-width: 960px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .cover {
+    padding: 80px 24px 64px;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 0%, rgba(0, 119, 197, 0.15), transparent),
+      radial-gradient(ellipse 60% 60% at 80% 20%, rgba(0, 230, 118, 0.07), transparent),
+      linear-gradient(180deg, #1f1f2b 0%, var(--bg-base) 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .cover-inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+  }
+  .cover-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 16px;
+  }
+  .cover h1 {
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+  .cover .subtitle {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 680px;
+    margin-bottom: 48px;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .stat {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .stat-value {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .stat-value.green { color: var(--accent-green); }
+  .stat-value.blue { color: var(--accent-blue); }
+  .stat-value.orange { color: var(--accent-orange); }
+  .stat-value.yellow { color: var(--accent-yellow); }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+  .body {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+  .section {
+    margin-bottom: 48px;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .badge-shipped { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-verified { background: rgba(0,119,197,0.15); color: var(--accent-blue); }
+  .badge-miss { background: rgba(255,171,64,0.12); color: var(--accent-orange); }
+  .badge-repeat { background: rgba(255,64,129,0.12); color: var(--accent-pink); }
+  .badge-win { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-fixed { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .card p {
+    color: var(--text-secondary);
+    margin-top: 4px;
+    line-height: 1.65;
+  }
+  .card code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: rgba(255,255,255,0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-primary);
+  }
+  .card blockquote {
+    margin-top: 10px;
+    padding: 10px 16px;
+    border-left: 3px solid var(--accent-orange);
+    background: rgba(255,171,64,0.06);
+    color: var(--text-primary);
+    font-style: italic;
+  }
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 32px 0;
+  }
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .table-wrap {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    padding: 14px 20px;
+    text-align: left;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 14px 20px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  td:first-child { color: var(--text-primary); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  .highlight {
+    background: rgba(0,119,197,0.08);
+    border: 1px solid rgba(0,119,197,0.2);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .highlight p { color: var(--text-primary); }
+  .tag-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .tag {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-label">Revisit · 2026-07-06 · Headless (auto-fired on /clear)</div>
+    <h1>P4.3 and P4.4 shipped,<br>P4.5 queued up next</h1>
+    <p class="subtitle">Two `/goal` cycles closed out the authed taste loop (P4.3) and multi-client verification incl. a locked ChatGPT gate (P4.4) on the remote-MCP Taste Engine migration — pushed, deployed, verified live with a real token, and adversarially reviewed. A cowork handoff drove the human-gated OAuth legs in parallel; its returned ship script was diffed and run rather than trusted blind. A third `/goal` spec'd P4.5 (delete_taste_data, rate limiting, privacy docs, safe production promote) but the goal draft was still mid-trim against the 4000-char cap when the session ended.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value blue">~78%</div>
+        <div class="stat-label">First-attempt accuracy</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value orange">7×</div>
+        <div class="stat-label">Codex agent-leg placeholder, recovered</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value green">6</div>
+        <div class="stat-label">Commits shipped to p4-remote-taste</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value green">0</div>
+        <div class="stat-label">Push rejections</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="body">
+
+  <div class="section">
+    <div class="section-label">What shipped — p4-remote-taste</div>
+    <div class="card">
+      <div class="card-title">P4.3 — authed taste loop <span class="badge badge-shipped">Shipped</span> <span class="badge badge-verified">Live-verified</span></div>
+      <p>Committed and pushed cowork's pre-built, unit-tested P4.3 code (516 passing, anon golden 45 unchanged), then verified the full authed loop end-to-end on the live preview deployment using a real WorkOS AuthKit token.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">P4.4 — multi-client verification + instruction-tuning <span class="badge badge-shipped">Shipped</span> <span class="badge badge-verified">Adversarially reviewed</span></div>
+      <p>Verified the authed taste loop across Claude.ai, Cursor, and ChatGPT — including a locked ChatGPT hard gate. Landed an instruction-tuning patch dispatched to Codex through a Workflow, recovered its patch content directly from the Codex worktree after the agent leg returned a placeholder, and closed the phase with a report-only Codex devil's-advocate pass.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Cowork handoff + ship-script execution <span class="badge badge-shipped">Shipped</span> <span class="badge badge-verified">Reviewed before running</span></div>
+      <p>Drafted a handoff prompt for cowork to drive the human-attended OAuth/real-client-connect legs this session couldn't run alone; read cowork's returned completion report and its <code>p4-ship-ledger.sh</code> script line-by-line before executing it, rather than trusting the "done" narrative on its own.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">P4.5 spec + goal draft <span class="badge badge-miss">Mid-trim, not pushed</span></div>
+      <p>Spec'd the next phase (delete_taste_data tool, rate limiting, privacy docs, a scope doc, and a safe production-promote plan) and began drafting the executing <code>/goal</code> prompt — still being trimmed to the 4000-char cap when the session was cleared.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Mistakes &amp; lessons</div>
+
+    <div class="card">
+      <div class="card-title">Workflow Codex leg returned a stub instead of the real patch <span class="badge badge-repeat">Repeat — bumped to 7×</span></div>
+      <p>A Workflow <code>agent()</code> call routed to Codex for the P4.4 instruction-tuning patch returned only <code>p44PatchSummary</code> = "Forwarded to Codex in the background..." (101 chars, no actual diff) — the 7th recorded instance of the agent-output-placeholder pattern. Correctly recognized on sight this time and recovered by reading the Codex worktree (<code>/tmp/wt-p44</code>) directly via <code>git diff</code>, rather than trusting or re-polling the stub. Detection-and-recovery is now reliable; the root defect (async/Codex legs inside Workflow returning immediately) still isn't fixed.</p>
+      <div class="tag-row">
+        <span class="tag">queued → PROMOTION-QUEUE.md</span>
+        <span class="tag">agent-output-placeholder-content-check (now 7×)</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Eleven round trips to trim a /goal draft under its char cap <span class="badge badge-miss">New — queued</span></div>
+      <p>The P4.5 goal draft went 4885 → 3996 chars via ~11 separate measure-then-edit passes (4885→4462→4357→4258→4216→4200→4168→4095→4054→4024→4005→3996), each its own Edit + <code>wc -m</code> round trip. Computing the required cut upfront (current − cap = amount to remove) and cutting the largest/most-redundant blocks first would have collapsed this to 2-3 passes.</p>
+      <div class="tag-row">
+        <span class="tag">queued → PROMOTION-QUEUE.md</span>
+        <span class="tag">goal-char-cap-iterative-trim (new, 1×)</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Goal-drafting file written to an unreachable scratchpad path</div>
+      <p>A goal draft was written to a deep session scratchpad location Andrew couldn't find on his Desktop ("Not seeing it in the scratchpad folder") — fixed by copying it to a reachable path, and the next draft was placed correctly without being asked again.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Verification that held</div>
+    <div class="card">
+      <div class="card-title">Shipping arc ran clean, start to finish <span class="badge badge-win">Win</span></div>
+      <p>Push → test → deploy → verify on the live preview with a real token → land the tuning feature → adversarial Codex pass — all in one pass, no corrections, for both P4.3 and P4.4.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Human-gated steps correctly deferred throughout <span class="badge badge-win">Win</span></div>
+      <p>Every AuthKit sign-in and real-client OAuth connect (Claude.ai, Cursor, ChatGPT) was left to Andrew or handed to cowork rather than attempted directly — zero AskUserQuestion across all three <code>/goal</code> cycles, and zero attempts to fake a human-only step.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Cowork's ship script diffed before running, not trusted blind <span class="badge badge-win">Win</span></div>
+      <p>The adversarial-devil's-advocate discipline extended naturally to a peer session's output: cowork's completion report and script were read and verified line-by-line before execution, catching nothing wrong this time but treating the "fully verified" claim as a claim, not a fact.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Promotion queue (blocked in headless — needs a manual /revisit)</div>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Slug</th><th>Count</th><th>Rule</th></tr>
+        <tr><td>agent-output-placeholder-content-check</td><td>7×</td><td>Subagent/tool results can pass schema validation while the content is a stub — including a Workflow Codex leg's own "forwarded in background" acknowledgment. Read the Codex worktree/target file directly as the source of truth rather than trusting or re-polling the placeholder.</td></tr>
+        <tr><td>scope-doc-enumerate-capability-axes</td><td>5×</td><td>Enumerate all blocking-capability axes explicitly and up front when classifying tools for a hosting/architecture scope doc.</td></tr>
+        <tr><td>advisor-fork-inherits-and-drifts</td><td>1×</td><td>Never use a context-inheriting Agent <code>fork</code> for a fresh advisor/planner consult — use a clean, self-contained agent type instead.</td></tr>
+        <tr><td>browser-automation-success-lies-about-state</td><td>1×</td><td><code>resize_window</code>/<code>scrollTo</code> can report success without effect — verify via a follow-up JS read, never trust the tool's own success message.</td></tr>
+        <tr><td>content-port-verbatim-fidelity-diff</td><td>1×</td><td>After any delegated content port/transplant, diff the ported text word-for-word against the source.</td></tr>
+        <tr><td>goal-char-cap-iterative-trim</td><td>1× (new)</td><td>When trimming a <code>/goal</code>/<code>/loop</code> draft to fit its char cap, compute the needed cut upfront and make one or two decisive edits against the largest/most-redundant blocks — not many small measure-edit increments.</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">What would help go faster</div>
+    <div class="highlight">
+      <p>A structural fix to Codex-routed Workflow legs — never route a must-block coding task through an agent type known to return immediately, and default to reading the target worktree as the source of truth — would retire the 7-times-recurring placeholder pattern instead of relying on catch-it-every-time vigilance. And a "compute the cut, don't creep toward it" habit on <code>/goal</code> char-cap trims would save several round trips per draft.</p>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

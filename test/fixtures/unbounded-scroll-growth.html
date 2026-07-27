@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Unbounded Scroll Growth Fixture</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    section { min-height: 700px; }
+  </style>
+</head>
+<body>
+  <section><h1>Continuously growing page</h1></section>
+  <script>
+    (function () {
+      var count = 0;
+      var timer = setInterval(function () {
+        var section = document.createElement('section');
+        section.textContent = 'Appended scene ' + count;
+        document.body.appendChild(section);
+        count += 1;
+        if (count >= 50) clearInterval(timer);
+      }, 80);
+    })();
+  </script>
+</body>
+</html>

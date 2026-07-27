@@ -4,20 +4,7 @@
    sheet never leaks into other routes. */
 
 :root {
-  --bg-base: #1a1a22;
-  --bg-surface: #212129;
-  --bg-raised: #2a2a33;
-  --bg-accent-subtle: rgba(0, 191, 255, 0.06);
-  --border: rgba(255, 255, 255, 0.06);
-  --border-strong: rgba(255, 255, 255, 0.1);
-  --border-accent: rgba(0, 191, 255, 0.3);
-  --text-primary: #F0F0F2;
-  --text-secondary: #9498A0;
-  --text-tertiary: #5C5F68;
-  --text-accent: #00BFFF;
-  --accent-blue: #00BFFF;
-  --accent-green: #00E676;
-  --accent-orange: #FFAB40;
+  --text-tertiary: var(--text-muted-deep);
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
@@ -62,7 +49,7 @@
 }
 .cl-headline {
   font-size: clamp(44px, 8vw, 88px);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.02;
   letter-spacing: -0.02em;
   color: var(--text-primary);
@@ -87,7 +74,7 @@
   margin-bottom: var(--space-10);
 }
 .cl-pill {
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 var(--space-4);
   border-radius: 999px;
   border: 1px solid var(--border-strong);
@@ -252,12 +239,18 @@
   font-size: 14px;
 }
 .cl-foot-primary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--text-accent);
   text-decoration: none;
   transition: opacity 0.2s;
 }
 .cl-foot-primary:hover { opacity: 0.8; }
 .cl-foot-secondary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--text-secondary);
   text-decoration: none;
   transition: color 0.2s;

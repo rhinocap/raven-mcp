@@ -7,9 +7,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const routes: Array<{ path: string; priority: number }> = [
     { path: '/', priority: 1 },
     { path: '/docs', priority: 0.9 },
+    { path: '/raven-design', priority: 0.9 },
     { path: '/design-system', priority: 0.7 },
     { path: '/changelog', priority: 0.6 },
-    { path: '/about', priority: 0.5 },
+    { path: '/privacy', priority: 0.3 },
+    { path: '/terms', priority: 0.3 },
   ]
 
   return routes.map(({ path, priority }) => ({

@@ -2,18 +2,17 @@
   var CENTER_LINKS = [];
 
   var PAGE_LINKS = [
-    { label: 'Open Source', href: '/#pricing' },
+    { label: 'Design Playground', href: '/raven-design' },
     { label: 'Docs', href: '/docs' },
-    { label: 'Changelog', href: '/changelog' },
-    { label: 'About', href: '/about' }
+    { label: 'Changelog', href: '/changelog' }
   ];
 
   var path = window.location.pathname;
 
   function isActive(href) {
+    if (href === '/raven-design') return path === '/raven-design';
     if (href === '/docs') return path === '/docs';
     if (href === '/changelog') return path === '/changelog';
-    if (href === '/about') return path === '/about';
     return false;
   }
 
@@ -69,21 +68,22 @@
       width: 100%; padding: 0 var(--space-6, 24px);\
       position: relative;\
     }\
-    .nav-brand { display: flex; align-items: center; gap: var(--space-3, 12px); text-decoration: none; }\
+    .nav-brand { display: flex; align-items: center; gap: var(--space-3, 12px); text-decoration: none; min-height: 44px; }\
     .nav-brand img {\
       width: 30px; height: 30px; object-fit: contain;\
       filter: drop-shadow(0 0 16px rgba(0,191,255,0.5)) drop-shadow(0 0 8px rgba(0,191,255,0.3)) drop-shadow(0 0 40px rgba(0,191,255,0.15));\
     }\
-    .nav-brand span { font-size: 16px; font-weight: 700; color: var(--text-primary, #F0F0F2); letter-spacing: -0.02em; }\
+    .nav-brand span { display: inline-flex; align-items: center; min-height: 44px; font-size: 16px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; }\
     .nav-links { display: none; }\
     .nav-actions { display: flex; align-items: center; gap: var(--space-3, 12px); }\
     .nav-page-links { display: flex; align-items: center; gap: var(--space-6, 24px); margin-right: var(--space-4, 16px); }\
     .nav-page-links a {\
-      font-size: 15px; font-weight: 500; color: var(--text-secondary, #9498A0);\
+      display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px;\
+      font-size: 15px; font-weight: 500; color: var(--text-secondary);\
       transition: color 150ms cubic-bezier(0.16, 1, 0.3, 1);\
     }\
-    .nav-page-links a:hover { color: var(--text-primary, #F0F0F2); }\
-    .nav-page-links a.active { color: var(--text-accent, #00BFFF); }\
+    .nav-page-links a:hover { color: var(--text-primary); }\
+    .nav-page-links a.active { color: var(--text-accent); }\
     .btn {\
       display: inline-flex; align-items: center; gap: var(--space-2, 8px);\
       padding: 12px 28px; font-family: var(--font-body, "Inter", -apple-system, BlinkMacSystemFont, sans-serif);\
@@ -91,7 +91,7 @@
       transition: all 250ms cubic-bezier(0.16, 1, 0.3, 1); white-space: nowrap; text-decoration: none;\
     }\
     .btn-primary {\
-      background: linear-gradient(135deg, #00BFFF 0%, #00E5FF 100%); color: #0a0a12;\
+      background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-cyan) 100%); color: var(--text-on-accent);\
       box-shadow: 0 4px 24px rgba(0, 191, 255, 0.3), 0 0 60px rgba(0, 191, 255, 0.15);\
     }\
     .btn-primary:hover {\
@@ -106,13 +106,13 @@
     }\
     .nav-hamburger span {\
       display: block; width: 20px; height: 2px;\
-      background: var(--text-primary, #F0F0F2); border-radius: 1px;\
+      background: var(--text-primary); border-radius: 1px;\
       position: relative; transition: all 0.3s ease;\
     }\
     .nav-hamburger span::before,\
     .nav-hamburger span::after {\
       content: ""; position: absolute; left: 0; width: 100%; height: 2px;\
-      background: var(--text-primary, #F0F0F2); border-radius: 1px; transition: all 0.3s ease;\
+      background: var(--text-primary); border-radius: 1px; transition: all 0.3s ease;\
     }\
     .nav-hamburger span::before { top: -6px; }\
     .nav-hamburger span::after { top: 6px; }\
@@ -134,12 +134,12 @@
     .nav-mobile-menu.open { display: flex; }\
     .nav-mobile-menu a {\
       display: block; padding: 14px 16px;\
-      font-size: 16px; font-weight: 500; color: var(--text-secondary, #9498A0);\
+      font-size: 16px; font-weight: 500; color: var(--text-secondary);\
       border-radius: var(--radius-md, 12px); transition: all 0.15s ease;\
       min-height: 44px;\
     }\
-    .nav-mobile-menu a:hover { background: rgba(255,255,255,0.05); color: var(--text-primary, #F0F0F2); }\
-    .nav-mobile-menu a.active { color: var(--text-accent, #00BFFF); }\
+    .nav-mobile-menu a:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }\
+    .nav-mobile-menu a.active { color: var(--text-accent); }\
     @media (max-width: 768px) {\
       nav { width: calc(100% - 24px); top: 8px; }\
       .nav-inner { padding: 0 var(--space-3, 12px); }\

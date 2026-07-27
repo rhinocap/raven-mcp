@@ -136,17 +136,20 @@ export function auditContainerWidth(
     };
   }
 
-  // ── No token passed: preserve the original heuristic exactly.
+  // ── No token passed: any declared content-container width still passes as
+  // before. With none declared, this used to warn on every page — but a page
+  // with no content-container max-width is legitimately full-bleed (a
+  // marketing hero, for example), not a defect. Pass with an informational
+  // note instead of nagging every full-bleed layout.
   var hasMaxWidth = /max-width\s*:\s*(1[12]\d{2}|1200)\s*px/.test(html);
   if (hasMaxWidth) return { pass: "Content has max-width constraint" };
+  var declaredContainers = containerScaleWidths(html);
+  if (declaredContainers.length > 0) {
+    return { pass: "Content has a declared container-scale max-width (" + declaredContainers.join(", ") + "px)" };
+  }
   return {
-    issue: {
-      severity: "warning",
-      rule: "responsive/max-width",
-      message: "No 1200px max-width constraint detected on content containers",
-      fix:
-        "Add max-width: 1200px; margin: 0 auto to content containers. " +
-        "Pass containerMaxWidth to audit_page to check against your design system's own container token instead."
-    }
+    pass:
+      "No content-container max-width declared — acceptable for full-bleed layouts; " +
+      "pass containerMaxWidth if you have a system token to check divergence against"
   };
 }

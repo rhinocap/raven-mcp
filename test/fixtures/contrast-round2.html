@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Contrast round 2 regression fixture</title>
+    <style>
+      html, body { margin: 0; min-height: 100%; background: transparent; }
+      .opacity-card { opacity: .1; background: white; color: black; }
+      .outer-opacity { opacity: .1; }
+      .inner-opaque { background: white; color: black; }
+      .contents-card { display: contents; background: black; color: white; }
+      .fixed-transparent { position: fixed; right: 0; bottom: 0; color: white; }
+      .modern { color: oklch(20% 0 0); background: oklch(95% 0 0); }
+    </style>
+  </head>
+  <body>
+    <div class="opacity-card"><span>Opacity card</span></div>
+    <div class="outer-opacity"><div class="inner-opaque">Opacity outside opaque</div></div>
+    <div class="contents-card"><span>Contents card</span></div>
+    <div class="fixed-transparent">Fixed transparent</div>
+    <div class="modern">Modern color</div>
+  </body>
+</html>

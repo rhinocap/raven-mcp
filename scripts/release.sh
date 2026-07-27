@@ -3,6 +3,7 @@
 #   - Bumps version (patch by default)
 #   - Rebuilds the .mcpb into site/
 #   - Publishes to npm
+#   - Publishes to the MCP Registry
 #   - Commits, tags, and pushes
 #
 # Usage:
@@ -38,7 +39,7 @@ echo "→ Current version: $CURRENT"
 
 if [[ "$DRY_RUN" == "1" ]]; then
   NEW=$(node -p "const s='${CURRENT}'.split('.').map(Number); const b='${BUMP}'; if(b==='major'){s[0]++;s[1]=0;s[2]=0}else if(b==='minor'){s[1]++;s[2]=0}else{s[2]++}; s.join('.')")
-  echo "  [dry-run] would bump to $NEW, rebuild .mcpb, publish to npm, commit, tag, push"
+  echo "  [dry-run] would bump to $NEW, rebuild .mcpb, publish to npm + MCP Registry, commit, tag, push"
   exit 0
 fi
 
@@ -49,6 +50,9 @@ npm version "$BUMP" --no-git-tag-version
 NEW=$(node -p "require('./package.json').version")
 echo "  New version: $NEW"
 
+echo "→ Compiling stdio server for manifest sync"
+npm run build
+
 echo "→ Syncing version into manifest.json"
 node -e '
   const fs = require("fs");
@@ -56,6 +60,7 @@ node -e '
   m.version = require("./package.json").version;
   fs.writeFileSync("manifest.json", JSON.stringify(m, null, 2) + "\n");
 '
+node scripts/sync-manifest-tools.mjs
 
 echo "→ Syncing version into server.json (MCP Registry / marketplace metadata)"
 node -e '
@@ -70,10 +75,17 @@ node -e '
 '
 
 echo "→ Rebuilding .mcpb"
-npm run build:mcpb
+SKIP_BUILD=1 npm run build:mcpb
 
 echo "→ Publishing to npm"
 npm publish
+
+echo "→ Publishing to MCP Registry"
+if ! command -v mcp-publisher >/dev/null 2>&1; then
+  echo "✗ mcp-publisher CLI not found on PATH. Install it before releasing."
+  exit 1
+fi
+mcp-publisher publish
 
 echo "→ Committing + tagging"
 git add package.json package-lock.json manifest.json server.json site/raven.mcpb
@@ -91,3 +103,9 @@ echo ""
 echo "✓ Released v$NEW"
 echo "  npm:  https://www.npmjs.com/package/raven-mcp/v/$NEW"
 echo "  mcpb: https://ravenmcp.ai/raven.mcpb  (auto-deploys via Vercel)"
+
+if [[ "${CI:-}" != "true" && "${RAVEN_SKIP_MARKETING_PREVIEW:-0}" != "1" ]]; then
+  echo "→ Preparing approval-gated marketing preview"
+  node scripts/prepare-marketing-preview.mjs --version "$NEW" ||
+    echo "⚠ Release succeeded; marketing preview needs a manual rerun: npm run marketing:preview -- --version $NEW"
+fi

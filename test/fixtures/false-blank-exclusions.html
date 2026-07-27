@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>False Blank Exclusions Fixture</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    main { padding: 40px; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      clip-path: inset(50%);
+      white-space: nowrap;
+      border: 0;
+    }
+    .gradient-heading {
+      color: transparent;
+      background: linear-gradient(90deg, #5628ee, #ff4ecd);
+      background-clip: text;
+      -webkit-background-clip: text;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1 class="gradient-heading">Visible gradient heading</h1>
+    <p>Visible supporting copy</p>
+    <dialog><h2>Closed dialog content</h2><p>Not part of the rendered page</p></dialog>
+    <nav aria-hidden="true"><p>Hidden menu one</p><p>Hidden menu two</p></nav>
+    <div inert><p>Inert content one</p><p>Inert content two</p></div>
+    <span class="sr-only">Assistive label one</span>
+    <span class="sr-only">Assistive label two</span>
+  </main>
+</body>
+</html>

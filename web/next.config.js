@@ -22,6 +22,7 @@ const nextConfig = {
       { source: '/about.html', destination: '/about', permanent: true },
       { source: '/changelog.html', destination: '/changelog', permanent: true },
       { source: '/design-system.html', destination: '/design-system', permanent: true },
+      { source: '/playground', destination: '/raven-design', permanent: true },
     ]
   },
 }

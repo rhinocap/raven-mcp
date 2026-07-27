@@ -1,5 +1,6 @@
 import { extractStaticTraits, type PageTraits } from "./capture.js";
 import { assessDesignNotes, referenceDeltas, restraintGuard, buildHints, type NoteAssessment, type BuildHint } from "./taste-fidelity.js";
+import { diffPortText, extractVisibleText, introducedBannedTerms, type PortFidelityResult } from "./port-fidelity.js";
 import type { TasteStore } from "./taste-store.js";
 export { tasteHome } from "./taste-store.js";
 
@@ -62,6 +63,9 @@ export type TasteAuditResult = {
   // (TASTE-restraint-earned), and reference deltas (REF-*). They count toward
   // the verdict but never pass through corpus suppression or rule filtering.
   fidelity_findings?: TasteFinding[];
+  // Deterministic source-vs-target word diff for content ports. Present only
+  // when source_text was supplied, so existing audit payloads stay unchanged.
+  port_fidelity?: PortFidelityResult;
   // Concrete build recipes + canonical public example sources for any expensive
   // technique named in the design_notes — so a failing audit hands the builder
   // the HOW next to the missing finding. Present only when a note triggers one.
@@ -211,7 +215,13 @@ export type TasteInterviewQuestion = {
   suggestions?: string[];
 };
 
-type PageIssueInput = { rule: string; severity: string; message: string; fix?: string };
+type PageIssueInput = {
+  rule: string;
+  severity: string;
+  status?: "pass" | "fail" | "indeterminate";
+  message: string;
+  fix?: string;
+};
 
 const SEVERITIES: TasteSeverity[] = ["block", "warn", "nit"];
 const RULE_OWNERS = ["taste", "raven"];
@@ -222,16 +232,110 @@ const STOPWORDS = new Set([
   "this", "that", "then", "there", "these", "those", "use", "with", "your",
 ]);
 
+// Cold-start starter rulesets for create_taste_profile({ template }). Each is a
+// small, sensible default (not a full calibration) covering the dimensions
+// that matter before the first interview even runs: color restraint,
+// typography floor, spacing, voice, and touch targets (delegated to Raven's
+// own audit_tap_targets where the check is a real measurement, not a taste
+// judgment). Kept intentionally short — get_taste_interview is still how a
+// profile becomes properly calibrated; this just means cold start isn't zero.
+export const TASTE_TEMPLATE_NAMES = ["portfolio", "saas-marketing", "app"] as const;
+export type TasteTemplateName = typeof TASTE_TEMPLATE_NAMES[number];
+
+type TasteTemplateRuleSeed = {
+  rule_id: string;
+  clause_text: string;
+  category: string;
+  severity_default: TasteSeverity;
+  negative_prompt?: string;
+  owner?: "taste" | "raven";
+  delegate_to?: string;
+  scope?: string;
+};
+
+const TASTE_TEMPLATES: Record<TasteTemplateName, TasteTemplateRuleSeed[]> = {
+  portfolio: [
+    { rule_id: "PORTFOLIO-COLOR-restraint", category: "color", severity_default: "block",
+      clause_text: "Monochrome ground with at most one accent color; no gradients.",
+      negative_prompt: "Do NOT use gradient backgrounds or a second accent hue." },
+    { rule_id: "PORTFOLIO-TYPE-floor", category: "typography", severity_default: "warn",
+      clause_text: "Body copy never drops below 16px; one display face plus one text face, not three.",
+      negative_prompt: "Do NOT set body text below 16px or mix more than two type families." },
+    { rule_id: "PORTFOLIO-SPACING-rhythm", category: "spacing", severity_default: "nit",
+      clause_text: "Generous editorial whitespace; section gaps of 64px or more.", negative_prompt: "" },
+    { rule_id: "PORTFOLIO-VOICE-understated", category: "voice", severity_default: "warn",
+      clause_text: "First-person, understated, work speaks for itself.",
+      negative_prompt: "Do NOT use marketing superlatives (revolutionary, world-class, unparalleled)." },
+    { rule_id: "PORTFOLIO-TAP-targets", category: "accessibility", severity_default: "warn",
+      clause_text: "Every interactive element meets the 44px tap-target minimum.",
+      owner: "raven", delegate_to: "audit_tap_targets" },
+    { rule_id: "PORTFOLIO-IMAGERY-restraint", category: "imagery", severity_default: "nit",
+      clause_text: "Real work samples over stock imagery or decorative illustration.", negative_prompt: "" },
+  ],
+  "saas-marketing": [
+    { rule_id: "SAAS-COLOR-restraint", category: "color", severity_default: "block",
+      clause_text: "One primary brand color plus one accent; no rainbow gradients.",
+      negative_prompt: "Do NOT use gradient backgrounds or a second accent hue." },
+    { rule_id: "SAAS-TYPE-floor", category: "typography", severity_default: "warn",
+      clause_text: "Body copy never drops below 16px; headline scale follows a single consistent ratio.",
+      negative_prompt: "Do NOT set body text below 16px." },
+    { rule_id: "SAAS-SPACING-grid", category: "spacing", severity_default: "nit",
+      clause_text: "Consistent 8px spacing grid across sections.", negative_prompt: "" },
+    { rule_id: "SAAS-VOICE-clarity", category: "voice", severity_default: "warn",
+      clause_text: "Benefit-led, plain language, one clear claim per section.",
+      negative_prompt: "Do NOT use hype words (revolutionary, game-changing, unlock, proven)." },
+    { rule_id: "SAAS-CTA-tap-targets", category: "accessibility", severity_default: "block",
+      clause_text: "Every CTA button meets the 44px tap-target minimum.",
+      owner: "raven", delegate_to: "audit_tap_targets" },
+    { rule_id: "SAAS-CONTRAST-wcag", category: "accessibility", severity_default: "warn",
+      clause_text: "Body and CTA text meet WCAG AA contrast against their background.",
+      owner: "raven", delegate_to: "audit_page" },
+  ],
+  app: [
+    { rule_id: "APP-COLOR-restraint", category: "color", severity_default: "block",
+      clause_text: "One primary color plus one accent; respects system light/dark mode.",
+      negative_prompt: "Do NOT use gradient backgrounds or a second accent hue." },
+    { rule_id: "APP-TYPE-floor", category: "typography", severity_default: "warn",
+      clause_text: "Body text never drops below 13pt and respects Dynamic Type / font-scale settings.",
+      negative_prompt: "Do NOT set body text below 13pt or disable text scaling." },
+    { rule_id: "APP-SPACING-rhythm", category: "spacing", severity_default: "nit",
+      clause_text: "Consistent 8pt spacing grid; safe-area aware margins.", negative_prompt: "" },
+    { rule_id: "APP-VOICE-concise", category: "voice", severity_default: "warn",
+      clause_text: "Short, task-focused microcopy; no filler in buttons or empty states.",
+      negative_prompt: "Do NOT pad button or empty-state copy with filler phrases." },
+    { rule_id: "APP-TAP-targets", category: "accessibility", severity_default: "block",
+      clause_text: "Every touchable element meets the 44pt (iOS) / 48dp (Android) tap-target minimum.",
+      owner: "raven", delegate_to: "audit_tap_targets" },
+    { rule_id: "APP-MOTION-restraint", category: "motion", severity_default: "nit",
+      clause_text: "Subtle, purposeful motion only; nothing blocks input while animating.", negative_prompt: "" },
+  ],
+};
+
 export async function createTasteProfile(store: TasteStore, input: {
   name: string;
   rules?: unknown[];
   corpus?: unknown[];
   markdown?: string;
+  template?: TasteTemplateName;
 }): Promise<TasteProfile> {
   const name = validateProfileName(input.name);
   const now = new Date().toISOString();
   const rules: TasteRule[] = [];
   const seen = new Set<string>();
+
+  if (input.template !== undefined) {
+    if (!(TASTE_TEMPLATE_NAMES as readonly string[]).includes(input.template)) {
+      throw new Error("template must be one of: " + TASTE_TEMPLATE_NAMES.join(", "));
+    }
+    // Template rules seed first; explicit rules/markdown below are additive on
+    // top of them (merge, not replace) — a starter kit, not a lock-in.
+    for (const seed of TASTE_TEMPLATES[input.template]) {
+      const rule = validateRule(seed, "template." + input.template);
+      if (seen.has(rule.rule_id)) throw new Error("duplicate rule_id: " + rule.rule_id);
+      seen.add(rule.rule_id);
+      rules.push(rule);
+    }
+  }
 
   if (input.rules !== undefined) {
     if (!Array.isArray(input.rules)) throw new Error("rules must be an array when supplied");
@@ -288,7 +392,10 @@ export async function getTasteProfile(store: TasteStore, name: string): Promise<
   if (raw === null) {
     const available = (await listTasteProfiles(store)).map(function(profile) { return profile.name; });
     const suffix = available.length > 0 ? available.join(", ") : "(none)";
-    throw new Error("Taste profile not found: " + safeName + ". Available profiles: " + suffix);
+    throw new Error(
+      "Taste profile not found: " + safeName + ". Available profiles: " + suffix +
+      ". Create one with create_taste_profile({ name, template: \"portfolio\"|\"saas-marketing\"|\"app\" })"
+    );
   }
   return validateStoredProfile(raw, safeName);
 }
@@ -357,7 +464,7 @@ function rawWords(value: string): Set<string> {
 // any voice/tone note. The interview is deterministic — built from the
 // profile's own scopes and voice rules — and is asked by the agent, not here.
 
-export async function getTasteInterview(store: TasteStore, profileName: string, project?: string, mode?: "kickoff" | "refine"): Promise<{
+export async function getTasteInterview(store: TasteStore, profileName: string, project?: string, mode?: "kickoff" | "refine", depth?: "first_run" | "full"): Promise<{
   tool: "get_taste_interview";
   profile: string;
   project: string;
@@ -366,9 +473,11 @@ export async function getTasteInterview(store: TasteStore, profileName: string, 
   voice_rules: { rule_id: string; clause_text: string; severity_default: TasteSeverity }[];
   rule_ids: string[];
   questions: TasteInterviewQuestion[];
+  more_questions: TasteInterviewQuestion[];
   then: string;
 }> {
   const interviewMode = mode === "refine" ? "refine" : "kickoff";
+  const interviewDepth = depth === "full" ? "full" : "first_run";
   const profile = await getTasteProfile(store, profileName);
   const projectName = typeof project === "string" && project.trim().length > 0 ? project.trim() : "";
   const scopeMap = new Map<string, { rule_id: string; clause_text: string; severity_default: TasteSeverity }[]>();
@@ -437,24 +546,23 @@ export async function getTasteInterview(store: TasteStore, profileName: string, 
       voice_rules: voiceRules,
       rule_ids: ruleIds,
       questions,
+      more_questions: [],
       then: "Ask the user these questions conversationally, then persist the updated answers with bind_taste_surface (it upserts by project, so revised design_notes/voice_note replace the stale ones) and, if a precedent answer was given, record it with label_finding (verdict:'reject', citing the complaint). Skipped questions leave that item's prior calibration unchanged — encourage answering, never force.",
     };
   }
 
-  const questions: TasteInterviewQuestion[] = [
-    {
-      id: "identity",
-      question: "What is " + label + ", in a phrase — and what family is it (portfolio, product site, docs, app UI, deck, …)? The answer becomes the binding's surface string that scope-tagged rules match against.",
-      skippable: false,
-      priority: "core",
-    },
-  ];
-  questions.push({
+  const identityQuestion: TasteInterviewQuestion = {
+    id: "identity",
+    question: "What is " + label + ", in a phrase — and what family is it (portfolio, product site, docs, app UI, deck, …)? The answer becomes the binding's surface string that scope-tagged rules match against.",
+    skippable: false,
+    priority: "core",
+  };
+  const referencesQuestion: TasteInterviewQuestion = {
     id: "references",
     question: "Have examples? Share links, screenshots, or file paths of work that feels right for " + label + " — sites, apps, posters, anything. Each example gets a short follow-up interview: what specifically draws you — the type, the color, the spacing, the motion, the voice? Name the element and the quality; the specifics fold into the matching design notes.",
     skippable: true,
     priority: "core",
-  });
+  };
   // No scope-membership questions. Every project is different — a fresh kickoff
   // does not presume the profile's pre-existing non-global scopes (e.g. one
   // surface's monochrome rules) apply here, which was noise for agency/freelance
@@ -488,18 +596,23 @@ export async function getTasteInterview(store: TasteStore, profileName: string, 
     return items.map(function(s) { return "'" + s.replace(/\s+/g, " ").replace(/'/g, "’") + "'"; }).join("; ");
   };
 
+  const dimensionQuestions: TasteInterviewQuestion[] = [];
   for (const dimension of DESIGN_DIMENSIONS) {
     const dimensionRules = profile.rules.filter(function(rule) { return dimension.match.test(rule.category); });
     const enforced = dimensionRules.length > 0
       ? "Profile already enforces: " + dimensionRules.slice(0, 4).map(function(rule) { return rule.rule_id + " (" + rule.severity_default + ")"; }).join(", ") +
         (dimensionRules.length > 4 ? " +" + (dimensionRules.length - 4) + " more" : "") + "."
       : "The profile has no " + dimension.key + " rules yet — this answer is the only " + dimension.key + " guidance on " + label + ".";
+    // The aesthetic dimension is promoted to core: it is the single fastest way
+    // to convey overall visual direction, so it belongs in the 4-question
+    // first-run kickoff alongside identity/voice/matchers — every other
+    // dimension stays extended (offered via more_questions on first_run).
     const question: TasteInterviewQuestion = {
       id: "design:" + dimension.key,
       question: "How should " + dimension.key + " read on " + label + "? " + dimension.ask + " " + enforced +
         " The answer is stored as design_notes." + dimension.key + " and echoed in every audit.",
       skippable: true,
-      priority: "extended",
+      priority: dimension.key === "aesthetic" ? "core" : "extended",
     };
     if (dimension.options !== undefined) question.options = dimension.options;
     const learned = learnedSuggestions(dimension.key);
@@ -507,16 +620,17 @@ export async function getTasteInterview(store: TasteStore, profileName: string, 
       question.question += " On past projects you decided: " + quoteLearned(learned) + " — still right here?";
       question.suggestions = learned;
     }
-    questions.push(question);
+    dimensionQuestions.push(question);
   }
   // Dimensions the interview LEARNED: decision categories recorded during real
   // work that no standard question covers become questions of their own.
   const knownDimensionKeys = new Set(DESIGN_DIMENSIONS.map(function(d) { return d.key; }));
   ["special", "references", "voice", "identity"].forEach(function(reserved) { knownDimensionKeys.add(reserved); });
   const learnedDimensionKeys = Array.from(decisionsByDimension.keys()).filter(function(key) { return !knownDimensionKeys.has(key); }).sort();
+  const learnedQuestions: TasteInterviewQuestion[] = [];
   for (const learnedKey of learnedDimensionKeys) {
     const learned = learnedSuggestions(learnedKey);
-    questions.push({
+    learnedQuestions.push({
       id: "design:" + learnedKey,
       question: "A question this interview learned from your past decisions — " + learnedKey + ": on other projects you decided " + quoteLearned(learned) +
         ". How should " + learnedKey + " read on " + label + "? The answer is stored as design_notes." + learnedKey + " and echoed in every audit.",
@@ -525,7 +639,7 @@ export async function getTasteInterview(store: TasteStore, profileName: string, 
       suggestions: learned,
     });
   }
-  questions.push({
+  const voiceQuestion: TasteInterviewQuestion = {
     id: "voice",
     question: (voiceRules.length > 0
       ? "Voice/tone rules: " +
@@ -536,19 +650,19 @@ export async function getTasteInterview(store: TasteStore, profileName: string, 
     skippable: true,
     priority: "core",
     examples: VOICE_REGISTER_EXAMPLES,
-  });
-  questions.push({
+  };
+  const exceptionsQuestion: TasteInterviewQuestion = {
     id: "exceptions",
     question: "Any other rules to override on " + label + "? Each override is {rule_id, severity: block|warn|nit|off}.",
     skippable: true,
     priority: "extended",
-  });
-  questions.push({
+  };
+  const matchersQuestion: TasteInterviewQuestion = {
     id: "matchers",
     question: "Which URL hosts identify " + label + " (for url-mode audits), e.g. ravenmcp.ai? The project name itself matches whenever audits pass project:'" + (projectName || "<name>") + "'.",
     skippable: true,
     priority: "core",
-  });
+  };
   // Open-ended closer. Suggestions are learned, not invented: distinct
   // design_notes.special values the same person chose on their OTHER bound
   // surfaces — the interview starts proposing their own signatures back.
@@ -570,7 +684,26 @@ export async function getTasteInterview(store: TasteStore, profileName: string, 
     priority: "extended",
   };
   if (specialSuggestions.length > 0) specialQuestion.suggestions = specialSuggestions;
-  questions.push(specialQuestion);
+
+  // Full order, unchanged from the original kickoff: identity, references, all
+  // eleven design dimensions, learned dimensions, voice, exceptions, matchers,
+  // special. depth:'full' returns exactly this list with nothing deferred.
+  const fullQuestions: TasteInterviewQuestion[] = [identityQuestion, referencesQuestion]
+    .concat(dimensionQuestions)
+    .concat(learnedQuestions)
+    .concat([voiceQuestion, exceptionsQuestion, matchersQuestion, specialQuestion]);
+
+  const CORE_KICKOFF_IDS = new Set(["identity", "design:aesthetic", "voice", "matchers"]);
+  const questions: TasteInterviewQuestion[] = interviewDepth === "full"
+    ? fullQuestions
+    : [identityQuestion, dimensionQuestions.find(function(q) { return q.id === "design:aesthetic"; })!, voiceQuestion, matchersQuestion];
+  const moreQuestions: TasteInterviewQuestion[] = interviewDepth === "full"
+    ? []
+    : fullQuestions.filter(function(q) { return !CORE_KICKOFF_IDS.has(q.id); });
+
+  const thenFirstRun = "This is the compressed first-run kickoff: ask the user just these 4 core questions conversationally — identity, aesthetic, voice, matchers. It is still a blocking gate: collect the answers BEFORE committing any design direction, palette, type choice, or name. Persist them with bind_taste_surface — identity becomes the surface string, design:aesthetic goes in design_notes.aesthetic, voice becomes voice_note (or a design_notes.voice override on existing voice/tone rules), and matchers becomes hosts. design_notes are ACCEPTANCE CRITERIA for any build, not mood words. Once bound, proceed with the work. Deeper calibration — references, the other design dimensions (typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, libraries), any learned dimensions, rule exceptions, and the open-ended special question — is returned in `more_questions`; offer it to the user as optional (\"want to go deeper on typography, color, motion, or anything else before we start?\") but never force it before proceeding. Re-run with depth:'full' at any time to ask everything at once instead. From then on, whenever the user makes, approves, or corrects a taste/direction/design decision during the work, record it with record_taste_decision — recorded decisions evolve future kickoff interviews.";
+
+  const thenFull = "Ask the user these questions conversationally. This interview is a blocking gate: collect the user's answers BEFORE committing any design direction, palette, type choice, or name — never answer the questions yourself, and never proceed with design work 'while the interview runs.' If references were given, interview each example briefly — what specifically the person likes, mapped to a dimension — fold those specifics into the matching design_notes values, AND pass the examples as the structured `references` array to bind_taste_surface (a list of {url, liked?}), not only as prose in design_notes.references: Raven captures each reference's live traits and consistency-checks your design_notes against what the reference ACTUALLY is (a 'dark, cinematic' color note against two references that both render light is flagged back to you — surface such contradictions to the USER and re-ask, never silently keep both). On the libraries question specifically: when the surface is a website to be built, suggest building it as a Next.js app by default (record a different choice in design_notes.libraries if the user prefers one). Then persist with bind_taste_surface — dimension answers (design:*) go in design_notes as {typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries} and the open-ended closer as design_notes.special. design_notes are ACCEPTANCE CRITERIA for any build, not mood words: a build is not done until every note is visibly present in the rendered result, or the client reports to the user exactly which notes were dropped and why. When a note names an expensive technique (three.js/WebGL, GSAP scroll choreography, anime.js staggered motion, glassmorphism, a branded loader, lottie, kinetic display type…), bind_taste_surface and audit_taste return build_hints — a concrete recipe plus canonical public example sources (threejs.org, gsap.com, animejs.com, Codrops…) for that technique. An expensive note is NEVER license to drop it: the public corpus for these is vast, so consult the attached build_hints and their sources; if a technique is genuinely infeasible, say so to the USER before shipping without it. If the user picks the ai-cinematic-video imagery option (an AI-generated film hero), confirm BEFORE building that they have the Higgsfield MCP connected and Seedance credits available — it is a paid external dependency — and record their yes/no in design_notes.imagery; if they decline, agree on a fallback hero (still photography or licensed film) rather than silently downgrading. Future audit_taste calls with project:'" + (projectName || "<name>") + "' (or a matching url host) apply the binding automatically and echo the notes. Skipped questions leave that dimension uncalibrated and audits stay silent on it — encourage answering, never force. From then on, whenever the user makes, approves, or corrects a taste/direction/design decision during the work (an accent chosen, a nav pattern rejected, a name direction, a type pairing), record it with record_taste_decision — recorded decisions evolve future kickoff interviews: recurring choices return as suggested defaults on their dimension's question, and decision categories no standard question covers become new interview questions.";
 
   return {
     tool: "get_taste_interview",
@@ -581,10 +714,14 @@ export async function getTasteInterview(store: TasteStore, profileName: string, 
     voice_rules: voiceRules,
     rule_ids: ruleIds,
     questions,
-    then: "Ask the user these questions conversationally. This interview is a blocking gate: collect the user's answers BEFORE committing any design direction, palette, type choice, or name — never answer the questions yourself, and never proceed with design work 'while the interview runs.' If references were given, interview each example briefly — what specifically the person likes, mapped to a dimension — fold those specifics into the matching design_notes values, AND pass the examples as the structured `references` array to bind_taste_surface (a list of {url, liked?}), not only as prose in design_notes.references: Raven captures each reference's live traits and consistency-checks your design_notes against what the reference ACTUALLY is (a 'dark, cinematic' color note against two references that both render light is flagged back to you — surface such contradictions to the USER and re-ask, never silently keep both). When the surface is a website to be built, suggest building it as a Next.js app by default (record a different choice in design_notes.libraries if the user prefers one). Then persist with bind_taste_surface — dimension answers (design:*) go in design_notes as {typography, spacing, color, layout, motion, imagery, entrance, loading, navigation, aesthetic, libraries} and the open-ended closer as design_notes.special. design_notes are ACCEPTANCE CRITERIA for any build, not mood words: a build is not done until every note is visibly present in the rendered result, or the client reports to the user exactly which notes were dropped and why. When a note names an expensive technique (three.js/WebGL, GSAP scroll choreography, anime.js staggered motion, glassmorphism, a branded loader, lottie, kinetic display type…), bind_taste_surface and audit_taste return build_hints — a concrete recipe plus canonical public example sources (threejs.org, gsap.com, animejs.com, Codrops…) for that technique. An expensive note is NEVER license to drop it: the public corpus for these is vast, so consult the attached build_hints and their sources; if a technique is genuinely infeasible, say so to the USER before shipping without it. If the user picks the ai-cinematic-video imagery option (an AI-generated film hero), confirm BEFORE building that they have the Higgsfield MCP connected and Seedance credits available — it is a paid external dependency — and record their yes/no in design_notes.imagery; if they decline, agree on a fallback hero (still photography or licensed film) rather than silently downgrading. Future audit_taste calls with project:'" + (projectName || "<name>") + "' (or a matching url host) apply the binding automatically and echo the notes. Skipped questions leave that dimension uncalibrated and audits stay silent on it — encourage answering, never force. From then on, whenever the user makes, approves, or corrects a taste/direction/design decision during the work (an accent chosen, a nav pattern rejected, a name direction, a type pairing), record it with record_taste_decision — recorded decisions evolve future kickoff interviews: recurring choices return as suggested defaults on their dimension's question, and decision categories no standard question covers become new interview questions.",
+    more_questions: moreQuestions,
+    then: interviewDepth === "full" ? thenFull : thenFirstRun,
   };
 }
 
+// Upserts by case-insensitive project name. On a re-bind, omitted optional
+// fields inherit the stored value; pass an explicit empty value to clear one.
+// carried_forward is response-only and is never written to the binding store.
 export async function bindTasteSurface(store: TasteStore, profileName: string, input: {
   project: string;
   surface: string;
@@ -594,7 +731,7 @@ export async function bindTasteSurface(store: TasteStore, profileName: string, i
   design_notes?: unknown;
   references?: unknown;
   uncalibrated_ack?: unknown;
-}): Promise<SurfaceBinding> {
+}): Promise<SurfaceBinding & { carried_forward?: string[] }> {
   const profile = await getTasteProfile(store, profileName);
   if (typeof input.project !== "string" || !/^[a-z0-9][a-z0-9-_.]{0,63}$/i.test(input.project)) {
     throw new Error("project must match /^[a-z0-9][a-z0-9-_.]{0,63}$/i");
@@ -602,21 +739,53 @@ export async function bindTasteSurface(store: TasteStore, profileName: string, i
   if (typeof input.surface !== "string" || input.surface.trim().length === 0) {
     throw new Error("surface is required — the phrase scoped rules match against (e.g. 'product-site')");
   }
+  const storedBindings = await listSurfaceBindings(store, profile.name);
+  const existingBinding = storedBindings.find(function(existing) {
+    return existing.project.toLowerCase() === input.project.toLowerCase();
+  });
+  // Inheriting an empty prior value is a no-op, so carry-forward (and its
+  // report) only fires when the stored field actually held content.
+  const carriedForward: string[] = [];
+  let referencesInput = input.references;
+  if (referencesInput === undefined && existingBinding && existingBinding.references && existingBinding.references.length > 0) {
+    referencesInput = existingBinding.references;
+    carriedForward.push("references");
+  }
+  let designNotesInput = input.design_notes;
+  if (designNotesInput === undefined && existingBinding && Object.keys(existingBinding.design_notes || {}).length > 0) {
+    designNotesInput = existingBinding.design_notes;
+    carriedForward.push("design_notes");
+  }
+  let voiceNoteInput = input.voice_note;
+  if (voiceNoteInput === undefined && existingBinding && existingBinding.voice_note.trim().length > 0) {
+    voiceNoteInput = existingBinding.voice_note;
+    carriedForward.push("voice_note");
+  }
+  let overridesInput = input.overrides;
+  if (overridesInput === undefined && existingBinding && existingBinding.overrides.length > 0) {
+    overridesInput = existingBinding.overrides;
+    carriedForward.push("overrides");
+  }
+  let hostsInput = input.hosts;
+  if (hostsInput === undefined && existingBinding && existingBinding.hosts.length > 0) {
+    hostsInput = existingBinding.hosts;
+    carriedForward.push("hosts");
+  }
   const hosts: string[] = [];
-  if (input.hosts !== undefined) {
-    if (!Array.isArray(input.hosts)) throw new Error("hosts must be an array of hostnames");
-    for (const raw of input.hosts) {
+  if (hostsInput !== undefined) {
+    if (!Array.isArray(hostsInput)) throw new Error("hosts must be an array of hostnames");
+    for (const raw of hostsInput) {
       if (typeof raw !== "string" || raw.trim().length === 0) throw new Error("hosts entries must be non-empty strings");
       hosts.push(normalizeHost(raw));
     }
   }
   const ruleIds = new Set(profile.rules.map(function(rule) { return rule.rule_id; }));
   const overrides: SurfaceOverride[] = [];
-  if (input.overrides !== undefined) {
-    if (!Array.isArray(input.overrides)) throw new Error("overrides must be an array of {rule_id, severity}");
+  if (overridesInput !== undefined) {
+    if (!Array.isArray(overridesInput)) throw new Error("overrides must be an array of {rule_id, severity}");
     const seen = new Set<string>();
-    for (let i = 0; i < input.overrides.length; i += 1) {
-      const raw = input.overrides[i];
+    for (let i = 0; i < overridesInput.length; i += 1) {
+      const raw = overridesInput[i];
       if (!isRecord(raw)) throw new Error("overrides[" + i + "] must be an object");
       const ruleId = readNonEmptyString(raw, "rule_id", "overrides[" + i + "]");
       if (!ruleIds.has(ruleId)) throw new Error("overrides[" + i + "].rule_id does not exist in profile.rules: " + ruleId);
@@ -627,9 +796,9 @@ export async function bindTasteSurface(store: TasteStore, profileName: string, i
       overrides.push({ rule_id: ruleId, severity: severity as TasteSeverity | "off" });
     }
   }
-  const voiceNote = optionalString(input.voice_note);
-  const designNotes = validateDesignNotes(input.design_notes, "design_notes");
-  const references = validateReferences(input.references, "references");
+  const voiceNote = optionalString(voiceNoteInput);
+  const designNotes = validateDesignNotes(designNotesInput, "design_notes");
+  const references = validateReferences(referencesInput, "references");
 
   // Interview-enforcement gate. A bind whose RESULT carries zero taste
   // calibration — no design_notes, no non-blank voice_note, no references, no
@@ -640,20 +809,24 @@ export async function bindTasteSurface(store: TasteStore, profileName: string, i
   // interviewed and chose to skip every dimension, recorded on the binding so
   // the skip is auditable, never silent.
   //
-  // This gates NEW surfaces and re-binds alike, on purpose: bind is an upsert
-  // that REPLACES every field, so an empty re-bind erases prior calibration
-  // exactly as a fresh identity-only bind never had it (keying the exemption on
-  // project would let `same-project, new surface, empty notes` silently wipe a
-  // calibrated binding). Hosts are identity/matching, not taste, so they do NOT
+  // This evaluates the merged result: omitted re-bind fields carry forward,
+  // while explicitly empty fields clear prior calibration and can still make
+  // the bind fail. Hosts are identity/matching, not taste, so they do NOT
   // satisfy the gate. Blank strings are trimmed before counting, so whitespace
   // cannot smuggle a bind through. A meaningful design_note is trusted; a
   // deliberately fabricated one is a lie no deterministic gate can detect.
-  const ack = optionalString(input.uncalibrated_ack).trim();
+  let ack = optionalString(input.uncalibrated_ack).trim();
   const hasCalibration =
     Object.keys(designNotes).length > 0 ||
     voiceNote.trim().length > 0 ||
     overrides.length > 0 ||
     (references !== undefined && references.length > 0);
+  // A stored uncalibrated_ack is durable consent: an acked-uncalibrated
+  // binding can be re-bound (new surface/hosts) without repeating the ack.
+  if (!hasCalibration && ack.length === 0 && existingBinding && typeof existingBinding.uncalibrated_ack === "string" && existingBinding.uncalibrated_ack.trim().length > 0) {
+    ack = existingBinding.uncalibrated_ack.trim();
+    carriedForward.push("uncalibrated_ack");
+  }
   if (!hasCalibration && ack.length === 0) {
     throw new Error(
       "Refusing to bind surface ('" + input.project + "') with no calibration content — this is the fingerprint of a skipped taste interview (and an empty re-bind would erase prior calibration). " +
@@ -674,13 +847,14 @@ export async function bindTasteSurface(store: TasteStore, profileName: string, i
   };
   if (references !== undefined) binding.references = references;
   if (!hasCalibration && ack.length > 0) binding.uncalibrated_ack = ack;
-  const bindings = (await listSurfaceBindings(store, profile.name)).filter(function(existing) {
+  const bindings = storedBindings.filter(function(existing) {
     return existing.project.toLowerCase() !== binding.project.toLowerCase();
   });
   bindings.push(binding);
   bindings.sort(function(a, b) { return a.project.localeCompare(b.project); });
   await store.putSurfaces(profile.name, bindings);
-  return binding;
+  if (carriedForward.length === 0) return binding;
+  return Object.assign({}, binding, { carried_forward: carriedForward });
 }
 
 const DECISION_SOURCES: TasteDecisionSource[] = ["user-directed", "user-approved", "user-corrected"];
@@ -1106,6 +1280,7 @@ export async function auditTaste(store: TasteStore, input: {
   profile: string | TasteProfile;
   html?: string;
   text?: string;
+  source_text?: string;
   page_issues?: PageIssueInput[];
   surface?: string;
   project?: string;
@@ -1135,6 +1310,7 @@ export async function auditTaste(store: TasteStore, input: {
   const notAssessed: { rule_id: string; reason: string }[] = [];
   const skippedOutOfScope: { rule_id: string; scope: string }[] = [];
   const disabledByBinding: { rule_id: string; severity: "off" }[] = [];
+  const activeRules: TasteRule[] = [];
   const attachedIssueIndexes = new Set<number>();
   // undefined binding = "resolve from the project hint"; null = "already
   // resolved upstream, none found" (the url-mode handler resolves early so
@@ -1171,6 +1347,7 @@ export async function auditTaste(store: TasteStore, input: {
         rule = Object.assign({}, rule, { severity_default: "warn" as TasteSeverity });
       }
     }
+    activeRules.push(rule);
     if (rule.owner === "raven") {
       if (input.page_issues === undefined) {
         notAssessed.push({
@@ -1252,6 +1429,76 @@ export async function auditTaste(store: TasteStore, input: {
     }
   }
 
+  let portFidelity: PortFidelityResult | undefined = undefined;
+  if (input.source_text !== undefined) {
+    const visibleTarget = targetKind === "html" ? extractVisibleText(rawTarget) : rawTarget;
+    portFidelity = diffPortText(input.source_text, visibleTarget);
+    const bannedTerms = Array.from(new Set(activeRules.filter(function(rule) {
+      return rule.severity_default === "block";
+    }).flatMap(function(rule) {
+      return extractBannedTerms(rule.negative_prompt + " " + rule.clause_text);
+    })));
+    const sourceBannedTerms = new Set(introducedBannedTerms(input.source_text, bannedTerms).map(function(term) {
+      return term.toLocaleLowerCase();
+    }));
+    const newlyIntroducedTerms = introducedBannedTerms(visibleTarget, bannedTerms).filter(function(term) {
+      return !sourceBannedTerms.has(term.toLocaleLowerCase());
+    });
+    const matchedIntroducedTerms = new Set<string>();
+    const introducedInFinding = function(target: string, context: string): string[] {
+      const targetText = target.toLocaleLowerCase();
+      const contextText = context.toLocaleLowerCase();
+      return newlyIntroducedTerms.filter(function(term) {
+        const normalizedTerm = term.toLocaleLowerCase();
+        const matched = targetText.includes(normalizedTerm) || contextText.includes(normalizedTerm);
+        if (matched) matchedIntroducedTerms.add(term.toLocaleLowerCase());
+        return matched;
+      });
+    };
+    const portFindings: TasteFinding[] = [];
+    const baseFinding = function(severity: TasteSeverity, evidence: string): TasteFinding {
+      return {
+        rule_id: "PORT-DIFF",
+        clause_cited: "Port target text must remain verbatim against source_text.",
+        severity,
+        owner: "taste",
+        source: "raven",
+        evidence,
+        fix: "Restore the source wording exactly, or explicitly approve and update source_text before re-running the audit.",
+      };
+    };
+    for (const entry of portFidelity.substituted) {
+      const banned = introducedInFinding(entry.target, entry.context);
+      const suffix = banned.length > 0 ? "; introduced banned profile term(s): " + banned.join(", ") : "";
+      portFindings.push(baseFinding(banned.length > 0 ? "block" : "warn",
+        'substituted "' + entry.source + '" → "' + entry.target + '"; context: ' + entry.context + suffix));
+    }
+    for (const entry of portFidelity.dropped) {
+      portFindings.push(baseFinding("warn", 'dropped "' + entry.source + '"; context: ' + entry.context));
+    }
+    for (const entry of portFidelity.added) {
+      const banned = introducedInFinding(entry.target, entry.context);
+      const suffix = banned.length > 0 ? "; introduced banned profile term(s): " + banned.join(", ") : "";
+      portFindings.push(baseFinding(banned.length > 0 ? "block" : "warn",
+        'added "' + entry.target + '"; context: ' + entry.context + suffix));
+    }
+    for (const entry of portFidelity.moved) {
+      portFindings.push(baseFinding("nit", 'moved "' + entry.text + '"; context: ' + entry.context));
+    }
+    for (const entry of portFidelity.case_changed) {
+      portFindings.push(baseFinding("nit", 'case changed "' + entry.source + '" → "' + entry.target + '"; context: ' + entry.context));
+    }
+    for (const term of newlyIntroducedTerms) {
+      if (!matchedIntroducedTerms.has(term.toLocaleLowerCase())) {
+        portFindings.push(baseFinding("block", 'introduced banned profile term spanning a port-diff boundary: "' + term + '"'));
+      }
+    }
+    if (portFidelity.token_counts.capped && portFidelity.warnings.length > 0) {
+      portFindings.push(baseFinding("warn", portFidelity.warnings.join(" ")));
+    }
+    fidelityFindings = (fidelityFindings || []).concat(portFindings);
+  }
+
   const countable = fidelityFindings === undefined ? activeFindings : activeFindings.concat(fidelityFindings);
   const blockCount = countable.filter(function(finding) { return finding.severity === "block"; }).length;
   const warnCount = countable.filter(function(finding) { return finding.severity === "warn"; }).length;
@@ -1283,6 +1530,7 @@ export async function auditTaste(store: TasteStore, input: {
   if (binding && Object.keys(binding.design_notes).length > 0) result.design_notes = binding.design_notes;
   if (noteAssessments !== undefined) result.note_assessments = noteAssessments;
   if (fidelityFindings !== undefined) result.fidelity_findings = fidelityFindings;
+  if (portFidelity !== undefined) result.port_fidelity = portFidelity;
   // Attach build recipes for any expensive technique named in the notes — this
   // does not need traits, so a failing audit ALWAYS carries the fix ammunition.
   // Portraits skip them: with note-fidelity off there is no missing finding to fix.
@@ -1545,8 +1793,9 @@ function foldRavenRule(
   // Only a hard "error" issue earns the rule's full severity; anything else — advisory
   // "warning" or an unrecognized severity string from an external caller — caps at warn,
   // so a suggestion can never surface as a block.
-  const severity: TasteSeverity =
-    issue.severity !== "error" && rule.severity_default === "block" ? "warn" : rule.severity_default;
+  const severity: TasteSeverity = issue.status === "indeterminate"
+    ? "warn"
+    : issue.severity !== "error" && rule.severity_default === "block" ? "warn" : rule.severity_default;
   findings.push({
     rule_id: rule.rule_id,
     clause_cited: rule.clause_text,
@@ -1554,7 +1803,9 @@ function foldRavenRule(
     owner: rule.owner,
     source: "raven",
     evidence: issue.rule + ": " + issue.message,
-    fix: issue.fix || fixFromNegativePrompt(rule.negative_prompt),
+    fix: issue.status === "indeterminate"
+      ? issue.fix || "Inspect the rendered surface; delegated contrast evidence was indeterminate."
+      : issue.fix || fixFromNegativePrompt(rule.negative_prompt),
   });
 }
 

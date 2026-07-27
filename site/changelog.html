@@ -26,20 +26,7 @@
        sheet never leaks into other routes. */
     
     :root {
-      --bg-base: #1a1a22;
-      --bg-surface: #212129;
-      --bg-raised: #2a2a33;
-      --bg-accent-subtle: rgba(0, 191, 255, 0.06);
-      --border: rgba(255, 255, 255, 0.06);
-      --border-strong: rgba(255, 255, 255, 0.1);
-      --border-accent: rgba(0, 191, 255, 0.3);
-      --text-primary: #F0F0F2;
-      --text-secondary: #9498A0;
-      --text-tertiary: #5C5F68;
-      --text-accent: #00BFFF;
-      --accent-blue: #00BFFF;
-      --accent-green: #00E676;
-      --accent-orange: #FFAB40;
+      --text-tertiary: var(--text-muted-deep);
       --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
       --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
@@ -84,7 +71,7 @@
     }
     .cl-headline {
       font-size: clamp(44px, 8vw, 88px);
-      font-weight: 800;
+      font-weight: 700;
       line-height: 1.02;
       letter-spacing: -0.02em;
       color: var(--text-primary);
@@ -109,7 +96,7 @@
       margin-bottom: var(--space-10);
     }
     .cl-pill {
-      min-height: 40px;
+      min-height: 44px;
       padding: 0 var(--space-4);
       border-radius: 999px;
       border: 1px solid var(--border-strong);
@@ -274,12 +261,18 @@
       font-size: 14px;
     }
     .cl-foot-primary {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
       color: var(--text-accent);
       text-decoration: none;
       transition: opacity 0.2s;
     }
     .cl-foot-primary:hover { opacity: 0.8; }
     .cl-foot-secondary {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
       color: var(--text-secondary);
       text-decoration: none;
       transition: color 0.2s;
@@ -316,6 +309,234 @@
       </div>
 
       <ol class="cl-timeline">
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.2.8</span>
+              <span class="cl-badge kind-improvement">Improvement</span>
+              <time datetime="2026-07-25" class="cl-date">July 25, 2026</time>
+            </header>
+            <h2 class="cl-title">Every tool now says what it will do before it runs</h2>
+            <ul class="cl-changes">
+              <li>All 100 tools carry MCP annotations — a readable title plus read-only, destructive, and open-world hints. 70 read, 30 write local or hosted state, and 11 drive a browser or fetch against a URL you supply, so a client can show the consequence before the call.</li>
+              <li>An audit against an unreachable host, a wrong port, or an auth wall used to return “0 findings” — indistinguishable from a clean page. It now says the audit did not run.</li>
+              <li>The registry’s remote URL pointed at a path that 404s; it is mcp.ravenmcp.ai/api/mcp. The bundle manifest also declares the correct license and links the privacy policy.</li>
+              <li>No tool changes — the 100-tool stdio surface is unchanged.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.2.7</span>
+              <span class="cl-badge kind-fix">Fix</span>
+              <time datetime="2026-07-24" class="cl-date">July 24, 2026</time>
+            </header>
+            <h2 class="cl-title">Decorative media now selects in the layers tree</h2>
+            <ul class="cl-changes">
+              <li>Clicking a decorative video or icon image on the canvas now expands its ancestors and highlights its row in the Layers tree — previously aria-hidden media had no layers row at all, so selection looked like it silently failed.</li>
+              <li>Zero-size aria-hidden nodes (accessibility plumbing) stay out of the tree; only media that actually renders gets a row.</li>
+              <li>No tool changes — the 100-tool stdio surface is unchanged.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.2.6</span>
+              <span class="cl-badge kind-fix">Fix</span>
+              <time datetime="2026-07-24" class="cl-date">July 24, 2026</time>
+            </header>
+            <h2 class="cl-title">Selecting on the page now selects in the layers tree</h2>
+            <ul class="cl-changes">
+              <li>Clicking an element on the page selects its row in the Raven Design layers tree and expands every parent above it.</li>
+              <li>The tree used to stop building at the first branch nested deeper than twelve levels, so most of a real page was missing from it and a click below that point had nothing to reveal. Deep branches are now trimmed on their own.</li>
+              <li>Dragging a layer next to a non-visual sibling — a &lt;template&gt;, &lt;noscript&gt;, JSON-LD script, or empty aria-hidden node — no longer produces a move the bridge rejects.</li>
+              <li>No tool changes — the 100-tool surface is unchanged.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="audits">
+          <span aria-hidden="true" class="cl-node cat-audits"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
+              <span class="cl-version">v2.2.5</span>
+              <span class="cl-badge kind-fix">Fix</span>
+              <time datetime="2026-07-24" class="cl-date">July 24, 2026</time>
+            </header>
+            <h2 class="cl-title">A heavy page can no longer stall a capture</h2>
+            <ul class="cl-changes">
+              <li>Capturing a page that animates continuously and never goes network-idle could wait forever with no error — it now aborts after 90 seconds and says why.</li>
+              <li>Affects anything that renders a live URL: audit_url, audit_taste in url mode, and the reference sites captured by bind_taste_surface.</li>
+              <li>Pass overall_timeout_ms to raise the ceiling for a page worth waiting on.</li>
+              <li>No tool changes — the 100-tool surface is unchanged.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.2.4</span>
+              <span class="cl-badge kind-fix">Fix</span>
+              <time datetime="2026-07-24" class="cl-date">July 24, 2026</time>
+            </header>
+            <h2 class="cl-title">Hot reload survives the grab bridge</h2>
+            <ul class="cl-changes">
+              <li>Serving your dev server through the bridge's proxy mode no longer breaks it — WebSocket upgrades are passed straight through, so hot reload keeps working.</li>
+              <li>On Next.js 16 the dropped socket also stopped the page hydrating, leaving the proxied app blank with no error to go on. That case is fixed.</li>
+              <li>No tool changes — the 100-tool surface is unchanged.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.2.3</span>
+              <span class="cl-badge kind-feature">Feature</span>
+              <time datetime="2026-07-24" class="cl-date">July 24, 2026</time>
+            </header>
+            <h2 class="cl-title">Layer drags move the page live</h2>
+            <ul class="cl-changes">
+              <li>Drag a row in the layers tree and the real element moves on the page immediately, the way browser devtools does — no waiting on the agent to see the result.</li>
+              <li>The move is still a pending change: the tray carries the intent and your agent's source edit remains what ships.</li>
+              <li>Discarding a move restores the page exactly, including scripts and styles that sat between the siblings you moved.</li>
+              <li>Moving the same element twice before sending measures from the real pre-move state, and a page that re-renders underneath a pending move is left alone.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.2.2</span>
+              <span class="cl-badge kind-fix">Fix</span>
+              <time datetime="2026-07-23" class="cl-date">July 23, 2026</time>
+            </header>
+            <h2 class="cl-title">Un-sent Raven Design changes survive page navigation</h2>
+            <ul class="cl-changes">
+              <li>Queue edits across several pages and each is restored as a pending change on the next page — send a whole batch to your agent at once instead of losing them on a page load.</li>
+              <li>Send stays available while a batch is applying; a press queues the next batch to send automatically when the current one finishes.</li>
+              <li>Single-click Send now works with any field focused, not just inline copy edits.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.2.1</span>
+              <span class="cl-badge kind-feature">Feature</span>
+              <time datetime="2026-07-23" class="cl-date">July 23, 2026</time>
+            </header>
+            <h2 class="cl-title">Edit copy directly in the Raven Design overlay</h2>
+            <ul class="cl-changes">
+              <li>Inline copy editing: change an element's text right on the page and send it to your agent alongside style and token edits.</li>
+              <li>Instructions and copy edits now persist as you move between elements, so you can stack many changes and send them in one batch.</li>
+              <li>Sending an inline copy edit takes a single click.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.2.0</span>
+              <span class="cl-badge kind-improvement">Improvement</span>
+              <time datetime="2026-07-22" class="cl-date">July 22, 2026</time>
+            </header>
+            <h2 class="cl-title">Now licensed under Apache 2.0</h2>
+            <ul class="cl-changes">
+              <li>Raven is now licensed under the Apache License, Version 2.0 — still permissive and free, with an added explicit patent grant and trademark clause.</li>
+              <li>Nothing changes for how you use Raven. Versions published before this stay under MIT; this and later releases are Apache 2.0.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="audits">
+          <span aria-hidden="true" class="cl-node cat-audits"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
+              <span class="cl-version">v2.1.0</span>
+              <span class="cl-badge kind-new">New</span>
+              <time datetime="2026-07-22" class="cl-date">July 22, 2026</time>
+            </header>
+            <h2 class="cl-title">One audit tool that picks the right checks for you</h2>
+            <ul class="cl-changes">
+              <li>New `audit` tool: point it at a web page, iOS screen, React Native source, a code diff, or a video, and it runs the audits that fit and returns a single merged report.</li>
+              <li>You no longer need to know which of the individual audit tools applies — the granular tools are still there when you want a targeted run.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.0.2</span>
+              <span class="cl-badge kind-feature">Feature</span>
+              <time datetime="2026-07-22" class="cl-date">July 22, 2026</time>
+            </header>
+            <h2 class="cl-title">review_diff can fail CI on the rules you choose</h2>
+            <ul class="cl-changes">
+              <li>review_diff gains an opt-in fail_on policy: name the rules that should block a merge — important, bare-hex-color, hardcoded-font-size, hardcoded-font-family, hardcoded-spacing — and matching violations on newly added lines turn the verdict to fail.</li>
+              <li>It combines with fail_on_governed (escalate findings a recorded decision governs); both echo back under one severity_policy so CI can see exactly what was enforced.</li>
+              <li>Advisory by default — leave the policy off and review_diff behaves exactly as before. No tool changes; 99 tools total.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.0.1</span>
+              <span class="cl-badge kind-fix">Fix</span>
+              <time datetime="2026-07-20" class="cl-date">July 20, 2026</time>
+            </header>
+            <h2 class="cl-title">Per-side border editing in the Raven Design overlay</h2>
+            <ul class="cl-changes">
+              <li>The Stroke control now edits borders per side — an All/Top/Right/Bottom/Left selector that multi-selects, so you can set a border on just the left, or the left and right together, not only all four at once.</li>
+              <li>A one-sided border reads correctly again: a bare border-left shows its real width, style, color, and side instead of "None".</li>
+              <li>The pending-changes panel collapses and expands from its header, so it stays out of the way on narrow and mobile viewports.</li>
+              <li>Editing a stacked multi-layer box-shadow no longer drops the extra layers, and bare semantic elements (a classless h2, blockquote, or li) can be scoped to their siblings again.</li>
+              <li>Overlay-only changes — the 99-tool stdio surface is unchanged.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.0.0</span>
+              <span class="cl-badge kind-new">New</span>
+              <time datetime="2026-07-20" class="cl-date">July 20, 2026</time>
+            </header>
+            <h2 class="cl-title">Raven Design: tokens, components, and templates on the page</h2>
+            <ul class="cl-changes">
+              <li>Raven Design — click any element on your dev server and an overlay opens next to it: a Structure panel with a layers tree drilled to that node, and a Design panel showing its computed styles and the DESIGN.md tokens it uses, editable inline with live preview. Page templates and a component pass round it out. Six new tools back it (get_page_template, set_template_slot, list_templates, get_grab_layers, move_grab_layer, get_grab_operation).</li>
+              <li>Decision Graph — a project keeps a queryable memory of its design decisions, with provenance and evidence on every entry and a cross-process-safe store. decision_import cold-starts the graph from a repo's existing history.</li>
+              <li>review_diff and polish_diff — CI-shaped design review of a code diff against your DESIGN.md tokens and recorded decisions, and a path that turns those findings into a verified, ready-to-apply patch.</li>
+              <li>audit_taste can verify a content port kept its copy intact — pass source_text and it runs a deterministic word-token diff of the original against the target's visible text, so a redesign can't silently reword shipped copy.</li>
+              <li>The packaged .mcpb bundle now advertises exactly the tools it ships, derived from the built server rather than a hand-maintained list.</li>
+              <li>No breaking changes: every existing tool keeps its name and behavior; this release only adds. 99 tools total.</li>
+            </ul>
+          </article>
+        </li>
         <li class="cl-item" data-category="tooling">
           <span aria-hidden="true" class="cl-node cat-tooling"></span>
           <article class="cl-card">
@@ -390,23 +611,6 @@
             </ul>
           </article>
         </li>
-        <li class="cl-item" data-category="audits">
-          <span aria-hidden="true" class="cl-node cat-audits"></span>
-          <article class="cl-card">
-            <header class="cl-card-head">
-              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
-              <span class="cl-version">v1.11.0</span>
-              <span class="cl-badge kind-feature">Feature</span>
-              <time datetime="2026-06-21" class="cl-date">June 21, 2026</time>
-            </header>
-            <h2 class="cl-title">Catch cropped device mockups before they ship</h2>
-            <ul class="cl-changes">
-              <li>New audit_device_frame — flags content sliced off inside phone and laptop mockups, checking frame geometry, baked-in pan/zoom drift, and edge truncation.</li>
-              <li>Added color-systems principles — palette discipline of ten or fewer page colors on a role-based token set.</li>
-              <li>Added spacing-systems principles — an 8px base grid and a tight, limited spacing scale.</li>
-            </ul>
-          </article>
-        </li>
         <li class="cl-item" data-category="tooling">
           <span aria-hidden="true" class="cl-node cat-tooling"></span>
           <article class="cl-card">
@@ -429,15 +633,15 @@
           <article class="cl-card">
             <header class="cl-card-head">
               <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
-              <span class="cl-version">v1.9.0</span>
-              <span class="cl-badge kind-new">New</span>
-              <time datetime="2026-06-19" class="cl-date">June 19, 2026</time>
+              <span class="cl-version">v1.11.0</span>
+              <span class="cl-badge kind-feature">Feature</span>
+              <time datetime="2026-06-21" class="cl-date">June 21, 2026</time>
             </header>
-            <h2 class="cl-title">Raven now renders and looks at real pixels</h2>
+            <h2 class="cl-title">Catch cropped device mockups before they ship</h2>
             <ul class="cl-changes">
-              <li>New audit_url — renders a live URL at every viewport and theme, scroll-settles reveals, plays videos, and fires hover, click, and focus before capturing.</li>
-              <li>Catches the real-world nits that HTML-only audits miss: cropped images, blank videos, hover white-wash, sliced exports, and content hidden on mobile.</li>
-              <li>Every finding is tagged confirmed, likely-artifact, or inconclusive and ranked by severity — so you only fix what's real.</li>
+              <li>New audit_device_frame — flags content sliced off inside phone and laptop mockups, checking frame geometry, baked-in pan/zoom drift, and edge truncation.</li>
+              <li>Added color-systems principles — palette discipline of ten or fewer page colors on a role-based token set.</li>
+              <li>Added spacing-systems principles — an 8px base grid and a tight, limited spacing scale.</li>
             </ul>
           </article>
         </li>
@@ -464,16 +668,15 @@
           <article class="cl-card">
             <header class="cl-card-head">
               <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
-              <span class="cl-version">v1.7.0</span>
-              <span class="cl-badge kind-feature">Feature</span>
-              <time datetime="2026-06-18" class="cl-date">June 18, 2026</time>
+              <span class="cl-version">v1.9.0</span>
+              <span class="cl-badge kind-new">New</span>
+              <time datetime="2026-06-19" class="cl-date">June 19, 2026</time>
             </header>
-            <h2 class="cl-title">Contrast, responsive, and interaction-state audits</h2>
+            <h2 class="cl-title">Raven now renders and looks at real pixels</h2>
             <ul class="cl-changes">
-              <li>New audit_contrast — exact WCAG 2.1 ratios for every text element, with the delta needed to pass.</li>
-              <li>New audit_responsive_visibility — renders at multiple breakpoints and flags content shown on desktop but hidden on mobile.</li>
-              <li>audit_page can now fire hover, click, and focus before the screenshot — so transient defects like a theme-toggle white-wash become visible.</li>
-              <li>Optional adversarial_verify re-checks each finding a second way and tags it confirmed or likely-artifact.</li>
+              <li>New audit_url — renders a live URL at every viewport and theme, scroll-settles reveals, plays videos, and fires hover, click, and focus before capturing.</li>
+              <li>Catches the real-world nits that HTML-only audits miss: cropped images, blank videos, hover white-wash, sliced exports, and content hidden on mobile.</li>
+              <li>Every finding is tagged confirmed, likely-artifact, or inconclusive and ranked by severity — so you only fix what's real.</li>
             </ul>
           </article>
         </li>
@@ -500,13 +703,16 @@
           <article class="cl-card">
             <header class="cl-card-head">
               <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
-              <span class="cl-version">v1.6.2</span>
-              <span class="cl-badge kind-fix">Fix</span>
-              <time datetime="2026-06-12" class="cl-date">June 12, 2026</time>
+              <span class="cl-version">v1.7.0</span>
+              <span class="cl-badge kind-feature">Feature</span>
+              <time datetime="2026-06-18" class="cl-date">June 18, 2026</time>
             </header>
-            <h2 class="cl-title">Token-aware container widths</h2>
+            <h2 class="cl-title">Contrast, responsive, and interaction-state audits</h2>
             <ul class="cl-changes">
-              <li>audit_page's max-width check now flags containers that diverge from your design system's canonical content width, instead of a generic heuristic.</li>
+              <li>New audit_contrast — exact WCAG 2.1 ratios for every text element, with the delta needed to pass.</li>
+              <li>New audit_responsive_visibility — renders at multiple breakpoints and flags content shown on desktop but hidden on mobile.</li>
+              <li>audit_page can now fire hover, click, and focus before the screenshot — so transient defects like a theme-toggle white-wash become visible.</li>
+              <li>Optional adversarial_verify re-checks each finding a second way and tags it confirmed or likely-artifact.</li>
             </ul>
           </article>
         </li>
@@ -515,14 +721,13 @@
           <article class="cl-card">
             <header class="cl-card-head">
               <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
-              <span class="cl-version">v1.5.0</span>
-              <span class="cl-badge kind-new">New</span>
-              <time datetime="2026-05-25" class="cl-date">May 25, 2026</time>
+              <span class="cl-version">v1.6.2</span>
+              <span class="cl-badge kind-fix">Fix</span>
+              <time datetime="2026-06-12" class="cl-date">June 12, 2026</time>
             </header>
-            <h2 class="cl-title">iOS, SwiftUI, and React Native audits</h2>
+            <h2 class="cl-title">Token-aware container widths</h2>
             <ul class="cl-changes">
-              <li>New iOS and SwiftUI audit suite — audit_swiftui, audit_ios_screen, and audit_ios_privacy.</li>
-              <li>New React Native and Expo audit — audit_rn plus Expo privacy checks.</li>
+              <li>audit_page's max-width check now flags containers that diverge from your design system's canonical content width, instead of a generic heuristic.</li>
             </ul>
           </article>
         </li>
@@ -540,6 +745,22 @@
               <li>Cross-platform audit_screen routes web, iOS, Android, and React Native through one entry point.</li>
               <li>Android screens join the native audit lineup.</li>
               <li>The mobile and native audit tools are now surfaced directly on the site.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="audits">
+          <span aria-hidden="true" class="cl-node cat-audits"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-audits"></span>Audits</span>
+              <span class="cl-version">v1.5.0</span>
+              <span class="cl-badge kind-new">New</span>
+              <time datetime="2026-05-25" class="cl-date">May 25, 2026</time>
+            </header>
+            <h2 class="cl-title">iOS, SwiftUI, and React Native audits</h2>
+            <ul class="cl-changes">
+              <li>New iOS and SwiftUI audit suite — audit_swiftui, audit_ios_screen, and audit_ios_privacy.</li>
+              <li>New React Native and Expo audit — audit_rn plus Expo privacy checks.</li>
             </ul>
           </article>
         </li>

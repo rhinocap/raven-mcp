@@ -1,0 +1,90 @@
+# Session: 2026-07-09 — react-grab + DESIGN.md into RavenMCP
+
+## Where we left off
+Fresh /goal: two-way click-to-change (grab overlay + token panel) + DESIGN.md as first-class design-system format.
+
+## This session
+### Grab + DESIGN.md feature (spec → implement → E2E verify)
+**What:** `docs/grab-designmd-spec.md`; `browser/raven-grab.js` (vanilla overlay: hover/click, token panel w/ swap dropdowns + live preview, arm pill + Alt+G, POST /grab); `src/grab-bridge.ts` (loopback bridge: /raven-grab.js, /tokens, /grab); `src/designmd.ts` (subset YAML parse/serialize, flatten, init from blank/system/getdesign.md starter, surgical update); 6 MCP tools in `src/index.ts`, all REMOTE_GATED (anon remote stays 45); manifest + package.json files whitelist; tests (8 new; suite 539/539).
+**Why:** /goal — Impeccable-class click-to-change, DESIGN.md ecosystem.
+**Fixes during E2E:** (1) CSSOM pending-substitution — shorthands using var() expand to EMPTY longhands; tokenMapFor now parses declaration.cssText, not indexed longhands. (2) flattenDesignTokens skips top-level metadata scalars (version/name). (3) runner needed argv.
+**E2E (eyes-on, Chrome):** click Buy now → panel matched `accent #e8315f` + `md 8px` → swapped to `primary · #315fe8` → button visibly turned blue (live preview) → Sent → bridge drained tokenIntents `{background, accent→primary}` → updateDesignMd applied `colors.cta: {colors.primary}`, body preserved.
+**Pushed:** pending (commit after DA pass).
+
+## Mistakes & lessons
+| Mistake | Type | Rule added |
+|---------|------|-----------|
+| Token matching shipped against indexed CSSOM longhands (empty under var()-shorthand) | assumption | Pending-substitution: parse cssText for var() detection |
+
+## State at end of session
+- Implementation + tests: ✓ 540/540
+- Live E2E: ✓ full round trip verified (eyes-on live preview swap)
+- DA pass (gpt-5.6-sol): ✓ ran; verdict ~65-70%. Fixed same-turn: composite-ref validation (getdesign.md starters), set/rename collision guards, react-grab listener ordering, stale reactMetadata, ref-token "[object Object]", bridge body/queue caps, shim-mode honesty. Regression test added.
+- Committed: 9770926 on explore/tools-redesign (pathspec; web/ excluded). NOT pushed.
+- Hardening pass (stop-hook mandated, all DONE via Codex gpt-5.6-sol legs A+B + main-loop fixes):
+  - ✓ Comment-preserving DESIGN.md updates (line-based surgical frontmatter edits, validate-before-write)
+  - ✓ Cascade precedence in overlay token matching (specificity + source-order + !important + inline)
+  - ✓ Type-safe dropdown grouping incl. property-first typography paths; intents carry full token paths (oldTokenPath/newTokenPath — E2E verified in grabbed.json)
+  - ✓ Capability token for bridge (?key= on script tag; 403 without — curl-verified)
+  - ✓ Official typography CSS-var namespace (--font/-text/-font-weight/-leading/-tracking)
+  - ✓ README "Click-to-change (grab) + DESIGN.md" section (dual-customer pass done)
+  - ✓ Regression found+fixed in leg B's declarationsFor: cssText fallback only ran when style.length===0, dropping var() shorthands in mixed rules ("No design tokens matched") — now always merges cssText declarations missed by indexed iteration; full live E2E re-verified eyes-on (match → typed swap → live preview → send → full-path intents)
+  - Suite 547/547; tsc clean
+- Pending (carried forward):
+  - Branch isolation: feature commits sit on explore/tools-redesign with unrelated web redesign — other instance is separating; do NOT push from here
+  - Panel nit: token header shows `md`, not `rounded.md` (dropdown/group context makes it unambiguous)
+  - ✓ Proxy mode (zero-paste): start_grab_session proxy_target serves the dev server with the overlay auto-injected into every HTML response — live E2E on clean HTML (no script tag in source): pill present, click → tokens → swap → send → full-path intents. Suite 554/554.
+  - ✓ Inline computed-style editing (/goal, Codex gpt-5.6-sol): click value → prefilled input → Enter commits via style.setProperty (live preview), CSS.supports validation, Escape cancels, styleEdits in POST /grab + bridge schema. Live E2E eyes-on: padding 12px 24px → 20px 48px, button visibly grew, edited row cyan-highlighted.
+  - ✓ Overlay restyled to ravenmcp.ai site language (Codex leg from extracted style spec): dark glass panel #212129, JetBrains Mono technical text, cyan #00BFFF accents, glass pill w/ glow dot, 44px targets, #FF4060 errors. CSS-only — behavior/DOM/protocol unchanged. Live E2E verified.
+  - ✓ Figma deliverable: https://www.figma.com/design/0fOhyQa7yxDkx7j8ZCCAuO — Grab Panel component + Grab Pill variants (default/hover), full auto-layout, "Grab Overlay Tokens" variable collection (colors/spacing/radii) bound to fills/strokes.
+  - ✓ Grab-receipt agent protocol: get_grabbed_elements appends agent_protocol when count>0 (summarize changes, ask "write a goal or wait for direction", never implement unasked); server instructions updated to drain during active sessions. Suite 557/557.
+  - ✓ DA pass on inline editing (gpt-5.6-sol) found 4 P2s — all fixed by dedicated Codex leg: original-inline-value capture + rollback on dismiss/new selection, revert restores prior inline declaration, invalid CSS preserves displayed value + #FF4060 flash, keyboard/ARIA/hover affordance on editable values. 3 VM regression tests added. Suite 560/560 local. Eyes-on re-verified in Chrome: invalid `banana!!` → red flash, value stays `12px 24px`; valid `30px 80px` → button grew; dismiss → button reverted (no stray inline override).
+  - NOTE: running raven session serves pre-inline-edit dist — styleEdits absent from live drains until rebuild+reconnect (tests cover new round trip).
+
+### Panel v2 + Playground + send-morph (/goal round 2, this session)
+**What:**
+- Panel v2 per Figma 3-136 (docs/grab-panel-v2-spec.md): tabbed Design | Request Component, #212129 glass, JBMono/cyan, collapsible DESIGN TOKENS + COMPUTED STYLES sections (collapsed by default, caret, grid-rows animation), scrollable body with pinned header/tabs + footer CTA, element chip hover-tooltip + click-copies-selector, centered arm pill.
+- Request Component triage loop: issue type/size selects + use-case textarea → email step ("EMAIL YOURSELF THE COMPONENT") → componentRequest {issueType,issueSize,useCase,email} through bridge schema + drains (VM tests).
+- Playground page web/app/playground/page.tsx (ravenmcp.ai style) + /api/component-request (Resend, both-emails triage packet + generated component spec, 5/min/IP rate limit, 503 JSON without RESEND_API_KEY). Standalone overlay mode (config tokens, grabEndpoint:null → "Would send…" summary).
+- Send-button morph (Figma 6-626), Codex gpt-5.6-sol leg: CTA → 44px outlined ✓ circle → "✓ Sent to agent"/"Email sent" outlined pill → back to ✓ → restored, ~250ms steps, reduced-motion honored, aria-busy/live, failure path unmorphed. Eyes-on verified via Playwright captures (all 3 states, text unclipped).
+**Bugs found + fixed during E2E:**
+- Standalone token match failure: config tokens normalized to --colors-* but demo card uses --demo-* → pass explicit cssVar per token in playground config.
+- Token swap preview invisible: preview set var on documentElement, masked by component-local --demo-* definition → preview now sets inline var on the SELECTED element (previewOriginals store target for rollback).
+- Sent-pill clipped ("Sent to a…"): --raven-grab-sent-width measured from button.scrollWidth while 44px wide → offscreen max-content probe clone.
+- "1 token changes" pluralization.
+- Chrome-MCP note: occluded tab freezes CSS transitions (currentTime stuck 0) — computed-style/visual timing checks unreliable there; Playwright headless is the eyes-on path. Shadow root flipped closed→open to enable programmatic verification.
+**Verify:** npm test 568/568 (was 566; +morph VM tests); playground E2E eyes-on (grab → 4 matched tokens → swap visibly white → Would send summary → morph; Request Component → email → 503 JSON graceful "Try again"). Stale stash bqriu207z dropped (superseded).
+**Pending:** DA pass (b54cfseoe) disposition; commit (pathspec, NO push — branch shared with web redesign); Vercel preview of web/ + RESEND_API_KEY into web project env (Andrew, not in chat); /mcp reconnect for componentRequest in live drains.
+
+### Fix round (DA defects 1-6) — verified
+- Overlay leg: standalone componentRequest POST now sends full selection context; shared rollbackTokenPreviews() on dismiss + re-selection; collapsed sections visibility:hidden (150ms delay). Route leg: sanitizeIdentifier (reserved words/digits), rate-limit pruning >500 keys, requester-email-first + best-effort triage. Main-loop addition: `?? body.tokens` fallback in both email builders (overlay sends `tokens`, route only read matchedTokens/tokenIntents).
+- Verified: 569/569 npm test; Playwright eyes-on — email POST carries selector+tokens+styles → 503 (not 400); cross-element rollback (A's inline --demo-spacing-lg cleared on selecting B).
+- Committed 416fcf7 on explore/tools-redesign (NOT pushed per constraint). Vercel preview deploy + Codex DA pass in flight.
+
+### Post-DA round + mid-turn asks
+- DA verdict: 5/6 fixes confirmed; #6 (email retry duplication) fixed with per-request idempotency key (overlay requestId -> Resend idempotencyKey). Skipped DA "new findings": rate-limit-before-validation (correct anti-abuse), multi-row-same-cssVar preview divergence (pre-existing edge, logged).
+- Andrew mid-turn: success status text under CTA removed (sr-only now; morph pill is the visible confirmation); morph simplified — sent pill returns straight to CTA (no trailing check). Both eyes-on verified via Playwright.
+- Commits: 416fcf7, a6ab928, d626022 (explore/tools-redesign, NOT pushed). Preview: https://web-nc4ijw8qd-cunliffeandrewc-8712s-projects.vercel.app/playground (deploy-protected). Bridge session stopped; :8899 killed; next dev :3210 left running.
+
+### Round 3 — /goal: spellcheck, default-visible panel, collapse-to-edge-tab, color input, wireframe demo
+**What:** Two Codex gpt-5.6-sol legs (overlay + page) implemented: spellcheck on free-text only; panel visible by default when armed with empty state; header caret collapses panel off right edge with 44px left-caret tab; arm pill deleted (Alt+G + tab carry arming); color swatch + hex/rgb input on color rows with live preview (added `input` listener alongside `change` for drag-preview); playground rewritten as Northstar wireframe on 27 `--demo-*` tokens.
+**Fix found in verification:** raw `<style>` child in page.tsx caused React hydration mismatch → whole root re-rendered mid-interaction (real clicks selected `html`); fixed via dangerouslySetInnerHTML. Also: `scroll-behavior: smooth` invalidates rect-then-click in Playwright — use behavior:'instant' + resettle.
+**Verified:** 573/573 tests, mirror byte-identical, Playwright eyes-on all six behaviors + vision pass on default/collapsed/color-preview screenshots.
+**Pushed:** committed 92920ae on explore/tools-redesign (NOT pushed per standing constraint).
+
+### Round 4 — morph redesign, click-through, Enter-to-send, tab alignment (bc12512)
+**What:** (1) Send morph per Figma 6-626: check stroke-draws (dasharray/dashoffset 24, 400ms), no circle border, expands to "Sent to agent" pill, morphs back; reduced-motion disables draw. (2) Collapsed panel passes clicks through — mousemove/click gated on `!armed || collapsed` (committed earlier, urgent unblock). (3) Enter in panel textareas sends (clicks the section's send button); Cmd/Ctrl+Enter inserts newline. (4) Edge tab top:33px — caret center 55 == tab center 55, pure horizontal move.
+**Verified:** Playwright morph sampling (check 0–525ms → sent 700–2275ms → default 2450ms+), Cmd+Enter newline in textarea, nav click-through when collapsed (hash changed, no grab), caret/tab delta 0; vision on r4-sent/r4-tab2/r4-check; 32/32 grab tests; full npm test 0 fail; mirrors byte-identical.
+**Pushed:** committed bc12512 on explore/tools-redesign — NOT pushed (do-not-push constraint).
+
+### Round 6 close-out + coachmarks (post-compaction)
+**What:** Committed 5379886 (draggable panel + edge tab w/ position memory, 5-beat send morph, send-clear fade) and 02e7376 (playground coachmark tour: 7 steps, consumer/maintainer role toggle, replay control; overlay `data-raven-grab-ignore` opt-out so tour/controls stay clickable).
+**Why:** Round-6 /goal items + Andrew's "coachmarks on the demo page" ask; overlay's capture-phase click handler was eating all page clicks (root cause of dead tour buttons).
+**Verified:** eyes-on styled tour (44px buttons, spotlight step, tokened card), design-judge PASS, mirrors byte-identical, 582/582 tests. Gotcha re-hit: `next build` while dev server runs corrupts `.next` → chunk 404s, dead hydration; restart dev server.
+**Pushed:** NOT pushed (explore/tools-redesign push freeze). Preview deploy in flight.
+
+### Vercel-toolbar conflict fix + rename to Raven Design + controls dock (round 7)
+**What:** Overlay ignores clicks on injected dev tooling (vercel-live-feedback etc.), host z-index → 2147483647; playground renamed "Raven Design — pair designing with your agent" (metadata, h1, tour step 1/7, panel aria-label); controls pill fixed top-left at nav height ≥1280px (nav narrowed to 900px on this page); pill height coupled to --nav-height.
+**Why:** Andrew: panel disappeared/conflicted with Vercel toolbar; wants controls at nav height top-left; stop calling it "grab". Context: sending to Apple hiring team (100 eng / 2 designers async design-system use case).
+**Verified:** toolbar click no longer grabbed on deployed preview (defaultPrevented=false inside toolbar, true on page); 41/41 grab tests; mirror byte-identical; eyes-on at 1456/1800 + Chrome on preview; Codex adversarial pass run (nav-height coupling fixed; shadow-DOM generic ignore logged as known scope).
+**Commits:** 02d3ee8, a7a6f6d (NOT pushed — branch push frozen). Preview: https://web-cy2f7ls4w-cunliffeandrewc-8712s-projects.vercel.app/playground

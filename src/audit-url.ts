@@ -22,7 +22,7 @@ import { capturePage, verifyFindings, CaptureUnavailableError } from "./capture.
 import type { Interaction, Theme, VerifiableFinding, FindingVerdict } from "./capture.js";
 import { runPageChecks } from "./page-checks.js";
 import { captureResponsiveVisibility } from "./responsive.js";
-import { auditContrastUrl } from "./contrast.js";
+import { auditContrastUrl, collapseShortTextContrastFailures } from "./contrast.js";
 import { auditImageEdges } from "./asset-integrity.js";
 import { diffScreenshots } from "./image-diff.js";
 
@@ -52,8 +52,10 @@ export type AuditUrlFinding = {
 export type AuditUrlCapture = {
   viewport: string;
   theme: Theme;
+  mobile_emulation?: boolean;
   scrolledToBottom: boolean;
   animationsSettled: boolean;
+  capture_warnings: string[];
   screenshot_bytes: number;
   screenshot?: string;
 };
@@ -74,6 +76,7 @@ export type AuditUrlResult = {
   };
   summary: string;
   captures: AuditUrlCapture[];
+  capture_warnings: string[];
   warnings: string[];
 };
 
@@ -111,6 +114,7 @@ export async function auditUrl(url: string, opts: AuditUrlOptions = {}): Promise
 
   const findings: AuditUrlFinding[] = [];
   const captures: AuditUrlCapture[] = [];
+  const captureWarnings: string[] = [];
   const warnings: string[] = [];
 
   // ── Responsive visibility (run ONCE across all viewport widths) ─────────────
@@ -174,11 +178,16 @@ export async function auditUrl(url: string, opts: AuditUrlOptions = {}): Promise
       captures.push({
         viewport: vpLabel,
         theme,
+        mobile_emulation: cap.mobile_emulation,
         scrolledToBottom: cap.scrolledToBottom,
         animationsSettled: cap.animationsSettled,
+        capture_warnings: cap.capture_warnings,
         screenshot_bytes: cap.screenshotBase64 ? cap.screenshotBase64.length : 0,
         screenshot: includeScreenshots ? cap.screenshotBase64 : undefined
       });
+      for (const warning of cap.capture_warnings) {
+        captureWarnings.push(vpLabel + "/" + theme + ": " + warning);
+      }
       for (const w of cap.warnings) warnings.push(vpLabel + "/" + theme + ": " + w);
 
       // ── Page checks over the rendered DOM, then adversarially verify ─────────
@@ -197,6 +206,13 @@ export async function auditUrl(url: string, opts: AuditUrlOptions = {}): Promise
           verifiable,
           { viewport: { w: vp.w, h: vp.h }, timeoutMs }
         );
+        const verificationWarnings = new Set<string>();
+        for (const verdict of verdicts) {
+          for (const warning of verdict.warnings || []) verificationWarnings.add(warning);
+        }
+        for (const warning of verificationWarnings) {
+          warnings.push(vpLabel + "/" + theme + " verification: " + warning);
+        }
       } catch (error) {
         warnings.push("page-check verification failed (" + vpLabel + "/" + theme + "): " + errorMessage(error));
       }
@@ -307,40 +323,102 @@ export async function auditUrl(url: string, opts: AuditUrlOptions = {}): Promise
       // ── Per-element WCAG contrast ────────────────────────────────────────────
       try {
         const contrast = await auditContrastUrl(url, { viewport: { w: vp.w, h: vp.h }, theme, timeoutMs });
-        for (const row of contrast.aa_failures) {
+        const contrastGroups = collapseShortTextContrastFailures(
+          contrast.rows.filter((row) => row.status === "fail")
+        );
+        for (const group of contrastGroups) {
+          const rep = group.rows[0];
+          if (group.isShortTextGroup) {
+            const sampleTexts = group.rows.slice(0, 5).map((r) => JSON.stringify(r.text));
+            findings.push({
+              source: "contrast",
+              rule: "contrast/aa",
+              severity: "warning",
+              message:
+                group.rows.length +
+                (group.rows.length === 1 ? " short text fragment fails" : " short text fragments fail") +
+                " WCAG AA contrast (ratio " +
+                rep.ratio +
+                ":1, needs " +
+                rep.required_aa +
+                ":1) — likely motion-split or icon glyphs; inspect parent, not each letter",
+              fix:
+                "Check contrast on the parent element or shared style rule (not each fragment) — darken text or lighten background until the ratio reaches " +
+                rep.required_aa +
+                ":1. If this is a deliberate icon glyph, no action is needed.",
+              selector: rep.selector,
+              viewport: vpLabel,
+              theme,
+              verdict: "likely-artifact",
+              evidence:
+                "computed ratio " +
+                rep.ratio +
+                ":1 between " +
+                rep.foreground +
+                " on " +
+                rep.background +
+                " across " +
+                group.rows.length +
+                " short text fragment(s); sample texts: " +
+                sampleTexts.join(", ")
+            });
+          } else {
+            findings.push({
+              source: "contrast",
+              rule: "contrast/aa",
+              severity: "error",
+              message:
+                "Text fails WCAG AA contrast (" +
+                rep.ratio +
+                ":1, needs " +
+                rep.required_aa +
+                ":1)" +
+                (rep.text ? ': "' + rep.text + '"' : ""),
+              fix:
+                "Increase contrast by " +
+                rep.delta_to_aa +
+                " — darken the text or lighten the background until the ratio reaches " +
+                rep.required_aa +
+                ":1.",
+              selector: rep.selector,
+              viewport: vpLabel,
+              theme,
+              verdict: "confirmed",
+              evidence:
+                "computed ratio " +
+                rep.ratio +
+                ":1 between " +
+                rep.foreground +
+                " on " +
+                rep.background +
+                " at " +
+                rep.fontPx +
+                "px (required AA " +
+                rep.required_aa +
+                ":1)"
+            });
+          }
+        }
+        for (const row of contrast.rows.filter((candidate) => candidate.status === "indeterminate")) {
           findings.push({
             source: "contrast",
-            rule: "contrast/aa",
-            severity: "error",
+            rule: "contrast/background-indeterminate",
+            severity: "warning",
             message:
-              "Text fails WCAG AA contrast (" +
-              row.ratio +
-              ":1, needs " +
-              row.required_aa +
-              ":1)" +
+              "Text contrast needs review because its rendered background varies or cannot be derived from CSS" +
               (row.text ? ': "' + row.text + '"' : ""),
             fix:
-              "Increase contrast by " +
-              row.delta_to_aa +
-              " — darken the text or lighten the background until the ratio reaches " +
-              row.required_aa +
-              ":1.",
+              "Inspect the rendered text over the full image/gradient range; this row is not counted as a WCAG AA failure.",
             selector: row.selector,
             viewport: vpLabel,
             theme,
-            verdict: "confirmed",
+            verdict: "inconclusive",
             evidence:
-              "computed ratio " +
-              row.ratio +
-              ":1 between " +
-              row.foreground +
-              " on " +
-              row.background +
-              " at " +
-              row.fontPx +
-              "px (required AA " +
-              row.required_aa +
-              ":1)"
+              "effective background " +
+              row.effective_bg +
+              (row.ratio_min !== undefined && row.ratio_max !== undefined
+                ? "; computed contrast range " + row.ratio_min + ":1–" + row.ratio_max + ":1"
+                : "; no trustworthy CSS color range available")
           });
         }
       } catch (error) {
@@ -370,8 +448,13 @@ export async function auditUrl(url: string, opts: AuditUrlOptions = {}): Promise
     warnings: findings.filter((f) => f.severity === "warning").length
   };
 
-  const summary =
-    findings.length +
+  // Every capture failing (dead host, wrong port, auth wall) previously produced
+  // "0 findings across N viewport(s)" — indistinguishable from a clean page, with
+  // the real cause buried in warnings[]. Say it in the summary instead.
+  const summary = captures.length === 0
+    ? "AUDIT DID NOT RUN — every capture of " + url + " failed; see warnings. " +
+      "No page was rendered, so this is not a clean result."
+    : findings.length +
     " findings across " +
     viewports.length +
     " viewport(s) × " +
@@ -393,6 +476,7 @@ export async function auditUrl(url: string, opts: AuditUrlOptions = {}): Promise
     counts,
     summary,
     captures,
+    capture_warnings: captureWarnings,
     warnings
   };
 }
@@ -412,6 +496,7 @@ function unavailableResult(url: string, viewports: ViewportSpec[], themes: Theme
     counts: { total: 0, confirmed: 0, likely_artifact: 0, inconclusive: 0, errors: 0, warnings: 0 },
     summary: "audit_url needs headless chromium. Run: npx playwright install chromium",
     captures: [],
+    capture_warnings: [],
     warnings: ["Playwright chromium not available. Run: npx playwright install chromium"]
   };
 }

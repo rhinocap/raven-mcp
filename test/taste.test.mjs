@@ -133,6 +133,59 @@ test('profile CRUD roundtrip', async () => {
   });
 });
 
+test('createTasteProfile template: seeds a small starter ruleset per surface family, covering color/typography/spacing/voice/tap-targets', async () => {
+  await withTasteHome(async (_home, store) => {
+    for (const template of taste.TASTE_TEMPLATE_NAMES) {
+      const profile = await taste.createTasteProfile(store, { name: 'tpl-' + template, template });
+      assert.ok(profile.rules.length >= 5 && profile.rules.length <= 8, template + ' seeds ~5-8 rules, got ' + profile.rules.length);
+      const categories = new Set(profile.rules.map((r) => r.category));
+      assert.ok(categories.has('color'), template + ' must cover color');
+      assert.ok(categories.has('typography'), template + ' must cover typography');
+      assert.ok(categories.has('spacing'), template + ' must cover spacing');
+      assert.ok(categories.has('voice'), template + ' must cover voice');
+      const tapRule = profile.rules.find((r) => /tap|touch/i.test(r.rule_id) || /tap-target|touch-target|44/.test(r.clause_text));
+      assert.ok(tapRule, template + ' must cover touch/tap targets');
+      assert.equal(tapRule.owner, 'raven', 'touch-target rule should delegate to a raven audit tool, not a taste guess');
+      assert.ok(tapRule.delegate_to.length > 0);
+      // Round-trips clean through validateStoredProfile (loaded back from disk).
+      const reloaded = await taste.getTasteProfile(store, 'tpl-' + template);
+      assert.deepEqual(reloaded, profile);
+    }
+  });
+});
+
+test('createTasteProfile template merges with explicit rules/markdown (template rules first, explicit additive on top)', async () => {
+  await withTasteHome(async (_home, store) => {
+    const explicit = {
+      rule_id: 'CUSTOM-RULE', clause_text: 'A custom clause.', category: 'custom',
+      severity_default: 'nit', negative_prompt: '', owner: 'taste', delegate_to: ''
+    };
+    const profile = await taste.createTasteProfile(store, { name: 'tpl-merge', template: 'portfolio', rules: [explicit] });
+    assert.ok(profile.rules.some((r) => r.rule_id === 'PORTFOLIO-COLOR-restraint'), 'template rules are seeded');
+    assert.ok(profile.rules.some((r) => r.rule_id === 'CUSTOM-RULE'), 'explicit rules merge on top of the template');
+    assert.equal(profile.rules[0].rule_id.startsWith('PORTFOLIO-'), true, 'template rules seed first');
+    assert.equal(profile.rules[profile.rules.length - 1].rule_id, 'CUSTOM-RULE', 'explicit rules are appended after the template');
+  });
+});
+
+test('createTasteProfile rejects an unknown template name', async () => {
+  await withTasteHome(async (_home, store) => {
+    await assert.rejects(
+      () => taste.createTasteProfile(store, { name: 'tpl-bad', template: 'enterprise' }),
+      /template must be one of/
+    );
+  });
+});
+
+test('getTasteProfile missing-profile error hints at create_taste_profile with a template', async () => {
+  await withTasteHome(async (_home, store) => {
+    await assert.rejects(
+      () => taste.getTasteProfile(store, 'does-not-exist'),
+      /create_taste_profile\(\{ name, template: "portfolio"\|"saas-marketing"\|"app" \}\)/
+    );
+  });
+});
+
 test('markdown ingestion parses categories, severities, raven owner, negative prompts, and unique ids', async () => {
   await withTasteHome(async (_home, store) => {
     const markdown = `
@@ -369,6 +422,29 @@ test('raven-rule folding attaches delegated page issues once and marks missing d
   });
 });
 
+test('delegated contrast with only indeterminate evidence warns instead of clean passing', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, {
+      name: 'indeterminate-contrast',
+      rules: [{
+        rule_id: 'COLOR-CONTRAST', clause_text: 'Contrast must be readable.', category: 'a11y',
+        severity_default: 'block', negative_prompt: 'Do NOT ship unreadable text.',
+        owner: 'raven', delegate_to: 'audit_contrast',
+      }],
+    });
+    const result = await taste.auditTaste(store, {
+      profile,
+      html: '<p>Copy</p>',
+      page_issues: [{
+        rule: 'contrast/background-indeterminate', severity: 'warning', status: 'indeterminate',
+        message: 'Backdrop cannot be derived from the DOM ancestor chain.',
+      }],
+    });
+    assert.strictEqual(result.verdict, 'WARN');
+    assert.ok(result.findings.some((finding) => finding.rule_id === 'COLOR-CONTRAST'));
+  });
+});
+
 test('detectors cover gradient, banned words, second hue positive and restrained PASS negative', async () => {
   await withTasteHome(async (_home, store) => {
     const profile = await taste.createTasteProfile(store, { name: 'detectors', rules: baseRules() });
@@ -575,6 +651,245 @@ test('banned-word lists only extract from vocabulary sentences, not descriptive 
     assert.ok(!ruleIdsHit.has('FACTS-read-source'));
     // The descriptive-list rule has no detector left, so it lands in not_assessed.
     assert.ok(result.not_assessed.some((row) => row.rule_id === 'FACTS-read-source'));
+  });
+});
+
+test('source_text substitution becomes a warn PORT-DIFF finding and raises the audit verdict', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, { name: 'port-warn', rules: [] });
+    const result = await taste.auditTaste(store, {
+      profile,
+      text: 'Built from proven patterns for teams.',
+      source_text: 'Built from field-tested patterns for teams.'
+    });
+    assert.equal(result.port_fidelity.verdict, 'diverged');
+    assert.deepEqual(result.port_fidelity.substituted.map((entry) => [entry.source, entry.target]), [['field-tested', 'proven']]);
+    const finding = result.fidelity_findings.find((entry) => entry.rule_id === 'PORT-DIFF');
+    assert.equal(finding.severity, 'warn');
+    assert.equal(result.verdict, 'WARN');
+  });
+});
+
+test('source_text substitution introducing a profile-banned word blocks', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, {
+      name: 'port-block',
+      rules: [{
+        rule_id: 'VOICE-no-hype',
+        clause_text: 'Restrained voice.',
+        category: 'voice',
+        severity_default: 'block',
+        negative_prompt: 'Do NOT use persuasion verbs (proven, shipped, unlock).',
+        owner: 'taste',
+        delegate_to: ''
+      }]
+    });
+    const result = await taste.auditTaste(store, {
+      profile,
+      text: 'Built from proven patterns.',
+      source_text: 'Built from field-tested patterns.'
+    });
+    const finding = result.fidelity_findings.find((entry) => entry.rule_id === 'PORT-DIFF');
+    assert.equal(finding.severity, 'block');
+    assert.match(finding.evidence, /field-tested.*proven/i);
+    assert.equal(result.verdict, 'BLOCK');
+  });
+});
+
+test('whole-text banned phrase spanning a substitution boundary blocks only when newly introduced', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, {
+      name: 'port-bigram-block',
+      rules: [{
+        rule_id: 'VOICE-no-battle-tested',
+        clause_text: 'Avoid hype phrases.',
+        category: 'voice',
+        severity_default: 'block',
+        negative_prompt: 'Do NOT use phrases (battle tested, proven).',
+        owner: 'raven',
+        delegate_to: 'audit_content'
+      }]
+    });
+
+    const introduced = await taste.auditTaste(store, {
+      profile,
+      text: 'the battle tested pattern',
+      source_text: 'the field tested pattern'
+    });
+    assert.equal(introduced.verdict, 'BLOCK');
+    assert.ok(introduced.fidelity_findings.some((entry) =>
+      entry.rule_id === 'PORT-DIFF' && entry.severity === 'block' && /battle tested/i.test(entry.evidence)
+    ));
+
+    const alreadyPresent = await taste.auditTaste(store, {
+      profile,
+      text: 'the battle tested pattern beside a battle tested example',
+      source_text: 'the field tested pattern beside a battle tested example'
+    });
+    const portFindings = alreadyPresent.fidelity_findings.filter((entry) => entry.rule_id === 'PORT-DIFF');
+    assert.ok(portFindings.length > 0);
+    assert.ok(portFindings.every((entry) => entry.severity === 'warn'));
+    assert.equal(alreadyPresent.verdict, 'WARN');
+  });
+});
+
+test('binding-demoted rules do not contribute PORT-DIFF escalation terms', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, {
+      name: 'port-demoted-ban',
+      rules: [{
+        rule_id: 'VOICE-no-proven',
+        clause_text: 'Avoid hype language.',
+        category: 'voice',
+        severity_default: 'block',
+        negative_prompt: 'Do NOT use persuasion verbs (proven, shipped).',
+        owner: 'raven',
+        delegate_to: 'audit_content'
+      }]
+    });
+    const binding = {
+      project: 'demoted-binding', surface: 'product-site', active_scopes: [],
+      overrides: [{ rule_id: 'VOICE-no-proven', severity: 'warn' }],
+      voice_note: '', url_hosts: [], design_notes: {}, references: [], uncalibrated_ack: 'test fixture'
+    };
+    const result = await taste.auditTaste(store, {
+      profile,
+      binding,
+      text: 'Built from proven patterns.',
+      source_text: 'Built from field-tested patterns.'
+    });
+    const portFindings = result.fidelity_findings.filter((entry) => entry.rule_id === 'PORT-DIFF');
+    assert.ok(portFindings.length > 0);
+    assert.ok(portFindings.every((entry) => entry.severity === 'warn'));
+    assert.equal(result.verdict, 'WARN');
+  });
+});
+
+test('PORT-DIFF banned-term escalation uses only rules active for the audited surface', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, {
+      name: 'port-scoped-ban',
+      rules: [{
+        rule_id: 'PORTFOLIO-no-proven',
+        clause_text: 'Avoid persuasion verbs (proven, shipped).',
+        category: 'voice',
+        severity_default: 'block',
+        negative_prompt: 'Do NOT use persuasion verbs (proven, shipped).',
+        owner: 'taste',
+        delegate_to: '',
+        scope: 'portfolio'
+      }]
+    });
+    const input = {
+      profile,
+      text: 'Built from proven patterns.',
+      source_text: 'Built from field-tested patterns.'
+    };
+
+    const product = await taste.auditTaste(store, { ...input, surface: 'product-site' });
+    assert.equal(product.fidelity_findings.find((entry) => entry.rule_id === 'PORT-DIFF').severity, 'warn');
+    assert.equal(product.verdict, 'WARN');
+
+    const portfolio = await taste.auditTaste(store, { ...input, surface: 'portfolio' });
+    assert.equal(portfolio.fidelity_findings.find((entry) => entry.rule_id === 'PORT-DIFF').severity, 'block');
+    assert.equal(portfolio.verdict, 'BLOCK');
+
+    const binding = {
+      project: 'off-binding', surface: 'portfolio', active_scopes: [],
+      overrides: [{ rule_id: 'PORTFOLIO-no-proven', severity: 'off' }],
+      voice_note: '', url_hosts: [], design_notes: {}, references: [], uncalibrated_ack: 'test fixture'
+    };
+    const disabled = await taste.auditTaste(store, { ...input, binding });
+    assert.equal(disabled.fidelity_findings.find((entry) => entry.rule_id === 'PORT-DIFF').severity, 'warn');
+  });
+});
+
+test('capped port comparison always contributes a warn even when another change was classified', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, { name: 'port-cap', rules: [] });
+    const source = Array.from({ length: 5001 }, () => 'same');
+    const target = source.slice();
+    target[0] = 'Same';
+    target[target.length - 1] = 'changed';
+    const result = await taste.auditTaste(store, {
+      profile,
+      text: target.join(' '),
+      source_text: source.join(' ')
+    });
+    assert.equal(result.port_fidelity.token_counts.capped, true);
+    assert.ok(result.fidelity_findings.some((entry) => entry.rule_id === 'PORT-DIFF' && entry.severity === 'warn' && /capped/i.test(entry.evidence)));
+    assert.equal(result.verdict, 'WARN');
+  });
+});
+
+test('multi-block reorder produces moved nits only and keeps the audit verdict PASS', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, { name: 'port-moves', rules: [] });
+    const result = await taste.auditTaste(store, {
+      profile,
+      source_text: 'Alpha opening introduction common shared ending. Beta middle conclusion common shared ending.',
+      text: 'Beta middle conclusion common shared ending. Alpha opening introduction common shared ending.'
+    });
+    const portFindings = result.fidelity_findings.filter((entry) => entry.rule_id === 'PORT-DIFF');
+    assert.ok(portFindings.length > 0);
+    assert.ok(portFindings.every((entry) => entry.severity === 'nit'));
+    assert.deepEqual(result.port_fidelity.dropped, []);
+    assert.deepEqual(result.port_fidelity.added, []);
+    assert.equal(result.verdict, 'PASS');
+  });
+});
+
+test('plain audit without source_text omits port fidelity data and findings', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, { name: 'plain-audit', rules: [] });
+    const result = await taste.auditTaste(store, { profile, text: 'Plain audit copy.' });
+    assert.equal(Object.prototype.hasOwnProperty.call(result, 'port_fidelity'), false);
+    assert.equal(result.fidelity_findings?.some((entry) => entry.rule_id === 'PORT-DIFF') || false, false);
+  });
+});
+
+test('source_text case-only change creates a nit PORT-DIFF finding without raising PASS', async () => {
+  await withTasteHome(async (_home, store) => {
+    const profile = await taste.createTasteProfile(store, { name: 'port-case', rules: [] });
+    const result = await taste.auditTaste(store, {
+      profile,
+      text: 'design systems endure.',
+      source_text: 'Design systems endure.'
+    });
+    assert.equal(result.port_fidelity.case_changed.length, 1);
+    assert.equal(result.fidelity_findings.find((entry) => entry.rule_id === 'PORT-DIFF').severity, 'nit');
+    assert.equal(result.verdict, 'PASS');
+  });
+});
+
+test('audit_taste html mode compares source_text with extracted visible text through the real MCP handler', async () => {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'port-html', rules: [] });
+    const result = await callTasteTool(store, 'audit_taste', {
+      profile: 'port-html',
+      source_text: 'Field-tested tools & careful systems.',
+      html: '<style>.hidden{display:none}</style><main><h1>Field-tested tools &amp; careful systems.</h1></main>'
+    });
+    assert.equal(result.target, 'html');
+    assert.equal(result.port_fidelity.verdict, 'verbatim');
+    assert.deepEqual(result.fidelity_findings, []);
+    assert.equal(result.verdict, 'PASS');
+  });
+});
+
+test('audit_taste html mode preserves bare less-than comparison prose verbatim', async () => {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'port-html-comparisons', rules: [] });
+    const source = 'a < b and c > d, 5<6';
+    const result = await callTasteTool(store, 'audit_taste', {
+      profile: 'port-html-comparisons',
+      source_text: source,
+      html: source
+    });
+    assert.equal(result.target, 'html');
+    assert.equal(result.port_fidelity.verdict, 'verbatim');
+    assert.deepEqual(result.fidelity_findings, []);
+    assert.equal(result.verdict, 'PASS');
   });
 });
 
@@ -837,7 +1152,7 @@ test('surface calibration interview is built from the profile’s own scopes and
     const voice = Object.assign({}, baseRules()[1], { category: 'voice' });
     await taste.createTasteProfile(store, { name: 'cal', rules: [scoped, voice, baseRules()[2]] });
 
-    const interview = await taste.getTasteInterview(store, 'cal', 'raven-mcp');
+    const interview = await taste.getTasteInterview(store, 'cal', 'raven-mcp', undefined, 'full');
     assert.equal(interview.tool, 'get_taste_interview');
     assert.equal(interview.project, 'raven-mcp');
     assert.equal(interview.existing_binding, null);
@@ -845,6 +1160,7 @@ test('surface calibration interview is built from the profile’s own scopes and
     assert.deepEqual(interview.scopes[0].rules.map((r) => r.rule_id), ['GRADIENT-BLOCK']);
     assert.deepEqual(interview.voice_rules.map((r) => r.rule_id), ['BANNED-WARN']);
     assert.deepEqual(interview.rule_ids, ['GRADIENT-BLOCK', 'BANNED-WARN', 'HUE-NIT']);
+    assert.deepEqual(interview.more_questions, [], 'depth:"full" returns nothing deferred');
     const ids = interview.questions.map((q) => q.id);
     // No scope-membership question is emitted even though the profile carries a
     // non-global scope — every kickoff starts fresh (does not presume the
@@ -868,7 +1184,7 @@ test('surface calibration interview is built from the profile’s own scopes and
     // No voice rules and no scopes -> generic + design-dimension questions,
     // and the voice question still appears (asked even with zero voice rules).
     await taste.createTasteProfile(store, { name: 'plain', rules: [baseRules()[2]] });
-    const bare = await taste.getTasteInterview(store, 'plain');
+    const bare = await taste.getTasteInterview(store, 'plain', undefined, undefined, 'full');
     assert.deepEqual(bare.questions.map((q) => q.id), [
       'identity', 'references',
       'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
@@ -889,7 +1205,7 @@ test('surface calibration interview is built from the profile’s own scopes and
 test('the six new design dimensions carry non-empty multiple-choice options', async () => {
   await withTasteHome(async (_home, store) => {
     await taste.createTasteProfile(store, { name: 'dims', rules: baseRules() });
-    const interview = await taste.getTasteInterview(store, 'dims', 'some-project');
+    const interview = await taste.getTasteInterview(store, 'dims', 'some-project', undefined, 'full');
     for (const key of ['imagery', 'entrance', 'loading', 'navigation', 'aesthetic', 'libraries']) {
       const q = interview.questions.find((question) => question.id === 'design:' + key);
       assert.ok(q, 'missing design:' + key);
@@ -908,7 +1224,7 @@ test('the six new design dimensions carry non-empty multiple-choice options', as
 test('the AI-cinematic-video / scroll-scrub interview options are present, and the imagery question is otherwise unchanged', async () => {
   await withTasteHome(async (_home, store) => {
     await taste.createTasteProfile(store, { name: 'aivideo-opts', rules: baseRules() });
-    const interview = await taste.getTasteInterview(store, 'aivideo-opts', 'some-project');
+    const interview = await taste.getTasteInterview(store, 'aivideo-opts', 'some-project', undefined, 'full');
 
     const imageryQ = interview.questions.find((q) => q.id === 'design:imagery');
     assert.ok(imageryQ.question.includes(
@@ -941,10 +1257,71 @@ test('the AI-cinematic-video / scroll-scrub interview options are present, and t
 test('libraries question suggests Next.js as the default build target, and the kickoff contract carries it', async () => {
   await withTasteHome(async (_home, store) => {
     await taste.createTasteProfile(store, { name: 'nextdef', rules: baseRules() });
-    const interview = await taste.getTasteInterview(store, 'nextdef', 'some-project');
+    const interview = await taste.getTasteInterview(store, 'nextdef', 'some-project', undefined, 'full');
     const libQ = interview.questions.find((q) => q.id === 'design:libraries');
     assert.ok(/Next\.js/.test(libQ.question), 'libraries question must name the Next.js default');
-    assert.ok(/Next\.js/.test(interview.then), 'kickoff then must carry the Next.js default suggestion');
+    assert.ok(/Next\.js/.test(interview.then), 'depth:"full" kickoff then must carry the Next.js default suggestion');
+
+    // depth:'first_run' (the default) defers the libraries question into
+    // more_questions and softens the mandatory Next.js suggestion out of `then`.
+    const firstRun = await taste.getTasteInterview(store, 'nextdef', 'some-project');
+    assert.equal(firstRun.questions.find((q) => q.id === 'design:libraries'), undefined);
+    assert.ok(firstRun.more_questions.some((q) => q.id === 'design:libraries'));
+    assert.ok(!/Next\.js/.test(firstRun.then), 'first_run then must not carry the mandatory Next.js suggestion');
+  });
+});
+
+test('getTasteInterview depth: first_run (default) returns exactly 4 core questions + more_questions; full returns everything with more_questions empty', async () => {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'depth-test', rules: baseRules() });
+
+    // Default (no depth arg) === first_run.
+    const byDefault = await taste.getTasteInterview(store, 'depth-test', 'some-project');
+    const explicitFirstRun = await taste.getTasteInterview(store, 'depth-test', 'some-project', undefined, 'first_run');
+    for (const interview of [byDefault, explicitFirstRun]) {
+      assert.deepEqual(interview.questions.map((q) => q.id), ['identity', 'design:aesthetic', 'voice', 'matchers']);
+      const identityQ = interview.questions.find((q) => q.id === 'identity');
+      assert.equal(identityQ.skippable, false);
+      const aestheticQ = interview.questions.find((q) => q.id === 'design:aesthetic');
+      assert.equal(aestheticQ.priority, 'core');
+      assert.ok(Array.isArray(aestheticQ.options) && aestheticQ.options.length > 0, 'aesthetic keeps its options when promoted to core');
+      assert.ok(interview.more_questions.length > 0);
+      const moreIds = interview.more_questions.map((q) => q.id);
+      assert.ok(moreIds.includes('references'));
+      assert.ok(moreIds.includes('design:typography'));
+      assert.ok(moreIds.includes('design:color'));
+      assert.ok(moreIds.includes('design:libraries'));
+      assert.ok(moreIds.includes('exceptions'));
+      assert.ok(moreIds.includes('special'));
+      assert.equal(moreIds.includes('design:aesthetic'), false, 'aesthetic is core, not deferred');
+      assert.equal(moreIds.includes('identity'), false);
+      assert.equal(moreIds.includes('voice'), false);
+      assert.equal(moreIds.includes('matchers'), false);
+      assert.ok(/more_questions/.test(interview.then), 'first_run then must mention more_questions is available');
+    }
+
+    // depth:'full' returns every question in one flat list; nothing deferred.
+    const full = await taste.getTasteInterview(store, 'depth-test', 'some-project', undefined, 'full');
+    assert.deepEqual(full.more_questions, []);
+    assert.deepEqual(full.questions.map((q) => q.id), [
+      'identity', 'references',
+      'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
+      'design:entrance', 'design:loading', 'design:navigation', 'design:aesthetic', 'design:libraries',
+      'voice', 'exceptions', 'matchers', 'special',
+    ]);
+
+    // The set of ids across first_run's questions + more_questions equals the
+    // full list — depth never drops or invents a question, only defers it.
+    const firstRunAllIds = byDefault.questions.map((q) => q.id).concat(byDefault.more_questions.map((q) => q.id)).sort();
+    const fullAllIds = full.questions.map((q) => q.id).sort();
+    assert.deepEqual(firstRunAllIds, fullAllIds);
+
+    // mode:'refine' always returns more_questions: [] regardless of depth.
+    await taste.bindTasteSurface(store, 'depth-test', {
+      project: 'some-project', surface: 'product-site', voice_note: 'plain and direct',
+    });
+    const refine = await taste.getTasteInterview(store, 'depth-test', 'some-project', 'refine', 'full');
+    assert.deepEqual(refine.more_questions, []);
   });
 });
 
@@ -968,7 +1345,7 @@ test('every question carries skippable + priority; identity is required', async 
   await withTasteHome(async (_home, store) => {
     const scoped = Object.assign({}, baseRules()[0], { scope: 'portfolio-monochrome' });
     await taste.createTasteProfile(store, { name: 'flags', rules: [scoped, baseRules()[1], baseRules()[2]] });
-    const interview = await taste.getTasteInterview(store, 'flags', 'some-project');
+    const interview = await taste.getTasteInterview(store, 'flags', 'some-project', undefined, 'full');
     for (const q of interview.questions) {
       assert.equal(typeof q.skippable, 'boolean', q.id + ' must have boolean skippable');
       assert.ok(q.priority === 'core' || q.priority === 'extended', q.id + ' must have core|extended priority');
@@ -976,11 +1353,16 @@ test('every question carries skippable + priority; identity is required', async 
     const identityQ = interview.questions.find((q) => q.id === 'identity');
     assert.equal(identityQ.skippable, false);
     assert.equal(identityQ.priority, 'core');
-    for (const key of ['typography', 'spacing', 'color', 'layout', 'motion', 'imagery', 'entrance', 'loading', 'navigation', 'aesthetic']) {
+    // aesthetic is promoted to core priority (it is one of the 4 first-run
+    // questions); every other design dimension stays extended.
+    for (const key of ['typography', 'spacing', 'color', 'layout', 'motion', 'imagery', 'entrance', 'loading', 'navigation']) {
       const q = interview.questions.find((question) => question.id === 'design:' + key);
       assert.equal(q.skippable, true);
       assert.equal(q.priority, 'extended');
     }
+    const aestheticQ = interview.questions.find((question) => question.id === 'design:aesthetic');
+    assert.equal(aestheticQ.skippable, true);
+    assert.equal(aestheticQ.priority, 'core');
     assert.ok(interview.then.includes('uncalibrated'));
   });
 });
@@ -1143,16 +1525,166 @@ test('bind_taste_surface REFUSES a new surface with no calibration content (inte
     assert.equal(rebound.surface, 'product-site v2');
     assert.equal(rebound.uncalibrated_ack, undefined);
 
-    // But an EMPTY re-bind of an already-calibrated project is REFUSED — an
-    // upsert replaces all fields, so this would silently erase the calibration
-    // (the same-project/new-surface hole). It must not be exempt.
+    // An omitted calibration field on a re-bind carries forward, so updating
+    // only the surface remains calibrated and does not need an escape hatch.
+    const carried = await taste.bindTasteSurface(store, 'gate', { project: 'with-notes', surface: 'product-site v3' });
+    assert.deepEqual(carried.design_notes, { color: 'monochrome' });
+    assert.ok(carried.carried_forward.includes('design_notes'));
+    assert.equal(carried.surface, 'product-site v3');
+  });
+});
+
+test('bindTasteSurface carries omitted re-bind fields forward while explicit empty values clear them', async () => {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'carry', rules: baseRules() });
+
+    const fresh = await taste.bindTasteSurface(store, 'carry', {
+      project: 'vision-app',
+      surface: 'product-site',
+      hosts: ['old.example.com'],
+      overrides: [{ rule_id: 'HUE-NIT', severity: 'off' }],
+      voice_note: 'Plain and concrete.',
+      design_notes: { color: 'Dark, cinematic palette.' },
+      references: [{ url: 'https://example.com', liked: 'The restraint.' }],
+    });
+    assert.equal(fresh.carried_forward, undefined, 'fresh binds do not report carry-forward');
+
+    const keptReferences = await taste.bindTasteSurface(store, 'carry', {
+      project: 'VISION-APP',
+      surface: 'product-site v2',
+      design_notes: { color: 'Light, editorial palette.' },
+    });
+    assert.deepEqual(keptReferences.references, fresh.references);
+    assert.deepEqual(keptReferences.hosts, ['old.example.com']);
+    assert.deepEqual(keptReferences.overrides, [{ rule_id: 'HUE-NIT', severity: 'off' }]);
+    assert.equal(keptReferences.voice_note, 'Plain and concrete.');
+    assert.ok(keptReferences.carried_forward.includes('references'));
+    assert.ok(keptReferences.carried_forward.includes('voice_note'));
+    assert.ok(keptReferences.carried_forward.includes('overrides'));
+    assert.ok(keptReferences.carried_forward.includes('hosts'));
+
+    const clearedReferences = await taste.bindTasteSurface(store, 'carry', {
+      project: 'vision-app',
+      surface: 'product-site v3',
+      references: [],
+    });
+    assert.deepEqual(clearedReferences.references, []);
+    assert.equal(clearedReferences.carried_forward.includes('references'), false);
+    const storedAfterClear = (await taste.listSurfaceBindings(store, 'carry'))[0];
+    assert.deepEqual(storedAfterClear.references, []);
+    assert.equal(storedAfterClear.carried_forward, undefined, 'carried_forward is response-only');
+
+    await taste.bindTasteSurface(store, 'carry', {
+      project: 'notes-and-voice',
+      surface: 'product-site',
+      design_notes: { typography: 'Restrained grotesque.' },
+      voice_note: 'Technical, not promotional.',
+    });
+    const keptNotesAndVoice = await taste.bindTasteSurface(store, 'carry', {
+      project: 'notes-and-voice',
+      surface: 'developer docs',
+      hosts: ['docs.example.com'],
+    });
+    assert.deepEqual(keptNotesAndVoice.design_notes, { typography: 'Restrained grotesque.' });
+    assert.equal(keptNotesAndVoice.voice_note, 'Technical, not promotional.');
+    assert.ok(keptNotesAndVoice.carried_forward.includes('design_notes'));
+    assert.ok(keptNotesAndVoice.carried_forward.includes('voice_note'));
+
+    const hostsOnly = await taste.bindTasteSurface(store, 'carry', {
+      project: 'VISION-APP',
+      surface: 'product-site v4',
+      hosts: ['new.example.com'],
+    });
+    assert.deepEqual(hostsOnly.hosts, ['new.example.com']);
+    assert.deepEqual(hostsOnly.design_notes, { color: 'Light, editorial palette.' });
+    assert.equal(hostsOnly.voice_note, 'Plain and concrete.');
+    // an emptied field does not carry forward — it comes back absent, not []
+    assert.deepEqual(hostsOnly.references ?? [], []);
+    assert.equal(hostsOnly.carried_forward.includes('references'), false);
+
     await assert.rejects(
-      () => taste.bindTasteSurface(store, 'gate', { project: 'with-notes', surface: 'product-site v3' }),
+      () => taste.bindTasteSurface(store, 'carry', {
+        project: 'vision-app',
+        surface: 'product-site rejected-clear',
+        hosts: [],
+        overrides: [],
+        voice_note: '',
+        design_notes: {},
+        references: [],
+      }),
       /Refusing to bind surface/
     );
-    // The prior calibrated binding is untouched by the refused call.
-    assert.deepEqual((await taste.listSurfaceBindings(store, 'gate')).find((b) => b.project === 'with-notes').design_notes, { color: 'monochrome' });
-    assert.equal((await taste.listSurfaceBindings(store, 'gate')).find((b) => b.project === 'with-notes').surface, 'product-site v2');
+    const storedAfterRejectedClear = (await taste.listSurfaceBindings(store, 'carry')).find((binding) => binding.project === 'VISION-APP');
+    assert.equal(storedAfterRejectedClear.surface, 'product-site v4');
+    assert.deepEqual(storedAfterRejectedClear.design_notes, { color: 'Light, editorial palette.' });
+
+    const clearedOtherFields = await taste.bindTasteSurface(store, 'carry', {
+      project: 'vision-app',
+      surface: 'product-site v5',
+      hosts: [],
+      overrides: [],
+      voice_note: '',
+      design_notes: {},
+      references: [],
+      uncalibrated_ack: 'test fixture — explicit clear of all calibration',
+    });
+    assert.deepEqual(clearedOtherFields.hosts, []);
+    assert.deepEqual(clearedOtherFields.overrides, []);
+    assert.equal(clearedOtherFields.voice_note, '');
+    assert.deepEqual(clearedOtherFields.design_notes, {});
+    assert.deepEqual(clearedOtherFields.references, []);
+    assert.equal(clearedOtherFields.carried_forward, undefined, 'every optional field was explicit, so nothing was carried');
+
+    await assert.rejects(
+      () => taste.bindTasteSurface(store, 'carry', { project: 'fresh-empty', surface: 'product-site' }),
+      /Refusing to bind surface/
+    );
+
+    // A stored uncalibrated_ack is durable consent: re-binding the acked
+    // project (new surface/hosts, still no calibration) needs no fresh ack.
+    const ackRebind = await taste.bindTasteSurface(store, 'carry', {
+      project: 'vision-app',
+      surface: 'product-site v6',
+      hosts: ['acked.example.com'],
+    });
+    assert.equal(ackRebind.uncalibrated_ack, 'test fixture — explicit clear of all calibration');
+    assert.ok(ackRebind.carried_forward.includes('uncalibrated_ack'));
+    const storedAckRebind = (await taste.listSurfaceBindings(store, 'carry')).find((binding) => binding.project === 'vision-app');
+    assert.equal(storedAckRebind.uncalibrated_ack, 'test fixture — explicit clear of all calibration');
+  });
+});
+
+test('bind_taste_surface handler consistency-checks references carried forward on re-bind', async () => {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'carry-handler', rules: baseRules() });
+    await taste.bindTasteSurface(store, 'carry-handler', {
+      project: 'reference-check',
+      surface: 'product-site',
+      design_notes: { color: 'Dark, cinematic palette.' },
+      references: [{ url: 'https://example.com', traits: makeTraits({ scheme: 'light', bg_luminance: 0.98 }) }],
+    });
+
+    const payload = await callTasteTool(store, 'bind_taste_surface', {
+      profile: 'carry-handler',
+      project: 'reference-check',
+      surface: 'product-site v2',
+      hosts: ['reference-check.example.com'],
+    });
+    assert.ok(payload.binding.carried_forward.includes('references'));
+    assert.equal(payload.binding.references.length, 1);
+    assert.ok(payload.consistency_warnings.length > 0, 'inherited references must still be consistency-checked');
+    assert.equal(typeof payload.consistency_note, 'string', 'warnings from carried-forward references must carry the staleness note');
+    assert.ok(payload.consistency_note.includes('not recaptured'), 'staleness note must say traits were not recaptured');
+
+    const clearedPayload = await callTasteTool(store, 'bind_taste_surface', {
+      profile: 'carry-handler',
+      project: 'reference-check',
+      surface: 'product-site v3',
+      references: [],
+    });
+    assert.deepEqual(clearedPayload.binding.references, []);
+    assert.equal(clearedPayload.binding.carried_forward.includes('references'), false);
+    assert.equal(clearedPayload.consistency_warnings, undefined);
   });
 });
 
@@ -1340,7 +1872,7 @@ test('the interview closes with an open-ended special question that learns sugge
     await taste.createTasteProfile(store, { name: 'sig', rules: baseRules() });
 
     // First surface: no other bindings yet -> open-ended, no suggestions.
-    const first = await taste.getTasteInterview(store, 'sig', 'portfolio');
+    const first = await taste.getTasteInterview(store, 'sig', 'portfolio', undefined, 'full');
     const firstSpecial = first.questions[first.questions.length - 1];
     assert.equal(firstSpecial.id, 'special');
     assert.equal(firstSpecial.skippable, true);
@@ -1356,7 +1888,7 @@ test('the interview closes with an open-ended special question that learns sugge
       project: 'portfolio', surface: 'monochrome portfolio',
       design_notes: { special: 'faint grid lines texture behind hero' },
     });
-    const second = await taste.getTasteInterview(store, 'sig', 'raven-mcp');
+    const second = await taste.getTasteInterview(store, 'sig', 'raven-mcp', undefined, 'full');
     const secondSpecial = second.questions[second.questions.length - 1];
     assert.deepEqual(secondSpecial.suggestions, ['faint grid lines texture behind hero']);
     assert.ok(secondSpecial.question.includes('faint grid lines texture behind hero'));
@@ -1366,14 +1898,14 @@ test('the interview closes with an open-ended special question that learns sugge
       project: 'quoted', surface: 'app-ui',
       design_notes: { special: "it's a\ndotted 'grain' texture" },
     });
-    const third = await taste.getTasteInterview(store, 'sig', 'raven-mcp');
+    const third = await taste.getTasteInterview(store, 'sig', 'raven-mcp', undefined, 'full');
     const thirdSpecial = third.questions[third.questions.length - 1];
     assert.ok(!/it's/.test(thirdSpecial.question), 'raw single quotes must not reach the question text');
     assert.ok(!thirdSpecial.question.includes('\n'), 'newlines must be collapsed in the question text');
     assert.ok(thirdSpecial.suggestions.length === 2, 'raw suggestion values still carried in the suggestions field');
 
     // Same project is excluded from its own suggestions (only the other binding's note remains).
-    const samePrj = await taste.getTasteInterview(store, 'sig', 'portfolio');
+    const samePrj = await taste.getTasteInterview(store, 'sig', 'portfolio', undefined, 'full');
     const sameSpecial = samePrj.questions[samePrj.questions.length - 1];
     assert.deepEqual(sameSpecial.suggestions, ["it's a\ndotted 'grain' texture"]);
 
@@ -1388,13 +1920,19 @@ test('the interview closes with an open-ended special question that learns sugge
 test('the references question invites examples right after identity and the then-contract folds them into notes', async () => {
   await withTasteHome(async (_home, store) => {
     await taste.createTasteProfile(store, { name: 'refs', rules: baseRules() });
-    const interview = await taste.getTasteInterview(store, 'refs', 'demo');
+    const interview = await taste.getTasteInterview(store, 'refs', 'demo', undefined, 'full');
     assert.equal(interview.questions[1].id, 'references');
     assert.equal(interview.questions[1].skippable, true);
     assert.equal(interview.questions[1].priority, 'core');
     assert.ok(/examples/i.test(interview.questions[1].question));
     assert.ok(/what specifically draws you/i.test(interview.questions[1].question));
     assert.ok(interview.then.includes('design_notes.references'));
+
+    // depth:'first_run' (the default) defers references into more_questions —
+    // it is not one of the 4 core questions.
+    const firstRun = await taste.getTasteInterview(store, 'refs', 'demo');
+    assert.equal(firstRun.questions.find((q) => q.id === 'references'), undefined);
+    assert.ok(firstRun.more_questions.some((q) => q.id === 'references'));
   });
 });
 
@@ -1423,11 +1961,11 @@ test('kickoff interview learns from decisions on OTHER projects — suggestions 
   await withTasteHome(async (_home, store) => {
     await taste.createTasteProfile(store, { name: 'learner', rules: baseRules() });
     await taste.recordTasteDecision(store, 'learner', { project: 'proj-a', dimension: 'navigation', decision: 'hamburger at every breakpoint' });
-    const interview = await taste.getTasteInterview(store, 'learner', 'proj-new');
+    const interview = await taste.getTasteInterview(store, 'learner', 'proj-new', undefined, 'full');
     const navQ = interview.questions.find((q) => q.id === 'design:navigation');
     assert.deepEqual(navQ.suggestions, ['hamburger at every breakpoint']);
     assert.ok(/On past projects you decided/.test(navQ.question), 'question text carries the learned decision');
-    const sameProject = await taste.getTasteInterview(store, 'learner', 'proj-a');
+    const sameProject = await taste.getTasteInterview(store, 'learner', 'proj-a', undefined, 'full');
     const sameNavQ = sameProject.questions.find((q) => q.id === 'design:navigation');
     assert.equal(sameNavQ.suggestions, undefined, 'decisions from the SAME project are excluded');
     assert.ok(/record_taste_decision/.test(interview.then), 'kickoff then tells the client to keep recording decisions');
@@ -1440,7 +1978,7 @@ test('kickoff interview grows NEW questions from decision categories no standard
     await taste.recordTasteDecision(store, 'grower', { project: 'proj-a', dimension: 'iconography', decision: 'stroke icons only, 1.5px, no fills' });
     await taste.recordTasteDecision(store, 'grower', { project: 'proj-a', dimension: 'iconography', decision: 'stroke icons only, 1.5px, no fills' });
     await taste.recordTasteDecision(store, 'grower', { project: 'proj-b', dimension: 'iconography', decision: 'geometric, currentColor' });
-    const interview = await taste.getTasteInterview(store, 'grower', 'proj-new');
+    const interview = await taste.getTasteInterview(store, 'grower', 'proj-new', undefined, 'full');
     const iconQ = interview.questions.find((q) => q.id === 'design:iconography');
     assert.ok(iconQ, 'a learned iconography question is spawned');
     assert.equal(iconQ.skippable, true);

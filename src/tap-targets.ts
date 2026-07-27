@@ -10,7 +10,11 @@
  * concrete fix suggestion. Results sorted worst-first (largest combined deficit).
  */
 
-import { CaptureUnavailableError } from "./capture.js";
+import {
+  applyDeviceEmulation,
+  CaptureUnavailableError,
+  waitForCustomElementsHydration
+} from "./capture.js";
 import { launchAuditChromium } from "./browser-launch.js";
 
 export { CaptureUnavailableError };
@@ -43,6 +47,7 @@ export type TapTargetRow = {
 export type TapTargetResult = {
   url?: string;
   viewport?: { w: number; h: number };
+  mobile_emulation?: boolean;
   minSize: number;
   total: number;
   passing: number;
@@ -174,11 +179,12 @@ export async function auditTapTargetsUrl(
     }
 
     const page = await browser.newPage();
-    await page.setViewportSize({ width: viewport.w, height: viewport.h });
+    const mobileEmulation = await applyDeviceEmulation(page, viewport, warnings);
     await page.goto(url, {
       waitUntil: "load",
       timeout: opts?.timeoutMs ?? 30000,
     });
+    await waitForCustomElementsHydration(page, warnings);
 
     type RawEl = {
       selector: string;
@@ -194,7 +200,7 @@ export async function auditTapTargetsUrl(
       ({ cap, interactiveSel }: { cap: number; interactiveSel: string }) => {
         const results: RawEl[] = [];
 
-        function stableSelector(el: Element): string {
+        function lightDomSelector(el: Element): string {
           const testid = el.getAttribute("data-testid");
           if (testid) return `[data-testid="${testid}"]`;
           const id = el.getAttribute("id");
@@ -206,9 +212,17 @@ export async function auditTapTargetsUrl(
               (c) => c.tagName === el.tagName
             );
             const idx = siblings.indexOf(el) + 1;
-            return `${stableSelector(parent)} > ${tag}:nth-of-type(${idx})`;
+            return `${lightDomSelector(parent)} > ${tag}:nth-of-type(${idx})`;
           }
           return tag;
+        }
+
+        function stableSelector(el: Element): string {
+          const root = el.getRootNode();
+          if (root instanceof ShadowRoot) {
+            return `${stableSelector(root.host)} >>> ${lightDomSelector(el)}`;
+          }
+          return lightDomSelector(el);
         }
 
         function inferRole(el: Element): string {
@@ -236,34 +250,49 @@ export async function auditTapTargetsUrl(
           return rect.width > 0 || rect.height > 0;
         }
 
-        // Collect by the interactive selector
         const seen = new Set<Element>();
-        const bySelector = document.querySelectorAll(interactiveSel);
-        for (let i = 0; i < bySelector.length; i++) {
-          if (results.length >= cap) break;
-          const el = bySelector[i];
-          if (seen.has(el)) continue;
-          seen.add(el);
+        function collectElement(el: Element): void {
+          if (results.length >= cap) return;
+          if (el.matches(interactiveSel) && !seen.has(el)) {
+            seen.add(el);
 
-          // Filter tabindex: only tabindex >= 0 counts as intentionally interactive
-          if (el.hasAttribute("tabindex")) {
-            const ti = parseInt(el.getAttribute("tabindex") ?? "-1", 10);
-            if (ti < 0) continue;
+            // Filter tabindex: only tabindex >= 0 counts as intentionally interactive
+            let intentionallyInteractive = true;
+            if (el.hasAttribute("tabindex")) {
+              const ti = parseInt(el.getAttribute("tabindex") ?? "-1", 10);
+              intentionallyInteractive = ti >= 0;
+            }
+
+            if (intentionallyInteractive && isVisible(el)) {
+              const rect = el.getBoundingClientRect();
+              results.push({
+                selector: stableSelector(el),
+                role: inferRole(el),
+                text: (el.textContent ?? "").trim().slice(0, 60),
+                w: Math.round(rect.width * 10) / 10,
+                h: Math.round(rect.height * 10) / 10,
+                x: Math.round(rect.x),
+                y: Math.round(rect.y),
+              });
+            }
           }
 
-          if (!isVisible(el)) continue;
-
-          const rect = el.getBoundingClientRect();
-          results.push({
-            selector: stableSelector(el),
-            role: inferRole(el),
-            text: (el.textContent ?? "").trim().slice(0, 60),
-            w: Math.round(rect.width * 10) / 10,
-            h: Math.round(rect.height * 10) / 10,
-            x: Math.round(rect.x),
-            y: Math.round(rect.y),
-          });
+          if (results.length >= cap) return;
+          if (el.shadowRoot) collectRoot(el.shadowRoot);
+          for (let i = 0; i < el.children.length; i++) {
+            collectElement(el.children[i]);
+            if (results.length >= cap) return;
+          }
         }
+
+        function collectRoot(root: Document | ShadowRoot): void {
+          for (let i = 0; i < root.children.length; i++) {
+            collectElement(root.children[i]);
+            if (results.length >= cap) return;
+          }
+        }
+
+        collectRoot(document);
 
         return results;
       },
@@ -279,6 +308,7 @@ export async function auditTapTargetsUrl(
     const result = auditTapTargetsSnapshot(raw, minSize);
     result.url = url;
     result.viewport = viewport;
+    result.mobile_emulation = mobileEmulation;
     result.warnings.push(...warnings);
     return result;
   } finally {

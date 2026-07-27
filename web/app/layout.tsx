@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { Analytics } from '@vercel/analytics/next'
 import Script from 'next/script'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
@@ -6,7 +7,7 @@ import RevealAndCopy from '@/components/RevealAndCopy'
 
 const inter = Inter({
   subsets: ['latin'],
-  weight: ['400', '500', '600', '700', '800'],
+  weight: ['400', '500', '600', '700'],
   variable: '--font-inter',
   display: 'swap',
 })
@@ -22,7 +23,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://ravenmcp.ai'),
   title: 'RavenMCP — Design Intelligence MCP for Claude · Open Source',
   description:
-    "Odin's ravens brought back knowledge of the world. RavenMCP brings back design intelligence — an open-source design-knowledge MCP server giving AI agents like Claude 55 tools across nine knowledge layers.",
+    'Pair-design with your coding agent: click any element on your page, edit its tokens and styles, and package the change for Claude — plus 100 tools for UI audits, design-system tokens, decision memory, and taste checks.',
   applicationName: 'RavenMCP',
   authors: [{ name: 'Andrew Cunliffe' }],
   keywords: [
@@ -40,7 +41,7 @@ export const metadata: Metadata = {
     siteName: 'RavenMCP',
     title: 'RavenMCP — Design Intelligence for AI',
     description:
-      '129 design principles · 22 UI patterns · 55 tools · 12 design systems · web, iOS, Android & React Native audits · content voice guides · research methods · service blueprints. One install for design-literate AI.',
+      'Pair-design with your coding agent: click any element on your page, edit its tokens and styles, and package the change for Claude — plus 100 tools for UI audits, design-system tokens, decision memory, and taste checks.',
     url: 'https://ravenmcp.ai',
     images: [
       {
@@ -55,7 +56,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'RavenMCP — Design Intelligence for AI',
     description:
-      '129 principles · 22 patterns · 55 tools · 12 design systems · web, iOS, Android & React Native audits. Design intelligence for AI, in one install.',
+      '129 principles · 22 patterns · 100 tools · 12 design systems · Raven Design · a Decision Graph · a Taste Engine · web, iOS, Android & React Native audits. Design intelligence for AI, in one install.',
     images: ['/assets/og-image.jpg'],
   },
   robots: { index: true, follow: true },
@@ -95,7 +96,7 @@ const jsonLd = {
       url: 'https://ravenmcp.ai/',
       name: 'RavenMCP',
       description:
-        'Design intelligence for every prompt. An open-source MCP server giving AI agents design knowledge.',
+        'An open-source MCP server that gives coding agents callable tools for UI audits, design tokens, patterns, and taste checks.',
       publisher: { '@id': 'https://ravenmcp.ai/#organization' },
       inLanguage: 'en',
     },
@@ -109,10 +110,10 @@ const jsonLd = {
       operatingSystem: 'Cross-platform (Node.js)',
       url: 'https://ravenmcp.ai/',
       downloadUrl: 'https://www.npmjs.com/package/raven-mcp',
-      softwareHelp: 'https://ravenmcp.ai/docs',
+      softwareHelp: 'https://ravenmcp.ai/docs.html',
       description:
-        'RavenMCP is an open-source Model Context Protocol server that gives AI agents like Claude design intelligence: 55 tools across nine knowledge layers — 129 design principles, 22 UI patterns, 12 design-system token libraries, content voice, brand, research, service blueprints, and design audits for web, iOS, Android, and React Native.',
-      license: 'https://opensource.org/licenses/MIT',
+        "RavenMCP is an open-source Model Context Protocol server that gives AI agents like Claude design intelligence: 100 tools spanning 129 design principles, 22 UI patterns, 12 design-system token libraries, content voice, brand, research, service blueprints, design audits for web, iOS, Android, and React Native, Raven Design (click-to-edit on the live page), a Decision Graph that keeps design decisions queryable with provenance, and a Taste Engine that holds every build to the owner's own design judgment.",
+      license: 'https://www.apache.org/licenses/LICENSE-2.0',
       isAccessibleForFree: true,
       author: { '@type': 'Person', name: 'Andrew Cunliffe' },
       publisher: { '@id': 'https://ravenmcp.ai/#organization' },
@@ -120,9 +121,13 @@ const jsonLd = {
       featureList: [
         '129 design principles (Nielsen heuristics, Laws of UX, Gestalt, WCAG, typography, color, mobile UX, D4D)',
         '22 reusable UI patterns',
-        '12 world-class design systems with W3C DTCG tokens',
+        '12 named design systems with W3C DTCG tokens',
         'Design audits for web, iOS/SwiftUI, Android, and React Native',
+        'Raven Design — click any element on your running page, edit its tokens, styles, and layout, and package the change against your DESIGN.md for your agent',
+        'A local Decision Graph that keeps design decisions queryable and connected, with provenance and evidence — plus diff-shaped review_diff / polish_diff against those decisions and your tokens',
         'Content voice guides, brand profiles, research methods, and service blueprints',
+        "A Taste Engine that makes a person's design judgment portable — audit_taste returns a BLOCK/WARN/PASS verdict citing the rule behind every finding",
+        'Cinematic build recipes that name their paid external dependency and a still-photography fallback before spending',
       ],
     },
     {
@@ -134,7 +139,7 @@ const jsonLd = {
           name: 'What is RavenMCP?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'RavenMCP (Raven) is an open-source Model Context Protocol (MCP) server that gives AI agents like Claude design intelligence — the design knowledge once locked in expert heads. It exposes 55 tools across nine knowledge layers: design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, and multi-platform design audits.',
+            text: 'RavenMCP (Raven) is an open-source Model Context Protocol (MCP) server. Add it to Claude or Cursor, and your agent can call 100 local tools for design principles, UI patterns, design-system tokens, content voice, research methods, service blueprints, multi-platform audits, click-to-edit Raven Design, a local Decision Graph, and project-specific taste checks.',
           },
         },
         {
@@ -150,7 +155,7 @@ const jsonLd = {
           name: 'Is RavenMCP free?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'Yes. RavenMCP is 100% free and open source under the MIT license. Every tool, token, and principle is included — no tiers, no usage limits, no account required.',
+            text: 'Yes. RavenMCP is 100% free and open source under the Apache-2.0 license. Every tool, token, and principle is included — no tiers, no usage limits, no account required.',
           },
         },
         {
@@ -158,7 +163,7 @@ const jsonLd = {
           name: 'Which AI agents work with RavenMCP?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'RavenMCP works with any client that supports the Model Context Protocol, including Claude (Claude Code and the Claude desktop app). Once installed, the agent can call Raven’s 55 tools directly during a conversation.',
+            text: "RavenMCP works with any client that supports the Model Context Protocol — Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's 100 tools directly during a conversation.",
           },
         },
         {
@@ -174,7 +179,7 @@ const jsonLd = {
           name: 'What design systems does RavenMCP support?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'RavenMCP includes production tokens from 12 world-class design systems in W3C DTCG format, all queryable by AI agents. It also exposes 129 design principles and 22 reusable UI patterns.',
+            text: 'RavenMCP includes tokens from 12 named systems in W3C DTCG format, including Apple HIG, Material, Stripe, Linear, Vercel, GitHub Primer, Tailwind, and shadcn/ui. It also exposes 129 design principles and 22 reusable UI patterns.',
           },
         },
       ],
@@ -204,6 +209,7 @@ export default function RootLayout({
         <Script src="/assets/nav.js" strategy="beforeInteractive" />
         <Script src="/assets/footer.js" strategy="beforeInteractive" />
         <RevealAndCopy />
+        <Analytics />
       </body>
     </html>
   )

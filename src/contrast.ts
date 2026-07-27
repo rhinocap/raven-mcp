@@ -21,11 +21,17 @@ export type ContrastRow = {
   fontPx: number;
   bold: boolean;
   large: boolean;
-  ratio: number;
-  aa: boolean;
-  aaa: boolean;
+  status: "pass" | "fail" | "indeterminate";
+  ratio: number | null;
+  aa: boolean | null;
+  aaa: boolean | null;
   required_aa: number;
-  delta_to_aa: number;
+  delta_to_aa: number | null;
+  effective_bg: string;
+  bg_indeterminate: boolean;
+  indeterminate_reason?: string;
+  ratio_min?: number;
+  ratio_max?: number;
 };
 
 export type ContrastResult = {
@@ -34,8 +40,72 @@ export type ContrastResult = {
   rows: ContrastRow[];
   aa_failures: ContrastRow[];
   aa_fail_count: number;
+  indeterminate_bg_rows: ContrastRow[];
+  indeterminate_bg_count: number;
+  indeterminate_bg_note: string;
+  mode_note: string;
   warnings: string[];
 };
+
+export type BackgroundLayer = {
+  color: string | null;
+  image: string | null;
+};
+
+type Rgba = [number, number, number, number];
+type Rgb = [number, number, number];
+
+const GRADIENT_SAMPLES = 16;
+const MAX_BG_CANDIDATES = 64;
+
+// ---------------------------------------------------------------------------
+// Glyph / motion-split collapsing — exported for audit_url and tests
+// ---------------------------------------------------------------------------
+
+/**
+ * One or more aa_failures rows that should be reported as a single finding.
+ * `isShortTextGroup` is true when every row's trimmed text is 0-2 characters
+ * long (icon glyphs, single letters left over from a motion-split animation,
+ * etc.) — these are noisy to report per-letter and are usually not
+ * independent contrast bugs, so callers should collapse them into one
+ * likely-artifact finding instead of one confirmed error per fragment.
+ */
+export type ContrastFailureGroup = {
+  rows: ContrastRow[];
+  isShortTextGroup: boolean;
+};
+
+const SHORT_TEXT_MAX_LEN = 2;
+
+/**
+ * Group `aa_failures` rows so short-text (glyph/motion-split) fragments that
+ * share the same rendering context — (foreground, background, required_aa) —
+ * collapse into a single group instead of firing one finding per fragment.
+ * Longer-text failures are never grouped with anything else; each keeps its
+ * own single-row group so it can still be reported as a confirmed error.
+ */
+export function collapseShortTextContrastFailures(rows: ContrastRow[]): ContrastFailureGroup[] {
+  const groups: ContrastFailureGroup[] = [];
+  const shortGroupIndex = new Map<string, number>();
+
+  for (const row of rows) {
+    const len = (row.text || "").trim().length;
+    if (len <= SHORT_TEXT_MAX_LEN) {
+      const key = row.foreground + "|" + row.background + "|" + row.required_aa;
+      const idx = shortGroupIndex.get(key);
+      if (idx !== undefined) {
+        groups[idx].rows.push(row);
+      } else {
+        shortGroupIndex.set(key, groups.length);
+        groups.push({ rows: [row], isShortTextGroup: true });
+      }
+    } else {
+      groups.push({ rows: [row], isShortTextGroup: false });
+    }
+  }
+
+  return groups;
+}
 
 // ---------------------------------------------------------------------------
 // Pure WCAG math — exported for tests
@@ -44,9 +114,10 @@ export type ContrastResult = {
 /**
  * Parse a CSS colour string into [r, g, b, a] where r/g/b ∈ 0-255, a ∈ 0-1.
  * Handles: #RGB, #RRGGBB, #RGBA, #RRGGBBAA, rgb(), rgba(), black, white, transparent.
- * Unknown/unparseable → [0, 0, 0, 1] (opaque black, safe fallback).
+ * Unknown/unparseable → [0, 0, 0, 1] for this legacy public helper only.
+ * Audit paths use parseKnownColor and surface parse failures as indeterminate.
  */
-export function parseColor(css: string): [number, number, number, number] {
+function parseKnownColor(css: string): Rgba | null {
   const s = css.trim().toLowerCase();
 
   if (s === "black") return [0, 0, 0, 1];
@@ -56,6 +127,7 @@ export function parseColor(css: string): [number, number, number, number] {
   // #hex
   if (s.startsWith("#")) {
     const h = s.slice(1);
+    if (!/^[0-9a-f]+$/.test(h)) return null;
     if (h.length === 3) {
       const r = parseInt(h[0] + h[0], 16);
       const g = parseInt(h[1] + h[1], 16);
@@ -82,7 +154,7 @@ export function parseColor(css: string): [number, number, number, number] {
       const a = parseInt(h.slice(6, 8), 16) / 255;
       return [r, g, b, a];
     }
-    return [0, 0, 0, 1];
+    return null;
   }
 
   // rgb() / rgba()
@@ -95,7 +167,80 @@ export function parseColor(css: string): [number, number, number, number] {
     return [r, g, b, a];
   }
 
-  return [0, 0, 0, 1];
+  return null;
+}
+
+export function parseColor(css: string): Rgba {
+  return parseKnownColor(css) ?? [0, 0, 0, 1];
+}
+
+function splitTopLevelCommas(value: string): string[] | null {
+  const parts: string[] = [];
+  let start = 0;
+  let depth = 0;
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    if (ch === "(") depth++;
+    else if (ch === ")") {
+      depth--;
+      if (depth < 0) return null;
+    } else if (ch === "," && depth === 0) {
+      parts.push(value.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  if (depth !== 0) return null;
+  parts.push(value.slice(start).trim());
+  return parts;
+}
+
+function parseGradientColorStop(stop: string): Rgba | null {
+  const value = stop.trim();
+  let colorToken = "";
+  let remainder = "";
+  const functional = value.match(/^rgba?\([^)]*\)/i);
+  const hex = value.match(/^#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{4}|[0-9a-f]{3})(?=\s|$)/i);
+  const named = value.match(/^[a-z]+(?=\s|$)/i);
+  const match = functional || hex || named;
+  if (!match) return null;
+  colorToken = match[0];
+  remainder = value.slice(colorToken.length).trim();
+  const position = "[-+]?(?:\\d*\\.)?\\d+(?:%|px|em|rem|vh|vw)?";
+  if (remainder && !new RegExp("^" + position + "(?:\\s+" + position + ")?$").test(remainder)) {
+    return null;
+  }
+  return parseKnownColor(colorToken);
+}
+
+function isSimpleGradientPrelude(kind: "linear" | "radial", value: string): boolean {
+  const v = value.trim().toLowerCase();
+  if (kind === "linear") {
+    return /^to\s+(?:left|right|top|bottom)(?:\s+(?:left|right|top|bottom))?$/.test(v) ||
+      /^[-+]?(?:\d*\.)?\d+(?:deg|grad|rad|turn)$/.test(v);
+  }
+  return /^(?:(?:circle|ellipse)(?:\s+(?:closest-side|closest-corner|farthest-side|farthest-corner))?|(?:closest-side|closest-corner|farthest-side|farthest-corner))(?:\s+at\s+[a-z0-9.%\s-]+)?$/.test(v) ||
+    /^(?:circle|ellipse)?\s*at\s+[a-z0-9.%\s-]+$/.test(v);
+}
+
+/** Parse the color stops of a deliberately simple linear/radial gradient. */
+export function parseGradientStops(image: string): Rgba[] | null {
+  const match = image.trim().match(/^(linear-gradient|radial-gradient)\((.*)\)$/i);
+  if (!match) return null;
+  const kind: "linear" | "radial" = match[1].toLowerCase().startsWith("linear") ? "linear" : "radial";
+  const parts = splitTopLevelCommas(match[2]);
+  if (!parts || parts.length < 2) return null;
+  let start = 0;
+  if (parseGradientColorStop(parts[0]) === null) {
+    if (!isSimpleGradientPrelude(kind, parts[0])) return null;
+    start = 1;
+  }
+  const stops: Rgba[] = [];
+  for (let i = start; i < parts.length; i++) {
+    const color = parseGradientColorStop(parts[i]);
+    if (!color) return null;
+    stops.push(color);
+  }
+  return stops.length >= 2 ? stops : null;
 }
 
 /**
@@ -130,19 +275,137 @@ export function contrastRatio(
 }
 
 // ---------------------------------------------------------------------------
-// Composite alpha over white
+// Alpha compositing and effective backdrop resolution
 // ---------------------------------------------------------------------------
 
-function compositeOverWhite(
-  r: number,
-  g: number,
-  b: number,
-  a: number
-): [number, number, number] {
-  const rOut = Math.round(r * a + 255 * (1 - a));
-  const gOut = Math.round(g * a + 255 * (1 - a));
-  const bOut = Math.round(b * a + 255 * (1 - a));
-  return [rOut, gOut, bOut];
+function compositeColor(color: Rgba, backdrop: Rgb): Rgb {
+  return [
+    Math.round(color[0] * color[3] + backdrop[0] * (1 - color[3])),
+    Math.round(color[1] * color[3] + backdrop[1] * (1 - color[3])),
+    Math.round(color[2] * color[3] + backdrop[2] * (1 - color[3])),
+  ];
+}
+
+type BackdropResolution = {
+  colors: Rgb[];
+  indeterminate: boolean;
+  reason?: string;
+};
+
+function dedupeColors(colors: Rgb[]): Rgb[] {
+  const seen = new Set<string>();
+  return colors.filter((color) => {
+    const key = color.join(",");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function sampleGradient(stops: Rgba[]): Rgba[] {
+  const samples: Rgba[] = [];
+  for (let pair = 0; pair < stops.length - 1; pair++) {
+    const from = stops[pair];
+    const to = stops[pair + 1];
+    for (let i = 0; i < GRADIENT_SAMPLES; i++) {
+      const t = i / (GRADIENT_SAMPLES - 1);
+      samples.push([
+        Math.round(from[0] + (to[0] - from[0]) * t),
+        Math.round(from[1] + (to[1] - from[1]) * t),
+        Math.round(from[2] + (to[2] - from[2]) * t),
+        from[3] + (to[3] - from[3]) * t,
+      ]);
+    }
+  }
+  return samples;
+}
+
+function capped(colors: Rgb[]): BackdropResolution | null {
+  const unique = dedupeColors(colors);
+  return unique.length > MAX_BG_CANDIDATES
+    ? { colors: [], indeterminate: true, reason: "candidate-cap" }
+    : null;
+}
+
+function resolveBackdrop(layers: BackgroundLayer[]): BackdropResolution {
+  // CSS paints the root canvas white when html/body provide no backdrop.
+  // This is the only intentional assumed-white base in the audit.
+  let colors: Rgb[] = [[255, 255, 255]];
+  let indeterminate = false;
+  let reason: string | undefined;
+
+  for (let i = layers.length - 1; i >= 0; i--) {
+    const layer = layers[i];
+    if (layer.color) {
+      const color = parseKnownColor(layer.color);
+      if (!color) {
+        colors = [];
+        indeterminate = true;
+        reason = "unparsed-color";
+      } else if (color[3] > 0) {
+        if (color[3] >= 1) {
+          colors = [[color[0], color[1], color[2]]];
+          indeterminate = false;
+          reason = undefined;
+        } else if (colors.length > 0) {
+          colors = colors.map((backdrop) => compositeColor(color, backdrop));
+        }
+      }
+    }
+
+    if (layer.image && layer.image.trim().toLowerCase() !== "none") {
+      const imageLayers = splitTopLevelCommas(layer.image);
+      if (!imageLayers) {
+        colors = [];
+        indeterminate = true;
+        reason = "unparsed-background-image";
+        continue;
+      }
+      // CSS paints the first image nearest the viewer, so resolve last → first.
+      for (let imageIndex = imageLayers.length - 1; imageIndex >= 0; imageIndex--) {
+        const stops = parseGradientStops(imageLayers[imageIndex]);
+        if (!stops) {
+          colors = [];
+          indeterminate = true;
+          reason = "unparsed-background-image";
+          continue;
+        }
+        const samples = sampleGradient(stops);
+        if (indeterminate) {
+          if (samples.every((sample) => sample[3] >= 1)) {
+            colors = samples.map((sample) => [sample[0], sample[1], sample[2]] as Rgb);
+            indeterminate = false;
+            reason = undefined;
+          } else {
+            colors = samples
+              .filter((sample) => sample[3] >= 1)
+              .map((sample) => [sample[0], sample[1], sample[2]] as Rgb);
+          }
+        } else {
+          const next: Rgb[] = [];
+          for (const sample of samples) {
+            for (const backdrop of colors) next.push(compositeColor(sample, backdrop));
+          }
+          const overflow = capped(next);
+          if (overflow) {
+            colors = [];
+            indeterminate = true;
+            reason = overflow.reason;
+            continue;
+          }
+          colors = dedupeColors(next);
+        }
+        const overflow = capped(colors);
+        if (overflow) {
+          colors = [];
+          indeterminate = true;
+          reason = overflow.reason;
+        }
+      }
+    }
+  }
+
+  return { colors: dedupeColors(colors), indeterminate, reason };
 }
 
 /**
@@ -154,7 +417,7 @@ function compositeOverWhite(
  * @returns An opaque [r, g, b] triple. Empty or all-transparent input → [255,255,255].
  */
 export function compositeBackground(layers: string[]): [number, number, number] {
-  // Start with an opaque white base
+  // CSS initial canvas color is white when no authored backdrop exists.
   let baseR = 255;
   let baseG = 255;
   let baseB = 255;
@@ -195,6 +458,8 @@ export function auditContrastSnapshot(
     color: string;
     bgColor: string;
     bgColors?: string[];
+    bgLayers?: BackgroundLayer[];
+    bgIndeterminateReason?: string;
     fontPx?: number;
     bold?: boolean;
     text?: string;
@@ -204,26 +469,13 @@ export function auditContrastSnapshot(
   const rows: ContrastRow[] = [];
 
   for (const el of elements) {
-    const [fr, fg, fb, fa] = parseColor(el.color);
-
-    // Composite fg over white if semi-transparent
-    const fgRgb: [number, number, number] =
-      fa < 1 ? compositeOverWhite(fr, fg, fb, fa) : [fr, fg, fb];
-
-    // Background: use ancestor stack when available, else fall back to single bgColor path
-    let bgRgb: [number, number, number];
-    let bgDisplay: string;
-    if (el.bgColors && el.bgColors.length > 0) {
-      bgRgb = compositeBackground(el.bgColors);
-      bgDisplay = `rgb(${bgRgb[0]}, ${bgRgb[1]}, ${bgRgb[2]})`;
-    } else {
-      const [br, bg, bb, ba] = parseColor(el.bgColor);
-      // Composite bg over white if semi-transparent (existing path, unchanged)
-      bgRgb = ba < 1 ? compositeOverWhite(br, bg, bb, ba) : [br, bg, bb];
-      // Report the effective opaque color the ratio was computed against, not
-      // the raw translucent input (AC4). Opaque inputs are reported verbatim.
-      bgDisplay = ba < 1 ? `rgb(${bgRgb[0]}, ${bgRgb[1]}, ${bgRgb[2]})` : el.bgColor;
-    }
+    const foreground = parseKnownColor(el.color);
+    const legacySingleBackground = el.bgLayers === undefined && !(el.bgColors && el.bgColors.length > 0);
+    const layers = el.bgLayers ??
+      (el.bgColors && el.bgColors.length > 0
+        ? el.bgColors.map((color) => ({ color, image: null }))
+        : [{ color: el.bgColor, image: null }]);
+    const backdrop = resolveBackdrop(layers);
 
     const fontPx = el.fontPx ?? 16;
     const bold = el.bold ?? false;
@@ -231,34 +483,80 @@ export function auditContrastSnapshot(
     const required_aa = large ? 3 : 4.5;
     const required_aaa = large ? 4.5 : 7;
 
-    const ratio = contrastRatio(fgRgb, bgRgb);
-    const aa = ratio >= required_aa;
-    const aaa = ratio >= required_aaa;
-    const delta_to_aa = Math.max(0, required_aa - ratio);
+    const ratios = foreground
+      ? backdrop.colors.map((bg) => contrastRatio(compositeColor(foreground, bg), bg))
+      : [];
+    const ratioMin = ratios.length > 0 ? Math.min(...ratios) : 1;
+    const ratioMax = ratios.length > 0 ? Math.max(...ratios) : 21;
+    const worstIndex = ratios.length > 0 ? ratios.indexOf(ratioMin) : -1;
+    const allPass = ratios.length > 0 && ratios.every((ratio) => ratio >= required_aa);
+    const allFail = ratios.length > 0 && ratios.every((ratio) => ratio < required_aa);
+    const indeterminateReason = el.bgIndeterminateReason ||
+      (!foreground ? "unparsed-color" : backdrop.reason) ||
+      (!allPass && !allFail ? "mixed-background-range" : undefined);
+    const bgIndeterminate = indeterminateReason !== undefined || backdrop.indeterminate;
+    const status: ContrastRow["status"] = bgIndeterminate
+      ? "indeterminate"
+      : allPass ? "pass" : "fail";
+    const aa = status === "indeterminate" ? null : allPass;
+    const aaa = status === "indeterminate"
+      ? null
+      : ratios.length > 0 && ratios.every((ratio) => ratio >= required_aaa);
+    const delta_to_aa = Math.max(0, required_aa - ratioMin);
+    const bgValues = backdrop.colors.map((bg) => `rgb(${bg[0]}, ${bg[1]}, ${bg[2]})`);
+    const effectiveBg = bgValues.length === 0
+      ? "indeterminate (background-image)"
+      : bgValues.length === 1
+        ? bgValues[0]
+        : bgValues[0] + " to " + bgValues[bgValues.length - 1];
+    const legacyColor = legacySingleBackground ? parseKnownColor(el.bgColor) : null;
+    const background = legacyColor && legacyColor[3] >= 1
+      ? el.bgColor
+      : worstIndex >= 0
+        ? bgValues[worstIndex]
+        : effectiveBg;
 
     rows.push({
       selector: el.selector,
       text: el.text ?? "",
       foreground: el.color,
-      background: bgDisplay,
+      background,
       fontPx,
       bold,
       large,
-      ratio: Math.round(ratio * 100) / 100,
+      status,
+      ratio: status === "indeterminate" ? null : Math.round(ratioMin * 100) / 100,
       aa,
       aaa,
       required_aa,
-      delta_to_aa: Math.round(delta_to_aa * 100) / 100,
+      delta_to_aa: status === "indeterminate" ? null : Math.round(delta_to_aa * 100) / 100,
+      effective_bg: effectiveBg,
+      bg_indeterminate: bgIndeterminate,
+      ...(indeterminateReason ? { indeterminate_reason: indeterminateReason } : {}),
+      ...(ratios.length > 0 && (bgValues.length > 1 || bgIndeterminate)
+        ? {
+            ratio_min: Math.round(ratioMin * 100) / 100,
+            ratio_max: Math.round(ratioMax * 100) / 100,
+          }
+        : {}),
     });
   }
 
-  const aa_failures = rows.filter((r) => !r.aa);
+  const aa_failures = rows.filter((r) => r.status === "fail");
+  const indeterminate_bg_rows = rows.filter((r) => r.status === "indeterminate");
+  const indeterminate_bg_note = indeterminate_bg_rows.length > 0
+    ? "Rows with mixed or unparseable image backdrops need review; they are not counted as AA failures."
+    : "No background rows need review.";
 
   return {
     total_text_elements: rows.length,
     rows,
     aa_failures,
     aa_fail_count: aa_failures.length,
+    indeterminate_bg_rows,
+    indeterminate_bg_count: indeterminate_bg_rows.length,
+    indeterminate_bg_note,
+    mode_note: "Snapshot mode uses supplied bgColor/bgColors and the legacy over-white fallback; real DOM-backdrop compositing applies only to URL mode.",
     warnings,
   };
 }
@@ -324,6 +622,8 @@ export async function auditContrastUrl(
       color: string;
       bgColor: string;
       bgColors: string[];
+      bgLayers: BackgroundLayer[];
+      bgIndeterminateReason?: string;
       fontPx: number;
       bold: boolean;
       text: string;
@@ -359,33 +659,94 @@ export async function auditContrastUrl(
        * Includes each non-transparent background up to and including the first
        * fully-opaque background (alpha === 1), or to the root if none opaque.
        */
-      function effectiveBgColors(el: Element): string[] {
-        const stack: string[] = [];
+      function normalizeCssColor(value: string): string | null {
+        // Paint a 1x1 pixel and read it back: getImageData returns plain rgba
+        // integers for ANY valid color format (oklch/lab/color(srgb ...)),
+        // whereas fillStyle readback serializes wide-gamut inputs in formats
+        // the Node-side parser cannot handle.
+        const canvas = document.createElement("canvas");
+        canvas.width = 1;
+        canvas.height = 1;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        if (!context) return null;
+        // Validity probe: an invalid color leaves fillStyle unchanged twice.
+        context.fillStyle = "#010203";
+        context.fillStyle = value;
+        const first = context.fillStyle;
+        context.fillStyle = "#040506";
+        context.fillStyle = value;
+        const second = context.fillStyle;
+        if (first === "#010203" && second === "#040506") return null;
+        context.clearRect(0, 0, 1, 1);
+        context.fillStyle = value;
+        context.fillRect(0, 0, 1, 1);
+        const d = context.getImageData(0, 0, 1, 1).data;
+        const a = d[3] / 255;
+        if (a === 0) return "rgba(0, 0, 0, 0)";
+        // getImageData is alpha-premultiplied on write+read; un-premultiply.
+        const r = Math.min(255, Math.round(d[0] / a));
+        const g = Math.min(255, Math.round(d[1] / a));
+        const b = Math.min(255, Math.round(d[2] / a));
+        return a >= 1
+          ? `rgb(${r}, ${g}, ${b})`
+          : `rgba(${r}, ${g}, ${b}, ${Math.round(a * 1000) / 1000})`;
+      }
+
+      function effectiveBgLayers(el: Element): {
+        layers: BackgroundLayer[];
+        reason?: string;
+      } {
+        const stack: BackgroundLayer[] = [];
         let node: Element | null = el;
+        let hardReason: string | undefined;
+        let positionedBeforeOpaque = false;
+        let foundOpaque = false;
         while (node) {
           const style = window.getComputedStyle(node);
-          const bg = style.backgroundColor;
+          if (parseFloat(style.opacity) < 1 && hardReason === undefined) hardReason = "ancestor-opacity";
+          if (!foundOpaque && (style.position === "fixed" || style.position === "absolute" || style.position === "sticky")) {
+            positionedBeforeOpaque = true;
+          }
+          if (style.display === "contents") {
+            if (hardReason === undefined) hardReason = "display-contents";
+            node = node.parentElement;
+            continue;
+          }
+          if (foundOpaque) {
+            node = node.parentElement;
+            continue;
+          }
+          const bg = normalizeCssColor(style.backgroundColor) || style.backgroundColor;
+          const image = style.backgroundImage && style.backgroundImage !== "none"
+            ? style.backgroundImage
+            : null;
+          let color: string | null = null;
+          let opaqueColor = false;
           if (bg && bg !== "transparent" && bg !== "rgba(0, 0, 0, 0)") {
             // Check alpha: rgba(..., alpha) or rgb(...) which is fully opaque
             const rgbaMatch = bg.match(/rgba\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*([\d.]+)\s*\)/);
             if (rgbaMatch) {
               const alpha = parseFloat(rgbaMatch[1]);
               if (alpha > 0) {
-                stack.push(bg);
-                if (alpha >= 1) {
-                  break; // stop at the first fully-opaque background
-                }
+                color = bg;
+                opaqueColor = alpha >= 1;
               }
               // alpha === 0: skip (fully transparent)
             } else {
               // rgb(...) form — fully opaque
-              stack.push(bg);
-              break; // stop at the first fully-opaque background
+              color = bg;
+              opaqueColor = true;
             }
+          }
+          if (color || image) stack.push({ color, image });
+          if (opaqueColor) {
+            foundOpaque = true;
           }
           node = node.parentElement;
         }
-        return stack;
+        const reason = hardReason ||
+          (positionedBeforeOpaque && !foundOpaque ? "positioned-transparent-chain" : undefined);
+        return reason ? { layers: stack, reason } : { layers: stack };
       }
 
       /**
@@ -419,17 +780,23 @@ export async function auditContrastUrl(
         if (!isVisible(el)) continue;
 
         const style = window.getComputedStyle(el);
-        const color = style.color || "rgb(0,0,0)";
-        const bgColors = effectiveBgColors(el);
-        // Back-compat: bgColor is the first (nearest) entry, or white if empty
-        const bgColor = bgColors.length > 0 ? bgColors[0] : "rgb(255, 255, 255)";
+        const color = normalizeCssColor(style.color || "") || style.color || "unparsed-color";
+        const backgroundWalk = effectiveBgLayers(el);
+        const bgLayers = backgroundWalk.layers;
+        const bgColors = bgLayers.flatMap((layer) => layer.color ? [layer.color] : []);
+        // Back-compat only: scoring uses bgLayers. Transparent here lets the
+        // Node-side resolver reach the genuine CSS canvas default when empty.
+        const bgColor = bgColors.length > 0 ? bgColors[0] : "transparent";
         const fontPx = parseFloat(style.fontSize) || 16;
         const fw = style.fontWeight;
         const bold = parseInt(fw) >= 600 || fw === "bold";
         const text = (el.textContent || "").trim().slice(0, 60);
         const selector = stableSelector(el);
 
-        results.push({ selector, color, bgColor, bgColors, fontPx, bold, text });
+        results.push({
+          selector, color, bgColor, bgColors, bgLayers, fontPx, bold, text,
+          ...(backgroundWalk.reason ? { bgIndeterminateReason: backgroundWalk.reason } : {}),
+        });
       }
 
       return results;
@@ -441,21 +808,9 @@ export async function auditContrastUrl(
       );
     }
 
-    // Back-compat contract: each element's single `bgColor` must be the
-    // composited OPAQUE result of its ancestor stack (not the raw nearest,
-    // possibly-translucent layer) — so any consumer reading `bgColor` alone
-    // gets the true effective background instead of re-running the over-white
-    // path. (compositeBackground isn't reachable inside the page.evaluate
-    // browser context, so we resolve it here on the Node side.)
-    const normalized = raw.map((el) => {
-      if (el.bgColors && el.bgColors.length > 0) {
-        const [r, g, b] = compositeBackground(el.bgColors);
-        return { ...el, bgColor: `rgb(${r}, ${g}, ${b})` };
-      }
-      return el;
-    });
-    const result = auditContrastSnapshot(normalized);
+    const result = auditContrastSnapshot(raw);
     result.url = url;
+    result.mode_note = "URL mode composites parseable CSS backgrounds through the DOM ancestor chain; cross-stacking-context siblings are reported indeterminate rather than pixel-sampled.";
     result.warnings.push(...warnings);
     return result;
   } finally {
@@ -486,6 +841,18 @@ export type SuggestContrastFix = {
   reachable: boolean;
   recommendation: string;
 };
+
+/** Keep only determinate failures when routing audit rows into remediation. */
+export function filterSuggestibleContrastPairs<T extends {
+  status?: "pass" | "fail" | "indeterminate";
+  ratio?: number | null;
+}>(rows: T[]): T[] {
+  return rows.filter((row) =>
+    row.status !== "indeterminate" &&
+    row.status !== "pass" &&
+    row.ratio !== null
+  );
+}
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -561,6 +928,8 @@ export function suggestContrastFix(
   opts?: { targetRatio?: number; level?: "AA" | "AAA"; fontPx?: number; bold?: boolean }
 ): SuggestContrastFix {
   const options = opts || {};
+  // A standalone translucent background pair has no supplied ancestor stack,
+  // so CSS's initial white canvas is the only defined backdrop here.
   const bgOpaque = toOpaque(bg, [255, 255, 255]);
   const fgOpaque = toOpaque(fg, bgOpaque);
 

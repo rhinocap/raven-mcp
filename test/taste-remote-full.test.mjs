@@ -3,7 +3,7 @@
  *
  * The FULL authed taste subset over a per-user Redis store (fake client):
  *   - gating: remote+store = 56 tools (45 + all 10 + delete); remote bare = golden 45;
- *     stdio = 70
+ *     stdio = 100
  *   - the whole loop via the registered tool handlers on a remote+store
  *     server: create → interview → bind → record_decision → list_decisions →
  *     audit_taste (binding echoed in design_notes) → label_finding →
@@ -20,8 +20,14 @@ import { RedisTasteStore } from '../dist/taste-store-redis.js';
 import { buildServer } from '../dist/index.js';
 
 const GOLDEN_45_HASH = 'f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6';
-const ANONYMOUS_INSTRUCTIONS_HASH = 'f35aac77ff8b46a1223d4cf8114888011b37bced77d35a0d02b17000f9ce8b18';
-const ANONYMOUS_INSTRUCTIONS_AND_TOOL_DESCRIPTIONS_HASH = '753b41b2072ce50a3a676c9343fb2ed55033ede636b8f50ec78381b86ca36d23';
+// Rebaselined 2026-07-26 when main merged into this branch: the anonymous
+// instructions/description TEXT evolved across 364 main commits. These two pins
+// guard against authed tuning leaking into an anon build, not against the text
+// changing. Re-verified at the merge: anon never contains the authed block, and
+// an anon build made AFTER an authed one is byte-identical to an anon-first
+// build. GOLDEN_45_HASH — the frozen wire contract — is unchanged.
+const ANONYMOUS_INSTRUCTIONS_HASH = '215a17260e7855eac34cffc68a195cc4537309114fbda9ee51f604bc9a0bc903';
+const ANONYMOUS_INSTRUCTIONS_AND_TOOL_DESCRIPTIONS_HASH = 'ebceedcfffb7eed83e94a699e8a009723a732e8e364e0352e41e6d1c0822effd';
 const AUTHED_STARTUP_INSTRUCTIONS = "AUTHENTICATED STARTUP: this remote endpoint is connected to a per-user taste store. At project kickoff or the first real design/copy/UI work for a project, call get_taste_interview for the connected user's taste profile and project name before choosing direction. Ask the returned questions, then persist the user's answers with bind_taste_surface before generating design work. If the profile name is not known yet, call list_taste_profiles first.";
 const AUTHED_INTERVIEW_DESCRIPTION = "AUTHENTICATED STARTUP: on the remote authed endpoint, use this as the first taste step for the connected user's per-user store at project kickoff; if you do not know the profile name, call list_taste_profiles first, then call get_taste_interview with that profile and project name before design/copy/UI decisions.";
 const ALL_TASTE = [
@@ -72,7 +78,7 @@ function anonymousMetadataPayload(server, names) {
   });
 }
 
-test('gating: remote+store = 56 (45 + all 10 taste + delete_taste_data); bare remote = golden 45; stdio = 70', () => {
+test('gating: remote+store = 56 (45 + all 10 taste + delete_taste_data); bare remote = golden 45; stdio = 100', () => {
   const bare = buildServer({ remote: true });
   const bareNames = Object.keys(bare._registeredTools).sort();
   assert.equal(bareNames.length, 45);
@@ -84,7 +90,7 @@ test('gating: remote+store = 56 (45 + all 10 taste + delete_taste_data); bare re
   const extras = authedNames.filter((n) => !bareNames.includes(n)).sort();
   assert.deepEqual(extras, ALL_TASTE.concat('delete_taste_data').sort());
 
-  assert.equal(Object.keys(buildServer({})._registeredTools).length, 70, 'stdio unchanged');
+  assert.equal(Object.keys(buildServer({})._registeredTools).length, 100, 'stdio includes audit, template/layer, review/polish, and 13 local Decision Graph tools');
 });
 
 test('authed startup tuning appears only on store-backed remote metadata', () => {

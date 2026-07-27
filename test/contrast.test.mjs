@@ -35,7 +35,10 @@ let auditContrastSnapshot;
 let auditContrastUrl;
 let CaptureUnavailableError;
 let compositeBackground;
+let parseGradientStops;
 let suggestContrastFix;
+let collapseShortTextContrastFailures;
+let filterSuggestibleContrastPairs;
 
 try {
   const mod = await import(distContrast);
@@ -45,9 +48,12 @@ try {
   auditContrastSnapshot = mod.auditContrastSnapshot;
   auditContrastUrl = mod.auditContrastUrl;
   compositeBackground = mod.compositeBackground;
+  parseGradientStops = mod.parseGradientStops;
   // CaptureUnavailableError may be re-exported from contrast.ts or the error class itself
   CaptureUnavailableError = mod.CaptureUnavailableError;
   suggestContrastFix = mod.suggestContrastFix;
+  collapseShortTextContrastFailures = mod.collapseShortTextContrastFailures;
+  filterSuggestibleContrastPairs = mod.filterSuggestibleContrastPairs;
 } catch (err) {
   const msg = `dist/contrast.js not found — run \`npm run build\` first. (${err.message})`;
   test('contrast module available', (t) => { t.skip(msg); });
@@ -144,6 +150,43 @@ test('parseColor handles "transparent"', () => {
   assert.strictEqual(a, 0);
 });
 
+test('parseGradientStops parses simple linear gradients with angle and positions', () => {
+  assert.deepEqual(
+    parseGradientStops('linear-gradient(135deg, #111 0%, rgb(34, 34, 34) 50%, rgba(255, 255, 255, 0.5) 100%)'),
+    [
+      [17, 17, 17, 1],
+      [34, 34, 34, 1],
+      [255, 255, 255, 0.5],
+    ]
+  );
+});
+
+test('parseGradientStops parses a simple linear gradient without an angle', () => {
+  assert.deepEqual(
+    parseGradientStops('linear-gradient(rgb(17, 17, 17), #222 100%)'),
+    [
+      [17, 17, 17, 1],
+      [34, 34, 34, 1],
+    ]
+  );
+});
+
+test('parseGradientStops parses simple radial gradients and named colors', () => {
+  assert.deepEqual(
+    parseGradientStops('radial-gradient(circle at center, black, white)'),
+    [
+      [0, 0, 0, 1],
+      [255, 255, 255, 1],
+    ]
+  );
+});
+
+test('parseGradientStops rejects photos, conic gradients, and complex color stops', () => {
+  assert.strictEqual(parseGradientStops('url("hero.jpg")'), null);
+  assert.strictEqual(parseGradientStops('conic-gradient(#111, #222)'), null);
+  assert.strictEqual(parseGradientStops('linear-gradient(var(--start), #222)'), null);
+});
+
 test('relativeLuminance of white is 1', () => {
   const lum = relativeLuminance([255, 255, 255]);
   assert.ok(Math.abs(lum - 1) < 0.001, `expected ~1, got ${lum}`);
@@ -178,6 +221,7 @@ test('auditContrastSnapshot: #aaa on #fff fails AA', () => {
   assert.strictEqual(row.aa, false, `#aaa on #fff should fail AA (ratio was ${row.ratio})`);
   assert.ok(row.ratio < 4.5, `ratio should be below 4.5, got ${row.ratio}`);
   assert.ok(row.delta_to_aa > 0, 'delta_to_aa should be positive for a failing element');
+  assert.strictEqual(row.background, '#ffffff', 'opaque bgColor-only snapshots preserve the existing background field');
 });
 
 test('auditContrastSnapshot: large text (24px) has lower AA threshold (3:1)', () => {
@@ -214,14 +258,16 @@ test('auditContrastSnapshot: result shape is complete', () => {
   const result = auditContrastSnapshot([
     { selector: 'x', color: '#aaa', bgColor: '#fff', fontPx: 16 },
   ]);
-  const requiredKeys = ['total_text_elements', 'rows', 'aa_failures', 'aa_fail_count', 'warnings'];
+  const requiredKeys = ['total_text_elements', 'rows', 'aa_failures', 'aa_fail_count', 'indeterminate_bg_rows', 'indeterminate_bg_count', 'indeterminate_bg_note', 'mode_note', 'warnings'];
   for (const key of requiredKeys) {
     assert.ok(key in result, `ContrastResult missing key: ${key}`);
   }
   assert.ok(Array.isArray(result.rows), 'rows is an array');
   assert.ok(Array.isArray(result.aa_failures), 'aa_failures is an array');
+  assert.ok(Array.isArray(result.indeterminate_bg_rows), 'indeterminate_bg_rows is an array');
   assert.ok(Array.isArray(result.warnings), 'warnings is an array');
   assert.strictEqual(result.total_text_elements, 1, 'total_text_elements should be 1');
+  assert.match(result.mode_note, /snapshot.*over-white.*URL mode/i);
 });
 
 // ── compositeBackground — pure (A: cases 1-5) ────────────────────────────────
@@ -378,6 +424,221 @@ test('auditContrastSnapshot: back-compat — bgColor-only with dark bg + light t
   assert.ok(row.ratio >= 4.5, `ratio should be >= 4.5; got ${row.ratio}`);
 });
 
+test('auditContrastSnapshot: dark solid background composites rgba white foreground over the real backdrop', () => {
+  const result = auditContrastSnapshot([
+    {
+      selector: '.alpha-text',
+      color: 'rgba(255,255,255,0.7)',
+      bgColor: '#111',
+      bgLayers: [{ color: '#111', image: null }],
+      fontPx: 16,
+    },
+  ]);
+  const row = result.rows[0];
+  assert.strictEqual(row.aa, true, `rgba white on #111 should pass; ratio=${row.ratio}`);
+  assert.strictEqual(row.effective_bg, 'rgb(17, 17, 17)');
+  assert.strictEqual(row.bg_indeterminate, false);
+});
+
+test('auditContrastSnapshot: nested alpha layers composite over the dark base in paint order', () => {
+  const result = auditContrastSnapshot([
+    {
+      selector: '.nested-alpha',
+      color: 'rgba(255,255,255,0.8)',
+      bgColor: '#000',
+      bgLayers: [
+        { color: 'rgba(255,255,255,0.1)', image: null },
+        { color: '#000', image: null },
+      ],
+      fontPx: 16,
+    },
+  ]);
+  const row = result.rows[0];
+  const expectedRatio = Math.round(contrastRatio([209, 209, 209], [26, 26, 26]) * 100) / 100;
+  assert.strictEqual(row.effective_bg, 'rgb(26, 26, 26)');
+  assert.strictEqual(row.ratio, expectedRatio);
+  assert.strictEqual(row.aa, true);
+});
+
+test('auditContrastSnapshot: true light-on-light and dark-on-dark failures remain failures', () => {
+  const result = auditContrastSnapshot([
+    { selector: '.light-fail', color: '#aaa', bgColor: '#fff', fontPx: 16 },
+    {
+      selector: '.dark-fail',
+      color: '#333',
+      bgColor: '#111',
+      bgLayers: [{ color: null, image: 'linear-gradient(#111, #222)' }],
+      fontPx: 16,
+    },
+  ]);
+  assert.deepEqual(result.aa_failures.map((row) => row.selector).sort(), ['.dark-fail', '.light-fail']);
+  assert.strictEqual(result.aa_fail_count, 2);
+});
+
+test('auditContrastSnapshot: photo backdrop is needs-review, never an AA failure', () => {
+  const result = auditContrastSnapshot([
+    {
+      selector: '.photo-copy',
+      color: '#fff',
+      bgColor: 'transparent',
+      bgLayers: [{ color: null, image: 'url("hero.jpg")' }],
+      fontPx: 16,
+    },
+  ]);
+  const row = result.rows[0];
+  assert.strictEqual(row.bg_indeterminate, true);
+  assert.match(row.effective_bg, /indeterminate/i);
+  assert.strictEqual(row.ratio_min, undefined, 'an unparseable image must not expose a guessed ratio range');
+  assert.strictEqual(row.ratio_max, undefined, 'an unparseable image must not expose a guessed ratio range');
+  assert.strictEqual(result.aa_fail_count, 0);
+  assert.strictEqual(result.indeterminate_bg_count, 1);
+  assert.deepEqual(result.indeterminate_bg_rows, [row]);
+  assert.match(result.indeterminate_bg_note, /need review/i);
+});
+
+test('auditContrastSnapshot: mixed gradient is needs-review with a min/max range', () => {
+  const result = auditContrastSnapshot([
+    {
+      selector: '.mixed-gradient',
+      color: '#000',
+      bgColor: 'transparent',
+      bgLayers: [{ color: null, image: 'linear-gradient(#fff, #000)' }],
+      fontPx: 16,
+    },
+  ]);
+  const row = result.rows[0];
+  assert.strictEqual(row.bg_indeterminate, true);
+  assert.strictEqual(row.ratio_min, 1);
+  assert.strictEqual(row.ratio_max, 21);
+  assert.match(row.effective_bg, /rgb\(255, 255, 255\).*rgb\(0, 0, 0\)/);
+  assert.strictEqual(row.background, 'rgb(0, 0, 0)', 'background remains the single worst tested stop');
+  assert.strictEqual(result.aa_fail_count, 0);
+  assert.strictEqual(result.indeterminate_bg_count, 1);
+});
+
+test('auditContrastSnapshot: dark gradient with white and alpha-white text has zero AA failures', () => {
+  const gradient = [{ color: null, image: 'linear-gradient(#111, #222)' }];
+  const result = auditContrastSnapshot([
+    { selector: '.white', color: '#fff', bgColor: 'transparent', bgLayers: gradient, fontPx: 16 },
+    { selector: '.alpha-white', color: 'rgba(255,255,255,0.85)', bgColor: 'transparent', bgLayers: gradient, fontPx: 16 },
+  ]);
+  assert.strictEqual(result.aa_fail_count, 0);
+  assert.strictEqual(result.indeterminate_bg_count, 0);
+  assert.ok(result.rows.every((row) => row.aa));
+});
+
+test('auditContrastSnapshot: gradient stops include nearer semi-transparent color layers', () => {
+  const result = auditContrastSnapshot([
+    {
+      selector: '.gradient-overlay',
+      color: '#fff',
+      bgColor: 'transparent',
+      bgLayers: [
+        { color: 'rgba(255,255,255,0.1)', image: null },
+        { color: null, image: 'linear-gradient(#000, #222)' },
+      ],
+      fontPx: 16,
+    },
+  ]);
+  const row = result.rows[0];
+  assert.strictEqual(row.effective_bg, 'rgb(26, 26, 26) to rgb(56, 56, 56)');
+  assert.strictEqual(row.bg_indeterminate, false);
+  assert.strictEqual(row.aa, true);
+});
+
+test('auditContrastSnapshot: nearer opaque color makes an unparseable image below it irrelevant', () => {
+  const result = auditContrastSnapshot([
+    {
+      selector: '.opaque-cover',
+      color: '#fff',
+      bgColor: '#111',
+      bgLayers: [
+        { color: '#111', image: null },
+        { color: null, image: 'url("photo.jpg")' },
+      ],
+      fontPx: 16,
+    },
+  ]);
+  const row = result.rows[0];
+  assert.strictEqual(row.bg_indeterminate, false);
+  assert.strictEqual(row.effective_bg, 'rgb(17, 17, 17)');
+  assert.strictEqual(row.aa, true);
+});
+
+test('auditContrastSnapshot: gradient interiors prevent a false pass for gray-117 over black-to-white', () => {
+  const row = auditContrastSnapshot([{
+    selector: '.gradient-midpoint', color: 'rgb(117,117,117)', bgColor: 'transparent',
+    bgLayers: [{ color: null, image: 'linear-gradient(#000, #fff)' }], fontPx: 16,
+  }]).rows[0];
+  assert.notStrictEqual(row.status, 'pass');
+  assert.ok(row.ratio_min <= 1.1, `expected a near-1 sampled interior ratio, got ${row.ratio_min}`);
+});
+
+test('auditContrastSnapshot: unparsed foreground or background is indeterminate with null metrics', () => {
+  const result = auditContrastSnapshot([
+    { selector: '.bad-fg', color: 'not-a-color', bgColor: '#fff', fontPx: 16 },
+    { selector: '.bad-bg', color: '#000', bgColor: 'not-a-color', fontPx: 16 },
+  ]);
+  for (const row of result.rows) {
+    assert.strictEqual(row.status, 'indeterminate');
+    assert.strictEqual(row.bg_indeterminate, true);
+    assert.strictEqual(row.indeterminate_reason, 'unparsed-color');
+    assert.strictEqual(row.ratio, null);
+    assert.strictEqual(row.aa, null);
+    assert.strictEqual(row.aaa, null);
+    assert.strictEqual(row.delta_to_aa, null);
+  }
+});
+
+test('auditContrastSnapshot: two gradient layers composite in CSS paint order', () => {
+  const row = auditContrastSnapshot([{
+    selector: '.stacked-gradients', color: '#fff', bgColor: '#000',
+    bgLayers: [{
+      color: '#000',
+      image: 'linear-gradient(rgba(255,255,255,.25), rgba(255,255,255,.25)), linear-gradient(#000, #222)',
+    }],
+    fontPx: 16,
+  }]).rows[0];
+  assert.strictEqual(row.status, 'pass');
+  assert.strictEqual(row.bg_indeterminate, false);
+  assert.ok(row.ratio >= 4.5);
+});
+
+test('auditContrastSnapshot: top photo over gradient is indeterminate', () => {
+  const row = auditContrastSnapshot([{
+    selector: '.photo-over-gradient', color: '#fff', bgColor: '#000',
+    bgLayers: [{ color: '#000', image: 'url("photo.jpg"), linear-gradient(#000, #222)' }],
+    fontPx: 16,
+  }]).rows[0];
+  assert.strictEqual(row.status, 'indeterminate');
+  assert.strictEqual(row.indeterminate_reason, 'unparsed-background-image');
+  assert.strictEqual(row.ratio, null);
+});
+
+test('auditContrastSnapshot: candidate explosion is bounded and indeterminate quickly', () => {
+  const image = Array.from({ length: 8 }, (_, i) =>
+    `linear-gradient(rgba(${i * 20},0,0,.5), rgba(0,${i * 20},0,.5))`
+  ).join(', ');
+  const started = performance.now();
+  const row = auditContrastSnapshot([{
+    selector: '.many-layers', color: '#fff', bgColor: '#000',
+    bgLayers: [{ color: '#000', image }], fontPx: 16,
+  }]).rows[0];
+  const elapsed = performance.now() - started;
+  assert.strictEqual(row.status, 'indeterminate');
+  assert.strictEqual(row.indeterminate_reason, 'candidate-cap');
+  assert.ok(elapsed < 50, `candidate cap should return in <50ms, took ${elapsed.toFixed(1)}ms`);
+});
+
+test('filterSuggestibleContrastPairs excludes indeterminate and null-ratio rows', () => {
+  const pairs = [
+    { selector: '.pass', status: 'pass', ratio: 7, foreground: '#000', background: '#fff' },
+    { selector: '.fail', status: 'fail', ratio: 2, foreground: '#aaa', background: '#fff' },
+    { selector: '.unknown', status: 'indeterminate', ratio: null, foreground: '#fff', background: 'indeterminate' },
+  ];
+  assert.deepEqual(filterSuggestibleContrastPairs(pairs).map((row) => row.selector), ['.fail']);
+});
+
 // ── Browser-dependent tests ──────────────────────────────────────────────────
 
 test('auditContrastUrl: #111 text passes AA, #aaa text fails AA', async (t) => {
@@ -411,7 +672,7 @@ test('auditContrastUrl: result shape from live page', async (t) => {
   await runOrSkip(t, async () => {
     const result = await auditContrastUrl(fixtureUrl('contrast.html'));
 
-    const requiredKeys = ['total_text_elements', 'rows', 'aa_failures', 'aa_fail_count', 'warnings'];
+    const requiredKeys = ['total_text_elements', 'rows', 'aa_failures', 'aa_fail_count', 'indeterminate_bg_rows', 'indeterminate_bg_count', 'indeterminate_bg_note', 'mode_note', 'warnings'];
     for (const key of requiredKeys) {
       assert.ok(key in result, `ContrastResult missing key: ${key}`);
     }
@@ -419,14 +680,46 @@ test('auditContrastUrl: result shape from live page', async (t) => {
 
     if (result.rows.length > 0) {
       const row = result.rows[0];
-      const rowKeys = ['selector', 'foreground', 'background', 'fontPx', 'bold', 'large', 'ratio', 'aa', 'aaa', 'required_aa', 'delta_to_aa'];
+      const rowKeys = ['selector', 'foreground', 'background', 'fontPx', 'bold', 'large', 'status', 'ratio', 'aa', 'aaa', 'required_aa', 'delta_to_aa', 'effective_bg', 'bg_indeterminate'];
       for (const key of rowKeys) {
         assert.ok(key in row, `ContrastRow missing key: ${key}`);
       }
-      assert.ok(typeof row.ratio === 'number', 'ratio is a number');
-      assert.ok(row.ratio >= 1, 'ratio must be >= 1');
-      assert.ok(row.ratio <= 21.1, 'ratio must be <= 21');
+      if (row.status === 'indeterminate') {
+        assert.strictEqual(row.ratio, null);
+      } else {
+        assert.ok(typeof row.ratio === 'number', 'determinate ratio is a number');
+        assert.ok(row.ratio >= 1, 'ratio must be >= 1');
+        assert.ok(row.ratio <= 21.1, 'ratio must be <= 21');
+      }
     }
+  });
+});
+
+test('auditContrastUrl: dark full-page gradient with white and alpha-white text has zero AA failures', async (t) => {
+  await runOrSkip(t, async () => {
+    const result = await auditContrastUrl(fixtureUrl('contrast-gradient.html'));
+    assert.ok(result.total_text_elements >= 2, 'fixture should expose both text rows');
+    assert.strictEqual(result.aa_fail_count, 0, JSON.stringify(result.aa_failures, null, 2));
+    assert.strictEqual(result.indeterminate_bg_count, 0);
+    assert.ok(result.rows.every((row) => row.effective_bg.includes('rgb(')));
+  });
+});
+
+test('auditContrastUrl: rendering-chain hazards and modern colors are surfaced honestly', async (t) => {
+  await runOrSkip(t, async () => {
+    const result = await auditContrastUrl(fixtureUrl('contrast-round2.html'));
+    const byText = new Map(result.rows.map((row) => [row.text, row]));
+    assert.strictEqual(byText.get('Opacity card').indeterminate_reason, 'ancestor-opacity');
+    assert.strictEqual(byText.get('Opacity outside opaque').indeterminate_reason, 'ancestor-opacity');
+    assert.strictEqual(byText.get('Contents card').indeterminate_reason, 'display-contents');
+    assert.strictEqual(byText.get('Fixed transparent').indeterminate_reason, 'positioned-transparent-chain');
+    for (const text of ['Opacity card', 'Opacity outside opaque', 'Contents card', 'Fixed transparent']) {
+      assert.strictEqual(byText.get(text).status, 'indeterminate');
+      assert.strictEqual(byText.get(text).ratio, null);
+    }
+    const modern = byText.get('Modern color');
+    assert.notStrictEqual(modern.status, 'indeterminate', JSON.stringify(modern));
+    assert.match(modern.foreground, /^(?:rgb|rgba|#)/i);
   });
 });
 
@@ -618,4 +911,97 @@ test('suggestContrastFix: purity — each call returns a fresh object', () => {
   if (a.fgFix !== null && b.fgFix !== null) {
     assert.ok(a.fgFix !== b.fgFix, 'Each call should return a distinct fgFix object reference');
   }
+});
+
+// ── collapseShortTextContrastFailures ─────────────────────────────────────────
+
+function row(overrides) {
+  return {
+    selector: 'div',
+    text: '',
+    foreground: 'rgb(170,170,170)',
+    background: 'rgb(255,255,255)',
+    fontPx: 16,
+    bold: false,
+    large: false,
+    ratio: 2.3,
+    aa: false,
+    aaa: false,
+    required_aa: 4.5,
+    delta_to_aa: 2.2,
+    ...overrides,
+  };
+}
+
+test('collapseShortTextContrastFailures: 1/2-char rows sharing context collapse into one group', () => {
+  const rows = [
+    row({ selector: '.split-a', text: 'H' }),
+    row({ selector: '.split-b', text: 'i' }),
+    row({ selector: '.split-c', text: '!' }),
+  ];
+  const groups = collapseShortTextContrastFailures(rows);
+  assert.strictEqual(groups.length, 1, 'all three short fragments collapse into one group');
+  assert.strictEqual(groups[0].isShortTextGroup, true, 'group is flagged as a short-text group');
+  assert.strictEqual(groups[0].rows.length, 3, 'group retains all 3 rows');
+});
+
+test('collapseShortTextContrastFailures: 0-length text counts as short (icon glyphs)', () => {
+  const rows = [row({ selector: '.icon-a', text: '' }), row({ selector: '.icon-b', text: '   ' })];
+  const groups = collapseShortTextContrastFailures(rows);
+  assert.strictEqual(groups.length, 1);
+  assert.strictEqual(groups[0].isShortTextGroup, true);
+  assert.strictEqual(groups[0].rows.length, 2);
+});
+
+test('collapseShortTextContrastFailures: 3+ char text is never grouped, stays a single-row group', () => {
+  const rows = [
+    row({ selector: '.para-a', text: 'Low contrast paragraph text' }),
+    row({ selector: '.para-b', text: 'Another low contrast paragraph' }),
+  ];
+  const groups = collapseShortTextContrastFailures(rows);
+  assert.strictEqual(groups.length, 2, 'each long-text failure stays its own group');
+  for (const g of groups) {
+    assert.strictEqual(g.isShortTextGroup, false);
+    assert.strictEqual(g.rows.length, 1);
+  }
+});
+
+test('collapseShortTextContrastFailures: short-text rows only collapse when context (fg/bg/required_aa) matches', () => {
+  const rows = [
+    row({ selector: '.a', text: 'a', foreground: 'rgb(1,1,1)' }),
+    row({ selector: '.b', text: 'b', foreground: 'rgb(2,2,2)' }),
+    row({ selector: '.c', text: 'c', required_aa: 3 }),
+  ];
+  const groups = collapseShortTextContrastFailures(rows);
+  assert.strictEqual(groups.length, 3, 'different (fg/bg/required_aa) contexts do not collapse together');
+  for (const g of groups) assert.strictEqual(g.isShortTextGroup, true);
+});
+
+test('collapseShortTextContrastFailures: a lone short-text failure is still a short-text group (size 1)', () => {
+  const rows = [row({ selector: '.lone', text: 'x' })];
+  const groups = collapseShortTextContrastFailures(rows);
+  assert.strictEqual(groups.length, 1);
+  assert.strictEqual(groups[0].isShortTextGroup, true, 'a single short fragment is still marked as a short-text group');
+  assert.strictEqual(groups[0].rows.length, 1);
+});
+
+test('collapseShortTextContrastFailures: mixed short + long rows partition correctly', () => {
+  const rows = [
+    row({ selector: '.long', text: 'A full sentence of low-contrast copy' }),
+    row({ selector: '.g1', text: 'A' }),
+    row({ selector: '.g2', text: 'B' }),
+  ];
+  const groups = collapseShortTextContrastFailures(rows);
+  assert.strictEqual(groups.length, 2, 'one long-text group + one collapsed short-text group');
+  const shortGroup = groups.find((g) => g.isShortTextGroup);
+  const longGroup = groups.find((g) => !g.isShortTextGroup);
+  assert.ok(shortGroup, 'short-text group exists');
+  assert.ok(longGroup, 'long-text group exists');
+  assert.strictEqual(shortGroup.rows.length, 2, 'short-text group has both single-letter rows');
+  assert.strictEqual(longGroup.rows.length, 1);
+});
+
+test('collapseShortTextContrastFailures: empty input returns empty array', () => {
+  const groups = collapseShortTextContrastFailures([]);
+  assert.deepEqual(groups, []);
 });

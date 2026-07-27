@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Delayed Entrance Animation Fixture</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    #hero { opacity: 0; transition: opacity 300ms linear; }
+    #hero.entered { opacity: 1; }
+  </style>
+</head>
+<body>
+  <main id="hero"><h1>Delayed entrance</h1></main>
+  <script>
+    window.addEventListener('load', function () {
+      var hero = document.getElementById('hero');
+      setTimeout(function () { hero.classList.add('entered'); }, 150);
+      hero.addEventListener('transitionend', function (event) {
+        if (event.propertyName === 'opacity') hero.classList.add('transition-done');
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+.cache/
+graphify-out/
+*.xcuserstate
+xcuserdata/
+DerivedData/

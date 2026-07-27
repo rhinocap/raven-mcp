@@ -17,7 +17,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
 // ── Resolve module paths ──────────────────────────────────────────────────────
@@ -620,6 +620,24 @@ test('AC8: scorePage handles minimal valid HTML without throwing', () => {
   assert.doesNotThrow(() => scorePage(minHtml));
 });
 
+test('scorePage: contrast status counts determinate failures and keeps indeterminate rows out of metrics', () => {
+  const result = scorePage('<main><p>Text</p></main>', {
+    contrastRows: [
+      { status: 'pass', ratio: 7 },
+      { status: 'fail', ratio: 2 },
+      { status: 'indeterminate', ratio: null },
+    ],
+  });
+  assert.deepEqual(result.contrast, {
+    pass_count: 1,
+    fail_count: 1,
+    indeterminate_count: 1,
+    note: '1 contrast row not assessed because its rendered backdrop is indeterminate.',
+  });
+  const a11y = result.categories.find((row) => row.category === 'a11y');
+  assert.ok(a11y.errors >= 1, 'the determinate contrast failure should affect accessibility');
+});
+
 test('AC8: scorePage handler output is JSON-serialisable (tool can return it as JSON text)', () => {
   const result = scorePage(CLEAN_HTML);
   let serialized;
@@ -629,7 +647,119 @@ test('AC8: scorePage handler output is JSON-serialisable (tool can return it as 
   const roundtripped = JSON.parse(serialized);
   assert.deepEqual(
     Object.keys(roundtripped).sort(),
-    ['categories', 'not_assessed', 'overall', 'weakest_category'].sort(),
+    ['categories', 'contrast', 'not_assessed', 'overall', 'weakest_category'].sort(),
     'round-tripped result must have the same top-level keys'
   );
 });
+
+// ── AC 9: score_page MCP tool schema accepts html and/or url (audit_page parity) ─
+
+const distIndex = path.resolve(__dirname, '../dist/index.js');
+
+async function withClient(server, fn) {
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: 'score-page-test', version: '1.0.0' }, { capabilities: {} });
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  try {
+    return await fn(client);
+  } finally {
+    await client.close();
+    await server.close();
+  }
+}
+
+let indexMod;
+try {
+  indexMod = await import(distIndex);
+} catch (err) {
+  test('dist/index.js must be built before running score_page MCP tests', () => {
+    assert.fail(`dist/index.js not found — run \`npm run build\` first. (${err.message})`);
+  });
+  indexMod = null;
+}
+
+if (indexMod) {
+  test('AC9: score_page tool accepts html-only (no url) and returns a score result', async () => {
+    await withClient(indexMod.buildServer({}), async (client) => {
+      const res = await client.callTool({ name: 'score_page', arguments: { html: CLEAN_HTML } });
+      assert.equal(res.isError, undefined, `expected success, got: ${res.content && res.content[0] && res.content[0].text}`);
+      const parsed = JSON.parse(res.content[0].text);
+      assert.ok('overall' in parsed, 'result must have overall');
+      assert.ok('categories' in parsed, 'result must have categories');
+    });
+  });
+
+  test('AC9: score_page tool schema allows a url argument without a schema-validation error', async (t) => {
+    await withClient(indexMod.buildServer({}), async (client) => {
+      const fixtureUrl = pathToFileURL(path.join(__dirname, 'fixtures', 'permanently-hidden.html')).href;
+      const preflight = await client.callTool({ name: 'audit_page', arguments: { url: fixtureUrl } });
+      if (!preflight.isError) {
+        const preflightParsed = JSON.parse(preflight.content[0].text);
+        if (preflightParsed.capture && preflightParsed.capture.animationsSettled === false) {
+          t.skip('browser unavailable — static fallback cannot inspect computed visibility');
+          return;
+        }
+      }
+      const res = await client.callTool({ name: 'score_page', arguments: { url: fixtureUrl } });
+      // Either it succeeds (chromium available) or fails with the chromium-unavailable
+      // message — both prove the schema accepts `url`. A zod schema-validation error
+      // (unrecognized key) would throw before the handler runs, which this disproves.
+      if (res.isError) {
+        assert.match(
+          res.content[0].text,
+          /Playwright chromium not available/,
+          `expected chromium-unavailable message, got: ${res.content[0].text}`
+        );
+      } else {
+        const parsed = JSON.parse(res.content[0].text);
+        assert.ok('overall' in parsed, 'result must have overall');
+        assert.ok(Array.isArray(parsed.capture_warnings), 'url-mode score_page exposes capture_warnings');
+        assert.ok(
+          parsed.capture_warnings.some((warning) => warning.startsWith('reveal-gate-false-blank:')),
+          'url-mode score_page preserves false-blank warning contents'
+        );
+      }
+    });
+  });
+
+  test('audit_page url mode exposes capture_warnings from capturePage', async (t) => {
+    await withClient(indexMod.buildServer({}), async (client) => {
+      const fixtureUrl = pathToFileURL(path.join(__dirname, 'fixtures', 'permanently-hidden.html')).href;
+      const res = await client.callTool({ name: 'audit_page', arguments: { url: fixtureUrl } });
+      if (res.isError) {
+        assert.match(res.content[0].text, /Playwright chromium not available/);
+        return;
+      }
+      const parsed = JSON.parse(res.content[0].text);
+      if (parsed.capture && parsed.capture.animationsSettled === false) {
+        t.skip('browser unavailable — static fallback cannot inspect computed visibility');
+        return;
+      }
+      assert.ok(Array.isArray(parsed.capture_warnings), 'audit_page exposes capture_warnings');
+      assert.ok(Array.isArray(parsed.capture.capture_warnings), 'audit_page capture metadata exposes capture_warnings');
+      assert.ok(
+        parsed.capture_warnings.some((warning) => warning.startsWith('reveal-gate-false-blank:')),
+        'audit_page preserves false-blank warning contents'
+      );
+      assert.deepStrictEqual(parsed.capture.capture_warnings, parsed.capture_warnings);
+    });
+  });
+
+  test('AC9: score_page tool returns a clear error when neither html nor url is provided', async () => {
+    await withClient(indexMod.buildServer({}), async (client) => {
+      const res = await client.callTool({ name: 'score_page', arguments: {} });
+      assert.equal(res.content[0].text, 'Provide either html or url');
+    });
+  });
+
+  test('AC9: score_page is arg-guarded (not url-capturable) on the remote anonymous endpoint', async () => {
+    await withClient(indexMod.buildServer({ remote: true }), async (client) => {
+      const res = await client.callTool({ name: 'score_page', arguments: { url: 'https://example.com' } });
+      assert.equal(res.isError, true);
+      assert.match(res.content[0].text, /disabled on the hosted \(remote\) endpoint/);
+    });
+  });
+}

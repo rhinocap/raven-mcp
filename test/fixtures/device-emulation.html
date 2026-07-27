@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Device emulation fixture</title>
+  </head>
+  <body>
+    <main>Device emulation probe</main>
+    <script>
+      document.body.dataset.pointerCoarse = String(matchMedia("(pointer: coarse)").matches);
+      document.body.dataset.touch = String("ontouchstart" in window || navigator.maxTouchPoints > 0);
+      document.body.dataset.maxTouchPoints = String(navigator.maxTouchPoints);
+      document.body.dataset.mobileUa = String(/iPhone/.test(navigator.userAgent));
+    </script>
+  </body>
+</html>
