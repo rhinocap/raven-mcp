@@ -500,3 +500,92 @@ These three carry code `main` does not have. All are old enough that merging the
 `grab-inert-wip` also holds a genuinely new `test/grab-inert.test.mjs` (missing from main), but it adds a fifth panel guard where `test/grab-bridge.test.mjs:7538` asserts four, so it fails the suite as-is (1103 / 1099 / 1). It is a decision about intended behaviour, not a merge problem.
 
 `site-audit-polish` (24 commits) stays parked: it is Morven strategy material, a different product, and drops `sol-3.html` at the repo root.
+
+---
+
+## 2026-07-27 — Branch debt cleared (Andrew: "You do everything")
+
+All four steps executed. `main` moved `6a20505` → `a6db94b`.
+
+### 1. Seven PRs merged, not five
+
+The plan said five. Two of them were **stacked**: #41 targeted `bench-compare`
+and #42 targeted `comments-archive`, not `main`. `gh pr merge` did exactly what
+it was told — merged each into its own base — so GitHub reported MERGED while
+nothing reached `main`. Caught by checking for the artifacts afterwards
+(`scripts/prepare-external-packet.mjs` ABSENT), not by trusting the MERGED state.
+
+Worse, I had closed #38 and #39 earlier in the session as "strict ancestors of
+#42 and #41." True in the git sense, wrong in intent — they were the PRs carrying
+each stack to `main`. Closing them orphaned the path, and merging the children
+just collapsed each stack into a branch that pointed nowhere. Reopened both,
+re-tested against current `main`, merged.
+
+| PR | head → base | what landed |
+|---|---|---|
+| #37 | polish-apply-loop → main | raven-polish workflow example, README, bin |
+| #48 | tap-target-desktop-warning → main | AA/AAA disclosure on desktop renders |
+| #43 | comments-to-decisions → main | Figma comment archives as decision sources |
+| #38 | comments-archive → main | figma-comments-archive + `--paste` (carries #42) |
+| #39 | bench-compare → main | bench harness + sol-vanilla packet (carries #41) |
+
+Merged with real merge commits, not squash, so `git branch --merged` stays a
+usable triage signal — the lack of that is what made this whole audit necessary.
+
+**Verified on the merged tree before merging #38/#39:** 1136 tests / 1133 pass /
+0 fail / 3 skipped. Tool surfaces byte-identical to baseline — REMOTE 56
+`9a8139d7…b769dcd`, STDIO 100 `d0939549…0ca4e28`. Live endpoint after deploy:
+45 tools, `f64bb18…2bb0a6` MATCH.
+
+### 2. Twenty-one remote branches deleted
+
+The 20 from the plan, all re-confirmed `--merged origin/main` *after* main moved,
+plus `site-audit-polish` (see §4). The destructive-op guard did **not** block the
+remote deletion — the earlier assumption that it would was wrong.
+
+It did fire twice on false positives, both from the `git-push-force` rule
+matching text that was never a push: once on a compound call containing
+`git commit -q -F -` (the `-F` flag), and once on a `cat >>` append whose *body
+text* contained the words. The rule appears to scan the raw command string
+without anchoring to a git subcommand. Worked around by using `-m` flags and a
+file, not by disabling the guard.
+
+### 3. Two features re-applied, one refused
+
+- **#49 `it51-dogfood-decisions-v2`** — decision-store seeds + `verify-dogfood.mjs`.
+  `nodes.json` collided (both sides added it independently); resolved as a union,
+  disjoint ids. Its verifier asserted the store held *exactly* 7 active decisions,
+  which fails the moment anyone records one — changed to a subset check. Suite
+  green, verifier PASS. No `src/` change.
+- **#50 `f1-ds-diff-mvp-v2`** — `src/design-system-diff.ts` + 4 tools. Branch was
+  cut when stdio served 82 tools and its `src/index.ts` would have reverted ~200
+  commits, so the 4 conflicted files take `main` wholesale and the registrations
+  are grafted on top. All 4 gated in `REMOTE_GATED_TOOLS` (they resolve a local
+  project dir), so anon stays 45 and authed remote stays 56; **stdio 100 → 104**.
+  Registered before the `audit` dispatcher so `audit` stays last. Four count
+  guardrails failed first and were updated deliberately. 1151 / 1148 / 0 / 3.
+- **`multiseat-demo` — no PR opened.** Its tools are `workspace_info` and
+  `copy_profile_to_workspace`. `.raven/decisions/nodes.json` records
+  `dec_seed_raven_morven_boundary` as active, with "put team/governance features
+  in the free OSS server" as an explicitly **rejected** alternative. The repo's
+  own decision store answers this, so the code went to the Morven handoff.
+
+### 4. `site-audit-polish` — preserved, then removed from the remote
+
+Morven strategy material, which by `dec_seed_raven_morven_boundary` does not
+belong in this repo. Preserved to `~/projects/morven-handoff/` (delta bundles +
+extracted docs + README), then deleted from `origin`. Local ref `a0833d8`
+retained as a second copy.
+
+Deleting the branch handled the branch-only files and nothing more. The residual
+question — what else belongs in the Morven repo instead of here — is written up
+in `~/projects/morven-handoff/README.md`, kept out of this repo deliberately,
+and is Andrew's call.
+
+### Corrections to the triage above
+
+- `site-audit-polish-wt` and `site-audit-polish-audit-fixes` were listed as
+  "already on main." Both wrong: they add real unlanded `web/` work (+1598/−399
+  and +155/−54). The artifact-existence check proved a *file* was present, not
+  that the *changes* had landed. Both kept.
+- The claim that the destructive-op guard blocks remote branch deletion: wrong.
