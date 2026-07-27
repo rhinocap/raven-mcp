@@ -836,3 +836,24 @@ revert that one path out of `462e49c`.
 fired again writing this very entry. It is not theoretical and it is not rare —
 any log entry describing a removal trips it. Workaround: write the text to a
 file, then append the file.
+
+**Formatting audit of the 26 generated cards (2026-07-27).** Compared all 26
+against the 78 pre-existing ones by structure, not by eye: anchor/aria-label
+markup, heading text, `rd-params` shape, required/optional spans, escaping,
+enum rendering, trailing periods. One real break — the page has a convention
+for tools that take no arguments (`rd-param-none`, "No parameters", used by six
+existing cards) and my generator did not know about it, so `list_templates`
+ended after its description and read as truncated. Fixed in `f728e08`; all
+seven no-argument cards now match. `rd-param-none` has no CSS rule of its own
+at any ref — it inherits `.rd-param-heading` — so this is how the other six
+already rendered, not a new style.
+
+One false alarm worth recording: `decision_import.doc_globs` contains
+`Supports * and **.` — a glob literal, not stray markdown. It reproduces the
+shipped schema description verbatim. The card generator's `**`-stripping regex
+only fires on matched pairs, which is why it survived; a paired occurrence
+would have been silently corrupted.
+
+**Heads-up for whoever owns the in-flight work in this tree:** the built server
+now reports **105** tools, not 104. `web/lib/counts.ts` `TOOL_COUNT` and the
+four count guardrails will need bumping in the same change that adds it.
