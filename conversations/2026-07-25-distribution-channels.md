@@ -363,3 +363,140 @@ Git: `origin/main` at `ebb9759`, tag `v2.2.9` pushed, Vercel `site` deploy of `e
 
 1. Nothing blocking. Running Claude Code sessions need `/mcp` → reconnect `raven` to pick up the rebuilt `dist/` (new sessions get it automatically). Claude Desktop, only if used, needs `site/raven.mcpb` reinstalled as the extension — it never auto-updates.
 2. Still open from earlier: the three merged remote branches (`git push origin --delete merge-p4-into-main p4-merge-main p4-merge-main-2`), and `grab-inert-wip` is now parked with real WIP on it.
+
+---
+
+## 2026-07-27 — Branch inventory: what 26 unmerged branches actually contain
+
+With the release debt cleared, the remaining debt is 26 branches nobody can hold in their head. Full inventory below so the next session doesn't have to re-derive it. Conflict detection via `git merge-tree $(git merge-base origin/main $B) origin/main $B | grep -c '^<<<<<<<'`; unique-commit detection via `git cherry origin/main $B`.
+
+### Bookkeeping only — no code (5)
+
+| Branch | Commits | Contents |
+|---|---|---|
+| `log-goal` | 6 | `/revisit` retrospectives, 2026-07-20 → 07-26 |
+| `_p` | 1 | Session log: the OpenAI form blocked on policy checkboxes |
+| `ckpt-goal` | 1 | Checkpoint log |
+| `rel-229` | 1 | Release log |
+| `raven-feedback-site-polish` (local ref only) | 1 | A 2026-06-21 retrospective. The *remote* ref `origin/raven-feedback-site-polish` has **zero** unique commits vs main — the site polish it carried (`8997314` and follow-ups) merged long ago. The memory claiming it is "review-ready, don't redo" was describing state from 2026-06-21 and is now stale; corrected. Only the stale local ref survives. |
+
+### Real features, zero conflict markers each (12 + 2 subsets)
+
+| Branch | Commits | Contents |
+|---|---|---|
+| `polish-apply-loop` | 1 | `raven-polish` CLI — governed `polish_diff` apply loop + a GH Actions example |
+| `comments-paste-path` | 2 | `figma-comments-archive` + a zero-credential `--paste` path. Supersets `comments-archive` (1). |
+| `comments-to-decisions` | 1 | Figma comment archives as decision-graph sources; touches `src/decision-graph.ts` + `src/index.ts` |
+| `f1-ds-diff-mvp` | 4 | New `src/design-system-diff.ts` — DESIGN.md vs the Raven canonical baseline |
+| `external-packet` | 2 | Bench harness + an ungraded gpt-5.6-sol packet. Supersets `bench-compare` (1). |
+| `fail-severity-tier-v2` | 1 | `review_diff` severity policy reconciling `fail_on` with `fail_on_governed`. Supersedes `fail-severity-tier` (1). |
+| `multiseat-demo` | 2 | Flag-gated `RAVEN_MULTISEAT` + spec |
+| `it51-dogfood-decisions` | 1 | Seeds Raven's own decision store + `verify-dogfood.mjs` |
+| `tap-target-desktop-warning` | 1 | 31 lines — AA/AAA split disclosure on tap targets |
+| `grab-multi-select` | 1 | Ordered shift-multi-select in the grab overlay |
+| `grab-inert-wip` | 1 | Preserved off local `main` during the v2.2.9 realign. **Breaks `test/grab-bridge.test.mjs:7538`** — adds a fifth guard where the test asserts four. |
+| `site-audit-polish-wt` | 3 | The real site work: sol3 docs redesign `web/app/docs/page.tsx` ±1,840, plus 8 fixes from the 07-17 audit |
+| `feature/release-marketing-preview` | 16 | Refines `prepare-marketing-preview.mjs`; its base already landed on main. Supersets `marketing-preview/v2.2.1` (11). |
+
+### Misnamed
+
+- `site-audit-polish` (24) is **not** site work. It's Morven strategy: commercial-migration brief, competitor matrix, a 565-line team-requirements doc, loop record. It also drops `sol-3.html` at the repo root. Different product, different decision — do not merge it into Raven on the strength of its name.
+
+### The grab overlay pair
+
+- `f23-templates-layers` — 152 commits, merge-base `52e17fe` (2026-07-20). Reports ~491k insertions, but **315 tracked files are committed agent logs under `scratchpad/`** (`codex-impl-OUTPUT.md` alone is 92,457 lines). main tracks zero scratchpad files and `scratchpad/` is not gitignored on those branches. Real code: `src/grab-bridge.ts` (127-line diff), `src/index.ts` (621), `browser/raven-grab.js` + `web/public/raven-grab.js` (~9.3k, same bundle twice), `test/grab-bridge.test.mjs` (+10,358).
+- `wip/designer-journey-audit-fixes` — 69 commits, merge-base `f293573` (2026-07-10), 83 scratchpad files. **68 of its 69 commits are already in f23.** The one that isn't, `5220c6f`, holds genuinely unlanded work: `src/contrast.ts` (648-line diff vs main), `src/audit-url.ts` (134), `src/taste.ts` (309), `test/contrast.test.mjs`, `test/score-page.test.mjs`. Its `src/page-checks.ts` and `src/audit-container.ts` already landed.
+
+### Dead
+
+- `gh-pages` — 4 commits, 2026-04-13, orphan (no merge base with main).
+
+### Plan (approved 2026-07-27)
+
+1. Strip `scratchpad/` from `f23`, add it to `.gitignore`, review the ~800 lines of actual code.
+2. Cherry-pick `5220c6f` off `wip/`, then delete that branch.
+3. Twelve small features that each merge without conflict — queued as individual PRs with test results attached, so each is a yes/no rather than a reading assignment.
+4. Squash the five bookkeeping branches into one commit or bin them.
+5. Delete `gh-pages` and the four subset branches (`comments-archive`, `bench-compare`, `fail-severity-tier`, `marketing-preview/v2.2.1`).
+
+Assessment fanned out to 13 Codex legs, each in its own `git worktree`, each merging onto `origin/main` and running `RAVEN_NO_USAGE_LOG=1 npm test` (baseline 1101/1098/0/3). Nothing in the fan-out pushes or deletes.
+
+### Correction: the debt is mostly garbage, not review
+
+The "26 branches" framing above came from a partial listing and it undersold how much of this is dead weight. A full sweep of all 66 real branches (`git rev-list --count origin/main..$B`, local ref and remote ref separately) says:
+
+- **38 branches have ZERO commits `origin/main` lacks.** They are fully merged and need nothing but deletion: `audit-fidelity-p1s`, `capture-settle`, `contrast-compositing`, `explore/tools-redesign`, `feat/compact-response-mode`, `feat/contrast-remediation`, `feat/grab-destination-adapter`, `feat/nextjs-migration`, `fix/contrast-ancestor-composite`, `gt-refresh`, `it49-repo-decision-store`, `it52-decision-instrumentation`, `it53-consultation-proof`, `it54-consult-first-instruction`, `it57-author-attribution`, `it58-author-trust`, `it59-github-review-import`, `it61-figma-comments-import`, `it62-contrast-polish-closure`, `it63-decision-attributed-findings`, `it64-decision-governed-block`, `landing-coherence`, `ledger-unpin`, `log-autopublish`, `manifest-sync`, `marketing-preview/v2.2.2`, `no-autopublish`, `p4-merge-main`, `p4-remote-taste`, `p4.5-remote-taste`, `port-fidelity`, `rebind-guard`, `release-enablement`, `w2-benchmark`, `w2-design-review`, `w2-polish-diff`, `w3-decision-evidence`, `w3-decision-import`.
+- Only ~15 branches carry unique commits at all, and 5 of those are session logs.
+
+**Local vs remote refs disagree on three branches, and the difference matters** — a bare branch name resolves to the *local* ref, so an audit that reads only one of the two can be flatly wrong (that is exactly how the `raven-feedback-site-polish` entry above got written backwards). All three are strict fast-forwards; nothing has forked:
+
+| Branch | local-only | remote-only | Read |
+|---|---|---|---|
+| `f23-templates-layers` | 212 | 0 | Local is the real branch; `origin/f23-templates-layers` is 212 commits stale (shows only 17 unique vs main). |
+| `f1-ds-diff-mvp` | 1 | 0 | Local adds `a7bee6a` — design-system diff handler tests recovered from a parallel-instance auto-save sweep. Push before deleting. |
+| `p4-remote-taste` | 0 | 375 | Local ref is stale; both are fully merged. Dead either way. |
+
+Nine branches exist local-only and were never pushed — including `wip/designer-journey-audit-fixes` (69), `feature/release-marketing-preview` (16), `marketing-preview/v2.2.1` (11), `log-goal` (6), `site-audit-polish-wt` (3), `multiseat-demo` (2), `fail-severity-tier-v2` (1), `grab-inert-wip` (1), `rel-229`/`ckpt-goal`/`_p` (1 each). Deleting those loses the work outright; deleting the 38 merged ones loses nothing.
+
+### Verified triage — supersedes the plan above
+
+The five-step plan was built on two wrong readings, both now disproven with evidence. Recording the corrections first because they invert the two largest items.
+
+**The conflict counts above were wrong.** They came from the 3-arg `git merge-tree <base> <b1> <b2>` form, which does not surface conflicts the way the merge does. Re-measured with `git merge-tree --write-tree origin/main $B`: only 5 of 14 branches merge clean; 9 conflict.
+
+**`f23-templates-layers` is dead history, not an 800-line review.** Stripping `scratchpad/` works exactly as expected — 315 files drop out and the merge falls from 352 files/461,267 insertions to 37 files/2,656 — but the feature it carries already shipped on `main` by another route. Three independent confirmations:
+
+1. Every headline symbol is on `main`, with *more* references than f23 has: `get_grab_layers`, `move_grab_layer`, `list_templates`, `set_template_slot`, `get_page_template` all 3 hits on main vs 2 on f23; `fixedMove` 39/39; `templateSlot` 8/8.
+2. Every code file is larger on `main`: `src/index.ts` 7628 vs 7465, `browser/raven-grab.js` 11325 vs 10661, `test/grab-bridge.test.mjs` 11567 vs 11424. Merging f23 would remove 2,323 lines and add 538.
+3. Those 538 additions are stale reversions. They carry comments reading "99 local tools", "45 stateless remote-safe tools", "54 gated tools" — `main` is at **100** — in older `var`-style code.
+
+`main` gained 219 commits since the merge-base (`52e17fe`, 2026-07-20) while f23 gained 152, and both independently rewrote `raven-grab.js` (+10,640 on main, +10,018 on f23). This was parallel development that converged, not a pending merge.
+
+**The `5220c6f` cherry-pick is also already landed.** It applies to `main` with 5 conflicts, and the two hunks that *do* apply cleanly are duplicates: `collapseShortTextContrastFailures` (3 hits), `SHORT_TEXT_MAX_LEN` (2), `shortGroupIndex` (3) are all already in `origin/main:src/contrast.ts`, which is 1000 lines against wip's 680. Cherry-picking would define the function twice.
+
+#### What actually merges, with real test evidence
+
+Merged onto `main` (`b863da3`) in a scratch worktree, full `RAVEN_NO_USAGE_LOG=1 npm test`. Baseline is 1101 / 1098 pass / 0 fail / 3 skipped.
+
+| Branch | PR | Tests | Net merge effect | Frozen surface |
+|---|---|---|---|---|
+| `tap-target-desktop-warning` | **#48 (new)** | 1103 / 1100 / **0** | 2 files, +31 | `src/tap-targets.ts`; tool hashes unchanged |
+| `polish-apply-loop` | #37 | 1101 / 1098 / **0** | 3 files, +33/-1 | none |
+| `external-packet` | #41 | 1111 / 1108 / **0** | 38 files, +1215/-1 | none |
+| `comments-paste-path` | #42 | 1119 / 1116 / **0** | 3 files, +768 | none |
+| `comments-to-decisions` | #43 | 1106 / 1103 / **0** | 4 files, +208/-7 | `src/index.ts`, `src/decision-graph.ts`; tool hashes unchanged |
+
+Two needed repair to get there, both pushed:
+- **#43** failed on a stale assertion, not an implementation problem — `decision_import`'s prompt gained an `author` field on `main` after the branch was cut, and the exact-match test still expected the four-field shape. Fixed in `c21d377`.
+- **#42** conflicted only in `README.md`, where its `## Archive Figma comments` and main's `### review_diff severity policy` landed at the same offset. Purely additive; kept both, `###` first so it stays under its parent. Merge `e6ae7f1`.
+
+Frozen-surface check for the two that touch `src/`: built each merged tree and enumerated the registered tool sets. Both give **100 stdio / 56 registered-remote**, name-set hashes `d0939549…` and `9a8139d7…`, byte-identical to `main`. No tool added, removed, or renamed — the changes are behavioural inside existing tools.
+
+#### Already on main — delete, don't review
+
+| Branch | Evidence |
+|---|---|
+| `fail-severity-tier-v2` | Merge is a literal **no-op** — merged tree equals `origin/main`'s tree |
+| `fail-severity-tier` | `FAIL_ON_RULES` on main (4 hits); superseded by v2, which is itself absorbed |
+| `grab-multi-select` | `multiSelect` on main (19 hits) |
+| `site-audit-polish-wt` | `web/app/docs/page.tsx` on main |
+| `feature/release-marketing-preview` | `scripts/prepare-marketing-preview.mjs` on main; net src/test delta +15/-1070 |
+| `f23-templates-layers` | see above |
+| `wip/designer-journey-audit-fixes` | see above |
+| `gh-pages` | orphan, no merge base, 2026-04-13 |
+
+PRs #38 and #39 closed as strict ancestors of #42 and #41 (verified with `git merge-base --is-ancestor`). No work lost.
+
+#### Genuinely unlanded, and small
+
+These three carry code `main` does not have. All are old enough that merging the stale branch is the wrong move — the new file is small and the conflict is almost entirely tool registration in `src/index.ts`, so re-applying onto current `main` is cheaper and safer than reconciling 200+ commits of drift.
+
+| Branch | New artifact | Size | Conflicts |
+|---|---|---|---|
+| `f1-ds-diff-mvp` | `src/design-system-diff.ts` | 159 lines | `src/index.ts` + 3 test files |
+| `it51-dogfood-decisions` | `scripts/verify-dogfood.mjs` | 161 lines | `.raven/decisions/nodes.json` only |
+| `multiseat-demo` | `src/multiseat.ts` | 73 lines | `src/index.ts` only |
+
+`grab-inert-wip` also holds a genuinely new `test/grab-inert.test.mjs` (missing from main), but it adds a fifth panel guard where `test/grab-bridge.test.mjs:7538` asserts four, so it fails the suite as-is (1103 / 1099 / 1). It is a decision about intended behaviour, not a merge problem.
+
+`site-audit-polish` (24 commits) stays parked: it is Morven strategy material, a different product, and drops `sol-3.html` at the repo root.
