@@ -126,3 +126,46 @@ The code is fine. `toolAnnotations()` (`src/index.ts:2099`) is spliced into *eve
    Human-gated (this deploys the live endpoint). Until it lands the OpenAI form will not advance past the MCP step — `Missing annotations` is a hard error there, not advisory. After it lands: click **Scan Tools** on the form.
 
 **Open decision:** `audit_page` with no arguments returns `Provide either html or url` as a normal text result, not `isError: true`. Correct MCP behavior is the error flag, but fixing it touches every tool's validation path and changes output for existing consumers. Deferred, not forgotten.
+
+---
+
+# Session — 2026-07-26 (cont.)
+
+## This session
+
+### OpenAI form: MCP → Skills → Prompts → Testing → Global, all filled
+
+**What.** After the promote landed (endpoint at v2.2.8, 45 tools, all three annotation hints boolean), `Scan Tools` cleared its errors and replaced them with a **Tool justification** section — 135 free-text fields, 3 per tool × 45 tools. Filled all 135, then completed every remaining step.
+
+- **MCP.** Justifications authored per tool, per hint. Read Only cites what the tool returns and that no write path exists; Destructive cites the absence of a delete/overwrite/mutate path; Open World distinguishes the 8 tools that render a caller-supplied URL in headless Chromium from the 37 that only touch request arguments and bundled data. **The fields have `maxLength: 200`** — the first pass set 263–343-char values programmatically (a native setter bypasses the attribute) and would have failed on submit. Rewrote to fit; max is now 183.
+- **Skills.** Skipped — Raven ships no packaged skill for OpenAI, and a skill adds review surface for no gain.
+- **Prompts.** Three, framed for the bound customer (a builder whose coding velocity outran their design confidence): audit a landing page for contrast/tap-targets/typography; score a page and say what to fix first; principles + pre-publish checklist for a pricing page. ChatGPT prepends the plugin mention, so none of them name Raven.
+- **Testing.** Exactly 5 positive + 3 negative cases. **Every positive was run against the live endpoint first** so "Expected output" states what the server actually returns, with real numbers: `audit_contrast` (373 text elements on ravenmcp.ai), `audit_tap_targets` (37 measured, 37 passing), `get_principles` (28 for "pricing page"), `list_design_systems` + `get_design_system` (12 systems; Stripe `color.primary` `#635BFF`), `get_checklist` (landing-page). Negatives are design-adjacent-but-out-of-scope: generate a logo image, certify WCAG compliance, write React components.
+- **Global.** Defaults kept: English (US), allow all countries.
+- **Submit.** Release notes written. Stopped there.
+
+**Why.** OpenAI's blurb: "Give enough detail for us to confirm it doesn't misrepresent what the tool does." Generic boilerplate across 135 fields reads as unanswered; the per-tool subject phrase is what makes each one checkable.
+
+**Pushed.** Nothing — form state only, saved as an OpenAI draft.
+
+### Two facts the endpoint test surfaced
+
+- **`score_page`, `audit_page` and `audit_typography` have `url` capture disabled on the hosted endpoint** (`src/index.ts:1944–1946`) — they require `html` / `nodes` there. `audit_contrast`, `audit_tap_targets`, `audit_url`, `audit_responsive_visibility` and `audit_video_playback` do render remotely. Test cases were built only from tools that actually work over the remote transport; a reviewer who tried `score_page` with a URL would have hit an `isError` result.
+- **`audit_url` exceeds 2 minutes** on ravenmcp.ai even with one viewport, no screenshots and `compact: true`. Deliberately excluded from the test cases — the flagship tool is the wrong thing to hand a reviewer on a timeout.
+
+## Mistakes / lessons
+
+- **Set 135 form values without reading `maxLength` first.** The native-setter technique that defeats React's onChange also defeats the browser's length cap, so everything looked filled and the draft saved clean. Read the constraint attributes before bulk-filling, not after.
+- **Nearly wrote "Expected output" from the tool descriptions instead of from the server.** Running the five calls first is what caught the `score_page` remote disable and the `audit_url` timeout. Descriptions are what a tool claims; a call is what it does.
+
+## State at end
+
+**Status:** OpenAI plugin form complete through Global. Sitting on the Submit step with one blocker: **Policy compliance — 7 checkboxes and the 18+ radio are Andrew's to tick.** `Submit for Review` stays disabled until then, and the submit itself is Andrew's click.
+
+**Carried forward:**
+1. Tick the 7 policy-compliance boxes + the under-18 radio, then **Submit for Review**.
+2. **npm patch release** so the package's `tools/list` matches the endpoint — the explicit-hints change altered stdio output too. Andrew-only (passkey).
+3. Merge `p4-remote-taste` into `main` and unpin `mcp.ravenmcp.ai` from the branch, so the endpoint follows production. Closes the headline landmine in CLAUDE.md.
+4. Refresh the CLAUDE.md ground-truth block: it still says v2.2.0 / 768 tests; reality is v2.2.8 / ~1100.
+5. `outputSchema` is missing on every tool — OpenAI shows it as "Recommended", not an error. Real work across 100 tools; backlog, not blocker.
+6. Still open from before: DKIM at `improvmx._domainkey.ravenmcp.ai`; team-seat decision for the Connectors Directory; back up `~/.raven-mcp-registry-key`; delete preview branches `p4-merge-main`, `p4-merge-main-2`.
