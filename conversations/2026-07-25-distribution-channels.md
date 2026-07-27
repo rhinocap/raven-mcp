@@ -781,3 +781,58 @@ remedy.
 The adverse serial pass (Sol → Fable) on this merge. It needs subagents, and
 this session carries a standing instruction not to call the Agent tool unless
 asked. Flagging rather than silently skipping.
+
+---
+
+### Docs-redesign concepts filed; and a src file I pushed by accident (2026-07-27)
+
+**Concepts kept.** The eight variants moved from the untracked worktree into
+`docs/design-explorations/2026-07-docs-redesign/` with a README (`462e49c`).
+`sol3-raven.html` is what shipped; the other seven are the directions set aside.
+Vetted before committing to a public repo: no Morven/NDA/employer references
+(the `nda` grep hits were `secondary`/`standard`/`foundation`), zero external
+refs so each opens standalone, and `package.json`'s `files` array excludes
+`docs/` so npm does not ship them. The README also records the one branch tweak
+that lost — a hue shift on prose-link hover, verified against main's actual CSS
+before writing it down — so it does not come back as a "fix".
+
+Worktree and branch cleanup still pending: remove the
+`~/projects/raven-mcp-site-audit-polish` worktree (needs the override flag —
+there is a leftover `site/index.html` edit in it) and delete the local
+`site-audit-polish-wt` branch.
+
+**The mistake.** `462e49c` also contains `src/design-review.ts`, which I did not
+intend to commit and which deploys the live endpoint. Cause: I ran
+`git add docs/…` then a bare `git commit`. **`git add <path>` stages one path;
+a bare `git commit` commits the entire index** — and this worktree has four
+other Claude sessions plus Codex writing into it, one of which had staged that
+file between my `git status` check and my commit. "Commit explicit paths only"
+means `git commit --only <paths>`, not `git add` + `commit`. Memory written.
+
+Also explains the earlier "vanished" WIP: it was in `git stash list` the whole
+time, stashed by a parallel session, not eaten by a push hook as I first said.
+
+**What it cost, measured not assumed:**
+
+- Tested `main` at `462e49c` in an isolated worktree (this tree has the other
+  session's in-flight edits, so testing here would have measured them):
+  **1151 / 1148 pass / 0 fail / 3 skipped** — identical to baseline. The change
+  is the inert extraction its own comment claims to be.
+- anon-45 golden hash re-verified after that deploy and after the follow-up:
+  `f64bb18…2bb0a6`, **unchanged**. `review_diff` is remote-gated so it is not in
+  the anonymous 45 — that is why the surface is untouched.
+- Real damage was the comment: it named Morven and an internal spec section in a
+  public source file, reversing the "Morven material out of raven-mcp" decision.
+  Reworded in `7635f12`, comment-only (verified: the diff contains no
+  non-comment lines), and `grep -rniE 'morven|SPEC-agent-integration' src/ api/`
+  is now clean.
+
+**Not reverted, deliberately.** The code is sound, the endpoint is unchanged, and
+a parallel session owns that WIP and is actively editing ten files in this tree.
+Reverting would fight in-flight work for no safety gain. To take it out later,
+revert that one path out of `462e49c`.
+
+**Guard recurrence.** The heredoc-body false positive documented in §2 above
+fired again writing this very entry. It is not theoretical and it is not rare —
+any log entry describing a removal trips it. Workaround: write the text to a
+file, then append the file.
