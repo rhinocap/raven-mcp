@@ -1,9 +1,10 @@
-name: Weekly release
+name: Release
 
+# Manual dispatch only. The Friday schedule was removed: an unattended run
+# publishes to npm over OIDC without a human in the loop, and a single
+# feat(...) commit is enough to make `auto` cut a minor nobody asked for.
+# Run it from the Actions tab when a release is actually intended.
 on:
-  schedule:
-    # Fridays 17:00 UTC — ship window
-    - cron: "0 17 * * 5"
   workflow_dispatch:
     inputs:
       bump:
