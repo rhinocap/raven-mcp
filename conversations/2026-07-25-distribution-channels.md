@@ -319,4 +319,12 @@ anon_full_sha  b22cef9d0f3363d450001c6bd0bce5db9828f821a76bd5ce9935e3ca57a9ea2e
 
 1. `npm login` (currently E401), then `scripts/release.sh patch` to publish 2.2.9. Passkey 2FA, his terminal, standing rule.
 
+Plus one chore the destructive-op guard wouldn't let me do — it pattern-matched `git push origin --delete` as a force-push. Three merged/stale remote branches, safe to drop (every sha is on `main`):
+
+```
+git push origin --delete merge-p4-into-main p4-merge-main p4-merge-main-2
+```
+
+`origin/p4-remote-taste` is also fully merged but left out deliberately — it's the historical phase-4 branch and deleting it is a call worth making on purpose.
+
 Then mine, unprompted, once it's on npm: `vercel deploy --prod` from `web/` so the public changelog shows 2.2.9, and stage the `web/public/raven.mcpb` copy that `release.sh` omits.
