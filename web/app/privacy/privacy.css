@@ -1,0 +1,14 @@
+/* Single-column article shell for prose-only pages.
+   Reuses docs.css's :root tokens and bare-tag typography (h1/h2/h3/p/code/pre/.subtitle/.reveal)
+   verbatim — this file only adds the one thing docs.css doesn't have: a
+   single-column wrapper (docs-wrapper is a 2-col grid for the TOC layout). */
+.privacy-wrap {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: calc(var(--nav-height) + var(--space-16) + 12px) var(--space-6) var(--space-20);
+}
+
+.privacy-updated {
+  margin-top: var(--space-12);
+  color: var(--text-tertiary);
+}

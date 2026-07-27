@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Raven Mobile Grab</title>
+  <link rel="stylesheet" href="/shell.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <div>
+        <strong>Raven Mobile Grab</strong>
+        <span class="meta" id="sessionMeta">Path A · M0</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button type="button" id="refreshBtn" class="ghost">Refresh from Simulator</button>
+      <span class="pill" id="sourcePill">fixture</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel structure" aria-label="Structure">
+      <h2>Structure</h2>
+      <p class="hint">Accessibility tree — click a row or the mirror.</p>
+      <div id="tree" class="tree" role="tree"></div>
+    </aside>
+
+    <section class="mirror-wrap" aria-label="Simulator mirror">
+      <div class="phone">
+        <div class="phone-bezel">
+          <div id="mirror" class="mirror">
+            <img id="screenImg" alt="App screen" draggable="false" />
+            <div id="hoverBox" class="hit-box hover" hidden></div>
+            <div id="selectBox" class="hit-box select" hidden></div>
+          </div>
+        </div>
+      </div>
+      <p class="hint center">Click the screen to select · hover shows AX bounds</p>
+    </section>
+
+    <aside class="panel design" aria-label="Design">
+      <h2>Design</h2>
+      <div id="emptyDesign" class="empty">Select an element on the mirror or in Structure.</div>
+      <div id="designBody" hidden>
+        <div class="chip-row">
+          <span class="chip" id="roleChip">—</span>
+          <span class="chip accent" id="idChip">—</span>
+        </div>
+        <dl class="facts">
+          <div><dt>Label</dt><dd id="factLabel">—</dd></div>
+          <div><dt>Rect</dt><dd id="factRect">—</dd></div>
+          <div><dt>Selector</dt><dd id="factSelector">—</dd></div>
+        </dl>
+        <section class="block">
+          <h3>Styles</h3>
+          <pre id="stylesPre" class="mono"></pre>
+        </section>
+        <section class="block">
+          <h3>Tokens</h3>
+          <ul id="tokenList" class="token-list"></ul>
+        </section>
+        <label class="block">
+          <span class="label">Instructions for agent</span>
+          <textarea id="instruction" rows="4" placeholder="e.g. Make Continue use the secondary style and widen tap target."></textarea>
+        </label>
+        <button type="button" id="sendBtn" class="primary">Send to agent</button>
+        <p id="sendStatus" class="status" role="status"></p>
+      </div>
+    </aside>
+  </main>
+
+  <script type="module" src="/shell.js"></script>
+</body>
+</html>

@@ -22,11 +22,11 @@ Raven gives Claude access to a comprehensive design knowledge base:
 
 ## Install
 
-Local stdio (npx / from source) is the **full product**: **93 tools**, including Grab and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
+Local stdio (npx / from source) is the **full product**: **99 tools**, including Grab and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
 
 | Path | How | Tools | Taste | Grab |
 |------|-----|-------|-------|------|
-| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **93** | Yes | Yes |
+| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **99** | Yes | Yes |
 | Public remote | `https://mcp.ravenmcp.ai/api/mcp` | **~45** | No | No |
 | Auth remote | `https://mcp.ravenmcp.ai/api/mcp-user` (OAuth) | Taste + audits (no Grab) | Yes | **No** |
 
@@ -168,11 +168,24 @@ For transcripts: call `ingest_transcript` → run its extraction prompt → pass
 
 Evidence nodes and `supports` / `contradicts` edges capture quantitative and qualitative results linked to decisions.
 
+### `review_diff` severity policy
+`review_diff` is advisory by default (verdict caps at `warn`). Two independent, combinable opt-ins escalate matching violations to `error`, producing a failing CI verdict:
+- `fail_on` — a rule allowlist. Valid rules: `important`, `bare-hex-color`, `hardcoded-font-size`, `hardcoded-font-family`, `hardcoded-spacing`. Start with `important`; add token rules once DESIGN.md tokens are mature. `important` findings can include intentional uses (email-client compatibility, responsive overrides), so expect to justify or restructure those hunks; token rules only fire when DESIGN.md defines tokens (`checks_skipped` tells you when they didn't run).
+- `fail_on_governed` — escalates findings a recorded decision governs (lexical scope+category association, not a verified contradiction). Opt in as a team strict-mode signal.
+
+Escalation is diff-scoped: only newly added lines can fail — existing violations don't block until a diff touches them. The applied policy is echoed back under `severity_policy`. Omitting both keeps the existing advisory behavior unchanged. `review_diff` is local-stdio only (not on the hosted remote endpoints), so wire the policy into CI via `npx raven-mcp`.
+
 ## Archive Figma comments
 
 Archive your Figma comment history to durable JSON/Markdown before you lose access:
 `FIGMA_TOKEN=<pat> node scripts/figma-comments-archive.mjs --md <fileKey>`
 The PAT needs `file_comments:read`. Add `--resolve-nodes` for best-effort node names; it also needs `file_content:read`, and archival still succeeds if resolution is unavailable.
+
+Without credentials: in Figma, first show resolved comments and clear any comment filters (hidden threads won't be in what you copy — and they're unrecoverable after cancellation). Figma has no bulk "copy all comments", so select and copy the thread text from the comments panel, then run (macOS):
+`pbpaste | node scripts/figma-comments-archive.mjs --paste design-review`
+(the last word is your archive label — any name without spaces; add `--out somedir` to choose the folder). Or run the command bare and paste into the terminal, ending with Ctrl-D.
+Separate threads with a blank line; within a thread, an author line followed by a timestamp line ("2 days ago", "Yesterday", "Mar 4, 2026") starts each comment.
+Paste mode writes `<label>.txt` (your paste, byte-verbatim — the durable record) and always renders the readable `<label>.md` archive. Skim the `.md` against your paste: message lines that themselves look like a timestamp, or blank lines inside one comment, can shift how the `.md` groups things — the `.txt` is always exact. An existing label is never overwritten; pass `--force` to replace it.
 
 ## Click-to-change (grab) + DESIGN.md
 
@@ -297,6 +310,16 @@ Raven ships new principles, patterns, and brand systems regularly. For one email
 
 No marketing, unsubscribe anytime. Powered by Resend.
 
+### After you upgrade
+
+Claude Code snapshots the tool list when the MCP server connects. After upgrading, restart the session or use `/mcp` to reconnect and see new tools.
+
+Claude Desktop snapshots the tool list when the MCP server connects. After upgrading, restart the app to see new tools.
+
+Codex CLI also requires a per-tool `approval_mode` entry in `~/.codex/config.toml`; without it, calls to new tools are cancelled. Run `node scripts/sync-codex-approvals.mjs` to see what is missing, then add `--write` to append the entries.
+
+The appended entries auto-approve those tools, so review the printed list; newer Codex versions can alternatively set a server-level `default_tools_approval_mode`.
+
 ## Start every project calibrated
 
 Taste is per-surface: the same designer wants monochrome one-accent rules enforced on their portfolio and *none* of them on a product site, with a slightly different voice on each. The Taste Engine handles this with a **kickoff interview** (once per project — every question skippable, most with plain-language multiple-choice options, from navigation pattern to aesthetic family to specialty libraries) whose answers persist as a surface binding that every future audit applies automatically. And when generated work misses, `mode:'refine'` turns that dissatisfaction into a re-interview against the stored binding instead of a dead end.
@@ -324,6 +347,12 @@ Raven keeps a small **local-only** log of how you use it so you (and Claude) can
 
 Nothing is sent to a remote server. If a recurring gap is worth turning into a new Raven principle or pattern, you file an issue by hand — the automated pipeline at [github.com/rhinocap/raven-mcp](https://github.com/rhinocap/raven-mcp) handles it from there.
 
+## Your data on the hosted server
+
+Raven also runs a hosted remote MCP server with two endpoints. The anonymous endpoint is stateless — no store is ever attached to it, so nothing you send is written anywhere. The authenticated endpoint (used for the Taste Engine's cross-session profiles, surface bindings, and decisions) keys everything to your account and stores it in Upstash Redis, namespaced under your verified user id; your bearer token itself is never persisted.
+
+You can erase all of it at any time with the `delete_taste_data` tool (`confirm: "DELETE"`) — it removes every key under your namespace and confirms nothing remains. Full details, including the exact key layout and the rate-limit counters that aren't part of your data, are in [docs/remote-mcp-privacy.md](./docs/remote-mcp-privacy.md).
+
 ## Development
 
 ```bash
@@ -334,11 +363,11 @@ npm start      # Run compiled output
 
 ## License & attribution
 
-Raven MCP is released under the [MIT License](./LICENSE) — Copyright (c) 2026 Andrew Cunliffe.
+Raven MCP is released under the [Apache License, Version 2.0](./LICENSE) — Copyright (c) 2026 Andrew Cunliffe.
 
-If you fork, embed, or redistribute Raven (in whole or in part), retain the MIT license notice and the `LICENSE` file. If you ship Raven inside another product, include attribution to "Raven MCP — https://ravenmcp.ai" in your acknowledgements.
+If you fork, embed, or redistribute Raven (in whole or in part), retain the Apache-2.0 license notice, the `LICENSE` file, and the `NOTICE` file. If you ship Raven inside another product, include attribution to "Raven MCP — https://ravenmcp.ai" in your acknowledgements.
 
-Raven's knowledge base paraphrases and references work from many third-party sources — Nielsen Norman Group, Laws of UX (CC BY-NC-ND 4.0), Gestalt principles, WCAG (W3C), Mailchimp (CC BY-NC 4.0), GOV.UK (Open Government Licence v3.0), Shopify Polaris, Atlassian Design, and others. Each entry carries a `sources` URL field. See [NOTICE](./NOTICE) for the full list of upstream sources and license terms; some carry their own conditions beyond MIT.
+Raven's knowledge base paraphrases and references work from many third-party sources — Nielsen Norman Group, Laws of UX (CC BY-NC-ND 4.0), Gestalt principles, WCAG (W3C), Mailchimp (CC BY-NC 4.0), GOV.UK (Open Government Licence v3.0), Shopify Polaris, Atlassian Design, and others. Each entry carries a `sources` URL field. See [NOTICE](./NOTICE) for the full list of upstream sources and license terms; some carry their own conditions beyond Apache-2.0.
 
 This is a personal project. It is not endorsed by Intuit Inc. or any other company referenced in its source data.
 

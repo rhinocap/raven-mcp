@@ -20,6 +20,8 @@
     .footer-links { display: flex; gap: var(--space-6, 24px); }\
     .footer-links a {\
       font-size: 13px; color: var(--text-tertiary);\
+      display: inline-flex; align-items: center; justify-content: center;\
+      min-height: 44px; min-width: 44px;\
       transition: color 150ms cubic-bezier(0.16, 1, 0.3, 1);\
     }\
     .footer-links a:hover { color: var(--text-primary); }\
@@ -40,6 +42,8 @@
           <li><a href="https://github.com/rhinocap/raven-mcp">GitHub</a></li>\
           <li><a href="/docs">Docs</a></li>\
           <li><a href="/#systems">Systems</a></li>\
+          <li><a href="/privacy">Privacy</a></li>\
+          <li><a href="/terms">Terms</a></li>\
         </ul>\
       </div>\
     </footer>\

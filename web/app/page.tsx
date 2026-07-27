@@ -20,9 +20,6 @@ export default function Home() {
           <div className="glow glow-2"></div>
           <div className="glow glow-3"></div>
           <div className="container">
-            <div className="hero-badge reveal">
-              Open-source MCP Server · MIT
-            </div>
             <h1 className="reveal reveal-delay-1"><span className="line-glow">Pair-design</span><span className="line-accent">with your coding agent</span></h1>
             <p className="subtitle reveal reveal-delay-2">Raven is an open-source MCP server. Click any element on your running page, edit its tokens and styles with real controls, and package the change for your agent &mdash; backed by audits that name the broken design rule and return the fix with evidence.</p>
             <div className="hero-cta reveal reveal-delay-3">
@@ -30,11 +27,6 @@ export default function Home() {
                 <span className="copy-label">claude mcp add raven -- npx -y raven-mcp</span>
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5" /><path d="M2 10V3a1 1 0 011-1h7" /></svg>
               </button>
-            </div>
-            <div className="hero-text-links reveal reveal-delay-3">
-              <a href="/raven-design" className="btn-text-link">Try Raven Design →</a>
-              <a href="/docs.html" className="btn-text-link">Docs →</a>
-              <a href="https://github.com/rhinocap/raven-mcp" className="btn-text-link">View on GitHub →</a>
             </div>
       {/* Live install stats — three-card row with big numbers + monospace labels */}
             <div className="raven-stats-row reveal reveal-delay-3" aria-live="polite">
@@ -47,8 +39,8 @@ export default function Home() {
                 <div className="raven-stat-label">Releases</div>
               </div>
               <div className="raven-stat-card">
-                <div className="raven-stat-num" id="rs-dl">—<span className="unit">/wk</span></div>
-                <div className="raven-stat-label">npm Downloads</div>
+                <div className="raven-stat-num" id="rs-dl">—</div>
+                <div className="raven-stat-label">Installs</div>
               </div>
             </div>
 
@@ -61,7 +53,6 @@ export default function Home() {
         <section id="raven-design" className="raven-design">
           <div className="container">
             <div className="section-header">
-              <p className="label reveal">Raven Design</p>
               <h2 className="reveal reveal-delay-1">Select an element. Edit its tokens and styles.</h2>
               <p className="subtitle reveal reveal-delay-2">Edits land on the page as you make them, then get packaged for your agent.</p>
             </div>
@@ -78,7 +69,7 @@ export default function Home() {
                 muted
                 loop
                 playsInline
-                aria-label="Screen capture of the Raven Design playground: an element is selected, its design tokens and computed styles are opened, the accent token and an underline are applied visibly on the page, and the change is packaged for the agent."
+                aria-label="Screen recording of Raven Design editing the Northstar Workspace: configuring a reusable component, reordering a layer, preparing an agent change, then selecting a heading and typing a mobile instruction."
               />
             </figure>
           </div>
@@ -87,7 +78,6 @@ export default function Home() {
         <section id="before-after" className="raven-design">
           <div className="container">
             <div className="section-header">
-              <p className="label reveal">Before &amp; after</p>
               <h2 className="reveal reveal-delay-1">Without Raven, and with it.</h2>
               <p className="subtitle reveal reveal-delay-2">Each pair is a real brief before Raven and after it &mdash; a fresh build, a rebuild, and a taste-profile pass.</p>
             </div>
@@ -131,7 +121,6 @@ export default function Home() {
         <section id="judge" className="judge">
           <div className="container">
             <div className="section-header">
-              <p className="label reveal">The Taste Engine</p>
               <h2 className="reveal reveal-delay-1">Turn your taste into audit rules</h2>
               <p className="subtitle reveal reveal-delay-2">Raven asks how a project should look and sound, stores that surface profile locally, then <code>audit_taste</code> returns BLOCK/WARN/PASS findings with rule IDs and evidence.</p>
             </div>
@@ -222,7 +211,6 @@ export default function Home() {
         <section id="cinematic" className="cinematic">
           <div className="container">
             <div className="section-header">
-              <p className="label reveal">Cinematic builds</p>
               <h2 className="reveal reveal-delay-1">A recipe that names its price</h2>
               <p className="subtitle reveal reveal-delay-2">When a surface's taste calls for an AI-generated video hero, Raven returns the build recipe&mdash;and the recipe declares its paid dependency before your agent spends anything.</p>
             </div>
@@ -255,7 +243,6 @@ export default function Home() {
         <section id="layers" className="layers">
           <div className="container">
             <div className="section-header">
-              <p className="label reveal">Nine Knowledge Layers</p>
               <h2 className="reveal reveal-delay-1">Nine layers, one MCP server</h2>
               <p className="subtitle reveal reveal-delay-2">Raven exposes principles, UI patterns, content voice, research methods, service blueprints, strategy frameworks, design tokens, and audit tools as MCP calls.</p>
             </div>
@@ -417,7 +404,6 @@ export default function Home() {
         <section id="watch" className="watch-section" style={{ padding: 'clamp(80px, 9vw, 144px) 0' }}>
           <div className="container">
             <div className="section-header">
-              <p className="label reveal">Watch it work</p>
               <h2 className="reveal reveal-delay-1">No Figma file. No designer.</h2>
               <p className="subtitle reveal reveal-delay-2">One prompt builds a real SwiftUI app&mdash;then Raven audits every screen against 73 principles and 13 patterns, flags the issues, and guides the fixes. Recorded live on the iPhone 17 Pro simulator.</p>
             </div>
@@ -532,7 +518,6 @@ export default function Home() {
         <section id="examples" className="examples-section" style={{ padding: 'clamp(80px, 9vw, 144px) 0' }}>
           <div className="container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div className="section-header">
-              <p className="label reveal">Illustrative Outputs</p>
               <h2 className="reveal reveal-delay-1">Example pages Raven can guide</h2>
               <p className="subtitle reveal reveal-delay-2">Six demo pages showing different Raven-guided prompts. They are examples, not customer proof.</p>
             </div>
@@ -613,7 +598,6 @@ export default function Home() {
         <section id="systems" className="systems-section">
           <div className="container">
             <div className="section-header">
-              <p className="label reveal">Token Registry</p>
               <h2 className="reveal reveal-delay-1">Twelve design-system token sets, queryable</h2>
               <p className="subtitle reveal reveal-delay-2">Ask for Apple HIG, Material, Stripe, Linear, Vercel, GitHub Primer, and more as W3C DTCG tokens or CSS variables.</p>
             </div>
@@ -700,7 +684,6 @@ export default function Home() {
           <div className="container">
             <div className="mythology-inner">
               <div className="mythology-text reveal">
-                <p className="label">The Story</p>
                 <h2>Named for the creature that bridges worlds</h2>
                 <p>Across Norse, Celtic, and Native American traditions, the raven carries knowledge from hidden places and brings it into the light.</p>
                 <p>Odin's ravens Huginn and Muninn&mdash;Thought and Memory&mdash;fly across all nine realms at dawn and return to whisper everything they've seen. The Morr&iacute;gan takes raven form to decide fate. Y&eacute;il stole the sun from darkness and gave it to everyone.</p>
@@ -735,16 +718,15 @@ export default function Home() {
         <section id="pricing" className="pricing-section">
           <div className="container">
             <div className="section-header">
-              <p className="label reveal">Open Source</p>
               <h2 className="reveal reveal-delay-1">Free. All of it.</h2>
-              <p className="subtitle reveal reveal-delay-2">Every tool, token, and principle is included under the MIT license. No account, hosted plan, or usage meter.</p>
+              <p className="subtitle reveal reveal-delay-2">Every tool, token, and principle is included under the Apache 2.0 license. No account, hosted plan, or usage meter.</p>
             </div>
 
             <div className="pricing-open-source reveal reveal-delay-3">
               <div className="glow-card pricing-open-card">
                 <div className="pricing-open-stats">
                   <div className="pricing-open-stat">
-                    <span className="pricing-open-num">70</span>
+                    <span className="pricing-open-num">99</span>
                     <span className="pricing-open-label">Tools</span>
                   </div>
                   <div className="pricing-open-stat">
@@ -777,14 +759,13 @@ export default function Home() {
         <section id="faq" className="faq-section">
           <div className="container">
             <div className="section-header">
-              <p className="label reveal">Questions</p>
               <h2 className="reveal reveal-delay-1">Frequently asked questions</h2>
               <p className="subtitle reveal reveal-delay-2">Everything you need to know about Raven, the design-intelligence MCP server.</p>
             </div>
             <div className="faq-list reveal reveal-delay-3">
               <div className="faq-item">
                 <h3>What is RavenMCP?</h3>
-                <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server. Add it to Claude or Cursor, and your agent can call 70 local tools for design principles, UI patterns, design-system tokens, content voice, research methods, service blueprints, multi-platform audits, and project-specific taste checks.</p>
+                <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server. Add it to Claude or Cursor, and your agent can call 100 local tools for design principles, UI patterns, design-system tokens, content voice, research methods, service blueprints, multi-platform audits, click-to-edit Raven Design, a local Decision Graph, and project-specific taste checks.</p>
               </div>
               <div className="faq-item">
                 <h3>How do I install RavenMCP?</h3>
@@ -792,11 +773,11 @@ export default function Home() {
               </div>
               <div className="faq-item">
                 <h3>Is RavenMCP free?</h3>
-                <p>Yes. RavenMCP is 100% free and open source under the MIT license. Every tool, token, and principle is included &mdash; no tiers, no usage limits, and no account required.</p>
+                <p>Yes. RavenMCP is 100% free and open source under the Apache 2.0 license. Every tool, token, and principle is included &mdash; no tiers, no usage limits, and no account required.</p>
               </div>
               <div className="faq-item">
                 <h3>Which AI agents work with RavenMCP?</h3>
-                <p>Raven works with any client that supports the Model Context Protocol &mdash; Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's 70 tools directly during a conversation.</p>
+                <p>Raven works with any client that supports the Model Context Protocol &mdash; Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's 100 tools directly during a conversation.</p>
               </div>
               <div className="faq-item">
                 <h3>What platforms can RavenMCP audit?</h3>
@@ -813,7 +794,6 @@ export default function Home() {
         <section id="get-started" className="cta-section">
           <div className="glow"></div>
           <div className="container">
-            <p className="label reveal">Get Started</p>
             <h2 className="reveal reveal-delay-1">Add design checks<br />to Claude</h2>
             <p className="subtitle reveal reveal-delay-2">Open source. Zero runtime dependencies. One MCP install for Claude Code, Claude Desktop, Cursor, and compatible clients.</p>
             <div className="cta-actions reveal reveal-delay-3">

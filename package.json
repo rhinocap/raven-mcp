@@ -1,6 +1,6 @@
 {
   "name": "raven-mcp",
-  "version": "1.17.1",
+  "version": "2.2.9",
   "mcpName": "ai.ravenmcp/raven-mcp",
   "description": "Design intelligence and creative orchestration MCP server — principles, patterns, tokens, audits, brand guidance, local brand profiles, assets, campaign plans, and provider-agnostic image/video/3D/audio generation jobs.",
   "type": "module",
@@ -13,6 +13,7 @@
     "browser/",
     "src/data/",
     "scripts/postinstall.cjs",
+    "scripts/sync-codex-approvals.mjs",
     "scripts/ios-audit.mjs",
     "scripts/rn-audit.mjs",
     "scripts/AccessibilitySnapshot.swift",
@@ -26,11 +27,14 @@
     "build:mcpb": "bash scripts/build-mcpb.sh",
     "release": "bash scripts/release.sh",
     "dev": "tsx src/index.ts",
+    "grab:dev": "npm run build && node scripts/grab-dev.mjs",
     "start": "node dist/index.js",
     "pretest": "npm run build",
     "test": "node --test \"test/**/*.test.mjs\"",
     "postinstall": "node scripts/postinstall.cjs || true",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "check:site": "node scripts/check-site-drift.mjs",
+    "marketing:preview": "node scripts/prepare-marketing-preview.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -82,7 +86,7 @@
     "campaigns"
   ],
   "author": "Andrew Cunliffe",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/rhinocap/raven-mcp"

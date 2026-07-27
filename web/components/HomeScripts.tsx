@@ -15,16 +15,16 @@ export default function HomeScripts() {
 
       (async () => {
         try {
-          const [npmWeek, npmMeta] = await Promise.all([
-            fetch('https://api.npmjs.org/downloads/point/last-week/raven-mcp').then(r => r.json()),
-            fetch('https://registry.npmjs.org/raven-mcp').then(r => r.json())
-          ]);
+          const npmMeta = await fetch('https://registry.npmjs.org/raven-mcp').then(r => r.json());
           const v = npmMeta['dist-tags'] && npmMeta['dist-tags'].latest;
           const versionCount = Object.keys(npmMeta.versions || {}).length;
           document.getElementById('rs-ver')!.textContent = v ? `v${v}` : 'v—';
           document.getElementById('rs-rel')!.textContent = String(versionCount);
-          const dl = (npmWeek.downloads || 0).toLocaleString();
-          document.getElementById('rs-dl')!.innerHTML = `${dl}<span class="unit">/wk</span>`;
+          // Total installs = all downloads from first publish to today (npm point range).
+          const start = (npmMeta.time && npmMeta.time.created || '2026-01-01').slice(0, 10);
+          const end = new Date().toISOString().slice(0, 10);
+          const npmTotal = await fetch(`https://api.npmjs.org/downloads/point/${start}:${end}/raven-mcp`).then(r => r.json());
+          document.getElementById('rs-dl')!.textContent = (npmTotal.downloads || 0).toLocaleString();
         } catch (e) {
           console.warn('raven stats fetch failed', e);
         }

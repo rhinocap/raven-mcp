@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Coachmarks from './Coachmarks'
+import FeatureCard from './FeatureCard'
 
 export const metadata: Metadata = {
   title: 'Raven Design — Live Demo | RavenMCP',
@@ -14,6 +15,11 @@ export const metadata: Metadata = {
 
 const ravenGrabConfig = {
   mode: 'standalone',
+  // Names the wireframe, not the marketing site. Left unset the overlay falls back to
+  // document.title ("Raven Design — Live Demo | RavenMCP"), which reads as Raven talking
+  // about itself and truncates at 28 characters. On a real dev server this slot holds the
+  // visitor's own project, so the demo has to show someone else's name in it.
+  projectName: 'Northstar Workspace',
   // cssVar must match the --demo-* custom properties on .playground-wireframe,
   // or the overlay can't map grabbed declarations back to these tokens.
   tokens: {
@@ -55,7 +61,6 @@ export default function PlaygroundPage() {
     <main id="main" className="playground-page">
       <section className="playground-intro">
         <div className="container">
-          <p className="label">Playground</p>
           <h1>Raven Design — pair designing with your agent</h1>
           <p>
             Click any element, swap tokens, edit styles, or request a component.
@@ -66,8 +71,7 @@ export default function PlaygroundPage() {
       <section className="playground-stage" aria-labelledby="wireframe-title">
         <div className="container">
           <div className="playground-stage-heading">
-            <p className="label">Live wireframe</p>
-            <p>Select any block, type style, control, or section to inspect it.</p>
+            <p>Select a FeatureCard under Features to see Scope (“All 3 like this”) and tokenized Styles.</p>
           </div>
 
           <Coachmarks config={ravenGrabConfig} />
@@ -116,21 +120,15 @@ export default function PlaygroundPage() {
             </section>
 
             <section className="wireframe-features" id="features" aria-label="Features">
-              <article className="wireframe-feature-card">
-                <div className="wireframe-icon" aria-hidden="true" />
-                <h3>Project status</h3>
-                <p>See owners, dates, and progress for each active workstream.</p>
-              </article>
-              <article className="wireframe-feature-card">
-                <div className="wireframe-icon" aria-hidden="true" />
-                <h3>Shared notes</h3>
-                <p>Keep decisions and working context attached to the project.</p>
-              </article>
-              <article className="wireframe-feature-card">
-                <div className="wireframe-icon" aria-hidden="true" />
-                <h3>Weekly updates</h3>
-                <p>Send a concise record of what changed and what comes next.</p>
-              </article>
+              <FeatureCard title="Project status">
+                See owners, dates, and progress for each active workstream.
+              </FeatureCard>
+              <FeatureCard title="Shared notes">
+                Keep decisions and working context attached to the project.
+              </FeatureCard>
+              <FeatureCard title="Weekly updates">
+                Send a concise record of what changed and what comes next.
+              </FeatureCard>
             </section>
 
             <section className="wireframe-form-section" id="contact">
@@ -580,14 +578,11 @@ export default function PlaygroundPage() {
         }
 
         @media (min-width: 900px) {
-          /* Reserve a right-side gutter so the fixed grab panel (~380px, right:20px)
-             never underlaps the hero H1, label, and description. */
-          .playground-intro {
-            padding-right: 400px;
-          }
-          /* Nav lives in layout.tsx as a sibling of .playground-intro, so the
-             gutter above can't reach it — narrow the nav's own max-width so its
-             right-side content also clears the fixed panel between 900–1439px. */
+          /* Two symmetric grab panels (~380px each side) frame the page now, so the
+             hero and wireframe both center on the viewport — which is the center of
+             the gap between the panels. (Was an asymmetric right-only 400px gutter
+             from the single-panel era, which shoved the hero 200px left of the
+             wireframe.) Narrow the site nav so its right content clears the right panel. */
           raven-nav {
             --max-width: calc(100vw - 440px);
           }
@@ -599,13 +594,25 @@ export default function PlaygroundPage() {
             --max-width: min(1140px, calc(100vw - 704px));
           }
 
+          /* Center the role toggle at the bottom of the page, matching the grab
+             panels' 20px margin from the bottom of the viewport. The pill wraps
+             only the toggle so it lands on the true viewport centre; the replay
+             link floats to its right rather than shifting the toggle off-centre. */
           .playground-controls {
             position: fixed;
-            top: 12px;
-            left: 16px;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 100;
-            height: var(--nav-height, 64px);
             margin-bottom: 0;
+          }
+
+          .playground-replay {
+            position: absolute;
+            left: calc(100% + var(--space-4));
+            top: 50%;
+            transform: translateY(-50%);
+            white-space: nowrap;
           }
         }
 
@@ -678,6 +685,52 @@ export default function PlaygroundPage() {
           border: 1px solid var(--border-strong);
           border-radius: var(--radius-md);
           box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        /* The tail is a rotated square sharing the card's fill and border, with the
+           two edges facing the card masked by a matching-coloured overlay — a border
+           on a CSS triangle isn't possible, and a real notch keeps the 1px outline
+           continuous around the whole shape. */
+        .playground-tour__card[data-tail]::after {
+          content: '';
+          position: absolute;
+          left: var(--tail-left, 50%);
+          width: 12px;
+          height: 12px;
+          margin-left: -6px;
+          background: var(--bg-surface);
+          border: 1px solid var(--border-strong);
+          transform: rotate(45deg);
+        }
+
+        .playground-tour__card[data-tail='bottom']::after {
+          bottom: -7px;
+          clip-path: polygon(100% 0, 100% 100%, 0 100%);
+        }
+
+        .playground-tour__card[data-tail='top']::after {
+          top: -7px;
+          clip-path: polygon(0 0, 100% 0, 0 100%);
+        }
+
+        /* Sideways tails for the panel steps — the card sits beside a panel and
+           points horizontally at it, so the tail lives on the card's left/right
+           edge, vertically centred, instead of top/bottom. */
+        .playground-tour__card[data-tail='right']::after {
+          left: auto;
+          right: -7px;
+          top: 50%;
+          margin-left: 0;
+          margin-top: -6px;
+          clip-path: polygon(0 0, 100% 0, 100% 100%);
+        }
+
+        .playground-tour__card[data-tail='left']::after {
+          left: -7px;
+          top: 50%;
+          margin-left: 0;
+          margin-top: -6px;
+          clip-path: polygon(0 0, 0 100%, 100% 100%);
         }
 
         .playground-tour__card h3 {

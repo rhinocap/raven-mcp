@@ -75,11 +75,13 @@ async function startFixture(t, handler) {
   };
 }
 
-function runCli(args, env = {}) {
+function runCli(args, env = {}, stdin = null) {
   return new Promise(function (resolvePromise, rejectPromise) {
+    const childEnv = { ...process.env, FIGMA_TOKEN: 'fixture-token', ...env };
+    if (Object.prototype.hasOwnProperty.call(env, 'FIGMA_TOKEN') && env.FIGMA_TOKEN === undefined) delete childEnv.FIGMA_TOKEN;
     const child = spawn(process.execPath, [cli, ...args], {
-      env: { ...process.env, FIGMA_TOKEN: 'fixture-token', ...env },
-      stdio: ['ignore', 'pipe', 'pipe']
+      env: childEnv,
+      stdio: [stdin == null ? 'ignore' : 'pipe', 'pipe', 'pipe']
     });
     let stdout = '';
     let stderr = '';
@@ -87,6 +89,7 @@ function runCli(args, env = {}) {
     child.stderr.on('data', function (chunk) { stderr += chunk; });
     child.on('error', rejectPromise);
     child.on('close', function (code, signal) { resolvePromise({ code, signal, stdout, stderr }); });
+    if (stdin != null) child.stdin.end(stdin);
   });
 }
 
@@ -279,4 +282,98 @@ test('--resolve-nodes degrades a 403 to raw node IDs without failing archive', a
   const markdown = await readFile(join(out, `${fixtureKey}.md`), 'utf8');
   assert.match(markdown, /anchor: node 12:34\n/);
   assert.doesNotMatch(markdown, /anchor: node 12:34 —/);
+});
+
+test('--paste needs no token, preserves raw bytes, and renders threads and replies in input order', async function (t) {
+  const out = await tempOutput(t);
+  const pasted = Buffer.from('andrew\r\n2 days ago\r\nFirst root\r\nmaya\r\njust now\r\nFirst reply\r\n\r\nsam\r\n2 days ago\r\nSecond root\r\nlee\r\nyesterday\r\nSecond reply\r\n');
+  const result = await runCli(['--paste', 'panel-copy', '--out', out], { FIGMA_TOKEN: undefined }, pasted);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /archived 1\/1 file\(s\) → /);
+  assert.deepEqual(await readFile(join(out, 'panel-copy.txt')), pasted);
+  assert.deepEqual((await readdir(out)).sort(), ['panel-copy.md', 'panel-copy.txt']);
+
+  const markdown = await readFile(join(out, 'panel-copy.md'), 'utf8');
+  const firstThreadAt = markdown.indexOf('## Thread 1');
+  const firstRootAt = markdown.indexOf('**andrew** · 2 days ago');
+  const firstReplyAt = markdown.indexOf('> **maya** · just now');
+  const secondThreadAt = markdown.indexOf('## Thread 2');
+  const secondRootAt = markdown.indexOf('**sam** · 2 days ago');
+  const secondReplyAt = markdown.indexOf('> **lee** · yesterday');
+  assert.ok(firstThreadAt >= 0 && firstRootAt > firstThreadAt && firstReplyAt > firstRootAt);
+  assert.ok(secondThreadAt > firstReplyAt && secondRootAt > secondThreadAt && secondReplyAt > secondRootAt);
+  assert.match(markdown, /^# Figma comments archive: panel-copy$/m);
+  assert.match(markdown, /## Thread 1\nanchor: unknown/);
+  assert.match(markdown, /> First reply/);
+  assert.match(markdown, /> Second reply/);
+});
+
+test('--paste keeps pasted order when relative timestamps sort lexically backwards', async function (t) {
+  const out = await tempOutput(t);
+  // "10 minutes ago" < "2 days ago" lexically, and root "5 days ago" > "2 days ago":
+  // without pasted-position ordering, both the reply order and the thread order flip.
+  const pasted = 'ana\n5 days ago\nOldest root\nben\n2 days ago\nMiddle reply\ncal\n10 minutes ago\nNewest reply\n\nzoe\n2 days ago\nSecond thread root\n';
+  const result = await runCli(['--paste', 'ordering', '--out', out], { FIGMA_TOKEN: undefined }, pasted);
+  assert.equal(result.code, 0, result.stderr);
+  const markdown = await readFile(join(out, 'ordering.md'), 'utf8');
+  const anaAt = markdown.indexOf('**ana** · 5 days ago');
+  const benAt = markdown.indexOf('> **ben** · 2 days ago');
+  const calAt = markdown.indexOf('> **cal** · 10 minutes ago');
+  const zoeAt = markdown.indexOf('**zoe** · 2 days ago');
+  assert.ok(anaAt >= 0 && benAt > anaAt && calAt > benAt, `pasted reply order lost:\n${markdown}`);
+  assert.ok(zoeAt > calAt, `pasted thread order lost:\n${markdown}`);
+});
+
+test('--paste renders a headerless block as one unknown comment', async function (t) {
+  const out = await tempOutput(t);
+  const result = await runCli(['--paste', 'headerless', '--out', out], { FIGMA_TOKEN: undefined }, 'No copied author header\nJust the comment body.');
+  assert.equal(result.code, 0, result.stderr);
+  const markdown = await readFile(join(out, 'headerless.md'), 'utf8');
+  assert.match(markdown, /\*\*unknown\*\* · unknown\nNo copied author header\nJust the comment body\./);
+  assert.doesNotMatch(markdown, /## Thread 2/);
+});
+
+test('--paste rejects empty stdin', async function (t) {
+  const out = await tempOutput(t);
+  const result = await runCli(['--paste', 'empty', '--out', out], { FIGMA_TOKEN: undefined }, ' \n\t\r\n');
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /Pasted comment text is empty/);
+  assert.deepEqual(await readdir(out), []);
+});
+
+test('--paste is mutually exclusive with file keys and --resolve-nodes', async function () {
+  const withKey = await runCli(['--paste', 'panel-copy', fixtureKey], { FIGMA_TOKEN: undefined }, 'comment');
+  assert.equal(withKey.code, 2);
+  assert.match(withKey.stderr, /Usage: node scripts\/figma-comments-archive\.mjs/);
+
+  const withNodes = await runCli(['--paste', 'panel-copy', '--resolve-nodes'], { FIGMA_TOKEN: undefined }, 'comment');
+  assert.equal(withNodes.code, 2);
+  assert.match(withNodes.stderr, /Usage: node scripts\/figma-comments-archive\.mjs/);
+});
+
+test('--paste refuses to overwrite an existing label without --force', async function (t) {
+  const out = await tempOutput(t);
+  const first = await runCli(['--paste', 'archive', '--out', out], { FIGMA_TOKEN: undefined }, 'original paste');
+  assert.equal(first.code, 0, first.stderr);
+
+  const second = await runCli(['--paste', 'archive', '--out', out], { FIGMA_TOKEN: undefined }, 'second paste');
+  assert.equal(second.code, 2);
+  assert.match(second.stderr, /archive\.txt already exists .* --force/);
+  assert.equal(await readFile(join(out, 'archive.txt'), 'utf8'), 'original paste');
+
+  const forced = await runCli(['--paste', 'archive', '--out', out, '--force'], { FIGMA_TOKEN: undefined }, 'second paste');
+  assert.equal(forced.code, 0, forced.stderr);
+  assert.equal(await readFile(join(out, 'archive.txt'), 'utf8'), 'second paste');
+
+  const patForce = await runCli(['--force', fixtureKey]);
+  assert.equal(patForce.code, 2);
+  assert.match(patForce.stderr, /Usage: node scripts\/figma-comments-archive\.mjs/);
+});
+
+test('--paste rejects labels that are not filesystem-safe', async function () {
+  for (const label of ['unsafe label', 'unsafe/label', 'unsafe\\label']) {
+    const result = await runCli(['--paste', label], { FIGMA_TOKEN: undefined }, 'comment');
+    assert.equal(result.code, 2);
+    assert.match(result.stderr, /Invalid paste label:/);
+  }
 });

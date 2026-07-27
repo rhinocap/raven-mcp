@@ -32,7 +32,7 @@ const fmtDate = (iso) =>
 const labelFor = (id) =>
   (data.categories.find((c) => c.id === id) || {}).label || 'Update'
 
-const releases = [...data.releases].sort((a, b) => (a.date < b.date ? 1 : -1))
+const releases = [...data.releases].sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? 1 : -1))
 
 const pills = data.categories
   .map(

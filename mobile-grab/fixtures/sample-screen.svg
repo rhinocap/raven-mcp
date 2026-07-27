@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="393" height="852" viewBox="0 0 393 852">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#16161e"/>
+      <stop offset="55%" stop-color="#0e0e14"/>
+      <stop offset="100%" stop-color="#12121a"/>
+    </linearGradient>
+  </defs>
+  <rect width="393" height="852" fill="url(#bg)"/>
+  <text x="24" y="100" fill="#F0F0F2" font-family="Avenir Next, Helvetica, sans-serif" font-size="28" font-weight="700">Raven</text>
+  <text x="24" y="140" fill="#9498A0" font-family="Avenir Next, Helvetica, sans-serif" font-size="15">Design intelligence for your app screen</text>
+  <rect x="24" y="196" width="345" height="160" rx="16" fill="#212129"/>
+  <text x="44" y="240" fill="#F0F0F2" font-family="Avenir Next, Helvetica, sans-serif" font-size="17" font-weight="600">Primary action</text>
+  <foreignObject x="44" y="256" width="305" height="72">
+    <div xmlns="http://www.w3.org/1999/xhtml" style="color:#9498A0;font:14px/1.4 Avenir Next, Helvetica, sans-serif;">
+      Grab selects this card or its children via the accessibility tree.
+    </div>
+  </foreignObject>
+  <rect x="24" y="392" width="345" height="52" rx="12" fill="#00BFFF"/>
+  <text x="196.5" y="424" fill="#0a0a12" font-family="Avenir Next, Helvetica, sans-serif" font-size="16" font-weight="600" text-anchor="middle">Continue</text>
+  <rect x="24" y="460" width="345" height="52" rx="12" fill="none" stroke="rgba(0,191,255,0.35)" stroke-width="1.5"/>
+  <text x="196.5" y="492" fill="#00BFFF" font-family="Avenir Next, Helvetica, sans-serif" font-size="16" font-weight="600" text-anchor="middle">Secondary</text>
+</svg>

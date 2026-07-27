@@ -28,7 +28,7 @@ import { auditTapTargetsUrl, auditTapTargetsSnapshot } from "./tap-targets.js";
 import { compactAuditPage, compactEvaluation, compactAuditUrl } from "./compact.js";
 import { auditVideoPlaybackUrl, auditVideoPlaybackSnapshot } from "./video-playback.js";
 import { auditConsistency } from "./audit-consistency.js";
-import { detectOrphanStretch } from "./layout-orphans.js";
+import { auditLayoutSnapshot, dispatchAudit, type AuditInput } from "./audit-dispatch.js";
 import { createTasteProfile, getTasteProfile, listTasteProfiles, labelFinding, auditTaste, ruleInScope, getTasteInterview, bindTasteSurface, listSurfaceBindings, resolveSurfaceBinding, recordTasteDecision, listTasteDecisions, checkBindingConsistency, isPngPathReference } from "./taste.js";
 import type { ReferenceCapture, SurfaceBinding } from "./taste.js";
 import { generateTastePortrait, generateTastePortraitInline } from "./taste-portrait.js";
@@ -41,9 +41,9 @@ import { readFile } from "fs/promises";
 import { registerCalls } from "./calls.js";
 import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
 import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet } from "./designmd.js";
-import { startGrabSession, getGrabbedElements, stopGrabSession } from "./grab-bridge.js";
-import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
-import { proposePolish, reviewDiff } from "./design-review.js";
+import { startGrabSession, getGrabbedElements, stopGrabSession, getPageTemplate, setTemplateSlots, listTemplates, getGrabLayers, moveGrabLayer, getGrabOperation } from "./grab-bridge.js";
+import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, recordConsultation, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
+import { FAIL_ON_RULES, proposePolish, reviewDiff } from "./design-review.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -1837,18 +1837,20 @@ function numberedDocMaterial(repoRelative: string, content: string): string {
   }).join("\n");
 }
 
-// The 48 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
+// The 55 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
 // 32 are stateful/local (per-user ~/.raven files, or the create_generation_job
 // subprocess), 6 reach the filesystem/network or have an external side effect,
-// 2 are Talon tools pending a remote-safety pass, and 8 are DESIGN.md / review /
-// grab-bridge tools. Everything else (45 stateless tools, including the 5
-// guarded browser URL audits added in Phase 3) is remote-safe, from 93 local tools.
+// 2 are Talon tools pending a remote-safety pass, and 14 are DESIGN.md / review /
+// grab-bridge tools, plus the local audit dispatcher. Everything else (45 stateless
+// tools, including the 5 guarded browser URL audits added in Phase 3) is remote-safe,
+// from 100 local tools.
 // Traced to docs/remote-mcp-scope.md §2; asserted at build time.
 const REMOTE_GATED_TOOLS = new Set<string>([
   // stateful / local (32)
   "create_taste_profile", "get_taste_profile", "list_taste_profiles",
   "get_taste_interview", "bind_taste_surface", "record_taste_decision",
   "list_taste_decisions", "generate_taste_portrait", "label_finding", "audit_taste",
+  "delete_taste_data",
   "create_brand_profile", "get_brand_profile", "list_brand_profiles",
   "register_creative_asset", "create_character_profile", "create_generation_job",
   "get_generation_job", "list_generation_jobs", "plan_creative_campaign", "raven_reflect",
@@ -1877,7 +1879,12 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   // DESIGN.md, design review, and grab bridge stateful tools.
   "read_design_md", "init_design_md", "update_design_md",
   "start_grab_session", "get_grabbed_elements", "stop_grab_session",
-  "review_diff", "polish_diff"
+  "get_page_template", "set_template_slot", "list_templates",
+  "get_grab_layers", "move_grab_layer", "get_grab_operation",
+  "review_diff", "polish_diff",
+  // Local orchestration over existing tool handlers; excluded to preserve the
+  // frozen anonymous 45-tool surface and hash.
+  "audit"
 ]);
 
 // Structured-output tools consumed by CI must stay byte-deterministic.
@@ -1897,8 +1904,15 @@ const DIGEST_EXEMPT_TOOLS = new Set<string>(["review_diff", "polish_diff"]);
 const AUTHED_USER_TASTE_TOOLS = new Set<string>([
   "create_taste_profile", "get_taste_profile", "list_taste_profiles",
   "get_taste_interview", "bind_taste_surface", "record_taste_decision",
-  "list_taste_decisions", "generate_taste_portrait", "label_finding", "audit_taste"
+  "list_taste_decisions", "generate_taste_portrait", "label_finding", "audit_taste",
+  "delete_taste_data"
 ]);
+
+const AUTHED_USER_TASTE_STARTUP_INSTRUCTIONS =
+  "\n\nAUTHENTICATED STARTUP: this remote endpoint is connected to a per-user taste store. At project kickoff or the first real design/copy/UI work for a project, call get_taste_interview for the connected user's taste profile and project name before choosing direction. Ask the returned questions, then persist the user's answers with bind_taste_surface before generating design work. If the profile name is not known yet, call list_taste_profiles first.";
+
+const AUTHED_USER_TASTE_INTERVIEW_DESCRIPTION_SUFFIX =
+  " AUTHENTICATED STARTUP: on the remote authed endpoint, use this as the first taste step for the connected user's per-user store at project kickoff; if you do not know the profile name, call list_taste_profiles first, then call get_taste_interview with that profile and project name before design/copy/UI decisions.";
 
 // Tools KEPT in remote mode for their safe pasted-content path, but whose `url`
 // argument reaches the local filesystem / network via headless capture (incl.
@@ -1950,18 +1964,182 @@ const REMOTE_URL_GUARDED_TOOLS: { [tool: string]: string } = {
   audit_taste: "url"
 };
 
-// buildServer() returns a FRESH McpServer with all 93 local tools + the usage-log/
+// MCP annotations are injected at the shared registration boundary below.
+// Classifications come from each handler and its called helpers, not name prefixes.
+const TOOL_ACCESS: Record<string, "readOnly" | "destructive"> = {
+  get_principles: "readOnly",
+  get_pattern: "readOnly",
+  get_business_strategy: "readOnly",
+  evaluate_design: "readOnly",
+  search_knowledge: "readOnly",
+  get_checklist: "readOnly",
+  get_d4d_framework: "readOnly",
+  list_design_systems: "readOnly",
+  get_design_system: "readOnly",
+  read_design_md: "readOnly",
+  review_diff: "readOnly",
+  polish_diff: "readOnly",
+  init_design_md: "destructive",
+  update_design_md: "destructive",
+  start_grab_session: "destructive",
+  get_grabbed_elements: "destructive",
+  stop_grab_session: "destructive",
+  get_page_template: "readOnly",
+  set_template_slot: "destructive",
+  list_templates: "readOnly",
+  get_grab_layers: "readOnly",
+  move_grab_layer: "destructive",
+  get_grab_operation: "destructive",
+  compose_system: "readOnly",
+  audit_page: "readOnly",
+  score_page: "readOnly",
+  audit_asset_integrity: "readOnly",
+  audit_device_frame: "readOnly",
+  audit_contract: "readOnly",
+  audit_api_contract: "readOnly",
+  audit_parity: "readOnly",
+  audit_ios_a11y: "readOnly",
+  audit_responsive_visibility: "readOnly",
+  audit_contrast: "readOnly",
+  suggest_contrast_fix: "readOnly",
+  audit_url: "readOnly",
+  audit_content: "readOnly",
+  audit_typography: "readOnly",
+  audit_tap_targets: "readOnly",
+  get_brand_system: "readOnly",
+  generate_design_system: "readOnly",
+  audit_layout: "readOnly",
+  audit_swiftui: "readOnly",
+  audit_screen: "readOnly",
+  audit_ios_screen: "readOnly",
+  audit_ios_privacy: "readOnly",
+  audit_rn: "readOnly",
+  list_content_systems: "readOnly",
+  get_content_system: "readOnly",
+  get_content_principles: "readOnly",
+  get_content_pattern: "readOnly",
+  get_research_method: "readOnly",
+  get_metrics_framework: "readOnly",
+  get_service_pattern: "readOnly",
+  get_service_standard: "readOnly",
+  generate_service_blueprint: "readOnly",
+  get_brand_principles: "readOnly",
+  get_brand_trends: "readOnly",
+  list_creative_models: "readOnly",
+  list_creative_presets: "readOnly",
+  create_brand_profile: "destructive",
+  get_brand_profile: "readOnly",
+  list_brand_profiles: "readOnly",
+  register_creative_asset: "destructive",
+  create_character_profile: "destructive",
+  create_generation_job: "destructive",
+  get_generation_job: "readOnly",
+  list_generation_jobs: "readOnly",
+  plan_creative_campaign: "destructive",
+  score_creative: "readOnly",
+  audit_consistency: "readOnly",
+  raven_reflect: "readOnly",
+  raven_register: "destructive",
+  audit_video_playback: "readOnly",
+  decision_add: "destructive",
+  decision_evidence: "destructive",
+  decision_draft: "destructive",
+  decision_commit: "destructive",
+  decision_supersede: "destructive",
+  decision_scope: "destructive",
+  decision_history: "readOnly",
+  decision_get: "destructive",
+  decision_list: "destructive",
+  gap_scan: "readOnly",
+  decision_import: "destructive",
+  ingest_transcript: "destructive",
+  ingest_transcript_results: "destructive",
+  create_taste_profile: "destructive",
+  get_taste_profile: "readOnly",
+  get_taste_interview: "readOnly",
+  bind_taste_surface: "destructive",
+  record_taste_decision: "destructive",
+  // Authed-remote only (P4.5): erases a user's whole taste namespace in Redis.
+  delete_taste_data: "destructive",
+  list_taste_decisions: "readOnly",
+  generate_taste_portrait: "destructive",
+  list_taste_profiles: "readOnly",
+  label_finding: "destructive",
+  audit_taste: "readOnly",
+  talon_scan: "readOnly",
+  talon_rules: "readOnly",
+  audit: "readOnly"
+};
+
+function toolTitle(toolName: string): string {
+  var terms: Record<string, string> = {
+    api: "API",
+    d4d: "D4D",
+    ios: "iOS",
+    rn: "React Native",
+    url: "URL",
+    a11y: "Accessibility"
+  };
+  return toolName.replace("design_md", "DESIGN.md").split("_").map(function (word) {
+    return terms[word] || word.charAt(0).toUpperCase() + word.slice(1);
+  }).join(" ");
+}
+
+// openWorldHint defaults to TRUE in the MCP spec, so the interesting statement is
+// the explicit `false` on the other 89 tools: they read bundled knowledge, local
+// ~/.raven state, or caller-pasted markup and never reach an unpredictable host.
+// These 11 take a caller-supplied URL/endpoint and drive a real browser or fetch
+// against it. `audit` is a dispatcher that fans out to this same set.
+// init_design_md is deliberately absent — its fetch targets one fixed starter
+// base URL, a closed set, not an open world.
+const TOOL_OPEN_WORLD: string[] = [
+  "audit_url",
+  "audit_contrast",
+  "audit_tap_targets",
+  "audit_responsive_visibility",
+  "audit_video_playback",
+  "audit_taste",
+  "audit_page",
+  "score_page",
+  "audit_typography",
+  "audit_api_contract",
+  "audit"
+];
+
+// All three hints are stated explicitly rather than left to their spec defaults.
+// The MCP spec says destructiveHint only applies when readOnlyHint is false, so
+// omitting the inapplicable one is legal — but a consumer that reads the
+// annotations as a flat capability record (OpenAI's plugin scanner is one:
+// "Every MCP tool must set readOnlyHint, openWorldHint, destructiveHint to true
+// or false") sees an omission as unanswered rather than as the default. Both
+// added values are the honest ones: a readOnly tool destroys nothing, and a
+// destructive tool is not read-only.
+function toolAnnotations(toolName: string): {
+  title: string;
+  readOnlyHint: boolean;
+  destructiveHint: boolean;
+  openWorldHint: boolean;
+} {
+  var access = TOOL_ACCESS[toolName];
+  if (!access) throw new Error("Missing MCP tool classification: " + toolName);
+  var openWorld = TOOL_OPEN_WORLD.indexOf(toolName) !== -1;
+  return access === "destructive"
+    ? { title: toolTitle(toolName), readOnlyHint: false, destructiveHint: true, openWorldHint: openWorld }
+    : { title: toolTitle(toolName), readOnlyHint: true, destructiveHint: false, openWorldHint: openWorld };
+}
+
+// buildServer() returns a FRESH McpServer with all 100 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
 export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }): McpServer {
-// remote = serve only the 45 stateless remote-safe tools (gate off the 48 gated tools
+// remote = serve only the 45 stateless remote-safe tools (gate off the 55 gated tools
 // as appropriate; authenticated stores selectively restore taste tools). evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 93.
+// without threading opts. stdio callers pass nothing → remote=false → all 100.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -1984,6 +2162,9 @@ var server = new McpServer({
 }, {
   instructions: "Raven is a design-intelligence server: audits (page/layout/screen/contrast/tap-targets/typography/consistency), design systems and tokens, brand/content/service-design knowledge, creative scoring, and a Taste Engine that makes a person's design judgment portable and growable.\n\nPROJECT KICKOFF — calibrate taste BEFORE the first design work. Taste is per-surface: the same person wants different rules on a monochrome portfolio than on a product site, and a different voice on each. At the START of a new project (or the first design/copy/UI work in any project), if a taste profile exists (list_taste_profiles), call get_taste_interview with the profile and a project name (mode defaults to 'kickoff', depth defaults to 'first_run'). If it returns existing_binding: null, ask the user just its 4 core `questions` conversationally — identity, aesthetic (how it should read here — multiple-choice options given), voice (three register examples so the user can pick by ear), and matchers (which URL hosts identify the project) — then persist with bind_taste_surface and proceed; offer the returned `more_questions` (typography/spacing/color/layout/motion/imagery/entrance/loading/navigation/libraries, references, per-rule overrides, the open-ended special question) as OPTIONAL deeper calibration rather than asking them all upfront, or re-run with depth:'full' if the user wants the complete interview at once. Dimension answers go in design_notes and are echoed in every audit. A cold-start project with no profile at all can start from create_taste_profile({ name, template: 'portfolio'|'saas-marketing'|'app' }) for a small sensible starter ruleset before the first interview even runs. The interview is a blocking gate: collect the user's answers before committing any design direction, palette, type choice, or name — never answer its questions yourself or start design work while it is pending. Every question carries skippable + priority (core|extended); skipping is fine but leaves that item uncalibrated. A 'references' question takes example links/screenshots and interviews what specifically the person likes about each. The interview ends with an open-ended 'special' question (textures, signature details, motifs — stored as design_notes.special) that suggests the person's choices from their other bound surfaces once it has them. From then on pass project:'<name>' on every audit_taste — bindings also auto-match by URL hostname in url mode. When the surface is a website to be built, suggest building it as a Next.js app by default; if the user prefers another stack, record it in design_notes.libraries. Do NOT wait for an audit to return a calibration_hint; that is the reactive backstop, not the intended flow.\n\nWhen a user dislikes generated/designed output on an ALREADY-calibrated project, that dissatisfaction is a calibration signal, not a dead end — re-run get_taste_interview with mode:'refine' (it re-interviews against the stored binding: what fell short, then each stored design_notes value to keep/tighten/replace, then voice, then an optional reject precedent) and re-bind with bind_taste_surface.\n\nLEARNING LOOP — whenever the user makes, approves, or corrects a taste, direction, or design decision during work (not just at interview time), record it with record_taste_decision: the project, a short dimension name, what was chosen, what was rejected, why, and whether it was user-directed, user-approved, or user-corrected (a user overriding a generated choice is the highest-signal record). Recorded decisions evolve future kickoff interviews — recurring choices return as suggested defaults on their dimension's question, and decision categories no standard question covers become NEW interview questions. Record liberally; every committed decision is calibration data.\n\nJudging work: prefer audit_taste (with the profile + project) for matters of the owner's taste, and the mechanical audits (audit_page, audit_contrast, audit_tap_targets, audit_layout) for objective quality. design_notes are ACCEPTANCE CRITERIA for any build, not mood words: audit_taste verifies each note against the rendered page (note_assessments: present/partial/missing/unverifiable, each with trait-number evidence), compares the target against the binding's captured references, and flags sparse-and-empty pages whose restraint is deletion rather than craft — a build is not done until every note is visibly present or the user is told exactly which notes were dropped and why. When a note names an expensive technique (three.js/WebGL, GSAP scroll choreography, anime.js staggered motion, glassmorphism, a branded loader, lottie, kinetic display type…), bind_taste_surface and audit_taste return build_hints — a concrete recipe + canonical public example sources (threejs.org, gsap.com, animejs.com, Codrops…). The public corpus for these is vast, so an expensive note is NEVER license to drop it: consult the attached build_hints and their sources, and if a technique is genuinely infeasible, tell the user before shipping without it. Prefer url mode for verification: live traits (WebGL, animations, scroll effects) cannot be measured from static html. When a human accepts or rejects a finding, record it with label_finding — accept-verdicts suppress that exact pattern in future audits, which is how the profile learns.\n\nGRAB — click-to-change is ON BY DEFAULT for local servers. Any time you start, restart, or serve a local web page/dev server for the user (a demo, a preview, a dev build, a static file server), automatically start a grab session first (start_grab_session with the project's DESIGN.md if one exists) and make the overlay present WITHOUT the user asking or pasting anything: for a server you are starting anyway, pass proxy_target and give the user the BRIDGE url instead of the raw server url — the overlay is injected into every HTML response; for HTML files you are writing yourself, include the returned script_tag directly. Never hand the user a script tag or console snippet to paste. Mention in one line that the grab overlay is active (Alt+G or the on-page pill). The user clicks elements, swaps DESIGN.md tokens with live preview, edits computed styles inline, and sends instructions; drain them with get_grabbed_elements — while a grab session is active, drain whenever control returns to you (and before ending any turn). Sends arrive and are held. On a plain drain, acknowledge each change in one line and wait; do not implement or offer to implement until a batchCommit marker arrives. When batchCommit arrives, implement batch.pending from that same drain payload in one sweep. Apply approved token changes with update_design_md. Stop the session (stop_grab_session) when the server comes down. Skip only when the user explicitly asks for a clean page or the server is production."
 });
+if (remote && hasUserStore) {
+  (server as any).server._options.instructions += AUTHED_USER_TASTE_STARTUP_INSTRUCTIONS;
+}
 
 // Wrap every tool handler: log the call to the local usage log, then inject
 // the one-time update banner if one is pending.
@@ -1998,6 +2179,9 @@ var originalTool: any = server.tool.bind(server);
   // against that store.
   if (remote && REMOTE_GATED_TOOLS.has(toolName) && !(hasUserStore && AUTHED_USER_TASTE_TOOLS.has(toolName))) {
     return undefined;
+  }
+  if (remote && hasUserStore && toolName === "get_taste_interview" && typeof args[1] === "string") {
+    args[1] += AUTHED_USER_TASTE_INTERVIEW_DESCRIPTION_SUFFIX;
   }
   var handler = args[args.length - 1];
   if (typeof handler === "function") {
@@ -2036,7 +2220,9 @@ var originalTool: any = server.tool.bind(server);
         logUsage(toolName, input, result, Date.now() - start);
         maybeComputeDailyDigest();
         if (!DIGEST_EXEMPT_TOOLS.has(toolName)) {
-          // Collect any notices to prepend — daily digest first, then update.
+          // Collect notices to append as a separate content block — daily digest
+          // first, then update. The first block must stay parseable JSON for
+          // machine consumers.
           var notices: string[] = [];
           if (pendingDailyDigest) {
             notices.push(pendingDailyDigest);
@@ -2047,18 +2233,14 @@ var originalTool: any = server.tool.bind(server);
             noticeShown = true;
           }
           if (notices.length > 0 && result && Array.isArray(result.content)) {
-            for (var i = 0; i < result.content.length; i++) {
-              if (result.content[i] && result.content[i].type === "text") {
-                result.content[i].text = notices.join("\n") + "\n\n" + result.content[i].text;
-                break;
-              }
-            }
+            result.content.push({ type: "text", text: notices.join("\n") });
           }
         }
       }
       return result;
     };
   }
+  args.splice(args.length - 1, 0, toolAnnotations(toolName));
   return originalTool.apply(null, args);
 };
 
@@ -2731,11 +2913,19 @@ server.tool(
     diff: z.string().max(409600).describe("Unified diff to review (maximum 400KB)."),
     project: z.string().optional().describe("Project directory used to resolve DESIGN.md and match decision scopes. Omit when design_md is supplied and no project hint is needed."),
     design_md: z.string().optional().describe("Inline DESIGN.md content. Overrides project file lookup when supplied."),
+    fail_on: z.array(z.string()).optional().describe("Rule names to escalate to a failing CI verdict. Valid values: important, bare-hex-color, hardcoded-font-size, hardcoded-font-family, hardcoded-spacing. Diff-scoped: only newly added lines can fail. Default: advisory-only (verdict caps at warn)."),
+    fail_on_governed: z.boolean().optional().describe("When true, findings a recorded decision governs become fail-eligible (severity error → verdict fail). Governance is a lexical scope+category association, NOT a verified contradiction of the decision — opt in as a team strict-mode signal, not a turnkey safe blocker. Combines with fail_on. Default: advisory-only."),
   },
-  async function ({ diff, project, design_md }) {
+  async function ({ diff, project, design_md, fail_on, fail_on_governed }) {
     try {
       if (Buffer.byteLength(diff, "utf8") > 400 * 1024) {
         return { content: [{ type: "text" as const, text: "diff exceeds maximum size of 400KB (409600 bytes)" }], isError: true };
+      }
+      var invalidFailOn = fail_on && fail_on.find(function(rule) {
+        return (FAIL_ON_RULES as readonly string[]).indexOf(rule) === -1;
+      });
+      if (invalidFailOn !== undefined) {
+        return { content: [{ type: "text" as const, text: "invalid fail_on rule \"" + invalidFailOn + "\"; valid rules: " + FAIL_ON_RULES.join(", ") }], isError: true };
       }
       var designContent: string | null = design_md === undefined ? null : design_md;
       if (design_md === undefined && project !== undefined) {
@@ -2746,7 +2936,7 @@ server.tool(
         }
       }
       var decisions = await decisionGraphStore.listActiveDecisions();
-      var result = reviewDiff(diff, designContent, decisions, project);
+      var result = reviewDiff(diff, designContent, decisions, project, { failOn: fail_on, failOnGoverned: fail_on_governed });
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     } catch (err) {
       return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
@@ -2908,7 +3098,7 @@ server.tool(
 
 server.tool(
   "get_grabbed_elements",
-  "Drain the current grab queue, optionally waiting up to timeout_ms for the next selection.",
+  "Read newly sent grab selections without deleting their durable change records, optionally waiting up to timeout_ms. A batchCommit marker is the deterministic signal to implement the unified pending batch.",
   {
     timeout_ms: z.number().int().positive().optional().describe("Optional wait timeout in milliseconds")
   },
@@ -2916,8 +3106,10 @@ server.tool(
     try {
       var grabbed = await getGrabbedElements(timeout_ms);
       var payload: Record<string, unknown> = { ...grabbed };
-      if (grabbed.count > 0) {
-        payload.agent_protocol = "Respond to the user NOW about these selections: summarize each requested change in one line (element, token swaps, style edits, instruction), then ask whether to (a) write a goal/plan and implement the fixes, or (b) wait for direction. Do not implement anything until the user chooses, and do not leave the selections unacknowledged.";
+      if (grabbed.batchCommit) {
+        payload.agent_protocol = "Implement this committed batch now in one patch. Use batch.pending in ascending sequence, resolve every style and reorder target against the batch baseline before structural changes, apply same-parent reorders strictly by sequence, and mark each successful change applied with get_grab_operation. Reject ambiguous or disconnected targets instead of guessing.";
+      } else if (grabbed.count > 0) {
+        payload.agent_protocol = "Acknowledge these sent selections, but do not implement them yet. The user may keep editing; wait for the batchCommit marker from Apply.";
       }
       return {
         content: [{
@@ -2958,6 +3150,118 @@ server.tool(
         }],
         isError: true
       };
+    }
+  }
+);
+
+server.tool(
+  "get_page_template",
+  "Read the page-scoped template slots from the active grab session's DESIGN.md and merge the overlay's latest selector validation. fixed/flexible roles and allowedTokens are cooperative advisory metadata: display labels only, not enforced.",
+  {
+    page: z.string().min(1).describe("Page pathname, matching location.pathname")
+  },
+  async ({ page }) => {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(getPageTemplate(page), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "set_template_slot",
+  "Persist an array of page-scoped template slots in one batched DESIGN.md update. fixed/flexible roles and allowedTokens are cooperative advisory metadata: display labels only, not enforced.",
+  {
+    page: z.string().min(1).describe("Page pathname, matching location.pathname"),
+    template_id: z.string().min(1).optional().default("default").describe("Template identifier; defaults to default"),
+    slots: z.array(z.object({
+      slotId: z.string().min(1),
+      selector: z.string().min(1),
+      role: z.enum(["fixed", "flexible"])
+    }).strict()).describe("All template slots to persist in this batched call")
+  },
+  async ({ page, template_id, slots }) => {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(setTemplateSlots(page, template_id, slots), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "list_templates",
+  "List templates and their registered page pathnames from the active grab session. Template permissions and allowedTokens are cooperative advisory metadata: display labels only, not enforced.",
+  {},
+  async () => {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(listTemplates(), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "get_grab_layers",
+  "Read the latest non-mutating layer-tree snapshot captured by the active local grab session. Any fixed/flexible permissions are cooperative advisory metadata: display labels only, not enforced.",
+  {
+    page: z.string().min(1).optional().describe("Optional page pathname; omit to list all latest page snapshots")
+  },
+  async ({ page }) => {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(getGrabLayers(page), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "move_grab_layer",
+  "Queue a same-page layer reorder or reparent intent (previewed when measuredRects are supplied, otherwise proposed) without mutating the live page. Reparent moves a node to a different parent (toParentSelector); reorder keeps a single parentSelector. Permissions and fixed/flexible roles are cooperative advisory metadata: display labels only, not enforced; caller-supplied roles are rejected. Shadow-root and iframe boundaries are out of scope.",
+  {
+    operation: z.enum(["reorder", "reparent"]),
+    page: z.string().min(1),
+    parentSelector: z.string().min(1).optional().describe("Required for reorder — single parent"),
+    fromParentSelector: z.string().min(1).optional().describe("Required for reparent — source parent"),
+    toParentSelector: z.string().min(1).optional().describe("Required for reparent — destination parent"),
+    fromIndex: z.number().int().min(0),
+    toIndex: z.number().int().min(0),
+    orderedSelectors: z.array(z.string().min(1)),
+    baselineOrder: z.array(z.string().min(1)).optional(),
+    toBaselineOrder: z.array(z.string().min(1)).optional(),
+    selectionOrder: z.array(z.number().int().min(1)).optional(),
+    measuredRects: z.array(z.object({ selector: z.string().min(1), x: z.number(), y: z.number(), width: z.number(), height: z.number() }).strict()),
+    approximate: z.boolean(),
+    domSnapshotHash: z.string().min(1),
+    toDomSnapshotHash: z.string().min(1).optional(),
+    fromSelector: z.string().min(1).optional(),
+    role: z.never().optional().describe("Rejected: roles are never accepted from callers")
+  },
+  async (intent) => {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(moveGrabLayer(intent), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "get_grab_operation",
+  "Read or update one durable grab change, list legacy reorder operations, or request the unified style+reorder batch. Applied/rejected/superseded changes leave the pending set.",
+  {
+    operation_id: z.string().min(1).optional().describe("Operation ID; omit to list all operations"),
+    mark: z.enum(["applied", "rejected"]).optional().describe("Mark a previewed reorder or sent style change"),
+    batch: z.boolean().optional().describe("Return the unified current batch of reorder and style records; cannot be combined with operation_id or mark")
+  },
+  async ({ operation_id, mark, batch }) => {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(getGrabOperation(operation_id, mark, batch), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
     }
   }
 );
@@ -4381,115 +4685,11 @@ server.tool(
       };
     }
 
-    var rects = elements.map(function(e) { return e.rect; });
-
-    // ── Alignment: cluster left edges (x) within 2px
-    var clusterTol = 2;
-    var colCounts = new Map<number, number>();
-    for (var r of rects) {
-      var matched: number | null = null;
-      for (var c of colCounts.keys()) {
-        if (Math.abs(r.x - c) <= clusterTol) { matched = c; break; }
-      }
-      if (matched !== null) colCounts.set(matched, (colCounts.get(matched) || 0) + 1);
-      else colCounts.set(r.x, 1);
-    }
-    var sharedCols = Array.from(colCounts.values()).filter(function(n) { return n >= 2; }).length;
-    var singletonCols = Array.from(colCounts.values()).filter(function(n) { return n === 1; }).length;
-    var alignedElements = 0;
-    colCounts.forEach(function(n) { if (n >= 2) alignedElements += n; });
-    var alignmentRatio = rects.length > 0 ? alignedElements / rects.length : 0;
-
-    // ── Gap rhythm: vertical gaps between horizontally-overlapping siblings
-    var vGaps: number[] = [];
-    var sortedByY = rects.slice().sort(function(a, b) { return a.y - b.y; });
-    for (var i = 1; i < sortedByY.length; i++) {
-      var prev = sortedByY[i - 1];
-      var cur = sortedByY[i];
-      var xOverlap = Math.min(prev.x + prev.w, cur.x + cur.w) - Math.max(prev.x, cur.x);
-      if (xOverlap > 0) {
-        var gap = cur.y - (prev.y + prev.h);
-        if (gap > 0 && gap < 200) vGaps.push(gap);
-      }
-    }
-    var gapMedian = 0, gapStdev = 0, gapCV = 0;
-    if (vGaps.length >= 3) {
-      var sortedGaps = vGaps.slice().sort(function(a, b) { return a - b; });
-      gapMedian = sortedGaps[Math.floor(sortedGaps.length / 2)];
-      var gapMean = vGaps.reduce(function(a, b) { return a + b; }, 0) / vGaps.length;
-      var gapVar = vGaps.reduce(function(a, b) { return a + (b - gapMean) * (b - gapMean); }, 0) / vGaps.length;
-      gapStdev = Math.sqrt(gapVar);
-      gapCV = gapMean > 0 ? gapStdev / gapMean : 0;
-    }
-
-    // ── Optical balance: visual weight (area) left vs right of content-bounds midline
-    // Measure relative to content's own bounding box, not the viewport — otherwise any
-    // intentionally left-anchored content column on a wide viewport registers as "skewed."
-    var contentMinX = Infinity, contentMaxX = -Infinity;
-    for (var rb of rects) {
-      if (rb.x < contentMinX) contentMinX = rb.x;
-      if (rb.x + rb.w > contentMaxX) contentMaxX = rb.x + rb.w;
-    }
-    var contentMid = (contentMinX + contentMaxX) / 2;
-    var contentHalfWidth = (contentMaxX - contentMinX) / 2;
-    // Torque = area × distance from midline. Normalized against the maximum possible
-    // net torque (if all mass were at one extreme edge) so that perfectly centered
-    // elements contribute 0 and the score reflects actual imbalance fraction.
-    var leftTorque = 0, rightTorque = 0, totalArea = 0;
-    for (var r2 of rects) {
-      var area = r2.w * r2.h;
-      var cx = r2.x + r2.w / 2;
-      var dist = Math.abs(cx - contentMid);
-      totalArea += area;
-      if (cx < contentMid) leftTorque += area * dist;
-      else if (cx > contentMid) rightTorque += area * dist;
-    }
-    var maxPossibleTorque = totalArea * contentHalfWidth;
-    var netTorque = Math.abs(leftTorque - rightTorque);
-    var balanceSkew = maxPossibleTorque > 0 ? netTorque / maxPossibleTorque : 0;
-    var leftWeight = Math.round(leftTorque);
-    var rightWeight = Math.round(rightTorque);
-
-    var findings: Array<{ check: string; status: "pass" | "warn"; message: string; fix?: string }> = [];
-
-    if (alignmentRatio >= 0.6) {
-      findings.push({ check: "alignment", status: "pass", message: Math.round(alignmentRatio * 100) + "% of elements share a left edge with another (" + sharedCols + " alignment column" + (sharedCols === 1 ? "" : "s") + ", " + singletonCols + " one-off" + (singletonCols === 1 ? "" : "s") + ")" });
-    } else {
-      findings.push({ check: "alignment", status: "warn", message: "Weak alignment — only " + Math.round(alignmentRatio * 100) + "% of elements align with any sibling (" + singletonCols + " unique left edges across " + rects.length + " elements). Elements should live on a small number of alignment columns.", fix: "Wrap siblings in a flex/grid parent and let the parent dictate alignment. Remove ad-hoc left margins that push children off the grid." });
-    }
-
-    if (vGaps.length >= 3) {
-      if (gapCV <= 0.5) {
-        findings.push({ check: "gap-rhythm", status: "pass", message: "Vertical gaps are consistent (median " + Math.round(gapMedian) + "px, CV " + gapCV.toFixed(2) + " across " + vGaps.length + " pairs)" });
-      } else {
-        findings.push({ check: "gap-rhythm", status: "warn", message: "Inconsistent vertical rhythm — gap coefficient of variation " + gapCV.toFixed(2) + " (median " + Math.round(gapMedian) + "px, σ " + Math.round(gapStdev) + "px across " + vGaps.length + " pairs)", fix: "Siblings should share one gap value. Move spacing from per-child margin-top/bottom to a single gap: on the parent flex/grid container." });
-      }
-    } else {
-      findings.push({ check: "gap-rhythm", status: "pass", message: "Not enough vertical sibling pairs to score (" + vGaps.length + " found)" });
-    }
-
-    if (balanceSkew <= 0.2) {
-      findings.push({ check: "optical-balance", status: "pass", message: "Horizontal weight is balanced (skew " + Math.round(balanceSkew * 100) + "%)" });
-    } else {
-      findings.push({ check: "optical-balance", status: "warn", message: "Layout is " + (leftWeight > rightWeight ? "left-heavy" : "right-heavy") + " — visual weight skewed by " + Math.round(balanceSkew * 100) + "%", fix: balanceSkew > 0.4 ? "Redistribute dense blocks (images, tables) toward center, or add counterweight on the lighter side." : "Minor imbalance — review whether it's intentional asymmetry or accidental." });
-    }
-
-    var orphanStretch = detectOrphanStretch(elements);
-
+    var result = auditLayoutSnapshot(elements, viewport);
     return {
       content: [{
         type: "text" as const,
-        text: JSON.stringify({
-          elements_analyzed: rects.length,
-          viewport: viewport,
-          findings: findings,
-          metrics: {
-            alignment: { total_columns: colCounts.size, shared_columns: sharedCols, singleton_columns: singletonCols, aligned_ratio: Number(alignmentRatio.toFixed(2)) },
-            gap_rhythm: vGaps.length >= 3 ? { samples: vGaps.length, median_px: Math.round(gapMedian), stdev_px: Math.round(gapStdev), coef_variation: Number(gapCV.toFixed(2)) } : { samples: vGaps.length, note: "not enough horizontally-overlapping vertical sibling pairs" },
-            balance: { left_weight: Math.round(leftWeight), right_weight: Math.round(rightWeight), skew_pct: Math.round(balanceSkew * 100) }
-          },
-          orphan_stretch: orphanStretch
-        }, null, 2)
+        text: JSON.stringify(result, null, 2)
       }]
     };
   }
@@ -6425,11 +6625,13 @@ server.tool(
     scope: z.string().min(1).describe("Scope where the decision applies."),
     component_ref: z.string().min(1).describe("Component or surface the decision refers to."),
     alternatives_rejected: z.array(z.string()).optional().describe("Alternatives considered and rejected."),
+    author: z.string().nullable().optional().describe("Agent or person authoring the decision. Defaults to RAVEN_AGENT_ID or unknown."),
   },
-  async function ({ statement, rationale, scope, component_ref, alternatives_rejected }) {
+  async function ({ statement, rationale, scope, component_ref, alternatives_rejected, author }) {
     var node = flagRationaleMissing({
       node_kind: "decision" as const,
       id: "dec_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+      author: author === undefined ? (process.env.RAVEN_AGENT_ID || "unknown") : author,
       statement: statement,
       rationale: rationale === undefined ? null : rationale,
       scope: scope,
@@ -6438,6 +6640,9 @@ server.tool(
       status: "active" as const,
       superseded_by: null,
       rationale_trust: null,
+      // Direct add: author is the first-party runtime identity (RAVEN_AGENT_ID) or an explicit
+      // caller assertion — not a model guess — so it is trusted enough to establish non-authorship.
+      author_trust: "confirmed" as const,
       created_at: new Date().toISOString(),
     });
     var created = await decisionGraphStore.addNode(node);
@@ -6532,6 +6737,9 @@ server.tool(
     var updated = await decisionGraphStore.updateNode(id, {
       rationale: rationale,
       rationale_trust: "confirmed",
+      // Committing reviews the whole candidate, author included, so a human commit confirms the
+      // attribution too — the only path that lets an author establish non-authorship (Sol #2, it57).
+      author_trust: existing.author ? "confirmed" as const : (existing.author_trust ?? null),
       status: existing.status === "candidate" ? "active" : existing.status,
     }) as DecisionNode;
     var threshold = similarity_threshold === undefined ? similarityThreshold() : similarity_threshold;
@@ -6552,6 +6760,9 @@ server.tool(
     new_id: z.string().min(1).describe("Existing replacement decision id."),
   },
   async function ({ old_id, new_id }) {
+    if (old_id === new_id) {
+      return { content: [{ type: "text" as const, text: "old_id and new_id must be distinct decisions." }], isError: true };
+    }
     var oldNode = await decisionGraphStore.getNode(old_id);
     var newNode = await decisionGraphStore.getNode(new_id);
     if (oldNode === null || oldNode.node_kind !== "decision" || newNode === null || newNode.node_kind !== "decision") {
@@ -6613,6 +6824,7 @@ server.tool(
       type: "scoped_alongside",
       created_at: new Date().toISOString(),
     });
+    recordConsultation(process.env.RAVEN_AGENT_ID || "unknown", "decision_scope", [updatedA, updatedB]);
     return { content: [{ type: "text" as const, text: JSON.stringify({ decision_a: updatedA, decision_b: updatedB, edge: edge }, null, 2) }] };
   }
 );
@@ -6657,6 +6869,11 @@ server.tool(
         timestamp: evidenceNode.timestamp,
       };
     });
+    var returnedDecisions = neighbors.filter(function(neighbor): neighbor is DecisionNode {
+      return neighbor.node_kind === "decision";
+    });
+    if (node.node_kind === "decision") returnedDecisions.unshift(node);
+    recordConsultation(process.env.RAVEN_AGENT_ID || "unknown", "decision_get", returnedDecisions);
     return { content: [{ type: "text" as const, text: JSON.stringify({ node: node, neighbors: neighbors, evidence: evidence }, null, 2) }] };
   }
 );
@@ -6681,6 +6898,7 @@ server.tool(
         return decision.rationale_missing || decision.rationale_trust === "extracted";
       });
     }
+    recordConsultation(process.env.RAVEN_AGENT_ID || "unknown", "decision_list", decisions);
     return { content: [{ type: "text" as const, text: JSON.stringify(decisions, null, 2) }] };
   }
 );
@@ -6867,6 +7085,8 @@ server.tool(
         scope: extractionSource.ref,
         component_ref: extractionSource.ref,
         alternatives_rejected: item.alternatives_rejected,
+        author: item.author ?? null,
+        author_trust: item.author ? "extracted" as const : null,
         status: "candidate" as const,
         superseded_by: null,
         created_at: new Date().toISOString(),
@@ -6952,6 +7172,23 @@ server.tool(
     return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "create_taste_profile", name: profile.name, rules: profile.rules.length, corpus: profile.corpus.length, home: (remote && hasUserStore) ? "cloud:per-user" : (process.env.RAVEN_TASTE_HOME ? "RAVEN_TASTE_HOME" : "~/.raven/taste") }, null, 2) }] };
   }
 );
+
+if (remote && hasUserStore) {
+  server.tool(
+    "delete_taste_data",
+    "IRREVERSIBLY delete ALL of the connected user's stored taste data on the hosted endpoint — every taste profile, surface binding, and recorded decision keyed to your account (the taste:{you}:* keyspace). This does not touch rate-limit counters and cannot be undone. Requires confirm:\"DELETE\". Returns {deleted, remaining}; remaining>0 means erasure was incomplete (reported as an error).",
+    { confirm: z.literal("DELETE").describe("Must be exactly the string DELETE to authorize irreversible erasure of all your stored taste data.") },
+    async function ({ confirm }) {
+      var store: any = tasteStore;
+      if (typeof store.deleteAllUserData !== "function") {
+        return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ tool: "delete_taste_data", error: "deletion is only available on the hosted per-user store" }, null, 2) }] };
+      }
+      var res = await store.deleteAllUserData();
+      var failed = res.remaining > 0;
+      return { isError: failed, content: [{ type: "text" as const, text: JSON.stringify({ tool: "delete_taste_data", deleted: res.deleted, remaining: res.remaining, ok: !failed }, null, 2) }] };
+    }
+  );
+}
 
 server.tool(
   "get_taste_profile",
@@ -7308,13 +7545,58 @@ server.tool(
   }
 );
 
+server.tool(
+  "audit",
+  "Run **all applicable** Raven audits for a target. Detects the surface (web page / iOS screen / React Native / code diff / video) and fans out to the right checks — contrast, tap targets, typography, layout, responsive, and taste for web; the iOS or RN set for native; parity/contract for diffs. **Use this instead of choosing individual audit_* tools.** Pass `project` to judge against bound taste.",
+  {
+    url: z.string().optional().describe("Web page or video URL."),
+    html: z.string().optional().describe("Static web HTML."),
+    nodes: z.any().optional().describe("Pre-collected snapshot data for the applicable audits."),
+    source: z.string().optional().describe("iOS/SwiftUI or React Native source."),
+    screenshot: z.string().optional().describe("Screenshot input for native/device audits."),
+    diff: z.string().optional().describe("Unified diff or patch."),
+    surface: z.enum(["web", "ios", "react-native", "diff", "video"]).optional().describe("Surface override; otherwise detected from the supplied target."),
+    intent: z.string().optional().describe("Optional focus such as accessibility, contrast, content, copy, or pre-ship."),
+    project: z.string().optional().describe("Project identifier for taste binding and project-aware audits."),
+    profile: z.string().optional().describe("Taste profile id for audit_taste.")
+  },
+  async function(input: AuditInput) {
+    var report = await dispatchAudit(input, {
+      run: async function(toolName, toolArgs) {
+        var registered = (server as any)._registeredTools[toolName];
+        if (!registered || typeof registered.handler !== "function") {
+          throw new Error("tool is not registered");
+        }
+        var result = await registered.handler(toolArgs, {});
+        var first = result && Array.isArray(result.content) ? result.content[0] : null;
+        var text = first && typeof first.text === "string" ? first.text : "";
+        if (result && result.isError) throw new Error(text || "tool returned an error");
+        try {
+          var payload = JSON.parse(text);
+          if (payload && typeof payload === "object" && typeof payload.error === "string") throw new Error(payload.error);
+          return payload;
+        } catch (error) {
+          if (error instanceof SyntaxError) throw new Error(text || "tool returned no JSON payload");
+          throw error;
+        }
+      },
+      remote: remote,
+      remoteGatedTools: REMOTE_GATED_TOOLS,
+      remoteArgGuards: REMOTE_ARG_GUARDS,
+      remoteUrlGuardedTools: REMOTE_URL_GUARDED_TOOLS,
+      remoteUrlGuardError: remoteUrlGuardError
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify(report, null, 2) }] };
+  }
+);
+
   return server;
 }
 
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 93 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 100 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });

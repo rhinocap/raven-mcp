@@ -1,0 +1,96 @@
+{
+  "viewport": { "w": 393, "h": 852 },
+  "screen": "Home",
+  "source": "fixture",
+  "tree": [
+    {
+      "id": "root",
+      "role": "Application",
+      "label": "Raven Mobile Grab Sample",
+      "identifier": "app.root",
+      "rect": { "x": 0, "y": 0, "w": 393, "h": 852 },
+      "children": [
+        {
+          "id": "nav",
+          "role": "Header",
+          "label": "Raven",
+          "identifier": "home.header",
+          "rect": { "x": 24, "y": 72, "w": 345, "h": 40 },
+          "styles": { "font-size": "28pt", "font-weight": "700", "color": "#F0F0F2" },
+          "children": []
+        },
+        {
+          "id": "subtitle",
+          "role": "StaticText",
+          "label": "Design intelligence for your app screen",
+          "identifier": "home.subtitle",
+          "rect": { "x": 24, "y": 120, "w": 345, "h": 44 },
+          "styles": { "font-size": "15pt", "color": "#9498A0" },
+          "children": []
+        },
+        {
+          "id": "card",
+          "role": "Group",
+          "label": "Taste card",
+          "identifier": "home.card",
+          "rect": { "x": 24, "y": 196, "w": 345, "h": 160 },
+          "styles": { "background": "#212129", "border-radius": "16" },
+          "children": [
+            {
+              "id": "card-title",
+              "role": "StaticText",
+              "label": "Primary action",
+              "identifier": "home.card.title",
+              "rect": { "x": 44, "y": 220, "w": 305, "h": 28 },
+              "styles": { "font-size": "17pt", "font-weight": "600", "color": "#F0F0F2" },
+              "children": []
+            },
+            {
+              "id": "card-body",
+              "role": "StaticText",
+              "label": "Grab selects this card or its children via the accessibility tree.",
+              "identifier": "home.card.body",
+              "rect": { "x": 44, "y": 256, "w": 305, "h": 64 },
+              "styles": { "font-size": "14pt", "color": "#9498A0" },
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": "continue",
+          "role": "Button",
+          "label": "Continue",
+          "identifier": "home.continue",
+          "rect": { "x": 24, "y": 392, "w": 345, "h": 52 },
+          "matchCount": 1,
+          "styles": {
+            "background": "#00BFFF",
+            "color": "#0a0a12",
+            "font-weight": "600",
+            "border-radius": "12",
+            "min-height": "52"
+          },
+          "tokens": [
+            { "property": "background", "name": "accent", "value": "#00BFFF" }
+          ],
+          "children": []
+        },
+        {
+          "id": "secondary",
+          "role": "Button",
+          "label": "Secondary",
+          "identifier": "home.secondary",
+          "rect": { "x": 24, "y": 460, "w": 345, "h": 52 },
+          "matchCount": 1,
+          "styles": {
+            "background": "transparent",
+            "color": "#00BFFF",
+            "border": "1px solid rgba(0,191,255,.35)",
+            "border-radius": "12"
+          },
+          "children": []
+        }
+      ]
+    }
+  ]
+}

@@ -2,10 +2,10 @@
 
 // Archives complete Figma comment API responses using a PAT with file_comments:read; optional node-name resolution also needs file_content:read. Raw comment responses above 100 MB are rejected per file, while verbatim response text remains the durable history artifact.
 
-import { mkdir, rename, writeFile } from 'node:fs/promises';
+import { access, mkdir, rename, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-const USAGE = 'Usage: node scripts/figma-comments-archive.mjs [--out <dir>] [--md] [--resolve-nodes] <fileKey> [<fileKey>…]';
+const USAGE = 'Usage: node scripts/figma-comments-archive.mjs [--out <dir>] [--md] [--resolve-nodes] <fileKey> [<fileKey>…]\n       node scripts/figma-comments-archive.mjs --paste <label> [--out <dir>] [--md] [--force]';
 const MAX_COMMENTS_RESPONSE_BYTES = 100 * 1024 * 1024;
 const token = process.env.FIGMA_TOKEN;
 
@@ -32,7 +32,7 @@ function parseFileKey(value) {
 }
 
 function parseArgs(argv) {
-  const options = { outDir: 'figma-comments-archive', markdown: false, resolveNodes: false, keys: [] };
+  const options = { outDir: 'figma-comments-archive', markdown: false, resolveNodes: false, pasteLabel: null, force: false, keys: [] };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--out') {
@@ -43,6 +43,13 @@ function parseArgs(argv) {
       options.markdown = true;
     } else if (arg === '--resolve-nodes') {
       options.resolveNodes = true;
+    } else if (arg === '--force') {
+      options.force = true;
+    } else if (arg === '--paste') {
+      if (options.pasteLabel != null || !argv[index + 1] || argv[index + 1].startsWith('--')) failUsage(USAGE);
+      if (/\s|[/\\]/.test(argv[index + 1])) failUsage(`Invalid paste label: ${argv[index + 1]}`);
+      options.pasteLabel = argv[index + 1];
+      index += 1;
     } else if (arg.startsWith('--')) {
       failUsage(USAGE);
     } else {
@@ -51,8 +58,69 @@ function parseArgs(argv) {
       options.keys.push(key);
     }
   }
-  if (options.keys.length === 0) failUsage(USAGE);
+  if (options.pasteLabel != null && (options.keys.length > 0 || options.resolveNodes)) failUsage(USAGE);
+  if (options.pasteLabel == null && options.force) failUsage(USAGE);
+  if (options.pasteLabel == null && options.keys.length === 0) failUsage(USAGE);
   return options;
+}
+
+function looksLikeTimestamp(value) {
+  const text = String(value || '').trim();
+  return /\bago\b/i.test(text)
+    || /^just now$/i.test(text)
+    || /^yesterday\b/i.test(text)
+    || /^\d{4}-\d{2}-\d{2}/.test(text)
+    || /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d/i.test(text);
+}
+
+function parsePastedComments(text) {
+  const blocks = text.replace(/\r\n?/g, '\n').trim().split(/\n(?:[^\S\n]*\n)+/);
+  const comments = [];
+  blocks.forEach(function (block, threadIndex) {
+    const lines = block.split('\n');
+    if (lines.length < 2 || !looksLikeTimestamp(lines[1])) {
+      comments.push({
+        id: `t${threadIndex + 1}c1`,
+        order: comments.length,
+        user: { handle: 'unknown' },
+        created_at: 'unknown',
+        message: block
+      });
+      return;
+    }
+
+    const threadComments = [];
+    let index = 0;
+    while (index < lines.length) {
+      const handle = lines[index];
+      const createdAt = lines[index + 1];
+      index += 2;
+      const messageLines = [];
+      while (index < lines.length && !(index + 1 < lines.length && looksLikeTimestamp(lines[index + 1]))) {
+        messageLines.push(lines[index]);
+        index += 1;
+      }
+      const commentIndex = threadComments.length + 1;
+      const id = `t${threadIndex + 1}c${commentIndex}`;
+      const comment = {
+        id,
+        order: comments.length + threadComments.length,
+        user: { handle },
+        created_at: createdAt,
+        message: messageLines.join('\n')
+      };
+      if (commentIndex > 1) comment.parent_id = `t${threadIndex + 1}c1`;
+      threadComments.push(comment);
+    }
+    comments.push(...threadComments);
+  });
+  return { comments };
+}
+
+async function readStdin() {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  return Buffer.concat(chunks);
 }
 
 function retryDelayMs(value) {
@@ -129,6 +197,10 @@ async function resolveNodeNames(apiBase, key, nodeIds) {
 }
 
 function compareCreatedAt(left, right) {
+  // Paste-mode comments carry a numeric `order` (pasted position): their created_at
+  // is relative text ("2 days ago") that sorts lexically, not chronologically.
+  // Figma API payloads never include `order`, so PAT-mode sorting is unchanged.
+  if (left && right && left.order != null && right.order != null) return left.order - right.order;
   return String(left && left.created_at || '').localeCompare(String(right && right.created_at || ''));
 }
 
@@ -239,14 +311,36 @@ async function atomicWrite(path, contents) {
   await rename(temporaryPath, path);
 }
 
-if (!token || !token.trim()) {
+const argv = process.argv.slice(2);
+if (!argv.includes('--paste') && (!token || !token.trim())) {
   console.error('Create a Figma PAT with the file_comments:read scope, then export it as FIGMA_TOKEN.');
   process.exit(2);
 }
 
-const options = parseArgs(process.argv.slice(2));
-const apiBase = (process.env.FIGMA_API_BASE || 'https://api.figma.com').replace(/\/+$/, '');
+const options = parseArgs(argv);
 const outDir = resolve(options.outDir);
+
+if (options.pasteLabel != null) {
+  const rawText = await readStdin();
+  const pastedText = rawText.toString('utf8');
+  if (!pastedText.trim()) {
+    console.error('Pasted comment text is empty.');
+    process.exit(2);
+  }
+  const payload = parsePastedComments(pastedText);
+  await mkdir(outDir, { recursive: true });
+  const archivePath = resolve(outDir, `${options.pasteLabel}.txt`);
+  if (!options.force && await access(archivePath).then(function () { return true; }, function () { return false; })) {
+    console.error(`${options.pasteLabel}.txt already exists in ${outDir} — choose a new label or pass --force to replace it.`);
+    process.exit(2);
+  }
+  await atomicWrite(resolve(outDir, `${options.pasteLabel}.txt`), rawText);
+  await atomicWrite(resolve(outDir, `${options.pasteLabel}.md`), renderMarkdown(options.pasteLabel, payload, new Map()));
+  console.log(`archived 1/1 file(s) → ${outDir}`);
+  process.exit(0);
+}
+
+const apiBase = (process.env.FIGMA_API_BASE || 'https://api.figma.com').replace(/\/+$/, '');
 await mkdir(outDir, { recursive: true });
 
 let archived = 0;

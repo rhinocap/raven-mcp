@@ -31,6 +31,7 @@ export interface MinimalRedisClient {
   smembers(key: string): Promise<string[]>;
   rpush(key: string, ...values: unknown[]): Promise<number>;
   lrange(key: string, start: number, stop: number): Promise<unknown[]>;
+  scan(cursor: string | number, opts?: { match?: string; count?: number }): Promise<[string, string[]]>;
 }
 
 export class RedisTasteStore implements TasteStore {
@@ -103,6 +104,45 @@ export class RedisTasteStore implements TasteStore {
   // concurrent sessions can both record without a lost update.
   async appendDecision(name: string, decision: TasteDecision): Promise<void> {
     await this.redis.rpush(this.key("decisions", name), decision);
+  }
+
+  async deleteAllUserData(): Promise<{ deleted: number; remaining: number }> {
+    if (!/^[A-Za-z0-9_-]+$/.test(this.sub)) {
+      throw new Error("delete refused: user id contains characters unsafe for a key glob");
+    }
+    const match = "taste:" + this.sub + ":*";
+    // 1) index-walk: delete known profile/surfaces/decisions keys + the index set
+    const names = await this.redis.smembers(this.indexKey());
+    const known: string[] = [this.indexKey()];
+    for (const name of names) {
+      known.push(this.key("profile", name), this.key("surfaces", name), this.key("decisions", name));
+    }
+    let deleted = known.length ? await this.redis.del(...known) : 0;
+    // 2) SCAN sweep for anything the index missed — anchored to taste:{sub}:*, never rl:
+    deleted += await this.scanDelete(match);
+    // 3) verify erasure
+    const remaining = await this.scanCount(match);
+    return { deleted, remaining };
+  }
+
+  private async scanDelete(match: string): Promise<number> {
+    let cursor = "0", n = 0;
+    do {
+      const [next, keys] = await this.redis.scan(cursor, { match, count: 100 });
+      cursor = String(next);
+      if (keys.length) n += await this.redis.del(...keys);
+    } while (cursor !== "0");
+    return n;
+  }
+
+  private async scanCount(match: string): Promise<number> {
+    let cursor = "0", n = 0;
+    do {
+      const [next, keys] = await this.redis.scan(cursor, { match, count: 100 });
+      cursor = String(next);
+      n += keys.length;
+    } while (cursor !== "0");
+    return n;
   }
 
   // Logical name only — an absolute path would be a lie for a Redis store.

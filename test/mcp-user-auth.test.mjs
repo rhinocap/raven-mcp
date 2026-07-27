@@ -22,6 +22,10 @@ import { SignJWT, generateKeyPair, exportJWK } from 'jose';
 const GOLDEN_45_HASH = 'f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6';
 const ISSUER = 'https://test-tenant.authkit.example';
 const RESOURCE = 'https://raven-test.example/api/mcp-user';
+const sandboxNoNetwork = process.env.CODEX_SANDBOX_NETWORK_DISABLED === '1';
+const networkTest = function (name, fn) {
+  return test(name, { skip: sandboxNoNetwork ? 'sandbox does not permit loopback listeners' : false }, fn);
+};
 
 process.env.WORKOS_AUTHKIT_DOMAIN = ISSUER;
 process.env.RAVEN_MCP_RESOURCE = RESOURCE;
@@ -77,7 +81,7 @@ function rpc(path, body, headers = {}) {
   });
 }
 
-before(async () => {
+if (!sandboxNoNetwork) before(async () => {
   key = await generateKeyPair('RS256');
   const jwk = await exportJWK(key.publicKey);
   jwk.kid = 'test-key';
@@ -96,7 +100,7 @@ before(async () => {
 
 after(() => { httpServer && httpServer.close(); });
 
-test('missing Bearer → 401 with resource_metadata challenge', async () => {
+networkTest('missing Bearer → 401 with resource_metadata challenge', async () => {
   const res = await rpc('/api/mcp-user', { jsonrpc: '2.0', id: 1, method: 'tools/list' });
   assert.equal(res.status, 401);
   const challenge = res.headers.get('www-authenticate');
@@ -106,7 +110,7 @@ test('missing Bearer → 401 with resource_metadata challenge', async () => {
   assert.ok(!challenge.includes('invalid_token'));
 });
 
-test('garbage / wrong-aud / wrong-iss / expired tokens → 401 invalid_token', async () => {
+networkTest('garbage / wrong-aud / wrong-iss / expired tokens → 401 invalid_token', async () => {
   const bad = [
     'not-a-jwt-at-all',
     await signToken({ aud: 'https://some-other-resource.example/api/mcp-user' }),
@@ -121,7 +125,7 @@ test('garbage / wrong-aud / wrong-iss / expired tokens → 401 invalid_token', a
   }
 });
 
-test('valid token → exactly the 45 anonymous remote tools (golden hash)', async () => {
+networkTest('valid token → exactly the 45 anonymous remote tools (golden hash)', async () => {
   const token = await signToken();
   const res = await rpc('/api/mcp-user', { jsonrpc: '2.0', id: 7, method: 'tools/list' },
     { authorization: 'Bearer ' + token });
@@ -136,7 +140,7 @@ test('valid token → exactly the 45 anonymous remote tools (golden hash)', asyn
   for (const n of names) assert.ok(!/taste/.test(n), 'no taste tool may be exposed in P4.1: ' + n);
 });
 
-test('PRM document points at the configured authorization server', async () => {
+networkTest('PRM document points at the configured authorization server', async () => {
   const res = await fetch(baseUrl + '/api/well-known?doc=prm');
   assert.equal(res.status, 200);
   const doc = await res.json();
@@ -145,7 +149,7 @@ test('PRM document points at the configured authorization server', async () => {
   assert.deepEqual(doc.bearer_methods_supported, ['header']);
 });
 
-test('resource falls back to the request host when RAVEN_MCP_RESOURCE is unset (preview binding)', async () => {
+networkTest('resource falls back to the request host when RAVEN_MCP_RESOURCE is unset (preview binding)', async () => {
   const saved = process.env.RAVEN_MCP_RESOURCE;
   delete process.env.RAVEN_MCP_RESOURCE;
   try {

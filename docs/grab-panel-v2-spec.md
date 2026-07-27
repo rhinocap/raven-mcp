@@ -1,5 +1,15 @@
 # Grab Panel v2 + Playground spec (Figma "Raven design", node 3-136)
 
+> **Superseded 2026-07-19 — historical record, not the current contract.**
+> This spec describes ONE 360px right-hand panel. What ships is TWO panels: a
+> Structure panel on the left (layers, templates, and a footer bar reading
+> `⌘K <project name>` that opens a full-page settings + feedback modal) and the
+> Design panel on the right, each collapsing to its own edge tab via
+> `transform: translateX(±750px)`. Read `browser/raven-grab.js` for the real
+> markup and `conversations/f23-polish-loop.md` for how it got there. The Figma
+> node is still the origin of the visual language — colours, radii, and card
+> treatments below remain accurate; the layout and tab structure do not.
+
 Source of truth: Figma file 0fOhyQa7yxDkx7j8ZCCAuO, node 3-136 (three variants).
 All colors/sizes below extracted from Figma — use exactly.
 

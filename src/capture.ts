@@ -309,6 +309,26 @@ export class CaptureUnavailableError extends Error {
   }
 }
 
+/**
+ * Wall-clock ceiling for one capture. `timeoutMs` bounds individual Playwright
+ * calls, but the steps after goto — hydration, scroll settle, animation settle,
+ * trait collection — could each wait on a signal a permanently-animating page
+ * never sends, so a capture could block forever with no error. Observed as a
+ * 30-minute silent hang binding apple.com/airpods-pro as a taste reference.
+ */
+export const CAPTURE_DEADLINE_MS = 90000;
+
+export class CaptureTimeoutError extends Error {
+  constructor(url: string, deadlineMs: number) {
+    super(
+      "Capture of " + url + " exceeded " + Math.round(deadlineMs / 1000) +
+        "s and was aborted. Heavy pages with continuous animation or never-idle " +
+        "network can outlast the capture budget; raise overall_timeout_ms to retry."
+    );
+    this.name = "CaptureTimeoutError";
+  }
+}
+
 export type VideoArtifactReason =
   | "preload-none"
   | "autoplay-blocked"
@@ -376,6 +396,8 @@ export type CaptureOptions = {
   timeoutMs?: number;
   /** Maximum time to wait for finite entrance animations. Default 3000ms; hard-capped at 10000ms. */
   animation_settle_timeout_ms?: number;
+  /** Wall-clock ceiling for the whole capture. Default {@link CAPTURE_DEADLINE_MS}. */
+  overall_timeout_ms?: number;
 };
 
 export async function capturePage(url: string, opts?: CaptureOptions): Promise<CaptureResult> {
@@ -390,9 +412,23 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
       ? opts.animation_settle_timeout_ms
       : ANIMATION_SETTLE_TIMEOUT_MS
   );
+  const deadlineMs =
+    opts && typeof opts.overall_timeout_ms === "number" && opts.overall_timeout_ms > 0
+      ? opts.overall_timeout_ms
+      : CAPTURE_DEADLINE_MS;
   let browser: BrowserLike | null = null;
   const warnings: string[] = [];
   const captureWarnings: string[] = [];
+  // Closing the browser is what unblocks a hung step: the pending Playwright
+  // call rejects, so the normal error path runs instead of waiting forever.
+  let deadlineHit = false;
+  const deadlineTimer = setTimeout(function () {
+    deadlineHit = true;
+    if (browser !== null) {
+      Promise.resolve(browser.close()).catch(function () {});
+    }
+  }, deadlineMs);
+  if (typeof deadlineTimer.unref === "function") deadlineTimer.unref();
 
   try {
     try {
@@ -533,7 +569,13 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
       traits: traits,
       warnings: warnings
     };
+  } catch (error) {
+    // A step that failed only because the deadline closed the browser out from
+    // under it reports as a timeout, not as whatever Playwright happened to say.
+    if (deadlineHit) throw new CaptureTimeoutError(url, deadlineMs);
+    throw error;
   } finally {
+    clearTimeout(deadlineTimer);
     if (browser !== null) {
       try {
         await browser.close();

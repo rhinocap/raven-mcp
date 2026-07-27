@@ -860,15 +860,234 @@ test('review_diff is callable through MCP and uses active stored decisions', asy
 
 test('tool-count comments match the registered local and anonymous surfaces', async () => {
   const { buildServer } = await import('../dist/index.js');
-  assert.equal(Object.keys(buildServer({ remote: false })._registeredTools).length, 93);
+  assert.equal(Object.keys(buildServer({ remote: false })._registeredTools).length, 100);
   const remoteNames = Object.keys(buildServer({ remote: true })._registeredTools).sort();
   assert.equal(remoteNames.length, 45);
   assert.equal(remoteNames.includes('polish_diff'), false);
   assert.equal(createHash('sha256').update(remoteNames.join('\n')).digest('hex'), 'f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6');
 
   const source = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
-  assert.match(source, /FRESH McpServer with all 93 local tools/);
+  assert.match(source, /FRESH McpServer with all 100 local tools/);
   assert.match(source, /remote = serve only the 45 stateless remote-safe tools/);
-  assert.match(source, /gate off the 48 gated tools/);
-  assert.match(source, /all 93\./);
+  assert.match(source, /gate off the 55 gated tools/);
+  assert.match(source, /all 100\./);
+});
+
+test('a recorded decision governs a violation on its scoped file: attributes governed_by + governed_findings, verdict unchanged', () => {
+  const gov = decision('checkout-color', {
+    statement: 'Checkout uses the accent color token, never a raw hex',
+    scope: 'checkout',
+  });
+  const result = reviewDiff(diffFor('src/checkout/Card.tsx', [
+    'export const Card = () => <div style={{ color: "#ff5722" }} />;',
+  ]), DESIGN_MD, [gov]);
+
+  // additive-only: the generic bare-hex warn is unchanged, verdict does NOT escalate this slice
+  assert.equal(result.verdict, 'warn');
+  assert.equal(result.findings.length, 1);
+  assert.equal(result.findings[0].rule, 'bare-hex-color');
+  assert.equal(result.findings[0].severity, 'warn');
+  // new: the finding is attributed to the specific recorded decision it violates
+  assert.deepEqual(result.findings[0].governed_by, {
+    id: 'checkout-color',
+    statement: 'Checkout uses the accent color token, never a raw hex',
+  });
+  assert.deepEqual(result.governed_findings, [{
+    decision_id: 'checkout-color',
+    file: 'src/checkout/Card.tsx',
+    line: 1,
+    rule: 'bare-hex-color',
+  }]);
+});
+
+test('a scope-matching decision that never mentions the finding category does NOT govern (keyword-gated, not path-gated)', () => {
+  // default decision statement "Use the checkout card primitive" — matches the checkout path but
+  // says nothing about color/hex/token, so a bare-hex violation is NOT attributed to it.
+  const result = reviewDiff(diffFor('src/checkout/Card.tsx', [
+    'export const Card = () => <div style={{ color: "#ff5722" }} />;',
+  ]), DESIGN_MD, [decision('checkout-primitive')]);
+
+  assert.equal(result.findings.length, 1);
+  assert.equal(result.findings[0].rule, 'bare-hex-color');
+  assert.equal(result.findings[0].governed_by, undefined, 'no category keyword ⇒ not governed');
+  assert.equal(result.governed_findings, undefined, 'no governed violation ⇒ field absent');
+  // proves the decision WAS path-applicable — suppression came from keyword-gating, not path mismatch
+  assert.deepEqual(result.applicable_decisions.map((d) => d.id), ['checkout-primitive']);
+});
+
+test('fail_on_governed escalates a governed finding to fail; verdict + severity + policy echoed', () => {
+  const gov = decision('checkout-color', {
+    statement: 'Checkout uses the accent color token, never a raw hex',
+    scope: 'checkout',
+  });
+  const diff = diffFor('src/checkout/Card.tsx', [
+    'export const Card = () => <div style={{ color: "#ff5722" }} />;',
+  ]);
+  const result = reviewDiff(diff, DESIGN_MD, [gov], undefined, { failOnGoverned: true });
+
+  assert.equal(result.verdict, 'fail');
+  assert.equal(result.findings[0].severity, 'error');
+  assert.equal(result.governed_findings.length, 1);
+  assert.deepEqual(result.severity_policy, { fail_on_governed: true });
+});
+
+test('fail_on_governed does NOT escalate when no decision governs (verdict stays warn)', () => {
+  const diff = diffFor('src/checkout/Card.tsx', [
+    'export const Card = () => <div style={{ color: "#ff5722" }} />;',
+  ]);
+  const result = reviewDiff(diff, DESIGN_MD, [decision('checkout-primitive')], undefined, { failOnGoverned: true });
+
+  assert.equal(result.verdict, 'warn');
+  assert.equal(result.findings.every((finding) => finding.severity !== 'error'), true);
+  assert.equal(result.governed_findings, undefined);
+  assert.deepEqual(result.severity_policy, { fail_on_governed: true });
+});
+
+test('fail_on_governed omitted → byte-identical to advisory result (regression guard)', () => {
+  const gov = decision('checkout-color', {
+    statement: 'Checkout uses the accent color token, never a raw hex',
+    scope: 'checkout',
+  });
+  const diff = diffFor('src/checkout/Card.tsx', [
+    'export const Card = () => <div style={{ color: "#ff5722" }} />;',
+  ]);
+  const omitted = reviewDiff(diff, DESIGN_MD, [gov]);
+  const explicitFalse = reviewDiff(diff, DESIGN_MD, [gov], undefined, { failOnGoverned: false });
+
+  assert.deepEqual(omitted, explicitFalse);
+  assert.equal(omitted.verdict, 'warn');
+  assert.equal(omitted.severity_policy, undefined);
+  assert.equal(omitted.findings[0].severity, 'warn');
+});
+
+test('review_diff escalates selected violations and echoes a normalized severity policy', () => {
+  const result = reviewDiff(diffFor('src/card.css', [
+    '.card { color: #121212; }',
+  ]), DESIGN_MD, [], undefined, { failOn: ['bare-hex-color'] });
+
+  assert.equal(result.verdict, 'fail');
+  assert.equal(result.findings[0].severity, 'error');
+  assert.deepEqual(result.severity_policy, { fail_on: ['bare-hex-color'] });
+});
+
+test('review_diff leaves the verdict unchanged when fail_on selects an unviolated rule', () => {
+  const result = reviewDiff(diffFor('src/card.css', [
+    '.card { color: #121212; }',
+  ]), DESIGN_MD, [], undefined, { failOn: ['important'] });
+
+  assert.equal(result.verdict, 'warn');
+  assert.equal(result.findings.some((finding) => finding.severity === 'error'), false);
+  assert.deepEqual(result.severity_policy, { fail_on: ['important'] });
+});
+
+test('review_diff without a policy preserves the prior result shape and advisory severities', () => {
+  const result = reviewDiff(diffFor('src/card.css', [
+    '.card { color: #121212; }',
+  ]), DESIGN_MD, []);
+
+  assert.deepEqual(result, {
+    verdict: 'warn',
+    findings: [{
+      file: 'src/card.css',
+      line: 1,
+      severity: 'warn',
+      rule: 'bare-hex-color',
+      message: 'Hardcoded color #121212 bypasses the project color tokens.',
+      suggestion: 'Use colors.ink (#111111).',
+    }],
+    applicable_decisions: [],
+    stats: { files_changed: 1, ui_files: 1, added_lines_checked: 1 },
+  });
+  assert.equal('severity_policy' in result, false);
+  assert.equal(result.findings.some((finding) => finding.severity === 'error'), false);
+});
+
+test('review_diff tool rejects unknown fail_on rules and names the valid list', async () => {
+  const call = await callReviewDiff({
+    diff: diffFor('src/card.css', ['.card { color: #121212; }']),
+    design_md: DESIGN_MD,
+    fail_on: ['not-a-rule'],
+  });
+
+  assert.equal(call.isError, true);
+  assert.match(call.content[0].text, /not-a-rule/);
+  assert.match(call.content[0].text, /important.*bare-hex-color.*hardcoded-font-size.*hardcoded-font-family.*hardcoded-spacing/);
+});
+
+test('review_diff tool rejects token-value-match as a non-escalatable info rule', async () => {
+  const call = await callReviewDiff({
+    diff: diffFor('src/card.css', ['.card { color: #111111; }']),
+    design_md: DESIGN_MD,
+    fail_on: ['token-value-match'],
+  });
+
+  assert.equal(call.isError, true);
+  assert.match(call.content[0].text, /token-value-match/);
+  assert.match(call.content[0].text, /important.*bare-hex-color.*hardcoded-font-size.*hardcoded-font-family.*hardcoded-spacing/);
+});
+
+test('review_diff sorts and deduplicates the applied fail_on policy', () => {
+  const result = reviewDiff(diffFor('src/card.css', [
+    '.card { color: #121212 !important; }',
+  ]), DESIGN_MD, [], undefined, { failOn: ['important', 'important', 'bare-hex-color'] });
+
+  assert.equal(result.verdict, 'fail');
+  assert.deepEqual(result.severity_policy, { fail_on: ['bare-hex-color', 'important'] });
+  assert.deepEqual(result.findings.map((finding) => finding.severity), ['error', 'error']);
+});
+
+test('review_diff tool applies a valid fail_on policy end-to-end', async () => {
+  const call = await callReviewDiff({
+    diff: diffFor('src/card.css', ['.card { color: red !important; }']),
+    design_md: DESIGN_MD,
+    fail_on: ['important'],
+  });
+
+  assert.notEqual(call.isError, true);
+  const result = JSON.parse(call.content[0].text);
+  assert.equal(result.verdict, 'fail');
+  assert.deepEqual(result.severity_policy, { fail_on: ['important'] });
+});
+
+test('review_diff tool treats fail_on: [] identically to absent on the wire', async () => {
+  const args = { diff: diffFor('src/card.css', ['.card { color: red !important; }']), design_md: DESIGN_MD };
+  const absent = await callReviewDiff(args);
+  const empty = await callReviewDiff({ ...args, fail_on: [] });
+
+  assert.equal(empty.content[0].text, absent.content[0].text);
+  assert.equal(JSON.parse(absent.content[0].text).severity_policy, undefined);
+});
+
+test('review_diff escalates hardcoded-spacing from info to error', () => {
+  const result = reviewDiff(diffFor('src/card.css', [
+    '.card { padding: 13px; }',
+  ]), DESIGN_MD, [], undefined, { failOn: ['hardcoded-spacing'] });
+
+  const spacing = result.findings.find((finding) => finding.rule === 'hardcoded-spacing');
+  assert.equal(spacing.severity, 'error');
+  assert.equal(result.verdict, 'fail');
+});
+
+test('review_diff note names verdict, not pass, when a policy is active without tokens', () => {
+  const result = reviewDiff(diffFor('src/card.css', [
+    '.card { color: red !important; }',
+  ]), null, [], undefined, { failOn: ['important'] });
+
+  assert.equal(result.verdict, 'fail');
+  assert.match(result.note, /verdict reflects only universal rules/);
+});
+
+test('review_diff combines fail_on and fail_on_governed — both axes escalate, both echoed', () => {
+  const gov = decision('checkout-color', {
+    statement: 'Checkout uses the accent color token, never a raw hex',
+    scope: 'checkout',
+  });
+  const diff = diffFor('src/checkout/Card.tsx', [
+    'export const Card = () => <div style={{ color: "#ff5722" }} />;',
+  ]);
+  const result = reviewDiff(diff, DESIGN_MD, [gov], undefined, { failOn: ['bare-hex-color'], failOnGoverned: true });
+
+  assert.equal(result.verdict, 'fail');
+  assert.equal(result.findings[0].severity, 'error');
+  assert.deepEqual(result.severity_policy, { fail_on: ['bare-hex-color'], fail_on_governed: true });
 });
