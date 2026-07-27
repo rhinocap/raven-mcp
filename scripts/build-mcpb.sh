@@ -12,13 +12,18 @@ echo "→ Cleaning stage"
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
 
-echo "→ Compiling TypeScript"
-npm run build
+if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
+  echo "→ Compiling TypeScript"
+  npm run build
+fi
 
 echo "→ Staging bundle contents"
 cp manifest.json "$STAGE/manifest.json"
 cp README.md LICENSE "$STAGE/"
 cp -R dist "$STAGE/dist"
+# The grab bridge serves browser/raven-grab.js from PKG_ROOT at runtime — without
+# this the bundled server 404s the overlay and Raven Design is dead in .mcpb installs.
+cp -R browser "$STAGE/browser"
 mkdir -p "$STAGE/src"
 cp -R src/data "$STAGE/src/data"
 cp site/assets/raven-logo.png "$STAGE/icon.png"
@@ -47,6 +52,12 @@ rm -f "$OUT"
 
 echo "→ Cleaning stage"
 rm -rf "$STAGE"
+
+# ravenmcp.ai is served by the Next `web` project, not `site` — so the bundle
+# users actually download is web/public/raven.mcpb. Building only into site/
+# left the apex serving the previous release's bundle until someone noticed.
+echo "→ Copying bundle to the apex (web/public)"
+cp "$OUT" "$(dirname "$0")/../web/public/raven.mcpb"
 
 SIZE=$(du -h "$OUT" | cut -f1)
 echo ""

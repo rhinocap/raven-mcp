@@ -26,6 +26,182 @@
   },
   "releases": [
     {
+      "version": "v2.2.9",
+      "date": "2026-07-26",
+      "category": "tooling",
+      "kind": "improvement",
+      "title": "Every tool answers all three annotation questions",
+      "changes": [
+        "Annotations now state read-only, destructive, and open-world on every tool instead of omitting the one the spec calls inapplicable. Nothing about what a tool does changed — clients and directories that read annotations as a flat record no longer see a blank where an answer belongs.",
+        "The registry description was 175 characters against a 100-character cap, which failed validation before a publish could begin. It is now a 98-character summary.",
+        "The .mcpb bundle is built into the apex as well as site/, so the public download at ravenmcp.ai no longer lags a release.",
+        "No tool changes — the 100-tool surface is unchanged."
+      ]
+    },
+    {
+      "version": "v2.2.8",
+      "date": "2026-07-25",
+      "category": "tooling",
+      "kind": "improvement",
+      "title": "Every tool now says what it will do before it runs",
+      "changes": [
+        "All 100 tools carry MCP annotations — a readable title plus read-only, destructive, and open-world hints. 70 read, 30 write local or hosted state, and 11 drive a browser or fetch against a URL you supply, so a client can show the consequence before the call.",
+        "An audit against an unreachable host, a wrong port, or an auth wall used to return “0 findings” — indistinguishable from a clean page. It now says the audit did not run.",
+        "The registry’s remote URL pointed at a path that 404s; it is mcp.ravenmcp.ai/api/mcp. The bundle manifest also declares the correct license and links the privacy policy.",
+        "No tool changes — the 100-tool stdio surface is unchanged."
+      ]
+    },
+    {
+      "version": "v2.2.7",
+      "date": "2026-07-24",
+      "category": "tooling",
+      "kind": "fix",
+      "title": "Decorative media now selects in the layers tree",
+      "changes": [
+        "Clicking a decorative video or icon image on the canvas now expands its ancestors and highlights its row in the Layers tree — previously aria-hidden media had no layers row at all, so selection looked like it silently failed.",
+        "Zero-size aria-hidden nodes (accessibility plumbing) stay out of the tree; only media that actually renders gets a row.",
+        "No tool changes — the 100-tool stdio surface is unchanged."
+      ]
+    },
+    {
+      "version": "v2.2.6",
+      "date": "2026-07-24",
+      "category": "tooling",
+      "kind": "fix",
+      "title": "Selecting on the page now selects in the layers tree",
+      "changes": [
+        "Clicking an element on the page selects its row in the Raven Design layers tree and expands every parent above it.",
+        "The tree used to stop building at the first branch nested deeper than twelve levels, so most of a real page was missing from it and a click below that point had nothing to reveal. Deep branches are now trimmed on their own.",
+        "Dragging a layer next to a non-visual sibling — a <template>, <noscript>, JSON-LD script, or empty aria-hidden node — no longer produces a move the bridge rejects.",
+        "No tool changes — the 100-tool surface is unchanged."
+      ]
+    },
+    {
+      "version": "v2.2.5",
+      "date": "2026-07-24",
+      "category": "audits",
+      "kind": "fix",
+      "title": "A heavy page can no longer stall a capture",
+      "changes": [
+        "Capturing a page that animates continuously and never goes network-idle could wait forever with no error — it now aborts after 90 seconds and says why.",
+        "Affects anything that renders a live URL: audit_url, audit_taste in url mode, and the reference sites captured by bind_taste_surface.",
+        "Pass overall_timeout_ms to raise the ceiling for a page worth waiting on.",
+        "No tool changes — the 100-tool surface is unchanged."
+      ]
+    },
+    {
+      "version": "v2.2.4",
+      "date": "2026-07-24",
+      "category": "tooling",
+      "kind": "fix",
+      "title": "Hot reload survives the grab bridge",
+      "changes": [
+        "Serving your dev server through the bridge's proxy mode no longer breaks it — WebSocket upgrades are passed straight through, so hot reload keeps working.",
+        "On Next.js 16 the dropped socket also stopped the page hydrating, leaving the proxied app blank with no error to go on. That case is fixed.",
+        "No tool changes — the 100-tool surface is unchanged."
+      ]
+    },
+    {
+      "version": "v2.2.3",
+      "date": "2026-07-24",
+      "category": "tooling",
+      "kind": "feature",
+      "title": "Layer drags move the page live",
+      "changes": [
+        "Drag a row in the layers tree and the real element moves on the page immediately, the way browser devtools does — no waiting on the agent to see the result.",
+        "The move is still a pending change: the tray carries the intent and your agent's source edit remains what ships.",
+        "Discarding a move restores the page exactly, including scripts and styles that sat between the siblings you moved.",
+        "Moving the same element twice before sending measures from the real pre-move state, and a page that re-renders underneath a pending move is left alone."
+      ]
+    },
+    {
+      "version": "v2.2.2",
+      "date": "2026-07-23",
+      "category": "tooling",
+      "kind": "fix",
+      "title": "Un-sent Raven Design changes survive page navigation",
+      "changes": [
+        "Queue edits across several pages and each is restored as a pending change on the next page — send a whole batch to your agent at once instead of losing them on a page load.",
+        "Send stays available while a batch is applying; a press queues the next batch to send automatically when the current one finishes.",
+        "Single-click Send now works with any field focused, not just inline copy edits."
+      ]
+    },
+    {
+      "version": "v2.2.1",
+      "date": "2026-07-23",
+      "category": "tooling",
+      "kind": "feature",
+      "title": "Edit copy directly in the Raven Design overlay",
+      "changes": [
+        "Inline copy editing: change an element's text right on the page and send it to your agent alongside style and token edits.",
+        "Instructions and copy edits now persist as you move between elements, so you can stack many changes and send them in one batch.",
+        "Sending an inline copy edit takes a single click."
+      ]
+    },
+    {
+      "version": "v2.2.0",
+      "date": "2026-07-22",
+      "category": "tooling",
+      "kind": "improvement",
+      "title": "Now licensed under Apache 2.0",
+      "changes": [
+        "Raven is now licensed under the Apache License, Version 2.0 — still permissive and free, with an added explicit patent grant and trademark clause.",
+        "Nothing changes for how you use Raven. Versions published before this stay under MIT; this and later releases are Apache 2.0."
+      ]
+    },
+    {
+      "version": "v2.1.0",
+      "date": "2026-07-22",
+      "category": "audits",
+      "kind": "new",
+      "title": "One audit tool that picks the right checks for you",
+      "changes": [
+        "New `audit` tool: point it at a web page, iOS screen, React Native source, a code diff, or a video, and it runs the audits that fit and returns a single merged report.",
+        "You no longer need to know which of the individual audit tools applies — the granular tools are still there when you want a targeted run."
+      ]
+    },
+    {
+      "version": "v2.0.2",
+      "date": "2026-07-22",
+      "category": "tooling",
+      "kind": "feature",
+      "title": "review_diff can fail CI on the rules you choose",
+      "changes": [
+        "review_diff gains an opt-in fail_on policy: name the rules that should block a merge — important, bare-hex-color, hardcoded-font-size, hardcoded-font-family, hardcoded-spacing — and matching violations on newly added lines turn the verdict to fail.",
+        "It combines with fail_on_governed (escalate findings a recorded decision governs); both echo back under one severity_policy so CI can see exactly what was enforced.",
+        "Advisory by default — leave the policy off and review_diff behaves exactly as before. No tool changes; 99 tools total."
+      ]
+    },
+    {
+      "version": "v2.0.1",
+      "date": "2026-07-20",
+      "category": "tooling",
+      "kind": "fix",
+      "title": "Per-side border editing in the Raven Design overlay",
+      "changes": [
+        "The Stroke control now edits borders per side — an All/Top/Right/Bottom/Left selector that multi-selects, so you can set a border on just the left, or the left and right together, not only all four at once.",
+        "A one-sided border reads correctly again: a bare border-left shows its real width, style, color, and side instead of \"None\".",
+        "The pending-changes panel collapses and expands from its header, so it stays out of the way on narrow and mobile viewports.",
+        "Editing a stacked multi-layer box-shadow no longer drops the extra layers, and bare semantic elements (a classless h2, blockquote, or li) can be scoped to their siblings again.",
+        "Overlay-only changes — the 99-tool stdio surface is unchanged."
+      ]
+    },
+    {
+      "version": "v2.0.0",
+      "date": "2026-07-20",
+      "category": "tooling",
+      "kind": "new",
+      "title": "Raven Design: tokens, components, and templates on the page",
+      "changes": [
+        "Raven Design — click any element on your dev server and an overlay opens next to it: a Structure panel with a layers tree drilled to that node, and a Design panel showing its computed styles and the DESIGN.md tokens it uses, editable inline with live preview. Page templates and a component pass round it out. Six new tools back it (get_page_template, set_template_slot, list_templates, get_grab_layers, move_grab_layer, get_grab_operation).",
+        "Decision Graph — a project keeps a queryable memory of its design decisions, with provenance and evidence on every entry and a cross-process-safe store. decision_import cold-starts the graph from a repo's existing history.",
+        "review_diff and polish_diff — CI-shaped design review of a code diff against your DESIGN.md tokens and recorded decisions, and a path that turns those findings into a verified, ready-to-apply patch.",
+        "audit_taste can verify a content port kept its copy intact — pass source_text and it runs a deterministic word-token diff of the original against the target's visible text, so a redesign can't silently reword shipped copy.",
+        "The packaged .mcpb bundle now advertises exactly the tools it ships, derived from the built server rather than a hand-maintained list.",
+        "No breaking changes: every existing tool keeps its name and behavior; this release only adds. 99 tools total."
+      ]
+    },
+    {
       "version": "v1.15.0",
       "date": "2026-07-04",
       "category": "tooling",

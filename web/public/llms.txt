@@ -1,6 +1,6 @@
 # RavenMCP
 
-> RavenMCP (Raven) is an open-source [Model Context Protocol](https://modelcontextprotocol.io) server that gives AI agents like Claude design intelligence — the design knowledge once locked in expert heads. It exposes 70 tools spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits (web, iOS, Android, React Native), and a Taste Engine that holds every build to the owner's own design judgment. It is free, MIT-licensed, and installs in one command.
+> RavenMCP (Raven) is an open-source [Model Context Protocol](https://modelcontextprotocol.io) server that gives AI agents like Claude design intelligence — the design knowledge once locked in expert heads. It exposes 100 tools spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits (web, iOS, Android, React Native), Raven Design (click-to-edit on the live page), a local Decision Graph for design decisions, and a Taste Engine that holds every build to the owner's own design judgment. It is free, Apache-2.0 licensed, and installs in one command.
 
 Install with one command:
 
@@ -9,7 +9,9 @@ claude mcp add raven -- npx -y raven-mcp
 ```
 
 Key facts:
-- 70 focused tools, grouped by job (know, create, audit, judge).
+- 100 focused tools, grouped by job (know, create, design, audit, judge, decide).
+- Raven Design (local stdio): click any element on your running dev server, edit its tokens, styles, and layout with live preview, and package the change against your DESIGN.md for your agent. Layout structure is a template contract (fixed/flexible slots); review_diff and polish_diff check a code diff against your DESIGN.md tokens and recorded decisions, and can gate on governed decisions.
+- A local Decision Graph: a queryable design-decision memory (decisions, evidence, sources) that people and coding agents both consult, with provenance on every node and supersede/scope resolution that never hard-deletes. Cold-start it from git history, Markdown, or meeting transcripts; gap_scan keeps it honest. Stays local — under your project, or ~/.raven when there's no project store.
 - 129 design principles: Nielsen's heuristics, Laws of UX, Gestalt, WCAG accessibility, typography, color theory, mobile UX, responsive layout, and the D4D framework — each with violations and checklists.
 - 22 reusable UI patterns.
 - 12 named design systems with production tokens in W3C DTCG format.
@@ -21,15 +23,14 @@ Key facts:
 
 ## Documentation
 
-- [Documentation](https://ravenmcp.ai/docs.html): Full tool reference, installation, and usage for every Raven tool.
-- [Design systems](https://ravenmcp.ai/design-system.html): The 12 queryable design systems and their token coverage.
-- [Changelog](https://ravenmcp.ai/changelog.html): Release history and what changed in each version.
+- [Documentation](https://ravenmcp.ai/docs): Full tool reference, installation, and usage for every Raven tool.
+- [Design systems](https://ravenmcp.ai/design-system): The 12 queryable design systems and their token coverage.
+- [Changelog](https://ravenmcp.ai/changelog): Release history and what changed in each version.
 
 ## About
 
-- [Homepage](https://ravenmcp.ai/): Overview of the Taste Engine, the knowledge layers, the 70 tools, and live examples.
-- [About](https://ravenmcp.ai/about.html): The project, its creator, and the story behind the name.
-- [GitHub](https://github.com/rhinocap/raven-mcp): Source code, issues, and contribution guide (MIT license).
+- [Homepage](https://ravenmcp.ai/): Overview of Raven Design, the Taste Engine, the Decision Graph, the knowledge layers, the 100 tools, and live examples.
+- [GitHub](https://github.com/rhinocap/raven-mcp): Source code, issues, and contribution guide (Apache-2.0 license).
 
 ## Examples
 

@@ -722,3 +722,44 @@ test('collectTraits: full-viewport dark wrapper over a default-white body reads 
     assert.ok(result.traits.bg_luminance < 0.35, `expected dark luminance; got ${result.traits.bg_luminance}`);
   });
 });
+
+test('overall_timeout_ms — a page whose load never fires aborts at the deadline, not the harness', async (t) => {
+  // Regression: capturePage bounded each Playwright call but had no wall-clock
+  // ceiling, so a page that never signals load (or never stops animating) blocked
+  // forever. Observed as a 30-minute silent hang capturing a taste reference.
+  const http = await import('node:http');
+  const { CaptureTimeoutError } = await import(distCapture);
+
+  const server = http.createServer((req, res) => {
+    if (req.url === '/') {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      // The stylesheet request below is accepted and never answered, so `load`
+      // never fires and goto waits out its full timeoutMs.
+      res.end('<html><head><link rel="stylesheet" href="/never"></head><body>hi</body></html>');
+      return;
+    }
+    // Deliberately no response, no close.
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port;
+
+  try {
+    await runOrSkip(t, async () => {
+      const started = Date.now();
+      await assert.rejects(
+        () => capturePage(`http://127.0.0.1:${port}/`, {
+          timeoutMs: 30000,          // per-call budget stays generous...
+          overall_timeout_ms: 2000,  // ...the wall-clock ceiling is what must fire
+          viewport: { w: 800, h: 600 },
+        }),
+        (err) => err instanceof CaptureTimeoutError,
+        'must reject with CaptureTimeoutError rather than hanging until goto times out'
+      );
+      const elapsed = Date.now() - started;
+      assert.ok(elapsed < 20000, `must abort near the deadline, not the 30s goto timeout; took ${elapsed}ms`);
+    });
+  } finally {
+    server.close();
+    server.closeAllConnections?.();
+  }
+});

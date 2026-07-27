@@ -179,3 +179,18 @@ test('false-blank warning contents propagate through audit_url and its capture m
     'audit_url capture metadata preserves false-blank warning contents'
   );
 });
+
+test('every-capture-failed does not read as a clean 0-findings result', async (t) => {
+  if (unavailable) {
+    t.skip('Playwright chromium not installed. Run `npx playwright install chromium`.');
+    return;
+  }
+  const dead = await auditUrl('https://this-host-does-not-resolve.invalid', {
+    viewports: [{ w: 390, h: 800, label: 'iphone' }],
+    themes: ['light'],
+  });
+  assert.equal(dead.captures.length, 0, 'nothing was captured');
+  assert.match(dead.summary, /AUDIT DID NOT RUN/, 'summary says the audit did not run');
+  assert.doesNotMatch(dead.summary, /^0 findings/, 'summary does not open like a clean pass');
+  assert.ok(dead.warnings.length > 0, 'the underlying capture failure is still reported');
+});

@@ -74,7 +74,7 @@
   margin-bottom: var(--space-10);
 }
 .cl-pill {
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 var(--space-4);
   border-radius: 999px;
   border: 1px solid var(--border-strong);
@@ -239,12 +239,18 @@
   font-size: 14px;
 }
 .cl-foot-primary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--text-accent);
   text-decoration: none;
   transition: opacity 0.2s;
 }
 .cl-foot-primary:hover { opacity: 0.8; }
 .cl-foot-secondary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--text-secondary);
   text-decoration: none;
   transition: color 0.2s;

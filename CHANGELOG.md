@@ -6,19 +6,142 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [2.2.9] - 2026-07-26
+
+No tool changes — the 100-tool stdio surface is unchanged. `tools/list` now reports all three behaviour hints on every tool instead of omitting the one the spec calls inapplicable.
+
+### Fixed
+- Every tool's annotations now state `readOnlyHint`, `destructiveHint`, and `openWorldHint` explicitly. Previously only the applicable hint was emitted — legal under the spec, which says `destructiveHint` applies only when `readOnlyHint` is false, but it reads as "unanswered" to a client that treats annotations as a flat capability record. No meaning changed: the 70 read-only tools now also carry `destructiveHint: false`, and the 30 that write local or hosted state carry `readOnlyHint: false`. Tool names, titles, and `openWorldHint` are untouched.
+- `server.json`'s description was 175 characters against the MCP Registry's 100-character cap, so registry validation failed before a publish could start. It is now a 98-character summary.
+- The `.mcpb` build now writes the bundle to both `site/` and `web/public/`. ravenmcp.ai is served by the `web` project, so building only into `site/` left the public download one release behind.
+
+## [2.2.8] - 2026-07-25
+
+No tool changes — the 100-tool stdio surface is unchanged. Every tool now carries MCP annotations, which changes what `tools/list` reports about each tool but not which tools exist or what they accept.
+
 ### Added
+- MCP tool annotations on all 100 tools: a human-readable `title`, plus `readOnlyHint` / `destructiveHint` / `openWorldHint`. 70 tools are read-only, 30 write local or hosted state, and 11 drive a browser or fetch against a URL you supply. Clients can now show what a tool will do before it runs, and directory listings can classify the surface without reading the source.
+- `privacy_policies` in `manifest.json`, pointing at the published policy.
+
+### Fixed
+- `audit_url` against an unreachable host, a wrong port, or an auth-walled URL returned `0 findings across N viewport(s)` — indistinguishable from a clean page, with the real cause buried in `warnings[]`. When no capture succeeds, the summary now says the audit did not run.
+- `server.json`'s remote URL pointed at `ravenmcp.ai/api/mcp`, which 404s. It is `mcp.ravenmcp.ai/api/mcp`.
+- `manifest.json` declared MIT; the project is Apache-2.0.
+
+## [2.2.7] - 2026-07-24
+
+Raven Design overlay layers-tree fix. No tool changes — the 100-tool stdio surface is unchanged.
+
+### Fixed
+- Visible aria-hidden media (decorative videos, icon images) now gets a row in the Layers tree, so selecting it on the canvas expands its ancestors and highlights the row. Previously any childless `aria-hidden="true"` element was skipped, leaving canvas-clickable media with no layers row at all — selection looked like it silently failed. Zero-size aria-hidden nodes (accessibility plumbing) stay out of the tree.
+
+## [2.2.6] - 2026-07-24
+
+Raven Design overlay layers-tree fix. No tool changes — the 100-tool stdio surface is unchanged.
+
+### Fixed
+- Selecting an element on the page now selects it in the overlay's layers tree and expands every parent above it. On a real page the tree stopped building at the first branch nested deeper than twelve levels, so most of the page was missing from it — a click below that point had no row to highlight and nothing to reveal. Deeply nested branches are now trimmed on their own without cutting off the rest of the page.
+- Dragging a layer next to a non-visual sibling (`<template>`, `<noscript>`, a JSON-LD script, an empty `aria-hidden` node) no longer produces a move the bridge rejects — the tree and the drag now count children the same way.
+
+Capture reliability fix. No tool changes — the 100-tool stdio surface is unchanged.
+
+### Fixed
+- Page capture can no longer block indefinitely. Individual browser calls were bounded, but the steps after page load — hydration, scroll settle, animation settle, trait collection — could each wait on a signal a continuously-animating page never sends, so capturing a heavy reference site (`bind_taste_surface` with `references`, `audit_url`, `audit_taste` in url mode) could hang with no error and no timeout. Capture now has a 90-second wall-clock ceiling and fails with a clear `CaptureTimeoutError`; pass `overall_timeout_ms` to raise it for a page worth waiting on.
+
+## [2.2.4] - 2026-07-24
+
+Grab bridge proxy fix. No tool changes — the 100-tool stdio surface is unchanged.
+
+### Fixed
+- Serving a dev server through the grab bridge's proxy mode no longer breaks it. The bridge did not forward WebSocket upgrades, so the dev server's hot-reload socket failed in a retry loop; on Next.js 16 that also stopped the page hydrating, leaving the proxied app blank with no error to go on. Hot reload now works through the bridge, and framework dev sockets in general are passed straight through.
+
+## [2.2.3] - 2026-07-24
+
+Raven Design overlay layer moves. No tool changes — the 100-tool stdio surface is unchanged.
+
+### Added
+- Dragging a row in the overlay's layers tree now moves the real element on the page immediately, the way browser devtools does, instead of only queueing a pending change. The move is a preview: the pending-changes tray still carries the intent, and your agent's source edit remains what actually ships.
+- Discarding a pending move puts the page back exactly as it was, including any non-visual elements (scripts, styles) that sat between the siblings you moved.
+
+### Fixed
+- Moving the same element twice before sending no longer stacks the second move on top of the preview — the second drag measures from the page's real pre-move state.
+- If the page re-renders underneath a pending move, the overlay leaves its DOM alone instead of trying to restore a layout that no longer exists.
+
+## [2.2.2] - 2026-07-23
+
+Raven Design overlay reliability. No tool changes — the 100-tool stdio surface is unchanged.
+
+### Fixed
+- Un-sent overlay changes now survive page navigation: queue edits across several pages and each is restored as a pending change on the next page, so you can send a whole batch to your agent at once instead of losing everything on a page load.
+- Send to agent stays available while a batch is applying — a press queues the next batch, which sends automatically when the current one finishes.
+- Single-click Send now holds for every field, not just inline copy edits: sending with a style input or the instruction box focused no longer needs a second click.
+
+## [2.2.1] - 2026-07-23
+
+Raven Design overlay editing. No tool changes — the 100-tool stdio surface is unchanged.
+
+### Added
+- Inline copy editing in the overlay: edit an element's text directly on the page (an H1, a subheadline, a button label) and the change stages like any style edit — it flows through the pending-changes tray and sends to your agent. Edits stage live as you type, and the edited copy stays on the page after sending.
+
+### Fixed
+- Instructions and copy edits now persist when you move between elements: type an instruction or edit text on one element, select another, and the first is kept. You can stack changes across many elements and send them in one batch instead of losing all but the last.
+- Sending an inline copy edit no longer takes two clicks — a single click on Send dispatches while the text field is still focused.
+
+## [2.2.0] - 2026-07-22
+
+### Changed
+- License changed from MIT to Apache License, Version 2.0. Apache-2.0 adds an explicit patent grant and trademark clause while remaining a permissive, business-friendly license. Versions published before this change remain under MIT; this and later releases are Apache-2.0. Redistributors should retain the `LICENSE` and `NOTICE` files. No code, tool, or stdio-surface changes — the 100-tool surface and the frozen anonymous 45-hash are unchanged.
+
+## [2.1.0] - 2026-07-22
+
+### Added
+- `audit` — a single dispatcher tool that detects the surface (web page / iOS screen / React Native / code diff / video) and fans out to the applicable audits, returning one merged report (`ran`, `skipped` with reasons, a `summary` rollup, each sub-audit's native payload under `findings`, and a `next` pointer). Use it instead of choosing among the individual `audit_*` tools; the granular tools remain available for targeted runs. The stdio surface is now 100 tools; `audit` is excluded from the anonymous remote surface, which stays at its frozen 45. (#45)
+
+## [2.0.2] - 2026-07-22
+
+### Added
+- `review_diff`: opt-in `fail_on` severity policy — escalate matching violation rules (`important`, `bare-hex-color`, `hardcoded-font-size`, `hardcoded-font-family`, `hardcoded-spacing`) to a failing CI verdict. Combines with the existing `fail_on_governed`; both echo under a unified `severity_policy`. Diff-scoped and advisory by default — omitting both keeps the prior behavior byte-for-byte. (#44)
+
+No tool changes — the 99-tool stdio surface is unchanged.
+
+## [2.0.1] - 2026-07-20
+
+Raven Design overlay editing fixes. No tool changes — the 99-tool stdio surface is unchanged.
+
+### Added
+- Per-side border editor in the overlay Stroke control: an All/Top/Right/Bottom/Left selector that multi-selects, so you can edit one, two, or all four sides at once (borders on just the left, or left and right, are now first-class).
+- The pending-changes panel collapses and expands from its header, reclaiming space on narrow/mobile viewports.
+
+### Fixed
+- The Stroke row now reports a one-sided border correctly — a bare `border-left` shows its real width, style, color, and side instead of "None" (it was reading the collapsing shorthands instead of the per-side longhands).
+- Editing a multi-layer `box-shadow` no longer silently drops the extra layers on commit; stacked shadows route to the lossless text editor.
+- Classless semantic elements (a bare `<h2>`, `<blockquote>`, or `<li>`) again qualify for same-parent, same-tag sibling scoping, so "All siblings" reappears for bare headings and list items.
+
+## [2.0.0] - 2026-07-20
+
+Raven 2.0 headlines **Raven Design** — an on-page overlay that surfaces your design tokens, components, and page templates on the live page — alongside the Decision Graph and diff-shaped design review. No breaking changes: every one of the 93 existing tools keeps its name and schema; 6 tools are added, for 99 total.
+
+### Added
+- Two-panel Grab overlay. Clicking an element on your dev server now opens a Structure panel (a layers tree drilled to the clicked node) alongside the Design panel (its computed styles and DESIGN.md tokens, editable inline with live preview). Both panels are open on load, either edge tab opens both, and the layout tiles put one panel on screen on purpose. Six new tools back it: `get_page_template`, `set_template_slot`, `list_templates`, `get_grab_layers`, `move_grab_layer`, `get_grab_operation`.
+- Overlay settings, opened from the project bar — text size, layout, and the tour.
+- A feedback box in the overlay. Reports route to a private issue tracker; when delivery is not configured the endpoint answers `{ok: true, delivered: false}` and the overlay says so rather than pretending the message was filed.
 - Decision Graph — 11 local-only `decision_*` tools (add, get, list, history, scope, supersede, draft, commit, plus `gap_scan` and transcript ingestion) that give a project durable, queryable design-decision memory (#22), with provenance/evidence on every decision and a cross-process-safe store (#24), and `decision_import` to cold-start the graph from existing repo history (#27).
 - `review_diff` — CI-shaped design review of a code diff against DESIGN.md tokens and recorded decisions (#33).
 - `polish_diff` — turns design findings into a verified, ready-to-apply patch (#25).
 - `audit_taste` `source_text` — content-port fidelity diff between a source text and the ported target (#31).
 - `bench/` — deterministic review-outcome benchmark: 27 labeled cases across 5 audit families scored for precision/recall against ground truth (#32).
+- `scripts/sync-codex-approvals.mjs` — reports (and with `--write` appends) the per-tool `approval_mode` entries the Codex CLI needs so calls to newly added tools aren't silently cancelled; the README gains an "After you upgrade" section on reconnecting the server to pick up new tools (#36).
 
 ### Changed
+- The `.mcpb` bundle manifest now derives its advertised tool list from the built server, so the packaged bundle advertises exactly the tools it ships instead of a hand-maintained subset (#35).
 - Contrast audit composites text over the real rendered backdrop, eliminating the dark-page false-positive class (#28).
 - URL capture settles animations and scroll reveals before snapshotting (#29).
 - Tap-target audit uses real mobile emulation and hydrates shadow DOM (#26).
 - `bind_taste_surface` re-binds carry forward omitted binding fields instead of erasing them (#30).
 - Weekly release workflow now runs the full test suite as a release gate.
+
+### Fixed
+- The daily-digest notice no longer corrupts machine-readable tool output — notices are appended as a separate content block so JSON consumers get clean payloads (#36).
 
 ## [1.16.0] - 2026-07-05
 

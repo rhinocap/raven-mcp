@@ -14,7 +14,6 @@ export default function ChangelogPage() {
     <main id="main" className="cl-wrap">
       <section className="cl-hero" aria-labelledby="cl-hero-heading">
         <div className="cl-hero-glow" aria-hidden="true" />
-        <p className="cl-eyebrow">Changelog</p>
         <h1 id="cl-hero-heading" className="cl-headline">
           Everything
           <span className="cl-headline-accent">we&rsquo;re shipping.</span>

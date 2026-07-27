@@ -1599,15 +1599,15 @@
 /* ---- section-scoped styles (watch section) ---- */
         .raven-stats-row {
           display: flex;
-          gap: 16px;
+          gap: 20px;
           margin-top: 32px;
           flex-wrap: wrap;
-          max-width: 560px;
+          max-width: 720px;
         }
         .raven-stat-card {
           flex: 1;
-          min-width: 130px;
-          padding: 20px;
+          min-width: 180px;
+          padding: 28px 32px;
           background: var(--bg-raised);
           border: 1px solid var(--border, rgba(255,255,255,0.06));
           border-radius: 12px;
@@ -1651,16 +1651,15 @@
       transition: border-color var(--duration-normal) var(--ease-out);
     }
     .faq-item:hover { border-color: var(--border-accent); }
-    .layer-card p a, .faq-item p a { color: var(--text-accent); text-decoration: none; border-bottom: 1px solid var(--border-accent); transition: border-color 200ms; }
+    .layer-card p a, .faq-item p a { color: var(--text-accent); text-decoration: none; transition: color 200ms; }
     .layer-card p a,
     .faq-item p a {
       display: inline-flex;
       align-items: center;
       min-height: 44px;
-      padding: 0 var(--space-1);
       margin: -12px 0;
     }
-    .layer-card p a:hover, .faq-item p a:hover { border-bottom-color: var(--text-accent); }
+    .layer-card p a:hover, .faq-item p a:hover { color: var(--text-primary); }
     .faq-item h3 {
       font-size: clamp(18px, 2vw, 21px);
       font-weight: 600;

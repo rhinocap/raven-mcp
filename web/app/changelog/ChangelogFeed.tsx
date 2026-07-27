@@ -19,7 +19,7 @@ export default function ChangelogFeed() {
       filter === 'all'
         ? data.releases
         : data.releases.filter((r) => r.category === filter)
-    return [...list].sort((a, b) => (a.date < b.date ? 1 : -1))
+    return [...list].sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? 1 : -1))
   }, [filter])
 
   return (

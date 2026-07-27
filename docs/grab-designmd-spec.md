@@ -1,5 +1,12 @@
 # Raven Grab + DESIGN.md — spec (2026-07-09)
 
+> **Status 2026-07-19.** The DESIGN.md half of this spec (§3, the three MCP
+> tools) shipped as written. The overlay half (§1) describes a single token
+> panel and has since grown into two panels, a layers tree, inline style
+> editing, a component-request flow, and a settings/feedback modal — read
+> `browser/raven-grab.js` rather than §1 for how the overlay behaves today.
+> The decisions under "Decisions (interviewed 2026-07-09)" all still hold.
+
 ## Goal
 Two-way click-to-change: a user clicks any element in their running app in a browser; the agent (via Raven) receives a precise change target. If the element uses design-system tokens, the click panel shows them and lets the user swap to another token or create a new one — the intent flows to the agent, which applies the code + DESIGN.md edit. DESIGN.md (Google Labs `design.md` alpha spec, as popularized by getdesign.md) becomes Raven's first-class design-system file format.
 

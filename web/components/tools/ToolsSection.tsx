@@ -64,10 +64,36 @@ const ACTS: Act[] = [
   },
   {
     num: "03",
+    title: "Design",
+    purpose: "Raven Design — click any element on your running page, edit its tokens, styles, and layout, and package the change against your DESIGN.md for your agent.",
+    marquee: ["start_grab_session", "review_diff", "get_page_template"],
+    tools: [
+      { name: "start_grab_session", desc: "Start the local grab bridge on loopback—click an element on your dev server and send it to your agent" },
+      { name: "get_grabbed_elements", desc: "Read what you clicked—selector, computed styles, matching DESIGN.md tokens, and the change you asked for" },
+      { name: "get_grab_layers", desc: "Read the layer tree captured around the clicked element, drilled to that node" },
+      { name: "get_grab_operation", desc: "Read or update one saved grab change, or request the unified style-and-reorder batch" },
+      // v2.2.3: layer drags live-move the host DOM; the old measured-preview description is no longer accurate.
+      { name: "move_grab_layer", desc: "Live-move a same-page layer reorder or reparent in the host DOM while keeping the change queued for the agent" },
+      { name: "get_page_template", desc: "Read the page's template slots from DESIGN.md, merged with the overlay's latest selections" },
+      { name: "set_template_slot", desc: "Persist page-scoped template slots in one batched DESIGN.md update—fixed/flexible roles and allowed tokens" },
+      { name: "list_templates", desc: "List the page templates and their registered routes from the active session" },
+      { name: "init_design_md", desc: "Create a DESIGN.md from a stored Raven token system, a getdesign.md starter, or a blank template" },
+      { name: "read_design_md", desc: "Parse a DESIGN.md—its frontmatter, Markdown body, and flattened token index" },
+      { name: "update_design_md", desc: "Change one DESIGN.md token surgically, leaving the rest of the file untouched" },
+      { name: "review_diff", desc: "CI-shaped review of a code diff against the project's DESIGN.md tokens and recorded decisions—with fail_on_governed" },
+      { name: "polish_diff", desc: "Turn design findings into deterministic token substitutions, ready to apply—no files written" },
+      { name: "talon_scan", desc: "Run the deterministic detector engine over a page—pure measurement, no LLM" },
+      { name: "talon_rules", desc: "Enumerate the detector rule corpus—id, category, severity, and taste scope" },
+      { name: "stop_grab_session", desc: "Stop the grab bridge and clear its queued selections" },
+    ],
+  },
+  {
+    num: "04",
     title: "Audit",
     purpose: "Check the work — web, native, and cross-platform — against the standards, with evidence.",
     marquee: ["audit_url", "audit_contrast", "audit_swiftui"],
     tools: [
+      { name: "audit", desc: "Choose the relevant checks for a web page, iOS screen, React Native source, code diff, or video, then return one merged report" },
       { name: "audit_url", desc: "Render a live URL at every viewport & theme, then catch cropped images, blank videos, hover white-wash, and hidden-on-mobile content" },
       { name: "audit_contrast", desc: "WCAG 2.1 contrast ratios for every text element on a rendered page—AA/AAA pass-fail with delta-to-pass" },
       { name: "audit_swiftui", desc: "Audit SwiftUI source against Apple's HIG—Dynamic Type, semantic colors, 44pt targets, AccentColor" },
@@ -96,7 +122,7 @@ const ACTS: Act[] = [
     ],
   },
   {
-    num: "04",
+    num: "05",
     title: "Judge",
     purpose: "The Taste Engine — calibrate a person's design judgment once, then hold every build to it, with the rule behind each verdict.",
     marquee: ["audit_taste", "get_taste_interview", "label_finding"],
@@ -114,7 +140,28 @@ const ACTS: Act[] = [
     ],
   },
   {
-    num: "05",
+    num: "06",
+    title: "Decide",
+    purpose: "The Decision Graph — a queryable design-decision memory that a project's people and agents both consult, so decisions stop getting re-litigated and lost, with provenance and evidence on every node.",
+    marquee: ["decision_add", "decision_import", "gap_scan"],
+    tools: [
+      { name: "decision_add", desc: "Record an active decision with its scope, component, rationale, and the alternatives you rejected" },
+      { name: "decision_draft", desc: "Capture a decision now and confirm the why later" },
+      { name: "decision_commit", desc: "Confirm a draft's rationale—and surface similar active decisions for review" },
+      { name: "decision_get", desc: "Read one decision, its attached evidence, and every node connected to it" },
+      { name: "decision_list", desc: "List active, superseded, contested, or candidate decisions" },
+      { name: "decision_history", desc: "Trace a decision's full supersession lineage, oldest to newest" },
+      { name: "decision_scope", desc: "Narrow two decisions to distinct scopes so both can stay active" },
+      { name: "decision_supersede", desc: "Replace a decision while keeping both nodes and their lineage" },
+      { name: "decision_evidence", desc: "Attach quantitative or qualitative evidence to a decision" },
+      { name: "decision_import", desc: "Cold-start the graph from local git history and decision-bearing Markdown, as source-tagged extraction prompts" },
+      { name: "ingest_transcript", desc: "Store a transcript and return an extraction prompt for your model" },
+      { name: "ingest_transcript_results", desc: "Turn extracted JSON into reviewable candidate decisions linked to their source" },
+      { name: "gap_scan", desc: "Scan the graph for uncovered components, thin rationales, contested decisions, and stale derivations" },
+    ],
+  },
+  {
+    num: "07",
     title: "Meta",
     purpose: "Local usage reflection and release registration.",
     marquee: ["raven_reflect", "raven_register"],
@@ -132,11 +179,10 @@ export default function ToolsSection() {
     <section id="tools" className="tools-section">
       <div className="container">
         <div className="section-header">
-          <p className="label reveal">Seventy Tools</p>
-          <h2 className="reveal reveal-delay-1">Seventy tools, organized by job</h2>
+          <h2 className="reveal reveal-delay-1">One hundred tools, organized by job</h2>
           <p className="subtitle reveal reveal-delay-2">
-            Seventy focused calls, grouped by what they do&mdash;<strong>know</strong>, <strong>create</strong>,{" "}
-            <strong>audit</strong>, <strong>judge</strong>. Claude calls them automatically, with no special syntax.
+            One hundred focused calls, grouped by what they do&mdash;<strong>know</strong>, <strong>create</strong>,{" "}
+            <strong>design</strong>, <strong>audit</strong>, <strong>judge</strong>, <strong>decide</strong>. Claude calls them automatically, with no special syntax.
           </p>
         </div>
 

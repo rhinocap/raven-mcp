@@ -24,18 +24,8 @@ Claude (prompt) → MCP Protocol (stdio) → Raven MCP (local process) → Respo
 - No external API calls, database connections, or cloud service integrations
 - No access to environment variables, secrets, or credentials during tool execution
 
-### Optional telemetry (postinstall only)
-On `npm install`, an optional postinstall script sends a single HTTPS POST to `ravenmcp.ai/api/welcome` containing:
-- Node.js version
-- OS platform and architecture
-- Timestamp
-
-**No user data, prompts, code, or design artifacts are sent.** This telemetry is limited to install-time only and never runs during tool execution.
-
-**To disable:** Set `RAVEN_NO_TELEMETRY=1` before install:
-```bash
-RAVEN_NO_TELEMETRY=1 npm install raven-mcp
-```
+### No telemetry
+Raven makes no network requests at any point — not during tool execution, and not on install. The postinstall step only prints a one-line notice to the terminal; nothing is sent anywhere.
 
 ## Dependencies
 
@@ -66,7 +56,7 @@ Email security concerns to andrew@ravenmcp.ai. Response within 48 hours.
 ## Enterprise / Compliance Use
 
 For enterprise environments requiring:
-- Telemetry disabled: set `RAVEN_NO_TELEMETRY=1`
+- No telemetry: none exists — Raven makes no network calls on install or at runtime
 - Version pinning: lock to a specific version in `package.json`
 - SBOM: generate with `npm sbom --sbom-format cyclonedx`
 - Audit: run `npm audit` — zero known vulnerabilities as of v1.1.0

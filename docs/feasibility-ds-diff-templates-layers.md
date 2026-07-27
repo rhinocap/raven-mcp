@@ -1,5 +1,14 @@
 # Feasibility spec — three Raven features (2026-07-10)
 
+> **Status 2026-07-19.** Feature 3's ladder is past its first two rungs: rung 1
+> (shift-multi-select) shipped 2026-07-10 as noted inline, and rung 2 (the layers
+> tree) now ships in the Structure panel. Rung 3 stays where this document left
+> it — unnecessary, not deferred. Feature 2 (templates) has UI in the Structure
+> panel; the DESIGN.md `templates:` persistence described below is NOT built, so
+> the durability caveats here are still the live constraints, not a forecast.
+> The three authorization/source-mapping blockers under Feature 3 are unchanged
+> and remain the reason nothing writes source. Feature 1 is untouched.
+
 Scope: feasibility only, no implementation. Grounded in the live repo (grab overlay, DESIGN.md machinery, P4 OAuth infra on `origin/p4-remote-taste`) plus prior-art research (VisBug, Builder.io, Plasmic, Webflow, react-grab, Figma library analytics, style-dictionary, react-scanner/omlet). Each feature was spec'd by an independent agent and then adversarially reviewed; the verdicts below are the post-objection verdicts, not the authors' first drafts.
 
 Decisions already made (Andrew, 2026-07-10 interview):
@@ -108,6 +117,7 @@ The value is not cheap instructions — it's **collapsing the spatial-disambigua
 ### Recommended shape: the escalation ladder (revised 2026-07-10)
 Ship in order; each rung is independently useful and its payload feeds the next:
 1. **Shift-multi-select in grab (S).** Ordered multi-selection with numbered badges; user types "move 1 above 2" in chat. No new panel — an ordered array instead of one element in the existing grab payload. Cheapest possible test of whether grounded identity kills the thrash.
+   - **SHIPPED (branch `grab-multi-select`, 2026-07-10). Usage:** click the first element as usual, then shift-click each additional one — every selection gets a numbered badge (1,2,3…) in click order; a plain click resets to single-select and clears the badges. Type the instruction against the numbers ("move 2 above 1") and Send. The drained payload from `get_grabbed_elements` carries `multiSelect: [{ index, selector, html, rect, styles }]` in selection order (1-based indices); the field is present only when 2+ elements are selected — single-select payloads are byte-identical to before. Prerequisite landed in the same branch: the bridge's `z.any()` boundary (`rect`/`styles`/`tokens`/`stateStyles`/`tokenIntents`/`styleEdits`) is now fully typed Zod with passthrough retained for extensibility. Verified live: 3-element shift-select → badges eyes-on → drain order matched click order → agent applied "move 2 above 1" to the right nodes first try. 588/588 tests.
 2. **Layers list with reorder-as-intent + clone-measured wireframe preview (M).** Tree rows reorder in the panel — **the live page is never mutated**, which amputates the React-reconciliation/hydration risk entirely. Visual confirmation comes from an off-screen clone: `parent.cloneNode(true)` into a hidden container pinned to the same computed width, apply the reorder to the clone, read `getBoundingClientRect()` off its children, draw scaled wireframe boxes in a preview strip above the tree. Because the clone lives in the same document it inherits real stylesheets, so the preview is *correct* about flex/grid reflow, `:nth-child`/sibling-combinator restyling caused by the reorder, margin collapse, and wrapping — everything a hand-drawn wireframe would lie about. The measured post-reorder rects ship with the intent ("produce this arrangement"), giving the agent pixel-level ground truth that survives selector drift.
    - Limits (state in UI): JS-driven layout doesn't run in the clone (badge "preview approximate" when the container shows inline positioning); same-parent reorders first — cross-container moves need the nearest common ancestor cloned, so cap clone subtree size; render on drop, not per-pixel drag.
 3. **Ephemeral live-page preview — likely permanently unnecessary.** Clone-preview delivers the same confirmation with none of the reconciliation risk; only revisit if real usage shows clone-preview fidelity failing on cases users care about.
