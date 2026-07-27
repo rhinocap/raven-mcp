@@ -987,3 +987,65 @@ credits.
 session's in-flight 105th tool touching `src/index.ts` and `manifest.json`.
 `site/` is git-integrated on `main`, so pushing publishes the new video AND that
 unfinished tool to the live endpoint in one shot. Andrew's call.
+
+### The SaaS demo video is live — and the push was not what put it there (2026-07-27)
+
+Andrew: "throw that video on the live site." Done, but by a different route
+than the one I announced, and the detour is the part worth keeping.
+
+**What I got wrong.** I needed to know whether `ravenmcp.ai` is served by the
+git-integrated `site` project or the manual-deploy `web` one. I probed the URL:
+`/demos/saas.html` returned 200, `/demos/saas` returned 404, and I read that as
+"static project, therefore `site`, therefore a push to `main` deploys it." I
+cherry-picked the three commits onto a clean worktree off `origin/main`, pushed
+`0e2030b..2348d94`, and watched the `site` production build go READY. The live
+bytes never moved.
+
+The probe distinguished nothing. `web/public/` also holds literal `.html`
+files, so both projects answer that pair of paths identically. The evidence
+that actually settles ownership is the deployment's `alias` array: the finished
+`site` build listed `mcp.ravenmcp.ai` and the `site-*.vercel.app` hosts, and no
+apex. `ravenmcp.ai` belongs to `web`, which has no git integration — no push
+could ever have moved it.
+
+I also had the answer in hand before I pushed and didn't read it: the live
+mp4's `last-modified` was 22:42:52, which matches `web`'s manual deploy from
+`f606d5a` at 22:40, not any `site` build. A second tell arrived mid-check —
+`saas.jpg` came back `x-vercel-cache: MISS` at the *old* size, i.e. fetched
+fresh from an origin that still had the old file. Cache was never the
+explanation.
+
+**What actually shipped it.** `vercel deploy --prod` from `web/`, against a
+clean tree whose only delta versus the live deployment was the two video files
+(`git diff --name-only f606d5a HEAD -- web/` returned exactly those two). Live
+at `ravenmcp.ai`, aliased by the CLI, deployment `dpl_BdYD6BVdgmj7Nrxtnr96urfQFPun`.
+
+**Verified on the live surface, not the local one.** Downloaded both assets
+back from `ravenmcp.ai`: sha256 identical to local for the mp4
+(`f1c5790a…`) and the jpg (`0a6f15da…`). The live file re-probes at
+1280x720 / 24fps / 192 frames / 8.000s, YAVG 89.9 / SATAVG 17.3, inside the
+sibling band. The page's `<video>` resolves to the new file; seeking from t=0
+to t=7.6 shows the desk, keyboard and mug markedly closer and the chair out of
+frame, so the dolly reads as movement rather than a still. Homepage card
+measures 364.66x243.11 against the 365x243 crop spec and its poster serves
+61544 bytes. Anon-45 golden hash on `mcp.ravenmcp.ai` re-verified at
+`f64bb18…2bb0a6`, 45 tools, unchanged by the push.
+
+**Two dead probes, recorded so they are not re-run.** A `readyState` poll
+against `api.vercel.com` returned blank for 300 seconds because `VERCEL_TOKEN`
+is unset in this shell — every request was unauthenticated, and blank output
+looked exactly like "still building." Use the Vercel MCP tools, which carry
+their own auth. Separately, the anon-hash one-liner piped through
+`sed -n 's/^data: //p'` on the assumption of an SSE response; the endpoint
+returns plain JSON, so it hashed the empty string and produced
+`e3b0c442…`, the sha256 of nothing. A hash check that can silently pass an
+empty input is not a check — `e3b0c442…` is worth recognizing on sight.
+
+**Left alone deliberately.** The push carried only assets, docs and this log;
+`git diff origin/main HEAD -- src/ api/ manifest.json package.json` was empty,
+which is why no test run gated it. `f606d5a` — the parallel session's
+in-flight 105th tool — stayed unpushed and untouched in the primary worktree;
+the cherry-pick was done in a scratch worktree so that tree's HEAD never moved.
+Note that `web`'s live build was already made from `f606d5a`'s dirty tree by
+whoever deployed at 22:40, so that unfinished state is on the marketing site
+independently of anything I did today.
