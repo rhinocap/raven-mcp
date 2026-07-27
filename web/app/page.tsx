@@ -1,4 +1,5 @@
 import HomeScripts from '@/components/HomeScripts'
+import { TOOL_COUNT } from '@/lib/counts'
 import ToolsSection from "@/components/tools/ToolsSection";
 import HeroGrid from '@/components/HeroGrid'
 import BeforeAfter from '@/components/BeforeAfter'
@@ -21,7 +22,7 @@ export default function Home() {
           <div className="glow glow-3"></div>
           <div className="container">
             <h1 className="reveal reveal-delay-1"><span className="line-glow">Pair-design</span><span className="line-accent">with your coding agent</span></h1>
-            <p className="subtitle reveal reveal-delay-2">Raven is an open-source MCP server. Click any element on your running page, edit its tokens and styles with real controls, and package the change for your agent &mdash; backed by audits that name the broken design rule and return the fix with evidence.</p>
+            <p className="subtitle">Raven is an open-source MCP server. Click any element on your running page, edit its tokens and styles with real controls, and package the change for your agent &mdash; backed by audits that name the broken design rule and return the fix with evidence.</p>
             <div className="hero-cta reveal reveal-delay-3">
               <button className="cta-install" aria-label="Copy install command to clipboard" data-copy="claude mcp add raven -- npx -y raven-mcp">
                 <span className="copy-label">claude mcp add raven -- npx -y raven-mcp</span>
@@ -765,7 +766,7 @@ export default function Home() {
             <div className="faq-list reveal reveal-delay-3">
               <div className="faq-item">
                 <h3>What is RavenMCP?</h3>
-                <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server. Add it to Claude or Cursor, and your agent can call 100 local tools for design principles, UI patterns, design-system tokens, content voice, research methods, service blueprints, multi-platform audits, click-to-edit Raven Design, a local Decision Graph, and project-specific taste checks.</p>
+                <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server. Add it to Claude or Cursor, and your agent can call {TOOL_COUNT} local tools for design principles, UI patterns, design-system tokens, content voice, research methods, service blueprints, multi-platform audits, click-to-edit Raven Design, a local Decision Graph, and project-specific taste checks.</p>
               </div>
               <div className="faq-item">
                 <h3>How do I install RavenMCP?</h3>
@@ -777,7 +778,7 @@ export default function Home() {
               </div>
               <div className="faq-item">
                 <h3>Which AI agents work with RavenMCP?</h3>
-                <p>Raven works with any client that supports the Model Context Protocol &mdash; Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's 100 tools directly during a conversation.</p>
+                <p>Raven works with any client that supports the Model Context Protocol &mdash; Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed, the agent can call Raven's {TOOL_COUNT} tools directly during a conversation.</p>
               </div>
               <div className="faq-item">
                 <h3>What platforms can RavenMCP audit?</h3>

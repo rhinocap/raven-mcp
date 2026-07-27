@@ -1436,7 +1436,7 @@
         width: 100%; justify-content: center;
       }
 
-      .terminal { font-size: 11px; }
+      .terminal { font-size: 13px; }
       .terminal-body { height: 480px; padding: var(--space-4) var(--space-4); line-height: 1.8; }
       .static-term-body { min-height: 480px; padding: var(--space-4) var(--space-4); line-height: 1.8; }
       .judge .static-term-body { min-height: 0; }

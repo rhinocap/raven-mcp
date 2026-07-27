@@ -17,7 +17,7 @@
   <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:title" content="RavenMCP — Design Intelligence for AI">
-  <meta property="og:description" content="129 design principles · 22 UI patterns · 70 tools · 12 design systems · a Taste Engine for portable design judgment · web, iOS, Android & React Native audits · content voice guides · research methods · service blueprints. One install for design-literate AI.">
+  <meta property="og:description" content="129 design principles · 22 UI patterns · 104 tools · 12 design systems · a Taste Engine for portable design judgment · web, iOS, Android & React Native audits · content voice guides · research methods · service blueprints. One install for design-literate AI.">
   <meta property="og:image" content="https://ravenmcp.ai/assets/og-image.jpg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -28,7 +28,7 @@
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="RavenMCP — Design Intelligence for AI">
-  <meta name="twitter:description" content="129 principles · 22 patterns · 70 tools · 12 design systems · a Taste Engine · web, iOS, Android & React Native audits · content voice · research · service blueprints. Design intelligence for AI, in one install.">
+  <meta name="twitter:description" content="129 principles · 22 patterns · 104 tools · 12 design systems · a Taste Engine · web, iOS, Android & React Native audits · content voice · research · service blueprints. Design intelligence for AI, in one install.">
   <meta name="twitter:image" content="https://ravenmcp.ai/assets/og-image.jpg">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1700,7 +1700,7 @@
         width: 100%; justify-content: center;
       }
 
-      .terminal { font-size: 11px; }
+      .terminal { font-size: 13px; }
       .terminal-body { height: 480px; padding: var(--space-4) var(--space-4); line-height: 1.8; }
       .browser-viewport { height: auto; min-height: 200px; }
 
@@ -1949,7 +1949,7 @@
         "url": "https://ravenmcp.ai/",
         "downloadUrl": "https://www.npmjs.com/package/raven-mcp",
         "softwareHelp": "https://ravenmcp.ai/docs.html",
-        "description": "RavenMCP is an open-source Model Context Protocol server that gives AI agents like Claude design intelligence: 70 tools spanning 129 design principles, 22 UI patterns, 12 design-system token libraries, content voice, brand, research, service blueprints, design audits for web, iOS, Android, and React Native, and a Taste Engine that holds every build to the owner's own design judgment.",
+        "description": "RavenMCP is an open-source Model Context Protocol server that gives AI agents like Claude design intelligence: 104 tools spanning 129 design principles, 22 UI patterns, 12 design-system token libraries, content voice, brand, research, service blueprints, design audits for web, iOS, Android, and React Native, and a Taste Engine that holds every build to the owner's own design judgment.",
         "license": "https://opensource.org/licenses/Apache-2.0",
         "isAccessibleForFree": true,
         "author": { "@type": "Person", "name": "Andrew Cunliffe" },
@@ -1978,7 +1978,7 @@
             "name": "What is RavenMCP?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "RavenMCP (Raven) is an open-source Model Context Protocol (MCP) server that gives AI agents like Claude design intelligence — the design knowledge once locked in expert heads. It exposes 90+ tools locally (npx, Claude Code/Desktop, or Cursor) spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits, and a Taste Engine that holds every build to the owner's own design judgment. The public remote endpoint serves a smaller stateless subset."
+              "text": "RavenMCP (Raven) is an open-source Model Context Protocol (MCP) server that gives AI agents like Claude design intelligence — the design knowledge once locked in expert heads. It exposes 104 tools locally (npx, Claude Code/Desktop, or Cursor) spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits, and a Taste Engine that holds every build to the owner's own design judgment. The public remote endpoint serves a smaller stateless subset."
             }
           },
           {
@@ -2002,7 +2002,7 @@
             "name": "Which AI agents work with RavenMCP?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "RavenMCP works with any client that supports the Model Context Protocol — Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed locally, the agent can call all 90+ of Raven's tools directly during a conversation; the public remote endpoint serves a smaller stateless subset."
+              "text": "RavenMCP works with any client that supports the Model Context Protocol — Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed locally, the agent can call all 104 of Raven's tools directly during a conversation; the public remote endpoint serves a smaller stateless subset."
             }
           },
           {
@@ -2064,7 +2064,7 @@
         Open-source MCP Server · Apache 2.0
       </div>
       <h1 class="reveal reveal-delay-1"><span class="line-glow">Design intelligence</span><span class="line-accent">for every prompt</span></h1>
-      <p class="subtitle reveal reveal-delay-2">The judgment layer for AI agents — 70 tools that audit what your agent builds, hold it to your taste, and cite the rule behind every finding. Claude, Cursor, or any MCP client.</p>
+      <p class="subtitle reveal reveal-delay-2">The judgment layer for AI agents — 104 tools that audit what your agent builds, hold it to your taste, and cite the rule behind every finding. Claude, Cursor, or any MCP client.</p>
       <div class="hero-cta reveal reveal-delay-3">
         <button class="cta-install" aria-label="Copy install command to clipboard" onclick="navigator.clipboard.writeText('claude mcp add raven -- npx -y raven-mcp').then(()=>{this.querySelector('.copy-label').textContent='Copied!'; this.setAttribute('aria-label', 'Install command copied'); document.getElementById('copy-status').textContent='Install command copied to clipboard.'})">
           <span class="copy-label">claude mcp add raven -- npx -y raven-mcp</span>
@@ -3400,7 +3400,7 @@
       transition: border-color var(--duration-normal) var(--ease-out);
     }
     .faq-item:hover { border-color: var(--border-accent); }
-    .layer-card p a, .faq-item p a { color: var(--text-accent); text-decoration: none; border-bottom: 1px solid var(--border-accent); transition: border-color 200ms; }
+    .layer-card p a, .faq-item p a { color: var(--text-accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 200ms; }
     .layer-card p a:hover, .faq-item p a:hover { border-bottom-color: var(--text-accent); }
     .faq-item h3 {
       font-size: clamp(18px, 2vw, 21px);
@@ -3435,7 +3435,7 @@
       <div class="faq-list reveal reveal-delay-3">
         <div class="faq-item">
           <h3>What is RavenMCP?</h3>
-          <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server that gives AI agents like Claude design intelligence &mdash; the design knowledge once locked in expert heads. It exposes 90+ tools locally (npx, Claude Code/Desktop, or Cursor) spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits, and a Taste Engine that holds every build to the owner's own design judgment. The public remote endpoint trades local-only tools (Grab, the Taste Engine's file store) for a smaller stateless subset &mdash; see the <a href="/docs.html#quickstart">docs</a> for the exact split.</p>
+          <p>RavenMCP (Raven) is an open-source <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a> (MCP) server that gives AI agents like Claude design intelligence &mdash; the design knowledge once locked in expert heads. It exposes 104 tools locally (npx, Claude Code/Desktop, or Cursor) spanning design principles, UI patterns, design-system tokens, content voice, brand, research methods, service blueprints, business strategy, multi-platform design audits, and a Taste Engine that holds every build to the owner's own design judgment. The public remote endpoint trades local-only tools (Grab, the Taste Engine's file store) for a smaller stateless subset &mdash; see the <a href="/docs.html#quickstart">docs</a> for the exact split.</p>
         </div>
         <div class="faq-item">
           <h3>How do I install RavenMCP?</h3>
@@ -3447,7 +3447,7 @@
         </div>
         <div class="faq-item">
           <h3>Which AI agents work with RavenMCP?</h3>
-          <p>Raven works with any client that supports the Model Context Protocol &mdash; Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed locally, the agent can call all 90+ of Raven's tools directly during a conversation; connecting to the public remote endpoint instead trades local-only tools for a smaller stateless subset (see the docs for details).</p>
+          <p>Raven works with any client that supports the Model Context Protocol &mdash; Claude (Claude Code and the Claude desktop app), Cursor, and any other MCP client. Once installed locally, the agent can call all 104 of Raven's tools directly during a conversation; connecting to the public remote endpoint instead trades local-only tools for a smaller stateless subset (see the docs for details).</p>
         </div>
         <div class="faq-item">
           <h3>What platforms can RavenMCP audit?</h3>

@@ -253,9 +253,10 @@
   min-height: 44px;
   color: var(--text-secondary);
   text-decoration: none;
-  transition: color 0.2s;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s;
 }
-.cl-foot-secondary:hover { color: var(--text-primary); }
+.cl-foot-secondary:hover { border-bottom-color: var(--text-accent); }
 
 /* Honor reduced-motion across both surfaces (this sheet is inlined into the
    static page by gen-changelog-html.mjs, so one clamp covers Next + static). */
