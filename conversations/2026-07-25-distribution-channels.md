@@ -269,3 +269,24 @@ The full-surface sha covers name, title, description, annotations, input-schema 
 3. `npm login` (currently E401), then `scripts/release.sh patch` — passkey publish, his terminal only.
 4. Decide the Friday auto-release question.
 5. After 2.2.9 publishes: `vercel deploy --prod` from `web/` so the public changelog shows it (the `web` project has no git integration).
+
+---
+
+## 2026-07-27 — auto-publish removed, and a process correction
+
+**Andrew's call on the Friday cron: remove auto-publish.** Done in `e7a56e1`. `.github/workflows/release.yml` dropped the `0 17 * * 5` schedule and is now `workflow_dispatch` only; `workflow_dispatch` is untouched, so a release is still one click from the Actions tab. Verified: GitHub re-registered the workflow under its new name "Release" (was "Weekly release"), and `origin/main` has no `schedule:` block. Checked the other two crons first — `knowledge-pr.yml` and `self-audit.yml` neither run `release.sh` nor publish, so this was the only exposure. Ground-truth Deploy bullet updated in the same commit.
+
+**Correction (Andrew, verbatim):** *"Why does all of this shit keep popping up, it should be a global rule to always give instructions on what to do next."*
+
+The real defect was not the missing next-step list — it was **serial gate discovery**. `npm whoami` → E401, the Friday cron, the branch pin, the passkey rule: every one of those was knowable before the first commit of the three-track run. I hit each wall and reported it as I arrived, turning one handoff into four. Two rules added to `~/.claude/CLAUDE.md` under communication-and-craft:
+
+- End every substantive reply with what happens next — the action I'm already taking, or a numbered copy-pasteable list, in order.
+- **Enumerate every human gate UP FRONT**, before starting: passkeys, consent checkboxes, live-endpoint writes, expired auth, scheduled jobs. Run the preflight first and report the full list alongside the plan. Surfacing blockers one at a time is a process failure, not a status update.
+
+Memory: `feedback_enumerate_gates_upfront_and_end_with_next_steps.md`.
+
+**Remaining gates — the complete list, nothing else hiding:**
+1. `gh pr create --base main --head merge-p4-into-main`, then merge (triggers the production deploy).
+2. Wait for production READY, confirm the alias serves 45 / `f64bb18…`, then unpin `mcp.ravenmcp.ai` (Vercel → `site` → Settings → Domains → clear `Git Branch`). Revert = re-set that field.
+3. `npm login` (E401), then `scripts/release.sh patch` — passkey, his terminal.
+4. Mine, after 2.2.9 is on npm: `vercel deploy --prod` from `web/` so the public changelog shows it.
