@@ -1,0 +1,7 @@
+Two actionable defects:
+
+- **Undersized tap target:** `a.tap-short` is explicitly `112px × 20px`. Its 20px height fails WCAG 2.2’s 24px minimum target size and the commonly recommended 44px mobile touch target. Increase the interactive height to at least `44px`, ideally using `min-height:44px` with flex centering.
+
+- **Broken fragment destination:** The link uses `href="#details"`, but no element has `id="details"`. Activating “View details” therefore provides no navigation, scrolling, or focus change. Add the matching target or replace the `href` with the correct destination.
+
+No source-defined content is hidden at 390×844. Color contrast cannot be assessed concretely because foreground and background colors are not specified.

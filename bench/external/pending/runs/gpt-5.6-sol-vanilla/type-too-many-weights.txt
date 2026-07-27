@@ -1,0 +1,4 @@
+- **Typography:** Six font weights (`100, 300, 400, 600, 700, 900`) are used for equivalent paragraph elements, creating an inconsistent visual hierarchy without semantic meaning. Consolidate body text to one regular weight and reserve one or two heavier weights for headings/emphasis.
+- **Legibility:** `.w1` uses `font-weight:100` at `16px`, which is unnecessarily thin for body-sized text and may be difficult to read. Use at least `400` for normal text.
+
+No source-supported contrast, tap-target, hidden-content, overflow, or responsive-layout defects are present.

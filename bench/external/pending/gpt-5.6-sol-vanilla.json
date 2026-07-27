@@ -1,0 +1,144 @@
+{
+  "tool": "gpt-5.6-sol-vanilla",
+  "version": "gpt-5.6-sol, reasoning effort medium, via codex exec (2026-07-19 run)",
+  "graded_by": "",
+  "graded_at": "",
+  "notes": "Vanilla-LLM baseline: no Raven tools, no taste profile, no DESIGN.md \u2014 raw page HTML (or source+target copy for taste cases) at viewport 390x844. Raw output: bench/external/pending/runs/gpt-5.6-sol-vanilla/<case-id>.txt",
+  "cases": [
+    {
+      "id": "contrast-low-on-light",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "contrast-low-on-dark",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "contrast-gradient-panel",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "contrast-clean",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "contrast-boundary-fail",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "contrast-boundary-clean",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "tap-tiny-button",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "tap-short-link",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "tap-small-pair",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "tap-clean",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "tap-boundary-fail",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "tap-boundary-clean",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "type-nonstandard-weight",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "type-line-height-outlier",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "type-too-many-weights",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "type-clean",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "type-line-height-boundary-fail",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "type-line-height-boundary-clean",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "type-weight-boundary-fail",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "type-weight-boundary-clean",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "responsive-hidden-lede",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "responsive-hidden-list-item",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "responsive-hidden-caption",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "responsive-clean",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "taste-proven-substitution",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "taste-unlock-substitution",
+      "detected": null,
+      "evidence": ""
+    },
+    {
+      "id": "taste-verbatim-control",
+      "detected": null,
+      "evidence": ""
+    }
+  ]
+}

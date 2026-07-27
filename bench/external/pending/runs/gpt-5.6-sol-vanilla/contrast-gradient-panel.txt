@@ -1,0 +1,3 @@
+- **Insufficient text contrast:** `.contrast-gradient` uses `color: #5f5f5f` at `16px` normal-weight text over a gradient from `#111111` to `#1a1a1a`. Contrast ranges from **2.96:1 to 2.73:1**, below the WCAG AA requirement of **4.5:1** for normal text. Use at least `#828282` across the darkest endpoint, preferably a lighter gray for margin.
+
+No tap-target, responsive-visibility, typography-size, overflow, or layout defects are evident from the source at 390×844.

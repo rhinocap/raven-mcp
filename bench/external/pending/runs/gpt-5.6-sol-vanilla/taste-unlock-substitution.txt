@@ -1,0 +1,5 @@
+Skill/MCP: None needed; direct text diff.
+
+Spec: Check exact wording and voice. Verification: Word-for-word comparison.
+
+Defect found: **“exposes”** was changed to **“unlocks.”** “Unlocks” adds a more promotional, sales-oriented register. The approved wording is not preserved.

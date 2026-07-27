@@ -1,0 +1,5 @@
+- **Critical — mobile caption is invisible:** At 390px, `@media(max-width:600px)` applies and sets `.responsive-caption { opacity: 0 }`. The `<figcaption>` text “Revenue excludes refunds.” becomes fully transparent, giving an effective visual contrast of **1:1** against the white background. It also retains layout space because `opacity` does not remove the element. Remove this rule or keep `opacity: 1`.
+
+- **Accessibility — chart content is excluded from assistive technology:** `<div aria-hidden="true">Chart</div>` displays “Chart” visually but removes it from the accessibility tree. Screen-reader users receive the caption but not the visible chart content. Remove `aria-hidden="true"` or provide an accessible chart description associated with the figure.
+
+No undersized tap targets are present because the page contains no interactive controls. The declared 16px body text and 1.5 line height are acceptable.

@@ -1,0 +1,1 @@
+No actionable defects found. The only mobile-hidden element is the 8px decorative bar, correctly marked `aria-hidden="true"`; all meaningful content remains visible.
