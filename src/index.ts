@@ -2106,18 +2106,26 @@ const TOOL_OPEN_WORLD: string[] = [
   "audit"
 ];
 
+// All three hints are stated explicitly rather than left to their spec defaults.
+// The MCP spec says destructiveHint only applies when readOnlyHint is false, so
+// omitting the inapplicable one is legal — but a consumer that reads the
+// annotations as a flat capability record (OpenAI's plugin scanner is one:
+// "Every MCP tool must set readOnlyHint, openWorldHint, destructiveHint to true
+// or false") sees an omission as unanswered rather than as the default. Both
+// added values are the honest ones: a readOnly tool destroys nothing, and a
+// destructive tool is not read-only.
 function toolAnnotations(toolName: string): {
   title: string;
-  readOnlyHint?: true;
-  destructiveHint?: true;
+  readOnlyHint: boolean;
+  destructiveHint: boolean;
   openWorldHint: boolean;
 } {
   var access = TOOL_ACCESS[toolName];
   if (!access) throw new Error("Missing MCP tool classification: " + toolName);
   var openWorld = TOOL_OPEN_WORLD.indexOf(toolName) !== -1;
   return access === "destructive"
-    ? { title: toolTitle(toolName), destructiveHint: true, openWorldHint: openWorld }
-    : { title: toolTitle(toolName), readOnlyHint: true, openWorldHint: openWorld };
+    ? { title: toolTitle(toolName), readOnlyHint: false, destructiveHint: true, openWorldHint: openWorld }
+    : { title: toolTitle(toolName), readOnlyHint: true, destructiveHint: false, openWorldHint: openWorld };
 }
 
 // buildServer() returns a FRESH McpServer with all 100 local tools + the usage-log/
