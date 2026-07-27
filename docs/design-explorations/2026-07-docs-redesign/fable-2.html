@@ -1,0 +1,1098 @@
+<!-- DIRECTION: The Spec Sheet — the docs composed as an editorial technical specification (numbered index 01–06, hairline rules, mono micro-labels, instrument-panel restraint) rather than generic SaaS docs chrome. It steals Stripe's definition-list parameter anatomy and per-tool pinned examples (Supabase's sticky self-start mechanic), Linear's opacity-dimmed scroll-tracked nav, and Vercel's raw-markdown agent affordance — then strips away all card chrome so the reference itself, not the UI, is the design object. -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RavenMCP — Documentation</title>
+<style>
+/* ============================================================
+   Tokens (mirrors the site's existing token vocabulary)
+   ============================================================ */
+:root{
+  --bg-base:#0a0a0d;
+  --bg-surface:#101015;
+  --bg-raised:#16161d;
+  --bg-accent-subtle:rgba(95,212,231,.06);
+  --bg-accent-hover:rgba(95,212,231,.11);
+  --text-primary:#ececf1;
+  --text-secondary:#9b9ba6;
+  --text-tertiary:#606069;
+  --text-accent:#8ddfee;
+  --border:rgba(255,255,255,.075);
+  --border-strong:rgba(255,255,255,.16);
+  --border-accent:rgba(95,212,231,.45);
+  --accent-cyan:#5fd4e7;
+  --accent-blue:#6d9ef7;
+  --accent-pink:#f76d9e;
+  --radius-sm:6px; --radius-md:10px; --radius-lg:16px;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px;
+  --space-6:24px; --space-8:32px; --space-10:40px; --space-12:48px;
+  --space-16:64px; --space-20:80px;
+  --font-body:"Inter",-apple-system,"Segoe UI",system-ui,sans-serif;
+  --font-mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+  --ease-out:cubic-bezier(.22,1,.36,1);
+  --duration-normal:180ms;
+  --rail-w:272px;
+  --topbar-h:56px;
+}
+
+/* ============================================================
+   Reset / base — note: NO overflow on html/body, so position:
+   sticky keeps its root containing block. Horizontal overflow
+   is prevented by constraining children, not by clipping root.
+   ============================================================ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg-base);
+  color:var(--text-primary);
+  font:400 14px/1.65 var(--font-body);
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:rgba(95,212,231,.25)}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+code,pre,kbd{font-family:var(--font-mono)}
+
+/* The editorial micro-label — the spec sheet's signature voice */
+.micro{
+  font:500 11px/1 var(--font-mono);
+  letter-spacing:.09em;
+  text-transform:uppercase;
+  color:var(--text-tertiary);
+}
+
+/* ============================================================
+   Index rail — fixed to the viewport, deliberately. The live
+   page's sticky nav broke against an implicit root scroll box;
+   a fixed rail with its own scroll cannot un-pin, ever.
+   ============================================================ */
+.rail{
+  position:fixed;
+  top:0;left:0;bottom:0;
+  width:var(--rail-w);
+  overflow-y:auto;
+  border-right:1px solid var(--border);
+  padding:var(--space-8) var(--space-6) var(--space-8) var(--space-8);
+  display:flex;flex-direction:column;
+  background:var(--bg-base);
+  z-index:20;
+}
+.rail::-webkit-scrollbar{width:0}
+
+.wordmark{
+  display:flex;align-items:baseline;gap:10px;
+  margin-bottom:var(--space-12);
+}
+.wordmark strong{
+  font-size:15px;font-weight:600;letter-spacing:-.01em;
+}
+.wordmark .micro{color:var(--text-tertiary)}
+
+.idx{list-style:none;flex:1}
+.idx>li{margin-bottom:2px}
+.idx-link{
+  display:flex;align-items:center;gap:var(--space-3);
+  min-height:44px;                    /* tap target */
+  padding:0 var(--space-2);
+  border-radius:var(--radius-sm);
+  color:var(--text-tertiary);         /* hierarchy through opacity, not weight */
+  transition:color var(--duration-normal) var(--ease-out),
+             background var(--duration-normal) var(--ease-out);
+}
+.idx-link:hover{color:var(--text-secondary);background:rgba(255,255,255,.03)}
+.idx-num{
+  font:400 11px/1 var(--font-mono);
+  letter-spacing:.04em;
+  width:20px;flex-shrink:0;
+  color:var(--text-tertiary);
+  transition:color var(--duration-normal) var(--ease-out);
+}
+.idx-label{font-size:13.5px;letter-spacing:-.005em}
+.idx-link.active{color:var(--text-primary)}
+.idx-link.active .idx-num{color:var(--accent-cyan)}
+
+/* tool sub-anchors under 02 */
+.idx-sub{list-style:none;margin:2px 0 var(--space-2);padding-left:calc(20px + var(--space-3));border-left:0}
+.idx-sub a{
+  display:flex;align-items:center;
+  min-height:44px;                    /* tap target */
+  padding:0 var(--space-2);
+  font:400 12.5px/1 var(--font-mono);
+  color:var(--text-tertiary);
+  border-left:1px solid var(--border);
+  padding-left:var(--space-4);
+  transition:color var(--duration-normal) var(--ease-out),
+             border-color var(--duration-normal) var(--ease-out);
+}
+.idx-sub a:hover{color:var(--text-secondary)}
+.idx-sub a.active{color:var(--text-accent);border-left-color:var(--border-accent)}
+
+.rail-foot{
+  padding-top:var(--space-6);
+  border-top:1px solid var(--border);
+  display:flex;flex-direction:column;gap:var(--space-3);
+}
+.rail-foot a{
+  display:flex;align-items:center;gap:var(--space-2);
+  min-height:44px;
+  color:var(--text-tertiary);
+  font-size:12.5px;
+  transition:color var(--duration-normal) var(--ease-out);
+}
+.rail-foot a:hover{color:var(--text-secondary)}
+.rail-foot code{font-size:11.5px;color:var(--text-secondary)}
+
+/* ============================================================
+   Content column
+   ============================================================ */
+.page{
+  margin-left:var(--rail-w);
+  padding:0 clamp(var(--space-6),5vw,var(--space-20));
+}
+.measure{max-width:1200px;margin:0 auto}
+
+/* Masthead */
+.masthead{
+  padding:calc(var(--space-20) + var(--space-8)) 0 var(--space-16);
+  border-bottom:1px solid var(--border);
+}
+.masthead h1{
+  font-size:clamp(34px,4.5vw,52px);
+  font-weight:600;
+  letter-spacing:-.025em;
+  line-height:1.05;
+  margin:var(--space-6) 0 var(--space-6);
+}
+.masthead .lede{
+  font-size:16px;line-height:1.7;
+  color:var(--text-secondary);
+  max-width:56ch;
+}
+.meta-row{
+  display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-8);
+  margin-top:var(--space-10);
+}
+.meta-row .cell{display:flex;align-items:baseline;gap:var(--space-2);min-height:24px}
+.meta-row .cell b{font:500 13px/1 var(--font-mono);color:var(--text-secondary);font-weight:500}
+
+/* Section anatomy — numbered spec headers */
+.sec{padding:var(--space-20) 0 var(--space-16);border-bottom:1px solid var(--border)}
+.sec:last-of-type{border-bottom:0}
+.sec-head{
+  display:flex;align-items:baseline;gap:var(--space-4);
+  margin-bottom:var(--space-10);
+}
+.sec-num{
+  font:300 15px/1 var(--font-mono);
+  color:var(--accent-cyan);
+  letter-spacing:.04em;
+}
+.sec-head h2{
+  font-size:26px;font-weight:600;letter-spacing:-.02em;line-height:1.1;
+}
+.sec-head::after{
+  content:"";flex:1;height:1px;background:var(--border);
+  transform:translateY(-4px);
+}
+.sec-intro{
+  font-size:15px;line-height:1.7;color:var(--text-secondary);
+  max-width:62ch;margin-bottom:var(--space-10);
+}
+.sec-intro code{
+  font-size:13px;color:var(--text-primary);
+  background:var(--bg-raised);
+  padding:2px 6px;border-radius:4px;
+  border:1px solid var(--border);
+}
+
+/* ============================================================
+   Code fences
+   ============================================================ */
+.fence{
+  border:1px solid var(--border);
+  border-radius:var(--radius-md);
+  background:var(--bg-surface);
+  overflow:hidden;
+  margin:var(--space-4) 0;
+}
+.fence figcaption{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 var(--space-2) 0 var(--space-4);
+  min-height:40px;
+  border-bottom:1px solid var(--border);
+}
+.fence figcaption .micro{color:var(--text-tertiary)}
+.copy{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:44px;min-width:64px;      /* tap target */
+  padding:0 var(--space-3);
+  font:500 11px/1 var(--font-mono);
+  letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text-tertiary);
+  border-radius:var(--radius-sm);
+  transition:color var(--duration-normal) var(--ease-out);
+}
+.copy:hover{color:var(--text-accent)}
+.copy.done{color:var(--accent-cyan)}
+.fence pre{
+  padding:var(--space-4) var(--space-4) var(--space-4);
+  overflow-x:auto;
+  font-size:12.5px;line-height:1.7;
+  color:var(--text-secondary);
+}
+.fence .tk{color:var(--text-primary)}          /* keys / emphasis */
+.fence .ts{color:var(--text-accent)}           /* strings of interest */
+.fence .tc{color:var(--text-tertiary)}         /* comments */
+
+/* ============================================================
+   01 — Get started: numbered step rows, not cards
+   ============================================================ */
+.steps{list-style:none;counter-reset:step}
+.steps>li{
+  display:grid;
+  grid-template-columns:56px minmax(0,1fr);
+  gap:var(--space-6);
+  padding:var(--space-8) 0;
+  border-top:1px solid var(--border);
+}
+.steps>li:last-child{border-bottom:1px solid var(--border)}
+.step-n{
+  font:300 22px/1.2 var(--font-mono);
+  color:var(--text-tertiary);
+}
+.steps h3{font-size:16px;font-weight:600;letter-spacing:-.01em;margin-bottom:var(--space-2)}
+.steps p{color:var(--text-secondary);max-width:60ch}
+.steps p code,.inline-cmd{
+  font-family:var(--font-mono);font-size:12.5px;
+  color:var(--text-accent);
+  background:var(--bg-accent-subtle);
+  border:1px solid var(--border);
+  padding:2px 7px;border-radius:4px;
+  white-space:nowrap;
+}
+
+/* ============================================================
+   02 — Tool reference: the definition-list anatomy.
+   Each tool = full-width block, hairline-separated (no card
+   soup). Prose+params left, pinned example right — the example
+   sticks within its own tool's scroll range, then releases.
+   ============================================================ */
+.layer-head{
+  display:flex;align-items:center;gap:var(--space-4);
+  margin:var(--space-16) 0 var(--space-2);
+}
+.layer-head:first-of-type{margin-top:var(--space-4)}
+.layer-head .micro{color:var(--text-secondary)}
+.layer-head::after{content:"";flex:1;height:1px;background:var(--border)}
+
+.tool{
+  padding:var(--space-10) 0 var(--space-12);
+  border-bottom:1px solid var(--border);
+  scroll-margin-top:var(--space-8);
+}
+.tool:last-of-type{border-bottom:0}
+
+.tool-head{
+  /* Supabase steal: the tool name pins while you scroll its params,
+     fading over content — sticky works because root has no overflow. */
+  position:sticky;top:0;z-index:5;
+  background:linear-gradient(to bottom,var(--bg-base) 86%,transparent);
+  padding:var(--space-4) 0 var(--space-8);
+  display:flex;align-items:baseline;gap:var(--space-4);flex-wrap:wrap;
+}
+.tool-name{
+  font:500 19px/1.2 var(--font-mono);
+  letter-spacing:-.01em;
+  color:var(--text-primary);
+}
+.tool-tag{margin-left:auto}
+
+.tool-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);
+  gap:var(--space-12);
+  align-items:start;
+}
+.tool-desc{
+  font-size:14.5px;line-height:1.7;color:var(--text-secondary);
+  margin-bottom:var(--space-8);
+  max-width:58ch;
+}
+
+/* Parameter rows — Stripe's definition-list anatomy: name + badges
+   inline, description gets the FULL column width beneath. Never a table. */
+.params{border-top:1px solid var(--border)}
+.params .p-caption{
+  padding:var(--space-3) 0 0;
+}
+.param{
+  padding:var(--space-4) 0 var(--space-5);
+  border-bottom:1px solid var(--border);
+}
+.param-line{
+  display:flex;align-items:baseline;gap:var(--space-3);flex-wrap:wrap;
+  margin-bottom:var(--space-2);
+}
+.p-name{font:500 13.5px/1 var(--font-mono);color:var(--text-primary)}
+.p-type{font:400 12px/1 var(--font-mono);color:var(--text-tertiary)}
+.badge{
+  font:500 10px/1 var(--font-mono);
+  letter-spacing:.08em;text-transform:uppercase;
+  padding:3px 7px;border-radius:99px;
+  border:1px solid var(--border);
+  color:var(--text-tertiary);
+}
+.badge.req{color:var(--text-accent);border-color:var(--border-accent);background:var(--bg-accent-subtle)}
+.param p{font-size:13.5px;line-height:1.65;color:var(--text-secondary)}
+.param p code{font-family:var(--font-mono);font-size:12px;color:var(--text-primary)}
+
+/* Pinned example column */
+.tool-ex{
+  position:sticky;top:calc(var(--space-16) + var(--space-2));
+  align-self:start;
+}
+.tool-ex .fence{margin:0}
+.ex-prompts{list-style:none;margin-top:var(--space-4)}
+.ex-prompts li{
+  position:relative;
+  padding:var(--space-2) 0 var(--space-2) var(--space-5);
+  font-size:13px;color:var(--text-secondary);
+}
+.ex-prompts li::before{
+  content:"→";position:absolute;left:0;
+  color:var(--text-tertiary);font-family:var(--font-mono);font-size:12px;
+}
+
+/* ============================================================
+   03 — Examples: transcript register
+   ============================================================ */
+.xmpl{
+  margin:var(--space-10) 0;
+  border-top:1px solid var(--border);
+}
+.xmpl-title{
+  padding:var(--space-4) 0 var(--space-2);
+}
+.x-row{
+  display:grid;
+  grid-template-columns:96px minmax(0,1fr);
+  gap:var(--space-6);
+  padding:var(--space-5) 0;
+}
+.x-row + .x-row{border-top:1px solid var(--border)}
+.x-who{padding-top:3px}
+.x-row>p{font-size:14.5px;color:var(--text-primary);max-width:60ch}
+.x-call{
+  font:400 12.5px/1.7 var(--font-mono);
+  color:var(--text-accent);
+  word-break:break-word;
+}
+.x-ret{
+  font:400 12.5px/1.8 var(--font-mono);
+  color:var(--text-secondary);
+  white-space:pre-wrap;
+}
+.x-ret b{color:var(--text-primary);font-weight:500}
+.sev{
+  display:inline-block;
+  font:500 10px/1 var(--font-mono);letter-spacing:.07em;text-transform:uppercase;
+  padding:2px 6px;border-radius:4px;margin-right:6px;
+  border:1px solid var(--border);
+}
+.sev.err{color:var(--accent-pink);border-color:rgba(247,109,158,.4)}
+.sev.warn{color:var(--accent-cyan);border-color:var(--border-accent)}
+
+/* ============================================================
+   04 / 05 — Data structure & tokens: prose + fence, side-by-side
+   annotation on wide screens
+   ============================================================ */
+.split{
+  display:grid;
+  grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);
+  gap:var(--space-12);
+  align-items:start;
+}
+.split .prose p{color:var(--text-secondary);margin-bottom:var(--space-4);max-width:52ch;font-size:14.5px;line-height:1.7}
+.split .prose p code{font-family:var(--font-mono);font-size:12.5px;color:var(--text-primary)}
+.field-list{list-style:none;margin-top:var(--space-6);border-top:1px solid var(--border)}
+.field-list li{
+  padding:var(--space-3) 0;
+  border-bottom:1px solid var(--border);
+  display:flex;gap:var(--space-4);align-items:baseline;
+  font-size:13px;color:var(--text-secondary);
+}
+.field-list code{font:500 12.5px/1 var(--font-mono);color:var(--text-primary);flex-shrink:0}
+.split .fence{position:sticky;top:var(--space-8);align-self:start}
+
+/* token swatches */
+.swatches{display:flex;gap:var(--space-2);margin:var(--space-6) 0 0;flex-wrap:wrap}
+.sw{display:flex;flex-direction:column;gap:var(--space-2);min-width:64px}
+.sw i{display:block;height:40px;border-radius:var(--radius-sm);border:1px solid var(--border-strong)}
+.sw span{font:400 10.5px/1.4 var(--font-mono);color:var(--text-tertiary)}
+
+/* ============================================================
+   06 — FAQ: plain definition rows
+   ============================================================ */
+.faq{border-top:1px solid var(--border)}
+.faq-item{
+  display:grid;
+  grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);
+  gap:var(--space-8);
+  padding:var(--space-6) 0;
+  border-bottom:1px solid var(--border);
+}
+.faq-item h3{font-size:15px;font-weight:500;letter-spacing:-.005em;line-height:1.5}
+.faq-item p{color:var(--text-secondary);font-size:14px;line-height:1.7;max-width:58ch}
+.faq-item p code{font-family:var(--font-mono);font-size:12.5px;color:var(--text-primary)}
+
+/* footer */
+.colophon{
+  padding:var(--space-16) 0 var(--space-20);
+  display:flex;justify-content:space-between;gap:var(--space-6);flex-wrap:wrap;
+}
+.colophon .micro{line-height:2}
+
+/* ============================================================
+   Mobile top bar (below 920px the rail becomes a pinned top
+   index — the nav is never not visible)
+   ============================================================ */
+.topbar{display:none}
+
+@media (max-width:1120px){
+  .tool-grid,.split,.faq-item{grid-template-columns:minmax(0,1fr)}
+  .tool-ex,.split .fence{position:static}
+  .tool-ex{margin-top:var(--space-6)}
+}
+@media (max-width:920px){
+  .rail{display:none}
+  .page{margin-left:0;padding-top:var(--topbar-h)}
+  .topbar{
+    display:flex;align-items:center;gap:var(--space-2);
+    position:fixed;top:0;left:0;right:0;height:var(--topbar-h);
+    background:rgba(10,10,13,.88);
+    backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--border);
+    z-index:30;
+    overflow-x:auto;
+    padding:0 var(--space-4);
+    -webkit-overflow-scrolling:touch;
+  }
+  .topbar::-webkit-scrollbar{height:0}
+  .topbar a{
+    flex-shrink:0;
+    display:flex;align-items:center;gap:6px;
+    min-height:44px;padding:0 var(--space-3);
+    color:var(--text-tertiary);
+    font-size:13px;
+    transition:color var(--duration-normal) var(--ease-out);
+  }
+  .topbar a .idx-num{width:auto}
+  .topbar a.active{color:var(--text-primary)}
+  .topbar a.active .idx-num{color:var(--accent-cyan)}
+  .tool-head{top:var(--topbar-h)}
+  .x-row{grid-template-columns:minmax(0,1fr);gap:var(--space-2)}
+  .steps>li{grid-template-columns:40px minmax(0,1fr);gap:var(--space-4)}
+  .masthead{padding-top:var(--space-16)}
+}
+
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{transition:none !important}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= Index rail ================= -->
+<nav class="rail" aria-label="Documentation index">
+  <a class="wordmark" href="#top">
+    <strong>Raven</strong><span class="micro">Docs</span>
+  </a>
+  <ol class="idx">
+    <li>
+      <a class="idx-link" href="#get-started" data-spy="get-started">
+        <span class="idx-num">01</span><span class="idx-label">Get Started</span>
+      </a>
+    </li>
+    <li>
+      <a class="idx-link" href="#tool-reference" data-spy="tool-reference">
+        <span class="idx-num">02</span><span class="idx-label">Tool Reference</span>
+      </a>
+      <ol class="idx-sub">
+        <li><a href="#tool-get_principles" data-spy="tool-get_principles">get_principles</a></li>
+        <li><a href="#tool-evaluate_design" data-spy="tool-evaluate_design">evaluate_design</a></li>
+        <li><a href="#tool-get_d4d_framework" data-spy="tool-get_d4d_framework">get_d4d_framework</a></li>
+        <li><a href="#tool-audit_page" data-spy="tool-audit_page">audit_page</a></li>
+        <li><a href="#tool-generate_design_system" data-spy="tool-generate_design_system">generate_design_system</a></li>
+        <li><a href="#tool-record_taste_decision" data-spy="tool-record_taste_decision">record_taste_decision</a></li>
+      </ol>
+    </li>
+    <li>
+      <a class="idx-link" href="#examples" data-spy="examples">
+        <span class="idx-num">03</span><span class="idx-label">Examples</span>
+      </a>
+    </li>
+    <li>
+      <a class="idx-link" href="#data-structure" data-spy="data-structure">
+        <span class="idx-num">04</span><span class="idx-label">Data Structure</span>
+      </a>
+    </li>
+    <li>
+      <a class="idx-link" href="#design-tokens" data-spy="design-tokens">
+        <span class="idx-num">05</span><span class="idx-label">Design Tokens</span>
+      </a>
+    </li>
+    <li>
+      <a class="idx-link" href="#faq" data-spy="faq">
+        <span class="idx-num">06</span><span class="idx-label">FAQ</span>
+      </a>
+    </li>
+  </ol>
+  <div class="rail-foot">
+    <a href="#"><span class="micro">Raw markdown</span><code>/docs.md</code></a>
+    <span class="micro">v1.16 · MCP protocol</span>
+  </div>
+</nav>
+
+<!-- ================= Mobile top index ================= -->
+<nav class="topbar" aria-label="Documentation index">
+  <a href="#get-started" data-spy="get-started"><span class="idx-num">01</span>Start</a>
+  <a href="#tool-reference" data-spy="tool-reference"><span class="idx-num">02</span>Tools</a>
+  <a href="#examples" data-spy="examples"><span class="idx-num">03</span>Examples</a>
+  <a href="#data-structure" data-spy="data-structure"><span class="idx-num">04</span>Data</a>
+  <a href="#design-tokens" data-spy="design-tokens"><span class="idx-num">05</span>Tokens</a>
+  <a href="#faq" data-spy="faq"><span class="idx-num">06</span>FAQ</a>
+</nav>
+
+<main class="page" id="top">
+  <div class="measure">
+
+    <!-- ================= Masthead ================= -->
+    <header class="masthead">
+      <span class="micro">RavenMCP · Technical Reference</span>
+      <h1>Documentation</h1>
+      <p class="lede">RavenMCP is a design-intelligence MCP server. Install it, point your coding agent at it, and it audits pages, layouts, and screens, generates design systems and tokens, and carries your taste across projects.</p>
+      <div class="meta-row">
+        <div class="cell"><span class="micro">Version</span><b>1.16</b></div>
+        <div class="cell"><span class="micro">Tools</span><b>70</b></div>
+        <div class="cell"><span class="micro">Layers</span><b>9</b></div>
+        <div class="cell"><span class="micro">Protocol</span><b>MCP · stdio / remote</b></div>
+        <div class="cell"><span class="micro">License</span><b>Open source</b></div>
+      </div>
+    </header>
+
+    <!-- ================= 01 Get Started ================= -->
+    <section class="sec" id="get-started">
+      <header class="sec-head"><span class="sec-num">01</span><h2>Get Started</h2></header>
+      <p class="sec-intro">Three steps from zero to your agent making design-informed decisions. No account, no config beyond one JSON entry.</p>
+
+      <ol class="steps">
+        <li>
+          <span class="step-n">1</span>
+          <div>
+            <h3>Install</h3>
+            <p><span class="inline-cmd">npx @ravenmcp/cli install</span> — or add Raven to your MCP client config manually:</p>
+            <figure class="fence">
+              <figcaption><span class="micro">mcp config · json</span><button class="copy" type="button">Copy</button></figcaption>
+              <pre><code>{
+  <span class="tk">"mcpServers"</span>: {
+    <span class="tk">"raven"</span>: {
+      <span class="tk">"command"</span>: <span class="ts">"npx"</span>,
+      <span class="tk">"args"</span>: [<span class="ts">"-y"</span>, <span class="ts">"raven-mcp"</span>]
+    }
+  }
+}</code></pre>
+            </figure>
+          </div>
+        </li>
+        <li>
+          <span class="step-n">2</span>
+          <div>
+            <h3>Connect</h3>
+            <p>Restart your agent. Raven's 70 tools are now available — your agent discovers them automatically over MCP.</p>
+          </div>
+        </li>
+        <li>
+          <span class="step-n">3</span>
+          <div>
+            <h3>Use it</h3>
+            <p>Ask your agent to audit a page, generate a design system, or check contrast. It calls the right tool automatically — you never invoke a tool by name unless you want to.</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <!-- ================= 02 Tool Reference ================= -->
+    <section class="sec" id="tool-reference">
+      <header class="sec-head"><span class="sec-num">02</span><h2>Tool Reference</h2></header>
+      <p class="sec-intro">Raven provides 70 tools across 9 knowledge layers. Claude calls the relevant tool based on the task; the entries below show what each tool accepts and returns. Every entry follows the same anatomy: description, parameters, example prompts.</p>
+
+      <div class="layer-head"><span class="micro">Principles Layer · 6 tools</span></div>
+
+      <!-- get_principles -->
+      <article class="tool" id="tool-get_principles">
+        <div class="tool-head">
+          <h3 class="tool-name">get_principles</h3>
+          <span class="micro tool-tag">Tool 01 · Principles</span>
+        </div>
+        <div class="tool-grid">
+          <div>
+            <p class="tool-desc">Get design principles relevant to a UI context. Returns usability heuristics, Laws of UX, Gestalt principles, accessibility rules, typography, color theory, mobile UX, and responsive layout.</p>
+            <div class="params">
+              <div class="p-caption micro">Parameters</div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">context</code><span class="badge req">Required</span><span class="p-type">string</span></div>
+                <p>What you're designing — e.g. <code>"signup form"</code>, <code>"pricing page"</code>, <code>"mobile nav"</code>, <code>"dark dashboard"</code>.</p>
+              </div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">category</code><span class="badge">Optional</span><span class="p-type">string</span></div>
+                <p>Filter to: <code>nielsen-heuristics</code>, <code>laws-of-ux</code>, <code>gestalt</code>, <code>accessibility</code>, <code>typography</code>, <code>color-theory</code>, <code>mobile-ux</code>, <code>responsive-layout</code>, <code>d4d</code>.</p>
+              </div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">format</code><span class="badge">Optional</span><span class="p-type">string</span></div>
+                <p><code>"full"</code> (default) | <code>"checklist"</code> | <code>"brief"</code>.</p>
+              </div>
+            </div>
+          </div>
+          <aside class="tool-ex">
+            <figure class="fence">
+              <figcaption><span class="micro">Prompts that call this</span><button class="copy" type="button">Copy</button></figcaption>
+              <pre><code><span class="tc">// your agent routes these here</span>
+<span class="ts">"Build a pricing page"</span>
+<span class="ts">"What accessibility rules apply
+ to forms?"</span>
+<span class="ts">"Check this against Nielsen's
+ heuristics"</span></code></pre>
+            </figure>
+          </aside>
+        </div>
+      </article>
+
+      <!-- evaluate_design -->
+      <article class="tool" id="tool-evaluate_design">
+        <div class="tool-head">
+          <h3 class="tool-name">evaluate_design</h3>
+          <span class="micro tool-tag">Tool 02 · Principles</span>
+        </div>
+        <div class="tool-grid">
+          <div>
+            <p class="tool-desc">Evaluate a design description against UX principles. Returns relevant principles, potential violations, and improvement suggestions.</p>
+            <div class="params">
+              <div class="p-caption micro">Parameters</div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">description</code><span class="badge req">Required</span><span class="p-type">string</span></div>
+                <p>Description of the design to evaluate.</p>
+              </div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">context</code><span class="badge">Optional</span><span class="p-type">string</span></div>
+                <p>What the design is — e.g. <code>"pricing page for SaaS product"</code>.</p>
+              </div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">goals</code><span class="badge">Optional</span><span class="p-type">string[]</span></div>
+                <p>Array of evaluation goals — e.g. <code>["conversion", "accessibility", "mobile-usability"]</code>.</p>
+              </div>
+            </div>
+          </div>
+          <aside class="tool-ex">
+            <figure class="fence">
+              <figcaption><span class="micro">Prompts that call this</span><button class="copy" type="button">Copy</button></figcaption>
+              <pre><code><span class="ts">"This signup form has 8 fields,
+ no social login, and the button
+ says Submit. Evaluate it for
+ conversion."</span></code></pre>
+            </figure>
+          </aside>
+        </div>
+      </article>
+
+      <!-- get_d4d_framework -->
+      <article class="tool" id="tool-get_d4d_framework">
+        <div class="tool-head">
+          <h3 class="tool-name">get_d4d_framework</h3>
+          <span class="micro tool-tag">Tool 03 · Principles</span>
+        </div>
+        <div class="tool-grid">
+          <div>
+            <p class="tool-desc">Get Design for Delight (D4D) templates — customer problem statement, ideal state, hypothesis, LOFAs, and experiment design.</p>
+            <div class="params">
+              <div class="p-caption micro">Parameters</div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">stage</code><span class="badge">Optional</span><span class="p-type">string</span></div>
+                <p><code>"frame"</code> | <code>"empathy"</code> | <code>"broad"</code> | <code>"narrow"</code> | <code>"experiment"</code>.</p>
+              </div>
+            </div>
+          </div>
+          <aside class="tool-ex">
+            <figure class="fence">
+              <figcaption><span class="micro">Prompts that call this</span><button class="copy" type="button">Copy</button></figcaption>
+              <pre><code><span class="ts">"Frame the customer problem for
+ this onboarding redesign"</span>
+<span class="ts">"Draft a hypothesis and LOFAs
+ for the new checkout flow"</span></code></pre>
+            </figure>
+          </aside>
+        </div>
+      </article>
+
+      <div class="layer-head"><span class="micro">Audit Layer · 14 tools</span></div>
+
+      <!-- audit_page -->
+      <article class="tool" id="tool-audit_page">
+        <div class="tool-head">
+          <h3 class="tool-name">audit_page</h3>
+          <span class="micro tool-tag">Tool 04 · Audit</span>
+        </div>
+        <div class="tool-grid">
+          <div>
+            <p class="tool-desc">Run a full-page design audit on rendered HTML or a live URL. Checks layout, hierarchy, contrast, tap targets, typography, and consistency in one pass; returns structured findings with per-finding fixes and a summary score.</p>
+            <div class="params">
+              <div class="p-caption micro">Parameters</div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">url</code><span class="badge req">Required</span><span class="p-type">string</span></div>
+                <p>The page to audit — a live URL or a local dev-server address.</p>
+              </div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">viewport</code><span class="badge">Optional</span><span class="p-type">string</span></div>
+                <p><code>"desktop"</code> (default) | <code>"mobile"</code> | <code>"both"</code>. Mobile runs at 390×844 and adds tap-target checks.</p>
+              </div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">checks</code><span class="badge">Optional</span><span class="p-type">string[]</span></div>
+                <p>Restrict to specific check families — e.g. <code>["contrast", "typography"]</code>. Defaults to all.</p>
+              </div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">project</code><span class="badge">Optional</span><span class="p-type">string</span></div>
+                <p>A bound taste surface. When set, findings include <code>calibration_hint</code> judged against that project's rules.</p>
+              </div>
+            </div>
+          </div>
+          <aside class="tool-ex">
+            <figure class="fence">
+              <figcaption><span class="micro">Prompts that call this</span><button class="copy" type="button">Copy</button></figcaption>
+              <pre><code><span class="ts">"Audit localhost:3000 before
+ I ship it"</span>
+<span class="ts">"Why does this landing page
+ feel off? Run a full audit."</span></code></pre>
+            </figure>
+          </aside>
+        </div>
+      </article>
+
+      <div class="layer-head"><span class="micro">Systems Layer · 9 tools</span></div>
+
+      <!-- generate_design_system -->
+      <article class="tool" id="tool-generate_design_system">
+        <div class="tool-head">
+          <h3 class="tool-name">generate_design_system</h3>
+          <span class="micro tool-tag">Tool 05 · Systems</span>
+        </div>
+        <div class="tool-grid">
+          <div>
+            <p class="tool-desc">Generate a complete token set — color, type scale, spacing, radius, motion — from a written brief or an existing brand. Output is ready to paste as CSS custom properties or a JSON theme file.</p>
+            <div class="params">
+              <div class="p-caption micro">Parameters</div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">brief</code><span class="badge req">Required</span><span class="p-type">string</span></div>
+                <p>What the system is for — e.g. <code>"calm fintech dashboard, dark-first, one accent"</code>.</p>
+              </div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">from_brand</code><span class="badge">Optional</span><span class="p-type">string</span></div>
+                <p>A brand profile name or URL to derive from instead of generating fresh.</p>
+              </div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">format</code><span class="badge">Optional</span><span class="p-type">string</span></div>
+                <p><code>"css"</code> (default) | <code>"json"</code> | <code>"tailwind"</code>.</p>
+              </div>
+            </div>
+          </div>
+          <aside class="tool-ex">
+            <figure class="fence">
+              <figcaption><span class="micro">Prompts that call this</span><button class="copy" type="button">Copy</button></figcaption>
+              <pre><code><span class="ts">"Generate a token set for a
+ calm fintech dashboard"</span>
+<span class="ts">"Derive tokens from our
+ marketing site's brand"</span></code></pre>
+            </figure>
+          </aside>
+        </div>
+      </article>
+
+      <div class="layer-head"><span class="micro">Taste Layer · 8 tools</span></div>
+
+      <!-- record_taste_decision -->
+      <article class="tool" id="tool-record_taste_decision">
+        <div class="tool-head">
+          <h3 class="tool-name">record_taste_decision</h3>
+          <span class="micro tool-tag">Tool 06 · Taste</span>
+        </div>
+        <div class="tool-grid">
+          <div>
+            <p class="tool-desc">Record a design decision — what was chosen, what was rejected, and why — into a taste profile. Recorded decisions calibrate future audits and stop the same question being re-litigated across sessions and agents.</p>
+            <div class="params">
+              <div class="p-caption micro">Parameters</div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">profile</code><span class="badge req">Required</span><span class="p-type">string</span></div>
+                <p>The taste profile to record into.</p>
+              </div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">dimension</code><span class="badge req">Required</span><span class="p-type">string</span></div>
+                <p>Short key for what was decided — e.g. <code>"accent-color"</code>, <code>"nav-pattern"</code>, <code>"voice-register"</code>.</p>
+              </div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">chosen</code><span class="badge req">Required</span><span class="p-type">string</span></div>
+                <p>What was picked.</p>
+              </div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">rejected</code><span class="badge">Optional</span><span class="p-type">string</span></div>
+                <p>What was turned down — the highest-signal half of the record.</p>
+              </div>
+              <div class="param">
+                <div class="param-line"><code class="p-name">why</code><span class="badge">Optional</span><span class="p-type">string</span></div>
+                <p>One line of reasoning, in the decider's own words when possible.</p>
+              </div>
+            </div>
+          </div>
+          <aside class="tool-ex">
+            <figure class="fence">
+              <figcaption><span class="micro">Prompts that call this</span><button class="copy" type="button">Copy</button></figcaption>
+              <pre><code><span class="ts">"Remember that we rejected the
+ sidebar accordion — too much
+ chrome"</span>
+<span class="ts">"Log the accent decision:
+ cyan over blue"</span></code></pre>
+            </figure>
+          </aside>
+        </div>
+      </article>
+    </section>
+
+    <!-- ================= 03 Examples ================= -->
+    <section class="sec" id="examples">
+      <header class="sec-head"><span class="sec-num">03</span><h2>Examples</h2></header>
+      <p class="sec-intro">What a Raven call actually looks like from inside an agent session: your prompt, the tool call your agent makes, and what comes back.</p>
+
+      <div class="xmpl">
+        <div class="xmpl-title micro">Example A · Contrast audit</div>
+        <div class="x-row">
+          <span class="x-who micro">Prompt</span>
+          <p>"Audit this pricing page for contrast issues."</p>
+        </div>
+        <div class="x-row">
+          <span class="x-who micro">Tool call</span>
+          <code class="x-call">audit_contrast({ url: "https://app.example.com/pricing", standard: "AA" })</code>
+        </div>
+        <div class="x-row">
+          <span class="x-who micro">Returns</span>
+          <div class="x-ret"><b>3 findings · score 78/100</b>
+<span class="sev err">Error</span>.tier-note — 2.9:1 on #0E0E11. Minimum 4.5:1. Fix: lighten to #9BA0B4.
+<span class="sev warn">Warn</span>.badge-popular — 4.2:1, passes large-text only. Fix: raise weight to 600.
+<span class="sev warn">Warn</span>footer links — 4.4:1 on hover state. Fix: hover color #C9C9D4.</div>
+        </div>
+      </div>
+
+      <div class="xmpl">
+        <div class="xmpl-title micro">Example B · Token generation</div>
+        <div class="x-row">
+          <span class="x-who micro">Prompt</span>
+          <p>"Generate a token set for a calm fintech dashboard — dark-first, one accent."</p>
+        </div>
+        <div class="x-row">
+          <span class="x-who micro">Tool call</span>
+          <code class="x-call">generate_design_system({ brief: "calm fintech dashboard, dark-first, one accent", format: "css" })</code>
+        </div>
+        <div class="x-row">
+          <span class="x-who micro">Returns</span>
+          <div class="x-ret"><b>42 tokens</b> — 12 color, 8 type, 14 spacing, 4 radius, 4 motion — as paste-ready CSS custom properties, with a one-paragraph rationale per group and AA-verified contrast pairs.</div>
+        </div>
+      </div>
+
+      <div class="xmpl">
+        <div class="xmpl-title micro">Example C · Heuristic check</div>
+        <div class="x-row">
+          <span class="x-who micro">Prompt</span>
+          <p>"Check this signup form against Nielsen's heuristics."</p>
+        </div>
+        <div class="x-row">
+          <span class="x-who micro">Tool call</span>
+          <code class="x-call">get_principles({ context: "signup form", category: "nielsen-heuristics", format: "checklist" })</code>
+        </div>
+        <div class="x-row">
+          <span class="x-who micro">Returns</span>
+          <div class="x-ret">A 10-point checklist scoped to forms — visibility of system status (inline validation), error prevention (confirm before destructive), recognition over recall (labels stay visible) — each with a pass criterion your agent applies to the actual markup.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 04 Data Structure ================= -->
+    <section class="sec" id="data-structure">
+      <header class="sec-head"><span class="sec-num">04</span><h2>Data Structure</h2></header>
+      <div class="split">
+        <div class="prose">
+          <p>Every audit returns a structured object, not prose. Your agent can act on it mechanically — apply the <code>fix</code>, re-run, confirm the finding clears.</p>
+          <ul class="field-list">
+            <li><code>findings[]</code><span>each with severity, rule, location, and a concrete fix</span></li>
+            <li><code>summary</code><span>a score and grade for the whole surface</span></li>
+            <li><code>calibration_hint</code><span>present when a taste profile is bound — how this surface's rules shaped the verdicts</span></li>
+          </ul>
+        </div>
+        <figure class="fence">
+          <figcaption><span class="micro">audit response · json</span><button class="copy" type="button">Copy</button></figcaption>
+          <pre><code>{
+  <span class="tk">"summary"</span>: { <span class="tk">"score"</span>: 82, <span class="tk">"grade"</span>: <span class="ts">"B"</span>, <span class="tk">"checks_run"</span>: 14 },
+  <span class="tk">"findings"</span>: [
+    {
+      <span class="tk">"severity"</span>: <span class="ts">"error"</span>,
+      <span class="tk">"rule"</span>: <span class="ts">"contrast.aa-normal-text"</span>,
+      <span class="tk">"location"</span>: <span class="ts">".pricing-tier .tier-note"</span>,
+      <span class="tk">"detail"</span>: <span class="ts">"2.9:1 against #0E0E11 — minimum is 4.5:1"</span>,
+      <span class="tk">"fix"</span>: <span class="ts">"Lighten to #9BA0B4 (4.6:1)"</span>
+    },
+    {
+      <span class="tk">"severity"</span>: <span class="ts">"warning"</span>,
+      <span class="tk">"rule"</span>: <span class="ts">"tap-target.minimum-44"</span>,
+      <span class="tk">"location"</span>: <span class="ts">"footer nav a"</span>,
+      <span class="tk">"detail"</span>: <span class="ts">"32px hit area on mobile viewport"</span>,
+      <span class="tk">"fix"</span>: <span class="ts">"min-height: 44px on the link, not the label"</span>
+    }
+  ],
+  <span class="tk">"calibration_hint"</span>: <span class="ts">"Taste profile bound — 'no card-soup'
+    rule active; two findings suppressed as intentional."</span>
+}</code></pre>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ================= 05 Design Tokens ================= -->
+    <section class="sec" id="design-tokens">
+      <header class="sec-head"><span class="sec-num">05</span><h2>Design Tokens</h2></header>
+      <div class="split">
+        <div class="prose">
+          <p>Raven generates a full token set — color, type, spacing, radius — from a written brief or an existing brand. Bound taste profiles apply per-project overrides, so the same brief produces different tokens for your portfolio than for your product site.</p>
+          <p>Tokens ship as CSS custom properties, JSON, or a Tailwind theme. Contrast pairs are verified before they leave the tool.</p>
+          <div class="swatches" aria-label="Example generated palette">
+            <div class="sw"><i style="background:#0B0B0E"></i><span>bg/base<br>#0B0B0E</span></div>
+            <div class="sw"><i style="background:#131318"></i><span>bg/surface<br>#131318</span></div>
+            <div class="sw"><i style="background:#ECECF1"></i><span>text/primary<br>#ECECF1</span></div>
+            <div class="sw"><i style="background:#9B9BA6"></i><span>text/secondary<br>#9B9BA6</span></div>
+            <div class="sw"><i style="background:#5FD4E7"></i><span>accent/cyan<br>#5FD4E7</span></div>
+          </div>
+        </div>
+        <figure class="fence">
+          <figcaption><span class="micro">generated tokens · json</span><button class="copy" type="button">Copy</button></figcaption>
+          <pre><code>{
+  <span class="tk">"color"</span>: {
+    <span class="tk">"bg/base"</span>: <span class="ts">"#0B0B0E"</span>,
+    <span class="tk">"bg/surface"</span>: <span class="ts">"#131318"</span>,
+    <span class="tk">"text/primary"</span>: <span class="ts">"#ECECF1"</span>,
+    <span class="tk">"text/secondary"</span>: <span class="ts">"#9B9BA6"</span>,
+    <span class="tk">"accent/cyan"</span>: <span class="ts">"#5FD4E7"</span>
+  },
+  <span class="tk">"space"</span>: {
+    <span class="tk">"1"</span>: <span class="ts">"4px"</span>,  <span class="tk">"2"</span>: <span class="ts">"8px"</span>,
+    <span class="tk">"3"</span>: <span class="ts">"12px"</span>, <span class="tk">"4"</span>: <span class="ts">"16px"</span>,
+    <span class="tk">"6"</span>: <span class="ts">"24px"</span>, <span class="tk">"8"</span>: <span class="ts">"32px"</span>
+  },
+  <span class="tk">"radius"</span>: { <span class="tk">"sm"</span>: <span class="ts">"6px"</span>, <span class="tk">"md"</span>: <span class="ts">"10px"</span>, <span class="tk">"lg"</span>: <span class="ts">"16px"</span> },
+  <span class="tk">"type"</span>: {
+    <span class="tk">"body"</span>: <span class="ts">"Inter 14/22"</span>,
+    <span class="tk">"mono"</span>: <span class="ts">"13/20"</span>,
+    <span class="tk">"display"</span>: <span class="ts">"Inter 28/34 · -0.02em"</span>
+  }
+}</code></pre>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ================= 06 FAQ ================= -->
+    <section class="sec" id="faq">
+      <header class="sec-head"><span class="sec-num">06</span><h2>FAQ</h2></header>
+      <div class="faq">
+        <div class="faq-item">
+          <h3>Does this replace a design system?</h3>
+          <p>No. It reads yours, audits against it, and can generate a starting point when you don't have one. The system stays yours.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Does it work with any coding agent that supports MCP?</h3>
+          <p>Yes. Anything that speaks MCP — Claude Code, Cursor, Windsurf, custom clients. Raven is a standard MCP server over stdio or remote.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Is my design data used to train models?</h3>
+          <p>No. Audits run against your content at call time and nothing you send is used for training. Taste profiles live in your own storage.</p>
+        </div>
+        <div class="faq-item">
+          <h3>What's the difference between the free and team tier?</h3>
+          <p>The open-source server is free, with the full toolset, forever. The team tier adds a shared hosted taste and decision graph with per-user auth, so decisions carry across people and agents.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Can I self-host?</h3>
+          <p>Yes. The npm package and the <code>.mcpb</code> bundle run entirely on your machine. The hosted endpoint exists for teams who want shared state without running anything.</p>
+        </div>
+      </div>
+    </section>
+
+    <footer class="colophon">
+      <span class="micro">RavenMCP · Design intelligence for coding agents</span>
+      <span class="micro">Every page available as raw markdown at /docs.md</span>
+    </footer>
+
+  </div>
+</main>
+
+<script>
+/* Scroll-spy — one observer, top-level sections and tool anchors.
+   ponytail: closest-to-top wins; no library, ~30 lines. */
+(function(){
+  var links = {};
+  document.querySelectorAll('[data-spy]').forEach(function(a){
+    (links[a.dataset.spy] = links[a.dataset.spy] || []).push(a);
+  });
+  var ids = Object.keys(links);
+  var targets = ids.map(function(id){ return document.getElementById(id); }).filter(Boolean);
+
+  function activate(kind, id){
+    ids.forEach(function(k){
+      var el = document.getElementById(k);
+      if (!el) return;
+      var isTool = k.indexOf('tool-') === 0 && k !== 'tool-reference';
+      if ((kind === 'tool') !== isTool) return;
+      links[k].forEach(function(a){ a.classList.toggle('active', k === id); });
+    });
+  }
+
+  function spy(){
+    var mark = window.innerHeight * 0.28;
+    var bestSec = null, bestTool = null, bestSecY = -Infinity, bestToolY = -Infinity;
+    targets.forEach(function(el){
+      var y = el.getBoundingClientRect().top;
+      if (y > mark) return;
+      var isTool = el.id.indexOf('tool-') === 0 && el.id !== 'tool-reference';
+      if (isTool){ if (y > bestToolY){ bestToolY = y; bestTool = el.id; } }
+      else if (y > bestSecY){ bestSecY = y; bestSec = el.id; }
+    });
+    activate('sec', bestSec || ids[0]);
+    /* tool anchors only light up while inside the Tool Reference section */
+    activate('tool', bestSec === 'tool-reference' ? bestTool : null);
+  }
+  var raf = null;
+  window.addEventListener('scroll', function(){
+    if (raf) return;
+    raf = requestAnimationFrame(function(){ raf = null; spy(); });
+  }, { passive: true });
+  spy();
+})();
+
+/* Copy buttons */
+document.querySelectorAll('.copy').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var pre = btn.closest('.fence').querySelector('pre');
+    navigator.clipboard.writeText(pre.innerText).then(function(){
+      btn.textContent = 'Copied';
+      btn.classList.add('done');
+      setTimeout(function(){ btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1600);
+    });
+  });
+});
+</script>
+</body>
+</html>

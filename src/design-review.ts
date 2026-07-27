@@ -977,11 +977,23 @@ function attributeDecisions(
   return out;
 }
 
-function applicableDecisions(files: ParsedDiffFile[], decisions: DecisionNode[], project?: string): Array<{ id: string; statement: string; scope: string }> {
+// The file->decision resolver, shared by review_diff and the Morven agent hooks/CLI
+// (SPEC-agent-integration §3). Lexical: directory segments plus the extension-stripped
+// filename split on [-_.] form a token set; a decision matches when any >=3-char
+// non-stop-word term of its scope+statement is in that set.
+//
+// Extracted verbatim from applicableDecisions so the two callers cannot drift apart.
+// Semantics are UNCHANGED from the shipped behaviour on purpose: the spec's recall
+// widening (camelCase split, component_ref in the term set) is a deliberate behaviour
+// change to review_diff that must re-baseline the design-review tests, and is NOT part
+// of this extraction. Callers wanting binding-only decisions filter to status "active"
+// themselves — this returns everything but "superseded", as review_diff always has.
+// ponytail: no glob/anchor resolution here; that is the §3 upgrade path, not v1.
+export function decisionsForPaths(paths: string[], decisions: DecisionNode[], project?: string): DecisionNode[] {
   var pathTokens = new Set<string>();
-  var paths = files.map(function(file) { return file.file; }).concat(project ? [project] : []);
-  for (var pathIndex = 0; pathIndex < paths.length; pathIndex++) {
-    var segments = paths[pathIndex].toLowerCase().split(/[\\/]+/).filter(Boolean);
+  var allPaths = paths.concat(project ? [project] : []);
+  for (var pathIndex = 0; pathIndex < allPaths.length; pathIndex++) {
+    var segments = allPaths[pathIndex].toLowerCase().split(/[\\/]+/).filter(Boolean);
     for (var segmentIndex = 0; segmentIndex < segments.length - 1; segmentIndex++) pathTokens.add(segments[segmentIndex]);
     if (segments.length > 0) {
       var filename = segments[segments.length - 1].replace(/\.[^.]+$/, "");
@@ -998,7 +1010,11 @@ function applicableDecisions(files: ParsedDiffFile[], decisions: DecisionNode[],
       return term.length >= 3 && !DECISION_STOP_WORDS.has(term);
     });
     return scopeTerms.concat(statementTerms).some(function(term) { return pathTokens.has(term); });
-  }).map(function(decision) {
+  });
+}
+
+function applicableDecisions(files: ParsedDiffFile[], decisions: DecisionNode[], project?: string): Array<{ id: string; statement: string; scope: string }> {
+  return decisionsForPaths(files.map(function(file) { return file.file; }), decisions, project).map(function(decision) {
     return { id: decision.id, statement: decision.statement, scope: decision.scope };
   });
 }

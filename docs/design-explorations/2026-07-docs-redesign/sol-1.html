@@ -1,0 +1,926 @@
+<!-- DIRECTION: Signal Manual — A dark technical field guide organized around a live cyan signal spine, drawing Stripe/Vercel's persistent three-zone rigor and Supabase's subject-bound code behavior into a quieter, more editorial instrument panel. -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>RavenMCP Docs — Signal Manual</title>
+  <style>
+    :root {
+      --text-primary: #f2f5f7;
+      --text-secondary: #a7b0b8;
+      --text-tertiary: #6f7a83;
+      --text-accent: #79e7ff;
+      --bg-base: #080b0d;
+      --bg-surface: #0d1114;
+      --bg-raised: #12181c;
+      --bg-accent-subtle: rgba(55, 207, 240, .08);
+      --bg-accent-hover: rgba(55, 207, 240, .14);
+      --border: #20282d;
+      --border-strong: #344047;
+      --border-accent: rgba(94, 223, 252, .48);
+      --accent-blue: #74a7ff;
+      --accent-cyan: #5edffc;
+      --accent-pink: #f28cbb;
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 18px;
+      --space-1: .25rem;
+      --space-2: .5rem;
+      --space-3: .75rem;
+      --space-4: 1rem;
+      --space-5: 1.25rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+      --space-10: 2.5rem;
+      --space-12: 3rem;
+      --space-16: 4rem;
+      --space-20: 5rem;
+      --font-body: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      --ease-out: cubic-bezier(.16, 1, .3, 1);
+      --duration-normal: 180ms;
+      --duration-slow: 420ms;
+      /* New layout tokens keep the fixed rails proportional across wide screens. */
+      --nav-width: clamp(15rem, 18vw, 18rem);
+      --context-width: clamp(12.5rem, 15vw, 15rem);
+      --header-height: 4.25rem;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: calc(var(--header-height) + 2rem); }
+    body {
+      margin: 0;
+      min-width: 20rem;
+      background:
+        linear-gradient(90deg, transparent 0, transparent calc(100% - 1px), rgba(255,255,255,.025) calc(100% - 1px)) 0 0 / 4rem 100%,
+        var(--bg-base);
+      color: var(--text-primary);
+      font: 400 14px/1.65 var(--font-body);
+      text-rendering: optimizeLegibility;
+    }
+    button, a, summary { -webkit-tap-highlight-color: transparent; }
+    button { font: inherit; }
+    a { color: inherit; }
+    :focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }
+    ::selection { background: var(--accent-cyan); color: var(--bg-base); }
+
+    .docs-header {
+      position: fixed;
+      inset: 0 0 auto 0;
+      z-index: 50;
+      height: var(--header-height);
+      display: grid;
+      grid-template-columns: var(--nav-width) minmax(0, 1fr) var(--context-width);
+      align-items: center;
+      border-bottom: 1px solid transparent;
+      background: rgba(8, 11, 13, .92);
+      backdrop-filter: blur(18px);
+      transition: border-color var(--duration-normal), box-shadow var(--duration-normal);
+    }
+    .docs-header.is-scrolled {
+      border-bottom-color: var(--border);
+      box-shadow: 0 10px 32px rgba(0, 0, 0, .25);
+    }
+    .docs-brand {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding-inline: clamp(1rem, 2vw, 1.75rem);
+      border-right: 1px solid var(--border);
+      text-decoration: none;
+      font-weight: 650;
+      letter-spacing: -.02em;
+    }
+    .docs-brand-mark {
+      width: 1.55rem;
+      height: 1.55rem;
+      display: grid;
+      place-items: center;
+      color: var(--accent-cyan);
+    }
+    .docs-brand-mark svg { width: 100%; height: 100%; }
+    .docs-version {
+      color: var(--text-tertiary);
+      font: 500 10px/1 var(--font-mono);
+      letter-spacing: .06em;
+    }
+    .docs-header-center {
+      min-width: 0;
+      padding-inline: clamp(1rem, 3vw, 2.5rem);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+    }
+    .docs-breadcrumb {
+      min-width: 0;
+      color: var(--text-secondary);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .docs-breadcrumb strong { color: var(--text-primary); font-weight: 560; }
+    .docs-header-actions {
+      padding-right: clamp(1rem, 2vw, 1.75rem);
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--space-2);
+    }
+    .docs-action, .docs-menu-toggle {
+      min-height: 44px;
+      min-width: 44px;
+      padding: 0 var(--space-4);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: transparent;
+      color: var(--text-secondary);
+      text-decoration: none;
+      cursor: pointer;
+      transition: color var(--duration-normal), border-color var(--duration-normal), background var(--duration-normal);
+    }
+    .docs-action:hover, .docs-menu-toggle:hover { color: var(--text-primary); border-color: var(--border-strong); background: var(--bg-raised); }
+    .docs-action svg, .docs-menu-toggle svg { width: 16px; height: 16px; stroke: currentColor; }
+    .docs-menu-toggle { display: none; padding: 0; }
+
+    .docs-nav {
+      position: fixed;
+      z-index: 40;
+      top: var(--header-height);
+      left: 0;
+      bottom: 0;
+      width: var(--nav-width);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      border-right: 1px solid var(--border);
+      background: rgba(8, 11, 13, .96);
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-strong) transparent;
+    }
+    .docs-nav-inner { min-height: 100%; padding: var(--space-8) clamp(1rem, 2vw, 1.75rem) var(--space-6); display: flex; flex-direction: column; }
+    .docs-nav-label, .docs-context-label, .docs-kicker {
+      color: var(--text-tertiary);
+      font: 600 10px/1.2 var(--font-mono);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .docs-nav-list { list-style: none; margin: var(--space-6) 0 0; padding: 0; position: relative; }
+    .docs-nav-list::before {
+      content: "";
+      position: absolute;
+      top: 1.35rem;
+      bottom: 1.35rem;
+      left: 6px;
+      width: 1px;
+      background: var(--border);
+    }
+    .docs-nav-link {
+      position: relative;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      color: var(--text-tertiary);
+      text-decoration: none;
+      font-size: 13px;
+      transition: color var(--duration-normal);
+    }
+    .docs-nav-link::before {
+      content: "";
+      z-index: 1;
+      width: 13px;
+      height: 13px;
+      flex: 0 0 13px;
+      border: 1px solid var(--border-strong);
+      border-radius: 50%;
+      background: var(--bg-base);
+      transition: background var(--duration-normal), border-color var(--duration-normal), box-shadow var(--duration-normal);
+    }
+    .docs-nav-link:hover { color: var(--text-secondary); }
+    .docs-nav-link.is-active { color: var(--text-primary); }
+    .docs-nav-link.is-active::before {
+      border-color: var(--accent-cyan);
+      background: var(--accent-cyan);
+      box-shadow: 0 0 0 4px var(--bg-accent-subtle), 0 0 18px rgba(94,223,252,.35);
+    }
+    .docs-nav-meta { margin-top: auto; padding-top: var(--space-12); color: var(--text-tertiary); font: 500 10px/1.7 var(--font-mono); }
+    .docs-nav-meta span { color: var(--text-secondary); }
+
+    .docs-context {
+      position: fixed;
+      z-index: 30;
+      top: var(--header-height);
+      right: 0;
+      bottom: 0;
+      width: var(--context-width);
+      overflow-y: auto;
+      border-left: 1px solid var(--border);
+      background: rgba(8, 11, 13, .72);
+    }
+    .docs-context-inner { padding: var(--space-8) clamp(1rem, 2vw, 1.75rem); }
+    .docs-context-current { margin: var(--space-5) 0 var(--space-8); color: var(--text-primary); font-size: 13px; }
+    .docs-context-current span { display: block; margin-bottom: var(--space-2); color: var(--accent-cyan); font: 500 11px/1 var(--font-mono); }
+    .docs-context-rule { height: 1px; margin-block: var(--space-6); background: var(--border); }
+    .docs-context-list { list-style: none; margin: var(--space-4) 0 0; padding: 0; }
+    .docs-context-list a { min-height: 36px; display: flex; align-items: center; color: var(--text-tertiary); text-decoration: none; font-size: 12px; }
+    .docs-context-list a:hover { color: var(--text-secondary); }
+    .docs-key { display: inline-flex; min-width: 22px; height: 22px; align-items: center; justify-content: center; margin-right: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-tertiary); font: 500 10px/1 var(--font-mono); }
+
+    .docs-main {
+      margin-left: var(--nav-width);
+      margin-right: var(--context-width);
+      padding-top: var(--header-height);
+    }
+    .docs-page {
+      width: min(100%, calc(1200px + 2 * clamp(1.5rem, 4.5vw, 5rem)));
+      margin: 0 auto;
+      padding: 0 clamp(1.5rem, 4.5vw, 5rem) var(--space-20);
+    }
+    .docs-hero {
+      position: relative;
+      min-height: calc(88vh - var(--header-height));
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(13rem, .4fr);
+      gap: clamp(2rem, 7vw, 7rem);
+      align-items: end;
+      padding: clamp(5rem, 12vh, 9rem) 0 var(--space-16);
+      border-bottom: 1px solid var(--border-strong);
+    }
+    .docs-hero::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 -1px;
+      width: 1px;
+      background: linear-gradient(180deg, transparent, var(--accent-cyan) 35%, transparent 92%);
+      opacity: .75;
+    }
+    .docs-kicker { display: flex; align-items: center; gap: var(--space-3); color: var(--accent-cyan); }
+    .docs-kicker::before { content: ""; width: 1.5rem; height: 1px; background: currentColor; }
+    .docs-hero h1 {
+      max-width: 12ch;
+      margin: var(--space-6) 0 var(--space-6);
+      font-size: clamp(3.25rem, 7vw, 6.9rem);
+      font-weight: 560;
+      line-height: .9;
+      letter-spacing: -.07em;
+    }
+    .docs-hero h1 em { display: block; color: var(--text-tertiary); font-style: normal; font-weight: 420; }
+    .docs-hero-summary { max-width: 42rem; margin: 0; color: var(--text-secondary); font-size: clamp(15px, 1.5vw, 18px); line-height: 1.65; }
+    .docs-hero-index { align-self: center; padding-left: var(--space-6); border-left: 1px solid var(--border); }
+    .docs-hero-stat { padding-block: var(--space-5); border-bottom: 1px solid var(--border); }
+    .docs-hero-stat strong { display: block; font: 500 clamp(1.75rem, 3vw, 2.6rem)/1 var(--font-mono); letter-spacing: -.05em; }
+    .docs-hero-stat span { display: block; margin-top: var(--space-2); color: var(--text-tertiary); font-size: 11px; }
+
+    .docs-section { position: relative; padding: clamp(5rem, 10vw, 9rem) 0; border-bottom: 1px solid var(--border-strong); }
+    .docs-section:last-child { border-bottom: 0; }
+    .docs-section-heading { display: grid; grid-template-columns: clamp(5rem, 11vw, 8rem) minmax(0, 1fr); gap: clamp(1.5rem, 4vw, 4rem); margin-bottom: clamp(3rem, 6vw, 5rem); }
+    .docs-section-number { color: var(--accent-cyan); font: 500 11px/1.3 var(--font-mono); }
+    .docs-section-number::after { content: ""; display: block; width: 2rem; height: 1px; margin-top: var(--space-4); background: var(--border-accent); }
+    .docs-section-heading h2 { margin: 0 0 var(--space-4); font-size: clamp(2rem, 4vw, 3.8rem); font-weight: 520; line-height: 1; letter-spacing: -.055em; }
+    .docs-section-heading p { max-width: 46rem; margin: 0; color: var(--text-secondary); font-size: 15px; }
+    .docs-subheading { margin: 0 0 var(--space-8); font-size: 11px; font-family: var(--font-mono); font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--text-tertiary); }
+
+    .docs-quickstart { margin-left: clamp(0rem, 15vw, 12rem); }
+    .docs-step {
+      display: grid;
+      grid-template-columns: 3rem minmax(0, 1fr);
+      gap: var(--space-5);
+      padding: var(--space-6) 0;
+      border-top: 1px solid var(--border);
+    }
+    .docs-step:last-of-type { border-bottom: 1px solid var(--border); }
+    .docs-step-index { color: var(--text-tertiary); font: 500 11px/1.6 var(--font-mono); }
+    .docs-step h3 { margin: 0 0 var(--space-2); font-size: 15px; font-weight: 600; }
+    .docs-step p { margin: 0; color: var(--text-secondary); }
+    .docs-inline-code { color: var(--text-primary); font: 500 .92em/1.5 var(--font-mono); }
+
+    .docs-code {
+      position: relative;
+      margin: var(--space-8) 0 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: #090d10;
+      overflow: hidden;
+      box-shadow: 0 18px 45px rgba(0,0,0,.16);
+    }
+    .docs-code-head { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: 0 var(--space-3) 0 var(--space-4); border-bottom: 1px solid var(--border); color: var(--text-tertiary); font: 500 10px/1 var(--font-mono); letter-spacing: .07em; text-transform: uppercase; }
+    .docs-code pre { margin: 0; padding: var(--space-5); overflow-x: auto; color: #c5d0d6; font: 400 12px/1.75 var(--font-mono); tab-size: 2; }
+    .docs-code code { font: inherit; }
+    .docs-copy {
+      min-width: 44px;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      background: transparent;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      transition: color var(--duration-normal), background var(--duration-normal);
+    }
+    .docs-copy:hover { color: var(--text-primary); background: var(--bg-raised); }
+    .docs-copy svg { width: 15px; height: 15px; stroke: currentColor; }
+    .docs-code .key { color: var(--accent-blue); }
+    .docs-code .string { color: #a7d5bd; }
+    .docs-code .number { color: #e2bb78; }
+    .docs-code .comment { color: var(--text-tertiary); }
+    .docs-code .accent { color: var(--accent-cyan); }
+
+    .docs-language-tabs { display: flex; min-height: 44px; border-bottom: 1px solid var(--border); }
+    .docs-language-tab { min-width: 5.5rem; min-height: 44px; border: 0; border-right: 1px solid var(--border); background: transparent; color: var(--text-tertiary); cursor: pointer; font: 500 10px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .07em; }
+    .docs-language-tab[aria-selected="true"] { color: var(--accent-cyan); background: var(--bg-accent-subtle); }
+    .docs-language-panel[hidden] { display: none; }
+
+    .docs-reference-controls { display: flex; justify-content: flex-end; gap: var(--space-2); margin: calc(var(--space-4) * -1) 0 var(--space-6); }
+    .docs-quiet-button { min-height: 44px; padding: 0 var(--space-4); border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text-tertiary); cursor: pointer; font: 500 11px/1 var(--font-mono); }
+    .docs-quiet-button:hover { color: var(--text-primary); border-color: var(--border-accent); }
+
+    .docs-method {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(18rem, .75fr);
+      gap: clamp(2rem, 5vw, 5rem);
+      padding: clamp(3rem, 6vw, 5rem) 0;
+      border-top: 1px solid var(--border-strong);
+    }
+    .docs-method:last-child { border-bottom: 1px solid var(--border-strong); }
+    .docs-method::before { content: ""; position: absolute; top: -1px; left: 0; width: clamp(3rem, 9vw, 7rem); height: 1px; background: var(--accent-cyan); }
+    .docs-method-name { margin: 0 0 var(--space-4); font: 550 clamp(1.4rem, 2.5vw, 2rem)/1.2 var(--font-mono); letter-spacing: -.045em; color: var(--text-primary); }
+    .docs-method-name::before { content: "raven."; color: var(--text-tertiary); font-weight: 400; }
+    .docs-method-description { max-width: 43rem; margin: 0 0 var(--space-8); color: var(--text-secondary); font-size: 14px; }
+    .docs-param-label { margin: 0 0 var(--space-3); color: var(--text-tertiary); font: 600 10px/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; }
+    .docs-params { margin: 0; }
+    .docs-param { padding: var(--space-4) 0; border-top: 1px solid var(--border); }
+    .docs-param:last-child { border-bottom: 1px solid var(--border); }
+    .docs-param dt { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
+    .docs-param-name { color: var(--text-primary); font: 550 12px/1.4 var(--font-mono); }
+    .docs-badge { display: inline-flex; min-height: 20px; align-items: center; padding: 0 7px; border: 1px solid var(--border); border-radius: 999px; color: var(--text-tertiary); font: 500 9px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .04em; }
+    .docs-badge.required { color: var(--accent-cyan); border-color: var(--border-accent); background: var(--bg-accent-subtle); }
+    .docs-param dd { margin: 0; color: var(--text-secondary); font-size: 12.5px; }
+    .docs-method-side { align-self: stretch; }
+    .docs-method-sticky { position: sticky; top: calc(var(--header-height) + 1.5rem); }
+    .docs-example-label { margin-bottom: var(--space-3); color: var(--text-tertiary); font: 600 10px/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; }
+    .docs-example-usage { margin: 0; padding-left: 0; list-style: none; }
+    .docs-example-usage li { position: relative; padding: var(--space-3) 0 var(--space-3) var(--space-5); border-top: 1px solid var(--border); color: var(--text-secondary); font-size: 12.5px; }
+    .docs-example-usage li::before { content: "↳"; position: absolute; left: 0; color: var(--accent-cyan); font-family: var(--font-mono); }
+    .docs-schema-details { border-bottom: 1px solid var(--border); }
+    .docs-schema-details summary { min-height: 44px; display: flex; align-items: center; gap: var(--space-2); cursor: pointer; color: var(--text-tertiary); font: 500 11px/1 var(--font-mono); list-style: none; }
+    .docs-schema-details summary::-webkit-details-marker { display: none; }
+    .docs-schema-details summary::before { content: "+"; color: var(--accent-cyan); }
+    .docs-schema-details[open] summary::before { content: "−"; }
+    .docs-schema-details p { margin: 0 0 var(--space-4); padding-left: var(--space-5); color: var(--text-secondary); font-size: 12px; }
+
+    .docs-example-flow { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 0; margin-bottom: var(--space-8); border-top: 1px solid var(--border-strong); }
+    .docs-example-prompt { padding: var(--space-6) clamp(1rem, 3vw, 2rem) var(--space-6) 0; }
+    .docs-example-response { padding: var(--space-6) 0 var(--space-6) clamp(1rem, 3vw, 2rem); border-left: 1px solid var(--border); }
+    .docs-flow-label { display: flex; justify-content: space-between; margin-bottom: var(--space-4); color: var(--text-tertiary); font: 600 10px/1 var(--font-mono); letter-spacing: .09em; text-transform: uppercase; }
+    .docs-flow-label span:last-child { color: var(--accent-cyan); }
+    .docs-example-prompt blockquote { margin: 0; color: var(--text-primary); font-size: 16px; line-height: 1.55; }
+    .docs-response-summary { margin: 0 0 var(--space-4); color: var(--text-secondary); }
+    .docs-finding { display: grid; grid-template-columns: 4.75rem 1fr; gap: var(--space-4); padding: var(--space-3) 0; border-top: 1px solid var(--border); }
+    .docs-severity { font: 600 9px/1.5 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
+    .docs-severity.high { color: var(--accent-pink); }
+    .docs-severity.medium { color: #e2bb78; }
+    .docs-severity.note { color: var(--accent-blue); }
+    .docs-finding p { margin: 0; color: var(--text-secondary); font-size: 12.5px; }
+
+    .docs-split { display: grid; grid-template-columns: minmax(0, .8fr) minmax(20rem, 1.2fr); gap: clamp(2rem, 7vw, 7rem); align-items: start; }
+    .docs-split-copy { position: sticky; top: calc(var(--header-height) + 2rem); }
+    .docs-split-copy p { margin: 0; color: var(--text-secondary); }
+    .docs-structure-list { margin: var(--space-6) 0 0; padding: 0; list-style: none; }
+    .docs-structure-list li { padding: var(--space-3) 0; border-top: 1px solid var(--border); color: var(--text-secondary); font-size: 12.5px; }
+    .docs-structure-list code { color: var(--text-primary); font-family: var(--font-mono); }
+
+    .docs-token-strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: var(--space-8); border-top: 1px solid var(--border); }
+    .docs-token-swatch { min-height: 6rem; padding: var(--space-3); display: flex; align-items: flex-end; border-right: 1px solid var(--border); color: rgba(255,255,255,.8); font: 500 9px/1.4 var(--font-mono); }
+    .docs-token-swatch:last-child { border-right: 0; }
+    .docs-token-swatch:nth-child(1) { background: #0b0f12; }
+    .docs-token-swatch:nth-child(2) { background: #152029; }
+    .docs-token-swatch:nth-child(3) { background: #3f75ff; }
+    .docs-token-swatch:nth-child(4) { background: #78e7ff; color: #071014; }
+    .docs-token-swatch:nth-child(5) { background: #f5f8fa; color: #11181d; }
+
+    .docs-faq { margin-left: clamp(0rem, 12vw, 10rem); }
+    .docs-faq-item { border-top: 1px solid var(--border-strong); }
+    .docs-faq-item:last-child { border-bottom: 1px solid var(--border-strong); }
+    .docs-faq-item summary { min-height: 72px; display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center; gap: var(--space-4); cursor: pointer; list-style: none; font-size: 15px; font-weight: 550; }
+    .docs-faq-item summary::-webkit-details-marker { display: none; }
+    .docs-faq-item summary::after { content: "+"; display: grid; width: 44px; height: 44px; place-items: center; color: var(--text-tertiary); font: 400 18px/1 var(--font-mono); }
+    .docs-faq-item[open] summary::after { content: "−"; color: var(--accent-cyan); }
+    .docs-faq-item p { max-width: 48rem; margin: 0; padding: 0 5rem var(--space-6) 0; color: var(--text-secondary); }
+
+    .docs-footer { padding-top: var(--space-16); display: flex; justify-content: space-between; gap: var(--space-6); color: var(--text-tertiary); font: 500 10px/1.6 var(--font-mono); }
+
+    @media (max-width: 86rem) {
+      .docs-header { grid-template-columns: var(--nav-width) minmax(0, 1fr); }
+      .docs-header-actions { display: none; }
+      .docs-context { display: none; }
+      .docs-main { margin-right: 0; }
+    }
+    @media (max-width: 68rem) {
+      :root { --nav-width: 16rem; }
+      .docs-method { grid-template-columns: 1fr; }
+      .docs-method-sticky { position: static; }
+      .docs-method-side { display: grid; grid-template-columns: minmax(0, 1fr) minmax(18rem, 1fr); gap: var(--space-6); }
+      .docs-method-side .docs-code { margin-top: 0; }
+      .docs-hero { grid-template-columns: 1fr; align-items: end; }
+      .docs-hero-index { display: grid; grid-template-columns: repeat(3, 1fr); padding-left: 0; border-left: 0; }
+      .docs-hero-stat { border-top: 1px solid var(--border); border-bottom: 0; }
+    }
+    @media (max-width: 52rem) {
+      .docs-header { grid-template-columns: minmax(0, 1fr) auto; }
+      .docs-brand { border-right: 0; }
+      .docs-header-center { display: none; }
+      .docs-header-actions { display: flex; padding-right: var(--space-3); }
+      .docs-header-actions .docs-action { display: none; }
+      .docs-menu-toggle { display: inline-flex; }
+      .docs-nav { width: min(86vw, 20rem); transform: translateX(-105%); box-shadow: 24px 0 60px rgba(0,0,0,.55); transition: transform var(--duration-slow) var(--ease-out); }
+      .docs-nav.is-open { transform: translateX(0); }
+      .docs-main { margin-left: 0; }
+      .docs-page { padding-inline: clamp(1.1rem, 5vw, 2rem); }
+      .docs-hero { min-height: auto; padding-top: var(--space-20); }
+      .docs-section-heading { grid-template-columns: 1fr; gap: var(--space-5); }
+      .docs-section-number::after { display: inline-block; margin: 0 0 3px var(--space-3); }
+      .docs-quickstart, .docs-faq { margin-left: 0; }
+      .docs-method-side, .docs-example-flow, .docs-split { grid-template-columns: 1fr; }
+      .docs-example-response { padding-left: 0; border-left: 0; border-top: 1px solid var(--border); }
+      .docs-split-copy { position: static; }
+      .docs-token-strip { grid-template-columns: repeat(5, minmax(4.5rem, 1fr)); overflow-x: auto; }
+      .docs-footer { flex-direction: column; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="docs-header" id="page-header">
+    <a class="docs-brand" href="#get-started" aria-label="RavenMCP documentation home">
+      <span class="docs-brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 18.5 9.5 5l3.1 6.3L20 7l-5.5 12-3.2-5.9L4 18.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      </span>
+      <span>RavenMCP</span>
+      <span class="docs-version">DOCS / 1.0</span>
+    </a>
+    <div class="docs-header-center">
+      <div class="docs-breadcrumb">Documentation&nbsp; / &nbsp;<strong id="breadcrumb-current">Get Started</strong></div>
+      <span class="docs-version">70 TOOLS · 9 LAYERS</span>
+    </div>
+    <div class="docs-header-actions">
+      <button class="docs-action" id="copy-markdown" type="button" title="Copy this page as markdown">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M8 7.5h9M8 12h9M8 16.5h6M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" stroke-width="1.5"/></svg>
+        <span>.md</span>
+      </button>
+      <button class="docs-menu-toggle" id="menu-toggle" type="button" aria-controls="docs-nav" aria-expanded="false" aria-label="Open documentation navigation">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 7h14M5 12h14M5 17h14" stroke-width="1.5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <nav class="docs-nav" id="docs-nav" aria-label="Documentation sections">
+    <div class="docs-nav-inner">
+      <div class="docs-nav-label">Contents</div>
+      <ol class="docs-nav-list">
+        <li><a class="docs-nav-link is-active" href="#get-started">Get Started</a></li>
+        <li><a class="docs-nav-link" href="#tool-reference">Tool Reference</a></li>
+        <li><a class="docs-nav-link" href="#examples">Examples</a></li>
+        <li><a class="docs-nav-link" href="#data-structure">Data Structure</a></li>
+        <li><a class="docs-nav-link" href="#design-tokens">Design Tokens</a></li>
+        <li><a class="docs-nav-link" href="#faq">FAQ</a></li>
+      </ol>
+      <div class="docs-nav-meta">MCP TRANSPORT<br><span>stdio · remote</span><br><br>RESPONSE FORMAT<br><span>JSON · Markdown</span></div>
+    </div>
+  </nav>
+
+  <aside class="docs-context" aria-label="Page context">
+    <div class="docs-context-inner">
+      <div class="docs-context-label">Now reading</div>
+      <p class="docs-context-current"><span id="context-index">01 / 06</span><strong id="context-current">Get Started</strong></p>
+      <div class="docs-context-rule"></div>
+      <div class="docs-context-label">On this page</div>
+      <ul class="docs-context-list" id="context-list">
+        <li><a href="#install"><span class="docs-key">01</span>Install</a></li>
+        <li><a href="#connect"><span class="docs-key">02</span>Connect</a></li>
+        <li><a href="#use"><span class="docs-key">03</span>Use it</a></li>
+      </ul>
+      <div class="docs-context-rule"></div>
+      <button class="docs-quiet-button" id="context-copy" type="button">Copy section as .md</button>
+    </div>
+  </aside>
+
+  <main class="docs-main">
+    <div class="docs-page">
+      <section class="docs-hero" aria-labelledby="page-title">
+        <div>
+          <div class="docs-kicker">Design intelligence / MCP</div>
+          <h1 id="page-title">RavenMCP <em>Docs</em></h1>
+          <p class="docs-hero-summary">A field manual for connecting design intelligence to the coding agent already doing the work.</p>
+        </div>
+        <div class="docs-hero-index" aria-label="Documentation summary">
+          <div class="docs-hero-stat"><strong>70</strong><span>documented tools</span></div>
+          <div class="docs-hero-stat"><strong>09</strong><span>knowledge layers</span></div>
+          <div class="docs-hero-stat"><strong>01</strong><span>shared response shape</span></div>
+        </div>
+      </section>
+
+      <section class="docs-section" id="get-started" data-title="Get Started" data-index="01">
+        <div class="docs-section-heading">
+          <div class="docs-section-number">01 / ENTRY</div>
+          <div>
+            <h2>Get Started</h2>
+            <p>RavenMCP is a design-intelligence MCP server. Install it, point your coding agent at it, and it audits pages/layouts/screens, generates design systems and tokens, and carries your taste across projects.</p>
+          </div>
+        </div>
+        <div class="docs-quickstart">
+          <article class="docs-step" id="install">
+            <div class="docs-step-index">01</div>
+            <div><h3>Install</h3><p><span class="docs-inline-code">npx @ravenmcp/cli install</span> (or add to your MCP client config manually)</p></div>
+          </article>
+          <article class="docs-step" id="connect">
+            <div class="docs-step-index">02</div>
+            <div><h3>Connect</h3><p>restart your agent, Raven's 70 tools are now available</p></div>
+          </article>
+          <article class="docs-step" id="use">
+            <div class="docs-step-index">03</div>
+            <div><h3>Use it</h3><p>ask your agent to audit a page, generate a design system, or check contrast; it calls the right tool automatically.</p></div>
+          </article>
+          <div class="docs-code" data-copy-block>
+            <div class="docs-language-tabs" role="tablist" aria-label="Installation method">
+              <button class="docs-language-tab" role="tab" aria-selected="true" data-language="json">MCP config</button>
+              <button class="docs-language-tab" role="tab" aria-selected="false" data-language="cli">CLI</button>
+            </div>
+            <div class="docs-language-panel" data-language-panel="json">
+              <div class="docs-code-head"><span>mcp-client.json</span><button class="docs-copy" type="button" aria-label="Copy MCP config"><svg viewBox="0 0 24 24" fill="none"><path d="M9 8h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z" stroke-width="1.5"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2" stroke-width="1.5"/></svg></button></div>
+              <pre><code>{
+  <span class="key">"mcpServers"</span>: {
+    <span class="key">"raven"</span>: {
+      <span class="key">"command"</span>: <span class="string">"npx"</span>,
+      <span class="key">"args"</span>: [<span class="string">"-y"</span>, <span class="string">"raven-mcp"</span>],
+      <span class="key">"env"</span>: {
+        <span class="key">"RAVEN_FORMAT"</span>: <span class="string">"structured"</span>
+      }
+    }
+  }
+}</code></pre>
+            </div>
+            <div class="docs-language-panel" data-language-panel="cli" hidden>
+              <div class="docs-code-head"><span>Terminal</span><button class="docs-copy" type="button" aria-label="Copy install command"><svg viewBox="0 0 24 24" fill="none"><path d="M9 8h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z" stroke-width="1.5"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2" stroke-width="1.5"/></svg></button></div>
+              <pre><code><span class="accent">$</span> npx @ravenmcp/cli install</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="docs-section" id="tool-reference" data-title="Tool Reference" data-index="02">
+        <div class="docs-section-heading">
+          <div class="docs-section-number">02 / METHODS</div>
+          <div>
+            <h2>Tool Reference</h2>
+            <p>Raven provides 70 tools across 9 knowledge layers. Claude calls the relevant tool based on the task; the cards below show what each tool returns.</p>
+          </div>
+        </div>
+        <h3 class="docs-subheading" id="principles-layer">Principles Layer</h3>
+        <div class="docs-reference-controls"><button class="docs-quiet-button" id="expand-all" type="button">Expand schemas</button></div>
+
+        <article class="docs-method" id="get-principles">
+          <div>
+            <h4 class="docs-method-name">get_principles</h4>
+            <p class="docs-method-description">Get design principles relevant to a UI context. Returns usability heuristics, Laws of UX, Gestalt principles, accessibility rules, typography, color theory, mobile UX, and responsive layout.</p>
+            <h5 class="docs-param-label">Parameters</h5>
+            <dl class="docs-params">
+              <div class="docs-param"><dt><code class="docs-param-name">context</code><span class="docs-badge required">required</span><span class="docs-badge">string</span></dt><dd>What you're designing — e.g. "signup form", "pricing page", "mobile nav", "dark dashboard"</dd></div>
+              <div class="docs-param"><dt><code class="docs-param-name">category</code><span class="docs-badge">optional</span><span class="docs-badge">enum</span></dt><dd>Filter to: nielsen-heuristics, laws-of-ux, gestalt, accessibility, typography, color-theory, mobile-ux, responsive-layout, d4d</dd></div>
+              <div class="docs-param"><dt><code class="docs-param-name">format</code><span class="docs-badge">optional</span><span class="docs-badge">enum</span></dt><dd>"full" (default) | "checklist" | "brief"</dd></div>
+            </dl>
+          </div>
+          <aside class="docs-method-side"><div class="docs-method-sticky">
+            <div class="docs-example-label">Example usage</div>
+            <ul class="docs-example-usage"><li>Build a pricing page</li><li>What accessibility rules apply to forms?</li><li>Check this against Nielsen's heuristics</li></ul>
+            <details class="docs-schema-details"><summary>Show response fields</summary><p><code>principles[]</code>, <code>checklist[]</code>, <code>sources[]</code>, <code>context</code></p></details>
+            <div class="docs-code" data-copy-block><div class="docs-code-head"><span>Agent call</span><button class="docs-copy" type="button" aria-label="Copy get principles example"><svg viewBox="0 0 24 24" fill="none"><path d="M9 8h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z" stroke-width="1.5"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2" stroke-width="1.5"/></svg></button></div><pre><code><span class="accent">get_principles</span>({
+  <span class="key">context</span>: <span class="string">"pricing page"</span>,
+  <span class="key">format</span>: <span class="string">"checklist"</span>
+})</code></pre></div>
+          </div></aside>
+        </article>
+
+        <article class="docs-method" id="evaluate-design">
+          <div>
+            <h4 class="docs-method-name">evaluate_design</h4>
+            <p class="docs-method-description">Evaluate a design description against UX principles. Returns relevant principles, potential violations, and improvement suggestions.</p>
+            <h5 class="docs-param-label">Parameters</h5>
+            <dl class="docs-params">
+              <div class="docs-param"><dt><code class="docs-param-name">description</code><span class="docs-badge required">required</span><span class="docs-badge">string</span></dt><dd>Description of the design to evaluate</dd></div>
+              <div class="docs-param"><dt><code class="docs-param-name">context</code><span class="docs-badge">optional</span><span class="docs-badge">string</span></dt><dd>What the design is — e.g. "pricing page for SaaS product"</dd></div>
+              <div class="docs-param"><dt><code class="docs-param-name">goals</code><span class="docs-badge">optional</span><span class="docs-badge">string[]</span></dt><dd>Array of evaluation goals — e.g. ["conversion", "accessibility", "mobile-usability"]</dd></div>
+            </dl>
+          </div>
+          <aside class="docs-method-side"><div class="docs-method-sticky">
+            <div class="docs-example-label">Example usage</div>
+            <ul class="docs-example-usage"><li>This signup form has 8 fields, no social login, and the button says Submit. Evaluate it for conversion.</li></ul>
+            <details class="docs-schema-details"><summary>Show response fields</summary><p><code>score</code>, <code>violations[]</code>, <code>suggestions[]</code>, <code>principles[]</code></p></details>
+            <div class="docs-code" data-copy-block><div class="docs-code-head"><span>Agent call</span><button class="docs-copy" type="button" aria-label="Copy evaluate design example"><svg viewBox="0 0 24 24" fill="none"><path d="M9 8h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z" stroke-width="1.5"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2" stroke-width="1.5"/></svg></button></div><pre><code><span class="accent">evaluate_design</span>({
+  <span class="key">description</span>: <span class="string">"8-field signup…"</span>,
+  <span class="key">goals</span>: [<span class="string">"conversion"</span>]
+})</code></pre></div>
+          </div></aside>
+        </article>
+
+        <article class="docs-method" id="get-d4d-framework">
+          <div>
+            <h4 class="docs-method-name">get_d4d_framework</h4>
+            <p class="docs-method-description">Get Design for Delight (D4D) templates — customer problem statement, ideal state, hypothesis, LOFAs, and experiment design.</p>
+            <h5 class="docs-param-label">Parameters</h5>
+            <dl class="docs-params">
+              <div class="docs-param"><dt><code class="docs-param-name">stage</code><span class="docs-badge">optional</span><span class="docs-badge">enum</span></dt><dd>"frame" | "empathy" | "broad" | "narrow" | "experiment"</dd></div>
+            </dl>
+          </div>
+          <aside class="docs-method-side"><div class="docs-method-sticky">
+            <div class="docs-example-label">Example usage</div>
+            <ul class="docs-example-usage"><li>Frame the customer problem before we sketch solutions</li><li>Turn these interview notes into testable LOFAs</li></ul>
+            <details class="docs-schema-details"><summary>Show response fields</summary><p><code>stage</code>, <code>template</code>, <code>prompts[]</code>, <code>quality_checks[]</code></p></details>
+            <div class="docs-code" data-copy-block><div class="docs-code-head"><span>Agent call</span><button class="docs-copy" type="button" aria-label="Copy D4D example"><svg viewBox="0 0 24 24" fill="none"><path d="M9 8h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z" stroke-width="1.5"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2" stroke-width="1.5"/></svg></button></div><pre><code><span class="accent">get_d4d_framework</span>({
+  <span class="key">stage</span>: <span class="string">"experiment"</span>
+})</code></pre></div>
+          </div></aside>
+        </article>
+
+        <article class="docs-method" id="audit-page">
+          <div>
+            <h4 class="docs-method-name">audit_page</h4>
+            <p class="docs-method-description">Audit a rendered page for layout, typography, contrast, hierarchy, responsive behavior, and interaction quality. Returns located findings with direct fixes and a scored summary.</p>
+            <h5 class="docs-param-label">Parameters</h5>
+            <dl class="docs-params">
+              <div class="docs-param"><dt><code class="docs-param-name">url</code><span class="docs-badge required">required</span><span class="docs-badge">string</span></dt><dd>Public or local URL to inspect</dd></div>
+              <div class="docs-param"><dt><code class="docs-param-name">viewport</code><span class="docs-badge">optional</span><span class="docs-badge">object</span></dt><dd>Width and height for the rendered audit; defaults to desktop</dd></div>
+              <div class="docs-param"><dt><code class="docs-param-name">focus</code><span class="docs-badge">optional</span><span class="docs-badge">string[]</span></dt><dd>Limit findings to contrast, layout, type, accessibility, motion, or responsive behavior</dd></div>
+            </dl>
+          </div>
+          <aside class="docs-method-side"><div class="docs-method-sticky">
+            <div class="docs-example-label">Example usage</div>
+            <ul class="docs-example-usage"><li>Audit localhost:3000/pricing at a 390px viewport</li><li>Find only contrast and hierarchy issues on this page</li></ul>
+            <details class="docs-schema-details"><summary>Show child parameters</summary><p><code>viewport.width</code> and <code>viewport.height</code> accept integer CSS pixels. Add <code>deviceScaleFactor</code> when capture density matters.</p></details>
+            <div class="docs-code" data-copy-block><div class="docs-code-head"><span>Agent call</span><button class="docs-copy" type="button" aria-label="Copy page audit example"><svg viewBox="0 0 24 24" fill="none"><path d="M9 8h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z" stroke-width="1.5"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2" stroke-width="1.5"/></svg></button></div><pre><code><span class="accent">audit_page</span>({
+  <span class="key">url</span>: <span class="string">"http://localhost:3000"</span>,
+  <span class="key">viewport</span>: { <span class="key">width</span>: <span class="number">390</span>, <span class="key">height</span>: <span class="number">844</span> }
+})</code></pre></div>
+          </div></aside>
+        </article>
+
+        <article class="docs-method" id="generate-design-system">
+          <div>
+            <h4 class="docs-method-name">generate_design_system</h4>
+            <p class="docs-method-description">Generate a usable design-system foundation from a product brief or existing brand. Returns semantic color, type, spacing, radius, component guidance, and implementation-ready tokens.</p>
+            <h5 class="docs-param-label">Parameters</h5>
+            <dl class="docs-params">
+              <div class="docs-param"><dt><code class="docs-param-name">brief</code><span class="docs-badge required">required</span><span class="docs-badge">string</span></dt><dd>Product, audience, platform, and visual intent</dd></div>
+              <div class="docs-param"><dt><code class="docs-param-name">source</code><span class="docs-badge">optional</span><span class="docs-badge">object</span></dt><dd>Existing brand colors, fonts, screenshots, or token values to preserve</dd></div>
+              <div class="docs-param"><dt><code class="docs-param-name">format</code><span class="docs-badge">optional</span><span class="docs-badge">enum</span></dt><dd>"css" | "json" | "tailwind" | "figma"</dd></div>
+            </dl>
+          </div>
+          <aside class="docs-method-side"><div class="docs-method-sticky">
+            <div class="docs-example-label">Example usage</div>
+            <ul class="docs-example-usage"><li>Generate a calm clinical dashboard system from these two brand colors</li><li>Convert this brief into CSS custom-property tokens</li></ul>
+            <details class="docs-schema-details"><summary>Show child parameters</summary><p><code>source.colors[]</code>, <code>source.fonts[]</code>, <code>source.assets[]</code>, and <code>source.constraints[]</code> are accepted.</p></details>
+            <div class="docs-code" data-copy-block><div class="docs-code-head"><span>Agent call</span><button class="docs-copy" type="button" aria-label="Copy design system example"><svg viewBox="0 0 24 24" fill="none"><path d="M9 8h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z" stroke-width="1.5"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2" stroke-width="1.5"/></svg></button></div><pre><code><span class="accent">generate_design_system</span>({
+  <span class="key">brief</span>: <span class="string">"Clinical dashboard…"</span>,
+  <span class="key">format</span>: <span class="string">"css"</span>
+})</code></pre></div>
+          </div></aside>
+        </article>
+
+        <article class="docs-method" id="audit-service-blueprint">
+          <div>
+            <h4 class="docs-method-name">audit_service_blueprint</h4>
+            <p class="docs-method-description">Review a service blueprint across customer actions, frontstage touchpoints, backstage processes, handoffs, and failure recovery. Returns continuity gaps and accountable next actions.</p>
+            <h5 class="docs-param-label">Parameters</h5>
+            <dl class="docs-params">
+              <div class="docs-param"><dt><code class="docs-param-name">blueprint</code><span class="docs-badge required">required</span><span class="docs-badge">object</span></dt><dd>Stages, actors, customer actions, touchpoints, processes, and support systems</dd></div>
+              <div class="docs-param"><dt><code class="docs-param-name">lens</code><span class="docs-badge">optional</span><span class="docs-badge">enum</span></dt><dd>"continuity" | "ownership" | "failure-recovery" | "accessibility"</dd></div>
+              <div class="docs-param"><dt><code class="docs-param-name">constraints</code><span class="docs-badge">optional</span><span class="docs-badge">string[]</span></dt><dd>Operational or policy conditions the service must honor</dd></div>
+            </dl>
+          </div>
+          <aside class="docs-method-side"><div class="docs-method-sticky">
+            <div class="docs-example-label">Example usage</div>
+            <ul class="docs-example-usage"><li>Find ownership gaps in this support escalation blueprint</li><li>Audit what happens when identity verification fails</li></ul>
+            <details class="docs-schema-details"><summary>Show child parameters</summary><p>Each <code>blueprint.stage</code> can include <code>customer_actions[]</code>, <code>frontstage[]</code>, <code>backstage[]</code>, and <code>systems[]</code>.</p></details>
+            <div class="docs-code" data-copy-block><div class="docs-code-head"><span>Agent call</span><button class="docs-copy" type="button" aria-label="Copy service blueprint example"><svg viewBox="0 0 24 24" fill="none"><path d="M9 8h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z" stroke-width="1.5"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2" stroke-width="1.5"/></svg></button></div><pre><code><span class="accent">audit_service_blueprint</span>({
+  <span class="key">blueprint</span>: supportFlow,
+  <span class="key">lens</span>: <span class="string">"ownership"</span>
+})</code></pre></div>
+          </div></aside>
+        </article>
+      </section>
+
+      <section class="docs-section" id="examples" data-title="Examples" data-index="03">
+        <div class="docs-section-heading">
+          <div class="docs-section-number">03 / EXCHANGES</div>
+          <div><h2>Examples</h2><p>The agent provides context; Raven selects the relevant knowledge layer and returns findings that can be acted on directly.</p></div>
+        </div>
+        <article class="docs-example-flow">
+          <div class="docs-example-prompt"><div class="docs-flow-label"><span>Prompt</span><span>audit_page</span></div><blockquote>“Audit this pricing page for contrast issues.”</blockquote></div>
+          <div class="docs-example-response"><div class="docs-flow-label"><span>Response</span><span>3 findings · 76/100</span></div><p class="docs-response-summary">Two text pairs fail WCAG AA; one focus state relies on color alone.</p><div class="docs-finding"><span class="docs-severity high">High</span><p><strong>Annual price label</strong> · 2.9:1 on <code>#12181c</code>. Use <code>--text-secondary</code> or raise lightness to 72%.</p></div><div class="docs-finding"><span class="docs-severity medium">Medium</span><p><strong>Plan selector</strong> · Add a 2px outline so keyboard focus does not rely on cyan alone.</p></div></div>
+        </article>
+        <article class="docs-example-flow">
+          <div class="docs-example-prompt"><div class="docs-flow-label"><span>Prompt</span><span>generate_design_system</span></div><blockquote>“Create tokens for a calm, high-trust health dashboard. Keep our blue.”</blockquote></div>
+          <div class="docs-example-response"><div class="docs-flow-label"><span>Response</span><span>48 tokens · CSS</span></div><p class="docs-response-summary">Preserved the source blue as the action color, built neutral surfaces around it, and generated type, spacing, radius, and state scales.</p><div class="docs-finding"><span class="docs-severity note">Output</span><p><code>color.action.primary</code> → <code>#3478F6</code> · <code>space.4</code> → <code>16px</code> · <code>radius.control</code> → <code>8px</code></p></div></div>
+        </article>
+        <article class="docs-example-flow">
+          <div class="docs-example-prompt"><div class="docs-flow-label"><span>Prompt</span><span>evaluate_design</span></div><blockquote>“This onboarding asks for company size before showing value. Evaluate the sequence.”</blockquote></div>
+          <div class="docs-example-response"><div class="docs-flow-label"><span>Response</span><span>4 principles</span></div><p class="docs-response-summary">The sequence asks for commitment before establishing relevance.</p><div class="docs-finding"><span class="docs-severity medium">Sequence</span><p>Move company-size collection after the first useful output, or state why it changes the result.</p></div><div class="docs-finding"><span class="docs-severity note">Measure</span><p>Compare first-value completion and abandonment at the company-size step.</p></div></div>
+        </article>
+      </section>
+
+      <section class="docs-section" id="data-structure" data-title="Data Structure" data-index="04">
+        <div class="docs-section-heading">
+          <div class="docs-section-number">04 / RESPONSE</div>
+          <div><h2>Data Structure</h2><p>Every audit returns a structured object: findings[] (each with severity, rule, location, fix), a summary score, and calibration_hint when a taste profile is bound.</p></div>
+        </div>
+        <div class="docs-split">
+          <div class="docs-split-copy">
+            <div class="docs-kicker">Stable audit anatomy</div>
+            <ul class="docs-structure-list"><li><code>findings[]</code> keeps evidence and remediation together.</li><li><code>summary.score</code> supports comparison without hiding individual issues.</li><li><code>calibration_hint</code> explains when project taste altered the evaluation.</li></ul>
+          </div>
+          <div class="docs-code" data-copy-block>
+            <div class="docs-code-head"><span>audit-response.json</span><button class="docs-copy" type="button" aria-label="Copy data structure"><svg viewBox="0 0 24 24" fill="none"><path d="M9 8h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z" stroke-width="1.5"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2" stroke-width="1.5"/></svg></button></div>
+            <pre><code>{
+  <span class="key">"findings"</span>: [
+    {
+      <span class="key">"severity"</span>: <span class="string">"high"</span>,
+      <span class="key">"rule"</span>: <span class="string">"wcag-contrast-aa"</span>,
+      <span class="key">"location"</span>: <span class="string">".plan-card .price-note"</span>,
+      <span class="key">"fix"</span>: <span class="string">"Raise text contrast from 2.9:1 to 4.5:1"</span>
+    }
+  ],
+  <span class="key">"summary"</span>: {
+    <span class="key">"score"</span>: <span class="number">76</span>,
+    <span class="key">"counts"</span>: { <span class="key">"high"</span>: <span class="number">1</span>, <span class="key">"medium"</span>: <span class="number">2</span> }
+  },
+  <span class="key">"calibration_hint"</span>: <span class="string">"Applied raven-mcp project taste: restrained product-site voice"</span>
+}</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="docs-section" id="design-tokens" data-title="Design Tokens" data-index="05">
+        <div class="docs-section-heading">
+          <div class="docs-section-number">05 / SYSTEM</div>
+          <div><h2>Design Tokens</h2><p>Raven can generate a full token set (color, type, spacing, radius) from a brief or existing brand, and bound taste profiles apply per-project overrides.</p></div>
+        </div>
+        <div class="docs-split">
+          <div class="docs-split-copy">
+            <div class="docs-kicker">Semantic before literal</div>
+            <p>Generated scales keep raw values separate from the roles that consume them. Existing brand inputs remain traceable in the output.</p>
+            <div class="docs-token-strip" aria-label="Example generated color scale"><div class="docs-token-swatch">surface / base</div><div class="docs-token-swatch">surface / raised</div><div class="docs-token-swatch">action / primary</div><div class="docs-token-swatch">accent / cyan</div><div class="docs-token-swatch">text / primary</div></div>
+          </div>
+          <div class="docs-code" data-copy-block>
+            <div class="docs-code-head"><span>tokens.json</span><button class="docs-copy" type="button" aria-label="Copy token example"><svg viewBox="0 0 24 24" fill="none"><path d="M9 8h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z" stroke-width="1.5"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2" stroke-width="1.5"/></svg></button></div>
+            <pre><code>{
+  <span class="key">"color"</span>: {
+    <span class="key">"surface"</span>: { <span class="key">"base"</span>: <span class="string">"#0B0F12"</span>, <span class="key">"raised"</span>: <span class="string">"#152029"</span> },
+    <span class="key">"action"</span>: { <span class="key">"primary"</span>: <span class="string">"#3F75FF"</span> },
+    <span class="key">"text"</span>: { <span class="key">"primary"</span>: <span class="string">"#F5F8FA"</span>, <span class="key">"muted"</span>: <span class="string">"#9BA8B1"</span> }
+  },
+  <span class="key">"space"</span>: {
+    <span class="key">"1"</span>: <span class="string">"4px"</span>, <span class="key">"2"</span>: <span class="string">"8px"</span>, <span class="key">"3"</span>: <span class="string">"12px"</span>,
+    <span class="key">"4"</span>: <span class="string">"16px"</span>, <span class="key">"6"</span>: <span class="string">"24px"</span>, <span class="key">"8"</span>: <span class="string">"32px"</span>
+  }
+}</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="docs-section" id="faq" data-title="FAQ" data-index="06">
+        <div class="docs-section-heading">
+          <div class="docs-section-number">06 / NOTES</div>
+          <div><h2>FAQ</h2><p>Operational details about where Raven fits, what it reads, and how it can be run.</p></div>
+        </div>
+        <div class="docs-faq">
+          <details class="docs-faq-item" open><summary>Does this replace a design system?</summary><p>No. Raven can generate and audit a system, but your tokens, components, governance, and product decisions remain the source of truth.</p></details>
+          <details class="docs-faq-item"><summary>Does it work with any coding agent that supports MCP?</summary><p>Yes. Add Raven as an MCP server in any compatible client. Tool selection and approval behavior depend on that client.</p></details>
+          <details class="docs-faq-item"><summary>Is my design data used to train models?</summary><p>No. Raven does not use your project inputs to train models. Review the model provider configured in your environment for its separate data-handling terms.</p></details>
+          <details class="docs-faq-item"><summary>What's the difference between the free and team tier?</summary><p>The free tier serves an individual builder with local tools. The team tier adds shared taste and decision context, administration, and controls for organizational data.</p></details>
+          <details class="docs-faq-item"><summary>Can I self-host?</summary><p>Yes. The open-source server runs locally over stdio. Hosted identity, team storage, and managed collaboration features are separate.</p></details>
+        </div>
+        <footer class="docs-footer"><span>RavenMCP / Documentation</span><span>Built for human and agent readers</span></footer>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      var sections = Array.prototype.slice.call(document.querySelectorAll('.docs-section'));
+      var navLinks = Array.prototype.slice.call(document.querySelectorAll('.docs-nav-link'));
+      var header = document.getElementById('page-header');
+      var nav = document.getElementById('docs-nav');
+      var menuToggle = document.getElementById('menu-toggle');
+      var breadcrumb = document.getElementById('breadcrumb-current');
+      var contextCurrent = document.getElementById('context-current');
+      var contextIndex = document.getElementById('context-index');
+      var contextList = document.getElementById('context-list');
+      var activeSection = sections[0];
+      var contextItems = {
+        'get-started': [['install', 'Install'], ['connect', 'Connect'], ['use', 'Use it']],
+        'tool-reference': [['principles-layer', 'Principles Layer'], ['get-principles', 'get_principles'], ['evaluate-design', 'evaluate_design'], ['get-d4d-framework', 'get_d4d_framework'], ['audit-page', 'audit_page'], ['generate-design-system', 'generate_design_system'], ['audit-service-blueprint', 'audit_service_blueprint']],
+        'examples': [['examples', 'Request / response']],
+        'data-structure': [['data-structure', 'Audit response']],
+        'design-tokens': [['design-tokens', 'Generated tokens']],
+        'faq': [['faq', 'Questions']]
+      };
+
+      function updateContext(section) {
+        if (!section || section === activeSection && contextCurrent.textContent === section.dataset.title) return;
+        activeSection = section;
+        var title = section.dataset.title;
+        breadcrumb.textContent = title;
+        contextCurrent.textContent = title;
+        contextIndex.textContent = section.dataset.index + ' / 06';
+        navLinks.forEach(function (link) { link.classList.toggle('is-active', link.getAttribute('href') === '#' + section.id); });
+        contextList.innerHTML = (contextItems[section.id] || []).map(function (item, index) {
+          return '<li><a href="#' + item[0] + '"><span class="docs-key">' + String(index + 1).padStart(2, '0') + '</span>' + item[1] + '</a></li>';
+        }).join('');
+      }
+
+      function onScroll() {
+        header.classList.toggle('is-scrolled', window.scrollY > 12);
+        var marker = window.scrollY + window.innerHeight * .28;
+        var current = sections[0];
+        sections.forEach(function (section) { if (section.offsetTop <= marker) current = section; });
+        updateContext(current);
+      }
+
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+
+      if (menuToggle) {
+        menuToggle.addEventListener('click', function () {
+          var open = nav.classList.toggle('is-open');
+          menuToggle.setAttribute('aria-expanded', String(open));
+        });
+      }
+      navLinks.forEach(function (link) { link.addEventListener('click', function () { nav.classList.remove('is-open'); if (menuToggle) menuToggle.setAttribute('aria-expanded', 'false'); }); });
+
+      document.querySelectorAll('.docs-copy').forEach(function (button) {
+        button.addEventListener('click', function () {
+          var block = button.closest('[data-copy-block]');
+          var visibleCode = block.querySelector('.docs-language-panel:not([hidden]) code') || block.querySelector('code');
+          navigator.clipboard.writeText(visibleCode ? visibleCode.textContent.trim() : '').then(function () {
+            var old = button.innerHTML;
+            button.textContent = '✓';
+            setTimeout(function () { button.innerHTML = old; }, 1200);
+          });
+        });
+      });
+
+      document.querySelectorAll('.docs-language-tab').forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          var language = tab.dataset.language;
+          try { localStorage.setItem('raven-docs-language', language); } catch (error) {}
+          document.querySelectorAll('.docs-language-tab').forEach(function (candidate) { candidate.setAttribute('aria-selected', String(candidate.dataset.language === language)); });
+          document.querySelectorAll('.docs-language-panel').forEach(function (panel) { panel.hidden = panel.dataset.languagePanel !== language; });
+        });
+      });
+      try {
+        var savedLanguage = localStorage.getItem('raven-docs-language');
+        var savedTab = savedLanguage && document.querySelector('.docs-language-tab[data-language="' + savedLanguage + '"]');
+        if (savedTab) savedTab.click();
+      } catch (error) {}
+
+      var expandButton = document.getElementById('expand-all');
+      if (expandButton) {
+        expandButton.addEventListener('click', function () {
+          var details = Array.prototype.slice.call(document.querySelectorAll('.docs-schema-details'));
+          var shouldOpen = details.some(function (detail) { return !detail.open; });
+          details.forEach(function (detail) { detail.open = shouldOpen; });
+          expandButton.textContent = shouldOpen ? 'Collapse schemas' : 'Expand schemas';
+        });
+      }
+
+      function sectionAsMarkdown(section) {
+        var clone = section.cloneNode(true);
+        clone.querySelectorAll('button, svg').forEach(function (node) { node.remove(); });
+        return '# ' + section.dataset.title + '\n\n' + clone.innerText.replace(/\n{3,}/g, '\n\n').trim();
+      }
+      document.getElementById('context-copy').addEventListener('click', function (event) {
+        navigator.clipboard.writeText(sectionAsMarkdown(activeSection));
+        event.currentTarget.textContent = 'Copied section';
+        setTimeout(function () { event.currentTarget.textContent = 'Copy section as .md'; }, 1200);
+      });
+      document.getElementById('copy-markdown').addEventListener('click', function (event) {
+        navigator.clipboard.writeText(sections.map(sectionAsMarkdown).join('\n\n---\n\n'));
+        event.currentTarget.querySelector('span').textContent = 'Copied';
+        setTimeout(function () { event.currentTarget.querySelector('span').textContent = '.md'; }, 1200);
+      });
+    }());
+  </script>
+</body>
+</html>

@@ -1,0 +1,878 @@
+<!-- DIRECTION: The Wire — a transcript-first reference. RavenMCP's literal reader is a coding agent plus a skeptical indie dev, so every section is demonstrated through what actually crosses the wire (agent → raven → agent), not described in prose. Mechanics stolen deliberately: Supabase's gradient-fade sticky layer headers + per-tool pinned examples, Stripe's definition-list parameter anatomy (never tables), Resend's type/required badges, Vercel's .md agent-access affordance, Linear's opacity-dimmed scroll-tracked nav. -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RavenMCP Docs</title>
+<style>
+  :root{
+    --text-primary:#ececf1;
+    --text-secondary:#a3a3af;
+    --text-tertiary:#686874;
+    --text-accent:#7db4ff;
+    --bg-base:#0a0a0d;
+    --bg-surface:#101014;
+    --bg-raised:#16161c;
+    --bg-accent-subtle:rgba(91,157,255,.07);
+    --bg-accent-hover:rgba(91,157,255,.12);
+    --border:#1e1e26;
+    --border-strong:#2c2c37;
+    --border-accent:rgba(91,157,255,.35);
+    --accent-blue:#5b9dff;
+    --accent-cyan:#56d4dd;
+    --accent-pink:#e96aa8;
+    --radius-sm:4px; --radius-md:8px; --radius-lg:12px;
+    --font-body:'Inter',ui-sans-serif,-apple-system,'Segoe UI',sans-serif;
+    --font-mono:ui-monospace,'SF Mono','JetBrains Mono',Menlo,monospace;
+    --ease-out:cubic-bezier(.22,1,.36,1);
+    --duration-normal:180ms;
+    --nav-w:248px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    *,*::before,*::after{transition-duration:0s!important;animation:none!important}
+  }
+  body{
+    background:var(--bg-base);
+    color:var(--text-primary);
+    font:400 14px/1.65 var(--font-body);
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none}
+  code{font-family:var(--font-mono)}
+
+  /* ============ PINNED LEFT NAV — position:fixed, immune to any ancestor overflow ============ */
+  .nav{
+    position:fixed; inset:0 auto 0 0; width:var(--nav-w);
+    display:flex; flex-direction:column;
+    border-right:1px solid var(--border);
+    background:var(--bg-base);
+    z-index:20;
+  }
+  .nav-brand{
+    display:flex; align-items:center; gap:10px;
+    padding:22px 24px 18px;
+  }
+  .nav-brand svg{flex:none}
+  .nav-brand .word{font-size:14px;font-weight:600;letter-spacing:-.01em}
+  .nav-brand .word em{font-style:normal;color:var(--text-tertiary);font-weight:500}
+  .nav-scroll{
+    flex:1; min-height:0; overflow-y:auto;
+    padding:8px 14px 24px;
+    scrollbar-width:thin; scrollbar-color:var(--border-strong) transparent;
+  }
+  .nav-scroll::-webkit-scrollbar{width:6px}
+  .nav-scroll::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px}
+  .nav a{
+    display:flex; align-items:center; min-height:44px;
+    padding:0 12px; border-radius:var(--radius-md);
+    color:var(--text-secondary); font-size:13.5px;
+    transition:color var(--duration-normal) var(--ease-out), background var(--duration-normal) var(--ease-out);
+  }
+  .nav a:hover{color:var(--text-primary);background:var(--bg-surface)}
+  .nav a.active{color:var(--text-primary);background:var(--bg-accent-subtle)}
+  .nav a.active::before{content:'';width:3px;height:16px;border-radius:2px;background:var(--accent-blue);margin-right:9px;margin-left:-12px;transform:translateX(6px)}
+  /* tool sub-anchors — hierarchy through opacity, not weight (Linear) */
+  .nav .sub{
+    margin-left:12px; padding-left:14px;
+    border-left:1px solid var(--border);
+  }
+  .nav .sub a{
+    min-height:44px; font-family:var(--font-mono); font-size:12px;
+    color:var(--text-tertiary);
+  }
+  .nav .sub a:hover{color:var(--text-secondary)}
+  .nav .sub a.active{color:var(--accent-cyan);background:none}
+  .nav .sub a.active::before{display:none}
+  .nav-foot{
+    padding:14px 24px 18px; border-top:1px solid var(--border);
+    font-size:12px; color:var(--text-tertiary);
+  }
+  .nav-foot a{color:var(--text-tertiary);display:inline-flex;align-items:center;min-height:44px}
+  .nav-foot a:hover{color:var(--text-secondary)}
+
+  /* ============ CONTENT COLUMN ============ */
+  .main{
+    margin-left:var(--nav-w);
+    padding:0 clamp(28px,5vw,72px) 120px;
+    max-width:calc(var(--nav-w) + 1344px);
+  }
+  .page-head{
+    display:flex; align-items:baseline; justify-content:space-between; gap:24px;
+    padding:56px 0 0;
+  }
+  .page-head h1{font-size:26px;font-weight:600;letter-spacing:-.02em}
+  .page-head .md-link{
+    display:inline-flex; align-items:center; gap:7px; min-height:44px; padding:0 12px;
+    font-family:var(--font-mono); font-size:12px; color:var(--text-tertiary);
+    border:1px solid var(--border); border-radius:var(--radius-md);
+    transition:color var(--duration-normal) var(--ease-out), border-color var(--duration-normal) var(--ease-out);
+  }
+  .page-head .md-link:hover{color:var(--text-secondary);border-color:var(--border-strong)}
+  .page-sub{margin-top:10px;color:var(--text-secondary);max-width:60ch}
+
+  section{padding-top:88px}
+  section:first-of-type{padding-top:48px}
+  .kicker{
+    font-family:var(--font-mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--text-tertiary); margin-bottom:10px;
+  }
+  h2{font-size:22px;font-weight:600;letter-spacing:-.015em;margin-bottom:14px}
+  .lede{color:var(--text-secondary);max-width:64ch}
+
+  /* ============ CODE FENCES ============ */
+  pre{
+    position:relative;
+    background:var(--bg-surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius-lg);
+    padding:18px 56px 18px 20px; /* right pad clears the Copy button */
+    font:12.5px/1.7 var(--font-mono);
+    color:var(--text-secondary);
+    overflow-x:auto;
+    tab-size:2;
+  }
+  pre .k{color:var(--text-accent)}          /* keys */
+  pre .s{color:var(--accent-cyan)}          /* strings */
+  pre .n{color:var(--accent-pink)}          /* numbers */
+  pre .c{color:var(--text-tertiary)}        /* comments/punct */
+  pre .cmd{color:var(--text-primary)}
+  .copy{
+    position:absolute; top:6px; right:6px;
+    min-width:44px; min-height:44px;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:none; border:0; cursor:pointer;
+    font:500 11px var(--font-body); color:var(--text-tertiary);
+    border-radius:var(--radius-md);
+    transition:color var(--duration-normal) var(--ease-out), background var(--duration-normal) var(--ease-out);
+  }
+  .copy:hover{color:var(--text-primary);background:var(--bg-raised)}
+
+  /* ============ GET STARTED — numbered rail, not cards ============ */
+  .steps{margin-top:40px;border-top:1px solid var(--border)}
+  .step{
+    display:grid; grid-template-columns:72px minmax(0,52ch) minmax(0,1fr);
+    gap:32px; padding:32px 0; border-bottom:1px solid var(--border);
+  }
+  .step-num{
+    font-family:var(--font-mono); font-size:24px; font-weight:500;
+    color:var(--text-tertiary); line-height:1.2; padding-top:2px;
+  }
+  .step h3{font-size:15px;font-weight:600;margin-bottom:6px}
+  .step p{color:var(--text-secondary);font-size:13.5px}
+  .step .inline-cmd{
+    display:inline-block; margin-top:10px;
+    font-family:var(--font-mono); font-size:12.5px; color:var(--accent-cyan);
+    background:var(--bg-surface); border:1px solid var(--border);
+    border-radius:var(--radius-sm); padding:5px 10px;
+  }
+  .step pre{margin:0}
+
+  /* ============ TOOL REFERENCE ============ */
+  /* sticky layer header with gradient fade (Supabase) — sticks INSIDE the normal flow;
+     works because no ancestor between it and the root creates an overflow clip */
+  .layer-head{
+    position:sticky; top:0; z-index:10;
+    padding:20px 0 18px;
+    background:linear-gradient(to bottom, var(--bg-base) 78%, transparent);
+    display:flex; align-items:baseline; gap:14px;
+  }
+  .layer-head .idx{font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary);letter-spacing:.1em}
+  .layer-head h3{font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .layer-head .count{font-size:12px;color:var(--text-tertiary)}
+
+  /* one tool = one full-width entry: prose+params left, pinned wire example right.
+     definition rows, never tables — description always gets the full column width */
+  .tool{
+    display:grid; grid-template-columns:minmax(0,1fr) minmax(0,44%);
+    gap:56px; padding:44px 0 52px;
+    border-top:1px solid var(--border);
+  }
+  .tool-id{
+    display:flex; align-items:center; gap:10px; margin-bottom:10px;
+  }
+  .tool-id code{
+    font-size:16px; font-weight:600; color:var(--text-primary); letter-spacing:-.01em;
+  }
+  .tool-id .anchor{
+    color:var(--text-tertiary); opacity:0; font-size:14px;
+    min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center;
+    transition:opacity var(--duration-normal) var(--ease-out);
+  }
+  .tool:hover .anchor{opacity:1}
+  .tool-desc{color:var(--text-secondary);font-size:13.5px;max-width:56ch}
+  .params{margin-top:26px}
+  .params-label{
+    font-family:var(--font-mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--text-tertiary); padding-bottom:10px; border-bottom:1px solid var(--border);
+  }
+  .param{padding:14px 0;border-bottom:1px solid var(--border)}
+  .param-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px}
+  .param-head code{font-size:13px;font-weight:600;color:var(--text-primary)}
+  .badge{
+    font:500 10.5px/1 var(--font-mono); letter-spacing:.03em;
+    padding:4px 7px; border-radius:var(--radius-sm);
+    color:var(--text-tertiary); border:1px solid var(--border);
+  }
+  .badge.req{color:var(--accent-pink);border-color:rgba(233,106,168,.3)}
+  .param p{font-size:13px;color:var(--text-secondary)}
+  .param p code{font-size:12px;color:var(--accent-cyan)}
+
+  /* the wire — example pinned within its own tool's scroll range (Supabase mechanic) */
+  .wire{position:sticky; top:64px; align-self:start}
+  .wire-turn{margin-bottom:14px}
+  .wire-role{
+    display:flex; align-items:center; gap:8px;
+    font-family:var(--font-mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--text-tertiary); margin-bottom:8px;
+  }
+  .wire-role .dot{width:6px;height:6px;border-radius:50%}
+  .wire-role.agent .dot{background:var(--accent-cyan)}
+  .wire-role.raven .dot{background:var(--accent-blue)}
+  .wire .ask{
+    font-size:13px; color:var(--text-secondary);
+    border-left:2px solid var(--border-strong);
+    padding:2px 0 2px 14px; margin-bottom:8px;
+  }
+  .wire .ask + .ask{margin-top:6px}
+
+  /* ============ EXAMPLES — full-width transcripts ============ */
+  .transcript{
+    margin-top:36px; border:1px solid var(--border); border-radius:var(--radius-lg);
+    background:var(--bg-surface); overflow:hidden;
+  }
+  .transcript + .transcript{margin-top:20px}
+  .transcript-bar{
+    display:flex; align-items:center; gap:10px;
+    padding:12px 18px; border-bottom:1px solid var(--border);
+    font-family:var(--font-mono); font-size:11px; color:var(--text-tertiary);
+  }
+  .transcript-bar .tool-chip{
+    color:var(--accent-cyan); background:var(--bg-accent-subtle);
+    border:1px solid var(--border-accent); border-radius:var(--radius-sm);
+    padding:3px 8px; font-size:11px;
+  }
+  .turn{display:grid;grid-template-columns:120px minmax(0,1fr);gap:20px;padding:18px 18px}
+  .turn + .turn{border-top:1px solid var(--border)}
+  .turn-role{
+    font-family:var(--font-mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase;
+    padding-top:3px;
+  }
+  .turn-role.u{color:var(--text-tertiary)}
+  .turn-role.a{color:var(--accent-cyan)}
+  .turn-role.r{color:var(--accent-blue)}
+  .turn-body{font-size:13.5px;color:var(--text-secondary)}
+  .turn-body pre{margin-top:0;background:var(--bg-base)}
+  .turn-body .said{color:var(--text-primary)}
+
+  /* findings rows inside a response */
+  .finding{display:flex;gap:12px;align-items:baseline;padding:7px 0;font-size:13px}
+  .sev{
+    flex:none; font:600 10px/1 var(--font-mono); letter-spacing:.06em; text-transform:uppercase;
+    padding:4px 7px; border-radius:var(--radius-sm); min-width:64px; text-align:center;
+  }
+  .sev.err{color:var(--accent-pink);background:rgba(233,106,168,.1)}
+  .sev.warn{color:#e2b45a;background:rgba(226,180,90,.1)}
+  .sev.info{color:var(--accent-cyan);background:rgba(86,212,221,.08)}
+  .finding .loc{font-family:var(--font-mono);font-size:12px;color:var(--text-tertiary)}
+
+  /* ============ DATA STRUCTURE / TOKENS — prose beside code ============ */
+  .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,52%);gap:56px;margin-top:36px;align-items:start}
+  .split .side{position:sticky;top:64px}
+  .field-list{margin-top:22px}
+  .field{padding:12px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-secondary)}
+  .field code{color:var(--text-primary);font-size:12.5px;font-weight:600}
+  .swatches{display:flex;gap:8px;margin-top:18px}
+  .swatch{flex:1;height:44px;border-radius:var(--radius-md);border:1px solid var(--border);position:relative}
+  .swatch span{
+    position:absolute;left:8px;bottom:6px;
+    font:500 9.5px var(--font-mono);color:rgba(255,255,255,.75);
+  }
+
+  /* ============ FAQ — ruled Q/A rows, no accordion theater ============ */
+  .faq{margin-top:36px;border-top:1px solid var(--border)}
+  .qa{
+    display:grid;grid-template-columns:minmax(0,38%) minmax(0,1fr);
+    gap:40px;padding:26px 0;border-bottom:1px solid var(--border);
+  }
+  .qa h3{font-size:14px;font-weight:600;letter-spacing:-.005em}
+  .qa p{font-size:13.5px;color:var(--text-secondary);max-width:58ch}
+
+  /* ============ RESPONSIVE — never squeeze columns ============ */
+  @media (max-width:1120px){
+    .tool{grid-template-columns:1fr;gap:28px}
+    .wire,.split .side{position:static}
+    .split{grid-template-columns:1fr;gap:28px}
+  }
+  @media (max-width:900px){
+    .nav{position:static;width:auto;inset:auto;border-right:0;border-bottom:1px solid var(--border)}
+    .nav-scroll{display:flex;flex-wrap:wrap;gap:4px;overflow:visible;padding:0 16px 12px}
+    .nav .sub{display:none}
+    .nav-foot{display:none}
+    .main{margin-left:0;padding:0 20px 80px}
+    .step{grid-template-columns:1fr;gap:12px}
+    .qa{grid-template-columns:1fr;gap:8px}
+    .turn{grid-template-columns:1fr;gap:8px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= PINNED NAV ================= -->
+<nav class="nav" aria-label="Docs">
+  <div class="nav-brand">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M10 2 L17 16 H12.5 L10 11 L7.5 16 H3 Z" fill="#5b9dff"/>
+    </svg>
+    <span class="word">RavenMCP <em>/ docs</em></span>
+  </div>
+  <div class="nav-scroll">
+    <a href="#get-started" data-spy>Get Started</a>
+    <a href="#tool-reference" data-spy>Tool Reference</a>
+    <div class="sub">
+      <a href="#get_principles" data-spy>get_principles</a>
+      <a href="#evaluate_design" data-spy>evaluate_design</a>
+      <a href="#get_d4d_framework" data-spy>get_d4d_framework</a>
+      <a href="#audit_contrast" data-spy>audit_contrast</a>
+      <a href="#audit_page" data-spy>audit_page</a>
+      <a href="#generate_design_system" data-spy>generate_design_system</a>
+    </div>
+    <a href="#examples" data-spy>Examples</a>
+    <a href="#data-structure" data-spy>Data Structure</a>
+    <a href="#design-tokens" data-spy>Design Tokens</a>
+    <a href="#faq" data-spy>FAQ</a>
+  </div>
+  <div class="nav-foot">
+    <a href="#">v1.16 · GitHub ↗</a>
+  </div>
+</nav>
+
+<main class="main">
+
+  <header class="page-head">
+    <div>
+      <h1>Documentation</h1>
+      <p class="page-sub">Everything below is also what your agent reads.</p>
+    </div>
+    <a class="md-link" href="#" title="This page as plain markdown, for agents">docs.md ↗</a>
+  </header>
+
+  <!-- ================= GET STARTED ================= -->
+  <section id="get-started">
+    <p class="kicker">01</p>
+    <h2>Get Started</h2>
+    <p class="lede">RavenMCP is a design-intelligence MCP server. Install it, point your coding agent at it, and it audits pages/layouts/screens, generates design systems and tokens, and carries your taste across projects.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div>
+          <h3>Install</h3>
+          <p>One command, or add the server to your MCP client config by hand.</p>
+          <code class="inline-cmd">npx @ravenmcp/cli install</code>
+        </div>
+        <pre><span class="c">// manual config — .mcp.json</span>
+{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"raven"</span>: {
+      <span class="k">"command"</span>: <span class="s">"npx"</span>,
+      <span class="k">"args"</span>: [<span class="s">"-y"</span>, <span class="s">"raven-mcp"</span>]
+    }
+  }
+}</pre>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div>
+          <h3>Connect</h3>
+          <p>Restart your agent. Raven's 70 tools are now available.</p>
+        </div>
+        <pre><span class="c">$</span> <span class="cmd">raven doctor</span>
+<span class="s">✓</span> server reachable · <span class="s">✓</span> 70 tools registered
+<span class="s">✓</span> 9 knowledge layers loaded</pre>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div>
+          <h3>Use it</h3>
+          <p>Ask your agent to audit a page, generate a design system, or check contrast; it calls the right tool automatically.</p>
+        </div>
+        <pre><span class="c">›</span> <span class="cmd">"audit this pricing page for contrast issues"</span>
+<span class="c">→ raven.</span><span class="s">audit_contrast</span><span class="c"> · 2 findings · fixes attached</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= TOOL REFERENCE ================= -->
+  <section id="tool-reference">
+    <p class="kicker">02</p>
+    <h2>Tool Reference</h2>
+    <p class="lede">Raven provides 70 tools across 9 knowledge layers. Claude calls the relevant tool based on the task; the entries below show what each tool returns.</p>
+
+    <!-- ------- Principles Layer ------- -->
+    <div class="layer-head" style="margin-top:44px">
+      <span class="idx">LAYER 1 / 9</span>
+      <h3>Principles</h3>
+      <span class="count">3 of 8 tools shown</span>
+    </div>
+
+    <article class="tool" id="get_principles">
+      <div>
+        <div class="tool-id"><code>get_principles</code><a class="anchor" href="#get_principles" aria-label="Link to get_principles">#</a></div>
+        <p class="tool-desc">Get design principles relevant to a UI context. Returns usability heuristics, Laws of UX, Gestalt principles, accessibility rules, typography, color theory, mobile UX, and responsive layout.</p>
+        <div class="params">
+          <div class="params-label">Parameters</div>
+          <div class="param">
+            <div class="param-head"><code>context</code><span class="badge req">required</span><span class="badge">string</span></div>
+            <p>What you're designing — e.g. <code>"signup form"</code>, <code>"pricing page"</code>, <code>"mobile nav"</code>, <code>"dark dashboard"</code></p>
+          </div>
+          <div class="param">
+            <div class="param-head"><code>category</code><span class="badge">optional</span><span class="badge">string</span></div>
+            <p>Filter to: <code>nielsen-heuristics</code>, <code>laws-of-ux</code>, <code>gestalt</code>, <code>accessibility</code>, <code>typography</code>, <code>color-theory</code>, <code>mobile-ux</code>, <code>responsive-layout</code>, <code>d4d</code></p>
+          </div>
+          <div class="param">
+            <div class="param-head"><code>format</code><span class="badge">optional</span><span class="badge">string</span></div>
+            <p><code>"full"</code> (default) | <code>"checklist"</code> | <code>"brief"</code></p>
+          </div>
+        </div>
+      </div>
+      <aside class="wire" aria-label="Example">
+        <div class="wire-turn">
+          <div class="wire-role agent"><span class="dot"></span>you say</div>
+          <p class="ask">"Build a pricing page"</p>
+          <p class="ask">"What accessibility rules apply to forms?"</p>
+          <p class="ask">"Check this against Nielsen's heuristics"</p>
+        </div>
+        <div class="wire-turn">
+          <div class="wire-role raven"><span class="dot"></span>raven returns</div>
+          <pre>{
+  <span class="k">"principles"</span>: [
+    { <span class="k">"id"</span>: <span class="s">"lawsofux.hicks-law"</span>,
+      <span class="k">"applies"</span>: <span class="s">"limit visible plan
+        options to 3–4"</span> },
+    { <span class="k">"id"</span>: <span class="s">"a11y.focus-order"</span>, <span class="c">…</span> }
+  ],
+  <span class="k">"format"</span>: <span class="s">"checklist"</span>
+}</pre>
+        </div>
+      </aside>
+    </article>
+
+    <article class="tool" id="evaluate_design">
+      <div>
+        <div class="tool-id"><code>evaluate_design</code><a class="anchor" href="#evaluate_design" aria-label="Link to evaluate_design">#</a></div>
+        <p class="tool-desc">Evaluate a design description against UX principles. Returns relevant principles, potential violations, and improvement suggestions.</p>
+        <div class="params">
+          <div class="params-label">Parameters</div>
+          <div class="param">
+            <div class="param-head"><code>description</code><span class="badge req">required</span><span class="badge">string</span></div>
+            <p>Description of the design to evaluate</p>
+          </div>
+          <div class="param">
+            <div class="param-head"><code>context</code><span class="badge">optional</span><span class="badge">string</span></div>
+            <p>What the design is — e.g. <code>"pricing page for SaaS product"</code></p>
+          </div>
+          <div class="param">
+            <div class="param-head"><code>goals</code><span class="badge">optional</span><span class="badge">string[]</span></div>
+            <p>Array of evaluation goals — e.g. <code>["conversion", "accessibility", "mobile-usability"]</code></p>
+          </div>
+        </div>
+      </div>
+      <aside class="wire" aria-label="Example">
+        <div class="wire-turn">
+          <div class="wire-role agent"><span class="dot"></span>you say</div>
+          <p class="ask">"This signup form has 8 fields, no social login, and the button says Submit. Evaluate it for conversion."</p>
+        </div>
+        <div class="wire-turn">
+          <div class="wire-role raven"><span class="dot"></span>raven returns</div>
+          <pre>{
+  <span class="k">"violations"</span>: [
+    { <span class="k">"rule"</span>: <span class="s">"forms.field-count"</span>,
+      <span class="k">"note"</span>: <span class="s">"8 fields ≈ 2× the
+        conversion-optimal count"</span> },
+    { <span class="k">"rule"</span>: <span class="s">"cta.label-specificity"</span>,
+      <span class="k">"fix"</span>: <span class="s">"'Create account',
+        not 'Submit'"</span> }
+  ]
+}</pre>
+        </div>
+      </aside>
+    </article>
+
+    <article class="tool" id="get_d4d_framework">
+      <div>
+        <div class="tool-id"><code>get_d4d_framework</code><a class="anchor" href="#get_d4d_framework" aria-label="Link to get_d4d_framework">#</a></div>
+        <p class="tool-desc">Get Design for Delight (D4D) templates — customer problem statement, ideal state, hypothesis, LOFAs, and experiment design.</p>
+        <div class="params">
+          <div class="params-label">Parameters</div>
+          <div class="param">
+            <div class="param-head"><code>stage</code><span class="badge">optional</span><span class="badge">string</span></div>
+            <p><code>"frame"</code> | <code>"empathy"</code> | <code>"broad"</code> | <code>"narrow"</code> | <code>"experiment"</code></p>
+          </div>
+        </div>
+      </div>
+      <aside class="wire" aria-label="Example">
+        <div class="wire-turn">
+          <div class="wire-role agent"><span class="dot"></span>you say</div>
+          <p class="ask">"Frame the customer problem before we redesign onboarding"</p>
+        </div>
+        <div class="wire-turn">
+          <div class="wire-role raven"><span class="dot"></span>raven returns</div>
+          <pre>{
+  <span class="k">"stage"</span>: <span class="s">"frame"</span>,
+  <span class="k">"template"</span>: {
+    <span class="k">"problem_statement"</span>: <span class="s">"I am __,
+      trying to __, but __,
+      because __, which makes
+      me feel __"</span>,
+    <span class="k">"lofas"</span>: <span class="s">"2–4, falsifiable,
+      ordered by risk"</span>
+  }
+}</pre>
+        </div>
+      </aside>
+    </article>
+
+    <!-- ------- Audits Layer ------- -->
+    <div class="layer-head">
+      <span class="idx">LAYER 3 / 9</span>
+      <h3>Audits</h3>
+      <span class="count">2 of 14 tools shown</span>
+    </div>
+
+    <article class="tool" id="audit_contrast">
+      <div>
+        <div class="tool-id"><code>audit_contrast</code><a class="anchor" href="#audit_contrast" aria-label="Link to audit_contrast">#</a></div>
+        <p class="tool-desc">Check color pairs against WCAG contrast requirements. Returns pass/fail per pair with measured ratios and the nearest passing color for each failure.</p>
+        <div class="params">
+          <div class="params-label">Parameters</div>
+          <div class="param">
+            <div class="param-head"><code>pairs</code><span class="badge req">required</span><span class="badge">array</span></div>
+            <p>Foreground/background pairs — <code>[{ fg, bg, size? }]</code>. Accepts hex, rgb, or CSS custom property references when a page is attached.</p>
+          </div>
+          <div class="param">
+            <div class="param-head"><code>level</code><span class="badge">optional</span><span class="badge">string</span></div>
+            <p><code>"AA"</code> (default) | <code>"AAA"</code></p>
+          </div>
+        </div>
+      </div>
+      <aside class="wire" aria-label="Example">
+        <div class="wire-turn">
+          <div class="wire-role agent"><span class="dot"></span>you say</div>
+          <p class="ask">"Does #6b6b76 on #0a0a0d pass for body text?"</p>
+        </div>
+        <div class="wire-turn">
+          <div class="wire-role raven"><span class="dot"></span>raven returns</div>
+          <pre>{
+  <span class="k">"pairs"</span>: [{
+    <span class="k">"ratio"</span>: <span class="n">4.05</span>,
+    <span class="k">"required"</span>: <span class="n">4.5</span>,
+    <span class="k">"pass"</span>: <span class="c">false</span>,
+    <span class="k">"nearest_pass"</span>: <span class="s">"#747481"</span>
+  }]
+}</pre>
+        </div>
+      </aside>
+    </article>
+
+    <article class="tool" id="audit_page">
+      <div>
+        <div class="tool-id"><code>audit_page</code><a class="anchor" href="#audit_page" aria-label="Link to audit_page">#</a></div>
+        <p class="tool-desc">Full-page design audit of HTML/CSS — layout, hierarchy, spacing rhythm, contrast, tap targets, and responsive visibility in one pass. Returns ranked findings with a fix per finding.</p>
+        <div class="params">
+          <div class="params-label">Parameters</div>
+          <div class="param">
+            <div class="param-head"><code>html</code><span class="badge req">required</span><span class="badge">string</span></div>
+            <p>Page source, or a URL when the agent has fetch access</p>
+          </div>
+          <div class="param">
+            <div class="param-head"><code>viewport</code><span class="badge">optional</span><span class="badge">string</span></div>
+            <p><code>"desktop"</code> (default) | <code>"mobile"</code> | <code>"both"</code></p>
+          </div>
+          <div class="param">
+            <div class="param-head"><code>checks</code><span class="badge">optional</span><span class="badge">string[]</span></div>
+            <p>Restrict to specific check families — e.g. <code>["contrast", "tap-targets"]</code></p>
+          </div>
+        </div>
+      </div>
+      <aside class="wire" aria-label="Example">
+        <div class="wire-turn">
+          <div class="wire-role agent"><span class="dot"></span>you say</div>
+          <p class="ask">"Audit the checkout page on mobile before we ship"</p>
+        </div>
+        <div class="wire-turn">
+          <div class="wire-role raven"><span class="dot"></span>raven returns</div>
+          <pre>{
+  <span class="k">"summary"</span>: { <span class="k">"score"</span>: <span class="n">78</span>, <span class="k">"grade"</span>: <span class="s">"C+"</span> },
+  <span class="k">"findings"</span>: [
+    { <span class="k">"severity"</span>: <span class="s">"error"</span>,
+      <span class="k">"rule"</span>: <span class="s">"tap-target.min-size"</span>,
+      <span class="k">"location"</span>: <span class="s">".qty-stepper button"</span>,
+      <span class="k">"fix"</span>: <span class="s">"28px → 44px min"</span> },
+    <span class="c">… 5 more</span>
+  ]
+}</pre>
+        </div>
+      </aside>
+    </article>
+
+    <!-- ------- Systems Layer ------- -->
+    <div class="layer-head">
+      <span class="idx">LAYER 5 / 9</span>
+      <h3>Systems &amp; Tokens</h3>
+      <span class="count">1 of 9 tools shown</span>
+    </div>
+
+    <article class="tool" id="generate_design_system" style="border-bottom:1px solid var(--border)">
+      <div>
+        <div class="tool-id"><code>generate_design_system</code><a class="anchor" href="#generate_design_system" aria-label="Link to generate_design_system">#</a></div>
+        <p class="tool-desc">Generate a complete token set — color, type scale, spacing, radius — from a written brief or an existing brand. Bound taste profiles apply per-project overrides automatically.</p>
+        <div class="params">
+          <div class="params-label">Parameters</div>
+          <div class="param">
+            <div class="param-head"><code>brief</code><span class="badge req">required</span><span class="badge">string</span></div>
+            <p>What the system is for — product type, mood, constraints. A sentence is enough; more detail narrows the output.</p>
+          </div>
+          <div class="param">
+            <div class="param-head"><code>seed</code><span class="badge">optional</span><span class="badge">object</span></div>
+            <p>Existing brand values to honor — <code>{ colors?, fonts?, radius? }</code></p>
+          </div>
+          <div class="param">
+            <div class="param-head"><code>format</code><span class="badge">optional</span><span class="badge">string</span></div>
+            <p><code>"css-vars"</code> (default) | <code>"json"</code> | <code>"tailwind"</code></p>
+          </div>
+        </div>
+      </div>
+      <aside class="wire" aria-label="Example">
+        <div class="wire-turn">
+          <div class="wire-role agent"><span class="dot"></span>you say</div>
+          <p class="ask">"Generate tokens for a calm fintech dashboard, dark mode first"</p>
+        </div>
+        <div class="wire-turn">
+          <div class="wire-role raven"><span class="dot"></span>raven returns</div>
+          <pre><span class="c">:root</span> {
+  <span class="k">--bg-base</span>: <span class="s">#0b0e12</span>;
+  <span class="k">--text-primary</span>: <span class="s">#e8ebef</span>;
+  <span class="k">--accent</span>: <span class="s">#4f8fdb</span>;
+  <span class="k">--space-1</span>: <span class="s">4px</span>; <span class="c">/* ×1.5 scale */</span>
+  <span class="c">… 38 more tokens</span>
+}</pre>
+        </div>
+      </aside>
+    </article>
+  </section>
+
+  <!-- ================= EXAMPLES ================= -->
+  <section id="examples">
+    <p class="kicker">03</p>
+    <h2>Examples</h2>
+    <p class="lede">Three real exchanges. You talk to your agent; the agent talks to Raven. Nothing else to learn.</p>
+
+    <div class="transcript">
+      <div class="transcript-bar">exchange 01 · <span class="tool-chip">audit_contrast</span></div>
+      <div class="turn">
+        <div class="turn-role u">you</div>
+        <div class="turn-body"><span class="said">"Audit this pricing page for contrast issues."</span></div>
+      </div>
+      <div class="turn">
+        <div class="turn-role a">agent → raven</div>
+        <div class="turn-body">
+          <pre>audit_contrast({ <span class="k">pairs</span>: <span class="s">from page CSS</span>, <span class="k">level</span>: <span class="s">"AA"</span> })</pre>
+        </div>
+      </div>
+      <div class="turn">
+        <div class="turn-role r">raven → agent</div>
+        <div class="turn-body">
+          <div class="finding"><span class="sev err">error</span><span>3.1:1 on <span class="loc">.tier-note</span> — needs 4.5:1. Fix: lighten to <code style="font-size:12px;color:var(--accent-cyan)">#8a8a96</code></span></div>
+          <div class="finding"><span class="sev warn">warn</span><span>4.6:1 on <span class="loc">.badge-popular</span> — passes AA, fails AAA</span></div>
+          <div class="finding"><span class="sev info">info</span><span>7 pairs checked, 5 clean</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="transcript">
+      <div class="transcript-bar">exchange 02 · <span class="tool-chip">get_principles</span></div>
+      <div class="turn">
+        <div class="turn-role u">you</div>
+        <div class="turn-body"><span class="said">"What should I watch for in this signup form?"</span></div>
+      </div>
+      <div class="turn">
+        <div class="turn-role a">agent → raven</div>
+        <div class="turn-body">
+          <pre>get_principles({ <span class="k">context</span>: <span class="s">"signup form"</span>, <span class="k">format</span>: <span class="s">"checklist"</span> })</pre>
+        </div>
+      </div>
+      <div class="turn">
+        <div class="turn-role r">raven → agent</div>
+        <div class="turn-body">
+          <div class="finding"><span class="sev info">check</span><span>Label every field — placeholders are not labels</span></div>
+          <div class="finding"><span class="sev info">check</span><span>Inline validation on blur, not on submit</span></div>
+          <div class="finding"><span class="sev info">check</span><span>One column; multi-column forms test worse</span></div>
+          <div class="finding"><span class="sev info">check</span><span>CTA names the outcome: "Create account"</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="transcript">
+      <div class="transcript-bar">exchange 03 · <span class="tool-chip">generate_design_system</span></div>
+      <div class="turn">
+        <div class="turn-role u">you</div>
+        <div class="turn-body"><span class="said">"Set up tokens for the new marketing site — same brand, warmer."</span></div>
+      </div>
+      <div class="turn">
+        <div class="turn-role a">agent → raven</div>
+        <div class="turn-body">
+          <pre>generate_design_system({ <span class="k">brief</span>: <span class="s">"marketing site, warmer"</span>, <span class="k">seed</span>: { <span class="k">colors</span>: <span class="s">existing brand</span> } })</pre>
+        </div>
+      </div>
+      <div class="turn">
+        <div class="turn-role r">raven → agent</div>
+        <div class="turn-body">42 tokens written to <span class="loc">tokens.css</span> — hue shifted +8° warm, type scale and spacing preserved from the bound project profile.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= DATA STRUCTURE ================= -->
+  <section id="data-structure">
+    <p class="kicker">04</p>
+    <h2>Data Structure</h2>
+    <div class="split">
+      <div>
+        <p class="lede">Every audit returns a structured object: <code style="font-size:13px">findings[]</code> (each with severity, rule, location, fix), a summary score, and <code style="font-size:13px">calibration_hint</code> when a taste profile is bound.</p>
+        <div class="field-list">
+          <div class="field"><code>summary</code> — score 0–100, letter grade, counts by severity</div>
+          <div class="field"><code>findings[]</code> — one entry per issue; <code>fix</code> is always concrete enough for the agent to apply directly</div>
+          <div class="field"><code>calibration_hint</code> — present only when a taste profile is bound; explains what the profile changed about the verdict</div>
+        </div>
+      </div>
+      <div class="side">
+        <pre>{
+  <span class="k">"summary"</span>: {
+    <span class="k">"score"</span>: <span class="n">82</span>,
+    <span class="k">"grade"</span>: <span class="s">"B"</span>,
+    <span class="k">"counts"</span>: { <span class="k">"error"</span>: <span class="n">1</span>, <span class="k">"warning"</span>: <span class="n">3</span>, <span class="k">"info"</span>: <span class="n">2</span> }
+  },
+  <span class="k">"findings"</span>: [
+    {
+      <span class="k">"severity"</span>: <span class="s">"error"</span>,
+      <span class="k">"rule"</span>: <span class="s">"contrast.aa.normal-text"</span>,
+      <span class="k">"location"</span>: <span class="s">".pricing-tier .price-note"</span>,
+      <span class="k">"value"</span>: <span class="s">"3.1:1"</span>,
+      <span class="k">"required"</span>: <span class="s">"4.5:1"</span>,
+      <span class="k">"fix"</span>: <span class="s">"Raise --text-tertiary to #8a8a96 on this surface."</span>
+    }
+  ],
+  <span class="k">"calibration_hint"</span>: <span class="s">"Bound profile prefers hierarchy via weight over size — two findings suppressed."</span>
+}</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= DESIGN TOKENS ================= -->
+  <section id="design-tokens">
+    <p class="kicker">05</p>
+    <h2>Design Tokens</h2>
+    <div class="split">
+      <div>
+        <p class="lede">Raven generates a full token set — color, type, spacing, radius — from a brief or an existing brand. Bound taste profiles apply per-project overrides, so the same brief produces different tokens for different people.</p>
+        <div class="swatches" aria-hidden="true">
+          <div class="swatch" style="background:#0b0e12"><span>base</span></div>
+          <div class="swatch" style="background:#141922"><span>surface</span></div>
+          <div class="swatch" style="background:#4f8fdb"><span>accent</span></div>
+          <div class="swatch" style="background:#e8ebef"><span style="color:rgba(0,0,0,.6)">text</span></div>
+        </div>
+        <div class="field-list">
+          <div class="field"><code>color</code> — base/surface/raised backgrounds, three text tiers, one accent family</div>
+          <div class="field"><code>space</code> — a single multiplier scale; no orphan values</div>
+          <div class="field"><code>overrides</code> — what the bound profile changed, kept separate so they're auditable</div>
+        </div>
+      </div>
+      <div class="side">
+        <pre>{
+  <span class="k">"color"</span>: {
+    <span class="k">"bg-base"</span>: <span class="s">"#0b0e12"</span>,
+    <span class="k">"bg-surface"</span>: <span class="s">"#141922"</span>,
+    <span class="k">"text-primary"</span>: <span class="s">"#e8ebef"</span>,
+    <span class="k">"text-secondary"</span>: <span class="s">"#9aa3ad"</span>,
+    <span class="k">"accent"</span>: <span class="s">"#4f8fdb"</span>
+  },
+  <span class="k">"space"</span>: {
+    <span class="k">"1"</span>: <span class="s">"4px"</span>, <span class="k">"2"</span>: <span class="s">"8px"</span>, <span class="k">"3"</span>: <span class="s">"12px"</span>,
+    <span class="k">"4"</span>: <span class="s">"16px"</span>, <span class="k">"6"</span>: <span class="s">"24px"</span>, <span class="k">"8"</span>: <span class="s">"32px"</span>
+  },
+  <span class="k">"overrides"</span>: {
+    <span class="k">"source"</span>: <span class="s">"taste-profile:andrew"</span>,
+    <span class="k">"radius-md"</span>: <span class="s">"8px → 6px"</span>
+  }
+}</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FAQ ================= -->
+  <section id="faq">
+    <p class="kicker">06</p>
+    <h2>FAQ</h2>
+    <div class="faq">
+      <div class="qa">
+        <h3>Does this replace a design system?</h3>
+        <p>No. It enforces the one you have and helps generate one where you don't. Your tokens stay the source of truth.</p>
+      </div>
+      <div class="qa">
+        <h3>Does it work with any coding agent that supports MCP?</h3>
+        <p>Yes. Anything that speaks MCP — Claude Code, Cursor, Codex, Windsurf — gets the same 70 tools.</p>
+      </div>
+      <div class="qa">
+        <h3>Is my design data used to train models?</h3>
+        <p>No. Audits run against a local knowledge base; taste profiles live in your own storage and can be deleted at any time.</p>
+      </div>
+      <div class="qa">
+        <h3>What's the difference between the free and team tier?</h3>
+        <p>The free tier is the full open-source server, forever. The team tier adds shared taste profiles, a decision graph your whole team's agents consult, and admin controls.</p>
+      </div>
+      <div class="qa">
+        <h3>Can I self-host?</h3>
+        <p>Yes. The server is open source and runs locally over stdio by default — self-hosting is the default, not a tier.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+// scroll-spy: nav link reflects the last anchor scrolled past. rAF-throttled, no library.
+(function(){
+  var links = Array.prototype.slice.call(document.querySelectorAll('[data-spy]'));
+  var targets = links.map(function(a){ return document.getElementById(a.getAttribute('href').slice(1)); });
+  var ticking = false;
+  function update(){
+    ticking = false;
+    var current = null;
+    for (var i = 0; i < targets.length; i++){
+      if (targets[i] && targets[i].getBoundingClientRect().top <= 130) current = i;
+    }
+    links.forEach(function(a, i){ a.classList.toggle('active', i === current); });
+  }
+  addEventListener('scroll', function(){
+    if (!ticking){ ticking = true; requestAnimationFrame(update); }
+  }, { passive: true });
+  update();
+
+  // copy button on every fence
+  document.querySelectorAll('pre').forEach(function(pre){
+    var b = document.createElement('button');
+    b.className = 'copy'; b.type = 'button'; b.textContent = 'Copy';
+    b.addEventListener('click', function(){
+      navigator.clipboard.writeText(pre.innerText.replace(/^Copy\n?/,'')).then(function(){
+        b.textContent = 'Copied'; setTimeout(function(){ b.textContent = 'Copy'; }, 1400);
+      });
+    });
+    pre.appendChild(b);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,616 @@
+<!-- DIRECTION: Dual Register Field Manual — Treats the coding agent as a first-class reader: editorial field notes for humans run beside copyable machine packets for agents. It combines Stripe's reference density, Supabase's section-bounded sticky code, and Linear's quiet scroll hierarchy without becoming generic SaaS documentation. -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>RavenMCP Documentation — Dual Register · Raven tokens</title>
+  <style>
+    /* New --rd-ink and --rd-signal tones create a quieter field-manual register than the product accent palette while retaining Raven's near-black base. */
+    #raven-docs-v3 {
+      --text-primary: #F0F0F2;
+      --text-secondary: #9498A0;
+      --text-tertiary: #6b7078;
+      --text-accent: #00BFFF;
+      --bg-base: #1a1a22;
+      --bg-surface: #212129;
+      --bg-raised: #2a2a33;
+      --bg-accent-subtle: rgba(0, 191, 255, 0.06);
+      --bg-accent-hover: rgba(0, 191, 255, 0.14);
+      --border: rgba(255, 255, 255, 0.06);
+      --border-strong: rgba(255, 255, 255, 0.1);
+      --border-accent: rgba(0, 191, 255, 0.3);
+      --accent-blue: #00BFFF;
+      --accent-cyan: #00BFFF;
+      --accent-pink: #FF4081;
+      --rd-ink: #d8dae0;
+      --rd-signal: #FFAB40;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --radius-xl: 20px;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --space-10: 40px;
+      --space-12: 48px;
+      --space-16: 64px;
+      --space-20: 80px;
+      --font-body: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-editorial: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      --ease-out: cubic-bezier(.2,.8,.2,1);
+      --duration-normal: 180ms;
+      --duration-slow: 280ms;
+      min-height: 100vh;
+      color: var(--text-primary);
+      background: var(--bg-base);
+      font: 14px/1.62 var(--font-body);
+      text-rendering: optimizeLegibility;
+    }
+
+    #raven-docs-v3 *, #raven-docs-v3 *::before, #raven-docs-v3 *::after { box-sizing: border-box; }
+    #raven-docs-v3 a { color: inherit; }
+    #raven-docs-v3 button { font: inherit; }
+    #raven-docs-v3 code, #raven-docs-v3 pre { font-family: var(--font-mono); }
+    #raven-docs-v3 ::selection { background: var(--border-accent); color: var(--text-primary); }
+
+    #raven-docs-v3 .rd-header {
+      position: fixed;
+      inset: 0 0 auto 0;
+      z-index: 50;
+      height: 64px;
+      display: grid;
+      grid-template-columns: minmax(220px, 18vw) minmax(0, 1fr) minmax(250px, 21vw);
+      align-items: center;
+      background: color-mix(in srgb, var(--bg-base) 88%, transparent);
+      border-bottom: 1px solid transparent;
+      backdrop-filter: blur(16px);
+      transition: border-color var(--duration-normal) var(--ease-out), background var(--duration-normal) var(--ease-out);
+    }
+    #raven-docs-v3.rd-is-scrolled .rd-header { border-color: var(--border); background: color-mix(in srgb, var(--bg-base) 96%, transparent); }
+    #raven-docs-v3 .rd-brand {
+      height: 100%; display: flex; align-items: center; gap: var(--space-3); padding: 0 clamp(18px, 2.4vw, 38px); border-right: 1px solid var(--border);
+      text-decoration: none;
+    }
+    #raven-docs-v3 .rd-mark { width: 18px; height: 18px; position: relative; color: var(--accent-cyan); }
+    #raven-docs-v3 .rd-mark::before, #raven-docs-v3 .rd-mark::after { content: ""; position: absolute; background: currentColor; }
+    #raven-docs-v3 .rd-mark::before { width: 18px; height: 1px; top: 8px; left: 0; transform: rotate(-20deg); }
+    #raven-docs-v3 .rd-mark::after { width: 1px; height: 18px; top: 0; left: 8px; transform: rotate(20deg); }
+    #raven-docs-v3 .rd-brand strong { font-size: 13px; letter-spacing: .02em; }
+    #raven-docs-v3 .rd-brand span:last-child { color: var(--text-tertiary); font: 11px var(--font-mono); }
+    #raven-docs-v3 .rd-header-center { padding: 0 clamp(20px, 3vw, 52px); color: var(--text-tertiary); font: 11px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+    #raven-docs-v3 .rd-header-actions { height: 100%; display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); padding: 0 clamp(16px, 2vw, 32px); border-left: 1px solid var(--border); }
+    #raven-docs-v3 .rd-control {
+      min-height: 44px; padding: 0 var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-secondary); background: transparent; cursor: pointer; font-size: 13px;
+      transition: color var(--duration-normal) var(--ease-out), border-color var(--duration-normal) var(--ease-out), background var(--duration-normal) var(--ease-out);
+    }
+    #raven-docs-v3 .rd-control:hover { color: var(--text-primary); border-color: var(--border-strong); background: var(--bg-raised); }
+    #raven-docs-v3 .rd-control:focus-visible, #raven-docs-v3 a:focus-visible, #raven-docs-v3 summary:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }
+
+    #raven-docs-v3 .rd-progress { position: fixed; z-index: 60; top: 63px; left: 0; width: 100%; height: 1px; background: transparent; }
+    #raven-docs-v3 .rd-progress span { display: block; width: 0; height: 100%; background: var(--accent-cyan); }
+
+    #raven-docs-v3 .rd-nav {
+      position: fixed;
+      z-index: 40;
+      top: 64px;
+      bottom: 0;
+      left: 0;
+      width: clamp(220px, 18vw, 310px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      border-right: 1px solid var(--border);
+      background: var(--bg-base);
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-strong) transparent;
+    }
+    #raven-docs-v3 .rd-nav-inner { min-height: 100%; display: flex; flex-direction: column; padding: var(--space-10) clamp(18px, 2.4vw, 38px) var(--space-6); }
+    #raven-docs-v3 .rd-kicker { margin: 0 0 var(--space-4); color: var(--text-tertiary); font: 10px/1 var(--font-mono); letter-spacing: .16em; text-transform: uppercase; }
+    #raven-docs-v3 .rd-nav ol { margin: 0; padding: 0; list-style: none; }
+    #raven-docs-v3 .rd-nav li { position: relative; }
+    #raven-docs-v3 .rd-nav a { min-height: 44px; display: grid; grid-template-columns: 24px 1fr; align-items: center; color: var(--text-tertiary); text-decoration: none; transition: color var(--duration-normal) var(--ease-out); }
+    #raven-docs-v3 .rd-nav a:hover { color: var(--text-secondary); }
+    #raven-docs-v3 .rd-nav a[aria-current="true"] { color: var(--text-primary); }
+    #raven-docs-v3 .rd-nav a[aria-current="true"]::before { content: ""; position: absolute; left: calc(clamp(18px, 2.4vw, 38px) * -1); width: 2px; height: 20px; background: var(--accent-cyan); }
+    #raven-docs-v3 .rd-nav-num { color: var(--text-tertiary); font: 10px var(--font-mono); }
+    #raven-docs-v3 .rd-nav-label { font-size: 13px; }
+    #raven-docs-v3 .rd-nav-meta { margin-top: auto; padding-top: var(--space-10); color: var(--text-tertiary); font: 10px/1.6 var(--font-mono); }
+    #raven-docs-v3 .rd-nav-meta strong { display: block; color: var(--text-secondary); font-weight: 500; }
+
+    #raven-docs-v3 .rd-agent-rail {
+      position: fixed;
+      z-index: 35;
+      top: 64px;
+      right: 0;
+      bottom: 0;
+      width: clamp(250px, 21vw, 360px);
+      overflow-y: auto;
+      border-left: 1px solid var(--border);
+      background: var(--bg-surface);
+      padding: var(--space-10) clamp(18px, 2vw, 32px) var(--space-6);
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-strong) transparent;
+    }
+    #raven-docs-v3 .rd-reader-switch { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: var(--space-8); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px; }
+    #raven-docs-v3 .rd-reader-switch span { min-height: 36px; display: grid; place-items: center; color: var(--text-tertiary); font: 10px var(--font-mono); text-transform: uppercase; letter-spacing: .1em; }
+    #raven-docs-v3 .rd-reader-switch .rd-reader-on { color: var(--bg-base); background: var(--rd-ink); border-radius: 2px; }
+    #raven-docs-v3 .rd-agent-label { margin: 0 0 var(--space-3); color: var(--accent-cyan); font: 10px var(--font-mono); letter-spacing: .13em; text-transform: uppercase; }
+    #raven-docs-v3 .rd-agent-title { margin: 0 0 var(--space-4); font: 600 20px/1.2 var(--font-editorial); }
+    #raven-docs-v3 .rd-agent-copy { margin: 0 0 var(--space-6); color: var(--text-secondary); font-size: 13px; }
+    #raven-docs-v3 .rd-agent-packet { margin: 0 0 var(--space-8); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-base); }
+    #raven-docs-v3 .rd-agent-packet div { display: grid; grid-template-columns: 72px 1fr; gap: var(--space-3); padding: 6px 0; border-bottom: 1px solid var(--border); font: 10px/1.5 var(--font-mono); }
+    #raven-docs-v3 .rd-agent-packet div:last-child { border: 0; }
+    #raven-docs-v3 .rd-agent-packet dt { color: var(--text-tertiary); }
+    #raven-docs-v3 .rd-agent-packet dd { margin: 0; color: var(--text-secondary); overflow-wrap: anywhere; }
+    #raven-docs-v3 .rd-agent-command { color: var(--text-tertiary); font: 11px/1.7 var(--font-mono); }
+    #raven-docs-v3 .rd-agent-command code { color: var(--text-accent); }
+
+    #raven-docs-v3 .rd-main {
+      margin-left: clamp(220px, 18vw, 310px);
+      margin-right: clamp(250px, 21vw, 360px);
+      padding-top: 64px;
+    }
+    #raven-docs-v3 .rd-section { position: relative; border-bottom: 1px solid var(--border); scroll-margin-top: 64px; }
+    #raven-docs-v3 .rd-section-inner { width: min(100%, calc(1200px + 2 * clamp(28px, 5vw, 84px))); margin: 0 auto; padding: clamp(70px, 9vw, 132px) clamp(28px, 5vw, 84px); }
+    #raven-docs-v3 .rd-section-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-8); align-items: end; margin-bottom: var(--space-16); }
+    #raven-docs-v3 .rd-overline { display: flex; align-items: center; gap: var(--space-3); margin: 0 0 var(--space-5); color: var(--text-tertiary); font: 10px var(--font-mono); letter-spacing: .14em; text-transform: uppercase; }
+    #raven-docs-v3 .rd-overline::before { content: attr(data-index); color: var(--text-accent); }
+    #raven-docs-v3 h1, #raven-docs-v3 h2, #raven-docs-v3 h3, #raven-docs-v3 p { text-wrap: pretty; }
+    #raven-docs-v3 h1 { max-width: 940px; margin: 0; font: 600 clamp(42px, 6vw, 78px)/1.02 var(--font-editorial); letter-spacing: -.03em; }
+    #raven-docs-v3 h2 { margin: 0; font: 600 clamp(30px, 4vw, 48px)/1.06 var(--font-editorial); letter-spacing: -.025em; }
+    #raven-docs-v3 .rd-lede { max-width: 760px; margin: var(--space-8) 0 0; color: var(--rd-ink); font: 18px/1.6 var(--font-editorial); }
+    #raven-docs-v3 .rd-section-intro { max-width: 760px; margin: var(--space-5) 0 0; color: var(--text-secondary); font-size: 15px; }
+    #raven-docs-v3 .rd-section-route { align-self: start; color: var(--text-tertiary); font: 10px var(--font-mono); }
+
+    #raven-docs-v3 .rd-hero { display: flex; align-items: center; }
+    #raven-docs-v3 .rd-hero .rd-section-inner { padding-top: clamp(72px, 10vh, 120px); padding-bottom: clamp(56px, 8vh, 96px); }
+    #raven-docs-v3 .rd-hero-meta { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-10); }
+    #raven-docs-v3 .rd-chip { display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 999px; color: var(--text-tertiary); font: 10px var(--font-mono); }
+    #raven-docs-v3 .rd-chip-accent { color: var(--text-accent); border-color: var(--border-accent); background: var(--bg-accent-subtle); }
+
+    #raven-docs-v3 .rd-quickstart { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); margin: 0 0 var(--space-12); border-top: 1px solid var(--border-strong); border-bottom: 1px solid var(--border-strong); }
+    #raven-docs-v3 .rd-step { padding: var(--space-6) var(--space-5) var(--space-8) 0; }
+    #raven-docs-v3 .rd-step + .rd-step { padding-left: var(--space-5); border-left: 1px solid var(--border); }
+    #raven-docs-v3 .rd-step-num { color: var(--text-accent); font: 10px var(--font-mono); }
+    #raven-docs-v3 .rd-step h3 { margin: var(--space-4) 0 var(--space-2); font-size: 14px; }
+    #raven-docs-v3 .rd-step p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+    #raven-docs-v3 .rd-step code { color: var(--text-accent); font-size: 13px; overflow-wrap: anywhere; }
+
+    #raven-docs-v3 .rd-code-shell { position: relative; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-surface); overflow: hidden; }
+    #raven-docs-v3 .rd-code-top { min-height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 var(--space-4); border-bottom: 1px solid var(--border); color: var(--text-tertiary); font: 10px var(--font-mono); }
+    #raven-docs-v3 .rd-copy { min-width: 44px; min-height: 44px; padding: 0 var(--space-3); border: 0; color: var(--text-tertiary); background: transparent; cursor: pointer; font: 10px var(--font-mono); }
+    #raven-docs-v3 .rd-copy:hover { color: var(--text-primary); }
+    #raven-docs-v3 pre { margin: 0; padding: var(--space-5); overflow: auto; color: #c9ccd4; font-size: 13px; line-height: 1.7; tab-size: 2; }
+    #raven-docs-v3 .rd-code-key { color: var(--accent-cyan); }
+    #raven-docs-v3 .rd-code-string { color: var(--rd-signal); }
+    #raven-docs-v3 .rd-code-value { color: var(--accent-pink); }
+
+    #raven-docs-v3 .rd-layer-head { position: sticky; top: 64px; z-index: 15; display: flex; align-items: center; justify-content: space-between; min-height: 68px; margin: 0 calc(clamp(28px, 5vw, 84px) * -1) var(--space-8); padding: 0 clamp(28px, 5vw, 84px); background: linear-gradient(var(--bg-base) 72%, transparent); }
+    #raven-docs-v3 .rd-layer-head h3 { margin: 0; font: 14px var(--font-mono); font-weight: 500; }
+    #raven-docs-v3 .rd-layer-head span { color: var(--text-tertiary); font: 10px var(--font-mono); }
+    #raven-docs-v3 .rd-tool-list { border-top: 1px solid var(--border-strong); }
+    #raven-docs-v3 .rd-tool { position: relative; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(230px, .75fr); gap: clamp(28px, 5vw, 76px); padding: var(--space-16) 0; border-bottom: 1px solid var(--border); }
+    #raven-docs-v3 .rd-tool-name { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin: 0 0 var(--space-5); }
+    #raven-docs-v3 .rd-tool-name code { color: var(--text-primary); font-size: 19px; }
+    #raven-docs-v3 .rd-tool-anchor { order: -1; margin-left: -1.35em; width: 1.05em; color: var(--text-tertiary); text-decoration: none; font: 500 18px var(--font-mono); opacity: 0; transition: opacity .14s ease, color .14s ease; }
+    #raven-docs-v3 .rd-tool:hover .rd-tool-anchor, #raven-docs-v3 .rd-tool-anchor:focus-visible { opacity: 1; }
+    #raven-docs-v3 .rd-tool-anchor:hover { color: var(--text-accent); }
+    #raven-docs-v3 .rd-method { padding: 3px 7px; border: 1px solid var(--border-accent); border-radius: 999px; color: var(--text-accent); font: 9px var(--font-mono); letter-spacing: .08em; }
+    #raven-docs-v3 .rd-tool-desc { margin: 0 0 var(--space-8); color: var(--rd-ink); font: 16px/1.6 var(--font-editorial); }
+    #raven-docs-v3 .rd-param-heading { margin: 0 0 var(--space-2); color: var(--text-tertiary); font: 10px var(--font-mono); text-transform: uppercase; letter-spacing: .12em; }
+    #raven-docs-v3 .rd-params { margin: 0; }
+    #raven-docs-v3 .rd-param { padding: var(--space-4) 0; border-top: 1px solid var(--border); }
+    #raven-docs-v3 .rd-param dt { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: 6px; }
+    #raven-docs-v3 .rd-param dt code { color: var(--text-primary); font-size: 13px; font-weight: 600; }
+    #raven-docs-v3 .rd-type, #raven-docs-v3 .rd-required, #raven-docs-v3 .rd-optional { padding: 2px 6px; border-radius: 999px; font: 9px var(--font-mono); }
+    #raven-docs-v3 .rd-type { color: var(--accent-blue); background: color-mix(in srgb, var(--accent-blue) 10%, transparent); }
+    #raven-docs-v3 .rd-required { color: var(--text-accent); background: color-mix(in srgb, var(--text-accent) 12%, transparent); }
+    #raven-docs-v3 .rd-optional { color: var(--text-tertiary); background: var(--bg-raised); }
+    #raven-docs-v3 .rd-param dd { margin: 0; color: var(--text-secondary); font-size: 13px; }
+    #raven-docs-v3 .rd-schema { margin-top: var(--space-3); border-left: 1px solid var(--border-strong); padding-left: var(--space-3); }
+    #raven-docs-v3 .rd-schema summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--text-tertiary); font: 10px var(--font-mono); list-style: none; }
+    #raven-docs-v3 .rd-schema summary::-webkit-details-marker { display: none; }
+    #raven-docs-v3 .rd-schema summary:hover { color: var(--text-secondary); }
+    #raven-docs-v3 .rd-schema summary::before { content: "+"; width: 20px; color: var(--accent-cyan); }
+    #raven-docs-v3 .rd-schema[open] summary::before { content: "−"; }
+    #raven-docs-v3 .rd-example-inline { margin-top: var(--space-8); padding-top: var(--space-4); border-top: 1px solid var(--border); }
+    #raven-docs-v3 .rd-example-inline strong { display: block; margin-bottom: var(--space-2); color: var(--text-tertiary); font: 10px var(--font-mono); text-transform: uppercase; letter-spacing: .1em; }
+    #raven-docs-v3 .rd-example-inline p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+    #raven-docs-v3 .rd-tool-code { position: sticky; top: 148px; align-self: start; max-height: calc(100vh - 180px); overflow: auto; }
+    #raven-docs-v3 .rd-tool-code .rd-code-shell { border-color: var(--border-strong); }
+
+    #raven-docs-v3 .rd-transcripts { display: grid; gap: var(--space-12); }
+    #raven-docs-v3 .rd-transcript { display: grid; grid-template-columns: minmax(190px,.55fr) minmax(0,1.45fr); gap: clamp(28px, 5vw, 72px); padding-top: var(--space-8); border-top: 1px solid var(--border-strong); }
+    #raven-docs-v3 .rd-prompt-label { margin: 0 0 var(--space-3); color: var(--text-tertiary); font: 10px var(--font-mono); text-transform: uppercase; letter-spacing: .12em; }
+    #raven-docs-v3 .rd-prompt { margin: 0; color: var(--rd-ink); font: 16px/1.55 var(--font-editorial); }
+    #raven-docs-v3 .rd-call { display: inline-flex; align-items: center; min-height: 28px; margin-top: var(--space-4); padding: 0 9px; border: 1px solid var(--border-accent); border-radius: 999px; color: var(--text-accent); font: 9px var(--font-mono); }
+    #raven-docs-v3 .rd-findings { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--border); }
+    #raven-docs-v3 .rd-finding { display: grid; grid-template-columns: 74px 1fr; gap: var(--space-3); padding: var(--space-4) 0; border-bottom: 1px solid var(--border); }
+    #raven-docs-v3 .rd-severity { font: 9px var(--font-mono); text-transform: uppercase; letter-spacing: .08em; }
+    #raven-docs-v3 .rd-severity-high { color: var(--accent-pink); }
+    #raven-docs-v3 .rd-severity-medium { color: var(--rd-signal); }
+    #raven-docs-v3 .rd-severity-info { color: var(--accent-cyan); }
+    #raven-docs-v3 .rd-finding p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+    #raven-docs-v3 .rd-score { display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-4); }
+    #raven-docs-v3 .rd-score strong { font: 600 32px var(--font-editorial); }
+    #raven-docs-v3 .rd-score span { color: var(--text-tertiary); font: 10px var(--font-mono); }
+
+    #raven-docs-v3 .rd-split { display: grid; grid-template-columns: minmax(0,.8fr) minmax(300px,1.2fr); gap: clamp(36px, 7vw, 104px); align-items: start; }
+    #raven-docs-v3 .rd-note { padding-left: var(--space-5); border-left: 1px solid var(--border-accent); color: var(--text-secondary); font-size: 13px; }
+    #raven-docs-v3 .rd-token-map { display: grid; gap: var(--space-3); margin-top: var(--space-8); }
+    #raven-docs-v3 .rd-token-row { display: grid; grid-template-columns: 90px 1fr auto; align-items: center; gap: var(--space-3); min-height: 44px; border-bottom: 1px solid var(--border); color: var(--text-tertiary); font: 10px var(--font-mono); }
+    #raven-docs-v3 .rd-swatch { height: 5px; border-radius: 99px; }
+
+    #raven-docs-v3 .rd-faq { border-top: 1px solid var(--border-strong); }
+    #raven-docs-v3 .rd-faq details { border-bottom: 1px solid var(--border); }
+    #raven-docs-v3 .rd-faq summary { min-height: 76px; display: grid; grid-template-columns: 1fr 24px; align-items: center; gap: var(--space-6); cursor: pointer; list-style: none; color: var(--rd-ink); font: 500 16px var(--font-editorial); }
+    #raven-docs-v3 .rd-faq summary::-webkit-details-marker { display: none; }
+    #raven-docs-v3 .rd-faq summary:hover { color: var(--text-primary); }
+    #raven-docs-v3 .rd-faq summary:hover::after { color: var(--text-accent); }
+    #raven-docs-v3 .rd-faq summary::after { content: "+"; justify-self: end; color: var(--text-tertiary); font: 16px var(--font-mono); }
+    #raven-docs-v3 .rd-faq details[open] summary::after { content: "−"; color: var(--accent-cyan); }
+    #raven-docs-v3 .rd-faq p { max-width: 680px; margin: -6px 0 var(--space-6); color: var(--text-secondary); }
+    #raven-docs-v3 .rd-footer { display: flex; justify-content: space-between; gap: var(--space-5); padding-top: var(--space-16); color: var(--text-tertiary); font: 10px var(--font-mono); }
+
+    #raven-docs-v3 .rd-mobile-nav { display: none; }
+
+    @media (max-width: 1180px) {
+      #raven-docs-v3 .rd-header { grid-template-columns: clamp(220px, 24vw, 270px) 1fr; }
+      #raven-docs-v3 .rd-header-actions { display: none; }
+      #raven-docs-v3 .rd-nav { width: clamp(220px, 24vw, 270px); }
+      #raven-docs-v3 .rd-main { margin-left: clamp(220px, 24vw, 270px); margin-right: 0; }
+      #raven-docs-v3 .rd-agent-rail { position: relative; inset: auto; width: auto; overflow: visible; border-left: 0; border-bottom: 1px solid var(--border); margin-left: clamp(220px, 24vw, 270px); padding: var(--space-8) clamp(28px, 5vw, 84px); display: grid; grid-template-columns: 1fr 1.2fr; gap: var(--space-8); }
+      #raven-docs-v3 .rd-reader-switch { display: none; }
+      #raven-docs-v3 .rd-agent-packet { margin: 0; }
+      #raven-docs-v3 .rd-agent-command { display: none; }
+    }
+
+    @media (max-width: 760px) {
+      #raven-docs-v3 .rd-header { height: 58px; grid-template-columns: 1fr auto; }
+      #raven-docs-v3 .rd-brand { border-right: 0; padding: 0 var(--space-4); }
+      #raven-docs-v3 .rd-header-center { padding: 0 var(--space-4); }
+      #raven-docs-v3 .rd-progress { top: 57px; }
+      #raven-docs-v3 .rd-nav { display: none; }
+      #raven-docs-v3 .rd-mobile-nav { display: block; position: fixed; z-index: 45; top: 58px; left: 0; right: 0; height: 48px; overflow-x: auto; background: color-mix(in srgb, var(--bg-base) 96%, transparent); border-bottom: 1px solid var(--border); scrollbar-width: none; }
+      #raven-docs-v3 .rd-mobile-nav::-webkit-scrollbar { display: none; }
+      #raven-docs-v3 .rd-mobile-nav ol { display: flex; width: max-content; margin: 0; padding: 0 var(--space-3); list-style: none; }
+      #raven-docs-v3 .rd-mobile-nav a { min-height: 48px; display: flex; align-items: center; padding: 0 var(--space-3); color: var(--text-tertiary); text-decoration: none; font: 10px var(--font-mono); }
+      #raven-docs-v3 .rd-mobile-nav a[aria-current="true"] { color: var(--text-primary); }
+      #raven-docs-v3 .rd-agent-rail { margin: 106px 0 0; grid-template-columns: 1fr; padding: var(--space-6) var(--space-5); }
+      #raven-docs-v3 .rd-agent-title, #raven-docs-v3 .rd-agent-copy { display: none; }
+      #raven-docs-v3 .rd-main { margin: 0; padding-top: 0; }
+      #raven-docs-v3 .rd-section { scroll-margin-top: 106px; }
+      #raven-docs-v3 .rd-section-inner { padding: var(--space-16) var(--space-5); }
+      #raven-docs-v3 .rd-hero { min-height: auto; }
+      #raven-docs-v3 h1 { font-size: clamp(42px, 14vw, 62px); }
+      #raven-docs-v3 .rd-section-head { grid-template-columns: 1fr; margin-bottom: var(--space-10); }
+      #raven-docs-v3 .rd-section-route { display: none; }
+      #raven-docs-v3 .rd-quickstart { grid-template-columns: 1fr; }
+      #raven-docs-v3 .rd-step, #raven-docs-v3 .rd-step + .rd-step { padding: var(--space-5) 0; border-left: 0; border-top: 1px solid var(--border); }
+      #raven-docs-v3 .rd-step:first-child { border-top: 0; }
+      #raven-docs-v3 .rd-layer-head { top: 106px; margin-left: calc(var(--space-5) * -1); margin-right: calc(var(--space-5) * -1); padding: 0 var(--space-5); }
+      #raven-docs-v3 .rd-tool { grid-template-columns: 1fr; gap: var(--space-6); padding: var(--space-10) 0; }
+      #raven-docs-v3 .rd-tool-code { position: relative; top: auto; max-height: none; }
+      #raven-docs-v3 .rd-transcript, #raven-docs-v3 .rd-split { grid-template-columns: 1fr; }
+      #raven-docs-v3 .rd-finding { grid-template-columns: 64px 1fr; }
+      #raven-docs-v3 .rd-footer { flex-direction: column; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #raven-docs-v3 *, #raven-docs-v3 *::before, #raven-docs-v3 *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;background:#1a1a22">
+<div id="raven-docs-v3">
+  <header class="rd-header">
+    <a class="rd-brand" href="#get-started" aria-label="RavenMCP documentation home"><span class="rd-mark" aria-hidden="true"></span><strong>RavenMCP</strong><span>/ docs</span></a>
+    <div class="rd-header-center" id="rd-current-title">Get Started · 01/06</div>
+    <div class="rd-header-actions"><button class="rd-control" id="rd-copy-section" type="button">Copy section as markdown</button></div>
+  </header>
+  <div class="rd-progress" aria-hidden="true"><span id="rd-progress-bar"></span></div>
+
+  <nav class="rd-nav" aria-label="Documentation sections">
+    <div class="rd-nav-inner">
+      <p class="rd-kicker">Field index / 06</p>
+      <ol>
+        <li><a href="#get-started" aria-current="true"><span class="rd-nav-num">01</span><span class="rd-nav-label">Get Started</span></a></li>
+        <li><a href="#tool-reference"><span class="rd-nav-num">02</span><span class="rd-nav-label">Tool Reference</span></a></li>
+        <li><a href="#examples"><span class="rd-nav-num">03</span><span class="rd-nav-label">Examples</span></a></li>
+        <li><a href="#data-structure"><span class="rd-nav-num">04</span><span class="rd-nav-label">Data Structure</span></a></li>
+        <li><a href="#design-tokens"><span class="rd-nav-num">05</span><span class="rd-nav-label">Design Tokens</span></a></li>
+        <li><a href="#faq"><span class="rd-nav-num">06</span><span class="rd-nav-label">FAQ</span></a></li>
+      </ol>
+      <div class="rd-nav-meta"><strong>70 tools · 9 layers</strong>Human-readable / agent-addressable<br>Direct file · no runtime required</div>
+    </div>
+  </nav>
+
+  <nav class="rd-mobile-nav" aria-label="Documentation sections on mobile">
+    <ol>
+      <li><a href="#get-started" aria-current="true">01 Start</a></li><li><a href="#tool-reference">02 Tools</a></li><li><a href="#examples">03 Examples</a></li><li><a href="#data-structure">04 Data</a></li><li><a href="#design-tokens">05 Tokens</a></li><li><a href="#faq">06 FAQ</a></li>
+    </ol>
+  </nav>
+
+  <aside class="rd-agent-rail" aria-label="Agent reading rail">
+    <div>
+      <div class="rd-reader-switch" aria-label="Documentation supports human and agent readers"><span>Human</span><span class="rd-reader-on">Agent</span></div>
+      <p class="rd-agent-label">Machine register</p>
+      <h2 class="rd-agent-title">Give the agent the same page.</h2>
+      <p class="rd-agent-copy">Section anchors, compact schemas, and copyable packets keep the documentation useful inside a coding session.</p>
+    </div>
+    <dl class="rd-agent-packet">
+      <div><dt>section</dt><dd id="rd-packet-section">get-started</dd></div>
+      <div><dt>intent</dt><dd id="rd-packet-intent">install_connect_use</dd></div>
+      <div><dt>format</dt><dd>html + markdown-copy</dd></div>
+      <div><dt>tools</dt><dd>70 / 9 layers</dd></div>
+    </dl>
+    <p class="rd-agent-command">Agent route<br><code id="rd-agent-route">/docs.md#get-started</code></p>
+  </aside>
+
+  <main class="rd-main">
+    <section class="rd-section rd-hero" id="get-started" data-title="Get Started" data-intent="install_connect_use">
+      <div class="rd-section-inner">
+        <p class="rd-overline" data-index="01">Orientation</p>
+        <h1>Design judgment,<br>available at the prompt.</h1>
+        <p class="rd-lede">RavenMCP is a design-intelligence MCP server. Install it, point your coding agent at it, and it audits pages/layouts/screens, generates design systems and tokens, and carries your taste across projects.</p>
+      </div>
+    </section>
+
+    <section class="rd-section" id="quickstart" data-title="Get Started" data-intent="manual_configuration">
+      <div class="rd-section-inner">
+        <div class="rd-section-head"><div><p class="rd-overline" data-index="01A">Quickstart</p><h2>Three moves.</h2></div><span class="rd-section-route">route / install</span></div>
+        <div class="rd-quickstart">
+          <article class="rd-step"><span class="rd-step-num">01</span><h3>Install</h3><p><code>npx @ravenmcp/cli install</code> (or add to your MCP client config manually)</p></article>
+          <article class="rd-step"><span class="rd-step-num">02</span><h3>Connect</h3><p>restart your agent, Raven's 70 tools are now available</p></article>
+          <article class="rd-step"><span class="rd-step-num">03</span><h3>Use it</h3><p>ask your agent to audit a page, generate a design system, or check contrast; it calls the right tool automatically.</p></article>
+        </div>
+        <div class="rd-code-shell"><div class="rd-code-top"><span>mcp-client.json · manual config</span><button class="rd-copy" type="button" data-copy>Copy</button></div><pre><code>{
+  <span class="rd-code-key">"mcpServers"</span>: {
+    <span class="rd-code-key">"ravenmcp"</span>: {
+      <span class="rd-code-key">"command"</span>: <span class="rd-code-string">"npx"</span>,
+      <span class="rd-code-key">"args"</span>: [<span class="rd-code-string">"-y"</span>, <span class="rd-code-string">"@ravenmcp/server"</span>]
+    }
+  }
+}</code></pre></div>
+      </div>
+    </section>
+
+    <section class="rd-section" id="tool-reference" data-title="Tool Reference" data-intent="inspect_tool_contracts">
+      <div class="rd-section-inner">
+        <div class="rd-section-head"><div><p class="rd-overline" data-index="02">Reference</p><h2>Tool Reference</h2><p class="rd-section-intro">Raven provides 70 tools across 9 knowledge layers. Claude calls the relevant tool based on the task; the cards below show what each tool returns.</p></div><span class="rd-section-route">route / tools</span></div>
+        <div class="rd-layer-head"><h3>Principles Layer</h3><span>06 selected / 70 total <button class="rd-control" id="rd-expand-schemas" type="button">Expand schemas</button></span></div>
+        <div class="rd-tool-list">
+          <article class="rd-tool" id="tool-get-principles">
+            <div class="rd-tool-body"><h3 class="rd-tool-name"><a class="rd-tool-anchor" href="#tool-get-principles" aria-label="Link to get-principles">#</a><code>get_principles</code><span class="rd-method">READ</span></h3><p class="rd-tool-desc">Get design principles relevant to a UI context. Returns usability heuristics, Laws of UX, Gestalt principles, accessibility rules, typography, color theory, mobile UX, and responsive layout.</p><p class="rd-param-heading">Parameters</p><dl class="rd-params">
+              <div class="rd-param"><dt><code>context</code><span class="rd-type">string</span><span class="rd-required">required</span></dt><dd>What you're designing — e.g. "signup form", "pricing page", "mobile nav", "dark dashboard"</dd></div>
+              <div class="rd-param"><dt><code>category</code><span class="rd-type">enum</span><span class="rd-optional">optional</span></dt><dd>Filter to: nielsen-heuristics, laws-of-ux, gestalt, accessibility, typography, color-theory, mobile-ux, responsive-layout, d4d</dd><details class="rd-schema"><summary>show 9 accepted values</summary><div class="rd-note">nielsen-heuristics · laws-of-ux · gestalt · accessibility · typography · color-theory · mobile-ux · responsive-layout · d4d</div></details></div>
+              <div class="rd-param"><dt><code>format</code><span class="rd-type">enum</span><span class="rd-optional">optional</span></dt><dd>"full" (default) | "checklist" | "brief"</dd></div>
+            </dl><div class="rd-example-inline"><strong>Example usage</strong><p>"Build a pricing page" / "What accessibility rules apply to forms?" / "Check this against Nielsen's heuristics"</p></div></div>
+            <aside class="rd-tool-code"><div class="rd-code-shell"><div class="rd-code-top"><span>agent call</span><button class="rd-copy" type="button" data-copy>Copy</button></div><pre><code><span class="rd-code-key">tool</span>: <span class="rd-code-string">get_principles</span>
+<span class="rd-code-key">arguments</span>:
+  <span class="rd-code-key">context</span>: <span class="rd-code-string">"dark pricing page"</span>
+  <span class="rd-code-key">category</span>: <span class="rd-code-string">"accessibility"</span>
+  <span class="rd-code-key">format</span>: <span class="rd-code-string">"checklist"</span></code></pre></div></aside>
+          </article>
+
+          <article class="rd-tool" id="tool-evaluate-design">
+            <div class="rd-tool-body"><h3 class="rd-tool-name"><a class="rd-tool-anchor" href="#tool-evaluate-design" aria-label="Link to evaluate-design">#</a><code>evaluate_design</code><span class="rd-method">EVALUATE</span></h3><p class="rd-tool-desc">Evaluate a design description against UX principles. Returns relevant principles, potential violations, and improvement suggestions.</p><p class="rd-param-heading">Parameters</p><dl class="rd-params">
+              <div class="rd-param"><dt><code>description</code><span class="rd-type">string</span><span class="rd-required">required</span></dt><dd>Description of the design to evaluate</dd></div>
+              <div class="rd-param"><dt><code>context</code><span class="rd-type">string</span><span class="rd-optional">optional</span></dt><dd>What the design is — e.g. "pricing page for SaaS product"</dd></div>
+              <div class="rd-param"><dt><code>goals</code><span class="rd-type">string[]</span><span class="rd-optional">optional</span></dt><dd>Array of evaluation goals — e.g. ["conversion", "accessibility", "mobile-usability"]</dd><details class="rd-schema"><summary>show child schema</summary><div class="rd-note">Each item is a plain-language evaluation goal. Multiple goals are evaluated independently and summarized together.</div></details></div>
+            </dl><div class="rd-example-inline"><strong>Example usage</strong><p>"This signup form has 8 fields, no social login, and the button says Submit. Evaluate it for conversion."</p></div></div>
+            <aside class="rd-tool-code"><div class="rd-code-shell"><div class="rd-code-top"><span>agent call</span><button class="rd-copy" type="button" data-copy>Copy</button></div><pre><code><span class="rd-code-key">tool</span>: <span class="rd-code-string">evaluate_design</span>
+<span class="rd-code-key">arguments</span>:
+  <span class="rd-code-key">description</span>: <span class="rd-code-string">"8-field signup…"</span>
+  <span class="rd-code-key">goals</span>:
+    - <span class="rd-code-string">conversion</span>
+    - <span class="rd-code-string">accessibility</span></code></pre></div></aside>
+          </article>
+
+          <article class="rd-tool" id="tool-get-d4d">
+            <div class="rd-tool-body"><h3 class="rd-tool-name"><a class="rd-tool-anchor" href="#tool-get-d4d" aria-label="Link to get-d4d">#</a><code>get_d4d_framework</code><span class="rd-method">READ</span></h3><p class="rd-tool-desc">Get Design for Delight (D4D) templates — customer problem statement, ideal state, hypothesis, LOFAs, and experiment design.</p><p class="rd-param-heading">Parameters</p><dl class="rd-params">
+              <div class="rd-param"><dt><code>stage</code><span class="rd-type">enum</span><span class="rd-optional">optional</span></dt><dd>"frame" | "empathy" | "broad" | "narrow" | "experiment"</dd><details class="rd-schema"><summary>show stage outputs</summary><div class="rd-note">frame → customer problem · empathy → observations · broad → options · narrow → selection · experiment → hypothesis and decision rule</div></details></div>
+            </dl><div class="rd-example-inline"><strong>Example usage</strong><p>"Frame a D4D problem statement for a first-time admin configuring SSO."</p></div></div>
+            <aside class="rd-tool-code"><div class="rd-code-shell"><div class="rd-code-top"><span>agent call</span><button class="rd-copy" type="button" data-copy>Copy</button></div><pre><code><span class="rd-code-key">tool</span>: <span class="rd-code-string">get_d4d_framework</span>
+<span class="rd-code-key">arguments</span>:
+  <span class="rd-code-key">stage</span>: <span class="rd-code-string">"frame"</span></code></pre></div></aside>
+          </article>
+
+          <article class="rd-tool" id="tool-audit-page">
+            <div class="rd-tool-body"><h3 class="rd-tool-name"><a class="rd-tool-anchor" href="#tool-audit-page" aria-label="Link to audit-page">#</a><code>audit_page</code><span class="rd-method">AUDIT</span></h3><p class="rd-tool-desc">Audit a rendered web page for hierarchy, contrast, spacing, responsive behavior, accessibility, and interaction quality. Returns located findings with severity and actionable fixes.</p><p class="rd-param-heading">Parameters</p><dl class="rd-params">
+              <div class="rd-param"><dt><code>url</code><span class="rd-type">url</span><span class="rd-required">required</span></dt><dd>The public or local page to inspect</dd></div>
+              <div class="rd-param"><dt><code>viewport</code><span class="rd-type">object</span><span class="rd-optional">optional</span></dt><dd>Width, height, and device scale for the rendered audit</dd><details class="rd-schema"><summary>show 3 child parameters</summary><dl class="rd-params"><div class="rd-param"><dt><code>width</code><span class="rd-type">number</span></dt><dd>Viewport width in CSS pixels</dd></div><div class="rd-param"><dt><code>height</code><span class="rd-type">number</span></dt><dd>Viewport height in CSS pixels</dd></div><div class="rd-param"><dt><code>device_scale</code><span class="rd-type">number</span></dt><dd>Device pixel ratio</dd></div></dl></details></div>
+              <div class="rd-param"><dt><code>checks</code><span class="rd-type">string[]</span><span class="rd-optional">optional</span></dt><dd>Limit the audit to contrast, layout, typography, accessibility, responsive, or motion</dd></div>
+            </dl><div class="rd-example-inline"><strong>Example usage</strong><p>"Audit this pricing page at mobile and desktop widths. Prioritize contrast and tap targets."</p></div></div>
+            <aside class="rd-tool-code"><div class="rd-code-shell"><div class="rd-code-top"><span>agent call</span><button class="rd-copy" type="button" data-copy>Copy</button></div><pre><code><span class="rd-code-key">tool</span>: <span class="rd-code-string">audit_page</span>
+<span class="rd-code-key">arguments</span>:
+  <span class="rd-code-key">url</span>: <span class="rd-code-string">"http://localhost:3000/pricing"</span>
+  <span class="rd-code-key">viewport</span>: { <span class="rd-code-key">width</span>: <span class="rd-code-value">390</span>, <span class="rd-code-key">height</span>: <span class="rd-code-value">844</span> }
+  <span class="rd-code-key">checks</span>: [<span class="rd-code-string">"contrast"</span>, <span class="rd-code-string">"responsive"</span>]</code></pre></div></aside>
+          </article>
+
+          <article class="rd-tool" id="tool-generate-system">
+            <div class="rd-tool-body"><h3 class="rd-tool-name"><a class="rd-tool-anchor" href="#tool-generate-system" aria-label="Link to generate-system">#</a><code>generate_design_system</code><span class="rd-method">GENERATE</span></h3><p class="rd-tool-desc">Generate a cohesive design system from a product brief or existing brand. Returns semantic color, type, spacing, radius, elevation, and component guidance.</p><p class="rd-param-heading">Parameters</p><dl class="rd-params">
+              <div class="rd-param"><dt><code>brief</code><span class="rd-type">string</span><span class="rd-required">required</span></dt><dd>Product, audience, tone, and constraints for the system</dd></div>
+              <div class="rd-param"><dt><code>brand</code><span class="rd-type">object</span><span class="rd-optional">optional</span></dt><dd>Existing colors, type choices, logos, and voice attributes to preserve</dd><details class="rd-schema"><summary>show abbreviated object · 4 fields</summary><div class="rd-note">{ colors, typefaces, assets, voice }</div></details></div>
+              <div class="rd-param"><dt><code>platforms</code><span class="rd-type">enum[]</span><span class="rd-optional">optional</span></dt><dd>Target platforms: web, ios, android, figma</dd></div>
+            </dl><div class="rd-example-inline"><strong>Example usage</strong><p>"Generate a token system for a clinical scheduling tool. Quiet, high-trust, dense desktop workflows."</p></div></div>
+            <aside class="rd-tool-code"><div class="rd-code-shell"><div class="rd-code-top"><span>agent call</span><button class="rd-copy" type="button" data-copy>Copy</button></div><pre><code><span class="rd-code-key">tool</span>: <span class="rd-code-string">generate_design_system</span>
+<span class="rd-code-key">arguments</span>:
+  <span class="rd-code-key">brief</span>: <span class="rd-code-string">"Clinical scheduling…"</span>
+  <span class="rd-code-key">platforms</span>: [<span class="rd-code-string">"web"</span>, <span class="rd-code-string">"figma"</span>]</code></pre></div></aside>
+          </article>
+
+          <article class="rd-tool" id="tool-audit-service">
+            <div class="rd-tool-body"><h3 class="rd-tool-name"><a class="rd-tool-anchor" href="#tool-audit-service" aria-label="Link to audit-service">#</a><code>audit_service_blueprint</code><span class="rd-method">AUDIT</span></h3><p class="rd-tool-desc">Evaluate a service blueprint across customer actions, frontstage interactions, backstage processes, handoffs, and failure recovery. Returns gaps, ownership risks, and opportunities by journey stage.</p><p class="rd-param-heading">Parameters</p><dl class="rd-params">
+              <div class="rd-param"><dt><code>blueprint</code><span class="rd-type">object</span><span class="rd-required">required</span></dt><dd>Journey stages with customer, frontstage, backstage, support, and evidence lanes</dd><details class="rd-schema"><summary>show abbreviated object · 5 lanes</summary><div class="rd-note">{ customer_actions, frontstage, backstage, support_processes, evidence }</div></details></div>
+              <div class="rd-param"><dt><code>focus</code><span class="rd-type">enum[]</span><span class="rd-optional">optional</span></dt><dd>Filter to handoffs, recovery, trust, accessibility, or operational load</dd></div>
+              <div class="rd-param"><dt><code>persona</code><span class="rd-type">string</span><span class="rd-optional">optional</span></dt><dd>The specific customer perspective used to judge the service</dd></div>
+            </dl><div class="rd-example-inline"><strong>Example usage</strong><p>"Audit the returns journey for handoff gaps between the store, carrier, and support team."</p></div></div>
+            <aside class="rd-tool-code"><div class="rd-code-shell"><div class="rd-code-top"><span>agent call</span><button class="rd-copy" type="button" data-copy>Copy</button></div><pre><code><span class="rd-code-key">tool</span>: <span class="rd-code-string">audit_service_blueprint</span>
+<span class="rd-code-key">arguments</span>:
+  <span class="rd-code-key">blueprint</span>: { <span class="rd-code-key">stages</span>: <span class="rd-code-string">"…"</span> }
+  <span class="rd-code-key">focus</span>: [<span class="rd-code-string">"handoffs"</span>, <span class="rd-code-string">"recovery"</span>]</code></pre></div></aside>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="rd-section" id="examples" data-title="Examples" data-intent="compare_request_response">
+      <div class="rd-section-inner">
+        <div class="rd-section-head"><div><p class="rd-overline" data-index="03">Transcripts</p><h2>Examples</h2><p class="rd-section-intro">A prompt stays conversational. Raven returns a structured result the agent can explain or act on.</p></div><span class="rd-section-route">route / examples</span></div>
+        <div class="rd-transcripts">
+          <article class="rd-transcript"><div><p class="rd-prompt-label">Request</p><p class="rd-prompt">“Audit this pricing page for contrast issues.”</p><span class="rd-call">calls audit_page</span></div><div><div class="rd-score"><strong>72</strong><span>summary score / 100</span></div><ul class="rd-findings"><li class="rd-finding"><span class="rd-severity rd-severity-high">high</span><p><strong>Annual savings label</strong> · 2.8:1 on #141616. Use <code>--text-secondary</code> or raise the surface lightness.</p></li><li class="rd-finding"><span class="rd-severity rd-severity-medium">medium</span><p><strong>Disabled CTA</strong> · state is communicated by color alone. Add text or an icon with an accessible label.</p></li></ul></div></article>
+          <article class="rd-transcript"><div><p class="rd-prompt-label">Request</p><p class="rd-prompt">“Generate a design system for a calm financial planning app.”</p><span class="rd-call">calls generate_design_system</span></div><div><div class="rd-code-shell"><div class="rd-code-top"><span>response excerpt</span><button class="rd-copy" type="button" data-copy>Copy</button></div><pre><code><span class="rd-code-key">direction</span>: <span class="rd-code-string">"measured clarity"</span>
+<span class="rd-code-key">type</span>: { <span class="rd-code-key">body</span>: <span class="rd-code-string">"Inter"</span>, <span class="rd-code-key">data</span>: <span class="rd-code-string">"IBM Plex Mono"</span> }
+<span class="rd-code-key">color</span>: { <span class="rd-code-key">accent</span>: <span class="rd-code-string">"#00BFFF"</span>, <span class="rd-code-key">danger</span>: <span class="rd-code-string">"#FF4081"</span> }
+<span class="rd-code-key">spacing</span>: [<span class="rd-code-value">4</span>, <span class="rd-code-value">8</span>, <span class="rd-code-value">12</span>, <span class="rd-code-value">16</span>, <span class="rd-code-value">24</span>, <span class="rd-code-value">32</span>]</code></pre></div></div></article>
+          <article class="rd-transcript"><div><p class="rd-prompt-label">Request</p><p class="rd-prompt">“Evaluate our eight-field signup flow for conversion and accessibility.”</p><span class="rd-call">calls evaluate_design</span></div><div><ul class="rd-findings"><li class="rd-finding"><span class="rd-severity rd-severity-high">high</span><p><strong>Upfront load</strong> · Ask only for account-critical fields; defer profile details until value is established.</p></li><li class="rd-finding"><span class="rd-severity rd-severity-medium">medium</span><p><strong>Generic action</strong> · Replace “Submit” with the outcome, such as “Create account.”</p></li><li class="rd-finding"><span class="rd-severity rd-severity-info">note</span><p><strong>Keyboard path</strong> · Preserve visible focus and announce inline validation against each field.</p></li></ul></div></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="rd-section" id="data-structure" data-title="Data Structure" data-intent="parse_audit_response">
+      <div class="rd-section-inner">
+        <div class="rd-section-head"><div><p class="rd-overline" data-index="04">Contract</p><h2>Data Structure</h2></div><span class="rd-section-route">route / schema</span></div>
+        <div class="rd-split"><div><p class="rd-lede" style="margin-top:0">Every audit returns a structured object: findings[] (each with severity, rule, location, fix), a summary score, and calibration_hint when a taste profile is bound.</p><p class="rd-note">The stable shape lets an agent summarize findings, apply a targeted change, and compare a second audit without parsing prose.</p></div><div class="rd-code-shell"><div class="rd-code-top"><span>audit-result.json</span><button class="rd-copy" type="button" data-copy>Copy</button></div><pre><code>{
+  <span class="rd-code-key">"findings"</span>: [
+    {
+      <span class="rd-code-key">"severity"</span>: <span class="rd-code-string">"high"</span>,
+      <span class="rd-code-key">"rule"</span>: <span class="rd-code-string">"wcag-text-contrast"</span>,
+      <span class="rd-code-key">"location"</span>: <span class="rd-code-string">".pricing-card .eyebrow"</span>,
+      <span class="rd-code-key">"fix"</span>: <span class="rd-code-string">"Raise contrast from 2.8:1 to at least 4.5:1."</span>
+    },
+    {
+      <span class="rd-code-key">"severity"</span>: <span class="rd-code-string">"medium"</span>,
+      <span class="rd-code-key">"rule"</span>: <span class="rd-code-string">"tap-target-size"</span>,
+      <span class="rd-code-key">"location"</span>: <span class="rd-code-string">"nav .menu-trigger"</span>,
+      <span class="rd-code-key">"fix"</span>: <span class="rd-code-string">"Increase the interactive area to 44 × 44px."</span>
+    }
+  ],
+  <span class="rd-code-key">"summary"</span>: { <span class="rd-code-key">"score"</span>: <span class="rd-code-value">72</span>, <span class="rd-code-key">"high"</span>: <span class="rd-code-value">1</span>, <span class="rd-code-key">"medium"</span>: <span class="rd-code-value">1</span> },
+  <span class="rd-code-key">"calibration_hint"</span>: <span class="rd-code-string">"Project prefers restrained motion and one accent hue."</span>
+}</code></pre></div></div>
+      </div>
+    </section>
+
+    <section class="rd-section" id="design-tokens" data-title="Design Tokens" data-intent="generate_token_system">
+      <div class="rd-section-inner">
+        <div class="rd-section-head"><div><p class="rd-overline" data-index="05">System output</p><h2>Design Tokens</h2><p class="rd-section-intro">Raven can generate a full token set (color, type, spacing, radius) from a brief or existing brand, and bound taste profiles apply per-project overrides.</p></div><span class="rd-section-route">route / tokens</span></div>
+        <div class="rd-split"><div><p class="rd-lede" style="margin-top:0">Tokens arrive semantic first. Raw values remain visible, but the names describe the job each value does.</p><div class="rd-token-map"><div class="rd-token-row"><span>accent</span><span class="rd-swatch" style="background:#00BFFF"></span><span>#00BFFF</span></div><div class="rd-token-row"><span>surface</span><span class="rd-swatch" style="background:#2a2a33"></span><span>#2a2a33</span></div><div class="rd-token-row"><span>danger</span><span class="rd-swatch" style="background:#FF4081"></span><span>#FF4081</span></div></div></div><div class="rd-code-shell"><div class="rd-code-top"><span>tokens.json</span><button class="rd-copy" type="button" data-copy>Copy</button></div><pre><code>{
+  <span class="rd-code-key">"color"</span>: {
+    <span class="rd-code-key">"text"</span>: { <span class="rd-code-key">"primary"</span>: <span class="rd-code-string">"#F0F0F2"</span>, <span class="rd-code-key">"secondary"</span>: <span class="rd-code-string">"#9498A0"</span> },
+    <span class="rd-code-key">"surface"</span>: { <span class="rd-code-key">"base"</span>: <span class="rd-code-string">"#1A1A22"</span>, <span class="rd-code-key">"raised"</span>: <span class="rd-code-string">"#2A2A33"</span> },
+    <span class="rd-code-key">"accent"</span>: <span class="rd-code-string">"#00BFFF"</span>
+  },
+  <span class="rd-code-key">"spacing"</span>: {
+    <span class="rd-code-key">"1"</span>: <span class="rd-code-string">"4px"</span>, <span class="rd-code-key">"2"</span>: <span class="rd-code-string">"8px"</span>, <span class="rd-code-key">"3"</span>: <span class="rd-code-string">"12px"</span>,
+    <span class="rd-code-key">"4"</span>: <span class="rd-code-string">"16px"</span>, <span class="rd-code-key">"6"</span>: <span class="rd-code-string">"24px"</span>, <span class="rd-code-key">"8"</span>: <span class="rd-code-string">"32px"</span>
+  }
+}</code></pre></div></div>
+      </div>
+    </section>
+
+    <section class="rd-section" id="faq" data-title="FAQ" data-intent="resolve_common_questions">
+      <div class="rd-section-inner">
+        <div class="rd-section-head"><div><p class="rd-overline" data-index="06">Notes</p><h2>FAQ</h2></div><span class="rd-section-route">route / faq</span></div>
+        <div class="rd-faq">
+          <details><summary>Does this replace a design system?</summary><p>No. Raven can generate and audit a system, but your product team still owns the decisions, components, governance, and maintenance.</p></details>
+          <details><summary>Does it work with any coding agent that supports MCP?</summary><p>Yes. Add Raven as an MCP server in the client's configuration. Tool selection and presentation vary by agent.</p></details>
+          <details><summary>Is my design data used to train models?</summary><p>No. Raven processes the context needed for the requested tool and does not use your design data to train models.</p></details>
+          <details><summary>What's the difference between the free and team tier?</summary><p>The free tier covers individual use and the core tool set. The team tier adds shared taste profiles, governance, and controls for collaborative environments.</p></details>
+          <details><summary>Can I self-host?</summary><p>Yes. Run the MCP server in your own environment and connect clients to that instance.</p></details>
+        </div>
+        <footer class="rd-footer"><span>RavenMCP documentation</span><span>70 tools · 9 layers · agent-readable</span></footer>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  (function () {
+    var root = document.getElementById('raven-docs-v3');
+    var sections = Array.prototype.slice.call(root.querySelectorAll('.rd-section[id]'));
+    var primarySections = ['get-started', 'tool-reference', 'examples', 'data-structure', 'design-tokens', 'faq'];
+    var navLinks = Array.prototype.slice.call(root.querySelectorAll('.rd-nav a, .rd-mobile-nav a'));
+    var currentTitle = document.getElementById('rd-current-title');
+    var packetSection = document.getElementById('rd-packet-section');
+    var packetIntent = document.getElementById('rd-packet-intent');
+    var agentRoute = document.getElementById('rd-agent-route');
+    var progress = document.getElementById('rd-progress-bar');
+    var activeSection = sections[0];
+
+    function writeClipboard(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text).catch(function () { return legacyCopy(text); });
+      }
+      return legacyCopy(text);
+    }
+
+    function legacyCopy(text) {
+      var field = document.createElement('textarea');
+      field.value = text;
+      field.setAttribute('readonly', '');
+      field.style.position = 'fixed';
+      field.style.opacity = '0';
+      root.appendChild(field);
+      field.select();
+      document.execCommand('copy');
+      root.removeChild(field);
+      return Promise.resolve();
+    }
+
+    function setActive(section) {
+      var id = section.id === 'quickstart' ? 'get-started' : section.id;
+      var index = primarySections.indexOf(id);
+      activeSection = section;
+      currentTitle.textContent = section.dataset.title + ' · ' + String(index + 1).padStart(2, '0') + '/06';
+      packetSection.textContent = id;
+      packetIntent.textContent = section.dataset.intent;
+      agentRoute.textContent = '/docs.md#' + id;
+      navLinks.forEach(function (link) { link.setAttribute('aria-current', link.getAttribute('href') === '#' + id ? 'true' : 'false'); });
+    }
+
+    function onScroll() {
+      var max = document.documentElement.scrollHeight - window.innerHeight;
+      var ratio = max > 0 ? window.scrollY / max : 0;
+      root.classList.toggle('rd-is-scrolled', window.scrollY > 8);
+      progress.style.width = Math.min(100, Math.max(0, ratio * 100)) + '%';
+      var candidate = sections[0];
+      sections.forEach(function (section) { if (section.getBoundingClientRect().top <= 150) candidate = section; });
+      if (candidate !== activeSection) setActive(candidate);
+    }
+
+    root.querySelectorAll('[data-copy]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var code = button.closest('.rd-code-shell').querySelector('code').innerText;
+        writeClipboard(code).then(function () { button.textContent = 'Copied'; setTimeout(function () { button.textContent = 'Copy'; }, 1200); });
+      });
+    });
+
+    document.getElementById('rd-copy-section').addEventListener('click', function (event) {
+      var heading = activeSection.querySelector('h1, h2');
+      var text = '# ' + (heading ? heading.innerText : activeSection.dataset.title) + '\n\n' + activeSection.innerText.replace(event.currentTarget.innerText, '').trim();
+      writeClipboard(text).then(function () { event.currentTarget.textContent = 'Section copied'; setTimeout(function () { event.currentTarget.textContent = 'Copy section as markdown'; }, 1400); });
+    });
+
+    document.getElementById('rd-expand-schemas').addEventListener('click', function (event) {
+      var schemas = Array.prototype.slice.call(root.querySelectorAll('.rd-schema'));
+      var open = schemas.some(function (schema) { return !schema.open; });
+      schemas.forEach(function (schema) { schema.open = open; });
+      event.currentTarget.textContent = open ? 'Collapse schemas' : 'Expand schemas';
+    });
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    onScroll();
+  }());
+</script>
+</body>
+</html>

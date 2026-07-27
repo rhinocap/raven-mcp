@@ -1,0 +1,585 @@
+<!-- DIRECTION: Flight Recorder / Spec Sheet hybrid — Sol 2's persistent route index, timestamped agent trace, scroll-spy, and section rhythm rendered through Fable 3's navy-slate brand system and generous anchored tool-entry anatomy. -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>RavenMCP Docs — Flight Recorder</title>
+  <style>
+    :root {
+      --text-primary: #e8eaed;
+      --text-secondary: #a3a8b1;
+      --text-tertiary: #6b7078;
+      --text-accent: #7ea6ff;
+      --bg-base: #0a0b0d;
+      --bg-surface: #101216;
+      --bg-raised: #161920;
+      --bg-code: #0c0e12;
+      --bg-accent-subtle: rgba(91, 140, 255, .08);
+      --bg-accent-hover: rgba(91, 140, 255, .14);
+      --border: #22262e;
+      --border-strong: #31363f;
+      --border-accent: rgba(91, 140, 255, .45);
+      --accent-blue: #5b8cff;
+      --accent-cyan: #5fd6d0;
+      --accent-pink: #e07a9e;
+      --accent-amber: #d9b86a;
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --font-body: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", monospace;
+      --ease-out: cubic-bezier(.22, 1, .36, 1);
+      --duration: 180ms;
+      --rail: clamp(16rem, 20vw, 18.5rem);
+      --gutter: clamp(1.25rem, 4vw, 4.5rem);
+      --content-max: calc(1200px + 2 * var(--gutter));
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 1.5rem; }
+    body {
+      margin: 0;
+      color: var(--text-secondary);
+      background: var(--bg-base);
+      font: 400 15px/1.68 var(--font-body);
+      letter-spacing: -.006em;
+      -webkit-font-smoothing: antialiased;
+    }
+    h1, h2, h3, h4, p { margin-top: 0; }
+    h1, h2, h3, h4 { color: var(--text-primary); }
+    a { color: inherit; }
+    code, pre { font-family: var(--font-mono); }
+    button, input { font-family: var(--font-body); }
+    button, a, input { -webkit-tap-highlight-color: transparent; }
+    :focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 3px; }
+    ::selection { color: var(--text-primary); background: rgba(91, 140, 255, .32); }
+
+    .route-index {
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 20;
+      width: var(--rail);
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      padding: clamp(1.5rem, 3vh, 2.5rem) clamp(1.15rem, 2vw, 1.8rem) 1.5rem;
+      background: rgba(10, 11, 13, .96);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-strong) transparent;
+    }
+    .brand {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: .7rem;
+      color: var(--text-primary);
+      text-decoration: none;
+      font-weight: 650;
+      letter-spacing: -.025em;
+    }
+    .brand-mark {
+      position: relative;
+      width: 22px;
+      height: 22px;
+      flex: 0 0 22px;
+    }
+    .brand-mark::before, .brand-mark::after {
+      content: "";
+      position: absolute;
+      inset: 2px 9px;
+      border-radius: 2px;
+      background: var(--accent-blue);
+      transform: rotate(35deg);
+    }
+    .brand-mark::after { background: var(--accent-cyan); transform: rotate(-55deg); opacity: .72; }
+    .route-meta {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: .5rem;
+      margin: 2rem 0 1.5rem;
+      padding: .75rem 0;
+      color: var(--text-tertiary);
+      border-block: 1px solid var(--border);
+      font: 500 11px/1.4 var(--font-body);
+      letter-spacing: -.005em;
+    }
+    .live-dot { color: var(--accent-cyan); }
+    .route-label {
+      margin: 0 0 .75rem;
+      color: var(--text-tertiary);
+      font: 600 11px/1.4 var(--font-body);
+      letter-spacing: -.005em;
+    }
+    .route-index nav { position: relative; }
+    .route-index nav::before {
+      content: "";
+      position: absolute;
+      top: 12px;
+      bottom: 12px;
+      left: 5px;
+      width: 1px;
+      background: var(--border);
+    }
+    .route-list, .tool-links { margin: 0; padding: 0; list-style: none; }
+    .route-link {
+      position: relative;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: .7rem;
+      padding: .55rem .5rem .55rem 1.45rem;
+      color: var(--text-tertiary);
+      border-radius: var(--radius-md);
+      text-decoration: none;
+      transition: color var(--duration) var(--ease-out), background var(--duration) var(--ease-out);
+    }
+    .route-link::before {
+      content: "";
+      position: absolute;
+      left: 1px;
+      width: 9px;
+      height: 9px;
+      border: 1px solid var(--border-strong);
+      border-radius: 50%;
+      background: var(--bg-surface);
+    }
+    .route-link:hover { color: var(--text-primary); background: var(--bg-accent-subtle); }
+    .route-link.active { color: var(--text-primary); }
+    .route-link.active::before { background: var(--accent-blue); border-color: var(--accent-blue); box-shadow: 0 0 0 4px rgba(91, 140, 255, .12); }
+    .route-num { color: var(--text-tertiary); font: 600 10px/1 var(--font-body); }
+    .tool-links { margin: .15rem 0 .7rem 2.12rem; }
+    .tool-links a {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      color: var(--text-tertiary);
+      text-decoration: none;
+      font: 13px/1.25 var(--font-mono);
+      transition: color var(--duration) var(--ease-out);
+    }
+    .tool-links a:hover, .tool-links a.active { color: var(--text-accent); }
+    .tool-filter {
+      width: 100%;
+      min-height: 40px;
+      margin: .3rem 0 .65rem;
+      padding: 0 .75rem;
+      color: var(--text-primary);
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: 13px;
+    }
+    .tool-filter::placeholder { color: var(--text-tertiary); }
+    .route-footer { margin-top: auto; padding-top: 1.5rem; color: var(--text-tertiary); font: 11px/1.7 var(--font-body); }
+
+    main { min-width: 0; margin-left: var(--rail); }
+    .page-shell { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--gutter); }
+    .hero {
+      min-height: min(47rem, 88vh);
+      display: grid;
+      grid-template-columns: minmax(0, 1.04fr) minmax(21rem, .96fr);
+      align-items: center;
+      gap: clamp(2.5rem, 6vw, 6rem);
+      padding-block: clamp(5rem, 12vh, 9rem);
+      border-bottom: 1px solid var(--border);
+    }
+    .eyebrow, .section-kicker {
+      color: var(--text-accent);
+      font: 600 12px/1.4 var(--font-body);
+      letter-spacing: -.005em;
+    }
+    h1 {
+      max-width: 10ch;
+      margin: 1.25rem 0 1.5rem;
+      font-size: clamp(3.4rem, 7vw, 7.25rem);
+      line-height: .9;
+      letter-spacing: -.07em;
+      font-weight: 620;
+    }
+    .hero-copy > p { max-width: 39rem; margin: 0; font-size: clamp(1rem, 1.45vw, 1.2rem); line-height: 1.72; }
+    .trace-window {
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg);
+      background: rgba(16, 18, 22, .92);
+      box-shadow: 0 2rem 7rem rgba(0, 0, 0, .32), 0 0 0 1px rgba(91, 140, 255, .05);
+    }
+    .trace-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: .9rem 1.1rem;
+      color: var(--text-tertiary);
+      border-bottom: 1px solid var(--border);
+      font: 11px/1.4 var(--font-mono);
+      letter-spacing: .02em;
+    }
+    .trace-stream { padding: .45rem 0; }
+    .trace-row {
+      display: grid;
+      grid-template-columns: 3.4rem minmax(0, 1fr);
+      gap: 1rem;
+      padding: 1rem 1.1rem;
+      border-bottom: 1px solid rgba(34, 38, 46, .75);
+      font: 13px/1.62 var(--font-mono);
+    }
+    .trace-row:last-child { border-bottom: 0; }
+    .trace-time { color: var(--text-tertiary); }
+    .trace-value { min-width: 0; overflow-wrap: anywhere; }
+    .trace-value strong { color: var(--text-primary); font-weight: 500; }
+    .trace-ok { color: var(--accent-cyan); }
+    .trace-warn { color: var(--accent-amber); }
+
+    .doc-section { padding-block: clamp(5rem, 10vw, 9rem); border-bottom: 1px solid var(--border); scroll-margin-top: 1.5rem; }
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(15rem, .58fr);
+      gap: clamp(2rem, 7vw, 7rem);
+      align-items: end;
+      margin-bottom: clamp(3rem, 7vw, 6rem);
+    }
+    h2 { margin: .75rem 0 0; font-size: clamp(2.5rem, 5vw, 5rem); line-height: .98; letter-spacing: -.055em; font-weight: 590; }
+    .section-intro { margin: 0; font-size: 1rem; line-height: 1.75; }
+    .quickstart { display: grid; grid-template-columns: minmax(0, .8fr) minmax(24rem, 1.2fr); gap: clamp(2.5rem, 6vw, 6rem); align-items: start; }
+    .steps { counter-reset: setup; }
+    .step { counter-increment: setup; display: grid; grid-template-columns: 2.5rem minmax(0, 1fr); gap: 1rem; padding: 1.5rem 0; border-top: 1px solid var(--border); }
+    .step:last-child { border-bottom: 1px solid var(--border); }
+    .step::before { content: "0" counter(setup); color: var(--text-accent); font: 600 12px/1.7 var(--font-body); }
+    .step h3 { margin: 0 0 .5rem; font-size: 1rem; font-weight: 630; }
+    .step p { margin: 0; }
+    .inline-code { color: var(--text-primary); font-size: .9em; }
+
+    .code-panel { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-code); }
+    .code-toolbar { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-left: 1.1rem; color: var(--text-tertiary); border-bottom: 1px solid var(--border); font: 500 12px/1 var(--font-body); letter-spacing: -.005em; }
+    .copy-button { min-width: 62px; min-height: 48px; padding: 0 .85rem; color: var(--text-tertiary); background: transparent; border: 0; border-left: 1px solid var(--border); cursor: pointer; font: 500 12px/1 var(--font-body); transition: color var(--duration) var(--ease-out), background var(--duration) var(--ease-out); }
+    .copy-button:hover { color: var(--text-primary); background: var(--bg-accent-subtle); }
+    pre { margin: 0; overflow: auto; }
+    .code-panel pre { padding: clamp(1.5rem, 3vw, 1.9rem); color: var(--text-secondary); font: 14px/1.8 var(--font-mono); tab-size: 2; }
+    .key { color: var(--accent-cyan); }
+    .string { color: var(--text-primary); }
+    .bool { color: var(--accent-pink); }
+
+    .layer-header { display: flex; align-items: baseline; justify-content: space-between; gap: 2rem; margin: 3.5rem 0 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-strong); }
+    .layer-header h3 { margin: 0; font: 650 14px/1.4 var(--font-body); letter-spacing: -.01em; }
+    .layer-header span { color: var(--text-tertiary); font: 500 11px/1 var(--font-body); }
+    .method-record { margin-bottom: 1.75rem; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-surface); overflow: clip; scroll-margin-top: 1.5rem; }
+    .method-header { display: grid; grid-template-columns: minmax(14rem, .62fr) minmax(0, 1.38fr); gap: clamp(1.75rem, 4vw, 4rem); padding: clamp(1.5rem, 3vw, 2.25rem); background: var(--bg-raised); border-bottom: 1px solid var(--border); }
+    .method-id { display: grid; grid-template-columns: 1fr auto; gap: .75rem; align-items: start; min-width: 0; }
+    .method-name { margin: 0; color: var(--text-primary); font: 500 clamp(.95rem, 1.4vw, 1.1rem)/1.45 var(--font-mono); overflow-wrap: anywhere; }
+    .namespace { color: var(--text-tertiary); }
+    .method-ref { color: var(--text-tertiary); font: 11px/1.5 var(--font-body); }
+    .anchor-link { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; margin: -.8rem -.8rem 0 auto; color: var(--text-tertiary); border-radius: var(--radius-md); text-decoration: none; font: 15px/1 var(--font-body); }
+    .anchor-link:hover { color: var(--text-accent); background: var(--bg-accent-subtle); }
+    .method-description { margin: 0; max-width: 48rem; }
+    .method-body { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(20rem, .92fr); }
+    .params-panel, .example-panel { min-width: 0; padding: clamp(1.5rem, 3vw, 2.5rem); }
+    .example-panel { border-left: 1px solid var(--border); background: var(--bg-code); }
+    .panel-label { margin: 0 0 1rem; color: var(--text-tertiary); font: 600 12px/1.4 var(--font-body); letter-spacing: -.005em; }
+    .params { margin: 0; }
+    .param { padding: 1.25rem 0; border-top: 1px solid var(--border); }
+    .param:first-child { padding-top: 0; border-top: 0; }
+    .param dt { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; margin-bottom: .55rem; color: var(--text-primary); font: 500 13px/1.4 var(--font-mono); }
+    .param dd { margin: 0; font-size: .92rem; line-height: 1.68; }
+    .badge { display: inline-flex; align-items: center; min-height: 22px; padding: 0 .5rem; color: var(--text-tertiary); border: 1px solid var(--border); border-radius: 999px; font: 10px/1 var(--font-mono); letter-spacing: .01em; }
+    .badge.required { color: var(--text-accent); border-color: var(--border-accent); background: var(--bg-accent-subtle); }
+    .prompt-list { margin: 0; padding: 0; list-style: none; }
+    .prompt-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .7rem; padding: .85rem 0; color: var(--text-secondary); border-top: 1px solid var(--border); font: 14px/1.72 var(--font-body); }
+    .prompt-list li:first-child { padding-top: 0; border-top: 0; }
+    .prompt-mark { color: var(--text-accent); }
+    .method-record[hidden] { display: none; }
+
+    .evidence-grid { display: grid; grid-template-columns: repeat(2, minmax(20rem, 1fr)); gap: 1.5rem; align-items: stretch; }
+    .evidence-card { min-width: 0; padding: clamp(1.75rem, 3vw, 2.6rem); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-surface); }
+    .evidence-card:first-child { grid-row: span 2; }
+    .evidence-card:last-child { grid-column: 2; }
+    .evidence-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .75rem 1rem; margin-bottom: 1.5rem; color: var(--text-tertiary); font: 600 11px/1.4 var(--font-body); letter-spacing: -.005em; }
+    .request { margin: 0 0 2rem; color: var(--text-primary); font-size: 1.12rem; line-height: 1.58; letter-spacing: -.018em; }
+    .call-line { margin: 0 0 1rem; padding: .8rem .9rem; overflow-wrap: anywhere; color: var(--text-accent); background: var(--bg-accent-subtle); border-left: 2px solid var(--accent-blue); font: 13px/1.65 var(--font-mono); }
+    .finding { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: .85rem; padding: 1rem 0; border-top: 1px solid var(--border); }
+    .severity { width: 8px; height: 8px; margin-top: .42rem; border-radius: 50%; background: var(--accent-amber); }
+    .severity.high { background: var(--accent-pink); }
+    .severity.low { background: var(--accent-cyan); }
+    .finding strong { display: block; margin-bottom: .2rem; color: var(--text-primary); font-size: .88rem; font-weight: 600; }
+    .finding p { margin: 0; font-size: .86rem; line-height: 1.65; }
+
+    .anatomy { display: grid; grid-template-columns: minmax(16rem, .72fr) minmax(24rem, 1.28fr); gap: clamp(2.5rem, 7vw, 7rem); align-items: start; }
+    .anatomy-notes { position: sticky; top: 2rem; }
+    .anatomy-notes p { margin-bottom: 1.5rem; }
+    .shape-list { margin: 0; padding: 0; list-style: none; }
+    .shape-list li { display: grid; grid-template-columns: 2rem 1fr; gap: .75rem; padding: .85rem 0; border-top: 1px solid var(--border); }
+    .shape-list span { color: var(--text-accent); font: 600 11px/1.7 var(--font-body); }
+    .shape-list code { color: var(--text-primary); font-size: .86rem; }
+    .token-board { display: grid; grid-template-columns: minmax(18rem, .75fr) minmax(25rem, 1.25fr); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+    .swatch-side, .token-copy { min-width: 0; padding: clamp(1.75rem, 4vw, 3rem); }
+    .swatch-side { background: var(--bg-surface); }
+    .token-copy { border-left: 1px solid var(--border); background: var(--bg-code); }
+    .swatches { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin-top: 2rem; }
+    .swatch { min-height: 7rem; display: flex; flex-direction: column; justify-content: space-between; padding: 1rem; color: var(--text-secondary); border: 1px solid var(--border); border-radius: var(--radius-md); font: 10px/1.4 var(--font-mono); }
+    .swatch.primary { background: #e8eaed; color: #0a0b0d; }
+    .swatch.accent { background: #5b8cff; color: #080b12; }
+    .swatch.raised { background: #161920; color: #e8eaed; }
+    .swatch.signal { background: #5fd6d0; color: #071211; }
+    .faq-list { border-top: 1px solid var(--border-strong); }
+    details { border-bottom: 1px solid var(--border); }
+    summary { min-height: 72px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1.5rem; align-items: center; padding: 1rem 0; color: var(--text-primary); cursor: pointer; list-style: none; font-size: clamp(1rem, 1.7vw, 1.2rem); font-weight: 570; letter-spacing: -.02em; }
+    summary::-webkit-details-marker { display: none; }
+    summary:hover { color: var(--text-accent); }
+    summary:hover::after { color: var(--text-accent); }
+    summary::after { content: "+"; color: var(--text-tertiary); font: 18px/1 var(--font-body); transition: color var(--duration) var(--ease-out); }
+    details[open] summary::after { content: "−"; color: var(--text-accent); }
+    .answer { max-width: 48rem; padding: 0 4rem 2rem 0; }
+    .page-end { display: grid; grid-template-columns: 1fr auto; gap: 2rem; padding: 2.5rem 0; color: var(--text-tertiary); font: 500 12px/1.5 var(--font-body); letter-spacing: -.005em; }
+
+    @media (max-width: 1080px) {
+      :root { --rail: clamp(13.5rem, 22vw, 15rem); }
+      .method-body, .evidence-grid { grid-template-columns: 1fr; }
+      .example-panel { border-left: 0; border-top: 1px solid var(--border); }
+      .evidence-card:first-child { grid-row: auto; }
+      .evidence-card:last-child { grid-column: auto; }
+    }
+    @media (max-width: 780px) {
+      html { scroll-padding-top: 5.2rem; }
+      body { padding-bottom: 4.75rem; }
+      .route-index { inset: auto 0 0; width: auto; height: 4.75rem; display: block; padding: .45rem .75rem calc(.45rem + env(safe-area-inset-bottom)); border: 0; border-top: 1px solid var(--border-strong); overflow-x: auto; overflow-y: hidden; white-space: nowrap; }
+      .brand, .route-meta, .route-label, .tool-filter, .tool-links, .route-footer { display: none; }
+      .route-index nav::before { display: none; }
+      .route-list { display: flex; min-width: max-content; }
+      .route-link { min-height: 52px; padding: .5rem .85rem; gap: .45rem; }
+      .route-link::before { position: static; width: 6px; height: 6px; }
+      main { margin-left: 0; }
+      .page-shell { padding-inline: clamp(1rem, 5vw, 2rem); }
+      .hero, .section-head, .quickstart, .method-header, .anatomy, .token-board { grid-template-columns: 1fr; }
+      .hero { min-height: auto; padding-block: 5rem; }
+      h1 { font-size: clamp(3.4rem, 17vw, 5.5rem); }
+      .section-head { gap: 1.5rem; }
+      .anatomy-notes { position: static; }
+      .token-copy { border-left: 0; border-top: 1px solid var(--border); }
+    }
+    @media (max-width: 520px) {
+      .swatches { grid-template-columns: 1fr; }
+      .method-record { margin-inline: -.5rem; }
+      .method-body { display: block; }
+      .method-name { font-size: 13px; letter-spacing: -.02em; }
+      .page-end { grid-template-columns: 1fr; }
+      .code-panel pre { font-size: 13px; padding: 1.25rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    }
+  </style>
+</head>
+<body>
+  <aside class="route-index" aria-label="Documentation navigation">
+    <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true"></span><span>RavenMCP</span></a>
+    <div class="route-meta"><span>Flight recorder</span><span class="live-dot">● live</span></div>
+    <p class="route-label">Route index</p>
+    <input class="tool-filter" id="tool-filter" type="search" placeholder="Filter tool entries…" aria-label="Filter tool entries">
+    <nav>
+      <ol class="route-list">
+        <li><a class="route-link active" href="#get-started" data-route-link="get-started"><span class="route-num">01</span>Get Started</a></li>
+        <li>
+          <a class="route-link" href="#tool-reference" data-route-link="tool-reference"><span class="route-num">02</span>Tool Reference</a>
+          <ul class="tool-links">
+            <li><a href="#get_principles" data-tool-link="get_principles">get_principles</a></li>
+            <li><a href="#evaluate_design" data-tool-link="evaluate_design">evaluate_design</a></li>
+            <li><a href="#get_d4d_framework" data-tool-link="get_d4d_framework">get_d4d_framework</a></li>
+            <li><a href="#audit_page" data-tool-link="audit_page">audit_page</a></li>
+            <li><a href="#generate_design_system" data-tool-link="generate_design_system">generate_design_system</a></li>
+            <li><a href="#map_service_blueprint" data-tool-link="map_service_blueprint">map_service_blueprint</a></li>
+          </ul>
+        </li>
+        <li><a class="route-link" href="#examples" data-route-link="examples"><span class="route-num">03</span>Examples</a></li>
+        <li><a class="route-link" href="#data-structure" data-route-link="data-structure"><span class="route-num">04</span>Data Structure</a></li>
+        <li><a class="route-link" href="#design-tokens" data-route-link="design-tokens"><span class="route-num">05</span>Design Tokens</a></li>
+        <li><a class="route-link" href="#faq" data-route-link="faq"><span class="route-num">06</span>FAQ</a></li>
+      </ol>
+    </nav>
+    <div class="route-footer"><div>70 tools · 9 layers</div><div>MCP · stdio + remote</div></div>
+  </aside>
+
+  <main id="top">
+    <div class="page-shell">
+      <header class="hero">
+        <div class="hero-copy">
+          <div class="eyebrow">Design intelligence / reference 1.16</div>
+          <h1>See what the agent sees.</h1>
+          <p>RavenMCP gives coding agents a structured way to inspect design. This reference follows the same path: input, tool call, evidence, fix.</p>
+        </div>
+        <div class="trace-window" aria-label="Example Raven trace">
+          <div class="trace-head"><span>Session / pricing-page</span><span class="live-dot">● live</span></div>
+          <div class="trace-stream">
+            <div class="trace-row"><span class="trace-time">00:00</span><span class="trace-value"><strong>prompt</strong> “Audit this page before release”</span></div>
+            <div class="trace-row"><span class="trace-time">00:01</span><span class="trace-value"><span class="trace-ok">→</span> call <strong>audit_page</strong></span></div>
+            <div class="trace-row"><span class="trace-time">00:03</span><span class="trace-value"><span class="trace-warn">●</span> contrast / pricing-card / 3.2:1</span></div>
+            <div class="trace-row"><span class="trace-time">00:04</span><span class="trace-value"><span class="trace-ok">✓</span> 14 checks · score <strong>82</strong></span></div>
+          </div>
+        </div>
+      </header>
+
+      <section class="doc-section" id="get-started" data-route="get-started">
+        <div class="section-head"><div><div class="section-kicker">01 / establish connection</div><h2>Get Started</h2></div><p class="section-intro">RavenMCP is a design-intelligence MCP server. Install it, point your coding agent at it, and it audits pages, layouts, and screens, generates design systems and tokens, and carries your taste across projects.</p></div>
+        <div class="quickstart">
+          <div class="steps">
+            <div class="step"><div><h3>Install</h3><p>Run <code class="inline-code">npx @ravenmcp/cli install</code>, or add Raven to your MCP client config manually.</p></div></div>
+            <div class="step"><div><h3>Connect</h3><p>Restart your agent. Raven’s 70 tools are now available.</p></div></div>
+            <div class="step"><div><h3>Use it</h3><p>Ask your agent to audit a page, generate a design system, or check contrast. It calls the right tool automatically.</p></div></div>
+          </div>
+          <div class="code-panel"><div class="code-toolbar"><span>mcp.json / manual config</span><button class="copy-button" type="button">Copy</button></div><pre><code>{
+  <span class="key">"mcpServers"</span>: {
+    <span class="key">"raven"</span>: {
+      <span class="key">"command"</span>: <span class="string">"npx"</span>,
+      <span class="key">"args"</span>: [<span class="string">"-y"</span>, <span class="string">"raven-mcp"</span>]
+    }
+  }
+}</code></pre></div>
+        </div>
+      </section>
+
+      <section class="doc-section" id="tool-reference" data-route="tool-reference">
+        <div class="section-head"><div><div class="section-kicker">02 / inspect capability</div><h2>Tool Reference</h2></div><p class="section-intro">Raven provides 70 tools across 9 knowledge layers. Each anchored entry shows the parameters it accepts and the plain-language prompts an agent can act on.</p></div>
+        <div class="layer-header"><h3>Principles Layer</h3><span>3 selected records</span></div>
+
+        <article class="method-record" id="get_principles" data-tool="get_principles principles accessibility heuristics">
+          <header class="method-header"><div class="method-id"><div><h3 class="method-name"><span class="namespace">raven.</span>get_principles</h3><div class="method-ref">§ 2.1</div></div><a class="anchor-link" href="#get_principles" aria-label="Link to get_principles">#</a></div><p class="method-description">Get design principles relevant to a UI context. Returns usability heuristics, Laws of UX, Gestalt principles, accessibility rules, typography, color theory, mobile UX, and responsive layout.</p></header>
+          <div class="method-body"><div class="params-panel"><p class="panel-label">Parameters</p><dl class="params"><div class="param"><dt>context <span class="badge">string</span><span class="badge required">required</span></dt><dd>What you’re designing — for example a signup form, pricing page, mobile nav, or dark dashboard.</dd></div><div class="param"><dt>category <span class="badge">string</span><span class="badge">optional</span></dt><dd>Filter to Nielsen heuristics, Laws of UX, Gestalt, accessibility, typography, color theory, mobile UX, responsive layout, or D4D.</dd></div><div class="param"><dt>format <span class="badge">string</span><span class="badge">optional</span></dt><dd>“full” (default), “checklist”, or “brief”.</dd></div></dl></div><div class="example-panel"><p class="panel-label">Ask your agent</p><ul class="prompt-list"><li><span class="prompt-mark">›</span><span>Build a pricing page.</span></li><li><span class="prompt-mark">›</span><span>What accessibility rules apply to forms?</span></li><li><span class="prompt-mark">›</span><span>Check this against Nielsen’s heuristics.</span></li></ul></div></div>
+        </article>
+
+        <article class="method-record" id="evaluate_design" data-tool="evaluate_design principles evaluation conversion">
+          <header class="method-header"><div class="method-id"><div><h3 class="method-name"><span class="namespace">raven.</span>evaluate_design</h3><div class="method-ref">§ 2.2</div></div><a class="anchor-link" href="#evaluate_design" aria-label="Link to evaluate_design">#</a></div><p class="method-description">Evaluate a design description against UX principles. Returns relevant principles, potential violations, and improvement suggestions.</p></header>
+          <div class="method-body"><div class="params-panel"><p class="panel-label">Parameters</p><dl class="params"><div class="param"><dt>description <span class="badge">string</span><span class="badge required">required</span></dt><dd>Description of the design to evaluate.</dd></div><div class="param"><dt>context <span class="badge">string</span><span class="badge">optional</span></dt><dd>What the design is — for example a pricing page for a SaaS product.</dd></div><div class="param"><dt>goals <span class="badge">string[]</span><span class="badge">optional</span></dt><dd>Evaluation goals such as conversion, accessibility, or mobile usability.</dd></div></dl></div><div class="example-panel"><p class="panel-label">Ask your agent</p><ul class="prompt-list"><li><span class="prompt-mark">›</span><span>This signup form has eight fields, no social login, and the button says Submit. Evaluate it for conversion.</span></li></ul></div></div>
+        </article>
+
+        <article class="method-record" id="get_d4d_framework" data-tool="get_d4d_framework d4d customer problem hypothesis">
+          <header class="method-header"><div class="method-id"><div><h3 class="method-name"><span class="namespace">raven.</span>get_d4d_framework</h3><div class="method-ref">§ 2.3</div></div><a class="anchor-link" href="#get_d4d_framework" aria-label="Link to get_d4d_framework">#</a></div><p class="method-description">Get Design for Delight templates — customer problem statement, ideal state, hypothesis, LOFAs, and experiment design.</p></header>
+          <div class="method-body"><div class="params-panel"><p class="panel-label">Parameters</p><dl class="params"><div class="param"><dt>stage <span class="badge">string</span><span class="badge">optional</span></dt><dd>“frame”, “empathy”, “broad”, “narrow”, or “experiment”.</dd></div></dl></div><div class="example-panel"><p class="panel-label">Ask your agent</p><ul class="prompt-list"><li><span class="prompt-mark">›</span><span>Frame this feature as a customer problem statement.</span></li><li><span class="prompt-mark">›</span><span>Draft LOFAs for the onboarding redesign.</span></li></ul></div></div>
+        </article>
+
+        <div class="layer-header"><h3>Audit Layer</h3><span>1 of 14 tools shown</span></div>
+        <article class="method-record" id="audit_page" data-tool="audit_page audit layout accessibility responsive">
+          <header class="method-header"><div class="method-id"><div><h3 class="method-name"><span class="namespace">raven.</span>audit_page</h3><div class="method-ref">§ 2.4</div></div><a class="anchor-link" href="#audit_page" aria-label="Link to audit_page">#</a></div><p class="method-description">Inspect rendered HTML for accessibility, hierarchy, interaction, responsive layout, and visual-quality issues. Returns located findings with concrete fixes.</p></header>
+          <div class="method-body"><div class="params-panel"><p class="panel-label">Parameters</p><dl class="params"><div class="param"><dt>html <span class="badge">string</span><span class="badge required">required</span></dt><dd>The relevant rendered HTML or component markup.</dd></div><div class="param"><dt>viewport <span class="badge">object</span><span class="badge">optional</span></dt><dd>Width, height, and device context for responsive checks.</dd></div><div class="param"><dt>checks <span class="badge">string[]</span><span class="badge">optional</span></dt><dd>Limit the audit to contrast, tap targets, typography, layout, or accessibility.</dd></div></dl></div><div class="example-panel"><p class="panel-label">Ask your agent</p><ul class="prompt-list"><li><span class="prompt-mark">›</span><span>Audit the pricing route at mobile and desktop widths before I merge it.</span></li><li><span class="prompt-mark">›</span><span>Why does this page feel cramped on mobile?</span></li></ul></div></div>
+        </article>
+
+        <div class="layer-header"><h3>Systems Layer</h3><span>2 selected records</span></div>
+        <article class="method-record" id="generate_design_system" data-tool="generate_design_system systems tokens brand">
+          <header class="method-header"><div class="method-id"><div><h3 class="method-name"><span class="namespace">raven.</span>generate_design_system</h3><div class="method-ref">§ 2.5</div></div><a class="anchor-link" href="#generate_design_system" aria-label="Link to generate_design_system">#</a></div><p class="method-description">Generate a complete design system — color tokens, type scale, spacing, radii, and component guidance — from a brief or an existing brand.</p></header>
+          <div class="method-body"><div class="params-panel"><p class="panel-label">Parameters</p><dl class="params"><div class="param"><dt>brief <span class="badge">string</span><span class="badge required">required</span></dt><dd>The product, audience, constraints, and desired visual character.</dd></div><div class="param"><dt>brand <span class="badge">object</span><span class="badge">optional</span></dt><dd>Locked colors, typefaces, screenshots, or a token file to extend.</dd></div><div class="param"><dt>format <span class="badge">string</span><span class="badge">optional</span></dt><dd>“tokens”, “css-vars”, “tailwind”, or “full-spec”.</dd></div></dl></div><div class="example-panel"><p class="panel-label">Ask your agent</p><ul class="prompt-list"><li><span class="prompt-mark">›</span><span>Generate a token set for this brand and wire it into the CSS.</span></li><li><span class="prompt-mark">›</span><span>Extend our existing tokens with a data-viz palette.</span></li></ul></div></div>
+        </article>
+
+        <article class="method-record" id="map_service_blueprint" data-tool="map_service_blueprint service journey handoffs">
+          <header class="method-header"><div class="method-id"><div><h3 class="method-name"><span class="namespace">raven.</span>map_service_blueprint</h3><div class="method-ref">§ 2.6</div></div><a class="anchor-link" href="#map_service_blueprint" aria-label="Link to map_service_blueprint">#</a></div><p class="method-description">Map customer actions, visible touchpoints, backstage operations, handoffs, and failure points into a structured service blueprint.</p></header>
+          <div class="method-body"><div class="params-panel"><p class="panel-label">Parameters</p><dl class="params"><div class="param"><dt>journey <span class="badge">string</span><span class="badge required">required</span></dt><dd>The customer journey or service moment to map.</dd></div><div class="param"><dt>actors <span class="badge">string[]</span><span class="badge">optional</span></dt><dd>Customers, staff, systems, and partners involved.</dd></div><div class="param"><dt>depth <span class="badge">string</span><span class="badge">optional</span></dt><dd>“overview”, “handoffs”, or “full”.</dd></div></dl></div><div class="example-panel"><p class="panel-label">Ask your agent</p><ul class="prompt-list"><li><span class="prompt-mark">›</span><span>Map the handoffs after a customer reports a UI defect.</span></li></ul></div></div>
+        </article>
+      </section>
+
+      <section class="doc-section" id="examples" data-route="examples">
+        <div class="section-head"><div><div class="section-kicker">03 / observe evidence</div><h2>Examples</h2></div><p class="section-intro">The agent supplies context. Raven returns a structured finding, not a vague critique. These traces are shortened to show the exchange.</p></div>
+        <div class="evidence-grid">
+          <article class="evidence-card"><div class="evidence-meta"><span>Trace 01 / contrast</span><span>3 findings</span></div><p class="request">“Audit this pricing page for contrast issues.”</p><p class="call-line">→ audit_contrast · viewport 1440 × 900</p><div class="finding"><span class="severity high"></span><div><strong>Critical · annual-price</strong><p>Muted blue text is 2.7:1 against the card surface. Raise it to <code>--text-secondary</code>; expected ratio 5.1:1.</p></div></div><div class="finding"><span class="severity"></span><div><strong>Moderate · feature-note</strong><p>12px copy passes only at bold weight. Use 14px regular or keep 12px at 600.</p></div></div><div class="finding"><span class="severity low"></span><div><strong>Pass · primary action</strong><p>Button label and focus ring both clear AA.</p></div></div></article>
+          <article class="evidence-card"><div class="evidence-meta"><span>Trace 02 / tokens</span><span>CSS output</span></div><p class="request">“Turn this brand sheet into usable product tokens.”</p><p class="call-line">→ generate_design_system · format css</p><div class="finding"><span class="severity low"></span><div><strong>Color roles mapped</strong><p>Eleven source colors reduced to six semantic roles with light and dark modes.</p></div></div><div class="finding"><span class="severity low"></span><div><strong>Spacing normalized</strong><p>Irregular values resolved to a 4px base scale.</p></div></div></article>
+          <article class="evidence-card"><div class="evidence-meta"><span>Trace 03 / taste</span><span>project bound</span></div><p class="request">“Does this new dashboard still feel like our product?”</p><p class="call-line">→ audit_taste · project atlas</p><div class="finding"><span class="severity"></span><div><strong>Voice drift</strong><p>Three celebratory headings conflict with the project’s restrained operational register.</p></div></div><div class="finding"><span class="severity low"></span><div><strong>System alignment</strong><p>Density, radii, and accent use match the bound surface.</p></div></div></article>
+        </div>
+      </section>
+
+      <section class="doc-section" id="data-structure" data-route="data-structure">
+        <div class="section-head"><div><div class="section-kicker">04 / read payload</div><h2>Data Structure</h2></div><p class="section-intro">Every audit returns <code>findings[]</code>, a summary score, and a <code>calibration_hint</code> when a taste profile is bound.</p></div>
+        <div class="anatomy"><div class="anatomy-notes"><p>The shape stays consistent across page, screen, layout, and taste audits, so agents can act on results without parsing prose.</p><ol class="shape-list"><li><span>01</span><code>findings[]</code></li><li><span>02</span><code>summary.score</code></li><li><span>03</span><code>calibration_hint</code></li></ol></div><div class="code-panel"><div class="code-toolbar"><span>audit response / application.json</span><button class="copy-button" type="button">Copy</button></div><pre><code>{
+  <span class="key">"findings"</span>: [
+    {
+      <span class="key">"severity"</span>: <span class="string">"high"</span>,
+      <span class="key">"rule"</span>: <span class="string">"text-contrast-aa"</span>,
+      <span class="key">"location"</span>: <span class="string">".pricing-card .price-note"</span>,
+      <span class="key">"observed"</span>: <span class="string">"2.7:1"</span>,
+      <span class="key">"fix"</span>: <span class="string">"Use --text-secondary; expected 5.1:1"</span>
+    }
+  ],
+  <span class="key">"summary"</span>: {
+    <span class="key">"score"</span>: <span class="bool">82</span>,
+    <span class="key">"checked"</span>: <span class="bool">14</span>,
+    <span class="key">"passed"</span>: <span class="bool">11</span>
+  },
+  <span class="key">"calibration_hint"</span>: <span class="string">"Applied the bound atlas product surface"</span>
+}</code></pre></div></div>
+      </section>
+
+      <section class="doc-section" id="design-tokens" data-route="design-tokens">
+        <div class="section-head"><div><div class="section-kicker">05 / encode system</div><h2>Design Tokens</h2></div><p class="section-intro">Raven can generate a full token set — color, type, spacing, and radius — from a brief or existing brand. Bound taste profiles apply per-project overrides.</p></div>
+        <div class="token-board"><div class="swatch-side"><p class="panel-label">Generated roles</p><div class="swatches"><div class="swatch primary"><span>text.primary</span><strong>#E8EAED</strong></div><div class="swatch accent"><span>action.accent</span><strong>#5B8CFF</strong></div><div class="swatch raised"><span>surface.raised</span><strong>#161920</strong></div><div class="swatch signal"><span>status.signal</span><strong>#5FD6D0</strong></div></div></div><div class="token-copy"><p>The output is role-based and portable. Ask for DTCG JSON, CSS custom properties, or flat values.</p><div class="code-panel"><div class="code-toolbar"><span>tokens.json</span><button class="copy-button" type="button">Copy</button></div><pre><code>{
+  <span class="key">"color"</span>: {
+    <span class="key">"text.primary"</span>: <span class="string">"#E8EAED"</span>,
+    <span class="key">"action.accent"</span>: <span class="string">"#5B8CFF"</span>,
+    <span class="key">"surface.raised"</span>: <span class="string">"#161920"</span>
+  },
+  <span class="key">"space"</span>: {
+    <span class="key">"1"</span>: <span class="string">"4px"</span>,
+    <span class="key">"2"</span>: <span class="string">"8px"</span>,
+    <span class="key">"3"</span>: <span class="string">"12px"</span>,
+    <span class="key">"4"</span>: <span class="string">"16px"</span>,
+    <span class="key">"6"</span>: <span class="string">"24px"</span>
+  }
+}</code></pre></div></div></div>
+      </section>
+
+      <section class="doc-section" id="faq" data-route="faq">
+        <div class="section-head"><div><div class="section-kicker">06 / resolve questions</div><h2>FAQ</h2></div><p class="section-intro">Short answers to the questions that come up before Raven is added to a project or team workflow.</p></div>
+        <div class="faq-list"><details open><summary>Does this replace a design system?</summary><div class="answer">No. Raven can generate or inspect tokens and patterns, but your design system remains the source of truth. Raven helps agents apply it and flag drift.</div></details><details><summary>Does it work with any coding agent that supports MCP?</summary><div class="answer">Yes. Raven uses the Model Context Protocol and can be added to compatible clients through their standard MCP configuration.</div></details><details><summary>Is my design data used to train models?</summary><div class="answer">No. The local server runs in your environment and does not use project data for model training. Hosted and team deployments document their retention and consent controls separately.</div></details><details><summary>What’s the difference between the free and team tier?</summary><div class="answer">The free tier provides local design-intelligence tools for individual work. Team adds shared taste, decision history, permissions, and administrative controls.</div></details><details><summary>Can I self-host?</summary><div class="answer">Yes. The open-source server can run locally or in infrastructure you control. Hosted features that depend on managed identity or shared storage require equivalent services.</div></details></div>
+      </section>
+
+      <footer class="page-end"><span>RavenMCP / documentation trace</span><span>End of route · 06 / 06</span></footer>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      var routeLinks = Array.prototype.slice.call(document.querySelectorAll('[data-route-link]'));
+      var toolLinks = Array.prototype.slice.call(document.querySelectorAll('[data-tool-link]'));
+      var sections = Array.prototype.slice.call(document.querySelectorAll('[data-route]'));
+      var tools = Array.prototype.slice.call(document.querySelectorAll('[data-tool]'));
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          var id = entry.target.getAttribute('data-route');
+          routeLinks.forEach(function (link) { link.classList.toggle('active', link.getAttribute('data-route-link') === id); });
+        });
+      }, { rootMargin: '-25% 0px -65% 0px', threshold: 0 });
+      sections.forEach(function (section) { observer.observe(section); });
+
+      var toolObserver = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          toolLinks.forEach(function (link) { link.classList.toggle('active', link.getAttribute('data-tool-link') === entry.target.id); });
+          routeLinks.forEach(function (link) { link.classList.toggle('active', link.getAttribute('data-route-link') === 'tool-reference'); });
+        });
+      }, { rootMargin: '-20% 0px -72% 0px', threshold: 0 });
+      tools.forEach(function (tool) { toolObserver.observe(tool); });
+
+      document.getElementById('tool-filter').addEventListener('input', function (event) {
+        var query = event.target.value.trim().toLowerCase();
+        tools.forEach(function (tool) {
+          var visible = !query || tool.getAttribute('data-tool').indexOf(query) !== -1 || tool.textContent.toLowerCase().indexOf(query) !== -1;
+          tool.hidden = !visible;
+          var link = document.querySelector('[data-tool-link="' + tool.id + '"]');
+          if (link) link.parentElement.hidden = !visible;
+        });
+      });
+
+      Array.prototype.slice.call(document.querySelectorAll('.copy-button')).forEach(function (button) {
+        button.addEventListener('click', function () {
+          var code = button.closest('.code-panel').querySelector('code').innerText;
+          navigator.clipboard.writeText(code).then(function () {
+            button.textContent = 'Copied';
+            window.setTimeout(function () { button.textContent = 'Copy'; }, 1400);
+          });
+        });
+      });
+    }());
+  </script>
+</body>
+</html>
