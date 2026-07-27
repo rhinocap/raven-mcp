@@ -452,6 +452,22 @@
       "description": "Enumerate Raven's Talon detector rule corpus — id, category, severity, taste scope, and the src/data/principles/*.json…"
     },
     {
+      "name": "configure_design_system_source",
+      "description": "Save which local DESIGN.md file Raven should use for design-system inventory and comparison."
+    },
+    {
+      "name": "inventory_design_system",
+      "description": "Read component declarations and tokens from a local DESIGN.md file."
+    },
+    {
+      "name": "diff_design_system",
+      "description": "Diff a project's declared design system (DESIGN.md) against the Raven canonical baseline: reports missing components,…"
+    },
+    {
+      "name": "list_design_system_components",
+      "description": "List the components and provenance in the Raven canonical baseline."
+    },
+    {
       "name": "audit",
       "description": "Run **all applicable** Raven audits for a target."
     }

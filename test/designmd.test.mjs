@@ -73,6 +73,41 @@ test('parse/serialize roundtrip preserves frontmatter semantics and body verbati
   assert.equal(reparsed.body, parsed.body);
 });
 
+test('inline arrays round-trip as typed scalars and refs', () => {
+  const parsed = designmd.parseDesignMd('---\ncomponents:\n  button:\n    aliases: [btn, "Primary Button", {colors.primary}]\n---\nBody');
+  assert.deepEqual(parsed.frontmatter.components.button.aliases, ['btn', 'Primary Button', { $ref: 'colors.primary' }]);
+  assert.deepEqual(designmd.parseDesignMd(designmd.serializeDesignMd(parsed)).frontmatter, parsed.frontmatter);
+});
+
+test('inline array strings ending in a backslash round-trip', () => {
+  const parsed = designmd.parseDesignMd('---\ncomponents:\n  button:\n    aliases: ["C:\\\\"]\n---\nBody');
+  assert.deepEqual(parsed.frontmatter.components.button.aliases, ['C:\\']);
+  assert.deepEqual(designmd.parseDesignMd(designmd.serializeDesignMd(parsed)).frontmatter, parsed.frontmatter);
+});
+
+test('unsupported YAML collection syntax rejects loudly', () => {
+  assert.throws(() => designmd.parseDesignMd('---\ncomponents:\n  button:\n    aliases:\n      - btn\n---\nBody'), /block sequences are not supported; use inline \[a, b\] syntax.*- btn/);
+  assert.throws(() => designmd.parseDesignMd('---\nthing: {name: button}\n---\nBody'), /inline objects are not supported.*thing: \{name: button\}/);
+  assert.throws(() => designmd.parseDesignMd('---\nthing: [[nested]]\n---\nBody'), /nested arrays are not supported.*thing: \[\[nested\]\]/);
+});
+
+test('extractComponentManifest returns declarations and precise validation problems', () => {
+  const parsed = designmd.parseDesignMd('---\ncomponents:\n  button:\n    aliases: [btn]\n    variants: [primary, secondary]\n    states: [hover, focus-visible]\n    anatomy: [label]\n    height: 40px\n    padding:\n      x: 12px\n  token-only:\n    radius: 8px\n  broken:\n    states: hover\n---\nBody');
+  const result = designmd.extractComponentManifest(parsed.frontmatter);
+  assert.deepEqual(result.components[0], {
+    id: 'button', aliases: ['btn'], variants: ['primary', 'secondary'], states: ['hover', 'focus-visible'], anatomy: ['label'], tokens: { height: '40px', 'padding.x': '12px' }
+  });
+  assert.equal(result.components.some((component) => component.id === 'token-only'), false);
+  assert.match(result.problems[0], /components\.broken\.states must be an array of strings, got string/);
+});
+
+test('flattenDesignTokens skips component manifests and arrays', () => {
+  const parsed = designmd.parseDesignMd('---\ncolors:\n  palette: [black, white]\ncomponents:\n  button:\n    aliases: [btn]\n    height: 40px\n  tokens:\n    radius: 8px\n---\nBody');
+  assert.equal(JSON.stringify(designmd.flattenDesignTokens(parsed.frontmatter)), JSON.stringify([
+    { path: 'components.tokens.radius', group: 'components', name: 'tokens.radius', value: '8px', kind: 'scalar', cssVar: '--component-tokens-radius' }
+  ]));
+});
+
 test('flattenDesignTokens returns nested paths and official CSS-var names', () => {
   const parsed = designmd.parseDesignMd(SAMPLE);
   const tokens = designmd.flattenDesignTokens(parsed.frontmatter);
