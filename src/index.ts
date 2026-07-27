@@ -1850,6 +1850,7 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   "create_taste_profile", "get_taste_profile", "list_taste_profiles",
   "get_taste_interview", "bind_taste_surface", "record_taste_decision",
   "list_taste_decisions", "generate_taste_portrait", "label_finding", "audit_taste",
+  "delete_taste_data",
   "create_brand_profile", "get_brand_profile", "list_brand_profiles",
   "register_creative_asset", "create_character_profile", "create_generation_job",
   "get_generation_job", "list_generation_jobs", "plan_creative_campaign", "raven_reflect",
@@ -1903,8 +1904,15 @@ const DIGEST_EXEMPT_TOOLS = new Set<string>(["review_diff", "polish_diff"]);
 const AUTHED_USER_TASTE_TOOLS = new Set<string>([
   "create_taste_profile", "get_taste_profile", "list_taste_profiles",
   "get_taste_interview", "bind_taste_surface", "record_taste_decision",
-  "list_taste_decisions", "generate_taste_portrait", "label_finding", "audit_taste"
+  "list_taste_decisions", "generate_taste_portrait", "label_finding", "audit_taste",
+  "delete_taste_data"
 ]);
+
+const AUTHED_USER_TASTE_STARTUP_INSTRUCTIONS =
+  "\n\nAUTHENTICATED STARTUP: this remote endpoint is connected to a per-user taste store. At project kickoff or the first real design/copy/UI work for a project, call get_taste_interview for the connected user's taste profile and project name before choosing direction. Ask the returned questions, then persist the user's answers with bind_taste_surface before generating design work. If the profile name is not known yet, call list_taste_profiles first.";
+
+const AUTHED_USER_TASTE_INTERVIEW_DESCRIPTION_SUFFIX =
+  " AUTHENTICATED STARTUP: on the remote authed endpoint, use this as the first taste step for the connected user's per-user store at project kickoff; if you do not know the profile name, call list_taste_profiles first, then call get_taste_interview with that profile and project name before design/copy/UI decisions.";
 
 // Tools KEPT in remote mode for their safe pasted-content path, but whose `url`
 // argument reaches the local filesystem / network via headless capture (incl.
@@ -2051,6 +2059,8 @@ const TOOL_ACCESS: Record<string, "readOnly" | "destructive"> = {
   get_taste_interview: "readOnly",
   bind_taste_surface: "destructive",
   record_taste_decision: "destructive",
+  // Authed-remote only (P4.5): erases a user's whole taste namespace in Redis.
+  delete_taste_data: "destructive",
   list_taste_decisions: "readOnly",
   generate_taste_portrait: "destructive",
   list_taste_profiles: "readOnly",
@@ -2152,6 +2162,9 @@ var server = new McpServer({
 }, {
   instructions: "Raven is a design-intelligence server: audits (page/layout/screen/contrast/tap-targets/typography/consistency), design systems and tokens, brand/content/service-design knowledge, creative scoring, and a Taste Engine that makes a person's design judgment portable and growable.\n\nPROJECT KICKOFF — calibrate taste BEFORE the first design work. Taste is per-surface: the same person wants different rules on a monochrome portfolio than on a product site, and a different voice on each. At the START of a new project (or the first design/copy/UI work in any project), if a taste profile exists (list_taste_profiles), call get_taste_interview with the profile and a project name (mode defaults to 'kickoff', depth defaults to 'first_run'). If it returns existing_binding: null, ask the user just its 4 core `questions` conversationally — identity, aesthetic (how it should read here — multiple-choice options given), voice (three register examples so the user can pick by ear), and matchers (which URL hosts identify the project) — then persist with bind_taste_surface and proceed; offer the returned `more_questions` (typography/spacing/color/layout/motion/imagery/entrance/loading/navigation/libraries, references, per-rule overrides, the open-ended special question) as OPTIONAL deeper calibration rather than asking them all upfront, or re-run with depth:'full' if the user wants the complete interview at once. Dimension answers go in design_notes and are echoed in every audit. A cold-start project with no profile at all can start from create_taste_profile({ name, template: 'portfolio'|'saas-marketing'|'app' }) for a small sensible starter ruleset before the first interview even runs. The interview is a blocking gate: collect the user's answers before committing any design direction, palette, type choice, or name — never answer its questions yourself or start design work while it is pending. Every question carries skippable + priority (core|extended); skipping is fine but leaves that item uncalibrated. A 'references' question takes example links/screenshots and interviews what specifically the person likes about each. The interview ends with an open-ended 'special' question (textures, signature details, motifs — stored as design_notes.special) that suggests the person's choices from their other bound surfaces once it has them. From then on pass project:'<name>' on every audit_taste — bindings also auto-match by URL hostname in url mode. When the surface is a website to be built, suggest building it as a Next.js app by default; if the user prefers another stack, record it in design_notes.libraries. Do NOT wait for an audit to return a calibration_hint; that is the reactive backstop, not the intended flow.\n\nWhen a user dislikes generated/designed output on an ALREADY-calibrated project, that dissatisfaction is a calibration signal, not a dead end — re-run get_taste_interview with mode:'refine' (it re-interviews against the stored binding: what fell short, then each stored design_notes value to keep/tighten/replace, then voice, then an optional reject precedent) and re-bind with bind_taste_surface.\n\nLEARNING LOOP — whenever the user makes, approves, or corrects a taste, direction, or design decision during work (not just at interview time), record it with record_taste_decision: the project, a short dimension name, what was chosen, what was rejected, why, and whether it was user-directed, user-approved, or user-corrected (a user overriding a generated choice is the highest-signal record). Recorded decisions evolve future kickoff interviews — recurring choices return as suggested defaults on their dimension's question, and decision categories no standard question covers become NEW interview questions. Record liberally; every committed decision is calibration data.\n\nJudging work: prefer audit_taste (with the profile + project) for matters of the owner's taste, and the mechanical audits (audit_page, audit_contrast, audit_tap_targets, audit_layout) for objective quality. design_notes are ACCEPTANCE CRITERIA for any build, not mood words: audit_taste verifies each note against the rendered page (note_assessments: present/partial/missing/unverifiable, each with trait-number evidence), compares the target against the binding's captured references, and flags sparse-and-empty pages whose restraint is deletion rather than craft — a build is not done until every note is visibly present or the user is told exactly which notes were dropped and why. When a note names an expensive technique (three.js/WebGL, GSAP scroll choreography, anime.js staggered motion, glassmorphism, a branded loader, lottie, kinetic display type…), bind_taste_surface and audit_taste return build_hints — a concrete recipe + canonical public example sources (threejs.org, gsap.com, animejs.com, Codrops…). The public corpus for these is vast, so an expensive note is NEVER license to drop it: consult the attached build_hints and their sources, and if a technique is genuinely infeasible, tell the user before shipping without it. Prefer url mode for verification: live traits (WebGL, animations, scroll effects) cannot be measured from static html. When a human accepts or rejects a finding, record it with label_finding — accept-verdicts suppress that exact pattern in future audits, which is how the profile learns.\n\nGRAB — click-to-change is ON BY DEFAULT for local servers. Any time you start, restart, or serve a local web page/dev server for the user (a demo, a preview, a dev build, a static file server), automatically start a grab session first (start_grab_session with the project's DESIGN.md if one exists) and make the overlay present WITHOUT the user asking or pasting anything: for a server you are starting anyway, pass proxy_target and give the user the BRIDGE url instead of the raw server url — the overlay is injected into every HTML response; for HTML files you are writing yourself, include the returned script_tag directly. Never hand the user a script tag or console snippet to paste. Mention in one line that the grab overlay is active (Alt+G or the on-page pill). The user clicks elements, swaps DESIGN.md tokens with live preview, edits computed styles inline, and sends instructions; drain them with get_grabbed_elements — while a grab session is active, drain whenever control returns to you (and before ending any turn). Sends arrive and are held. On a plain drain, acknowledge each change in one line and wait; do not implement or offer to implement until a batchCommit marker arrives. When batchCommit arrives, implement batch.pending from that same drain payload in one sweep. Apply approved token changes with update_design_md. Stop the session (stop_grab_session) when the server comes down. Skip only when the user explicitly asks for a clean page or the server is production."
 });
+if (remote && hasUserStore) {
+  (server as any).server._options.instructions += AUTHED_USER_TASTE_STARTUP_INSTRUCTIONS;
+}
 
 // Wrap every tool handler: log the call to the local usage log, then inject
 // the one-time update banner if one is pending.
@@ -2166,6 +2179,9 @@ var originalTool: any = server.tool.bind(server);
   // against that store.
   if (remote && REMOTE_GATED_TOOLS.has(toolName) && !(hasUserStore && AUTHED_USER_TASTE_TOOLS.has(toolName))) {
     return undefined;
+  }
+  if (remote && hasUserStore && toolName === "get_taste_interview" && typeof args[1] === "string") {
+    args[1] += AUTHED_USER_TASTE_INTERVIEW_DESCRIPTION_SUFFIX;
   }
   var handler = args[args.length - 1];
   if (typeof handler === "function") {
@@ -7156,6 +7172,23 @@ server.tool(
     return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "create_taste_profile", name: profile.name, rules: profile.rules.length, corpus: profile.corpus.length, home: (remote && hasUserStore) ? "cloud:per-user" : (process.env.RAVEN_TASTE_HOME ? "RAVEN_TASTE_HOME" : "~/.raven/taste") }, null, 2) }] };
   }
 );
+
+if (remote && hasUserStore) {
+  server.tool(
+    "delete_taste_data",
+    "IRREVERSIBLY delete ALL of the connected user's stored taste data on the hosted endpoint — every taste profile, surface binding, and recorded decision keyed to your account (the taste:{you}:* keyspace). This does not touch rate-limit counters and cannot be undone. Requires confirm:\"DELETE\". Returns {deleted, remaining}; remaining>0 means erasure was incomplete (reported as an error).",
+    { confirm: z.literal("DELETE").describe("Must be exactly the string DELETE to authorize irreversible erasure of all your stored taste data.") },
+    async function ({ confirm }) {
+      var store: any = tasteStore;
+      if (typeof store.deleteAllUserData !== "function") {
+        return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ tool: "delete_taste_data", error: "deletion is only available on the hosted per-user store" }, null, 2) }] };
+      }
+      var res = await store.deleteAllUserData();
+      var failed = res.remaining > 0;
+      return { isError: failed, content: [{ type: "text" as const, text: JSON.stringify({ tool: "delete_taste_data", deleted: res.deleted, remaining: res.remaining, ok: !failed }, null, 2) }] };
+    }
+  );
+}
 
 server.tool(
   "get_taste_profile",

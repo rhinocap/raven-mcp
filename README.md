@@ -335,6 +335,12 @@ Raven keeps a small **local-only** log of how you use it so you (and Claude) can
 
 Nothing is sent to a remote server. If a recurring gap is worth turning into a new Raven principle or pattern, you file an issue by hand — the automated pipeline at [github.com/rhinocap/raven-mcp](https://github.com/rhinocap/raven-mcp) handles it from there.
 
+## Your data on the hosted server
+
+Raven also runs a hosted remote MCP server with two endpoints. The anonymous endpoint is stateless — no store is ever attached to it, so nothing you send is written anywhere. The authenticated endpoint (used for the Taste Engine's cross-session profiles, surface bindings, and decisions) keys everything to your account and stores it in Upstash Redis, namespaced under your verified user id; your bearer token itself is never persisted.
+
+You can erase all of it at any time with the `delete_taste_data` tool (`confirm: "DELETE"`) — it removes every key under your namespace and confirms nothing remains. Full details, including the exact key layout and the rate-limit counters that aren't part of your data, are in [docs/remote-mcp-privacy.md](./docs/remote-mcp-privacy.md).
+
 ## Development
 
 ```bash

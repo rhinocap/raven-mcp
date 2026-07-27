@@ -22,9 +22,9 @@ import { buildServer } from '../dist/index.js';
 
 const GOLDEN_45_HASH = 'f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6';
 const TRIO = ['create_taste_profile', 'get_taste_profile', 'list_taste_profiles'];
-// P4.3 widened the store-injected surface from the trio (P4.2) to all 10
-// taste tools; test/taste-remote-full.test.mjs owns the exact-set assertion.
-const AUTHED_TASTE_COUNT = 10;
+// P4.5 exposes the full authed taste subset: all 10 taste tools plus delete_taste_data;
+// test/taste-remote-full.test.mjs owns the exact-set assertion.
+const AUTHED_TASTE_COUNT = 11;
 
 // In-memory fake mirroring @upstash/redis behavior used by the store:
 // values are structured-cloned (JSON semantics), lists ordered, sets unique.
@@ -41,6 +41,15 @@ function fakeRedis() {
     async smembers(key) { const s = kv.get(key); return s instanceof Set ? [...s] : []; },
     async rpush(key, ...values) { if (!Array.isArray(kv.get(key))) kv.set(key, []); const l = kv.get(key); for (const v of values) l.push(clone(v)); return l.length; },
     async lrange(key, start, stop) { const l = kv.get(key); if (!Array.isArray(l)) return []; const end = stop === -1 ? l.length : stop + 1; return clone(l.slice(start, end)); },
+    async scan(cursor, opts) {
+      const match = opts && opts.match;
+      const re = match ? new RegExp('^' + match.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$') : null;
+      const all = [...kv.keys()].filter((k) => !re || re.test(k));
+      const start = Number(cursor) || 0;
+      const page = all.slice(start, start + 2);
+      const next = start + 2 >= all.length ? '0' : String(start + 2);
+      return [next, page];
+    },
   };
 }
 
@@ -91,7 +100,34 @@ test('decisions use the atomic append path with collision-free ids', async () =>
   assert.equal(redis.kv.get('taste:user_A:decisions:mytaste').length, 2, 'stored as a Redis list');
 });
 
-test('buildServer gating: store injection un-gates exactly the profile trio', async () => {
+test('deleteAllUserData deletes indexed and scanned taste data but leaves rate limits', async () => {
+  const redis = fakeRedis();
+  const store = new RedisTasteStore('user_A', redis);
+  await createTasteProfile(store, { name: 'mytaste' });
+  await store.putSurfaces('mytaste', [{ project: 'proj1', surface: 'site', hosts: [], overrides: [], design_notes: { color: 'dark' } }]);
+  await recordTasteDecision(store, 'mytaste', { project: 'proj1', dimension: 'color', decision: 'dark' });
+  redis.kv.set('taste:user_A:profile:orphan', { name: 'orphan', rules: [], corpus: [] });
+  redis.kv.set('rl:user_A:w', 1);
+
+  const res = await store.deleteAllUserData();
+  assert.equal(res.remaining, 0);
+  assert.deepEqual([...redis.kv.keys()].filter((k) => k.startsWith('taste:user_A:')), [], 'all taste keys for the user are gone');
+  assert.equal(redis.kv.has('taste:user_A:profiles'), false, 'index key is empty/gone');
+  assert.equal(redis.kv.get('rl:user_A:w'), 1, 'rate-limit key survives');
+});
+
+test('deleteAllUserData refuses unsafe user ids before building a glob', async () => {
+  await assert.rejects(
+    () => new RedisTasteStore('a:b', fakeRedis()).deleteAllUserData(),
+    /delete refused: user id contains characters unsafe for a key glob/
+  );
+  await assert.rejects(
+    () => new RedisTasteStore('a*', fakeRedis()).deleteAllUserData(),
+    /delete refused: user id contains characters unsafe for a key glob/
+  );
+});
+
+test('buildServer gating: store injection un-gates the authed taste subset', async () => {
   const hash = (names) => createHash('sha256').update(names.join('\n')).digest('hex');
 
   const bare = buildServer({ remote: true });
