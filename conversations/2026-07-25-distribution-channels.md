@@ -589,3 +589,82 @@ and is Andrew's call.
   and +155/−54). The artifact-existence check proved a *file* was present, not
   that the *changes* had landed. Both kept.
 - The claim that the destructive-op guard blocks remote branch deletion: wrong.
+
+---
+
+## 2026-07-27 (later) — the follow-up list executed (Andrew: "You do it")
+
+### #49 and #50 merged
+
+The timing question I raised on #50 — whether moving stdio 100 → 104 was safe
+while Raven 1.0.0 sits in OpenAI review — was unfounded, and the log above says
+why. The OpenAI plugin was created as **With MCP → Standard** against
+`/api/mcp` (No Auth), and its **Scan Tools** step reads that remote endpoint.
+The remote surface is the anonymous 45; the stdio count is not visible to the
+review at all. All four of #50's tools are in `REMOTE_GATED_TOOLS`.
+
+Verified before merging, on both merged onto `main` together:
+
+- suite **1151 / 1148 pass / 0 fail / 3 skipped**
+- **REMOTE 56 → `9a8139d7…b769dcd` MATCH** — byte-identical to baseline
+- STDIO 104 → `e5ee055e…9915bd85`, the intended move
+
+Verified after, on the live endpoint: alias on the new deployment, 45 tools,
+`f64bb18…2bb0a6` MATCH, ravenmcp.ai 200. Merging a `src/` change did not move
+what `mcp.ravenmcp.ai` serves.
+
+Both were confirmed on `main` by artifact (`git cat-file -e`), not by the
+MERGED badge — the #41/#42 lesson applied.
+
+### `site-audit-polish-*` triaged → PR #51
+
+`-wt` turned out to be **local-only** — three commits and ~2,400 lines of docs
+redesign living in one working copy with no remote. That was the real risk, so
+it is now on `origin` and open as **#51**. It is not descended from
+`site-audit-polish`, so it carries no Morven material.
+
+`-audit-fixes` was exactly `aecaf8f`, the first commit of `-wt` — a strict
+subset, redundant once `-wt` was pushed. Deleted.
+
+Not merged, deliberately. Two blockers, both in the PR body: it introduces
+`web/lib/counts.ts` hardcoded to `TOOL_COUNT = 78` and moves the site copy
+70 → 78, when `main` now serves **104** — merging publishes a wrong number on
+the public site. And the docs rewrite is a design direction, not a fix;
+resolving ~2,400 lines of conflict is only worth doing once the direction is
+confirmed.
+
+### Morven loop notes moved out (`8b7f3f6`)
+
+Sixteen files, not the three previously recorded — the loop log (1001 lines),
+the competitor matrix, the commercial handoff, team-tier pricing validation,
+the paid Decision Graph spec, three strategic zoom-outs, and four engineering
+artifacts the loop produced whose value is superseded now those PRs are merged.
+All preserved to `~/projects/morven-handoff/conversations/` first.
+
+`CLAUDE.md` and `AGENTS.md` were deliberately left alone: their Morven
+paragraph is the product-boundary statement successors depend on, and it states
+the boundary without commercial detail.
+
+Two things the move does not fix, both written up in the handoff README:
+removal is going-forward only (the files remain in the history of a public
+repo), and strategy references stay embedded in files that are legitimately
+Raven's — most notably `.claude/raven-opportunities.md` line 134.
+
+### Guard fix — `~/.claude/scripts/destructive-op-guard.sh`
+
+The `-F` block was real. The force-flag test ran case-insensitively, so
+`git commit -F -` matched as `git push -f`. Dropped the `-i`; no valid git flag
+is uppercase, so no true positive is lost.
+
+Validated by replaying **2691 real Bash commands from 40 transcripts across 4
+projects** — exactly 2 verdicts flipped, both the false positives, with all 9
+true positives still blocked. That replay also surfaced a hole neither version
+caught: `git push origin +main:main` force-pushes via the refspec with no
+`--force` flag anywhere. Added a rule for it and re-replayed — zero new false
+positives.
+
+Residual: the rule still scans heredoc bodies, so a heredoc *containing* the
+words would still trip it. Fixing that needs real shell parsing of a
+safety-critical script.
+
+The file is live on disk; `~/.claude` is not version controlled.
