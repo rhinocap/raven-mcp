@@ -289,6 +289,14 @@ The result includes `adversarial_verification: { debunked_count, confirmed_count
 
 When before/after screenshots are provided alongside a `description`, `evaluate_design` returns both the principle-based evaluation and the pixel diff. When screenshots are provided without a description, the evaluation gracefully skips the principle search and returns the diff only. Backwards-compatible: without screenshots, the tool behaves identically to prior versions.
 
+Close the token-polish loop against a real git worktree:
+
+```bash
+npx raven-polish --apply --verify "npm test"
+```
+
+The CLI is dry-run by default (or `node scripts/raven-polish.mjs` in this repo); it exits 1 when polish is proposed or any finding has severity `error`, and exits 0 only when there is nothing to polish and no errors. Pass `--range main...HEAD` to review committed work. It checks a proposed patch before applying it, then runs `review_diff` again on the real repository state. For CI, copy [the example workflow](.github/workflows/examples/raven-polish.yml) into `.github/workflows/`.
+
 ## Release updates
 
 Raven ships new principles, patterns, and brand systems regularly. For one email per minor/major release (patches stay quiet):
