@@ -11,7 +11,7 @@ export interface DesignMdRef {
   $ref: string;
 }
 
-export type DesignMdValue = string | number | boolean | null | DesignMdRef | DesignMdNode;
+export type DesignMdValue = string | number | boolean | null | DesignMdRef | DesignMdNode | DesignMdValue[];
 
 export interface DesignMdNode {
   [key: string]: DesignMdValue;
@@ -30,6 +30,15 @@ export interface FlattenedDesignToken {
   kind: "scalar" | "ref";
   cssVar: string;
   ref?: string;
+}
+
+export interface ComponentDecl {
+  id: string;
+  aliases: string[];
+  variants: string[];
+  states: string[];
+  anatomy: string[];
+  tokens: Record<string, string>;
 }
 
 export type DesignMdInitSource =
@@ -129,6 +138,8 @@ export function flattenDesignTokens(frontmatter: DesignMdNode): FlattenedDesignT
       if (key.charAt(0) === "$") continue;
       var value = node[key];
       var nextParts = pathParts.concat([key]);
+      if (pathParts.length === 1 && pathParts[0] === "components" && isNodeValue(value) && hasManifestKey(value)) continue;
+      if (Array.isArray(value)) continue;
       if (isNodeValue(value)) {
         walk(value, nextParts);
         continue;
@@ -152,6 +163,34 @@ export function flattenDesignTokens(frontmatter: DesignMdNode): FlattenedDesignT
 
   walk(frontmatter, []);
   return tokens;
+}
+
+export function extractComponentManifest(frontmatter: DesignMdNode): { components: ComponentDecl[]; problems: string[] } {
+  var components: ComponentDecl[] = [];
+  var problems: string[] = [];
+  var root = frontmatter.components;
+  if (!isNodeValue(root)) return { components: components, problems: problems };
+  var ids = Object.keys(root);
+  var reserved = ["aliases", "variants", "states", "anatomy"];
+  for (var i = 0; i < ids.length; i++) {
+    var id = ids[i];
+    var node = root[id];
+    if (!isNodeValue(node) || !hasManifestKey(node)) continue;
+    var decl: ComponentDecl = { id: id, aliases: [], variants: [], states: [], anatomy: [], tokens: {} };
+    for (var r = 0; r < reserved.length; r++) {
+      var key = reserved[r];
+      var value = node[key];
+      if (value === undefined) continue;
+      if (!Array.isArray(value) || !value.every(function(item) { return typeof item === "string"; })) {
+        problems.push("components." + id + "." + key + " must be an array of strings, got " + describeValue(value));
+      } else {
+        (decl as any)[key] = value.slice();
+      }
+    }
+    collectComponentTokens(node, [], reserved, decl.tokens);
+    components.push(decl);
+  }
+  return { components: components, problems: problems };
 }
 
 export function readDesignMd(path: string): ParsedDesignMd & { path: string; tokens: FlattenedDesignToken[] } {
@@ -370,6 +409,9 @@ function parseFrontmatter(text: string): DesignMdNode {
     if (!raw || raw.trim() === "" || raw.trim().charAt(0) === "#") continue;
     var indent = countLeadingSpaces(raw);
     var line = raw.slice(indent);
+    if (line.indexOf("- ") === 0) {
+      throw new Error("block sequences are not supported; use inline [a, b] syntax: " + raw);
+    }
     var colonIndex = line.indexOf(":");
     if (colonIndex === -1) {
       throw new Error("Invalid DESIGN.md frontmatter line: " + raw);
@@ -386,14 +428,29 @@ function parseFrontmatter(text: string): DesignMdNode {
       parent[key] = child;
       stack.push({ indent: indent, node: child });
     } else {
-      parent[key] = parseScalar(rest);
+      parent[key] = parseScalar(rest, raw);
     }
   }
 
   return root;
 }
 
-function parseScalar(text: string): any {
+function parseScalar(text: string, sourceLine?: string): any {
+  if (text.charAt(0) === "[") {
+    if (text.charAt(text.length - 1) !== "]") throw new Error("Invalid inline array: " + (sourceLine || text));
+    var inner = text.slice(1, -1).trim();
+    if (inner === "") return [];
+    var parts = splitInlineArray(inner, sourceLine || text);
+    var values: DesignMdValue[] = [];
+    for (var p = 0; p < parts.length; p++) {
+      if (parts[p].trim().charAt(0) === "[") throw new Error("nested arrays are not supported: " + (sourceLine || text));
+      values.push(parseScalar(parts[p].trim(), sourceLine));
+    }
+    return values;
+  }
+  if (text.charAt(0) === "{" && !/^\{[A-Za-z0-9_.-]+\}$/.test(text)) {
+    throw new Error("inline objects are not supported; only {ref.path} references are allowed: " + (sourceLine || text));
+  }
   if ((text.charAt(0) === "\"" && text.charAt(text.length - 1) === "\"") || (text.charAt(0) === "'" && text.charAt(text.length - 1) === "'")) {
     var unquoted = unquote(text);
     if (/^\{[A-Za-z0-9_.-]+\}$/.test(unquoted)) {
@@ -666,6 +723,9 @@ function serializeNode(node: any, indent: number): string {
 }
 
 function serializeScalar(value: any): string {
+  if (Array.isArray(value)) {
+    return "[" + value.map(function(item) { return serializeScalar(item); }).join(", ") + "]";
+  }
   if (value && typeof value === "object" && "$ref" in value) {
     return "{" + value.$ref + "}";
   }
@@ -675,6 +735,55 @@ function serializeScalar(value: any): string {
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (value === null) return "null";
   return quoteIfNeeded(String(value));
+}
+
+function splitInlineArray(text: string, sourceLine: string): string[] {
+  var parts: string[] = [];
+  var start = 0;
+  var quote = "";
+  for (var i = 0; i < text.length; i++) {
+    var ch = text.charAt(i);
+    if (quote !== "") {
+      if (ch === quote && !isEscapedAt(text, i)) quote = "";
+      continue;
+    }
+    if (ch === "\"" || ch === "'") { quote = ch; continue; }
+    if (ch === "[" || ch === "]") throw new Error("nested arrays are not supported: " + sourceLine);
+    if (ch === ",") { parts.push(text.slice(start, i)); start = i + 1; }
+  }
+  if (quote !== "") throw new Error("Invalid quoted value in inline array: " + sourceLine);
+  parts.push(text.slice(start));
+  return parts;
+}
+
+function isEscapedAt(text: string, index: number): boolean {
+  var slashes = 0;
+  for (var i = index - 1; i >= 0 && text.charAt(i) === "\\"; i--) slashes++;
+  return slashes % 2 === 1;
+}
+
+function collectComponentTokens(node: DesignMdNode, parts: string[], reserved: string[], tokens: Record<string, string>): void {
+  var keys = Object.keys(node);
+  for (var i = 0; i < keys.length; i++) {
+    var key = keys[i];
+    if (parts.length === 0 && reserved.indexOf(key) !== -1) continue;
+    var value = node[key];
+    var nextParts = parts.concat(key);
+    if (isNodeValue(value)) collectComponentTokens(value, nextParts, reserved, tokens);
+    else if (typeof value === "string" || typeof value === "number" || typeof value === "boolean" || value === null || isRefValue(value)) {
+      tokens[nextParts.join(".")] = isRefValue(value) ? "{" + value.$ref + "}" : String(value);
+    }
+  }
+}
+
+function hasManifestKey(node: DesignMdNode): boolean {
+  return ["aliases", "variants", "states", "anatomy"].some(function(key) { return Object.prototype.hasOwnProperty.call(node, key); });
+}
+
+function describeValue(value: any): string {
+  if (Array.isArray(value)) return "array containing " + value.map(function(item) { return typeof item; }).join(", ");
+  if (value === null) return "null";
+  return typeof value;
 }
 
 function quoteIfNeeded(value: string): string {

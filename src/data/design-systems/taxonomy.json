@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "states": {
+    "hover": { "class": "interaction", "applies": ["pointer"], "accessibility_critical": false },
+    "focus-visible": { "class": "interaction", "applies": ["pointer", "touch", "keyboard"], "accessibility_critical": true },
+    "active": { "class": "interaction", "applies": ["pointer", "touch", "keyboard"], "accessibility_critical": false },
+    "disabled": { "class": "availability", "applies": ["pointer", "touch", "keyboard"], "accessibility_critical": true },
+    "loading": { "class": "async", "applies": ["pointer", "touch", "keyboard"], "accessibility_critical": false },
+    "error": { "class": "validation", "applies": ["pointer", "touch", "keyboard"], "accessibility_critical": true },
+    "selected": { "class": "selection", "applies": ["pointer", "touch", "keyboard"], "accessibility_critical": true },
+    "checked": { "class": "selection", "applies": ["pointer", "touch", "keyboard"], "accessibility_critical": true },
+    "expanded": { "class": "disclosure", "applies": ["pointer", "touch", "keyboard"], "accessibility_critical": true },
+    "readonly": { "class": "availability", "applies": ["pointer", "touch", "keyboard"], "accessibility_critical": true }
+  }
+}

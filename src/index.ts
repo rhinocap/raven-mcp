@@ -44,6 +44,7 @@ import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, in
 import { startGrabSession, getGrabbedElements, stopGrabSession, getPageTemplate, setTemplateSlots, listTemplates, getGrabLayers, moveGrabLayer, getGrabOperation } from "./grab-bridge.js";
 import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, recordConsultation, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
 import { FAIL_ON_RULES, proposePolish, reviewDiff } from "./design-review.js";
+import { configureSource, readSourceConfig, inventoryFromDesignMd, diffDesignSystem, listBaselineComponents } from "./design-system-diff.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -1855,7 +1856,19 @@ function numberedDocMaterial(repoRelative: string, content: string): string {
 // tools, including the 5 guarded browser URL audits added in Phase 3) is remote-safe,
 // from 100 local tools.
 // Traced to docs/remote-mcp-scope.md §2; asserted at build time.
+function resolveDesignSystemPath(projectDir?: string, designFilePath?: string): string {
+  if (designFilePath) return resolve(designFilePath);
+  if (!projectDir) throw new Error("Provide project_dir or design_file_path");
+  var config = readSourceConfig(projectDir);
+  return resolve(projectDir, config.source.path);
+}
+
 const REMOTE_GATED_TOOLS = new Set<string>([
+  // design-system diff (4): all four resolve a local project dir / DESIGN.md
+  // path, so they are meaningless on the hosted endpoint. Gating them here is
+  // also what keeps the anonymous set frozen at the golden 45.
+  "configure_design_system_source", "inventory_design_system",
+  "diff_design_system", "list_design_system_components",
   // stateful / local (32)
   "create_taste_profile", "get_taste_profile", "list_taste_profiles",
   "get_taste_interview", "bind_taste_surface", "record_taste_decision",
@@ -1977,6 +1990,10 @@ const REMOTE_URL_GUARDED_TOOLS: { [tool: string]: string } = {
 // MCP annotations are injected at the shared registration boundary below.
 // Classifications come from each handler and its called helpers, not name prefixes.
 const TOOL_ACCESS: Record<string, "readOnly" | "destructive"> = {
+  configure_design_system_source: "destructive",
+  inventory_design_system: "readOnly",
+  diff_design_system: "readOnly",
+  list_design_system_components: "readOnly",
   get_principles: "readOnly",
   get_pattern: "readOnly",
   get_business_strategy: "readOnly",
@@ -2138,7 +2155,7 @@ function toolAnnotations(toolName: string): {
     : { title: toolTitle(toolName), readOnlyHint: true, destructiveHint: false, openWorldHint: openWorld };
 }
 
-// buildServer() returns a FRESH McpServer with all 100 local tools + the usage-log/
+// buildServer() returns a FRESH McpServer with all 104 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
@@ -2149,7 +2166,7 @@ export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }
 // as appropriate; authenticated stores selectively restore taste tools). evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 100.
+// without threading opts. stdio callers pass nothing → remote=false → all 104.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -7572,6 +7589,77 @@ server.tool(
 );
 
 server.tool(
+  "configure_design_system_source",
+  "Save which local DESIGN.md file Raven should use for design-system inventory and comparison.",
+  {
+    project_dir: z.string().describe("Project directory where .raven configuration is stored"),
+    source_kind: z.literal("design-file").describe("MVP source kind; only design-file is supported"),
+    design_file_path: z.string().optional().describe("DESIGN.md path relative to the project directory; defaults to DESIGN.md"),
+    platform: z.enum(["web-pointer", "web-touch", "ios", "android"]).optional().describe("Target platform: web-pointer, web-touch, ios, or android"),
+    aliases: z.record(z.string()).optional().describe("Project component id to Raven canonical component id aliases")
+  },
+  async function({ project_dir, source_kind, design_file_path, platform, aliases }) {
+    try {
+      var config = configureSource(project_dir, { source: { kind: source_kind, path: design_file_path || "DESIGN.md" }, platform: platform || "web-pointer", aliases: aliases });
+      return { content: [{ type: "text" as const, text: JSON.stringify(config, null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "inventory_design_system",
+  "Read component declarations and tokens from a local DESIGN.md file.",
+  {
+    project_dir: z.string().optional().describe("Project directory with a configured design-system source"),
+    design_file_path: z.string().optional().describe("Direct path to DESIGN.md; overrides project configuration")
+  },
+  async function({ project_dir, design_file_path }) {
+    try {
+      var path = resolveDesignSystemPath(project_dir, design_file_path);
+      return { content: [{ type: "text" as const, text: JSON.stringify(inventoryFromDesignMd(path), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "diff_design_system",
+  "Diff a project's declared design system (DESIGN.md) against the Raven canonical baseline: reports missing components, missing interaction/accessibility states, missing variants, and raw-literal token drift, as a scored report with fix priorities.",
+  {
+    project_dir: z.string().optional().describe("Project directory with a configured design-system source"),
+    design_file_path: z.string().optional().describe("Direct path to DESIGN.md; overrides project configuration"),
+    baseline: z.literal("raven-canonical").optional().describe("Baseline id; defaults to raven-canonical"),
+    platform: z.enum(["web-pointer", "web-touch", "ios", "android"]).optional().describe("Target platform; overrides project configuration")
+  },
+  async function({ project_dir, design_file_path, baseline, platform }) {
+    try {
+      var config = project_dir && !design_file_path ? readSourceConfig(project_dir) : null;
+      var path = resolveDesignSystemPath(project_dir, design_file_path);
+      var report = diffDesignSystem(inventoryFromDesignMd(path), baseline || "raven-canonical", { platform: platform || (config ? config.platform : "web-pointer"), projectAliases: config && config.aliases ? config.aliases : undefined });
+      return { content: [{ type: "text" as const, text: JSON.stringify(report, null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "list_design_system_components",
+  "List the components and provenance in the Raven canonical baseline.",
+  { baseline: z.literal("raven-canonical").optional().describe("Baseline id; defaults to raven-canonical") },
+  async function({ baseline }) {
+    try {
+      return { content: [{ type: "text" as const, text: JSON.stringify(listBaselineComponents(baseline || "raven-canonical"), null, 2) }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
   "audit",
   "Run **all applicable** Raven audits for a target. Detects the surface (web page / iOS screen / React Native / code diff / video) and fans out to the right checks — contrast, tap targets, typography, layout, responsive, and taste for web; the iOS or RN set for native; parity/contract for diffs. **Use this instead of choosing individual audit_* tools.** Pass `project` to judge against bound taste.",
   {
@@ -7622,7 +7710,7 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 100 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 104 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });

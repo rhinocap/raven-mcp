@@ -1,0 +1,52 @@
+{
+  "score": 0,
+  "grade": "F",
+  "summary": "7 errors, 7 warnings. Accessibility-critical missing state caps the score at 74 and grade at C.",
+  "coverage": {
+    "components": { "covered": 1, "total": 16, "pct": 6 },
+    "states": { "covered": 4, "total": 5, "pct": 80 },
+    "variants": { "covered": 2, "total": 2, "pct": 100 },
+    "token_fidelity": 50,
+    "evidence_confidence": "declared"
+  },
+  "passes": [
+    { "id": "optional-component-tooltip", "type": "optional_component", "component": "tooltip", "detail": "Optional component not declared", "severity": "info", "evidence": "Optional in Raven canonical baseline" },
+    { "id": "optional-component-badge", "type": "optional_component", "component": "badge", "detail": "Optional component not declared", "severity": "info", "evidence": "Optional in Raven canonical baseline" },
+    { "id": "optional-component-avatar", "type": "optional_component", "component": "avatar", "detail": "Optional component not declared", "severity": "info", "evidence": "Optional in Raven canonical baseline" }
+  ],
+  "errors": [
+    { "id": "missing-state-button-focus-visible", "type": "missing_state", "component": "button", "detail": "Missing required state: focus-visible", "severity": "error", "evidence": "Declared states: hover, active, disabled, loading" },
+    { "id": "missing-component-input", "type": "missing_component", "component": "input", "detail": "Missing core component", "severity": "error", "evidence": "No matching declaration" },
+    { "id": "missing-component-select", "type": "missing_component", "component": "select", "detail": "Missing core component", "severity": "error", "evidence": "No matching declaration" },
+    { "id": "missing-component-checkbox", "type": "missing_component", "component": "checkbox", "detail": "Missing core component", "severity": "error", "evidence": "No matching declaration" },
+    { "id": "missing-component-radio", "type": "missing_component", "component": "radio", "detail": "Missing core component", "severity": "error", "evidence": "No matching declaration" },
+    { "id": "missing-component-switch", "type": "missing_component", "component": "switch", "detail": "Missing core component", "severity": "error", "evidence": "No matching declaration" },
+    { "id": "missing-component-link", "type": "missing_component", "component": "link", "detail": "Missing core component", "severity": "error", "evidence": "No matching declaration" }
+  ],
+  "warnings": [
+    { "id": "missing-component-textarea", "type": "missing_component", "component": "textarea", "detail": "Missing recommended component", "severity": "warning", "evidence": "No matching declaration" },
+    { "id": "missing-component-dialog", "type": "missing_component", "component": "dialog", "detail": "Missing recommended component", "severity": "warning", "evidence": "No matching declaration" },
+    { "id": "missing-component-tabs", "type": "missing_component", "component": "tabs", "detail": "Missing recommended component", "severity": "warning", "evidence": "No matching declaration" },
+    { "id": "missing-component-card", "type": "missing_component", "component": "card", "detail": "Missing recommended component", "severity": "warning", "evidence": "No matching declaration" },
+    { "id": "missing-component-alert", "type": "missing_component", "component": "alert", "detail": "Missing recommended component", "severity": "warning", "evidence": "No matching declaration" },
+    { "id": "missing-component-table", "type": "missing_component", "component": "table", "detail": "Missing recommended component", "severity": "warning", "evidence": "No matching declaration" },
+    { "id": "token-literal-button-height", "type": "token_literal", "component": "button", "detail": "Token height uses raw literal 40px", "severity": "warning", "evidence": "Declared component token" }
+  ],
+  "fix_priority": [
+    "For button, add focus-visible to components.button.states.",
+    "Declare components.input in DESIGN.md.",
+    "Declare components.select in DESIGN.md.",
+    "Declare components.checkbox in DESIGN.md.",
+    "Declare components.radio in DESIGN.md.",
+    "Declare components.switch in DESIGN.md.",
+    "Declare components.link in DESIGN.md.",
+    "Declare components.textarea in DESIGN.md.",
+    "Declare components.dialog in DESIGN.md.",
+    "Declare components.tabs in DESIGN.md.",
+    "Declare components.card in DESIGN.md.",
+    "Declare components.alert in DESIGN.md.",
+    "Declare components.table in DESIGN.md.",
+    "Replace the raw literal in components.button with a token reference."
+  ],
+  "diagnostics": ["structural similarity matching skipped — out of MVP scope"]
+}
