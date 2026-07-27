@@ -668,3 +668,22 @@ words would still trip it. Fixing that needs real shell parsing of a
 safety-critical script.
 
 The file is live on disk; `~/.claude` is not version controlled.
+
+---
+
+### Registry key backup — CLOSED (2026-07-27)
+
+`~/.raven-mcp-registry-key` is backed up. Andrew stored it in **Apple Passwords**
+as *"Raven MCP registry - ravenmcp.ai"* (website `ravenmcp.ai`), with a note
+recording what it is, where it lives, and the public half. Strike it from the
+three outstanding lists above.
+
+Verified independently: deriving the ed25519 public key from the local private
+file yields `p=Xjf04N7YVNbGr7p7o4DqTr+CARYpqEUtLtqPnBHEk9M=`, byte-identical to
+what `https://ravenmcp.ai/.well-known/mcp-registry-auth` serves. The file on disk
+is the live domain-proof key, so the thing that got backed up is the right thing.
+
+**Gotcha for whoever checks this next:** Apple Passwords items are iCloud-synced
+and are **not** visible to the `security` CLI — `find-internet-password -s
+ravenmcp.ai` returns nothing even though the item exists. A CLI miss is not
+evidence of absence. Ask Andrew rather than inferring from the keychain.
