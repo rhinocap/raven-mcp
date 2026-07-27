@@ -1641,6 +1641,7 @@ var DEFAULT_DECISION_IMPORT_GLOBS = [
   "docs/decision*/*.md",
   "DECISIONS.md",
   "DESIGN.md",
+  "figma-comments-archive/**/*.md",
 ];
 
 type ImportMaterialItem = { ref: string; text: string };
@@ -1827,6 +1828,15 @@ function validatedImportedSourceRef(source: SourceNode, sourceRef: string | null
     var validDocRef = new RegExp("^" + escapeRegExp(source.ref) + "(?:#L[0-9]+|#[^\\r\\n]+)?$");
     if (validDocRef.test(sourceRef)) return { accepted: sourceRef, reason: null };
     return { accepted: null, reason: "source_ref does not match imported document " + source.ref };
+  }
+  if (source.kind === "figma-comments") {
+    var figmaCommentRefMatch = new RegExp("^" + escapeRegExp(source.ref) + "#Thread ([1-9][0-9]*)$").exec(sourceRef);
+    if (figmaCommentRefMatch !== null) {
+      var threadNumber = parseInt(figmaCommentRefMatch[1], 10);
+      if (typeof source.thread_count !== "number" || threadNumber <= source.thread_count) return { accepted: sourceRef, reason: null };
+      return { accepted: null, reason: "source_ref names Thread " + threadNumber + " but " + source.ref + " has only " + source.thread_count + " thread(s)" };
+    }
+    return { accepted: null, reason: "source_ref does not match imported Figma comment archive " + source.ref };
   }
   return { accepted: sourceRef, reason: null };
 }
@@ -6988,20 +6998,36 @@ server.tool(
         continue;
       }
       docCount += 1;
+      var firstNonEmptyLine = docResult.content.split(/\r?\n/).find(function(line) { return line.trim().length > 0; });
+      // An archive needs the title line AND at least one thread heading — a prose
+      // doc that merely mentions the title format stays an ordinary doc.
+      var archiveParts = docResult.content.split(/^(?=## Thread [0-9]+\s*$)/m);
+      var docKind = firstNonEmptyLine !== undefined
+        && firstNonEmptyLine.trim().startsWith("# Figma comments archive:")
+        && archiveParts.length > 1
+        ? "figma-comments"
+        : "doc";
       var docSource = await decisionGraphStore.addNode({
         node_kind: "source" as const,
         id: "src_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
-        kind: "doc",
+        kind: docKind,
         ref: docPath,
         created_at: new Date().toISOString(),
+        ...(docKind === "figma-comments" ? { thread_count: archiveParts.length - 1 } : {}),
       });
-      var docItems = [{ ref: docPath, text: numberedDocMaterial(docPath, docResult.content) }];
+      var docItems = docKind === "figma-comments"
+        // One item per thread: chunk boundaries then fall on thread boundaries, and
+        // every chunk carries the archive title + full thread headings it covers.
+        ? archiveParts.slice(1).map(function(part, threadIndex) {
+            return { ref: docPath + "#Thread " + (threadIndex + 1), text: "document " + docPath + "\n" + archiveParts[0].trim() + "\n\n" + part.trim() };
+          })
+        : [{ ref: docPath, text: numberedDocMaterial(docPath, docResult.content) }];
       for (var docChunk of chunkImportItems(docItems, max_chunk_chars)) {
         chunks.push({
           source_id: docSource.id,
-          kind: "doc",
+          kind: docKind,
           ref: docPath,
-          extraction_prompt: buildImportExtractionPrompt(docChunk, "doc"),
+          extraction_prompt: buildImportExtractionPrompt(docChunk, docKind),
         });
       }
     }

@@ -162,6 +162,8 @@ The local Decision Graph keeps three node kinds: decisions, evidence, and source
 
 For a cold start: call `decision_import` → run the returned extraction prompts with a model → pass each result to `ingest_transcript_results` → review the candidates → call `decision_commit` for each decision to keep. Candidates remain available through `decision_get`, but default `decision_list` and `gap_scan` ignore them until commit changes their status to `active`.
 
+Figma comment archives (Markdown files under `figma-comments-archive/` whose first line is `# Figma comments archive: <label>`, with `## Thread <n>` headings) are picked up by default. Their settled threads use thread-aware extraction with `path#Thread <n>` provenance; imported candidates still require `decision_commit` and are never auto-committed.
+
 Imported provenance is checked against its Source node before evidence is attached. Git references must be a full or unique-prefix match for a commit included by that import. Document references must match the imported path, optionally followed by a line (`#L12`) or heading fragment. Rejected references are returned in `rejected_source_refs`; the candidate remains available without an evidence node.
 
 For transcripts: call `ingest_transcript` → run its extraction prompt → pass the result to `ingest_transcript_results` → review and commit the candidates. Resolve active conflicts with `decision_supersede` or `decision_scope`, inspect lineage with `decision_history`, and use `gap_scan` for health checks.
