@@ -1092,6 +1092,7 @@ cd raven-mcp && npm install && npm run build`}</code></pre></div>
               <article className="rd-tool" id="tool-list_templates">
                 <h3 className="rd-tool-name"><a className="rd-tool-anchor" href="#tool-list_templates" aria-label="Link to list_templates">#</a><code>list_templates</code></h3>
                 <p className="rd-tool-desc">List templates and their registered page pathnames from the active grab session. Template permissions and allowedTokens are cooperative advisory metadata: display labels only, not enforced.</p>
+                <p className="rd-param-heading rd-param-none">No parameters</p>
               </article>
             </div>
 
