@@ -687,3 +687,97 @@ is the live domain-proof key, so the thing that got backed up is the right thing
 and are **not** visible to the `security` CLI — `find-internet-password -s
 ravenmcp.ai` returns nothing even though the item exists. A CLI miss is not
 evidence of absence. Ask Andrew rather than inferring from the keychain.
+
+---
+
+### PR #51 merged — docs redesign, with main's facts (2026-07-27)
+
+**Merged as `ed944f9`, pushed. PR #51 shows MERGED; remote branch deleted.**
+
+Andrew said "merge it" after I flagged two blockers. Taking the branch straight
+would have shipped a regression: it branched at **v1.17.1** (`5ff076c`) and ten
+commits had landed on the same files since. A clean `gh pr merge` would have
+rolled the marketing site back to a **78-tool, MIT-licensed** package and
+undone three accessibility/polish fixes made on main after the branch point.
+
+So the merge was resolved by hand — **21 conflict hunks across 7 files**, one
+documented decision each:
+
+| Side taken | What it preserved |
+|---|---|
+| main (H) | 44px tap-target minimum, Apache-2.0 claims, the deliberate eyebrow-label removal, the quieter prose-link hover, all current counts |
+| branch (B) | the docs layout redesign, changelog + design-system page treatments, `BeforeAfter`, `DocsScripts` |
+
+`git checkout --ours/--theirs` was **not** usable here — it takes the whole file
+and would have discarded the other side's non-conflicting edits. Per-hunk only.
+
+**Facts swept to the package, not typed by hand.** `web/lib/counts.ts` now holds
+`TOOL_COUNT = 104` / `LAYER_COUNT = 19`, and `layout.tsx` / `page.tsx`
+interpolate it (eleven hardcoded `100`s removed; three quoted strings promoted
+to template literals to allow it). `site/` is plain HTML with no templating, so
+its strings were swept literally (`78 tools`, `70 tools`, `90+ tools` → 104).
+
+The branch's `counts.ts` comment claimed `test/redis-taste-store.test.mjs`
+asserts `TOOL_COUNT`. It does not — grep found no assertion on that constant
+anywhere. The comment now says plainly that nothing asserts it and it has to be
+hand-updated, and points at the four tests that *do* pin the count.
+
+**The Tool Reference was 26 tools short.** True state before the merge: 16
+groups / 78 cards. Rather than hand-author 26 descriptions, generated them from
+the built server's own schemas (`listBuiltServerTools()` from
+`scripts/sync-manifest-tools.mjs`) so the copy matches the shipped tool
+descriptions exactly and the markup matches the existing cards:
+
+- new group **Decision Graph** (13) before DESIGN.md & Grab
+- new group **Design System Sync** (4) before Content Design Layer
+- new group **Diff Review** (2) before Search
+- 6 appended to **DESIGN.md & Grab** (grab layers/operation, page templates) → 12
+- `audit` prepended to **Render & Audit Layer** → 14
+
+Now **19 groups / 104 cards / 0 missing / 0 duplicates**, every stated group
+count correct.
+
+**Verified:** `web` build clean; `RAVEN_NO_USAGE_LOG=1 npm test` →
+**1151 / 1148 pass / 0 fail / 3 skipped**, identical to pre-merge; rendered page
+inspected at each of the five changed groups on `localhost:4317`; anon-45 golden
+hash re-checked on the live endpoint → `f64bb18…2bb0a6`, **unchanged** (the
+merge touches no `src/` or `api/` path, so the endpoint's served surface is
+untouched — only the `site` project redeploys).
+
+**Still not published to ravenmcp.ai.** The `web` Vercel project has **no git
+integration**. Merging deploys the `site` project only. The docs redesign goes
+live on a manual `vercel deploy --prod` from `web/` — Andrew's gate.
+
+#### Two gotchas worth keeping
+
+**Hidden-tab scrolling.** With the Chrome window unfocused,
+`document.visibilityState === "hidden"` throttles rAF — and because the page
+sets `scroll-behavior: smooth`, **every `scrollTop` assignment and
+`scrollIntoView()` call silently no-ops** (the read-back returns the old value,
+so it looks like the scroll container is wrong). The fix is
+`window.scrollTo({ top, behavior: 'instant' })`, not hunting for a scroll
+parent. Extends the existing "check `visibilityState` first" rule with its
+remedy.
+
+**`grep -c` counts lines, not matches.** On minified Next.js output
+`grep -c 'class="rd-tool"'` reported **1** card for 104. Use
+`grep -oE … | wc -l`.
+
+#### Left in place deliberately
+
+- `~/projects/raven-mcp-site-audit-polish` — the worktree still exists. It holds
+  **`docs-redesign-concepts/`** (untracked, 420K): the eight design variants
+  (`fable-1..3`, `sol-1..3`, `sol3-raven`, `hybrid-sol2-fable3`) that produced
+  the shipped docs design. That directory is the only copy — the worktree was
+  *not* force-removed for that reason. Move it somewhere durable, then
+  `git worktree remove --force` + `git branch -d site-audit-polish-wt`.
+- `src/design-review.ts` — uncommitted WIP extracting `decisionsForPaths()` for
+  the Morven agent hooks. Not part of this merge; left unstaged. **Its comment
+  names Morven and `SPEC-agent-integration §3` in a public open-source file** —
+  reword before it gets committed.
+
+#### Not run
+
+The adverse serial pass (Sol → Fable) on this merge. It needs subagents, and
+this session carries a standing instruction not to call the Agent tool unless
+asked. Flagging rather than silently skipping.
