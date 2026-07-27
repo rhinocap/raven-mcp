@@ -290,3 +290,33 @@ Memory: `feedback_enumerate_gates_upfront_and_end_with_next_steps.md`.
 2. Wait for production READY, confirm the alias serves 45 / `f64bb18…`, then unpin `mcp.ravenmcp.ai` (Vercel → `site` → Settings → Domains → clear `Git Branch`). Revert = re-set that field.
 3. `npm login` (E401), then `scripts/release.sh patch` — passkey, his terminal.
 4. Mine, after 2.2.9 is on npm: `vercel deploy --prod` from `web/` so the public changelog shows it.
+
+---
+
+## 2026-07-27 — p4 merged, endpoint unpinned
+
+Andrew: *"You merge, then do everything else."* Both landmines in the ground-truth block are now closed.
+
+**The merge.** PR #47 (`merge-p4-into-main`) merged to `main` as `24d5b75`. Before merging I re-ran the surface gate properly — the assessor's version was wrong twice over: it called bare `buildServer()` the stdio path (it isn't; `src/index.ts` falls back to `process.env.RAVEN_REMOTE` unless `opts.remote` is an explicit boolean, so a bare call silently measures the *remote* server) and it diffed tool **names** only, when the frozen contract is stdio byte-identity. The corrected gate hashes name + title + description + annotations + input-schema key set + the `McpServer` `instructions` string, for both `buildServer({ remote: false, tasteStore: new FsTasteStore() })` and `buildServer({ remote: true })`. main vs merged came out identical:
+
+```
+stdio_count    100
+stdio_full_sha f753c7532b6cd348e311a08b399deb6622b5d895d942148151ef8239ae499212
+anon_count     45
+anon_name_sha  f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6   ← frozen hash, unchanged
+anon_full_sha  b22cef9d0f3363d450001c6bd0bce5db9828f821a76bd5ce9935e3ca57a9ea2e
+```
+
+**The deploy.** Watched `dpl_6azBVLt2jLQc7ZnHGQWatNcQA7qn` QUEUED → BUILDING → READY, then proved the *production alias* (`site-ten-brown-73.vercel.app`) served a surface identical to what the pinned endpoint was serving, and confirmed `api/_ratelimit.js`, the `delete_taste_data` registration, and the `checkRateLimit` import were all present on main. That ordering was the whole point: unpinning before merged-main was live would have stripped the per-user rate limiter and the data-delete path off a live OAuth-bearing endpoint.
+
+**The unpin.** `mcp.ravenmcp.ai` on the Vercel `site` project: `gitBranch: "p4-remote-taste"` → `null`. Post-unpin verification, all green — anon `tools/list` 45 tools hashing to `f64bb18…`, serverInfo 2.2.8, `/api/mcp-user` 401 without a token, protected-resource metadata intact, AS metadata 200. The domain now resolves to `dpl_6azBVLt2jLQc7ZnHGQWatNcQA7qn`, target production, branch main, sha `24d5b75`.
+
+**What changed permanently:** pushing to `main` now deploys the live MCP endpoint. Any commit touching `src/` or `api/` reaches real users' OAuth sessions — that used to require an explicit promote to `p4-remote-taste`, and it doesn't anymore. Ground-truth block updated: both landmine bullets deleted, replaced with a dead-branch warning; the Deploy and Frozen bullets now say the endpoint is built from main; the state-ledger pointer no longer sends readers to `origin/p4-remote-taste` for `docs/remote-mcp-phase4-progress.md`.
+
+`origin/p4-remote-taste` is dead history now — fully merged, no longer a deploy target. Left in place rather than deleted; deleting it is a call to make deliberately, not as merge cleanup.
+
+### Left for Andrew — one gate
+
+1. `npm login` (currently E401), then `scripts/release.sh patch` to publish 2.2.9. Passkey 2FA, his terminal, standing rule.
+
+Then mine, unprompted, once it's on npm: `vercel deploy --prod` from `web/` so the public changelog shows 2.2.9, and stage the `web/public/raven.mcpb` copy that `release.sh` omits.
