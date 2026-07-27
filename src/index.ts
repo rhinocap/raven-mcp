@@ -1848,13 +1848,13 @@ function numberedDocMaterial(repoRelative: string, content: string): string {
   }).join("\n");
 }
 
-// The 55 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
-// 32 are stateful/local (per-user ~/.raven files, or the create_generation_job
+// The 60 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
+// 33 are stateful/local (per-user ~/.raven files, or the create_generation_job
 // subprocess), 6 reach the filesystem/network or have an external side effect,
-// 2 are Talon tools pending a remote-safety pass, and 14 are DESIGN.md / review /
-// grab-bridge tools, plus the local audit dispatcher. Everything else (45 stateless
-// tools, including the 5 guarded browser URL audits added in Phase 3) is remote-safe,
-// from 100 local tools.
+// 2 are Talon tools pending a remote-safety pass, 14 are DESIGN.md / review /
+// grab-bridge tools, 4 are design-system diff tools, plus the local audit dispatcher.
+// Everything else (45 stateless tools, including the 5 guarded browser URL audits
+// added in Phase 3) is remote-safe, from 105 local tools.
 // Traced to docs/remote-mcp-scope.md §2; asserted at build time.
 function resolveDesignSystemPath(projectDir?: string, designFilePath?: string): string {
   if (designFilePath) return resolve(designFilePath);
@@ -1878,7 +1878,7 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   "register_creative_asset", "create_character_profile", "create_generation_job",
   "get_generation_job", "list_generation_jobs", "plan_creative_campaign", "raven_reflect",
   "decision_add", "decision_evidence", "decision_get", "decision_list", "decision_draft", "decision_commit",
-  "decision_supersede", "decision_scope", "decision_history",
+  "decision_supersede", "decision_contest", "decision_scope", "decision_history",
   "ingest_transcript", "ingest_transcript_results",
   "gap_scan",
   // filesystem/network/side-effect capability tools (6) — read caller-supplied
@@ -2073,6 +2073,7 @@ const TOOL_ACCESS: Record<string, "readOnly" | "destructive"> = {
   decision_draft: "destructive",
   decision_commit: "destructive",
   decision_supersede: "destructive",
+  decision_contest: "destructive",
   decision_scope: "destructive",
   decision_history: "readOnly",
   decision_get: "destructive",
@@ -2155,18 +2156,18 @@ function toolAnnotations(toolName: string): {
     : { title: toolTitle(toolName), readOnlyHint: true, destructiveHint: false, openWorldHint: openWorld };
 }
 
-// buildServer() returns a FRESH McpServer with all 104 local tools + the usage-log/
+// buildServer() returns a FRESH McpServer with all 105 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
 export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }): McpServer {
-// remote = serve only the 45 stateless remote-safe tools (gate off the 55 gated tools
+// remote = serve only the 45 stateless remote-safe tools (gate off the 60 gated tools
 // as appropriate; authenticated stores selectively restore taste tools). evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 104.
+// without threading opts. stdio callers pass nothing → remote=false → all 105.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -6819,6 +6820,60 @@ server.tool(
 );
 
 server.tool(
+  "decision_contest",
+  "Contest an active decision: it stops governing immediately, without deleting it or requiring a replacement.",
+  {
+    id: z.string().min(1).describe("Existing active decision id to contest."),
+    reason: z.string().trim().min(1).describe("Why the decision is being contested. This is what an adjudicator reads."),
+    evidence_ref: z.string().trim().min(1).optional().describe("Source ref for evidence that contradicts the decision. Attaches an evidence node and a contradicts edge, which raises the gap_scan finding from `contested` to `contested_with_evidence`."),
+  },
+  async function ({ id, reason, evidence_ref }) {
+    var existing = await decisionGraphStore.getNode(id);
+    if (existing === null || existing.node_kind !== "decision") {
+      return { content: [{ type: "text" as const, text: "Decision not found: " + id }], isError: true };
+    }
+    // Only a LIVE decision can be contested. Contesting a superseded one would
+    // resurrect dead law into the adjudication queue; contesting an already-contested
+    // one would silently overwrite the standing objection.
+    if (existing.status !== "active") {
+      return { content: [{ type: "text" as const, text: "Only an active decision can be contested (got " + existing.status + ")." }], isError: true };
+    }
+    var contester = process.env.RAVEN_AGENT_ID || "unknown";
+    // The M1/M2 binding rule requires status === "active", so this one write removes
+    // the decision from agent injection — no delete, no replacement needed.
+    var updated = await decisionGraphStore.updateNode(id, {
+      status: "contested",
+      contested_by: contester,
+      contested_reason: reason,
+    }) as DecisionNode;
+
+    var attachedEvidence = null;
+    if (evidence_ref !== undefined) {
+      var evidence = {
+        node_kind: "evidence" as const,
+        id: "ev_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+        type: "qual" as const,
+        source_ref: evidence_ref,
+        result_summary: reason,
+        confidence: "low" as const,
+        confounds: [],
+        timestamp: new Date().toISOString(),
+      };
+      var attached = await decisionGraphStore.addEvidenceWithEdge(id, evidence, {
+        id: "edge_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+        from: evidence.id,
+        to: id,
+        type: "contradicts" as const,
+        created_at: new Date().toISOString(),
+      });
+      if (attached.status === "created" || attached.status === "existing") attachedEvidence = attached.evidence;
+    }
+    recordConsultation(contester, "decision_contest", [updated]);
+    return { content: [{ type: "text" as const, text: JSON.stringify({ decision: updated, evidence: attachedEvidence }, null, 2) }] };
+  }
+);
+
+server.tool(
   "decision_scope",
   "Narrow two decisions to distinct scopes so both can remain active alongside one another.",
   {
@@ -7710,7 +7765,7 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 104 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 105 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });

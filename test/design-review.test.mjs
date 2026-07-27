@@ -860,17 +860,17 @@ test('review_diff is callable through MCP and uses active stored decisions', asy
 
 test('tool-count comments match the registered local and anonymous surfaces', async () => {
   const { buildServer } = await import('../dist/index.js');
-  assert.equal(Object.keys(buildServer({ remote: false })._registeredTools).length, 104);
+  assert.equal(Object.keys(buildServer({ remote: false })._registeredTools).length, 105);
   const remoteNames = Object.keys(buildServer({ remote: true })._registeredTools).sort();
   assert.equal(remoteNames.length, 45);
   assert.equal(remoteNames.includes('polish_diff'), false);
   assert.equal(createHash('sha256').update(remoteNames.join('\n')).digest('hex'), 'f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6');
 
   const source = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
-  assert.match(source, /FRESH McpServer with all 104 local tools/);
+  assert.match(source, /FRESH McpServer with all 105 local tools/);
   assert.match(source, /remote = serve only the 45 stateless remote-safe tools/);
-  assert.match(source, /gate off the 55 gated tools/);
-  assert.match(source, /all 104\./);
+  assert.match(source, /gate off the 60 gated tools/);
+  assert.match(source, /all 105\./);
 });
 
 test('a recorded decision governs a violation on its scoped file: attributes governed_by + governed_findings, verdict unchanged', () => {

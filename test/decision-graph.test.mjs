@@ -1116,3 +1116,60 @@ test('decision MCP tools add, get with neighbors, list by status, and stay remot
   assert.equal(remoteNames.includes('decision_history'), false);
   assert.equal(remoteNames.includes('gap_scan'), false);
 });
+
+test('decision_contest stops a decision governing, records who and why, and only accepts active decisions', async () => {
+  await withDecisionClient(async (client) => {
+    const decision = JSON.parse((await client.callTool({
+      name: 'decision_add',
+      arguments: {
+        statement: 'The checkout CTA uses accent-600',
+        rationale: 'Accent-blue reads as a link, not an action.',
+        scope: 'checkout color-accent',
+        component_ref: 'PayButton',
+      },
+    })).content[0].text);
+
+    const contested = JSON.parse((await client.callTool({
+      name: 'decision_contest',
+      arguments: { id: decision.id, reason: 'Contrast was re-tested on the pay step and accent-600 now fails AA.' },
+    })).content[0].text);
+    assert.equal(contested.decision.status, 'contested');
+    assert.match(contested.decision.contested_reason, /fails AA/);
+    assert.equal(typeof contested.decision.contested_by, 'string');
+    assert.equal(contested.evidence, null, 'no evidence_ref -> no evidence node');
+
+    // The M1/M2 binding rule requires status "active", so contesting is what stops it governing.
+    const active = JSON.parse((await client.callTool({ name: 'decision_list', arguments: {} })).content[0].text);
+    assert.equal(active.some((node) => node.id === decision.id), false);
+    const stillThere = JSON.parse((await client.callTool({ name: 'decision_get', arguments: { id: decision.id } })).content[0].text);
+    assert.equal(stillThere.node.id, decision.id, 'contesting deletes nothing');
+
+    // Without evidence, gap_scan must still ask for an experiment — the two gap types
+    // stay distinguishable, which is the reason the reason is NOT stored as evidence.
+    const gaps = JSON.parse((await client.callTool({ name: 'gap_scan', arguments: {} })).content[0].text);
+    const finding = gaps.findings.find((item) => item.decision_id === decision.id);
+    assert.equal(finding.gap_type, 'contested');
+
+    const recontest = await client.callTool({
+      name: 'decision_contest',
+      arguments: { id: decision.id, reason: 'again' },
+    });
+    assert.equal(recontest.isError, true);
+    assert.match(recontest.content[0].text, /Only an active decision can be contested \(got contested\)/);
+
+    const withEvidence = JSON.parse((await client.callTool({
+      name: 'decision_add',
+      arguments: { statement: 'Cards for the order summary', rationale: 'They scan well.', scope: 'order summary', component_ref: 'OrderSummary' },
+    })).content[0].text);
+    const contestedWithEvidence = JSON.parse((await client.callTool({
+      name: 'decision_contest',
+      arguments: { id: withEvidence.id, reason: 'Rows beat cards in the July usability run.', evidence_ref: 'research/2026-07-usability.md' },
+    })).content[0].text);
+    assert.equal(contestedWithEvidence.evidence.source_ref, 'research/2026-07-usability.md');
+    const gapsWithEvidence = JSON.parse((await client.callTool({ name: 'gap_scan', arguments: {} })).content[0].text);
+    assert.equal(
+      gapsWithEvidence.findings.find((item) => item.decision_id === withEvidence.id).gap_type,
+      'contested_with_evidence',
+    );
+  });
+});

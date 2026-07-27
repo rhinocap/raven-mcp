@@ -18,6 +18,13 @@ export interface DecisionNode {
   component_ref: string;
   alternatives_rejected: string[];
   status: "candidate" | "active" | "superseded" | "contested";
+  // Set by decision_contest, alongside status "contested". The reason is the whole
+  // point of contesting: it is what the adjudicator reads before upholding or revising.
+  // ponytail: two fields on the node, not a contest sub-graph — a decision is contested
+  // once at a time, and re-contesting overwrites. Move to nodes+edges if a decision ever
+  // needs to carry more than one open objection.
+  contested_by?: string | null;
+  contested_reason?: string | null;
   superseded_by: string | null;
   created_at: string;
   embedding?: number[] | null;
