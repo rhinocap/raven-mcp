@@ -88,7 +88,10 @@ fi
 mcp-publisher publish
 
 echo "→ Committing + tagging"
-git add package.json package-lock.json manifest.json server.json site/raven.mcpb
+# build:mcpb writes the bundle to BOTH site/ and web/public/. ravenmcp.ai is
+# served by the `web` project, so staging only site/ leaves the public download
+# one release behind — that gap is what the v2.2.6 hand-copy commit was.
+git add package.json package-lock.json manifest.json server.json site/raven.mcpb web/public/raven.mcpb
 git commit -m "Release v$NEW
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
