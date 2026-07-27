@@ -923,3 +923,67 @@ deliberately. Whoever lands that tool also owns `TOOL_COUNT` in
 ("proven" in `src/index.ts:2360`, `manifest.json:64`,
 `web/app/docs/page.tsx:184`) and taking `src/design-review.ts` back out of
 `462e49c`. Both still open.
+
+### Correction: video generation IS available here, and the clip shipped (2026-07-27)
+
+**The entry above is wrong where it says there is no video-generation
+capability.** I checked environment variables and Raven's `RAVEN_CREATIVE_RUNNER`
+and concluded no generator existed. I never checked installed CLIs carrying
+their own stored auth. Andrew asked "can't you just use my gcloud, chat gpt
+generate, or higgsfield?" and the answer was yes.
+
+`/opt/homebrew/bin/higgsfield` (Higgsfield 1.1.5) is OAuth-authenticated to
+Andrew's ultra plan and exposes **Google Veo 3.1** — the model that made the
+original five, confirmed by their watermark. Its defaults are `duration 8`,
+`aspect_ratio 16:9`, which is exactly the set's spec. Cost: 22 credits on
+`veo-3-1-fast`, 58 on `veo-3-1-preview`.
+
+**Gotcha worth keeping.** `hf` is NOT Higgsfield on this machine. Higgsfield's
+own CLI advertises `hf` as an alias and its error text says "Run: hf auth
+login", but `/Users/accunliffe/.local/bin/hf` is huggingface_hub 1.11.0 and
+shadows it. Use `higgsfield` or `higgs`. Its credentials also expired mid-session
+— `credentials.json` disappeared between a working call at 15:58 and a failing
+one at 16:06 — so re-auth is `higgsfield auth login`, browser OAuth, Andrew-only.
+
+**What shipped (`b092ee9`).** Three candidates generated at 66 credits total,
+all natively 1280x720/24fps/8.000s/192 frames — no conform needed. Picked
+`p3-push`: slow dolly push toward a desk at dusk, warm Edison practical
+camera-left, bokeh'd city behind. Measured YAVG 89.9 / SATAVG 17.3 against a
+sibling band of 78-114 / 6.8-22.1. Poster regenerated from frame 0.
+
+**Watermark-free confirmed empirically, not assumed.** Cropped the corner where
+the vision pass located the bug in all five siblings (x 1195-1270, y 675-705),
+stacked the new clips under a law-firm control, and looked: the control shows
+"Veo", all three new clips are clean. The ultra plan does not stamp output.
+
+**The reframe that mattered.** My first brief told the agents to avoid
+"developer at a laptop" as a cliche, and both candidates that came back were
+industrial bookbinding lines that admitted nothing in frame tied them to
+software. The set does not use metaphor — each clip is simply the environment of
+the business its page sells. Law office, cafe, villa, gym, wedding. So the
+sibling for a developer-analytics product is a software workspace. The vision
+leg reached the same conclusion independently.
+
+**Two bugs in my own install script, both caught by verification rather than by
+reading the code.** First, `read -r ... < <(... | tr '\n' ' ')` returns non-zero
+at EOF with no trailing newline, and `set -e` killed the script silently — the
+files were never written, and the specs alone could not reveal it because the
+old file had identical dimensions and duration. Second, ffprobe emits fields in
+its own fixed order, not the order given to `-show_entries`, so `nb_frames` held
+the duration. The spec guard caught that one and refused to install. Verify a
+write by size, mtime and content hash, never by a property the old file also had.
+
+**Rejected alternates, recorded so they do not come back.** `p2-truck` is a
+lateral track at golden hour with unmistakable iMac silhouettes and Apple's
+aluminium stand — borrowed industrial design in a public marketing asset — plus
+windows blown to Y 124.1, above every sibling, which would fight white headline
+type, plus a green lens-flare artifact. `p1-locked` is clean and in-band
+(Y 93.9 / S 20.8) but only the steam moves across 8 seconds, so it risks reading
+as a still. Both prompts are committed under
+`docs/design-explorations/2026-07-saas-demo-video/`; either regenerates for 22
+credits.
+
+**Still not pushed.** Local `main` continues to carry `f606d5a`, the parallel
+session's in-flight 105th tool touching `src/index.ts` and `manifest.json`.
+`site/` is git-integrated on `main`, so pushing publishes the new video AND that
+unfinished tool to the live endpoint in one shot. Andrew's call.
