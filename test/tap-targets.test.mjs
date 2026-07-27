@@ -285,6 +285,25 @@ test('auditTapTargetsUrl: custom minSize option respected', async (t) => {
   });
 });
 
+test('auditTapTargetsUrl: discloses the AA/AAA split on a non-emulated 44px render', async (t) => {
+  await runOrSkip(t, async () => {
+    // Default render is desktop (1440x900), default minSize 44 (enhanced/AAA) — a
+    // non-mobile-emulated render at the 44px bar must disclose the AA (24px) split.
+    const result = await auditTapTargetsUrl(fixtureUrl('tap-targets.html'));
+    assert.strictEqual(result.mobile_emulation, false, 'default render is not mobile-emulated');
+    const hit = result.warnings.find((w) => /enhanced-target size/i.test(w) && /24px/.test(w));
+    assert.ok(hit, `expected an AA/AAA standard-split disclosure, got: ${JSON.stringify(result.warnings)}`);
+  });
+});
+
+test('auditTapTargetsUrl: no standard-split disclosure when minSize is already 24', async (t) => {
+  await runOrSkip(t, async () => {
+    const result = await auditTapTargetsUrl(fixtureUrl('tap-targets.html'), { minSize: 24 });
+    const hit = result.warnings.find((w) => /enhanced-target size/i.test(w));
+    assert.ok(!hit, `should not disclose the split when already grading at the 24px AA size, got: ${JSON.stringify(result.warnings)}`);
+  });
+});
+
 test('auditTapTargetsUrl: CaptureUnavailableError is gracefully catchable', async (t) => {
   // This test verifies the error class is exported and re-catchable even when chromium IS present.
   // The runOrSkip helper will skip if chromium is absent — which is valid behavior.

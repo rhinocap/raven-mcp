@@ -305,6 +305,18 @@ export async function auditTapTargetsUrl(
       );
     }
 
+    // ponytail: disclose the AA/AAA standard split; don't change any pass/fail.
+    // Grading at 44px on a non-mobile-emulated render mixes the enhanced/touch
+    // target (AAA) with surfaces where the AA minimum (24px) may be the one that
+    // applies — state the split, don't assert which the caller intends.
+    if (!mobileEmulation && minSize >= 44) {
+      warnings.push(
+        `Graded at the ${minSize}px enhanced-target size (WCAG 2.5.5 AAA; ≈ Apple's 44pt touch guidance) on a non-mobile-emulated ${viewport.w}×${viewport.h} render. ` +
+          `The WCAG AA minimum (2.5.8) is 24px, with a spacing exception this dimension-only check does not evaluate. ` +
+          `If this surface is pointer/desktop, many sub-44px findings may be AAA-only rather than AA failures — pass minSize:24 to grade the AA size, or a mobile viewport (e.g. 390×844) to grade touch.`
+      );
+    }
+
     const result = auditTapTargetsSnapshot(raw, minSize);
     result.url = url;
     result.viewport = viewport;
