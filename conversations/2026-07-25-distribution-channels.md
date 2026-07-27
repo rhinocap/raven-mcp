@@ -857,3 +857,69 @@ would have been silently corrupted.
 **Heads-up for whoever owns the in-flight work in this tree:** the built server
 now reports **105** tools, not 104. `web/lib/counts.ts` `TOOL_COUNT` and the
 four count guardrails will need bumping in the same change that adds it.
+
+---
+
+### The SaaS demo video was never right, and there is no way to fix it here (2026-07-27)
+
+**What Andrew saw.** A hero video of "flowers on a table" on the marketing
+site. Confirmed and located: `site/demos/saas.html` lines 408-409, the
+full-bleed autoplay hero of a fictional developer-analytics product called
+Flux. It is also the sixth card on the homepage (`web/app/page.tsx` line 561).
+The file is wedding-reception footage — white roses, glassware, string lights.
+
+**Not a regression.** `saas.mp4` has exactly one commit and one blob in its
+history. It has been wedding footage since the day it landed; nothing swapped
+it. The other five demo clips are all on-subject, so this is a single bad asset,
+not a systemic mismatch.
+
+**What the crop actually shows.** I first claimed the generator watermark was
+visible on the live cards, from arithmetic on the box dimensions. Wrong —
+reproducing the real `object-fit: cover` crop in ffmpeg
+(`scale=432:243,crop=365:243:33:0`) shows it is cropped out. The watermark is
+in all six source files and reaches neither render. Worth removing whenever
+those files are next touched, but it is not a live defect. Arithmetic on a
+bounding box is not a render; reproduce the crop.
+
+**The treatment spec, measured not eyeballed.** All six clips: H.264,
+1280x720, 24fps, exactly 8.000s / 192 frames. `signalstats` across the five
+correct ones gives YAVG 69-117, SATAVG 7.4-20.9 — warm, low-key, notably
+desaturated. A 5-clip x 3-timepoint contact sheet confirms the rest by eye:
+one continuous slow camera move per clip with no cuts, shallow DOF with heavy
+bokeh, single hero subject centered or center-right, atmospheric haze, and no
+overlaid text of any kind. The lettering that appears (FORGE on the gym wall,
+Oleander on the villa) is in-scene set dressing.
+
+**The blocker, and it is a hard one.** There is no video-generation capability
+in this environment. `RAVEN_CREATIVE_RUNNER` is unset; there is no Veo, Runway,
+Luma, Pika, fal, Replicate, Google or Gemini key in `env`; and
+`npx --no-install hyperframes` fails wanting `hyperframes@0.7.76`. Only
+`ffmpeg` and `ffprobe` are present. Photoreal b-roll matching the other five
+cannot be produced here — that step needs Andrew and a generation service, the
+same way the original five evidently were made.
+
+**So the workflow builds both sides of that step, not the step.** Fanned out
+nine agents: cinematography read of the five references (vision — kept on
+Claude, a text-only executor cannot see frames), Flux page + cliche map,
+three candidate subject directions, one adversarial judge per candidate, and a
+delivery kit. Output is three paste-ready generation prompts plus a
+`conform-saas.sh` that takes whatever comes back and forces it to the measured
+spec, writes both hardlinked twins, and extracts the poster.
+
+The candidate directions are deliberately not "developer at a laptop" or
+"glowing server room". A developer-analytics product has no physical subject,
+and the stock answers would read worse than the wedding footage — the judges
+are briefed to reject on that axis alone.
+
+**Push state: nothing pushed.** Local `main` carries `f606d5a`
+("auto-save: manifest.json +9 more"), a parallel session's in-flight 105th tool
+touching `src/index.ts` and `manifest.json`. Since the 2026-07-27 unpin, any
+push to `main` touching `src/` rebuilds the live OAuth-bearing endpoint, so
+pushing this log entry would ship someone else's unfinished work. Left local
+deliberately. Whoever lands that tool also owns `TOOL_COUNT` in
+`web/lib/counts.ts` and the four count guardrails.
+
+**Deferred at Andrew's instruction:** de-hyping the `get_pattern` description
+("proven" in `src/index.ts:2360`, `manifest.json:64`,
+`web/app/docs/page.tsx:184`) and taking `src/design-review.ts` back out of
+`462e49c`. Both still open.
