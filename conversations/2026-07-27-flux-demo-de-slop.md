@@ -692,3 +692,76 @@ The rule should match the git subcommand (a push carrying a force flag), not a
 bare flag anywhere in the line, and it should not scan heredoc contents as
 command text. Until then, the workaround is to write the body to a scratch file
 and append it with a plain redirect.
+
+## Twelfth task — local main was diverged, not ahead
+
+`e0edf01` (merge) + `e352c3e` (the drift it exposed). Local `main` is now
+0 behind / 13 ahead of `origin/main`, tree clean.
+
+The framing I gave Andrew twice was wrong and worth recording as the lesson:
+I called this "10 unpushed commits" and separately claimed the SaaS demo video
+was "built but not deployed." Both were inferences from a commit count. The
+facts, once measured:
+
+- The apex serves the new `saas.mp4` — 1,805,913 bytes, `last-modified` today
+  18:58 — and live `saas.html` hashes `1ec284f6`, byte-identical to
+  `origin/main`. Somebody ran the manual `web/` deploy. Content-length and a
+  hash settle this in one call; a commit list never can.
+- Local `main` was *diverged*. Its auto-save commits sat on a base predating
+  eight pushed commits, so a push would have reverted the llms.txt license fix
+  (back to MIT/70), README option D, the package/manifest descriptions, the
+  count sync, the site-drift guard, four Design tools, `--border-control`, and
+  324 lines of this log. `git rev-list --count` says "11 ahead" and tells you
+  none of that. `git diff --stat origin/main main` says it immediately.
+
+**Read the diff, not the count.** A commit tally cannot distinguish ahead from
+diverged, and the auto-save hook manufactures commits that look like progress.
+
+All three conflicts resolved toward `origin/main`, which held a strict superset
+in each case; both resolved demo pages hash to the live `1ec284f6`.
+
+### What the merge actually added, and the drift it left
+
+Only `decision_contest`, the 105th tool. It is in the built
+`REMOTE_GATED_TOOLS` (61 gated), so the anonymous 45 is structurally safe —
+re-verified live at `f64bb18…2bb0a6`, unmoved.
+
+Bumping the manifest to 105 broke two surfaces, both caught by
+`check-site-drift`:
+
+1. `ToolsSection.tsx` did not list it — same miss as the four Design tools
+   earlier this session.
+2. `site/llms.txt` still read 104. This one was my own design gap: I made
+   `site/llms.txt` an equality assertion but never added it to the sync table,
+   so a count bump converted a stale number into a divergence. Fixed by
+   mirroring `web/public/llms.txt` onto it inside `syncCountSurfaces` rather
+   than duplicating the count regexes — one copy owns the prose, the other
+   tracks it exactly. Break-tested both ways (changed license word, stale
+   count): each fails with a readable line, each is repaired by a sync run.
+
+`1153 tests / 1150 pass / 0 fail / 3 skipped`. `check-site-drift`: FAIL(2) →
+PASS. Remaining INFO: `docs/page.tsx` omits `decision_contest` — informational
+by design, not an error.
+
+**Not pushed.** The merge touches `src/`, so the push deploys the live
+OAuth-bearing endpoint at `mcp.ravenmcp.ai`. Andrew's gate, not mine.
+
+### Design-judge gate on the live demo page
+
+Ran against `https://ravenmcp.ai/demos/saas.html`, product-site surface,
+blocking floor. **Verdict: PASS (no findings).**
+
+Raven's `audit_taste` returned `COLOR-no-gradient-no-glow` as a block; I
+overruled it. That rule is `owner: design-judge`, so it is mine to call, and a
+runtime enumeration of every `::before` background-image found exactly one
+gradient on the page: a single-hue alpha ramp of `rgba(25,26,35)` 0.94 → 0.76,
+the legibility scrim over the hero video. The clause bans purple/indigo/blue
+gradients, rainbow, "AI" gradients, glow and neon. A neutral scrim is none of
+them — the detector matched the substring `linear-gradient`.
+
+`audit_url` across desktop and iphone in dark returned **zero WCAG contrast
+findings**, which is the load-bearing check for `--border-control: #666772`.
+Tap targets 20/20. No italic or oblique anywhere; both 600-weight selectors
+resolve to Inter at runtime and Inter loads `wght@400;500;600;700`, so no faux
+weight. `prefers-reduced-motion` is present and actually pauses the hero video
+rather than only relaxing scroll-behaviour.
