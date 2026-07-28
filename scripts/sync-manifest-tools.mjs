@@ -156,6 +156,28 @@ export function shortDescription(description) {
   return `${sentence.slice(0, wordBoundary).trimEnd()}…`;
 }
 
+// The README's stdio tool count is what directory crawlers scrape — Glama read
+// "99 tools" off it for the v2.2.9 listing while the manifest said 100. Hand-typed
+// it drifts silently, so it moves with the manifest or the sync fails loudly.
+const README_COUNT_PATTERNS = [
+  /(\*\*)(\d+)( tools\*\*, including Grab)/,
+  /(\| Local stdio \|.*\| \*\*)(\d+)(\*\* \| Yes \| Yes \|)/,
+];
+
+async function syncReadmeToolCount(count) {
+  const readmePath = path.join(repoRoot, 'README.md');
+  const original = await readFile(readmePath, 'utf8');
+  let updated = original;
+  for (const pattern of README_COUNT_PATTERNS) {
+    if (!pattern.test(updated)) {
+      throw new Error(`README.md tool-count pattern no longer matches: ${pattern}`);
+    }
+    updated = updated.replace(pattern, `$1${count}$3`);
+  }
+  if (updated !== original) await writeFile(readmePath, updated);
+  return updated !== original;
+}
+
 export async function syncManifestTools() {
   const manifestPath = path.join(repoRoot, 'manifest.json');
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
@@ -165,6 +187,7 @@ export async function syncManifestTools() {
     description: shortDescription(tool.description),
   }));
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  await syncReadmeToolCount(tools.length);
   return tools.length;
 }
 
