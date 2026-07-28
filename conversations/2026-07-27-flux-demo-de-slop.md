@@ -480,3 +480,54 @@ the parenthetical; the sentence already says it tracks npm, so the number
 carried no information and only existed to go stale.
 
 Post-push: live anon endpoint re-verified at 45 tools / `f64bb18...2bb0a6`.
+
+## Eighth task — the opening line Andrew picked, and the two surfaces it doesn't reach
+
+Andrew steered the copy mid-flight: *"The ability to actually be able to design
+a locally rendered prototype/app is a huge draw as well."* All three drafted
+options had omitted click-to-change. That was my over-correction — the voice
+critic killed the *name* "Grab" as jargon, and I dropped the *capability* along
+with the name. The capability was never the problem.
+
+Re-drafted around it; he picked **D**, now `README.md:5` (`3e7f84a`):
+
+> Raven is an MCP server for coding agents. Click any element in the app you
+> have running locally and say what should change — Raven sends the agent the
+> selector, the computed styles, and your design tokens — then audits the
+> result for contrast, tap targets, and typography.
+
+Why D over the problem-first alternative: he had just named click-to-change as
+the draw, and D is the only draft that leads with it. The others arrive at the
+hook in their last clause, where a skimmer never reaches. D's cost is that its
+opening capability is the one the *hosted* endpoints don't carry — a reader who
+starts at `mcp.ravenmcp.ai` won't find it. The README body says so in four
+places and the install table is two screens down, so the cost is bounded.
+
+**Correction to something I told him earlier in this session:** I said fixing
+line 5 would propagate to Glama, npm, and the GitHub social preview. Only two of
+those are true. There are **three independent description surfaces** and they
+have all drifted apart:
+
+| Surface | Source | State |
+|---|---|---|
+| Glama listing, GitHub social preview, npm's README pane | `README.md:5` | fixed — option D |
+| npm package page **sidebar** | `package.json.description` | stale, unfixed |
+| `.mcpb` bundle in Claude Desktop | `manifest.json.description` | stale, unfixed |
+
+Both stale ones read "Design intelligence and creative orchestration…" followed
+by a feature inventory, and they don't match each other either. Neither is
+touched by `scripts/sync-manifest-tools.mjs` — that script owns
+`manifest.tools`, not `manifest.description`. Left for Andrew rather than
+rewritten silently: they are strings he hasn't seen, and a 44-word README
+sentence is the wrong length for a `description` field, so aligning them is a
+new copy decision, not a mechanical port.
+
+Post-push gate: live anon endpoint 45 tools / `f64bb18...2bb0a6`, unmoved. No
+`src/` or `api/` path touched, so the endpoint's behavior was never in play.
+
+**Still open, needs Andrew's word:** `www.ravenmcp.ai` now resolves and serves
+200 (the domain add from the seventh task worked), so both hostnames answer with
+identical content. `<link rel="canonical" href="https://ravenmcp.ai"/>` is
+already on the Next.js pages, which covers the SEO exposure. Making `www` a 301
+to the apex is the cleaner end state but is another account-settings change, so
+it waits on him. Offered three times now.
