@@ -249,11 +249,14 @@
     border-bottom: 1px solid var(--border);
   }
   .price-card + .price-card { padding-left: var(--s3); }
-  .price-card.featured { border-top: 2px solid var(--accent); margin-top: -1px; }
+  /* -2px, not -1px: the 2px accent rule must sit exactly on top of the grid's
+     1px rule, or this column's content starts a pixel below its neighbours. */
+  .price-card.featured { border-top: 2px solid var(--accent); margin-top: -2px; }
 
   .price-tier { display: flex; align-items: baseline; gap: var(--s1); margin-bottom: var(--s2); }
   .price-tier h3 { font-size: 15px; }
-  .price-tier .note { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; color: var(--accent); letter-spacing: 0.06em; text-transform: uppercase; }
+  /* line-height 1 so the badge cannot make the Pro row taller than the others. */
+  .price-tier .note { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; line-height: 1; color: var(--accent); letter-spacing: 0.06em; text-transform: uppercase; }
   .price-amount { font-size: 2rem; font-weight: 600; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
   .price-amount span { font-size: 13px; font-weight: 400; color: var(--text-tertiary); letter-spacing: 0; }
   .price-desc { font-size: 14px; color: var(--text-secondary); margin-bottom: var(--s3); line-height: 1.6; }
