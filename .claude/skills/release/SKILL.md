@@ -48,9 +48,10 @@ npm whoami                               # MUST print your npm user
 command -v mcp-publisher                 # MUST print the CLI path
 mcp-publisher validate                   # server.json passes registry validation
 
-# Registry JWT is SHORT-LIVED and release.sh uses it ~2 min after npm publish.
-# Do not check it — just mint a fresh one immediately before Step 3:
-mcp-publisher login http --domain ravenmcp.ai --private-key "$(cat ~/.raven-mcp-registry-key)"
+# The registry JWT is SHORT-LIVED. Do NOT mint one here — release.sh mints it
+# itself, immediately before it publishes. A token minted in this preflight is
+# the thing that expired mid-run on v2.2.9 and v2.3.0.
+test -f ~/.raven-mcp-registry-key        # MUST exist; the script signs with it
 
 # release.sh runs `git pull --ff-only` on main and dies if local main has ANY
 # commit origin/main lacks. Local main is stale by construction (auto-save
@@ -180,11 +181,8 @@ A release is done only when ALL hold:
 - **`dist/` is gitignored** — never assume a fresh clone has it; `npm run build` first.
 - The release.sh commit footer currently hardcodes an older Co-Author line; that is cosmetic and does not affect the release.
 - **The apex serves `web/public/raven.mcpb`, not `site/raven.mcpb`** (learned 2026-07-25). `build-mcpb.sh` wrote only `site/`, so every release left ravenmcp.ai/raven.mcpb serving the PREVIOUS release's bundle until someone hand-copied it — that is what the "Ship the v2.2.6 bundle from the apex" commit was. The build now copies into both, and since 2026-07-27 the release commit **stages** both (`c8dc811`) — first confirmed clean at v2.2.9. Verify with `curl -sL https://ravenmcp.ai/raven.mcpb -o /tmp/r.mcpb && unzip -p /tmp/r.mcpb manifest.json | grep version`, never by file size alone.
-- **The MCP Registry JWT expires in MINUTES, and `release.sh` spends it last** (learned 2026-07-27) — v2.2.9 published to npm, then `mcp-publisher publish` failed `401 token is expired`, leaving a half-done release. The token was minted an hour earlier and lapsed five minutes before the script reached it. `mcp-publisher validate` does NOT need auth, so a passing validate says nothing about the token. Re-login is non-interactive and takes a second — mint a fresh token immediately before every `release.sh` run:
-  ```bash
-  mcp-publisher login http --domain ravenmcp.ai --private-key "$(cat ~/.raven-mcp-registry-key)"
-  ```
-  Namespace `ai.ravenmcp/*` comes from HTTP **domain** auth against ravenmcp.ai (the pubkey is served at `/.well-known/mcp-registry-auth`) — `mcp-publisher login github` grants `io.github.*` and will NOT work here. Recovery from this exact failure is Step 3a minus the npm publish: re-login, `mcp-publisher publish`, then commit/tag/push.
+- **The MCP Registry JWT expires in MINUTES — `release.sh` now mints it itself** (learned 2026-07-27, recurred and fixed 2026-07-28). v2.2.9 and then v2.3.0 both published to npm and died on `401 token is expired`, each leaving a half-done release: npm shipped, registry stale, nothing committed or tagged. Telling the operator to mint a token in Step 0 did not work, because Step 0 runs minutes before the script reaches the registry. The script now runs `mcp-publisher login` immediately before `mcp-publisher publish`, and checks both the CLI and the signing key (`$RAVEN_REGISTRY_KEY_FILE`, default `~/.raven-mcp-registry-key`) up in the guardrails **before** anything is bumped or published. **Do not hand-mint a token before a release any more** — it is redundant, and its expiry is exactly the trap. `mcp-publisher validate` does NOT need auth, so a passing validate still says nothing about the token.
+  Namespace `ai.ravenmcp/*` comes from HTTP **domain** auth against ravenmcp.ai (the pubkey is served at `/.well-known/mcp-registry-auth`) — `mcp-publisher login github` grants `io.github.*` and will NOT work here. Recovery if a release still half-completes is Step 3a minus the npm publish: re-login, `mcp-publisher publish`, then commit/tag/push.
 - **`git pull --ff-only` in release.sh dies on a stale local main** (learned 2026-07-27) — local `main` was 6 ahead / 31 behind because auto-save commits stay local. `git cherry origin/main main` showed only one genuinely unique commit (a broken grab WIP); the rest were upstream duplicates. Preserve the `+` commits on a branch, fast-forward main, then release. Check this in Step 0, not after the bump.
 - **`mcp-publisher` was not installed on this machine** (learned 2026-07-25) — `brew install mcp-publisher`. Run `mcp-publisher validate` BEFORE the release: the registry caps `server.json.description` at 100 characters and ours was 175, so publish would have failed on validation regardless of auth. `mcp-publisher login github` is interactive and is Andrew's to run.
 - **`! npm publish` in a Claude Code session fails at `EOTP`** (learned 2026-07-25) — no TTY, so npm can't hold the prompt open while the passkey is approved in the browser. Run it in a real Terminal window; there it prints the auth URL and waits.

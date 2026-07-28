@@ -31,6 +31,20 @@ if [[ "$BRANCH" != "main" ]]; then
   exit 1
 fi
 
+# Everything the registry step needs is checked HERE, before anything is bumped
+# or published. The old script checked for the CLI after `npm publish`, so a
+# missing CLI left a half-done release.
+REGISTRY_KEY="${RAVEN_REGISTRY_KEY_FILE:-$HOME/.raven-mcp-registry-key}"
+if ! command -v mcp-publisher >/dev/null 2>&1; then
+  echo "✗ mcp-publisher CLI not found on PATH. Install it before releasing."
+  exit 1
+fi
+if [[ ! -f "$REGISTRY_KEY" ]]; then
+  echo "✗ Registry signing key not found at $REGISTRY_KEY."
+  echo "  Namespace ai.ravenmcp/* needs HTTP domain auth against ravenmcp.ai."
+  exit 1
+fi
+
 echo "→ Pulling latest main"
 git pull --ff-only
 
@@ -81,10 +95,11 @@ echo "→ Publishing to npm"
 npm publish
 
 echo "→ Publishing to MCP Registry"
-if ! command -v mcp-publisher >/dev/null 2>&1; then
-  echo "✗ mcp-publisher CLI not found on PATH. Install it before releasing."
-  exit 1
-fi
+# The registry JWT expires in MINUTES. Minting it right here — rather than in a
+# preflight the operator ran earlier — is the whole point: v2.2.9 and v2.3.0
+# both published to npm and then died on an expired token, each leaving a
+# half-done release (npm shipped, registry stale, nothing committed or tagged).
+mcp-publisher login http --domain ravenmcp.ai --private-key "$(cat "$REGISTRY_KEY")"
 mcp-publisher publish
 
 echo "→ Committing + tagging"
