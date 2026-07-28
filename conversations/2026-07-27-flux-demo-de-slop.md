@@ -101,11 +101,23 @@ content can no longer be permanently invisible if the observer never runs.
 - **Before** — BLOCK, 15 block / 1 warn. 12 × `COLOR-no-gradient-no-glow`,
   2 × `OTHER-no-shadcn-defaults`, 1 × `SPACING-tap-targets-44px`, warn on
   `TOKEN-no-bare-literals`.
-- **After** — 1 warn. The two remaining blocks were both fixed after the second
-  audit: the `.hero-note` anchor now clears 44px, and `--raised` was collapsed
-  into `var(--accent-a12)` so the empty load track reuses the accent's alpha
-  ladder instead of carrying its own hex. The single surviving gradient is the
-  hero legibility scrim — one hue, two alphas, functional not decorative.
+- **After (live URL, binding `raven-mcp`)** — 1 block / 1 warn, both
+  deliberately left standing:
+  - `COLOR-no-gradient-no-glow` on the hero scrim. This is a **detector false
+    positive**. The rule bans purple/indigo/blue gradients, rainbows, "AI"
+    gradients, glow and neon; the scrim is the page background `#191A23` at
+    three alpha stops, and its job is to hold white headline type legible over
+    a video. Removing it fails contrast, which Raven itself enforces. Not
+    labelled via `label_finding` because the `raven-mcp` binding also covers
+    the real marketing site, where the rule should keep biting.
+  - `TOKEN-no-bare-literals` — 12 distinct hexes against a 6–10 target. The
+    ladder is 4 neutrals, 1 accent + hover, 3 text steps, 2 semantic, white.
+    Getting to 10 means deleting real distinctions, so it stays a warn.
+
+  Everything else was fixed: `--raised` collapsed into `var(--accent-a12)` so
+  the empty load track reuses the accent's alpha ladder rather than carrying
+  its own hex, and three separate tap-target misses closed (the `.hero-note`
+  anchor at 22px, the nav logo at 24px, and "Docs" at 41.9px wide).
 
 **Caveat worth carrying.** Auditing the live URL resolved binding `raven-mcp`;
 auditing `127.0.0.1:8899` resolved `raven2-walkthrough` and pulled in that
@@ -136,6 +148,22 @@ session's staged work was never touched.
 **The live page moves only on `vercel deploy --prod` from `web/`.** A push to
 `main` deploys the `site` project, which owns `mcp.ravenmcp.ai` — not the apex.
 See `feedback_alias_list_not_url_probe_identifies_owner`.
+
+Shipped as six commits on `main`, each with its own `web` production deploy and
+a byte-diff of the live response against the local file:
+
+| sha | what |
+|---|---|
+| `0e4ff8e` | the re-craft |
+| `9464657` | quarter chart height — 13 weeks at 132px in a 940px card rendered as slabs |
+| `e2ca9e3` | nav logo 44px hit area |
+| `42b1bf7` | pricing columns off by 3px (2px accent rule pulled up only 1px, plus the mono badge's line box) |
+| `e94ba4c` | "Docs" was 41.9px wide |
+
+Final production sweep at 1440 and 393: 0 elements still JS-hidden, 0 tap
+targets under 44px in either dimension, no horizontal overflow, six section
+headlines sharing a left edge, and `diff` clean between the live bytes and
+`web/public/demos/saas.html`.
 
 ## Not done
 
