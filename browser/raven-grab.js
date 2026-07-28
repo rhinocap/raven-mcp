@@ -1949,6 +1949,38 @@
     return true;
   }
 
+  // Same-tag siblings under one parent that share at least one distinctive
+  // class. `shared` only ever narrows, and every member accepted at the time
+  // contained the wider set, so each member contains the final subset.
+  function sharedClassSiblingScope(element, signature) {
+    var parent = element.parentElement;
+    if (!parent || !signature.classes.length) return null;
+    var shared = signature.classes.slice();
+    var count = 1;
+    Array.prototype.forEach.call(parent.children, function (child) {
+      if (child === element || !sameTag(child, signature.tag)) return;
+      var classes = distinctiveClassesFor(child);
+      var common = shared.filter(function (name) { return classes.indexOf(name) >= 0; });
+      if (!common.length) return;
+      shared = common;
+      count += 1;
+    });
+    if (count < 2 || count > COMPONENT_SCOPE_MATCH_CAP) return null;
+    var suffix = signature.tag + shared.map(function (name) {
+      return "." + escapeCss(name);
+    }).join("");
+    var parentSelector = stableSelector(parent);
+    return {
+      // Best-effort for the sent payload; the local count and preview re-derive
+      // from parent.children + sharedClasses, so an ambiguous parent selector
+      // never widens what we show or apply here.
+      matchSelector: parentSelector ? parentSelector + " > " + suffix : suffix,
+      matchCount: count,
+      siblingScoped: true,
+      sharedClasses: shared
+    };
+  }
+
   function componentScopeFor(element, metadata) {
     var signature = componentSignatureFor(element);
     if (!signature) return { matchSelector: "", matchCount: 0 };
@@ -2006,6 +2038,20 @@
       }
       return componentSignaturesMatch(componentSignatureFor(candidate), signature);
     }).length;
+    // Exact-signature matching requires the WHOLE class set to be equal, so a
+    // base class plus a per-instance modifier — .cell.cell-1 … .cell.cell-6,
+    // .card.card-1 … — never matches its own siblings and the Scope switch
+    // silently disappears on ordinary hand-written markup. Fall back to the
+    // largest class subset shared with same-tag siblings under the SAME parent:
+    // bounded by the parent exactly like the class-less path above, so a partial
+    // match can never open a document-wide set.
+    if (!hasComponentAttr && matchCount < 2) {
+      var sharedScope = sharedClassSiblingScope(element, signature);
+      if (sharedScope) {
+        if (componentName) sharedScope.componentName = componentName;
+        return sharedScope;
+      }
+    }
     // Unsigned class signatures that match "too many" are unsafe on utility-heavy pages.
     if (!componentName && !hasComponentAttr && matchCount > COMPONENT_SCOPE_MATCH_CAP) {
       return { matchSelector: matchSelector, matchCount: 0, tooBroad: true };
@@ -3088,8 +3134,14 @@
       var parent = selectedElement.parentElement;
       if (!parent) return [];
       var tag = String(selectedElement.localName || "").toLowerCase();
+      // sharedClasses is set only by the shared-class fallback; the class-less
+      // path has none and matches on tag alone, as it always has.
+      var shared = scope.sharedClasses || [];
       return Array.prototype.filter.call(parent.children, function (element) {
-        return element !== selectedElement && sameTag(element, tag);
+        if (element === selectedElement || !sameTag(element, tag)) return false;
+        if (!shared.length) return true;
+        var classes = distinctiveClassesFor(element);
+        return shared.every(function (name) { return classes.indexOf(name) >= 0; });
       });
     }
     var selector = scope.matchSelector;
