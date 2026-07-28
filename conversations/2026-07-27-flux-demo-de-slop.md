@@ -418,3 +418,65 @@ endpoint re-verified at 45 tools / `f64bb18…2bb0a6`, the frozen golden hash.
   only reachable at the direct `/mcp/servers/rhinocap/raven-mcp` path. A
   discoverability gap on a distribution channel, alongside the OpenAI plugin
   directory submission still in Review.
+
+## Seventh task — the four-item close-out (/goal)
+
+Andrew: "Write yourself a /goal to do 1,2,3 and 4 and execute."
+
+Routing: the copy leg fanned out as a Workflow (9 agents, 0 errors) — 3 Codex
+drafters, then per draft a Codex factual-accuracy adversary and a Fable voice
+adversary bound to the target-customer block. Items 2-4 stayed in the main
+session: MCP-bound, deploy-gated, eyes-on. The first Workflow call was
+hard-blocked by the routing hook for pinning Anthropic models with no
+justification token — correctly. Re-routed generation and evidence-checking to
+Codex and kept only the taste lens on Fable with `[claude-justified: ...]`.
+
+**#2 www.ravenmcp.ai — FIXED.** Reproduced first: `CN=ravenmcp.ai`,
+`subjectAltName does not match host name www.ravenmcp.ai`. `vercel domains add
+www.ravenmcp.ai web`, then verified off the deployment's own alias list rather
+than a URL probe — `www.ravenmcp.ai` now appears alongside the apex. Cert is
+`CN=www.ravenmcp.ai`, SAN matches, HTTP/2, 200. DNS needed nothing: www already
+CNAME'd to the apex at 76.76.21.21.
+Consequence checked, not assumed: www now answers 200 rather than redirecting,
+so both hostnames serve. The Next.js pages already carry a canonical link to
+the apex, so the duplicate-content exposure is covered. A www->apex 301 would
+still be tidier; not done, it is a further account-settings change.
+
+**#3 .btn-secondary border — FIXED (`edc25ae`), live.** 1.31:1 -> 3.09:1.
+Added `--border-control: #666772` rather than moving `--border`: line 91 was the
+ONLY control use of that token; all thirteen others are decorative hairlines
+where 1.4.11 does not apply, so lifting `--border` would have repainted the
+page for no accessibility gain. #666772 is the smallest step along the same hue
+that clears 3:1. Hover keeps `--text-tertiary` at 5.19:1, so the hover step
+still reads.
+Verified live at ravenmcp.ai/demos/saas.html: all four secondary buttons
+("Read the docs", "Get started", "Contact sales", "Talk to us") measure 3.09:1
+against the body background; live file sha matches the repo exactly
+(cc9d4644...); before/after crops captured at the same region. `audit_page`
+holds at 94/B, 13/18 — no regression. The palette-size warning moved 12 -> 13
+hexes, which is this token; it is a functional control value, not a decorative
+hue.
+
+**#4 grab dev server — KILLED.** PID 47761 on :53570 plus its parent shell;
+port free, background task exited.
+
+**#1 README opening line — options produced, NOT shipped.** Path B: interpretive,
+Andrew picks. Three findings converged across all three independent voice
+critiques and they are the real lesson:
+- "taste" as a bare noun reads as AI-marketing fluff to a cold reader. All three
+  killed it independently.
+- "your team" excludes the free-tier solo dev, who IS the bound free persona.
+- The line must name what it is ("MCP server") and who calls it ("coding
+  agent"), or the reader has no slot to put it in.
+The factual adversaries added a hard constraint: the Decision Graph is
+local-stdio only (every `decision_*` tool is in `REMOTE_GATED_TOOLS`) and is
+SEPARATE from the per-person Taste Engine. Any line implying team decision
+memory over the hosted endpoint is simply false.
+
+**Second drift found by an adversary, fixed (`ec6baac`).** README line 69 told
+Desktop-bundle users the package tracks npm at 1.17.x while the published
+version is 2.2.9 — a full major behind on the no-terminal install path. Dropped
+the parenthetical; the sentence already says it tracks npm, so the number
+carried no information and only existed to go stale.
+
+Post-push: live anon endpoint re-verified at 45 tools / `f64bb18...2bb0a6`.
