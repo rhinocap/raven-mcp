@@ -14,11 +14,12 @@
     --bg: #191A23;
     --surface: #1F2028;
     --border: #2E2F3E;
-    --hairline: #33344A;
 
-    /* One accent. Depth comes from alpha, not from new hues. */
+    /* One accent. Depth comes from alpha, not from new hues.
+       Hover goes DARKER: the lighter shade this used to be dropped white
+       button text to 3.79:1. */
     --accent: #5E6AD2;
-    --accent-hover: #6F7AE0;
+    --accent-hover: #5560C4;
     --accent-a70: rgba(94,106,210,0.70);
     --accent-a45: rgba(94,106,210,0.45);
     --accent-a25: rgba(94,106,210,0.25);
@@ -30,17 +31,21 @@
 
     --text-primary: #EDEEF0;
     --text-secondary: #A9ABB7;
-    --text-tertiary: #848694;
+    /* 4.86:1 on --surface at 11px; the old #848694 was 4.49 there. */
+    --text-tertiary: #8A8C9A;
 
     --radius: 8px;
     --radius-sm: 4px;
 
     /* 8px base scale */
     --s1: 8px; --s2: 16px; --s3: 24px; --s4: 32px;
-    --s5: 48px; --s6: 64px; --s7: 96px; --s8: 128px;
+    --s5: 48px; --s6: 64px; --s7: 96px;
   }
 
-  html { font-size: 16px; scroll-behavior: smooth; overflow-x: hidden; }
+  html {
+    font-size: 16px; scroll-behavior: smooth; overflow-x: hidden;
+    scroll-padding-top: 88px; /* fixed nav is 68px; 88 keeps it on the 8px grid */
+  }
 
   body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -50,14 +55,15 @@
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    overflow-x: hidden;
   }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   .container { max-width: 1120px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 32px); position: relative; z-index: 2; }
   section { padding: clamp(var(--s5), 7vw, 104px) 0; position: relative; }
 
   h1, h2, h3 { letter-spacing: -0.025em; font-weight: 600; line-height: 1.12; }
-  h1 { font-size: clamp(2.25rem, 4.4vw, 3.25rem); letter-spacing: -0.035em; }
+  h1 { font-size: clamp(2rem, 4.4vw, 3.25rem); letter-spacing: -0.035em; }
   h2 { font-size: clamp(1.5rem, 2.8vw, 2rem); }
   h3 { font-size: 1.125rem; font-weight: 600; }
 
@@ -82,7 +88,7 @@
   }
   .btn-primary { background: var(--accent); color: #fff; }
   .btn-primary:hover { background: var(--accent-hover); }
-  .btn-secondary { background: transparent; color: var(--text-primary); border-color: var(--hairline); }
+  .btn-secondary { background: transparent; color: var(--text-primary); border-color: var(--border); }
   .btn-secondary:hover { border-color: var(--text-tertiary); }
 
   /* ─── NAV ─── */
@@ -120,7 +126,7 @@
   .hero-note {
     display: inline-flex; align-items: center; gap: var(--s1);
     font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 12.5px; color: var(--text-tertiary);
+    font-size: 12px; color: var(--text-tertiary);
     margin-bottom: var(--s3); padding: 8px 0; min-height: 44px;
   }
   /* Padded to a 44px hit area; underlined rather than border-bottom so the
@@ -128,14 +134,14 @@
   .hero-note a {
     display: inline-block; padding: 11px 0; min-height: 44px;
     color: var(--text-secondary);
-    text-decoration: underline; text-decoration-color: var(--hairline);
+    text-decoration: underline; text-decoration-color: var(--border);
     text-underline-offset: 3px; text-decoration-thickness: 1px;
   }
   .hero-note a:hover { color: var(--text-primary); text-decoration-color: var(--text-tertiary); }
   .hero h1 { margin-bottom: var(--s3); }
   .hero p {
     font-size: 1.0625rem; color: var(--text-secondary);
-    max-width: 520px; margin-bottom: var(--s5); line-height: 1.65;
+    max-width: 520px; margin-bottom: var(--s5);
   }
   .hero-actions { display: flex; align-items: center; gap: var(--s1); }
 
@@ -149,7 +155,7 @@
   /* ─── FEATURES ─── */
   .features .section-head { max-width: 620px; margin-bottom: var(--s7); }
   .features h2 { margin-bottom: var(--s2); }
-  .features .section-desc { color: var(--text-secondary); font-size: 1.0625rem; line-height: 1.65; }
+  .features .section-desc { color: var(--text-secondary); font-size: 1.0625rem; }
 
   .feature-row {
     display: grid; grid-template-columns: minmax(280px, 1fr) minmax(300px, 1.15fr);
@@ -158,7 +164,12 @@
     border-top: 1px solid var(--border);
     align-items: start;
   }
-  .feature-row:first-of-type { margin-top: 0; }
+  /* :first-of-type matched nothing here — .section-head is the first div. */
+  .section-head + .feature-row { margin-top: 0; }
+  /* The rows don't march. 02 leads with the chart and keeps it in the narrow
+     track — a full-width stack key opens a leader gap between label and value.
+     03 gives the writing more room than five short bars beside it need. */
+  .feature-row.text-led { grid-template-columns: minmax(300px, 1.3fr) minmax(240px, 1fr); }
   .feature-index { grid-column: 1 / -1; margin-bottom: calc(var(--s2) * -1); }
   .feature-text h3 { margin: var(--s1) 0 var(--s2); }
   .feature-text p { color: var(--text-secondary); font-size: 15px; line-height: 1.7; }
@@ -167,7 +178,7 @@
   .figure { display: flex; flex-direction: column; gap: var(--s2); }
   .figure-caption {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 11.5px; color: var(--text-tertiary); letter-spacing: 0.04em;
+    font-size: 11px; color: var(--text-tertiary); letter-spacing: 0.04em;
   }
 
   /* Column chart with a real y-axis */
@@ -198,11 +209,11 @@
   .stack { display: flex; height: 32px; border-radius: 2px; overflow: hidden; }
   .stack span { display: block; }
   .stack-key { display: flex; flex-direction: column; gap: 6px; }
-  .stack-key li { list-style: none; display: flex; align-items: baseline; gap: var(--s1); font-size: 13px; color: var(--text-secondary); }
+  .stack-key li { list-style: none; display: flex; align-items: baseline; gap: var(--s1); font-size: 14px; color: var(--text-secondary); }
   .stack-key .swatch { width: 9px; height: 9px; border-radius: 1px; flex-shrink: 0; }
   .stack-key .val {
     margin-left: auto; font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-variant-numeric: tabular-nums; color: var(--text-primary); font-size: 13px;
+    font-variant-numeric: tabular-nums; color: var(--text-primary); font-size: 14px;
   }
 
   /* Horizontal load bars */
@@ -217,7 +228,7 @@
   /* ─── DASHBOARD ─── */
   .dashboard .section-head { max-width: 620px; margin-bottom: var(--s5); }
   .dashboard h2 { margin-bottom: var(--s2); }
-  .dashboard .section-desc { color: var(--text-secondary); font-size: 1.0625rem; line-height: 1.65; }
+  .dashboard .section-desc { color: var(--text-secondary); font-size: 1.0625rem; }
 
   .dash-card { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--s4); background: var(--surface); }
   .dash-header {
@@ -237,14 +248,14 @@
   .metric-item:not(:first-child) { padding-left: var(--s2); }
   .metric-label { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; font-weight: 400; color: var(--text-tertiary); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; }
   .metric-value { font-size: 1.75rem; font-weight: 600; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; }
-  .metric-delta { font-size: 12.5px; margin-top: 4px; font-variant-numeric: tabular-nums; color: var(--text-tertiary); }
+  .metric-delta { font-size: 12px; margin-top: 4px; font-variant-numeric: tabular-nums; color: var(--text-tertiary); }
   .metric-delta.up { color: var(--pos); }
   .metric-delta.down { color: var(--neg); }
 
   /* ─── PRICING ─── */
   .pricing .section-head { max-width: 620px; margin-bottom: var(--s6); }
   .pricing h2 { margin-bottom: var(--s2); }
-  .pricing .section-desc { color: var(--text-secondary); font-size: 1.0625rem; line-height: 1.65; }
+  .pricing .section-desc { color: var(--text-secondary); font-size: 1.0625rem; }
 
   .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0; border-top: 1px solid var(--border); }
   .price-card {
@@ -259,10 +270,12 @@
 
   .price-tier { display: flex; align-items: baseline; gap: var(--s1); margin-bottom: var(--s2); }
   .price-tier h3 { font-size: 15px; }
-  /* line-height 1 so the badge cannot make the Pro row taller than the others. */
-  .price-tier .note { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; line-height: 1; color: var(--accent); letter-spacing: 0.06em; text-transform: uppercase; }
+  /* line-height 1 so the badge cannot make the Pro row taller than the others.
+     Not accent-coloured: 3.69:1 at 11px. The 2px accent rule on top of the card
+     already carries the emphasis. */
+  .price-tier .note { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; line-height: 1; color: var(--text-secondary); letter-spacing: 0.06em; text-transform: uppercase; }
   .price-amount { font-size: 2rem; font-weight: 600; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
-  .price-amount span { font-size: 13px; font-weight: 400; color: var(--text-tertiary); letter-spacing: 0; }
+  .price-amount span { font-size: 14px; font-weight: 400; color: var(--text-tertiary); letter-spacing: 0; }
   .price-desc { font-size: 14px; color: var(--text-secondary); margin-bottom: var(--s3); line-height: 1.6; }
   .price-features { list-style: none; margin-bottom: var(--s4); flex: 1; display: flex; flex-direction: column; gap: 10px; }
   .price-features li { font-size: 14px; color: var(--text-secondary); display: flex; align-items: flex-start; gap: 10px; }
@@ -272,7 +285,7 @@
   /* ─── FINAL CTA ─── */
   .final-cta .container > * { max-width: 620px; }
   .final-cta h2 { margin-bottom: var(--s2); }
-  .final-cta p { color: var(--text-secondary); font-size: 1.0625rem; margin-bottom: var(--s4); line-height: 1.65; }
+  .final-cta p { color: var(--text-secondary); font-size: 1.0625rem; margin-bottom: var(--s4); }
   .final-cta-actions { display: flex; align-items: center; gap: var(--s1); }
 
   /* ─── FOOTER ─── */
@@ -280,22 +293,32 @@
   .raven-badge .container { display: flex; }
   .raven-badge a {
     display: inline-flex; align-items: center; gap: var(--s1);
-    font-size: 13px; color: var(--text-tertiary); min-height: 44px;
+    font-size: 14px; color: var(--text-tertiary); min-height: 44px;
     transition: color 0.15s;
   }
   .raven-badge a:hover { color: var(--text-primary); }
 
   footer { border-top: 1px solid var(--border); padding: var(--s4) 0; }
   .footer-inner { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; }
-  .footer-left { display: flex; align-items: center; gap: var(--s1); font-size: 13px; color: var(--text-tertiary); }
+  .footer-left { display: flex; align-items: center; gap: var(--s1); font-size: 14px; color: var(--text-tertiary); }
   .footer-links { display: flex; gap: var(--s2); flex-wrap: wrap; }
-  .footer-links a { font-size: 13px; color: var(--text-tertiary); transition: color 0.15s; padding: 12px 4px; min-height: 44px; display: inline-flex; align-items: center; }
+  .footer-links a { font-size: 14px; color: var(--text-tertiary); transition: color 0.15s; padding: 12px 4px; min-height: 44px; display: inline-flex; align-items: center; }
   .footer-links a:hover { color: var(--text-primary); }
 
   /* ─── RESPONSIVE ─── */
   @media (max-width: 860px) {
-    .feature-row { grid-template-columns: 1fr; gap: var(--s4); }
-    .nav-links a:not(.btn) { display: none; }
+    .feature-row,
+    .feature-row.figure-led,
+    .feature-row.text-led { grid-template-columns: 1fr; gap: var(--s4); }
+    /* One column: text leads again, whatever the DOM order. */
+    .feature-row.figure-led .feature-index { order: 1; }
+    .feature-row.figure-led .feature-text { order: 2; }
+    .feature-row.figure-led .figure { order: 3; }
+    /* The two anchors that go somewhere stay reachable; the demo's two dead
+       links are what drop. Hiding all four left mobile with no nav at all. */
+    .nav-links { gap: var(--s2); }
+    /* a.nav-stub, not .nav-stub: the base rule's :not(.btn) matches specificity. */
+    .nav-links a.nav-stub { display: none; }
     .price-card, .price-card + .price-card { padding-left: 0; padding-right: 0; }
   }
   @media (max-width: 520px) {
@@ -306,12 +329,8 @@
     .metric-item, .metric-item:not(:first-child) { padding-left: var(--s2); }
   }
 
-  /* ─── MOTION ─── */
-  .reveal { opacity: 0; transform: translateY(12px); transition: opacity 0.5s ease, transform 0.5s ease; }
-  .reveal.in { opacity: 1; transform: none; }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
-    .reveal { opacity: 1; transform: none; transition: none; }
   }
 </style>
 </head>
@@ -327,8 +346,8 @@
     <div class="nav-links">
       <a href="#features">Features</a>
       <a href="#pricing">Pricing</a>
-      <a href="#">Docs</a>
-      <a href="#">Changelog</a>
+      <a href="#" class="nav-stub">Docs</a>
+      <a href="#" class="nav-stub">Changelog</a>
       <a href="#" class="btn btn-primary">Get started</a>
     </div>
   </div>
@@ -339,11 +358,21 @@
   <video class="hero-video" autoplay muted loop playsinline poster="/assets/video/demos/saas.jpg">
     <source src="/assets/video/demos/saas.mp4" type="video/mp4">
   </video>
+  <script>
+    // WCAG 2.2.2: a looping background video has no stop control, so it must
+    // not start at all for reduced-motion. Inline, so it lands on the poster
+    // rather than playing until a bottom-of-page script catches it.
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      var heroVideo = document.querySelector('.hero-video');
+      heroVideo.removeAttribute('autoplay');
+      heroVideo.pause();
+    }
+  </script>
   <div class="container">
     <div class="hero-inner">
       <div class="hero-note">v2.4 &middot; <a href="#">anomaly detection on deploy windows</a></div>
       <h1>See where the work stalls</h1>
-      <p>Flux reads your GitHub, Linear, and deploy data, then shows deploy frequency, lead time, and the stage where every pull request sits waiting.</p>
+      <p>Flux reads your GitHub, Linear, and deploy data. Then it tells you which stage your pull requests are sitting in, and how long they have been there.</p>
       <div class="hero-actions">
         <a href="#" class="btn btn-primary">Connect a repository</a>
         <a href="#" class="btn btn-secondary">Read the docs</a>
@@ -360,7 +389,7 @@
       <span class="logo-item">Vercel</span>
       <span class="logo-item">Stripe</span>
       <span class="logo-item">Supabase</span>
-      <span class="logo-item">Planetscale</span>
+      <span class="logo-item">PlanetScale</span>
       <span class="logo-item">Railway</span>
       <span class="logo-item">Resend</span>
     </div>
@@ -372,15 +401,15 @@
   <div class="container">
     <div class="section-head">
       <h2>What Flux measures</h2>
-      <p class="section-desc">Each number traces back to a specific event in your repository: a commit, a review, a merge, a deploy. Click any figure and Flux shows the events underneath it.</p>
+      <p class="section-desc">Each number traces back to a specific event in your repository: a commit, a review, a merge, a deploy.</p>
     </div>
 
     <!-- 01 -->
-    <div class="feature-row reveal">
+    <div class="feature-row">
       <p class="eyebrow feature-index">01 &nbsp;/&nbsp; Pulse metrics</p>
       <div class="feature-text">
-        <h3>The four DORA measures, computed from webhooks</h3>
-        <p>Deploy frequency, lead time for changes, change failure rate, and time to restore. Flux derives all four from deploy and incident webhooks, so nobody has to keep a spreadsheet current on Friday afternoons.</p>
+        <h3>The four DORA measures</h3>
+        <p>Deploy frequency, lead time for changes, change failure rate, and time to restore — all four derived from your deploy and incident webhooks.</p>
       </div>
       <div class="figure">
         <div class="col-chart">
@@ -398,14 +427,10 @@
     </div>
 
     <!-- 02 -->
-    <div class="feature-row reveal">
+    <div class="feature-row figure-led">
       <p class="eyebrow feature-index">02 &nbsp;/&nbsp; Cycle time</p>
-      <div class="feature-text">
-        <h3>Every pull request, timed across four stages</h3>
-        <p>Coding, review, QA, deploy. Flux records the median hours a change spends in each one. The longest stage is where next week goes, and on most teams it is not the one people name.</p>
-      </div>
       <div class="figure">
-        <div class="stack" aria-label="Median cycle time by stage">
+        <div class="stack" role="img" aria-label="Median cycle time by stage: coding 8.2h, review 11.4h, QA 3.1h, deploy 0.9h">
           <span style="width:34.7%;background:var(--accent)"></span>
           <span style="width:48.3%;background:var(--accent-a70)"></span>
           <span style="width:13.1%;background:var(--accent-a45)"></span>
@@ -419,14 +444,18 @@
         </ul>
         <p class="figure-caption">Median hours per stage &middot; 23.6h total &middot; sample org</p>
       </div>
+      <div class="feature-text">
+        <h3>Where a pull request actually spends its time</h3>
+        <p>Coding, review, QA, deploy. Flux records the median hours a change spends in each one. The longest stage is where next week goes, and on most teams it is not the one people name.</p>
+      </div>
     </div>
 
     <!-- 03 -->
-    <div class="feature-row reveal">
+    <div class="feature-row text-led">
       <p class="eyebrow feature-index">03 &nbsp;/&nbsp; Team health</p>
       <div class="feature-text">
         <h3>Review load, per person, per week</h3>
-        <p>Review work concentrates quietly. Flux counts reviews completed per person alongside focus-time fragmentation and after-hours commit share, so load can be rebalanced while it is still a scheduling problem.</p>
+        <p>Reviews completed per person, counted weekly, alongside focus-time fragmentation and after-hours commit share.</p>
       </div>
       <div class="figure">
         <div class="load">
@@ -450,7 +479,7 @@
       <p class="section-desc">Every figure below is sample data, generated for this demo. A connected workspace shows the same view against your own repositories.</p>
     </div>
 
-    <div class="dash-card reveal">
+    <div class="dash-card">
       <div class="dash-header">
         <h3>Engineering overview &middot; Q1 2026</h3>
         <span class="eyebrow">Sample data</span>
@@ -504,7 +533,7 @@
     </div>
 
     <div class="pricing-grid">
-      <div class="price-card reveal">
+      <div class="price-card">
         <div class="price-tier"><h3>Starter</h3></div>
         <div class="price-amount">$0 <span>/ month</span></div>
         <p class="price-desc">One developer, one repository.</p>
@@ -517,7 +546,7 @@
         <a href="#" class="btn btn-secondary">Get started</a>
       </div>
 
-      <div class="price-card featured reveal">
+      <div class="price-card featured">
         <div class="price-tier"><h3>Pro</h3><span class="note">Most teams</span></div>
         <div class="price-amount">$18 <span>/ seat / month</span></div>
         <p class="price-desc">Cycle time and review load across the team.</p>
@@ -531,7 +560,7 @@
         <a href="#" class="btn btn-primary">Start free trial</a>
       </div>
 
-      <div class="price-card reveal">
+      <div class="price-card">
         <div class="price-tier"><h3>Enterprise</h3></div>
         <div class="price-amount">Custom</div>
         <p class="price-desc">SSO, audit logs, and a signed SLA.</p>
@@ -551,7 +580,7 @@
 <!-- FINAL CTA -->
 <section class="final-cta">
   <div class="container">
-    <h2>Connect a repository</h2>
+    <h2>Start with one repository</h2>
     <p>Point Flux at one repo and it backfills 90 days of history in a few minutes. No card, and nothing to install on your machine.</p>
     <div class="final-cta-actions">
       <a href="#" class="btn btn-primary">Connect a repository</a>
@@ -592,7 +621,7 @@
 <script>
   // Charts plot real series against the axis drawn beside them.
   (function () {
-    function plot(id, values, max) {
+    function plot(id, values, max, label) {
       var el = document.getElementById(id);
       if (!el) return;
       values.forEach(function (v) {
@@ -602,28 +631,14 @@
         c.title = v + ' deploys';
         el.appendChild(c);
       });
+      // title= is mouse-only. The series has to be readable without a pointer.
+      el.setAttribute('role', 'img');
+      el.setAttribute('aria-label', label + ': ' + values.join(', '));
     }
     // 12 weeks, axis 0–12
-    plot('pulse-plot', [4, 5, 5, 7, 6, 8, 7, 9, 8, 10, 9, 11], 12);
+    plot('pulse-plot', [4, 5, 5, 7, 6, 8, 7, 9, 8, 10, 9, 11], 12, 'Deploys per week, last 12 weeks');
     // 13 weeks of a quarter, axis 0–60
-    plot('quarter-plot', [31, 36, 34, 41, 38, 44, 42, 47, 45, 51, 48, 53, 47], 60);
-  })();
-
-  // Reveal on scroll, with a guaranteed fallback so content is never JS-gated.
-  (function () {
-    var els = document.querySelectorAll('.reveal');
-    if (!('IntersectionObserver' in window)) {
-      els.forEach(function (e) { e.classList.add('in'); });
-      return;
-    }
-    var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
-      });
-    }, { threshold: 0.05, rootMargin: '0px 0px -40px 0px' });
-    els.forEach(function (e) { io.observe(e); });
-    // If anything is still hidden after 2.5s, show it.
-    setTimeout(function () { els.forEach(function (e) { e.classList.add('in'); }); }, 2500);
+    plot('quarter-plot', [31, 36, 34, 41, 38, 44, 42, 47, 45, 51, 48, 53, 47], 60, 'Deploys per week, 13 weeks');
   })();
 </script>
 
