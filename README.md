@@ -2,7 +2,7 @@
 
 **Odin's ravens brought back knowledge of the world — Raven brings back design intelligence.**
 
-A design knowledge MCP server that Claude can query when generating UI. Eight layers: principles, patterns, content design systems, research methods, service design, brand/visual, business strategy, and design tokens.
+Raven is an MCP server for coding agents. Click any element in the app you have running locally and say what should change — Raven sends the agent the selector, the computed styles, and your design tokens — then audits the result for contrast, tap targets, and typography.
 
 > Raven MCP is a personal open-source project by [Andrew Cunliffe](https://ravenmcp.ai). It is **not endorsed by, affiliated with, or supported by Intuit Inc.** or any other company referenced in its source data. See [NOTICE](./NOTICE) for full attribution of upstream sources and their licenses.
 
