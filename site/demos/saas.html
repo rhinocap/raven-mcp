@@ -94,7 +94,8 @@
     border-bottom: 1px solid var(--border);
   }
   nav .container { display: flex; align-items: center; justify-content: space-between; }
-  .nav-logo { display: flex; align-items: center; gap: var(--s1); font-weight: 600; font-size: 15px; letter-spacing: -0.02em; }
+  /* min-height costs no layout — the row is already 44px from the CTA. */
+  .nav-logo { display: flex; align-items: center; gap: var(--s1); min-height: 44px; font-weight: 600; font-size: 15px; letter-spacing: -0.02em; }
   .nav-logo svg { color: var(--accent); }
   .nav-links { display: flex; align-items: center; gap: var(--s3); }
   .nav-links a:not(.btn) { font-size: 14px; font-weight: 400; color: var(--text-secondary); transition: color 0.15s; padding: 12px 4px; }
