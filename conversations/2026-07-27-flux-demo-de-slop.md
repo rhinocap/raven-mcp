@@ -531,3 +531,59 @@ identical content. `<link rel="canonical" href="https://ravenmcp.ai"/>` is
 already on the Next.js pages, which covers the SEO exposure. Making `www` a 301
 to the apex is the cleaner end state but is another account-settings change, so
 it waits on him. Offered three times now.
+
+## Ninth task — closing the two open items
+
+**1. The other two description surfaces** (`00840b5`). `package.json.description`
+and `manifest.json.description` now carry one shared string, matching the README's
+lead:
+
+> An MCP server for coding agents — click any element in your locally running
+> app, say what should change, and get back the selector, computed styles, and
+> design tokens, plus an audit of the result.
+
+One string in both files rather than two variants — the drift that started this
+whole thread came from three surfaces each being edited on its own. 196 chars,
+shorter than the 219-char string it replaced in `package.json`. Andrew approved
+a draft ending "...and get the selector, computed styles, and tokens back, then
+audited"; shipped with that tail repaired, since "audited" had no subject.
+
+Nothing asserts either string — `scripts/sync-manifest-tools.mjs` owns
+`manifest.tools`, not `manifest.description`, and no test reads it.
+`check-site-drift.mjs` returns FAIL(21) identically before and after the edit,
+so those 21 are pre-existing (see below). **`package.json.description` does not
+reach npm until the next publish** — the npm page shows the *published*
+package's metadata, so the sidebar stays stale through v2.2.9.
+
+**2. `www` -> apex 301.** Done and live. No CLI verb exists for this
+(`vercel domains` has no redirect subcommand), so it went through the REST API:
+
+```
+PATCH /v9/projects/web/domains/www.ravenmcp.ai?teamId=...
+{"redirect":"ravenmcp.ai","redirectStatusCode":301}
+```
+
+Verified at the edge rather than from the API's echo: `https://www.ravenmcp.ai/`
+-> `HTTP/2 301`, `location: https://ravenmcp.ai/`; a deep path preserves itself
+(`/demos/saas.html` -> `https://ravenmcp.ai/demos/saas.html`); one hop, no chain;
+apex still `200`; `mcp.ravenmcp.ai` untouched. The CLI token came from
+`~/Library/Application Support/com.vercel.cli/auth.json` and was never printed.
+
+## Found on the way — `check-site-drift.mjs` FAIL(21), pre-existing
+
+Only **4 of the 21 are real**, all from the tool count moving 100 -> 104:
+
+- `web/public/llms.txt` lines 3, 12, 32 still say 100 tools.
+- `web/components/tools/ToolsSection.tsx` is missing 4 manifest tools.
+
+The other **17 are the guard misfiring**: it reads every "N tools" in
+`web/app/docs/page.tsx` and asserts N == the total, but those are *per-section*
+counts ("14 tools" in the audits section, "2 tools" in a subsection). The guard
+needs to scope its match to the total-count sentences instead of every
+occurrence.
+
+Not fixed here on purpose: all four real sites are under `web/`, and the 104th
+tool arrived via another session's in-flight commit (`f606d5a`). Editing the
+same surface mid-flight is how the stacked-PR mess happened. It also cannot
+reach users without a manual `vercel deploy --prod` from `web/`, so it is not
+silently live-wrong — the public site simply still says 100.
