@@ -98,7 +98,11 @@
   .nav-logo { display: flex; align-items: center; gap: var(--s1); min-height: 44px; font-weight: 600; font-size: 15px; letter-spacing: -0.02em; }
   .nav-logo svg { color: var(--accent); }
   .nav-links { display: flex; align-items: center; gap: var(--s3); }
-  .nav-links a:not(.btn) { font-size: 14px; font-weight: 400; color: var(--text-secondary); transition: color 0.15s; padding: 12px 4px; }
+  .nav-links a:not(.btn) {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 44px; min-height: 44px; padding: 12px 4px;
+    font-size: 14px; font-weight: 400; color: var(--text-secondary); transition: color 0.15s;
+  }
   .nav-links a:not(.btn):hover { color: var(--text-primary); }
 
   /* ─── HERO ─── */
