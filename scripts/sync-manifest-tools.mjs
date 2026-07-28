@@ -156,26 +156,47 @@ export function shortDescription(description) {
   return `${sentence.slice(0, wordBoundary).trimEnd()}…`;
 }
 
-// The README's stdio tool count is what directory crawlers scrape — Glama read
-// "99 tools" off it for the v2.2.9 listing while the manifest said 100. Hand-typed
-// it drifts silently, so it moves with the manifest or the sync fails loudly.
-const README_COUNT_PATTERNS = [
-  /(\*\*)(\d+)( tools\*\*, including Grab)/,
-  /(\| Local stdio \|.*\| \*\*)(\d+)(\*\* \| Yes \| Yes \|)/,
+// Hand-typed tool counts drift silently: Glama scraped "99 tools" off the README
+// for the v2.2.9 listing while the manifest said 100, and llms.txt — the file AI
+// agents read — sat at 100 while the manifest moved to 104. Each count below moves
+// with the manifest or the sync fails loudly. Each regex must capture (prefix,
+// digits, suffix) so the digits can be swapped without touching the copy.
+const COUNT_SURFACES = [
+  {
+    file: 'README.md',
+    patterns: [
+      /(\*\*)(\d+)( tools\*\*, including Grab)/,
+      /(\| Local stdio \|.*\| \*\*)(\d+)(\*\* \| Yes \| Yes \|)/,
+    ],
+  },
+  {
+    file: 'web/public/llms.txt',
+    patterns: [
+      /(It exposes )(\d+)( tools spanning)/,
+      /(\n- )(\d+)( focused tools, grouped by job)/,
+      /(the knowledge layers, the )(\d+)( tools)/,
+    ],
+  },
 ];
 
-async function syncReadmeToolCount(count) {
-  const readmePath = path.join(repoRoot, 'README.md');
-  const original = await readFile(readmePath, 'utf8');
-  let updated = original;
-  for (const pattern of README_COUNT_PATTERNS) {
-    if (!pattern.test(updated)) {
-      throw new Error(`README.md tool-count pattern no longer matches: ${pattern}`);
+export async function syncCountSurfaces(count) {
+  const changed = [];
+  for (const { file, patterns } of COUNT_SURFACES) {
+    const filePath = path.join(repoRoot, file);
+    const original = await readFile(filePath, 'utf8');
+    let updated = original;
+    for (const pattern of patterns) {
+      if (!pattern.test(updated)) {
+        throw new Error(`${file} tool-count pattern no longer matches: ${pattern}`);
+      }
+      updated = updated.replace(pattern, `$1${count}$3`);
     }
-    updated = updated.replace(pattern, `$1${count}$3`);
+    if (updated !== original) {
+      await writeFile(filePath, updated);
+      changed.push(file);
+    }
   }
-  if (updated !== original) await writeFile(readmePath, updated);
-  return updated !== original;
+  return changed;
 }
 
 export async function syncManifestTools() {
@@ -187,7 +208,7 @@ export async function syncManifestTools() {
     description: shortDescription(tool.description),
   }));
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  await syncReadmeToolCount(tools.length);
+  await syncCountSurfaces(tools.length);
   return tools.length;
 }
 

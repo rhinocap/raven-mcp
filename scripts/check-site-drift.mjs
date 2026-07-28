@@ -129,10 +129,23 @@ if (toolNames === null) {
     const source = await read(file, "count");
     if (source === null) continue;
 
+    // Not every "N tools" claims the total. The docs page prints a per-layer
+    // count in its layer headers ("4 tools" under Principles), which is correct
+    // and must not be compared against the whole set — that alone accounted for
+    // 16 of 21 failures. Mask the span contents rather than removing them, so
+    // byte offsets and therefore reported line numbers stay accurate.
+    const scannable = source.replace(
+      /(<span className="rd-layer-count">)([^<]*)(<\/span>)/g,
+      (whole, open, inner, close) => open + " ".repeat(inner.length) + close,
+    );
+
     // Allow up to two qualifier words: "100 tools", "100 local tools",
     // "100 design-intelligence tools".
     const pattern = /\b(\d+)(?:\s+[a-z][a-z-]*){0,2}\s+tools\b/gi;
-    for (const match of source.matchAll(pattern)) {
+    for (const match of scannable.matchAll(pattern)) {
+      // Zero-padded numerals are section ordinals, not counts — the docs nav
+      // reads "02 Tools".
+      if (match[1].startsWith("0")) continue;
       const claimed = Number(match[1]);
       if (claimed !== toolNames.length) {
         const mismatch = {
@@ -154,7 +167,7 @@ if (toolNames === null) {
     // scan — the release preview caught three of those by eye once.
     // ponytail: only the 70–100 band appears in this copy; widen if it moves.
     const spelled = /\b((?:one[\s-]+)?(?:hundred|ninety|eighty|seventy)(?:[\s-]+(?:one|two|three|four|five|six|seven|eight|nine))?)\s+tools\b/gi;
-    for (const match of source.matchAll(spelled)) {
+    for (const match of scannable.matchAll(spelled)) {
       const claimed = spelledCount(match[1]);
       if (claimed === toolNames.length) continue;
       const mismatch = {
