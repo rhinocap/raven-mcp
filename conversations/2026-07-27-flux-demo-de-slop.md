@@ -587,3 +587,57 @@ tool arrived via another session's in-flight commit (`f606d5a`). Editing the
 same surface mid-flight is how the stacked-PR mess happened. It also cannot
 reach users without a manual `vercel deploy --prod` from `web/`, so it is not
 silently live-wrong — the public site simply still says 100.
+
+## Tenth task — the drift guard, and a worse thing found behind it
+
+`check-site-drift.mjs` was failing 21 on `main`. **Four were real, seventeen were
+the guard crying wolf** — it scanned every `N tools` in `web/app/docs/page.tsx`
+and compared each against the total, but sixteen of those are per-layer counts
+in `<span className="rd-layer-count">` headers ("4 tools" under Principles) and
+the seventeenth is a nav ordinal, "02 Tools". A guard that fails 21 times for 4
+real reasons is a guard nobody reads.
+
+Shipped in `33cb5b8`:
+
+- **`web/public/llms.txt` now moves with the manifest.** Hand-typing 104 would
+  have re-staled immediately — local `main` is already at **105** from another
+  session's unpushed tool. So `syncReadmeToolCount` became `syncCountSurfaces`,
+  a table of `{file, patterns}`, and llms.txt joined the README in it. Whoever
+  next runs the sync sweeps llms.txt to 105 for free.
+- **The four DESIGN.md inventory tools** added to `ToolsSection.tsx`
+  (`configure_design_system_source`, `inventory_design_system`,
+  `diff_design_system`, `list_design_system_components`). The per-act badge is
+  `{act.tools.length} tools`, so it self-corrected 16 → 20.
+- **The count scan masks `rd-layer-count` spans in place** — same-length blanks,
+  not deletion, so byte offsets and therefore reported line numbers stay true —
+  and skips zero-padded numerals.
+
+Not trusted on a green result. Five deliberate breaks, all caught: wrong total
+in llms.txt prose; a tool dropped from ToolsSection; a wrong *total* claim
+planted in the docs page right next to a masked per-layer count (proving the
+mask didn't blind it); a spelled-out "ninety-nine tools"; and a reworded llms.txt
+sentence, which made the sync throw by name rather than silently no-op.
+FAIL(21) → PASS, and `1152 tests / 1149 pass / 0 fail / 3 skipped`.
+
+Deployed `web` from a clean `origin/main` worktree, not the primary one — the
+primary has ten unpushed commits from a parallel session including a rewrite of
+`web/public/demos/saas.html`. Checked before deploying: the live page was
+byte-identical to `origin/main`, so their video change had never been published
+and a deploy from origin/main could not clobber it. Live at
+`web-m9ti371hg-…vercel.app`, alias includes `ravenmcp.ai`; llms.txt reads 104 in
+all three places; the four tools render in the Design accordion (evidence:
+`.claude/evidence/tools-design-act-104.jpg`); anon endpoint still 45 /
+`f64bb18...2bb0a6`; the www 301 survived the deploy.
+
+### Found while doing it — `site/llms.txt` is live-wrong about the license
+
+`mcp.ravenmcp.ai/llms.txt` serves **"70 tools"** and **"MIT-licensed"**. The
+project is Apache-2.0. `site/llms.txt` was never updated when `web/public/`
+forked from it, and llms.txt is precisely the file AI agents read to describe a
+project — so the wrong license is being published to the audience most likely to
+repeat it.
+
+Not fixed unilaterally: `site/` is the git-integrated project behind
+`mcp.ravenmcp.ai`, and the ledger holds any change to what that host serves as
+human-gated. Flagged to Andrew. The fix is to bring `site/llms.txt` in line with
+`web/public/llms.txt` and add it to `COUNT_SURFACES` so it can't drift again.
