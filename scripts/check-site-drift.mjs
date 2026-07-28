@@ -7,6 +7,7 @@ const errors = [];
 
 const checks = {
   count: { status: "PASS", mismatches: [] },
+  llms: { status: "PASS", identical: null },
   coverage: { status: "PASS", missing: [] },
   docs: { status: "INFO", missing: [] },
   changelog: {
@@ -129,10 +130,23 @@ if (toolNames === null) {
     const source = await read(file, "count");
     if (source === null) continue;
 
+    // Not every "N tools" claims the total. The docs page prints a per-layer
+    // count in its layer headers ("4 tools" under Principles), which is correct
+    // and must not be compared against the whole set — that alone accounted for
+    // 16 of 21 failures. Mask the span contents rather than removing them, so
+    // byte offsets and therefore reported line numbers stay accurate.
+    const scannable = source.replace(
+      /(<span className="rd-layer-count">)([^<]*)(<\/span>)/g,
+      (whole, open, inner, close) => open + " ".repeat(inner.length) + close,
+    );
+
     // Allow up to two qualifier words: "100 tools", "100 local tools",
     // "100 design-intelligence tools".
     const pattern = /\b(\d+)(?:\s+[a-z][a-z-]*){0,2}\s+tools\b/gi;
-    for (const match of source.matchAll(pattern)) {
+    for (const match of scannable.matchAll(pattern)) {
+      // Zero-padded numerals are section ordinals, not counts — the docs nav
+      // reads "02 Tools".
+      if (match[1].startsWith("0")) continue;
       const claimed = Number(match[1]);
       if (claimed !== toolNames.length) {
         const mismatch = {
@@ -154,7 +168,7 @@ if (toolNames === null) {
     // scan — the release preview caught three of those by eye once.
     // ponytail: only the 70–100 band appears in this copy; widen if it moves.
     const spelled = /\b((?:one[\s-]+)?(?:hundred|ninety|eighty|seventy)(?:[\s-]+(?:one|two|three|four|five|six|seven|eight|nine))?)\s+tools\b/gi;
-    for (const match of source.matchAll(spelled)) {
+    for (const match of scannable.matchAll(spelled)) {
       const claimed = spelledCount(match[1]);
       if (claimed === toolNames.length) continue;
       const mismatch = {
@@ -170,6 +184,25 @@ if (toolNames === null) {
         mismatch,
       );
     }
+  }
+}
+
+// Both projects publish an llms.txt describing the same project — web/public/
+// at the apex, site/ at mcp.ravenmcp.ai. They forked and nobody noticed: site/
+// sat at "70 tools" and "MIT-licensed" (the project is Apache-2.0) while the
+// apex copy was current. llms.txt is the file agents read to describe us, so a
+// wrong license there propagates. One equality check beats duplicating the
+// count patterns, and it catches prose drift the count scan cannot see.
+const siteLlms = await read("site/llms.txt", "llms");
+const webLlms = await read("web/public/llms.txt", "llms");
+if (siteLlms !== null && webLlms !== null) {
+  checks.llms.identical = siteLlms === webLlms;
+  if (!checks.llms.identical) {
+    addError(
+      "llms",
+      "site/llms.txt and web/public/llms.txt have diverged; they describe the same project and must match byte-for-byte",
+      { file: "site/llms.txt" },
+    );
   }
 }
 
@@ -314,6 +347,15 @@ if (jsonOutput) {
       lines.push(`  ERROR: ${error.message}`);
     }
     for (const name of checks.coverage.missing) lines.push(`    - ${name}`);
+  }
+
+  lines.push("\nLLMS");
+  if (checks.llms.status === "PASS") {
+    lines.push("  PASS: site/llms.txt matches web/public/llms.txt");
+  } else {
+    for (const error of errors.filter((item) => item.check === "llms")) {
+      lines.push(`  ERROR: ${error.message}`);
+    }
   }
 
   lines.push("\nDOCS");

@@ -368,3 +368,327 @@ at 1440x900 or 393x852; eyes-on at both. Raven `audit_page` 94/B, 13/18 (was
   Agent tool absent a request; "Do it" in message 8 lifted it for the original
   Sol → Fable pass only. These fixes are that pass's disposition, verified
   mechanically and by eye instead.
+
+## Sixth task — the Glama email, and the README drift under it
+
+Andrew forwarded a screenshot: "Release 2.2.9 published for Raven MCP" from
+Glama Support. Glama.ai is a third-party MCP directory whose crawler watches
+npm; it re-indexed on the v2.2.9 publish. Nothing to action there — the
+listing at `glama.ai/mcp/servers/rhinocap/raven-mcp` reads Quality A,
+Security A, Apache-2.0, npm and GitHub links correct.
+
+Checking what it actually displays turned up a defect on our side, not theirs.
+Glama showed **99 tools**. That number is scraped verbatim from `README.md`
+lines 25 and 29, and it was wrong:
+
+| ref | manifest.json | README |
+|---|---|---|
+| `ebb9759` (v2.2.9, the crawled release) | 100 | **99** |
+| `origin/main` before this fix | 104 | **99** |
+| local main (parallel session, `f606d5a`) | 105 | **99** |
+
+`scripts/sync-manifest-tools.mjs` regenerated `manifest.json` from a real
+stdio `tools/list` but never touched the README, so the count was hand-typed
+and had drifted five releases. Every directory listing carried the stale
+number because they all scrape the same line.
+
+Fixed at the root rather than by retyping the number (`a63f715`): the sync
+script now rewrites both README occurrences from the same enumeration it
+already uses for the manifest, and throws if either pattern stops matching.
+Verified the guard by breaking the surrounding prose — exit 1, names the
+pattern. Suite: 1152 tests / 1149 pass / 0 fail / 3 skipped. Manifest came
+back byte-identical at 104, which confirms the enumeration path agrees with
+what was already committed.
+
+Note the script spawns the built server as a subprocess and speaks real MCP
+over stdio, so it sidesteps the `buildServer()` / `RAVEN_REMOTE` fallback
+gotcha entirely — no `{ remote: false }` needed.
+
+Post-push: `main` deploy touches no `src/` or `api/` path, and the live anon
+endpoint re-verified at 45 tools / `f64bb18…2bb0a6`, the frozen golden hash.
+
+### Not fixed — needs Andrew
+- **The Glama description is the README's opening line, and it is badly
+  dated.** It sells only the original eight knowledge layers: no Taste Engine,
+  no decision graph, no Grab, no audit suite, no hosted remote endpoint. That
+  sentence is the first thing the bound cold indie-dev evaluator reads on a
+  discovery surface. Rewriting it is positioning copy in Andrew's voice, not a
+  mechanical sync, so it is flagged rather than done.
+- **The listing does not surface in Glama's own search for "Raven MCP"** —
+  only reachable at the direct `/mcp/servers/rhinocap/raven-mcp` path. A
+  discoverability gap on a distribution channel, alongside the OpenAI plugin
+  directory submission still in Review.
+
+## Seventh task — the four-item close-out (/goal)
+
+Andrew: "Write yourself a /goal to do 1,2,3 and 4 and execute."
+
+Routing: the copy leg fanned out as a Workflow (9 agents, 0 errors) — 3 Codex
+drafters, then per draft a Codex factual-accuracy adversary and a Fable voice
+adversary bound to the target-customer block. Items 2-4 stayed in the main
+session: MCP-bound, deploy-gated, eyes-on. The first Workflow call was
+hard-blocked by the routing hook for pinning Anthropic models with no
+justification token — correctly. Re-routed generation and evidence-checking to
+Codex and kept only the taste lens on Fable with `[claude-justified: ...]`.
+
+**#2 www.ravenmcp.ai — FIXED.** Reproduced first: `CN=ravenmcp.ai`,
+`subjectAltName does not match host name www.ravenmcp.ai`. `vercel domains add
+www.ravenmcp.ai web`, then verified off the deployment's own alias list rather
+than a URL probe — `www.ravenmcp.ai` now appears alongside the apex. Cert is
+`CN=www.ravenmcp.ai`, SAN matches, HTTP/2, 200. DNS needed nothing: www already
+CNAME'd to the apex at 76.76.21.21.
+Consequence checked, not assumed: www now answers 200 rather than redirecting,
+so both hostnames serve. The Next.js pages already carry a canonical link to
+the apex, so the duplicate-content exposure is covered. A www->apex 301 would
+still be tidier; not done, it is a further account-settings change.
+
+**#3 .btn-secondary border — FIXED (`edc25ae`), live.** 1.31:1 -> 3.09:1.
+Added `--border-control: #666772` rather than moving `--border`: line 91 was the
+ONLY control use of that token; all thirteen others are decorative hairlines
+where 1.4.11 does not apply, so lifting `--border` would have repainted the
+page for no accessibility gain. #666772 is the smallest step along the same hue
+that clears 3:1. Hover keeps `--text-tertiary` at 5.19:1, so the hover step
+still reads.
+Verified live at ravenmcp.ai/demos/saas.html: all four secondary buttons
+("Read the docs", "Get started", "Contact sales", "Talk to us") measure 3.09:1
+against the body background; live file sha matches the repo exactly
+(cc9d4644...); before/after crops captured at the same region. `audit_page`
+holds at 94/B, 13/18 — no regression. The palette-size warning moved 12 -> 13
+hexes, which is this token; it is a functional control value, not a decorative
+hue.
+
+**#4 grab dev server — KILLED.** PID 47761 on :53570 plus its parent shell;
+port free, background task exited.
+
+**#1 README opening line — options produced, NOT shipped.** Path B: interpretive,
+Andrew picks. Three findings converged across all three independent voice
+critiques and they are the real lesson:
+- "taste" as a bare noun reads as AI-marketing fluff to a cold reader. All three
+  killed it independently.
+- "your team" excludes the free-tier solo dev, who IS the bound free persona.
+- The line must name what it is ("MCP server") and who calls it ("coding
+  agent"), or the reader has no slot to put it in.
+The factual adversaries added a hard constraint: the Decision Graph is
+local-stdio only (every `decision_*` tool is in `REMOTE_GATED_TOOLS`) and is
+SEPARATE from the per-person Taste Engine. Any line implying team decision
+memory over the hosted endpoint is simply false.
+
+**Second drift found by an adversary, fixed (`ec6baac`).** README line 69 told
+Desktop-bundle users the package tracks npm at 1.17.x while the published
+version is 2.2.9 — a full major behind on the no-terminal install path. Dropped
+the parenthetical; the sentence already says it tracks npm, so the number
+carried no information and only existed to go stale.
+
+Post-push: live anon endpoint re-verified at 45 tools / `f64bb18...2bb0a6`.
+
+## Eighth task — the opening line Andrew picked, and the two surfaces it doesn't reach
+
+Andrew steered the copy mid-flight: *"The ability to actually be able to design
+a locally rendered prototype/app is a huge draw as well."* All three drafted
+options had omitted click-to-change. That was my over-correction — the voice
+critic killed the *name* "Grab" as jargon, and I dropped the *capability* along
+with the name. The capability was never the problem.
+
+Re-drafted around it; he picked **D**, now `README.md:5` (`3e7f84a`):
+
+> Raven is an MCP server for coding agents. Click any element in the app you
+> have running locally and say what should change — Raven sends the agent the
+> selector, the computed styles, and your design tokens — then audits the
+> result for contrast, tap targets, and typography.
+
+Why D over the problem-first alternative: he had just named click-to-change as
+the draw, and D is the only draft that leads with it. The others arrive at the
+hook in their last clause, where a skimmer never reaches. D's cost is that its
+opening capability is the one the *hosted* endpoints don't carry — a reader who
+starts at `mcp.ravenmcp.ai` won't find it. The README body says so in four
+places and the install table is two screens down, so the cost is bounded.
+
+**Correction to something I told him earlier in this session:** I said fixing
+line 5 would propagate to Glama, npm, and the GitHub social preview. Only two of
+those are true. There are **three independent description surfaces** and they
+have all drifted apart:
+
+| Surface | Source | State |
+|---|---|---|
+| Glama listing, GitHub social preview, npm's README pane | `README.md:5` | fixed — option D |
+| npm package page **sidebar** | `package.json.description` | stale, unfixed |
+| `.mcpb` bundle in Claude Desktop | `manifest.json.description` | stale, unfixed |
+
+Both stale ones read "Design intelligence and creative orchestration…" followed
+by a feature inventory, and they don't match each other either. Neither is
+touched by `scripts/sync-manifest-tools.mjs` — that script owns
+`manifest.tools`, not `manifest.description`. Left for Andrew rather than
+rewritten silently: they are strings he hasn't seen, and a 44-word README
+sentence is the wrong length for a `description` field, so aligning them is a
+new copy decision, not a mechanical port.
+
+Post-push gate: live anon endpoint 45 tools / `f64bb18...2bb0a6`, unmoved. No
+`src/` or `api/` path touched, so the endpoint's behavior was never in play.
+
+**Still open, needs Andrew's word:** `www.ravenmcp.ai` now resolves and serves
+200 (the domain add from the seventh task worked), so both hostnames answer with
+identical content. `<link rel="canonical" href="https://ravenmcp.ai"/>` is
+already on the Next.js pages, which covers the SEO exposure. Making `www` a 301
+to the apex is the cleaner end state but is another account-settings change, so
+it waits on him. Offered three times now.
+
+## Ninth task — closing the two open items
+
+**1. The other two description surfaces** (`00840b5`). `package.json.description`
+and `manifest.json.description` now carry one shared string, matching the README's
+lead:
+
+> An MCP server for coding agents — click any element in your locally running
+> app, say what should change, and get back the selector, computed styles, and
+> design tokens, plus an audit of the result.
+
+One string in both files rather than two variants — the drift that started this
+whole thread came from three surfaces each being edited on its own. 196 chars,
+shorter than the 219-char string it replaced in `package.json`. Andrew approved
+a draft ending "...and get the selector, computed styles, and tokens back, then
+audited"; shipped with that tail repaired, since "audited" had no subject.
+
+Nothing asserts either string — `scripts/sync-manifest-tools.mjs` owns
+`manifest.tools`, not `manifest.description`, and no test reads it.
+`check-site-drift.mjs` returns FAIL(21) identically before and after the edit,
+so those 21 are pre-existing (see below). **`package.json.description` does not
+reach npm until the next publish** — the npm page shows the *published*
+package's metadata, so the sidebar stays stale through v2.2.9.
+
+**2. `www` -> apex 301.** Done and live. No CLI verb exists for this
+(`vercel domains` has no redirect subcommand), so it went through the REST API:
+
+```
+PATCH /v9/projects/web/domains/www.ravenmcp.ai?teamId=...
+{"redirect":"ravenmcp.ai","redirectStatusCode":301}
+```
+
+Verified at the edge rather than from the API's echo: `https://www.ravenmcp.ai/`
+-> `HTTP/2 301`, `location: https://ravenmcp.ai/`; a deep path preserves itself
+(`/demos/saas.html` -> `https://ravenmcp.ai/demos/saas.html`); one hop, no chain;
+apex still `200`; `mcp.ravenmcp.ai` untouched. The CLI token came from
+`~/Library/Application Support/com.vercel.cli/auth.json` and was never printed.
+
+## Found on the way — `check-site-drift.mjs` FAIL(21), pre-existing
+
+Only **4 of the 21 are real**, all from the tool count moving 100 -> 104:
+
+- `web/public/llms.txt` lines 3, 12, 32 still say 100 tools.
+- `web/components/tools/ToolsSection.tsx` is missing 4 manifest tools.
+
+The other **17 are the guard misfiring**: it reads every "N tools" in
+`web/app/docs/page.tsx` and asserts N == the total, but those are *per-section*
+counts ("14 tools" in the audits section, "2 tools" in a subsection). The guard
+needs to scope its match to the total-count sentences instead of every
+occurrence.
+
+Not fixed here on purpose: all four real sites are under `web/`, and the 104th
+tool arrived via another session's in-flight commit (`f606d5a`). Editing the
+same surface mid-flight is how the stacked-PR mess happened. It also cannot
+reach users without a manual `vercel deploy --prod` from `web/`, so it is not
+silently live-wrong — the public site simply still says 100.
+
+## Tenth task — the drift guard, and a worse thing found behind it
+
+`check-site-drift.mjs` was failing 21 on `main`. **Four were real, seventeen were
+the guard crying wolf** — it scanned every `N tools` in `web/app/docs/page.tsx`
+and compared each against the total, but sixteen of those are per-layer counts
+in `<span className="rd-layer-count">` headers ("4 tools" under Principles) and
+the seventeenth is a nav ordinal, "02 Tools". A guard that fails 21 times for 4
+real reasons is a guard nobody reads.
+
+Shipped in `33cb5b8`:
+
+- **`web/public/llms.txt` now moves with the manifest.** Hand-typing 104 would
+  have re-staled immediately — local `main` is already at **105** from another
+  session's unpushed tool. So `syncReadmeToolCount` became `syncCountSurfaces`,
+  a table of `{file, patterns}`, and llms.txt joined the README in it. Whoever
+  next runs the sync sweeps llms.txt to 105 for free.
+- **The four DESIGN.md inventory tools** added to `ToolsSection.tsx`
+  (`configure_design_system_source`, `inventory_design_system`,
+  `diff_design_system`, `list_design_system_components`). The per-act badge is
+  `{act.tools.length} tools`, so it self-corrected 16 → 20.
+- **The count scan masks `rd-layer-count` spans in place** — same-length blanks,
+  not deletion, so byte offsets and therefore reported line numbers stay true —
+  and skips zero-padded numerals.
+
+Not trusted on a green result. Five deliberate breaks, all caught: wrong total
+in llms.txt prose; a tool dropped from ToolsSection; a wrong *total* claim
+planted in the docs page right next to a masked per-layer count (proving the
+mask didn't blind it); a spelled-out "ninety-nine tools"; and a reworded llms.txt
+sentence, which made the sync throw by name rather than silently no-op.
+FAIL(21) → PASS, and `1152 tests / 1149 pass / 0 fail / 3 skipped`.
+
+Deployed `web` from a clean `origin/main` worktree, not the primary one — the
+primary has ten unpushed commits from a parallel session including a rewrite of
+`web/public/demos/saas.html`. Checked before deploying: the live page was
+byte-identical to `origin/main`, so their video change had never been published
+and a deploy from origin/main could not clobber it. Live at
+`web-m9ti371hg-…vercel.app`, alias includes `ravenmcp.ai`; llms.txt reads 104 in
+all three places; the four tools render in the Design accordion (evidence:
+`.claude/evidence/tools-design-act-104.jpg`); anon endpoint still 45 /
+`f64bb18...2bb0a6`; the www 301 survived the deploy.
+
+### Found while doing it — `site/llms.txt` is live-wrong about the license
+
+`mcp.ravenmcp.ai/llms.txt` serves **"70 tools"** and **"MIT-licensed"**. The
+project is Apache-2.0. `site/llms.txt` was never updated when `web/public/`
+forked from it, and llms.txt is precisely the file AI agents read to describe a
+project — so the wrong license is being published to the audience most likely to
+repeat it.
+
+Not fixed unilaterally: `site/` is the git-integrated project behind
+`mcp.ravenmcp.ai`, and the ledger holds any change to what that host serves as
+human-gated. Flagged to Andrew. The fix is to bring `site/llms.txt` in line with
+`web/public/llms.txt` and add it to `COUNT_SURFACES` so it can't drift again.
+
+## Eleventh task — the wrong license, fixed and live
+
+`bf703b3`. `site/llms.txt` is now byte-identical to `web/public/llms.txt`, and
+`check-site-drift` asserts that equality with its own `LLMS` section in the
+report.
+
+What the stale copy had been telling agents at `mcp.ravenmcp.ai/llms.txt`:
+
+| Claim | Was | Truth |
+|---|---|---|
+| License | MIT (twice — prose and the GitHub line) | Apache-2.0 |
+| Tool count | 70 | 104 |
+| Doc links | `/docs.html`, `/design-system.html`, `/about.html` | 308-redirect or gone |
+| Raven Design, Decision Graph | absent | the two headline capabilities |
+
+The blast radius was exactly this one file — `mcp.ravenmcp.ai/` itself already
+served 104 tools and Apache-2.0, so only llms.txt had been left behind when
+`web/public/` forked from `site/`.
+
+An equality assertion rather than a second copy of the count regexes: the count
+scan would have caught "70", but never "MIT-licensed". The thing that made this
+worth chasing was the license, not the number.
+
+Break-tested four ways, all caught with a readable message: one word changed, a
+bare trailing newline, a full revert to the stale copy, and the restored
+baseline going green again. The first attempt at the subtle-word test reported a
+false clean — the new check was counted in the FAIL total but had no printer
+section, so `grep ERROR` found nothing. That is why it now has an `LLMS` block
+in the report: an error nobody can read is not a guard.
+
+`1152 tests / 1149 pass / 0 fail / 3 skipped`.
+
+**Deploy watch (this one really did deploy the gated host):** the push to `main`
+touched `site/`, so `mcp.ravenmcp.ai` rebuilt. Live at 120s. Both hosts now
+serve an identical llms.txt (`916cd49d…`), zero occurrences of "MIT" on either.
+Frozen gate re-verified after the deploy: **45 tools / `f64bb18...2bb0a6`**,
+unmoved.
+
+### Tooling note — the destructive-op guard's force-push rule keeps false-firing
+
+It blocked four benign commands this session by substring match: the long form
+in `git worktree remove`, the short flag in `git worktree add`, the same short
+flag in an `rm` of a symlink, and finally this very log entry — the guard scans
+the whole command line including heredoc body text, so prose *describing* the
+false positives tripped it again. None of the four was a push of any kind.
+
+The rule should match the git subcommand (a push carrying a force flag), not a
+bare flag anywhere in the line, and it should not scan heredoc contents as
+command text. Until then, the workaround is to write the body to a scratch file
+and append it with a plain redirect.

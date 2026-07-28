@@ -14,6 +14,11 @@
     --bg: #191A23;
     --surface: #1F2028;
     --border: #2E2F3E;
+    /* WCAG 1.4.11: a transparent button is identified by its border, so that
+       border owes 3:1 against --bg. --border is 1.31:1 — fine for the page's
+       decorative hairlines, nowhere near enough for a control. This is the
+       smallest lift along the same hue that clears the bar: 3.09:1. */
+    --border-control: #666772;
 
     /* One accent. Depth comes from alpha, not from new hues.
        Hover goes DARKER: the lighter shade this used to be dropped white
@@ -88,7 +93,7 @@
   }
   .btn-primary { background: var(--accent); color: #fff; }
   .btn-primary:hover { background: var(--accent-hover); }
-  .btn-secondary { background: transparent; color: var(--text-primary); border-color: var(--border); }
+  .btn-secondary { background: transparent; color: var(--text-primary); border-color: var(--border-control); }
   .btn-secondary:hover { border-color: var(--text-tertiary); }
 
   /* ─── NAV ─── */

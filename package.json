@@ -2,7 +2,7 @@
   "name": "raven-mcp",
   "version": "2.2.9",
   "mcpName": "ai.ravenmcp/raven-mcp",
-  "description": "Design intelligence and creative orchestration MCP server — principles, patterns, tokens, audits, brand guidance, local brand profiles, assets, campaign plans, and provider-agnostic image/video/3D/audio generation jobs.",
+  "description": "An MCP server for coding agents — click any element in your locally running app, say what should change, and get back the selector, computed styles, and design tokens, plus an audit of the result.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {

@@ -156,6 +156,49 @@ export function shortDescription(description) {
   return `${sentence.slice(0, wordBoundary).trimEnd()}…`;
 }
 
+// Hand-typed tool counts drift silently: Glama scraped "99 tools" off the README
+// for the v2.2.9 listing while the manifest said 100, and llms.txt — the file AI
+// agents read — sat at 100 while the manifest moved to 104. Each count below moves
+// with the manifest or the sync fails loudly. Each regex must capture (prefix,
+// digits, suffix) so the digits can be swapped without touching the copy.
+const COUNT_SURFACES = [
+  {
+    file: 'README.md',
+    patterns: [
+      /(\*\*)(\d+)( tools\*\*, including Grab)/,
+      /(\| Local stdio \|.*\| \*\*)(\d+)(\*\* \| Yes \| Yes \|)/,
+    ],
+  },
+  {
+    file: 'web/public/llms.txt',
+    patterns: [
+      /(It exposes )(\d+)( tools spanning)/,
+      /(\n- )(\d+)( focused tools, grouped by job)/,
+      /(the knowledge layers, the )(\d+)( tools)/,
+    ],
+  },
+];
+
+export async function syncCountSurfaces(count) {
+  const changed = [];
+  for (const { file, patterns } of COUNT_SURFACES) {
+    const filePath = path.join(repoRoot, file);
+    const original = await readFile(filePath, 'utf8');
+    let updated = original;
+    for (const pattern of patterns) {
+      if (!pattern.test(updated)) {
+        throw new Error(`${file} tool-count pattern no longer matches: ${pattern}`);
+      }
+      updated = updated.replace(pattern, `$1${count}$3`);
+    }
+    if (updated !== original) {
+      await writeFile(filePath, updated);
+      changed.push(file);
+    }
+  }
+  return changed;
+}
+
 export async function syncManifestTools() {
   const manifestPath = path.join(repoRoot, 'manifest.json');
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
@@ -165,6 +208,7 @@ export async function syncManifestTools() {
     description: shortDescription(tool.description),
   }));
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  await syncCountSurfaces(tools.length);
   return tools.length;
 }
 

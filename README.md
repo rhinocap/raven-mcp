@@ -2,7 +2,7 @@
 
 **Odin's ravens brought back knowledge of the world — Raven brings back design intelligence.**
 
-A design knowledge MCP server that Claude can query when generating UI. Eight layers: principles, patterns, content design systems, research methods, service design, brand/visual, business strategy, and design tokens.
+Raven is an MCP server for coding agents. Click any element in the app you have running locally and say what should change — Raven sends the agent the selector, the computed styles, and your design tokens — then audits the result for contrast, tap targets, and typography.
 
 > Raven MCP is a personal open-source project by [Andrew Cunliffe](https://ravenmcp.ai). It is **not endorsed by, affiliated with, or supported by Intuit Inc.** or any other company referenced in its source data. See [NOTICE](./NOTICE) for full attribution of upstream sources and their licenses.
 
@@ -22,11 +22,11 @@ Raven gives Claude access to a comprehensive design knowledge base:
 
 ## Install
 
-Local stdio (npx / from source) is the **full product**: **99 tools**, including Grab and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
+Local stdio (npx / from source) is the **full product**: **104 tools**, including Grab and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
 
 | Path | How | Tools | Taste | Grab |
 |------|-----|-------|-------|------|
-| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **99** | Yes | Yes |
+| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **104** | Yes | Yes |
 | Public remote | `https://mcp.ravenmcp.ai/api/mcp` | **~45** | No | No |
 | Auth remote | `https://mcp.ravenmcp.ai/api/mcp-user` (OAuth) | Taste + audits (no Grab) | Yes | **No** |
 
@@ -66,7 +66,7 @@ args = ["-y", "raven-mcp"]
 Codex may prompt to approve many Raven tools on first use — that is client approval policy, not a smaller Raven.
 
 ### Claude Desktop — one-click extension
-Prefer not to edit JSON? Download [raven.mcpb](https://ravenmcp.ai/raven.mcpb) and double-click it. Claude Desktop installs Raven automatically — no Node, no terminal. Package version tracks npm (`1.17.x`).
+Prefer not to edit JSON? Download [raven.mcpb](https://ravenmcp.ai/raven.mcpb) and double-click it. Claude Desktop installs Raven automatically — no Node, no terminal. Package version tracks npm.
 
 ### From source
 ```bash
