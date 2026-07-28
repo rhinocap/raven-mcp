@@ -156,6 +156,7 @@ const ACTS: Act[] = [
       { name: "decision_list", desc: "List active, superseded, contested, or candidate decisions" },
       { name: "decision_history", desc: "Trace a decision's full supersession lineage, oldest to newest" },
       { name: "decision_scope", desc: "Narrow two decisions to distinct scopes so both can stay active" },
+      { name: "decision_contest", desc: "Stop a decision from governing immediately—without deleting it or naming a replacement" },
       { name: "decision_supersede", desc: "Replace a decision while keeping both nodes and their lineage" },
       { name: "decision_evidence", desc: "Attach quantitative or qualitative evidence to a decision" },
       { name: "decision_import", desc: "Cold-start the graph from local git history and decision-bearing Markdown, as source-tagged extraction prompts" },

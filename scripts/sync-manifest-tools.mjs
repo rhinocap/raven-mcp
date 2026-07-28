@@ -179,6 +179,13 @@ const COUNT_SURFACES = [
   },
 ];
 
+// Both Vercel projects publish an llms.txt for the same project — web/public/ at
+// the apex, site/ at mcp.ravenmcp.ai. check-site-drift asserts they match
+// byte-for-byte, so bumping the count in one and not the other just moves the
+// failure from a stale number to a divergence. Mirror instead of listing site/
+// in COUNT_SURFACES: one copy owns the prose, the other tracks it exactly.
+const MIRRORS = [{ from: 'web/public/llms.txt', to: 'site/llms.txt' }];
+
 export async function syncCountSurfaces(count) {
   const changed = [];
   for (const { file, patterns } of COUNT_SURFACES) {
@@ -196,6 +203,16 @@ export async function syncCountSurfaces(count) {
       changed.push(file);
     }
   }
+
+  for (const { from, to } of MIRRORS) {
+    const source = await readFile(path.join(repoRoot, from), 'utf8');
+    const destPath = path.join(repoRoot, to);
+    if (source !== (await readFile(destPath, 'utf8'))) {
+      await writeFile(destPath, source);
+      changed.push(to);
+    }
+  }
+
   return changed;
 }
 
