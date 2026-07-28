@@ -2567,6 +2567,37 @@ test('REGRESSION: font stacks keep quotes per-part and drop Next.js / Fallback f
   assert.ok(fonts.every((name) => name.charAt(name.length - 1) !== '"'));
 });
 
+test('REGRESSION: base class + per-instance modifier still opens sibling scope', async () => {
+  // .cell.cell-1 … .cell.cell-6 never match each other by exact signature, so
+  // the Scope switch used to vanish on ordinary hand-written markup.
+  const { internals, document } = await loadOverlayInternals({
+    querySelectorAll: () => []
+  });
+  const parent = document.createElement('section');
+  parent.localName = 'section';
+  parent.parentElement = document.body;
+  const cells = [1, 2, 3].map((n) => {
+    const cell = document.createElement('div');
+    cell.localName = 'div';
+    cell.classList = ['cell', 'cell-' + n];
+    cell.parentElement = parent;
+    return cell;
+  });
+  // A same-tag sibling sharing no distinctive class must stay out of the set.
+  const stranger = document.createElement('div');
+  stranger.localName = 'div';
+  stranger.classList = ['footnote'];
+  stranger.parentElement = parent;
+  parent.children = cells.concat([stranger]);
+
+  const scope = internals.componentScopeFor(cells[0], null);
+  assert.equal(scope.matchCount, 3);
+  assert.equal(scope.siblingScoped, true);
+  // Joined: the sandbox realm's Array fails deepStrictEqual's prototype check.
+  assert.equal(Array.prototype.join.call(scope.sharedClasses, ','), 'cell');
+  assert.match(scope.matchSelector, /div\.cell$/);
+});
+
 test('REGRESSION: utility-class atoms do not open "All N like this" scope', async () => {
   let candidates = [];
   const { internals, document } = await loadOverlayInternals({

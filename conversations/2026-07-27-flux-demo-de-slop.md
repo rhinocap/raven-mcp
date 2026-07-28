@@ -206,8 +206,63 @@ carry `max-width: 300px` —
 `andrewcunliffe-portfolio/.claude/worktrees/morven-pilot/public/raven-grab.js`.
 Different repo; not mine to edit unasked.
 
+## Third task — the Scope switch was missing entirely
+
+> "none of the layers in there expose the scope selector, because some how you
+> broke that now too"
+
+Not caused by the `max-width` removal — that commit changed one CSS declaration
+and cannot suppress a render. But the bug was real and pre-existing: on
+`test/fixtures/layers-test-page.html` **no element** offered "All siblings".
+
+`componentScopeFor()` matched components by **exact class-set equality**
+(`componentSignaturesMatch` compares length then every entry). So
+`div.cell.cell-1` and `div.cell.cell-2` are different components, `matchCount`
+stays 1, and the Scope section — which only renders at `matchCount >= 2` —
+never appears. A shared base class plus a per-instance modifier is the ordinary
+way hand-written components are authored, so this took out the whole fixture:
+6 cells, 4 cards, 2 floaters.
+
+There was already a fallback for *class-less* elements (bare `<li>`/`<h2>`) that
+scopes to same-tag siblings under the same parent. The fix generalises it: when
+the exact signature matches fewer than 2, fall back to the **largest class
+subset shared with same-tag siblings under the same parent**. Same bound the
+class-less path already argues for — a partial match can never escape its
+parent, and `COMPONENT_SCOPE_MATCH_CAP` still applies. Siblings sharing no
+distinctive class stay out.
+
+`componentScopeSiblingElements()` needed the matching change. Its
+`siblingScoped` branch returned *every* same-tag sibling, which is right when
+there are no classes to share and wrong here — it would have swept an unrelated
+`div.footnote` into the preview. It now filters by the scope's `sharedClasses`.
+
+**Verified against the running overlay**, not a harness:
+
+| Selected | Scope caps | Component-scope highlights | Expected set |
+|---|---|---|---|
+| `.cell-1` | Instance / All siblings (6) | 5 | `.cell:not(.cell-1)` ✓ rect-for-rect |
+| `.card-2` | Instance / All siblings (4) | 3 | `.card:not(.card-2)` ✓ |
+| `.floater-a` | Instance / All siblings (2) | 1 | `.floater:not(.floater-a)` ✓ |
+
+Full suite 1153 / 1150 pass / 0 fail / 3 skipped, plus a new regression test
+(base class + modifier opens sibling scope; a sibling with no shared class is
+excluded). Shipped as `0aac27d` on `main` + `vercel deploy --prod` from `web/`;
+`ravenmcp.ai/raven-grab.js` verified byte-identical to the local file.
+
+One test-authoring gotcha: `assert.deepEqual(['cell'], ['cell'])` **fails** in
+this suite. The overlay runs in a `vm` sandbox, so its arrays carry that realm's
+`Array.prototype` and `deepStrictEqual`'s prototype check rejects them. Compare
+through `Array.prototype.join.call(...)`.
+
 ## Not done
 
-- **Adverse Sol → Fable pass.** Not run at the time this log was first written
-  (the session forbade the Agent tool). Andrew lifted that explicitly — the Sol
-  leg is running now; Fable follows on the artifact **and** Sol's findings.
+- **Adverse Sol → Fable pass on the Flux page.** Both legs ran; the disposition
+  pass on `web/public/demos/saas.html` was interrupted by this bug and has NOT
+  been applied. Sixteen confirmed items are queued (copy cadence, the "Click any
+  figure" false promise, mobile nav unreachable, hero video vs
+  `prefers-reduced-motion`, three contrast misses, zero focus styles, the type
+  scale, the dead `:first-of-type` selector, `--hairline` merge, the `.reveal`
+  system). The accent hue `#5E6AD2` — Linear's actual brand indigo on a page
+  that name-drops Linear twice — is an originality call for Andrew, not a defect.
+- **Portfolio copies.** `andrewcunliffe-portfolio/public/raven-grab.js` and its
+  `morven-pilot` worktree copy now lag on **both** fixes. Different repo.
