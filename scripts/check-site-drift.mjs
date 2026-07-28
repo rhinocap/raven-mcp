@@ -7,6 +7,7 @@ const errors = [];
 
 const checks = {
   count: { status: "PASS", mismatches: [] },
+  llms: { status: "PASS", identical: null },
   coverage: { status: "PASS", missing: [] },
   docs: { status: "INFO", missing: [] },
   changelog: {
@@ -186,6 +187,25 @@ if (toolNames === null) {
   }
 }
 
+// Both projects publish an llms.txt describing the same project — web/public/
+// at the apex, site/ at mcp.ravenmcp.ai. They forked and nobody noticed: site/
+// sat at "70 tools" and "MIT-licensed" (the project is Apache-2.0) while the
+// apex copy was current. llms.txt is the file agents read to describe us, so a
+// wrong license there propagates. One equality check beats duplicating the
+// count patterns, and it catches prose drift the count scan cannot see.
+const siteLlms = await read("site/llms.txt", "llms");
+const webLlms = await read("web/public/llms.txt", "llms");
+if (siteLlms !== null && webLlms !== null) {
+  checks.llms.identical = siteLlms === webLlms;
+  if (!checks.llms.identical) {
+    addError(
+      "llms",
+      "site/llms.txt and web/public/llms.txt have diverged; they describe the same project and must match byte-for-byte",
+      { file: "site/llms.txt" },
+    );
+  }
+}
+
 const toolsSectionPath = "web/components/tools/ToolsSection.tsx";
 const toolsSection = await read(toolsSectionPath, "coverage");
 if (toolsSection !== null && toolNames !== null) {
@@ -327,6 +347,15 @@ if (jsonOutput) {
       lines.push(`  ERROR: ${error.message}`);
     }
     for (const name of checks.coverage.missing) lines.push(`    - ${name}`);
+  }
+
+  lines.push("\nLLMS");
+  if (checks.llms.status === "PASS") {
+    lines.push("  PASS: site/llms.txt matches web/public/llms.txt");
+  } else {
+    for (const error of errors.filter((item) => item.check === "llms")) {
+      lines.push(`  ERROR: ${error.message}`);
+    }
   }
 
   lines.push("\nDOCS");
