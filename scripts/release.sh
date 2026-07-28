@@ -105,7 +105,8 @@ git push --tags
 echo ""
 echo "✓ Released v$NEW"
 echo "  npm:  https://www.npmjs.com/package/raven-mcp/v/$NEW"
-echo "  mcpb: https://ravenmcp.ai/raven.mcpb  (auto-deploys via Vercel)"
+echo "  mcpb: https://ravenmcp.ai/raven.mcpb  (NOT live yet — the \`web\` Vercel"
+echo "        project has no git integration; run \`cd web && vercel deploy --prod\`)"
 
 if [[ "${CI:-}" != "true" && "${RAVEN_SKIP_MARKETING_PREVIEW:-0}" != "1" ]]; then
   echo "→ Preparing approval-gated marketing preview"

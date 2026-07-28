@@ -275,9 +275,10 @@
       min-height: 44px;
       color: var(--text-secondary);
       text-decoration: none;
-      transition: color 0.2s;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.2s;
     }
-    .cl-foot-secondary:hover { color: var(--text-primary); }
+    .cl-foot-secondary:hover { border-bottom-color: var(--text-accent); }
     
     /* Honor reduced-motion across both surfaces (this sheet is inlined into the
        static page by gen-changelog-html.mjs, so one clamp covers Next + static). */
@@ -309,6 +310,24 @@
       </div>
 
       <ol class="cl-timeline">
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.3.0</span>
+              <span class="cl-badge kind-new">New</span>
+              <time datetime="2026-07-28" class="cl-date">July 28, 2026</time>
+            </header>
+            <h2 class="cl-title">Compare a project design system against the baseline</h2>
+            <ul class="cl-changes">
+              <li>Point Raven at a project’s DESIGN.md and diff it against the canonical baseline: what is missing, what has drifted, what is local-only. configure_design_system_source names the file once, inventory_design_system reads its components and tokens, list_design_system_components shows the baseline, and diff_design_system does the comparison.</li>
+              <li>decision_contest stops an active decision from governing immediately, without deleting it or naming a replacement. Retiring a decision previously meant either superseding it — which demands a replacement you may not have yet — or deleting it and losing the history.</li>
+              <li>audit_tap_targets now names the standard it graded against. On a non-mobile render, 44px is the WCAG 2.5.5 AAA enhanced target while the AA minimum is 24px, so the audit states the split instead of leaving you to guess which one a finding failed. No finding changes pass or fail.</li>
+              <li>The stdio surface goes from 100 tools to 105. The anonymous hosted endpoint still serves the same 45.</li>
+            </ul>
+          </article>
+        </li>
         <li class="cl-item" data-category="tooling">
           <span aria-hidden="true" class="cl-node cat-tooling"></span>
           <article class="cl-card">

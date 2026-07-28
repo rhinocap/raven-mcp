@@ -26,6 +26,19 @@
   },
   "releases": [
     {
+      "version": "v2.3.0",
+      "date": "2026-07-28",
+      "category": "tooling",
+      "kind": "new",
+      "title": "Compare a project design system against the baseline",
+      "changes": [
+        "Point Raven at a project’s DESIGN.md and diff it against the canonical baseline: what is missing, what has drifted, what is local-only. configure_design_system_source names the file once, inventory_design_system reads its components and tokens, list_design_system_components shows the baseline, and diff_design_system does the comparison.",
+        "decision_contest stops an active decision from governing immediately, without deleting it or naming a replacement. Retiring a decision previously meant either superseding it — which demands a replacement you may not have yet — or deleting it and losing the history.",
+        "audit_tap_targets now names the standard it graded against. On a non-mobile render, 44px is the WCAG 2.5.5 AAA enhanced target while the AA minimum is 24px, so the audit states the split instead of leaving you to guess which one a finding failed. No finding changes pass or fail.",
+        "The stdio surface goes from 100 tools to 105. The anonymous hosted endpoint still serves the same 45."
+      ]
+    },
+    {
       "version": "v2.2.9",
       "date": "2026-07-26",
       "category": "tooling",

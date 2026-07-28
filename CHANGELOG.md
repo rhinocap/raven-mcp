@@ -6,7 +6,19 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
-## [2.2.9] - 2026-07-26
+## [2.3.0] - 2026-07-28
+
+Five new tools take the stdio surface from 100 to 105. Four of them are a design-system lane: point Raven at a project's `DESIGN.md` and compare it against the canonical baseline. The fifth closes a gap in the decision store. All five are gated out of the anonymous remote surface, which still serves the same 45 tools.
+
+### Added
+- `diff_design_system` — diff a project's declared design system against the Raven canonical baseline, reporting what is missing, what has drifted, and what is local-only. (#50)
+- `inventory_design_system` — read component declarations and tokens out of a local `DESIGN.md`. (#50)
+- `list_design_system_components` — list the components and their provenance in the canonical baseline. (#50)
+- `configure_design_system_source` — save which local `DESIGN.md` Raven should read for the three tools above, so a project only names it once. (#50)
+- `decision_contest` — stop an active decision from governing immediately, without deleting it or naming a replacement. Previously the only ways to retire a decision were `decision_supersede`, which demands a replacement you may not have yet, and deletion, which loses the history. (#43)
+
+### Changed
+- `audit_tap_targets` now says which standard it graded against. Grading at 44px on a non-mobile render mixes the WCAG 2.5.5 AAA enhanced target with surfaces where the 24px AA minimum may be the one that applies, so the audit states the split and points at `minSize: 24` or a mobile viewport. No finding changes pass or fail. (#48)
 
 No tool changes — the 100-tool stdio surface is unchanged. `tools/list` now reports all three behaviour hints on every tool instead of omitting the one the spec calls inapplicable.
 
