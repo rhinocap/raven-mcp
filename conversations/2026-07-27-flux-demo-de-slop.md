@@ -765,3 +765,33 @@ Tap targets 20/20. No italic or oblique anywhere; both 600-weight selectors
 resolve to Inter at runtime and Inter loads `wght@400;500;600;700`, so no faux
 weight. `prefers-reduced-motion` is present and actually pauses the hero video
 rather than only relaxing scroll-behaviour.
+
+### Both hosts aligned — and the gap the guard can't see
+
+`692570e` pushed; `mcp.ravenmcp.ai` live at 105s. Andrew deployed `web/`
+himself, so the apex followed.
+
+Final state, all three in agreement:
+
+| surface | llms.txt |
+|---|---|
+| `ravenmcp.ai` | 105 · `f3e2b325` |
+| `mcp.ravenmcp.ai` | 105 · `f3e2b325` |
+| repo | 105 · `f3e2b325` |
+
+Anon endpoint re-verified after both deploys: **45 tools / `f64bb18…2bb0a6`**,
+`decision_contest` absent from the anon set. Zero occurrences of "MIT" on the
+apex. Live tool-directory badges sum to exactly 105; the Decision act moved
+13 → 14, and eyes-on confirms `decision_contest` rendering opposite
+`decision_scope` in the conflict-resolution cluster.
+
+**The gap worth remembering:** between the two pushes the hosts disagreed —
+`mcp` served 105 while the apex still served 104 — and `check-site-drift`
+stayed green through it. The guard asserts the two llms.txt copies match *in
+the repo*; it has no view of deployed state. Repo-consistent and
+deployed-consistent are different claims, and only one of them is checked.
+A push to `main` moves `site` alone; the apex needs its own manual deploy, so
+that window opens on every count change. Worth closing with a deployed-state
+probe in the guard.
+
+Design-judge on the added row: **PASS (no findings)**, product-site surface.
