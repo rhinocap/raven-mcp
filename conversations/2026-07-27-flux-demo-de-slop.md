@@ -51,7 +51,9 @@ section descriptor states plainly that every figure is sample data.
 2. **A metric delta rendered in success-green while de-claiming itself.** The
    dashboard row mixed a "connect your data" placeholder with three real
    numbers. Now uniform, and the deltas carry correct semantics — lead time
-   *falling* is green, review latency *rising* is red.
+   *falling* is green, time-to-restore *rising* is red. (An earlier draft of
+   this log said "review latency rising"; there is no review-latency delta on
+   the page. The single red delta is "Time to restore +2m vs Q4".)
 
 ## Three bugs I introduced, and how they were caught
 
@@ -254,15 +256,115 @@ this suite. The overlay runs in a `vm` sandbox, so its arrays carry that realm's
 `Array.prototype` and `deepStrictEqual`'s prototype check rejects them. Compare
 through `Array.prototype.join.call(...)`.
 
+## Fourth task — porting the scope fix to the portfolio
+
+`andrewcunliffe-portfolio` ships its own copy of the overlay. Both were stale in
+different ways: `public/raven-grab.js` already had the `max-width` fix (it
+arrived via auto-save `5cdb07d`) but not the scope fix; the
+`.claude/worktrees/morven-pilot` copy had neither.
+
+Ported both. Committed `19030cf` with `git commit --only <path>` — the pilot
+worktree is a detached HEAD with ~10 uncommitted files from a live parallel
+session, so its asset was updated on disk (the running pilot gets the fix) and
+deliberately **not** committed into someone else's tree.
+
+Verified with the portfolio's own e2e specs rather than byte-identity alone:
+`raven-audit-fab` + `raven-change-notify`, **80 passed / 7 skipped / 0 failed**.
+
+`git push origin 19030cf:main` was rejected non-fast-forward — **not a failure**.
+A parallel session had already pushed main to `f7b23f2`, which *contains*
+`19030cf`; my push would have rewound main by one commit. Confirmed with
+`git merge-base --is-ancestor` and by grepping the pushed blob. Live via
+`dpl_CKQnsBErvjXoFLTz3VdBzZG8WTnt`.
+
+Parity sweep — all four copies plus both live endpoints byte-identical (587281
+bytes). `https://andrewcunliffe.com/raven-grab.js` returns 301/15 bytes: that is
+the redirect to the `.ai` apex, not a stale asset. `curl -sL` follows it and
+matches.
+
+## Fifth task — the Flux fix pass (the 16 adverse findings)
+
+Shipped as `0d8e510`. What actually changed:
+
+**Layout.** Row 02 leads with its chart (DOM reorder + `order` in the 860px
+media query so text still leads on one column); row 03 gets `.text-led`,
+1.3fr/1fr. Row 02 keeps the chart in the *narrow* track — the first attempt
+widened it and opened a ~500px leader gap between each stack-key label and its
+value. Caught by looking at the render, not by reading the CSS.
+
+**Copy.** Hero double-triple split. The three h3s were all comma-hinged noun
+phrases; now short-noun / verb-clause / cadenced-list. Two of the three closing
+aphorisms cut, one kept. "Click any figure and Flux shows the events underneath
+it" deleted — nothing on the page is clickable. Planetscale → PlanetScale.
+Final-CTA h2 no longer repeats its own button text.
+
+**Type.** One scale: 11 / 12 / 14 / 15 / 17 / 18 / 28 / 32 / 52. Verified by
+enumerating computed `font-size` on every leaf text node — the only 16px hits
+are `<script>` elements. Also collapsed three near-identical body line-heights
+(1.60 / 1.65 / 1.70) to one; that trio is itself a generated-code tell.
+
+**Accessibility.**
+- Mobile nav hid *all four* links. Now the two anchors that go somewhere stay;
+  the two dead demo links drop. Gotcha: `.nav-links .nav-stub` (0,2,0) loses to
+  `.nav-links a:not(.btn)` (0,2,1) — `:not()` counts its argument. Needs
+  `a.nav-stub`. The first attempt silently did nothing and the nav overflowed
+  393→472px; caught by measuring `scrollWidth`, not by eye.
+- Hero video autoplays and loops with no stop control → WCAG 2.2.2 Level A.
+  Inline script right after `</video>` so it lands on the poster instead of
+  playing until a bottom-of-page script catches it.
+- `--accent-hover` went *lighter*, dropping white button text to 3.79:1.
+  Inverted to `#5560C4` → 5.45:1.
+- Pricing "Most teams" badge was accent-coloured at 11px (3.69:1) → secondary.
+  The 2px accent rule on the card already carries the emphasis.
+- `--text-tertiary` #848694 → #8A8C9A: it was 4.49:1 on `--surface`, which the
+  dash-card caption sits on. Now 4.86.
+- Zero `:focus-visible` rules existed. Added one.
+- Chart values were mouse-only `title=`. Added `role="img"` + `aria-label`.
+
+**Deleted.** The `.reveal` scroll-reveal system — its own 2.5s failsafe already
+defeated it — and `--hairline`, whose two uses were both visually identical to
+`--border`.
+
+Verified on the rendered page: contrast **0 AA failures / 124 text elements, 0
+indeterminate**; tap targets **20/20**; 0 console errors; no horizontal overflow
+at 1440x900 or 393x852; eyes-on at both. Raven `audit_page` 94/B, 13/18 (was
+12/18). Live at https://ravenmcp.ai/demos/saas.html, byte-identical to the repo.
+
+**Raven findings deliberately not fixed**, with reasons:
+- `typography/min-size` (ten 11–12px declarations) — all mono axis ticks,
+  eyebrows, metric labels and captions. Deliberate data-UI convention; every one
+  of them passes WCAG AA at its size after the `--text-tertiary` lift.
+- `responsive/no-grid-breakpoints` (1) — `.feature-row` collapses a two-column
+  grid whose index row spans both tracks (`grid-column: 1 / -1`). Flex can't.
+- `spacing/base-unit` 56% / `scale-count` 15 — the off-grid values are chart bar
+  gaps (1/3/6px), pre-existing button padding, and `clamp()` bounds. Out of
+  scope for a de-slop pass; `scroll-padding-top` was snapped 84→88.
+- `color/palette-size` 12 — 10 tokens plus `#fff` and the nav's rgba. Already
+  one down from the `--hairline` merge.
+
+**Found, flagged, not fixed — needs Andrew:**
+1. `www.ravenmcp.ai` **hard-fails TLS.** DNS CNAMEs to Vercel (76.76.21.21) but
+   the domain is not registered on the `web` project, so the edge serves a cert
+   for `ravenmcp.ai` only: `subjectAltName does not match host name`. A visitor
+   typing `www.` gets a browser interstitial, which is worse than a 404.
+   Confirmed off the deployment's own alias list — `["ravenmcp.ai",
+   "next.ravenmcp.ai", ...]`, no `www`. Pre-existing, unrelated to this change.
+   Fix is `vercel domains add www.ravenmcp.ai web`, which is an account-settings
+   change and therefore Andrew's call.
+2. `.btn-secondary`'s border is `--border` at **1.31:1** against `--bg` — below
+   WCAG 1.4.11's 3:1 for a control boundary. It was equally bad before the
+   `--hairline` merge (~1.42), so this is not a regression. Not fixed silently
+   because any value that clears 3:1 visibly changes how every secondary button
+   on the page reads, and that is a taste call.
+
 ## Not done
 
-- **Adverse Sol → Fable pass on the Flux page.** Both legs ran; the disposition
-  pass on `web/public/demos/saas.html` was interrupted by this bug and has NOT
-  been applied. Sixteen confirmed items are queued (copy cadence, the "Click any
-  figure" false promise, mobile nav unreachable, hero video vs
-  `prefers-reduced-motion`, three contrast misses, zero focus styles, the type
-  scale, the dead `:first-of-type` selector, `--hairline` merge, the `.reveal`
-  system). The accent hue `#5E6AD2` — Linear's actual brand indigo on a page
-  that name-drops Linear twice — is an originality call for Andrew, not a defect.
-- **Portfolio copies.** `andrewcunliffe-portfolio/public/raven-grab.js` and its
-  `morven-pilot` worktree copy now lag on **both** fixes. Different repo.
+- **The accent hue `#5E6AD2`** — Linear's actual brand indigo on a page that
+  name-drops Linear twice. An originality call for Andrew, not a defect, so it
+  was left alone. Same for Inter (register consistency with the five sibling
+  demo pages was protected scope) and the `#191A23`/`#1F2028` pair (a deliberate
+  elevation step, not a redundant duplicate).
+- **No second adverse pass on the fixes themselves.** The session forbids the
+  Agent tool absent a request; "Do it" in message 8 lifted it for the original
+  Sol → Fable pass only. These fixes are that pass's disposition, verified
+  mechanically and by eye instead.
