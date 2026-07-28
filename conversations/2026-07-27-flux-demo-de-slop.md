@@ -368,3 +368,53 @@ at 1440x900 or 393x852; eyes-on at both. Raven `audit_page` 94/B, 13/18 (was
   Agent tool absent a request; "Do it" in message 8 lifted it for the original
   Sol → Fable pass only. These fixes are that pass's disposition, verified
   mechanically and by eye instead.
+
+## Sixth task — the Glama email, and the README drift under it
+
+Andrew forwarded a screenshot: "Release 2.2.9 published for Raven MCP" from
+Glama Support. Glama.ai is a third-party MCP directory whose crawler watches
+npm; it re-indexed on the v2.2.9 publish. Nothing to action there — the
+listing at `glama.ai/mcp/servers/rhinocap/raven-mcp` reads Quality A,
+Security A, Apache-2.0, npm and GitHub links correct.
+
+Checking what it actually displays turned up a defect on our side, not theirs.
+Glama showed **99 tools**. That number is scraped verbatim from `README.md`
+lines 25 and 29, and it was wrong:
+
+| ref | manifest.json | README |
+|---|---|---|
+| `ebb9759` (v2.2.9, the crawled release) | 100 | **99** |
+| `origin/main` before this fix | 104 | **99** |
+| local main (parallel session, `f606d5a`) | 105 | **99** |
+
+`scripts/sync-manifest-tools.mjs` regenerated `manifest.json` from a real
+stdio `tools/list` but never touched the README, so the count was hand-typed
+and had drifted five releases. Every directory listing carried the stale
+number because they all scrape the same line.
+
+Fixed at the root rather than by retyping the number (`a63f715`): the sync
+script now rewrites both README occurrences from the same enumeration it
+already uses for the manifest, and throws if either pattern stops matching.
+Verified the guard by breaking the surrounding prose — exit 1, names the
+pattern. Suite: 1152 tests / 1149 pass / 0 fail / 3 skipped. Manifest came
+back byte-identical at 104, which confirms the enumeration path agrees with
+what was already committed.
+
+Note the script spawns the built server as a subprocess and speaks real MCP
+over stdio, so it sidesteps the `buildServer()` / `RAVEN_REMOTE` fallback
+gotcha entirely — no `{ remote: false }` needed.
+
+Post-push: `main` deploy touches no `src/` or `api/` path, and the live anon
+endpoint re-verified at 45 tools / `f64bb18…2bb0a6`, the frozen golden hash.
+
+### Not fixed — needs Andrew
+- **The Glama description is the README's opening line, and it is badly
+  dated.** It sells only the original eight knowledge layers: no Taste Engine,
+  no decision graph, no Grab, no audit suite, no hosted remote endpoint. That
+  sentence is the first thing the bound cold indie-dev evaluator reads on a
+  discovery surface. Rewriting it is positioning copy in Andrew's voice, not a
+  mechanical sync, so it is flagged rather than done.
+- **The listing does not surface in Glama's own search for "Raven MCP"** —
+  only reachable at the direct `/mcp/servers/rhinocap/raven-mcp` path. A
+  discoverability gap on a distribution channel, alongside the OpenAI plugin
+  directory submission still in Review.
