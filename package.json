@@ -1,6 +1,6 @@
 {
   "name": "raven-mcp",
-  "version": "2.2.9",
+  "version": "2.3.0",
   "mcpName": "ai.ravenmcp/raven-mcp",
   "description": "An MCP server for coding agents — click any element in your locally running app, say what should change, and get back the selector, computed styles, and design tokens, plus an audit of the result.",
   "type": "module",
