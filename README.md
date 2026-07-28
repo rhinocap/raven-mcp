@@ -66,7 +66,7 @@ args = ["-y", "raven-mcp"]
 Codex may prompt to approve many Raven tools on first use — that is client approval policy, not a smaller Raven.
 
 ### Claude Desktop — one-click extension
-Prefer not to edit JSON? Download [raven.mcpb](https://ravenmcp.ai/raven.mcpb) and double-click it. Claude Desktop installs Raven automatically — no Node, no terminal. Package version tracks npm (`1.17.x`).
+Prefer not to edit JSON? Download [raven.mcpb](https://ravenmcp.ai/raven.mcpb) and double-click it. Claude Desktop installs Raven automatically — no Node, no terminal. Package version tracks npm.
 
 ### From source
 ```bash
