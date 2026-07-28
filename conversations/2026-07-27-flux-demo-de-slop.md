@@ -165,8 +165,49 @@ targets under 44px in either dimension, no horizontal overflow, six section
 headlines sharing a left edge, and `diff` clean between the live bytes and
 `web/public/demos/saas.html`.
 
+## Second task, same session — Raven Grab's scope toggle
+
+> "the scope toggle should fill the parent container here"
+
+`.raven-grab-scope` carried `max-width: 300px`, so in any panel wider than that
+the Scope switch stopped short of the right edge while every sibling control in
+the panel spanned the full section. The cap was the whole bug — one line.
+
+Nothing else needed to change, because the pill was already width-agnostic:
+the grid is `36px / minmax(0, 1fr) / 36px` (two fixed 36px caps, a fluid track),
+and the knob is `calc(50% - 2px)` translated by `translateX(100%)`. Both are
+proportional, so the toggle tracks its parent at any size.
+
+**Verified** by extracting the real CSS block and the real markup from
+`browser/raven-grab.js` into a harness at four panel widths, measuring with
+Playwright, then looking at the render:
+
+| Panel content box | Scope width | Knob = half track |
+|---|---|---|
+| 266 | 266 | yes |
+| 346 | 346 | yes |
+| 446 | 446 | yes |
+| 606 | 606 | yes |
+
+The first pass of that harness reported `fills: false` at all four widths. That
+was the harness, not the fix — it computed the parent as `width - 32` (the
+padding) and forgot `.panel`'s own `1px` border under `box-sizing: border-box`,
+so its "expected" was 2px too wide at every size. Worth remembering: a derived
+expected-value is as falsifiable as the measurement it grades.
+
+Shipped as `0b8206d` on `main`, plus a manual `vercel deploy --prod` from
+`web/` — `ravenmcp.ai/raven-grab.js` is served by the **`web`** project, so the
+push alone would never have moved it. Live bytes `diff`-clean against
+`web/public/raven-grab.js`.
+
+**Not touched, needs Andrew's call:** two copies in the *portfolio* repo still
+carry `max-width: 300px` —
+`andrewcunliffe-portfolio/public/raven-grab.js` and
+`andrewcunliffe-portfolio/.claude/worktrees/morven-pilot/public/raven-grab.js`.
+Different repo; not mine to edit unasked.
+
 ## Not done
 
-- **Adverse Sol → Fable pass was not run.** This session carries an explicit
-  instruction not to use the Agent tool, which overrides done-gate's adverse
-  pass. Stated rather than skipped silently.
+- **Adverse Sol → Fable pass.** Not run at the time this log was first written
+  (the session forbade the Agent tool). Andrew lifted that explicitly — the Sol
+  leg is running now; Fable follows on the artifact **and** Sol's findings.

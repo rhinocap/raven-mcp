@@ -693,7 +693,7 @@
     /* Scope switch (17): Instance ↔ All siblings — Raven grab tokens only. */
     .raven-grab-scope {
       position: relative; display: grid; grid-template-columns: 36px minmax(0, 1fr) 36px; align-items: center;
-      width: 100%; max-width: 300px; min-height: 44px; padding: 4px;
+      width: 100%; min-height: 44px; padding: 4px;
       background: var(--raven-grab-bg); border: 1px solid rgba(255, 255, 255, .1); border-radius: 999px;
     }
     .raven-grab-scope-cap {
