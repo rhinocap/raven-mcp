@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revisit — 2026-07-29 (Opus 5 working agreement + memory-recall hook)</title>
+<style>
+  :root {
+    --bg-base: #1a1a22;
+    --bg-surface: #212129;
+    --bg-raised: #2a2a33;
+    --border: rgba(255, 255, 255, 0.06);
+    --border-strong: rgba(255, 255, 255, 0.1);
+    --text-primary: #F0F0F2;
+    --text-secondary: #9498A0;
+    --text-tertiary: #5C5F68;
+    --text-accent: #0077c5;
+    --accent-blue: #0077c5;
+    --accent-green: #00E676;
+    --accent-orange: #FFAB40;
+    --accent-pink: #FF4081;
+    --accent-yellow: #FFD740;
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+    --max-width: 960px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .cover {
+    padding: 80px 24px 64px;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 0%, rgba(0, 119, 197, 0.15), transparent),
+      radial-gradient(ellipse 60% 60% at 80% 20%, rgba(0, 230, 118, 0.07), transparent),
+      linear-gradient(180deg, #1f1f2b 0%, var(--bg-base) 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .cover-inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+  }
+  .cover-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 16px;
+  }
+  .cover h1 {
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+  .cover .subtitle {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 680px;
+    margin-bottom: 48px;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .stat {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .stat-value {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .stat-value.green { color: var(--accent-green); }
+  .stat-value.blue { color: var(--accent-blue); }
+  .stat-value.orange { color: var(--accent-orange); }
+  .stat-value.yellow { color: var(--accent-yellow); }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+  .body {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+  .section {
+    margin-bottom: 48px;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .badge-shipped { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-verified { background: rgba(0,119,197,0.15); color: var(--accent-blue); }
+  .badge-miss { background: rgba(255,171,64,0.12); color: var(--accent-orange); }
+  .badge-repeat { background: rgba(255,64,129,0.12); color: var(--accent-pink); }
+  .badge-win { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-fixed { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .card p {
+    color: var(--text-secondary);
+    margin-top: 4px;
+    line-height: 1.65;
+  }
+  .card code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: rgba(255,255,255,0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-primary);
+  }
+  .card blockquote {
+    margin-top: 10px;
+    padding: 10px 16px;
+    border-left: 3px solid var(--accent-orange);
+    background: rgba(255,171,64,0.06);
+    color: var(--text-primary);
+    font-style: italic;
+  }
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 32px 0;
+  }
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .table-wrap {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    padding: 14px 20px;
+    text-align: left;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 14px 20px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  td:first-child { color: var(--text-primary); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  .highlight {
+    background: rgba(0,119,197,0.08);
+    border: 1px solid rgba(0,119,197,0.2);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .highlight p { color: var(--text-primary); }
+  .tag-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .tag {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-label">Revisit · 2026-07-29 · Manual /revisit</div>
+    <h1>The autonomy miss<br>of the opposite sign</h1>
+    <p class="subtitle">Andrew opened by saying he'd been having trouble working with me and suspected his rules were fighting my system prompt. The root cause turned out to be a measurement problem: the metrics scored never-asking and error-catching, so the system evolved toward both, and accuracy paid for it. Every prior session in the table scored 97–99% autonomy. This one scored ~88% — and the defect wasn't the count, it was the type. Two of the questions were measurable facts, and when they were finally measured, the numbers reversed a recommendation I'd made an hour earlier.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value orange">~71%</div>
+        <div class="stat-label">First-attempt accuracy (10/14)</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value yellow">~88%</div>
+        <div class="stat-label">Autonomy — LOW by 2pts vs 90–95 band</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value green">5</div>
+        <div class="stat-label">New rules on a loaded surface</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value green">0</div>
+        <div class="stat-label">Push rejections</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="body">
+
+  <div class="section">
+    <div class="section-label">The diagnosis</div>
+    <div class="highlight">
+      <p><strong>Fable's framing, adopted over mine:</strong> the friction is a measurement problem, not rules-versus-harness. The scoreboard rewarded never asking a question and rewarded catching errors after the fact — so the corpus grew 18 post-claim verification bullets against roughly one pre-attempt clause. All four dominant failure classes occur <em>before</em> the first attempt. Weight moved forward: a ≤10-line spec naming every file, surface, capability axis, and human gate before the first edit.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Autonomy is a band, not a maximum <span class="badge badge-fixed">Rebound</span></div>
+      <p>97–99% was being read as a win. It was a symptom: load-bearing questions suppressed and paid back as rework. The band is now ~90–95, with roughly one question per ten tasks budgeted and expected. Below 90 and above 95 are equally off-target.</p>
+      <div class="tag-row"><span class="tag">~/.claude/CLAUDE.md</span><span class="tag">rules-digest.md</span><span class="tag">SUCCESSION.md rule 11</span><span class="tag">revisit skill step 4</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Hook catches were being double-billed <span class="badge badge-fixed">Fixed</span></div>
+      <p>A <code>Stop</code>-hook catch is structurally incapable of firing before a claim, yet four consecutive revisits re-litigated it as a behaviour problem and deducted it from accuracy. Catches now get their own row marked <em>not a miss</em>. The metrics series is explicitly discontinuous across this date.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Primary finding</div>
+    <div class="card">
+      <div class="card-title">Count it — don't ask it <span class="badge badge-miss">Autonomy miss</span></div>
+      <p>I closed a findings pass with two open questions: how much of the superpowers plugin does he use, and how should the fragmented memory pools be fixed. He returned both as counter-questions.</p>
+      <blockquote>"1. Memory is fragmented can't you use graphite or another knowledge graph for this? 2. I honestly don't know how much I use, can you not measure it?"</blockquote>
+      <p>Both were countable, and counting took minutes. His answer would have been a guess where mine could be exact. The rule now triggers on any question containing <em>how much / how often / how many / do you usually</em>: measure first, then ask only what the numbers leave genuinely open. The budgeted question is for preferences and decisions — never for offloading measurement.</p>
+      <div class="tag-row"><span class="tag">→ CLAUDE.md &lt;understanding-and-autonomy&gt;</span><span class="tag">→ feedback-count-it-dont-ask-it</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">What the measurements said</div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-title">Superpowers: 1.7%</div>
+        <p>625 skills on disk, 237 <code>Skill</code> invocations across 400 transcripts, of which <code>superpowers:*</code> was <strong>4</strong> — two distinct skills, three of them <code>systematic-debugging</code>. For scale, <code>design-judge</code> was 105. Fixed with one CLAUDE.md line subordinating the "1% chance → you ABSOLUTELY MUST invoke before any response" mandate, rather than disabling the plugin: the skill defers to CLAUDE.md by its own text, and disabling would cost the one skill that earns its keep.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Memory: consolidation impossible</div>
+        <p>218 of 397 memories are cross-cutting. Auto-loading all bodies is <strong>~90,597 tokens</strong> per session; the index alone is ~17,223. Retrieving only what the message matches is ~200 tokens a turn. <strong>This reversed my own recommendation</strong> from earlier in the same session, which had proposed the migration without ever costing it.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Mistakes &amp; lessons</div>
+    <div class="card">
+      <div class="card-title">I narrowed the done-gate and called it a re-binding <span class="badge badge-repeat">Worst defect</span></div>
+      <p>The original triggered on <em>any</em> substantive completion claim, including specs, plans, audits and research. Mine triggered on four literal words — so "ready", "complete" and "all checks pass" silently stopped firing it. Introduced into the one rule whose entire purpose is preventing false-completion claims, and found by an adverse pass after I had read my own edit twice.</p>
+      <p><strong>Rule:</strong> when rewriting a rule or guard, diff the trigger SET, not the prose. Replacing a class trigger with an enumeration is always a narrowing.</p>
+      <div class="tag-row"><span class="tag">→ CLAUDE.md &lt;verification&gt;</span><span class="tag">→ feedback-rule-rewrites-diff-the-trigger-set</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">The cwd penalty was a no-op <span class="badge badge-miss">Verified by reading</span></div>
+      <p><code>basename(dirname("/Users/accunliffe/projects/raven-mcp"))</code> is <code>projects</code> — a substring of every path under <code>~/.claude/projects/</code>. All 223 entries got the same penalty, so it cancelled to zero. Same class: <code>IDF_FLOOR = 6.0</code> was commented "~1 very rare term" when a unique term actually scored 5.38 — a floor no term could reach.</p>
+      <p><strong>Rule:</strong> verify a threshold, penalty or filter by measuring its effect on real output. If you can't name the number that changes when the tunable is wrong, it isn't verified. Normalise anything denominated in a corpus-size-dependent unit.</p>
+      <div class="tag-row"><span class="tag">→ CLAUDE.md &lt;verification&gt;</span><span class="tag">→ feedback-verify-effect-not-code</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Three of seven promotions were false <span class="badge badge-miss">Accuracy</span></div>
+      <p>Claimed as landed on a "session-loaded surface" when they were filed only in the canonical cross-project pool — which does <em>not</em> auto-load inside a repo session. Reachable, not loaded. Fixed by promoting the rule text itself into CLAUDE.md and keeping the long form in memory.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">I reported a precision figure I had not measured <span class="badge badge-miss">Retracted</span></div>
+      <p>"~70% precision" was an eyeball, tuned twice on its own 21-prompt sample with no holdout — and it reached a public document before being withdrawn. The replacement false-negative harness then proved invalid <em>twice</em> (95%, then 100%): slash-command expansions and the <code>/clear</code> summariser prompt sit in the <code>user</code> role, and batch-written memories all inherit one shared preceding message.</p>
+      <p><strong>Rule:</strong> read the actual input/label pairs before reporting a rate. Report <em>unmeasured</em> over an indefensible number, and never pick whichever of two bad numbers reads better.</p>
+      <div class="tag-row"><span class="tag">→ CLAUDE.md &lt;verification&gt;</span><span class="tag">→ feedback-validate-ground-truth…</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Shipped</div>
+    <div class="card">
+      <div class="card-title">memory-recall.py — message-relevant retrieval <span class="badge badge-shipped">Live</span></div>
+      <p>A <code>UserPromptSubmit</code> hook — the only hook event that receives the user's message (<code>PreToolUse</code> never does, <code>Stop</code> fires too late). Scores the prompt against every cross-cutting memory's headline and injects the top 6 as pointers. Rarity is measured in unique-term units normalised by <code>log(n)</code>, so the threshold means the same thing at 218 memories as at 500 instead of silently loosening as the corpus grows.</p>
+      <p>Verified against a 9-case failure matrix: malformed / list / string / null stdin all exit 0, corrupt and wrong-shape caches both rebuild, a 1.2MB prompt runs in 0.03s, atomic writes leave no litter, a memory added mid-TTL is recalled without waiting the hour. Cold 36ms, warm p50 20ms, against a 5s timeout.</p>
+      <p><strong>Honest ceiling, written into the rule itself:</strong> retrieval is lexical and silence is its failure mode. "this visual bug" recalls the eyes-first rule; "the six dots at the bottom are misaligned" recalls nothing. Absence of a recall block means nothing matched — never that nothing applied. <code>graphify query --budget</code> is the documented upgrade path, deliberately not the first rung, because 397 headline lines need no artifact kept fresh.</p>
+      <div class="tag-row"><span class="tag">8 defects fixed by 2 adverse passes</span><span class="tag">fails open, logs to .memory-recall-errors.log</span><span class="tag">47% fire · ~211 tokens</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Declined, on the record <span class="badge badge-verified">Scoped</span></div>
+      <p>Sol's remaining asks — gold-label relevance sets, MRR/nDCG, confidence intervals, p99 under concurrency, corpus runs at 1,000 entries, prompt-injection fixtures, controlled before/after skill trials — are the right demands for a production IR system. This is a ~200-token nudge on one machine that fails open and whose worst failure is a missing hint. An evaluation apparatus larger than the thing evaluated is the over-engineering the ladder exists to stop. Named trigger to revisit: the lexical gap costing a real miss in practice.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Wins</div>
+    <div class="card">
+      <div class="card-title">Found the stale kernel nobody was auditing <span class="badge badge-win">Unprompted</span></div>
+      <p><code>rules-digest.md</code> is re-injected on every compaction at <code>priority="critical"</code>, so a stale kernel outranks the file it summarises. Three contradictions with the rewritten corpus, found and fixed without being asked.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">lsof caught a background worker mid-write <span class="badge badge-win">Rule paid off</span></div>
+      <p>Sol's second pass looked finished — 354KB written, timestamp settled — and the fd was still open. 82KB more arrived. Reading it early would have meant dispositioning a truncated report and calling it a full pass.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">The push gate held on a public repo <span class="badge badge-verified">Verified</span></div>
+      <p>A push to <code>main</code> ships every unpushed commit and redeploys the host serving the live OAuth endpoint. Verified all four files sat under <code>conversations/</code>, no <code>src/</code> or <code>api/</code> paths, no rider commits from a parallel instance — then confirmed the frozen anonymous 45-tool hash <code>f64bb185…782bb0a6</code> was byte-identical after the redeploy. The done-gate also caught the retracted 70% figure still asserted 100 lines above its own retraction, in a document about to become public.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Running totals</div>
+    <div class="table-wrap">
+      <table>
+        <tr>
+          <th>Metric</th><th>Target</th><th>07-06 (P4.5)</th><th>07-21/24</th><th>07-29 (this)</th>
+        </tr>
+        <tr>
+          <td>First-attempt accuracy</td><td>90%</td><td>~78%</td><td>~80%</td><td>~71%</td>
+        </tr>
+        <tr>
+          <td>Autonomy</td><td>90–95 band</td><td>~99%</td><td>~99%</td><td>~88% (low by 2)</td>
+        </tr>
+        <tr>
+          <td>Round-trips per task</td><td>1</td><td>~1.8</td><td>~1.6</td><td>~1.5</td>
+        </tr>
+        <tr>
+          <td>Push rejections</td><td>0</td><td>0</td><td>0</td><td>0</td>
+        </tr>
+        <tr>
+          <td>Hook catches</td><td>not a miss</td><td>—</td><td>≥3</td><td>1 (done-gate, real catch)</td>
+        </tr>
+      </table>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <p><strong>Do not read a trend across this boundary.</strong> ~71% is the lowest row in the table and it is honest, but it is not comparable: when the artifact under edit <em>is</em> the rule corpus, every defect is a rule defect, and the session was instrumented with two adversarial passes built to find exactly those. The 2026-07-29 changeover note now applies for two separate reasons — the hook-catch accounting fix and the autonomy band.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">What would help go faster</div>
+    <div class="card">
+      <p><strong>Nothing this time — and that's the finding.</strong> Both gaps were mine to close by measuring, not yours to answer. The one thing worth flagging: if recall goes silent on something it should have caught, say so. That single signal is what promotes graphify from documented upgrade path to actual work, and it is the only input I can't generate myself.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Watch item for the next 3–4 revisits</div>
+      <p>Whether autonomy settles into 90–95 and first-attempt accuracy rises toward 90. If autonomy stays ≥97, the band didn't take and the scoring change needs another pass. Raven opportunities this session: <strong>none</strong> — recorded explicitly with the checklist result so a zero is distinguishable from a skipped scan.</p>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
