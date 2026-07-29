@@ -105,21 +105,82 @@ Eight, via two `AskUserQuestion` rounds plus free text:
 - **This session's own redirect is the finding.** "Don't write anything on your own" arrived because
   I had started writing. The 90% band exists so that redirect doesn't have to.
 
-## Open for Andrew
+## Both open items — answered by measurement, not opinion
 
-1. **Memory is fragmented across 13 cwd-scoped directories** (408 files: portfolio 121, projects 87,
-   HighLvl 66, raven-mcp 39, Blacksheep 31, openclaw-video 18, accunliffe 13, gethighlvl-landing 10,
-   highlvl-android 9, trading-bot 7, financeKing 4, prompt-graph 3). His stated intent — one pool
-   covering all projects — **cannot be reached by editing a CLAUDE.md line**, because the harness
-   derives the memory directory from cwd. Two real options: symlink each project's memory dir to the
-   shared pool, or migrate only `user`/`feedback` entries to the shared pool and leave
-   `project`/`reference` cwd-scoped. My lean is the second — it matches the memory type taxonomy,
-   and a symlink farm breaks the first time the harness writes a per-repo index. Not started:
-   consolidating 13 directories is not mine to begin unasked under the new scope lock.
-2. **The `superpowers:using-superpowers` 1% rule** — "if you think there is even a 1% chance a skill
-   might apply you ABSOLUTELY MUST invoke the skill… BEFORE any response or action" — is
-   unsatisfiable at ~200 skills, and it is injected at every session start. I made no recommendation
-   because it depends on how much of superpowers he actually uses. Still unanswered.
+Andrew answered my two open questions with two counter-questions: "1. Memory is fragmented can't
+you use graphite or another knowledge graph for this? 2. I honestly don't know how much I use, can
+you not measure it?" Both were the right correction — I had asked him to decide things that were
+measurable. The pattern to keep: **when a question is answerable by counting, count it.**
+
+### Q2 — superpowers usage (measured, then fixed)
+
+| Quantity | Count |
+|---|---|
+| Skills on disk | 625 (28 under `superpowers:`) |
+| `Skill` invocations across 400 transcripts | 237 |
+| Of those, `superpowers:*` | **4 (1.7%)**, only 2 distinct skills |
+| `superpowers:systematic-debugging` | 3 of the 4 |
+| For scale — `design-judge` | 105 |
+
+Fix: one CLAUDE.md line subordinating the "1% chance → you ABSOLUTELY MUST invoke before any
+response" mandate, **not** a plugin disable — the skill's own text says CLAUDE.md takes precedence,
+and disabling would also cost `systematic-debugging`, the one of the 28 that earns its keep. The
+line explicitly keeps that one as worth reaching for unprompted.
+
+### Q1 — memory fragmentation (the ladder, walked in the open)
+
+Measured first: 397 memory files, **218 cross-cutting** (`user`/`feedback` — i.e. how to work with
+Andrew, applies in every repo), only 6 same-slug duplicates. Then the three rungs:
+
+| Option | Cost | Verdict |
+|---|---|---|
+| Consolidate + auto-load all bodies | **~90,597 tokens/session** | Impossible |
+| Load the index only | **~17,223 tokens** | A 218-line wall of skimmable one-liners; expensive and unread |
+| Retrieve the few relevant to the actual message | **~200 tokens/turn** | Correct |
+
+**This reversed my own prior recommendation in this same session** — the "Open for Andrew" text I
+wrote an hour earlier proposed migrating `user`/`feedback` into one shared pool. At 90k tokens that
+plan was never viable; I had recommended it without costing it. Retrieval is the answer and I said
+so plainly rather than defending the earlier lean.
+
+On graphify specifically: it has the right primitives (`query`, `--memory-dir`, `--budget N`,
+outcome tracking) but is the wrong *first* rung — 397 name/description lines need no artifact kept
+fresh, and a graph adds a staleness surface. It is the documented upgrade path if keyword scoring
+proves weak, recorded in the hook's own docstring so the next instance finds it.
+
+### What was built — `~/.claude/hooks/memory-recall.py`
+
+`UserPromptSubmit` (the only hook event that actually receives the user's message; `PreToolUse`
+never does, `Stop` fires too late). Scores the message against every cross-cutting memory's
+headline, injects the top 6 as **pointers, explicitly framed as stale-able and needing a Read**.
+
+Tuning took exactly two cycles, per the new two-cycle rule:
+1. Body-only matches were noise → require a headline-term hit, let body overlap break ties.
+2. Promiscuous terms dominated (`active-task-is-blocker` was hitting 4 unrelated prompts) → IDF
+   weighting with a floor.
+
+Result on 21 real prompts from 9 different project transcripts (real excerpts across unrelated
+topics, per the rule against synthetic payloads): fires on 47%, ~213 tokens average, 0 errors.
+Cold cache 45ms, warm 22ms against a 5s timeout. Secrets scan of the injected headline lines: no
+credential material (31 regex hits were all long kebab-case slugs).
+
+> I originally recorded "~70% precision" here. **That number is withdrawn** — it was an eyeball,
+> not a measurement, and it was tuned twice on this same 21-prompt sample with no holdout. See
+> **Sol falsification pass #2 → Retracted** below for what is and is not actually measured.
+
+Two bugs found by verifying rather than trusting the write:
+- `build_index()`'s early return handed back a list where callers do `index["entries"]` — would
+  have silently disabled the hook forever, swallowed by fail-open. Added `INDEX_VERSION` so a
+  stale-format cache is rejected instead of crashed on.
+- The original `except Exception: pass` failed open but also **failed silent** — a permanently dead
+  hook is indistinguishable from "no memory matched". Now logs a stack trace to
+  `~/.claude/.memory-recall-errors.log` and still exits 0.
+
+### The rule that paid for itself twice
+
+`ps eww` / `lsof` before trusting a background worker. Sol's second falsification pass looked
+finished — 354KB written, timestamp settled — and `lsof` showed pid 35825 still holding the fd. Had
+I read it as final I'd have dispositioned a truncated report.
 
 ## Sol falsification pass — 9 objections, dispositioned
 
@@ -176,6 +237,78 @@ today), so removing the deny path cost enforcement, not visibility.
   amended out loud. Whether that holds is an empirical question for the next few sessions.
 - **Measurement (Sol's #9).** The metrics series is discontinuous across today by design, so the
   core bet cannot be cleanly attributed yet. Needs a fixed-rubric sample after the changeover.
+
+## Sol falsification pass #2 (the recall hook) — dispositioned
+
+Verdicts: A BROKEN, B BROKEN, C BROKEN, D BROKEN, E UNVERIFIABLE, F BROKEN. Worth running: it
+found a real bug I had verified around, and it forced me to retract a number.
+
+### Fixed in code (7)
+
+| Defect | Reality |
+|---|---|
+| **cwd penalty was a no-op** | `basename(dirname("/Users/…/projects/raven-mcp"))` = `projects`, a substring of *every* path under `~/.claude/projects/` — so all 223 entries got the same penalty and it cancelled to nothing. Now maps cwd→pool the way the harness does (`cwd.replace("/","-")`). **Sol's best catch; I had "verified" the penalty by reading it, not by testing it.** |
+| 4 memories silently invisible | `feedback_*.md` files with no parseable `type:` were dropped. Now falls back to the filename prefix. Corpus 218 → 223. |
+| Valid-JSON/wrong-shape cache | `{"v":2}` passed the version check, then `index["entries"]` raised into the silent catch — recall dead for an hour. Now shape-validated. |
+| Non-atomic cache write | A concurrent hook or a kill mid-`json.dump` left a partial cache. Now temp + `os.replace`. |
+| Unreadable pool killed everything | `os.listdir` on a project root raised outside the per-file guard. Now guarded at both levels. |
+| Unbounded prompt tokenisation | Now capped at 20k chars. |
+| Duplicate slugs ate slots | 6 slugs exist in two pools; the same rule could take two of six slots. Now deduped. |
+
+Plus the pre-emptive one: `except Exception: pass` failed open **and silent**. Now logs a stack
+trace to `~/.claude/.memory-recall-errors.log` and still exits 0.
+
+Verified after: cold 36ms / warm p50 20ms (5s timeout), 1.2MB prompt 0.03s, malformed / list /
+string / null stdin all exit 0 silently, corrupt and wrong-shape caches both rebuild, no tmp
+litter, a memory added mid-TTL is recalled without waiting out the hour, replay stable at 47% /
+211 tokens / 0 errors.
+
+### Retracted
+
+**"precision ~70%" was an eyeball, not a measurement** — and it was tuned on the same 21 prompts
+twice, so that sample was a training set with no holdout. Sol is right and the number is withdrawn.
+
+I then tried to measure the false-negative rate properly and **the harness failed**. Ground truth
+was "the user message preceding a memory's mtime is a known-relevant query for it." First run said
+95% FN — bogus, because slash-command expansions, the `/clear` summariser prompt and compaction
+continuations all sit in the `user` role, and batch-written memories all inherit one shared
+message. Tightened to genuine turns with a single memory written within 20 min: n=9, 100% FN —
+still bogus, because `feedback_enumerate_gates_upfront` was paired with "Where is this? Settings →
+Apps → Advanced". Memories are written at session end; the message that earned them is often 50
+turns back. **Honest state: the false-negative rate is unmeasured.** Reported as unmeasured rather
+than as either of two numbers I could have quoted.
+
+What the failed harness *did* yield is better than a rate — a characterised ceiling. "this visual
+bug only shows on my viewport" recalls `feedback-eyes-first-for-visual-bugs`; "the six dots at the
+bottom are misaligned" recalls **nothing**. The gap is lexical, silence is the failure mode, and
+that is now written into the CLAUDE.md line along with graphify as the escalation path.
+
+### Declined, with reasons
+
+Sol's remaining asks — gold-label relevance sets, MRR/nDCG, confidence intervals, held-out
+time-separated evaluation, p95/p99 under concurrency, corpus-growth runs at 1,000 entries, a real
+tokenizer, prompt-injection fixtures, controlled before/after skill trials — are the right
+demands for a production IR system. This is a ~200-token nudge on one person's machine that fails
+open and whose worst failure is a missing hint. Building an evaluation apparatus larger than the
+thing evaluated is the over-engineering the ladder exists to stop. The trigger that would change
+that: the lexical gap costing a real miss in practice → graphify.
+
+On privacy (A): the emitted names/descriptions include employer, residence and client-clearance
+metadata. Real, but this is Andrew's own memory in Andrew's own session, and it already auto-loads
+in the pool that owns it — the delta is cross-project surfacing, gated on relevance. Noted, not
+mitigated.
+
+On E: Sol concedes the formal precedence case (the skill's own text defers to CLAUDE.md; and
+`<EXTREMELY_IMPORTANT>` is emphasis, not a higher instruction tier). Its survivorship point is
+fair — 4 invocations could mean the mandate was ignored, not that the skills lack value. That is a
+default-setting judgment, not a proven claim, and the override deliberately preserves
+`systematic-debugging`. Andrew's to revisit.
+
+### The rule that earned its keep, twice
+
+`lsof`/`pgrep` before trusting a background worker. Sol's output looked finished — 354KB, timestamp
+settled — and the fd was still open; 82KB more arrived after. Reading it early would have meant
+dispositioning a truncated report and calling it a full pass.
 
 ## Carried forward
 
