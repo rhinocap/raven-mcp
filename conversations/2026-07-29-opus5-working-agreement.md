@@ -371,3 +371,76 @@ the instance to commit `~/.claude` after each promotion, which the baseline abov
   the always-loaded surface. The direction that matters — memory → "this is global" — already
   exists. Same template-vs-file conflict as the Inter/Untitled Sans one, resolved the same way:
   keep the file's real convention, name the divergence.
+
+## Sol falsification pass #4 — 9 findings, 7 confirmed, claim refuted again
+
+Fired because the `~/.claude` baseline, the loop prompt, and the F2/F4 closures were new substantive
+work with a completion claim attached. Verdict: *"the corpus is incomplete, contains non-public
+personal metadata, and the revisit violates its own step-3 contract."* All seven confirmed findings
+are fixed; the two speculative ones were Sol's sandbox having no DNS, and I had verified both live.
+
+**F1 — 42 tracked symlinks, and a credential scan that was reading outside the repo.** Of the "90
+skill definitions" I claimed, 42 were absolute-path symlinks into the *ignored* gstack tree — a clone
+without that 1.1 GB payload gets broken links. Worse, this invalidated my own all-clear: the single
+`AKIAIOSFODNN7EXAMPLE` hit I had explained away as an AWS docs placeholder was not in a tracked blob
+at all. `grep` had followed a symlink out of the tracked set. **`git grep HEAD` finds nothing.** The
+real count is 47 definitions. Lesson: a scan over `git ls-files` output is not a scan over the repo
+unless you also assert file *type* — symlinks silently widen the search past the thing you're auditing.
+
+**F2 — the control plane was left unversioned.** `settings.json` invokes `scripts/`,
+`statusline-command.sh`, `statusline-agents.py` and `skill-rules.json` at seven separate lines, and
+`SUCCESSION.md:24` names both DNA manuals as successor instructions. All were ignored. So the
+enforcement layer could change with no diff while I claimed the rule corpus had safe version control.
+I had versioned the *rules* and missed the *machinery that runs them*.
+
+**F3 — the worst one. I aggregated personal data into permanent history.** Tracking the memory pools
+swept in `user_credit_cards.md`, `user_military.md`, `user_profile.md` (employer role and internal
+strategic goals) and `reference_credentials.md` (credential *locations* plus Slack identity). No live
+key, so my regex said clean — but a credential regex cannot detect privacy exposure, and git history
+is permanent even if the file is later deleted. Rebuilt the repo from scratch so those blobs never
+entered reachable history (`git update-ref -d` + `reflog expire` + `gc --prune=now`, verified 0
+reachable hits), and excluded them by pattern. They are not rules, so excluding them is
+scope-correct.
+
+**F5 — my F4 decline was rationalization.** I had refused the mandated `(Memory: [[slug]])`
+back-links because 0 of 84 `CLAUDE.md` bullets used wikilinks. Sol: that demonstrates corpus-wide
+non-adoption, not exemption — and the relevant denominator is *promoted cross-cutting rules*, not all
+84, so of course the convention starts as a minority. My cost objection also failed its own test:
+the five links are **278 bytes, ~70 tokens.** I had invoked "the always-loaded surface" without
+measuring what it cost, in a session whose primary finding is that measurable things must be
+measured. Added, plus the per-rule `✓ landed in <file>` report step 3 requires.
+
+Fixing that surfaced a gap the adverse pass missed: the skill-scan override rule at `CLAUDE.md:51`
+had **no memory file at all**, so its measurement (625 skills on disk, 4 of 237 invocations were
+`superpowers:*`) lived only on the always-loaded surface. Written, indexed, linked both ways.
+
+**F6 — the nightly prompt would have misfired on its first run.** Seven concrete defects, all
+verified: coverage keyed by date when **five sessions share 2026-07-02** and four share 07-01 (and
+`metrics.md` already uses `date (slug)` columns, so I had ignored the existing convention); the glob
+swept in two `-PROPOSAL` documents; "that session's JSONL" pointed at 136 UUID-named files with no
+mapping (a slug `grep -l` resolves it 1:1 — now in the prompt); and it told the instance to park
+ambiguous items in `## Open`, which step 0 then force-clears — a contradiction that would have
+forced exactly the guesses the instruction existed to prevent. Added a `## Needs Andrew` section to
+`PROMOTION-QUEUE.md` that step 0 is explicitly exempt from, plus clean-tree/fetch/explicit-path
+guards for both repos.
+
+The honest one: **"schedule yourself nightly" is not something an instance can do.** Max wakeup is
+one hour. Wrote the launchd runner + plist instead, and resolved the binary path rather than guessing
+it — `command -v claude` answers `claude` because it is a shell *function*; launchd has no profile,
+so a bare `claude` would have failed silently into a log file.
+
+**F4/F7 — report and ideas log.** Two "Ideas flagged" statuses were outside the skill's
+`new/unblocked/actionable/shipped` vocabulary, and one card was not an idea at all. Moved the
+promotion report into its own section, reused the `.card ul` CSS verbatim from `2026-06-20.html`
+rather than inventing it, and corrected the stale `218/397` figures to `229/405` in both the report
+and the ideas log. Render evidence is now durable in `render-evidence/` — "rendered and viewed"
+being a bare self-report was itself a valid finding.
+
+### The pattern across all four passes
+Every pass found defects in the *verification*, not the substance: a gate narrowed while being
+called a re-binding, a threshold that cancelled to zero, a miscount stated in the same sentence as
+the correct delta, a scan reading outside its own audit boundary, and a cost objection asserted
+without measuring the cost. Four passes and each one still found something real — the fourth found
+the most serious issue of the whole session. The lesson is not "run more passes"; it is that my own
+review of my own verification is the least reliable step, and the cheapest fix is an adversary who
+does not share my framing.

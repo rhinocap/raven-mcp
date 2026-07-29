@@ -3,7 +3,7 @@
 ## Innovations shipped
 
 - **Message-relevant memory retrieval** (2026-07-29, `~/.claude/hooks/memory-recall.py`) — the
-  harness auto-loads only the cwd-scoped memory pool, so 218 of 397 memories (every `user`/
+  harness auto-loads only the cwd-scoped memory pool, so 218 of 397 memories at build time — 229 of 405 by session end, after this revisit's promotions — (every `user`/
   `feedback` entry — how to work with Andrew, applicable in every repo) were structurally invisible
   outside the one directory they were written in. Measured the whole ladder before choosing:
   consolidating and auto-loading all bodies is ~90,597 tokens/session, the index alone ~17,223, and
@@ -11,13 +11,13 @@
   only hook event that receives the user's message — `PreToolUse` never does, `Stop` fires too late)
   scores the prompt against every cross-cutting memory's headline and injects the top 6 as pointers.
   Rarity is measured in unique-term units normalised by `log(n)`, so the threshold means the same
-  thing at 218 memories as at 500 rather than silently loosening as the corpus grows. Fails open and
+  thing at 229 memories as at 500 rather than silently loosening as the corpus grows. Fails open and
   logs; verified against a 9-case failure matrix (malformed/list/string/null stdin, corrupt and
   wrong-shape caches, 1.2MB prompt, atomic writes, mid-TTL invalidation) at cold 36ms / warm 20ms
   against a 5s timeout. **Honest ceiling, stated in the rule itself:** retrieval is lexical and
   silence is its failure mode — "this visual bug" recalls the eyes-first rule, "the six dots at the
   bottom are misaligned" recalls nothing. `graphify query --budget` is the documented upgrade path,
-  deliberately NOT the first rung, because 397 headline lines need no artifact kept fresh.
+  deliberately NOT the first rung, because ~400 headline lines need no artifact kept fresh.
 
 - **P4.5 shipped** (2026-07-06, commits `374b067`/`a704725`/`b961486` on `p4-remote-taste`) — the final Phase-4 slice of the remote Taste Engine: `delete_taste_data` (authed-only, `confirm:"DELETE"`, SMEMBERS index-walk + SCAN sweep + a final verify SCAN, injection-guarded `sub`, idempotent), a per-user fixed-window rate limiter (`api/_ratelimit.js`, fail-open, separate `rl:` key namespace, 429+Retry-After, anonymous endpoint untouched), a privacy/retention doc + README section, a written (not built) creative-subset scope doc, and a human-gated production promote plan. An adversarial Codex pass found and both fixes shipped: the rate-limit TTL wasn't re-armed on every hit (only the first), and an oversized/invalid `id` was reflected into 429 bodies before the size cap ran. All invariants held live: anon 45/golden, authed 56, stdio 70, `api/mcp.js` byte-identical. Live authed-token legs and the actual production promote remain deliberately gated on Andrew.
 - **v1.16.0 released** (2026-07-05) — remote-hosted Raven MCP, Phases 0/1/3: additive `buildServer()` factory (stdio keeps its module-level `McpServer` singleton; a `StreamableHTTPServerTransport` HTTP endpoint gets a fresh server per request); `REMOTE_GATED_TOOLS` + `isRemoteRuntime()` one-way latch gating filesystem/local-store/side-effecting tools off the no-auth remote endpoint (45 stateless tools remain, verified via `test/remote-store-invariant.test.mjs`); an in-process SSRF-safe egress proxy + `@sparticuz/chromium`-launched hardened headless Chromium for the 5 browser-dependent tools. Survived 6 rounds of Codex adversarial falsification, each catching a real vulnerability (fs-read/SSRF/compute-DoS, path traversal, local-store oracle, side-effect abuse, socket-teardown race, over-broad trigger regex) before shipping. Also ships Phase 4.0 (async `TasteStore` interface, `FsTasteStore`/`ClosedTasteStore`, byte-identical stdio behavior) and a new cinematic-website taste-engine feature (AI cinematic video hero via Higgsfield/Seedance 2.0, scroll-scrub cinematic sequence — 2 new `TECHNIQUE_RECIPES`, 4 new interview options). Verified live; all suites green.

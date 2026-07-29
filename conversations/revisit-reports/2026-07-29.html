@@ -140,11 +140,13 @@
   .badge-repeat { background: rgba(255,64,129,0.12); color: var(--accent-pink); }
   .badge-win { background: rgba(0,230,118,0.12); color: var(--accent-green); }
   .badge-fixed { background: rgba(0,230,118,0.12); color: var(--accent-green); }
-  .card p {
+  .card p, .card li {
     color: var(--text-secondary);
     margin-top: 4px;
     line-height: 1.65;
   }
+  .card ul { padding-left: 18px; margin-top: 8px; }
+  .card ul li { margin-bottom: 4px; }
   .card code {
     font-family: var(--font-mono);
     font-size: 13px;
@@ -322,7 +324,7 @@
     <div class="section-label">Shipped</div>
     <div class="card">
       <div class="card-title">memory-recall.py — message-relevant retrieval <span class="badge badge-shipped">Live</span></div>
-      <p>A <code>UserPromptSubmit</code> hook — the only hook event that receives the user's message (<code>PreToolUse</code> never does, <code>Stop</code> fires too late). Scores the prompt against every cross-cutting memory's headline and injects the top 6 as pointers. Rarity is measured in unique-term units normalised by <code>log(n)</code>, so the threshold means the same thing at 218 memories as at 500 instead of silently loosening as the corpus grows.</p>
+      <p>A <code>UserPromptSubmit</code> hook — the only hook event that receives the user's message (<code>PreToolUse</code> never does, <code>Stop</code> fires too late). Scores the prompt against every cross-cutting memory's headline and injects the top 6 as pointers. Rarity is measured in unique-term units normalised by <code>log(n)</code>, so the threshold means the same thing at 229 memories as at 500 instead of silently loosening as the corpus grows.</p>
       <p>Verified against a 9-case failure matrix: malformed / list / string / null stdin all exit 0, corrupt and wrong-shape caches both rebuild, a 1.2MB prompt runs in 0.03s, atomic writes leave no litter, a memory added mid-TTL is recalled without waiting the hour. Cold 36ms, warm p50 20ms, against a 5s timeout.</p>
       <p><strong>Honest ceiling, written into the rule itself:</strong> retrieval is lexical and silence is its failure mode. "this visual bug" recalls the eyes-first rule; "the six dots at the bottom are misaligned" recalls nothing. Absence of a recall block means nothing matched — never that nothing applied. <code>graphify query --budget</code> is the documented upgrade path, deliberately not the first rung, because 397 headline lines need no artifact kept fresh.</p>
       <div class="tag-row"><span class="tag">8 defects fixed by 2 adverse passes</span><span class="tag">fails open, logs to .memory-recall-errors.log</span><span class="tag">47% fire · ~211 tokens</span></div>
@@ -385,7 +387,7 @@
       <p>A <code>UserPromptSubmit</code> hook scores the prompt against every cross-cutting memory's headline and injects the top six as pointers, ~200 tokens a turn. It exists because the harness auto-loads only the cwd-scoped pool, which left every <code>user</code>/<code>feedback</code> memory structurally invisible outside the one directory it was written in. Rarity is normalised by <code>log(n)</code> so the threshold means the same thing at 229 memories as at 500.</p>
     </div>
     <div class="card">
-      <div class="card-title">graphify over the memory pools <span class="badge badge-verified">Deferred on purpose</span></div>
+      <div class="card-title">graphify over the memory pools <span class="badge badge-verified">Actionable</span></div>
       <p>The documented upgrade path when the lexical ceiling starts costing real misses — deliberately not the first rung, because 405 headline lines need no artifact kept fresh. The trigger to promote it is Andrew reporting a silent recall miss; that signal is the one input the measurement can't produce on its own.</p>
     </div>
     <div class="card">
@@ -394,11 +396,24 @@
     </div>
     <div class="card">
       <div class="card-title">The rule corpus itself under version control <span class="badge badge-shipped">Shipped</span></div>
-      <p><code>~/.claude</code> had no git history at all — only four ad-hoc <code>CLAUDE.md.bak-*</code> copies — while twelve rule edits landed in a single day, one of them a silent narrowing of the done-gate. An allowlist repo now tracks the 117 hand-authored files (672&nbsp;KB) and excludes settings, transcripts, caches, and the 1.5&nbsp;GB of vendored plugin trees.</p>
+      <p><code>~/.claude</code> had no git history at all — only four ad-hoc <code>CLAUDE.md.bak-*</code> copies — while twelve rule edits landed in a single day, one of them a silent narrowing of the done-gate. An allowlist repo now tracks 517 hand-authored files (2.7&nbsp;MB): the rule corpus, the control plane <em>settings.json actually invokes</em>, 47 skill definitions, and 404 memory entries.</p>
+      <p>Getting there took three corrections, all found by measuring rather than reading. The first draft allowlist would have committed <strong>1.5&nbsp;GB</strong> of vendored plugin trees; <code>skills/gstack</code> staged as a bare gitlink because it is its own repo; and 42 of the "90" skill definitions turned out to be absolute-path <strong>symlinks</strong> into that ignored tree, which is also why an earlier credential scan appeared to find an AWS key — grep was following a symlink out of the tracked set. Excluded on the fourth pass: <code>settings*.json</code> (MCP configs hold keys) and <code>memory/user_*.md</code> plus <code>reference_credentials.md</code> — personal financial, service-history and employer-confidential entries, and credential <em>locations</em>. Git history is permanent; those are not rules, so leaving them out is scope-correct rather than a compromise.</p>
     </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Rules promoted — and where each landed</div>
     <div class="card">
-      <div class="card-title">RavenMCP opportunities <span class="badge badge-verified">None — recorded</span></div>
-      <p>All four checklist items came back negative: no manual or scripted design audit, no round-trips lost to a missing capability, no skill written around a Raven gap, no visual false positive. Zero rendered surfaces were touched. Logged explicitly so a genuine zero stays distinguishable from a skipped scan.</p>
+      <div class="card-title">All five verified on a loaded surface <span class="badge badge-verified">Grep-confirmed</span></div>
+      <p>Step 3 requires each rule be reported as <code>✓ landed in &lt;file&gt;</code>, auditable rather than asserted. All five are in <code>~/.claude/CLAUDE.md</code> — now itself under version control — and each is cross-linked to a memory file that carries the reasoning:</p>
+      <ul>
+        <li>Count it, don't ask it — <code>&lt;understanding-and-autonomy&gt;</code> ✓ <code>feedback_count_it_dont_ask_it.md</code></li>
+        <li>The skill-scan mandate is overridden — <code>&lt;hooks&gt;</code> ✓ <code>feedback_skill_scan_mandate_is_overridden.md</code></li>
+        <li>Verify a tunable's effect, not its code — <code>&lt;verification&gt;</code> ✓ <code>feedback_verify_effect_not_code.md</code></li>
+        <li>Rule rewrites diff the trigger set — <code>&lt;verification&gt;</code> ✓ <code>feedback_rule_rewrites_diff_the_trigger_set.md</code></li>
+        <li>Validate ground truth before reporting a rate — <code>&lt;verification&gt;</code> ✓ <code>feedback_validate_ground_truth_before_reporting_a_rate.md</code></li>
+      </ul>
+      <p>The fourth adverse pass caught that the second of those had no memory counterpart at all: its measurement — 625 skills on disk, 4 of 237 invocations were <code>superpowers:*</code> — existed only on the always-loaded surface, with nowhere durable to carry the why. Written and indexed.</p>
     </div>
   </div>
 

@@ -15,11 +15,23 @@ Never check off / move / delete an item in a headless run. Only a manual `/revis
 entries. If a headless run sees an existing open row for the same slug, bump its count
 in place instead of duplicating.
 
+**`## Needs Andrew` is exempt from the step-0 clearing gate (added 2026-07-29).** Step 0 blocks
+the revisit until `## Open` is empty, which created a contradiction for an automated nightly run:
+told to park genuinely ambiguous lessons rather than guess at a global rule, it would park them in
+`## Open` and then be forced by its own next iteration to promote or drop them. Anything whose
+correct rule depends on a preference only Andrew can state goes in `## Needs Andrew` instead. That
+section is never force-cleared, never counted by step 0, and is emptied only when he rules on it.
+
 ## Open
 
 _(empty — cleared 2026-07-29 by the manual working-agreement revisit; all 7 promoted below and grep-confirmed.)_
 
 > **Loading criterion, learned the hard way (2026-07-29):** only `~/.claude/CLAUDE.md`, `rules-digest.md`, and the **cwd-scoped** `memory/` pool load at session start. The canonical cross-project pool at `~/.claude/projects/-Users-accunliffe-projects/memory/` does **not** load inside a repo session. A rule promoted only there is reachable, not loaded. Sol's falsification pass caught three items (cwd-check, background-exit, clean-advisor-context) claimed as landed on that basis; they now also carry a compressed form in CLAUDE.md. Promote cross-cutting rules to CLAUDE.md, and use memory for the long form.
+
+## Needs Andrew
+
+_(empty — no parked items. Rows here use the same format as `## Open`, plus a trailing
+`| QUESTION: <the one thing only he can answer>`.)_
 
 ## Promoted
 
