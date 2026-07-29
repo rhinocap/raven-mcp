@@ -5,9 +5,11 @@ Per-instance log. Not a raven-mcp code session — the repo is only the cwd; eve
 
 ## Where this left off
 
-All 9 approved items applied and grep-confirmed. A GPT-5.6-Sol medium falsification pass is the
-last gate before the word "done" (that gate is itself one of the new rules, applying to its own
-rollout). Two decisions are open and belong to Andrew — see **Open for Andrew** below.
+All 9 approved items applied and grep-confirmed. Three GPT-5.6-Sol medium falsification passes ran
+and every real objection is dispositioned below (that gate is itself one of the new rules, applying
+to its own rollout). The two questions that were open for Andrew are CLOSED — he returned both as
+counter-questions and both were answered by measurement; see **Both open items — answered by
+measurement**. Nothing is pending on him from this session.
 
 ## What Andrew asked for
 
@@ -248,7 +250,7 @@ found a real bug I had verified around, and it forced me to retract a number.
 | Defect | Reality |
 |---|---|
 | **cwd penalty was a no-op** | `basename(dirname("/Users/…/projects/raven-mcp"))` = `projects`, a substring of *every* path under `~/.claude/projects/` — so all 223 entries got the same penalty and it cancelled to nothing. Now maps cwd→pool the way the harness does (`cwd.replace("/","-")`). **Sol's best catch; I had "verified" the penalty by reading it, not by testing it.** |
-| 4 memories silently invisible | `feedback_*.md` files with no parseable `type:` were dropped. Now falls back to the filename prefix. Corpus 218 → 223. |
+| 5 memories silently invisible | `feedback_*.md` files with no parseable `type:` were dropped. Now falls back to the filename prefix. Corpus 218 → 223 — a delta of **five**, not four: `bind_literal_video_surface_url`, `builder_velocity_design_gap`, `dm_proof_isnt_public_copy`, `gridline_content_gutter`, `swatch_square_geometry`. (Sol pass 3 caught the miscount; I had reported 4 against my own +5 corpus delta in the same sentence.) |
 | Valid-JSON/wrong-shape cache | `{"v":2}` passed the version check, then `index["entries"]` raised into the silent catch — recall dead for an hour. Now shape-validated. |
 | Non-atomic cache write | A concurrent hook or a kill mid-`json.dump` left a partial cache. Now temp + `os.replace`. |
 | Unreadable pool killed everything | `os.listdir` on a project root raised outside the per-file guard. Now guarded at both levels. |
@@ -312,7 +314,60 @@ dispositioning a truncated report and calling it a full pass.
 
 ## Carried forward
 
-- Sol falsification pass output → disposition every real objection before the word "done."
+- ~~Sol falsification pass output → disposition every real objection~~ — DONE. Three passes ran;
+  all real objections dispositioned in this log. Pass 3 (on the revisit artifacts themselves)
+  refuted the completion claim with 11 findings, 10 real; see **Sol falsification pass #3**.
 - Re-measure at the next few `/revisit` runs: accuracy should rise, autonomy should FALL toward
   90–95. If autonomy stays at 97+ the band did not take, and the next lever is the SessionStart
   hook digest, which re-injects "8. Full autonomy" as a numbered kernel rule outside CLAUDE.md.
+
+## Session tail — the rule corpus got version control
+
+Andrew asked whether the other session writing to `~/.claude/CLAUDE.md` was correct behavior. It
+is — revisit step 3 mandates it and step 0 exists precisely because the headless nightly cannot.
+Measured rather than opined: 0 duplicate bullets across both sessions' 12 additions, and the file
+**net shrank** (78,560 B on 2026-07-01 → 26,754 B on 07-26 → 23,780 B now, 84 bullets, ~6,427
+tokens/session) because the rebalance moved detail into `reference/*.md`. That overturned my own
+"it's bloating" instinct.
+
+The real exposure the question surfaced: `~/.claude` was **not a git repo at all**. Twelve rule
+edits landed in one day — one of them a silent narrowing of the done-gate that only an adverse pass
+caught — with no diff to review and no way back, just four ad-hoc `CLAUDE.md.bak-*` copies.
+
+Two commits in a new `~/.claude` repo (local only, no remote — private rules):
+- `47a0a36` — allowlist baseline, 117 files / 672K: `CLAUDE.md`, `rules-digest.md`, `SUCCESSION.md`,
+  `rules/`, `reference/`, `hooks/`, `commands/`, `skills/*/SKILL.md` (90 definitions, top level only).
+- `5018765` — the 14 `projects/*/memory/` pools, 418 `.md` / 1.9M.
+
+**My first proposed commands were wrong and I caught it before running them, after he had already
+authorized them.** The draft allowlist included `!skills/` + `!skills/**`. `skills/` is **1.5 GB
+across 25,441 files** and contains key-shaped literals in gstack's redaction test fixtures — that
+would have been a 1.5 GB commit possibly carrying secrets. Two more traps in the same pass:
+`skills/gstack` is its own git repo and staged as a bare gitlink (unstaged with `git reset --`, not
+`rm --cached -f`, which the destructive-op guard blocks); and `hooks/__pycache__/*.pyc` needed
+excluding. `settings*.json` stays untracked because MCP configs can carry API keys.
+
+Lesson, and it is the sharper version of the spec rule: **an authorization is for the goal, not for
+the literal commands.** He approved "version the rule corpus." The commands I had drafted to do it
+were unsafe, and running them as approved would have been obedience to the wrong artifact. Measure
+the target before executing a plan, even a plan that has already been signed off.
+
+Also written: `/tmp/drafts/2026-07-29-nightly-revisit-loop.md`, the pasteable nightly `/revisit`
+loop prompt he asked for. Verified no nightly automation exists yet (no crontab match, no
+LaunchAgent beyond `claude-improve-pipeline`, `CronList` empty), so there is no double-log risk. The
+prompt hard-forbids pushing — a push to raven-mcp `main` redeploys the live MCP endpoint — and tells
+the instance to commit `~/.claude` after each promotion, which the baseline above now makes possible.
+
+### Sol pass #3, final two items closed
+- **F2 (add the missing "Ideas flagged" section)** — done. The skill's step-7 format requires it and
+  the report skipped it. Five cards, rendered and eyes-on at full size; div balance 86/86, every
+  badge class defined.
+- **F4 (cross-link the promoted rules)** — half done, half declined on measurement. Added the
+  "Promoted to a global rule (2026-07-29)" note to `feedback_verify_effect_not_code.md` and
+  `feedback_validate_ground_truth_before_reporting_a_rate.md`; the other three already had it. The
+  `(Memory: [[slug]])` back-link into `CLAUDE.md` I declined: **0 of 84 bullets in that file use
+  wikilinks.** The format is prescribed by the revisit skill template but was never adopted in the
+  actual file, so adding it to five bullets would introduce an inconsistent minority convention on
+  the always-loaded surface. The direction that matters — memory → "this is global" — already
+  exists. Same template-vs-file conflict as the Inter/Untitled Sans one, resolved the same way:
+  keep the file's real convention, name the divergence.

@@ -227,7 +227,7 @@
   <div class="cover-inner">
     <div class="cover-label">Revisit · 2026-07-29 · Manual /revisit</div>
     <h1>The autonomy miss<br>of the opposite sign</h1>
-    <p class="subtitle">Andrew opened by saying he'd been having trouble working with me and suspected his rules were fighting my system prompt. The root cause turned out to be a measurement problem: the metrics scored never-asking and error-catching, so the system evolved toward both, and accuracy paid for it. Every prior session in the table scored 97–99% autonomy. This one scored ~88% — and the defect wasn't the count, it was the type. Two of the questions were measurable facts, and when they were finally measured, the numbers reversed a recommendation I'd made an hour earlier.</p>
+    <p class="subtitle">Andrew opened by saying he'd been having trouble working with me and suspected his rules were fighting my system prompt. The best-supported explanation is a measurement problem — a hypothesis, not a cleanly attributed root cause: the metrics scored never-asking and error-catching, so the system evolved toward both, and accuracy paid for it. Every prior session in the table scored 97–99% autonomy. This one scored ~88% — and the defect wasn't the count, it was the type. Two of the questions were measurable facts, and when they were finally measured, the numbers reversed a recommendation I'd made an hour earlier.</p>
     <div class="stats">
       <div class="stat">
         <div class="stat-value orange">~71%</div>
@@ -254,7 +254,7 @@
   <div class="section">
     <div class="section-label">The diagnosis</div>
     <div class="highlight">
-      <p><strong>Fable's framing, adopted over mine:</strong> the friction is a measurement problem, not rules-versus-harness. The scoreboard rewarded never asking a question and rewarded catching errors after the fact — so the corpus grew 18 post-claim verification bullets against roughly one pre-attempt clause. All four dominant failure classes occur <em>before</em> the first attempt. Weight moved forward: a ≤10-line spec naming every file, surface, capability axis, and human gate before the first edit.</p>
+      <p><strong>Fable's framing, adopted over mine — as the leading hypothesis, not an established cause:</strong> the friction is a measurement problem, not rules-versus-harness. Attributing it cleanly needs a fixed-rubric sample across future sessions, which does not exist yet. The scoreboard rewarded never asking a question and rewarded catching errors after the fact — so the corpus grew 18 post-claim verification bullets against roughly one pre-attempt clause. All four dominant failure classes occur <em>before</em> the first attempt. Weight moved forward: a ≤10-line spec naming every file, surface, capability axis, and human gate before the first edit.</p>
     </div>
     <div class="card">
       <div class="card-title">Autonomy is a band, not a maximum <span class="badge badge-fixed">Rebound</span></div>
@@ -270,7 +270,7 @@
   <div class="section">
     <div class="section-label">Primary finding</div>
     <div class="card">
-      <div class="card-title">Count it — don't ask it <span class="badge badge-miss">Autonomy miss</span></div>
+      <div class="card-title">Count it — don't ask it <span class="badge badge-miss">Autonomy gap</span></div>
       <p>I closed a findings pass with two open questions: how much of the superpowers plugin does he use, and how should the fragmented memory pools be fixed. He returned both as counter-questions.</p>
       <blockquote>"1. Memory is fragmented can't you use graphite or another knowledge graph for this? 2. I honestly don't know how much I use, can you not measure it?"</blockquote>
       <p>Both were countable, and counting took minutes. His answer would have been a guess where mine could be exact. The rule now triggers on any question containing <em>how much / how often / how many / do you usually</em>: measure first, then ask only what the numbers leave genuinely open. The budgeted question is for preferences and decisions — never for offloading measurement.</p>
@@ -283,11 +283,11 @@
     <div class="two-col">
       <div class="card">
         <div class="card-title">Superpowers: 1.7%</div>
-        <p>625 skills on disk, 237 <code>Skill</code> invocations across 400 transcripts, of which <code>superpowers:*</code> was <strong>4</strong> — two distinct skills, three of them <code>systematic-debugging</code>. For scale, <code>design-judge</code> was 105. Fixed with one CLAUDE.md line subordinating the "1% chance → you ABSOLUTELY MUST invoke before any response" mandate, rather than disabling the plugin: the skill defers to CLAUDE.md by its own text, and disabling would cost the one skill that earns its keep.</p>
+        <p>625 skills on disk, 237 <code>Skill</code> invocations across 400 transcripts, of which <code>superpowers:*</code> was <strong>4</strong> — two distinct skills, three of them <code>systematic-debugging</code>. For scale, <code>design-judge</code> was 105. Fixed with one CLAUDE.md line subordinating the "1% chance → you ABSOLUTELY MUST invoke before any response" mandate, rather than disabling the plugin: the skill defers to CLAUDE.md by its own text, and disabling would cost the most-used superpowers skill. Only invocation frequency was measured — value was not, so keeping it is a default-setting judgment, not a proven claim.</p>
       </div>
       <div class="card">
-        <div class="card-title">Memory: consolidation impossible</div>
-        <p>218 of 397 memories are cross-cutting. Auto-loading all bodies is <strong>~90,597 tokens</strong> per session; the index alone is ~17,223. Retrieving only what the message matches is ~200 tokens a turn. <strong>This reversed my own recommendation</strong> from earlier in the same session, which had proposed the migration without ever costing it.</p>
+        <div class="card-title">Memory: consolidation prohibitively expensive</div>
+        <p>218 of 397 memories are cross-cutting — a <em>pre-promotion</em> snapshot; with this session's four new files plus a parallel session's landings the pools now hold 229 of 405. Auto-loading all bodies is <strong>~90,597 tokens</strong> per session; the index alone is ~17,223 — prohibitive under the current context budget, not technically impossible, and estimated as <code>chars ÷ 4</code> rather than counted by a tokeniser. Retrieving only what the message matches is ~200 tokens a turn. <strong>This reversed my own recommendation</strong> from earlier in the same session, which had proposed the migration without ever costing it.</p>
       </div>
     </div>
   </div>
@@ -295,23 +295,23 @@
   <div class="section">
     <div class="section-label">Mistakes &amp; lessons</div>
     <div class="card">
-      <div class="card-title">I narrowed the done-gate and called it a re-binding <span class="badge badge-repeat">Worst defect</span></div>
+      <div class="card-title">I narrowed the done-gate and called it a re-binding <span class="badge badge-repeat">Worst defect</span> <span class="badge badge-miss">Accuracy gap</span></div>
       <p>The original triggered on <em>any</em> substantive completion claim, including specs, plans, audits and research. Mine triggered on four literal words — so "ready", "complete" and "all checks pass" silently stopped firing it. Introduced into the one rule whose entire purpose is preventing false-completion claims, and found by an adverse pass after I had read my own edit twice.</p>
       <p><strong>Rule:</strong> when rewriting a rule or guard, diff the trigger SET, not the prose. Replacing a class trigger with an enumeration is always a narrowing.</p>
       <div class="tag-row"><span class="tag">→ CLAUDE.md &lt;verification&gt;</span><span class="tag">→ feedback-rule-rewrites-diff-the-trigger-set</span></div>
     </div>
     <div class="card">
-      <div class="card-title">The cwd penalty was a no-op <span class="badge badge-miss">Verified by reading</span></div>
+      <div class="card-title">The cwd penalty was a no-op <span class="badge badge-miss">Accuracy gap</span></div>
       <p><code>basename(dirname("/Users/accunliffe/projects/raven-mcp"))</code> is <code>projects</code> — a substring of every path under <code>~/.claude/projects/</code>. All 223 entries got the same penalty, so it cancelled to zero. Same class: <code>IDF_FLOOR = 6.0</code> was commented "~1 very rare term" when a unique term actually scored 5.38 — a floor no term could reach.</p>
       <p><strong>Rule:</strong> verify a threshold, penalty or filter by measuring its effect on real output. If you can't name the number that changes when the tunable is wrong, it isn't verified. Normalise anything denominated in a corpus-size-dependent unit.</p>
       <div class="tag-row"><span class="tag">→ CLAUDE.md &lt;verification&gt;</span><span class="tag">→ feedback-verify-effect-not-code</span></div>
     </div>
     <div class="card">
-      <div class="card-title">Three of seven promotions were false <span class="badge badge-miss">Accuracy</span></div>
+      <div class="card-title">Three of seven promotions were false <span class="badge badge-miss">Accuracy gap</span></div>
       <p>Claimed as landed on a "session-loaded surface" when they were filed only in the canonical cross-project pool — which does <em>not</em> auto-load inside a repo session. Reachable, not loaded. Fixed by promoting the rule text itself into CLAUDE.md and keeping the long form in memory.</p>
     </div>
     <div class="card">
-      <div class="card-title">I reported a precision figure I had not measured <span class="badge badge-miss">Retracted</span></div>
+      <div class="card-title">I reported a precision figure I had not measured <span class="badge badge-miss">Retracted</span> <span class="badge badge-miss">Accuracy gap</span></div>
       <p>"~70% precision" was an eyeball, tuned twice on its own 21-prompt sample with no holdout — and it reached a public document before being withdrawn. The replacement false-negative harness then proved invalid <em>twice</em> (95%, then 100%): slash-command expansions and the <code>/clear</code> summariser prompt sit in the <code>user</code> role, and batch-written memories all inherit one shared preceding message.</p>
       <p><strong>Rule:</strong> read the actual input/label pairs before reporting a rate. Report <em>unmeasured</em> over an indefensible number, and never pick whichever of two bad numbers reads better.</p>
       <div class="tag-row"><span class="tag">→ CLAUDE.md &lt;verification&gt;</span><span class="tag">→ feedback-validate-ground-truth…</span></div>
@@ -345,7 +345,7 @@
     </div>
     <div class="card">
       <div class="card-title">The push gate held on a public repo <span class="badge badge-verified">Verified</span></div>
-      <p>A push to <code>main</code> ships every unpushed commit and redeploys the host serving the live OAuth endpoint. Verified all four files sat under <code>conversations/</code>, no <code>src/</code> or <code>api/</code> paths, no rider commits from a parallel instance — then confirmed the frozen anonymous 45-tool hash <code>f64bb185…782bb0a6</code> was byte-identical after the redeploy. The done-gate also caught the retracted 70% figure still asserted 100 lines above its own retraction, in a document about to become public.</p>
+      <p>A push to <code>main</code> ships every unpushed commit and redeploys the host serving the live OAuth endpoint. Verified the four changed files touched no <code>src/</code> or <code>api/</code> path — three under <code>conversations/</code> plus <code>.claude/raven-opportunities.md</code>, which my first write-up wrongly folded into “all under <code>conversations/</code>” — and no rider commits from a parallel instance — then confirmed the frozen anonymous 45-tool hash <code>f64bb185…782bb0a6</code> was byte-identical after the redeploy. The done-gate also caught the retracted 70% figure still asserted 100 lines above its own retraction, in a document about to become public.</p>
     </div>
   </div>
 
@@ -375,6 +375,30 @@
     </div>
     <div class="card" style="margin-top:16px">
       <p><strong>Do not read a trend across this boundary.</strong> ~71% is the lowest row in the table and it is honest, but it is not comparable: when the artifact under edit <em>is</em> the rule corpus, every defect is a rule defect, and the session was instrumented with two adversarial passes built to find exactly those. The 2026-07-29 changeover note now applies for two separate reasons — the hook-catch accounting fix and the autonomy band.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Ideas flagged</div>
+    <div class="card">
+      <div class="card-title">Message-relevant memory retrieval <span class="badge badge-shipped">Shipped</span></div>
+      <p>A <code>UserPromptSubmit</code> hook scores the prompt against every cross-cutting memory's headline and injects the top six as pointers, ~200 tokens a turn. It exists because the harness auto-loads only the cwd-scoped pool, which left every <code>user</code>/<code>feedback</code> memory structurally invisible outside the one directory it was written in. Rarity is normalised by <code>log(n)</code> so the threshold means the same thing at 229 memories as at 500.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">graphify over the memory pools <span class="badge badge-verified">Deferred on purpose</span></div>
+      <p>The documented upgrade path when the lexical ceiling starts costing real misses — deliberately not the first rung, because 405 headline lines need no artifact kept fresh. The trigger to promote it is Andrew reporting a silent recall miss; that signal is the one input the measurement can't produce on its own.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Autonomy scored as a band <span class="badge badge-shipped">Shipped</span></div>
+      <p>90–95%, with above-band counted as a miss on equal footing with below-band, because a suppressed load-bearing question is paid back as rework. Landed in both the rule corpus and the metrics accounting, so the series is intentionally discontinuous at 2026-07-29.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">The rule corpus itself under version control <span class="badge badge-shipped">Shipped</span></div>
+      <p><code>~/.claude</code> had no git history at all — only four ad-hoc <code>CLAUDE.md.bak-*</code> copies — while twelve rule edits landed in a single day, one of them a silent narrowing of the done-gate. An allowlist repo now tracks the 117 hand-authored files (672&nbsp;KB) and excludes settings, transcripts, caches, and the 1.5&nbsp;GB of vendored plugin trees.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">RavenMCP opportunities <span class="badge badge-verified">None — recorded</span></div>
+      <p>All four checklist items came back negative: no manual or scripted design audit, no round-trips lost to a missing capability, no skill written around a Raven gap, no visual false positive. Zero rendered surfaces were touched. Logged explicitly so a genuine zero stays distinguishable from a skipped scan.</p>
     </div>
   </div>
 
