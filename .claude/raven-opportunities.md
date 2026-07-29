@@ -183,3 +183,4 @@ Session was pure backend/protocol/infra work (remote MCP `delete_taste_data` too
   error/success) never render simultaneously across a scrubbed timeline. Crossfades in the
   same grid cell default to showing both at 50%, which is the one state such a beat must
   never show.
+- 2026-07-29 | none (rule-corpus + hook session) | Applied the 4-item checklist: no design audit was run manually or by script, no visual/layout verification round-trips were spent, no skill was written around a Raven gap, no visual false positive was produced. The entire session was `~/.claude/` rule-corpus edits, a `UserPromptSubmit` retrieval hook, and two adverse falsification passes — zero rendered surfaces touched, so there was nothing for a design-intelligence tool to have done better | no candidate; recorded for audit continuity so a zero is distinguishable from a skipped scan | n/a
