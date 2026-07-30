@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Revisit — 2026-07-29 (nightly sweep: the 45-session backlog)</title>
+<title>Revisit — 2026-07-29 (nightly sweep: the 48-session backlog)</title>
 <style>
   :root {
     --bg-base: #1a1a22;
@@ -230,18 +230,18 @@
   <div class="cover-inner">
     <div class="cover-label">Revisit · 2026-07-29 · Nightly sweep</div>
     <h1>Forty-five sessions,<br>one repeated mistake</h1>
-    <p class="subtitle">The task described a backlog of about two logs. Disk said forty-five, reaching back to 2026-04-11 — a nightly job that was never actually nightly, because no agent instance can schedule itself past one hour. Read end to end, the backlog does not contain forty-five different failures. It contains one, over and over: a surface identified by its route instead of its rendered content, an artifact claimed from the repo instead of pulled from where it ships, a theory shipped as a fix before anything was instrumented. Ten rules landed on a loaded surface; seven of them amend a bullet that already existed.</p>
+    <p class="subtitle">The task described a backlog of about two logs. Disk said forty-eight, reaching back to 2026-04-11 — a nightly job that was never actually nightly, because no agent instance can schedule itself past one hour. Read end to end, the backlog does not contain forty-eight different failures. It contains one, over and over: a surface identified by its route instead of its rendered content, an artifact claimed from the repo instead of pulled from where it ships, a theory shipped as a fix before anything was instrumented. Eleven rules landed on a loaded surface; seven of them amend a bullet that already existed. The falsification pass then caught that seven of the eleven had no memory file behind them, and that one back-link already in CLAUDE.md was dangling — all nine now exist.</p>
     <div class="stats">
       <div class="stat">
-        <div class="stat-value blue">45</div>
+        <div class="stat-value blue">48</div>
         <div class="stat-label">Sessions revisited</div>
       </div>
       <div class="stat">
-        <div class="stat-value green">10</div>
+        <div class="stat-value green">11</div>
         <div class="stat-label">Rules on a loaded surface</div>
       </div>
       <div class="stat">
-        <div class="stat-value orange">0 / 45</div>
+        <div class="stat-value orange">0 / 48</div>
         <div class="stat-label">Transcripts the slug-grep resolved</div>
       </div>
       <div class="stat">
@@ -261,8 +261,8 @@
     </div>
     <div class="card">
       <div class="card-title">The prescribed transcript lookup does not work <span class="badge badge-miss">tooling gap</span></div>
-      <p>The documented disambiguator is <code>grep -l '&lt;log-slug&gt;' ~/.claude/projects/&lt;repo&gt;/*.jsonl</code>, with "exactly one match is authoritative." Run across all 45 slugs against 135 transcripts, it resolved to exactly one file <strong>zero times</strong> — hit counts ran from 2 to 50 per slug.</p>
-      <p>The reason is structural, not incidental: every later session that reads a session log quotes its filename, so the slug propagates into far more transcripts than the one that wrote it. Slug-grep is not an index. All 45 were therefore revisited from their session logs, per the fallback instruction.</p>
+      <p>The documented disambiguator is <code>grep -l '&lt;log-slug&gt;' ~/.claude/projects/&lt;repo&gt;/*.jsonl</code>, with "exactly one match is authoritative." Run across all 48 slugs against 135 transcripts, it resolved to exactly one file <strong>zero times</strong> — hit counts ran from 2 to 50 per slug.</p>
+      <p>The reason is structural, not incidental: every later session that reads a session log quotes its filename, so the slug propagates into far more transcripts than the one that wrote it. Slug-grep is not an index. All 48 were therefore revisited from their session logs, per the fallback instruction.</p>
       <p><strong>The fix:</strong> a <code>conversations/.transcript-index.tsv</code> mapping log filename → session UUID, written by the session-log step itself — the writing session is the only party that knows its own id for free. Failing that, key on <code>cwd</code> plus the first-user-turn timestamp range. Filed in the ideas log.</p>
     </div>
   </div>
@@ -288,13 +288,14 @@
   </div>
 
   <div class="section">
-    <div class="section-label">Promoted — ten rules, seven as amendments</div>
+    <div class="section-label">Promoted — eleven rules, seven as amendments</div>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Rule</th><th>Earned by</th><th>Landed</th></tr></thead>
         <tbody>
           <tr><td>Instrument the live surface before shipping a fix built on an engine-internals theory</td><td>07-23 grab-scroll-fix</td><td>amended <code>&lt;understanding-and-autonomy&gt;</code></td></tr>
           <tr><td>A named URL is BINDING; identity is rendered page-specific content</td><td>07-20/21/22 — 4 misses</td><td>new bullet</td></tr>
+          <tr><td>A gate that exists only in prose will be bypassed — enforce it in the engine</td><td>07-04 interview-guard</td><td>new bullet, <code>&lt;coding&gt;</code></td></tr>
           <tr><td>A pasted URL is not an assignment; work stays in this session's repo</td><td>07-28, 07-17</td><td>new bullet</td></tr>
           <tr><td>Repo / published / deployed are three separate claims</td><td>07-25, 07-27, 07-28</td><td>new bullet, <code>&lt;verification&gt;</code></td></tr>
           <tr><td>Media handoff: path, metadata, and first frame must be THIS render</td><td>07-20</td><td>new bullet, <code>&lt;verification&gt;</code></td></tr>
@@ -328,12 +329,12 @@
       <div class="card">
         <div class="card-title">First-attempt accuracy <span class="badge badge-win">~93%</span></div>
         <p>One self-caught miss: a <code>(Memory: [[slug]])</code> back-link written into CLAUDE.md before reading the memory file's actual <code>name:</code> field. Same root as the class this sweep was promoting rules about — verified by assumption instead of by reading the artifact. Fixed in the next edit.</p>
-        <p>Not counted as a miss: the transcript disambiguator failing on all 45 slugs. That is a limitation of the prescribed method, not an attempt.</p>
+        <p>Not counted as a miss: the transcript disambiguator failing on all 48 slugs. That is a limitation of the prescribed method, not an attempt.</p>
       </div>
       <div class="card">
         <div class="card-title">Autonomy <span class="badge badge-verified">~100%, band 90–95</span></div>
         <p>High by 5 points, and defensible here: the instruction was a fully-specified procedure carrying its own skip rules, commit rules, and an explicit "stop, do not self-schedule" ending. Every fork was answered by the instruction or countable from disk.</p>
-        <p>The one thing a question could have bought — work the ~2-session backlog the framing implied, or the 45 on disk — was resolved by reporting the true scale and doing all 45, which the instruction's own coverage rule required.</p>
+        <p>The one thing a question could have bought — work the ~2-session backlog the framing implied, or the 48 on disk — was resolved by reporting the true scale and doing all 48, which the instruction's own coverage rule required.</p>
       </div>
     </div>
     <div class="two-col">
