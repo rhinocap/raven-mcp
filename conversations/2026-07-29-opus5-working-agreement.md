@@ -584,3 +584,69 @@ does not share my framing and (2) a mechanical coverage gate rather than a count
 
 Final state: `ca3c07c` on portfolio `main`, local, **unpushed**. 0 FAIL on all five decks, 13/13
 checks covered and firing, no leaked fixture, clean tree.
+
+### Round three, and the finding that justified running it
+I ran a third pass because rounds one and two had each found real defects and round two's fixes were
+verified only by my own command output. It REFUTED again — 8 defects, and the top one is the sharpest
+of the day. Two process notes first, because both cost me time:
+
+**The pass nearly went unread.** I used `kill -0 <pid>` to poll for the worker, the PID got RECYCLED
+onto an unrelated 2-minute-old process, and my liveness check reported "still running" for four
+straight windows while the output file sat static. I concluded Sol had died mid-report and started
+fixing on partial findings. It had actually completed and written a full verdict. Both the earlier
+`pgrep` pattern miss and this are the same rule — *confirm the worker EXITED* — failing on two
+different mechanisms. The reliable signal was the harness's own task notification, which I already had.
+
+**Sol's four structural HIGHs were all LATENT.** Zero slides use `template`, zero lack `blocks`, zero
+have a null-sized figure, zero use `clip`. Checking that before fixing mattered: it changed each one
+from "the audit is currently lying about five decks" to "the audit goes blind the moment someone uses
+a supported feature." Still worth fixing — two of them blind `panel-count`, the original defect this
+tool exists for — but the severity claim in the report was not the severity on disk. Verify the
+adversary's premise, not just its logic.
+
+**What was real and is now fixed (`a9f3dce`).**
+- `template` slides. `slides.ts:300` renders `[...templatePanels(s.template), ...(s.panels ?? [])]`;
+  the audit reads raw JSON. Add `template:"card"` to a slide with an explicit card and the runtime
+  draws two overlapping cards while the audit says clean. It now FAILs rather than measuring panels
+  the deck does not render — refusing to measure beats measuring the wrong thing.
+- `clip`. It is an INDEX into the slide's panels, and a clipped figure is *designed* to bleed past
+  that panel and be masked. The audit applied raw canvas bounds, so a legitimate `{x:-100,clip:0}`
+  device bleed would FAIL and exit 1. A false FAIL is the worst direction for an audit: it gates a
+  true claim, and a table that does that gets ignored, which is how the original defects shipped.
+- Missing `blocks`. `ExactSlide.tsx:298` calls `layout.blocks.map` unguarded while every sibling
+  access uses `?? []` — so a slide that CRASHES the deck passed the audit clean. `arr(v) => v ?? []`
+  is what makes the geometry checks tolerant of optional fields, and the same tolerance is what
+  swallowed this.
+- `video`/`poster` assets. The only ACTIVE defect: 8 real figures carry those instead of `src`, so
+  neither asset check ever looked at them. A video pointing at a provably absent file returned
+  `findings: []` and exit 0. Now 2 FAIL. All 8 resolve on disk today, so the baseline did not move.
+
+**And the two the harness itself was missing.** Round two's lesson was "counting fixtures is not
+counting checks." Round three's is one level finer: **coverage of a NAME is not coverage of a BRANCH.**
+Sol gated `panel-rail` on `containers.length === 1` — killing it on every multi-card slide — and the
+harness exited 0, because that check's only fixture mutates a single-container slide. Exactly the
+`figure-in-panel` bug from round two, in a different check, surviving the gate built to stop it.
+No iep slide has two top-level cards, so the fixture had to synthesize one. I mutation-tested the fix
+rather than reading it: with the guard reintroduced the harness now exits 1. Separately, the gate's
+name regex was evadable — a reachable ``warn(id, `synthetic-check`, …)`` was invisible to it, so the
+gate now counts every emit site and errors on any name it cannot read.
+
+**Dispositioned without a code change.** Sol called apple's three `column-drift` WARNs false
+positives: S11/S13/S15 indent list items to x=481 under x=400 headings, the same 81px each time,
+which reads like a list indent. It is probably right, and `column-drift` cannot tell indentation from
+drift. But it is a WARN, not a FAIL, and the honest state is unreviewed-pending-the-rendered-pass —
+so it stays visible and is now written down as a ceiling rather than silenced. Its S4/S4-OAI
+"structural false positive" point was already documented in the skill's baseline table.
+
+Final: **15 checks, 21 fixtures**, all firing, plus a negative case proving `clip` stays silent.
+0 FAIL on all five decks with identical WARN counts — three rounds of hardening cost zero new false
+positives on real data. `a9f3dce` local, still unpushed.
+
+**Six adverse passes today, six refutations, and every single one found the defect in the
+verification rather than in the work.** A gate narrowed while I called it a re-binding; a threshold
+that cancelled to zero; a citation pointing at the wrong rule; a constant that made its own check
+tautological; a fire-proof green on 5 uncovered checks; and now a coverage gate blind to branches
+and to its own unreadable names. The pattern is not that I write bad checks — it is that I cannot
+audit my own audit, because the same inference that wrote the gap reads the code and agrees with it.
+The two things that actually worked were an adversary with no access to my framing, and mutation
+testing — inverting the guard and watching the harness fail. Both are cheap. Neither is optional.
