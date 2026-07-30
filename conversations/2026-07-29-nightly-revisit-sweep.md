@@ -47,7 +47,9 @@ fallback instruction directs. A better future disambiguator would key on the
 working-agreement revisit; all 7 items promoted and grep-confirmed).
 `## Needs Andrew` empty. Recorded as **queue already empty** — no work.
 
-## Step 3 — ten rules promoted (commit `549e0f0` in `~/.claude`)
+## Step 3 — eleven rules promoted (`549e0f0` + `458e222` in `~/.claude`)
+
+The first ten are below; the eleventh is in **The eleventh rule** further down.
 
 Every candidate was grepped against `~/.claude/CLAUDE.md` first; none already
 existed. Seven of the ten **amend an existing bullet** rather than adding a new
