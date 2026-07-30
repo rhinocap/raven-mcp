@@ -444,3 +444,96 @@ without measuring the cost. Four passes and each one still found something real 
 the most serious issue of the whole session. The lesson is not "run more passes"; it is that my own
 review of my own verification is the least reliable step, and the cheapest fix is an adversary who
 does not share my framing.
+
+---
+
+## Window 4 — draining the sign-off backlog, and the two things that turned out wrong about it
+
+### Where this left off
+Andrew ticked all 25 Section B items in `improve/review/2026-07-29-consolidated.md`. Applied 21,
+dropped 1 on his explicit say-so, confirmed 2 already live, and one — B24 — I escalated to him as
+blocked. Committed as `~/.claude` `cc38ea6` (23 files, +195/−64, local only; the pre-push hook blocks
+`~/.claude` from ever reaching a remote, override `ALLOW_CLAUDE_PUSH=1`).
+
+### Sol refuted the commit: 8 real defects out of 14 claimed
+The falsification pass earned its keep. Working invocation, after two failures:
+`codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium -C /Users/accunliffe/.claude < /dev/null`
+— `gpt-5.6-sol-medium` as a model name is rejected on a ChatGPT account, and it **exits 0 while
+producing nothing**, which is only visible by reading the output file. An nohup'd run from `~/.claude`
+also exited 0 with 72 lines and no report; foreground with explicit `-C` worked.
+
+What it found:
+1. **Six rules had "landed" in `reference/*.md` that nothing routes to.** Only `~/.claude/CLAUDE.md`,
+   the rules-digest, and the **CWD-scoped** memory pool auto-load. `reference/` and `skills/` are
+   read on demand, and the canonical cross-project pool does not load inside a repo session. Filing a
+   rule there without a loaded pointer is a write-only promotion. Fixed by extending the three
+   CLAUDE.md pointer lines to name the new categories — diffing the trigger set, not the prose.
+2. **Two Section A citations were wrong.** My `check()` helper grepped for a rule's vocabulary and
+   reported the FILE that matched. Silent-tool-fallback is at `reference/diagnostic-rules.md:16`; my
+   citation pointed at a line about *device* fallback. `codex-rescue`-is-a-forwarder lived only in
+   `reference/highlvl-craft-rules.md`, read during HighLvl work and nowhere else.
+3. **Two more of the same in B22** — gen-video's real home is
+   `memory/reference_higgsfield_is_a_cli.md:19`, and the "kickoff-gate" grep hit an unrelated "carry
+   both bindings" clause. Three false LIVE verdicts in one session, all one mechanism.
+4. **B10/B11 were filed only in the canonical pool**, which does not load in the repo they govern.
+   B11 refiled into the portfolio's CWD-scoped pool.
+
+Sol's defect 13 is wrong — it flagged B18 as approved-then-dropped, having no way to see Andrew's
+*"I'm ok with your take on B18, disregard me response."* The annotation now quotes him verbatim so
+the next reader or pass does not re-raise it.
+
+**Rule promoted from this:** confirming a rule "already exists" means reading the MATCHED LINE, not
+the matching filename. A pattern loose enough to match a paraphrase is loose enough to match an
+unrelated rule. Use `grep -n`, read the hit, and for anything in `reference/` or `skills/` also
+confirm a loaded pointer routes a reader there at the moment it matters.
+
+### B24 was never blocked — I asked Andrew for a fact I could have measured
+I told him, upfront and in the gate preflight, that there was no IEP deck to audit. The deck is
+inside the portfolio repo: `src/lib/deck/iep-layout.json` (19 slides), with `dh-layout.json` (28)
+next to it. I had searched `~/projects` for a *project* named for the deck and stopped there. This
+is exactly the "if a question is answerable by counting, count it" rule, and it was the only item on
+the gate list that turned out not to need him at all — B21 resolved itself too (the Perplexity key
+works; the memory claiming otherwise was stale and is deleted).
+
+Built as portfolio `862d26d` (local, **unpushed** — that repo requires his fresh explicit approval
+per the rule this same session refiled):
+- `scripts/audit-deck-geometry.mjs` — 9 checks over the layout JSON, exit 1 on FAIL.
+- `scripts/audit-deck-geometry.fixtures.mjs` — 7 injected defects, each asserting the check that must
+  report it, exit 1 if any goes unreported.
+- `.claude/skills/deck-slide-geometry-audit/SKILL.md` — two-half gate; the script covers every slide,
+  the rendered pass covers what the JSON cannot see (glyphs, wrapping, real overflow).
+
+### Two calibration findings, and one that was almost shipped broken
+**Optical margins are not box coordinates.** A global "every text block starts on the x=400 rail"
+assertion flagged every finished slide. A 300px display numeral sits at x=342 so its *optical* left
+lands on the rail, and its caption at x=356 aligns to the numeral's stem. The audit clusters columns
+and checks intra-column consistency instead. Residual ceiling documented: an offset under
+`max(24, 0.25 × largest type)` — 75px on a 300px numeral — reads as deliberate side bearing.
+
+**The one I nearly shipped: per-deck constants.** `TEMPLATE_PANEL` and a one-entry `IEP-06` allowlist
+were hardcoded from the IEP deck. Running the audit against `dh` produced 10 false `panel-band` WARNs
+(dh's own dominant band is `y=400 h=1656`, not `h=2080`) and a false `panel-count` FAIL on DH-20 —
+whose 2-up is the identical nested-comparison pattern IEP-06 was allowlisted for. Worse, the same
+constant made `panel-band` **tautological on iep**: it matched all 14 single-card slides exactly and
+skipped IEP-06, so the check had never once fired on real data. A green run and a dead check produce
+identical output. Both are now derived from the deck being audited — the band from its own majority
+(silent with no majority), and "top-level card" from strict containment, so nested comparison cards
+are structural rather than named. This is `feedback-verify-effect-not-code` recurring a third time in
+one day; per the promoted-rule-needs-a-mechanical-trigger rule, the fix is the fixtures harness, not
+another paragraph. `isContainer` also went through a wrong intermediate form — left-rail anchoring
+does not describe the IEP standard card (x=1960, text to its left), and right-rail anchoring makes
+`panel-rail` tautological. Containment was the only formulation that works for both decks.
+
+One fixture miss worth remembering: `overflow` at `+400px` read as an uncaught defect when the check
+was fine — the block ends at x=1760 and never reached the 4720 rail. **An under-sized fixture is a
+broken fixture, not a broken check.** Size the mutation against the invariant.
+
+### State at the end of this window
+- `~/.claude`: `cc38ea6` + one follow-up commit (pointer lines, the matched-line rule, general-video
+  §6 gate, portfolio-pool memory, 4 corrected annotations, 2 changelog entries). Local only, always.
+- `~/projects/andrewcunliffe-portfolio`: `862d26d` on `main`, local, **needs his approval to push**.
+  Two older unpushed commits (`b466957`, `9796dda`) sit under it from a prior window.
+- Baseline the audit now holds: `iep` 0 FAIL / 1 deliberate WARN, `dh` 0 FAIL / 0 WARN, 7/7 checks
+  proven to fire.
+- Nothing on the original human-gate list still requires Andrew. The only open decision is whether
+  to push the portfolio commit.
