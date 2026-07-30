@@ -86,6 +86,9 @@
 ### Operations
 - Revisit reports should be auto-generated at compaction boundaries, not just on `/revisit` — compaction is a natural retrospective moment
 - `raven_reflect` could suggest its own follow-up issues based on recurring audit warnings, not just surface them
+- **A real transcript↔session-log index** (2026-07-29, NEW — from the 45-session sweep) — the documented way to find a session's transcript is `grep -l '<log-slug>' ~/.claude/projects/<repo>/*.jsonl`. Measured over 45 slugs against 135 transcripts it resolved to exactly one file **zero times** (2–50 hits each), because every later session that reads a log quotes its filename. Cheap fix: a `conversations/.transcript-index.tsv` (`log-filename → session-uuid`) written by the session-log step itself, since the writing session knows its own id. Failing that, disambiguate on `cwd` + the first-user-turn timestamp range, never the slug.
+- **A revisit coverage index that can't lie** (2026-07-29, NEW) — coverage lives in `metrics.md` column headers, which are prose and go stale silently: the `2026-07-21/24` column claims to cover four dates and covers none of the 8 logs in that range, and one column now legitimately covers 45 logs whose names appear only in its body. A machine-checkable `conversations/.revisited.txt` (one log filename per line, appended at revisit time) would make "un-revisited" a `grep -vxF` instead of a reconciliation exercise. This sweep cost most of its time on that reconciliation.
+- **Backlogs grow silently when a nightly job isn't actually nightly** (2026-07-29) — 45 un-revisited logs accumulated over ~3.5 months while the sweep was assumed to be running. No agent instance can self-schedule beyond one hour, so the cadence needs a launchd LaunchAgent (precedent: `~/Library/LaunchAgents/com.accunliffe.claude-improve-pipeline.plist`). Until that exists, treat "nightly revisit" as a manual ritual and expect drift.
 
 ## Session retrospectives
 

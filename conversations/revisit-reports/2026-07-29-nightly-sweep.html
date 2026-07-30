@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revisit — 2026-07-29 (nightly sweep: the 45-session backlog)</title>
+<style>
+  :root {
+    --bg-base: #1a1a22;
+    --bg-surface: #212129;
+    --bg-raised: #2a2a33;
+    --border: rgba(255, 255, 255, 0.06);
+    --border-strong: rgba(255, 255, 255, 0.1);
+    --text-primary: #F0F0F2;
+    --text-secondary: #9498A0;
+    --text-tertiary: #5C5F68;
+    --text-accent: #0077c5;
+    --accent-blue: #0077c5;
+    --accent-green: #00E676;
+    --accent-orange: #FFAB40;
+    --accent-pink: #FF4081;
+    --accent-yellow: #FFD740;
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+    --max-width: 960px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .cover {
+    padding: 80px 24px 64px;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 0%, rgba(0, 119, 197, 0.15), transparent),
+      radial-gradient(ellipse 60% 60% at 80% 20%, rgba(0, 230, 118, 0.07), transparent),
+      linear-gradient(180deg, #1f1f2b 0%, var(--bg-base) 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .cover-inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+  }
+  .cover-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 16px;
+  }
+  .cover h1 {
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+  .cover .subtitle {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 680px;
+    margin-bottom: 48px;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .stat {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .stat-value {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .stat-value.green { color: var(--accent-green); }
+  .stat-value.blue { color: var(--accent-blue); }
+  .stat-value.orange { color: var(--accent-orange); }
+  .stat-value.yellow { color: var(--accent-yellow); }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+  .body {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+  .section {
+    margin-bottom: 48px;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .badge-shipped { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-verified { background: rgba(0,119,197,0.15); color: var(--accent-blue); }
+  .badge-miss { background: rgba(255,171,64,0.12); color: var(--accent-orange); }
+  .badge-repeat { background: rgba(255,64,129,0.12); color: var(--accent-pink); }
+  .badge-win { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-fixed { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .card p, .card li {
+    color: var(--text-secondary);
+    margin-top: 4px;
+    line-height: 1.65;
+  }
+  .card ul { padding-left: 18px; margin-top: 8px; }
+  .card ul li { margin-bottom: 4px; }
+  .card code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: rgba(255,255,255,0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-primary);
+  }
+  .card blockquote {
+    margin-top: 10px;
+    padding: 10px 16px;
+    border-left: 3px solid var(--accent-orange);
+    background: rgba(255,171,64,0.06);
+    color: var(--text-primary);
+    font-style: italic;
+  }
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 32px 0;
+  }
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .table-wrap {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    padding: 14px 20px;
+    text-align: left;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 14px 20px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  td:first-child { color: var(--text-primary); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  .highlight {
+    background: rgba(0,119,197,0.08);
+    border: 1px solid rgba(0,119,197,0.2);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .highlight p { color: var(--text-primary); }
+  .tag-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .tag {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-label">Revisit · 2026-07-29 · Nightly sweep</div>
+    <h1>Forty-five sessions,<br>one repeated mistake</h1>
+    <p class="subtitle">The task described a backlog of about two logs. Disk said forty-five, reaching back to 2026-04-11 — a nightly job that was never actually nightly, because no agent instance can schedule itself past one hour. Read end to end, the backlog does not contain forty-five different failures. It contains one, over and over: a surface identified by its route instead of its rendered content, an artifact claimed from the repo instead of pulled from where it ships, a theory shipped as a fix before anything was instrumented. Ten rules landed on a loaded surface; seven of them amend a bullet that already existed.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value blue">45</div>
+        <div class="stat-label">Sessions revisited</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value green">10</div>
+        <div class="stat-label">Rules on a loaded surface</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value orange">0 / 45</div>
+        <div class="stat-label">Transcripts the slug-grep resolved</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value green">0</div>
+        <div class="stat-label">Pushes</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="body">
+
+  <div class="section">
+    <div class="section-label">What the backlog actually was</div>
+    <div class="highlight">
+      <p><strong>Sixty-nine eligible logs, twenty-four already credited in <code>metrics.md</code>, forty-five un-revisited.</strong> Coverage had to be reconciled by full filename rather than by date, because several dates carry multiple logs. Two calls worth recording: <code>2026-06-24-site-awardify</code> and <code>2026-06-25-revisit</code> are one covered session (the second is the first one's retrospective output), and the <code>2026-07-21/24</code> metrics column <em>claims</em> to cover four dates while its content — a coachmark-tour thread plus morven-loop it109-171 — matches none of the eight logs in that range. Those eight were counted un-revisited. The false claim is left in place: it is a historical record, not a bug to silently rewrite.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">The prescribed transcript lookup does not work <span class="badge badge-miss">tooling gap</span></div>
+      <p>The documented disambiguator is <code>grep -l '&lt;log-slug&gt;' ~/.claude/projects/&lt;repo&gt;/*.jsonl</code>, with "exactly one match is authoritative." Run across all 45 slugs against 135 transcripts, it resolved to exactly one file <strong>zero times</strong> — hit counts ran from 2 to 50 per slug.</p>
+      <p>The reason is structural, not incidental: every later session that reads a session log quotes its filename, so the slug propagates into far more transcripts than the one that wrote it. Slug-grep is not an index. All 45 were therefore revisited from their session logs, per the fallback instruction.</p>
+      <p><strong>The fix:</strong> a <code>conversations/.transcript-index.tsv</code> mapping log filename → session UUID, written by the session-log step itself — the writing session is the only party that knows its own id for free. Failing that, key on <code>cwd</code> plus the first-user-turn timestamp range. Filed in the ideas log.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">The one repeated mistake</div>
+    <div class="card">
+      <div class="card-title">Surface identity <span class="badge badge-repeat">6 occurrences</span></div>
+      <p>Four wrong-surface misses across three consecutive video sessions (07-20, 07-21, 07-22), plus a cross-repo scope breach on 07-28 and another on 07-17. Individually each reads as a slip. Together they are one rule.</p>
+      <p>Footage of <code>/raven-design</code> was called "the Raven Design Playground" <em>twice</em> — the route matched, the product chrome matched, and the canvas actually loaded was Marginalia. When corrected, the next move was to rebind an older localhost URL without rendering it; that page was Marginalia too. Correcting one wrong URL by blindly reaching for an earlier one landed on the same wrong page.</p>
+      <blockquote>Route, chrome, and panel names are shared across surfaces of the same product, so every cheap identity signal returns a false positive. The only signal that can fail is page-specific rendered content.</blockquote>
+      <p>The 07-28 variant is the same error pointed at a repo instead of a page: a pasted localhost URL was read as a bug report and worked — in <code>andrewcunliffe-portfolio</code>, where a parallel session was live. A URL is not an assignment, and the session has a lane.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Claiming a surface you did not pull <span class="badge badge-repeat">3 sessions</span></div>
+      <p><code>check-site-drift</code> diffs repo files against repo files. It stayed green while npm <code>raven-mcp@2.2.9</code> served <strong>100</strong> tools, the published README said <strong>99</strong>, and the repo said <strong>105</strong>. Separately, <code>mcp.ravenmcp.ai</code> served a version seven minors stale — not caching, but a Vercel domain pinned to a non-<code>main</code> <code>gitBranch</code> while every push deployed successfully.</p>
+      <p>Repo-consistent, published-consistent, and deployed-consistent are three claims that fail independently. The guard covered one and read as covering all three. Verify the one you are asserting: <code>npm pack</code> and grep the shipped <code>dist/</code>, probe the host for its own version, read the domain's <code>gitBranch</code> before blaming caching.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Theory before instrumentation <span class="badge badge-miss">2 fixes wasted</span></div>
+      <p>Two fixes shipped on an unfalsifiable compositor-hit-testing theory before live forensics found <code>Lenis.setScroll</code> firing inside a single wheel event (07-23). Synthetic dispatch and CDP are unfaithful for that class of bug. Event counters and stack-trace wrappers on the suspected mutator found it in one pass.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Promoted — ten rules, seven as amendments</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Rule</th><th>Earned by</th><th>Landed</th></tr></thead>
+        <tbody>
+          <tr><td>Instrument the live surface before shipping a fix built on an engine-internals theory</td><td>07-23 grab-scroll-fix</td><td>amended <code>&lt;understanding-and-autonomy&gt;</code></td></tr>
+          <tr><td>A named URL is BINDING; identity is rendered page-specific content</td><td>07-20/21/22 — 4 misses</td><td>new bullet</td></tr>
+          <tr><td>A pasted URL is not an assignment; work stays in this session's repo</td><td>07-28, 07-17</td><td>new bullet</td></tr>
+          <tr><td>Repo / published / deployed are three separate claims</td><td>07-25, 07-27, 07-28</td><td>new bullet, <code>&lt;verification&gt;</code></td></tr>
+          <tr><td>Media handoff: path, metadata, and first frame must be THIS render</td><td>07-20</td><td>new bullet, <code>&lt;verification&gt;</code></td></tr>
+          <tr><td>A derived expected value in a harness is itself a claim</td><td>07-27 <code>box-sizing</code> bug</td><td>new bullet, <code>&lt;verification&gt;</code></td></tr>
+          <tr><td>Motion restraint: no synthetic captions, no flash between same-canvas states, ≤2 emphasis beats</td><td>07-20/21/22</td><td>amended restrained-not-salesy</td></tr>
+          <tr><td>Park WIP on a named branch before any clean checkout; prefer <code>git stash push -- &lt;paths&gt;</code></td><td>07-17</td><td>new bullet, git block</td></tr>
+          <tr><td>Read a script's argument parsing before passing it a flag</td><td>07-28 — <code>release.sh minor --dry-run</code> ran a real release</td><td>new bullet, <code>&lt;coding&gt;</code></td></tr>
+          <tr><td>Fourth delegation check: confirm the brief ARRIVED intact</td><td>07-10 — truncated payload, wrong feature spec'd</td><td>amended three-delegation-checks</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">Why seven are amendments, not additions <span class="badge badge-verified">trigger set preserved</span></div>
+      <p>Amending keeps the loaded file inside its budget — <code>~/.claude/CLAUDE.md</code> went 24,058 → 28,954 bytes against a ~30 KB ceiling — but the real reason is the trigger set. A new bullet placed next to an existing one invites a later tidy-up that merges them and quietly drops cases. Appending the new clause onto the bullet that already owns the failure class means every case that fired before still fires.</p>
+      <p>That ceiling is also why three further findings went to <code>~/.claude/reference/</code> instead of the loaded file: Playwright's <code>isMobile: true</code> invalidating every geometry assertion in a run, <code>getBoundingClientRect() &gt;= 44</code> not proving a 44px tap target, and Codex's 50-tools-per-MCP-server cap with its backwards <code>approval_mode="approve"</code> naming.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">A lesson that must not be resurrected</div>
+    <div class="card">
+      <div class="card-title">Delegate-by-default is REVERSED <span class="badge badge-repeat">superseded</span></div>
+      <p><code>2026-07-02-taste-interview-robust.md</code> records: <em>"Delegate-by-default, main-loop-implement is the exception needing justification."</em> The current <code>&lt;operating-model&gt;</code> says the opposite, because delegate-by-default is precisely what produced the agent-self-report failure class — the single largest measured cause of first-attempt-accuracy loss.</p>
+      <p>The current rule wins. Recorded here and in <code>metrics.md</code> so a future sweep reading that log does not re-promote the reversed version.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Metrics — this sweep</div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-title">First-attempt accuracy <span class="badge badge-win">~93%</span></div>
+        <p>One self-caught miss: a <code>(Memory: [[slug]])</code> back-link written into CLAUDE.md before reading the memory file's actual <code>name:</code> field. Same root as the class this sweep was promoting rules about — verified by assumption instead of by reading the artifact. Fixed in the next edit.</p>
+        <p>Not counted as a miss: the transcript disambiguator failing on all 45 slugs. That is a limitation of the prescribed method, not an attempt.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Autonomy <span class="badge badge-verified">~100%, band 90–95</span></div>
+        <p>High by 5 points, and defensible here: the instruction was a fully-specified procedure carrying its own skip rules, commit rules, and an explicit "stop, do not self-schedule" ending. Every fork was answered by the instruction or countable from disk.</p>
+        <p>The one thing a question could have bought — work the ~2-session backlog the framing implied, or the 45 on disk — was resolved by reporting the true scale and doing all 45, which the instruction's own coverage rule required.</p>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-title">Round-trips <span class="badge badge-win">1.0</span></div>
+        <p>No rework. The single miss was caught and fixed inside the same step.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Tests / pushes <span class="badge badge-verified">N/A · 0</span></div>
+        <p>No <code>src/</code> diff — session logs, metrics, and the two ledgers in this repo; rule corpus and memory files in <code>~/.claude</code>. Zero pushes, by instruction.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Raven opportunities captured</div>
+    <div class="card">
+      <div class="card-title">Four, all from the backlog <span class="badge badge-shipped">capture-only</span></div>
+      <ul>
+        <li><strong>P1</strong> — refuse or warn on Playwright <code>isMobile: true</code> for any geometry-asserting audit; it produced a BLOCK on compliant tap targets (07-20).</li>
+        <li><strong>P1</strong> — probe the <em>effective</em> touch area with <code>elementFromPoint</code> across the box; a 44px rect is necessary, not sufficient (07-24).</li>
+        <li><strong>P1</strong> — give <code>check-site-drift</code> a published-artifact pull and a deployed-host probe (07-25/27/28).</li>
+        <li><strong>P2</strong> — <code>COLOR-no-gradient-no-glow</code> false-fires on a neutral three-alpha-stop scrim; exempt alpha-only gradients sharing one hue (07-27).</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">What would make this faster</div>
+    <div class="card">
+      <div class="card-title">Three things, all mechanical</div>
+      <ul>
+        <li><strong>Make the cadence real.</strong> Forty-five logs accumulated over ~3.5 months while the sweep was assumed to be running. No instance can self-schedule past an hour — this needs a launchd LaunchAgent, on the pattern of <code>com.accunliffe.claude-improve-pipeline.plist</code>.</li>
+        <li><strong>A coverage file that can't lie.</strong> Coverage currently lives in <code>metrics.md</code> column headers, which are prose and go stale silently. A <code>conversations/.revisited.txt</code> of log filenames turns "un-revisited" into a <code>grep -vxF</code>. Most of this sweep's time went to that reconciliation.</li>
+        <li><strong>A transcript index.</strong> As above — the writing session knows its own UUID; nothing else can reconstruct it cheaply.</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
