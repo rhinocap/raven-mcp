@@ -650,3 +650,66 @@ and to its own unreadable names. The pattern is not that I write bad checks — 
 audit my own audit, because the same inference that wrote the gap reads the code and agrees with it.
 The two things that actually worked were an adversary with no access to my framing, and mutation
 testing — inverting the guard and watching the harness fail. Both are cheap. Neither is optional.
+
+---
+
+## Window 5 — the three-task close-out, and a doc that failed its own rule
+
+### The other instance had already pushed my work
+"Go for it" (portfolio push approval) turned out to be moot. PID 6162 is a live `claude`
+process with cwd in the portfolio repo; it had committed `8cd8499` and `2f4b121` and
+pushed. All six of my portfolio commits (`862d26d`, `b0f7a6f`, `ca3c07c`, `a9f3dce`,
+`b466957`, `9796dda`) were verified individually on origin with `git merge-base
+--is-ancestor` — they went up as passengers on its push.
+
+Two things worth carrying:
+- **A shared worktree means another session can publish your work without asking you.**
+  The approval I was holding had already been spent by someone else's push. Check origin
+  *before* asking for a push approval in a repo with a live sibling instance.
+- **Its commit `2f4b121` swept in a file I deliberately left untracked** — the 7952-line
+  Sol pass-3 transcript at `conversations/adverse-passes/`. A bare `git add` in a shared
+  tree takes your untracked artifacts too, not just their own. The repo is private, which
+  contains it; I did not rewrite their commit because that instance is live and owns it.
+
+### raven-mcp logs pushed
+`3ace2e6..b4aecc3`, six commits, `conversations/` + `.claude/raven-opportunities.md` only.
+Gate run first: 1153 tests / 1150 pass / 0 fail / 3 skipped — matches ground truth exactly.
+No `src/` or `api/` in the diff, so the endpoint should not move; verified after the push
+anyway, because "repo-consistent" is not "deployed-consistent": live `tools/list` returned
+45 tools hashing to `f64bb18…2bb0a6`. Unchanged.
+
+### The export doc refuted itself
+Wrote `~/Documents/claude-rules/opus5-working-rules-2026-07-30.md` — the rule corpus,
+sanitized for a second machine. Then ran the cold Sol pass the document itself mandates.
+**CLAIM REFUTED, 20 findings, 15 real.** The one that justified the pass:
+
+> "Park uncommitted work on a named branch BEFORE any clean checkout"
+
+is **wrong as written**. Naming or creating a branch preserves nothing — dirty changes
+follow you across the checkout and are still overwritable. The rule as it lives in
+`CLAUDE.md` has the same defect. It needs `git commit` onto the WIP branch, `git stash
+push -u`, or a patch backup, plus a re-confirm. **This has been sitting in the loaded rule
+corpus teaching a habit that loses work, and it was written *from* an incident where work
+was lost.** → carried forward as a `CLAUDE.md` fix.
+
+Other real ones: `false FAIL is the worst direction` stated absolutely (true for advisory
+gates, inverted for irreversible ones — release/migration/payment gates must fail closed);
+the completion gate demanding a deployment URL for artifacts that have no deployment;
+"edit nothing unrequested" vs "diagnosis ships with its fix" reading as a flat
+contradiction without the precedence clause; "shell scripts ignore unknown args" stated as
+categorical when many reject them; and the export naming `done-gate` plus two runtime hooks
+that a second machine does not get, making three rules inert on arrival.
+
+Declined: the "leaked specifics" findings — the corpus measurements are Andrew's own
+non-sensitive machine stats going to his own second machine, and they are the *evidence*
+that makes the count-it-don't-ask-it rule persuasive rather than assertive.
+
+**The pattern holds at eight passes: every one found the defect in the verification, not
+the substance.** This one found it in a document whose central claim is that you must run
+this pass.
+
+### Carried forward
+1. Fix the park-WIP rule in `~/.claude/CLAUDE.md` and its memory file — it is wrong, not
+   just imprecise.
+2. Qualify the false-FAIL direction rule in the same pass (advisory vs irreversible).
+3. `2f4b121` is unpushed and belongs to the live portfolio instance — left for it.
