@@ -537,3 +537,50 @@ broken fixture, not a broken check.** Size the mutation against the invariant.
   proven to fire.
 - Nothing on the original human-gate list still requires Andrew. The only open decision is whether
   to push the portfolio commit.
+
+### Two more adverse rounds on the audit tool, and what each one cost
+Ran Sol against the committed deck audit twice. Both refuted it. Neither round found a defect in the
+*substance* — the checks measure what they claim — and both found defects in the **calibration and
+the completeness claim**, which is the same pattern as the first three passes.
+
+**Round 1 (against `862d26d`) — 5 real defects.**
+- Counting top-level cards falsely FAILed `apple` S4 and `openai` S4-OAI: three side-by-side agenda
+  cards with no outer container to nest inside. A FAIL exits 1, so the tool would have gated a claim
+  on a false positive. Two background cards **overlapping** is what the defect actually is.
+- A 1px-inset duplicate read as a nested child. Nesting now requires being materially smaller.
+- A block drifting 400px left became its slide's leftmost column and inherited `orphan-column`'s
+  exemption. **My first fix here was worse than the bug** — a `left-rail` FAIL failed 8 iep / 10 dh /
+  5 apple slides, because x=342 recurs across three decks on both 300px and 30px type, so it is a
+  deck-wide optical origin, not an inset that scales with type size. Reverted; replaced with
+  `rogue-origin`.
+- A figure `src` outside `/api/asset/` was skipped silently, which reads as a pass.
+- The harness's baseline filter matched `id+check`, so it also swallowed any *new* `panel-band`
+  finding on IEP-06 — the one slide it must not be blind on. And `JSON.parse` in the `execFile`
+  callback threw outside the promise chain, leaking the transient fixture file.
+
+**Round 2 (against `b0f7a6f`) — 5 more, one of them the worst of the session.**
+The harness printed **"All 10 checks fire"** while its 10 fixtures covered only **8 of 13** production
+checks. Sol disabled `panel-band`, `column-drift`, `top-margin`, the rules-loop `right-rail`,
+`figure-in-panel` and `near-flush` in a copy, and the harness stayed green. A fire-proof that reports
+false completeness is the exact failure it exists to catch, one level up — counting fixtures is not
+counting checks. It now greps the check names out of the audit source and exits 1 if any lacks a
+fixture: **13 checks, 16 fixtures, all firing.**
+
+Also: an 89%-area contained duplicate passed as nesting (threshold 0.9 → 0.5, against a measured
+21.9%/23.0% for real nested cards); `rogue-origin` warned on openai's legitimate one-off agenda origin
+at x=809 (now bounded to blocks left of the rail); `figure-in-panel` was keyed to the single-container
+case and so did **nothing** on every multi-card slide; and `panel-band`'s detail embedded a deck-wide
+card count, so it changed whenever a fixture added a panel anywhere and turned baseline noise into an
+apparent catch. Sol also caught the skill claiming apple/openai's WARNs were all agenda warnings —
+false, apple has three `column-drift` on S11/S13/S15 — now a per-deck per-check table with apple's
+trio marked **unreviewed** rather than implied deliberate.
+
+**The through-line across five adverse passes this session.** Every one found a defect in the
+verification rather than the work: a gate narrowed while being called a re-binding, a threshold that
+cancelled to zero, a citation pointing at the wrong rule, a calibration constant that made its own
+check tautological, and a fire-proof green on 5 uncovered checks. My own review of my own verification
+is the least reliable step in the loop, and the two cheap structural answers are (1) an adversary that
+does not share my framing and (2) a mechanical coverage gate rather than a count I assert.
+
+Final state: `ca3c07c` on portfolio `main`, local, **unpushed**. 0 FAIL on all five decks, 13/13
+checks covered and firing, no leaked fixture, clean tree.
