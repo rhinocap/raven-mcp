@@ -1,15 +1,19 @@
 // Round 3 SECONDARY endpoint — three diverse-lens blind judges per build (craft / brief / repro),
 // mean of the three, pre-registered equivalence margin delta = +/- 8 points on the 0-100 scale.
 //
-// The pre-registration flags this endpoint as SUSPECT before it was ever run: round 2 measured the
-// LLM judge's test-retest correlation on byte-identical artifacts at r ~= 0. This script therefore
-// reports the interval AND the two things that decide whether the interval means anything:
-//   (a) the between-build spread the judges actually produced, against delta; and
-//   (b) how much of the total variance is the LENS rather than the BUILD.
-// If delta swallows the observed range, or lens explains more variance than build, the interval is
-// arithmetic, not evidence.
+// REVISED after the round-3 falsification pass, which found three errors:
+//   1. Hardcoded Welch t = 2.18. Real df here is 9.56, t = 2.2422. Now computed (tstat.mjs).
+//   2. Verdict called the result "UNINFORMATIVE" because 2*delta (16 pts) exceeds the realised
+//      between-build range (11 pts). That comparison is post-hoc: delta was pre-registered
+//      against the 0-100 scale before any score existed, and the realised range is data. A
+//      narrow realised range limits what the equivalence generalises to; it does not retroactively
+//      void a pre-registered margin. The ratio is still reported, as a limit, not as a veto.
+//   3. The variance section reported SHARES OF SUMS OF SQUARES as if they were variance
+//      components, ignoring df — and with one observation per build x lens cell, interaction and
+//      residual are not separable at all. Both are now reported correctly and labelled.
 
 import { readFileSync } from 'node:fs';
+import { welch } from './tstat.mjs';
 
 const R3 = '/Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02';
 const rows = JSON.parse(readFileSync(R3 + '/round3/secondary-raw.json', 'utf8'));
@@ -19,18 +23,13 @@ const ASSIGN = {};
 for (const m of sealed.matchAll(/\|\s*build-(\d+)\s*\|\s*([AB])\s*\|/g)) ASSIGN[m[1]] = m[2];
 
 const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
-const varr = (a) => (a.length < 2 ? 0 : a.reduce((s, x) => s + (x - mean(a)) ** 2, 0) / (a.length - 1));
-const sd = (a) => Math.sqrt(varr(a));
-
 const LENSES = ['craft', 'brief', 'repro'];
 const scoreOf = (r, lens) => r.votes.find((v) => v.lens === lens).score;
 
 const per = rows.map((r) => ({
   build: r.build,
   arm: ASSIGN[r.build.split('-')[1]],
-  craft: scoreOf(r, 'craft'),
-  brief: scoreOf(r, 'brief'),
-  repro: scoreOf(r, 'repro'),
+  craft: scoreOf(r, 'craft'), brief: scoreOf(r, 'brief'), repro: scoreOf(r, 'repro'),
   mean: mean(LENSES.map((l) => scoreOf(r, l))),
 }));
 
@@ -41,19 +40,14 @@ for (const p of per) {
 
 const A = per.filter((p) => p.arm === 'A').map((p) => p.mean);
 const B = per.filter((p) => p.arm === 'B').map((p) => p.mean);
-
-// Welch, same machinery as the primary so the two are comparable.
-const se = Math.sqrt(varr(A) / A.length + varr(B) / B.length);
-const diff = mean(A) - mean(B);
-const t = 2.18; // ~t(.975), df ~= 12; conservative
-const lo = diff - t * se, hi = diff + t * se;
 const DELTA = 8;
+const w = welch(A, B);
 
-console.log(`\nARM A (composed prompt): ${mean(A).toFixed(2)} (sd ${sd(A).toFixed(2)})`);
-console.log(`ARM B (one-liner)      : ${mean(B).toFixed(2)} (sd ${sd(B).toFixed(2)})`);
-console.log(`diff ${diff.toFixed(2)}   95% CI [${lo.toFixed(2)}, ${hi.toFixed(2)}]   (delta = +/-${DELTA})`);
+console.log(`\nARM A (composed prompt): ${w.ma.toFixed(2)} (sd ${w.sdA.toFixed(2)})`);
+console.log(`ARM B (one-liner)      : ${w.mb.toFixed(2)} (sd ${w.sdB.toFixed(2)})`);
+console.log(`diff ${w.diff.toFixed(2)}   95% CI [${w.lo.toFixed(3)}, ${w.hi.toFixed(3)}]` +
+            `   (Welch df ${w.df.toFixed(2)}, t ${w.t.toFixed(4)}, delta = +/-${DELTA})`);
 
-// Per lens, in case one lens carries a signal the mean washes out.
 console.log('\nper lens (A mean / B mean / diff):');
 for (const l of LENSES) {
   const a = per.filter((p) => p.arm === 'A').map((p) => p[l]);
@@ -61,39 +55,47 @@ for (const l of LENSES) {
   console.log(`  ${l.padEnd(6)} ${mean(a).toFixed(2)}  ${mean(b).toFixed(2)}  ${(mean(a) - mean(b)).toFixed(2)}`);
 }
 
-// --- (a) Does delta swallow the measure? -------------------------------------------------------
+let verdict;
+if (w.lo > 0) verdict = 'ARM A BETTER on this endpoint.';
+else if (w.lo >= -DELTA && w.hi <= DELTA) {
+  verdict = `EQUIVALENT within +/-${DELTA} on expected judge score. Under §13 equivalence FIRES ` +
+            'the delete clause.';
+} else if (w.hi < -DELTA) verdict = 'ARM A WORSE.';
+else verdict = 'INCONCLUSIVE — CI straddles the margin.';
+console.log('\nSECONDARY VERDICT (pre-registered rule): ' + verdict);
+
+// --- Limits on the estimand, reported as limits rather than as a veto --------------------------
 const allMeans = per.map((p) => p.mean);
 const range = Math.max(...allMeans) - Math.min(...allMeans);
-const ratio = (2 * DELTA) / range;
-console.log(`\nobserved between-build range: ${Math.min(...allMeans).toFixed(2)} .. ${Math.max(...allMeans).toFixed(2)}  (spread ${range.toFixed(2)} pts)`);
-console.log(`equivalence window is +/-${DELTA} = ${2 * DELTA} pts wide = ${(ratio * 100).toFixed(0)}% of the entire observed spread`);
+console.log(`\nESTIMAND LIMITS`);
+console.log(`  realised between-build range ${Math.min(...allMeans).toFixed(2)}..${Math.max(...allMeans).toFixed(2)} ` +
+            `= ${range.toFixed(2)} pts; the +/-${DELTA} window is ${(2 * DELTA).toFixed(0)} pts = ` +
+            `${((2 * DELTA) / range * 100).toFixed(0)}% of it. The margin was set on the 0-100 scale ` +
+            'before any data existed, so this does not void it — but it means the equivalence is over ' +
+            'a population of builds that this judge scores within an 11-point band.');
+console.log('  round 2 measured this judge\'s test-retest correlation on BYTE-IDENTICAL artifacts at ' +
+            'r ~= 0. Unbiased noise costs power rather than logically invalidating an arm-mean ' +
+            'comparison, but it means a per-build score here carries almost no information.');
 
-// --- (b) Is the score about the build, or about the lens? --------------------------------------
-// One-way decomposition across the 42 votes: how much variance is between builds vs between lenses.
+// --- Variance: SS shares AND method-of-moments components, both labelled -----------------------
 const all = per.flatMap((p) => LENSES.map((l) => p[l]));
 const grand = mean(all);
+const nB = per.length, nL = LENSES.length;
 const ssTotal = all.reduce((s, x) => s + (x - grand) ** 2, 0);
-const ssBuild = per.reduce((s, p) => s + 3 * (p.mean - grand) ** 2, 0);
-const ssLens = LENSES.reduce((s, l) => s + per.length * (mean(per.map((p) => p[l])) - grand) ** 2, 0);
-console.log(`\nvariance decomposition over all ${all.length} votes:`);
-console.log(`  between builds  ${(100 * ssBuild / ssTotal).toFixed(0)}%`);
-console.log(`  between lenses  ${(100 * ssLens / ssTotal).toFixed(0)}%`);
-console.log(`  residual        ${(100 * (ssTotal - ssBuild - ssLens) / ssTotal).toFixed(0)}%  (build x lens disagreement)`);
+const ssBuild = per.reduce((s, p) => s + nL * (p.mean - grand) ** 2, 0);
+const ssLens = LENSES.reduce((s, l) => s + nB * (mean(per.map((p) => p[l])) - grand) ** 2, 0);
+const ssRes = ssTotal - ssBuild - ssLens;
+const msBuild = ssBuild / (nB - 1), msLens = ssLens / (nL - 1), msRes = ssRes / ((nB - 1) * (nL - 1));
+const vBuild = (msBuild - msRes) / nL, vLens = (msLens - msRes) / nB;
+const vTot = vBuild + vLens + msRes;
 
-// --- verdict ------------------------------------------------------------------------------------
-let verdict;
-if (ratio >= 1) {
-  verdict = `UNINFORMATIVE — the pre-registered margin (+/-${DELTA}) is wider than the whole range the ` +
-            'judges produced across 14 builds. An interval inside that window was arithmetically ' +
-            'unavoidable and is not evidence of equivalence.';
-} else if (lo > 0) verdict = 'ARM A BETTER on the secondary endpoint.';
-else if (lo >= -DELTA && hi <= DELTA) verdict = `EQUIVALENT within +/-${DELTA} — but see the reliability caveat below.`;
-else if (hi < -DELTA) verdict = 'ARM A WORSE.';
-else verdict = 'INCONCLUSIVE — CI straddles the margin.';
-
-console.log('\nSECONDARY VERDICT: ' + verdict);
-console.log(
-  '\nRELIABILITY CAVEAT (pre-registered, not post-hoc): round 2 measured this instrument\'s\n' +
-  'test-retest correlation on BYTE-IDENTICAL artifacts at r ~= 0. A measure that cannot reproduce\n' +
-  'its own score on the same input cannot license an equivalence claim about two different inputs.\n' +
-  'This endpoint is reported for completeness. It does not decide the gate.');
+console.log(`\nvariance over all ${all.length} votes (14 builds x 3 lenses, ONE observation per cell)`);
+console.log(`  shares of sums of squares (df ignored — descriptive only):`);
+console.log(`    build ${(100 * ssBuild / ssTotal).toFixed(0)}%   lens ${(100 * ssLens / ssTotal).toFixed(0)}%   residual ${(100 * ssRes / ssTotal).toFixed(0)}%`);
+console.log(`  mean squares: build ${msBuild.toFixed(3)}  lens ${msLens.toFixed(3)}  residual ${msRes.toFixed(3)}`);
+console.log(`  method-of-moments variance components (the figure to actually quote):`);
+console.log(`    build ${(100 * vBuild / vTot).toFixed(1)}%   lens ${(100 * vLens / vTot).toFixed(1)}%   residual ${(100 * msRes / vTot).toFixed(1)}%`);
+console.log('  CONFOUND: with one observation per cell, build x lens interaction is inseparable from');
+console.log('  error. The ~75% residual may be genuine multidimensionality (a build strong on craft');
+console.log('  and weak on reproduction) rather than judges disagreeing about the same file. Both');
+console.log('  readings are consistent with these data; the design cannot tell them apart.');

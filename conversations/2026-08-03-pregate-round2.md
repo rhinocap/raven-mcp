@@ -331,3 +331,49 @@ The burden-of-proof question is his call and still open:
 3. `src/reference-prompt.ts` + tests still UNCOMMITTED; `d6aef1a`/`8df47bb` still unpushed —
    pushing `src/` is human-gated (it moves the live MCP endpoint).
 4. Still owed: /revisit (clear PROMOTION-QUEUE.md first).
+
+## Window 12b — the falsification pass reversed my framing
+
+I wrote up both endpoints as "UNINFORMATIVE (ceiling / margin-swallows-measure)". The Sol
+report-only pass refuted that, correctly, and it was the round-2 error run backwards: round 2
+laundered non-significance into equivalence; I laundered a pre-registered equivalence result into
+"no result" — which happened to protect the tool. δ was fixed before the data existed. A CI inside
+it IS the equivalence the rule asked for. Ceiling limits the ESTIMAND, it does not void the result.
+
+Four objections landed, all fixed rather than argued with:
+
+1. **Hardcoded Welch t.** `analyze.mjs` used 2.16, `secondary.mjs` 2.18, both commented
+   "conservative for the df we get here". Neither was. Arm B has sd 0, so the primary's real df is
+   **6**, t = 2.4469 — I understated the interval by ~14%. Wrote `round3/tstat.mjs` (bisection on
+   the regularised incomplete beta, self-checked against published values: df 6 → 2.4469,
+   9.5605 → 2.2421, 13 → 2.1604, 30 → 2.0423, 1 → 12.7062). Corrected CIs:
+   primary **[-0.207, 0.492]** (df 6.00), secondary **[-4.216, 3.073]** (df 9.56). Both still
+   inside δ. This is the "verify the EFFECT, not the code" rule biting me — the comment asserted
+   conservatism and I never checked the number it produced.
+2. **P2 dismissal was post-hoc.** Conceded. P2 retained and reported; added a labelled sensitivity
+   analysis — excluding P2, every build scores 5/5, total saturation.
+3. **Variance decomposition miscomputed.** I reported SS shares (41/10/49) as if they were variance
+   components. Method-of-moments components are **17.0 / 8.4 / 74.6**, and with one observation per
+   build×lens cell interaction is inseparable from error, so "judges disagree with each other" is
+   only one of two readings the design can support.
+4. **"The human read is the only instrument with power" was wrong.** It is the only instrument
+   LEFT; its power is 21.0% at a true 80/20 preference, 47.8% at 90/10, rejection region 7-0 only.
+   Added the power table to `sign-test.mjs` so a future null cannot be mistaken for sameness.
+
+### Result after correction
+Both pre-registered endpoints return **EQUIVALENCE within margin**. §13 says "if it is no better,
+delete the tool" — equivalence fires the clause. `round3/VERDICT-R3.md` rewritten accordingly;
+DO-NOT-READ banner removed, because the blind review is no longer the deciding instrument.
+
+The honest counter is that both equivalences are over saturated, low-information measures on a task
+an Opus-class agent already knows cold. That argues for a better task, not for reading these
+results as anything but what they are. Three routes put to Andrew: honour §13 and delete; amend §13
+and re-run once on a harder task; or delete the clause and keep the tool on judgement (recorded as
+overriding the project's own falsifier).
+
+### Committed
+- `ab46ec8` round 3 evidence tree (94 files) — taste-store snapshot deliberately EXCLUDED pending
+  a publish decision; this repo is public and it is 230KB of 173 decisions + 22 surface bindings.
+- `217543e` emphasis-ramp guard + 7 tests. Suite 1165 / 1162 pass / 0 fail / 3 skipped.
+- Neither pushed. `217543e` touches `src/`, which since the 2026-07-27 unpin rebuilds the live
+  mcp.ravenmcp.ai endpoint — human-gated.

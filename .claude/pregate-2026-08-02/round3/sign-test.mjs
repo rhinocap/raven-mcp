@@ -59,8 +59,22 @@ let verdict;
 if (n === 0) verdict = 'No decided pairs — the human read returned no signal.';
 else if (pval >= 0.05) {
   verdict = `NOT SIGNIFICANT at 0.05. With ${n} decided pairs this test could only have reached ` +
-            `significance at ${n}-0 or close to it, so a null here means UNDERPOWERED-OR-NO-EFFECT — ` +
+            `significance at ${n}-0, so a null here means UNDERPOWERED-OR-NO-EFFECT — ` +
             'it is not evidence the two are the same.';
 } else if (winA > winB) verdict = 'Andrew preferred the COMPOSED-PROMPT arm significantly. §13 delete clause does NOT fire.';
 else verdict = 'Andrew preferred the ONE-LINER arm significantly. §13 delete clause fires.';
 console.log('\nHUMAN VERDICT: ' + verdict);
+
+// Power, stated up front rather than discovered after a null. Rejection requires a 7-0 sweep,
+// so power is just P(all 7 fall one way) under a true per-pair preference probability p.
+// The round-3 falsification pass flagged that I had called this "the only instrument with
+// power" — it is the only instrument LEFT, and its power is poor. Both are true; only the
+// second is a compliment the design has earned.
+console.log('\nPOWER OF THIS TEST (exact, rejection region = 7-0 only):');
+for (const p of [0.7, 0.8, 0.9, 0.95]) {
+  const pw = Math.pow(p, 7) + Math.pow(1 - p, 7);
+  console.log(`  true per-pair preference ${p.toFixed(2)}  ->  power ${(100 * pw).toFixed(1)}%`);
+}
+console.log('  Actual size at 7-0 is 0.0156, not 0.05. A 6-1 split is p = 0.125: not significant,');
+console.log('  but descriptively a long way from "no effect". This instrument was never capable of');
+console.log('  settling the gate on its own; treat it as colour on top of the two machine endpoints.');
