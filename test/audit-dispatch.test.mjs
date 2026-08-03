@@ -223,7 +223,7 @@ test('taste is skipped only when neither project nor profile is supplied', async
 test('audit is local tool 100 and remains outside the frozen anonymous 45-tool surface', () => {
   const localNames = Object.keys(buildServer({ remote: false })._registeredTools);
   const remoteNames = Object.keys(buildServer({ remote: true })._registeredTools).sort();
-  assert.equal(localNames.length, 105);
+  assert.equal(localNames.length, 106);
   assert.equal(localNames.includes('audit'), true);
   assert.equal(remoteNames.length, 45);
   assert.equal(remoteNames.includes('audit'), false);
