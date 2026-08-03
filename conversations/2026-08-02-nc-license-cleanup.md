@@ -132,3 +132,15 @@ now stated in §17; (4) "every checkable claim" contradicted the GUESSED list �
 narrowed to repo claims. All four fixed in the spec (§17 header, correction 2, new
 coverage-gap note). Scratchpad backup refreshed. Auto-save incident #4 (re-staged AM
 after the edits) — unstaged; tally now 4; spec still untracked, in zero commits.
+
+## Branch pushed (Andrew: "Push it")
+Pushed chore/nc-license-cleanup to origin at ab000dd (10 commits). Pre-push: fetch +
+remote reconcile clean, full suite 1153/1150/0/3 green. Post-push: ls-remote sha equals
+local HEAD; spec in zero pushed commits; no workflow triggers on push (all cron or
+manual dispatch); production untouched — merge to main remains the human-gated,
+endpoint-touching step. Sol falsification pass on the push claim: one real objection —
+the auto-save hook had committed the spec onto the LOCAL tip (68b6e3d) after the push
+(incident #5); remote confirmed clean (PUSHED_SPEC_ABSENT), local tip reset back to
+ab000dd, spec untracked again. Tally now 5. The no-IP-framing tension was re-checked
+against the transcript: the goal's ordered public report won and Andrew pushed with
+that flag — the public cleanup framing is the approved state.
