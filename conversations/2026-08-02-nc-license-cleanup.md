@@ -91,3 +91,32 @@ claims.
 ## Carried forward
 - `docs/spec-pattern-library.md` untracked on purpose; §§1–8 unread this session (goal took priority)
 - Prior session's pattern-library spec verification sections still untrustworthy per its own handoff
+
+## Pattern-library spec verification fan-out (post-cleanup, same session)
+Andrew: "Go, and make sure to fan out far and wide" → 29-agent Workflow (wf_96eed626-115)
+verified every claim in docs/spec-pattern-library.md against the tree at 5747efb:
+15 section verifiers + 2 web agents (licensing/product facts) → adversarial refute stage
+on all 19 negative findings → cross-section completeness critic. 406 claims checked,
+4 findings overturned by refuters (incl. a false alarm on the Mobbin/Refero/Screensdesign
+ToS claim — the refuter fetched all three ToS docs and confirmed the spec), 11 survived.
+Corrections appended to the spec as §17 (now 718 lines): textSearch can't rank (Phase 2
+decision), framer-motion 12 is WAAPI-hybrid (scrub path live on the worked example's own
+target), audit_layout has no url param, evaluate_design already ships the pixel-diff
+trick, voyage free tier is lifetime not monthly, parakeet is CC-BY-4.0 (voice rationale),
+Web-Speech "per MDN" misattributed, Mobbin doctrine renamed fair use, Excalidraw ~345KB,
+count fixes (11-tool taste surface, ten inputs, three bridge routes, spacing regex :554),
+scroll_settle path exists. Three browser-platform claims remain GUESSED, marked in §17.
+The handoff's "verification sections untrustworthy" flag is cleared with §17 applied.
+
+## Auto-save hook incidents (running tally: 3)
+The auto-save hook committed docs/spec-pattern-library.md onto this branch twice more
+after the first rebase-out: (2) commit 0ac31bb as HEAD — removed by resetting HEAD back
+one commit (mixed); (3) re-staged (AM) after the §17 append — removed by unstaging the
+path. Spec is untracked (??) with a current backup at the session scratchpad
+spec-pattern-library.SAVE.md. Any future commit on this branch must use explicit-path
+commits only and must re-check status immediately before committing. Branch remains
+8 commits, spec in zero of them.
+
+## Next (pattern-library thread)
+Blocked on Andrew's NC push. Then: branch feat/pattern-library off updated main, commit
+the spec (with §17), Phase 0 per §13 — spec claims now pre-verified, drift pre-corrected.
