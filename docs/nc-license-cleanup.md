@@ -16,16 +16,18 @@ nothing in the repository derives from a non-commercially-licensed source.
   near-verbatim (e.g. "The time to acquire a target is a function of the distance to and
   size of the target."). Descriptions and `sources` were already original and cited primary
   literature; no lawsofux.com URL appeared in the file.
-- **Replaced with:** 21 original one-line summaries written from the primary literature
-  each entry already cites — Fitts (1954), Hick (1952) / Hyman (1953), Miller (1956),
-  Doherty & Thadani (1982), Kahneman et al. (1993), Wertheimer (1923), Palmer (1992),
-  Palmer & Rock (1994), von Restorff (1933), Zeigarnik (1927), Hull (1932), Ebbinghaus
-  (1885), Postel (RFC 761/793), Parkinson (1955), Pareto (1896), Tesler (c. 1984),
-  Nielsen (2000).
+- **Replaced with:** 21 original one-line summaries written from the literature each
+  entry already cites — primary papers where one exists (Fitts 1954, Hick 1952 / Hyman
+  1953, Miller 1956, Doherty & Thadani 1982, Kahneman et al. 1993, Wertheimer 1923,
+  Palmer 1992, Palmer & Rock 1994, von Restorff 1933, Zeigarnik 1927, Hull 1932,
+  Ebbinghaus 1885, Postel RFC 761/793, Parkinson 1955, Pareto 1896, Nielsen 2000), and
+  the earliest documented attribution for the two principles with no primary paper
+  (Tesler's Law, c. 1984, via Saffer 2010; Occam's Razor via Sober 2015).
 - **Kept:** the entries themselves, their descriptions, implications, violations, and
-  primary-source citations. The `category` id `laws-of-ux` is retained as a short factual
-  label (titles and short names are not copyrightable expression); the file's selection
-  and ordering (20 entries, alphabetical) does not reproduce any source's arrangement.
+  citations. The `category` id `laws-of-ux` is retained as a short factual label
+  (titles and short names are not copyrightable expression); ordering is alphabetical,
+  which reproduces no source's arrangement. The *selection* of these 21 principles
+  overlaps Yablonski's curation — see Residual risk below.
 
 ### `src/data/brand/principles/visual-hierarchy.json`
 - **NC-derived:** one `sources` URL (`lawsofux.com/visual-hierarchy/`). Prose was original.
@@ -39,20 +41,24 @@ nothing in the repository derives from a non-commercially-licensed source.
   NN/g's tone-of-voice research — each matched to the entry's actual claim.
 
 ### `src/data/content/systems/mailchimp.json` → `conversational-product-voice.json`
-- **NC-derived:** the whole record — named after, and structured as a paraphrase of, the
-  CC BY-NC 4.0 Mailchimp guide (its voice-attribute taxonomy, tone shifts, and vocabulary
-  guidance).
+- **NC-derived:** the record was named for, attributed to, and organized after the
+  CC BY-NC 4.0 Mailchimp guide. Its prose was the project's own commentary, but its
+  voice attributes restated Mailchimp's published ones ("plain-spoken", "genuine",
+  "translator", "dry humor") and its grammar/mechanics sections condensed the guide's
+  corresponding sections — a paraphrase-level derivation, not a copy.
 - **Decision:** rebuilt under a generic name (option b) rather than deleted. The tool
   surface (`list_content_systems` / `get_content_system`) is registry-driven and would
   tolerate deletion, but this was the knowledge base's only conversational-SaaS voice
-  reference — deleting it would leave a category gap the other three systems
-  (government, commerce, productivity) don't cover.
+  reference — deleting it would leave a category gap the other systems don't cover.
 - **Replaced with:** `conversational-product-voice.json` — original prose describing the
-  generic friendly/plain-spoken product register, written from plainlanguage.gov, GOV.UK
-  style guidance, the Microsoft Writing Style Guide, and Shopify Polaris. Field set
-  mirrors the sibling `atlassian.json`. Registered in `registry.json` under the new id;
-  the old `mailchimp` id now returns the standard not-found message pointing to
-  `list_content_systems`.
+  generic friendly/plain-spoken product register. The conventions it records are common
+  professional practice documented in public standards (plainlanguage.gov, GOV.UK,
+  Microsoft Writing Style Guide — listed as references, not as licensed inputs). Field
+  names mirror the sibling `atlassian.json` schema. An adversarial review of the first
+  rewrite found multi-word phrasing carried over from the old record; the prose was
+  rewritten a second time and mechanically re-checked — remaining shared word-runs are
+  JSON schema keys only. Registered in `registry.json` under the new id; the old
+  `mailchimp` id returns the standard not-found message.
 
 ### `src/data/content/systems/registry.json`
 - Mailchimp entry replaced by the `conversational-product-voice` entry (same category and
@@ -84,9 +90,13 @@ nothing in the repository derives from a non-commercially-licensed source.
   relicense or dual-license, so future licensing changes are never blocked by an outside
   PR. Third-party-source rules now name Apache-2.0 + commercial use as the bar.
 
-### `src/index.ts` (one line, required by the rename)
-- The `get_content_system` id example string listed `'mailchimp'`; now lists
-  `'conversational-product-voice'`.
+### `src/index.ts` (two description strings, required by the rename)
+- The `get_content_system` id example string and the `list_content_systems` tool
+  description listed Mailchimp; both now name the current system set. These are
+  anon-served tool descriptions, so the remote metadata hash in
+  `test/taste-remote-full.test.mjs` was regenerated (tool NAMES unchanged — the
+  golden 45-name hash is untouched). `manifest.json` was re-synced and its
+  hand-maintained `long_description` updated.
 
 ### `README.md` and `LAUNCHGUIDE.md` (scope amendment, required by the change)
 - README's licensing section declared "Laws of UX (CC BY-NC-ND 4.0)" and "Mailchimp
@@ -96,9 +106,46 @@ nothing in the repository derives from a non-commercially-licensed source.
   updated to the current system list. The marketing site (`site/`, `web/`) carries the
   same stale references but deploys separately and is handled as a follow-up.
 
-## Verification
-See the branch's test run: `grep -ril "lawsofux|styleguide.mailchimp" src/ NOTICE` returns
-nothing; the build and full test suite pass; every touched JSON loads through the same
-code paths the server uses (`get_principles`, `list_content_systems`,
-`get_content_system`, brand principles, service patterns). Each rewritten summary was
-mechanically compared against the phrasing it replaced for surviving word sequences.
+## Verification (actual outputs, 2026-08-02)
+- `grep -ril "lawsofux\|styleguide.mailchimp" src/ NOTICE` → no matches (exit 1). The
+  same sweep over README.md and LAUNCHGUIDE.md is also empty after the follow-up commit.
+- `RAVEN_NO_USAGE_LOG=1 npm test` → `tests 1153 / pass 1150 / fail 0 / skipped 3`
+  (duration ~44s). An earlier run had two Playwright-teardown failures
+  (`audit-fidelity`, `capture`); both pass in isolation (47 tests, 46 pass, 1 skipped) —
+  environment flake, not a regression.
+- Loader smoke through the built stdio server (`dist/index.js`, JSON-RPC): 7/7 PASS —
+  `get_principles` (laws-of-ux rewrites present, old phrasing absent),
+  `list_content_systems` (new id listed, mailchimp absent), `get_content_system`
+  for the new id (content present) and for `mailchimp` (graceful not-found),
+  `get_brand_principles`, `get_content_principles`, `get_service_pattern`
+  (omnichannel-continuity, Intercom example present).
+- Phrase-overlap check (longest shared word-run, old vs new, `git show main:` baseline):
+  laws-of-ux summaries — 21 entries, worst surviving run 3 generic words;
+  mailchimp → conversational-product-voice — worst surviving run 5 words, all of them
+  JSON schema key sequences (`example-bad` / `buttons` / `rules`), no prose.
+
+## Residual risk and follow-ups (for Andrew)
+- **Selection overlap with Yablonski's curation.** The 21 principles kept under
+  `category: laws-of-ux` are the set popularized by lawsofux.com. Each is an
+  independently documented public concept, the prose and ordering are ours, and short
+  titles are not protectable — but the *selection* mirrors his curation, and the
+  category id itself is his site's brand. Renaming the category (e.g.
+  `ux-psychology`) and dropping "21 Laws of UX" phrasing in README/marketing would
+  remove the residue; it changes a user-facing tool enum, so it is a deliberate
+  follow-up, not part of this change.
+- **CLA depth.** The CONTRIBUTING.md paragraph is a click-through-style inbound grant,
+  not an ICLA: no signature record, no explicit patent grant, no employer-ownership
+  representation. Sufficient for small doc/data PRs; before accepting substantial
+  outside code contributions, adopt a recorded CLA flow (e.g. cla-assistant) or DCO +
+  ICLA.
+- **Marketing surfaces still reference the old names.** `site/` and `web/` (separate
+  Vercel projects, manual deploys) still link lawsofux.com and advertise the
+  `mailchimp` system (`web/app/page.tsx`, `web/app/docs/page.tsx`,
+  `web/components/tools/ToolsSection.tsx`, `site/index.html`, `site/docs.html`).
+  Update alongside the next site deploy. Historical changelog entries are left as
+  history.
+- **Shopify Polaris record.** `shopify-polaris.json` (out of this change's scope — not
+  an NC source) is original commentary on Polaris's public docs, but Polaris's content
+  license is Shopify-specific rather than plainly permissive. Same posture as the old
+  Mailchimp record, milder terms. Worth the same rebuild-or-confirm treatment before
+  charging money.

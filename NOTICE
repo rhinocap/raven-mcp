@@ -23,8 +23,9 @@ Permissive / public-domain sources
 - UX and psychology "laws" (Fitts's Law, Hick's Law, Miller's Law, the
   Doherty Threshold, etc.) — public academic concepts. Each entry in
   src/data/principles/ cites its primary literature (Fitts 1954, Hick
-  1952, Miller 1956, ...); all summaries and descriptions are original
-  prose written from those primary sources.
+  1952, Miller 1956, ...) or, for principles with no single primary
+  paper (Tesler's Law, Occam's Razor), the earliest documented
+  attribution; all summaries and descriptions are original prose.
 
 - PlainLanguage.gov Federal Plain Language Guidelines
   https://www.plainlanguage.gov/guidelines/
@@ -41,10 +42,11 @@ Permissive / public-domain sources
   Contains public sector information licensed under the Open Government
   Licence v3.0: https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/
 
-- Shopify Polaris (component library)
-  https://polaris.shopify.com — Polaris code is MIT-licensed. Content
-  documentation is paraphrased as reference; consult Shopify for the
-  authoritative version.
+- Shopify Polaris (design system)
+  https://polaris.shopify.com — src/data/content/systems/shopify-polaris.json
+  is original commentary on Shopify's publicly documented content
+  guidelines, not a redistribution of them. Polaris carries its own
+  license terms; consult Shopify for the authoritative version.
 
 Attribution-with-conditions sources
 -----------------------------------

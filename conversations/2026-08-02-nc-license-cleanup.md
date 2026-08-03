@@ -51,6 +51,32 @@ Full per-file detail in `docs/nc-license-cleanup.md`. File list:
 ## Push state
 Committed locally on `chore/nc-license-cleanup`, NOT pushed — Andrew pushes (per goal).
 
+## Sol falsification pass (post-commit) — dispositions
+Nine objections on `main...db502a0` (its review predated the last two commits):
+1. CONFIRMED — new voice file carried 4–10-word runs from the old mailchimp.json
+   (which itself condensed Mailchimp's grammar sections). Fixed: full second rewrite,
+   re-checked mechanically; survivors are JSON schema keys only.
+2. PARTLY CONFIRMED — report said "20 entries" (it's 21): fixed. Selection-overlap
+   with Yablonski's curation: documented as residual risk (category rename = follow-up,
+   changes a tool enum). Aesthetic-usability description: grounded in the cited primary
+   studies; no rewrite.
+3. FIXED BEFORE REVIEW LANDED — README/LAUNCHGUIDE scrubbed in 889f844 (excluded from
+   Sol's range). site/web survivors: deliberate follow-up (separate deploy surfaces).
+4. FIXED BEFORE REVIEW LANDED — manifest long_description in 38d9544.
+5. CONFIRMED — Polaris is not plainly permissive: dropped from the new file's sources,
+   NOTICE reworded (original commentary, own license terms), shopify-polaris.json
+   flagged as follow-up in the report.
+6. CONFIRMED — Tesler/Occam have no primary paper: NOTICE + report now say "primary
+   literature or earliest documented attribution".
+7. ACKNOWLEDGED — the one-paragraph CLA is goal-specified; ICLA-grade gaps documented
+   as residual risk for Andrew.
+8. REJECTED — session log commits are standing practice (global CLAUDE.md), committed
+   separately from the scoped change.
+9. CONFIRMED — report had conclusions, not outputs: verification section now carries
+   actual results; phrase-overlap coverage extended to the mailchimp replacement
+   (which is what surfaced objection 1).
+Post-fix re-verification: full suite 1153/1150/0 fail/3 skipped; loader smoke 7/7.
+
 ## Carried forward
 - `docs/spec-pattern-library.md` untracked on purpose; §§1–8 unread this session (goal took priority)
 - Prior session's pattern-library spec verification sections still untrustworthy per its own handoff
