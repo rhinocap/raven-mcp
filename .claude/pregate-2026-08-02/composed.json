@@ -1,0 +1,291 @@
+{
+  "prompt": "# Build: Snackbar for an optimistic save: confirmation with an inline Undo, auto-dismiss, explicit dismiss\nGrounded in: `/private/tmp/claude-501/-Users-accunliffe-projects-raven-mcp/597ce6a8-fd03-4b4e-badf-6f00d1dc327e/scratchpad/pregate/arena/DESIGN.md` (resolved via default) · taste `andrew/portfolio editor surface` · inventory DESIGN.md (3 components)\nNote: decisions were read from `/Users/accunliffe/projects/raven-mcp/.raven/decisions`, which is outside the project you named.\n\n## What we're copying (and what we are not)\n- [kind: inferred] — auto-dismiss with an inline undo is the established pattern for optimistic saves\nWe are **not** copying the reference's color, radius, type, or brand surfaces — brand comes only from the tokens below.\n\n## Structure\n- transient confirmation surface, bottom of viewport, single instance [row] → <toast> (no component found in your system — create it or name your equivalent) [emphasis 2 → `type.h3`, density compact → `space.sm`]\n  - confirmation message text [stack] → <text> (no component found in your system — create it or name your equivalent) [emphasis 2 → `type.h3`, density compact → `space.sm`]\n  - inline undo affordance, text-weight action [stack] → <button> (alias) [emphasis 3 → `type.h2`, density compact → `space.sm`]\n  - explicit dismiss affordance [stack] → <button> (alias) [emphasis 1 → `type.body`, density compact → `space.sm`]\n\n## States\nInitial: `hidden`. States: `hidden` — not rendered in the tree; no reserved space · `visible` — entered after an optimistic save commits; auto-dismiss countdown running · `undoing` — undo was chosen; the save is being reverted, snackbar exits immediately\n- `hidden` → `visible` on save-committed [source: designer]\n- `visible` → `hidden` on timeout 5000ms [source: designer]\n- `visible` → `undoing` on undo-pressed [source: designer]\n- `visible` → `hidden` on dismiss-pressed [source: designer]\n- `undoing` → `hidden` on revert-complete [source: designer]\n\n## Motion\n- snackbar-root on enter: transform, opacity 0→1, 210ms, easing `null` — **source: designer**. 210ms is a designer value, not observed in the reference. Use `motion.duration.base`. Pick the easing from `motion.easing.out-quart` / `motion.easing.out-expo` / `motion.easing.site` and report which.\n- `prefers-reduced-motion`: opacity-only.\n- snackbar-root on exit: opacity 1→0, 120ms, easing `null` — **source: designer**. 120ms is a designer value, not observed in the reference. Use `motion.duration.fast`. Pick the easing from `motion.easing.out-quart` / `motion.easing.out-expo` / `motion.easing.site` and report which.\n- `prefers-reduced-motion`: opacity-only.\n\n## Content\n- message.confirmation: \"Change saved\" — voice: plain statement, no exclamation, no praise [source: designer]\n- undo-action.undo-label: \"Undo\" — voice: single verb, no ceremony [source: designer]\n\n## Tokens to use\n- colors: `colors.bg` (`--color-bg`), `colors.bg-elev` (`--color-bg-elev`), `colors.bg-card` (`--color-bg-card`), `colors.fg` (`--color-fg`), `colors.fg-muted` (`--color-fg-muted`), `colors.fg-dim` (`--color-fg-dim`), `colors.line` (`--color-line`), `colors.line-strong` (`--color-line-strong`), `colors.accent` (`--color-accent`)\n- type: `type.label` (`--type-label`), `type.body` (`--type-body`), `type.lead` (`--type-lead`), `type.h3` (`--type-h3`), `type.h2` (`--type-h2`), `type.h1` (`--type-h1`)\n- space: `space.xs` (`--space-xs`), `space.sm` (`--space-sm`), `space.md` (`--space-md`), `space.lg` (`--space-lg`), `space.xl` (`--space-xl`), `space.xxl` (`--space-xxl`)\n- motion: `motion.duration.fast` (`--motion-duration-fast`), `motion.duration.base` (`--motion-duration-base`), `motion.duration.slow` (`--motion-duration-slow`), `motion.easing.out-quart` (`--motion-easing-out-quart`), `motion.easing.out-expo` (`--motion-easing-out-expo`), `motion.easing.site` (`--motion-easing-site`)\nNo hex, no px, no font-family literals — every literal is a defect the acceptance criteria below will catch.\n\n## Prohibitions\n- `COLOR-one-warm-orange-accent`: \"Do NOT introduce a second accent color on monochrome portfolio surfaces. The only permitted accent is --accent (warm orange).\"\n- `COLOR-no-gradient-no-glow`: \"Do NOT use multi-hue gradients, purple/indigo/blue fills, multi-stop 'AI' gradients, glow, or neon effects.\"\n- `COLOR-accent-punctuation-not-fill`: \"Do NOT use --accent as a large background fill or dominant surface color.\"\n- `COLOR-control-signal-only`: \"Do NOT apply color to controls or UI chrome for decorative purposes. Color is permitted only when it conveys functional meaning.\"\n- `TYPE-no-faux-anything`: \"Do NOT use synthetic (faux) italic, bold, small-caps, or condensed. Italic must be real Inter italic (Domaine has no italic file).\"\n- `TYPE-serif-authorial-only`: \"Do NOT use --font-serif (Domaine) for project titles, section headers, metrics, labels, or CTAs. Restrict to editorial lede, pull-quote, and About headline contexts.\"\n- `LAYOUT-no-card-soup`: \"Do NOT use grids of drop-shadowed, rounded-corner card-soup components. Use editorial, hairline-ruled (--line) layout primitives.\"\n- `LAYOUT-no-bare-modals`: \"Do NOT ship unstyled bare modals, cramped layouts, or floating action buttons without visual context.\"\n- `LAYOUT-proportional-frames`: \"Do NOT use fixed-px widths for layout frames. Use proportional units (flex:1, fr units, min()), reserving px for component-dimension sizing.\"\n- `SPACING-tap-targets-44px`: \"Do NOT ship interactive tap targets smaller than 44×44px on mobile.\"\n- `MOTION-prefers-reduced-motion`: \"Do NOT add any animation or transition without a prefers-reduced-motion: reduce override that collapses its duration to near-zero.\"\n- `MOTION-reveals-structure`: \"Do NOT add purely decorative motion that does not reveal or reinforce layout structure.\"\n- `TOKEN-no-bare-literals`: \"Do NOT author bare hex colors, raw px sizing, or font-family literals in component CSS. Every value must use var(--token, fallback).\"\n- `TOKEN-semantic-names`: \"Do NOT create literal-descriptor token names (--gray-2, --orange). Token names must be semantic (--fg-muted, --accent).\"\n- `TOKEN-semantic-button-classes`: \"Do NOT apply inline styles to button elements. Use the semantic button class system.\"\n- `OTHER-hover-state-required`: \"Do NOT ship interactive elements without a defined :hover state.\"\n- `OTHER-no-shadcn-defaults`: \"Do NOT use shadcn default aesthetics, status pills, glow pills, or decorative badges. Non-signal controls are monochrome.\"\n- `OTHER-no-load-bearing-decoration`: \"Do NOT add decorative UI elements that do not carry structural or informational load.\"\n- `OTHER-dynamic-dom-not-css-hide`: \"Do NOT CSS-hide conditionally absent elements (display:none, opacity-0, .hidden). Omit them from the DOM entirely.\"\n- `ASSET-icon-stroke-current-color`: \"Do NOT hardcode stroke or fill colors on icons. Use stroke=\"currentColor\".\"\n- `ASSET-icon-sizes-consistent`: \"Do NOT use icon sizes outside 14px, 16px, or 20px.\"\n- `VOICE-editorial-restraint`: \"Do NOT write copy in a salesy, superlative, or persuasive register — never use persuasion words (proven, shipped, supercharge, unlock, durable, leverage, battle-tested, game-changing). Show, don't sell.\"\n- `ASSET-CLEARANCE-nda-no-client-ui-in-public`: \"Do NOT place screenshots or recordings of client/employer product UI into any portfolio, award, or deck asset without explicit clearance. NDA-protected screens are blocked from all public surfaces.\"\n- `ASSET-CLEARANCE-no-watermark-artifacts`: \"Do NOT include any asset bearing an AI-generation watermark, stock watermark, or rights-management overlay in portfolio, award, or deck output.\"\n- `ASSET-CLEARANCE-strip-environment-chrome`: \"Do NOT include screenshots with visible browser chrome, URL bars, OS navigation, or dev-tool overlays in any deck slide or portfolio figure. Strip all environment artifacts before placing.\"\n- `CONTENT-ACCURACY-read-before-asserting`: \"Do NOT assert project facts (counts, descriptions, scope, outcomes, revenue figures) without first reading the canonical source file. Memory, prior summaries, and in-context assumptions are not sources of truth.\"\n- `CONTENT-ACCURACY-open-references-before-scoring`: \"Do NOT grade or compare a design artifact without first opening the actual reference. A self-compiled rubric, distilled notes, or memory of a reference is not a reference.\"\n- `CONTENT-ACCURACY-verbatim-copy-ships-as-written`: \"Do NOT silently correct or alter author-supplied quoted copy. Ship it verbatim; offer corrections in a separate fix-table only when asked.\"\n- `CSS-ARITHMETIC-enumerate-all-offsets`: \"Do NOT write a CSS positional offset (translate, calc, top/left/right/bottom, inset) unless every intermediate layout contribution (padding, border, gap, sticky offset, inset) to the element's visual origin is accounted for in the expression. A missing term is a systematic positioning error, not a rounding issue.\"\n- `CSS-ARITHMETIC-cover-fit-viewport-aspect`: \"Do NOT sample a cover-fit media element (video, image, shader) using UV or object-position values derived for one viewport orientation without recalculating for the current orientation's aspect ratio. Landscape UV on a portrait viewport stretches or crops the wrong region.\"\n- `PROCESS-REUSE-substitution-preserves-composition`: \"Do NOT substitute an asset by changing its capture surface, layout, or device-mockup style. Re-capture the SAME surface and view as the original; change only the project subject.\"\n- `PROCESS-REUSE-no-context-crossing`: \"Do NOT reuse a grid-card or thumbnail composition at full-bleed or hero scale. Card assets are composed for 300–400px slots — they are not hero images. Each display context requires its own composition.\"\n- rejected in the Decision Graph (`dec_design_01`, active — read via listActiveDecisions(), not decision_list): Deliberately subdued light-mode field (old restA 0.26 / base 0.14 — read as barely-there), Raising dark mode down to meet light instead — \"Light is the default surface, so the signature moment cannot be a dark-mode-only feature.\"\n- rejected in the Decision Graph (`dec_design_02`, active — read via listActiveDecisions(), not decision_list): Orbs cut off at section edges by overflow:hidden, Orbs painted directly behind body text at readable intensity — \"Andrew corrected the generated atmosphere page because its colored orbs were cut off and placed directly behind text without glass to distort them.\"\n- rejected in the Decision Graph (`dec_design_03`, active — read via listActiveDecisions(), not decision_list): compressed 0.74 or 0.77 display line-height, tight editorial headline stacking on this surface — \"Andrew said the line height should be at least 120% and that the design judge should catch violations.\"\n- rejected in the Decision Graph (`dec_design_04`, active — read via listActiveDecisions(), not decision_list): Cold-open arming where the first page click selects an element and reveals the panel — \"Hijacking clicks while the tool is out of view is infuriating when the user is simply navigating their own site.\"\n- rejected in the Decision Graph (`dec_design_05`, active — read via listActiveDecisions(), not decision_list): Raised rounded bordered card per section/category nested inside the panel card, Card-wrapped individual form fields — \"Nested cards create card-soup; the panel already supplies the container, so hairline rules and labels should carry the grouping.\"\n- rejected in the Decision Graph (`dec_design_06`, active — read via listActiveDecisions(), not decision_list): orange promoted as a general chrome/signal accent across kickers, step numbers, and badges\n- rejected in the Decision Graph (`dec_seed_stdio_byte_identity`, active — read via listActiveDecisions(), not decision_list): let stdio output drift with refactors, version the stdio protocol per-release — \"External consumers pin against exact stdio framing; a silent byte change breaks installed clients with no error. This is the frozen contract that makes the npm package safe to auto-update.\"\n- rejected in the Decision Graph (`dec_seed_anon_45_golden_hash`, active — read via listActiveDecisions(), not decision_list): expose all 93 tools anonymously, let the anon set grow with each feature — \"The anon tool set is a published contract and a security boundary (no auth = curated subset). Any drift is a regression, caught by re-hashing tools/list from the live endpoint.\"\n- rejected in the Decision Graph (`dec_seed_prod_promote_human_gated`, active — read via listActiveDecisions(), not decision_list): CI auto-promote to prod, allow vercel promote, deploy prod from the web/ project — \"The remote endpoint handles real user identities and per-user data; an unsupervised or wrong-project promote can expose or corrupt live state. The gate is a person, not a flag.\"\n- rejected in the Decision Graph (`dec_seed_canonical_host`, active — read via listActiveDecisions(), not decision_list): serve MCP from the web/ Next.js project, multiple hosts behind a proxy — \"One canonical host avoids split-brain auth and well-known-route drift; `site` is git-integrated so it stays in sync, whereas web/ has no git integration.\"\n- rejected in the Decision Graph (`dec_seed_raven_morven_boundary`, active — read via listActiveDecisions(), not decision_list): merge Raven and Morven into one paid product, put team/governance features in the free OSS server — \"Keeps the OSS free-tier promise credible while giving the paid team product room to hold hosted/creation/governance surfaces the OSS server should not carry.\"\n- rejected in the Decision Graph (`dec_seed_remote_stack_workos_upstash`, active — read via listActiveDecisions(), not decision_list): roll our own auth, shared multi-tenant storage without per-user isolation, API-key access instead of OAuth — \"Per-user identity and isolated storage are required for the Taste Engine; WorkOS+Upstash is the committed, live-verified stack (delete/rate-limit/isolation proven).\"\n- rejected in the Decision Graph (`dec_seed_nextjs_web_replaces_site`, active — read via listActiveDecisions(), not decision_list): keep the static site/ surface, give web/ git integration on the same project as site — \"Static site/ hit its ceiling; Next.js gives the marketing surface the polish the design-intelligence claim requires. The no-git-integration caveat is a known operational landmine, not a reason to revert.\"\n\n## Gaps / decisions for you\n1. No surface binding matched project \"arena\" for profile \"andrew\" — no design_notes, voice_note, or technique hints could be composed. Run get_taste_interview + bind_taste_surface, or pass the bound project name via `project`.\n2. Decision scope mismatch: decisions were read from /Users/accunliffe/projects/raven-mcp/.raven/decisions, which is outside /private/tmp/claude-501/-Users-accunliffe-projects-raven-mcp/597ce6a8-fd03-4b4e-badf-6f00d1dc327e/scratchpad/pregate/arena — the Decision Graph store is resolved globally and project_dir cannot move it.\n3. Archetype \"toast\" (node snackbar-root) matched no component in your system — name your equivalent or create one, and report which.\n4. Archetype \"text\" (node message) matched no component in your system — name your equivalent or create one, and report which.\n5. button: Missing required state: loading (diff_design_system). Add and register it, or state the substitute you used.\n6. button: Missing required variant: secondary (diff_design_system). Add and register it, or state the substitute you used.\n\n## Acceptance criteria\nA criterion cites the check that proves it, or it is marked agent-asserted — never left implying a tool checks something it does not.\n| # | Claim | Check | Verified by |\n|---|---|---|---|\n| A1 | No bare hex, font-size, font-family, or margin/padding/gap literal on an added line of a recognized UI file | review_diff verdict `pass` with `checks_skipped` empty | tool, bounded — it reads only added lines of UI-extension files and does not check arbitrary dimension literals; read `checks_skipped` with the verdict |\n| A2 | Clears the deterministic color/spacing/motion detectors | talon_scan → 0 findings ≥ warning | tool, on an agent-supplied post-interaction elements+viewport snapshot — talon_scan takes no interactions, so a url-mode run would audit the default state |\n| A3 | Every interactive target ≥ 44 CSS px on both axes | audit_tap_targets (minSize 44 CSS px) | tool, on an agent-supplied post-interaction elements[] snapshot |\n| A4 | Text contrast ≥ 4.5:1 (AA normal text) | audit_contrast | tool, on an agent-supplied post-interaction dom_snapshot |\n| A5 | The component appears and transitions per the States section | a Playwright assertion the building agent writes and reports (e.g. toBeVisible() after the trigger) | agent-asserted — audit_url drives interactions but asserts nothing about any selector; its settled captures are corroboration. Duration and easing remain UNVERIFIED until a motion sampler exists |\n| A6 | Semantic roles and live regions from the Structure section are present in the markup | manual read of the diff | agent-asserted — audit_page has no live-region rule |\n| A7 | Taste verdict not BLOCK and every design_note present | audit_taste → note_assessments + verdict | tool — scoped to the page's default state; audit_taste takes no interactions, so post-interaction elements are covered by A2–A4, not A7 |",
+  "grounding": {
+    "design_md": "/private/tmp/claude-501/-Users-accunliffe-projects-raven-mcp/597ce6a8-fd03-4b4e-badf-6f00d1dc327e/scratchpad/pregate/arena/DESIGN.md",
+    "design_md_resolved_via": "default",
+    "token_count": 27,
+    "inventory_source": "DESIGN.md",
+    "component_count": 3,
+    "binding_resolved": false,
+    "decisions_scope": "/Users/accunliffe/projects/raven-mcp/.raven/decisions",
+    "decisions_consulted": [
+      "dec_design_01",
+      "dec_design_02",
+      "dec_design_03",
+      "dec_design_04",
+      "dec_design_05",
+      "dec_design_06",
+      "dec_seed_stdio_byte_identity",
+      "dec_seed_anon_45_golden_hash",
+      "dec_seed_prod_promote_human_gated",
+      "dec_seed_canonical_host",
+      "dec_seed_raven_morven_boundary",
+      "dec_seed_remote_stack_workos_upstash",
+      "dec_seed_nextjs_web_replaces_site"
+    ],
+    "contested_decisions": []
+  },
+  "skeleton": {
+    "structure": {
+      "node_id": "snackbar-root",
+      "role": "transient confirmation surface, bottom of viewport, single instance",
+      "archetype": "toast",
+      "containment": "row",
+      "order": 0,
+      "emphasis": 2,
+      "density": "compact",
+      "children": [
+        {
+          "node_id": "message",
+          "role": "confirmation message text",
+          "archetype": "text",
+          "containment": "stack",
+          "order": 0,
+          "emphasis": 2,
+          "density": "compact",
+          "children": []
+        },
+        {
+          "node_id": "undo-action",
+          "role": "inline undo affordance, text-weight action",
+          "archetype": "button",
+          "containment": "stack",
+          "order": 1,
+          "emphasis": 3,
+          "density": "compact",
+          "children": []
+        },
+        {
+          "node_id": "dismiss",
+          "role": "explicit dismiss affordance",
+          "archetype": "btn",
+          "containment": "stack",
+          "order": 2,
+          "emphasis": 1,
+          "density": "compact",
+          "children": []
+        }
+      ]
+    },
+    "states": {
+      "initial": "hidden",
+      "states": [
+        {
+          "name": "hidden",
+          "note": "not rendered in the tree; no reserved space"
+        },
+        {
+          "name": "visible",
+          "note": "entered after an optimistic save commits; auto-dismiss countdown running"
+        },
+        {
+          "name": "undoing",
+          "note": "undo was chosen; the save is being reverted, snackbar exits immediately"
+        }
+      ],
+      "transitions": [
+        {
+          "from": "hidden",
+          "to": "visible",
+          "on": "save-committed",
+          "kind": "designer"
+        },
+        {
+          "from": "visible",
+          "to": "hidden",
+          "on": "timeout",
+          "timeout_ms": 5000,
+          "kind": "designer"
+        },
+        {
+          "from": "visible",
+          "to": "undoing",
+          "on": "undo-pressed",
+          "kind": "designer"
+        },
+        {
+          "from": "visible",
+          "to": "hidden",
+          "on": "dismiss-pressed",
+          "kind": "designer"
+        },
+        {
+          "from": "undoing",
+          "to": "hidden",
+          "on": "revert-complete",
+          "kind": "designer"
+        }
+      ]
+    },
+    "content": [
+      {
+        "node_id": "message",
+        "slot": "confirmation",
+        "copy": "Change saved",
+        "kind": "designer",
+        "voice_constraint": "plain statement, no exclamation, no praise"
+      },
+      {
+        "node_id": "undo-action",
+        "slot": "undo-label",
+        "copy": "Undo",
+        "kind": "designer",
+        "voice_constraint": "single verb, no ceremony"
+      }
+    ],
+    "motion": [
+      {
+        "node_id": "snackbar-root",
+        "on": "enter",
+        "properties": [
+          "transform",
+          "opacity"
+        ],
+        "from": {
+          "translateY": 12,
+          "opacity": 0
+        },
+        "to": {
+          "translateY": 0,
+          "opacity": 1
+        },
+        "duration_ms": 210,
+        "delay_ms": 0,
+        "easing": null,
+        "source": "designer",
+        "reduced_motion": "opacity-only"
+      },
+      {
+        "node_id": "snackbar-root",
+        "on": "exit",
+        "properties": [
+          "opacity"
+        ],
+        "from": {
+          "opacity": 1
+        },
+        "to": {
+          "opacity": 0
+        },
+        "duration_ms": 120,
+        "delay_ms": 0,
+        "easing": null,
+        "source": "designer",
+        "reduced_motion": "opacity-only"
+      }
+    ],
+    "provenance": [
+      {
+        "claim": "auto-dismiss with an inline undo is the established pattern for optimistic saves",
+        "kind": "inferred"
+      }
+    ]
+  },
+  "skeleton_required": false,
+  "bindings": [
+    {
+      "kind": "component",
+      "node_id": "snackbar-root",
+      "archetype": "toast",
+      "component": null,
+      "confidence": "unresolved",
+      "emphasis_token": "type.h3",
+      "density_token": "space.sm"
+    },
+    {
+      "kind": "component",
+      "node_id": "message",
+      "archetype": "text",
+      "component": null,
+      "confidence": "unresolved",
+      "emphasis_token": "type.h3",
+      "density_token": "space.sm"
+    },
+    {
+      "kind": "component",
+      "node_id": "undo-action",
+      "archetype": "button",
+      "component": "button",
+      "confidence": "alias",
+      "emphasis_token": "type.h2",
+      "density_token": "space.sm"
+    },
+    {
+      "kind": "component",
+      "node_id": "dismiss",
+      "archetype": "btn",
+      "component": "button",
+      "confidence": "alias",
+      "emphasis_token": "type.body",
+      "density_token": "space.sm"
+    },
+    {
+      "kind": "motion",
+      "node_id": "snackbar-root",
+      "on": "enter",
+      "duration_token": "motion.duration.base",
+      "duration_literal_ms": 210,
+      "easing_token": null
+    },
+    {
+      "kind": "motion",
+      "node_id": "snackbar-root",
+      "on": "exit",
+      "duration_token": "motion.duration.fast",
+      "duration_literal_ms": 120,
+      "easing_token": null
+    }
+  ],
+  "gaps": [
+    "No surface binding matched project \"arena\" for profile \"andrew\" — no design_notes, voice_note, or technique hints could be composed. Run get_taste_interview + bind_taste_surface, or pass the bound project name via `project`.",
+    "Decision scope mismatch: decisions were read from /Users/accunliffe/projects/raven-mcp/.raven/decisions, which is outside /private/tmp/claude-501/-Users-accunliffe-projects-raven-mcp/597ce6a8-fd03-4b4e-badf-6f00d1dc327e/scratchpad/pregate/arena — the Decision Graph store is resolved globally and project_dir cannot move it.",
+    "Archetype \"toast\" (node snackbar-root) matched no component in your system — name your equivalent or create one, and report which.",
+    "Archetype \"text\" (node message) matched no component in your system — name your equivalent or create one, and report which.",
+    "button: Missing required state: loading (diff_design_system). Add and register it, or state the substitute you used.",
+    "button: Missing required variant: secondary (diff_design_system). Add and register it, or state the substitute you used."
+  ],
+  "acceptance": [
+    {
+      "id": "A1",
+      "claim": "No bare hex, font-size, font-family, or margin/padding/gap literal on an added line of a recognized UI file",
+      "check": "review_diff verdict `pass` with `checks_skipped` empty",
+      "verified_by": "tool, bounded — it reads only added lines of UI-extension files and does not check arbitrary dimension literals; read `checks_skipped` with the verdict"
+    },
+    {
+      "id": "A2",
+      "claim": "Clears the deterministic color/spacing/motion detectors",
+      "check": "talon_scan → 0 findings ≥ warning",
+      "verified_by": "tool, on an agent-supplied post-interaction elements+viewport snapshot — talon_scan takes no interactions, so a url-mode run would audit the default state"
+    },
+    {
+      "id": "A3",
+      "claim": "Every interactive target ≥ 44 CSS px on both axes",
+      "check": "audit_tap_targets (minSize 44 CSS px)",
+      "verified_by": "tool, on an agent-supplied post-interaction elements[] snapshot"
+    },
+    {
+      "id": "A4",
+      "claim": "Text contrast ≥ 4.5:1 (AA normal text)",
+      "check": "audit_contrast",
+      "verified_by": "tool, on an agent-supplied post-interaction dom_snapshot"
+    },
+    {
+      "id": "A5",
+      "claim": "The component appears and transitions per the States section",
+      "check": "a Playwright assertion the building agent writes and reports (e.g. toBeVisible() after the trigger)",
+      "verified_by": "agent-asserted — audit_url drives interactions but asserts nothing about any selector; its settled captures are corroboration. Duration and easing remain UNVERIFIED until a motion sampler exists"
+    },
+    {
+      "id": "A6",
+      "claim": "Semantic roles and live regions from the Structure section are present in the markup",
+      "check": "manual read of the diff",
+      "verified_by": "agent-asserted — audit_page has no live-region rule"
+    },
+    {
+      "id": "A7",
+      "claim": "Taste verdict not BLOCK and every design_note present",
+      "check": "audit_taste → note_assessments + verdict",
+      "verified_by": "tool — scoped to the page's default state; audit_taste takes no interactions, so post-interaction elements are covered by A2–A4, not A7"
+    }
+  ]
+}

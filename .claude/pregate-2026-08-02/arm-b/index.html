@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snackbar — optimistic save</title>
+<style>
+  /* ---- Tokens (DESIGN.md, arena) ---- */
+  :root {
+    --color-bg: #050505;
+    --color-bg-elev: #141414;
+    --color-bg-card: #1c1c1c;
+    --color-fg: #ffffff;
+    --color-fg-muted: #b8b8b8;
+    --color-fg-dim: #828282;
+    --color-line: #363636;
+    --color-line-strong: #545454;
+    --color-accent: #ed4609;
+
+    --type-label: 13px;
+    --type-body: 16px;
+    --type-lead: 20px;
+    --type-h3: 27px;
+
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-xxl: 48px;
+
+    --motion-duration-fast: 120ms;
+    --motion-duration-base: 200ms;
+    --motion-duration-slow: 400ms;
+    --motion-easing-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --motion-easing-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --motion-easing-site: cubic-bezier(0.56, 0.22, 0.05, 0.99);
+
+    --font-body: "Untitled Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --font-mono: Geist, "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    --control-min: 44px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { overflow-x: clip; }
+
+  body {
+    background: var(--color-bg, #050505);
+    color: var(--color-fg, #ffffff);
+    font-family: var(--font-body, sans-serif);
+    font-size: var(--type-body, 16px);
+    line-height: 1.5;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-xl, 32px);
+  }
+
+  /* ---- Demo harness ---- */
+  .demo {
+    width: 100%;
+    max-width: 560px;
+  }
+
+  .demo-eyebrow {
+    font-size: var(--type-label, 13px);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-fg-dim, #828282);
+    margin-bottom: var(--space-md, 16px);
+  }
+
+  .demo h1 {
+    font-size: var(--type-h3, 27px);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-bottom: var(--space-sm, 8px);
+  }
+
+  .demo-note {
+    color: var(--color-fg-muted, #b8b8b8);
+    max-width: 44ch;
+    margin-bottom: var(--space-xxl, 48px);
+  }
+
+  .setting {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-lg, 24px);
+    padding: var(--space-lg, 24px) 0;
+    border-top: 1px solid var(--color-line, #363636);
+    border-bottom: 1px solid var(--color-line, #363636);
+  }
+
+  .setting-label {
+    font-size: var(--type-label, 13px);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-fg-dim, #828282);
+    margin-bottom: var(--space-xs, 4px);
+  }
+
+  .setting-value {
+    font-size: var(--type-lead, 20px);
+    font-weight: 500;
+  }
+
+  /* ---- Buttons ---- */
+  .btn {
+    appearance: none;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    min-height: var(--control-min, 44px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+      background-color var(--motion-duration-base, 200ms) var(--motion-easing-out-quart, ease-out),
+      color var(--motion-duration-base, 200ms) var(--motion-easing-out-quart, ease-out),
+      border-color var(--motion-duration-base, 200ms) var(--motion-easing-out-quart, ease-out);
+  }
+
+  .btn:focus-visible {
+    outline: 1px solid var(--color-fg, #ffffff);
+    outline-offset: 2px;
+  }
+
+  .btn-primary {
+    background: var(--color-fg, #ffffff);
+    color: var(--color-bg, #050505);
+    font-weight: 500;
+    padding: 0 var(--space-lg, 24px);
+    min-width: var(--control-min, 44px);
+  }
+
+  .btn-primary:hover { background: var(--color-fg-muted, #b8b8b8); }
+  .btn-primary:active { background: var(--color-fg-dim, #828282); }
+
+  .btn-primary:disabled {
+    background: var(--color-bg-card, #1c1c1c);
+    color: var(--color-fg-dim, #828282);
+    cursor: default;
+  }
+
+  /* ---- Snackbar ---- */
+  .snackbar-region {
+    position: fixed;
+    left: var(--space-xl, 32px);
+    bottom: var(--space-xl, 32px);
+    z-index: 10;
+  }
+
+  .snackbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs, 4px);
+    background: var(--color-bg-elev, #141414);
+    border: 1px solid var(--color-line, #363636);
+    padding: var(--space-xs, 4px) var(--space-xs, 4px) var(--space-xs, 4px) var(--space-md, 16px);
+    max-width: min(420px, calc(100vw - 2 * var(--space-xl, 32px)));
+    transform: translateY(0);
+    opacity: 1;
+    transition:
+      transform var(--motion-duration-slow, 400ms) var(--motion-easing-out-expo, ease-out),
+      opacity var(--motion-duration-slow, 400ms) var(--motion-easing-out-expo, ease-out);
+  }
+
+  .snackbar.is-entering {
+    transform: translateY(var(--space-md, 16px));
+    opacity: 0;
+  }
+
+  .snackbar.is-leaving {
+    transform: translateY(var(--space-sm, 8px));
+    opacity: 0;
+  }
+
+  .snackbar-text {
+    color: var(--color-fg, #ffffff);
+    padding-right: var(--space-sm, 8px);
+  }
+
+  .snackbar-text .was {
+    color: var(--color-fg-dim, #828282);
+  }
+
+  .btn-undo {
+    color: var(--color-accent, #ed4609);
+    font-weight: 500;
+    padding: 0 var(--space-md, 16px);
+    min-width: var(--control-min, 44px);
+    flex-shrink: 0;
+  }
+
+  .btn-undo:hover,
+  .btn-undo:active { color: var(--color-fg, #ffffff); }
+
+  .btn-dismiss {
+    color: var(--color-fg-dim, #828282);
+    min-width: var(--control-min, 44px);
+    flex-shrink: 0;
+  }
+
+  .btn-dismiss:hover,
+  .btn-dismiss:active { color: var(--color-fg, #ffffff); }
+
+  .btn-dismiss svg {
+    width: var(--space-md, 16px);
+    height: var(--space-md, 16px);
+    stroke: currentColor;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .btn, .snackbar { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<main class="demo">
+  <p class="demo-eyebrow">Component demo</p>
+  <h1>Optimistic save</h1>
+  <p class="demo-note">Saving applies the change immediately. The snackbar
+    confirms it, offers Undo, and dismisses itself after eight seconds — or
+    sooner, if you dismiss it.</p>
+
+  <div class="setting">
+    <div>
+      <p class="setting-label">Project visibility</p>
+      <p class="setting-value" id="setting-value">Private</p>
+    </div>
+    <button class="btn btn-primary" id="save-btn" type="button">Save change</button>
+  </div>
+</main>
+
+<div class="snackbar-region" id="snackbar-region" role="status" aria-live="polite"></div>
+
+<script>
+  (function () {
+    var AUTO_DISMISS_MS = 8000;
+    var STATES = ['Private', 'Public'];
+
+    var valueEl = document.getElementById('setting-value');
+    var saveBtn = document.getElementById('save-btn');
+    var region = document.getElementById('snackbar-region');
+
+    var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    var current = null; // { el, timer, deadline, remaining, prevValue }
+
+    function nextValue(v) {
+      return STATES[(STATES.indexOf(v) + 1) % STATES.length];
+    }
+
+    function buildSnackbar(newVal, prevVal) {
+      var bar = document.createElement('div');
+      bar.className = 'snackbar is-entering';
+
+      var text = document.createElement('p');
+      text.className = 'snackbar-text';
+      text.innerHTML = 'Visibility set to <strong>' + newVal + '</strong>';
+      bar.appendChild(text);
+
+      var undo = document.createElement('button');
+      undo.type = 'button';
+      undo.className = 'btn btn-undo';
+      undo.textContent = 'Undo';
+      undo.addEventListener('click', function () {
+        valueEl.textContent = prevVal;
+        dismiss(bar);
+      });
+      bar.appendChild(undo);
+
+      var close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'btn btn-dismiss';
+      close.setAttribute('aria-label', 'Dismiss notification');
+      close.innerHTML =
+        '<svg viewBox="0 0 16 16" fill="none" stroke-width="1.5" aria-hidden="true">' +
+        '<path d="M3 3l10 10M13 3L3 13"/></svg>';
+      close.addEventListener('click', function () { dismiss(bar); });
+      bar.appendChild(close);
+
+      // Pause the auto-dismiss clock while the user is engaged with it.
+      bar.addEventListener('mouseenter', pauseTimer);
+      bar.addEventListener('mouseleave', resumeTimer);
+      bar.addEventListener('focusin', pauseTimer);
+      bar.addEventListener('focusout', function (e) {
+        if (!bar.contains(e.relatedTarget)) resumeTimer();
+      });
+
+      return bar;
+    }
+
+    function show(newVal, prevVal) {
+      // One snackbar at a time: the newest save replaces the last, DOM-removed.
+      if (current) removeNow(current.el);
+
+      var bar = buildSnackbar(newVal, prevVal);
+      region.appendChild(bar);
+
+      // enter transition
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          bar.classList.remove('is-entering');
+        });
+      });
+
+      current = {
+        el: bar,
+        timer: null,
+        remaining: AUTO_DISMISS_MS,
+        startedAt: null
+      };
+      startTimer();
+    }
+
+    function startTimer() {
+      if (!current) return;
+      current.startedAt = Date.now();
+      current.timer = setTimeout(function () {
+        if (current) dismiss(current.el);
+      }, current.remaining);
+    }
+
+    function pauseTimer() {
+      if (!current || current.timer === null) return;
+      clearTimeout(current.timer);
+      current.timer = null;
+      current.remaining -= Date.now() - current.startedAt;
+      if (current.remaining < 0) current.remaining = 0;
+    }
+
+    function resumeTimer() {
+      if (!current || current.timer !== null) return;
+      startTimer();
+    }
+
+    function removeNow(el) {
+      if (current && current.el === el) {
+        if (current.timer !== null) clearTimeout(current.timer);
+        current = null;
+      }
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }
+
+    function dismiss(el) {
+      if (current && current.el === el) {
+        if (current.timer !== null) clearTimeout(current.timer);
+        current = null;
+      }
+      if (reducedMotion.matches) {
+        removeNow(el);
+        return;
+      }
+      el.classList.add('is-leaving');
+      var done = false;
+      el.addEventListener('transitionend', function () {
+        if (!done) { done = true; removeNow(el); }
+      });
+      // Fallback in case transitionend never fires (e.g. tab hidden).
+      setTimeout(function () {
+        if (!done) { done = true; removeNow(el); }
+      }, 600);
+    }
+
+    saveBtn.addEventListener('click', function () {
+      var prev = valueEl.textContent;
+      var next = nextValue(prev);
+      // Optimistic: apply immediately, then confirm.
+      valueEl.textContent = next;
+      show(next, prev);
+    });
+  })();
+</script>
+
+</body>
+</html>

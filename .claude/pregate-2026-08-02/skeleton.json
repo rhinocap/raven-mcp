@@ -1,0 +1,103 @@
+{
+  "structure": {
+    "node_id": "snackbar-root",
+    "role": "transient confirmation surface, bottom of viewport, single instance",
+    "archetype": "toast",
+    "containment": "row",
+    "order": 0,
+    "emphasis": 2,
+    "density": "compact",
+    "children": [
+      {
+        "node_id": "message",
+        "role": "confirmation message text",
+        "archetype": "text",
+        "containment": "stack",
+        "order": 0,
+        "emphasis": 2,
+        "density": "compact",
+        "children": []
+      },
+      {
+        "node_id": "undo-action",
+        "role": "inline undo affordance, text-weight action",
+        "archetype": "button",
+        "containment": "stack",
+        "order": 1,
+        "emphasis": 3,
+        "density": "compact",
+        "children": []
+      },
+      {
+        "node_id": "dismiss",
+        "role": "explicit dismiss affordance",
+        "archetype": "btn",
+        "containment": "stack",
+        "order": 2,
+        "emphasis": 1,
+        "density": "compact",
+        "children": []
+      }
+    ]
+  },
+  "states": {
+    "initial": "hidden",
+    "states": [
+      { "name": "hidden", "note": "not rendered in the tree; no reserved space" },
+      { "name": "visible", "note": "entered after an optimistic save commits; auto-dismiss countdown running" },
+      { "name": "undoing", "note": "undo was chosen; the save is being reverted, snackbar exits immediately" }
+    ],
+    "transitions": [
+      { "from": "hidden", "to": "visible", "on": "save-committed", "kind": "designer" },
+      { "from": "visible", "to": "hidden", "on": "timeout", "timeout_ms": 5000, "kind": "designer" },
+      { "from": "visible", "to": "undoing", "on": "undo-pressed", "kind": "designer" },
+      { "from": "visible", "to": "hidden", "on": "dismiss-pressed", "kind": "designer" },
+      { "from": "undoing", "to": "hidden", "on": "revert-complete", "kind": "designer" }
+    ]
+  },
+  "content": [
+    {
+      "node_id": "message",
+      "slot": "confirmation",
+      "copy": "Change saved",
+      "kind": "designer",
+      "voice_constraint": "plain statement, no exclamation, no praise"
+    },
+    {
+      "node_id": "undo-action",
+      "slot": "undo-label",
+      "copy": "Undo",
+      "kind": "designer",
+      "voice_constraint": "single verb, no ceremony"
+    }
+  ],
+  "motion": [
+    {
+      "node_id": "snackbar-root",
+      "on": "enter",
+      "properties": ["transform", "opacity"],
+      "from": { "translateY": 12, "opacity": 0 },
+      "to": { "translateY": 0, "opacity": 1 },
+      "duration_ms": 210,
+      "delay_ms": 0,
+      "easing": null,
+      "source": "designer",
+      "reduced_motion": "opacity-only"
+    },
+    {
+      "node_id": "snackbar-root",
+      "on": "exit",
+      "properties": ["opacity"],
+      "from": { "opacity": 1 },
+      "to": { "opacity": 0 },
+      "duration_ms": 120,
+      "delay_ms": 0,
+      "easing": null,
+      "source": "designer",
+      "reduced_motion": "opacity-only"
+    }
+  ],
+  "provenance": [
+    { "claim": "auto-dismiss with an inline undo is the established pattern for optimistic saves", "kind": "inferred" }
+  ]
+}
