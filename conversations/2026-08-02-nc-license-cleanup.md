@@ -242,3 +242,41 @@ stashed something first.
 
 Next: judge both arms (audit_taste + talon_scan + eyes-on renders), pre-gate verdict
 ("if it is no better, delete the tool"), then stage Andrew's blind A/B.
+
+## Window 9 — pre-gate results: machines tied, eyes decided against the composer
+
+Both arms finished and were judged three ways (crash-resume mid-window; judging
+completed post-resume).
+
+Machine judges (same `audit_taste` profile+surface, same `talon_scan`, driven
+through `buildServer({remote:false, tasteStore})` handlers):
+- arm A (composed prompt): audit_taste PASS, 0 findings, 29 not_assessed; talon 1
+  minor (near-dup grays #141414/#1c1c1c).
+- arm B (one-liner): audit_taste PASS, 0 findings, 29 not_assessed; talon same
+  near-dup + a 44ch measure warning.
+Near-tie, nominal edge A. Machines saw nothing load-bearing — expected; the taste
+rules not_assessed 29 rules on static HTML.
+
+Eyes-on (Chrome, localhost:8642, both arms rendered, idle + post-save states):
+- arm A post-save: DEFECT. "Change saved" at 27px next to a 56px accent-orange
+  "Undo" — the inline action is twice the message size. This is the exact ramp
+  artifact flagged at composition time: EMPHASIS_QUANTILE {3:0.85} mapped
+  emphasis-3 on an inline undo button to type.h2. The builder followed the prompt
+  literally and flagged the oversize itself in BUILD-LOG.md. Composer-caused.
+- arm B post-save: clean. Conventional bottom-left snackbar, ~15px message, bold
+  keyword, small accent Undo, quiet ×, hairline border. Zoomed capture confirms
+  proportions. B also added unprompted quality: hover-pauses the auto-dismiss
+  timer, 44px targets.
+- Countervailing, reported honestly: A followed the skeleton contract exactly
+  (copy, 5s timeout, 210→base motion snap, reduced-motion opacity-only); B
+  invented copy ("Visibility set to Public") and an 8s timeout — not a defect for
+  B, it never saw the skeleton, but contract fidelity is real composer value.
+
+Preliminary verdict against the spec's own falsifier (§13: "If it is no better,
+delete the tool"): on this run the composed prompt was NOT better on the
+load-bearing axis — visible quality — and its defect is attributable to one
+composer mapping (emphasis ramp lacks a role/density guard on inline actions).
+Disposition options for Andrew: fix the ramp + one re-run, or delete per spec.
+Sol falsification pass on this verdict running now (first attempt failed:
+`gpt-5.6-sol-medium` is not a valid -m on this account; retried as
+`-m gpt-5.6-sol -c model_reasoning_effort=medium`).
