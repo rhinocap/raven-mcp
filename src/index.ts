@@ -2947,7 +2947,13 @@ server.tool(
     intent: z.string().describe("What is being built, in one line (e.g. 'optimistic save with an undo affordance'). Becomes the prompt's title."),
     project_dir: z.string().describe("Project root. Resolves DESIGN.md (via .raven/design-system-source.json, else <project_dir>/DESIGN.md), roots the component inventory, and its basename is the default surface-binding project name. Does NOT scope the Decision Graph — that store is resolved globally, and the output states where decisions actually came from."),
     profile: z.string().describe("Taste profile name. Required: there is no default profile, and its rules' negative_prompts are the Prohibitions block."),
-    skeleton: z.any().optional().describe("Caller-authored Skeleton JSON: { structure: StructureNode, states?, content?, motion?, provenance? }. Must be colorless, typeless, and sizeless — a hex value, font name, or absolute px (outside MotionSpec pixel distances) fails lint. Omit to receive the grounding half plus a derive-and-re-submit instruction."),
+    skeleton: z.object({
+      structure: z.any(),
+      states: z.any().optional(),
+      content: z.any().optional(),
+      motion: z.any().optional(),
+      provenance: z.any().optional()
+    }).passthrough().optional().describe("Caller-authored Skeleton JSON: { structure: StructureNode, states?, content?, motion?, provenance? }. Must be colorless, typeless, and sizeless — a hex value, font name, or absolute px (outside MotionSpec pixel distances) fails lint. Omit to receive the grounding half plus a derive-and-re-submit instruction."),
     reference_url: z.string().optional().describe("URL of the reference being copied, for provenance lines only. Never fetched, and never used to resolve the surface binding."),
     session_id: z.string().optional().describe("Critique session id this build came from, for provenance."),
     ref_ids: z.array(z.string()).optional().describe("Bound ReferenceCapture ids cited in the prompt's Reference line."),
@@ -2955,7 +2961,7 @@ server.tool(
     project: z.string().optional().describe("Project name for surface-binding resolution. Defaults to basename(project_dir)."),
     design_file_path: z.string().optional().describe("Explicit DESIGN.md path; overrides project_dir resolution."),
     inventory_source: z.enum(["auto", "design-md", "registry", "scan", "none"]).optional().describe("Component inventory rung: auto (DESIGN.md manifest → shadcn registry.json → repo scan → unbound), or pin one. Default: auto."),
-    components: z.any().optional().describe("Optional caller-supplied ComponentDecl[] (e.g. Figma enrichment the calling agent fetched itself); merged into the resolved inventory.")
+    components: z.array(z.object({ id: z.string() }).passthrough()).optional().describe("Optional caller-supplied ComponentDecl[] (e.g. Figma enrichment the calling agent fetched itself); merged into the resolved inventory.")
   },
   async function (params) {
     try {

@@ -19,7 +19,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, realpathSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -247,8 +247,12 @@ test('full composition: every rung bound, prohibitions and gaps carry the stores
   assert.match(prompt, /`--[a-z0-9-]+`/);
   assert.ok(prompt.includes('No hex, no px, no font-family literals'));
 
-  // §13: every in-scope, non-off negative_prompt appears — computed from the
-  // stored profile with the same ruleInScope the composer uses.
+  // §13: every in-scope, non-off negative_prompt appears. The completeness
+  // sweep below reuses ruleInScope (shared with production), so on its own it
+  // could not catch a scoping bug — the INDEPENDENT oracle is the three
+  // hard-coded controls: the explicit global rule must appear, and the
+  // scoped-out and off-override rules are asserted absent by literal text,
+  // with no production code in the loop.
   const store = new FsTasteStore();
   const profile = await getTasteProfile(store, PROFILE);
   const expected = profile.rules.filter((r) => r.negative_prompt && r.rule_id !== 'VOICE-compose-off' && ruleInScope(r, SURFACE));
@@ -304,11 +308,27 @@ test('lint refuses a skeleton that smuggles brand: hex, px, fonts, pixel-kind, n
         { node_id: 'root', role: 'duplicate id', archetype: 'card', containment: 'stack', order: 1, emphasis: 1, density: 'compact', children: [] },
       ],
     },
+    // Every RENDERED string field is lintable — state names/notes, transition
+    // events, slots, and provenance claims reach the prompt verbatim, so a
+    // smuggled hex/px/font in any of them must fail lint (Sol objection 3).
+    states: {
+      initial: 'idle',
+      states: [
+        { name: 'idle', note: 'surface turns #ff00ff while idle' },
+        { name: 'busy in Helvetica', note: 'spinner visible' },
+      ],
+      transitions: [
+        { from: 'idle', to: 'idle', on: 'hover at 32px from the edge', kind: 'note' },
+      ],
+    },
     content: [
       { node_id: 'root', slot: 'headline', copy: 'Set in Inter for impact', kind: 'pixel' },
     ],
     motion: [
       { node_id: 'root', on: 'enter', properties: ['opacity'], from: { opacity: 0 }, to: { opacity: 1 }, duration_ms: 200, delay_ms: 0, easing: 'ease-out', source: 'designer', reduced_motion: 'none' },
+    ],
+    provenance: [
+      { claim: 'header padding reads 16px in the screenshot', kind: 'note' },
     ],
   };
   const res = await call('compose_build_prompt', {
@@ -323,6 +343,10 @@ test('lint refuses a skeleton that smuggles brand: hex, px, fonts, pixel-kind, n
   assert.match(text, /font name "inter"/);
   assert.match(text, /kind "pixel" is not allowed/);
   assert.match(text, /easing must be null unless source is "observed"/);
+  assert.match(text, /state "idle"\.note: hex color literal "#ff00ff"/);
+  assert.match(text, /state "busy in Helvetica"\.name: font name "helvetica"/);
+  assert.match(text, /transition idle→idle\.on: absolute px literal "32px"/);
+  assert.match(text, /provenance claim "header padding reads 16px in the screenshot": absolute px literal "16px"/);
 });
 
 test('failure paths: unknown profile, missing DESIGN.md, unmatched project, unparseable ramps', async () => {
@@ -339,6 +363,20 @@ test('failure paths: unknown profile, missing DESIGN.md, unmatched project, unpa
   assert.equal(noDesign.isError, true);
   assert.match(noDesign.content[0].text, /No readable DESIGN\.md/);
   assert.match(noDesign.content[0].text, /init_design_md/);
+
+  // §9: ONLY an absent config (ENOENT) selects the DESIGN.md fallback rung. A
+  // corrupt .raven/design-system-source.json must surface, never be silently
+  // swallowed into "default" — even when a valid DESIGN.md sits right there.
+  const corruptDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'raven-compose-corrupt-')));
+  mkdirSync(path.join(corruptDir, '.raven'));
+  writeFileSync(path.join(corruptDir, '.raven', 'design-system-source.json'), '{ this is not json');
+  writeFileSync(path.join(corruptDir, 'DESIGN.md'), ['---', 'type:', '  sm: "12"', '---', '# x', ''].join('\n'));
+  const corrupt = await call('compose_build_prompt', {
+    intent: 'x', project_dir: corruptDir, profile: PROFILE,
+  });
+  assert.equal(corrupt.isError, true, 'corrupt config must error, not fall back');
+  assert.match(corrupt.content[0].text, /Unreadable \.raven\/design-system-source\.json/);
+  assert.match(corrupt.content[0].text, /only falls back .* when no config exists/);
 
   // A project whose DESIGN.md has only ref-chain type tokens, no space/motion
   // groups, and no components: the binding does not match, the inventory is
@@ -364,6 +402,8 @@ test('failure paths: unknown profile, missing DESIGN.md, unmatched project, unpa
   assert.equal(out.grounding.binding_resolved, false);
   assert.ok(out.gaps.some((g) => g.startsWith('No surface binding matched project')), 'unmatched project is a gap');
   assert.ok(out.gaps.some((g) => g.includes('No component inventory resolved')), 'unbound inventory is a gap');
+  // §9 rung 1 epistemics survive into the gaps: unknown, not missing.
+  assert.ok(out.gaps.some((g) => g.includes('component coverage is unknown, not missing')), 'inventory diagnostics reach the gaps');
   assert.ok(out.gaps.some((g) => g.includes('type.* has no parseable numeric ramp')), 'ref-chain ramp cannot bind emphasis');
   assert.ok(out.gaps.some((g) => g.includes('space.* has no parseable numeric ramp')), 'absent space group cannot bind density');
   const root = out.bindings.find((b) => b.kind === 'component');

@@ -207,9 +207,16 @@ export function lintSkeleton(skeleton: Skeleton): string[] {
   if (states) {
     var stateNames = new Set((states.states || []).map(function(s) { return s.name; }));
     if (!stateNames.has(states.initial)) findings.push("states.initial \"" + states.initial + "\" is not a member of states[]");
+    for (var sn = 0; sn < (states.states || []).length; sn++) {
+      var st = states.states[sn];
+      var swhere = "state \"" + st.name + "\"";
+      if (typeof st.name === "string") lintString(swhere + ".name", st.name, findings);
+      if (typeof st.note === "string") lintString(swhere + ".note", st.note, findings);
+    }
     for (var t = 0; t < (states.transitions || []).length; t++) {
       var tr = states.transitions[t];
       var twhere = "transition " + tr.from + "→" + tr.to;
+      if (typeof tr.on === "string") lintString(twhere + ".on", tr.on, findings);
       if ((tr as any).kind === "pixel") findings.push(twhere + ": kind \"pixel\" is not allowed — a screenshot cannot show a transition");
       if (["note", "pattern", "inferred", "designer"].indexOf(tr.kind) === -1) findings.push(twhere + ": kind must be note|pattern|inferred|designer");
       if (tr.kind === "pattern" && !tr.pattern_ref) findings.push(twhere + ": kind \"pattern\" requires pattern_ref");
@@ -226,6 +233,7 @@ export function lintSkeleton(skeleton: Skeleton): string[] {
     if ((slot as any).kind === "pixel") findings.push(cwhere + ": kind \"pixel\" is not allowed — a screenshot cannot show a copy rule");
     if (["note", "pattern", "inferred", "designer"].indexOf(slot.kind) === -1) findings.push(cwhere + ": kind must be note|pattern|inferred|designer");
     if (!nodeIds.has(slot.node_id)) findings.push(cwhere + ": node_id \"" + slot.node_id + "\" does not resolve against the structure tree");
+    if (typeof slot.slot === "string") lintString(cwhere + ".slot", slot.slot, findings);
     if (typeof slot.copy === "string") lintString(cwhere + ".copy", slot.copy, findings);
     if (typeof slot.voice_constraint === "string") lintString(cwhere + ".voice_constraint", slot.voice_constraint, findings);
   }
@@ -238,11 +246,14 @@ export function lintSkeleton(skeleton: Skeleton): string[] {
     if (spec.easing !== null && spec.source !== "observed") findings.push(mwhere + ": easing must be null unless source is \"observed\" — nothing else can have measured a curve");
     if (!nodeIds.has(spec.node_id)) findings.push(mwhere + ": node_id does not resolve against the structure tree");
     if (typeof spec.easing === "string") lintString(mwhere + ".easing", spec.easing, findings);
+    if (typeof spec.on === "string") lintString(mwhere + ".on", spec.on, findings);
   }
 
   var provenance = skeleton.provenance || [];
   for (var p = 0; p < provenance.length; p++) {
     if (["pixel", "note", "pattern", "inferred"].indexOf(provenance[p].kind) === -1) findings.push("provenance \"" + provenance[p].claim + "\": kind must be pixel|note|pattern|inferred");
+    if (typeof provenance[p].claim === "string") lintString("provenance claim \"" + provenance[p].claim + "\"", provenance[p].claim, findings);
+    if (typeof provenance[p].pattern_ref === "string") lintString("provenance pattern_ref \"" + provenance[p].pattern_ref + "\"", provenance[p].pattern_ref!, findings);
   }
 
   return findings;
@@ -679,7 +690,13 @@ export async function composeBuildPrompt(args: ComposeBuildPromptArgs, deps: Com
       designPath = resolve(projectDir, config.source.path);
       platform = config.platform || platform;
       resolvedVia = "source-config";
-    } catch {
+    } catch (err) {
+      // Only the absent-config ENOENT selects the default rung (§9). A corrupt
+      // or unreadable config must surface — silently falling back would ground
+      // the build against a file the project explicitly configured away from.
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+        throw new Error("Unreadable .raven/design-system-source.json in " + projectDir + ": " + (err as Error).message + ". Fix or remove it — the composer only falls back to <project_dir>/DESIGN.md when no config exists at all.");
+      }
       designPath = resolve(projectDir, "DESIGN.md");
       resolvedVia = "default";
     }
@@ -726,6 +743,9 @@ export async function composeBuildPrompt(args: ComposeBuildPromptArgs, deps: Com
   }
   if (unbound) {
     gaps.push("No component inventory resolved (source: none) — archetypes are emitted as raven-canonical ids. Run configure_design_system_source (or declare components in DESIGN.md) and re-synthesize.");
+    // Keep inventory_design_system's own epistemics (§9 rung 1): "no component
+    // declarations found — component coverage is unknown, not missing".
+    for (var dg = 0; dg < inventory.diagnostics.length; dg++) gaps.push(inventory.diagnostics[dg]);
   }
   if (binding) {
     var consistency = checkBindingConsistency(designNotes, binding.references || []);
