@@ -209,3 +209,36 @@ again — bypassed with `git commit --only` (no new incident; the standing rule 
 
 Next: Andrew's gated merge of PR #53 (main deploys mcp.ravenmcp.ai), then the §13
 Phase 0 exit gates — one-hour pre-gate comparison, then the blind A/B.
+
+## Window 8 — Andrew's "Go": merge, deploy verified, pre-gate running
+
+Andrew: "Go" → executed the ladder. PR #53 merged (merge commit 70bf9cf, merge-commit
+convention per #52; all three Vercel checks green). Remote feature branch deleted.
+Deploy watch: mcp.ravenmcp.ai alias moved dpl_1BpBq… → dpl_EvZ21… (site project,
+production, Ready, created 2 min post-merge). Production anon surface re-verified by
+effect: 45 tools, hash f64bb18…2bb0a6 byte-identical. Frozen contract held.
+
+§13 pre-gate (composed prompt vs one-line instruction) now running:
+- Arena: scratchpad/pregate/arena with a frontmatter DESIGN.md faithfully derived
+  from andrewcunliffe-portfolio's real tokens (colors/type/space/motion/eases; the
+  portfolio's own DESIGN.md is prose — 0 parseable tokens — and its repo is
+  another session's lane, so no writes there). Components: button/card/nav declared;
+  toast deliberately NOT declared (exercises the unresolved rung honestly).
+- Composition: real ~/.raven/taste andrew profile (37 rules, 32 negative prompts,
+  read-only), snackbar/optimistic-save skeleton → 17.3k-char prompt, 6 honest gaps,
+  motion snapped 210→base/120→fast. Noted artifact: emphasis-3 → type.h2 (56px) on
+  an undo button is a questionable ramp pick — left in; the experiment measures it.
+- Two same-model general-purpose arms launched in parallel: A = composed prompt
+  verbatim; B = spec's one-liner (call read_design_md + get_taste_profile +
+  audit_taste yourself). Identical output contracts, neither told of the comparison.
+
+Incident: switching back to main, my defensive `git stash pop` popped the PRESERVED
+2026-07-28 accidental-release stash (my own push was a no-op) and conflicted on both
+.mcpb files. Resolved by materializing HEAD bytes + git add (restore was
+guard-blocked); stash@{0} still intact, cmp-verified site/raven.mcpb == HEAD.
+Lesson: never chain `stash push && … && stash pop` — pop targets stash@{0}, not
+"my" stash; use `git stash pop stash@{n}` by index or check the push actually
+stashed something first.
+
+Next: judge both arms (audit_taste + talon_scan + eyes-on renders), pre-gate verdict
+("if it is no better, delete the tool"), then stage Andrew's blind A/B.
