@@ -178,3 +178,34 @@ to working tree untouched. Tally now 6.
 Next: push feat/pattern-library, open PR (Andrew gates the merge — main deploys the
 endpoint), then the one-hour pre-gate comparison (composed prompt vs one-line
 instruction; "if it is no better, delete the tool") and Andrew's blind A/B.
+
+## Window 7 — push verified, PR #53, adverse pass dispositioned
+
+Push of 836e171+feffc00 verified against the remote (ls-remote == local HEAD after an
+SSH kex timeout on the first chained attempt — the push itself had landed). PR #53
+opened: https://github.com/rhinocap/raven-mcp/pull/53.
+
+Adverse falsification pass (report-only, repo artifacts only) returned 8 objections.
+Dispositions — full table posted on the PR (#issuecomment-5162612975):
+- 1 (no get_pattern/get_principles/talon grounding) REFUTED: §13 Phase 0 is "the loop
+  with zero corpus"; corpus is Phase 2, talon rules reach acceptance via A2's
+  talon_scan citation (§11).
+- 2 (session_id/ref_ids echoed not resolved) REFUTED: §12 sanctions the Phase 0
+  provenance-echo path; the reference store is Phase 1/2 machinery.
+- 3 (lint missed rendered strings) REAL → fixed: state names/notes, transition `on`,
+  content slots, motion `on`, provenance claims/pattern_refs all lint now.
+- 4 (z.any params) fixed: structured zod shapes, deep validation stays lintSkeleton's.
+- 5 (catch-all swallowed corrupt source-config) REAL → fixed: only ENOENT selects the
+  §9 fallback rung; corrupt config throws with a named remedy + new test.
+- 6 (inventory diagnostics discarded) REAL → fixed: "unknown, not missing" epistemics
+  reach ## Gaps on the unbound rung + asserted.
+- 7 (shared ruleInScope oracle) accepted: the three hard-coded controls are the
+  independent oracle; test comment now says so.
+- 8 (stale "tool 100" title) fixed → 106.
+
+Fixes commit 026abb0, pushed (remote verified). Suite after fixes: 1158/1155/0/3;
+golden anon-45 hash assertion green. Auto-save staged the foreign scoreboard file
+again — bypassed with `git commit --only` (no new incident; the standing rule held).
+
+Next: Andrew's gated merge of PR #53 (main deploys mcp.ravenmcp.ai), then the §13
+Phase 0 exit gates — one-hour pre-gate comparison, then the blind A/B.
