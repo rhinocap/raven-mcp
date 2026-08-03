@@ -144,3 +144,13 @@ the auto-save hook had committed the spec onto the LOCAL tip (68b6e3d) after the
 ab000dd, spec untracked again. Tally now 5. The no-IP-framing tension was re-checked
 against the transcript: the goal's ordered public report won and Andrew pushed with
 that flag — the public cleanup framing is the approved state.
+
+## Merged to main and live (Andrew: "Merge it")
+Pre-merge: production anon hash probed and equal to golden. PR #52 (base main,
+verified) merged at e34503d. Deploy live ~50s later; post-deploy verification against
+the running endpoint: 45 tools, golden hash unchanged, both updated description
+strings serving, "mailchimp" absent from the live payload. Sol falsification pass on
+the merge-and-deploy claim: NO OBJECTIONS. Branch feat/pattern-library created off
+e34503d; spec committed there as 1f1ca04 (spec alone via --only; the hook had staged
+an unrelated scoreboard file). NC-cleanup thread is fully closed; Phase 0
+(compose_build_prompt) begins.
