@@ -19,7 +19,7 @@
       "Navigation with 12 items at equal emphasis — nothing stands out; user scans everything."
     ],
     "applies_to": ["brand", "visual-hierarchy", "typography", "layout"],
-    "sources": ["https://www.nngroup.com/articles/visual-hierarchy-ux-definition/", "https://lawsofux.com/visual-hierarchy/"]
+    "sources": ["https://www.nngroup.com/articles/visual-hierarchy-ux-definition/"]
   },
   {
     "id": "hierarchy-whitespace-is-signal",

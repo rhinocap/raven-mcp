@@ -27,7 +27,7 @@ const GOLDEN_45_HASH = 'f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7
 // an anon build made AFTER an authed one is byte-identical to an anon-first
 // build. GOLDEN_45_HASH — the frozen wire contract — is unchanged.
 const ANONYMOUS_INSTRUCTIONS_HASH = '215a17260e7855eac34cffc68a195cc4537309114fbda9ee51f604bc9a0bc903';
-const ANONYMOUS_INSTRUCTIONS_AND_TOOL_DESCRIPTIONS_HASH = 'ebceedcfffb7eed83e94a699e8a009723a732e8e364e0352e41e6d1c0822effd';
+const ANONYMOUS_INSTRUCTIONS_AND_TOOL_DESCRIPTIONS_HASH = 'cb3c1e5e0e503c33de873fa190340fcfc1ec60fbc73a9aa163e0d8644d9dccd7';
 const AUTHED_STARTUP_INSTRUCTIONS = "AUTHENTICATED STARTUP: this remote endpoint is connected to a per-user taste store. At project kickoff or the first real design/copy/UI work for a project, call get_taste_interview for the connected user's taste profile and project name before choosing direction. Ask the returned questions, then persist the user's answers with bind_taste_surface before generating design work. If the profile name is not known yet, call list_taste_profiles first.";
 const AUTHED_INTERVIEW_DESCRIPTION = "AUTHENTICATED STARTUP: on the remote authed endpoint, use this as the first taste step for the connected user's per-user store at project kickoff; if you do not know the profile name, call list_taste_profiles first, then call get_taste_interview with that profile and project name before design/copy/UI decisions.";
 const ALL_TASTE = [

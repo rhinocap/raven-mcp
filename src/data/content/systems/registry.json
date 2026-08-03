@@ -1,12 +1,12 @@
 {
   "systems": [
     {
-      "id": "mailchimp",
-      "name": "Mailchimp Content Style Guide",
-      "description": "Mailchimp's voice — plain-spoken, genuine, expert without being know-it-alls. Dry humor, clarity over cleverness. The canonical modern content style guide.",
+      "id": "conversational-product-voice",
+      "name": "Conversational Product Voice",
+      "description": "The friendly, plain-spoken register most SaaS products aim for — direct, concrete, warm without performing, calm under failure. Source-neutral, synthesized from public plain-language standards.",
       "category": "marketing-saas",
       "tags": ["conversational", "friendly", "plain-language", "humor-careful", "saas"],
-      "url": "https://styleguide.mailchimp.com",
+      "url": "https://www.plainlanguage.gov/guidelines/",
       "status": "available"
     },
     {

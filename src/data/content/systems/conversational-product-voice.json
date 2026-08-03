@@ -1,0 +1,100 @@
+{
+  "$name": "Conversational Product Voice",
+  "$description": "A source-neutral reference for the friendly, plain-spoken register most consumer and SMB SaaS products aim for. Original prose synthesized from public plain-language standards (plainlanguage.gov, GOV.UK) and permissively documented content systems — not tied to any single company's style guide.",
+  "url": "https://www.plainlanguage.gov/guidelines/",
+  "voice": {
+    "identity": "A knowledgeable colleague talking a busy person through their own work — direct, warm, and specific. The product speaks like one competent human, not like a brand campaign and not like a terms-of-service document.",
+    "attributes": [
+      { "name": "Direct", "description": "Say the thing. Lead with the point, keep sentences short, and cut every word that exists only to sound professional." },
+      { "name": "Warm without performing", "description": "Friendliness comes from being helpful and unhurried, not from exclamation marks. One genuine sentence beats three enthusiastic ones." },
+      { "name": "Concrete", "description": "Name the object, the amount, the date, the next step. Vague copy reads as either evasive or unfinished." },
+      { "name": "Respectful of attention", "description": "Assume the reader is mid-task. Front-load meaning, keep lines scannable, and never make someone read a paragraph to find the button." },
+      { "name": "Calm under failure", "description": "When something breaks, the voice gets quieter, not cuter. State what happened and the next move; playfulness disappears entirely." }
+    ]
+  },
+  "tone_shifts": {
+    "onboarding": "Encouraging and momentum-building. Get the person to a first concrete win quickly; skip the tour of everything the product can theoretically do.",
+    "success": "Brief and genuine. Confirm what just happened in plain words, then get out of the way — or point at one sensible next step.",
+    "errors": "Plain, steady, useful. What happened, why if knowing helps, what to do now. No jokes, no blame, no apology theatre.",
+    "billing-and-legal": "Slightly more formal and completely unambiguous. Amounts, dates, and currencies must be exact on first read. Humor never appears here.",
+    "empty-states": "Instructive and forward-looking. Say what this view is for, what will appear once there's activity, and offer one clear action."
+  },
+  "vocabulary": {
+    "use": [
+      "use (rather than utilize or leverage)",
+      "help (rather than assist or facilitate)",
+      "buy (rather than purchase)",
+      "start (rather than commence or initiate)",
+      "end (rather than terminate)",
+      "need (rather than require)",
+      "about (rather than approximately or regarding)",
+      "more (rather than additional)"
+    ],
+    "avoid": [
+      "leverage / utilize / synergy",
+      "seamless / frictionless",
+      "revolutionary / game-changing / best-in-class",
+      "empower / unlock / unleash",
+      "robust / cutting-edge",
+      "delight (as a verb aimed at the user)",
+      "simply / just (minimizers that read as condescension when the task isn't simple)"
+    ],
+    "never": [
+      "Internal codenames or schema names in user-facing copy",
+      "Unexpanded acronyms on first use",
+      "Slang that will read as dated within a year",
+      "Idioms or references that assume one country's cultural context"
+    ]
+  },
+  "grammar": {
+    "voice": "Active voice, named actor. 'We emailed your receipt' — not 'A receipt has been emailed.'",
+    "contractions": "Use them. It's, you're, we'll — they make copy sound like a person. Skip them only in legal text where precision outranks warmth.",
+    "person": "Address the reader as 'you'; the product or company is 'we'. Never 'the user' in anything the user reads.",
+    "titles": "Sentence case for buttons, headings, and page titles. Reserve capitals for proper nouns and product names.",
+    "numbers": "Spell out one through nine in prose; numerals for 10 and up. Money, percentages, measurements, and times are always numerals.",
+    "abbreviations": "Expand on first use, abbreviate after. No periods inside acronyms.",
+    "dates-and-times": "Spell out the month and include the time zone — 'March 4, 2026 at 2:00 pm ET'. All-numeric dates mean different things in different countries."
+  },
+  "content-patterns": {
+    "errors": {
+      "structure": "What happened, in the reader's terms → what to do next. Cause only when it changes what they'd do. Never blame, never expose internals.",
+      "example-good": "We couldn't save your changes — your session expired. Sign in again and your draft will still be here.",
+      "example-bad": "Error 401: Unauthorized. Please retry."
+    },
+    "empty-states": {
+      "structure": "Name what this view is → what will fill it → one clear action.",
+      "example-good": "Nothing exported yet. Reports you export will be listed here. Export your first report.",
+      "example-bad": "No data available."
+    },
+    "success": {
+      "structure": "Confirm the specific thing that happened → one next step, only if a natural one exists.",
+      "example-good": "Your report is scheduled for Monday at 9:00 am ET. We'll email you when it's ready.",
+      "example-bad": "Success!"
+    },
+    "buttons": {
+      "rules": [
+        "Lead with a verb",
+        "Name the object — 'Export report' beats 'Submit'",
+        "Sentence case",
+        "Two to four words"
+      ],
+      "good": ["Export report", "Invite teammate", "Change plan", "Add payment method"],
+      "bad": ["Submit", "OK", "Click here", "Continue"]
+    }
+  },
+  "inclusive-language": {
+    "rules": [
+      "Use 'they/them' when a person's gender is unknown.",
+      "Describe actions, not assumed abilities — 'works with screen readers' rather than ability-based shorthand.",
+      "Replace disability metaphors with the plain idea: 'gap' for 'blind spot', 'out of touch' for 'tone-deaf'.",
+      "Skip idioms that assume one country's context; translate the idea instead.",
+      "Make no assumptions about family structure, employment type, or physical ability."
+    ]
+  },
+  "sources": [
+    "https://www.plainlanguage.gov/guidelines/",
+    "https://www.gov.uk/guidance/style-guide/a-to-z-of-gov-uk-style",
+    "https://learn.microsoft.com/en-us/style-guide/welcome/",
+    "https://polaris.shopify.com/content/product-content"
+  ]
+}
