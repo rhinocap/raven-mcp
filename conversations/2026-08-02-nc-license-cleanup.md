@@ -77,6 +77,17 @@ Nine objections on `main...db502a0` (its review predated the last two commits):
    (which is what surfaced objection 1).
 Post-fix re-verification: full suite 1153/1150/0 fail/3 skipped; loader smoke 7/7.
 
+A focused second Sol pass on the rewritten voice file then found six STRUCTURAL
+traceability findings (identity metaphor, humor-fade rule, billing sequence, never-list
+order, pattern selection/order, bad-button set) — word swaps had passed the mechanical
+check while the architecture still tracked the predecessor. Third version re-architected
+(new tone contexts incl. waiting-and-progress, new never membership, new
+destructive-confirmations pattern, reordered grammar/patterns, new framings). Overlap
+harness after: one 4-word run ("example good we couldn't" — JSON keys + a generic
+contraction). Full suite + loader smoke green again. Lesson logged: a mechanical
+word-run check does not verify structural independence; the two checks are different
+claims.
+
 ## Carried forward
 - `docs/spec-pattern-library.md` untracked on purpose; §§1–8 unread this session (goal took priority)
 - Prior session's pattern-library spec verification sections still untrustworthy per its own handoff

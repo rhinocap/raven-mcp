@@ -54,11 +54,16 @@ nothing in the repository derives from a non-commercially-licensed source.
   generic friendly/plain-spoken product register. The conventions it records are common
   professional practice documented in public standards (plainlanguage.gov, GOV.UK,
   Microsoft Writing Style Guide — listed as references, not as licensed inputs). Field
-  names mirror the sibling `atlassian.json` schema. An adversarial review of the first
-  rewrite found multi-word phrasing carried over from the old record; the prose was
-  rewritten a second time and mechanically re-checked — remaining shared word-runs are
-  JSON schema keys only. Registered in `registry.json` under the new id; the old
-  `mailchimp` id returns the standard not-found message.
+  names mirror the sibling `atlassian.json` schema. The record survived two adversarial
+  review rounds: the first found multi-word phrasing carried from the old record
+  (fixed by a full prose rewrite), the second found structural traceability — same
+  identity metaphor, same ordered "never" taxonomy, same content-pattern selection and
+  bad-button examples (fixed by re-architecting: new tone contexts, new never-list
+  membership, a destructive-confirmations pattern present in neither predecessor,
+  reordered sections, new framings throughout). The final version's only mechanical
+  overlap with the old record is one 4-word run spanning JSON keys. Registered in
+  `registry.json` under the new id; the old `mailchimp` id returns the standard
+  not-found message.
 
 ### `src/data/content/systems/registry.json`
 - Mailchimp entry replaced by the `conversational-product-voice` entry (same category and
