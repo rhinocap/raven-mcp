@@ -20,6 +20,17 @@ Permissive / public-domain sources
 - Gestalt principles — early-20th-century academic work, public domain.
   Descriptions in Raven are original prose.
 
+- UX and psychology "laws" (Fitts's Law, Hick's Law, Miller's Law, the
+  Doherty Threshold, etc.) — public academic concepts. Each entry in
+  src/data/principles/ cites its primary literature (Fitts 1954, Hick
+  1952, Miller 1956, ...) or, for principles with no single primary
+  paper (Tesler's Law, Occam's Razor), the earliest documented
+  attribution; all summaries and descriptions are original prose.
+
+- PlainLanguage.gov Federal Plain Language Guidelines
+  https://www.plainlanguage.gov/guidelines/
+  Work of the United States government, public domain.
+
 - W3C Web Content Accessibility Guidelines (WCAG 2.1 / 2.2)
   https://www.w3.org/WAI/standards-guidelines/wcag/
   Licensed under the W3C Document License. Permits redistribution and
@@ -31,10 +42,11 @@ Permissive / public-domain sources
   Contains public sector information licensed under the Open Government
   Licence v3.0: https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/
 
-- Shopify Polaris (component library)
-  https://polaris.shopify.com — Polaris code is MIT-licensed. Content
-  documentation is paraphrased as reference; consult Shopify for the
-  authoritative version.
+- Shopify Polaris (design system)
+  https://polaris.shopify.com — src/data/content/systems/shopify-polaris.json
+  is original commentary on Shopify's publicly documented content
+  guidelines, not a redistribution of them. Polaris carries its own
+  license terms; consult Shopify for the authoritative version.
 
 Attribution-with-conditions sources
 -----------------------------------
@@ -44,20 +56,10 @@ Attribution-with-conditions sources
   paraphrase under fair-use commentary. NN/g is the canonical source for
   production use.
 
-- Laws of UX, Jon Yablonski
-  https://lawsofux.com — licensed under CC BY-NC-ND 4.0.
-  Raven references the named laws (Fitts's Law, Miller's Law, Hick's Law,
-  etc. — which are public academic concepts) and provides original
-  descriptions. No prose from lawsofux.com is reproduced. The named "21
-  Laws of UX" framing and any Yablonski-authored summaries are the
-  property of the original author; consult lawsofux.com for the canonical
-  versions.
-
-- Mailchimp Content Style Guide
-  https://styleguide.mailchimp.com — licensed under CC BY-NC 4.0.
-  Raven's mailchimp.json is a paraphrased reference to the publicly
-  documented voice attributes, tone shifts, and content patterns.
-  Consult the original for authoritative or commercial use.
+- Microsoft Writing Style Guide
+  https://learn.microsoft.com/en-us/style-guide/ — referenced as a
+  source for bias-free and plain-language writing guidance; no Microsoft
+  prose is reproduced. Descriptions in Raven are original.
 
 - Atlassian Design System
   https://atlassian.design — content paraphrased as reference; no

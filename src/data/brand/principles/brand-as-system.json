@@ -66,7 +66,7 @@
     "name": "Voice is the brand's audible surface",
     "category": "brand",
     "summary": "The words a product uses — in UI, emails, errors, marketing, support — are as much of the brand as the colors. Voice inconsistency cracks the brand faster than visual inconsistency.",
-    "description": "Users read thousands of words of product copy, error messages, emails, and notifications per year. Every word either reinforces the brand or undermines it. A brand that looks warm in its colors but writes in clinical legalese feels fractured. A brand with a playful marketing voice and a dry product voice feels like two companies. Voice is not optional — it's one of the load-bearing parts of the brand. Mature brands publish voice guidelines alongside visual ones (Mailchimp's content style guide is the canonical example), and apply them consistently across marketing, product, transactional email, and support. When voice breaks, the brand weakens — even if the visuals are pristine.",
+    "description": "Users read thousands of words of product copy, error messages, emails, and notifications per year. Every word either reinforces the brand or undermines it. A brand that looks warm in its colors but writes in clinical legalese feels fractured. A brand with a playful marketing voice and a dry product voice feels like two companies. Voice is not optional — it's one of the load-bearing parts of the brand. Mature brands publish voice guidelines alongside visual ones — GOV.UK, Shopify Polaris, and Atlassian all maintain public content standards — and apply them consistently across marketing, product, transactional email, and support. When voice breaks, the brand weakens — even if the visuals are pristine.",
     "implications": [
       "Publish voice guidelines with the same rigor as visual guidelines — tone, vocabulary, grammar, usage.",
       "Apply voice across marketing, product, email, and support — not just marketing.",
@@ -80,7 +80,7 @@
       "Third-party tools (billing, analytics) introduce template language that doesn't match the brand voice."
     ],
     "applies_to": ["brand", "voice", "content-design"],
-    "sources": ["https://styleguide.mailchimp.com/", "https://atlassian.design/content/"]
+    "sources": ["https://polaris.shopify.com/content", "https://atlassian.design/content/"]
   },
   {
     "id": "brand-evolution-with-discipline",

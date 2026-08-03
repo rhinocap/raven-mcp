@@ -18,7 +18,7 @@
       "Product copy that reads like marketing taglines inside the app"
     ],
     "applies_to": ["content", "microcopy", "buttons", "errors", "navigation"],
-    "sources": ["https://styleguide.mailchimp.com/voice-and-tone/"]
+    "sources": ["https://www.plainlanguage.gov/guidelines/", "https://polaris.shopify.com/content/product-content"]
   },
   {
     "id": "front-load-meaning",
@@ -102,7 +102,7 @@
       "'Members may receive notifications' → 'You'll get a notification when...'"
     ],
     "applies_to": ["content", "settings", "help", "onboarding"],
-    "sources": ["https://styleguide.mailchimp.com/voice-and-tone/", "https://www.gov.uk/guidance/content-design/writing-for-gov-uk"]
+    "sources": ["https://www.plainlanguage.gov/guidelines/audience/", "https://www.gov.uk/guidance/content-design/writing-for-gov-uk"]
   },
   {
     "id": "match-words-to-mental-model",
@@ -234,6 +234,6 @@
       "Marketing-style enthusiasm in the middle of a serious workflow"
     ],
     "applies_to": ["content", "brand-voice", "errors", "onboarding", "billing"],
-    "sources": ["https://styleguide.mailchimp.com/voice-and-tone/"]
+    "sources": ["https://www.nngroup.com/articles/tone-of-voice-dimensions/"]
   }
 ]

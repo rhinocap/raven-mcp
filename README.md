@@ -12,7 +12,7 @@ Raven gives Claude access to a comprehensive design knowledge base:
 
 - **Principles** — Nielsen's 10 Heuristics, all 21 Laws of UX, Gestalt principles, WCAG accessibility, typography rules, color theory, mobile UX, D4D framework, UX writing, service design, brand, color-systems (palette-size discipline), and spacing-systems (base-unit grid + scale limits)
 - **Patterns** — Proven UI patterns for signup flows, pricing pages, navigation, dropdown/select menus, forms, landing pages, dashboards, modals, empty/error/loading states, CTAs, social proof, mobile conversion — plus content patterns (error messages, empty-state copy, notifications, form validation) and service patterns (service blueprinting, human handoff, signup-as-service, omnichannel continuity, moments of truth)
-- **Content systems** — Voice & tone guides from publicly documented brand systems: Mailchimp, GOV.UK, Shopify Polaris, and Atlassian
+- **Content systems** — Voice & tone guides: Conversational Product Voice, GOV.UK, Shopify Polaris, and Atlassian
 - **Research** — Qualitative, quantitative, and usability methods with do/don't protocols and checklists. Metrics frameworks: HEART, AARRR/Pirate, North Star Metric, conversion funnel, RICE, OKRs.
 - **Service design** — Service blueprinting (with HTML blueprint generation — current vs. ideal state), human-handoff patterns, signup-as-service, omnichannel continuity, moments of truth / recovery, and the GOV.UK Service Standard
 - **Brand & visual** — Logo usage (clear space, min sizes, variants, placement, restraint), gradient usage (hierarchy, palette, contrast, trend vs signature), imagery (consistency, representation, purpose), visual hierarchy, brand-as-system, and current (2026) visual-design trends
@@ -107,7 +107,7 @@ cd raven-mcp && npm install && npm run build
 | `audit_ios_privacy` | Audit Info.plist (or Expo app.json) /PRIVACY.md/entitlements/source — usage-string honesty, ATS, Android permissions, bundled secrets, undisclosed default data-egress |
 | `audit_rn` | Audit React Native / Expo source — touchable a11y labels, 44/48pt+hitSlop targets, font scaling, SafeAreaView, dark mode, against iOS HIG + Android Material |
 | `generate_design_system` | Generate a custom design system from a brand color |
-| `list_content_systems` | Browse brand voice & tone systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian) |
+| `list_content_systems` | Browse brand voice & tone systems (Conversational Product Voice, GOV.UK, Shopify Polaris, Atlassian) |
 | `get_content_system` | Get a brand's voice attributes, tone shifts, vocabulary, grammar, and content patterns |
 | `get_content_principles` | Get UX-writing principles — clarity, active voice, error anatomy, inclusive language |
 | `get_content_pattern` | Get copy recipes for error messages, empty-state copy, notifications, form validation |
@@ -377,7 +377,7 @@ Raven MCP is released under the [Apache License, Version 2.0](./LICENSE) — Cop
 
 If you fork, embed, or redistribute Raven (in whole or in part), retain the Apache-2.0 license notice, the `LICENSE` file, and the `NOTICE` file. If you ship Raven inside another product, include attribution to "Raven MCP — https://ravenmcp.ai" in your acknowledgements.
 
-Raven's knowledge base paraphrases and references work from many third-party sources — Nielsen Norman Group, Laws of UX (CC BY-NC-ND 4.0), Gestalt principles, WCAG (W3C), Mailchimp (CC BY-NC 4.0), GOV.UK (Open Government Licence v3.0), Shopify Polaris, Atlassian Design, and others. Each entry carries a `sources` URL field. See [NOTICE](./NOTICE) for the full list of upstream sources and license terms; some carry their own conditions beyond Apache-2.0.
+Raven's knowledge base references work from many third-party sources — Nielsen Norman Group, primary academic literature for the UX/psychology laws (Fitts, Hick, Miller, and others), Gestalt principles, WCAG (W3C), plainlanguage.gov (public domain), GOV.UK (Open Government Licence v3.0), Shopify Polaris, Atlassian Design, and others. Each entry carries a `sources` URL field. See [NOTICE](./NOTICE) for the full list of upstream sources and license terms; some carry their own conditions beyond Apache-2.0.
 
 This is a personal project. It is not endorsed by Intuit Inc. or any other company referenced in its source data.
 
@@ -391,8 +391,8 @@ src/data/
   patterns/        # signup, pricing, nav, forms, landing, dashboard, modals, empty/error/loading, CTA, social proof, mobile
   business/        # monetization, retention, onboarding, growth, metrics
   tokens/          # registry.json + systems/ (stripe, linear, vercel, …)
-  content/         # voice & tone: Mailchimp, GOV.UK, Shopify Polaris, Atlassian
-    systems/       # registry.json + brand-voice JSONs (Mailchimp, GOV.UK, Polaris, Atlassian)
+  content/         # voice & tone: Conversational Product Voice, GOV.UK, Shopify Polaris, Atlassian
+    systems/       # registry.json + brand-voice JSONs (conversational-product-voice, gov-uk, polaris, atlassian)
     principles/    # UX-writing principles (clarity, active voice, error anatomy, …)
     patterns/      # copy recipes for errors, empty states, notifications, form validation
   research/        # study protocols + metrics frameworks
