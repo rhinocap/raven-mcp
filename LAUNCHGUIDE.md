@@ -4,7 +4,7 @@
 Design intelligence and creative orchestration for AI-generated UI and launch assets.
 
 ## Description
-Raven gives Claude (and any MCP client) a queryable design knowledge base and local-first creative orchestration layer it can reach into while generating UI or preparing launch assets. Eight design layers cover the complete surface of design work: principles (Nielsen's heuristics, the 21 Laws of UX, Gestalt, WCAG, typography, color, mobile UX, D4D, UX writing, service design, brand), patterns (signup, pricing, nav, forms, landing, dashboards, modals, empty/error/loading states, CTAs, social proof, mobile conversion, plus content and service patterns), content design systems (Mailchimp, GOV.UK, Shopify Polaris, Atlassian voice & tone), research methods (qualitative, quantitative, usability) and metrics frameworks (HEART, AARRR, North Star, conversion funnel, RICE, OKRs), service design (blueprinting with HTML output, human handoff, signup-as-service, omnichannel continuity, moments of truth, GOV.UK Service Standard), brand & visual design (logo usage, gradient usage, imagery, hierarchy, brand-as-system, 2026 trends), business strategy, and production design tokens (Stripe, Linear, and more). Creative studio tools add local brand profiles, asset references, character reference profiles, provider-agnostic image/video/3D/audio generation jobs, campaign plans, and transparent creative scoring. Claude calls Raven's tools automatically when you ask it to build, evaluate, improve UI, design a service, or prepare creative production.
+Raven gives Claude (and any MCP client) a queryable design knowledge base and local-first creative orchestration layer it can reach into while generating UI or preparing launch assets. Eight design layers cover the complete surface of design work: principles (Nielsen's heuristics, the 21 Laws of UX, Gestalt, WCAG, typography, color, mobile UX, D4D, UX writing, service design, brand), patterns (signup, pricing, nav, forms, landing, dashboards, modals, empty/error/loading states, CTAs, social proof, mobile conversion, plus content and service patterns), content design systems (Conversational Product Voice, GOV.UK, Shopify Polaris, Atlassian voice & tone), research methods (qualitative, quantitative, usability) and metrics frameworks (HEART, AARRR, North Star, conversion funnel, RICE, OKRs), service design (blueprinting with HTML output, human handoff, signup-as-service, omnichannel continuity, moments of truth, GOV.UK Service Standard), brand & visual design (logo usage, gradient usage, imagery, hierarchy, brand-as-system, 2026 trends), business strategy, and production design tokens (Stripe, Linear, and more). Creative studio tools add local brand profiles, asset references, character reference profiles, provider-agnostic image/video/3D/audio generation jobs, campaign plans, and transparent creative scoring. Claude calls Raven's tools automatically when you ask it to build, evaluate, improve UI, design a service, or prepare creative production.
 
 ## Setup Requirements
 None for the default local knowledge and creative-planning tools. Raven ships as a stdio MCP server — no API keys, no accounts. Install with `claude mcp add raven -- npx -y raven-mcp` and Claude can use it immediately. To execute real media generation, optionally set `RAVEN_CREATIVE_RUNNER` to your own renderer command; Raven passes one job JSON object on stdin and never ships provider credentials.
@@ -20,7 +20,7 @@ Developer Tools
 - Generate a complete custom design system from a single brand color
 - Browse production design tokens from real systems (Stripe, Linear, and more)
 - Compose tokens across multiple design systems for hybrid styling
-- Get brand voice & tone systems from Mailchimp, GOV.UK, Shopify Polaris, and Atlassian
+- Get brand voice & tone systems: Conversational Product Voice, GOV.UK, Shopify Polaris, and Atlassian
 - Apply UX-writing principles to error messages, empty states, notifications, and form validation
 - Get research methods with protocols and checklists (qualitative, quantitative, usability)
 - Apply product-metrics frameworks (HEART, AARRR, North Star, conversion funnel, RICE, OKRs)
@@ -40,7 +40,7 @@ Developer Tools
 - "Audit the home page I just built against Raven's quality standards."
 - "Get me Nielsen's heuristics relevant to this signup flow."
 - "Generate a complete design system from this brand color: #5B47E5"
-- "Show me Mailchimp's voice and tone system, then rewrite this error message in that voice."
+- "Show me GOV.UK's voice and tone system, then rewrite this error message in that voice."
 - "Generate a service blueprint comparing current vs. ideal state for our onboarding."
 - "What are the 2026 brand and visual-design trends, and which fit a fintech audience?"
 - "Create a Raven brand profile, register this product image, and plan a launch campaign for web, TikTok, and marketplace."

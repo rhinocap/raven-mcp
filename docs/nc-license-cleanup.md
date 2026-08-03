@@ -88,6 +88,14 @@ nothing in the repository derives from a non-commercially-licensed source.
 - The `get_content_system` id example string listed `'mailchimp'`; now lists
   `'conversational-product-voice'`.
 
+### `README.md` and `LAUNCHGUIDE.md` (scope amendment, required by the change)
+- README's licensing section declared "Laws of UX (CC BY-NC-ND 4.0)" and "Mailchimp
+  (CC BY-NC 4.0)" as paraphrased upstreams — a standing claim of NC derivation that
+  contradicted this cleanup; restated to name the primary literature and permissive
+  sources. Both files also advertised the removed `mailchimp` content-system id;
+  updated to the current system list. The marketing site (`site/`, `web/`) carries the
+  same stale references but deploys separately and is handled as a follow-up.
+
 ## Verification
 See the branch's test run: `grep -ril "lawsofux|styleguide.mailchimp" src/ NOTICE` returns
 nothing; the build and full test suite pass; every touched JSON loads through the same
