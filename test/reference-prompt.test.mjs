@@ -440,3 +440,97 @@ test('composing consults decisions without writing a consultation-trace event', 
   const lastEvent = JSON.parse(control.trim().split('\n').pop());
   assert.equal(lastEvent.tool, 'decision_list');
 });
+
+// ---------------------------------------------------------------------------
+// Role/density guard on the emphasis ramp (§13 pre-gate, round 2 defect).
+//
+// The quantile ramp was role-blind. On the arena's type scale
+// (label 13 / body 16 / lead 20 / h3 27 / h2 56 / h1 96), emphasis 2 resolves to
+// quantile 0.5 -> index 3 -> type.h3, so a snackbar's message bound a 27px
+// heading token. Five of six builds shipped it; it was the defect that separated
+// the composed arm from the one-liner arm. These tests measure the guard's
+// EFFECT on that exact ramp, and — more importantly — that it does not fire on
+// ordinary page structure, which is where an over-broad cap would do damage.
+// ---------------------------------------------------------------------------
+
+const { bindSkeleton } = await import(path.resolve(__dirname, '../dist/reference-prompt.js'));
+
+// The arena scale, verbatim.
+const RAMP = [
+  ['type.label', 13], ['type.body', 16], ['type.lead', 20],
+  ['type.h3', 27], ['type.h2', 56], ['type.h1', 96],
+  ['space.xs', 4], ['space.sm', 8], ['space.md', 16], ['space.lg', 32], ['space.xl', 64],
+].map(([p, v]) => ({ path: p, group: p.split('.')[0], value: `${v}px` }));
+
+const node = (node_id, role, archetype, containment, emphasis, density, children = []) =>
+  ({ node_id, role, archetype, containment, order: 0, emphasis, density, children });
+
+const bind = (structure, tokens = RAMP) => bindSkeleton({ structure, motion: [] }, [], tokens, []);
+const emphasisOf = (out, id) => out.bindings.find((b) => b.kind === 'component' && b.node_id === id).emphasis_token;
+const clamps = (out) => out.gaps.filter((g) => g.includes('transient surface'));
+
+test('emphasis ramp: a toast message cannot bind a heading token', () => {
+  const out = bind(node('toast', 'transient confirmation surface', 'toast', 'overlay', 2, 'compact', [
+    node('msg', 'confirmation message text', 'text', 'stack', 2, 'compact'),
+  ]));
+  assert.equal(emphasisOf(out, 'toast'), 'type.body');
+  assert.equal(emphasisOf(out, 'msg'), 'type.body', 'the message is the node that shipped at 27px');
+  assert.equal(clamps(out).length, 2, 'each clamped node reports its own clamp');
+  assert.ok(clamps(out)[0].includes('type.h3'), 'the gap names the token that WOULD have bound');
+});
+
+test('emphasis ramp: the cap is inherited, not per-node', () => {
+  // 'label' is not a transient archetype by name. It is clamped only because it
+  // sits inside a toast — which is the whole point of carrying the flag down.
+  const out = bind(node('toast', 'transient surface', 'toast', 'overlay', 1, 'compact', [
+    node('label', 'emphasised count', 'label', 'stack', 3, 'compact'),
+  ]));
+  assert.equal(emphasisOf(out, 'label'), 'type.body');
+  assert.equal(clamps(out).length, 1);
+});
+
+test('emphasis ramp: ordinary page structure is untouched', () => {
+  // The regression this guard could plausibly cause. A hero heading must still
+  // reach display type, or the cap has eaten the feature to fix the bug.
+  const out = bind(node('page', 'page root', 'section', 'stack', 1, 'default', [
+    node('hero', 'primary page heading', 'heading', 'stack', 3, 'roomy'),
+    node('deck', 'supporting deck', 'text', 'stack', 2, 'roomy'),
+  ]));
+  assert.equal(emphasisOf(out, 'hero'), 'type.h2');
+  assert.equal(emphasisOf(out, 'deck'), 'type.h3');
+  assert.equal(clamps(out).length, 0);
+});
+
+test('emphasis ramp: a roomy overlay is a dialog, not a transient surface', () => {
+  // overlay AND compact is the inferred trigger; overlay alone must not be.
+  const out = bind(node('modal', 'confirmation dialog', 'dialog', 'overlay', 2, 'roomy', [
+    node('title', 'dialog heading', 'heading', 'stack', 3, 'default'),
+  ]));
+  assert.equal(emphasisOf(out, 'title'), 'type.h2');
+  assert.equal(clamps(out).length, 0);
+});
+
+test('emphasis ramp: a compact non-overlay is not transient either', () => {
+  const out = bind(node('side', 'filter sidebar', 'sidebar', 'stack', 1, 'compact', [
+    node('sideTitle', 'section heading', 'heading', 'stack', 3, 'compact'),
+  ]));
+  assert.equal(emphasisOf(out, 'sideTitle'), 'type.h2');
+  assert.equal(clamps(out).length, 0);
+});
+
+test('emphasis ramp: the cap falls back to the entry nearest 16px when no token is named body', () => {
+  const unnamed = [
+    ['type.xs', 12], ['type.sm', 15], ['type.md', 22], ['type.lg', 40],
+    ['space.sm', 8], ['space.md', 16],
+  ].map(([p, v]) => ({ path: p, group: p.split('.')[0], value: `${v}px` }));
+  const out = bind(node('tip', 'hover hint', 'tooltip', 'overlay', 3, 'compact', []), unnamed);
+  assert.equal(emphasisOf(out, 'tip'), 'type.sm', '15px is nearer 16 than 22px is');
+});
+
+test('emphasis ramp: the clamp survives to the composed prompt the caller reads', async () => {
+  // Guard-in-the-engine is only worth anything if the calling agent sees it.
+  const out = parse(await call('compose_build_prompt', {
+    intent: 'snackbar', project_dir: projectDir, profile: PROFILE, skeleton: SKELETON,
+  }));
+  assert.ok(/transient surface/.test(out.prompt), 'the clamp must reach the prompt, not just the gaps array');
+});

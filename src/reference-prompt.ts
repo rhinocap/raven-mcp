@@ -178,10 +178,13 @@ function lintString(where: string, value: string, findings: string[]): void {
   }
 }
 
-function walkStructure(node: StructureNode, visit: (node: StructureNode) => void): void {
-  visit(node);
+// `transient` is inherited: a node inside a toast is still inside a toast, so the
+// emphasis cap has to follow the subtree rather than test each node in isolation.
+function walkStructure(node: StructureNode, visit: (node: StructureNode, transient: boolean) => void, transient?: boolean): void {
+  var inTransient = transient === true || isTransientSurface(node);
+  visit(node, inTransient);
   var children = Array.isArray(node.children) ? node.children : [];
-  for (var i = 0; i < children.length; i++) walkStructure(children[i], visit);
+  for (var i = 0; i < children.length; i++) walkStructure(children[i], visit, inTransient);
 }
 
 export function lintSkeleton(skeleton: Skeleton): string[] {
@@ -302,17 +305,69 @@ function tokensInGroup(tokens: FlattenedDesignToken[], prefix: string): Flattene
   });
 }
 
+interface RampEntry { token: FlattenedDesignToken; num: number }
+
+function rampEntries(tokens: FlattenedDesignToken[], prefix: string): RampEntry[] {
+  return tokensInGroup(tokens, prefix)
+    .map(function(token) { return { token: token, num: parseTokenNumber(token) }; })
+    .filter(function(entry): entry is RampEntry { return entry.num !== null; })
+    .sort(function(a, b) { return a.num - b.num; });
+}
+
 // Sort the group's parseable scalars ascending and pick by quantile — never by
 // declaration order, which carries no semantics in a YAML block (§9). Fewer
 // than two parseable values is not a ramp: unresolved, reported as a gap.
 function rampPick(tokens: FlattenedDesignToken[], prefix: string, quantile: number): string | null {
-  var ramp = tokensInGroup(tokens, prefix)
-    .map(function(token) { return { token: token, num: parseTokenNumber(token) }; })
-    .filter(function(entry): entry is { token: FlattenedDesignToken; num: number } { return entry.num !== null; })
-    .sort(function(a, b) { return a.num - b.num; });
+  var ramp = rampEntries(tokens, prefix);
   if (ramp.length < 2) return null;
-  var index = Math.min(ramp.length - 1, Math.max(0, Math.round((ramp.length - 1) * quantile)));
-  return ramp[index].token.path;
+  return ramp[quantileIndex(ramp.length, quantile)].token.path;
+}
+
+function quantileIndex(length: number, quantile: number): number {
+  return Math.min(length - 1, Math.max(0, Math.round((length - 1) * quantile)));
+}
+
+// A toast, tooltip or inline banner is read in passing and must not carry display
+// type. The quantile ramp is role-blind, so on a scale that mixes body and display
+// sizes (13/16/20/27/56/96) emphasis 2 lands on the 4th entry — a 27px heading
+// token inside a snackbar, which is the defect this guard exists to stop.
+var TRANSIENT_ARCHETYPES = /\b(toast|snackbar|tooltip|popover|flash|banner|badge|chip|pill|status\s*bar|inline\s*alert|transient)\b/i;
+
+function isTransientSurface(node: StructureNode): boolean {
+  if (TRANSIENT_ARCHETYPES.test(node.archetype || "")) return true;
+  if (TRANSIENT_ARCHETYPES.test(node.role || "")) return true;
+  // Not every design system names its toast "toast". An overlay that is also
+  // compact is transient by construction: it floats above the page and is sized
+  // to be glanced at.
+  return node.containment === "overlay" && node.density === "compact";
+}
+
+// Cap the emphasis pick at the ramp's body entry (by token name, falling back to
+// the entry nearest 16px) so a transient surface cannot resolve above it. Returns
+// whether the cap actually moved the pick, so the caller can report the clamp
+// rather than silently re-scaling a level the skeleton asked for.
+function rampPickCapped(
+  tokens: FlattenedDesignToken[],
+  prefix: string,
+  quantile: number
+): { path: string | null; clamped: string | null } {
+  var ramp = rampEntries(tokens, prefix);
+  if (ramp.length < 2) return { path: null, clamped: null };
+  var requested = quantileIndex(ramp.length, quantile);
+  var cap = bodyIndex(ramp);
+  if (requested <= cap) return { path: ramp[requested].token.path, clamped: null };
+  return { path: ramp[cap].token.path, clamped: ramp[requested].token.path };
+}
+
+function bodyIndex(ramp: RampEntry[]): number {
+  for (var i = 0; i < ramp.length; i++) {
+    if (/(^|\.)body$/i.test(ramp[i].token.path)) return i;
+  }
+  var nearest = 0;
+  for (var j = 1; j < ramp.length; j++) {
+    if (Math.abs(ramp[j].num - 16) < Math.abs(ramp[nearest].num - 16)) nearest = j;
+  }
+  return nearest;
 }
 
 var EMPHASIS_QUANTILE: Record<number, number> = { 1: 0.25, 2: 0.5, 3: 0.85 };
@@ -359,12 +414,25 @@ export function bindSkeleton(
   var emphasisGapReported = false;
   var densityGapReported = false;
 
-  walkStructure(skeleton.structure, function(node) {
+  walkStructure(skeleton.structure, function(node, transient) {
     var bound = bindArchetype(node.archetype, components, canonical);
     if (bound.confidence === "unresolved" && components.length > 0) {
       gaps.push("Archetype \"" + node.archetype + "\" (node " + node.node_id + ") matched no component in your system — name your equivalent or create one, and report which.");
     }
-    var emphasisToken = rampPick(tokens, "type", EMPHASIS_QUANTILE[node.emphasis]);
+    var emphasisToken: string | null;
+    if (transient) {
+      var capped = rampPickCapped(tokens, "type", EMPHASIS_QUANTILE[node.emphasis]);
+      emphasisToken = capped.path;
+      if (capped.clamped !== null) {
+        gaps.push(
+          "Node " + node.node_id + " (\"" + node.archetype + "\") sits in a transient surface, where emphasis " +
+          node.emphasis + " would have bound " + capped.clamped + " — display type in a surface that is glanced at. " +
+          "Clamped to " + capped.path + ". Carry the emphasis with weight or colour instead of size, and say which you used."
+        );
+      }
+    } else {
+      emphasisToken = rampPick(tokens, "type", EMPHASIS_QUANTILE[node.emphasis]);
+    }
     if (emphasisToken === null && !emphasisGapReported) {
       gaps.push("type.* has no parseable numeric ramp, so emphasis could not be bound to a token. Name the type token you used for each emphasis level.");
       emphasisGapReported = true;
