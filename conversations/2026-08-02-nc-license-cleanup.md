@@ -154,3 +154,27 @@ the merge-and-deploy claim: NO OBJECTIONS. Branch feat/pattern-library created o
 e34503d; spec committed there as 1f1ca04 (spec alone via --only; the hook had staged
 an unrelated scoreboard file). NC-cleanup thread is fully closed; Phase 0
 (compose_build_prompt) begins.
+
+## Phase 0 build: compose_build_prompt (post-crash resume, twice-compacted)
+Task #1–#4 complete on feat/pattern-library, committed 836e171 (explicit --only paths,
+13 files). src/reference-prompt.ts (~720 lines): §9 skeleton types, lint (colorless/
+typeless/sizeless — hex/px/font/pixel-kind throw), binding ladder alias→canonical→
+fuzzy(≥0.8 Levenshtein)→unresolved, quantile ramps (type./space.), ±40ms motion snap
+vs motion.duration.*, DESIGN.md→registry.json→repo-scan inventory ladder, fixed-order
+prompt with prohibitions from in-scope negative_prompts + taste decisions + active
+graph decisions read DIRECTLY via listActiveDecisions() (never decision_list —
+consultation-trace purity proven by test with a decision_list control). Contested
+decisions land under ## Gaps. Late amendment: design_notes now emitted in the
+Acceptance section (§13 "every design_notes key" requires it — the composer had only
+fed them to buildHints). Registration: readOnly, REMOTE_GATED_TOOLS (anon 45 + golden
+hash verified by effect at registration time), counts 105→106/60→61 across three
+comment blocks + six tests. manifest.json/README/both llms.txt regenerated. New test
+file: 5 tests, all first-run green; full suite 1158/1155/0/3.
+
+Auto-save incident #6: the hook committed the foreign openweight-scoreboard.jsonl as
+278d72f on this branch. Unpushed + HEAD-only → soft-reset to 0c27553, file returned
+to working tree untouched. Tally now 6.
+
+Next: push feat/pattern-library, open PR (Andrew gates the merge — main deploys the
+endpoint), then the one-hour pre-gate comparison (composed prompt vs one-line
+instruction; "if it is no better, delete the tool") and Andrew's blind A/B.
