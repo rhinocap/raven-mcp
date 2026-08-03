@@ -280,3 +280,51 @@ Disposition options for Andrew: fix the ramp + one re-run, or delete per spec.
 Sol falsification pass on this verdict running now (first attempt failed:
 `gpt-5.6-sol-medium` is not a valid -m on this account; retried as
 `-m gpt-5.6-sol -c model_reasoning_effort=medium`).
+
+## Window 10 — CHECKPOINT before /clear (new CLAUDE.md pickup). Verdict NOT final.
+
+Sol's falsification pass on the pre-gate verdict returned 4 REAL + 3 NITPICK.
+Raw report + ALL pre-gate evidence copied out of the GC'd scratchpad to
+`.claude/pregate-2026-08-02/` (arena/, arm-a/, arm-b/, composed prompt+json,
+skeleton.json, judge.mjs, SOL-PROMPT.md, SOL-VERDICT-RAW.txt). Sol invocation
+that works on this account: `codex exec -m gpt-5.6-sol -c
+model_reasoning_effort=medium` (NOT `-m gpt-5.6-sol-medium` — 400s).
+
+Sol's REAL objections + preliminary dispositions (successor must finish these):
+1. Arm provenance not reproducible — arm prompts/agent-type/output-contract not
+   persisted on disk (compose.mjs only makes arm A's input). ACCEPTED. Both arm
+   prompts exist in this session's transcript jsonl — recover and persist as
+   ARM-PROMPTS.md, or do a controlled re-run.
+2. "Composer-caused" overstated — MY skeleton set the undo emphasis:3 while the
+   spec's own snackbar example (spec-pattern-library.md:432) uses emphasis 1 for
+   the action; composer then mapped 3→type.h2 via the quantile ramp
+   (reference-prompt.ts:305) with no role/density guard. ACCEPTED as shared
+   causality: skeleton choice + unguarded mapping. The composer defect that
+   remains real: it silently maps an inline action to h2 with no guard and no
+   gap warning.
+3. Eyes-on not evidenced on disk — screenshots were inline-only in the agent
+   session. ACCEPTED. On resume: re-serve `.claude/pregate-2026-08-02`
+   (python3 -m http.server), capture PNG of both post-save states into that dir.
+   CSS already proves the disproportion (arm-a index.html:216-233 27px/56px;
+   arm-b 16px body), but the comparison record must be auditable.
+4. "Fix ramp + re-run" is not the spec's disposition — §13:555 says "If it is no
+   better, delete the tool", no repair exception. ACCEPTED as framing: EITHER
+   the run is valid → literal spec says delete; OR objection 1/2 invalidate the
+   run → the next step is a controlled re-run (fair skeleton emphasis per the
+   spec's own example, provenance persisted) WITHOUT touching the composer
+   first. Fix-then-rerun moves the gate and needs Andrew's explicit sanction.
+NITPICKs: "near-tied" fair but talon is strictly A(1) < B(2); machine PASSes
+never saw the interactive snackbar state (judge.mjs feeds static HTML); N=1 is
+what the spec wrote.
+
+Honest state of the verdict: the 56px defect is real and the builder is
+exonerated (prompt binding followed literally). But the comparison as-run cannot
+invoke the delete clause cleanly — provenance and emphasis-fairness are
+compromised. The clean path on resume: controlled re-run of arm A with the
+skeleton's undo at emphasis 1 (per spec's own example) + persisted arm prompts +
+PNG captures, then judge again. If arm A is STILL no better → delete per spec.
+If better → stage Andrew's blind A/B (gate a).
+
+Also owed by successor: /revisit retrospective (PROMOTION-QUEUE.md must be
+cleared first); stash@{0} (accidental-release recovery) still intact — preserve;
+session log pushed through 44130f2 before this entry.
