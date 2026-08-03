@@ -1,0 +1,14 @@
+import { chromium } from 'playwright';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+const here = path.dirname(fileURLToPath(import.meta.url));
+const url = 'file://' + path.join(here, 'index.html');
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 1200, height: 800 }, deviceScaleFactor: 2 });
+await p.goto(url);
+await p.click('#save');
+await p.waitForFunction(() => document.getElementById('readout').textContent === 'visible', null, { timeout: 3000 });
+await p.hover('.snackbar__message');
+await p.screenshot({ path: path.join(here, 'state-visible.png') });
+await p.locator('.snackbar').screenshot({ path: path.join(here, 'state-visible-crop.png') });
+await b.close();

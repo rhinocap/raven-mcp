@@ -1,0 +1,635 @@
+{
+  "dom_snapshot": [
+    {
+      "selector": "p.eyebrow",
+      "color": "rgb(130, 130, 130)",
+      "bgColor": "rgb(5, 5, 5)",
+      "fontPx": 13,
+      "bold": false,
+      "text": "arena · pre-gate fixture"
+    },
+    {
+      "selector": "h1.page-title",
+      "color": "rgb(255, 255, 255)",
+      "bgColor": "rgb(5, 5, 5)",
+      "fontPx": 96,
+      "bold": false,
+      "text": "Optimistic save"
+    },
+    {
+      "selector": "p.page-note",
+      "color": "rgb(184, 184, 184)",
+      "bgColor": "rgb(5, 5, 5)",
+      "fontPx": 20,
+      "bold": false,
+      "text": "Saving commits the change immediately. The confirm"
+    },
+    {
+      "selector": "span.field__label",
+      "color": "rgb(130, 130, 130)",
+      "bgColor": "rgb(5, 5, 5)",
+      "fontPx": 13,
+      "bold": false,
+      "text": "Visibility"
+    },
+    {
+      "selector": "span.field__value",
+      "color": "rgb(255, 255, 255)",
+      "bgColor": "rgb(5, 5, 5)",
+      "fontPx": 20,
+      "bold": false,
+      "text": "Public"
+    },
+    {
+      "selector": "span.field__pending",
+      "color": "rgb(130, 130, 130)",
+      "bgColor": "rgb(5, 5, 5)",
+      "fontPx": 13,
+      "bold": false,
+      "text": "— pending change: Private"
+    },
+    {
+      "selector": "span.btn__label",
+      "color": "rgb(130, 130, 130)",
+      "bgColor": "rgb(5, 5, 5)",
+      "fontPx": 16,
+      "bold": false,
+      "text": "Save change"
+    },
+    {
+      "selector": "span",
+      "color": "rgb(130, 130, 130)",
+      "bgColor": "rgb(5, 5, 5)",
+      "fontPx": 13,
+      "bold": false,
+      "text": "state visible"
+    },
+    {
+      "selector": "b",
+      "color": "rgb(184, 184, 184)",
+      "bgColor": "rgb(5, 5, 5)",
+      "fontPx": 13,
+      "bold": false,
+      "text": "visible"
+    },
+    {
+      "selector": "span",
+      "color": "rgb(130, 130, 130)",
+      "bgColor": "rgb(5, 5, 5)",
+      "fontPx": 13,
+      "bold": false,
+      "text": "clock held (pointer) 6.0s"
+    },
+    {
+      "selector": "b",
+      "color": "rgb(184, 184, 184)",
+      "bgColor": "rgb(5, 5, 5)",
+      "fontPx": 13,
+      "bold": false,
+      "text": "held (pointer) 6.0s"
+    },
+    {
+      "selector": "span",
+      "color": "rgb(130, 130, 130)",
+      "bgColor": "rgb(5, 5, 5)",
+      "fontPx": 13,
+      "bold": false,
+      "text": "last outcome —"
+    },
+    {
+      "selector": "b",
+      "color": "rgb(184, 184, 184)",
+      "bgColor": "rgb(5, 5, 5)",
+      "fontPx": 13,
+      "bold": false,
+      "text": "—"
+    },
+    {
+      "selector": "p.snackbar__message",
+      "color": "rgb(255, 255, 255)",
+      "bgColor": "rgb(20, 20, 20)",
+      "fontPx": 16,
+      "bold": false,
+      "text": "Saved"
+    },
+    {
+      "selector": "button.btn.btn--ghost.snackbar__undo",
+      "color": "rgb(255, 255, 255)",
+      "bgColor": "rgb(20, 20, 20)",
+      "fontPx": 16,
+      "bold": false,
+      "text": "Undo"
+    }
+  ],
+  "targets": [
+    {
+      "selector": "button.btn.btn--primary.is-loading",
+      "role": "button",
+      "text": "Save change",
+      "x": 288,
+      "y": 468.046875,
+      "w": 148.59,
+      "h": 44
+    },
+    {
+      "selector": "button.btn.btn--ghost.snackbar__undo",
+      "role": "button",
+      "text": "Undo",
+      "x": 759.21875,
+      "y": 723,
+      "w": 91.78,
+      "h": 44
+    },
+    {
+      "selector": "button.btn.btn--ghost-icon",
+      "role": "button",
+      "text": "Dismiss",
+      "x": 859,
+      "y": 723,
+      "w": 44,
+      "h": 44
+    }
+  ],
+  "elements": [
+    {
+      "selector": "main.page",
+      "rect": {
+        "x": 288,
+        "y": 0,
+        "w": 704,
+        "h": 796.19
+      },
+      "computed": {
+        "color": "rgb(184, 184, 184)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "16px",
+        "padding": "48px 0px 144px",
+        "margin": "0px 288px",
+        "gap": "48px"
+      }
+    },
+    {
+      "selector": "header",
+      "rect": {
+        "x": 288,
+        "y": 48,
+        "w": 704,
+        "h": 243.05
+      },
+      "computed": {
+        "color": "rgb(184, 184, 184)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "16px",
+        "padding": "0px",
+        "margin": "0px",
+        "gap": "normal"
+      }
+    },
+    {
+      "selector": "p.eyebrow",
+      "rect": {
+        "x": 288,
+        "y": 48,
+        "w": 704,
+        "h": 20.14
+      },
+      "computed": {
+        "color": "rgb(130, 130, 130)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "13px",
+        "padding": "0px",
+        "margin": "0px",
+        "gap": "normal"
+      }
+    },
+    {
+      "selector": "h1.page-title",
+      "rect": {
+        "x": 288,
+        "y": 76.14,
+        "w": 704,
+        "h": 97.91
+      },
+      "computed": {
+        "color": "rgb(255, 255, 255)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "96px",
+        "padding": "0px",
+        "margin": "8px 0px 0px",
+        "gap": "normal"
+      }
+    },
+    {
+      "selector": "p.page-note",
+      "rect": {
+        "x": 288,
+        "y": 198.05,
+        "w": 544,
+        "h": 93
+      },
+      "computed": {
+        "color": "rgb(184, 184, 184)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "20px",
+        "padding": "0px",
+        "margin": "24px 0px 0px",
+        "gap": "normal"
+      }
+    },
+    {
+      "selector": "section.field",
+      "rect": {
+        "x": 288,
+        "y": 339.05,
+        "w": 704,
+        "h": 81
+      },
+      "computed": {
+        "color": "rgb(184, 184, 184)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "16px",
+        "padding": "24px 0px",
+        "margin": "0px",
+        "gap": "16px"
+      }
+    },
+    {
+      "selector": "span.field__label",
+      "rect": {
+        "x": 288,
+        "y": 372.05,
+        "w": 77.22,
+        "h": 20.14
+      },
+      "computed": {
+        "color": "rgb(130, 130, 130)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "13px",
+        "padding": "0px",
+        "margin": "0px",
+        "gap": "normal"
+      }
+    },
+    {
+      "selector": "span",
+      "rect": {
+        "x": 764.03,
+        "y": 364.05,
+        "w": 227.97,
+        "h": 31
+      },
+      "computed": {
+        "color": "rgb(184, 184, 184)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "16px",
+        "padding": "0px",
+        "margin": "0px",
+        "gap": "normal"
+      }
+    },
+    {
+      "selector": "span.field__value",
+      "rect": {
+        "x": 764.03,
+        "y": 368.05,
+        "w": 61,
+        "h": 23
+      },
+      "computed": {
+        "color": "rgb(255, 255, 255)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "20px",
+        "padding": "0px",
+        "margin": "0px",
+        "gap": "normal"
+      }
+    },
+    {
+      "selector": "span.field__pending",
+      "rect": {
+        "x": 828.52,
+        "y": 375.05,
+        "w": 163.48,
+        "h": 14
+      },
+      "computed": {
+        "color": "rgb(130, 130, 130)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "13px",
+        "padding": "0px",
+        "margin": "0px",
+        "gap": "normal"
+      }
+    },
+    {
+      "selector": "div.controls",
+      "rect": {
+        "x": 288,
+        "y": 468.05,
+        "w": 704,
+        "h": 44
+      },
+      "computed": {
+        "color": "rgb(184, 184, 184)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "16px",
+        "padding": "0px",
+        "margin": "0px",
+        "gap": "24px"
+      }
+    },
+    {
+      "selector": "button.btn.btn--primary.is-loading",
+      "rect": {
+        "x": 288,
+        "y": 468.05,
+        "w": 148.59,
+        "h": 44
+      },
+      "computed": {
+        "color": "rgb(130, 130, 130)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "16px",
+        "padding": "1px 24px",
+        "margin": "0px",
+        "gap": "8px"
+      }
+    },
+    {
+      "selector": "span.btn__label",
+      "rect": {
+        "x": 313,
+        "y": 482.05,
+        "w": 98.59,
+        "h": 16
+      },
+      "computed": {
+        "color": "rgb(130, 130, 130)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "16px",
+        "padding": "0px",
+        "margin": "0px",
+        "gap": "normal"
+      }
+    },
+    {
+      "selector": "p.outcome",
+      "rect": {
+        "x": 288,
+        "y": 560.05,
+        "w": 704,
+        "h": 24
+      },
+      "computed": {
+        "color": "rgb(184, 184, 184)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "13px",
+        "padding": "0px",
+        "margin": "0px",
+        "gap": "normal"
+      }
+    },
+    {
+      "selector": "p.readout",
+      "rect": {
+        "x": 288,
+        "y": 632.05,
+        "w": 704,
+        "h": 20.14
+      },
+      "computed": {
+        "color": "rgb(130, 130, 130)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "13px",
+        "padding": "0px",
+        "margin": "0px",
+        "gap": "24px"
+      }
+    },
+    {
+      "selector": "span",
+      "rect": {
+        "x": 288,
+        "y": 632.05,
+        "w": 101.42,
+        "h": 20.14
+      },
+      "computed": {
+        "color": "rgb(130, 130, 130)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "13px",
+        "padding": "0px",
+        "margin": "0px",
+        "gap": "normal"
+      }
+    },
+    {
+      "selector": "b",
+      "rect": {
+        "x": 334.81,
+        "y": 633.05,
+        "w": 54.61,
+        "h": 17
+      },
+      "computed": {
+        "color": "rgb(184, 184, 184)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "13px",
+        "padding": "0px",
+        "margin": "0px",
+        "gap": "normal"
+      }
+    },
+    {
+      "selector": "span",
+      "rect": {
+        "x": 413.42,
+        "y": 632.05,
+        "w": 195.02,
+        "h": 20.14
+      },
+      "computed": {
+        "color": "rgb(130, 130, 130)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "13px",
+        "padding": "0px",
+        "margin": "0px",
+        "gap": "normal"
+      }
+    },
+    {
+      "selector": "b",
+      "rect": {
+        "x": 460.23,
+        "y": 633.05,
+        "w": 148.2,
+        "h": 17
+      },
+      "computed": {
+        "color": "rgb(184, 184, 184)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "13px",
+        "padding": "0px",
+        "margin": "0px",
+        "gap": "normal"
+      }
+    },
+    {
+      "selector": "span",
+      "rect": {
+        "x": 632.44,
+        "y": 632.05,
+        "w": 109.22,
+        "h": 20.14
+      },
+      "computed": {
+        "color": "rgb(130, 130, 130)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "13px",
+        "padding": "0px",
+        "margin": "0px",
+        "gap": "normal"
+      }
+    },
+    {
+      "selector": "b",
+      "rect": {
+        "x": 733.84,
+        "y": 633.05,
+        "w": 7.81,
+        "h": 17
+      },
+      "computed": {
+        "color": "rgb(184, 184, 184)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "13px",
+        "padding": "0px",
+        "margin": "0px",
+        "gap": "normal"
+      }
+    },
+    {
+      "selector": "div.snackbar.is-visible",
+      "rect": {
+        "x": 368,
+        "y": 722,
+        "w": 544,
+        "h": 46
+      },
+      "computed": {
+        "color": "rgb(184, 184, 184)",
+        "background": "rgb(20, 20, 20)",
+        "fontSize": "16px",
+        "padding": "0px",
+        "margin": "0px 368px",
+        "gap": "0px"
+      }
+    },
+    {
+      "selector": "p.snackbar__message",
+      "rect": {
+        "x": 369,
+        "y": 723,
+        "w": 381.22,
+        "h": 44
+      },
+      "computed": {
+        "color": "rgb(255, 255, 255)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "16px",
+        "padding": "8px 24px",
+        "margin": "0px",
+        "gap": "normal"
+      }
+    },
+    {
+      "selector": "div.snackbar__actions",
+      "rect": {
+        "x": 750.22,
+        "y": 723,
+        "w": 160.78,
+        "h": 44
+      },
+      "computed": {
+        "color": "rgb(184, 184, 184)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "16px",
+        "padding": "0px 8px",
+        "margin": "0px",
+        "gap": "8px"
+      }
+    },
+    {
+      "selector": "button.btn.btn--ghost.snackbar__undo",
+      "rect": {
+        "x": 759.22,
+        "y": 723,
+        "w": 91.78,
+        "h": 44
+      },
+      "computed": {
+        "color": "rgb(255, 255, 255)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "16px",
+        "padding": "1px 24px",
+        "margin": "0px",
+        "gap": "8px"
+      }
+    },
+    {
+      "selector": "button.btn.btn--ghost-icon",
+      "rect": {
+        "x": 859,
+        "y": 723,
+        "w": 44,
+        "h": 44
+      },
+      "computed": {
+        "color": "rgb(184, 184, 184)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "16px",
+        "padding": "1px 0px",
+        "margin": "0px",
+        "gap": "8px"
+      }
+    },
+    {
+      "selector": "svg",
+      "rect": {
+        "x": 873,
+        "y": 737,
+        "w": 16,
+        "h": 16
+      },
+      "computed": {
+        "color": "rgb(184, 184, 184)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "16px",
+        "padding": "0px",
+        "margin": "0px",
+        "gap": "normal"
+      }
+    },
+    {
+      "selector": "path",
+      "rect": {
+        "x": 876.5,
+        "y": 740.5,
+        "w": 9,
+        "h": 9
+      },
+      "computed": {
+        "color": "rgb(184, 184, 184)",
+        "background": "rgba(0, 0, 0, 0)",
+        "fontSize": "16px",
+        "padding": "0px",
+        "margin": "0px",
+        "gap": "normal"
+      }
+    }
+  ],
+  "viewport": {
+    "w": 1280,
+    "h": 800
+  }
+}

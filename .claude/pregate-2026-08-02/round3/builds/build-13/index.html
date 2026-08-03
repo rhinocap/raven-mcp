@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Optimistic save — snackbar</title>
+<style>
+/* ---------------------------------------------------------------------------
+   Tokens — values transcribed from arena/DESIGN.md.
+   Type tokens are unitless in DESIGN.md; the unit is appended here.
+   Tokens marked EXT are component-level extensions this build had to add
+   because DESIGN.md does not carry them (recorded in BUILD-LOG.md).
+--------------------------------------------------------------------------- */
+:root {
+  /* colors */
+  --color-bg: #050505;
+  --color-bg-elev: #141414;
+  --color-bg-card: #1c1c1c;
+  --color-fg: #ffffff;
+  --color-fg-muted: #b8b8b8;
+  --color-fg-dim: #828282;
+  --color-line: #363636;
+  --color-line-strong: #545454;
+  --color-accent: #ed4609;
+
+  /* type scale */
+  --type-label: 13px;
+  --type-body: 16px;
+  --type-lead: 20px;
+  --type-h3: 27px;
+  --type-h2: 56px;
+  --type-h1: 96px;
+
+  /* space */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-xxl: 48px;
+
+  /* motion */
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 200ms;
+  --motion-duration-slow: 400ms;
+  --motion-easing-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --motion-easing-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-easing-site: cubic-bezier(0.56, 0.22, 0.05, 0.99);
+
+  /* EXT — families (no external requests; local/system fallbacks only, no italics) */
+  --font-body: "Untitled Sans", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-body);
+  --font-mono: "Geist Mono", "Geist", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* EXT — weights (400/500/700 only) */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-bold: 700;
+
+  /* EXT — measure, leading, tracking */
+  --leading-tight: 1.12;
+  --leading-body: 1.55;
+  --tracking-label: 0.08em;
+  --tracking-tight: -0.01em;
+  --measure-page: 720px;
+  --measure-snackbar: 460px;
+
+  /* EXT — structural */
+  --radius-flat: 0px;
+  --border-hairline: 1px;
+  --focus-ring: 2px;
+  --icon-md: 16px;
+  --tap-min: 44px;
+  --z-snackbar: 100;
+
+  /* EXT — snackbar dwell (the undo window) */
+  --snackbar-dwell: 6000ms;
+  --snackbar-dwell-terse: 3600ms;
+}
+
+/* ---------------------------------------------------------------------------
+   Reset / page
+--------------------------------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  overflow-x: clip;
+  max-width: 100vw;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--color-bg, #050505);
+  color: var(--color-fg, #ffffff);
+  font-family: var(--font-body);
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-regular, 400);
+  line-height: var(--leading-body, 1.55);
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  width: 100%;
+  max-width: min(var(--measure-page, 720px), 100%);
+  margin-inline: auto;
+  padding: var(--space-xxl, 48px) var(--space-lg, 24px) var(--space-xxl, 48px);
+}
+
+.eyebrow {
+  margin: 0 0 var(--space-lg, 24px);
+  font-family: var(--font-mono);
+  font-size: var(--type-label, 13px);
+  font-weight: var(--weight-regular, 400);
+  letter-spacing: var(--tracking-label, 0.08em);
+  text-transform: uppercase;
+  color: var(--color-fg-dim, #828282);
+}
+
+.page__title {
+  margin: 0 0 var(--space-lg, 24px);
+  font-family: var(--font-display);
+  font-size: var(--type-h1, 96px);
+  font-weight: var(--weight-medium, 500);
+  line-height: var(--leading-tight, 1.12);
+  letter-spacing: var(--tracking-tight, -0.01em);
+  color: var(--color-fg, #ffffff);
+}
+
+.page__lede {
+  margin: 0 0 var(--space-xxl, 48px);
+  max-width: min(52ch, 100%);
+  font-size: var(--type-lead, 20px);
+  line-height: var(--leading-body, 1.55);
+  color: var(--color-fg-muted, #b8b8b8);
+}
+
+.rule {
+  height: var(--border-hairline, 1px);
+  border: 0;
+  margin: 0;
+  background: var(--color-line, #363636);
+}
+
+/* ---------------------------------------------------------------------------
+   Setting row — the thing being saved, so the snackbar has context
+--------------------------------------------------------------------------- */
+.setting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-md, 16px);
+  padding: var(--space-xl, 32px) 0;
+}
+
+.setting__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--type-body, 16px);
+  color: var(--color-fg-muted, #b8b8b8);
+}
+
+.setting__value {
+  font-family: var(--font-mono);
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-medium, 500);
+  color: var(--color-fg, #ffffff);
+}
+
+.setting__actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm, 8px);
+}
+
+.notes {
+  margin: 0;
+  padding: var(--space-lg, 24px) 0 0;
+  font-size: var(--type-label, 13px);
+  line-height: var(--leading-body, 1.55);
+  color: var(--color-fg-dim, #828282);
+  list-style: none;
+}
+
+.notes li + li { margin-top: var(--space-xs, 4px); }
+
+/* ---------------------------------------------------------------------------
+   Buttons — semantic classes only, never inline styles
+--------------------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm, 8px);
+  min-height: var(--tap-min, 44px);
+  min-width: var(--tap-min, 44px);
+  padding: var(--space-sm, 8px) var(--space-md, 16px);
+  border: var(--border-hairline, 1px) solid transparent;
+  border-radius: var(--radius-flat, 0px);
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: var(--type-label, 13px);
+  font-weight: var(--weight-medium, 500);
+  line-height: var(--leading-tight, 1.12);
+  letter-spacing: var(--tracking-label, 0.08em);
+  text-transform: uppercase;
+  color: var(--color-fg, #ffffff);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
+    border-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
+    color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out);
+}
+
+.btn:focus-visible {
+  outline: var(--focus-ring, 2px) solid var(--color-accent, #ed4609);
+  outline-offset: var(--space-xs, 4px);
+}
+
+.btn:disabled {
+  color: var(--color-fg-dim, #828282);
+  border-color: var(--color-line, #363636);
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  background: var(--color-fg, #ffffff);
+  border-color: var(--color-fg, #ffffff);
+  color: var(--color-bg, #050505);
+}
+.btn--primary:hover {
+  background: var(--color-fg-muted, #b8b8b8);
+  border-color: var(--color-fg-muted, #b8b8b8);
+}
+.btn--primary:active {
+  background: var(--color-fg-dim, #828282);
+  border-color: var(--color-fg-dim, #828282);
+}
+.btn--primary:disabled {
+  background: var(--color-bg-card, #1c1c1c);
+  border-color: var(--color-line, #363636);
+  color: var(--color-fg-dim, #828282);
+}
+
+.btn--ghost {
+  border-color: var(--color-line, #363636);
+  color: var(--color-fg, #ffffff);
+}
+.btn--ghost:hover {
+  border-color: var(--color-line-strong, #545454);
+  background: var(--color-bg-card, #1c1c1c);
+}
+.btn--ghost:active { background: var(--color-bg-elev, #141414); }
+
+/* the Undo affordance — accent is punctuation here, never a fill */
+.btn--quiet {
+  padding-inline: var(--space-md, 16px);
+  color: var(--color-accent, #ed4609);
+}
+.btn--quiet:hover {
+  background: var(--color-bg-card, #1c1c1c);
+  color: var(--color-accent, #ed4609);
+}
+.btn--quiet:active { background: var(--color-bg, #050505); }
+
+.btn--icon {
+  padding: var(--space-sm, 8px);
+  color: var(--color-fg-dim, #828282);
+}
+.btn--icon:hover {
+  background: var(--color-bg-card, #1c1c1c);
+  color: var(--color-fg, #ffffff);
+}
+.btn--icon:active { background: var(--color-bg, #050505); }
+
+.icon {
+  display: block;
+  width: var(--icon-md, 16px);
+  height: var(--icon-md, 16px);
+}
+
+/* ---------------------------------------------------------------------------
+   Snackbar
+--------------------------------------------------------------------------- */
+.snackbar-region {
+  position: fixed;
+  left: var(--space-lg, 24px);
+  right: var(--space-lg, 24px);
+  bottom: var(--space-lg, 24px);
+  z-index: var(--z-snackbar, 100);
+  pointer-events: none;
+}
+
+.snackbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md, 16px);
+  width: min(var(--measure-snackbar, 460px), 100%);
+  padding: var(--space-sm, 8px) var(--space-sm, 8px) var(--space-sm, 8px) var(--space-lg, 24px);
+  background: var(--color-bg-elev, #141414);
+  border: var(--border-hairline, 1px) solid var(--color-line, #363636);
+  border-radius: var(--radius-flat, 0px);
+  pointer-events: auto;
+  animation: snackbar-in var(--motion-duration-base, 200ms) var(--motion-easing-out-quart, ease-out) both;
+}
+
+.snackbar--terse { --snackbar-dwell: var(--snackbar-dwell-terse, 3600ms); }
+
+.snackbar--leaving {
+  animation: snackbar-out var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out) both;
+}
+
+.snackbar__message {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding-block: var(--space-sm, 8px);
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-regular, 400);
+  line-height: var(--leading-body, 1.55);
+  color: var(--color-fg, #ffffff);
+}
+
+.snackbar__actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs, 4px);
+}
+
+/* remaining undo window — the only decoration here, and it is load-bearing */
+.snackbar__timer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--border-hairline, 1px);
+  background: var(--color-line, #363636);
+  overflow: hidden;
+}
+
+.snackbar__timer-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--color-accent, #ed4609);
+  transform-origin: left center;
+  animation: snackbar-countdown var(--snackbar-dwell, 6000ms) linear both;
+}
+
+.snackbar.is-holding .snackbar__timer-fill { animation-play-state: paused; }
+
+@keyframes snackbar-in {
+  from { opacity: 0; transform: translate3d(0, var(--space-sm, 8px), 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes snackbar-out {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to   { opacity: 0; transform: translate3d(0, var(--space-xs, 4px), 0); }
+}
+
+@keyframes snackbar-countdown {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+/* The one unavoidable literal: a media query condition cannot read a custom
+   property (CSS Custom Properties spec — var() is not valid in @media). */
+@media (max-width: 480px) {
+  .page__title { font-size: var(--type-h2, 56px); }
+  .snackbar { width: 100%; }
+  .setting__actions { width: 100%; }
+  .btn--primary { width: 100%; }
+}
+
+/* ---------------------------------------------------------------------------
+   Reduced motion — non-negotiable global clamp
+--------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<main class="page">
+  <p class="eyebrow">Account</p>
+  <h1 class="page__title">Visibility</h1>
+  <p class="page__lede">
+    Changes here are applied immediately and confirmed after the fact. Nothing is
+    held behind a dialog.
+  </p>
+
+  <hr class="rule">
+
+  <div class="setting">
+    <span class="setting__label" id="visibility-label">Who can see this profile</span>
+    <span class="setting__value" id="visibility-value">Public</span>
+    <span class="setting__actions">
+      <button type="button" class="btn btn--primary" id="save-change" aria-describedby="visibility-label">Save change</button>
+    </span>
+  </div>
+
+  <hr class="rule">
+
+  <ul class="notes">
+    <li>Saving flips the value straight away and confirms it in the snackbar.</li>
+    <li>Undo returns the previous value. The hairline shows what is left of the window.</li>
+    <li>Hover or focus holds the countdown. Escape, or the close control, dismisses it.</li>
+  </ul>
+</main>
+
+<div class="snackbar-region" id="snackbar-region" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var region  = document.getElementById('snackbar-region');
+  var saveBtn = document.getElementById('save-change');
+  var valueEl = document.getElementById('visibility-value');
+
+  var ICON_CLOSE =
+    '<svg class="icon" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">' +
+    '<path d="M3.75 3.75 12.25 12.25M12.25 3.75 3.75 12.25" stroke="currentColor" stroke-width="1.25" stroke-linecap="square"/>' +
+    '</svg>';
+
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var current = null;
+
+  function dwellOf(el) {
+    var raw = getComputedStyle(el).getPropertyValue('--snackbar-dwell').trim();
+    var n = parseFloat(raw);
+    if (!isFinite(n)) { return 6000; }
+    return /ms$/.test(raw) ? n : n * 1000;
+  }
+
+  // Build the node fresh every time: a snackbar that is not showing does not
+  // exist in the DOM, it is not a hidden element.
+  function buildSnackbar(opts) {
+    var el = document.createElement('div');
+    el.className = 'snackbar' + (opts.terse ? ' snackbar--terse' : '');
+
+    var message = document.createElement('p');
+    message.className = 'snackbar__message';
+    message.textContent = opts.message;
+    el.appendChild(message);
+
+    var actions = document.createElement('div');
+    actions.className = 'snackbar__actions';
+
+    if (typeof opts.onUndo === 'function') {
+      var undo = document.createElement('button');
+      undo.type = 'button';
+      undo.className = 'btn btn--quiet';
+      undo.textContent = 'Undo';
+      undo.addEventListener('click', function () { opts.onUndo(); });
+      actions.appendChild(undo);
+    }
+
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'btn btn--icon';
+    close.setAttribute('aria-label', 'Dismiss');
+    close.innerHTML = ICON_CLOSE;
+    close.addEventListener('click', function () { dismiss(); });
+    actions.appendChild(close);
+
+    el.appendChild(actions);
+
+    // The countdown hairline only reads as information while it can move.
+    if (!reduced.matches) {
+      var timer = document.createElement('div');
+      timer.className = 'snackbar__timer';
+      var fill = document.createElement('span');
+      fill.className = 'snackbar__timer-fill';
+      timer.appendChild(fill);
+      el.appendChild(timer);
+    }
+
+    return el;
+  }
+
+  function teardown(entry, immediate) {
+    if (!entry || entry.closed) { return; }
+    entry.closed = true;
+    entry.hold();
+    if (current === entry) { current = null; }
+
+    var el = entry.el;
+    var hadFocus = el.contains(document.activeElement);
+
+    function remove() {
+      if (el.parentNode) { el.parentNode.removeChild(el); }
+      if (hadFocus) { saveBtn.focus(); }
+    }
+
+    if (immediate) { remove(); return; }
+
+    el.classList.add('snackbar--leaving');
+    var done = false;
+    function finish(event) {
+      // animationend bubbles — ignore the countdown hairline finishing.
+      if (event && event.target !== el) { return; }
+      if (done) { return; }
+      done = true;
+      remove();
+    }
+    el.addEventListener('animationend', finish);
+    // Guard: reduced motion collapses the animation, and a detached node may
+    // never fire animationend at all.
+    window.setTimeout(finish, 400);
+  }
+
+  function dismiss(immediate) { teardown(current, immediate === true); }
+
+  function show(opts) {
+    if (current) { teardown(current, true); }
+
+    var el = buildSnackbar(opts);
+    region.appendChild(el);
+
+    var entry = { el: el, closed: false, timerId: null, remaining: 0, startedAt: 0, hold: null };
+
+    entry.remaining = dwellOf(el);
+
+    entry.run = function () {
+      if (entry.closed || entry.timerId !== null) { return; }
+      el.classList.remove('is-holding');
+      entry.startedAt = Date.now();
+      entry.timerId = window.setTimeout(function () {
+        entry.timerId = null;
+        teardown(entry, false);
+      }, entry.remaining);
+    };
+
+    entry.hold = function () {
+      if (entry.timerId === null) { return; }
+      window.clearTimeout(entry.timerId);
+      entry.timerId = null;
+      entry.remaining = Math.max(0, entry.remaining - (Date.now() - entry.startedAt));
+      el.classList.add('is-holding');
+    };
+
+    // Pointer or keyboard attention holds the undo window open.
+    el.addEventListener('mouseenter', entry.hold);
+    el.addEventListener('mouseleave', function () { entry.run(); });
+    el.addEventListener('focusin', entry.hold);
+    el.addEventListener('focusout', function (event) {
+      if (!el.contains(event.relatedTarget)) { entry.run(); }
+    });
+
+    current = entry;
+    entry.run();
+    return entry;
+  }
+
+  var OTHER = { 'Public': 'Private', 'Private': 'Public' };
+
+  function commit(next, previous) {
+    valueEl.textContent = next;
+    show({
+      message: 'Visibility set to ' + next + '.',
+      onUndo: function () { revert(previous); }
+    });
+  }
+
+  function revert(previous) {
+    valueEl.textContent = previous;
+    show({
+      message: 'Visibility restored to ' + previous + '.',
+      terse: true
+    });
+  }
+
+  saveBtn.addEventListener('click', function () {
+    var previous = valueEl.textContent.trim();
+    commit(OTHER[previous] || 'Private', previous);
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && current) { dismiss(); }
+  });
+})();
+</script>
+
+</body>
+</html>

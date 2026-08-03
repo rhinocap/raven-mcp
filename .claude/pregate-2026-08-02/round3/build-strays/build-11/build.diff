@@ -1,0 +1,751 @@
+diff --git a/index.html b/index.html
+new file mode 100644
+index 0000000..ca536df
+--- /dev/null
++++ b/index.html
+@@ -0,0 +1,745 @@
++<!DOCTYPE html>
++<html lang="en">
++<head>
++<meta charset="utf-8">
++<meta name="viewport" content="width=device-width, initial-scale=1">
++<title>arena — save confirmation</title>
++<style>
++/* ==========================================================================
++   TOKENS — the only place literals are authored. Values from arena/DESIGN.md.
++   Component CSS below reads these exclusively, in var(--token, fallback) form.
++   ========================================================================== */
++:root {
++  /* colors */
++  --color-bg: #050505;
++  --color-bg-elev: #141414;
++  --color-bg-card: #1c1c1c;
++  --color-fg: #ffffff;
++  --color-fg-muted: #b8b8b8;
++  --color-fg-dim: #828282;
++  --color-line: #363636;
++  --color-line-strong: #545454;
++  --color-accent: #ed4609;
++
++  /* type scale */
++  --type-label: 13px;
++  --type-body: 16px;
++  --type-lead: 20px;
++  --type-h3: 27px;
++  --type-h2: 56px;
++  --type-h1: 96px;
++
++  /* type families — Untitled Sans 400/500/700, no italic file loaded */
++  --font-display: "Untitled Sans", "UntitledSans", ui-sans-serif, system-ui, sans-serif;
++  --font-body: "Untitled Sans", "UntitledSans", ui-sans-serif, system-ui, sans-serif;
++  --font-mono: "Geist Mono", "Geist", ui-monospace, monospace;
++
++  /* weights — emphasis is carried here, never with display size */
++  --weight-regular: 400;
++  --weight-medium: 500;
++  --weight-bold: 700;
++
++  /* space */
++  --space-xs: 4px;
++  --space-sm: 8px;
++  --space-md: 16px;
++  --space-lg: 24px;
++  --space-xl: 32px;
++  --space-xxl: 48px;
++
++  /* motion */
++  --motion-duration-fast: 120ms;
++  --motion-duration-base: 200ms;
++  --motion-duration-slow: 400ms;
++  --motion-duration-instant: 1ms;
++  --motion-easing-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
++  --motion-easing-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
++  --motion-easing-site: cubic-bezier(0.56, 0.22, 0.05, 0.99);
++
++  /* component dimensions (semantic names; the one place px sizing is defined) */
++  --rule-hairline: 1px;
++  --tap-target-min: 44px;
++  --focus-ring-width: 2px;
++  --focus-ring-offset: 2px;
++  --icon-sm: 16px;
++  --measure-component: 34rem;
++  --measure-page: 44rem;
++}
++
++/* ==========================================================================
++   PAGE / DEMO HARNESS
++   ========================================================================== */
++* { box-sizing: border-box; }
++
++html, body {
++  margin: 0;
++  padding: 0;
++}
++
++body {
++  min-height: 100vh;
++  background: var(--color-bg, #050505);
++  color: var(--color-fg-muted, #b8b8b8);
++  font-family: var(--font-body, sans-serif);
++  font-size: var(--type-body, 16px);
++  font-weight: var(--weight-regular, 400);
++  line-height: 1.55;
++  -webkit-font-smoothing: antialiased;
++}
++
++.sr-only {
++  position: absolute;
++  width: var(--rule-hairline, 1px);
++  height: var(--rule-hairline, 1px);
++  margin: calc(var(--rule-hairline, 1px) * -1);
++  padding: 0;
++  overflow: hidden;
++  clip-path: inset(50%);
++  white-space: nowrap;
++  border: 0;
++}
++
++.page {
++  width: min(100% - var(--space-xl, 32px) * 2, var(--measure-page, 44rem));
++  margin-inline: auto;
++  padding-block: var(--space-xxl, 48px) calc(var(--space-xxl, 48px) * 3);
++  display: flex;
++  flex-direction: column;
++  gap: var(--space-xxl, 48px);
++}
++
++.eyebrow {
++  margin: 0;
++  font-family: var(--font-mono, monospace);
++  font-size: var(--type-label, 13px);
++  font-weight: var(--weight-regular, 400);
++  letter-spacing: 0.08em;
++  text-transform: uppercase;
++  color: var(--color-fg-dim, #828282);
++}
++
++/* Page-level display type is the harness's own editorial voice.
++   The component below never leaves the body band. */
++.page-title {
++  margin: var(--space-sm, 8px) 0 0;
++  font-family: var(--font-display, sans-serif);
++  font-size: clamp(var(--type-h3, 27px), 9vw, var(--type-h1, 96px));
++  font-weight: var(--weight-medium, 500);
++  line-height: 1.02;
++  letter-spacing: -0.02em;
++  color: var(--color-fg, #ffffff);
++}
++
++.page-note {
++  margin: var(--space-lg, 24px) 0 0;
++  font-size: var(--type-lead, 20px);
++  max-width: var(--measure-component, 34rem);
++  color: var(--color-fg-muted, #b8b8b8);
++}
++
++/* Settings row — hairline-ruled, no card */
++.field {
++  display: flex;
++  flex-wrap: wrap;
++  align-items: baseline;
++  justify-content: space-between;
++  gap: var(--space-md, 16px);
++  padding-block: var(--space-lg, 24px);
++  border-block: var(--rule-hairline, 1px) solid var(--color-line, #363636);
++}
++
++.field__label {
++  font-size: var(--type-label, 13px);
++  font-weight: var(--weight-medium, 500);
++  letter-spacing: 0.06em;
++  text-transform: uppercase;
++  color: var(--color-fg-dim, #828282);
++}
++
++.field__value {
++  font-family: var(--font-display, sans-serif);
++  font-size: var(--type-lead, 20px);
++  font-weight: var(--weight-medium, 500);
++  color: var(--color-fg, #ffffff);
++}
++
++.field__pending {
++  font-size: var(--type-label, 13px);
++  font-weight: var(--weight-regular, 400);
++  color: var(--color-fg-dim, #828282);
++}
++
++.controls {
++  display: flex;
++  flex-wrap: wrap;
++  align-items: center;
++  gap: var(--space-lg, 24px);
++}
++
++.readout {
++  display: flex;
++  flex-wrap: wrap;
++  gap: var(--space-lg, 24px);
++  margin: 0;
++  font-family: var(--font-mono, monospace);
++  font-size: var(--type-label, 13px);
++  color: var(--color-fg-dim, #828282);
++}
++
++.readout b {
++  font-weight: var(--weight-regular, 400);
++  color: var(--color-fg-muted, #b8b8b8);
++}
++
++.outcome {
++  margin: 0;
++  min-height: var(--space-lg, 24px);
++  font-size: var(--type-label, 13px);
++  color: var(--color-fg-muted, #b8b8b8);
++}
++
++/* ==========================================================================
++   BUTTON — semantic classes only, never inline styles.
++   Registered variants: primary, ghost, ghost-icon.
++   Registered states:   hover, focus-visible, active, disabled, loading.
++   ========================================================================== */
++.btn {
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  gap: var(--space-sm, 8px);
++  min-height: var(--tap-target-min, 44px);
++  min-width: var(--tap-target-min, 44px);
++  padding-inline: var(--space-lg, 24px);
++  border: var(--rule-hairline, 1px) solid transparent;
++  background: transparent;
++  font-family: var(--font-body, sans-serif);
++  font-size: var(--type-body, 16px);
++  font-weight: var(--weight-medium, 500);
++  line-height: 1;
++  color: var(--color-fg, #ffffff);
++  cursor: pointer;
++  transition:
++    color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
++    border-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
++    background-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
++    opacity var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out);
++}
++
++.btn:focus-visible {
++  outline: var(--focus-ring-width, 2px) solid var(--color-fg, #ffffff);
++  outline-offset: var(--focus-ring-offset, 2px);
++}
++
++.btn:disabled,
++.btn[aria-disabled="true"] {
++  color: var(--color-fg-dim, #828282);
++  border-color: var(--color-line, #363636);
++  cursor: default;
++}
++
++/* variant: primary — hairline-framed, never a filled accent slab */
++.btn--primary {
++  border-color: var(--color-line-strong, #545454);
++  color: var(--color-fg, #ffffff);
++}
++.btn--primary:hover:not(:disabled) {
++  border-color: var(--color-fg, #ffffff);
++  background-color: var(--color-bg-elev, #141414);
++}
++.btn--primary:active:not(:disabled) {
++  background-color: var(--color-bg-card, #1c1c1c);
++}
++
++/* variant: ghost — the registered stand-in for "secondary" in this system */
++.btn--ghost {
++  color: var(--color-fg-muted, #b8b8b8);
++}
++.btn--ghost:hover:not(:disabled) {
++  color: var(--color-fg, #ffffff);
++}
++.btn--ghost:active:not(:disabled) {
++  color: var(--color-fg-muted, #b8b8b8);
++}
++
++/* variant: ghost-icon — icon-only, monochrome, recessive */
++.btn--ghost-icon {
++  padding-inline: 0;
++  color: var(--color-fg-muted, #b8b8b8);
++}
++.btn--ghost-icon:hover:not(:disabled) {
++  color: var(--color-fg, #ffffff);
++  background-color: var(--color-bg-card, #1c1c1c);
++}
++.btn--ghost-icon:active:not(:disabled) {
++  color: var(--color-fg-muted, #b8b8b8);
++}
++.btn--ghost-icon .icon {
++  width: var(--icon-sm, 16px);
++  height: var(--icon-sm, 16px);
++  display: block;
++}
++
++/* state: loading — the control is committed and awaiting the round trip */
++.btn.is-loading {
++  color: var(--color-fg-dim, #828282);
++  border-color: var(--color-line, #363636);
++  cursor: progress;
++}
++.btn.is-loading .btn__label {
++  opacity: 0.72;
++}
++
++/* ==========================================================================
++   SNACKBAR — proposed component name: `snackbar`
++   Children: `snackbar__message` (status-message), `snackbar__actions` (action-row)
++   ========================================================================== */
++.snackbar {
++  position: fixed;
++  z-index: 10;
++  inset-inline: 0;
++  bottom: var(--space-xl, 32px);
++  width: min(100% - var(--space-md, 16px) * 2, var(--measure-component, 34rem));
++  margin-inline: auto;
++  display: flex;
++  align-items: stretch;
++  gap: 0;
++  min-height: var(--tap-target-min, 44px);
++  background-color: var(--color-bg-elev, #141414);
++  border: var(--rule-hairline, 1px) solid var(--color-line, #363636);
++  opacity: 0;
++  transform: translateY(var(--space-md, 16px));
++  transition:
++    opacity var(--motion-duration-base, 200ms) var(--motion-easing-out-expo, ease-out),
++    transform var(--motion-duration-base, 200ms) var(--motion-easing-out-expo, ease-out);
++}
++
++.snackbar.is-visible {
++  opacity: 1;
++  transform: translateY(0);
++}
++
++.snackbar.is-leaving {
++  opacity: 0;
++  transform: translateY(var(--space-sm, 8px));
++  pointer-events: none;
++  transition:
++    opacity var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
++    transform var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out);
++}
++
++.snackbar__message {
++  flex: 1;
++  min-width: 0;
++  display: flex;
++  align-items: center;
++  margin: 0;
++  padding: var(--space-sm, 8px) var(--space-lg, 24px);
++  font-family: var(--font-body, sans-serif);
++  font-size: var(--type-body, 16px);
++  font-weight: var(--weight-medium, 500);
++  color: var(--color-fg, #ffffff);
++}
++
++.snackbar__actions {
++  display: flex;
++  align-items: stretch;
++  gap: var(--space-sm, 8px);
++  padding-inline: var(--space-sm, 8px);
++  border-inline-start: var(--rule-hairline, 1px) solid var(--color-line, #363636);
++}
++
++/* the accent lands as punctuation on the undo label — never as a fill */
++.snackbar__undo {
++  text-decoration: underline;
++  text-decoration-color: var(--color-accent, #ed4609);
++  text-decoration-thickness: var(--rule-hairline, 1px);
++  text-underline-offset: var(--space-xs, 4px);
++  color: var(--color-fg, #ffffff);
++  transition:
++    text-decoration-thickness var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
++    color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
++    background-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out);
++}
++.snackbar__undo:hover:not(:disabled) {
++  color: var(--color-fg, #ffffff);
++  background-color: var(--color-bg-card, #1c1c1c);
++  text-decoration-thickness: var(--space-xs, 4px);
++}
++.snackbar__undo:active:not(:disabled) {
++  background-color: var(--color-bg-elev, #141414);
++}
++
++@media (max-width: 30rem) {
++  .snackbar {
++    flex-wrap: wrap;
++  }
++  .snackbar__message {
++    flex-basis: 100%;
++    padding-inline: var(--space-md, 16px);
++  }
++  .snackbar__actions {
++    flex: 1;
++    justify-content: flex-end;
++    border-inline-start: 0;
++    border-block-start: var(--rule-hairline, 1px) solid var(--color-line, #363636);
++  }
++}
++
++/* ==========================================================================
++   REDUCED MOTION — entrance collapses to opacity only, exit is instant.
++   ========================================================================== */
++@media (prefers-reduced-motion: reduce) {
++  .snackbar {
++    transform: none;
++    transition:
++      opacity var(--motion-duration-base, 200ms) var(--motion-easing-out-expo, ease-out);
++  }
++  .snackbar.is-visible {
++    transform: none;
++  }
++  .snackbar.is-leaving {
++    transform: none;
++    transition:
++      opacity var(--motion-duration-instant, 1ms) linear;
++  }
++  .btn,
++  .snackbar__undo {
++    transition-duration: var(--motion-duration-instant, 1ms);
++  }
++}
++</style>
++</head>
++<body>
++
++<main class="page">
++  <header>
++    <p class="eyebrow">arena · pre-gate fixture</p>
++    <h1 class="page-title">Optimistic save</h1>
++    <p class="page-note">
++      Saving commits the change immediately. The confirmation carries the only
++      path back, so its clock holds while a pointer or keyboard focus is inside it.
++    </p>
++  </header>
++
++  <section class="field" aria-labelledby="field-label">
++    <span class="field__label" id="field-label">Visibility</span>
++    <span>
++      <span class="field__value" id="field-value">Private</span>
++      <span class="field__pending" id="field-pending">— pending change: Public</span>
++    </span>
++  </section>
++
++  <div class="controls">
++    <button type="button" class="btn btn--primary" id="save-btn">
++      <span class="btn__label">Save change</span>
++    </button>
++  </div>
++
++  <p class="outcome" id="outcome" role="status" aria-live="polite"></p>
++
++  <p class="readout">
++    <span>state <b id="readout-state">absent</b></span>
++    <span>clock <b id="readout-clock">idle</b></span>
++    <span>last outcome <b id="readout-outcome">—</b></span>
++  </p>
++</main>
++
++<script>
++(function () {
++  "use strict";
++
++  /* --- state machine --------------------------------------------------- */
++  var S = {
++    ABSENT: "absent",
++    ENTERING: "entering",
++    VISIBLE: "visible",
++    LEAVING: "leaving",
++    DISMISSED: "dismissed",
++    REVERTED: "reverted"
++  };
++
++  var AUTO_DISMISS_MS = 6000;   // pattern: toast-auto-dismiss-paused-by-hover-and-focus
++  var MOTION_GUARD_MS = 400;    // fallback if transitionend never fires
++  var ROUND_TRIP_MS = 600;      // simulated background commit for the loading state
++
++  var saveBtn = document.getElementById("save-btn");
++  var fieldValue = document.getElementById("field-value");
++  var fieldPending = document.getElementById("field-pending");
++  var outcome = document.getElementById("outcome");
++  var readoutState = document.getElementById("readout-state");
++  var readoutClock = document.getElementById("readout-clock");
++  var readoutOutcome = document.getElementById("readout-outcome");
++
++  var VALUES = ["Private", "Public"];
++  var committed = "Private";
++  var pending = "Public";
++
++  var current = null; // the live snackbar controller, if any
++
++  function reducedMotion() {
++    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
++  }
++
++  function renderField() {
++    fieldValue.textContent = committed;
++    fieldPending.textContent = "— pending change: " + pending;
++  }
++
++  function setState(name) {
++    readoutState.textContent = name;
++  }
++
++  function setClock(label) {
++    readoutClock.textContent = label;
++  }
++
++  function once(el, type, fn, guardMs) {
++    var done = false;
++    function run() {
++      if (done) return;
++      done = true;
++      el.removeEventListener(type, handler);
++      clearTimeout(timer);
++      fn();
++    }
++    function handler(ev) {
++      if (ev.target !== el) return;
++      run();
++    }
++    el.addEventListener(type, handler);
++    var timer = setTimeout(run, guardMs);
++  }
++
++  /* --- snackbar -------------------------------------------------------- */
++  function Snackbar(opts) {
++    var self = this;
++    this.onUndo = opts.onUndo;
++    this.onDismiss = opts.onDismiss;
++    this.returnFocusTo = opts.returnFocusTo || null;
++    this.state = S.ABSENT;
++    this.remaining = AUTO_DISMISS_MS;
++    this.startedAt = 0;
++    this.timer = null;
++    this.tick = null;
++
++    var root = document.createElement("div");
++    root.className = "snackbar";
++    root.setAttribute("role", "group");
++    root.setAttribute("aria-label", "Save confirmation");
++
++    var message = document.createElement("p");
++    message.className = "snackbar__message";
++    message.setAttribute("role", "status");
++    message.setAttribute("aria-live", "polite");
++
++    var actions = document.createElement("div");
++    actions.className = "snackbar__actions";
++
++    var undo = document.createElement("button");
++    undo.type = "button";
++    undo.className = "btn btn--ghost snackbar__undo";
++    undo.textContent = "Undo";
++
++    var dismiss = document.createElement("button");
++    dismiss.type = "button";
++    dismiss.className = "btn btn--ghost-icon";
++    dismiss.innerHTML =
++      '<svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" ' +
++      'stroke-width="1.25" stroke-linecap="square" aria-hidden="true" focusable="false">' +
++      '<path d="M3.5 3.5 L12.5 12.5 M12.5 3.5 L3.5 12.5"/></svg>' +
++      '<span class="sr-only">Dismiss</span>';
++
++    actions.appendChild(undo);
++    actions.appendChild(dismiss);
++    root.appendChild(message);
++    root.appendChild(actions);
++
++    this.root = root;
++    this.message = message;
++    this.undoBtn = undo;
++    this.dismissBtn = dismiss;
++
++    undo.addEventListener("click", function () { self.activateUndo(); });
++    dismiss.addEventListener("click", function () { self.activateDismiss(); });
++
++    root.addEventListener("pointerenter", function () { self.pause("pointer"); });
++    root.addEventListener("pointerleave", function () { self.resume(); });
++    root.addEventListener("focusin", function () { self.pause("focus"); });
++    root.addEventListener("focusout", function (ev) {
++      if (root.contains(ev.relatedTarget)) return;
++      self.resume();
++    });
++    root.addEventListener("keydown", function (ev) {
++      if (ev.key === "Escape") {
++        ev.stopPropagation();
++        self.activateDismiss();
++      }
++    });
++  }
++
++  // absent -> entering
++  Snackbar.prototype.mount = function () {
++    var self = this;
++    this.state = S.ENTERING;
++    setState(S.ENTERING);
++    document.body.appendChild(this.root);
++    // fill the live region after the insertion so the region is announced,
++    // and flip to the entered class on a second frame so the from-styles commit
++    requestAnimationFrame(function () {
++      self.message.textContent = "Saved";
++      requestAnimationFrame(function () {
++        if (self.state !== S.ENTERING) return;
++        self.root.classList.add("is-visible");
++        // entering -> visible on entrance-motion-end
++        once(self.root, "transitionend", function () {
++          if (self.state !== S.ENTERING) return;
++          self.state = S.VISIBLE;
++          setState(S.VISIBLE);
++          self.startClock(AUTO_DISMISS_MS);
++        }, MOTION_GUARD_MS);
++      });
++    });
++  };
++
++  Snackbar.prototype.startClock = function (ms) {
++    var self = this;
++    this.remaining = ms;
++    this.startedAt = Date.now();
++    clearTimeout(this.timer);
++    this.timer = setTimeout(function () { self.activateTimeout(); }, ms);
++    clearInterval(this.tick);
++    this.tick = setInterval(function () {
++      if (self.state !== S.VISIBLE || self.startedAt === 0) return; // held
++      var left = Math.max(0, self.remaining - (Date.now() - self.startedAt));
++      setClock((left / 1000).toFixed(1) + "s");
++    }, 100);
++    setClock((ms / 1000).toFixed(1) + "s");
++  };
++
++  Snackbar.prototype.pause = function (reason) {
++    if (this.state !== S.VISIBLE || this.startedAt === 0) return;
++    clearTimeout(this.timer);
++    this.remaining = Math.max(0, this.remaining - (Date.now() - this.startedAt));
++    this.startedAt = 0;
++    setClock("held (" + reason + ") " + (this.remaining / 1000).toFixed(1) + "s");
++  };
++
++  Snackbar.prototype.resume = function () {
++    if (this.state !== S.VISIBLE || this.startedAt !== 0) return;
++    if (this.root.matches(":hover") || this.root.contains(document.activeElement)) return;
++    this.startClock(this.remaining);
++  };
++
++  Snackbar.prototype.stopClock = function () {
++    clearTimeout(this.timer);
++    clearInterval(this.tick);
++    this.timer = null;
++    this.tick = null;
++    setClock("idle");
++  };
++
++  // visible -> leaving (timeout)
++  Snackbar.prototype.activateTimeout = function () {
++    if (this.state !== S.VISIBLE) return;
++    this.leave(S.DISMISSED, "timeout");
++  };
++
++  // visible -> leaving (dismiss-activated)
++  Snackbar.prototype.activateDismiss = function () {
++    if (this.state !== S.VISIBLE) return;
++    this.leave(S.DISMISSED, "dismissed");
++  };
++
++  // visible -> reverted (undo-activated)
++  Snackbar.prototype.activateUndo = function () {
++    if (this.state !== S.VISIBLE) return;
++    this.leave(S.REVERTED, "reverted");
++  };
++
++  Snackbar.prototype.leave = function (terminal, label) {
++    var self = this;
++    if (this.state !== S.VISIBLE && this.state !== S.ENTERING) return;
++    this.stopClock();
++    // the surface goes inert immediately so a late click cannot re-enter the machine
++    this.state = terminal === S.REVERTED ? S.REVERTED : S.LEAVING;
++    setState(this.state);
++
++    // read focus BEFORE inerting — `inert` blurs whatever is inside
++    var hadFocus = this.root.contains(document.activeElement);
++    this.root.setAttribute("inert", "");
++    this.undoBtn.disabled = true;
++    this.dismissBtn.disabled = true;
++    if (hadFocus && this.returnFocusTo) this.returnFocusTo.focus();
++
++    if (terminal === S.REVERTED && this.onUndo) this.onUndo();
++
++    this.root.classList.remove("is-visible");
++    this.root.classList.add("is-leaving");
++
++    var guard = reducedMotion() ? 60 : MOTION_GUARD_MS;
++    once(this.root, "transitionend", function () {
++      self.unmount(terminal, label);
++    }, guard);
++  };
++
++  Snackbar.prototype.unmount = function (terminal, label) {
++    if (this.root.parentNode) this.root.parentNode.removeChild(this.root);
++    this.state = terminal;
++    readoutOutcome.textContent = label;
++    if (terminal === S.DISMISSED && this.onDismiss) this.onDismiss();
++    if (current === this) {
++      current = null;
++      setState(S.ABSENT);
++    }
++  };
++
++  /* --- harness --------------------------------------------------------- */
++  function commitSave() {
++    if (current) {
++      // a second save supersedes the first confirmation; the superseded bar
++      // must not write its own outcome over the new one
++      current.onDismiss = null;
++      current.onUndo = null;
++      current.leave(S.DISMISSED, "superseded");
++    }
++
++    var previous = committed;
++    committed = pending;
++    pending = previous;
++    renderField();
++    outcome.textContent = "";
++
++    saveBtn.classList.add("is-loading");
++    saveBtn.disabled = true;
++    saveBtn.setAttribute("aria-busy", "true");
++    setTimeout(function () {
++      saveBtn.classList.remove("is-loading");
++      saveBtn.disabled = false;
++      saveBtn.removeAttribute("aria-busy");
++    }, ROUND_TRIP_MS);
++
++    var bar = new Snackbar({
++      returnFocusTo: saveBtn,
++      onUndo: function () {
++        var back = committed;
++        committed = pending;
++        pending = back;
++        renderField();
++        outcome.textContent = "Change reverted. Visibility is " + committed + ".";
++      },
++      onDismiss: function () {
++        outcome.textContent = "Change kept. Visibility is " + committed + ".";
++      }
++    });
++    current = bar;
++    bar.mount();
++  }
++
++  saveBtn.addEventListener("click", commitSave);
++  renderField();
++  setState(S.ABSENT);
++})();
++</script>
++</body>
++</html>

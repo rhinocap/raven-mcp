@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snackbar — arena</title>
+<style>
+/* ------------------------------------------------------------------
+   Tokens (arena/DESIGN.md). Literals live here and nowhere else.
+   ------------------------------------------------------------------ */
+:root {
+  /* colors */
+  --color-bg: #050505;
+  --color-bg-elev: #141414;
+  /* colors.bg-card is offered by DESIGN.md but is not used on this component:
+     it sits 4/255 from bg-elev, so as a hover ground it is invisible and only
+     adds a near-duplicate to the palette. Hover is carried by colour instead. */
+  --color-fg: #ffffff;
+  --color-fg-muted: #b8b8b8;
+  --color-fg-dim: #828282;
+  --color-line: #363636;
+  --color-line-strong: #545454;
+  --color-accent: #ed4609;
+
+  /* type scale */
+  --type-label: 13px;
+  --type-body: 16px;
+  --type-lead: 20px;
+  --type-h3: 27px;
+  --type-h2: 56px;
+  --type-h1: 96px;
+
+  /* type families — Untitled Sans 400/500/700, no italics loaded */
+  --font-body: "Untitled Sans", "UntitledSans", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-body);
+  --font-mono: "Geist Mono", "Geist", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* weights */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-bold: 700;
+
+  /* space */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-xxl: 48px;
+
+  /* motion */
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 200ms;
+  --motion-duration-slow: 400ms;
+  --motion-easing-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --motion-easing-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-easing-site: cubic-bezier(0.56, 0.22, 0.05, 0.99);
+
+  /* component dimensions (px reserved for component sizing, never frames) */
+  --control-min-size: 44px;
+  --icon-size: 16px;
+  --rule-hairline: 1px;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --snackbar-max-inline: 34rem;
+  --page-max-inline: 44rem;
+  --tracking-label: 0.08em;
+}
+
+/* ------------------------------------------------------------------
+   Page
+   ------------------------------------------------------------------ */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--color-bg, #050505);
+  color: var(--color-fg, #ffffff);
+  font-family: var(--font-body);
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-regular, 400);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  width: min(100% - var(--space-xl, 32px), var(--page-max-inline, 44rem));
+  margin-inline: auto;
+  padding-block: var(--space-xxl, 48px) calc(var(--space-xxl, 48px) * 3);
+}
+
+.eyebrow {
+  margin: 0 0 var(--space-lg, 24px);
+  font-size: var(--type-label, 13px);
+  font-weight: var(--weight-medium, 500);
+  letter-spacing: var(--tracking-label, 0.08em);
+  text-transform: uppercase;
+  color: var(--color-fg-dim, #828282);
+}
+
+/* page-level display type — the component itself stays in the body band */
+.page__title {
+  margin: 0 0 var(--space-lg, 24px);
+  font-family: var(--font-display);
+  font-size: clamp(var(--type-h3, 27px), 9vw, var(--type-h1, 96px));
+  font-weight: var(--weight-medium, 500);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+}
+
+.page__lede {
+  margin: 0 0 var(--space-xxl, 48px);
+  max-inline-size: 46ch;
+  font-size: var(--type-lead, 20px);
+  font-weight: var(--weight-regular, 400);
+  line-height: 1.45;
+  color: var(--color-fg-muted, #b8b8b8);
+}
+
+.section {
+  border-block-start: var(--rule-hairline, 1px) solid var(--color-line, #363636);
+  padding-block: var(--space-lg, 24px) var(--space-xxl, 48px);
+}
+
+.section__heading {
+  margin: 0 0 var(--space-lg, 24px);
+  font-size: var(--type-label, 13px);
+  font-weight: var(--weight-medium, 500);
+  letter-spacing: var(--tracking-label, 0.08em);
+  text-transform: uppercase;
+  color: var(--color-fg-dim, #828282);
+}
+
+/* field row — hairline separated, no card */
+.field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md, 16px) var(--space-lg, 24px);
+  justify-content: space-between;
+}
+
+.field__meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs, 4px);
+  min-width: 0;
+}
+
+.field__label {
+  font-size: var(--type-label, 13px);
+  font-weight: var(--weight-medium, 500);
+  letter-spacing: var(--tracking-label, 0.08em);
+  text-transform: uppercase;
+  color: var(--color-fg-dim, #828282);
+}
+
+.field__value {
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-medium, 500);
+  color: var(--color-fg, #ffffff);
+}
+
+.field__outcome {
+  margin: var(--space-lg, 24px) 0 0;
+  padding-block-start: var(--space-md, 16px);
+  border-block-start: var(--rule-hairline, 1px) solid var(--color-line, #363636);
+  font-size: var(--type-body, 16px);
+  color: var(--color-fg-muted, #b8b8b8);
+}
+
+/* state trace */
+.trace {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm, 8px) var(--space-lg, 24px);
+}
+
+.trace__item {
+  font-family: var(--font-mono);
+  font-size: var(--type-label, 13px);
+  color: var(--color-fg-dim, #828282);
+}
+
+.trace__item[aria-current="true"] {
+  color: var(--color-fg, #ffffff);
+  font-weight: var(--weight-medium, 500);
+}
+
+.trace__note {
+  margin: var(--space-md, 16px) 0 0;
+  font-size: var(--type-label, 13px);
+  color: var(--color-fg-dim, #828282);
+}
+
+/* ------------------------------------------------------------------
+   Semantic button system
+   base · variants primary / secondary / ghost / icon
+   states hover / focus-visible / active / disabled / loading
+   ------------------------------------------------------------------ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm, 8px);
+  min-block-size: var(--control-min-size, 44px);
+  min-inline-size: var(--control-min-size, 44px);
+  padding-inline: var(--space-lg, 24px);
+  padding-block: var(--space-sm, 8px);
+  border: var(--rule-hairline, 1px) solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-fg, #ffffff);
+  font-family: var(--font-body);
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-medium, 500);
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, cubic-bezier(0.25, 1, 0.5, 1)),
+    border-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, cubic-bezier(0.25, 1, 0.5, 1)),
+    color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, cubic-bezier(0.25, 1, 0.5, 1));
+}
+
+.btn:focus-visible {
+  outline: var(--focus-ring-width, 2px) solid var(--color-fg, #ffffff);
+  outline-offset: var(--focus-ring-offset, 2px);
+}
+
+.btn[disabled] {
+  cursor: not-allowed;
+  color: var(--color-fg-dim, #828282);
+}
+
+.btn[data-loading="true"] {
+  cursor: progress;
+}
+
+.btn--primary {
+  background: var(--color-fg, #ffffff);
+  border-color: var(--color-fg, #ffffff);
+  color: var(--color-bg, #050505);
+}
+.btn--primary:hover {
+  background: var(--color-fg-muted, #b8b8b8);
+  border-color: var(--color-fg-muted, #b8b8b8);
+}
+.btn--primary:active {
+  background: var(--color-fg-dim, #828282);
+  border-color: var(--color-fg-dim, #828282);
+}
+/* a settled non-interactive state stays on the elevation ramp's first step */
+.btn--primary[data-loading="true"],
+.btn--primary[disabled] {
+  background: var(--color-bg-elev, #141414);
+  border-color: var(--color-line, #363636);
+  color: var(--color-fg-muted, #b8b8b8);
+}
+
+.btn--secondary {
+  border-color: var(--color-line-strong, #545454);
+  color: var(--color-fg, #ffffff);
+}
+.btn--secondary:hover {
+  border-color: var(--color-fg, #ffffff);
+  background: var(--color-bg-elev, #141414);
+}
+.btn--secondary:active {
+  border-color: var(--color-fg-muted, #b8b8b8);
+  background: var(--color-bg-elev, #141414);
+}
+.btn--secondary[data-loading="true"],
+.btn--secondary[disabled] {
+  border-color: var(--color-line, #363636);
+  color: var(--color-fg-dim, #828282);
+}
+
+/* monochrome controls carry hover in ink, not in a filled chip */
+.btn--ghost {
+  color: var(--color-fg-muted, #b8b8b8);
+}
+.btn--ghost:hover { color: var(--color-fg, #ffffff); }
+.btn--ghost:active { color: var(--color-fg-muted, #b8b8b8); }
+
+.btn--icon {
+  padding-inline: var(--space-sm, 8px);
+  inline-size: var(--control-min-size, 44px);
+  color: var(--color-fg-dim, #828282);
+}
+.btn--icon:hover { color: var(--color-fg, #ffffff); }
+.btn--icon:active { color: var(--color-fg-muted, #b8b8b8); }
+
+.btn__icon {
+  inline-size: var(--icon-size, 16px);
+  block-size: var(--icon-size, 16px);
+  display: block;
+}
+
+/* ------------------------------------------------------------------
+   Snackbar — transient confirmation of an optimistic save
+   ------------------------------------------------------------------ */
+.snackbar {
+  position: fixed;
+  inset-block-end: var(--space-xl, 32px);
+  inset-inline: var(--space-md, 16px);
+  margin-inline: auto;
+  max-inline-size: var(--snackbar-max-inline, 34rem);
+  z-index: 1;
+
+  display: flex;
+  align-items: stretch;
+  background: var(--color-bg-elev, #141414);
+  border: var(--rule-hairline, 1px) solid var(--color-line, #363636);
+  border-radius: 0;
+
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity var(--motion-duration-base, 200ms) var(--motion-easing-out-expo, cubic-bezier(0.16, 1, 0.3, 1)),
+    transform var(--motion-duration-base, 200ms) var(--motion-easing-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+/* mount frame: below the edge, invisible */
+.snackbar[data-state="absent"] {
+  opacity: 0;
+  transform: translateY(var(--space-md, 16px));
+}
+
+/* exit — both terminal routes leave the same way, and are inert while leaving */
+.snackbar[data-state="leaving"],
+.snackbar[data-state="reverted"] {
+  opacity: 0;
+  transform: translateY(var(--space-sm, 8px));
+  transition-duration: var(--motion-duration-fast, 120ms);
+  transition-timing-function: var(--motion-easing-out-quart, cubic-bezier(0.25, 1, 0.5, 1));
+  pointer-events: none;
+}
+
+.snackbar__message {
+  margin: 0;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  display: flex;
+  align-items: center;
+  padding-inline: var(--space-lg, 24px);
+  padding-block: var(--space-sm, 8px);
+  min-block-size: var(--control-min-size, 44px);
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-medium, 500);
+  color: var(--color-fg, #ffffff);
+}
+
+.snackbar__actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  border-inline-start: var(--rule-hairline, 1px) solid var(--color-line, #363636);
+}
+
+.snackbar__actions .btn {
+  border-radius: 0;
+}
+
+.snackbar__actions .btn + .btn {
+  border-inline-start: var(--rule-hairline, 1px) solid var(--color-line, #363636);
+}
+
+/* Undo: the one element carrying the accent, as punctuation under the label */
+.snackbar__undo {
+  color: var(--color-fg, #ffffff);
+  font-weight: var(--weight-medium, 500);
+}
+
+.snackbar__undo .snackbar__undo-label {
+  border-block-end: var(--rule-hairline, 1px) solid var(--color-accent, #ed4609);
+  /* the rule's offset is paid for on both sides so the label stays optically
+     centred against the message baseline */
+  padding-block: var(--space-xs, 4px);
+}
+
+/* accent stays on the elevated ground (4.81:1); a darker hover chip would drop
+   it under AA, which is the other reason the ground does not move on hover */
+.snackbar__undo:hover,
+.snackbar__undo:active {
+  color: var(--color-accent, #ed4609);
+}
+
+/* ------------------------------------------------------------------
+   Reduced motion: enter is opacity-only, exit is instant
+   ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  .btn { transition-duration: 0.01ms; }
+
+  .snackbar {
+    transform: none;
+    transition: opacity var(--motion-duration-base, 200ms) var(--motion-easing-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  }
+  .snackbar[data-state="absent"] { transform: none; }
+  .snackbar[data-state="leaving"],
+  .snackbar[data-state="reverted"] {
+    transform: none;
+    transition-duration: 0.01ms;
+  }
+}
+
+/* narrow viewports: the actions wrap under the message, still hairline-ruled */
+@media (max-width: 30rem) {
+  .snackbar { flex-direction: column; align-items: stretch; }
+  .snackbar__actions {
+    border-inline-start: 0;
+    border-block-start: var(--rule-hairline, 1px) solid var(--color-line, #363636);
+  }
+  .snackbar__actions .btn:first-child { flex: 1 1 auto; }
+}
+</style>
+</head>
+<body>
+
+<main class="page">
+  <p class="eyebrow">arena · pre-gate fixture</p>
+  <h1 class="page__title">Snackbar</h1>
+  <p class="page__lede">A save that already went through, with one reversal still in reach. The auto-dismiss clock is held while a pointer or keyboard focus is inside the surface.</p>
+
+  <section class="section" aria-labelledby="demo-heading">
+    <h2 class="section__heading" id="demo-heading">Optimistic save</h2>
+    <div class="field">
+      <span class="field__meta">
+        <span class="field__label">Visibility</span>
+        <span class="field__value" id="field-value">private</span>
+      </span>
+      <button type="button" class="btn btn--primary" id="save-btn">Save change</button>
+    </div>
+    <div id="outcome-slot"></div>
+  </section>
+
+  <section class="section" aria-labelledby="state-heading">
+    <h2 class="section__heading" id="state-heading">Machine</h2>
+    <ul class="trace" id="trace">
+      <li class="trace__item" data-state="absent" aria-current="true">absent</li>
+      <li class="trace__item" data-state="entering">entering</li>
+      <li class="trace__item" data-state="visible">visible</li>
+      <li class="trace__item" data-state="leaving">leaving</li>
+      <li class="trace__item" data-state="dismissed">dismissed</li>
+      <li class="trace__item" data-state="reverted">reverted</li>
+    </ul>
+    <p class="trace__note" id="trace-note">Save to mount the confirmation. Hover or tab into it to hold the clock.</p>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var AUTO_DISMISS_MS = 6000;   /* pattern: toast-auto-dismiss-paused-by-hover-and-focus */
+  var SAVE_LATENCY_MS = 900;    /* simulated request behind the optimistic update */
+
+  var fieldValue = document.getElementById("field-value");
+  var saveBtn = document.getElementById("save-btn");
+  var outcomeSlot = document.getElementById("outcome-slot");
+  var traceItems = Array.prototype.slice.call(document.querySelectorAll(".trace__item"));
+  var traceNote = document.getElementById("trace-note");
+
+  var VALUES = ["private", "public"];
+  var previousValue = null;
+  var live = null; /* the mounted snackbar controller, or null */
+
+  /* ---------- helpers ---------- */
+
+  function setState(name, note) {
+    traceItems.forEach(function (item) {
+      if (item.getAttribute("data-state") === name) {
+        item.setAttribute("aria-current", "true");
+      } else {
+        item.removeAttribute("aria-current");
+      }
+    });
+    if (note) { traceNote.textContent = note; }
+  }
+
+  /* Runs cb once the element's current transition ends, with a computed-duration
+     safety net so a reduced-motion (near-zero) transition still advances. */
+  function afterTransition(el, cb) {
+    var done = false;
+    var ms = 0;
+    var computed = window.getComputedStyle(el).transitionDuration || "0s";
+    computed.split(",").forEach(function (part) {
+      var v = part.trim();
+      var n = parseFloat(v) || 0;
+      if (v.indexOf("ms") === -1) { n = n * 1000; }
+      if (n > ms) { ms = n; }
+    });
+    function finish() {
+      if (done) { return; }
+      done = true;
+      el.removeEventListener("transitionend", onEnd);
+      cb();
+    }
+    function onEnd(e) {
+      if (e.target === el && e.propertyName === "opacity") { finish(); }
+    }
+    el.addEventListener("transitionend", onEnd);
+    window.setTimeout(finish, ms + 60);
+  }
+
+  function setOutcome(text) {
+    /* conditionally-absent element: built and removed, never CSS-hidden */
+    while (outcomeSlot.firstChild) { outcomeSlot.removeChild(outcomeSlot.firstChild); }
+    if (!text) { return; }
+    var p = document.createElement("p");
+    p.className = "field__outcome";
+    p.textContent = text;
+    outcomeSlot.appendChild(p);
+  }
+
+  /* ---------- snackbar ---------- */
+
+  function createSnackbar(options) {
+    var root = document.createElement("div");
+    root.className = "snackbar";
+    root.setAttribute("data-state", "absent");
+
+    var message = document.createElement("p");
+    message.className = "snackbar__message";
+    message.setAttribute("role", "status");
+    message.setAttribute("aria-live", "polite");
+    message.setAttribute("aria-atomic", "true");
+
+    var actions = document.createElement("div");
+    actions.className = "snackbar__actions";
+
+    var undo = document.createElement("button");
+    undo.type = "button";
+    undo.className = "btn btn--ghost snackbar__undo";
+    var undoLabel = document.createElement("span");
+    undoLabel.className = "snackbar__undo-label";
+    undoLabel.textContent = "Undo";
+    undo.appendChild(undoLabel);
+
+    var dismiss = document.createElement("button");
+    dismiss.type = "button";
+    dismiss.className = "btn btn--icon";
+    dismiss.setAttribute("aria-label", "Dismiss");
+    dismiss.innerHTML =
+      '<svg class="btn__icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.5" stroke-linecap="square" aria-hidden="true" focusable="false">' +
+      '<line x1="3.5" y1="3.5" x2="12.5" y2="12.5"></line>' +
+      '<line x1="12.5" y1="3.5" x2="3.5" y2="12.5"></line></svg>';
+
+    actions.appendChild(undo);
+    actions.appendChild(dismiss);
+    root.appendChild(message);
+    root.appendChild(actions);
+
+    var state = "absent";
+    var settled = false;      /* terminal reached — every later event is ignored */
+    var paused = false;
+    var elapsed = 0;
+    var last = 0;
+    var frame = 0;
+
+    function transition(next, note) {
+      state = next;
+      root.setAttribute("data-state", next);
+      setState(next, note);
+    }
+
+    function stopClock() {
+      if (frame) { window.cancelAnimationFrame(frame); frame = 0; }
+    }
+
+    function tick(now) {
+      if (settled || state !== "visible") { return; }
+      if (!last) { last = now; }
+      if (!paused) { elapsed += now - last; }
+      last = now;
+      if (elapsed >= AUTO_DISMISS_MS) {
+        beginExit("leaving", "dismissed", "Auto-dismissed after 6000ms. The save stands.");
+        return;
+      }
+      frame = window.requestAnimationFrame(tick);
+    }
+
+    function startClock() {
+      elapsed = 0;
+      last = 0;
+      stopClock();
+      frame = window.requestAnimationFrame(tick);
+    }
+
+    function beginExit(exitState, terminal, note) {
+      if (settled || (state !== "visible" && state !== "entering")) { return; }
+      /* an activation mid-entrance still passes through visible — the machine
+         has no edge out of `entering` other than entrance-motion-end */
+      if (state === "entering") { transition("visible", null); }
+      settled = true;
+      stopClock();
+      root.setAttribute("inert", "");
+      transition(exitState, note);
+      afterTransition(root, function () {
+        if (root.parentNode) { root.parentNode.removeChild(root); }
+        if (live === controller) { live = null; }
+        /* terminal state is only reached once the surface is out of the document */
+        setState(terminal, note);
+        if (terminal === "dismissed" && options.onDismissed) { options.onDismissed(); }
+        if (terminal === "reverted" && options.onReverted) { options.onReverted(); }
+      });
+    }
+
+    undo.addEventListener("click", function () {
+      beginExit("reverted", "reverted", "Undo taken. The save was rolled back.");
+    });
+
+    dismiss.addEventListener("click", function () {
+      beginExit("leaving", "dismissed", "Dismissed by the reader. The save stands.");
+    });
+
+    root.addEventListener("pointerenter", function () { paused = true; });
+    root.addEventListener("pointerleave", function () { paused = false; });
+    root.addEventListener("focusin", function () { paused = true; });
+    root.addEventListener("focusout", function (e) {
+      if (!root.contains(e.relatedTarget)) { paused = false; }
+    });
+    root.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") {
+        beginExit("leaving", "dismissed", "Dismissed with Escape. The save stands.");
+      }
+    });
+
+    var controller = {
+      root: root,
+      mount: function () {
+        /* mounted at data-state="absent": below the edge, transparent */
+        document.body.appendChild(root);
+        setState("entering", "Entering — opacity and a --space-md rise, --motion-duration-base / out-expo.");
+        /* two frames: one to commit the mount styles, one to start the transition */
+        window.requestAnimationFrame(function () {
+          window.requestAnimationFrame(function () {
+            if (settled) { return; }
+            /* text is set after mount so the live region announces the insertion */
+            message.textContent = options.message;
+            transition("entering", null);
+            afterTransition(root, function () {
+              if (settled) { return; }
+              transition("visible", "Visible — the 6000ms clock runs, held by hover or focus inside the surface.");
+              startClock();
+            });
+          });
+        });
+      },
+      forceRemove: function () {
+        settled = true;
+        stopClock();
+        if (root.parentNode) { root.parentNode.removeChild(root); }
+      }
+    };
+
+    return controller;
+  }
+
+  /* ---------- demo harness ---------- */
+
+  function commitSave() {
+    if (live) { live.forceRemove(); live = null; }
+
+    previousValue = fieldValue.textContent;
+    var next = VALUES[(VALUES.indexOf(previousValue) + 1) % VALUES.length];
+    fieldValue.textContent = next; /* optimistic: the surface changes first */
+    setOutcome(null);
+
+    saveBtn.setAttribute("data-loading", "true");
+    saveBtn.setAttribute("aria-busy", "true");
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving";
+    window.setTimeout(function () {
+      saveBtn.removeAttribute("data-loading");
+      saveBtn.removeAttribute("aria-busy");
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save change";
+    }, SAVE_LATENCY_MS);
+
+    var restoreTo = previousValue;
+    live = createSnackbar({
+      message: "Saved",
+      onDismissed: function () {
+        setOutcome("Kept — visibility is " + fieldValue.textContent + ".");
+      },
+      onReverted: function () {
+        fieldValue.textContent = restoreTo;
+        setOutcome("Reverted — visibility is back to " + restoreTo + ".");
+      }
+    });
+    live.mount();
+  }
+
+  saveBtn.addEventListener("click", commitSave);
+})();
+</script>
+
+</body>
+</html>

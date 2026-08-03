@@ -175,3 +175,159 @@ established: that the tool is *no better* than the one-liner, which is what §13
 2. Report to Andrew: gate open, two branches, plus the fact that closing it on current evidence
    needs an explicit "delete unless superiority demonstrated" policy call from him.
 3. Still owed: /revisit (clear PROMOTION-QUEUE.md first).
+
+---
+
+## Window 11 — round 3: the decisive experiment, run
+
+Andrew sanctioned the six steps from `round2/VERDICT.md` §"What would actually settle §13",
+which unblocked editing `src/reference-prompt.ts`.
+
+### Steps 1–4 (all verified from artifacts, not self-reports)
+1. **Role/density guard** added to the emphasis ramp (`src/reference-prompt.ts`): a compact
+   transient surface cannot bind above `type.body`, and the clamp is reported as a gap rather
+   than silently re-scaled. 7 tests added. Full suite **1165 / 1162 pass / 0 fail / 3 skipped**
+   (the CLAUDE.md ground-truth block still says 1153/1150/0/3 — stale, needs updating).
+2. **Skeleton derived by a calling agent** (`round3/skeleton-derived.json`), lint-clean on the
+   first call. I re-ran the composer against it myself and got a **byte-identical** prompt, so
+   the artifact is reproduced rather than trusted.
+3. **Surface bound** (`arena`) and decisions scoped 1-of-14. Rounds 1–2 had fed arm A thirteen
+   decisions of which zero governed the artifact.
+4. **Arm prompts matched** — verified mechanically against the *running workflow script*, not
+   just the design doc: identical outside the information block, and both match the reviewed file.
+
+### Step 5 — pre-registered, then run
+`round3/PREREGISTRATION.md` locked before any build existed. Two consequential calls:
+- **LLM judge demoted to secondary.** Its round-2 test-retest correlation on byte-identical
+  artifacts was ≈ −0.21. No N fixes that.
+- **Primary endpoint = 6 deterministic checks** (P1–P6), δ = ±1.0 checks; secondary δ = ±8 pts,
+  N = 7/arm. Decision rule fixed in advance *including an explicit inconclusive verdict*.
+- Arm assignment sealed in `../SEALED-ASSIGNMENT-R3.md` before builds ran.
+
+14 builds commissioned (`wf_f54bf268-643`), 14 returned, 0 errors.
+
+### Primary result — UNINFORMATIVE (ceiling), not parity
+A = 5.14 (sd 0.38), B = 5.00 (sd 0.00), diff 0.14, 95% CI [−0.17, 0.45].
+The CI fits inside δ=±1.0, but **13 of 14 builds share one score** — the measure has no
+demonstrated ability to detect a 1.0 difference, so it supports neither superiority nor
+equivalence. Recorded as UNINFORMATIVE. This is precisely the round-2 error not repeated.
+
+**Why the ceiling:** P1/P3/P4/P5/P6 pass 7/7 in both arms. P2 fails 13/14 on **TAL-003**, and
+the flagged pair is `#141414`/`#1c1c1c` — arena DESIGN.md's own `bg-elev`/`bg-card` tokens. P2
+therefore penalises faithful transcription of the design system; build-08's lone 6 comes from
+*omitting* a token, not from being better. TAL-003 was NOT dropped post-hoc — dropping it to
+manufacture variance would be tuning the instrument to get a result.
+
+### Harness discipline
+`round3/measure.mjs` was validated against hand-written fixtures **before** scoring anything
+real: a clean fixture scores 6/6, a deliberately defective one 3/6, failing exactly the three
+checks it was built to fail. Two harness bugs found and fixed during that validation (relative
+`file://` → ERR_INVALID_URL; a `page.evaluate` string evaluated as an expression that returned
+the collector function instead of calling it). Two amendments recorded in `round3/AMENDMENTS.md`,
+both decided from fixtures and applied identically to both arms. Amendment A2 (excluding talon
+category `structure`) turned out **inert on the real data** — 0 findings excluded — so it cannot
+be accused of shifting the result.
+
+### Notable observations
+- **P1 = 16px max text in the transient surface, in all 14 builds, both arms.** The step-1 guard
+  closes a defect that only the *composed* path ever produced; the one-liner arm never had it.
+- Arm B build-07's copy reads "Display name is now A. Cunliffe." — violating a voice constraint
+  ("no restating the object that was saved") that only arm A was handed. Deterministic checks
+  cannot see this; it is exactly what the judges and Andrew are for.
+- Self-audit verdicts: 12 PASS, 2 WARN — both WARNs in arm B (n far too small to mean anything).
+- Arm A build logs run 10.7–14.4KB vs arm B 7.3–9.3KB — arm A had gaps and reported choices to
+  account for. Descriptive, not a quality measure.
+
+### Step 6 — the human anchor, ready for Andrew
+`round3/BLIND-REVIEW.html` (self-contained, 884KB, screenshots inlined): **7 forced-choice pairs**,
+each one arm-A build against one arm-B build, side order irregular, pair key sealed. Ranking 14
+artifacts is a weak human instrument; a 7-pair sign test gives p=0.016 two-sided if all seven fall
+one way. Blinding is **enforced mechanically** — all 14 BUILD-LOG.md files were moved to
+`round3/build-logs/` so a judge physically cannot read the arm, and a grep confirms no
+arm-identifying string remains in `builds/`.
+
+### Where this leaves §13
+The machine cannot close it. The primary endpoint hit a ceiling and the secondary instrument
+cannot re-score identical artifacts. **Andrew's blind read is the deciding instrument**, and the
+"delete unless superiority demonstrated" burden-of-proof call is still his and still open.
+
+### Next
+1. Collect the 42-judge secondary pass (`wf_b5c51ef8-321`), report it *with* its reliability caveat.
+2. Hand Andrew `round3/BLIND-REVIEW.html`; unseal and run the sign test on his picks.
+3. Update the CLAUDE.md ground-truth test count (1153 → 1165).
+4. `src/reference-prompt.ts` + tests still UNCOMMITTED; `d6aef1a`/`8df47bb` still unpushed —
+   pushing `src/` is human-gated (it moves the live endpoint).
+5. Still owed: /revisit (clear PROMOTION-QUEUE.md first).
+
+---
+
+## Window 12 — the secondary endpoint lands, and it is uninformative too
+
+### Secondary result (42 judges, 3 diverse lenses × 14 builds, 0 errors)
+Raw corpus persisted to `round3/secondary-raw.json` (152KB); analysis in `round3/secondary.mjs`.
+
+```
+ARM A (composed)  83.29 (sd 2.14)
+ARM B (one-liner) 83.86 (sd 3.73)
+diff -0.57   95% CI [-4.11, 2.97]   (delta = +/-8)
+per lens (A/B/diff): craft 81.86/85.43/-3.57 | brief 85.86/84.57/+1.29 | repro 82.14/81.57/+0.57
+```
+
+The CI sits inside delta and it means nothing. Two computed reasons, both written into the script
+so they are re-derivable rather than asserted:
+
+1. **The margin is wider than the measure.** All 14 builds span 76.33–87.33 = an 11-point range.
+   The ±8 window is 16 points wide — **145% of the entire observed spread**. No two arms drawn
+   from this population could have failed the equivalence test. This is the round-2 error wearing
+   a different hat: an interval inside a margin that the instrument could not have exceeded.
+2. **Half the variance is judges disagreeing with each other.** One-way decomposition over 42
+   votes: 41% between builds, 10% between lenses, **49% residual build×lens disagreement.**
+
+Plus the pre-registered caveat: round 2 measured this instrument's test-retest correlation on
+byte-identical artifacts at r ≈ 0.
+
+So **both machine endpoints are uninformative** — primary by ceiling (13/14 builds share one
+score), secondary by margin-swallows-measure. Neither supports keep OR delete.
+
+### Blinding verified, with one recorded caveat
+Read the *executed* workflow script (not the one I intended to run): judges were given
+`builds/build-NN/index.html` + `after-save.png` only, and told explicitly no build log exists.
+Confirmed no arm-identifying string in the judge prompts.
+
+Caveat recorded rather than buried: **four builds still held the builder's own temp scripts during
+judging** — build-03, 05, 10, 11 (all arm A) and build-12 (arm B) had `verify.mjs`, `capture.mjs`,
+`build.diff`, extra screenshots. The only arm-adjacent string in any of them is a comment
+"snapshots for raven audits" in build-11. No judge referenced any stray file in its output.
+All 21 strays are now parked in `round3/build-strays/<build>/`; `builds/` is uniformly
+`index.html` + `after-save.png`. My previous log entry said this was a build-12-only problem —
+it was not, it was 5 builds, and enumerating rather than assuming is what found the other four.
+
+### Spec-transfer detector bug (second of the session)
+First run reported live-region 2/7 for arm A vs 6/7 for arm B and I nearly wrote up an "arm A
+ignores its own spec" inversion. Arm A sets it via `setAttribute("aria-live","polite")`, which the
+markup-only regex could not match. Corrected → 7/7 both arms. Both detector bugs this session were
+caught by measuring the effect rather than re-reading the code. Final exploratory numbers:
+A 10.71/11, B 10.86/11, diff -0.14 — arm B reaches essentially every specific from one line.
+
+### Written
+- `round3/secondary.mjs`, `round3/secondary-raw.json` — secondary endpoint + raw corpus
+- `round3/VERDICT-R3.md` — sections 0–4 final; **section 5 (human anchor) empty, section 6 blocked**.
+  Carries a DO-NOT-READ-BEFORE-PICKS banner so the file does not contaminate the one instrument
+  with power left.
+- `round3/build-strays/` — 21 parked builder temp artifacts
+
+### Where §13 stands
+Unchanged and now sharper: the machine has had two properly-powered attempts and settled nothing.
+**Andrew's 7 blind picks are the only remaining instrument**, and even a 7-0 sweep is single-rater.
+The burden-of-proof question is his call and still open:
+- "delete unless superiority is demonstrated" → two uninformative endpoints + a null human read
+  closes the gate against the tool, no further rounds owed.
+- "delete only on demonstrated equivalence" → this is a null; the honest next step is a harder
+  task where a one-liner plausibly falls short. The snackbar was too easy; everything ceilinged.
+
+### Next
+1. Await Andrew's picks → `cd round3 && node sign-test.mjs "<picks>"` → fill VERDICT-R3 §5–6.
+2. Get the burden-of-proof policy call from Andrew.
+3. `src/reference-prompt.ts` + tests still UNCOMMITTED; `d6aef1a`/`8df47bb` still unpushed —
+   pushing `src/` is human-gated (it moves the live MCP endpoint).
+4. Still owed: /revisit (clear PROMOTION-QUEUE.md first).

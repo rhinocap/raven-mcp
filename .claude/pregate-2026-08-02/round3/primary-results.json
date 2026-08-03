@@ -1,0 +1,384 @@
+[
+  {
+    "build": "build-01",
+    "ok": true,
+    "notes": [
+      "trigger clicked"
+    ],
+    "checks": {
+      "P1": true,
+      "P2": false,
+      "P3": true,
+      "P4": true,
+      "P5": true,
+      "P6": true
+    },
+    "surface_root": "div#snackbar-region > div",
+    "surface_size": 8,
+    "max_font_in_surface": 16,
+    "talon_structure_excluded": [],
+    "talon_findings": [
+      "TAL-003: 1 near-duplicate color pair(s) within ~5% lightness: #141414 / #1c1c1c"
+    ],
+    "tap_violations": 0,
+    "contrast_failures": 0,
+    "literals": [],
+    "page_errors": [],
+    "score": 5
+  },
+  {
+    "build": "build-02",
+    "ok": true,
+    "notes": [
+      "trigger clicked"
+    ],
+    "checks": {
+      "P1": true,
+      "P2": false,
+      "P3": true,
+      "P4": true,
+      "P5": true,
+      "P6": true
+    },
+    "surface_root": "body > div",
+    "surface_size": 8,
+    "max_font_in_surface": 16,
+    "talon_structure_excluded": [],
+    "talon_findings": [
+      "TAL-003: 1 near-duplicate color pair(s) within ~5% lightness: #141414 / #1c1c1c",
+      "TAL-009: 4 distinct font-family stacks declared: var(--font-body, inherit, var(--font-display, var(--font-mono"
+    ],
+    "tap_violations": 0,
+    "contrast_failures": 0,
+    "literals": [],
+    "page_errors": [],
+    "score": 5
+  },
+  {
+    "build": "build-03",
+    "ok": true,
+    "notes": [
+      "trigger clicked"
+    ],
+    "checks": {
+      "P1": true,
+      "P2": false,
+      "P3": true,
+      "P4": true,
+      "P5": true,
+      "P6": true
+    },
+    "surface_root": "div#snackbar-host",
+    "surface_size": 9,
+    "max_font_in_surface": 16,
+    "talon_structure_excluded": [],
+    "talon_findings": [
+      "TAL-003: 1 near-duplicate color pair(s) within ~5% lightness: #141414 / #1c1c1c",
+      "TAL-014: div#snackbar-host spans 1280px — 1.74× the 736px card width (lonely last-row orphan)."
+    ],
+    "tap_violations": 0,
+    "contrast_failures": 0,
+    "literals": [],
+    "page_errors": [],
+    "score": 5
+  },
+  {
+    "build": "build-04",
+    "ok": true,
+    "notes": [
+      "trigger clicked"
+    ],
+    "checks": {
+      "P1": true,
+      "P2": false,
+      "P3": true,
+      "P4": true,
+      "P5": true,
+      "P6": true
+    },
+    "surface_root": "div#snackbar-column",
+    "surface_size": 10,
+    "max_font_in_surface": 16,
+    "talon_structure_excluded": [],
+    "talon_findings": [
+      "TAL-003: 1 near-duplicate color pair(s) within ~5% lightness: #141414 / #1c1c1c",
+      "TAL-009: 4 distinct font-family stacks declared: var(--font-body, var(--font-mono, var(--font-display, var(--font-serif",
+      "TAL-014: div#snackbar-region spans 1280px — 1.5× the 852px card width (lonely last-row orphan)."
+    ],
+    "tap_violations": 0,
+    "contrast_failures": 0,
+    "literals": [],
+    "page_errors": [],
+    "score": 5
+  },
+  {
+    "build": "build-05",
+    "ok": true,
+    "notes": [
+      "trigger clicked"
+    ],
+    "checks": {
+      "P1": true,
+      "P2": false,
+      "P3": true,
+      "P4": true,
+      "P5": true,
+      "P6": true
+    },
+    "surface_root": "body > div",
+    "surface_size": 8,
+    "max_font_in_surface": 16,
+    "talon_structure_excluded": [],
+    "talon_findings": [
+      "TAL-003: 1 near-duplicate color pair(s) within ~5% lightness: #141414 / #1c1c1c"
+    ],
+    "tap_violations": 0,
+    "contrast_failures": 0,
+    "literals": [],
+    "page_errors": [],
+    "score": 5
+  },
+  {
+    "build": "build-06",
+    "ok": true,
+    "notes": [
+      "trigger clicked"
+    ],
+    "checks": {
+      "P1": true,
+      "P2": false,
+      "P3": true,
+      "P4": true,
+      "P5": true,
+      "P6": true
+    },
+    "surface_root": "div#snack-region",
+    "surface_size": 9,
+    "max_font_in_surface": 16,
+    "talon_structure_excluded": [],
+    "talon_findings": [
+      "TAL-003: 1 near-duplicate color pair(s) within ~5% lightness: #141414 / #1c1c1c",
+      "TAL-014: div#snack-region spans 1216px — 1.69× the 720px card width (lonely last-row orphan)."
+    ],
+    "tap_violations": 0,
+    "contrast_failures": 0,
+    "literals": [],
+    "page_errors": [],
+    "score": 5
+  },
+  {
+    "build": "build-07",
+    "ok": true,
+    "notes": [
+      "trigger clicked"
+    ],
+    "checks": {
+      "P1": true,
+      "P2": false,
+      "P3": true,
+      "P4": true,
+      "P5": true,
+      "P6": true
+    },
+    "surface_root": "div#snackbar-region",
+    "surface_size": 12,
+    "max_font_in_surface": 16,
+    "talon_structure_excluded": [],
+    "talon_findings": [
+      "TAL-003: 1 near-duplicate color pair(s) within ~5% lightness: #141414 / #1c1c1c"
+    ],
+    "tap_violations": 0,
+    "contrast_failures": 0,
+    "literals": [],
+    "page_errors": [],
+    "score": 5
+  },
+  {
+    "build": "build-08",
+    "ok": true,
+    "notes": [
+      "trigger clicked"
+    ],
+    "checks": {
+      "P1": true,
+      "P2": true,
+      "P3": true,
+      "P4": true,
+      "P5": true,
+      "P6": true
+    },
+    "surface_root": "body > div",
+    "surface_size": 9,
+    "max_font_in_surface": 16,
+    "talon_structure_excluded": [],
+    "talon_findings": [],
+    "tap_violations": 0,
+    "contrast_failures": 0,
+    "literals": [],
+    "page_errors": [],
+    "score": 6
+  },
+  {
+    "build": "build-09",
+    "ok": true,
+    "notes": [
+      "trigger clicked"
+    ],
+    "checks": {
+      "P1": true,
+      "P2": false,
+      "P3": true,
+      "P4": true,
+      "P5": true,
+      "P6": true
+    },
+    "surface_root": "div#snackbar-region > div",
+    "surface_size": 7,
+    "max_font_in_surface": 16,
+    "talon_structure_excluded": [],
+    "talon_findings": [
+      "TAL-003: 1 near-duplicate color pair(s) within ~5% lightness: #141414 / #1c1c1c"
+    ],
+    "tap_violations": 0,
+    "contrast_failures": 0,
+    "literals": [],
+    "page_errors": [],
+    "score": 5
+  },
+  {
+    "build": "build-10",
+    "ok": true,
+    "notes": [
+      "trigger clicked"
+    ],
+    "checks": {
+      "P1": true,
+      "P2": false,
+      "P3": true,
+      "P4": true,
+      "P5": true,
+      "P6": true
+    },
+    "surface_root": "body > div",
+    "surface_size": 9,
+    "max_font_in_surface": 16,
+    "talon_structure_excluded": [],
+    "talon_findings": [
+      "TAL-003: 1 near-duplicate color pair(s) within ~5% lightness: #141414 / #1c1c1c"
+    ],
+    "tap_violations": 0,
+    "contrast_failures": 0,
+    "literals": [],
+    "page_errors": [],
+    "score": 5
+  },
+  {
+    "build": "build-11",
+    "ok": true,
+    "notes": [
+      "trigger clicked"
+    ],
+    "checks": {
+      "P1": true,
+      "P2": false,
+      "P3": true,
+      "P4": true,
+      "P5": true,
+      "P6": true
+    },
+    "surface_root": "body > div",
+    "surface_size": 8,
+    "max_font_in_surface": 16,
+    "talon_structure_excluded": [],
+    "talon_findings": [
+      "TAL-003: 1 near-duplicate color pair(s) within ~5% lightness: #141414 / #1c1c1c"
+    ],
+    "tap_violations": 0,
+    "contrast_failures": 0,
+    "literals": [],
+    "page_errors": [],
+    "score": 5
+  },
+  {
+    "build": "build-12",
+    "ok": true,
+    "notes": [
+      "trigger clicked"
+    ],
+    "checks": {
+      "P1": true,
+      "P2": false,
+      "P3": true,
+      "P4": true,
+      "P5": true,
+      "P6": true
+    },
+    "surface_root": "div#snackbar-region > div",
+    "surface_size": 7,
+    "max_font_in_surface": 16,
+    "talon_structure_excluded": [],
+    "talon_findings": [
+      "TAL-003: 1 near-duplicate color pair(s) within ~5% lightness: #141414 / #1c1c1c",
+      "TAL-008: 1 text container(s) set max-width outside 45-75ch: 44ch"
+    ],
+    "tap_violations": 0,
+    "contrast_failures": 0,
+    "literals": [],
+    "page_errors": [],
+    "score": 5
+  },
+  {
+    "build": "build-13",
+    "ok": true,
+    "notes": [
+      "trigger clicked"
+    ],
+    "checks": {
+      "P1": true,
+      "P2": false,
+      "P3": true,
+      "P4": true,
+      "P5": true,
+      "P6": true
+    },
+    "surface_root": "div#snackbar-region",
+    "surface_size": 10,
+    "max_font_in_surface": 16,
+    "talon_structure_excluded": [],
+    "talon_findings": [
+      "TAL-003: 1 near-duplicate color pair(s) within ~5% lightness: #141414 / #1c1c1c"
+    ],
+    "tap_violations": 0,
+    "contrast_failures": 0,
+    "literals": [],
+    "page_errors": [],
+    "score": 5
+  },
+  {
+    "build": "build-14",
+    "ok": true,
+    "notes": [
+      "trigger clicked"
+    ],
+    "checks": {
+      "P1": true,
+      "P2": false,
+      "P3": true,
+      "P4": true,
+      "P5": true,
+      "P6": true
+    },
+    "surface_root": "body > div",
+    "surface_size": 8,
+    "max_font_in_surface": 16,
+    "talon_structure_excluded": [],
+    "talon_findings": [
+      "TAL-003: 1 near-duplicate color pair(s) within ~5% lightness: #141414 / #1c1c1c"
+    ],
+    "tap_violations": 0,
+    "contrast_failures": 0,
+    "literals": [],
+    "page_errors": [],
+    "score": 5
+  }
+]

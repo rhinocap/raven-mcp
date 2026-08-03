@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snackbar — optimistic save (arena)</title>
+<style>
+/* ---------------------------------------------------------------------------
+   TOKENS — the only place literals are permitted. All component CSS below
+   authors against var(--token, fallback) exclusively.
+   Values: arena/DESIGN.md frontmatter.
+--------------------------------------------------------------------------- */
+:root {
+  /* colors */
+  --color-bg:          #050505;
+  --color-bg-elev:     #141414;
+  --color-bg-card:     #1c1c1c;
+  --color-fg:          #ffffff;
+  --color-fg-muted:    #b8b8b8;
+  --color-fg-dim:      #828282;
+  --color-line:        #363636;
+  --color-line-strong: #545454;
+  --color-accent:      #ed4609;
+
+  /* type scale */
+  --type-label: 13px;
+  --type-body:  16px;
+  --type-lead:  20px;
+  --type-h3:    27px;
+  --type-h2:    56px;
+  --type-h1:    96px;
+
+  /* space scale */
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md:  16px;
+  --space-lg:  24px;
+  --space-xl:  32px;
+  --space-xxl: 48px;
+
+  /* motion */
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 200ms;
+  --motion-duration-slow: 400ms;
+  --motion-easing-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --motion-easing-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-easing-site:      cubic-bezier(0.56, 0.22, 0.05, 0.99);
+
+  /* families — Domaine (--font-serif) is deliberately NOT defined here, so it
+     cannot be reached from component CSS. */
+  --font-body:    "Untitled Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-display: var(--font-body);
+  --font-mono:    "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* weights — 400/500/700 only, no italics */
+  --weight-regular: 400;
+  --weight-medium:  500;
+  --weight-bold:    700;
+
+  /* leading + tracking */
+  --leading-body:  1.5;
+  --leading-tight: 1.2;
+  --tracking-label: 0.08em;
+
+  /* component dimensions (px reserved for component sizing, never frames) */
+  --hairline: 1px;
+  --control-min: 44px;
+  --icon-sm: 16px;
+  --focus-ring: 2px;
+  --snackbar-max: 480px;
+  --page-measure: 720px;
+
+  /* the auto-dismiss dwell lives with the tokens; JS reads it from here */
+  --snackbar-dwell: 6000ms;
+
+  --layer-overlay: 100;
+}
+
+/* ---------------------------------------------------------------------------
+   BASE
+--------------------------------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--color-bg, #050505);
+  color: var(--color-fg, #ffffff);
+  font-family: var(--font-body);
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-regular, 400);
+  line-height: var(--leading-body, 1.5);
+  font-style: normal;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------------------------------------------------------------------
+   DEMO SURFACE — the harness the snackbar confirms against.
+--------------------------------------------------------------------------- */
+.page {
+  width: min(calc(100% - var(--space-xl, 32px)), var(--page-measure, 720px));
+  margin-inline: auto;
+  padding-block: var(--space-xxl, 48px) calc(var(--space-xxl, 48px) * 3);
+  padding-inline: var(--space-md, 16px);
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: var(--type-label, 13px);
+  font-weight: var(--weight-medium, 500);
+  letter-spacing: var(--tracking-label, 0.08em);
+  text-transform: uppercase;
+  color: var(--color-fg-dim, #828282);
+}
+
+.page__title {
+  margin: 0;
+  padding-block-start: var(--space-md, 16px);
+  font-family: var(--font-display);
+  font-size: var(--type-h3, 27px);
+  font-weight: var(--weight-bold, 700);
+  line-height: var(--leading-tight, 1.2);
+  color: var(--color-fg, #ffffff);
+}
+
+.page__lede {
+  margin: 0;
+  padding-block-start: var(--space-md, 16px);
+  max-width: 60ch;
+  font-size: var(--type-lead, 20px);
+  color: var(--color-fg-muted, #b8b8b8);
+}
+
+.field-list {
+  margin-block-start: var(--space-xxl, 48px);
+  border-block-start: var(--hairline, 1px) solid var(--color-line, #363636);
+}
+
+.field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-md, 16px);
+  padding-block: var(--space-lg, 24px);
+  border-block-end: var(--hairline, 1px) solid var(--color-line, #363636);
+}
+
+.field__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--type-body, 16px);
+  color: var(--color-fg-muted, #b8b8b8);
+}
+
+.field__value {
+  flex: 0 0 auto;
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-medium, 500);
+  color: var(--color-fg, #ffffff);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md, 16px);
+  padding-block-start: var(--space-xl, 32px);
+}
+
+.ledger {
+  margin: 0;
+  padding-block-start: var(--space-md, 16px);
+  font-family: var(--font-mono);
+  font-size: var(--type-label, 13px);
+  color: var(--color-fg-dim, #828282);
+}
+
+/* ---------------------------------------------------------------------------
+   BUTTONS — semantic classes only, never inline styles.
+   variants: primary · secondary · ghost   states: hover · focus-visible ·
+   active · disabled · loading
+--------------------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm, 8px);
+  min-height: var(--control-min, 44px);
+  min-width: var(--control-min, 44px);
+  padding-inline: var(--space-lg, 24px);
+  border: var(--hairline, 1px) solid transparent;
+  border-radius: 0;
+  background: none;
+  font-family: var(--font-body);
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-medium, 500);
+  font-style: normal;
+  line-height: var(--leading-tight, 1.2);
+  color: var(--color-fg, #ffffff);
+  cursor: pointer;
+  transition: color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease),
+              background-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease),
+              border-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease);
+}
+
+.btn:focus-visible {
+  outline: var(--focus-ring, 2px) solid var(--color-fg, #ffffff);
+  outline-offset: var(--space-xs, 4px);
+}
+
+.btn--primary {
+  background: var(--color-fg, #ffffff);
+  border-color: var(--color-fg, #ffffff);
+  color: var(--color-bg, #050505);
+}
+.btn--primary:hover { background: var(--color-fg-muted, #b8b8b8); border-color: var(--color-fg-muted, #b8b8b8); }
+.btn--primary:active { background: var(--color-fg-dim, #828282); border-color: var(--color-fg-dim, #828282); }
+
+.btn--secondary {
+  padding-inline: var(--space-md, 16px);
+  border-color: transparent;
+  color: var(--color-fg, #ffffff);
+  text-decoration-line: underline;
+  text-decoration-color: var(--color-accent, #ed4609);
+  text-decoration-thickness: var(--hairline, 1px);
+  text-underline-offset: var(--space-xs, 4px);
+}
+.btn--secondary:hover { color: var(--color-accent, #ed4609); }
+.btn--secondary:active { color: var(--color-accent, #ed4609); }
+
+.btn--ghost {
+  padding-inline: var(--space-sm, 8px);
+  color: var(--color-fg-muted, #b8b8b8);
+}
+.btn--ghost:hover { color: var(--color-fg, #ffffff); }
+.btn--ghost:active { color: var(--color-fg-dim, #828282); }
+
+.btn--loading,
+.btn[disabled] {
+  color: var(--color-fg-dim, #828282);
+  cursor: default;
+  pointer-events: none;
+}
+.btn--loading.btn--primary,
+.btn--primary[disabled] {
+  background: none;
+  border-color: var(--color-line-strong, #545454);
+  color: var(--color-fg-dim, #828282);
+}
+
+.btn__icon {
+  display: block;
+  width: var(--icon-sm, 16px);
+  height: var(--icon-sm, 16px);
+}
+
+/* ---------------------------------------------------------------------------
+   SNACKBAR — bottom-anchored transient confirmation for an optimistic save.
+   Mounted on commit, removed on terminal state; never CSS-hidden.
+--------------------------------------------------------------------------- */
+.snackbar {
+  position: fixed;
+  inset-block-end: var(--space-xl, 32px);
+  inset-inline: 0;
+  z-index: var(--layer-overlay, 100);
+  width: min(calc(100% - var(--space-xl, 32px)), var(--snackbar-max, 480px));
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md, 16px);
+  padding-block: var(--space-xs, 4px);
+  padding-inline-start: var(--space-lg, 24px);
+  padding-inline-end: var(--space-xs, 4px);
+  background: var(--color-bg-elev, #141414);
+  border: var(--hairline, 1px) solid var(--color-line, #363636);
+  border-radius: 0;
+  animation: snackbar-enter var(--motion-duration-base, 200ms) var(--motion-easing-out-quart, ease) both;
+}
+
+.snackbar__message {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-medium, 500);
+  line-height: var(--leading-tight, 1.2);
+  color: var(--color-fg, #ffffff);
+}
+
+.snackbar__actions {
+  flex: 0 0 auto;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs, 4px);
+  padding-inline-start: var(--space-md, 16px);
+  border-inline-start: var(--hairline, 1px) solid var(--color-line, #363636);
+}
+
+.snackbar[data-state="leaving"] {
+  pointer-events: none;
+  animation: snackbar-exit var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease) both;
+}
+
+@keyframes snackbar-enter {
+  from { opacity: 0; transform: translateY(var(--space-md, 16px)); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes snackbar-exit {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(var(--space-sm, 8px)); }
+}
+
+/* Reduced motion: no translate anywhere, durations collapsed to near-zero. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes snackbar-enter { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes snackbar-exit  { from { opacity: 1; } to { opacity: 0; } }
+  .snackbar,
+  .snackbar[data-state="leaving"] { animation-duration: 0.01ms; }
+  .btn { transition-duration: 0.01ms; }
+}
+
+@media (max-width: 480px) {
+  .page { padding-inline: var(--space-md, 16px); }
+  .snackbar { inset-block-end: var(--space-md, 16px); }
+}
+</style>
+</head>
+<body>
+
+<main class="page">
+  <p class="eyebrow">arena</p>
+  <h1 class="page__title">Notification settings</h1>
+  <p class="page__lede">Changes here are written as you make them. The confirmation carries the way back.</p>
+
+  <div class="field-list">
+    <div class="field">
+      <span class="field__label" id="digest-label">Weekly digest</span>
+      <span class="field__value" id="digest-value">Off</span>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button type="button" class="btn btn--primary" id="save-btn" data-demo-save>Save change</button>
+  </div>
+  <div id="ledger-slot"></div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var body = document.body;
+  var saveBtn = document.getElementById("save-btn");
+  var valueEl = document.getElementById("digest-value");
+  var ledgerSlot = document.getElementById("ledger-slot");
+
+  var COPY = { message: "Saved", undo: "Undo", dismiss: "Dismiss" };
+
+  var snack = null;        // the mounted root, or null in state `absent`
+  var timerId = null;      // auto-dismiss timeout handle
+  var remaining = 0;       // ms left on the clock when paused
+  var resumeAt = 0;        // timestamp the running clock was (re)started
+  var previousValue = null;
+  var flightId = null;
+
+  function dwellMs() {
+    var raw = getComputedStyle(document.documentElement)
+      .getPropertyValue("--snackbar-dwell");
+    var n = parseFloat(raw);
+    return isNaN(n) ? 6000 : n;
+  }
+
+  function state() { return snack ? snack.getAttribute("data-state") : "absent"; }
+
+  /* Wait for a named animation to finish, with a timer fallback so the machine
+     still advances when animations are collapsed or suppressed. */
+  function afterAnimation(el, name, fallbackMs, done) {
+    var settled = false;
+    function finish() {
+      if (settled) return;
+      settled = true;
+      el.removeEventListener("animationend", onEnd);
+      // A surface replaced by a newer commit never reaches a terminal state.
+      if (el.hasAttribute("data-cancelled")) return;
+      done();
+    }
+    function onEnd(ev) {
+      if (ev.target === el && ev.animationName === name) finish();
+    }
+    el.addEventListener("animationend", onEnd);
+    setTimeout(finish, fallbackMs);
+  }
+
+  function icon() {
+    var ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.5");
+    svg.setAttribute("stroke-linecap", "square");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    svg.setAttribute("class", "btn__icon");
+    var a = document.createElementNS(ns, "path");
+    a.setAttribute("d", "M4 4 L12 12");
+    var b = document.createElementNS(ns, "path");
+    b.setAttribute("d", "M12 4 L4 12");
+    svg.appendChild(a);
+    svg.appendChild(b);
+    return svg;
+  }
+
+  function build() {
+    var root = document.createElement("div");
+    root.className = "snackbar";
+    root.setAttribute("data-state", "entering");
+    root.setAttribute("data-snackbar", "");
+
+    // Live region is mounted empty, then filled — so the region exists before
+    // its content changes and assistive tech announces the update.
+    var message = document.createElement("p");
+    message.className = "snackbar__message";
+    message.setAttribute("role", "status");
+    message.setAttribute("aria-live", "polite");
+    message.setAttribute("data-snackbar-message", "");
+
+    var actions = document.createElement("div");
+    actions.className = "snackbar__actions";
+
+    var undo = document.createElement("button");
+    undo.type = "button";
+    undo.className = "btn btn--secondary";
+    undo.setAttribute("data-snackbar-undo", "");
+    undo.textContent = COPY.undo;
+    undo.addEventListener("click", onUndo);
+
+    var dismiss = document.createElement("button");
+    dismiss.type = "button";
+    dismiss.className = "btn btn--ghost";
+    dismiss.setAttribute("data-snackbar-dismiss", "");
+    dismiss.setAttribute("aria-label", COPY.dismiss);
+    dismiss.appendChild(icon());
+    dismiss.addEventListener("click", onDismiss);
+
+    actions.appendChild(undo);
+    actions.appendChild(dismiss);
+    root.appendChild(message);
+    root.appendChild(actions);
+
+    root.addEventListener("mouseenter", pause);
+    root.addEventListener("mouseleave", resume);
+    root.addEventListener("focusin", pause);
+    root.addEventListener("focusout", onFocusOut);
+
+    return root;
+  }
+
+  /* --- clock ------------------------------------------------------------- */
+
+  function startClock(ms) {
+    clearTimeout(timerId);
+    remaining = ms;
+    resumeAt = Date.now();
+    timerId = setTimeout(function () { leave("dismissed"); }, remaining);
+  }
+
+  function pause() {
+    if (state() !== "visible" || timerId === null) return;
+    clearTimeout(timerId);
+    timerId = null;
+    remaining = Math.max(0, remaining - (Date.now() - resumeAt));
+    snack.setAttribute("data-clock", "paused");
+  }
+
+  function resume() {
+    if (state() !== "visible" || timerId !== null) return;
+    snack.setAttribute("data-clock", "running");
+    startClock(remaining);
+  }
+
+  function onFocusOut(ev) {
+    if (snack && snack.contains(ev.relatedTarget)) return;
+    if (snack && snack.matches(":hover")) return;
+    resume();
+  }
+
+  /* --- transitions ------------------------------------------------------- */
+
+  function commit() {
+    // Re-triggering while one is up replaces it: the old surface is torn down
+    // rather than stacked.
+    if (snack) teardown();
+
+    previousValue = valueEl.textContent;
+    valueEl.textContent = previousValue === "Off" ? "On" : "Off";
+
+    // Optimistic: the surface is already committed while the request is in
+    // flight, so the trigger carries the loading state, not a blocking spinner.
+    saveBtn.classList.add("btn--loading");
+    saveBtn.setAttribute("aria-busy", "true");
+    saveBtn.textContent = "Saving…";
+    clearTimeout(flightId);
+    flightId = setTimeout(settleFlight, 900);
+
+    snack = build();
+    body.appendChild(snack);
+
+    requestAnimationFrame(function () {
+      var msg = snack && snack.querySelector("[data-snackbar-message]");
+      if (msg) msg.textContent = COPY.message;
+    });
+
+    afterAnimation(snack, "snackbar-enter", 400, function () {
+      if (!snack || state() !== "entering") return;
+      snack.setAttribute("data-state", "visible");
+      snack.setAttribute("data-clock", "running");
+      startClock(dwellMs());
+      // A pointer or keyboard focus that arrived during the entrance holds the
+      // clock the moment it starts.
+      if (snack.contains(document.activeElement) || snack.matches(":hover")) pause();
+    });
+  }
+
+  function settleFlight() {
+    saveBtn.classList.remove("btn--loading");
+    saveBtn.removeAttribute("aria-busy");
+    saveBtn.textContent = "Save change";
+  }
+
+  function leave(outcome) {
+    if (!snack || state() !== "visible") return;
+    clearTimeout(timerId);
+    timerId = null;
+    snack.setAttribute("data-state", "leaving");
+    snack.removeAttribute("data-clock");
+    inertize(snack);
+
+    var leaving = snack;
+    afterAnimation(leaving, "snackbar-exit", 320, function () {
+      if (leaving.parentNode) leaving.parentNode.removeChild(leaving);
+      if (snack === leaving) snack = null;
+      note(outcome);
+    });
+  }
+
+  function onDismiss() { leave("dismissed"); }
+
+  function onUndo() {
+    if (!snack || state() !== "visible") return;
+    clearTimeout(timerId);
+    timerId = null;
+
+    // The reversal lands on the surrounding surface first; the confirmation's
+    // own removal is the second half of the same beat.
+    if (previousValue !== null) valueEl.textContent = previousValue;
+    clearTimeout(flightId);
+    settleFlight();
+
+    // `reverted` is terminal and means removed — the machine has no
+    // visible → leaving edge for undo, so there is no exit motion here.
+    snack.setAttribute("data-state", "reverted");
+    inertize(snack);
+    if (snack.parentNode) snack.parentNode.removeChild(snack);
+    snack = null;
+    note("reverted");
+  }
+
+  function inertize(el) {
+    el.setAttribute("aria-hidden", "true");
+    el.inert = true;
+    var controls = el.querySelectorAll("button");
+    for (var i = 0; i < controls.length; i++) controls[i].disabled = true;
+  }
+
+  function teardown() {
+    clearTimeout(timerId);
+    timerId = null;
+    if (snack) {
+      snack.setAttribute("data-cancelled", "");
+      if (snack.parentNode) snack.parentNode.removeChild(snack);
+    }
+    snack = null;
+  }
+
+  /* The surrounding surface reflects which terminal state was reached. */
+  function note(outcome) {
+    while (ledgerSlot.firstChild) ledgerSlot.removeChild(ledgerSlot.firstChild);
+    var p = document.createElement("p");
+    p.className = "ledger";
+    p.setAttribute("data-ledger", outcome);
+    p.textContent = outcome === "reverted" ? "Last change reverted." : "Last change kept.";
+    ledgerSlot.appendChild(p);
+  }
+
+  saveBtn.addEventListener("click", commit);
+
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && state() === "visible") leave("dismissed");
+  });
+})();
+</script>
+</body>
+</html>

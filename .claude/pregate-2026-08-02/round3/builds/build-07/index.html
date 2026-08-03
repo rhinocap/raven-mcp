@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snackbar — optimistic save</title>
+<style>
+  /* ---------------------------------------------------------------------
+     Tokens — concrete values from arena/DESIGN.md.
+     Component CSS below never uses a bare literal; every visual value is
+     var(--token, fallback).
+     --------------------------------------------------------------------- */
+  :root {
+    /* colors */
+    --color-bg: #050505;
+    --color-bg-elev: #141414;
+    --color-bg-card: #1c1c1c;
+    --color-fg: #ffffff;
+    --color-fg-muted: #b8b8b8;
+    --color-fg-dim: #828282;
+    --color-line: #363636;
+    --color-line-strong: #545454;
+    --color-accent: #ed4609;
+
+    /* type — DESIGN.md carries unitless numbers; expressed here in px */
+    --type-label: 13px;
+    --type-body: 16px;
+    --type-lead: 20px;
+    --type-h3: 27px;
+    --type-h2: 56px;
+    --type-h1: 96px;
+
+    /* families */
+    --font-display: "Untitled Sans", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    --font-body: "Untitled Sans", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "Geist Mono", "Geist", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --font-serif: "Domaine Display", Georgia, "Times New Roman", serif; /* authorial voice only — unused here */
+
+    /* weights — 400/500/700 only; no 600 (would synthesize) */
+    --weight-regular: 400;
+    --weight-medium: 500;
+    --weight-bold: 700;
+
+    /* leading + tracking */
+    --leading-tight: 1.08;
+    --leading-snug: 1.3;
+    --leading-body: 1.55;
+    --tracking-label: 0.09em;
+    --tracking-tight: -0.01em;
+
+    /* space */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-xxl: 48px;
+
+    /* motion */
+    --motion-duration-fast: 120ms;
+    --motion-duration-base: 200ms;
+    --motion-duration-slow: 400ms;
+    --motion-easing-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --motion-easing-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --motion-easing-site: cubic-bezier(0.56, 0.22, 0.05, 0.99);
+
+    /* primitives */
+    --hairline: 1px;
+    --focus-width: 2px;
+    --focus-offset: 2px;
+    --control-min: 44px;      /* tap target floor, both axes */
+    --icon-size: 16px;
+    --measure: 720px;
+    --measure-copy: 54ch;
+    --measure-note: 60ch;
+
+    /* component dimensions + timing */
+    --snackbar-width: 420px;
+    --snackbar-inset: var(--space-lg, 24px);
+    --snackbar-dwell: 8000ms;
+    --snackbar-dwell-brief: 5000ms;
+    --snackbar-lift: var(--space-sm, 8px);
+  }
+
+  /* ---------------------------------------------------------------------
+     Page
+     --------------------------------------------------------------------- */
+  html, body {
+    overflow-x: clip;
+    max-width: 100vw;
+  }
+
+  html {
+    background: var(--color-bg, #050505);
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-bg, #050505);
+    color: var(--color-fg, #ffffff);
+    font-family: var(--font-body, sans-serif);
+    font-size: var(--type-body, 16px);
+    font-weight: var(--weight-regular, 400);
+    line-height: var(--leading-body, 1.55);
+    font-synthesis: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    box-sizing: border-box;
+    width: min(var(--measure, 720px), 100%);
+    margin-inline: auto;
+    padding: var(--space-xxl, 48px) var(--space-lg, 24px) var(--space-xxl, 48px);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xl, 32px);
+  }
+
+  .eyebrow {
+    margin: 0;
+    font-family: var(--font-mono, monospace);
+    font-size: var(--type-label, 13px);
+    font-weight: var(--weight-regular, 400);
+    letter-spacing: var(--tracking-label, 0.09em);
+    text-transform: uppercase;
+    color: var(--color-fg-dim, #828282);
+  }
+
+  .page-title {
+    margin: 0;
+    font-family: var(--font-display, sans-serif);
+    font-size: var(--type-h2, 56px);
+    font-weight: var(--weight-medium, 500);
+    line-height: var(--leading-tight, 1.08);
+    letter-spacing: var(--tracking-tight, -0.01em);
+    color: var(--color-fg, #ffffff);
+  }
+
+  .lede {
+    margin: 0;
+    max-width: var(--measure-copy, 54ch);
+    font-size: var(--type-lead, 20px);
+    line-height: var(--leading-snug, 1.3);
+    color: var(--color-fg-muted, #b8b8b8);
+  }
+
+  /* Hairline-ruled record row — no cards, no panels. */
+  .record {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-sm, 8px) var(--space-lg, 24px);
+    padding-block: var(--space-lg, 24px);
+    border-top: var(--hairline, 1px) solid var(--color-line, #363636);
+    border-bottom: var(--hairline, 1px) solid var(--color-line, #363636);
+  }
+
+  .record-label {
+    flex: 0 0 auto;
+    min-width: 0;
+    font-size: var(--type-label, 13px);
+    letter-spacing: var(--tracking-label, 0.09em);
+    text-transform: uppercase;
+    color: var(--color-fg-dim, #828282);
+  }
+
+  .record-value {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--type-h3, 27px);
+    font-weight: var(--weight-regular, 400);
+    line-height: var(--leading-snug, 1.3);
+    color: var(--color-fg, #ffffff);
+    overflow-wrap: break-word;
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-md, 16px) var(--space-lg, 24px);
+  }
+
+  .readout {
+    margin: 0;
+    font-family: var(--font-mono, monospace);
+    font-size: var(--type-label, 13px);
+    color: var(--color-fg-dim, #828282);
+  }
+
+  .readout b {
+    font-weight: var(--weight-medium, 500);
+    color: var(--color-fg-muted, #b8b8b8);
+  }
+
+  .note {
+    margin: 0;
+    max-width: var(--measure-note, 60ch);
+    font-size: var(--type-label, 13px);
+    line-height: var(--leading-body, 1.55);
+    color: var(--color-fg-dim, #828282);
+  }
+
+  /* ---------------------------------------------------------------------
+     Buttons — semantic classes, never inline styles.
+     States: hover, focus-visible, active, disabled. Variants: primary, ghost.
+     --------------------------------------------------------------------- */
+  .btn {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm, 8px);
+    min-height: var(--control-min, 44px);
+    min-width: var(--control-min, 44px);
+    padding: var(--space-sm, 8px) var(--space-md, 16px);
+    border: var(--hairline, 1px) solid transparent;
+    background: transparent;
+    color: inherit;
+    font-family: var(--font-body, sans-serif);
+    font-size: var(--type-body, 16px);
+    font-weight: var(--weight-medium, 500);
+    line-height: var(--leading-snug, 1.3);
+    text-align: center;
+    cursor: pointer;
+    transition:
+      background-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
+      border-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
+      color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out);
+  }
+
+  .btn:focus-visible {
+    outline: var(--focus-width, 2px) solid var(--color-accent, #ed4609);
+    outline-offset: var(--focus-offset, 2px);
+  }
+
+  .btn:disabled {
+    cursor: default;
+    color: var(--color-fg-dim, #828282);
+    border-color: var(--color-line, #363636);
+    background: transparent;
+  }
+
+  .btn--primary {
+    background: var(--color-fg, #ffffff);
+    border-color: var(--color-fg, #ffffff);
+    color: var(--color-bg, #050505);
+  }
+
+  .btn--primary:hover {
+    background: var(--color-fg-muted, #b8b8b8);
+    border-color: var(--color-fg-muted, #b8b8b8);
+  }
+
+  .btn--primary:active {
+    background: var(--color-fg-dim, #828282);
+    border-color: var(--color-fg-dim, #828282);
+  }
+
+  .btn--primary:disabled {
+    background: var(--color-bg-card, #1c1c1c);
+    border-color: var(--color-line, #363636);
+    color: var(--color-fg-dim, #828282);
+  }
+
+  .btn--ghost {
+    border-color: var(--color-line, #363636);
+    color: var(--color-fg, #ffffff);
+  }
+
+  .btn--ghost:hover {
+    border-color: var(--color-line-strong, #545454);
+    background: var(--color-bg-card, #1c1c1c);
+  }
+
+  .btn--ghost:active {
+    background: var(--color-bg, #050505);
+  }
+
+  /* ---------------------------------------------------------------------
+     Snackbar
+     --------------------------------------------------------------------- */
+  .snackbar-region {
+    position: fixed;
+    left: var(--snackbar-inset, 24px);
+    bottom: var(--snackbar-inset, 24px);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    pointer-events: none;
+  }
+
+  .snackbar {
+    position: relative;
+    box-sizing: border-box;
+    pointer-events: auto;
+    width: min(
+      var(--snackbar-width, 420px),
+      calc(100vw - (var(--snackbar-inset, 24px) * 2))
+    );
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-md, 16px);
+    padding: var(--space-md, 16px) var(--space-md, 16px) var(--space-lg, 24px);
+    background: var(--color-bg-elev, #141414);
+    border: var(--hairline, 1px) solid var(--color-line, #363636);
+    color: var(--color-fg, #ffffff);
+    opacity: 0;
+    transform: translateY(var(--snackbar-lift, 8px));
+    transition:
+      opacity var(--motion-duration-base, 200ms) var(--motion-easing-out-expo, ease-out),
+      transform var(--motion-duration-base, 200ms) var(--motion-easing-out-expo, ease-out);
+  }
+
+  .snackbar.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .snackbar.is-leaving {
+    opacity: 0;
+    transform: translateY(var(--space-xs, 4px));
+    transition:
+      opacity var(--motion-duration-fast, 120ms) var(--motion-easing-site, ease-in),
+      transform var(--motion-duration-fast, 120ms) var(--motion-easing-site, ease-in);
+  }
+
+  .snackbar--brief {
+    --snackbar-dwell: var(--snackbar-dwell-brief, 5000ms);
+  }
+
+  .snackbar__text {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs, 4px);
+    padding-block-start: var(--space-sm, 8px);
+  }
+
+  .snackbar__message {
+    margin: 0;
+    font-size: var(--type-body, 16px);
+    font-weight: var(--weight-medium, 500);
+    line-height: var(--leading-snug, 1.3);
+    color: var(--color-fg, #ffffff);
+  }
+
+  .snackbar__detail {
+    margin: 0;
+    font-size: var(--type-label, 13px);
+    line-height: var(--leading-snug, 1.3);
+    color: var(--color-fg-muted, #b8b8b8);
+    overflow-wrap: break-word;
+  }
+
+  .snackbar__actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs, 4px);
+  }
+
+  /* Undo — the one place the accent is allowed, as punctuation on the
+     only reversible action in the component. */
+  .snackbar__undo {
+    padding-inline: var(--space-sm, 8px);
+    border-color: transparent;
+    color: var(--color-fg, #ffffff);
+  }
+
+  /* The rule hugs the word rather than the button box, so the accent reads
+     as punctuation on the label and not as a free-floating hairline. */
+  .snackbar__undo-label {
+    border-bottom: var(--hairline, 1px) solid var(--color-accent, #ed4609);
+    padding-block-end: var(--space-xs, 4px);
+  }
+
+  .snackbar__undo:hover {
+    color: var(--color-accent, #ed4609);
+    background: var(--color-bg-card, #1c1c1c);
+  }
+
+  .snackbar__undo:active {
+    background: var(--color-bg, #050505);
+  }
+
+  .snackbar__dismiss {
+    padding: var(--space-sm, 8px);
+    border-color: transparent;
+    color: var(--color-fg-dim, #828282);
+  }
+
+  .snackbar__dismiss:hover {
+    color: var(--color-fg, #ffffff);
+    background: var(--color-bg-card, #1c1c1c);
+  }
+
+  .snackbar__dismiss:active {
+    background: var(--color-bg, #050505);
+  }
+
+  .snackbar__dismiss svg {
+    display: block;
+    width: var(--icon-size, 16px);
+    height: var(--icon-size, 16px);
+  }
+
+  /* Time remaining before auto-dismiss. Sits inside the border box
+     (absolute positioning resolves against the padding box), spans the
+     component's full inner width, and pauses with the timer. */
+  .snackbar__countdown {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: var(--hairline, 1px);
+    background: var(--color-line-strong, #545454);
+    transform-origin: left center;
+    animation-name: snackbar-countdown;
+    animation-duration: var(--snackbar-dwell, 8000ms);
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+  }
+
+  .snackbar.is-paused .snackbar__countdown {
+    animation-play-state: paused;
+  }
+
+  @keyframes snackbar-countdown {
+    from { transform: scaleX(1); }
+    to   { transform: scaleX(0); }
+  }
+
+  @media (max-width: 480px) {
+    :root { --snackbar-inset: var(--space-md, 16px); }
+    .page-title { font-size: var(--type-h3, 27px); }
+    .lede { font-size: var(--type-body, 16px); }
+    .record-value { font-size: var(--type-lead, 20px); }
+  }
+
+  /* Non-negotiable: every animation and transition collapses. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+</style>
+</head>
+<body>
+  <main class="page">
+    <p class="eyebrow">Arena · Component</p>
+    <h1 class="page-title">Optimistic save</h1>
+    <p class="lede">
+      The change applies immediately. The snackbar states what happened and keeps
+      the way back open while it is on screen.
+    </p>
+
+    <div class="record">
+      <span class="record-label" id="record-label">Display name</span>
+      <span class="record-value" id="display-name" aria-labelledby="record-label">Andrew Cunliffe</span>
+    </div>
+
+    <div class="controls">
+      <button type="button" class="btn btn--primary" id="save">Save change</button>
+      <p class="readout">state · <b id="state">idle</b></p>
+    </div>
+
+    <p class="note">
+      Saving is simulated locally — no request is made. Pointer-over or keyboard
+      focus holds the timer; Escape dismisses. Undo restores the previous value.
+    </p>
+  </main>
+
+  <div class="snackbar-region" id="snackbar-region" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var region = document.getElementById('snackbar-region');
+  var saveButton = document.getElementById('save');
+  var valueEl = document.getElementById('display-name');
+  var stateEl = document.getElementById('state');
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  var NAMES = ['Andrew Cunliffe', 'A. Cunliffe', 'Andrew C.'];
+  var index = 0;
+  var active = null;
+  var pending = null;
+
+  function setState(name) {
+    stateEl.textContent = name;
+  }
+
+  function readMs(el, prop, fallback) {
+    var raw = getComputedStyle(el).getPropertyValue(prop).trim();
+    if (!raw) return fallback;
+    if (raw.slice(-2) === 'ms') return parseFloat(raw);
+    if (raw.slice(-1) === 's') return parseFloat(raw) * 1000;
+    var n = parseFloat(raw);
+    return isNaN(n) ? fallback : n;
+  }
+
+  function dismissIcon() {
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 16 16');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.5');
+    svg.setAttribute('stroke-linecap', 'square');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M3.5 3.5 L12.5 12.5 M12.5 3.5 L3.5 12.5');
+    svg.appendChild(path);
+    return svg;
+  }
+
+  /* ---- timer ------------------------------------------------------- */
+
+  function startTimer(sb) {
+    sb.remaining = readMs(sb, '--snackbar-dwell', 8000);
+    resumeTimer(sb);
+  }
+
+  function resumeTimer(sb) {
+    if (sb.timer || sb.remaining <= 0) return;
+    sb.startedAt = performance.now();
+    sb.timer = window.setTimeout(function () {
+      sb.timer = null;
+      dismiss(sb, 'timeout');
+    }, sb.remaining);
+    sb.classList.remove('is-paused');
+    if (active === sb && !sb.leaving) setState('visible');
+  }
+
+  function pauseTimer(sb) {
+    if (!sb.timer) return;
+    window.clearTimeout(sb.timer);
+    sb.timer = null;
+    sb.remaining -= (performance.now() - sb.startedAt);
+    sb.classList.add('is-paused');
+    if (active === sb && !sb.leaving) setState('paused');
+  }
+
+  /* ---- lifecycle --------------------------------------------------- */
+
+  function remove(sb) {
+    if (sb.timer) {
+      window.clearTimeout(sb.timer);
+      sb.timer = null;
+    }
+    if (sb.parentNode) sb.parentNode.removeChild(sb);
+    if (active === sb) {
+      active = null;
+      if (!pending) setState('idle');
+    }
+  }
+
+  function exitMs() {
+    if (reduceMotion.matches) return 0;
+    return readMs(document.documentElement, '--motion-duration-fast', 120) + 80;
+  }
+
+  function dismiss(sb, reason) {
+    if (!sb || sb.leaving) return;
+    sb.leaving = true;
+    if (sb.timer) {
+      window.clearTimeout(sb.timer);
+      sb.timer = null;
+    }
+    setState(reason === 'undo' ? 'undone' : 'dismissing');
+
+    if (sb.contains(document.activeElement)) saveButton.focus();
+
+    sb.classList.remove('is-visible');
+    sb.classList.add('is-leaving');
+
+    var exit = exitMs();
+    var done = false;
+    var finish = function () {
+      if (done) return;
+      done = true;
+      sb.removeEventListener('transitionend', finish);
+      remove(sb);
+    };
+    sb.addEventListener('transitionend', finish);
+    window.setTimeout(finish, exit);
+  }
+
+  /* One snackbar at a time. A second one waits for the first to leave
+     rather than stacking or replacing it mid-frame. */
+  function show(options) {
+    if (pending) {
+      window.clearTimeout(pending);
+      pending = null;
+    }
+    if (active) {
+      dismiss(active, options.reason || 'dismiss');
+      pending = window.setTimeout(function () {
+        pending = null;
+        build(options);
+      }, exitMs() + 20);
+      return;
+    }
+    build(options);
+  }
+
+  function build(options) {
+    if (active) remove(active);
+
+    var sb = document.createElement('div');
+    sb.className = 'snackbar' + (options.brief ? ' snackbar--brief' : '');
+    sb.timer = null;
+    sb.remaining = 0;
+    sb.leaving = false;
+
+    var text = document.createElement('div');
+    text.className = 'snackbar__text';
+
+    var message = document.createElement('p');
+    message.className = 'snackbar__message';
+    message.textContent = options.message;
+    text.appendChild(message);
+
+    if (options.detail) {
+      var detail = document.createElement('p');
+      detail.className = 'snackbar__detail';
+      detail.textContent = options.detail;
+      text.appendChild(detail);
+    }
+    sb.appendChild(text);
+
+    var actions = document.createElement('div');
+    actions.className = 'snackbar__actions';
+
+    if (options.onUndo) {
+      var undo = document.createElement('button');
+      undo.type = 'button';
+      undo.className = 'btn btn--ghost snackbar__undo';
+      var undoLabel = document.createElement('span');
+      undoLabel.className = 'snackbar__undo-label';
+      undoLabel.textContent = 'Undo';
+      undo.appendChild(undoLabel);
+      undo.addEventListener('click', function () {
+        dismiss(sb, 'undo');
+        options.onUndo();
+      });
+      actions.appendChild(undo);
+    }
+
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'btn btn--ghost snackbar__dismiss';
+    close.setAttribute('aria-label', 'Dismiss');
+    close.appendChild(dismissIcon());
+    close.addEventListener('click', function () {
+      dismiss(sb, 'dismiss');
+    });
+    actions.appendChild(close);
+
+    sb.appendChild(actions);
+
+    /* The countdown is a motion affordance: under reduced motion it is
+       never built, rather than built and hidden. The timer still runs and
+       still pauses on pointer or focus. */
+    if (!reduceMotion.matches) {
+      var countdown = document.createElement('div');
+      countdown.className = 'snackbar__countdown';
+      sb.appendChild(countdown);
+    }
+
+    sb.addEventListener('pointerenter', function () { pauseTimer(sb); });
+    sb.addEventListener('pointerleave', function () { resumeTimer(sb); });
+    sb.addEventListener('focusin', function () { pauseTimer(sb); });
+    sb.addEventListener('focusout', function (event) {
+      if (!sb.contains(event.relatedTarget)) resumeTimer(sb);
+    });
+
+    region.appendChild(sb);
+    active = sb;
+    setState('entering');
+
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(function () {
+        if (!sb.parentNode) return;
+        sb.classList.add('is-visible');
+        startTimer(sb);
+      });
+    });
+
+    return sb;
+  }
+
+  /* ---- demo harness ------------------------------------------------ */
+
+  function render() {
+    valueEl.textContent = NAMES[index];
+  }
+
+  saveButton.addEventListener('click', function () {
+    var previous = index;
+    index = (index + 1) % NAMES.length;
+    render(); /* optimistic: the value changes before anything confirms it */
+
+    show({
+      message: 'Change saved',
+      detail: 'Display name is now ' + NAMES[index] + '.',
+      onUndo: function () {
+        index = previous;
+        render();
+        show({
+          message: 'Change reverted',
+          detail: 'Display name is back to ' + NAMES[index] + '.',
+          brief: true
+        });
+      }
+    });
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && active) dismiss(active, 'dismiss');
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (!active) return;
+    if (document.hidden) pauseTimer(active);
+    else resumeTimer(active);
+  });
+
+  render();
+  setState('idle');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snackbar — optimistic save</title>
+<style>
+/* ─────────────────────────────────────────────────────────────
+   Tokens — concrete values from arena/DESIGN.md.
+   Canonical names follow the DESIGN.md token index (--color-*,
+   --type-*, --space-*, --motion-*); the short aliases below are
+   the names the DESIGN.md prose uses (--accent, --line, --fg-muted).
+   Component CSS is authored against the short aliases only.
+   ───────────────────────────────────────────────────────────── */
+:root {
+  /* colors */
+  --color-bg:          #050505;
+  --color-bg-elev:     #141414;
+  --color-bg-card:     #1c1c1c;
+  --color-fg:          #ffffff;
+  --color-fg-muted:    #b8b8b8;
+  --color-fg-dim:      #828282;
+  --color-line:        #363636;
+  --color-line-strong: #545454;
+  --color-accent:      #ed4609;
+
+  /* type scale */
+  --type-label: 13px;
+  --type-body:  16px;
+  --type-lead:  20px;
+  --type-h3:    27px;
+  --type-h2:    56px;
+  --type-h1:    96px;
+
+  /* space */
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md:  16px;
+  --space-lg:  24px;
+  --space-xl:  32px;
+  --space-xxl: 48px;
+
+  /* motion */
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 200ms;
+  --motion-duration-slow: 400ms;
+  --motion-easing-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --motion-easing-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-easing-site:      cubic-bezier(0.56, 0.22, 0.05, 0.99);
+
+  /* short aliases — the vocabulary DESIGN.md prose uses */
+  --bg:          var(--color-bg);
+  --bg-elev:     var(--color-bg-elev);
+  --bg-card:     var(--color-bg-card);
+  --fg:          var(--color-fg);
+  --fg-muted:    var(--color-fg-muted);
+  --fg-dim:      var(--color-fg-dim);
+  --line:        var(--color-line);
+  --line-strong: var(--color-line-strong);
+  --accent:      var(--color-accent);
+
+  /* families — tokens only, never literals downstream. No italic file
+     is loaded, so no italic is ever requested. Serif is declared for
+     completeness but is authorial-voice-only and is unused here. */
+  --font-body:    "Untitled Sans", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-body);
+  --font-mono:    "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-serif:   "Domaine Display", Georgia, "Times New Roman", serif;
+
+  /* primitives */
+  --line-width:   1px;
+  --radius-sharp: 0;
+  --tap-min:      44px;
+  --weight-regular: 400;
+  --weight-medium:  500;
+  --weight-bold:    700;
+  --leading-tight: 1.2;
+  --leading-body:  1.45;
+  --icon-sm:  16px;
+  --track-w:  340px;
+
+  /* component tokens — single source of truth for CSS and JS */
+  --snackbar-width:          420px;
+  --snackbar-dismiss-delay:  6000ms;
+  --snackbar-revert-delay:   3200ms;
+}
+
+/* ── reset / page ─────────────────────────────────────────── */
+html, body {
+  overflow-x: clip;
+  max-width: 100vw;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg, #050505);
+  color: var(--fg, #ffffff);
+  font-family: var(--font-body);
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-regular, 400);
+  line-height: var(--leading-body, 1.45);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── demo harness ─────────────────────────────────────────── */
+.page {
+  width: min(var(--track-w, 340px) * 2, 100%);
+  margin-inline: auto;
+  padding: var(--space-xxl, 48px) var(--space-lg, 24px) calc(var(--space-xxl, 48px) * 3);
+}
+.eyebrow {
+  margin: 0 0 var(--space-lg, 24px);
+  font-size: var(--type-label, 13px);
+  font-weight: var(--weight-medium, 500);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-dim, #828282);
+}
+.page__title {
+  margin: 0 0 var(--space-md, 16px);
+  font-family: var(--font-display);
+  font-size: var(--type-h3, 27px);
+  font-weight: var(--weight-medium, 500);
+  line-height: var(--leading-tight, 1.2);
+  color: var(--fg, #ffffff);
+}
+.page__note {
+  margin: 0 0 var(--space-xxl, 48px);
+  max-width: var(--track-w, 340px);
+  color: var(--fg-muted, #b8b8b8);
+}
+
+.field {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md, 16px);
+  padding: var(--space-lg, 24px) 0;
+  border-block: var(--line-width, 1px) solid var(--line, #363636);
+}
+.field + .field { border-top-width: 0; }
+.field__label {
+  min-width: 0;
+  font-size: var(--type-label, 13px);
+  color: var(--fg-dim, #828282);
+}
+.field__value {
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-medium, 500);
+  color: var(--fg, #ffffff);
+  transition: color var(--motion-duration-base, 200ms) var(--motion-easing-out-quart, ease-out);
+}
+.field__value[data-pending="true"] { color: var(--accent, #ed4609); }
+
+.actions { margin-top: var(--space-xl, 32px); }
+
+/* ── buttons — semantic classes, no inline styles ─────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm, 8px);
+  min-height: var(--tap-min, 44px);
+  min-width: var(--tap-min, 44px);
+  padding: 0 var(--space-lg, 24px);
+  border: var(--line-width, 1px) solid transparent;
+  border-radius: var(--radius-sharp, 0);
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: var(--type-label, 13px);
+  font-weight: var(--weight-medium, 500);
+  line-height: var(--leading-tight, 1.2);
+  letter-spacing: 0.02em;
+  color: var(--fg, #ffffff);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
+    border-color     var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
+    color            var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out);
+}
+.btn:focus-visible {
+  outline: var(--line-width, 1px) solid var(--accent, #ed4609);
+  outline-offset: var(--space-xs, 4px);
+}
+.btn:disabled { color: var(--fg-dim, #828282); cursor: not-allowed; }
+
+.btn--primary {
+  border-color: var(--line-strong, #545454);
+  color: var(--fg, #ffffff);
+}
+.btn--primary:hover { background: var(--bg-card, #1c1c1c); border-color: var(--fg, #ffffff); }
+.btn--primary:active { background: var(--bg-elev, #141414); }
+.btn--primary:disabled:hover { background: transparent; border-color: var(--line, #363636); }
+
+.btn--ghost { padding: 0 var(--space-md, 16px); color: var(--accent, #ed4609); }
+.btn--ghost:hover { background: var(--bg-card, #1c1c1c); }
+.btn--ghost:active { color: var(--fg, #ffffff); }
+
+.btn--icon {
+  padding: 0;
+  flex: 0 0 auto;
+  color: var(--fg-dim, #828282);
+}
+.btn--icon:hover { color: var(--fg, #ffffff); background: var(--bg-card, #1c1c1c); }
+.btn--icon svg {
+  width: var(--icon-sm, 16px);
+  height: var(--icon-sm, 16px);
+  display: block;
+}
+
+/* ── snackbar ─────────────────────────────────────────────── */
+.snackbar-region {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  padding: var(--space-lg, 24px);
+  pointer-events: none;
+}
+.snackbar {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  width: min(var(--snackbar-width, 420px), calc(100vw - var(--space-lg, 24px) * 2));
+  background: var(--bg-elev, #141414);
+  border: var(--line-width, 1px) solid var(--line, #363636);
+  border-radius: var(--radius-sharp, 0);
+  pointer-events: auto;
+  animation: snackbar-enter var(--motion-duration-base, 200ms) var(--motion-easing-out-expo, ease-out) both;
+}
+.snackbar--leaving {
+  animation: snackbar-leave var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out) both;
+}
+.snackbar__message {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  align-self: center;
+  padding: var(--space-md, 16px) var(--space-lg, 24px);
+  font-size: var(--type-label, 13px);
+  color: var(--fg-muted, #b8b8b8);
+}
+.snackbar__actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  border-left: var(--line-width, 1px) solid var(--line, #363636);
+}
+.snackbar__actions .btn--icon + .btn--icon,
+.snackbar__actions .btn--ghost + .btn--icon {
+  border-left: var(--line-width, 1px) solid var(--line, #363636);
+}
+/* auto-dismiss remaining-time rule — sits on the bottom hairline */
+.snackbar__timer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--line-width, 1px) * -1);
+  height: var(--line-width, 1px);
+  background: var(--accent, #ed4609);
+  transform-origin: left center;
+  animation: snackbar-timer var(--snackbar-dismiss-delay, 6000ms) linear both;
+}
+.snackbar--brief { --snackbar-dismiss-delay: var(--snackbar-revert-delay, 3200ms); }
+.snackbar[data-paused="true"] .snackbar__timer { animation-play-state: paused; }
+
+@keyframes snackbar-enter {
+  from { opacity: 0; transform: translateY(var(--space-sm, 8px)); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes snackbar-leave {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(var(--space-xs, 4px)); }
+}
+@keyframes snackbar-timer {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+/* ── reduced motion — non-negotiable global clamp ─────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<main class="page">
+  <p class="eyebrow">Arena · Project settings</p>
+  <h1 class="page__title">Visibility</h1>
+  <p class="page__note">The change is applied as soon as you save it. If it was wrong, undo it from the confirmation.</p>
+
+  <div class="field">
+    <span class="field__label">Who can open this project</span>
+    <span class="field__value" id="visibility-value">Public</span>
+  </div>
+
+  <div class="actions">
+    <button type="button" class="btn btn--primary" id="save-button">Save change</button>
+  </div>
+</main>
+
+<!-- Live region is always present and empty; the snackbar node itself is
+     created and removed, never CSS-hidden. -->
+<div class="snackbar-region" id="snackbar-region" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var region = document.getElementById('snackbar-region');
+  var saveButton = document.getElementById('save-button');
+  var valueEl = document.getElementById('visibility-value');
+
+  var STATES = ['Public', 'Private'];
+  var committed = valueEl.textContent.trim();
+
+  /* Read component timing from the token layer so CSS and JS never drift. */
+  function tokenMs(name, el, fallback) {
+    var raw = getComputedStyle(el || document.documentElement)
+      .getPropertyValue(name).trim();
+    if (/ms$/.test(raw)) return parseFloat(raw);
+    if (/s$/.test(raw)) return parseFloat(raw) * 1000;
+    return fallback;
+  }
+
+  var current = null; // { node, timerId, endsAt, remaining }
+
+  function clearCurrent(immediate) {
+    if (!current) return;
+    var live = current;
+    current = null;
+    window.clearTimeout(live.timerId);
+    if (immediate) {
+      live.node.remove();
+      return;
+    }
+    var leaveMs = tokenMs('--motion-duration-fast', live.node, 120);
+    live.node.classList.add('snackbar--leaving');
+    live.node.addEventListener('animationend', function () { live.node.remove(); }, { once: true });
+    window.setTimeout(function () { live.node.remove(); }, leaveMs + 60);
+  }
+
+  function iconDismiss() {
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 16 16');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M3.5 3.5 L12.5 12.5 M12.5 3.5 L3.5 12.5');
+    path.setAttribute('stroke', 'currentColor');
+    path.setAttribute('stroke-width', '1.25');
+    path.setAttribute('stroke-linecap', 'square');
+    svg.appendChild(path);
+    return svg;
+  }
+
+  /**
+   * options: { message, undoLabel, onUndo, brief }
+   * Auto-dismiss pauses while the snackbar is hovered or holds focus.
+   */
+  function showSnackbar(options) {
+    clearCurrent(true);
+
+    var node = document.createElement('div');
+    node.className = 'snackbar' + (options.brief ? ' snackbar--brief' : '');
+
+    var message = document.createElement('p');
+    message.className = 'snackbar__message';
+    message.textContent = options.message;
+    node.appendChild(message);
+
+    var actions = document.createElement('div');
+    actions.className = 'snackbar__actions';
+
+    if (options.onUndo) {
+      var undo = document.createElement('button');
+      undo.type = 'button';
+      undo.className = 'btn btn--ghost';
+      undo.textContent = options.undoLabel || 'Undo';
+      undo.addEventListener('click', function () {
+        clearCurrent(true);
+        options.onUndo();
+      });
+      actions.appendChild(undo);
+    }
+
+    var dismiss = document.createElement('button');
+    dismiss.type = 'button';
+    dismiss.className = 'btn btn--icon';
+    dismiss.setAttribute('aria-label', 'Dismiss notification');
+    dismiss.appendChild(iconDismiss());
+    dismiss.addEventListener('click', function () { clearCurrent(false); });
+    actions.appendChild(dismiss);
+
+    node.appendChild(actions);
+
+    var timer = document.createElement('span');
+    timer.className = 'snackbar__timer';
+    timer.setAttribute('aria-hidden', 'true');
+    node.appendChild(timer);
+
+    region.appendChild(node);
+
+    var delay = tokenMs('--snackbar-dismiss-delay', node, 6000);
+    var live = { node: node, timerId: 0, endsAt: 0, remaining: delay };
+    current = live;
+
+    function start(ms) {
+      live.endsAt = Date.now() + ms;
+      live.timerId = window.setTimeout(function () { clearCurrent(false); }, ms);
+    }
+    function pause() {
+      if (!current || current !== live || node.dataset.paused === 'true') return;
+      window.clearTimeout(live.timerId);
+      live.remaining = Math.max(0, live.endsAt - Date.now());
+      node.dataset.paused = 'true';
+    }
+    function resume() {
+      if (!current || current !== live || node.dataset.paused !== 'true') return;
+      node.dataset.paused = 'false';
+      start(live.remaining);
+    }
+
+    node.addEventListener('pointerenter', pause);
+    node.addEventListener('pointerleave', resume);
+    node.addEventListener('focusin', pause);
+    node.addEventListener('focusout', function (event) {
+      if (!node.contains(event.relatedTarget)) resume();
+    });
+
+    start(delay);
+    return node;
+  }
+
+  function nextState(value) {
+    return STATES[(STATES.indexOf(value) + 1) % STATES.length];
+  }
+
+  function apply(value, pending) {
+    valueEl.textContent = value;
+    valueEl.dataset.pending = pending ? 'true' : 'false';
+  }
+
+  saveButton.addEventListener('click', function () {
+    var previous = committed;
+    var proposed = nextState(previous);
+
+    /* Optimistic: the value changes now; the write is assumed to succeed. */
+    committed = proposed;
+    apply(proposed, true);
+    window.setTimeout(function () { apply(committed, false); }, tokenMs('--motion-duration-slow', document.documentElement, 400));
+
+    showSnackbar({
+      message: 'Visibility set to ' + proposed + '.',
+      undoLabel: 'Undo',
+      onUndo: function () {
+        committed = previous;
+        apply(previous, false);
+        showSnackbar({ message: 'Change reverted.', brief: true });
+      }
+    });
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && current) clearCurrent(false);
+  });
+})();
+</script>
+</body>
+</html>

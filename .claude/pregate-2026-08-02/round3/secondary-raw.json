@@ -1,0 +1,862 @@
+[
+  {
+    "build": "build-01",
+    "votes": [
+      {
+        "lens": "craft",
+        "score": 85,
+        "strengths": [
+          "The auto-dismiss timer is a 1px accent rule sitting on the snackbar's existing bottom hairline (`bottom: calc(--line-width * -1)`, `scaleX(1)`→`scaleX(0)`) — the progress affordance is absorbed into structure the component already had, so the single most decorative-looking mark is also the most load-bearing. No progress bar, no track, no chrome added.",
+          "Total absence of the usual snackbar tells: `--radius-sharp: 0`, zero box-shadow, zero gradient/glow, no elevation trick, no success checkmark, no green. The snackbar is `--bg-elev` inside a 1px `--line` border — the same rule vocabulary as the `.field` row above it, so it reads as another ruled plane rather than a floating card. No card-soup, no nested surfaces.",
+          "Accent is punctuation only and never a fill: the Undo label, the 1px timer, the focus-visible outline, and a 400ms flash on the changed value that ties the confirmation to the thing that changed. One hue, small surface area, all four uses justified.",
+          "Hierarchy is carried by weight and colour, never display size — the entire snackbar sits at `--type-label` (13px) and the page `<h1>` is set at `--type-h3`/500 rather than reaching for the 96px h1. Copy is deadpan and unexclaimed (\"Visibility set to Private.\"), the affordance named for what it does."
+        ],
+        "defects": [
+          "The action rail is split into three hairline-bounded cells (message | Undo | ×) by `border-left` on `.snackbar__actions` plus a second divider between the buttons. In the render the trailing × reads as a boxed 44px chip and the component takes on a segmented-control/toolbar texture — two rules doing work that space could do, in the one element that is supposed to recede.",
+          "Hierarchy inversion inside the component: `.snackbar__message` is `--fg-muted` at 13px while Undo is accent, so the statement being confirmed is the quietest element and the escape hatch is the loudest. Visible in the render — \"Visibility set to Private.\" is noticeably dim next to the orange Undo.",
+          "The snackbar is anchored flush bottom-left at 24px inset while the page column is centered at x≈324 — it aligns to nothing else on the page. On a composition this empty (≈500px of dead field between the button and the snackbar) the unresolved relationship is the first thing a designer's eye lands on.",
+          "Small asymmetry in the internal rhythm: `.snackbar__message` uses 24px side padding, `.btn--ghost` inside the same bar uses 16px, and `.btn--icon` uses 0 inside a 44px min-width. Three different inset values across one 46px-tall bar; the optical left lead-in doesn't answer anything on the right."
+        ],
+        "worst_defect": "The three-cell hairline-segmented action rail — the vertical dividers plus the boxed 44px × give the snackbar a toolbar/segmented-control read, which is chrome asserting itself in the one component the brief asks to recede."
+      },
+      {
+        "lens": "brief",
+        "score": 84,
+        "strengths": [
+          "All three required mechanisms exist and were measured working: inline Undo, auto-dismiss (6061ms observed against a 6000ms token), and an explicit X dismiss with an aria-label — plus Escape as a keyboard dismiss. The countdown hairline and the JS timeout are driven by the SAME custom property (tokenMs reads --snackbar-dismiss-delay off the node), so the visible clock and the real clock cannot drift; the .snackbar--brief variant resolves correctly to 3212ms measured.",
+          "Undo and dismiss are genuinely distinct outcomes, verified live: dismiss removes the snackbar and leaves the value at Private; Undo restores the prior value and confirms with a separate short-lived 'Change reverted.' snackbar that deliberately carries no Undo of its own. Keyboard Undo (Tab from Save lands directly on Undo, Enter) reverts correctly.",
+          "The semantics are truly optimistic — the value flips on click with no spinner and no 'Saving…' state, and the snackbar reports a completed change. The 400ms settle timeout re-reads the `committed` variable rather than a captured value, so an Undo fired mid-flight cannot be clobbered by the in-flight timer.",
+          "Hover-hold and focus-hold each work in isolation (snackbar survived 8s of pointer hover and 8s of keyboard focus in separate runs), and pause/resume is implemented properly — remaining time is banked on pause and the CSS animation is frozen via animation-play-state, so the bar and the timeout resume in lockstep."
+        ],
+        "defects": [
+          "CONFIRMED: the hold-the-clock rule fails under interleaved pointer+keyboard. A single `data-paused` boolean conflates both hold reasons, so `pointerleave` clears a pause that focus is still holding. Reproduced: hover the snackbar, Tab to Undo, move the pointer away — data-paused flips to 'false' and the snackbar auto-dismisses ~6s later out from under the focused Undo button, dropping activeElement to BODY. This is exactly the criterion the brief names.",
+          "CONFIRMED: the blanket prefers-reduced-motion clamp (`* { animation-duration: 0.001ms !important }`) also hits `.snackbar__timer`, which is a state indicator, not decoration. Under reduced motion the bar reads matrix(0,…) — fully depleted — at 400ms while the snackbar still has 5.6s to live (measured dismiss at ~6.3s). The remaining-time affordance actively lies to precisely the users most likely to need it.",
+          "No focus restoration on any exit path. After Undo (mouse or keyboard), after explicit dismiss, and after auto-dismiss, activeElement falls to BODY — a keyboard user who tabs into the snackbar and acts is dumped back to the top of the tab order rather than returned to Save change.",
+          "Transient double-render: `clearCurrent(false)` nulls `current` immediately but leaves the leaving node in the DOM for ~180ms. Dismiss then click Save quickly and two snackbars are stacked in the region simultaneously (measured 2 nodes at +40ms, back to 1 at +440ms).",
+          "Undo swaps snackbars with `clearCurrent(true)` — the outgoing node is yanked with no exit animation while the replacement plays its enter animation, so the two transitions are inconsistent with the dismiss path.",
+          "Minor copy note: 'Visibility set to Private.' is clean, past-tense, and free of selling or apology, but it mirrors state already legible on screen (the H1 reads 'Visibility' and the field row already reads 'Private'), so it edges toward restating the saved object."
+        ],
+        "worst_defect": "The auto-dismiss clock is not held by keyboard focus once the pointer has been involved: one shared `data-paused` flag means `pointerleave` cancels a focus-held pause, and the snackbar auto-dismisses while the Undo button is still focused, destroying the undo affordance mid-decision and dropping focus to BODY — reproduced deterministically in Chromium."
+      },
+      {
+        "lens": "repro",
+        "score": 78,
+        "strengths": [
+          "Real DOM lifecycle, verified live: 0 `.snackbar` nodes at load, 1 after save, 0 after auto-dismiss and after 5 show/dismiss cycles — nothing is CSS-hidden, and the `role=\"status\" aria-live=\"polite\"` container is correctly pre-existing and empty so injected content actually announces.",
+          "Timing is single-sourced through the token layer and stays in sync: `tokenMs()` reads `--snackbar-dismiss-delay` off the node's computed style, so the `.snackbar--brief` override resolves to 3200ms in BOTH the CSS timer (measured `animationDuration: 3.2s`) and the JS `setTimeout` — no CSS/JS drift, and end-to-end default dismiss measured 6341ms (6000 + 120ms leave).",
+          "State machine is genuinely coherent: `committed` is read live rather than captured, so a rapid double-save then Undo returned the value to exactly `Private` (verified). Auto-dismiss pause on hover is real — `data-paused=\"true\"` plus `animation-play-state: paused` keeps the bar and the JS remaining-time in lockstep.",
+          "Keyboard access mostly works and is defensively coded: Tab from Save lands on Undo then Dismiss, Escape dismisses, icon button has `aria-label`, SVG and timer are `aria-hidden`, 44px tap targets, removal is idempotent via `animationend` + timeout fallback. Zero page errors, no listener/node leaks, no horizontal overflow at 360px, region never blocks the page."
+        ],
+        "defects": [
+          "Focus is dropped to `<body>` on every exit path. Verified: after pressing Enter on Undo, `document.activeElement` is BODY; same after Escape with the dismiss button focused. Nothing captures or restores the invoker, so a keyboard user is thrown back to the top of the tab order after every interaction with the snackbar.",
+          "Pause is a boolean, not a counter, so hover and focus fight each other. Verified: with the pointer over the snackbar AND the Undo button holding DOM focus, moving the mouse away fires `pointerleave` → `resume()` (`paused` flips to false) even though focus is still inside, and the snackbar auto-dismissed 5821ms later while Undo was still the active element — the focused control is yanked out of the DOM mid-interaction.",
+          "Two snackbars co-exist during the leave window. `clearCurrent(false)` nulls `current` while the node is still in the DOM, so `showSnackbar`'s opening `clearCurrent(true)` returns early and the departing node stays. Verified `.snackbar` count = 2 for ~120ms; the region is plain block flow, so the leaving snackbar stacks above the new one and displaces it.",
+          "The reduced-motion clamp is blunt and kills an informative element, not just decoration. `animation-duration: 0.001ms !important` applies to `.snackbar__timer` too — measured timer bar width = 0 at t=60ms under `reducedMotion: reduce`. Enter/leave motion does genuinely collapse (0.2s → 1e-06s, requirement met), but reduced-motion users lose the remaining-time affordance entirely instead of getting a static or stepped one.",
+          "The 400ms pending-highlight `setTimeout` is never cancelled or re-keyed. Verified: a second save 120ms after the first cleared `data-pending` at ~440ms instead of ~520ms, so the accent flashes off early on rapid saves. Cosmetic only — the committed value stays correct.",
+          "`role=\"status\"` wraps the interactive controls, and role=status is atomic by default, so the announcement includes \"Dismiss notification\" button text on every update; also no `aria-describedby`/shortcut path to Undo other than tabbing the whole page."
+        ],
+        "worst_defect": "No focus management on removal: activating Undo, Dismiss, or Escape removes the focused element and leaves `document.activeElement` as `<body>` (verified in-browser), resetting a keyboard user to the top of the tab order — compounded by the boolean pause bug, which auto-dismisses the snackbar out from under a button that still has focus."
+      }
+    ]
+  },
+  {
+    "build": "build-02",
+    "votes": [
+      {
+        "lens": "craft",
+        "score": 81,
+        "strengths": [
+          "Zero radius, zero shadow, zero glow — a single-step elevation (#141414 on #050505) held by one hairline border. The chrome genuinely recedes; nothing reads as a card dropped on the page.",
+          "Exactly one accent, spent exactly once: a hairline warm-orange rule under \"Undo\" (and as its hover ink). Punctuation, not fill; no second hue anywhere, and the dismiss × stays dim monochrome.",
+          "Emphasis is carried by weight and full-strength ink inside the body band — the component never touches the display scale, which is reserved for the page title. The CSS comment states the intent and the render honours it.",
+          "Motion is restrained and correctly asymmetric — 200ms/16px in, 120ms/8px out, both on scale tokens, with a proper reduced-motion redefinition; the in-flight save changes a label to \"Saving\" rather than spinning anything."
+        ],
+        "defects": [
+          "The bar is stretched to the 34rem form measure rather than sized to its content, so \"Saved\" sits alone against roughly 280px of dead field before the divider. It reads as a container that happened to be filled, not a composed object.",
+          "Right-edge optical asymmetry: the message is inset 24px from the left edge, but the × glyph lands ~46px in from the right because the 44px icon button's fixed width was never optically compensated (no negative inline-end margin). The right end looks unfinished.",
+          "\"Undo\" sits ~4px above \"Saved\". The accent underline's 4px padding-block-end lives inside the centre-aligned flex item, so the three items in a three-item row share no baseline — visible at a glance.",
+          "Message and Undo are identical — 16px, weight 500, full white. The rank between the statement and the reversal is carried only by a divider rule, so the row reads flat; a restrained system would let one of them drop to regular weight or muted ink.",
+          "Vertical padding is 8px against 24px horizontal, shallow against the surface's own \"generous negative space inside the component\" brief; and the divider plus its 24px padding-inline-start builds a small actions compartment inside a bar whose 24px gap had already done the separating.",
+          "Dead weight in the layer: `--snackbar-hold: 6000ms` is declared and never referenced (the 6000 is duplicated as a JS literal), and `.visually-hidden` is authored but applied to nothing."
+        ],
+        "worst_defect": "The surface is sized to a form measure instead of its content, leaving ~280px of dead field between \"Saved\" and the divider — the component reads as a stretched container rather than a composed object, which is the one place the editorial restraint slips into default web-app behaviour."
+      },
+      {
+        "lens": "brief",
+        "score": 84,
+        "strengths": [
+          "All three required affordances are present and the two exits are genuinely distinct outcomes: Undo restores both `stored` and `input.value` and terminates in `reverted`, the X terminates in `dismissed` with the write standing, and the harness reports each differently.",
+          "The save is actually optimistic, not merely labelled so — `stored = next; renderStored()` mutates the surrounding surface before `showSnackbar()` is called, so the confirmation genuinely trails a change that already happened.",
+          "Pause/resume is implemented with real elapsed-time accounting (`remaining -= Date.now() - startedAt`) rather than a naive restart, and `held()` correctly keeps the clock paused when one hold source releases while the other (hover vs focus-within) is still active.",
+          "Copy is exactly on brief: \"Saved\" states what happened in past tense with no apology, no persuasion, and no restatement of the saved object; `inert` on exit also prevents clicks landing on a leaving surface."
+        ],
+        "defects": [
+          "The hover/focus hold has a race that defeats it: `startClock()` is called from the `animationend` handler and never consults `held()`, while `pauseClock()` returns early whenever `timer === null` — which is the whole 200ms `entering` phase. A pointer that arrives during the entrance produces a no-op pause, never fires `pointerenter` again while stationary, and the clock runs to auto-dismiss under a hovering cursor.",
+          "`visible` is reachable only via `animationend`, with no timer fallback. In a throttled background tab or an animation-suppressed environment the machine wedges in `entering` forever — and because `beginExit()` and the Undo handler both guard on `state === \"visible\"`, the X and Undo are silently inert in that state, so a stuck snackbar cannot be closed at all.",
+          "No focus restoration: `teardown()` removes the element from the DOM outright, so a keyboard user who tabbed in and pressed Undo or Dismiss has focus dropped to `<body>` rather than returned to the Save button. There is also no Escape handler on a surface explicitly designed to receive keyboard focus.",
+          "Rapid consecutive saves corrupt the outcome readout: `showSnackbar()` tears down the live instance after the harness has set `lastOutcome` to \"pending\", so the old instance's `onEnd` overwrites it with \"dismissed — the save stands\" while a brand-new confirmation is on screen.",
+          "Undo produces no acknowledgement of its own — the surface is torn down instantly with only the harness row changing — so the reversal is silent to a user not watching the debug record."
+        ],
+        "worst_defect": "The auto-dismiss hold — the criterion the brief names explicitly — fails whenever the pointer or focus arrives during the 200ms `entering` phase, because `startClock()` never checks `held()` and `pauseClock()` is a no-op while `timer` is null; the snackbar then auto-dismisses out from under a stationary hovering pointer."
+      },
+      {
+        "lens": "repro",
+        "score": 78,
+        "strengths": [
+          "Real state machine: absent → entering → visible → leaving → dismissed/reverted, with the element created on save and genuinely removeChild'd on every terminal path — nothing is CSS-hidden in place, and a single-instance invariant is enforced by tearing down `current` before mounting.",
+          "Auto-dismiss clock is real, not decorative: pauseClock debits elapsed time off `remaining`, resumeClock restarts with the debit applied, and held() checks both :hover and :focus-within so releasing hover doesn't cancel a focus hold.",
+          "prefers-reduced-motion collapses travel by redefining @keyframes snackbar-enter to opacity-only and shortening durations rather than setting `animation: none` — which matters because the machine is animationend-driven and the naive collapse would strand the surface in `entering` forever.",
+          "`inert` is set at the start of exit so the controls are dead before the element is gone, and the aria-live region is appended empty then filled in rAF so the announcement is a mutation of a registered region."
+        ],
+        "defects": [
+          "Focus is never restored: the X sets `inert` on the element owning the focused button and then removes it; Undo removes it outright. Focus falls to document.body and a keyboard user is dumped to the top of the tab order. No previously-focused capture anywhere.",
+          "No Escape-to-dismiss handler — the explicit dismiss is pointer/tab-only.",
+          "Both controls are dead for the first ~200ms: `undo` and `beginExit` both early-return unless state === 'visible', so a click during the enter animation is silently swallowed and the save later stands anyway.",
+          "startClock never consults held(); pointerenter during `entering` no-ops because timer is null, so if the cursor is already over the surface at mount the bar auto-dismisses under a stationary pointer.",
+          "`--snackbar-hold: 6000ms` is declared in CSS and never read — JS hardcodes AUTO_DISMISS_MS = 6000, two sources of truth for one number.",
+          "Loading guard is `pointer-events: none` without `disabled`, so Enter/Space double-saves inside the 400ms window; the replaced instance's onEnd/onState then overwrite the fresh 'entering'/'pending' harness readout with 'dismissed'."
+        ],
+        "worst_defect": "No focus restoration on either exit path — clicking Undo or the X removes (and first inerts) the element containing the focused control, dropping focus to document.body and resetting a keyboard user to the top of the tab order on every single use."
+      }
+    ]
+  },
+  {
+    "build": "build-03",
+    "votes": [
+      {
+        "lens": "craft",
+        "score": 82,
+        "strengths": [
+          "The accent is used once, as punctuation: a 1px underline under \"Undo\" rather than a filled or coloured button. That is the correct editorial answer to \"the recovery action needs emphasis\" — it reads instantly in the screenshot without becoming a second focal point, and it keeps the bar monochrome everywhere else.",
+          "Genuinely flat and hairline-native: --radius-flat is 0, there is no shadow, no glow, no elevation fake, no fill on any control. The record is a hairline-ruled definition list rather than a card, and the dismiss × is fg-dim/16px/1.25-stroke with no frame — the chrome recedes exactly as the brief asks.",
+          "Hierarchy is carried by weight (400/500) and the fg → fg-muted → fg-dim ramp, not by size escalation. The snackbar message is 16px/500, the record values 16px/500 vs 400-muted, the eyebrow 13px with tracking. Nothing inside the component is inflated to shout.",
+          "Token discipline is real, not cosmetic: every component value is var(--token, fallback), the invented tokens (--size-snackbar-max, --motion-duration-dwell) are declared in :root and rem/ms-based, the dwell is read off the cascade by JS instead of duplicated, and the reduced-motion block collapses the enter, exit, transitions AND the commit hairline rather than just one of them."
+        ],
+        "defects": [
+          "The bar's internal horizontal rhythm is lopsided and it is visible in the screenshot. Measured from the CSS: 24px inset before \"Saved\", then 32px padding-inline-end + 16px gap = 48px of dead space before the divider, then 20px to \"Undo\", and only ~18px from the × glyph to the right edge. 24 / 48 / 18 — the middle is hollow and the right end is cramped. Combined with align-items:stretch on a full-height divider, the bar reads as two adjacent chips rather than one continuous strip.",
+          "Undo has no working hover state. `.snackbar__undo:hover .btn__label` sets border-block-end-color to the accent it already is, and `.snackbar__undo:hover` sets color to --color-fg, which .btn--secondary already sets. Two rules that look like intent and change nothing — on the one control that holds the only path back, and against DESIGN.md's explicit \"every interactive element has a hover state.\"",
+          "The accent progress hairline sweeping the Save button during a 400ms fake commit is decoration wearing a function's clothes. The save is optimistic — the record flips instantly and the snackbar is already up — so a progress indicator communicates nothing the user needs, and it spends the one accent hue a second time in the same moment. The inline comment asserts \"progress, not decoration\"; the state machine contradicts it.",
+          "Copy redundancy: the lede says the clock \"stops while a pointer or keyboard focus is inside it,\" and the 13px note beside the button says \"Hover it, or tab into it, to hold the clock.\" The same instruction twice on one screen, in two sizes. Restraint failure in words rather than pixels — and the explanatory four-line lede is telling rather than showing.",
+          "The snackbar is centred on the viewport while every other element on the page hangs on a left axis at the measure's edge. Nothing else is centred; the bar breaks the page's only compositional rule.",
+          "`margin: var(--radius-flat, 0)`, `inset-inline: var(--radius-flat, 0)`, `padding: var(--radius-flat, 0)` — a radius token pressed into service as a generic zero, ~10 times. It satisfies the letter of \"no bare literals\" while violating its intent, and it is semantically wrong the instant --radius-flat is anything but 0."
+        ],
+        "worst_defect": "The snackbar's internal spacing rhythm: 24px in, 48px of dead space before the divider, ~18px out, with a full-height rule splitting it — the component reads as two abutting chips with a hollow middle and a cramped right end, which is exactly the kind of thing an exacting eye catches before it reads a word of the markup."
+      },
+      {
+        "lens": "brief",
+        "score": 87,
+        "strengths": [
+          "All three required affordances are present and genuinely distinct: inline Undo restores `previousValue` and lands in a `reverted` terminal state, while the × control and the 6s timeout both route through `beginLeave()` to `dismissed`/\"Saved · kept\" with the change left standing — the correct semantics, since letting a snackbar expire and closing it by hand mean the same thing.",
+          "The auto-dismiss clock is a real pause/resume, not a restart: `holdClock()` subtracts elapsed time into `remaining` and `runClock()` re-arms with the remainder. Pointer and keyboard each own a flag (`hovered`, `focused`) with a correct interlock, so releasing hover while focus is still inside does not resume, and `focusout` checks `relatedTarget` containment so intra-bar tabbing doesn't restart the clock.",
+          "The copy is exactly on brief: \"Saved\" — past tense, one word, states what happened, no selling, no apology, no restatement of the saved object. The Undo label and \"Dismiss\" aria-label are equally bare.",
+          "The save is genuinely optimistic — `valueEl.textContent` flips before the snackbar is built and before the 400ms in-flight hairline on the button — and the demo harness exposes the live machine state (`absent`/`entering`/`visible`/`leaving`/`dismissed`/`reverted`) so the state machine is inspectable rather than asserted."
+        ],
+        "defects": [
+          "200ms dead zone during `entering`: `onUndo` and `onDismiss` both `return` unless `state === \"visible\"`, but the bar is rendered, focusable and clickable for the whole 200ms enter animation. A fast click on Undo or × in that window is silently swallowed with no feedback — the controls look live and are not.",
+          "Keyboard focus is dropped on the dismiss path. `beginLeave()` sets `node.inert = true` before the 120ms exit, which blurs the contained focus to `<body>`; 120ms later `remove()` evaluates `node.contains(document.activeElement)` as false and never runs `saveButton.focus()`. Tab into the bar, press Escape, and focus is lost to the document. The Undo path (immediate `remove()`, no `inert`) restores focus correctly, so the two paths behave inconsistently.",
+          "Escape is over-promised. The `keydown` handler is bound to `bar`, so Escape only fires with focus already inside the snackbar — yet the page copy states \"Escape dismisses\" unconditionally. Immediately after clicking Save (focus on the Save button, the overwhelmingly common case) Escape does nothing.",
+          "`visible` is reachable only via the enter `animationend` event, with no timeout fallback. If that event never lands (insertion while the tab is hidden, animation cancelled), the snackbar sticks in `entering` permanently: no clock is ever started, and Undo/dismiss/Escape are all guarded off — a stuck bar with no exit.",
+          "Setting `inert` fires `focusout` while `state` is still `\"visible\"` (setState runs on the following line), so `runClock()` re-arms a timer that later no-ops against the `leaving` guard. Harmless today, but it leaves a live timer whose only protection is downstream guard ordering.",
+          "A second save during the 120ms `leaving` window calls `remove()` on the outgoing node while its exit `animationend` closure is still bound and now closes over the reassigned `node`. Detaching should cancel the animation (`animationcancel`, not `animationend`) in a spec-compliant engine, but if it did fire it would tear down the freshly posted snackbar."
+        ],
+        "worst_defect": "The 200ms `entering` dead zone: Undo, the × dismiss, and Escape are all guarded behind `state === \"visible\"` while the bar is already rendered, focusable, and clickable — so the fastest, most motivated Undo click, the one from a user who saved by mistake, is the one most likely to be silently discarded."
+      },
+      {
+        "lens": "repro",
+        "score": 77,
+        "strengths": [
+          "Real state machine, not decorative: `absent → entering → visible → leaving → dismissed | reverted` guards every entry point, is mirrored to a visible readout, and the surface is genuinely `node.remove()`d — verified `#snackbar-host` has 0 children after both auto-dismiss and explicit dismiss, with only the empty live-region mount persisting.",
+          "Pause-on-hover/focus is correctly implemented, including the hard part: `holdClock()` early-returns when `timerId === null`, so a second `focusin` (tabbing Undo→Dismiss) cannot double-subtract from `remaining`; verified 7s hovered stays `visible`, then dismisses 7s after unhover. Auto-dismiss measured at 6381ms against the 6000ms dwell token read off the cascade.",
+          "prefers-reduced-motion genuinely collapses: the resolved enter keyframes under `reducedMotion: 'reduce'` are `opacity 0→1` with `transform: none` (the translate is gone, not merely shortened), exit and the commit hairline drop to the 1ms token, and `.btn` transitions collapse too — and `animationend` still fires, so the machine doesn't stall.",
+          "Robust against the obvious first-use abuse: rapid double-save produces exactly one snackbar with a coherent value and zero page errors (the old node's `animationend` can't fire because removal cancels the animation), `inert` blocks late clicks during the exit, and every control meets the 44px tap minimum with the icon `aria-hidden` behind an `aria-label`."
+        ],
+        "defects": [
+          "CONFIRMED — focus is dropped to `<body>` on keyboard dismiss. `beginLeave()` sets `node.inert = true`, which blurs the focused Dismiss button *before* `remove()` evaluates `node.contains(document.activeElement)`; `hadFocus` is therefore false and the `saveButton.focus()` restore never runs. Probed: activeElement is `BODY` immediately after Enter on Dismiss and still `BODY` after removal. Same for Escape-from-inside-the-bar. Undo skips `inert` and correctly returns focus to `#save-button` — so two of three exit paths lose focus and one doesn't, which is worse than uniformly wrong because the code visibly tried to handle it.",
+          "CONFIRMED — the documented Escape affordance doesn't work from where focus actually is. The keydown handler is bound to the bar, but after clicking Save the activeElement is `#save-button`; pressing Escape leaves state `visible` with the snackbar still in the DOM, while the on-page note reads \"Escape dismisses.\" No document-level listener exists. This is a first-use failure against the page's own copy.",
+          "CONFIRMED — a ~200ms dead window swallows user intent. `onUndo`/`onDismiss` both `return` unless `state === \"visible\"`, and `visible` is only reached on the enter `animationend`. Clicking Undo immediately after the bar appears left state at `entering` and the value unreverted, then the bar continued to `visible` as if nothing happened — no queued or deferred effect. Snackbars are exactly the surface where users lunge for Undo the instant it appears.",
+          "PLAUSIBLE — the `entering → visible` transition has no backstop. It is driven solely by an `animationend` listener; if that event never arrives (animations disabled at the browser/OS level, or the insertion happening in a throttled background tab), the machine parks in `entering` forever and Undo, Dismiss, Escape, and auto-dismiss are all simultaneously dead, with the snackbar left permanently on screen. A `setTimeout` fallback alongside the listener would remove the single point of failure.",
+          "Minor — `.is-loading` on the save button is added unconditionally and cleared by an un-tracked `setTimeout(COMMIT)`. On a second click inside 400ms `classList.add` is a no-op (so the hairline never restarts) and the *first* timer clears the class early. Cosmetic only, but it is the one piece of the file where the timer discipline applied so carefully to the dwell clock was not applied."
+        ],
+        "worst_defect": "Keyboard dismiss loses focus to `<body>`: `node.inert = true` blurs the Dismiss button before `remove()` checks `node.contains(document.activeElement)`, defeating the file's own focus-restore logic — so Dismiss and Escape strand the keyboard user at the top of the document while Undo correctly returns to the Save button."
+      }
+    ]
+  },
+  {
+    "build": "build-04",
+    "votes": [
+      {
+        "lens": "craft",
+        "score": 87,
+        "strengths": [
+          "The auto-dismiss countdown is a 1px accent hairline sitting on the snackbar's own top border, retracting to leave the grey rule behind — the timer costs the component zero extra chrome, and it's the single most elegant decision in the build. Nothing is added; an existing line is made to carry information.",
+          "Emphasis is carried entirely by weight and colour, never size: message 16px/400 white, detail 13px dim, Undo 16px/500 accent, dismiss glyph dim. Two text colours plus one accent inside the whole component. Zero radius, zero shadow, zero glow, zero gradient, one hue — a full pass on the anti-card-soup, accent-as-punctuation rules.",
+          "The snackbar is aligned to the content column (same min(900px)+24px gutter frame as .page), not viewport-centred — a considered editorial choice, and the optical inset is balanced 24px left of the message text against ~22px right of the × glyph.",
+          "Nothing is decorative: the hairline divider brackets the action cluster, the hr structures the page, the mono is consistently the meta/label register (kicker, setting label, readout, kbd). The confirmation copy is plain and unexclaimed — no success checkmark, no green, no exclamation."
+        ],
+        "defects": [
+          "Action-cluster spacing rhythm is uneven because the 16px flex gap is applied on top of button internal padding with no optical compensation: divider→\"Undo\" reads ~32px, \"Undo\"→\"×\" reads ~46px (16px gap + 16px Undo padding + ~14px of dead space inside the 44px tap target). The screenshot shows a visibly wide void between the two actions that the declared 16px rhythm does not explain.",
+          "The serif lede reaches for effect — \"the snackbar is the receipt, and it holds the door open long enough to walk back through\" is a writerly device in the most prominent prose position on the page, against a bound voice note of \"editorial restraint, deadpan, zero sales language.\" It narrates the component's virtue instead of letting the component show it.",
+          "At the captured viewport the snackbar's top edge clears the last notes line by only ~20px, so a fixed overlay aligned to the text column reads as crowding the body copy rather than floating over margin. padding-block-end: 192px was the intended guard but it is document-relative while the snackbar is viewport-relative, so the clearance is not actually held.",
+          "Fixture chrome is heavy for one 60px component: kicker + up-to-96px h1 + serif lede + rule + setting row + mono readout + four explanatory notes. \"The chrome recedes\" applies to the demo page too, and the page currently narrates more than it demonstrates.",
+          "The accent timer is a child element sitting directly under the 1px border rather than replacing it, so the un-elapsed portion renders as a doubled ~2px stripe against the single hairline of the depleted portion — a hair off the hairline discipline the rest of the build holds exactly.",
+          "Undo reuses .btn--ghost and then nullifies border-color to transparent — visually correct (no box-in-box) but semantically muddy, since the variant's defining property is overridden at every state."
+        ],
+        "worst_defect": "The optical spacing inside the action cluster: a uniform 16px gap token laid over button padding and a 44px tap target produces ~16/32/46px steps, leaving a conspicuously wide gap between \"Undo\" and the dismiss ×, which is the one place the rendered component's rhythm visibly disagrees with its own spacing scale."
+      },
+      {
+        "lens": "brief",
+        "score": 90,
+        "strengths": [
+          "All three required affordances exist and are genuinely distinct outcomes: inline Undo (`close('undo')` then `revert(previous)` — restores the prior value, cancels the pending server ack, and replaces the toast with a shorter 4s revert notice), a 6s auto-dismiss (`close('timeout')`), and an explicit × dismiss with `aria-label=\"Dismiss\"` plus a global Esc path (`close('dismiss')` / `close('escape')`) that closes without touching the value. The readout (`state saved · undo available` → `dismissed · <reason>`) makes the distinction observable.",
+          "The optimistic semantics are actually modelled, not just claimed: `commit(next)` mutates the setting before any acknowledgement, `setServer('pending')` flips to `acknowledged` at a simulated 900ms, and undo inside that window clears `ackTimer` and reports `rolled back`. The screenshot confirms the ground state — value already reads \"Daily\" while the snackbar is still up.",
+          "The auto-dismiss clock is genuinely held for both pointer and keyboard: `mouseenter`/`mouseleave` pause/resume, and `focusin`/`focusout` with a `root.contains(event.relatedTarget)` guard so moving between Undo and the × does not spuriously restart the countdown. Pause snapshots `deadline - Date.now()` into `remaining` and resume re-bases the deadline, so no time is lost or double-counted, and the readout shows `Ns · held`.",
+          "Lifecycle correctness is unusually careful for this component class: an inline accent hairline visualises remaining time driven from JS (`--snackbar-remaining`) so it is unaffected by the reduced-motion transition clamp; stale callbacks are fenced with a `live !== mine` generation guard so a replaced snackbar cannot reset harness state; and `close()` has a `setTimeout` fallback so a non-firing `transitionend` never orphans the node."
+        ],
+        "defects": [
+          "The live region is created already populated and then inserted (`role=\"status\"` + `aria-live=\"polite\"` set on the new node before `column.appendChild(root)`). Screen readers generally announce mutations *inside* an existing live region, not the insertion of a pre-filled one, so a time-limited Undo can be silent to AT users. The persistent `#snackbar-column` wrapper is right there and is not the live region.",
+          "Copy restates the saved object rather than only what happened: \"Digest set to Daily.\" echoes the label and value rendered directly above it, and the revert toast doubles down with \"Change reverted.\" + \"Digest is back to Weekly.\" Neither sells nor apologises, but both re-narrate state the surface already shows.",
+          "`saveButton.disabled = true` for the whole snackbar lifetime means the state machine cannot be re-exercised while a toast is live — replacement/stacking behaviour is unreachable, and `clearLive()`'s `close('replaced')` branch is effectively dead code. It also blurs the button when a keyboard user activates it, so focus drops to body with no focus management on either open or close (recoverable in one Tab only because the snackbar happens to be the last focusable node in the document).",
+          "`this.frame` stores either a `setTimeout` id or a `requestAnimationFrame` id, and `clearFrame()` picks the canceller from the *current* `reduceMotion.matches`. If the OS motion preference changes while a snackbar is live, the wrong canceller runs and the tick loop leaks.",
+          "`pause()` and `setRemaining()` write to the shared global `readoutTimer` with no ownership check, unlike every other cross-snackbar path, which is guarded by `live !== mine` — a hover on a closing snackbar can stamp `held` over the current one's countdown.",
+          "A snackbar that appears under a stationary pointer will not fire `mouseenter` until the pointer next moves, so the hold-on-hover guarantee has a hole at exactly the moment the surface appears."
+        ],
+        "worst_defect": "The snackbar is its own `role=\\\"status\\\"` live region, created fully populated and then appended, which is the pattern screen readers are least reliable at announcing — meaning the confirmation and its 6-second Undo window may never be announced at all, despite a persistent container element already existing to serve as the live region."
+      },
+      {
+        "lens": "repro",
+        "score": 76,
+        "strengths": [
+          "Real mount/unmount: the snackbar is built with createElement and torn down with removeChild — nothing is CSS-hidden — and removal is guarded by both a `transitionend` (filtered on `event.target === root` and `propertyName === 'opacity'`) and a `DURATION_EXIT + 120` timeout behind a `removed` flag, so no orphan node is possible in either direction.",
+          "Genuine generation guards: `if (live !== mine) return` in `onDismiss` and in the 900ms ack timer means a superseded snackbar can never re-enable the Save button or overwrite harness state — traced through save→undo→revert and the replaced path, and it holds.",
+          "prefers-reduced-motion actually collapses everything, including the motion CSS can't reach: the global `transition-duration: 0.001ms !important` kills the enter/exit, and `tick()` swaps rAF for a 250ms setTimeout with the remaining fraction quantized to `Math.ceil(f*10)/10`, so the JS-driven timer hairline steps instead of sweeping.",
+          "The state machine is real rather than decorative — optimistic `commit()` before acknowledgement, pending→acknowledged, rollback on undo, hover/focus pause with deadline arithmetic (`remaining = deadline - now`, `deadline = now + remaining`), Esc dismiss, and a `cssMs()` parser that correctly handles both `ms` and bare `s` token values."
+        ],
+        "defects": [
+          "No focus management at all — zero `focus()` calls in the file. `saveButton.disabled = true` fires while the button holds focus after keyboard activation, so the browser drops focus to `document.body`; the user must blind-tab to Undo while the 6s countdown runs unpaused (focusin hasn't fired yet). Removing the node on Esc/Undo drops focus a second time with no restore.",
+          "Every Undo puts two snackbars in the same flex row: `close('undo')` leaves the node in the DOM for ~120ms, then `revert()` appends a second one. `.snackbar-region__column` is `display:flex` and each `.snackbar` is `width:min(520px,100%)` with default flex-shrink, so both squeeze to ~426px in the 852px column and the incoming one snaps to 520px mid-fade-in. 100% reproducible on the brief's headline interaction.",
+          "`paused` is a boolean shared by two independent pause sources. `mouseenter`+`focusin` both call `pause()` (second is a no-op), but `mouseleave` and `focusout` each call `resume()` unconditionally — so sweeping the pointer off the snackbar restarts the countdown while the Undo button still holds keyboard focus, and the surface can auto-dismiss out from under a focused control.",
+          "Undo remains interactive during its own 120ms exit transition: a second click early-returns from `close()` but still runs `options.undo()`, spawning a duplicate `revert()` snackbar that the `live !== mine` guard then orphans for its full 4s lifetime. A normal fast double-click lands inside that window.",
+          "The `role=\"status\"` / `aria-live=\"polite\"` region is injected into the DOM already populated, which NVDA and JAWS commonly fail to announce; the persistent `.snackbar-region__column` — the correct host for the live region — carries no aria attributes at all.",
+          "`clearFrame()` reads `reduceMotion.matches` at call time rather than at schedule time, so toggling the OS setting mid-countdown can call `clearTimeout()` on a `requestAnimationFrame` id — separate id spaces, so it can silently cancel an unrelated pending timeout such as `ackTimer` or the removal fallback. Also, Esc nulls `live` before the 900ms ack fires, so the guard swallows it and the readout reads `server pending` forever on a save that actually committed."
+        ],
+        "worst_defect": "Focus is never managed: disabling the focused Save button drops focus to document.body, and no code moves focus into the snackbar or restores it on teardown — so a keyboard user must hunt for the inline Undo (the component's entire reason for existing) while the auto-dismiss countdown runs unpaused, and loses their place again the moment the node is removed."
+      }
+    ]
+  },
+  {
+    "build": "build-05",
+    "votes": [
+      {
+        "lens": "craft",
+        "score": 79,
+        "strengths": [
+          "Accent discipline is exemplary: one hue, one appearance in the component — a 1px --accent rule under \"Undo\", punctuation on the single recovery affordance, never a fill. No second hue, no gradient, no glow anywhere.",
+          "Chrome is materially restrained: zero border-radius, zero box-shadow, no elevation theatre. The snackbar lifts off the page with a single hairline frame on --bg-elev, and the × is a square-linecap 16px stroke icon in a ghost target.",
+          "Emphasis is carried by weight, not size — the message holds the 16px body band at 500 while the page's display band stays on the page's own h1. This is the exact rule the bound arena surface names, and it is obeyed without exception.",
+          "Editorial page harness rather than card-soup: the field is a hairline-ruled row with a baseline-aligned 13px tracked label against a 20px value, and the state readout is a dim mono HUD line — restrained supporting detail that doesn't compete."
+        ],
+        "defects": [
+          "A hairline border-inline-start on .snackbar__actions places a ~44px floating rule inside an already-bordered 480×62px object. The 16px gap had already done the separating; the rule compartmentalises a single small object and reads as a second frame nested in the first.",
+          "480px fixed width against a one-word message leaves roughly 260px of void between \"Saved\" and the internal divider. The bar reads half-empty and slabby, and with the divider the message cell resembles an empty input field rather than a confirmation.",
+          "The .btn--secondary underline is built with padding-block-end: 4px on the label, which lifts the \"Undo\" text about 3px above the × glyph's optical centre. Two adjacent actions sitting on visibly different centres is the first thing an exacting eye catches at this size.",
+          "The aria-busy progress hairline is an accent bar on an infinite 400ms scaleX loop, but the harness clears aria-busy after 120ms — it renders as a partial orange flash that never completes a third of one cycle. Decoration carrying no signal.",
+          "Snackbar padding is 24px leading against 8px trailing; even allowing the icon's optical correction, the × lands ~16px from the right edge against 24px on the left, so the bar is not quite balanced end to end.",
+          "Page-note copy (\"the confirmation below the fold of your attention\") is a writerly flourish in a component fixture — the visual restraint holds but the register slips into the show-don't-sell trap at sentence level."
+        ],
+        "worst_defect": "The vertical hairline inside the snackbar: a rule floating within an already-bordered object, doing work the 16px gap had already done. It splits a small confirmation into two compartments and — with the 260px void left by a one-word message in a fixed 480px bar — makes the message cell read as an empty field. It is the one place in an otherwise disciplined build where the chrome asserts itself instead of receding."
+      },
+      {
+        "lens": "brief",
+        "score": 83,
+        "strengths": [
+          "All three required affordances present and functional: inline Undo, a token-sourced 6000ms auto-dismiss clock, and an explicit labelled dismiss control — and undo vs dismiss are genuinely distinct outcomes (undo restores the prior value and reports 'reverted'; dismiss leaves the save standing), verifiable in the harness readout.",
+          "Genuinely optimistic: the field value is written on click before any confirmation exists, and the snackbar confirms a change that already landed rather than announcing one in progress.",
+          "Copy is exemplary for the brief — 'Saved', one word, no selling, no apology, no restatement of the saved object; the message lands one frame after the live region is in the DOM so AT announces the change, not the insertion.",
+          "Clock hold is real pause/resume with banked remaining time (not a naive full restart), wired to both pointer and focus, and onFocusOut correctly ignores relatedTarget inside the surface and bails while still hovered."
+        ],
+        "defects": [
+          "release() on pointerleave has no focus-containment guard (the mirror of the hover guard in onFocusOut), so pointer-leave restarts the clock while keyboard focus is still inside the snackbar — it then auto-dismisses under the focused element and drops focus to body.",
+          "hold() early-returns unless state === 'visible', which is only set on the entrance transitionend; a pointer already inside the snackbar's rect at insertion is ignored and the full clock runs unheld with the cursor parked inside, and the later pointerleave no-ops so it never self-corrects.",
+          "The same state guard makes Undo and the dismiss X silent no-ops for ~240ms while both are fully painted and clickable — a dead-click window, not a deferred action.",
+          "Neither undo nor dismiss returns focus anywhere; teardown() removes the node while the dismiss button holds focus, sending focus to body.",
+          "Harness readout still shows 'Last outcome pending' after commit (visible on screen beside a snackbar reading 'Saved') — setOutcome is never called on commit, so the demo's instrumentation contradicts the optimistic framing.",
+          "A 120ms aria-busy progress bar precedes the snackbar — a pending affordance an optimistic save doesn't need, mildly muddying the 'already happened' read."
+        ],
+        "worst_defect": "The auto-dismiss hold fails in exactly the two cases the brief names: release() restarts the clock on pointerleave without checking whether keyboard focus is still inside the surface, and hold() ignores a pointer that enters during the ~240ms 'entering' state, so the snackbar can auto-dismiss with the pointer parked in it or with focus on the Undo button."
+      },
+      {
+        "lens": "repro",
+        "score": 85,
+        "strengths": [
+          "The state machine is real, not decorative: `state` is a single authoritative variable, every transition is guarded (`if (state !== \"visible\") return` on undo/dismiss/clock-fire, `state !== \"entering\"` inside the nested rAF, `state !== \"leaving\"` in finishLeave), and the DOM `data-state` attribute is a *reflection* of it rather than the source of truth. The surface is genuinely created via `document.createElement` in `build()` and genuinely removed via `parentNode.removeChild` in `teardown()` — nothing is CSS-hidden, and `teardown()` also clears all three timers and resets `held`, so no stale handle survives a cycle.",
+          "The auto-dismiss clock is properly pausable and resumable, with correct arithmetic: `hold()` clears the timeout and decrements `remaining` by `Date.now() - startedAt`; `release()` restarts from the true remainder. It is held by BOTH pointer (`pointerenter`/`pointerleave`) and keyboard focus (`focusin`/`focusout`), and `onFocusOut` correctly ignores focus moves *within* the snackbar (`node.contains(ev.relatedTarget)`) and refuses to release while the pointer is still inside (`node.matches(\":hover\")`). The `held` re-entrancy guard prevents a hover-then-focus sequence from double-decrementing. This is the part most builds get wrong and it is right here.",
+          "Entrance/exit are committed with a two-frame rAF (append → paint → set text → paint → flip to `visible`), so the transition actually fires instead of being collapsed by style batching, and every `transitionend` listener has a `setTimeout` fallback (`ENTER + 40`, `EXIT + 40`) plus an `ev.target !== node` guard so a bubbled `transitionend` from a hovered child button cannot advance the machine. Timings are read out of the token layer via `getComputedStyle` + a `ms()` parser rather than duplicated as JS literals, so the CSS and JS clocks cannot drift apart.",
+          "`prefers-reduced-motion` genuinely collapses motion rather than being a decorative block: the translate is removed from all three states, the exit transition is set to `none` AND the JS takes a separate branch (`if (isReduced()) { finishLeave(); return; }`) so it does not wait on a `transitionend` that will never fire — the classic reduced-motion hang is explicitly avoided. The harness's fake-latency delay also drops to `0` under reduced motion, and the button's infinite progress animation is stopped and pinned to `scaleX(1)`."
+        ],
+        "defects": [
+          "No focus restoration on teardown — the single real keyboard bug. `onUndo()` and the dismiss path call `teardown()`, which removes the node while the just-activated Undo or × button holds focus. `document.activeElement` falls back to `<body>`, so the next Tab restarts from the top of the document and the user's place is lost. Nothing captures `document.activeElement` before `commit()` or returns focus to `#save` after. Reproducible on the very first keyboard use.",
+          "No Escape handler. Explicit dismiss exists only as a mouse-or-tab-to-the-icon-button path; there is no `keydown` listener anywhere in the file. For a transient surface that a keyboard user has just tabbed into, Esc is the expected exit and it does nothing.",
+          "`hold()` early-returns unless `state === \"visible\"`, so hover/focus during the 200ms `entering` window is not registered. A pointer that lands on the snackbar mid-entrance never sets `held`, the full 6s clock starts anyway, and `release()` on `pointerleave` bails at `!held` — so the surface can auto-dismiss out from under a pointer that never left it. Narrow window, but it is a hole in the stated 'holds its clock as long as your pointer is inside' contract.",
+          "The `aria-live`/`role=\"status\"` region is created and destroyed with the snackbar. Injecting a live region and populating it one rAF later is a known-fragile announcement pattern — several SR/browser pairs will not announce a region that did not exist before the mutation. A persistent, always-present region written to on commit would be the reliable construction. The one-frame delay is a thoughtful mitigation, not a fix.",
+          "Keyboard double-activation of Save is not blocked. `aria-busy=\"true\"` sets `pointer-events: none`, which stops a second *click* but not a second Enter/Space on the already-focused button; two `setTimeout`s queue, and the second `commit()` tears down a snackbar that is one frame old. Also leaves orphaned rAF closures from the first commit that re-attach a duplicate `transitionend` handler and overwrite `enterTimer` (the leaked timer is guarded, so this degrades to harmless rather than broken — but the guard is what saves it, not the design).",
+          "`aria-labelledby` on the bare `<span id=\"field-value\">` is inert — a generic span with no role is not a labelable element, so the association is silently dropped. The optimistic value change itself is also never announced; only the 'Saved' confirmation is."
+        ],
+        "worst_defect": "Focus is dropped to `<body>` whenever the snackbar is torn down: `onUndo()` and the dismiss path remove the node while the activated button still has focus, and no `document.activeElement` is captured before `commit()` or restored to `#save` afterward — so a keyboard user who tabs to Undo and presses Enter loses their tab position on first use. The lens's other three checks (real state machine, real DOM add/remove, genuine reduced-motion collapse) all pass cleanly; this is the one that does not."
+      }
+    ]
+  },
+  {
+    "build": "build-06",
+    "votes": [
+      {
+        "lens": "craft",
+        "score": 83,
+        "strengths": [
+          "Genuinely ink-on-paper: zero radius, hairline 1px rules, no shadow, no glow, no gradient, no card nesting. The snackbar is a bordered rectangle on an elevated ground and nothing more — the chrome recedes exactly as DESIGN.md asks.",
+          "Emphasis is carried by weight and colour, never display size. The h1 token (96px) is deliberately left unused; the page title caps at 56px at weight 500, and inside the snackbar the message (16 regular white), Undo (16 medium accent), and dismiss (16px icon at fg-dim) separate purely by role.",
+          "The countdown is a 1px accent hairline riding the snackbar's existing bottom border rather than an added progress bar — the most restrained possible expression of the auto-dismiss mechanic, and it costs zero new geometry.",
+          "One coherent quiet register: mono 13px uppercase tracked at fg-dim for the eyebrow, the record label, and the harness readout, so all instrumentation reads as the same recessive layer. Copy is plain and concrete throughout (\"Visibility set to Public.\", \"holds an Undo for six seconds, and gets out of the way\") — no persuasion, no adjectives."
+        ],
+        "defects": [
+          "Spacing rhythm: the snackbar is anchored to the viewport inset (left/bottom 32px) while every other element sits in a 720px centred column starting at x=280. On the rendered 1280px page its left edge answers to nothing — it is the only element off the page's grid.",
+          "Declared width does not govern the rendered width. No `box-sizing: border-box` reset exists in the file, so `width: min(var(--snackbar-max, 460px), 100%)` plus 24+16px padding and two hairlines renders at 502px — measured x=32→534. The token is decorative rather than load-bearing.",
+          "Accent economy slips on one 460px component: accent on the Undo label, accent on a ~400px full-bleed countdown rule, accent on the focus ring. In the 2× crop the orange rule is optically louder than the confirmation message it exists to serve.",
+          "Token misuse as craft tell: `--radius-flat` (0px) is used as the zero for `margin` on body/title/lede/message and for `padding` on the icon button. A radius token standing in for a spacing zero is literal-avoidance, not system discipline.",
+          "The ghost hover presses to `--color-bg` (#050505), darker than the snackbar's own `--color-bg-elev` surface — hovering Undo punches a hole through the elevated bar rather than lifting it. The contrast reasoning in the comment is sound; the resulting visual is crude.",
+          "The meter overlays the border at `bottom: -1px, left/right: -1px`, so mid-countdown the bottom edge reads orange for 88% of its run and grey for the rest — visible in the crop as a colour break partway along one edge, which scans as an artifact rather than a deliberate rule."
+        ],
+        "worst_defect": "The snackbar is spatially unmoored: pinned to the viewport at 32px while the whole page lives in a 720px centred column at x=280, and rendering 502px wide instead of the 460px its own token declares because the file never sets `box-sizing: border-box`. On a wide screen it reads as a floating fragment rather than part of the composition."
+      },
+      {
+        "lens": "brief",
+        "score": 86,
+        "strengths": [
+          "All three required affordances exist and are genuinely distinct: inline Undo restores the prior value and confirms with its own short-lived \"Change reverted.\" notice, the × (plus Escape) only removes the surface and leaves the new value committed, and a 6s rAF countdown auto-dismisses with a visible hairline meter.",
+          "Truly optimistic: the record mutates on click before any confirmation, with no fake latency or pending/spinner state, and the copy (\"Visibility set to Public.\") states the outcome with no selling, apology, or \"successfully\".",
+          "The clock is held for both pointer (pointerenter/leave) and keyboard focus (focusin/focusout with a relatedTarget containment check), and additionally while the tab is hidden — remaining time is tracked from performance.now() deltas, so it survives rAF throttling rather than drifting.",
+          "State machine is tidy under repeat use: a second save tears down the standing snackbar before presenting, teardown cancels both the rAF and the exit timer, and reduced motion drops the meter node entirely instead of animating a hidden element."
+        ],
+        "defects": [
+          "Pause is a boolean, not a counter, so \"held while focus is inside\" is defeatable: tab to Undo, then move the pointer over the snackbar and off again — pointerleave calls resume() while focus is still on Undo, and the auto-dismiss can then remove the element the keyboard user is standing on. Same class of bug on the visibilitychange path: returning to the tab resumes unconditionally even with the pointer or focus still inside.",
+          "Undo's deferred `setTimeout(present(revertNotice()), EXIT_MS+60)` is never cancelled. Press Save within ~180ms of Undo and the fresh confirmation is torn down and replaced by \"Change reverted.\" — the snackbar then contradicts the record, which now shows the newly saved value.",
+          "Focus is never returned to the Save button when the snackbar is removed. Dismissing with the keyboard (× or Escape) or auto-dismissing while a snackbar button is focused drops focus to <body>, so the keyboard user loses their place after every save cycle.",
+          "The message restates the object already on screen — the record row directly above reads VISIBILITY / Public, and the snackbar says \"Visibility set to Public.\" A confirmation for a change the user can already see wants to be shorter (\"Saved.\"/\"Visibility updated.\").",
+          "Dead `.record__value[data-pending=\"true\"]` rule with a color transition is declared but nothing ever sets that attribute — a pending state that was designed and then not wired, left in the shipped CSS.",
+          "The snackbar's interactive controls live inside a persistent `role=\"status\" aria-live=\"polite\" aria-atomic=\"true\"` region, so \"Undo\" and \"Dismiss\" are read out as part of the announcement rather than presented as reachable controls; the announcement is also the only signal that a time-limited action exists."
+        ],
+        "worst_defect": "Hover-out resumes the auto-dismiss clock even when keyboard focus is still inside the snackbar (single boolean `paused` instead of a pause count), so the countdown can expire and delete the Undo button out from under a focused keyboard user — the exact hold condition the brief names."
+      },
+      {
+        "lens": "repro",
+        "score": 83,
+        "strengths": [
+          "Real DOM lifecycle, not CSS visibility theatre: nodes are createElement'd, appendChild'd (l.599) and removeChild'd (l.481), with a forced reflow (`void snack.node.offsetWidth`, l.601) so the entrance transition genuinely runs.",
+          "The timer is a real rAF delta accumulator (`tick`, l.501-514) rather than setInterval — pause/resume adjusts `last` instead of guessing elapsed time, the meter and the readout are driven from the same `remaining` value, and both `rafId` and `exitTimer` are cancelled in `teardown`.",
+          "prefers-reduced-motion genuinely collapses the motion: transitions are zeroed AND the countdown meter element is never constructed (l.577-584) rather than hidden, and `build()` re-evaluates `reduced.matches` per call so a mid-session OS toggle is respected.",
+          "Accessibility fundamentals are right: a persistent live region outside the churn (role=status + aria-atomic, l.425), aria-label on the icon-only close, aria-hidden/focusable=false on the SVG, focus-visible rings, 44px minimum targets, and pointer-events:none on the fixed region so it never blankets the page."
+        ],
+        "defects": [
+          "Focus is never restored. Neither `dismiss` nor `teardown` calls focus() on anything — pressing Escape or clicking the ✕ (l.570) removes the focused element 160ms later, dropping focus to <body> and resetting tab order to the top of the document.",
+          "The Undo path schedules an untracked, uncancellable timer (l.614). Click Undo then 'Save change' within ~180ms and the stray `present(revertNotice())` tears down the new save snackbar and shows 'Change reverted.' while the record displays the just-saved value.",
+          "Pause bookkeeping is a single boolean shared by hover, focus and tab-visibility. `pointerleave` resumes unconditionally (l.587), so moving the mouse off while Undo holds keyboard focus restarts the countdown and lets auto-dismiss yank a focused control; `focusout` and `visibilitychange` have the mirror problem.",
+          "`.record__value[data-pending=\"true\"]` (l.174-176) is dead CSS — nothing ever sets `data-pending`, so the pending affordance is styling for a state the machine does not model.",
+          "`present()` hard-removes a live snackbar with no exit transition when a second save arrives (l.597), bypassing the exit path that exists for every other close route.",
+          "The undo closure reads module-level `previousValue` (l.612) instead of capturing it per-snack; correct only by the accident of single-slot presentation, and it is the mechanism by which defect #2 produces a stale message."
+        ],
+        "worst_defect": "Focus is never returned after the snackbar is destroyed — dismissing via Escape or the ✕ button removes the element that currently holds focus and drops the keyboard user back to document.body, with no saveBtn.focus() anywhere in the file."
+      }
+    ]
+  },
+  {
+    "build": "build-07",
+    "votes": [
+      {
+        "lens": "craft",
+        "score": 87,
+        "strengths": [
+          "Genuinely zero slop in the visual language: no border-radius anywhere, no shadow, no glow, no second hue, no nested boxes. The record row is a hairline-ruled top/bottom rule instead of a card, and the ghost button's own border is deliberately cancelled inside the snackbar so a bordered control never sits inside a bordered surface.",
+          "The accent is used exactly once in the rendered frame — pixel-verified as a single 1px row of #ed4609 under the word 'Undo', hugging the label rather than the button box, plus the focus ring. That is punctuation, not fill, and it is the only warm pixel on a 1280×900 monochrome page.",
+          "Hierarchy is carried by weight and colour inside the body band, never by display size: message 16px/500 fg, detail 13px/400 fg-muted, dismiss glyph fg-dim. The chrome recedes correctly — the × is the dimmest thing in the box. Copy ('Change saved', 'Display name is now A. Cunliffe.') is plain and unexclaimed.",
+          "Restraint extends to details a lazier build skips: font-synthesis:none, weights limited to 400/500/700 so no faux 600, and the countdown is not built at all under prefers-reduced-motion rather than built and hidden — the timer still runs and still pauses."
+        ],
+        "defects": [
+          "The auto-dismiss countdown renders 1px directly above the snackbar's own bottom border (#545454 at y=874 stacked on #363636 at y=875). The result is a doubled, unevenly-bright bottom edge on a box whose other three sides are a clean single hairline — it reads as a rendering artifact, not a countdown, and the two greys are only one step apart so it barely communicates time remaining anyway.",
+          "Page rhythm is a flat 32px gap between every section, so nothing is grouped. The eyebrow 'ARENA · COMPONENT' floats ~40px clear of its own title instead of hugging it as a kicker; uniform spacing is not the same as spacing rhythm.",
+          "'Undo' is 16px/500 white — typographically identical to the confirmation 'Change saved' sitting on the same row. The statement and the action carry equal visual weight, and only a 1px accent rule separates them; the confirmation does not lead.",
+          "Vertical alignment inside the snackbar is fudged rather than solved: the 44px tap-target floor on the buttons forces an 8px padding-block-start on the text column, and the Undo label still lands ~4px below the message's optical centre.",
+          "The snackbar's own padding (16 top / 16 side / 24 bottom) breaks the spacing scale's symmetry to make room for the countdown, and the box ends up 92px tall for two short lines of text.",
+          "Three text greys inside one 92px box (fg on the message, fg-muted on the detail, fg-dim on the dismiss glyph). Defensible since the × is chrome, but it is the ceiling of what this system should spend on a component that small."
+        ],
+        "worst_defect": "The countdown hairline is positioned 1px above the snackbar's bottom border, producing a doubled, half-bright bottom edge that reads as a rendering artifact on an otherwise immaculate single-hairline box — the one thing an exacting eye lands on first in the delivered screenshot."
+      },
+      {
+        "lens": "brief",
+        "score": 88,
+        "strengths": [
+          "All three required affordances present and genuinely distinct: Undo reverts the value and raises its own brief confirmation snackbar, while the X control and Escape only tear down and leave the change in place — the demo's record row makes the difference observable.",
+          "The auto-dismiss clock is properly held on both pointer and keyboard: pauseTimer banks elapsed time against `remaining`, focusout is guarded by `!sb.contains(event.relatedTarget)` so tabbing Undo→Dismiss doesn't restart it, and the CSS countdown pauses in lockstep via `animation-play-state`.",
+          "Genuinely optimistic semantics — `render()` mutates the visible value before the snackbar is built, and the primary line 'Change saved' is past-tense with no selling or apology.",
+          "Careful edges beyond the brief: focus returns to the Save button when the dismissing snackbar held activeElement, one-snackbar-at-a-time queueing instead of stacking, tab-hide pauses the timer, and reduced motion never builds the countdown while the timer still runs and still pauses."
+        ],
+        "defects": [
+          "The detail line restates the saved object and its new value ('Display name is now A. Cunliffe.') — the record row directly above already shows exactly that label and value, so the snackbar duplicates on-screen state instead of only stating what happened. Same pattern in 'Display name is back to …'.",
+          "Two independent clocks: the CSS countdown animation starts at `region.appendChild(sb)` but the JS timer starts two rAFs later in `startTimer`, so the bar and the timeout are never exactly the same clock.",
+          "`pauseTimer` returns early on `if (!sb.timer) return`, so a pointerenter or focusin landing in the ~2-frame window before the timer exists neither banks time nor sets `.is-paused` — the hold fails silently and the countdown keeps draining.",
+          "`options.reason` is never supplied by any caller, so the pre-empt path in `show()` always resolves to 'dismiss'; the parameter is dead.",
+          "`aria-atomic=\"true\"` on the live region re-announces the Undo and Dismiss control labels along with the message on every update."
+        ],
+        "worst_defect": "The snackbar's second line restates the saved object and its new value, duplicating the record row rendered immediately above it — the one copy failure the brief's lens calls out by name."
+      },
+      {
+        "lens": "repro",
+        "score": 87,
+        "strengths": [
+          "Genuine DOM lifecycle: each snackbar is built with createElement, appended to a persistent `role=\"status\" aria-live=\"polite\"` region that exists before content (correct announcement pattern), and removed with removeChild — nothing is CSS-hidden or reused. `remove()` also clears the pending timeout, so no orphaned handles survive.",
+          "The timer is real, not decorative: `startTimer/pauseTimer/resumeTimer` track `remaining` via `performance.now()` deltas, pause on pointerenter, focusin, and `visibilitychange`, and the CSS countdown bar is paused in lockstep via `animation-play-state`. Dwell is read back off the computed custom property (`readMs`), with a safe NaN fallback, so `.snackbar--brief` genuinely runs 5s instead of 8s.",
+          "prefers-reduced-motion truly collapses: the blanket `@media` rule zeroes transition/animation durations, `exitMs()` returns 0 so removal doesn't wait on a transition that will never fire, and the countdown element is never constructed at all under RM rather than built-and-hidden. The timer still runs and still pauses.",
+          "Keyboard and focus are handled deliberately — real `<button>` elements, document-level Escape bound to `active`, and focus returned to the Save button when the dismissed snackbar contains `document.activeElement`. Exit removal is guarded against the transitionend/timeout double-fire by a `done` latch, and `show()` queues one replacement instead of stacking or swapping mid-frame."
+        ],
+        "defects": [
+          "Zombie timer on exit: `dismiss()` calls `saveButton.focus()`, which synchronously fires `focusout` on the leaving snackbar; the handler calls `resumeTimer(sb)`, which passes its guard (`sb.timer` was just nulled, `sb.remaining` is still 8000) and re-arms a full-length setTimeout on a dying element, plus strips `is-paused` mid-exit. It only stays harmless because `remove()` happens to clear the handle 200ms later — `dismiss` never sets a `leaving` guard on the pause/resume handlers.",
+          "The `transitionend` listener on the snackbar is unfiltered by `event.target`, so any child transition bubbles into `finish()`. The `.btn` elements transition background/border/color over 120ms, so moving the pointer off the Undo or dismiss button during the exit can tear the element out of the DOM early. Currently masked because the exit transition is also 120ms, but it is an unguarded race, not a designed one.",
+          "Hover-pause and focus-pause fight each other: `pointerleave` resumes even when focus is still inside the snackbar, and `focusout` resumes even when the pointer is still over it (`sb.contains(relatedTarget)` only checks the focus axis). A user who tabs to Undo and then moves the mouse — or hovers and then tabs away — gets the countdown restarted under their hands while they are still engaged with the component.",
+          "Rapid Save clicks starve the queue: each click clears `pending` and re-arms it at `exitMs() + 20`, so sustained clicking pushes the next build out indefinitely and the user sees no confirmation at all while the record value keeps changing optimistically. Relatedly `options.reason` is never populated by any caller, so the `options.reason || 'dismiss'` branch in `show()` is dead.",
+          "`reduceMotion` is sampled once per `build()` with no `matchMedia` change listener, so toggling the OS setting mid-session leaves the countdown affordance in the wrong state until the next save.",
+          "The countdown bar and the authoritative JS timer are two independent clocks — the CSS animation begins at insertion, the setTimeout starts two rAFs later — so the bar is a correlated approximation of the timer rather than a readout of it."
+        ],
+        "worst_defect": "`dismiss()` triggers its own `focusout` handler via `saveButton.focus()`, which re-arms a full-length auto-dismiss timeout on the already-leaving snackbar; it is only defused by `remove()` clearing the handle 200ms later, so the correctness depends on removal timing rather than on a guard."
+      }
+    ]
+  },
+  {
+    "build": "build-08",
+    "votes": [
+      {
+        "lens": "craft",
+        "score": 87,
+        "strengths": [
+          "The accent is used exactly once, as a 1px rule under the word \"Undo\" — punctuation, not a fill, not a chip, not a coloured button. This is the single most disciplined accent decision available in this brief, and it is the only place #ed4609 appears in the file. No second hue anywhere.",
+          "Chrome genuinely recedes: `border-radius: 0` declared explicitly, zero `box-shadow`, zero gradient, zero filter in the entire file. Elevation is carried by ground (`bg-elev`) plus a hairline border, and the snackbar's internal division between message / Undo / dismiss is done with two 1px `--color-line` rules — hairlines doing all the separating, exactly as the brief specifies.",
+          "Emphasis is carried by weight and colour, never display size. The active machine state (`visible`) is distinguished from its siblings by fg + weight-500 at the same 13px; the message and action inside the strip sit at identical size and weight, with the accent hairline alone marking the action. Spacing sits cleanly on the 4/8/16/24/32/48 scale with no off-ramp values, and the section rhythm correctly puts more air above a rule than below it.",
+          "It declines a token with a written reason rather than using it for completeness — `bg-card` is skipped because it sits 4/255 from `bg-elev` and would only add a near-duplicate to the palette. Motion is snapped to duration/easing tokens with a considered asymmetry (200ms out-expo in, 120ms out-quart out) and a real reduced-motion branch."
+        ],
+        "defects": [
+          "The snackbar is proportioned to `--snackbar-max-inline: 34rem` rather than to its content. With a one-word message it renders ~545px wide with roughly 300px of empty ground between \"Saved\" and the vertical hairline — so the rule divides a mostly-empty field from a tight action cluster. In an ink-on-paper system the bar should hug its content up to a max.",
+          "The Save button contracts on click: `.btn` has no reserved min-inline-size, and the label swaps \"Save change\" → \"Saving\" (~38px narrower). Because the field row is `justify-content: space-between`, the button's left edge jumps right at the exact moment of interaction. A crafted control reserves its width.",
+          "The demo frame is louder than the specimen. `clamp(27px, 9vw, 96px)` puts a 96px display word \"Snackbar\" at the top of a page whose subject is a 44px-tall transient strip — page hierarchy inverted against the thing being shown.",
+          "`.btn--primary[data-loading]` swaps a solid-white CTA to a `bg-elev` chip with a `--color-line` border for 900ms, so the primary control nearly disappears mid-interaction rather than holding its place quietly.",
+          "Small redundancy and copy leak: the lede and the `trace__note` both explain the hover-hold behaviour, and the note pushes an implementation number into UI prose (\"the 6000ms clock runs\") — telling where the fixture could show.",
+          "On hover the accent expands from a 1px rule to the entire \"Undo\" word — a small step away from punctuation toward emphasis-by-hue."
+        ],
+        "worst_defect": "The snackbar is sized to a fixed 34rem max rather than to its content, so a one-word confirmation renders as a ~545px bar with a large empty field beside the message and a hairline separating that void from the action cluster — the component's own proportion is the least considered thing in an otherwise exactingly restrained build."
+      },
+      {
+        "lens": "brief",
+        "score": 84,
+        "strengths": [
+          "All three required affordances are present and the two terminal outcomes are genuinely distinct: Undo restores the field value and reports \"Reverted\", while both the × dismiss and the 6000ms auto-dismiss let the save stand — verified through separate onReverted/onDismissed callbacks and a visible outcome line.",
+          "The auto-dismiss hold is real: the rAF loop accumulates `elapsed` only while `!paused`, so hovering freezes the clock rather than restarting it, and `focusout` checks `root.contains(e.relatedTarget)` so tabbing between Undo and Dismiss keeps the hold.",
+          "The state machine is disciplined — a `settled` latch plus a state guard makes every exit idempotent, `inert` + `pointer-events: none` prevent a second activation mid-exit, and terminal state is only declared after the node leaves the document.",
+          "Snackbar copy is exactly right for an optimistic confirmation: \"Saved\" — no selling, no apology, no restatement of the saved object; Undo and Dismiss are bare verbs."
+        ],
+        "defects": [
+          "Pointer-hold and focus-hold share one `paused` boolean with last-writer-wins semantics (lines 622–627) instead of being OR'd: tab to Undo, sweep the mouse over the snackbar and off, and `pointerleave` releases the clock while keyboard focus is still inside — the surface auto-dismisses out from under a focused control. The mirror case (hover → tab in → tab out) fails identically.",
+          "Exit sets `inert` with no focus restoration, so dismissing or undoing from the keyboard drops focus to `<body>` rather than returning it to the Save button — the keyboard user is stranded at the top of the tab order.",
+          "Visible in after-save.png: the snackbar says \"Saved\" while the Save button simultaneously says \"Saving\" and is disabled. Surfacing the 900ms request latency as a button loading state contradicts the optimistic confirmation sitting on screen at the same instant.",
+          "`role=\"status\"` is on the message `<p>` only, so a screen reader announces \"Saved\" and never learns an inline Undo is available for the next six seconds — the affordance is visually inline but not announced with the confirmation.",
+          "`pointerenter` does not fire when an element is inserted under a stationary cursor, so a user whose pointer is already parked at bottom-centre gets no hold until they move the mouse.",
+          "The simulated request always succeeds — there is no failure/rollback path, so the optimistic premise (surface changes before the server confirms) is never actually exercised or falsified."
+        ],
+        "worst_defect": "Pointer-hold and focus-hold collapse into a single `paused` boolean, so a `pointerleave` cancels an active keyboard-focus hold and the snackbar auto-dismisses while Undo still has focus — a failure of the exact criterion the brief names."
+      },
+      {
+        "lens": "repro",
+        "score": 82,
+        "strengths": [
+          "Real state machine, not decorative: `settled` is a true terminal latch, `beginExit` promotes `entering -> visible` so there is no illegal edge, and every pending async callback re-checks `settled` before acting. The surface is genuinely `appendChild`/`removeChild`'d (as is the outcome paragraph) rather than CSS-hidden, with a double-rAF to commit mount styles before the enter transition.",
+          "`afterTransition` reads `getComputedStyle().transitionDuration`, parses the comma-separated list, takes the max, and arms a `setTimeout(ms + 60)` net beside the `transitionend` listener — so the machine still advances when `transitionend` never fires (exit triggered mid-entrance with opacity unchanged, or a near-zero reduced-motion duration). Shipped-code instinct, not textbook.",
+          "prefers-reduced-motion genuinely collapses: `transform` is stripped from base, `absent`, `leaving` and `reverted`, and exit drops to 0.01ms. Because the JS derives its timing from computed style rather than a hardcoded 200ms, the collapse propagates into the state machine instead of leaving a dead wait.",
+          "Auto-dismiss clock is a rAF loop that only accrues `elapsed` while `!paused`, held by BOTH `pointerenter` and `focusin`, with a correct `root.contains(e.relatedTarget)` guard on `focusout` so tabbing between Undo and Dismiss doesn't resume the countdown. Exit sets `inert` plus `pointer-events: none`."
+        ],
+        "defects": [
+          "Focus is never restored on teardown. Undo/Dismiss/Escape set `inert` on an ancestor of the focused button and then remove the node, so focus falls to `document.body` and nothing returns it to the Save button — a keyboard user's tab position resets to the top of the document every dismissal.",
+          "`saveBtn.disabled = true` in `commitSave` blurs the button the user just activated with Enter, dropping focus to body for the full 900ms with no restore. Fires on the very first keyboard use of the demo.",
+          "`forceRemove` does not cancel the in-flight `afterTransition` timer/listener. Clicking Dismiss then Save within the ~120ms exit lets the stale callback run: it calls `setState(\"dismissed\")`, clobbering the new snackbar's `entering` in the trace, and fires `onDismissed` writing \"Kept — visibility is X\" while a fresh save is in flight. There is no `cancelled` flag; `if (live === controller)` guards the handle but not the side effects.",
+          "Escape is bound to `root`, so it only works when focus is already inside the snackbar. A mouse user — the common case for a surface that never steals focus — has no keyboard dismiss at all; no document-level listener exists.",
+          "`.snackbar[data-state=\"absent\"]` sets opacity 0 but not `pointer-events: none`, leaving a ~2-frame invisible-but-hit-testable band across the bottom of the viewport that swallows a click the `beginExit` state guard then silently no-ops.",
+          "`role=\"status\"` wraps only the message paragraph; Undo and Dismiss sit outside the live region, so a screen-reader user is told \"Saved\" with no indication that a reversal is available and expiring in six seconds."
+        ],
+        "worst_defect": "Focus management is absent on teardown — `inert` plus `removeChild` drops focus to `document.body` on every Undo/Dismiss/Escape, and disabling the focused Save button drops it again on entry, with no restoration in either path; a keyboard user is thrown back to the top of the tab order on first use."
+      }
+    ]
+  },
+  {
+    "build": "build-09",
+    "votes": [
+      {
+        "lens": "craft",
+        "score": 85,
+        "strengths": [
+          "Chrome genuinely recedes: zero radius, zero shadow, a single hairline border and one elevation step (#141414 on #050505). No card-soup, no nested surfaces, no library defaults — the flat/ruled language is designed toward, not merely avoided.",
+          "The countdown as a 2px rule flush to the bar's bottom edge instead of a progress pill or ring is the best decision in the build — it is the only element stating how long reversibility lasts, so the one motion in the component is structural rather than decorative.",
+          "Hierarchy is carried by weight, case, and colour, never by display size: 13px uppercase dim label against 20px medium white value in the setting row; the 27px title is the largest thing on the page and it is a Medium, not a display slab.",
+          "Restraint extends past the visual layer — reduced-motion omits the countdown entirely rather than freezing it while auto-dismiss still runs, derived tokens are named for role and honestly flagged as outside DESIGN.md, and the confirmation copy is plain and unexclaimed."
+        ],
+        "defects": [
+          "The accent does double duty inside one 60px component — the UNDO label plus a full-bleed 460px countdown rule. In the render that rule is the brightest and widest chromatic element on the whole page, pulling the eye below the action it exists to time; a --fg-dim countdown would keep the accent as punctuation.",
+          "The confirmation sentence is set at --type-label (13px), the same token as the eyebrow, the setting label and every button — the component ends up with exactly one type size and the message sits below the body band the surface binding specifies for component text.",
+          "Blanket `text-transform: uppercase` + 0.08em tracking on .btn means the inline Undo carries caps AND tracking AND accent: three emphasis signals stacked where the system asks emphasis to come from weight or the accent, one at a time.",
+          "Optical asymmetry inside the bar — 24px left inset against an effective 16px right inset, visible in the render as the close glyph sitting tighter to its edge than the text does to its own.",
+          "The snackbar is viewport-centred at 460px while the content column is a 680px frame, so its edges land on nothing the page has established; sharing only a centreline is the weakest available alignment in an otherwise rule-disciplined layout.",
+          "The demo page's note narrates the component's own cleverness (\"the snackbar below is the whole affordance: what changed, how to undo it, and how long that stays true\") — a caption explaining the design rather than letting it show."
+        ],
+        "worst_defect": "The accent is spent twice inside a single 60px component — on the Undo word and on a full-width countdown rule that becomes the brightest, widest coloured element on the page — which dilutes accent-as-punctuation and draws the eye downward, away from the affordance the accent was meant to mark."
+      },
+      {
+        "lens": "brief",
+        "score": 71,
+        "strengths": [
+          "All three required affordances are present and functional: inline Undo, a 6s auto-dismiss driven by rAF with a visible accent countdown rule, and an explicit icon dismiss with aria-label and a 44px tap target.",
+          "Dismiss and Undo are genuinely distinct outcomes, modeled explicitly rather than incidentally: dismiss/Escape/expiry all fire `onExpire` (accept), while Undo nulls `onExpire` before dismissing so the change is reverted and a separate terminal confirmation is raised.",
+          "The countdown rule is load-bearing rather than decorative — it is the only thing on screen that states how long the change stays reversible, and `tick()` correctly re-baselines `snack.last` while paused so remaining time does not decay.",
+          "The snackbar node is created and removed rather than CSS-hidden inside a persistent `role=status` region, so each message announces cleanly; Escape is handled and its semantics match the X button."
+        ],
+        "defects": [
+          "Brief says OPTIMISTIC — confirms a change that already happened — but the build implements a deferred commit: `commit(next)` runs only when the window expires, Undo means \"the change never commits\", and the page meta reads \"Pending — reversible for a few seconds.\" It also contradicts its own header line, \"Saving applies the change immediately.\"",
+          "`snack.paused` is a single boolean fed by pointerenter/pointerleave AND focusin/focusout, so releasing either source resumes the clock while the other is still inside. Hover the snackbar, tab to Undo, then move the pointer off: `pointerleave` sets paused=false and the undo window expires under the focused button.",
+          "The terminal confirmation snackbar (\"Reverted to only me.\") gets no pause listeners at all — they are gated on `options.undoLabel` — yet it still contains a focusable Dismiss button, so it can be removed from under a keyboard user's focus mid-interaction.",
+          "Snackbar copy restates the saved object verbatim: \"Visible to anyone with the link.\" duplicates the `VISIBLE TO / Anyone with the link` row directly above it, and never actually states that a save occurred.",
+          "No focus restoration on any exit path. Undo and Dismiss both remove the button the user just activated from the DOM with no focus handoff, dropping focus to `<body>`.",
+          "Under `prefers-reduced-motion` the countdown element is not rendered at all while auto-dismiss still runs, so the \"how long that stays true\" affordance the page copy promises silently disappears; and a second Save while one is live calls `removeSnackbar` (not `dismiss`), dropping the pending commit and skipping the leave transition."
+        ],
+        "worst_defect": "The component is not an optimistic-save snackbar — it defers the commit until the undo window closes and tells the user \"Pending — reversible for a few seconds,\" directly contradicting the brief's \"confirms a change that already happened\" and the page's own claim that saving applies immediately."
+      },
+      {
+        "lens": "repro",
+        "score": 73,
+        "strengths": [
+          "The state machine is genuinely real, not decorative: separate `committed` (server-believed) and `displayed` (optimistic) variables, an `onExpire` commit that only fires on expiry/explicit-dismiss/Escape, and an `onUndo` that reverts and chains a terminal confirmation snackbar. Optimistic-save semantics are actually modeled rather than mimed.",
+          "The surface is truly added to and removed from the DOM. A persistent empty `role=\"status\"` region lives in the markup; the snackbar node is `createElement`'d on save and `removeChild`'d on dismiss (index.html:420-424). Nothing is CSS-hidden and left behind.",
+          "Timer hygiene is careful and correct: `teardown()` cancels both the rAF and the leave timeout on every removal path; `tick()` skips the decrement while `paused` but still advances `snack.last`, so hover/focus pausing does not silently accumulate elapsed time; the first `snack.last` is seeded from the rAF timestamp, avoiding the classic huge-first-delta jump.",
+          "Pause-on-hover/focus is scoped only to snackbars that offer a decision (`if (options.undoLabel)`), so a terminal confirmation left under a stationary cursor still auto-dismisses — a failure mode most builds ship. Escape is wired globally, the icon button carries `aria-label=\"Dismiss\"` with `aria-hidden` `focusable=\"false\"` SVG, and every control meets the 44px min tap target."
+        ],
+        "defects": [
+          "No focus management at all — `grep` finds zero `.focus(` calls. Activating Undo or the X via keyboard removes the focused button from the DOM, dropping focus to `<body>`; the next Tab restarts from the top of the document. This is the single named item on the lens checklist and it is entirely absent.",
+          "The entrance transition never plays. `region.appendChild(node)` (with `.snackbar--entering`) and `node.classList.remove(\"snackbar--entering\")` inside a single `requestAnimationFrame` both occur before the node's first style resolution — rAF callbacks run ahead of style/layout in the rendering steps, and nothing forces a reflow in between. The node's first computed style is already the end state, so the declared 200ms fade/translate is dead code. Needs a double-rAF or an `offsetHeight` read.",
+          "Double-commit window: `tick()` calls `snack.onExpire()` on expiry but does not null it, and `live` is not cleared until the 200ms leave timer fires. Pressing Escape (or clicking the still-`pointer-events:auto`, opacity-0 X) within that 200ms re-enters `if (snack.onExpire) snack.onExpire()` and commits a second time. Harmless here only because `commit()` happens to be idempotent; with a real network POST it fires twice.",
+          "Optimistic state desyncs on rapid re-save. `onUndo` does `committed = previous` where `previous` is the last *displayed* value, not the last *committed* one. Save, Save again within 6s, then Undo: `showSnackbar` replaced the first snackbar via `removeSnackbar` (which never runs its pending `onExpire`), so no commit ever fired — yet the UI ends on \"Anyone with the link\" / \"Reverted.\" and internally marks that value committed. The pending commit is silently dropped and the model now lies about server state.",
+          "The undo path destroys its own exit motion: the click handler calls `dismiss(snack)` (sets `--leaving`, schedules a 200ms removal) and then `options.onUndo()` synchronously calls `showSnackbar`, whose first line is `if (live) removeSnackbar(live)` — ripping the leaving node out mid-transition. Exit animates on expiry/X/Escape but pops on Undo, the most likely path a user takes.",
+          "Under `prefers-reduced-motion` the countdown element is not created at all, removing the only signal of how long the change stays reversible — the CSS comment even calls it \"load-bearing.\" Reduced motion should collapse the animation, not delete the information; a stepped or static remaining-time indicator was the correct fallback."
+        ],
+        "worst_defect": "Zero focus management — no `.focus()` anywhere in the file, so activating Undo or Dismiss by keyboard removes the focused element and dumps focus to `<body>`, stranding keyboard and screen-reader users at the top of the document on first use."
+      }
+    ]
+  },
+  {
+    "build": "build-10",
+    "votes": [
+      {
+        "lens": "craft",
+        "score": 77,
+        "strengths": [
+          "Accent used exactly once on the whole page — a 2px rule under \"Undo\" — as punctuation, never fill; no second hue, no gradient, no glow anywhere.",
+          "Zero radius, zero shadow, no nested cards: separation is done entirely by hairline rules on --color-line, and the bar reads as ink-on-paper rather than a floating chip.",
+          "Emphasis inside the component is carried by weight (500) and colour (#fff vs #b8b8b8), never by display size — the message stays in the 16px body band, exactly as the arena binding demands.",
+          "Chrome recedes: the dismiss is a monochrome 16px ghost icon at 1.25 stroke, and the button's busy state is a structural hairline traversal instead of a spinner."
+        ],
+        "defects": [
+          "The Undo→dismiss divider hairline does not meet the frame at either end: .btn--icon's fixed 44px height sits inside a ~53px actions row, so its border-left floats with ~4-5px gaps top and bottom while the message→actions divider runs edge to edge — two hairlines treated inconsistently inside one 544px bar.",
+          "The × glyph rides ~4px above the bar's true vertical centre, same root cause (fixed-height icon button under align-items: stretch).",
+          "\"Saved\" and \"Undo\" do not share a baseline — the undo label's padding-bottom: 4px plus 2px accent border lift the word ~3px inside its centred cell. On a component whose entire content is two words on one line, that is the first thing a designer sees.",
+          "The 34rem bar is centred against a 44rem content column, so its edges land 56px inside the setting rule's edges — a near-miss alignment that reads as accidental rather than deliberately free-floating.",
+          "The accent underline is drawn with --border-focus (2px), a borrowed semantic and the heaviest stroke on the page in an otherwise 1px hairline system.",
+          "The page note narrates the component's mechanics rather than letting it demonstrate them, and the button's 400ms progress hairline animates a token, not a real request — decoration presented as instrumentation."
+        ],
+        "worst_defect": "Micro-alignment inside the snackbar: the second divider hairline stops short of the frame, the × glyph rides high, and \\\"Saved\\\"/\\\"Undo\\\" miss a shared baseline by ~3px — three visible misalignments in a 544×53px surface whose whole argument is hairline precision."
+      },
+      {
+        "lens": "brief",
+        "score": 89,
+        "strengths": [
+          "All three required affordances exist and were verified working in Chromium: inline Undo, a 6s auto-dismiss (measured 6331ms after `visible`), and an explicit `×` dismiss with `aria-label=\"Dismiss\"`. Undo and dismiss are genuinely distinct terminal outcomes — measured: Undo restores `Private`, dismiss leaves `Public` standing, and each routes to a different state (`reverted` vs `dismissed`) with its own callback.",
+          "The auto-dismiss clock is held on BOTH pointer and keyboard focus, and — the part most builds get wrong — it *resumes remaining time* rather than resetting. Measured: 4s elapsed + 3s hover hold → dismissed 2295ms after pointerleave, not 6000ms. `focusout` correctly ignores intra-surface focus moves via `root.contains(e.relatedTarget)`, so tabbing Undo→Dismiss does not restart the clock.",
+          "Genuinely optimistic semantics: `valueEl.textContent` is written before the simulated request, `previous` is captured pre-mutation, and the snackbar confirms an accomplished fact. Rapid double-save is handled correctly — the outstanding surface is terminated (measured: exactly 1 snackbar in the DOM) and the new one's undo restores the value as of *that* save, not the original.",
+          "Copy is exactly on brief. \"Saved\" states what happened, past tense, with no selling, no apology, and no restatement of the saved object. The state machine is also defensively correct: `afterMotion` races `transitionend` against a token-derived deadline, so it cannot stall if the transition never fires — confirmed under `prefers-reduced-motion`, which reached `visible` in 18ms and still auto-dismissed on schedule."
+        ],
+        "defects": [
+          "Focus is dropped to `<body>` after BOTH Undo and Dismiss (verified: `document.activeElement === document.body` on both paths). A keyboard user who tabs to Undo and presses Enter is thrown to the top of the document with no return to `#save-change`. `revert()` and the `afterMotion` teardown in `beginLeaving()` both `removeChild` without restoring focus to the invoking context.",
+          "Undo and dismiss are presentationally inconsistent: `revert()` removes the node synchronously with no exit motion, while `beginLeaving()` runs the `is-out` fade. The same surface therefore vanishes abruptly on one terminal path and animates out on the other — the hard cut reads as a glitch, not a decision.",
+          "No Escape-key dismissal (verified: snackbar survives `Escape`). The explicit dismiss exists as a control but not as the conventional keyboard gesture, so the fastest path off the surface is mouse-only or a two-tab traverse.",
+          "Undo is silent to assistive tech. The `role=\"status\"` live region is inside `root`, which `revert()` removes immediately, so a screen-reader user gets no confirmation that the revert took effect — the only announcement in the whole flow is \"Saved\", the thing that was just undone.",
+          "The state machine does not model undo-during-in-flight. Between `visible` (~200ms) and request settle (400ms) there is a live window where `revert()` rolls back the local value while the simulated write continues to completion unchallenged; no cancellation or compensating action is expressed.",
+          "The auto-dismiss duration is carried by `--motion-duration-dwell: 6000ms`, a token invented for this build — DESIGN.md declares only fast/base/slow. The brief's timeout requirement is thus satisfied by a fabricated system value rather than a declared one."
+        ],
+        "worst_defect": "Focus is dropped to `<body>` on both terminal paths (Undo and Dismiss), verified in-browser — a keyboard user who activates either control loses their place in the document, and neither `revert()` nor the dismiss teardown returns focus to the Save button that originated the flow."
+      },
+      {
+        "lens": "repro",
+        "score": 80,
+        "strengths": [
+          "Real state machine, not decorative: absent -> entering -> visible -> leaving -> dismissed|reverted, every transition guarded on current state (beginLeaving/revert both no-op unless state === 'visible'), terminal states distinguished, value mirrored to data-state. Verified live.",
+          "Genuine DOM lifecycle: createElement + appendChild on commit, removeChild on every exit path (beginLeaving, revert, terminate). Confirmed in-browser that .snackbar is absent after undo, after dismiss, and after auto-dismiss. Nothing is CSS-hidden.",
+          "Auto-dismiss pause/resume is correct arithmetic, not a reset: hovered 3.5s -> dismissed 5.82s after unhover; focused 7s -> dismissed 5.93s after blur. focusout correctly ignores relatedTarget inside the root.",
+          "Reduced motion genuinely collapses: media query zeroes the shift tokens so translate computes to '-50%' with no vertical term, and both durations measure 0.001s. afterMotion races transitionend (filtered on target + propertyName) against a token-derived deadline, so a 1ms transition that emits no event still advances the machine; inert on the leaving root blocks late clicks."
+        ],
+        "defects": [
+          "Focus is dropped on the floor. revert() removes the focused subtree and beginLeaving() sets inert on it, with no restoration. Verified: keyboard-activating Undo leaves document.activeElement === BODY, so the next Tab restarts at the top of the document. Same on dismiss. One of the five axes this lens names, and it is entirely absent.",
+          "No Escape handler. Verified: pressing Escape with focus inside the snackbar leaves it present. The only explicit dismiss is the 44px icon button, so a keyboard user must Tab twice to reach it.",
+          "Permanent-stuck state in runTimer(): the 'remaining <= 0' early return abandons the surface in 'visible' forever instead of dismissing immediately. Reproduced by advancing Date.now to simulate a throttled background tab, then hovering: snackbar still present with data-state='visible' 9s after unhover. Real trigger is Save -> switch tabs -> return and hover before the throttled callback fires.",
+          "Live-region hygiene: role='status' plus aria-live='polite' on the same element is redundant, and the region is created fresh per snackbar rather than being a persistent container, which is the less reliable announcement pattern across screen-reader/browser pairings.",
+          "A second Save click inside the 400ms in-flight window is silently swallowed with no feedback beyond the aria-disabled styling; defensible, but there is no queue or acknowledgement.",
+          "terminate() removes the node without cancelling the pending afterMotion fallback timer. Harmless today only because the enter callback re-checks state !== 'entering', but it is a dangling timer on every superseded save."
+        ],
+        "worst_defect": "Focus is never restored: activating Undo or Dismiss removes the focused element and leaves document.activeElement on BODY (verified), dumping a keyboard user back to the top of the tab order on first use."
+      }
+    ]
+  },
+  {
+    "build": "build-11",
+    "votes": [
+      {
+        "lens": "craft",
+        "score": 86,
+        "strengths": [
+          "The accent is used exactly once and correctly: a 1px `--color-accent` underline on the word \"Undo\" (text-decoration-color, 4px offset). It is the single chromatic event in the entire frame — punctuation, never fill, never a second hue, no glow, no gradient. Textbook execution of accent-as-punctuation.",
+          "The component speaks the page's own vocabulary instead of inventing chrome: the vertical `--rule-hairline` divider between message and actions is the same primitive as the field row's `border-block`. Flat `--color-bg-elev` plane, one hairline border, zero border-radius, zero box-shadow, no elevation trickery, no nested cards. The chrome genuinely recedes.",
+          "Emphasis is carried by weight and color, never by display size. Component text stays entirely in the 13/16px band (message 16/500 white, actions 16/500, close label sr-only), while the page's 96px title is confined to the harness. The ladder eyebrow-13-mono-dim → label-13-uppercase-dim → body-16 → lead-20-muted → title-96 is coherent and uses only three greys.",
+          "Detail craft in the small marks: the dismiss glyph is a hand-authored 1.25-stroke, square-linecap X rather than a rounded icon-library default; the focus ring is monochrome white 2px/2px offset; hover states exist on every interactive element and are all monochrome (border-color, fg lift, `--color-bg-card` wash). Copy is \"Saved\" — plain and unexclaimed, matching the surface's deadpan voice note."
+        ],
+        "defects": [
+          "Accent escalation on hover: `.snackbar__undo:hover` raises `text-decoration-thickness` from `--rule-hairline` (1px) to `--space-xs` (4px). A 4× jump converts the accent from punctuation into a solid orange bar under the word — the one place the component's restraint breaks — and it does so by borrowing a *spacing* token as a stroke weight, which is a token-semantics violation in a file that otherwise declares `--rule-hairline` for exactly this purpose.",
+          "Alignment failure against the composition: the snackbar is `min(100% - 32px, 34rem)` centred on the viewport (543px, edges at x≈368 and x≈911 in the capture) while the content column is 44rem at x≈288–992. Neither edge, nor the internal divider, relates to any line in the page. In an editorial hairline system where every other element sits on a shared column, the confirmation reads as an unrelated object floating in the lower frame.",
+          "Uneven optical rhythm inside the action cluster: `.snackbar__actions` sets an 8px gap and 8px inline padding, but `.btn` contributes 24px inline padding, so the measured runs are divider→\"Undo\" ≈35px and \"Undo\"→X ≈54px. The close glyph floats away from the label it belongs with, and its 44px-wide full-bleed hover slab sits only 8px off the right hairline.",
+          "The lede narrates its own implementation instead of showing it: \"The confirmation carries the only path back, so its clock holds while a pointer or keyboard focus is inside it\" is spec documentation set at 20px lead across three lines in the display position. Restrained systems demonstrate the hover-hold; they do not annotate it above the fold.",
+          "Page furniture outshouts the subject. The 96px `--type-h1` title plus a persistent mono `state / clock / last outcome` readout row occupy the majority of the frame, while the artifact under test is the smallest, lowest element. The readout is defensible as state-machine instrumentation, but combined with the display title it inverts the hierarchy of what the page is for.",
+          "Minor literal leakage in a file whose stated discipline is `var(--token, fallback)` everywhere: `opacity: 0.72` on the loading label, `stroke-width=\"1.25\"` on the icon, `z-index: 10`, and the reduced-motion exit guard hardcoded as `60` in JS alongside tokenised durations."
+        ],
+        "worst_defect": "The hover state escalates the accent underline from 1px to 4px (via `--space-xs`, a spacing token used as a stroke weight) — the single moment the accent stops being punctuation and becomes a bar, in the one component the brief was about."
+      },
+      {
+        "lens": "brief",
+        "score": 89,
+        "strengths": [
+          "All three required affordances exist and behave distinctly: inline Undo (reverts `committed`/`pending` and writes \"Change reverted…\"), a 6s auto-dismiss, and an explicit × dismiss with an sr-only \"Dismiss\" label plus Escape — undo terminates in S.REVERTED, dismiss/timeout in S.DISMISSED with a distinct \"Change kept…\" outcome, so the two paths are genuinely different results, not two ways to close a bar.",
+          "The hold-the-clock requirement is implemented properly, not gestured at: pause on `pointerenter`/`focusin` banks the remaining time via `startedAt`, and `resume()` re-checks BOTH `:hover` and `root.contains(document.activeElement)` before restarting — so pointer-out-while-focused (and focus-out-while-hovered) correctly stays held, the case most implementations get wrong.",
+          "Copy is exactly on brief: the message is the single word \"Saved\" — states what happened, no selling, no apology, no restatement of the saved object or its new value.",
+          "The save is genuinely optimistic (the field flips to Public on click, before the simulated round trip), and the state machine is defensive in the right places: `transitionend` guarded by a 400ms fallback timer, `inert` + `disabled` applied on leave so a late click can't re-enter the machine, focus read before inerting and returned to the Save button, and a second save supersedes the first with its callbacks nulled so the stale bar can't overwrite the new outcome."
+        ],
+        "defects": [
+          "The pause guard requires `state === S.VISIBLE`, but the clock only starts at the END of the ~200ms entrance. A pointerenter or focusin during ENTERING is dropped as a no-op, and since no second pointerenter fires for a stationary cursor, `startClock(6000)` then runs unpaused with the pointer sitting inside the surface — the exact failure the hold requirement exists to prevent, just inside a narrow window.",
+          "The fixture's field copy is wrong about what happened after the save: it renders \"Public — pending change: Private\", so the page simultaneously claims the change committed and that an opposite change is still pending. Nothing is pending; it's the swapped variable rendered as a state label.",
+          "The Save button enters a `is-loading` / `disabled` / `cursor: progress` state for 600ms while the snackbar already says \"Saved\" — a pending-round-trip affordance bolted onto a flow whose premise is that the UI does not wait for the round trip.",
+          "Superseding save mounts the new bar before the old one finishes leaving, so two snackbars occupy the same fixed bottom-center slot for ~200ms, and the superseded bar writes \"superseded\" into the last-outcome readout after the replacement is already up.",
+          "The polite live region announces only \"Saved\" — a screen-reader user is told the outcome but not that a time-limited Undo exists; the `aria-label=\"Save confirmation\"` on the group is only reachable if they navigate into it before the 6s clock expires."
+        ],
+        "worst_defect": "Hover/focus arriving during the ~200ms entrance is silently dropped (pause() returns early unless state is VISIBLE), so the auto-dismiss clock can run its full 6s with the pointer resting inside the surface."
+      },
+      {
+        "lens": "repro",
+        "score": 87,
+        "strengths": [
+          "Genuinely real state machine: six named states with entry guards on every transition (`activateUndo`/`activateDismiss`/`activateTimeout` all bail unless `state === VISIBLE`), and the surface is truly `appendChild`'d on mount and `removeChild`'d on unmount — never CSS-hidden. Transient state is driven by transitionend with a `once()` helper that carries a `MOTION_GUARD_MS` fallback timer and self-removes, so a swallowed transitionend cannot strand the node.",
+          "Focus handling is deliberate and correct in the hard spot: `leave()` reads `root.contains(document.activeElement)` BEFORE setting `inert` (with a comment explaining that inert blurs its subtree), then restores focus to `returnFocusTo`. The exit path also disables both buttons and sets `pointer-events:none`, so a late click cannot re-enter the machine.",
+          "The auto-dismiss clock is a real accumulating timer, not a naive setTimeout: `pause()` banks `remaining` and zeroes `startedAt`, `resume()` re-guards against `:hover` and `contains(document.activeElement)` before restarting, and `focusout` ignores relatedTarget still inside the bar. Escape is wired, and the readout proves the clock live (5.5s in the screenshot).",
+          "Supersede is handled explicitly and correctly: a second Save nulls the old bar's `onUndo`/`onDismiss` so it cannot write a stale outcome over the new one, and `unmount()` guards `if (current === this)` so the outgoing bar's async unmount does not clobber the incoming bar's state readout. The undo value swap (`committed`/`pending`) round-trips exactly."
+        ],
+        "defects": [
+          "Keyboard focus is dropped on every keyboard-initiated save. `commitSave` sets `saveBtn.disabled = true` for ROUND_TRIP_MS (600ms) while the button still holds focus — disabling a focused element blurs it, so `document.activeElement` falls to `<body>`. The button re-enables but focus is never restored, so a keyboard user loses their tab position on first use. `aria-busy` is already set; the disable is redundant and is what breaks it.",
+          "The same 600ms window poisons the focus-return contract: if the bar is dismissed or undone before the round trip finishes, `returnFocusTo.focus()` targets a still-disabled button and is a no-op, silently dropping focus to body instead of back to Save.",
+          "Escape is bound on the snackbar root only, so explicit keyboard dismiss requires first tabbing into the bar. There is no document-level Escape handler; a keyboard user who never tabs in has no keyboard dismiss path at all.",
+          "Undo, Escape, and dismiss are silently inert during the ~230ms ENTERING window (double rAF + 200ms transition) because every activator requires `state === VISIBLE`. Input in that window is dropped with no queueing.",
+          "Mount is gated on `requestAnimationFrame`, which is throttled in a background tab: saving and immediately switching tabs leaves the node in the DOM at `opacity:0` with no auto-dismiss timer armed until the tab is refocused. Self-heals, but the surface is present-and-invisible in the meantime.",
+          "State-model wart: the undo path sets `state = REVERTED` at the START of the exit animation rather than LEAVING, so LEAVING is never entered for undo and the readout reports a terminal state while motion is still running. Also `var VALUES = [\"Private\", \"Public\"]` is dead code."
+        ],
+        "worst_defect": "Disabling the focused Save button for the 600ms simulated round trip blurs it to `<body>`, so every keyboard-initiated save loses focus position — and any dismiss/undo inside that window has its `returnFocusTo.focus()` silently no-op against a disabled element."
+      }
+    ]
+  },
+  {
+    "build": "build-12",
+    "votes": [
+      {
+        "lens": "craft",
+        "score": 85,
+        "strengths": [
+          "Genuinely editorial construction: zero radius, zero shadow, zero glow, no gradient anywhere — the snackbar is one square hairline-framed bar segmented by internal 1px rules into message | Undo | ×, rather than a floating pill with a button parked inside it. No card-soup, no nested surface, and it is anchored to the same content-column width as the page rather than centre-floating, so it reads as part of the page grid instead of an overlay from another design system.",
+          "Accent discipline is exact. #ed4609 appears on exactly one thing in the rendered state — the word \"Undo\" — plus ::selection. No accent fill, no second hue, no accent on the timer, the border, or the primary button. The undo is the loudest thing in the component and it is loud only because it is the only coloured thing.",
+          "Hierarchy is carried by weight, colour and register, never by display size. Snackbar message sits at body 16/400 in --color-fg; the dismiss is --color-fg-muted and recedes; all metadata (eyebrow, CURRENT label, readout) is 13px mono with 0.08em tracking, forming one consistent secondary register. Nothing is enlarged to be emphatic.",
+          "Quiet load-bearing detail rather than decoration: the value dims to --color-fg-muted for 600ms while the optimistic write settles and resolves to white; the × is a 16px currentColor stroke with square linecap matching the zero-radius language; inner focus rings use a negative offset so they inset instead of breaking the bar's edge. Copy is deadpan and unexclaimed (\"Visibility set to Public.\")."
+        ],
+        "defects": [
+          "The depleting timer is the one visible craft failure. It is --rule-strong (2px) laid over a 1px --color-line-strong frame at the bottom edge, so the box carries two different stroke weights on the same edge, and because it scales from the left it renders — as in the screenshot — as a bottom border that stops partway across (~x=637) with a gap to the right. At a glance it reads as a rendering artefact or a broken border, not as remaining time. A hairline at --rule-hairline inset above the frame, or a top-edge rule, would have said the same thing without damaging the box.",
+          "The snackbar's frame is --color-line-strong (#545454) while every other rule on the page is --color-line (#363636), making the component's own chrome the brightest hairline on the surface. Defensible for an overlay, but it is the chrome asserting rather than receding.",
+          "Four separate stroke elements on one 480px object — outer frame, two internal dividers, timer bar — is mild over-articulation for a transient confirmation. The × cell in particular is fenced off by its own rule for a control that is already the quietest thing in the bar.",
+          "The demo harness explains rather than shows: a four-line hint paragraph narrating pause-on-hover, undo, and escape, plus a live \"state / remaining\" readout that duplicates what the timer bar already encodes. Instrumentation is honest for a fixture, but the prose block is the one place the page tells instead of demonstrating.",
+          "Two off-scale spacing values — calc(--space-xxl * 1.5) = 72px and calc(--space-xxl * 3) = 144px — sit outside the declared 4/8/16/24/32/48 ladder. Visually fine, but it breaks the claim that every value is a token.",
+          "Minor authoring impurity: .sr-only borrows --rule-hairline for its 1px clip dimensions, which is token reuse where the semantics don't hold."
+        ],
+        "worst_defect": "The auto-dismiss timer is a 2px bar overlaid on the snackbar's 1px bottom border, so the box shows two stroke weights on one edge and — mid-countdown — reads as a bottom border that simply stops partway across. It is the only element on an otherwise immaculately restrained component that looks like a mistake rather than a decision."
+      },
+      {
+        "lens": "brief",
+        "score": 89,
+        "strengths": [
+          "All three required affordances exist and behave distinctly: inline Undo (restores the previous value and raises its own shorter 3.2s \"Reverted to Private.\" confirmation with no further undo), a 6s auto-dismiss driven by a rAF clock with a visible depleting hairline, and an explicit dismiss (X button with aria-label plus Escape). Dismiss is silent and leaves the change applied; Undo reverts state and confirms — genuinely different outcomes, not two spellings of \"close\".",
+          "The auto-dismiss hold is the sub-requirement most builds get wrong, and this one gets the interlock right. `pointerenter`/`focusin` both pause; `pointerleave` and `focusout` both route through `maybeResume()`, which re-checks BOTH `hovered` and `node.contains(document.activeElement)` before resuming, and `focusout` early-returns when `relatedTarget` is still inside. Hover-then-tab-in-then-unhover correctly stays paused. Window blur also leaves it paused because activeElement survives.",
+          "Optimistic semantics are actually modeled, not just asserted: `commit()` writes the new value to the DOM immediately, marks it `data-pending` for 600ms while \"the request settles,\" and raises the confirmation at once. The page copy and the state readout (state / remaining) make the machine legible without faking a loading gate.",
+          "Copy is restrained and factual — \"Visibility set to Public.\" / \"Reverted to Private.\" State what happened, no apology, no selling, no exclamation, no \"Success!\" wrapper. Reduced-motion is honored end-to-end (exit duration collapses to 0), and every value is `var(--token, fallback)` against the exact DESIGN.md numbers with no external requests."
+        ],
+        "defects": [
+          "Keyboard focus is dropped on the Undo path. `dismiss()` restores focus to the Save button when focus was inside the snackbar, but clicking Undo never calls `dismiss()` — `onUndo` goes straight to `show()`, whose `clearImmediately()` + `while (region.firstChild) removeChild` tears out the focused Undo button with no focus restore. A keyboard user who tabs to Undo and presses Enter lands on `<body>`. That is the single most likely keyboard path through this component.",
+          "Explicit dismiss does not disarm Undo. `dismiss()` sets `current = null` and starts a 200ms exit, but the node stays in the DOM with `pointer-events: auto` and the Undo listener live. A click in the Undo cell within that 200ms window (after pressing X, or after Escape) still fires `onUndo` and reverts the save — the two outcomes the brief wants kept distinct can collide.",
+          "The polite live region announces only the message text (\"Visibility set to Public.\"). It never signals that a time-limited Undo exists, so a screen-reader user is given the confirmation but not the affordance, and the countdown that governs it is invisible to them. The visible snackbar itself carries no role, so nothing associates the announcement with the buttons.",
+          "Escape is bound globally on `document` and fires whenever `current` is truthy, regardless of where focus is. A non-modal snackbar hijacking Escape from anywhere on the page is more aggressive than the pattern warrants; scoping it to focus-within (or focus-within plus a documented global) would be the correct behavior.",
+          "The message half-restates what the row already shows. The setting is labeled \"Project visibility\" and the row reads \"CURRENT Public\" two inches above; the snackbar then says \"Visibility set to Public.\" It is defensible as a state readback, but it is the object restated rather than purely the event.",
+          "Minor: a stale `exitTimer` from a superseded snackbar is never cleared. `clearImmediately()` only touches `current`, and a node already in the `leaving` phase is not `current`, so its 200ms timer survives the sweep and can later fire `setReadout(\"idle\", null)` while a second snackbar is mid-exit. Harness-readout only, no user-facing effect."
+        ],
+        "worst_defect": "Clicking Undo destroys the focused button without restoring focus — the `onUndo` path bypasses `dismiss()` and its focus-return, so a keyboard user who activates Undo is stranded on `<body>`. Dismiss handles this correctly; undo, the more important path, does not."
+      },
+      {
+        "lens": "repro",
+        "score": 85,
+        "strengths": [
+          "State machine is genuinely real, not decorative: rAF-driven countdown with preserved `remaining` across pause/resume — live-measured 5.9s→5.4s ticking, then held at 5.4s across 500ms while focus was inside. Pause fires on both `pointerenter` and `focusin`, and `maybeResume()` correctly refuses to resume while either hover or focus is still held.",
+          "The surface is truly added to and removed from the DOM. `.snackbar` count measured 0 → 1 → 0 across auto-dismiss, Escape, and close-button paths; `removeNode()` runs after the exit delay, and `show()` sweeps `region.firstChild` so only one node can ever exist. No CSS-hidden zombie.",
+          "prefers-reduced-motion genuinely collapses on BOTH sides. CSS: measured `transitionDuration: 1e-06s` and the snackbar already at `opacity: 1` on first paint. JS: `var exit = reduceMotion.matches ? 0 : EXIT_MS` reads `.matches` live at dismiss time, so the removal isn't stuck behind a 200ms wait for a transition that never runs.",
+          "Concurrency and lifecycle edges are handled, verified live: rapid triple Save and a dismiss-immediately-followed-by-save both end with exactly one snackbar and a correct `remaining`; the departing entry's `exitTimer` is guarded by `if (!current)` so it can't stomp the new one's readout. Zero console/page errors on every path exercised."
+        ],
+        "defects": [
+          "CONFIRMED, primary path: activating Undo drops focus to `document.body`. `options.onUndo()` calls `show()` → `clearImmediately()` → `removeNode()`, synchronously removing the node containing the just-activated button. `dismiss()` implements focus restoration (`hadFocus → saveButton.focus()`) but this path does not, so a keyboard user loses their tab position on the single most important control in the brief (WCAG 2.4.3). Measured `document.activeElement === body` in both motion modes.",
+          "The depleting hairline is rAF-driven (`--snackbar-progress` set every frame in `tick()`) with no `reduceMotion.matches` check, so it keeps animating continuously under prefers-reduced-motion while every other motion in the file correctly collapses. Defensible as an informational countdown, but it is the one motion the reduced-motion handling misses.",
+          "The `role=\"status\"` announcement is the bare message (\"Visibility set to Public.\") — it never mentions that an Undo exists or that the notice will self-dismiss. The Undo button is reachable only by Tab and announces as a context-free \"Undo\". The brief's headline affordance is functionally opaque to a screen-reader user until they happen to tab into it.",
+          "During the ~200ms `leaving` phase the node stays in the DOM with `pointer-events: auto` and two still-focusable buttons at `opacity: 0`. Narrow window, but a Tab or click landing there hits an invisible departing control; `inert` or a `tabindex`/`pointer-events` flip on `data-phase=\"leaving\"` would close it.",
+          "`saveButton` is never disabled during the 600ms optimistic window even though `.btn[disabled]` styling is authored. Behavior stays correct under rapid clicks (verified), so this is unused CSS plus a missed affordance rather than a functional break."
+        ],
+        "worst_defect": "Activating Undo destroys keyboard focus — `show()`/`clearImmediately()` removes the focused button's node from the DOM with no focus restoration, so `document.activeElement` falls to `body` (confirmed live in both motion modes). The author demonstrably knew to handle this, since `dismiss()` restores focus to the Save button; the branch was simply missed on the one path the brief cares most about."
+      }
+    ]
+  },
+  {
+    "build": "build-13",
+    "votes": [
+      {
+        "lens": "craft",
+        "score": 86,
+        "strengths": [
+          "Hierarchy inside the component is carried by weight and colour, never size — 16px/400 white message against a 13px/500 accent \"Undo\" — which is exactly the arena binding's rule. Radius 0 throughout, no shadow, no glow, no elevation trickery, one hue; the bar separates from the page on bg-elev + a single hairline and nothing else.",
+          "Spacing is grouped rather than uniform: 16px between message and action cluster, 4px inside it, so the two controls read as one unit at a glance. Bar padding is deliberately asymmetric (24px left, 8px right) with the 44px tap box supplying the optical right inset — that's an exacting call, not sloppiness.",
+          "The single piece of decoration is load-bearing and honest. The countdown hairline IS the undo window, hover/focus pauses it, and under prefers-reduced-motion the element is never built at all rather than freezing as a static bar that would lie about remaining time.",
+          "A second, free axis of hierarchy: mono is reserved for machine values (the ACCOUNT eyebrow, the \"Private\" state) while prose stays in the sans body band. Costs nothing visually and makes the changed value legible without bolding or colouring it."
+        ],
+        "defects": [
+          "The snackbar is anchored to the viewport gutter (left: 24px) while the page content column begins at ~304px, so its left edge, the hairline rules, and the h1 all start at different x positions. In the render it floats unmoored in the lower-left corner of an otherwise centred editorial page — the one visible break in the layout's rhythm.",
+          "The accent is spent twice inside one 460px component: the Undo label and a ~400px countdown rail. In the screenshot that rail is the largest and most saturated mass of colour on the entire page, which pressures the \"punctuation, not fill\" rule — a hairline in --line-strong would have carried the same information without out-shouting everything above it.",
+          "Eyebrow treatment (uppercase + 0.08em --tracking-label) is applied to every button, so the white \"SAVE CHANGE\" slab becomes the loudest ink on the page while the actual setting value sits in muted grey. The .btn--ghost variant that would have kept chrome quieter is fully authored and never used.",
+          "The demo page narrates its own interaction in three explainer lines (\"The hairline shows what is left of the window\", \"Hover or focus holds the countdown\"). Deadpan in voice, but it is telling where the brief's standard is showing — the component already demonstrates all three.",
+          "CSS comments editorialise about their own restraint — \"the accent is punctuation here, never a fill\", \"the only decoration here, and it is load-bearing\". Selling in the source of an artifact whose whole standard is not selling.",
+          "Interior air is adequate rather than generous: an 8px bar pad plus 8px message padding-block yields ~15px of optical space above and below a single line of 16px text, so the bar reads slightly compressed against the openness of the page it sits under."
+        ],
+        "worst_defect": "The snackbar is pinned to the viewport gutter instead of the page's content column, so its left edge aligns with nothing on the page — unlike the accent-rail loudness, which is at least a defensible judgment call, this one has no reading in which it is deliberate."
+      },
+      {
+        "lens": "brief",
+        "score": 84,
+        "strengths": [
+          "Genuinely optimistic and genuinely three-affordance: the value flips before the snackbar is built, Undo reverts and confirms with distinct terse copy, and the X (plus Escape) dismisses while leaving the change standing — dismiss and undo are unambiguously different outcomes.",
+          "The auto-dismiss clock and the countdown hairline are driven from the same `--snackbar-dwell` custom property (`dwellOf()` reads the computed value off the element), so the visible progress bar cannot lie about the real timeout — and the terse 3600ms variant reroutes both at once.",
+          "Pause/resume arithmetic is correct across repeated cycles: `hold()` subtracts elapsed from `remaining` and pauses `animation-play-state`, `run()` re-arms from the remainder and un-pauses, so the bar and the timer stay in step. `focusout` correctly ignores relatedTarget still inside the surface, so tabbing Undo -> Dismiss does not restart the clock.",
+          "Copy states what happened without selling or apologising (\"Visibility set to Private.\" / \"Visibility restored to Public.\"), and focus is returned to the Save button when a snackbar holding focus is torn down."
+        ],
+        "defects": [
+          "Hover-hold and focus-hold share one latch instead of composing: `mouseleave` calls `entry.run()` unconditionally, so moving the pointer away while keyboard focus is still on the Undo button resumes the countdown — and `focusout` resumes it while the pointer is still inside the surface. The brief requires the clock held while pointer OR focus is inside.",
+          "No initial-hover check on append (`el.matches(':hover')` or equivalent): a snackbar that renders underneath an already-stationary cursor never receives `mouseenter`, so it counts down and disappears with the pointer sitting on it.",
+          "Undo survives the undo window: `teardown()` adds `.snackbar--leaving` and only removes the node on `animationend`, leaving the button clickable with `pointer-events: auto` for the ~120ms fade, so a late click reverts the change after expiry.",
+          "The Escape handler is bound globally to `document` and fires on any keypress anywhere while a snackbar exists, with no scoping to the surface or check for a competing dismissible layer.",
+          "Under `prefers-reduced-motion` the countdown hairline is omitted entirely while the JS timeout still runs, so those users get an auto-dismiss with no indication of how much undo window remains — defensible, but it removes the one signal that makes the timeout legible.",
+          "Message copy names \"Visibility\", duplicating both the page H1 and the value already rendered in the row immediately above the snackbar — mild restatement of the saved object."
+        ],
+        "worst_defect": "Hover-hold and focus-hold are a single shared latch rather than an OR of two states, so `mouseleave` resumes the auto-dismiss countdown while keyboard focus is still inside the snackbar (and `focusout` resumes it while the pointer is still inside) — a direct miss on the one behavior the brief calls out by name."
+      },
+      {
+        "lens": "repro",
+        "score": 89,
+        "strengths": [
+          "Genuinely real lifecycle: every showing constructs a fresh node and teardown calls removeChild — nothing is CSS-hidden. The persistent empty #snackbar-region is the correct pre-registered aria-live shell, not a hidden snackbar.",
+          "Reduced motion is handled at both layers: the countdown hairline is never constructed when reduced.matches (rather than rendering a bar that snaps to zero), and auto-dismiss runs on setTimeout rather than animationend, so collapsing animations to 0.001ms cannot strand the surface on screen. reduced.matches is re-read per show(), so a mid-session preference change is picked up.",
+          "The animationend handler explicitly filters event.target !== el because the 6000ms countdown fill's own animationend bubbles to the snackbar — exactly the bug that would otherwise tear the surface down early — backed by a done latch and a 400ms fallback timer.",
+          "Pause/resume does real time bookkeeping (entry.remaining decremented by elapsed, timeout re-armed with the remainder) and the CSS bar is paused in lockstep via animation-play-state; both read the same --snackbar-dwell token, so the .snackbar--terse 3600ms override drives JS and CSS identically. Focus restores to the Save button on teardown, Escape is wired, and re-entrancy is safe (teardown nulls current first, so double-dismiss is a no-op)."
+        ],
+        "defects": [
+          "Hold/resume is not reference-counted: mouseleave and focusout each call entry.run() unconditionally, so hovering then tabbing out (or focusing Undo then moving the mouse off) resumes the countdown while the other hold is still active — the snackbar can auto-dismiss out from under a focused Undo button, breaking the page's own stated 'hover or focus holds the countdown' contract.",
+          "Transient double-snackbar: teardown(entry,false) nulls `current` immediately but leaves the node in the DOM for ~120ms, so a show() inside that window (Escape/Dismiss then click Save) skips the `if (current)` force-removal and stacks two snackbars in the bottom-anchored region; the first teardown's deferred saveBtn.focus() then also fires after the new surface has mounted.",
+          "Interactive controls (Undo, Dismiss) live inside role=\"status\" aria-live=\"polite\" aria-atomic=\"true\", so they are announced as part of the status string, and nothing informs a keyboard/AT user that Undo exists or that the window expires — 6s to discover and Tab there is thin, even though focusin extends it once reached.",
+          "The 400ms teardown safety timeout is a hardcoded literal rather than derived from --motion-duration-slow, so it silently decouples if the motion tokens change.",
+          "No touch equivalent of hover-pause: on a touch device the undo window is a hard 6s with no way to extend it short of tabbing to a control."
+        ],
+        "worst_defect": "Hold/resume is not reference-counted — mouseleave and focusout both unconditionally restart the dwell timer, so a hover-then-tab-out (or focus-then-mouse-off) sequence resumes the countdown while the surface is still hovered or still holds focus, letting the snackbar auto-dismiss out from under a focused Undo button and violating the interaction contract the page itself states."
+      }
+    ]
+  },
+  {
+    "build": "build-14",
+    "votes": [
+      {
+        "lens": "craft",
+        "score": 81,
+        "strengths": [
+          "Accent discipline is the best thing here and it is a real idea, not compliance: #ed4609 appears exactly once in the entire document, as a 1px text-decoration-color under \"Undo\" — the one reversible action. No fill, no pill, no second hue, no glow, no gradient. That is 'punctuation, not fill' executed literally.",
+          "Chrome genuinely recedes: border-radius explicitly 0, zero box-shadow anywhere, elevation carried by #141414 on #050505 plus a single --color-line hairline. The internal divider between statement and controls reuses the same hairline vocabulary as the field-list rules, so the component reads as native to the page rather than a component-library import dropped on top.",
+          "Emphasis is carried by weight and colour, never by size — the page title sits at --type-h3 (27px) rather than h2/h1, the snackbar message and \"Undo\" are the same 16px body with only weight and the accent underline separating them, and the whole page uses four type sizes. The dismiss affordance is a 1.5-stroke currentColor X at --icon-sm on a muted ghost, which is the correct amount of nothing.",
+          "Copy restraint holds where it matters most: \"Saved\" — one word, unexclaimed, no checkmark icon, no \"Your changes have been saved successfully.\" The terminal ledger line (\"Last change kept.\" / \"Last change reverted.\") is deadpan and sits in dim mono at --type-label so it recedes rather than competing."
+        ],
+        "defects": [
+          "Two contradictory status statements are on screen simultaneously in the delivered render: the trigger reads \"Saving…\" while the snackbar reads \"Saved\". Worse, the loading state strips the primary button's white fill for a hollow --color-line-strong outline, so the page's strongest element visually collapses at the exact moment the confirmation appears — the hierarchy inverts mid-flight. An optimistic save's whole premise is that the trigger does NOT enter a pending state; this is redundant chrome that does not recede and it undercuts the very confirmation it accompanies.",
+          "The .snackbar__actions divider is align-self:stretch inside padding-block:var(--space-xs), leaving the hairline inset exactly 4px from the top and bottom borders. At this scale that reads as a near-miss rather than a decision — a rule should either run full-bleed to the borders or be clearly inset by a real step on the scale. As rendered it gives the snackbar a faint two-cell/table look instead of a clean editorial division.",
+          "The snackbar is centred at 480px against a 688px content column, so it shares no edge with the page's only structural grid. In a system whose whole layout argument is hairline rules and a measure, the confirmation floats free of the column it is confirming a change to. Defensible by snackbar convention, but it is the one element on the page that answers to nothing.",
+          "The lede — \"The confirmation carries the way back.\" — is a writerly flourish about the component rather than plain instruction. It is not salesy, but it is the copy admiring itself, which the surface binding's \"deadpan\" register does not have room for.",
+          "Optical asymmetry at the snackbar's ends: 24px from the left border to \"Saved\" versus ~18px from the X's edge to the right border (4px end padding plus the ghost button's own 8px inset inside a 44px target). Partly justified as icon compensation, but the right end reads slightly tight against the border in the render.",
+          "One bare visual literal survives in component CSS despite the file's own comment claiming tokens are the only place literals are permitted: max-width:60ch on .page__lede. Trivial, and ch is a defensible measure unit, but the file states a stricter rule than it keeps."
+        ],
+        "worst_defect": "The primary button hollows out and reads \"Saving…\" at the same moment the snackbar reads \"Saved\" — two competing status surfaces saying opposite things in one view, with the page's strongest element losing its fill and pulling emphasis away from the confirmation. It is the one thing in the delivered screenshot a designer would flag on sight, and it is a restraint failure: a pending state that an optimistic save should not have shown at all."
+      },
+      {
+        "lens": "brief",
+        "score": 85,
+        "strengths": [
+          "All three required affordances exist and behave sanely: inline Undo, a 6000ms auto-dismiss driven off a --snackbar-dwell token, and an explicit dismiss (× button with aria-label plus an Escape handler).",
+          "Undo and dismiss are genuinely distinct outcomes, not two paths to the same end — undo restores previousValue, cancels the in-flight save, and writes 'Last change reverted.'; dismiss and auto-dismiss leave the change and write 'Last change kept.'",
+          "Copy is exemplary for the lens: 'Saved' alone — no selling, no apology, no restatement of the saved object; the ledger differentiates outcomes in the same plain register.",
+          "The clock is implemented with real elapsed-time accounting (remaining/resumeAt) rather than a naive restart, plus a post-entrance race check that pauses immediately if a pointer or focus arrived during the 200ms enter animation, and a data-cancelled token so a replaced surface never reaches a terminal state."
+        ],
+        "defects": [
+          "Asymmetric clock guard: `mouseleave` calls `resume()` unconditionally while `onFocusOut` correctly checks `:hover` first. Hover in → tab to Undo → move the pointer away restarts the 6s clock with keyboard focus still inside, and the surface then deletes itself out from under the focused control. Directly violates the 'held while pointer OR keyboard focus is inside' requirement.",
+          "Dismiss, Undo, and Escape all guard on `state() !== 'visible'`, but the snackbar sits in `entering` for the full 200ms enter animation. Both controls are mounted, visible, and focusable during that window yet are silent no-ops.",
+          "The optimistic framing contradicts itself on screen: the snackbar asserts 'Saved' while the trigger simultaneously reads 'Saving…' for 900ms (visible in after-save.png). A confirmation of a change that already happened should not sit beside a control saying it hasn't.",
+          "No focus restoration — `inertize()` sets `inert` on a surface that may contain focus (auto-dismiss or undo), dropping focus to <body> with nothing returning it to the Save trigger.",
+          "The simulated flight has no failure path: `settleFlight` always succeeds, so the optimistic commit can never be rolled back by the server, only by the user. Not required by the brief, but it leaves the 'optimistic' half of the pattern unexercised.",
+          "`dwellMs()` uses `parseFloat` on the raw token value, so a perfectly reasonable token edit to `6s` would silently yield a 6ms dwell rather than 6000ms."
+        ],
+        "worst_defect": "The auto-dismiss clock is not reliably held while keyboard focus is inside the surface: `mouseleave` resumes the timer with no check on `document.activeElement`, whereas `focusout` does check hover — so a hover-then-tab-to-Undo-then-pointer-away sequence lets the snackbar auto-dismiss while the user's focus is sitting on the Undo button, destroying both the affordance and the focus position."
+      },
+      {
+        "lens": "repro",
+        "score": 86,
+        "strengths": [
+          "State machine is real, not decorative: absent/entering/visible/leaving/reverted live in `data-state`, drive the CSS, and gate every transition (`leave()` and `onUndo()` both early-return unless state is `visible`). Verified live — interrupting an exit animation with a new save yields exactly 1 node in state `visible` that still auto-dismisses correctly, guarded by a `data-cancelled` sentinel that stops the orphaned `afterAnimation` callback from reaching a terminal state.",
+          "prefers-reduced-motion genuinely collapses, and I confirmed it rather than trusting the CSS: under `reducedMotion: reduce` the mounted snackbar computes `transform: none` and `animation-duration: 1e-05s` (vs `matrix(1,0,0,1,0,3.23)` / `0.2s` normally). The `@keyframes` redefinition inside the media block really does win, and `afterAnimation()` carries a `setTimeout` fallback so the machine still advances if `animationend` never fires.",
+          "The surface is truly mounted and unmounted — `body.appendChild` on commit, `parentNode.removeChild` on every terminal path — never CSS-hidden. Confirmed `document.querySelector('[data-snackbar]')` is null after auto-dismiss, Escape, Dismiss, and Undo.",
+          "The pause/resume clock is correctly accounted, not naively restarted: `remaining -= (Date.now() - resumeAt)` on pause, `startClock(remaining)` on resume, with `focusin`/`focusout` as well as hover, plus a post-entrance re-check (`snack.contains(document.activeElement) || snack.matches(':hover')`) that catches a pointer or focus arriving during the 200ms entrance. Live: `data-clock` flips to `paused` on Tab-to-Undo, and the surface survives 7s hovered then dies 6s after unhover."
+        ],
+        "defects": [
+          "Focus is never restored. There is no `.focus()` call anywhere in the file — `document.activeElement` is only ever read. Worse, `inertize()` sets `el.inert = true` while focus is inside, which actively evicts it. Verified live: after keyboard-Undo, after Dismiss, and after Escape, `document.activeElement` is `BODY`. A keyboard user who tabs to Undo and presses Enter is dumped to the top of the document, and the trigger they came from (`#save-btn`) is never re-focused.",
+          "The Save button is disabled by `pointer-events: none` (via `.btn--loading`) rather than the `disabled` attribute — confirmed live `saveBtn.disabled === false` during the 900ms flight. It stays in the tab order and stays keyboard-activatable while reading \"Saving…\" with `aria-busy=\"true\"`, so Enter fires a second `commit()` that a mouse user is blocked from. Mouse and keyboard disagree about whether the control is live.",
+          "Hover-pause has no touch counterpart. On touch devices a tap on the snackbar body synthesizes `mouseenter` with no matching `mouseleave`, which parks `data-clock=\"paused\"` and leaves the surface up indefinitely; the only escape is `focusout`/`resume`, which never fires because nothing inside was focused. There is no `pointerdown`/`touchstart` guard and no ceiling on the paused state. (Reasoned from the code path, not touch-emulated.)",
+          "Escape is a no-op during the ~200ms `entering` window — the handler guards on `state() === \"visible\"`. Same for `onDismiss()`, which routes through the same guard, so a fast click on the × mid-entrance is swallowed silently rather than queued.",
+          "`note()` is skipped when a new commit interrupts a `leaving` surface: `teardown()` marks it `data-cancelled`, and `finish()` returns before `done()`, so that outcome never reaches the ledger. The surrounding surface silently loses a terminal record it claims to reflect.",
+          "`dwellMs()` does `parseFloat(getPropertyValue('--snackbar-dwell'))` with no unit handling — the authored `6000ms` works, but editing the token to the equally idiomatic `6s` silently yields a 6ms dwell. Minor, but it makes the token's contract implicit. Related: `afterAnimation`'s fallback `setTimeout` is never cleared, leaving one dead timer per mounted surface (harmless — the `settled` flag absorbs it)."
+        ],
+        "worst_defect": "Focus is never returned to the invoking trigger. No `.focus()` call exists in the file, and `inertize()` (`el.inert = true` + `aria-hidden`) evicts focus from the snackbar before removal — verified live, `document.activeElement` is `BODY` after Undo, Dismiss, and Escape, so a keyboard user is thrown to the top of the document on first use."
+      }
+    ]
+  }
+]

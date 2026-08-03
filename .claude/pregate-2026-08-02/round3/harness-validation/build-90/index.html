@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><title>defective fixture</title>
+<style>
+  :root { --color-bg:#050505; --color-fg:#f2f0ed; --color-accent:#ed4609; --type-body:16px; }
+  body { background:#050505; color:#f2f0ed; font-family: system-ui; margin:0; padding:40px; }
+  .bar { position:fixed; bottom:24px; left:24px; background:#141414; padding:12px; display:flex; gap:12px; align-items:center; }
+  .msg { font-size:27px; color:#f2f0ed; }
+  .undo { font-size:14px; color:#3a3a3a; background:none; border:none; width:24px; height:20px; }
+</style></head><body>
+<button id="save" style="padding:12px 20px">Save change</button>
+<script>
+  document.getElementById('save').onclick = () => {
+    const d = document.createElement('div'); d.className='bar';
+    d.innerHTML = '<span class="msg">Saved</span><button class="undo">Undo</button>';
+    document.body.appendChild(d);
+  };
+</script></body></html>

@@ -1,0 +1,204 @@
+{
+  "skeleton": {
+    "structure": {
+      "node_id": "snackbar_root",
+      "role": "transient confirmation that a save already went through, anchored to the bottom edge of the viewport and removed from the document when it ends",
+      "archetype": "snackbar",
+      "containment": "overlay",
+      "order": 0,
+      "emphasis": 1,
+      "density": "compact",
+      "children": [
+        {
+          "node_id": "status_message",
+          "role": "polite live-region line that states the save happened; the one thing a reader is meant to take from the surface",
+          "archetype": "status-message",
+          "containment": "inline",
+          "order": 0,
+          "emphasis": 2,
+          "density": "compact",
+          "children": []
+        },
+        {
+          "node_id": "action_row",
+          "role": "trailing group holding the two controls the confirmation offers, separated from the message by a hairline rule rather than a filled surface",
+          "archetype": "action-row",
+          "containment": "row",
+          "order": 1,
+          "emphasis": 1,
+          "density": "compact",
+          "children": [
+            {
+              "node_id": "undo_action",
+              "role": "inline control that reverts the optimistic save; the only element permitted to carry the accent, and it carries it as punctuation on the label rather than as a fill",
+              "archetype": "button",
+              "containment": "inline",
+              "order": 0,
+              "emphasis": 2,
+              "density": "default",
+              "children": []
+            },
+            {
+              "node_id": "dismiss_action",
+              "role": "icon-only control that closes the confirmation immediately without reverting anything; monochrome, recessive, with its own hover and focus-visible states",
+              "archetype": "button",
+              "containment": "inline",
+              "order": 1,
+              "emphasis": 1,
+              "density": "default",
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    "states": {
+      "initial": "absent",
+      "states": [
+        {
+          "name": "absent",
+          "note": "Not in the document at all. The confirmation is added on commit and removed when it ends — never hidden in place."
+        },
+        {
+          "name": "entering",
+          "note": "Mounting. The entrance reveals where the surface sits relative to the viewport edge; it does not decorate."
+        },
+        {
+          "name": "visible",
+          "note": "Readable and interactive. The auto-dismiss clock runs here and is held while a pointer or keyboard focus is inside the surface."
+        },
+        {
+          "name": "leaving",
+          "note": "Exit in progress. The surface is inert to further input so a late click cannot re-enter the machine."
+        },
+        {
+          "name": "dismissed",
+          "terminal": true,
+          "note": "Removed from the document. The save stands."
+        },
+        {
+          "name": "reverted",
+          "terminal": true,
+          "note": "Removed from the document because the reader took the undo. The save was rolled back; this outcome is distinct from dismissed and the surrounding surface has to reflect it."
+        }
+      ],
+      "transitions": [
+        {
+          "from": "absent",
+          "to": "entering",
+          "on": "optimistic-save-committed",
+          "kind": "inferred"
+        },
+        {
+          "from": "entering",
+          "to": "visible",
+          "on": "entrance-motion-end",
+          "kind": "inferred"
+        },
+        {
+          "from": "visible",
+          "to": "leaving",
+          "on": "timeout",
+          "timeout_ms": 6000,
+          "paused_by": ["hover", "focus-within"],
+          "kind": "pattern",
+          "pattern_ref": "toast-auto-dismiss-paused-by-hover-and-focus"
+        },
+        {
+          "from": "visible",
+          "to": "leaving",
+          "on": "dismiss-activated",
+          "kind": "inferred"
+        },
+        {
+          "from": "visible",
+          "to": "reverted",
+          "on": "undo-activated",
+          "kind": "inferred"
+        },
+        {
+          "from": "leaving",
+          "to": "dismissed",
+          "on": "exit-motion-end",
+          "kind": "inferred"
+        }
+      ]
+    },
+    "content": [
+      {
+        "node_id": "status_message",
+        "slot": "message",
+        "copy": "Saved",
+        "voice_constraint": "State what happened and stop. No exclamation, no persuasion words, no restating the object that was saved.",
+        "max_chars": 24,
+        "kind": "inferred"
+      },
+      {
+        "node_id": "undo_action",
+        "slot": "label",
+        "copy": "Undo",
+        "voice_constraint": "One verb. Name the reversal, never soften it into a question.",
+        "max_chars": 12,
+        "kind": "inferred"
+      },
+      {
+        "node_id": "dismiss_action",
+        "slot": "accessible-label",
+        "copy": "Dismiss",
+        "voice_constraint": "Names the action for a screen reader only; the control itself shows an icon drawn with the current text colour.",
+        "max_chars": 16,
+        "kind": "inferred"
+      }
+    ],
+    "motion": [
+      {
+        "node_id": "snackbar_root",
+        "on": "enter",
+        "properties": ["opacity", "translateY"],
+        "from": { "opacity": 0, "translateY": 16 },
+        "to": { "opacity": 1, "translateY": 0 },
+        "duration_ms": 200,
+        "delay_ms": 0,
+        "easing": null,
+        "source": "pattern-knowledge",
+        "reduced_motion": "opacity-only"
+      },
+      {
+        "node_id": "snackbar_root",
+        "on": "exit",
+        "properties": ["opacity", "translateY"],
+        "from": { "opacity": 1, "translateY": 0 },
+        "to": { "opacity": 0, "translateY": 8 },
+        "duration_ms": 120,
+        "delay_ms": 0,
+        "easing": null,
+        "source": "pattern-knowledge",
+        "reduced_motion": "instant"
+      }
+    ],
+    "provenance": [
+      {
+        "claim": "A bottom-anchored confirmation carrying one inline reversal control and a hover-paused auto-dismiss is the standing shape of an optimistic-save affordance.",
+        "kind": "pattern",
+        "pattern_ref": "toast-auto-dismiss-paused-by-hover-and-focus"
+      },
+      {
+        "claim": "The auto-dismiss clock is held while a pointer or keyboard focus is inside the surface, because a timed surface that disappears mid-reach removes the only reversal path.",
+        "kind": "pattern",
+        "pattern_ref": "toast-auto-dismiss-paused-by-hover-and-focus"
+      },
+      {
+        "claim": "Component text stays in the body band; the rank difference between the message and the dismiss control is carried by weight or the accent, never by display size.",
+        "kind": "note"
+      },
+      {
+        "claim": "Undo and dismiss are separate outcomes, so the machine terminates in two distinct states rather than folding the reversal into the ordinary close.",
+        "kind": "inferred"
+      },
+      {
+        "claim": "No reference capture was supplied for this build, so every structural rank, order and containment value is inferred from the stated intent rather than measured off a rendered surface.",
+        "kind": "inferred"
+      }
+    ]
+  }
+}

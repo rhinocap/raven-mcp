@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snackbar — optimistic save (arena fixture)</title>
+<style>
+/* ------------------------------------------------------------------ *
+ * Token layer — the ONLY place literals are permitted.
+ * Values transcribed from arena/DESIGN.md frontmatter.
+ * ------------------------------------------------------------------ */
+:root {
+  /* colors */
+  --color-bg:          #050505;
+  --color-bg-elev:     #141414;
+  --color-bg-card:     #1c1c1c;
+  --color-fg:          #ffffff;
+  --color-fg-muted:    #b8b8b8;
+  --color-fg-dim:      #828282;
+  --color-line:        #363636;
+  --color-line-strong: #545454;
+  --color-accent:      #ed4609;
+
+  /* type scale */
+  --type-label: 13px;
+  --type-body:  16px;
+  --type-lead:  20px;
+  --type-h3:    27px;
+  --type-h2:    56px;
+  --type-h1:    96px;
+
+  /* space scale */
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md:  16px;
+  --space-lg:  24px;
+  --space-xl:  32px;
+  --space-xxl: 48px;
+
+  /* motion */
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 200ms;
+  --motion-duration-slow: 400ms;
+  --motion-easing-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --motion-easing-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-easing-site:      cubic-bezier(0.56, 0.22, 0.05, 0.99);
+
+  /* families — Untitled Sans 400/500/700, no italic file is loaded */
+  --font-body:    "Untitled Sans", "UntitledSans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-display: var(--font-body);
+  --font-mono:    "Geist Mono", "Geist", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-serif:   "Domaine Display", "Domaine Display SemiBold", Georgia, serif;
+
+  --weight-regular: 400;
+  --weight-medium:  500;
+  --weight-bold:    700;
+
+  --leading-tight: 1.15;
+  --leading-body:  1.5;
+
+  /* component-dimension tokens (semantic; px is reserved for these) */
+  --hairline:      1px;
+  --icon-size-sm:  16px;
+  --control-min:   44px;
+  --measure-form:  34rem;
+  --measure-page:  46rem;
+  --focus-offset:  2px;
+
+  /* how long the confirmation holds before the auto-dismiss clock expires */
+  --snackbar-hold: 6000ms;
+}
+
+/* ------------------------------------------------------------------ *
+ * Page ground
+ * ------------------------------------------------------------------ */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--color-bg, #050505);
+  color: var(--color-fg, #ffffff);
+  font-family: var(--font-body, sans-serif);
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-regular, 400);
+  line-height: var(--leading-body, 1.5);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ------------------------------------------------------------------ *
+ * Semantic button system
+ *   variants: primary · secondary · ghost
+ *   states:   hover · focus-visible · active · disabled · loading
+ * ------------------------------------------------------------------ */
+.btn {
+  --btn-fg: var(--color-fg, #ffffff);
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm, 8px);
+  min-block-size: var(--control-min, 44px);
+  min-inline-size: var(--control-min, 44px);
+  padding-block: 0;
+  padding-inline: var(--space-lg, 24px);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--btn-fg);
+  font-family: inherit;
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-medium, 500);
+  line-height: var(--leading-tight, 1.15);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    color      var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
+    background var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
+    border-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out);
+}
+
+.btn:focus-visible {
+  outline: var(--hairline, 1px) solid var(--color-fg, #ffffff);
+  outline-offset: var(--focus-offset, 2px);
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  --btn-fg: var(--color-fg-dim, #828282);
+  cursor: not-allowed;
+}
+
+/* loading — the write is in flight; the label states it, nothing spins */
+.btn[data-loading="true"] {
+  --btn-fg: var(--color-fg-muted, #b8b8b8);
+  cursor: progress;
+  pointer-events: none;
+}
+
+/* primary — hairline frame that inverts on hover; monochrome, no accent fill */
+.btn--primary {
+  border: var(--hairline, 1px) solid var(--color-line-strong, #545454);
+}
+.btn--primary:hover {
+  background: var(--color-fg, #ffffff);
+  border-color: var(--color-fg, #ffffff);
+  --btn-fg: var(--color-bg, #050505);
+}
+.btn--primary:active {
+  background: var(--color-fg-muted, #b8b8b8);
+  border-color: var(--color-fg-muted, #b8b8b8);
+}
+.btn--primary[data-loading="true"] {
+  background: transparent;
+  border-color: var(--color-line, #363636);
+}
+
+/* secondary — label carries a rule; the accent is punctuation on that rule */
+.btn--secondary {
+  position: relative;
+  border: 0;
+}
+.btn--secondary .btn__label {
+  border-block-end: var(--hairline, 1px) solid var(--color-accent, #ed4609);
+  padding-block-end: var(--space-xs, 4px);
+}
+.btn--secondary:hover {
+  --btn-fg: var(--color-accent, #ed4609);
+}
+.btn--secondary:active {
+  --btn-fg: var(--color-fg-muted, #b8b8b8);
+}
+
+/* ghost — recessive chrome; icon-only controls use it */
+.btn--ghost {
+  --btn-fg: var(--color-fg-dim, #828282);
+  border: 0;
+}
+.btn--ghost:hover {
+  --btn-fg: var(--color-fg, #ffffff);
+}
+.btn--ghost:active {
+  --btn-fg: var(--color-fg-muted, #b8b8b8);
+}
+
+.btn--icon {
+  padding-inline: 0;
+  inline-size: var(--control-min, 44px);
+}
+
+.btn__icon {
+  inline-size: var(--icon-size-sm, 16px);
+  block-size: var(--icon-size-sm, 16px);
+  display: block;
+}
+
+/* ------------------------------------------------------------------ *
+ * <snackbar> — transient confirmation of an optimistic save
+ * Archetype names resolved to: .snackbar / .snackbar__message /
+ * .snackbar__actions (no equivalents existed in the system).
+ * ------------------------------------------------------------------ */
+.snackbar {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: var(--space-xl, 32px);
+  margin-inline: auto;
+  inline-size: min(calc(100% - var(--space-xl, 32px)), var(--measure-form, 34rem));
+  z-index: 1;
+
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg, 24px);
+
+  padding-block: var(--space-sm, 8px);
+  padding-inline: var(--space-lg, 24px);
+
+  background: var(--color-bg-elev, #141414);
+  border: var(--hairline, 1px) solid var(--color-line, #363636);
+  border-radius: 0;
+}
+
+/* the message is emphasis 2, clamped to the body band:
+   the rank is carried by weight + full-strength ink, never by display size */
+.snackbar__message {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-medium, 500);
+  line-height: var(--leading-body, 1.5);
+  color: var(--color-fg, #ffffff);
+}
+
+/* a hairline rule separates the controls — not a filled surface */
+.snackbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs, 4px);
+  padding-inline-start: var(--space-lg, 24px);
+  border-inline-start: var(--hairline, 1px) solid var(--color-line, #363636);
+}
+
+/* --- motion: entrance reveals the viewport edge the surface sits against --- */
+@keyframes snackbar-enter {
+  from { opacity: 0; transform: translateY(var(--space-md, 16px)); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes snackbar-exit {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(var(--space-sm, 8px)); }
+}
+
+.snackbar[data-state="entering"] {
+  animation: snackbar-enter
+    var(--motion-duration-base, 200ms)
+    var(--motion-easing-out-expo, ease-out) both;
+}
+
+.snackbar[data-state="visible"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.snackbar[data-state="leaving"] {
+  animation: snackbar-exit
+    var(--motion-duration-fast, 120ms)
+    var(--motion-easing-out-quart, ease-out) both;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* enter: opacity only — no travel */
+  @keyframes snackbar-enter {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .snackbar[data-state="entering"] {
+    animation-duration: var(--motion-duration-fast, 120ms);
+  }
+  /* exit: instant */
+  .snackbar[data-state="leaving"] {
+    animation-duration: 1ms;
+  }
+  .btn { transition-duration: 1ms; }
+  .field__input { transition-duration: 1ms; }
+}
+
+/* ------------------------------------------------------------------ *
+ * Demo harness — exercises the machine by hand
+ * ------------------------------------------------------------------ */
+.page {
+  inline-size: min(calc(100% - var(--space-xl, 32px)), var(--measure-page, 46rem));
+  margin-inline: auto;
+  padding-block: var(--space-xxl, 48px) calc(var(--space-xxl, 48px) * 3);
+}
+
+.masthead {
+  padding-block-end: var(--space-lg, 24px);
+  border-block-end: var(--hairline, 1px) solid var(--color-line, #363636);
+}
+
+.masthead__eyebrow {
+  margin: 0 0 var(--space-sm, 8px);
+  font-size: var(--type-label, 13px);
+  font-weight: var(--weight-regular, 400);
+  line-height: var(--leading-body, 1.5);
+  color: var(--color-fg-dim, #828282);
+}
+
+/* page title uses the system display scale; the component itself never does */
+.masthead__title {
+  margin: 0;
+  font-family: var(--font-display, sans-serif);
+  font-size: clamp(var(--type-h2, 56px), 14vw, var(--type-h1, 96px));
+  font-weight: var(--weight-bold, 700);
+  line-height: var(--leading-tight, 1.15);
+  letter-spacing: -0.02em;
+  color: var(--color-fg, #ffffff);
+}
+
+.masthead__lede {
+  margin: var(--space-md, 16px) 0 0;
+  max-inline-size: var(--measure-form, 34rem);
+  font-size: var(--type-lead, 20px);
+  font-weight: var(--weight-regular, 400);
+  line-height: var(--leading-body, 1.5);
+  color: var(--color-fg-muted, #b8b8b8);
+}
+
+.section {
+  padding-block: var(--space-xl, 32px);
+  border-block-end: var(--hairline, 1px) solid var(--color-line, #363636);
+}
+
+.section__label {
+  margin: 0 0 var(--space-lg, 24px);
+  font-size: var(--type-label, 13px);
+  font-weight: var(--weight-regular, 400);
+  line-height: var(--leading-body, 1.5);
+  color: var(--color-fg-dim, #828282);
+}
+
+.field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-md, 16px);
+}
+
+.field__group {
+  flex: 1;
+  min-inline-size: min(100%, var(--measure-form, 34rem));
+}
+
+.field__label {
+  display: block;
+  margin-block-end: var(--space-sm, 8px);
+  font-size: var(--type-label, 13px);
+  font-weight: var(--weight-regular, 400);
+  color: var(--color-fg-muted, #b8b8b8);
+}
+
+.field__input {
+  inline-size: 100%;
+  min-block-size: var(--control-min, 44px);
+  padding-block: var(--space-sm, 8px);
+  padding-inline: 0;
+  border: 0;
+  border-block-end: var(--hairline, 1px) solid var(--color-line-strong, #545454);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-fg, #ffffff);
+  font-family: inherit;
+  font-size: var(--type-lead, 20px);
+  font-weight: var(--weight-regular, 400);
+  line-height: var(--leading-body, 1.5);
+  transition: border-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out);
+}
+.field__input:hover { border-block-end-color: var(--color-fg-muted, #b8b8b8); }
+.field__input:focus-visible {
+  outline: none;
+  border-block-end-color: var(--color-fg, #ffffff);
+}
+
+.record {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--space-md, 16px) var(--space-lg, 24px);
+  margin: 0;
+}
+
+.record__key {
+  margin: 0;
+  font-size: var(--type-label, 13px);
+  font-weight: var(--weight-regular, 400);
+  color: var(--color-fg-dim, #828282);
+}
+
+.record__value {
+  margin: 0;
+  font-family: var(--font-mono, monospace);
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-regular, 400);
+  color: var(--color-fg-muted, #b8b8b8);
+  overflow-wrap: anywhere;
+}
+
+.record__value--live {
+  color: var(--color-fg, #ffffff);
+}
+
+.note {
+  margin: var(--space-lg, 24px) 0 0;
+  max-inline-size: var(--measure-form, 34rem);
+  font-size: var(--type-label, 13px);
+  font-weight: var(--weight-regular, 400);
+  line-height: var(--leading-body, 1.5);
+  color: var(--color-fg-dim, #828282);
+}
+
+.visually-hidden {
+  position: absolute;
+  inline-size: var(--hairline, 1px);
+  block-size: var(--hairline, 1px);
+  margin: calc(var(--hairline, 1px) * -1);
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+</style>
+</head>
+<body>
+
+<main class="page">
+  <header class="masthead">
+    <p class="masthead__eyebrow">arena — pre-gate fixture</p>
+    <h1 class="masthead__title">Snackbar</h1>
+    <p class="masthead__lede">Transient confirmation of an optimistic save, carrying one inline reversal.</p>
+  </header>
+
+  <section class="section" aria-labelledby="harness-label">
+    <p class="section__label" id="harness-label">Harness</p>
+
+    <div class="field">
+      <label class="field__group" for="display-name">
+        <span class="field__label">Display name</span>
+        <input class="field__input" id="display-name" type="text" value="Andrew Cunliffe" autocomplete="off" spellcheck="false">
+      </label>
+      <button class="btn btn--primary" id="save" type="button">
+        <span class="btn__label" id="save-label">Save change</span>
+      </button>
+    </div>
+
+    <p class="note">
+      Saving writes the field optimistically and shows the confirmation. The
+      auto-dismiss clock runs for six seconds and is held while a pointer or
+      keyboard focus is inside the surface.
+    </p>
+  </section>
+
+  <section class="section" aria-labelledby="state-label">
+    <p class="section__label" id="state-label">Surrounding surface</p>
+    <dl class="record">
+      <dt class="record__key">Stored value</dt>
+      <dd class="record__value record__value--live" id="stored-value">Andrew Cunliffe</dd>
+      <dt class="record__key">Machine state</dt>
+      <dd class="record__value" id="machine-state">absent</dd>
+      <dt class="record__key">Last outcome</dt>
+      <dd class="record__value" id="last-outcome">none</dd>
+    </dl>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------------------------------------------------------- *
+   * <snackbar> — state machine
+   *   absent → entering → visible → leaving → dismissed
+   *                        visible → reverted
+   * The surface is never hidden in place: it is added on commit and
+   * removed from the document when it ends.
+   * ---------------------------------------------------------------- */
+  var AUTO_DISMISS_MS = 6000;
+
+  var CLOSE_ICON =
+    '<svg class="btn__icon" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">' +
+    '<path d="M3.5 3.5 L12.5 12.5 M12.5 3.5 L3.5 12.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="square"/>' +
+    '</svg>';
+
+  var current = null;
+
+  function readState() {
+    return current ? current.state : "absent";
+  }
+
+  function setState(inst, next) {
+    inst.state = next;
+    if (inst.el) inst.el.setAttribute("data-state", next);
+    if (typeof inst.onState === "function") inst.onState(next);
+  }
+
+  function clearClock(inst) {
+    if (inst.timer !== null) {
+      clearTimeout(inst.timer);
+      inst.timer = null;
+    }
+  }
+
+  function startClock(inst) {
+    clearClock(inst);
+    if (inst.state !== "visible") return;
+    inst.startedAt = Date.now();
+    inst.timer = setTimeout(function () {
+      inst.timer = null;
+      beginExit(inst);
+    }, inst.remaining);
+  }
+
+  function pauseClock(inst) {
+    if (inst.timer === null) return;
+    clearClock(inst);
+    inst.remaining = Math.max(0, inst.remaining - (Date.now() - inst.startedAt));
+  }
+
+  function held(inst) {
+    return inst.el.matches(":hover") || inst.el.matches(":focus-within");
+  }
+
+  function resumeClock(inst) {
+    if (inst.state !== "visible" || held(inst)) return;
+    startClock(inst);
+  }
+
+  function beginExit(inst) {
+    if (inst.state !== "visible") return;
+    clearClock(inst);
+    inst.el.setAttribute("inert", "");
+    setState(inst, "leaving");
+  }
+
+  function teardown(inst, terminal) {
+    clearClock(inst);
+    if (inst.el && inst.el.parentNode) inst.el.parentNode.removeChild(inst.el);
+    setState(inst, terminal);
+    if (current === inst) current = null;
+    if (typeof inst.onEnd === "function") inst.onEnd(terminal);
+  }
+
+  /**
+   * Mount the confirmation. Any live confirmation is torn down first so the
+   * machine only ever has one instance in flight.
+   */
+  function showSnackbar(options) {
+    var opts = options || {};
+
+    if (current) teardown(current, "dismissed");
+
+    var el = document.createElement("div");
+    el.className = "snackbar";
+    el.setAttribute("role", "group");
+    el.setAttribute("aria-label", "Save confirmation");
+    el.setAttribute("data-state", "entering");
+
+    var message = document.createElement("p");
+    message.className = "snackbar__message";
+    message.setAttribute("role", "status");
+    message.setAttribute("aria-live", "polite");
+
+    var actions = document.createElement("div");
+    actions.className = "snackbar__actions";
+
+    var undo = document.createElement("button");
+    undo.type = "button";
+    undo.className = "btn btn--secondary";
+    undo.innerHTML = '<span class="btn__label">Undo</span>';
+
+    var dismiss = document.createElement("button");
+    dismiss.type = "button";
+    dismiss.className = "btn btn--ghost btn--icon";
+    dismiss.setAttribute("aria-label", "Dismiss");
+    dismiss.innerHTML = CLOSE_ICON;
+
+    actions.appendChild(undo);
+    actions.appendChild(dismiss);
+    el.appendChild(message);
+    el.appendChild(actions);
+
+    var inst = {
+      el: el,
+      state: "entering",
+      timer: null,
+      remaining: AUTO_DISMISS_MS,
+      startedAt: 0,
+      onState: opts.onState,
+      onEnd: opts.onEnd
+    };
+    current = inst;
+
+    el.addEventListener("animationend", function (event) {
+      if (event.target !== el) return;
+      if (inst.state === "entering") {
+        setState(inst, "visible");
+        startClock(inst);
+      } else if (inst.state === "leaving") {
+        teardown(inst, "dismissed");
+      }
+    });
+
+    /* the clock is held while a pointer or keyboard focus is inside */
+    el.addEventListener("pointerenter", function () { pauseClock(inst); });
+    el.addEventListener("pointerleave", function () { resumeClock(inst); });
+    el.addEventListener("focusin", function () { pauseClock(inst); });
+    el.addEventListener("focusout", function () { resumeClock(inst); });
+
+    dismiss.addEventListener("click", function () {
+      beginExit(inst);
+    });
+
+    undo.addEventListener("click", function () {
+      if (inst.state !== "visible") return;
+      clearClock(inst);
+      if (typeof opts.onUndo === "function") opts.onUndo();
+      /* the machine has no exit edge from undo: reverted is terminal and the
+         surface leaves the document at once */
+      teardown(inst, "reverted");
+    });
+
+    document.body.appendChild(el);
+
+    /* write the message after the region is in the document so the polite
+       announcement is a mutation of a registered live region */
+    requestAnimationFrame(function () {
+      message.textContent = "Saved";
+    });
+
+    return inst;
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Harness
+   * ---------------------------------------------------------------- */
+  var input        = document.getElementById("display-name");
+  var saveBtn      = document.getElementById("save");
+  var saveLabel    = document.getElementById("save-label");
+  var storedValue  = document.getElementById("stored-value");
+  var machineState = document.getElementById("machine-state");
+  var lastOutcome  = document.getElementById("last-outcome");
+
+  var stored = input.value;
+
+  function renderStored() {
+    storedValue.textContent = stored;
+  }
+
+  saveBtn.addEventListener("click", function () {
+    var previous = stored;
+    var next = input.value;
+
+    /* optimistic: the surrounding surface updates before the write settles */
+    stored = next;
+    renderStored();
+
+    /* button loading state — the write is in flight, nothing spins */
+    saveBtn.setAttribute("data-loading", "true");
+    saveBtn.setAttribute("aria-busy", "true");
+    saveLabel.textContent = "Saving";
+    setTimeout(function () {
+      saveBtn.removeAttribute("data-loading");
+      saveBtn.removeAttribute("aria-busy");
+      saveLabel.textContent = "Save change";
+    }, 400);
+
+    machineState.textContent = "entering";
+    lastOutcome.textContent = "pending";
+
+    showSnackbar({
+      onState: function (state) {
+        machineState.textContent = state;
+      },
+      onUndo: function () {
+        stored = previous;
+        input.value = previous;
+        renderStored();
+      },
+      onEnd: function (terminal) {
+        lastOutcome.textContent =
+          terminal === "reverted"
+            ? "reverted — the save was rolled back"
+            : "dismissed — the save stands";
+      }
+    });
+  });
+
+  renderStored();
+  machineState.textContent = readState();
+})();
+</script>
+
+</body>
+</html>

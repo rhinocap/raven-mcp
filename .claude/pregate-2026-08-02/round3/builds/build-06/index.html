@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snackbar — optimistic save</title>
+<style>
+  /* ---------------------------------------------------------------
+     Tokens — values from arena/DESIGN.md frontmatter.
+     Type tokens are unitless in DESIGN.md; resolved to px here.
+     --------------------------------------------------------------- */
+  :root {
+    /* colors */
+    --color-bg: #050505;
+    --color-bg-elev: #141414;
+    --color-bg-card: #1c1c1c;
+    --color-fg: #ffffff;
+    --color-fg-muted: #b8b8b8;
+    --color-fg-dim: #828282;
+    --color-line: #363636;
+    --color-line-strong: #545454;
+    --color-accent: #ed4609;
+
+    /* type scale */
+    --type-label: 13px;
+    --type-body: 16px;
+    --type-lead: 20px;
+    --type-h3: 27px;
+    --type-h2: 56px;
+    --type-h1: 96px;
+
+    /* space */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-xxl: 48px;
+
+    /* motion */
+    --motion-duration-fast: 120ms;
+    --motion-duration-base: 200ms;
+    --motion-duration-slow: 400ms;
+    --motion-easing-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --motion-easing-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --motion-easing-site: cubic-bezier(0.56, 0.22, 0.05, 0.99);
+
+    /* families — Untitled Sans / Geist / Domaine, no italics loaded.
+       No webfont files: self-contained file, no external requests. */
+    --font-body: "Untitled Sans", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --font-display: var(--font-body);
+    --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --font-serif: "Domaine Display", Georgia, serif;
+
+    /* derived semantic tokens (no bare literals downstream) */
+    --hairline: 1px;
+    --radius-flat: 0px;
+    --control-target: 44px;
+    --line-height-tight: 1.15;
+    --line-height-body: 1.5;
+    --tracking-label: 0.08em;
+    --weight-regular: 400;
+    --weight-medium: 500;
+    --weight-bold: 700;
+    --icon-sm: 16px;
+    --page-max: 720px;
+    --snackbar-max: 460px;
+    --snackbar-lift: 8px;
+    --snackbar-dismiss-ms: 6000;
+    --snackbar-revert-ms: 2400;
+    --focus-ring: 2px;
+    --focus-offset: 2px;
+    --layer-snackbar: 10;
+  }
+
+  /* ---------------------------------------------------------------
+     Page
+     --------------------------------------------------------------- */
+  html, body {
+    max-width: 100vw;
+    overflow-x: clip;
+  }
+
+  html {
+    background: var(--color-bg, #050505);
+  }
+
+  body {
+    margin: var(--radius-flat, 0px);
+    background: var(--color-bg, #050505);
+    color: var(--color-fg, #ffffff);
+    font-family: var(--font-body, sans-serif);
+    font-size: var(--type-body, 16px);
+    font-weight: var(--weight-regular, 400);
+    line-height: var(--line-height-body, 1.5);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    width: calc(100% - var(--space-xl, 32px) * 2);
+    max-width: var(--page-max, 720px);
+    margin-inline: auto;
+    padding-block: var(--space-xxl, 48px) calc(var(--space-xxl, 48px) * 3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xxl, 48px);
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono, monospace);
+    font-size: var(--type-label, 13px);
+    font-weight: var(--weight-regular, 400);
+    letter-spacing: var(--tracking-label, 0.08em);
+    text-transform: uppercase;
+    color: var(--color-fg-dim, #828282);
+    margin: var(--radius-flat, 0px);
+  }
+
+  .page__title {
+    font-family: var(--font-display, sans-serif);
+    font-size: clamp(var(--type-h3, 27px), 6vw, var(--type-h2, 56px));
+    font-weight: var(--weight-medium, 500);
+    line-height: var(--line-height-tight, 1.15);
+    letter-spacing: -0.02em;
+    color: var(--color-fg, #ffffff);
+    margin: var(--space-md, 16px) 0 0 0;
+  }
+
+  .page__lede {
+    font-size: var(--type-lead, 20px);
+    line-height: var(--line-height-body, 1.5);
+    color: var(--color-fg-muted, #b8b8b8);
+    margin: var(--space-md, 16px) 0 0 0;
+    max-width: 46ch;
+  }
+
+  /* ---------------------------------------------------------------
+     Record row — the thing being optimistically saved
+     --------------------------------------------------------------- */
+  .record {
+    border-top: var(--hairline, 1px) solid var(--color-line, #363636);
+    border-bottom: var(--hairline, 1px) solid var(--color-line, #363636);
+    padding-block: var(--space-lg, 24px);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-md, 16px) var(--space-xl, 32px);
+  }
+
+  .record__field {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .record__label {
+    display: block;
+    font-family: var(--font-mono, monospace);
+    font-size: var(--type-label, 13px);
+    letter-spacing: var(--tracking-label, 0.08em);
+    text-transform: uppercase;
+    color: var(--color-fg-dim, #828282);
+  }
+
+  .record__value {
+    display: block;
+    margin-top: var(--space-xs, 4px);
+    font-size: var(--type-h3, 27px);
+    font-weight: var(--weight-medium, 500);
+    line-height: var(--line-height-tight, 1.15);
+    color: var(--color-fg, #ffffff);
+    transition: color var(--motion-duration-base, 200ms) var(--motion-easing-out-quart, ease-out);
+  }
+
+  .record__value[data-pending="true"] {
+    color: var(--color-fg-muted, #b8b8b8);
+  }
+
+  /* ---------------------------------------------------------------
+     Buttons — semantic classes, never inline styles
+     --------------------------------------------------------------- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm, 8px);
+    min-height: var(--control-target, 44px);
+    min-width: var(--control-target, 44px);
+    padding: var(--space-sm, 8px) var(--space-lg, 24px);
+    border: var(--hairline, 1px) solid var(--color-line-strong, #545454);
+    border-radius: var(--radius-flat, 0px);
+    background: transparent;
+    color: var(--color-fg, #ffffff);
+    font-family: var(--font-body, sans-serif);
+    font-size: var(--type-body, 16px);
+    font-weight: var(--weight-medium, 500);
+    line-height: var(--line-height-tight, 1.15);
+    cursor: pointer;
+    transition:
+      background-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
+      border-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
+      color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out);
+  }
+
+  .btn:hover {
+    background: var(--color-bg-elev, #141414);
+    border-color: var(--color-fg, #ffffff);
+  }
+
+  .btn:focus-visible {
+    outline: var(--focus-ring, 2px) solid var(--color-accent, #ed4609);
+    outline-offset: var(--focus-offset, 2px);
+  }
+
+  .btn:active {
+    background: var(--color-bg-card, #1c1c1c);
+  }
+
+  .btn[disabled] {
+    color: var(--color-fg-dim, #828282);
+    border-color: var(--color-line, #363636);
+    cursor: not-allowed;
+  }
+
+  .btn[disabled]:hover {
+    background: transparent;
+    border-color: var(--color-line, #363636);
+  }
+
+  /* variant: primary — the one committing control on the surface */
+  .btn--primary {
+    border-color: var(--color-line-strong, #545454);
+  }
+
+  .btn--primary:hover {
+    border-color: var(--color-fg, #ffffff);
+  }
+
+  /* variant: ghost — no chrome at rest; used inside the snackbar */
+  .btn--ghost {
+    border-color: transparent;
+    padding-inline: var(--space-md, 16px);
+    color: var(--color-accent, #ed4609);
+  }
+
+  /* Ghost hover presses INTO the page rather than lifting off it — a lighter
+     wash under warm orange drops below AA (4.45:1 on --bg-card); pressing to
+     --bg lifts it to 5.16:1. */
+  .btn--ghost:hover {
+    background: var(--color-bg, #050505);
+    border-color: transparent;
+    color: var(--color-accent, #ed4609);
+  }
+
+  .btn--ghost:active {
+    background: var(--color-bg, #050505);
+    border-color: var(--color-line, #363636);
+  }
+
+  .btn--ghost[disabled],
+  .btn--ghost[disabled]:hover {
+    border-color: transparent;
+    color: var(--color-fg-dim, #828282);
+    background: transparent;
+  }
+
+  .btn--icon {
+    padding: var(--space-sm, 8px);
+    color: var(--color-fg-dim, #828282);
+  }
+
+  .btn--icon:hover,
+  .btn--icon:active {
+    color: var(--color-fg, #ffffff);
+  }
+
+  .btn--icon svg {
+    width: var(--icon-sm, 16px);
+    height: var(--icon-sm, 16px);
+    display: block;
+  }
+
+  /* ---------------------------------------------------------------
+     Harness readout
+     --------------------------------------------------------------- */
+  .readout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm, 8px) var(--space-lg, 24px);
+    font-family: var(--font-mono, monospace);
+    font-size: var(--type-label, 13px);
+    color: var(--color-fg-dim, #828282);
+  }
+
+  .readout__value {
+    color: var(--color-fg-muted, #b8b8b8);
+  }
+
+  /* ---------------------------------------------------------------
+     Snackbar
+     --------------------------------------------------------------- */
+  .snack-region {
+    position: fixed;
+    left: var(--space-xl, 32px);
+    right: var(--space-xl, 32px);
+    bottom: var(--space-xl, 32px);
+    z-index: var(--layer-snackbar, 10);
+    display: flex;
+    justify-content: flex-start;
+    pointer-events: none;
+  }
+
+  .snack {
+    position: relative;
+    pointer-events: auto;
+    width: min(var(--snackbar-max, 460px), 100%);
+    display: flex;
+    align-items: center;
+    gap: var(--space-md, 16px);
+    padding: var(--space-md, 16px) var(--space-md, 16px) var(--space-md, 16px) var(--space-lg, 24px);
+    background: var(--color-bg-elev, #141414);
+    border: var(--hairline, 1px) solid var(--color-line, #363636);
+    border-radius: var(--radius-flat, 0px);
+    opacity: 0;
+    transform: translateY(var(--snackbar-lift, 8px));
+    transition:
+      opacity var(--motion-duration-base, 200ms) var(--motion-easing-out-expo, ease-out),
+      transform var(--motion-duration-base, 200ms) var(--motion-easing-out-expo, ease-out);
+  }
+
+  .snack[data-state="visible"],
+  .snack[data-state="paused"] {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .snack[data-state="exit"] {
+    opacity: 0;
+    transform: translateY(var(--snackbar-lift, 8px));
+    transition:
+      opacity var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
+      transform var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out);
+  }
+
+  .snack__message {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: var(--radius-flat, 0px);
+    font-size: var(--type-body, 16px);
+    line-height: var(--line-height-body, 1.5);
+    color: var(--color-fg, #ffffff);
+  }
+
+  .snack__actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs, 4px);
+  }
+
+  .snack__meter {
+    position: absolute;
+    left: calc(var(--hairline, 1px) * -1);
+    right: calc(var(--hairline, 1px) * -1);
+    bottom: calc(var(--hairline, 1px) * -1);
+    height: var(--hairline, 1px);
+    background: var(--color-accent, #ed4609);
+    transform: scaleX(var(--snack-meter, 1));
+    transform-origin: left center;
+  }
+
+  @media (max-width: 480px) {
+    .snack {
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+    .snack__actions {
+      width: 100%;
+      justify-content: space-between;
+    }
+  }
+
+  /* ---------------------------------------------------------------
+     Reduced motion — non-negotiable
+     --------------------------------------------------------------- */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+    .snack {
+      transform: none;
+    }
+    .snack[data-state="exit"] {
+      transform: none;
+    }
+  }
+</style>
+</head>
+<body>
+
+<main class="page">
+  <header>
+    <p class="eyebrow">arena — component</p>
+    <h1 class="page__title">Snackbar, optimistic save</h1>
+    <p class="page__lede">The change lands immediately. The snackbar confirms it, holds an Undo for six seconds, and gets out of the way.</p>
+  </header>
+
+  <section class="record" aria-labelledby="record-label">
+    <div class="record__field">
+      <span class="record__label" id="record-label">Visibility</span>
+      <span class="record__value" id="record-value">Private</span>
+    </div>
+    <button class="btn btn--primary" id="save" type="button">Save change</button>
+  </section>
+
+  <section class="readout" aria-label="Harness state">
+    <span>state <span class="readout__value" id="state-out">idle</span></span>
+    <span>undo window <span class="readout__value" id="time-out">—</span></span>
+    <span>last action <span class="readout__value" id="reason-out">—</span></span>
+  </section>
+</main>
+
+<div class="snack-region" id="snack-region" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var region     = document.getElementById("snack-region");
+  var saveBtn    = document.getElementById("save");
+  var valueEl    = document.getElementById("record-value");
+  var stateOut   = document.getElementById("state-out");
+  var timeOut    = document.getElementById("time-out");
+  var reasonOut  = document.getElementById("reason-out");
+
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  function tokenMs(name, fallback) {
+    var raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    var n = parseFloat(raw);
+    return isNaN(n) ? fallback : n;
+  }
+
+  var DISMISS_MS = tokenMs("--snackbar-dismiss-ms", 6000);
+  var REVERT_MS  = tokenMs("--snackbar-revert-ms", 2400);
+  var EXIT_MS    = tokenMs("--motion-duration-fast", 120);
+
+  // Optimistic record state
+  var NEXT = { "Private": "Public", "Public": "Private" };
+  var previousValue = null;
+
+  // Live snackbar (single slot — a new save replaces the standing one)
+  var current = null;
+
+  function setState(name) { stateOut.textContent = name; }
+  function setReason(name) { reasonOut.textContent = name; }
+  function setRemaining(ms) {
+    timeOut.textContent = ms === null ? "—" : (Math.ceil(ms / 100) / 10).toFixed(1) + "s";
+  }
+
+  function icon() {
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.5");
+    svg.setAttribute("stroke-linecap", "square");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    var p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", "M4 4 L12 12 M12 4 L4 12");
+    svg.appendChild(p);
+    return svg;
+  }
+
+  function teardown(snack) {
+    if (snack.rafId) cancelAnimationFrame(snack.rafId);
+    if (snack.exitTimer) clearTimeout(snack.exitTimer);
+    if (snack.node.parentNode) snack.node.parentNode.removeChild(snack.node);
+    if (current === snack) {
+      current = null;
+      setState("idle");
+      setRemaining(null);
+    }
+  }
+
+  function dismiss(snack, reason) {
+    if (snack.closing) return;
+    snack.closing = true;
+    if (snack.rafId) cancelAnimationFrame(snack.rafId);
+    snack.rafId = null;
+    snack.node.setAttribute("data-state", "exit");
+    setState("exiting");
+    setReason(reason);
+    setRemaining(null);
+    snack.exitTimer = setTimeout(function () { teardown(snack); }, EXIT_MS + 40);
+  }
+
+  function tick(snack) {
+    snack.rafId = requestAnimationFrame(function () {
+      var now = performance.now();
+      if (!snack.paused) {
+        snack.remaining -= (now - snack.last);
+      }
+      snack.last = now;
+      var ratio = Math.max(0, Math.min(1, snack.remaining / snack.duration));
+      if (snack.meter) snack.node.style.setProperty("--snack-meter", ratio.toFixed(4));
+      setRemaining(Math.max(0, snack.remaining));
+      if (snack.remaining <= 0) { dismiss(snack, "auto-dismiss"); return; }
+      tick(snack);
+    });
+  }
+
+  function pause(snack) {
+    if (snack.paused || snack.closing) return;
+    snack.paused = true;
+    snack.node.setAttribute("data-state", "paused");
+    setState("paused");
+  }
+
+  function resume(snack) {
+    if (!snack.paused || snack.closing) return;
+    snack.paused = false;
+    snack.last = performance.now();
+    snack.node.setAttribute("data-state", "visible");
+    setState("visible");
+  }
+
+  function build(message, opts) {
+    var node = document.createElement("div");
+    node.className = "snack";
+    node.setAttribute("data-state", "enter");
+
+    var msg = document.createElement("p");
+    msg.className = "snack__message";
+    msg.textContent = message;
+    node.appendChild(msg);
+
+    var actions = document.createElement("div");
+    actions.className = "snack__actions";
+
+    var snack = {
+      node: node,
+      meter: null,
+      duration: opts.duration,
+      remaining: opts.duration,
+      last: performance.now(),
+      paused: false,
+      closing: false,
+      rafId: null,
+      exitTimer: null
+    };
+
+    if (opts.undo) {
+      var undo = document.createElement("button");
+      undo.type = "button";
+      undo.className = "btn btn--ghost";
+      undo.textContent = "Undo";
+      undo.addEventListener("click", function () { opts.undo(snack); });
+      actions.appendChild(undo);
+    }
+
+    var close = document.createElement("button");
+    close.type = "button";
+    close.className = "btn btn--ghost btn--icon";
+    close.setAttribute("aria-label", "Dismiss");
+    close.appendChild(icon());
+    close.addEventListener("click", function () { dismiss(snack, "dismissed"); });
+    actions.appendChild(close);
+
+    node.appendChild(actions);
+
+    // The countdown rule is motion; under reduced motion it is not rendered
+    // at all (no DOM node) rather than animated or CSS-hidden.
+    if (!reduced.matches) {
+      var meter = document.createElement("span");
+      meter.className = "snack__meter";
+      meter.setAttribute("aria-hidden", "true");
+      node.appendChild(meter);
+      snack.meter = meter;
+      node.style.setProperty("--snack-meter", "1");
+    }
+
+    node.addEventListener("pointerenter", function () { pause(snack); });
+    node.addEventListener("pointerleave", function () { resume(snack); });
+    node.addEventListener("focusin", function () { pause(snack); });
+    node.addEventListener("focusout", function (e) {
+      if (!node.contains(e.relatedTarget)) resume(snack);
+    });
+
+    return snack;
+  }
+
+  function present(snack) {
+    if (current) teardown(current);
+    current = snack;
+    region.appendChild(snack.node);
+    // force style flush so the entrance transition runs
+    void snack.node.offsetWidth;
+    snack.node.setAttribute("data-state", "visible");
+    setState("visible");
+    snack.last = performance.now();
+    tick(snack);
+  }
+
+  function confirmSave(newValue) {
+    var snack = build("Visibility set to " + newValue + ".", {
+      duration: DISMISS_MS,
+      undo: function (s) {
+        valueEl.textContent = previousValue;
+        dismiss(s, "undone");
+        setTimeout(function () { present(revertNotice()); }, EXIT_MS + 60);
+      }
+    });
+    present(snack);
+  }
+
+  function revertNotice() {
+    return build("Change reverted.", { duration: REVERT_MS });
+  }
+
+  saveBtn.addEventListener("click", function () {
+    previousValue = valueEl.textContent.trim();
+    var next = NEXT[previousValue] || "Public";
+    // optimistic: the record updates before any confirmation
+    valueEl.textContent = next;
+    setReason("saved");
+    confirmSave(next);
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && current && !current.closing) dismiss(current, "dismissed (esc)");
+  });
+
+  document.addEventListener("visibilitychange", function () {
+    if (!current) return;
+    if (document.hidden) pause(current); else resume(current);
+  });
+})();
+</script>
+
+</body>
+</html>

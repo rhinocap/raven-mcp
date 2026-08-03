@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snackbar — optimistic save</title>
+<style>
+  /* ------------------------------------------------------------------
+     Tokens — concrete values from arena/DESIGN.md.
+     Component CSS below authors against these only: var(--token, fallback).
+     ------------------------------------------------------------------ */
+  :root {
+    /* color */
+    --color-bg: #050505;
+    --color-bg-elev: #141414;
+    --color-bg-card: #1c1c1c;
+    --color-fg: #ffffff;
+    --color-fg-muted: #b8b8b8;
+    --color-fg-dim: #828282;
+    --color-line: #363636;
+    --color-line-strong: #545454;
+    --color-accent: #ed4609;
+
+    /* type scale */
+    --type-label: 13px;
+    --type-body: 16px;
+    --type-lead: 20px;
+    --type-h3: 27px;
+    --type-h2: 56px;
+    --type-h1: 96px;
+
+    /* space */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-xxl: 48px;
+
+    /* motion */
+    --motion-duration-fast: 120ms;
+    --motion-duration-base: 200ms;
+    --motion-duration-slow: 400ms;
+    --motion-easing-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --motion-easing-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --motion-easing-site: cubic-bezier(0.56, 0.22, 0.05, 0.99);
+
+    /* ---- derived tokens (not in DESIGN.md frontmatter; see BUILD-LOG.md) ---- */
+    --font-display: "Untitled Sans", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --font-body: "Untitled Sans", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --font-serif: "Domaine Display SemiBold", "Domaine Display", Georgia, "Times New Roman", serif;
+
+    --weight-regular: 400;
+    --weight-medium: 500;
+    --weight-bold: 700;
+
+    --leading-tight: 1.05;
+    --leading-snug: 1.3;
+    --leading-body: 1.55;
+    --tracking-label: 0.09em;
+    --tracking-display: -0.02em;
+
+    --border-hairline: 1px;
+    --radius-none: 0px;
+
+    --page-max: 900px;
+    --page-gutter: var(--space-lg);
+
+    --tap-min: 44px;
+    --icon-size-sm: 16px;
+
+    --focus-ring-width: 2px;
+    --focus-ring-offset: 2px;
+
+    --snackbar-max-width: 520px;
+    --snackbar-inset-block-end: var(--space-xl);
+    --snackbar-enter-shift: 8px;
+    --snackbar-layer: 100;
+
+    /* component timing: how long the confirmation stays before auto-dismiss */
+    --motion-duration-dismiss: 6000ms;
+    --motion-duration-dismiss-short: 4000ms;
+  }
+
+  /* ------------------------------------------------------------------
+     Page ground
+     ------------------------------------------------------------------ */
+  html, body {
+    overflow-x: clip;
+    max-width: 100vw;
+  }
+
+  html {
+    background: var(--color-bg, #050505);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-bg, #050505);
+    color: var(--color-fg, #ffffff);
+    font-family: var(--font-body, sans-serif);
+    font-size: var(--type-body, 16px);
+    font-weight: var(--weight-regular, 400);
+    line-height: var(--leading-body, 1.55);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  :focus-visible {
+    outline: var(--focus-ring-width, 2px) solid var(--color-accent, #ed4609);
+    outline-offset: var(--focus-ring-offset, 2px);
+  }
+
+  .page {
+    width: min(var(--page-max, 900px), 100%);
+    margin-inline: auto;
+    padding-inline: var(--page-gutter, 24px);
+    padding-block: var(--space-xxl, 48px) calc(var(--space-xxl, 48px) * 4);
+  }
+
+  .kicker {
+    margin: 0 0 var(--space-lg, 24px);
+    font-family: var(--font-mono, monospace);
+    font-size: var(--type-label, 13px);
+    font-weight: var(--weight-regular, 400);
+    letter-spacing: var(--tracking-label, 0.09em);
+    text-transform: uppercase;
+    color: var(--color-fg-dim, #828282);
+  }
+
+  /* Display scale for the page heading; the component itself never leaves
+     the body band. Fluid so the h1 token can be honoured without overflow. */
+  .title {
+    margin: 0;
+    font-family: var(--font-display, sans-serif);
+    font-size: clamp(var(--type-h2, 56px), 8vw, var(--type-h1, 96px));
+    font-weight: var(--weight-medium, 500);
+    line-height: var(--leading-tight, 1.05);
+    letter-spacing: var(--tracking-display, -0.02em);
+    color: var(--color-fg, #ffffff);
+  }
+
+  /* Serif is authorial voice only — a lede passage, never a title or label. */
+  .lede {
+    margin: var(--space-lg, 24px) 0 0;
+    max-width: 62ch;
+    font-family: var(--font-serif, serif);
+    font-size: var(--type-lead, 20px);
+    /* The serif face carries its own weight — never synthesise one. */
+    font-weight: var(--weight-regular, 400);
+    font-synthesis: none;
+    line-height: var(--leading-snug, 1.3);
+    color: var(--color-fg-muted, #b8b8b8);
+  }
+
+  .rule {
+    height: var(--border-hairline, 1px);
+    background: var(--color-line, #363636);
+    border: 0;
+    margin: var(--space-xxl, 48px) 0 0;
+  }
+
+  /* ------------------------------------------------------------------
+     Demo harness — one editable setting, one Save change button
+     ------------------------------------------------------------------ */
+  .setting {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-md, 16px) var(--space-xl, 32px);
+    padding-block: var(--space-xl, 32px);
+    border-bottom: var(--border-hairline, 1px) solid var(--color-line, #363636);
+  }
+
+  .setting__text {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .setting__label {
+    margin: 0;
+    font-family: var(--font-mono, monospace);
+    font-size: var(--type-label, 13px);
+    letter-spacing: var(--tracking-label, 0.09em);
+    text-transform: uppercase;
+    color: var(--color-fg-dim, #828282);
+  }
+
+  .setting__value {
+    margin: var(--space-sm, 8px) 0 0;
+    font-family: var(--font-display, sans-serif);
+    font-size: var(--type-h3, 27px);
+    font-weight: var(--weight-medium, 500);
+    line-height: var(--leading-snug, 1.3);
+    color: var(--color-fg, #ffffff);
+  }
+
+  .setting__action {
+    flex: 0 0 auto;
+    align-self: center;
+  }
+
+  .readout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm, 8px) var(--space-md, 16px);
+    padding-block: var(--space-lg, 24px);
+    font-family: var(--font-mono, monospace);
+    font-size: var(--type-label, 13px);
+    color: var(--color-fg-dim, #828282);
+  }
+
+  .readout__value {
+    color: var(--color-fg-muted, #b8b8b8);
+  }
+
+  .notes {
+    margin: var(--space-xl, 32px) 0 0;
+    padding: 0;
+    list-style: none;
+    max-width: 62ch;
+  }
+
+  .notes li {
+    padding-block: var(--space-sm, 8px);
+    font-size: var(--type-body, 16px);
+    color: var(--color-fg-muted, #b8b8b8);
+  }
+
+  .notes kbd {
+    font-family: var(--font-mono, monospace);
+    font-size: var(--type-label, 13px);
+    color: var(--color-fg, #ffffff);
+    border: var(--border-hairline, 1px) solid var(--color-line, #363636);
+    border-radius: var(--radius-none, 0px);
+    padding: var(--space-xs, 4px) var(--space-sm, 8px);
+  }
+
+  /* ------------------------------------------------------------------
+     Buttons — semantic classes, variants primary / ghost
+     states: hover, focus-visible, active, disabled
+     ------------------------------------------------------------------ */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm, 8px);
+    min-height: var(--tap-min, 44px);
+    min-width: var(--tap-min, 44px);
+    padding-inline: var(--space-lg, 24px);
+    border: var(--border-hairline, 1px) solid transparent;
+    border-radius: var(--radius-none, 0px);
+    font-family: var(--font-body, sans-serif);
+    font-size: var(--type-body, 16px);
+    font-weight: var(--weight-medium, 500);
+    line-height: var(--leading-snug, 1.3);
+    letter-spacing: normal;
+    cursor: pointer;
+    background: transparent;
+    color: var(--color-fg, #ffffff);
+    transition:
+      background-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
+      color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
+      border-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out);
+  }
+
+  .btn--primary {
+    background: var(--color-fg, #ffffff);
+    color: var(--color-bg, #050505);
+    border-color: var(--color-fg, #ffffff);
+  }
+  .btn--primary:hover {
+    background: var(--color-fg-muted, #b8b8b8);
+    border-color: var(--color-fg-muted, #b8b8b8);
+  }
+  .btn--primary:active {
+    background: var(--color-fg-dim, #828282);
+    border-color: var(--color-fg-dim, #828282);
+  }
+  .btn--primary:disabled {
+    background: transparent;
+    color: var(--color-fg-dim, #828282);
+    border-color: var(--color-line, #363636);
+    cursor: not-allowed;
+  }
+
+  .btn--ghost {
+    background: transparent;
+    color: var(--color-fg, #ffffff);
+    border-color: var(--color-line, #363636);
+  }
+  .btn--ghost:hover {
+    border-color: var(--color-line-strong, #545454);
+    background: var(--color-bg-card, #1c1c1c);
+  }
+  .btn--ghost:active {
+    background: var(--color-bg, #050505);
+  }
+  .btn--ghost:disabled {
+    color: var(--color-fg-dim, #828282);
+    border-color: var(--color-line, #363636);
+    cursor: not-allowed;
+  }
+
+  /* ------------------------------------------------------------------
+     Snackbar
+     ------------------------------------------------------------------ */
+  .snackbar-region {
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: var(--snackbar-inset-block-end, 32px);
+    display: flex;
+    justify-content: center;
+    z-index: var(--snackbar-layer, 100);
+    pointer-events: none;
+  }
+
+  /* Same frame as .page — the snackbar's left edge sits on the content edge,
+     not on the viewport edge. Width, padding and centring must match exactly. */
+  .snackbar-region__column {
+    width: min(var(--page-max, 900px), 100%);
+    padding-inline: var(--page-gutter, 24px);
+    display: flex;
+    justify-content: flex-start;
+  }
+
+  .snackbar {
+    pointer-events: auto;
+    width: min(var(--snackbar-max-width, 520px), 100%);
+    background: var(--color-bg-elev, #141414);
+    border: var(--border-hairline, 1px) solid var(--color-line, #363636);
+    border-radius: var(--radius-none, 0px);
+    color: var(--color-fg, #ffffff);
+    opacity: 1;
+    transform: translateY(0);
+    transition:
+      opacity var(--motion-duration-base, 200ms) var(--motion-easing-out-quart, ease-out),
+      transform var(--motion-duration-base, 200ms) var(--motion-easing-out-quart, ease-out);
+  }
+
+  .snackbar--entering,
+  .snackbar--leaving {
+    opacity: 0;
+    transform: translateY(var(--snackbar-enter-shift, 8px));
+  }
+
+  .snackbar--leaving {
+    transition-duration: var(--motion-duration-fast, 120ms);
+  }
+
+  /* Remaining-time hairline: load-bearing, not decoration.
+     Driven from JS as a scale factor, so it is unaffected by the
+     reduced-motion duration clamp and steps instead of sweeping. */
+  .snackbar__timer {
+    height: var(--border-hairline, 1px);
+    background: var(--color-accent, #ed4609);
+    transform-origin: left center;
+    transform: scaleX(var(--snackbar-remaining, 1));
+  }
+
+  .snackbar__body {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md, 16px);
+    padding: var(--space-sm, 8px) var(--space-sm, 8px) var(--space-sm, 8px) var(--space-lg, 24px);
+  }
+
+  .snackbar__message {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: var(--font-body, sans-serif);
+    font-size: var(--type-body, 16px);
+    font-weight: var(--weight-regular, 400);
+    line-height: var(--leading-snug, 1.3);
+    color: var(--color-fg, #ffffff);
+  }
+
+  .snackbar__detail {
+    display: block;
+    font-size: var(--type-label, 13px);
+    color: var(--color-fg-dim, #828282);
+  }
+
+  .snackbar__divider {
+    flex: 0 0 auto;
+    align-self: stretch;
+    width: var(--border-hairline, 1px);
+    background: var(--color-line, #363636);
+  }
+
+  .snackbar__undo {
+    flex: 0 0 auto;
+    padding-inline: var(--space-md, 16px);
+    border-color: transparent;
+    color: var(--color-accent, #ed4609);
+    font-weight: var(--weight-medium, 500);
+  }
+  .snackbar__undo:hover {
+    background: var(--color-bg-card, #1c1c1c);
+    border-color: transparent;
+    color: var(--color-accent, #ed4609);
+  }
+  .snackbar__undo:active {
+    background: var(--color-bg, #050505);
+  }
+
+  .snackbar__dismiss {
+    flex: 0 0 auto;
+    padding-inline: var(--space-sm, 8px);
+    border-color: transparent;
+    color: var(--color-fg-dim, #828282);
+  }
+  .snackbar__dismiss:hover {
+    background: var(--color-bg-card, #1c1c1c);
+    border-color: transparent;
+    color: var(--color-fg, #ffffff);
+  }
+  .snackbar__dismiss:active {
+    background: var(--color-bg, #050505);
+  }
+
+  .snackbar__icon {
+    width: var(--icon-size-sm, 16px);
+    height: var(--icon-size-sm, 16px);
+    display: block;
+  }
+
+  @media (max-width: 480px) {
+    .snackbar__body {
+      flex-wrap: wrap;
+      row-gap: var(--space-sm, 8px);
+    }
+    .snackbar__message {
+      flex: 1 0 100%;
+      padding-block-start: var(--space-sm, 8px);
+    }
+    .snackbar__divider { display: none; }
+  }
+
+  /* Non-negotiable: every animation honors prefers-reduced-motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<main class="page">
+  <p class="kicker">arena — component fixture</p>
+  <h1 class="title">Optimistic save</h1>
+  <p class="lede">The change lands the moment you ask for it. The snackbar is the receipt, and it holds the door open long enough to walk back through.</p>
+
+  <hr class="rule">
+
+  <section class="setting">
+    <div class="setting__text">
+      <p class="setting__label">Digest frequency</p>
+      <p class="setting__value" id="setting-value">Weekly</p>
+    </div>
+    <div class="setting__action">
+      <button type="button" class="btn btn--primary" id="save-button">Save change</button>
+    </div>
+  </section>
+
+  <div class="readout" aria-live="off">
+    <span>state <span class="readout__value" id="readout-state">idle</span></span>
+    <span>server <span class="readout__value" id="readout-server">—</span></span>
+    <span>dismiss in <span class="readout__value" id="readout-timer">—</span></span>
+  </div>
+
+  <ul class="notes">
+    <li>Save applies the change immediately and confirms it optimistically; the simulated server acknowledgement lands ~900ms later.</li>
+    <li>Undo restores the previous value and replaces the confirmation with a shorter revert notice.</li>
+    <li>Pointer or keyboard focus inside the snackbar holds the auto-dismiss countdown; leaving resumes it.</li>
+    <li>Press <kbd>Esc</kbd> to dismiss the snackbar without undoing.</li>
+  </ul>
+</main>
+
+<div class="snackbar-region" id="snackbar-region">
+  <div class="snackbar-region__column" id="snackbar-column"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var column = document.getElementById('snackbar-column');
+  var saveButton = document.getElementById('save-button');
+  var valueEl = document.getElementById('setting-value');
+  var readoutState = document.getElementById('readout-state');
+  var readoutServer = document.getElementById('readout-server');
+  var readoutTimer = document.getElementById('readout-timer');
+
+  var VALUES = ['Weekly', 'Daily'];
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  function cssMs(name, fallback) {
+    var raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    var n = parseFloat(raw);
+    return isFinite(n) ? (raw.indexOf('ms') > -1 || raw.indexOf('s') === -1 ? n : n * 1000) : fallback;
+  }
+
+  var DURATION_DISMISS = cssMs('--motion-duration-dismiss', 6000);
+  var DURATION_DISMISS_SHORT = cssMs('--motion-duration-dismiss-short', 4000);
+  var DURATION_EXIT = cssMs('--motion-duration-fast', 120);
+  var ACK_DELAY = 900;
+
+  /* ---------------------------------------------------------------
+     Snackbar: created on demand and removed from the DOM on exit.
+     Conditionally-absent nodes are never CSS-hidden.
+     --------------------------------------------------------------- */
+  function Snackbar(options) {
+    var self = this;
+    this.duration = options.duration;
+    this.onDismiss = options.onDismiss || function () {};
+    this.remaining = this.duration;
+    this.deadline = 0;
+    this.paused = false;
+    this.frame = 0;
+    this.closed = false;
+
+    var root = document.createElement('div');
+    root.className = 'snackbar snackbar--entering';
+    root.setAttribute('role', 'status');
+    root.setAttribute('aria-live', 'polite');
+
+    var timer = document.createElement('div');
+    timer.className = 'snackbar__timer';
+    root.appendChild(timer);
+
+    var body = document.createElement('div');
+    body.className = 'snackbar__body';
+    root.appendChild(body);
+
+    var message = document.createElement('p');
+    message.className = 'snackbar__message';
+    message.appendChild(document.createTextNode(options.message));
+    if (options.detail) {
+      var detail = document.createElement('span');
+      detail.className = 'snackbar__detail';
+      detail.appendChild(document.createTextNode(options.detail));
+      message.appendChild(detail);
+    }
+    body.appendChild(message);
+
+    if (options.undo) {
+      var divider = document.createElement('div');
+      divider.className = 'snackbar__divider';
+      body.appendChild(divider);
+
+      var undo = document.createElement('button');
+      undo.type = 'button';
+      undo.className = 'btn btn--ghost snackbar__undo';
+      undo.appendChild(document.createTextNode('Undo'));
+      undo.addEventListener('click', function () {
+        self.close('undo');
+        options.undo();
+      });
+      body.appendChild(undo);
+      this.undoButton = undo;
+    }
+
+    var dismiss = document.createElement('button');
+    dismiss.type = 'button';
+    dismiss.className = 'btn btn--ghost snackbar__dismiss';
+    dismiss.setAttribute('aria-label', 'Dismiss');
+    dismiss.innerHTML =
+      '<svg class="snackbar__icon" viewBox="0 0 16 16" fill="none" ' +
+      'stroke="currentColor" stroke-width="1.5" stroke-linecap="square" aria-hidden="true">' +
+      '<path d="M4 4 L12 12 M12 4 L4 12"></path></svg>';
+    dismiss.addEventListener('click', function () { self.close('dismiss'); });
+    body.appendChild(dismiss);
+
+    root.addEventListener('mouseenter', function () { self.pause(); });
+    root.addEventListener('mouseleave', function () { self.resume(); });
+    root.addEventListener('focusin', function () { self.pause(); });
+    root.addEventListener('focusout', function (event) {
+      if (!root.contains(event.relatedTarget)) { self.resume(); }
+    });
+
+    this.root = root;
+    this.timerEl = timer;
+    column.appendChild(root);
+
+    // Force layout, then release the entering state so the transition runs.
+    void root.offsetWidth;
+    root.classList.remove('snackbar--entering');
+
+    this.setRemaining(1);
+    this.resume();
+  }
+
+  Snackbar.prototype.setRemaining = function (fraction) {
+    this.root.style.setProperty('--snackbar-remaining', String(fraction));
+    readoutTimer.textContent = this.closed
+      ? '—'
+      : (Math.ceil((fraction * this.duration) / 1000) + 's');
+  };
+
+  Snackbar.prototype.tick = function () {
+    if (this.closed || this.paused) { return; }
+    var left = this.deadline - Date.now();
+    if (left <= 0) {
+      this.setRemaining(0);
+      this.close('timeout');
+      return;
+    }
+    var fraction = left / this.duration;
+    this.setRemaining(reduceMotion.matches ? Math.ceil(fraction * 10) / 10 : fraction);
+    var self = this;
+    if (reduceMotion.matches) {
+      this.frame = window.setTimeout(function () { self.tick(); }, 250);
+    } else {
+      this.frame = window.requestAnimationFrame(function () { self.tick(); });
+    }
+  };
+
+  Snackbar.prototype.clearFrame = function () {
+    if (!this.frame) { return; }
+    if (reduceMotion.matches) { window.clearTimeout(this.frame); }
+    else { window.cancelAnimationFrame(this.frame); }
+    this.frame = 0;
+  };
+
+  Snackbar.prototype.pause = function () {
+    if (this.closed || this.paused) { return; }
+    this.paused = true;
+    this.remaining = Math.max(0, this.deadline - Date.now());
+    this.clearFrame();
+    readoutTimer.textContent = Math.ceil(this.remaining / 1000) + 's · held';
+  };
+
+  Snackbar.prototype.resume = function () {
+    if (this.closed) { return; }
+    this.paused = false;
+    this.deadline = Date.now() + this.remaining;
+    this.clearFrame();
+    this.tick();
+  };
+
+  Snackbar.prototype.close = function (reason) {
+    if (this.closed) { return; }
+    this.closed = true;
+    this.clearFrame();
+    readoutTimer.textContent = '—';
+
+    var root = this.root;
+    var onDismiss = this.onDismiss;
+    var removed = false;
+    function remove() {
+      if (removed) { return; }
+      removed = true;
+      if (root.parentNode) { root.parentNode.removeChild(root); }
+      onDismiss(reason);
+    }
+    root.addEventListener('transitionend', function (event) {
+      if (event.target === root && event.propertyName === 'opacity') { remove(); }
+    });
+    root.classList.add('snackbar--leaving');
+    // Fallback: never leave an orphan node if the transition does not fire.
+    window.setTimeout(remove, DURATION_EXIT + 120);
+  };
+
+  /* ---------------------------------------------------------------
+     Harness state machine
+     --------------------------------------------------------------- */
+  var current = 0;          // index into VALUES
+  var live = null;          // the mounted Snackbar, if any
+  var ackTimer = 0;
+
+  function setState(state) { readoutState.textContent = state; }
+  function setServer(state) { readoutServer.textContent = state; }
+
+  function clearLive() {
+    if (live) { live.close('replaced'); live = null; }
+  }
+
+  function commit(next) {
+    current = next;
+    valueEl.textContent = VALUES[current];
+  }
+
+  function save() {
+    var previous = current;
+    var next = (current + 1) % VALUES.length;
+    var mine;
+
+    clearLive();
+    window.clearTimeout(ackTimer);
+
+    // Optimistic: the value changes now, before the server has answered.
+    commit(next);
+    setState('saved · undo available');
+    setServer('pending');
+    saveButton.disabled = true;
+
+    ackTimer = window.setTimeout(function () {
+      if (live !== mine) { return; }
+      setServer('acknowledged');
+      setState('saved · confirmed');
+    }, ACK_DELAY);
+
+    mine = new Snackbar({
+      message: 'Digest set to ' + VALUES[next] + '.',
+      duration: DURATION_DISMISS,
+      undo: function () { revert(previous); },
+      onDismiss: function (reason) {
+        // Only the snackbar that is still current may reset harness state.
+        if (live !== mine) { return; }
+        live = null;
+        saveButton.disabled = false;
+        setState('dismissed · ' + reason);
+      }
+    });
+    live = mine;
+  }
+
+  function revert(previous) {
+    var mine;
+    window.clearTimeout(ackTimer);
+    commit(previous);
+    setState('reverted');
+    setServer('rolled back');
+    saveButton.disabled = true;
+
+    mine = new Snackbar({
+      message: 'Change reverted.',
+      detail: 'Digest is back to ' + VALUES[previous] + '.',
+      duration: DURATION_DISMISS_SHORT,
+      onDismiss: function (reason) {
+        if (live !== mine) { return; }
+        live = null;
+        saveButton.disabled = false;
+        setState('idle');
+        setServer('—');
+      }
+    });
+    live = mine;
+  }
+
+  saveButton.addEventListener('click', save);
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && live) { live.close('escape'); }
+  });
+})();
+</script>
+
+</body>
+</html>

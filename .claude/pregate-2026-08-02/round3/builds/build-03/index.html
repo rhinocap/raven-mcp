@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en" data-fixture="arena-snackbar">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Optimistic save — arena pre-gate fixture</title>
+<style>
+/* ---------------------------------------------------------------------------
+   TOKEN LAYER — the only place literals are authored.
+   Values are transcribed from arena/DESIGN.md frontmatter.
+   Every rule below this block reads var(--token, fallback).
+--------------------------------------------------------------------------- */
+:root {
+  /* colors */
+  --color-bg: #050505;
+  --color-bg-elev: #141414;
+  --color-bg-card: #1c1c1c;
+  --color-fg: #ffffff;
+  --color-fg-muted: #b8b8b8;
+  --color-fg-dim: #828282;
+  --color-line: #363636;
+  --color-line-strong: #545454;
+  --color-accent: #ed4609;
+
+  /* type scale */
+  --type-label: 13px;
+  --type-body: 16px;
+  --type-lead: 20px;
+  --type-h3: 27px;
+  --type-h2: 56px;
+  --type-h1: 96px;
+
+  /* space scale */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-xxl: 48px;
+
+  /* motion */
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 200ms;
+  --motion-duration-slow: 400ms;
+  --motion-duration-instant: 1ms;
+  --motion-easing-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --motion-easing-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-easing-site: cubic-bezier(0.56, 0.22, 0.05, 0.99);
+  /* dwell = the auto-dismiss clock; read by the state machine, not hard-coded in JS */
+  --motion-duration-dwell: 6000ms;
+
+  /* type families — Untitled Sans is the display + body face; no italic file is loaded */
+  --font-body: "Untitled Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-display: "Untitled Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "Geist Mono", "Geist", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-serif: "Domaine Display", Georgia, serif; /* authorial voice only — unused here */
+
+  /* weights (400 / 500 / 700 only) */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-bold: 700;
+
+  /* leading + tracking */
+  --leading-tight: 1.08;
+  --leading-snug: 1.3;
+  --leading-body: 1.55;
+  --tracking-eyebrow: 0.09em;
+  --tracking-tight: -0.02em;
+
+  /* component dimensions (px reserved for component sizing, never layout frames) */
+  --size-tap-min: 44px;
+  --size-icon: 16px;
+  --size-icon-stroke: 1.25;
+  --border-hairline: 1px;
+  --radius-flat: 0;
+  --size-snackbar-max: 30rem;
+  --size-measure: 46rem;
+  --size-lede-measure: 34rem;
+}
+
+/* ---------------------------------------------------------------------------
+   PAGE / DEMO HARNESS
+--------------------------------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: var(--radius-flat, 0);
+  background: var(--color-bg, #050505);
+  color: var(--color-fg, #ffffff);
+  font-family: var(--font-body, sans-serif);
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-regular, 400);
+  line-height: var(--leading-body, 1.55);
+  -webkit-font-smoothing: antialiased;
+}
+
+.shell {
+  inline-size: min(100% - var(--space-xl, 32px) * 2, var(--size-measure, 46rem));
+  margin-inline: auto;
+  padding-block: var(--space-xxl, 48px) calc(var(--space-xxl, 48px) * 3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxl, 48px);
+}
+
+.eyebrow {
+  margin: var(--radius-flat, 0);
+  font-size: var(--type-label, 13px);
+  font-weight: var(--weight-medium, 500);
+  letter-spacing: var(--tracking-eyebrow, 0.09em);
+  text-transform: uppercase;
+  color: var(--color-fg-dim, #828282);
+}
+
+.masthead { display: flex; flex-direction: column; gap: var(--space-md, 16px); }
+
+.masthead__title {
+  margin: var(--radius-flat, 0);
+  font-family: var(--font-display, sans-serif);
+  font-size: var(--type-h1, 96px);
+  font-weight: var(--weight-medium, 500);
+  line-height: var(--leading-tight, 1.08);
+  letter-spacing: var(--tracking-tight, -0.02em);
+  color: var(--color-fg, #ffffff);
+}
+
+.masthead__lede {
+  margin: var(--radius-flat, 0);
+  max-inline-size: var(--size-lede-measure, 34rem);
+  font-size: var(--type-lead, 20px);
+  font-weight: var(--weight-regular, 400);
+  line-height: var(--leading-snug, 1.3);
+  color: var(--color-fg-muted, #b8b8b8);
+}
+
+/* record — hairline-ruled rows, no card, no radius, no shadow */
+.record {
+  margin: var(--radius-flat, 0);
+  border-block-start: var(--border-hairline, 1px) solid var(--color-line, #363636);
+}
+
+.record__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--space-md, 16px);
+  padding-block: var(--space-md, 16px);
+  border-block-end: var(--border-hairline, 1px) solid var(--color-line, #363636);
+}
+
+.record__key {
+  margin: var(--radius-flat, 0);
+  font-size: var(--type-label, 13px);
+  font-weight: var(--weight-medium, 500);
+  letter-spacing: var(--tracking-eyebrow, 0.09em);
+  text-transform: uppercase;
+  color: var(--color-fg-dim, #828282);
+  align-self: center;
+}
+
+.record__value {
+  margin: var(--radius-flat, 0);
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-medium, 500);
+  color: var(--color-fg, #ffffff);
+  align-self: center;
+}
+
+.record__value--muted { font-weight: var(--weight-regular, 400); color: var(--color-fg-muted, #b8b8b8); }
+.record__value--mono { font-family: var(--font-mono, monospace); font-weight: var(--weight-regular, 400); color: var(--color-fg-muted, #b8b8b8); }
+
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-lg, 24px); }
+
+.controls__note {
+  margin: var(--radius-flat, 0);
+  max-inline-size: var(--size-lede-measure, 34rem);
+  font-size: var(--type-label, 13px);
+  color: var(--color-fg-muted, #b8b8b8);
+}
+
+/* ---------------------------------------------------------------------------
+   BUTTON SYSTEM — semantic classes only, no inline styles on any control.
+   variants: primary, ghost (from DESIGN.md) + secondary, icon (added here)
+   states:   hover, focus-visible, active, disabled (from DESIGN.md) + loading
+--------------------------------------------------------------------------- */
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm, 8px);
+  min-block-size: var(--size-tap-min, 44px);
+  min-inline-size: var(--size-tap-min, 44px);
+  padding-inline: var(--space-lg, 24px);
+  border: var(--border-hairline, 1px) solid transparent;
+  border-radius: var(--radius-flat, 0);
+  background: transparent;
+  color: var(--color-fg, #ffffff);
+  font-family: var(--font-body, sans-serif);
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-medium, 500);
+  line-height: var(--leading-snug, 1.3);
+  cursor: pointer;
+  transition:
+    color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
+    border-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out),
+    background-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out);
+}
+
+.btn:focus-visible {
+  outline: var(--border-hairline, 1px) solid var(--color-accent, #ed4609);
+  outline-offset: calc(var(--space-xs, 4px) * -1);
+}
+
+.btn:disabled { color: var(--color-fg-dim, #828282); cursor: not-allowed; }
+
+/* primary — monochrome; the save is not a signal event, so it carries no accent */
+.btn--primary { border-color: var(--color-line-strong, #545454); color: var(--color-fg, #ffffff); }
+.btn--primary:hover { border-color: var(--color-fg, #ffffff); background: var(--color-bg-card, #1c1c1c); }
+.btn--primary:active { background: var(--color-bg-elev, #141414); }
+.btn--primary:disabled:hover { border-color: var(--color-line, #363636); background: transparent; }
+
+/* ghost — no frame until hover */
+.btn--ghost { border-color: transparent; color: var(--color-fg-muted, #b8b8b8); }
+.btn--ghost:hover { color: var(--color-fg, #ffffff); border-color: var(--color-line, #363636); }
+
+/* secondary — text control on a hairline underline; no frame, no fill */
+.btn--secondary {
+  padding-inline: var(--space-md, 16px);
+  border-color: transparent;
+  color: var(--color-fg, #ffffff);
+}
+.btn--secondary .btn__label {
+  border-block-end: var(--border-hairline, 1px) solid var(--color-line-strong, #545454);
+  padding-block-end: var(--space-xs, 4px);
+  transition: border-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out);
+}
+.btn--secondary:hover .btn__label { border-block-end-color: var(--color-fg, #ffffff); }
+
+/* icon — square, monochrome, recessive */
+.btn--icon { padding-inline: var(--space-sm, 8px); color: var(--color-fg-dim, #828282); }
+.btn--icon:hover { color: var(--color-fg, #ffffff); background: var(--color-bg-card, #1c1c1c); }
+.btn--icon:active { color: var(--color-fg-muted, #b8b8b8); }
+
+/* loading — in-flight commit; the accent hairline is progress, not decoration */
+.btn.is-loading { color: var(--color-fg-muted, #b8b8b8); cursor: progress; }
+.btn.is-loading::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: var(--radius-flat, 0);
+  inset-block-end: var(--radius-flat, 0);
+  block-size: var(--border-hairline, 1px);
+  background: var(--color-accent, #ed4609);
+  animation: btn-commit var(--motion-duration-slow, 400ms) var(--motion-easing-site, ease-out) forwards;
+}
+
+@keyframes btn-commit { from { inline-size: 0%; } to { inline-size: 100%; } }
+
+.icon {
+  inline-size: var(--size-icon, 16px);
+  block-size: var(--size-icon, 16px);
+  display: block;
+  flex: none;
+}
+.icon path { stroke: currentColor; stroke-width: var(--size-icon-stroke, 1.25); fill: none; }
+
+/* ---------------------------------------------------------------------------
+   SNACKBAR — bottom-anchored transient confirmation.
+   The bar itself is inserted and removed; only the empty live-region mount
+   point is permanent (so the insertion is announced reliably).
+--------------------------------------------------------------------------- */
+.snackbar-host {
+  position: fixed;
+  inset-inline: var(--radius-flat, 0);
+  inset-block-end: var(--space-xl, 32px);
+  display: flex;
+  justify-content: center;
+  padding-inline: var(--space-md, 16px);
+  pointer-events: none;
+}
+
+.snackbar {
+  pointer-events: auto;
+  inline-size: fit-content;
+  max-inline-size: min(100%, var(--size-snackbar-max, 30rem));
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: var(--space-md, 16px);
+  padding-inline-start: var(--space-lg, 24px);
+  background: var(--color-bg-elev, #141414);
+  border: var(--border-hairline, 1px) solid var(--color-line, #363636);
+  border-radius: var(--radius-flat, 0);
+}
+
+.snackbar__message {
+  margin: var(--radius-flat, 0);
+  display: flex;
+  align-items: center;
+  padding-block: var(--space-md, 16px);
+  padding-inline-end: var(--space-xl, 32px);
+  font-size: var(--type-body, 16px);
+  font-weight: var(--weight-medium, 500);
+  line-height: var(--leading-snug, 1.3);
+  color: var(--color-fg, #ffffff);
+}
+
+.snackbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs, 4px);
+  padding-inline: var(--space-xs, 4px);
+  border-inline-start: var(--border-hairline, 1px) solid var(--color-line, #363636);
+}
+
+/* the one element permitted the accent — as punctuation under the label */
+.snackbar__undo .btn__label { border-block-end-color: var(--color-accent, #ed4609); }
+.snackbar__undo:hover .btn__label { border-block-end-color: var(--color-accent, #ed4609); }
+.snackbar__undo:hover { color: var(--color-fg, #ffffff); }
+
+@keyframes snackbar-enter {
+  from { opacity: 0; transform: translateY(var(--space-md, 16px)); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes snackbar-exit {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(var(--space-sm, 8px)); }
+}
+
+.snackbar[data-state="entering"] {
+  animation: snackbar-enter var(--motion-duration-base, 200ms) var(--motion-easing-out-expo, ease-out) both;
+}
+.snackbar[data-state="leaving"] {
+  animation: snackbar-exit var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease-out) both;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------------------
+   REDUCED MOTION — enter collapses to opacity only, exit collapses to instant,
+   every transition and the commit hairline collapse with it.
+--------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes snackbar-enter { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes snackbar-exit  { from { opacity: 1; } to { opacity: 0; } }
+  @keyframes btn-commit     { from { inline-size: 100%; } to { inline-size: 100%; } }
+
+  .snackbar[data-state="leaving"] { animation-duration: var(--motion-duration-instant, 1ms); }
+  .btn.is-loading::after { animation-duration: var(--motion-duration-instant, 1ms); }
+  .btn, .btn--secondary .btn__label { transition-duration: var(--motion-duration-instant, 1ms); }
+}
+
+/* narrower viewports: the display scale steps down the same token ladder */
+@media (max-width: 48rem) {
+  .masthead__title { font-size: var(--type-h2, 56px); }
+}
+
+/* small viewports: the bar spans the gutter and the actions stay ≥44px */
+@media (max-width: 30rem) {
+  .snackbar { padding-inline-start: var(--space-md, 16px); }
+  .masthead__title { font-size: var(--type-h3, 27px); }
+  .masthead__lede { font-size: var(--type-body, 16px); }
+  .record__row { grid-template-columns: minmax(0, 1fr); gap: var(--space-xs, 4px); }
+}
+</style>
+</head>
+<body>
+  <main class="shell">
+    <p class="eyebrow">Arena · pre-gate fixture</p>
+
+    <header class="masthead">
+      <h1 class="masthead__title">Optimistic save</h1>
+      <p class="masthead__lede">
+        Committing a change writes it to the record immediately and posts a confirmation
+        at the bottom edge. The confirmation holds the only path back, so its clock stops
+        while a pointer or keyboard focus is inside it.
+      </p>
+    </header>
+
+    <dl class="record">
+      <div class="record__row">
+        <dt class="record__key">Visibility</dt>
+        <dd class="record__value" id="record-value">Private</dd>
+      </div>
+      <div class="record__row">
+        <dt class="record__key">Last outcome</dt>
+        <dd class="record__value record__value--muted" id="record-outcome">No change yet</dd>
+      </div>
+      <div class="record__row">
+        <dt class="record__key">Machine state</dt>
+        <dd class="record__value record__value--mono" id="record-state">absent</dd>
+      </div>
+    </dl>
+
+    <div class="controls">
+      <button type="button" class="btn btn--primary" id="save-button">
+        <span class="btn__label">Save change</span>
+      </button>
+      <p class="controls__note">
+        Each save flips the value and posts the confirmation. Hover it, or tab into it,
+        to hold the clock. Escape dismisses.
+      </p>
+    </div>
+  </main>
+
+  <!-- Permanent, empty mount point. It is the polite live region; the snackbar
+       itself is added to and removed from the document, never hidden in place. -->
+  <div class="snackbar-host" id="snackbar-host" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var host = document.getElementById("snackbar-host");
+  var saveButton = document.getElementById("save-button");
+  var valueEl = document.getElementById("record-value");
+  var outcomeEl = document.getElementById("record-outcome");
+  var stateEl = document.getElementById("record-state");
+
+  var VALUES = ["Private", "Public"];
+
+  // The dwell is a token, read off the cascade rather than duplicated in JS.
+  function tokenMs(name, fallback) {
+    var raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    if (!raw) return fallback;
+    if (raw.slice(-2) === "ms") return parseFloat(raw) || fallback;
+    if (raw.slice(-1) === "s") return (parseFloat(raw) || 0) * 1000 || fallback;
+    return parseFloat(raw) || fallback;
+  }
+  var DWELL = tokenMs("--motion-duration-dwell", 6000);
+  var COMMIT = tokenMs("--motion-duration-slow", 400);
+
+  // ---- machine ------------------------------------------------------------
+  var node = null;          // the snackbar element, or null in `absent`
+  var state = "absent";
+  var timerId = null;
+  var remaining = DWELL;
+  var startedAt = 0;
+  var hovered = false;
+  var focused = false;
+  var previousValue = null; // captured per commit, for the reversal
+
+  function setState(next) {
+    state = next;
+    stateEl.textContent = next;
+    if (node) node.dataset.state = next;
+  }
+
+  function clearClock() {
+    if (timerId !== null) { clearTimeout(timerId); timerId = null; }
+  }
+
+  function runClock() {
+    if (state !== "visible" || hovered || focused) return;
+    clearClock();
+    startedAt = performance.now();
+    timerId = setTimeout(function () { timerId = null; beginLeave(); }, remaining);
+  }
+
+  function holdClock() {
+    if (timerId === null) return;
+    remaining = Math.max(0, remaining - (performance.now() - startedAt));
+    clearClock();
+  }
+
+  function icon() {
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "icon");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M4.5 4.5 L11.5 11.5 M11.5 4.5 L4.5 11.5");
+    path.setAttribute("stroke", "currentColor");
+    path.setAttribute("stroke-linecap", "square");
+    svg.appendChild(path);
+    return svg;
+  }
+
+  function build() {
+    var bar = document.createElement("div");
+    bar.className = "snackbar";
+    bar.setAttribute("role", "group");
+    bar.setAttribute("aria-label", "Save confirmation");
+
+    var message = document.createElement("p");
+    message.className = "snackbar__message";
+    message.textContent = "Saved";
+    bar.appendChild(message);
+
+    var actions = document.createElement("div");
+    actions.className = "snackbar__actions";
+
+    var undo = document.createElement("button");
+    undo.type = "button";
+    undo.className = "btn btn--secondary snackbar__undo";
+    var undoLabel = document.createElement("span");
+    undoLabel.className = "btn__label";
+    undoLabel.textContent = "Undo";
+    undo.appendChild(undoLabel);
+    undo.addEventListener("click", onUndo);
+    actions.appendChild(undo);
+
+    var dismiss = document.createElement("button");
+    dismiss.type = "button";
+    dismiss.className = "btn btn--icon snackbar__dismiss";
+    dismiss.setAttribute("aria-label", "Dismiss");
+    dismiss.appendChild(icon());
+    dismiss.addEventListener("click", onDismiss);
+    actions.appendChild(dismiss);
+
+    bar.appendChild(actions);
+
+    bar.addEventListener("mouseenter", function () { hovered = true; holdClock(); });
+    bar.addEventListener("mouseleave", function () { hovered = false; runClock(); });
+    bar.addEventListener("focusin", function () { focused = true; holdClock(); });
+    bar.addEventListener("focusout", function (event) {
+      if (bar.contains(event.relatedTarget)) return;
+      focused = false;
+      runClock();
+    });
+    bar.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { event.stopPropagation(); onDismiss(); }
+    });
+
+    return bar;
+  }
+
+  function remove() {
+    if (!node) return;
+    var hadFocus = node.contains(document.activeElement);
+    node.remove();
+    node = null;
+    hovered = false;
+    focused = false;
+    clearClock();
+    if (hadFocus) saveButton.focus();
+  }
+
+  // absent -> entering
+  function commit() {
+    if (node) remove();               // a second save replaces the first outright
+
+    previousValue = valueEl.textContent;
+    valueEl.textContent = previousValue === VALUES[0] ? VALUES[1] : VALUES[0];
+    outcomeEl.textContent = "Awaiting your response";
+
+    node = build();
+    host.appendChild(node);
+    remaining = DWELL;
+    setState("entering");
+
+    node.addEventListener("animationend", function onEnterEnd(event) {
+      if (event.animationName !== "snackbar-enter") return;
+      node.removeEventListener("animationend", onEnterEnd);
+      setState("visible");            // entering -> visible
+      runClock();
+    });
+
+    // the request is already in flight; the record does not wait for it
+    saveButton.classList.add("is-loading");
+    saveButton.setAttribute("aria-busy", "true");
+    setTimeout(function () {
+      saveButton.classList.remove("is-loading");
+      saveButton.removeAttribute("aria-busy");
+    }, COMMIT);
+  }
+
+  // visible -> leaving -> dismissed
+  function beginLeave() {
+    if (state !== "visible" || !node) return;
+    clearClock();
+    node.inert = true;                // inert so a late click cannot re-enter
+    setState("leaving");
+    node.addEventListener("animationend", function onExitEnd(event) {
+      if (event.animationName !== "snackbar-exit") return;
+      node.removeEventListener("animationend", onExitEnd);
+      remove();
+      setState("dismissed");
+      outcomeEl.textContent = "Saved · kept";
+    });
+  }
+
+  function onDismiss() {
+    if (state !== "visible") return;
+    beginLeave();
+  }
+
+  // visible -> reverted (terminal; removal is the transition, per the machine)
+  function onUndo() {
+    if (state !== "visible") return;
+    valueEl.textContent = previousValue;
+    remove();
+    setState("reverted");
+    outcomeEl.textContent = "Saved · reverted";
+  }
+
+  saveButton.addEventListener("click", commit);
+})();
+</script>
+</body>
+</html>

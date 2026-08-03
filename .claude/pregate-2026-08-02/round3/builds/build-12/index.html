@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Optimistic save — snackbar</title>
+<style>
+  /* ---------------------------------------------------------------
+     Tokens — concrete values from arena/DESIGN.md.
+     Every component value below is authored as var(--token, fallback).
+     --------------------------------------------------------------- */
+  :root {
+    /* color */
+    --color-bg: #050505;
+    --color-bg-elev: #141414;
+    --color-bg-card: #1c1c1c;
+    --color-fg: #ffffff;
+    --color-fg-muted: #b8b8b8;
+    --color-fg-dim: #828282;
+    --color-line: #363636;
+    --color-line-strong: #545454;
+    --color-accent: #ed4609;
+
+    /* type scale (DESIGN.md values are px) */
+    --type-label: 13px;
+    --type-body: 16px;
+    --type-lead: 20px;
+    --type-h3: 27px;
+    --type-h2: 56px;
+    --type-h1: 96px;
+
+    /* families */
+    --font-display: "Untitled Sans", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", sans-serif;
+    --font-body: "Untitled Sans", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", sans-serif;
+    --font-mono: "Geist Mono", "Geist", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --font-serif: "Domaine Display", Georgia, serif; /* authorial voice only — unused here */
+
+    /* weight + leading */
+    --weight-regular: 400;
+    --weight-medium: 500;
+    --weight-bold: 700;
+    --leading-tight: 1.15;
+    --leading-snug: 1.35;
+    --leading-body: 1.55;
+    --tracking-label: 0.08em;
+    --tracking-tight: -0.01em;
+
+    /* space */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-xxl: 48px;
+
+    /* motion */
+    --motion-duration-fast: 120ms;
+    --motion-duration-base: 200ms;
+    --motion-duration-slow: 400ms;
+    --motion-easing-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --motion-easing-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --motion-easing-site: cubic-bezier(0.56, 0.22, 0.05, 0.99);
+
+    /* component dimensions */
+    --rule-hairline: 1px;
+    --rule-strong: 2px;
+    --radius-square: 0px;
+    --control-min: 44px;
+    --icon-size: 16px;
+    --page-max: 880px;
+    --snackbar-max: 480px;
+    --snackbar-enter-offset: 8px;
+    --z-snackbar: 40;
+    --focus-ring: 2px;
+
+    /* snackbar timing — single source of truth, read by the script */
+    --snackbar-timeout: 6000ms;
+    --snackbar-timeout-short: 3200ms;
+  }
+
+  /* ---------------------------------------------------------------
+     Base
+     --------------------------------------------------------------- */
+  html, body {
+    overflow-x: clip;
+    max-width: 100vw;
+  }
+
+  html {
+    background: var(--color-bg, #050505);
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-bg, #050505);
+    color: var(--color-fg, #ffffff);
+    font-family: var(--font-body);
+    font-size: var(--type-body, 16px);
+    font-weight: var(--weight-regular, 400);
+    line-height: var(--leading-body, 1.55);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: var(--color-accent, #ed4609);
+    color: var(--color-bg, #050505);
+  }
+
+  /* ---------------------------------------------------------------
+     Page (demo harness)
+     --------------------------------------------------------------- */
+  .page {
+    width: min(var(--page-max, 880px), calc(100% - (var(--space-xl, 32px) * 2)));
+    margin-inline: auto;
+    padding-block: var(--space-xxl, 48px) calc(var(--space-xxl, 48px) * 3);
+  }
+
+  .eyebrow {
+    margin: 0 0 var(--space-lg, 24px);
+    font-family: var(--font-mono);
+    font-size: var(--type-label, 13px);
+    letter-spacing: var(--tracking-label, 0.08em);
+    text-transform: uppercase;
+    color: var(--color-fg-dim, #828282);
+  }
+
+  .page__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--type-h2, 56px);
+    font-weight: var(--weight-medium, 500);
+    line-height: var(--leading-tight, 1.15);
+    letter-spacing: var(--tracking-tight, -0.01em);
+    color: var(--color-fg, #ffffff);
+  }
+
+  .page__lede {
+    margin: var(--space-lg, 24px) 0 0;
+    max-width: 46ch;
+    font-size: var(--type-lead, 20px);
+    line-height: var(--leading-snug, 1.35);
+    color: var(--color-fg-muted, #b8b8b8);
+  }
+
+  /* Setting row — the thing being saved */
+  .setting {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-md, 16px) var(--space-xl, 32px);
+    margin-top: calc(var(--space-xxl, 48px) * 1.5);
+    padding-block: var(--space-xl, 32px);
+    border-top: var(--rule-hairline, 1px) solid var(--color-line, #363636);
+    border-bottom: var(--rule-hairline, 1px) solid var(--color-line, #363636);
+  }
+
+  .setting__text {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .setting__name {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--type-h3, 27px);
+    font-weight: var(--weight-medium, 500);
+    line-height: var(--leading-tight, 1.15);
+    letter-spacing: var(--tracking-tight, -0.01em);
+    color: var(--color-fg, #ffffff);
+  }
+
+  .setting__desc {
+    margin: var(--space-sm, 8px) 0 0;
+    max-width: 44ch;
+    color: var(--color-fg-muted, #b8b8b8);
+  }
+
+  .setting__value {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-sm, 8px);
+    margin: 0;
+    flex: 0 0 auto;
+  }
+
+  .setting__value-label {
+    font-family: var(--font-mono);
+    font-size: var(--type-label, 13px);
+    letter-spacing: var(--tracking-label, 0.08em);
+    text-transform: uppercase;
+    color: var(--color-fg-dim, #828282);
+  }
+
+  .setting__value-current {
+    font-family: var(--font-display);
+    font-size: var(--type-lead, 20px);
+    font-weight: var(--weight-medium, 500);
+    color: var(--color-fg, #ffffff);
+    transition: color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, cubic-bezier(0.25, 1, 0.5, 1));
+  }
+
+  .setting__value-current[data-pending="true"] {
+    color: var(--color-fg-muted, #b8b8b8);
+  }
+
+  /* Harness readout — one line, state machine made legible */
+  .readout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs, 4px) var(--space-md, 16px);
+    margin: var(--space-lg, 24px) 0 0;
+    font-family: var(--font-mono);
+    font-size: var(--type-label, 13px);
+    color: var(--color-fg-dim, #828282);
+  }
+
+  .readout__value {
+    color: var(--color-fg-muted, #b8b8b8);
+  }
+
+  .hint {
+    margin: var(--space-xxl, 48px) 0 0;
+    padding-top: var(--space-lg, 24px);
+    border-top: var(--rule-hairline, 1px) solid var(--color-line, #363636);
+    max-width: 52ch;
+    font-size: var(--type-label, 13px);
+    color: var(--color-fg-dim, #828282);
+  }
+
+  /* ---------------------------------------------------------------
+     Buttons — semantic classes, no inline styles
+     --------------------------------------------------------------- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--control-min, 44px);
+    min-width: var(--control-min, 44px);
+    padding-inline: var(--space-lg, 24px);
+    border: var(--rule-hairline, 1px) solid var(--color-line-strong, #545454);
+    border-radius: var(--radius-square, 0px);
+    background: transparent;
+    color: var(--color-fg, #ffffff);
+    font-family: var(--font-body);
+    font-size: var(--type-body, 16px);
+    font-weight: var(--weight-medium, 500);
+    line-height: var(--leading-tight, 1.15);
+    cursor: pointer;
+    transition:
+      background-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, cubic-bezier(0.25, 1, 0.5, 1)),
+      border-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, cubic-bezier(0.25, 1, 0.5, 1)),
+      color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, cubic-bezier(0.25, 1, 0.5, 1));
+  }
+
+  .btn:hover {
+    border-color: var(--color-fg, #ffffff);
+    background: var(--color-bg-elev, #141414);
+  }
+
+  .btn:active {
+    background: var(--color-bg-card, #1c1c1c);
+  }
+
+  .btn:focus-visible {
+    outline: var(--focus-ring, 2px) solid var(--color-fg, #ffffff);
+    outline-offset: var(--space-xs, 4px);
+  }
+
+  .btn[disabled] {
+    color: var(--color-fg-dim, #828282);
+    border-color: var(--color-line, #363636);
+    cursor: default;
+  }
+
+  .btn[disabled]:hover {
+    background: transparent;
+    border-color: var(--color-line, #363636);
+  }
+
+  .btn--primary {
+    border-color: var(--color-fg, #ffffff);
+  }
+
+  .btn--primary:hover {
+    background: var(--color-fg, #ffffff);
+    color: var(--color-bg, #050505);
+  }
+
+  .btn--primary:active {
+    background: var(--color-fg-muted, #b8b8b8);
+    color: var(--color-bg, #050505);
+  }
+
+  /* ---------------------------------------------------------------
+     Snackbar — anchored to the content column, hairline-ruled
+     --------------------------------------------------------------- */
+  .snackbar-region {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: var(--z-snackbar, 40);
+    display: flex;
+    justify-content: flex-start;
+    width: min(var(--page-max, 880px), calc(100% - (var(--space-xl, 32px) * 2)));
+    margin-inline: auto;
+    padding-bottom: var(--space-xl, 32px);
+    pointer-events: none;
+  }
+
+  .snackbar {
+    pointer-events: auto;
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    width: min(var(--snackbar-max, 480px), 100%);
+    min-width: 0;
+    border: var(--rule-hairline, 1px) solid var(--color-line-strong, #545454);
+    border-radius: var(--radius-square, 0px);
+    background: var(--color-bg-elev, #141414);
+    transition:
+      opacity var(--motion-duration-base, 200ms) var(--motion-easing-out-expo, cubic-bezier(0.16, 1, 0.3, 1)),
+      transform var(--motion-duration-base, 200ms) var(--motion-easing-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  }
+
+  .snackbar[data-phase="entering"],
+  .snackbar[data-phase="leaving"] {
+    opacity: 0;
+    transform: translateY(var(--snackbar-enter-offset, 8px));
+  }
+
+  .snackbar[data-phase="visible"] {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .snackbar__message {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    min-height: var(--control-min, 44px);
+    padding: var(--space-md, 16px) var(--space-lg, 24px);
+    margin: 0;
+    font-size: var(--type-body, 16px);
+    line-height: var(--leading-snug, 1.35);
+    color: var(--color-fg, #ffffff);
+  }
+
+  .snackbar__action {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--control-min, 44px);
+    min-width: var(--control-min, 44px);
+    padding-inline: var(--space-lg, 24px);
+    border: 0;
+    border-left: var(--rule-hairline, 1px) solid var(--color-line, #363636);
+    border-radius: var(--radius-square, 0px);
+    background: transparent;
+    color: var(--color-accent, #ed4609);
+    font-family: var(--font-body);
+    font-size: var(--type-body, 16px);
+    font-weight: var(--weight-medium, 500);
+    line-height: var(--leading-tight, 1.15);
+    cursor: pointer;
+    transition: background-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, cubic-bezier(0.25, 1, 0.5, 1));
+  }
+
+  .snackbar__action:hover {
+    background: var(--color-bg-card, #1c1c1c);
+  }
+
+  .snackbar__action:focus-visible {
+    outline: var(--focus-ring, 2px) solid var(--color-fg, #ffffff);
+    outline-offset: calc(var(--focus-ring, 2px) * -2);
+  }
+
+  .snackbar__dismiss {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--control-min, 44px);
+    min-width: var(--control-min, 44px);
+    padding: var(--space-sm, 8px);
+    border: 0;
+    border-left: var(--rule-hairline, 1px) solid var(--color-line, #363636);
+    border-radius: var(--radius-square, 0px);
+    background: transparent;
+    color: var(--color-fg-muted, #b8b8b8);
+    cursor: pointer;
+    transition:
+      background-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, cubic-bezier(0.25, 1, 0.5, 1)),
+      color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, cubic-bezier(0.25, 1, 0.5, 1));
+  }
+
+  .snackbar__dismiss:hover {
+    background: var(--color-bg-card, #1c1c1c);
+    color: var(--color-fg, #ffffff);
+  }
+
+  .snackbar__dismiss:focus-visible {
+    outline: var(--focus-ring, 2px) solid var(--color-fg, #ffffff);
+    outline-offset: calc(var(--focus-ring, 2px) * -2);
+  }
+
+  .snackbar__icon {
+    display: block;
+    width: var(--icon-size, 16px);
+    height: var(--icon-size, 16px);
+  }
+
+  /* Depleting hairline — carries the remaining auto-dismiss time */
+  .snackbar__timer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: var(--rule-strong, 2px);
+    background: var(--color-line-strong, #545454);
+    transform: scaleX(var(--snackbar-progress, 1));
+    transform-origin: left center;
+  }
+
+  .snackbar[data-paused="true"] .snackbar__timer {
+    background: var(--color-line, #363636);
+  }
+
+  .sr-only {
+    position: absolute;
+    width: var(--rule-hairline, 1px);
+    height: var(--rule-hairline, 1px);
+    margin: calc(var(--rule-hairline, 1px) * -1);
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .page__title { font-size: var(--type-h3, 27px); }
+    .page__lede { font-size: var(--type-body, 16px); }
+    .setting__name { font-size: var(--type-lead, 20px); }
+    .snackbar-region { padding-bottom: var(--space-md, 16px); }
+    .page { width: calc(100% - (var(--space-lg, 24px) * 2)); }
+  }
+</style>
+</head>
+<body>
+
+<main class="page">
+  <p class="eyebrow">Arena — component fixture</p>
+  <h1 class="page__title">Optimistic save</h1>
+  <p class="page__lede">The change is applied before the server answers. The snackbar states what happened, keeps one way back, and leaves on its own.</p>
+
+  <section class="setting" aria-labelledby="setting-name">
+    <div class="setting__text">
+      <h2 class="setting__name" id="setting-name">Project visibility</h2>
+      <p class="setting__desc">Who can open this project from outside the team.</p>
+    </div>
+    <p class="setting__value">
+      <span class="setting__value-label">Current</span>
+      <span class="setting__value-current" id="visibility-value">Private</span>
+    </p>
+    <button class="btn btn--primary" id="save-button" type="button">Save change</button>
+  </section>
+
+  <p class="readout" id="readout">
+    <span>state</span>
+    <span class="readout__value" id="readout-state">idle</span>
+    <span>remaining</span>
+    <span class="readout__value" id="readout-remaining">—</span>
+  </p>
+
+  <p class="hint">Saving toggles the value and raises the snackbar. Pointer or keyboard focus inside the snackbar holds the countdown; leaving it resumes. Undo restores the previous value. Escape or the close control dismisses it.</p>
+</main>
+
+<div class="snackbar-region" id="snackbar-region"></div>
+<p class="sr-only" role="status" aria-live="polite" aria-atomic="true" id="live-region"></p>
+
+<script>
+(function () {
+  "use strict";
+
+  var root = document.documentElement;
+  var region = document.getElementById("snackbar-region");
+  var liveRegion = document.getElementById("live-region");
+  var saveButton = document.getElementById("save-button");
+  var valueEl = document.getElementById("visibility-value");
+  var readoutState = document.getElementById("readout-state");
+  var readoutRemaining = document.getElementById("readout-remaining");
+
+  var VALUES = ["Private", "Public"];
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  function tokenMs(name, fallback) {
+    var raw = getComputedStyle(root).getPropertyValue(name);
+    var parsed = parseFloat(raw);
+    return isNaN(parsed) ? fallback : parsed;
+  }
+
+  var TIMEOUT = tokenMs("--snackbar-timeout", 6000);
+  var TIMEOUT_SHORT = tokenMs("--snackbar-timeout-short", 3200);
+  var EXIT_MS = tokenMs("--motion-duration-base", 200);
+
+  /* Committed state of the setting */
+  var committed = valueEl.textContent.trim();
+
+  /* Snackbar state machine: idle -> entering -> visible <-> paused -> leaving -> idle */
+  var current = null; // { node, phase, duration, remaining, lastTick, rafId, exitTimer, onUndo }
+
+  function setReadout(state, remainingMs) {
+    readoutState.textContent = state;
+    readoutRemaining.textContent =
+      typeof remainingMs === "number" ? (Math.max(0, remainingMs) / 1000).toFixed(1) + "s" : "—";
+  }
+
+  function announce(message) {
+    liveRegion.textContent = message;
+  }
+
+  function stopTicking() {
+    if (current && current.rafId) {
+      cancelAnimationFrame(current.rafId);
+      current.rafId = 0;
+    }
+  }
+
+  function tick(now) {
+    if (!current || current.phase !== "visible") return;
+    var last = current.lastTick || now;
+    current.lastTick = now;
+    current.remaining -= (now - last);
+    var progress = Math.max(0, current.remaining / current.duration);
+    current.node.style.setProperty("--snackbar-progress", progress.toFixed(4));
+    setReadout("visible", current.remaining);
+    if (current.remaining <= 0) {
+      dismiss("timeout");
+      return;
+    }
+    current.rafId = requestAnimationFrame(tick);
+  }
+
+  function startTicking() {
+    if (!current) return;
+    current.phase = "visible";
+    current.node.setAttribute("data-paused", "false");
+    current.lastTick = 0;
+    stopTicking();
+    current.rafId = requestAnimationFrame(function (now) {
+      current.lastTick = now;
+      current.rafId = requestAnimationFrame(tick);
+    });
+  }
+
+  function pause() {
+    if (!current || current.phase !== "visible") return;
+    stopTicking();
+    current.phase = "paused";
+    current.node.setAttribute("data-paused", "true");
+    setReadout("paused", current.remaining);
+  }
+
+  function resume() {
+    if (!current || current.phase !== "paused") return;
+    startTicking();
+    setReadout("visible", current.remaining);
+  }
+
+  function removeNode(entry) {
+    if (entry.node && entry.node.parentNode) {
+      entry.node.parentNode.removeChild(entry.node);
+    }
+  }
+
+  function dismiss(reason) {
+    if (!current || current.phase === "leaving") return;
+    var entry = current;
+    var hadFocus = entry.node.contains(document.activeElement);
+    stopTicking();
+    entry.phase = "leaving";
+    entry.node.setAttribute("data-phase", "leaving");
+    current = null;
+
+    var exit = reduceMotion.matches ? 0 : EXIT_MS;
+    entry.exitTimer = window.setTimeout(function () {
+      removeNode(entry);
+      if (!current) setReadout("idle", null);
+    }, exit);
+
+    if (hadFocus) saveButton.focus();
+    if (reason === "dismiss") announce("Notice dismissed.");
+    setReadout("leaving", null);
+  }
+
+  function clearImmediately() {
+    if (!current) return;
+    var entry = current;
+    stopTicking();
+    if (entry.exitTimer) window.clearTimeout(entry.exitTimer);
+    removeNode(entry);
+    current = null;
+  }
+
+  function icon() {
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "snackbar__icon");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.5");
+    svg.setAttribute("stroke-linecap", "square");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M3.5 3.5l9 9M12.5 3.5l-9 9");
+    svg.appendChild(path);
+    return svg;
+  }
+
+  function show(options) {
+    clearImmediately();
+    // Sweep any node still mid-exit so only one snackbar is ever in the DOM.
+    while (region.firstChild) region.removeChild(region.firstChild);
+
+    var node = document.createElement("div");
+    node.className = "snackbar";
+    node.setAttribute("data-phase", "entering");
+    node.setAttribute("data-paused", "false");
+
+    var message = document.createElement("p");
+    message.className = "snackbar__message";
+    message.textContent = options.message;
+    node.appendChild(message);
+
+    if (options.onUndo) {
+      var undo = document.createElement("button");
+      undo.type = "button";
+      undo.className = "snackbar__action";
+      undo.textContent = "Undo";
+      undo.addEventListener("click", function () {
+        options.onUndo();
+      });
+      node.appendChild(undo);
+    }
+
+    var close = document.createElement("button");
+    close.type = "button";
+    close.className = "snackbar__dismiss";
+    close.setAttribute("aria-label", "Dismiss notice");
+    close.appendChild(icon());
+    close.addEventListener("click", function () {
+      dismiss("dismiss");
+    });
+    node.appendChild(close);
+
+    var timer = document.createElement("span");
+    timer.className = "snackbar__timer";
+    node.appendChild(timer);
+
+    var hovered = false;
+    function maybeResume() {
+      if (hovered) return;
+      if (node.contains(document.activeElement)) return;
+      resume();
+    }
+    node.addEventListener("pointerenter", function () {
+      hovered = true;
+      pause();
+    });
+    node.addEventListener("pointerleave", function () {
+      hovered = false;
+      maybeResume();
+    });
+    node.addEventListener("focusin", pause);
+    node.addEventListener("focusout", function (event) {
+      if (node.contains(event.relatedTarget)) return;
+      maybeResume();
+    });
+
+    region.appendChild(node);
+
+    current = {
+      node: node,
+      phase: "entering",
+      duration: options.duration,
+      remaining: options.duration,
+      lastTick: 0,
+      rafId: 0,
+      exitTimer: 0
+    };
+
+    node.style.setProperty("--snackbar-progress", "1");
+    setReadout("entering", options.duration);
+    announce(options.message);
+
+    // Force layout so the entering -> visible transition actually runs.
+    void node.offsetWidth;
+    node.setAttribute("data-phase", "visible");
+    startTicking();
+  }
+
+  function commit(next) {
+    var previous = committed;
+    committed = next;
+    valueEl.textContent = next;
+    valueEl.setAttribute("data-pending", "true");
+
+    // Optimistic: the value is already shown; the request settles a beat later.
+    window.setTimeout(function () {
+      if (committed === next) valueEl.removeAttribute("data-pending");
+    }, 600);
+
+    show({
+      message: "Visibility set to " + next + ".",
+      duration: TIMEOUT,
+      onUndo: function () {
+        committed = previous;
+        valueEl.textContent = previous;
+        valueEl.removeAttribute("data-pending");
+        show({
+          message: "Reverted to " + previous + ".",
+          duration: TIMEOUT_SHORT,
+          onUndo: null
+        });
+      }
+    });
+  }
+
+  saveButton.addEventListener("click", function () {
+    var next = committed === VALUES[0] ? VALUES[1] : VALUES[0];
+    commit(next);
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && current) {
+      dismiss("dismiss");
+    }
+  });
+
+  setReadout("idle", null);
+})();
+</script>
+
+</body>
+</html>
