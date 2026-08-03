@@ -1,0 +1,1083 @@
+{
+  "summary": "Blind re-judge of 12 snackbar builds after ablating the composer-caused type token",
+  "agentCount": 24,
+  "logs": [
+    "12 blind judges over the ablated set (message type token normalised to body scale)",
+    "12/12 judged and refuted"
+  ],
+  "result": {
+    "rows": [
+      {
+        "build": "abl-01",
+        "verdict": {
+          "build": "abl-01",
+          "overall_score": 87,
+          "ship_ready": true,
+          "defects": [
+            {
+              "severity": "low",
+              "what": "An auto-dismiss progress-timer bar (2px orange line along the snackbar's bottom edge, id=snackbar-timer) was added beyond the brief's three named elements (confirmation message, inline Undo, explicit dismiss). It's functional (indicates time-to-live) and restrained, not decorative, but it is scope the code's own comments admit is 'not in DESIGN.md, defined here' (index.html lines 49-52, 316-329, 411-434).",
+              "evidence": "index.html lines 49-52 (--radius-snackbar, --snackbar-auto-dismiss-ms, --snackbar-shadow marked 'local component tokens (not in DESIGN.md)') and lines 316-329 (.snackbar__timer)"
+            },
+            {
+              "severity": "low",
+              "what": "Undo's orange-on-dark contrast is close to the AA floor for normal text.",
+              "evidence": "color-accent #ed4609 on color-bg-elev #141414 computes to a contrast ratio of ~4.81:1 (AA normal-text minimum is 4.5:1) — passes, but with almost no headroom (index.html lines 18, 216, 263)"
+            },
+            {
+              "severity": "low",
+              "what": "The 'Save change' primary button gets no post-save state change (no disabled/checkmark/label swap) even though the document status label right next to it flips color and weight — the button looks identical whether the doc is Draft or Published.",
+              "evidence": "index.html lines 357, 447-452: setStatus() and openSnackbar() are called on click, but saveBtn's class/text/disabled state is never touched"
+            }
+          ],
+          "proportion_verdict": "Confirmation message ('Change saved.') and the inline Undo action are both set at the identical --type-body: 16px (index.html lines 21-23, 243, 261). They are differentiated only by weight (message: unset/inherits body normal ~400; Undo: font-weight 500) and color (message: white #ffffff; Undo: accent orange #ed4609). This is a defensible, restrained hierarchy choice — the action is emphasized via weight+color rather than being blown up in size, which keeps the snackbar from looking like it's shouting the CTA over the message. Measured: message 16px/400/#ffffff, Undo 16px/500/#ed4609 — same size, sane relative weight.",
+          "one_line": "A clean, token-disciplined dark snackbar where Undo is rightly same-sized as the message and differentiated only by weight/color — solid craft, minor low-severity nits only.",
+          "strengths": [
+            "Full design-token discipline: every color/spacing/type/motion value in the component traces to a CSS custom property with a documented fallback, and undocumented additions (timer, radius, shadow) are explicitly flagged in comments as local extensions rather than silently invented",
+            "Complete interaction-state coverage on all buttons — hover, focus-visible (accent outline), active, disabled — plus prefers-reduced-motion handling that clamps all transitions to 0.001ms",
+            "Accessible construction: aria-live='polite' region, role='status', 44x44px minimum tap targets on Undo/dismiss, Escape-to-dismiss, aria-label on the icon-only close button",
+            "Restrained visual language: single accent color (#ed4609) used consistently for both the 'Published' state and the Undo CTA, plain non-exclamatory copy ('Change saved.'), no gratuitous decoration",
+            "Good compositional rhyme between the doc-card and the snackbar — both sit as bordered rectangles roughly matching width/centering, giving the postsave state a coherent single-column reading order top to bottom"
+          ]
+        },
+        "refutation": {
+          "build": "abl-01",
+          "sustained": true,
+          "corrected_score": 83,
+          "note": "All three reported defects hold up on direct inspection of index.html. (1) Timer bar scope-creep confirmed verbatim — lines 49-52 and 316-329 literally comment 'local component tokens (not in DESIGN.md)' and 'not in DESIGN.md, defined here'; three added CSS custom properties plus a new DOM node (#snackbar-timer) beyond the brief's three named elements. (2) Contrast: I independently computed WCAG relative luminance for #ed4609 on #141414 and get ~4.72:1 (reviewer said ~4.81:1 — a small discrepancy, likely a rounding/formula difference, but the substantive conclusion — passes AA-normal-text 4.5:1 with very little headroom — holds either way). (3) Save-button no-state-change confirmed at lines 357/447-452: click handler calls setStatus() and openSnackbar() but never touches saveBtn's class, text, or disabled attribute, even though the adjacent status label visibly changes color/weight. All three are correctly low severity and don't threaten ship_ready.\n\nOne real defect the reviewer missed: the snackbar has a hard 5-second auto-dismiss (--snackbar-auto-dismiss-ms: 5000, line 51) with NO pause-on-hover/focus and no way to extend/disable it (verified in script: setTimeout at lines 430-434, no mouseenter/mouseleave/focus listeners anywhere in the file). This is a WCAG 2.2.1 (Timing Adjustable) risk — a component whose entire raison d'être is giving the user a window to click Undo removes that window unconditionally after 5s regardless of user speed, assistive-tech dwell time, or whether their cursor is currently over the snackbar. This is a more substantive a11y gap than any of the three reported nits (I'd call it medium, not low) and should have been caught given how thorough the reviewer was on aria-live/role/focus-visible/tap-targets elsewhere in the same component. I lowered the score from 87 to 83 to reflect this miss, but the overall verdict (solid craft, ship-ready, ship with minor fixes) survives."
+        }
+      },
+      {
+        "build": "abl-02",
+        "verdict": {
+          "build": "abl-02",
+          "overall_score": 85,
+          "ship_ready": true,
+          "defects": [
+            {
+              "severity": "low",
+              "what": "Undo has zero visible button affordance — no background, no border, distinguished from plain body text only by font-weight (500 vs 400).",
+              "evidence": ".btn--ghost: background: transparent; border-color: transparent (index.html lines 156-160); no hover/focus state visible in the static post-save frame."
+            },
+            {
+              "severity": "low",
+              "what": "The system's accent token is defined but never used on the toast's one real interactive affordance — Undo renders in the same muted grayscale family as the inert dismiss icon, differentiated only by weight, not color.",
+              "evidence": "--color-accent: #ed4609 (line 18) is unused in .snackbar__undo / .btn--ghost; Undo color is var(--color-fg-muted, #b8b8b8) (line 158), same color family as .icon (currentColor) on the X."
+            },
+            {
+              "severity": "low",
+              "what": "Confirmation message and Undo action are exactly the same font size — hierarchy is carried entirely by color (white vs #b8b8b8) and weight (400 vs 500), with no size differentiation.",
+              "evidence": ".snackbar__message font-size: var(--type-body, 16px), weight 400, color #ffffff (lines 220-229); .snackbar__undo inherits .btn font-size: var(--type-body, 16px) (line 122), weight 500 (line 239), color #b8b8b8 (line 158) — both literally 16px."
+            }
+          ],
+          "proportion_verdict": "Both the confirmation message (\"Change saved\") and the Undo action are set at the identical --type-body token, 16px. Hierarchy is carried entirely by color and weight, not size: the message is full white (#ffffff, weight 400) and Undo is muted gray (#b8b8b8, weight 500). This is defensible and restrained — the action never outsizes or outshouts the confirmation, which is the correct direction of emphasis for a status toast. The tradeoff is that Undo has no accent-color CTA signal and no background/border affordance, relying on typographic convention plus the 44x44px tap target.",
+          "one_line": "Restrained, correctly-proportioned snackbar (16px message vs 16px Undo, weight-differentiated) with clean token-based elevation and full tap-target compliance — ship-ready, with only minor low-severity nits around Undo's lack of accent color and explicit button affordance.",
+          "strengths": [
+            "Confirmation message and Undo are the same 16px size with hierarchy carried by color/weight, not by an oversized action — avoids the common 'Undo button dominates the message' defect",
+            "Elevation handled purely through token color (--color-bg-elev #141414 on --color-bg #050505 page) rather than a shadow hack",
+            "Buttons hit the 44x44px min tap target (lines 129-130) even though visually compact",
+            "Asymmetric snackbar padding (8/8/8/16, line 216) shows deliberate craft for text vs button-side spacing",
+            "Exit animation removes actions from the DOM immediately on dismiss/undo so they can't be clicked mid-exit (lines 401-405)",
+            "prefers-reduced-motion path collapses enter/exit to near-zero duration opacity-only (lines 265-279)"
+          ]
+        },
+        "refutation": {
+          "build": "abl-02",
+          "sustained": true,
+          "corrected_score": 81,
+          "note": "All three reviewer defects verified directly against index.html CSS and the full-res postsave.png crop, and hold up:\n1. .btn--ghost (Undo) confirmed transparent background/border (lines 156-160) — zoomed crop of the toast confirms zero button chrome, Undo distinguished from \"Change saved\" only by weight/color, and from the X icon only by weight. Hover/focus states do exist in code (line 161-162 hover, line 136-137 focus-visible outline in accent) but are correctly noted as \"not visible in the static frame\" — an accurate caveat, not a false claim.\n2. --color-accent (#ed4609) confirmed defined (line 18) and confirmed absent from .btn--ghost's resting color (var(--color-fg-muted) at line 158) — accent only ever appears in the shared :focus-visible outline, not as a resting CTA signal. Claim holds.\n3. Both .snackbar__message (line 222) and .btn/.snackbar__undo (line 122, inherited) use var(--type-body, 16px) — confirmed literally identical via grep. Claim holds exactly as measured.\n\nI additionally computed contrast for Undo (#b8b8b8) against the snackbar's --color-bg-elev (#141414): ~8:1, well past AA — so this is not a contrast defect, just an affordance/hierarchy one, consistent with how the reviewer framed it (they never claimed a contrast failure).\n\nOne defect the reviewer missed: the 5-second auto-dismiss timer (AUTO_DISMISS_MS = 5000, line 307) has no pause-on-hover/focus — I grepped for mouseenter/mouseleave/focusin/focusout and found none; clearTimeout only fires on explicit Undo/Dismiss click (line 324). Combined with Undo's weak affordance, a user who is slow to notice/read the toast has no way to extend the window before Undo disappears — a real WCAG 2.2.1 (Timing Adjustable) gap, medium severity. This compounds the reviewer's three low-severity nits rather than contradicting them.\n\nNet: verdict sustained, ship-ready stands (nothing here blocks shipping a low-stakes demo harness), but the true defect count is 4, not 3, so I docked a few points off the original 85."
+        }
+      },
+      {
+        "build": "abl-03",
+        "verdict": {
+          "build": "abl-03",
+          "one_line": "A well-tokenized, restrained snackbar (16px message, 16px/500-weight orange Undo, subtle 2px drain-timer) sits below a \"Save change\" button whose label has visibly wrapped to two lines in both captured states, reading as broken craft in the very screenshot being judged.",
+          "overall_score": 74,
+          "ship_ready": false,
+          "proportion_verdict": "Confirmation message (\"Change saved\") and the inline Undo action are both set to var(--text-body)=16px — identical size (index.html line 211 .snackbar-message, line 229 .btn-undo). Undo is differentiated only by font-weight (500 vs the message's unset/400 default) and color (#ed4609 accent vs #ffffff). This is a defensible relationship: the CTA is not oversized relative to the message, and the code's own comment (\"Undo is the accent's single earned use here: punctuation on an interactive control, never a fill,\" lines 222-223) is honored. In the rendered postsave.png, though, the bold saturated-orange Undo visually competes with — arguably outweighs — the plain-weight white confirmation text on color/weight alone, even though the type scale itself stays restrained and correctly matched.",
+          "strengths": [
+            "Snackbar surface uses design tokens correctly: --bg-elev #141414 fill, 1px --line #363636 border, 8px radius, 16px padding (--space-md) — matches the card language above it exactly, no hardcoded values in the component CSS (lines 179-197).",
+            "Undo and the confirmation message share one type size (16px/--text-body) rather than the common slop pattern of an oversized CTA; hierarchy is carried by weight+color, not scale — a mature restraint choice.",
+            "Dismiss control is genuinely secondary: --fg-dim #828282 icon (line 246), transparent until hover, 44x44px hit target (lines 248-249) meeting touch-target minimums without visually shouting.",
+            "Structural timer hairline (2px, --line-strong #545454, scaleX(1)->scaleX(0) over 6000ms linear, lines 266-279) is monochrome and understated — signals dwell time without becoming a decorative progress bar.",
+            "Full interaction coverage: aria-live=\"polite\" region (line 302), role=\"status\", Escape-to-dismiss (lines 432-436), focus-visible outlines on all three controls (lines 153-156, 238-241, 258-261), and correct semantics that Dismiss commits the pending save immediately rather than waiting out the timer (lines 421-430) — matches the spec's optimistic-save model precisely, not just visually."
+          ],
+          "defects": [
+            {
+              "severity": "high",
+              "what": "Primary 'Save change' button's label wraps to two lines ('Save' / 'change') instead of staying on one line, making the button roughly double its intended height and reading as an unstyled/broken control — visible in both idle.png and postsave.png.",
+              "evidence": "idle.png: button bounding box spans display-px y≈712 to y≈789 (≈77px display ≈ 99px at native 2560x1600 res) for a control whose CSS sets min-height:44px (line 135) — nearly 2.2x the intended single-line height. Root cause in index.html: .btn has no flex-basis/flex-shrink:0 or white-space:nowrap (lines 128-140), and .demo-actions is a plain flex row (lines 121-125) sharing the 480px .demo max-width with a long hint string, so the flex algorithm shrinks the button below its max-content width and the label wraps."
+            },
+            {
+              "severity": "medium",
+              "what": "Undo's bold+accent-orange styling makes it read as visually louder than the confirmation message it is attached to, despite equal font size, which can invert the intended message-first hierarchy of a save confirmation.",
+              "evidence": "snackbar-message: font-size 16px (--text-body), default (400) weight, color #ffffff (index.html line 211-213). btn-undo: font-size 16px, font-weight:500, color var(--accent, #ed4609) (lines 224-235). Same 16px size, but weight+saturated-orange combination visually out-competes the plain-weight white text in postsave.png at first glance."
+            },
+            {
+              "severity": "low",
+              "what": "Hint copy beneath the button also wraps to two lines in both states, compounding the cramped 480px-wide action row rather than reserving the full row width for the button alone.",
+              "evidence": "idle.png hint text 'Click Save — the title updates immediately, before the / write is confirmed.' wraps after 'the'; postsave.png hint 'Saved optimistically — undo within a few seconds, or / let it commit.' wraps after 'or' — both inside the same .demo-actions flex row as the button (index.html lines 121-125, 158-161)."
+            }
+          ]
+        },
+        "refutation": {
+          "build": "abl-03",
+          "sustained": true,
+          "corrected_score": 74,
+          "note": "All three defects verified directly against the artifact and hold up.\n\nHigh (button wrap): Confirmed by pixel-measuring both idle.png and postsave.png — cropped the action row and the \"Save change\" label visibly wraps to \"Save\"/\"change\" on two lines in BOTH captures, giving the button roughly 2x its single-line height. Root cause matches the reviewer's read exactly: `.btn` (line 128-140) has no `white-space:nowrap` or `flex-shrink:0`, and `.demo-actions` (line 121-125) is a plain flex row sharing the 480px `.demo` max-width with a long hint string — default flex-shrink lets the button shrink below max-content width before the hint string gives up any space, so the button wraps. This is a real, visible defect in a build otherwise praised for restraint, and it appears in both judged screenshots — high severity is justified.\n\nMedium (Undo vs message weight/color): Verified byte-for-byte — `.snackbar-message` (line 208-213) is 16px/default-weight/white, `.btn-undo` (line 224-235) is 16px/500-weight/`--accent` #ed4609. Same size confirmed, so the reviewer's core measurement claim (equal type scale, differentiated only by weight+color) is accurate. Whether bold saturated-orange \"outweighs\" plain white is a legitimate but somewhat subjective visual read — I'd call it defensible rather than open-and-shut, but the underlying evidence is correct and the code comment context (accent reserved for the interactive control) makes this a real tension worth flagging, not a fabricated one.\n\nLow (hint text wrap): Confirmed in both screenshots — hint wraps after \"the\" in idle.png and after \"or\" in postsave.png, inside the same cramped `.demo-actions` row. Real, low severity as scored.\n\nNo defects overturned. I did not find additional high/medium defects the reviewer missed on top of these three — the snackbar component itself (tokens, undo/dismiss/timer, aria-live+role=status, focus-visible, Escape handling) checks out against the code exactly as the reviewer described in strengths.",
+          "overturned_defects": [],
+          "missed_defects": []
+        }
+      },
+      {
+        "build": "abl-04",
+        "verdict": {
+          "build": "abl-04",
+          "one_line": "Clean, restrained snackbar with correct token usage for color/space/motion, but it ignores the design system's mandatory font tokens entirely — a hard-rule violation, not a polish nit.",
+          "overall_score": 76,
+          "ship_ready": false,
+          "proportion_verdict": "Confirmation message (\"Change saved\") and Undo are both var(--type-body, 16px) = 16px — identical size, the standard snackbar pattern (Material/GitHub-style). The only differentiation is weight: the message is unstyled (inherits body default, 400) while Undo is a .btn (font-weight 500). That's a real but subtle hierarchy — defensible, not showy — though at rest Undo carries no color or underline cue that it's interactive; only :hover shifts it to the accent orange (#ed4609), so a first-time user reads it as an action mainly from position and cursor, not visual weight.",
+          "strengths": [
+            "Message/Undo/dismiss triad matches the brief exactly: optimistic save fires instantly, snackbar carries inline Undo + explicit close (X), 5s auto-dismiss, with a visible status line proving state transitions (Idle → Saved — snackbar visible → Change reverted)",
+            "Correct token discipline for color/space/motion: bg #1c1c1c, border #363636, single warm accent #ed4609 used only on hover — matches DESIGN.md's 'one accent hue; everything decorative is monochrome'",
+            "Asymmetric padding (8px 8px 8px 16px, line 207) gives the message breathing room from the left edge while keeping the action cluster tight — a deliberate craft choice, not default spacing",
+            "Handles real state-machine edges: single-instance replace-on-retrigger resets the 5s countdown, transitionend-based removal with a 200ms fallback timer, and a prefers-reduced-motion block (lines 251-259) that collapses all transforms to a 1ms opacity fade",
+            "44×44px minimum hit area preserved on the icon-only dismiss button around a visually modest 16px glyph (lines 118-119, 185-193)"
+          ],
+          "defects": [
+            {
+              "severity": "high",
+              "what": "Font stack ignores the design system's mandatory type tokens entirely. DESIGN.md requires 'Fonts (tokens only, never literals): --font-display/--font-body = Untitled Sans' but the build never declares or references any font-family token — html,body is hardcoded to a system stack.",
+              "evidence": "line 52: font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif — no --font-body/--font-display/--font-mono/--font-serif token exists anywhere in the :root block (lines 8-43) or is referenced in the stylesheet"
+            },
+            {
+              "severity": "low",
+              "what": "Undo has no at-rest visual signal that it is interactive (no color, weight beyond 500 vs 400, or underline) — it only differentiates from the plain-text message on hover.",
+              "evidence": "lines 168-174 (.btn--ghost): color: var(--color-fg, #ffffff) — identical to .snackbar-root__message color (line 239); accent color only applied at :hover (line 177) and :active (line 181)"
+            },
+            {
+              "severity": "low",
+              "what": "Confirmation message uses white-space: nowrap with no overflow handling, so a longer localized or dynamic message string would push into or past the action cluster rather than wrap.",
+              "evidence": "line 241: white-space: nowrap on .snackbar-root__message, combined with max-width: min(480px, calc(100vw - 64px)) on the parent (line 208)"
+            }
+          ]
+        },
+        "refutation": {
+          "build": "abl-04",
+          "sustained": true,
+          "corrected_score": 76,
+          "note": "All three defects check out against the actual file. Confirmed independently: (1) High — :root block (lines 8-43) defines color/type/space/motion tokens but zero font tokens; html,body (line 52) is hardcoded to `-apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif` with no @font-face, no --font-body/--font-display anywhere in the stylesheet. Screenshots confirm the rendered type is plain system sans, not a custom typeface. This is a real, unambiguous token-discipline miss, consistent with this session's own 'no hardcoded CSS values' rule. (2) Low — .btn--ghost (line 171) sets color: var(--color-fg) identical to .snackbar-root__message (line 239); accent only appears at :hover (line 177) and :active (line 181). Confirmed the only at-rest differentiator is font-weight 500 (from .btn, line 115) vs the message's unstyled 400 — exactly as the reviewer's own proportion_verdict describes. (3) Low — line 241 confirms white-space: nowrap on the message combined with the parent's max-width formula on line 208; with flex-row layout and a nowrap text node whose min-content can't shrink, a longer string would genuinely overflow the capped container. Real latent bug, doesn't manifest with the short fixed string in this demo but is correctly flagged. Strengths (asymmetric padding line 207, reduced-motion block lines 251-259, 44x44 hit area lines 118-119/186) all verified accurate against code and both screenshots. I found nothing to overturn. One thing the reviewer didn't flag: the Undo and dismiss buttons live inside a role=\"status\" aria-live=\"polite\" container (lines 300-302) — interactive controls inside a live region is a mild a11y wrinkle (potential double-announcement / inconsistent focus handling in some screen readers) that could have been called out as a low-severity finding alongside the Undo-affordance one.",
+          "missed_defects": [
+            {
+              "severity": "low",
+              "what": "Undo and dismiss buttons are interactive controls placed inside a role=\"status\" aria-live=\"polite\" region",
+              "evidence": "index.html lines 300-302 set role/aria-live/aria-atomic on .snackbar-root, and the Undo (line 312) and dismiss (line 319) buttons are appended inside it — a known mild a11y anti-pattern (live-region content changes can interrupt or double-announce focus on the interactive children in some screen readers)"
+            }
+          ],
+          "overturned_defects": []
+        }
+      },
+      {
+        "build": "abl-05",
+        "verdict": {
+          "build": "abl-05",
+          "one_line": "Restrained, well-proportioned snackbar — confirmation message and inline Undo share the same 16px/500-weight type scale, differentiated by hue alone (white vs accent #ed4609, ~4.7:1 contrast on #141414), with a clean divider and a proper 44px dismiss target.",
+          "overall_score": 88,
+          "ship_ready": true,
+          "proportion_verdict": "Confirmation message (\"Change saved\") and the inline Undo action are both set at var(--type-body) = 16px with font-weight 500 (Undo inherits the base .btn font-weight; .btn--text at index.html lines 204-211 overrides only color/background/padding, not size or weight, line 141-146). So the two are literally the same type size — hierarchy comes entirely from color (white message vs #ed4609 Undo) plus a 1px vertical divider (.snackbar__divider, lines 297-302) separating them, not from any size differential. This is a defensible, idiomatic snackbar pattern (matches Material and most production snackbars, where Undo is equally weighted and colored rather than shrunk) — it doesn't compete with the message for primary attention because color does the work. A stricter reading could ask for slightly less weight on Undo to reinforce it as secondary, but at 16px/16px this reads intentional and controlled, not accidental oversizing.",
+          "strengths": [
+            "Confirmation message stays plain white while Undo alone carries the accent color (#ed4609), giving one clear affordance without extra ornamentation — restrained, not salesy.",
+            "Dismiss control is a true 44px min-width/height icon button (.btn--icon, lines 219-226) even though the visible glyph is a small 16x16 SVG (lines 401-404) — meets tap-target minimum without visually bloating the control.",
+            "Snackbar surface (--color-bg-elev #141414) against page bg (#050505) plus a 1px #363636 border gives clear separation from the page without a heavy shadow or oversized radius.",
+            "Measured contrast: white message on #141414 is effectively maximal; #ed4609 Undo on #141414 computes to ~4.7:1, clearing WCAG AA for normal text (4.5:1) by a real if modest margin.",
+            "Idle state (idle.png) is genuinely quiet — no snackbar node in the DOM at all (region.innerHTML only populated on save, line 344/414) rather than a hidden-but-present element, and the hint text 'idle' at 13px/--color-fg-dim doesn't compete with the primary button.",
+            "Interaction craft: Undo removes the snackbar immediately with no exit transition (lines 467-472, explicitly commented as intentional per spec) versus the 120ms exit animation for timeout/dismiss (snackbar-exit keyframe, lines 264-276) — a considered distinction between 'user already acted, get out of the way' and a normal timed exit."
+          ],
+          "defects": [
+            {
+              "severity": "low",
+              "what": "Confirmation message and Undo action are exactly the same font-size (16px) and font-weight (500) — the only differentiator is hue, which is a weaker hierarchy signal than a size or weight step for a message vs. its secondary inline action.",
+              "evidence": "index.html: --type-body:16px (line 22); .btn font-weight:500 (line 146, inherited by .btn--text at 204-211, which sets only color/background/padding); .snackbar__message font-size:var(--type-body) font-weight:500 (lines 282-283)."
+            },
+            {
+              "severity": "low",
+              "what": "Undo and the dismiss (X) icon sit only 4px apart (--space-xs gap on .snackbar__actions), which is tight given both are interactive targets in a row, though the 44px hit box on the icon button provides some cushion.",
+              "evidence": "index.html line 293: .snackbar__actions { gap: var(--space-xs) } with --space-xs:4px (line 35)."
+            },
+            {
+              "severity": "low",
+              "what": "The dismiss glyph itself is a thin 1.5px stroke inside a 16x16 viewBox, rendering quite small/light relative to the bold 16px text beside it — legible in the screenshot but the lightest-weight element in the whole snackbar.",
+              "evidence": "index.html lines 401-404: width=\"16\" height=\"16\" ... stroke-width=\"1.5\"."
+            }
+          ]
+        },
+        "refutation": {
+          "build": "abl-05",
+          "sustained": true,
+          "corrected_score": 86,
+          "note": "All three reviewer-cited defects check out against the CSS: message and Undo are both var(--type-body)=16px/font-weight:500 (index.html lines 22, 146, 204-211, 282-283 — .btn--text never overrides size/weight, confirmed by reading the full ruleset); .snackbar__actions gap is var(--space-xs)=4px (lines 35, 293); dismiss glyph is a 16x16 viewBox, stroke-width 1.5 (lines 401-404). I independently recomputed the accent-on-bg-elev contrast via WCAG relative-luminance formula (Python, not eyeballed): #ed4609 on #141414 = 4.81:1, matching the reviewer's ~4.7:1 claim and clearing AA — my first manual pass mis-parsed the hex (read G as 0x40 instead of 0x46) and got a false 4.3:1 fail; the script confirms the reviewer's number, not my error, so this strength claim survives too. Screenshots match the code: idle.png shows the snackbar genuinely absent from the DOM (matches region.innerHTML='' / no persistent hidden node), postsave.png shows the described divider + color-only hierarchy. One thing the reviewer didn't surface: onUndoPressed sets state=UNDOING and reverts fieldValue after a 250ms setTimeout, but simulateOptimisticSave's re-entry guard only checks `state !== STATE.HIDDEN` to clear the auto-dismiss timer — it doesn't branch on UNDOING, so a Save press during that 250ms window could capture previousValue before the pending revert completes, producing an inconsistent revert history. This isn't visible in either static screenshot and would need interactive fuzzing to confirm, so I'm reporting it as unverified-by-screenshot rather than a confirmed defect — it wouldn't move the score materially either way. No claim in the reviewer's report was contradicted by the artifact; the verdict and score stand.",
+          "missed_defects": [
+            {
+              "severity": "low",
+              "what": "Possible race in the optimistic-save re-entry guard: pressing Save again while a prior Undo revert is still in its 250ms setTimeout window is not specially handled (only `state !== HIDDEN` is checked), so previousValue could be captured mid-revert and produce an inconsistent field value.",
+              "evidence": "index.html lines 461-494: onUndoPressed sets state=UNDOING then reverts fieldValue.textContent inside a 250ms setTimeout (lines 475-482); simulateOptimisticSave (lines 485-494) only branches on `state !== STATE.HIDDEN` to clear the timer, with no UNDOING-specific handling before capturing previousValue = fieldValue.textContent at line 491. Not reproducible from the two static screenshots provided; would require interactive timing to confirm."
+            }
+          ]
+        }
+      },
+      {
+        "build": "abl-06",
+        "verdict": {
+          "build": "abl-06",
+          "one_line": "Restrained, correctly-proportioned snackbar — message and Undo share the same 16px body size, distinguished only by weight+accent, with one measurable contrast nit on the Undo color.",
+          "overall_score": 83,
+          "ship_ready": true,
+          "proportion_verdict": "Confirmation message \"Change saved\" is 16px / font-weight 400 (var(--type-body), .snackbar__message has no weight override). \"Undo\" is also 16px / font-weight 500 (.snackbar__undo), same base size as the message. This is defensible: Undo is not shrunk to a caption size nor blown up to compete with the message — it's distinguished purely by color (--color-accent #ed4609) and a half-step of weight, which is the correct restrained way to mark a coequal but secondary action without disrupting scale hierarchy.",
+          "strengths": [
+            "Message/Undo share one type size (16px) — no arbitrary micro-copy shrink on the action, which is a common ablation failure this build avoids",
+            "Single accent color (#ed4609) reserved for exactly one interactive element (Undo); the checkmark icon is muted gray (var(--color-fg-muted)), not a saturated green — keeps the monochrome+one-accent discipline from DESIGN.md",
+            "Auto-dismiss is represented as a literal 2px hairline progress fill (.snackbar__progress-fill, scaleX 1→0 over 6000ms) rather than a decorative flourish — ties the visual to the actual timing mechanism",
+            "Asymmetric snackbar padding (16/16/16/24 - more left inset before the message, tighter right before the dismiss control) reads as intentional, not accidental",
+            "prefers-reduced-motion is handled for both the snackbar transition and the progress-fill animation",
+            "Dismiss (X) and Undo are visually and functionally distinct: dismiss commits silently (per code comment, does not undo), Undo reverts — the interaction model in the JS matches an optimistic-save pattern correctly (previousStatus captured before the optimistic write, restored on Undo)"
+          ],
+          "defects": [
+            {
+              "severity": "medium",
+              "what": "Undo text color (--color-accent #ed4609) on the snackbar card background (--color-bg-card #1c1c1c) computes to a contrast ratio of ~4.45:1 — marginally below the WCAG AA 4.5:1 threshold required for 16px/500 text (not large text, which needs 18.66px bold minimum to use the 3:1 large-text threshold).",
+              "evidence": "Computed via relative luminance: #ed4609 → L=0.2241, #1c1c1c → L=0.0116, ratio (0.2241+0.05)/(0.0116+0.05)=4.45:1. CSS: --color-accent:#ed4609 (line 14), --color-bg-card:#1c1c1c (line 8), .snackbar__undo font-size var(--type-body)=16px (line 285)."
+            },
+            {
+              "severity": "low",
+              "what": "The dismiss (X) button's hit target is 28x28px, below the 44x44px mobile tap-target minimum.",
+              "evidence": "CSS lines 306-308: .snackbar__dismiss { padding: var(--space-xs); width: 28px; height: 28px; }. Acceptable for a desktop-scaled demo but would need to grow if this ships responsively."
+            },
+            {
+              "severity": "low",
+              "what": "In postsave.png the 'Save change' button renders in a washed-out gray (~visually matching btn-primary:hover's --color-fg-muted #b8b8b8) rather than pure white, which can read as a disabled/inert state immediately after a successful save — no code path actually disables or restyles the button on save, so this is a hover-state capture artifact, but it's worth confirming the demo screenshot wasn't taken mid-hover, since it visually implies a state the component doesn't define.",
+              "evidence": "idle.png button is solid white (#ffffff, --color-fg per .btn-primary line 179-182); postsave.png button appears gray — no .btn-primary:disabled or JS state change is applied on click (script lines 506-515 only mutates statusValue/lastChangeValue/snackbar, never saveBtn)."
+            }
+          ]
+        },
+        "refutation": {
+          "build": "abl-06",
+          "sustained": true,
+          "corrected_score": 82,
+          "note": "All three reviewer defects verified directly against the CSS/render and hold up.\n\n1. Undo contrast (medium): independently recomputed relative luminance from scratch — #ed4609 → L=0.2241, #1c1c1c → L=0.0116, ratio = 0.2741/0.0616 = 4.449:1. Matches the reviewer's number exactly. Confirmed at index.html lines 14 (--color-accent), 8 (--color-bg-card), 280-287 (.snackbar__undo, font-size: var(--type-body)=16px, font-weight 500). 500 weight does not qualify as WCAG \"bold\" for the large-text 3:1 exception, so 4.5:1 applies and this is a genuine, if marginal, AA fail. CONFIRMED.\n\n2. Dismiss hit target 28x28 (low): confirmed at lines 306-308, explicit width/height 28px, below the 44px minimum. CONFIRMED.\n\n3. postsave.png gray \"Save change\" button (low, hedged as capture artifact not a bug): confirmed by reading the full JS (lines 426-535) — saveBtn is never touched after the click handler (no disabled/class toggle), and .btn-primary:hover (line 184-187) sets background to --color-fg-muted #b8b8b8, which is exactly the gray seen in postsave.png. This is almost certainly the screenshot being captured with the mouse still resting on the button post-click, not a real state bug — the reviewer's own hedged framing is accurate and appropriately low-severity.\n\nI verified the \"single accent color used exactly once\" strength claim by grep — --color-accent only appears at its declaration and once in .snackbar__undo, nowhere else, so that strength holds.\n\nOne thing the reviewer missed: the Undo button itself has essentially the same tap-target problem they flagged only on Dismiss. .snackbar__undo padding is 4px/8px (var(--space-xs) var(--space-sm)) with 16px/1.5-line-height text ≈ 32px tall — also well under 44px, for the same \"desktop-scaled demo\" reason they excused Dismiss. Doesn't change the verdict, just an omitted parallel low-severity item.",
+          "missed_defects": [
+            {
+              "severity": "low",
+              "what": "Undo button hit target is only ~32px tall (padding 4px/8px + 16px text at 1.5 line-height), below the 44px mobile minimum — the same class of issue the reviewer flagged only on the Dismiss (X) button.",
+              "evidence": "index.html lines 280-291: .snackbar__undo { padding: var(--space-xs) var(--space-sm); font-size: var(--type-body); ... } with --space-xs:4px, --space-sm:8px (lines 25-26), body line-height 1.5 (line 57) → ~24px content height + 8px padding = 32px."
+            }
+          ],
+          "overturned_defects": []
+        }
+      },
+      {
+        "build": "abl-07",
+        "verdict": {
+          "build": "abl-07",
+          "one_line": "Clean, restrained, fully-tokenized toast with correct tap-target sizing and motion — proportion is same-size/weight-differentiated (defensible) but Undo never picks up the system's accent color, so its only differentiator from the confirmation text is font-weight.",
+          "overall_score": 83,
+          "ship_ready": true,
+          "proportion_verdict": "Confirmation message ('Change saved', .c-toast__message) and the Undo action (.btn.btn--ghost) are both font-size: var(--type-body) = 16px — identical scale, no size hierarchy. The only differentiation is font-weight: .c-toast__message has no weight rule (inherits body's normal/400), while .btn sets font-weight:500, so Undo reads slightly heavier/bolder than the message. This is a defensible, common snackbar pattern (action emphasized via weight, not size) — but it's under-committed: both are the same #ffffff (color: var(--color-fg) on both, index.html lines 163 and 245), so the system's own accent color (--color-accent #ed4609, used on the primary Save button, line 137) is never used to mark Undo as the actionable item. The hierarchy signal is real but thin — weight alone, no color, no size delta.",
+          "strengths": [
+            "Every value traces to a DESIGN.md token (--color-*, --type-*, --space-*, --motion-*) with no bare literals in the component rules themselves — only defensive var() fallbacks that mirror the token values",
+            "Ghost ('secondary') button correctly reused for Undo/dismiss rather than inventing an unauthorized third button variant, with the substitution reasoned and cited inline (index.html lines 155-159)",
+            "Tap targets: both Undo and the icon-only dismiss inherit .btn's min-height:44px / min-width:44px (lines 119-120) — real accessibility compliance, not just a comment",
+            "Motion uses the system's own duration/easing tokens (200ms enter / 120ms exit, cubic-bezier(0.25,1,0.5,1)) with a prefers-reduced-motion fallback (lines 226-236) and a transitionend-based dismiss with a timeout fallback, not a magic-number setTimeout guess",
+            "role=\"status\" + aria-live=\"polite\" region with the toast node inserted/removed from the DOM rather than CSS-hidden, matching the spec's dynamic-content requirement",
+            "Toast is positioned bottom-center, fixed, and doesn't collide with the Save button or field row in either idle or postsave state"
+          ],
+          "defects": [
+            {
+              "severity": "medium",
+              "what": "Undo — the single actionable, time-limited (5s) control in the component — is not visually distinguished from the passive confirmation text by color; both are the same white and the same size, so the only cue that Undo is interactive/urgent is a font-weight bump.",
+              "evidence": "index.html line 245: .c-toast__message { color: var(--color-fg, #ffffff) }; line 163: .btn--ghost { color: var(--color-fg, #ffffff) }. Both resolve to #ffffff at 16px (var(--type-body)). The system's own accent token (--color-accent: #ed4609, used at line 137 for the primary Save button) is never applied to Undo."
+            },
+            {
+              "severity": "low",
+              "what": "The confirmation message is set to white-space: nowrap with no truncation fallback, so this is only safe because the fixed copy ('Change saved') is short — a slightly longer confirmation string would overflow the 480px max-width toast unclipped.",
+              "evidence": "index.html line 247: .c-toast__message { ... white-space: nowrap; } with no text-overflow/ellipsis or width constraint on the message itself (only the parent .c-toast has max-width: min(480px, ...), line 204)."
+            },
+            {
+              "severity": "low",
+              "what": "Every token reference carries a literal hex/px fallback that duplicates the :root value (e.g. var(--color-accent, #ed4609), var(--type-body, 16px)) — defensible as defensive coding, but it's a second source of truth that will silently drift if the token is ever repointed without updating every fallback.",
+              "evidence": "index.html lines 18/22 define the tokens; the same literals (#ed4609, 16px) are re-typed as fallbacks at lines 132, 137-139, 116, 243, etc."
+            }
+          ]
+        },
+        "refutation": {
+          "build": "abl-07",
+          "sustained": true,
+          "corrected_score": 79,
+          "note": "All three of the reviewer's defects check out against the CSS and render. Medium defect (Undo vs message differentiated only by font-weight, not color) is confirmed: line 117 `.btn { font-weight:500 }` applies to `.btn.btn--ghost` (the Undo button, line 347 `class=\\\"btn btn--ghost\\\"`), while `.c-toast__message` (line 242-248) sets no font-weight and both resolve `color: var(--color-fg, #ffffff)` (lines 163 and 245) — identical white, identical 16px `--type-body`. The system's accent (`--color-accent: #ed4609`, used only for the primary Save button, lines 137-138) is genuinely never touched by Undo. Low-severity nowrap defect also confirmed (line 247 `white-space: nowrap` on `.c-toast__message` with max-width only on the parent `.c-toast`, line 204). Token-fallback duplication defect confirmed via grep (literal hex/px fallbacks re-typed at every var() call). Visually, the postsave.png render matches: 'Undo' reads bolder/whiter than 'Change saved' but no color distinction is visible, corroborating the code.\n\nTwo real defects the reviewer missed, both verifiable by absence of code (grepped the whole file — zero matches for mouseenter/mouseleave/focus()/pause/resume):\n1. No focus management: showToast() (line 368) never moves focus to the Undo button or the toast region when it appears — a keyboard user gets no cue and must locate+tab to Undo within the 5s window with zero assistance, undercutting the reviewer's own praise of the a11y work (aria-live, tap targets).\n2. No timing-adjustable escape hatch: the 5000ms dismissTimer (line 384, AUTO_DISMISS_MS) is never paused on hover or focus, so a user who starts reading/interacting with the toast can still have it vanish mid-interaction — a real WCAG 2.2.1-adjacent gap for a time-limited undo action.\n\nNeither missed defect overturns the reviewer's stated verdict (their evidence and reasoning hold up on inspection), so sustained=true, but the ship_ready=true / 83 score should be read as slightly optimistic once these two are counted — hence a modestly lower corrected score.",
+          "missed_defects": [
+            {
+              "severity": "medium",
+              "what": "No focus management on toast open: focus never moves to the Undo button (or the toast region) when the snackbar appears, so keyboard users have no cue and must tab-hunt for Undo inside the 5s window.",
+              "evidence": "showToast() at index.html line 368 builds and appends toastEl but never calls .focus() on undoBtn or toastEl; grep for '.focus(' across the whole file returns zero matches."
+            },
+            {
+              "severity": "medium",
+              "what": "5-second auto-dismiss timer is never paused on hover or keyboard focus, so a user actively reading or interacting with the toast can still lose the Undo option mid-interaction.",
+              "evidence": "dismissTimer = setTimeout(onTimeout, AUTO_DISMISS_MS) at line 384 with no accompanying mouseenter/mouseleave/focusin/focusout listeners anywhere in the file (grep for these terms returns no matches); onTimeout (line 388) unconditionally exits whenever state==='visible'."
+            }
+          ],
+          "overturned_defects": []
+        }
+      },
+      {
+        "build": "abl-08",
+        "verdict": {
+          "build": "abl-08",
+          "overall_score": 85,
+          "ship_ready": true,
+          "defects": [
+            {
+              "severity": "medium",
+              "what": "The decorative checkmark icon is colored with --color-accent (#ed4609), the same hue used for the Undo action, contradicting DESIGN.md's own rule 'everything decorative is monochrome' (line 60) and diluting the footer's stated intent that '--color-accent marks Undo only, never the surface.' A design-exacting reviewer would expect the check icon in --color-fg or --color-fg-muted, leaving orange exclusively on Undo.",
+              "evidence": "index.html line 234: `.snackbar__icon { color: var(--color-accent); }` vs line 275 `.snackbar__undo { color: var(--color-accent); }` — two elements share the one accent hue"
+            },
+            {
+              "severity": "medium",
+              "what": "The snackbar sub-label ('Title updated') fails WCAG AA contrast for normal-size text against the snackbar's elevated background.",
+              "evidence": "--color-fg-dim #828282 on --color-bg-elev #141414 computes to ~4.33:1, below the 4.5:1 AA threshold for 13px text (line 259-261, --type-label: 13px)"
+            },
+            {
+              "severity": "low",
+              "what": "Countdown timer bar and its 500ms fallback removal are the only motion detail not literally token-driven (JS sets transitionDuration/transform inline), though the duration value itself does derive from the AUTO_DISMISS_MS constant matching the footer's stated '6s' — a defensible dynamic exception, not a hardcoded literal in CSS.",
+              "evidence": "index.html lines 456-457, 421-423"
+            }
+          ],
+          "proportion_verdict": "Confirmation message ('Change saved') and the Undo action are both set to var(--type-body) = 16px — identical size. Hierarchy is carried entirely by color and weight: the message is plain white (#ffffff, default 400 weight), Undo is accent orange (#ed4609, weight 500). This is a defensible, restrained choice consistent with the brief's 'restraint over persuasion' — no oversized CTA fighting the message, no undersized afterthought link. The relationship works.",
+          "one_line": "Clean, token-exact snackbar with a genuinely restrained Undo/message proportion; docked for the check icon quietly duplicating the one accent hue and a sub-label that falls just under AA contrast."
+        },
+        "refutation": {
+          "build": "abl-08",
+          "sustained": true,
+          "corrected_score": 89,
+          "note": "Verified against index.html CSS and both screenshots.\\n\\nDEFECT 1 (icon/accent duplication) CONFIRMED — holds up. Line 234 `.snackbar__icon { color: var(--color-accent) }` and line 275 `.snackbar__undo { color: var(--color-accent) }` do share the one accent hue (#ed4609), and it's visible in postsave.png (the checkmark is unmistakably orange, matching Undo). This directly contradicts the footer copy baked into the same file: \\\"--color-accent marks Undo only, never the surface\\\" (line 374). Legitimate, well-evidenced, medium severity is fair.\\n\\nDEFECT 2 (contrast) OVERTURNED — the reviewer's math is wrong. I computed the actual WCAG relative-luminance contrast for #828282 on #141414 in Python (validated against the textbook #767676-on-white = 4.54:1 reference pair, which my formula reproduces exactly): the real ratio is 4.79:1, not ~4.33:1. 4.79:1 clears the 4.5:1 AA threshold for normal 13px text with room to spare. This defect does not survive.\\n\\nDEFECT 3 (motion/JS timing) — reviewer already scored this as a non-issue/defensible; agree, no change.\\n\\nPROPORTION VERDICT — confirmed accurate. Both `.snackbar__message` (line 251) and `.snackbar__undo` (line 277) use `var(--type-body)` = 16px, identical size; hierarchy is carried by color/weight only, as claimed.\\n\\nMISSED (minor, not in original report): `.snackbar__body { gap: 2px }` (line 247) is a bare literal not on the token scale (closest is --space-xs = 4px) — small but a real hardcoded-value violation given the footer's own token-sourcing claim. Also `.snackbar__dismiss` is a 28×28px hit target (line 295-296), under the 44×44 mobile minimum — low severity since this is a desktop demo, but worth a line if it's ever touch-tested.\\n\\nNet effect: one of two \\\"medium\\\" defects is invalid (contrast passes AA), the other is real and stays. Ship-readiness for an ablation/demo build holds; score nudges up slightly versus the original 85 because the contrast demerit was unearned, offset a bit by the missed hardcoded-gap nit.",
+          "overturned_defects": [
+            "Snackbar sub-label contrast fails WCAG AA — actual computed contrast of --color-fg-dim (#828282) on --color-bg-elev (#141414) is 4.79:1 (verified via WCAG relative-luminance formula, cross-checked against the standard #767676/white = 4.54:1 reference pair), which clears the 4.5:1 AA threshold. The reviewer's ~4.33:1 figure is a miscalculation."
+          ],
+          "missed_defects": [
+            {
+              "severity": "low",
+              "what": "`.snackbar__body { gap: 2px }` is a bare hardcoded pixel value not sourced from the token scale (nearest token --space-xs = 4px), inconsistent with the footer's claim that tokens are sourced from DESIGN.md.",
+              "evidence": "index.html line 247"
+            },
+            {
+              "severity": "low",
+              "what": "`.snackbar__dismiss` close button is a 28x28px hit target, below the common 44x44px minimum touch target size.",
+              "evidence": "index.html lines 295-296 (width: 28px; height: 28px)"
+            }
+          ]
+        }
+      },
+      {
+        "build": "abl-09",
+        "verdict": {
+          "build": "abl-09",
+          "overall_score": 79,
+          "ship_ready": true,
+          "defects": [
+            {
+              "severity": "medium",
+              "what": "The Undo action's accent color (declared only as an underline in the CSS) reads in the rendered PNG as if it's tinting the glyphs themselves, making 'Undo' the most visually prominent element in the bar — competing with, rather than deferring to, the white 'Change saved' confirmation text.",
+              "evidence": "index.html line 167: `.btn--text { color: var(--color-fg); ... }` (white, #ffffff) with only `text-decoration-color: var(--color-accent)` (#ed4609) on line 170 — but in postsave.png the word 'Undo' visibly reads warm/orange rather than white, unlike the CSS-declared color. Flag for a render-vs-spec check; if the PNG is accurate this is a hierarchy inversion, not just a link affordance."
+            },
+            {
+              "severity": "low",
+              "what": "The primary 'Save change' button's fill visibly differs between the two captures — solid white in idle.png, a duller light-grey in postsave.png — with no state in the CSS (hover/active/disabled) that produces a persistent grey fill after a click completes.",
+              "evidence": "idle.png button reads as flat #ffffff per `.btn--primary { background: var(--color-fg) }` (line 135, --color-fg:#ffffff); postsave.png shows a visibly greyer fill on the same element with no corresponding class change in the DOM (button keeps `btn btn--primary`, no :active/:disabled state applies post-click) — likely a screenshot/compositing artifact but worth a pixel-level recheck since a lingering greyed button reads as 'disabled' next to a fresh save."
+            },
+            {
+              "severity": "low",
+              "what": "`.btn--ghost` is a fully styled variant (lines 149-158) that is never instantiated anywhere in the markup or script — dead code in an otherwise lean, single-purpose file.",
+              "evidence": "grep for `btn--ghost` in index.html: only the two rule blocks at lines 149 and 155, zero usages in the DOM-building JS (buildSnackbar) or static HTML."
+            }
+          ],
+          "proportion_verdict": "Confirmation message ('Change saved') and the Undo action are both set to `--type-body` = 16px, both `font-weight: 500` — an exact 1:1 size ratio (index.html lines 261-268 for `.snackbar__message`, line 97 `.btn` base which `.btn--text` inherits). This is defensible: Undo is deliberately kept text-weight (underlined, no border/fill) rather than boxed as a competing button, so equal size reads as one continuous sentence rather than message-plus-CTA. The only differentiator is the underline (and, if the render is accurate, an unintended color tint — see defects). Size-wise the relationship is sane; color application is the open question.",
+          "one_line": "Restrained, token-correct snackbar with sane 16px/16px message-to-Undo proportion and proper 44px tap targets, docked by a possible accent-color bleed onto the Undo glyphs that isn't in the CSS and a button-fill inconsistency between the two captures."
+        },
+        "refutation": {
+          "build": "abl-09",
+          "sustained": true,
+          "corrected_score": 89,
+          "note": "Two of the three defects don't survive pixel-level verification; the ship-ready call holds and gets stronger, though the score itself should move up, not stay at 79.\n\nDEFECT 1 (medium, \"Undo glyphs tinted orange\") — OVERTURNED. Sampled actual pixel values in postsave.png at the Undo glyph strokes: solid (255,255,255) white, exactly matching `.btn--text { color: var(--color-fg) }`. The underline strip two rows below is (237,70,9) = #ed4609 = `--color-accent`, exactly as declared on `text-decoration-color`. There is no color bleed onto the letterforms — the reviewer misread anti-aliasing/compression halo around the underline as tinting the glyphs. A cropped zoom of the region (`undo_crop.png`) shows crisp white \"Undo\" text with a clean orange underline, nothing ambiguous about it. This is not \"a render-vs-spec check worth flagging\" — it's simply wrong, verified against raw pixel data.\n\nDEFECT 2 (low, \"unexplained grey button fill post-click\") — OVERTURNED. Sampled the Save-change button fill: idle.png = (255,255,255) pure white; postsave.png = (184,184,184). The reviewer's own evidence claims \"no state in the CSS (hover/active/disabled) produces a persistent grey fill\" — that's factually false: 184,184,184 is exactly `--color-fg-muted` (#b8b8b8), which is `.btn--primary:hover`'s declared background (line 141). The screenshot was simply captured with the cursor still resting on the button immediately after the click that triggered the save (a completely normal capture sequence), so the hover rule is legitimately active. This is a capture-timing artifact fully explained by the CSS, not a \"lingering disabled-looking button\" bug.\n\nDEFECT 3 (low, unused `.btn--ghost`) — SUSTAINED. Confirmed by grep: the class is declared at lines 149/158 and never referenced in the DOM-building JS or markup. Genuine (trivial) dead code.\n\nPROPORTION VERDICT — confirmed accurate: `.snackbar__message` and `.btn`/`.btn--text` are both `var(--type-body)`=16px, weight 500. No issue there.\n\nMISSED DEFECTS (see list) found on my own pass: (1) the outer `.snackbar-region` carries `role=\"status\" aria-live=\"polite\"` while the injected child snackbar also carries `role=\"alert\"` (which implies an assertive, atomic live region) — nesting two live-region roles on the same DOM subtree is a real APG anti-pattern that risks double or conflicting screen-reader announcements; pick one. (2) The 5000ms auto-dismiss has no pause-on-hover/focus and no way to extend it — a low-vision or motor-impaired user hovering the Undo button to click it can have the snackbar vanish under their cursor. (3) Minor: Undo and the dismiss (X) button are both flush at the 44px tap-target floor with only 4px (`--space-xs`) of gap between them, below the ~8px spacing generally recommended between adjacent minimum-sized targets.\n\nNet: with the two false defects removed, this build is actually cleaner than the original 79/ship_ready-true verdict credited it for. Ship-readiness is not just sustained, it's stronger — but I'd add the live-region nesting fix as a should-fix before calling it fully clean.",
+          "overturned_defects": [
+            "Undo action color-bleed / accent tinting the glyphs (medium) — pixel sample shows glyphs are pure white #ffffff; only the underline is accent orange, exactly as CSS declares.",
+            "Primary button grey fill post-save with 'no CSS state' to explain it (low) — pixel sample (184,184,184) is exactly --color-fg-muted, the declared .btn--primary:hover background; explained fully by cursor still hovering the button at capture time."
+          ],
+          "missed_defects": [
+            {
+              "severity": "low",
+              "what": "Nested conflicting live-region roles: outer #snackbar-region has role=\"status\" aria-live=\"polite\", inner injected .snackbar has role=\"alert\" (implicit assertive+atomic) — double-wrapped live regions risk conflicting/duplicate screen-reader announcements.",
+              "evidence": "index.html line 292 (`role=\"status\" aria-live=\"polite\"`) vs line 315 (`el.setAttribute('role','alert')` inside buildSnackbar)."
+            },
+            {
+              "severity": "low",
+              "what": "5000ms auto-dismiss timer has no pause-on-hover/focus and cannot be extended, so a user reading the message or reaching for Undo can have it disappear mid-interaction.",
+              "evidence": "index.html lines 303 and 357: `DISMISS_MS = 5000; autoDismissTimer = setTimeout(onTimeout, DISMISS_MS);` — no mouseenter/focusin listener anywhere in the script clears or restarts this timer."
+            },
+            {
+              "severity": "low",
+              "what": "Undo and the dismiss (X) button sit at the 44px tap-target floor with only 4px of gap between them, below commonly recommended ~8px spacing for adjacent minimum-size targets.",
+              "evidence": "index.html line 273: `.snackbar__actions { gap: var(--space-xs); }` where --space-xs is 4px (line 29), while both child buttons inherit `.btn`'s min-width/min-height: 44px (lines 105-106)."
+            }
+          ]
+        }
+      },
+      {
+        "build": "abl-10",
+        "verdict": {
+          "build": "abl-10",
+          "one_line": "Restrained, systematically-tokened snackbar with correct proportion (message and Undo both 16px, hierarchy carried by color/weight not size); one real token violation (hardcoded 11px meta text) keeps it just short of flawless.",
+          "overall_score": 87,
+          "ship_ready": true,
+          "proportion_verdict": "Confirmation message \"Change saved\" and inline \"Undo\" are BOTH set at --type-body = 16px (index.html lines 251, 282) — identical font size. Hierarchy between them is carried entirely by color (fg white #ffffff vs accent #ed4609) and weight (400 regular vs 500 medium), not by size. This is the defensible pattern: Undo reads as clearly actionable without visually outweighing or shrinking beneath the confirmation it belongs to. The secondary meta line (\"Saved · dismisses automatically\") is smaller at 11px but that's a hardcoded value, not the --type-label token (13px) — see defects.",
+          "strengths": [
+            "Snackbar restraint matches the system's stated color discipline: accent (#ed4609) appears only on the Undo label and the dirty field value, never as a fill/background — consistent with the field-value.is-dirty treatment on the same page",
+            "Full interaction-state coverage in code: hover/focus-visible/active/disabled on both buttons, prefers-reduced-motion clamp on all transitions, aria-live=\"polite\" region + role=\"status\" on the snackbar",
+            "44x44px minimum tap targets on Undo and the icon-only dismiss control (lines 285-286, 305-306), correctly exceeding the icon's own 16px visual size",
+            "Typographic consistency: mono (Geist Mono stack) used for both the field's data value and the snackbar's meta/undo-adjacent data, sans (Untitled Sans stack) for prose — the same split the idle page already establishes with 'Andrew Cunliffe' in mono",
+            "Auto-dismiss progress fill is monochrome (--line to --line-strong) rather than accent-filled, correctly treating the timer as structural motion, not decoration, per the file's own COLOR-control-signal-only comment",
+            "Snackbar width capped at 480px against a 720px page stage — doesn't sprawl edge-to-edge, reads as a considered floating element"
+          ],
+          "defects": [
+            {
+              "what": "Snackbar meta text (\"Saved · dismisses automatically\") uses a hardcoded 11px value instead of a scale token — the token system's smallest defined size is --type-label at 13px, so 11px is an undocumented one-off size not present in :root",
+              "evidence": "index.html line 261: `font-size: 11px;` inside `.snackbar-meta`, vs the declared scale in :root (lines 22-27): --type-label:13px is the smallest token defined",
+              "severity": "medium"
+            },
+            {
+              "what": "The snackbar's box-shadow is nearly imperceptible because it's the same hairline color as the border it sits beside, adding a barely-there second edge rather than genuine elevation separation from the page background",
+              "evidence": "index.html line 208: `box-shadow: 0 1px 0 var(--line);` where --line is also the 1px border color (line 18: #363636) used one property above at line 206",
+              "severity": "low"
+            }
+          ]
+        },
+        "refutation": {
+          "build": "abl-10",
+          "sustained": true,
+          "corrected_score": 86,
+          "note": "Both claimed defects verify cleanly against the code. (1) Line 261 `font-size: 11px;` on `.snackbar-meta` is indeed a hardcoded one-off — :root's smallest defined token is --type-label at 13px (line 22), confirmed by reading the full :root block; no smaller token exists that 11px could be mapped to. Medium severity is fair since it's cosmetic-adjacent, not a functional/contrast break. (2) Line 208 `box-shadow: 0 1px 0 var(--line)` does reuse the exact same token as the 1px border one property above (line 206) — confirmed identical var(--line) reference, and the postsave.png render shows only a faint secondary edge, consistent with \"barely-there\" framing. Low severity is right.\n\nAlso independently verified the proportion claim (lines 251 and 282 both resolve to var(--type-body)=16px) and the strengths list: 44x44 explicit on both Undo (284-286) and dismiss (305-306), aria-live=\"polite\" region + role=\"status\" on the snackbar root, prefers-reduced-motion clamp covering all five transitioning selectors, and the accent-restricted-to-Undo/dirty-value claim (only two selectors in the whole file assign var(--accent) as text color, plus focus-visible outlines which are decoration not fill — a minor overreach in the strengths prose but not something that rises to a defect).\n\nContrast-checked the two things the reviewer didn't: meta text --fg-dim on --bg-elev computes to ~4.8:1 (passes AA at 11px), and Undo's accent orange on --bg-elev also computes to ~4.8:1 (passes AA) — so no hidden contrast defect was missed. Nothing else in the file contradicts the review. Verdict and score survive; nudged corrected_score to 86 only because the \"accent never appears as anything but Undo/dirty-value\" strength is slightly overstated by the focus-ring reuse, not because any defect was wrong.",
+          "overturned_defects": [],
+          "missed_defects": []
+        }
+      },
+      {
+        "build": "abl-11",
+        "verdict": {
+          "build": "abl-11",
+          "overall_score": 80,
+          "ship_ready": false,
+          "one_line": "Tight token discipline and a restrained, geometrically consistent build, undercut by an Undo action that's typographically invisible from the confirmation message until hovered.",
+          "defects": [
+            {
+              "severity": "medium",
+              "what": "Undo has zero resting-state visual distinction from the confirmation message — same color, size, and weight, so it doesn't read as an actionable control until hovered.",
+              "evidence": "index.html: .snackbar__message color: var(--color-fg,#ffffff), font-size: var(--type-body,16px) (lines 227-228); .btn (base class Undo inherits) color: var(--color-fg,#ffffff), font-size: var(--type-body,16px), inherited weight 400 (lines 105-107). .btn--ghost sets color to accent (#ed4609) ONLY on :hover (line 159) — at rest both 'Change saved' and 'Undo' render identically white/16px/regular in postsave.png."
+            },
+            {
+              "severity": "low",
+              "what": "Snackbar has no elevation cue beyond a 1px hairline border against a near-black page — border color barely separates from surrounding chrome.",
+              "evidence": "--color-line: #363636 border on --color-bg-elev: #141414 (lines 16, 202-203), box-shadow: none (line 207); against page --color-bg: #050505, the border reads as a faint outline in postsave.png with no shadow/glow to lift the surface."
+            },
+            {
+              "severity": "low",
+              "what": "Message text is locked to white-space: nowrap outside the single <480px breakpoint, so a longer confirmation string than 'Change saved' has no wrap safety net between 480px and typical desktop widths.",
+              "evidence": "index.html lines 230 (.snackbar__message { white-space: nowrap }) and 251-256 (only @media max-width:480px sets normal) — not visible as a defect in the two renders provided but is a latent robustness gap in the component itself."
+            }
+          ],
+          "proportion_verdict": "Confirmation message ('Change saved') and the inline Undo action are both set to var(--type-body) = 16px at regular (400) weight, in the same #ffffff color at rest — i.e., identical typographic treatment. This is a defensible baseline (matches the common snackbar convention of equal-size message/action text) but is NOT fully defensible here because the two elements are also color-identical at rest (Undo only shifts to the #ed4609 accent on :hover, per .btn--ghost:hover line 159) and identical in weight — nothing marks Undo as interactive until a pointer is already over it. A more exacting build would give Undo a static distinguishing cue (accent color, underline, or medium weight) rather than relying entirely on hover discovery.",
+          "strengths": [
+            "Every color, spacing, and type value traces to a CSS custom property sourced from DESIGN.md's scale — no hardcoded literals in the visible component (colors, --space-*, --type-* all referenced via var())",
+            "Consistent border-radius: 0 / hairline-border geometric language across primary button, snackbar, and demo chrome — reads as one system, not a bolted-on toast",
+            "Correct state machine: hidden/visible/undoing with clean enter/exit transitions (200ms out-quart in, 120ms out-expo out), a resilient double-fallback dismiss (transitionend + timeout), and proper re-entrancy handling on a second Save press while one snackbar is still showing",
+            "Full a11y coverage: role=status/aria-live=polite on the snackbar, aria-label on the icon-only dismiss button, prefers-reduced-motion override, and 44px tap targets on both Undo and the X even though they render visually compact",
+            "Auto-dismiss timer (5000ms) is correctly cleared on manual dismiss/undo, avoiding a stray timeout firing against a removed node"
+          ]
+        },
+        "refutation": {
+          "build": "abl-11",
+          "sustained": true,
+          "corrected_score": 79,
+          "note": "All three defects verified directly against index.html and both renders; none overturned.\n\nDefect 1 (medium, Undo indistinguishable at rest) — CONFIRMED. Code: .snackbar__message is color:var(--color-fg,#fff), font-size:var(--type-body,16px), no weight override (inherits body default 400). .btn base sets color:var(--color-fg,#fff), font-size:var(--type-body,16px), line-height:1 — same weight/size/color. .btn--ghost:hover (line 158-159) is the ONLY rule that changes color, to accent #ed4609, and only on :hover. A 3x crop of postsave.png (950,1380)-(1600,1580) confirms \"Change saved\" and \"Undo\" render pixel-identical in weight, size, and color at rest — no underline, no icon, no static accent cue marks Undo as a control. Cited line numbers are accurate.\n\nDefect 2 (low, weak elevation) — matches code exactly: --color-line:#363636 border on --color-bg-elev:#141414, box-shadow:none (lines 202-207), against page --color-bg:#050505. Visually the border is faint but not invisible in the crop — reviewer's phrasing (\"barely separates,\" not \"invisible\") is accurate and appropriately low severity.\n\nDefect 3 (low, nowrap outside <480px breakpoint) — verified verbatim against lines 230 and 251-256; the reviewer correctly flagged it as latent/not visible in the provided renders rather than overclaiming an observed defect.\n\nStrengths list also checks out: token-only values (no hardcoded literals found in a full pass of the CSS), border-radius:0 hairline language is consistent across .btn/.snackbar/demo chrome, the hidden/visible/undoing state machine with double-fallback dismiss (transitionend + timeout, lines 337-355) is real and correctly re-entrant on a second Save press (lines 392-404 explicitly clear the old timer/element before re-entering), role=status/aria-live=polite + aria-label + 44px min-height/width all present per code.\n\nNo missed high-severity defects found. Did not find compelling additional defects beyond the reviewer's three — checked focus-visible states, contrast ratios, timer cleanup on undo/dismiss/second-save, and asymmetric snackbar padding; all resolve cleanly or are the same low-stakes territory the reviewer already covered. 80/100 with ship_ready:false is a defensible score for a build whose sole functional flaw is a real (if debatable-severity) discoverability gap on the Undo action — not overturned."
+        }
+      },
+      {
+        "build": "abl-12",
+        "verdict": {
+          "build": "abl-12",
+          "one_line": "Restrained, well-tokenized snackbar with correct proportion discipline — confirmation and Undo share one 16px type size and let color/weight (not size) carry the hierarchy.",
+          "overall_score": 87,
+          "ship_ready": true,
+          "proportion_verdict": "Confirmation message (\"Change saved\") and the Undo action are both var(--type-body) = 16px — identical measured size (index.html lines 251-253 .snackbar__message and 267-274 .snackbar__undo, both inheriting --type-body: 16px from :root, line 21). Hierarchy is carried by color/weight instead of size: message is #ffffff at inherited normal weight (no explicit font-weight override on .snackbar__message), Undo is color: var(--color-accent) #ed4609 at font-weight: 500. This is a defensible, deliberate choice — a single-size type scale inside one dense component avoids the common ablation failure of an oversized inline action competing with the message. The Undo's added weight+color roughly balances against the message's higher-contrast white, so neither element visually dominates.",
+          "strengths": [
+            "Single flat 16px type size for both message and action avoids the classic 'Undo bigger than confirmation' proportion failure outright",
+            "Accent orange (#ed4609) is reserved to exactly two elements in the whole snackbar — the 6px status dot and the Undo label — matching the CSS's own stated intent ('accent reserved for the Undo action only, no shadow-glow')",
+            "All three interactive controls (Save, Undo, dismiss X) hit the 44x44px minimum tap target (.btn min-height:44px; .snackbar__undo min-height/width:44px; .snackbar__dismiss width/height:44px) — verified in CSS, not just visually",
+            "Timer hairline (1px, --color-line-strong #545454) is genuinely structural (drives the auto-dismiss countdown) rather than decorative, and is subtle enough not to compete visually with the message/action row",
+            "Focus-visible states defined on every interactive element with a consistent 2px accent outline (lines 148-151, 284-287, 308-312) — not left to browser default",
+            "Snackbar width is capped at 480px (line 210) rather than stretching edge-to-edge, keeping the confirmation row visually proportionate to the small demo card above it"
+          ],
+          "defects": [
+            {
+              "severity": "low",
+              "what": "Confirmation message has no explicit font-weight (inherits normal/400 from body), while Undo is 500-weight in saturated accent orange — the secondary action is technically the heavier, more saturated element in the row even though it matches the message's 16px size.",
+              "evidence": "index.html: .snackbar__message (lines 251-258) sets no font-weight; .snackbar__undo (lines 267-280) sets font-weight: 500 and color: var(--color-accent, #ed4609)."
+            },
+            {
+              "severity": "low",
+              "what": "Dismiss (X) icon uses --color-fg-dim (#828282) on the --color-bg-card (#1c1c1c) surface, which sits close to the WCAG 3:1 non-text contrast floor for an icon-only control.",
+              "evidence": "index.html line 295: .snackbar__dismiss { color: var(--color-fg-dim, #828282); } against --color-bg-card: #1c1c1c (line 12); approx. contrast ratio ~3.9:1, adequate but the thinnest margin of any color pairing in the component."
+            },
+            {
+              "severity": "low",
+              "what": "Message uses white-space: nowrap + text-overflow: ellipsis with no title/aria-label fallback, so a longer real-world confirmation string would silently truncate with no way to read the full text.",
+              "evidence": "index.html lines 255-257: white-space: nowrap; overflow: hidden; text-overflow: ellipsis; on .snackbar__message, no title attribute set in the markup (line 388)."
+            }
+          ]
+        },
+        "refutation": {
+          "build": "abl-12",
+          "sustained": true,
+          "corrected_score": 82,
+          "note": "Verified against index.html and both renders. All three reviewer-cited line ranges (.snackbar__message ~251-258, .snackbar__undo ~267-280) check out: message has no explicit font-weight, Undo is 500-weight accent orange, both inherit --type-body:16px — the core proportion claim (single flat 16px size, hierarchy via color/weight not size) is accurate and confirmed visually in postsave.png. The ellipsis-truncation defect (#3) is also accurate — no title/aria-label fallback exists on .snackbar__message.\n\nDefect #2 (dismiss-icon contrast) is OVERTURNED on its own math: I computed the actual contrast of --color-fg-dim #828282 on --color-bg-card #1c1c1c using the standard WCAG relative-luminance formula and got ~4.43:1, not the reviewer's claimed ~3.9:1 — a comfortable 47% margin above the 3:1 non-text floor, not 'the thinnest margin of any color pairing in the component' as claimed.\n\nThat framing also pointed at the wrong element. Computing the SAME formula for the actual accent orange (#ed4609) against the same card background gives ~4.45:1 — nearly identical margin to the dismiss icon, so the icon isn't uniquely marginal at all. More importantly, that 4.45:1 number is the Undo button's own text-on-background contrast, and it's the PRIMARY interactive control of the component. WCAG AA requires 4.5:1 for normal-weight text under 18pt/14pt-bold (500-weight doesn't qualify as 'bold' for the large-text exemption), so Undo's own label color sits just under the AA text threshold — a real, if marginal, accessibility miss the reviewer didn't catch because they were looking at the dismiss X instead of the element that actually carries the risk.\n\nNet effect: one reported defect overturned by bad math/wrong target, one materially real defect (borderline AA-failing Undo text contrast, ~4.45:1 vs 4.5:1 required) unreported and more consequential than what it replaced since it's on the component's main action, not a secondary icon. Ship-readiness still holds (it's a ~0.05 contrast-ratio miss, trivially fixed by darkening the accent ~2-3% or adding font-weight 600 for a large-text exemption), so overall verdict sustained, but corrected score comes down slightly for the missed higher-severity finding.",
+          "overturned_defects": [
+            "Dismiss-icon contrast defect (severity: low) — reviewer's ~3.9:1 figure is wrong; recomputed via WCAG relative-luminance formula gives ~4.43:1 against --color-bg-card, a healthy margin above the 3:1 non-text floor, and not uniquely thin versus other pairings in the component (accent-on-bg computes to a nearly identical ~4.45:1)."
+          ],
+          "missed_defects": [
+            {
+              "severity": "medium",
+              "what": "The Undo label's own text color (--color-accent #ed4609) against the snackbar's --color-bg-card (#1c1c1c) computes to ~4.45:1 contrast — just under the 4.5:1 WCAG AA threshold required for normal/medium-weight text at 16px. This is the component's primary action, not a decorative element, so a borderline AA-failing contrast here is more consequential than the dismiss-icon concern the reviewer flagged (which passes its 3:1 non-text floor comfortably).",
+              "evidence": "index.html line 271: .snackbar__undo { color: var(--color-accent, #ed4609); font-weight: 500; font-size: var(--type-body, 16px); } against --color-bg-card: #1c1c1c (line 12). Relative-luminance contrast computation: L(accent)=0.2241, L(bg)=0.0116, ratio=(0.2241+0.05)/(0.0116+0.05)=4.45:1, below the 4.5:1 AA text minimum (500-weight does not qualify for the bold/large-text 3:1 exemption)."
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Judge"
+    },
+    {
+      "type": "workflow_phase",
+      "index": 2,
+      "title": "Adversarial"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "judge:abl-01",
+      "phaseIndex": 1,
+      "phaseTitle": "Judge",
+      "agentId": "ae05e9677bd27db74",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785777995743,
+      "queuedAt": 1785777995736,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-01",
+      "promptPreview": "You are judging ONE build of a snackbar component for an optimistic save (confirmation message + inline Undo + explicit dismiss), built against the design system at /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/arena/DESIGN.md.\n\nJudge ONLY these three files:\n- /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/round2/ablation/abl-01/postsave.png  (the snackbar visibl…",
+      "lastProgressAt": 1785778058593,
+      "tokens": 77329,
+      "toolCalls": 4,
+      "durationMs": 62850,
+      "resultPreview": "{\"build\":\"abl-01\",\"overall_score\":87,\"ship_ready\":true,\"defects\":[{\"severity\":\"low\",\"what\":\"An auto-dismiss progress-timer bar (2px orange line along the snackbar's bottom edge, id=snackbar-timer) was added beyond the brief's three named elements (confirmation message, inline Undo, explicit dismiss). It's functional (indicates time-to-live) and restrained, not decorative, but it is scope the code'…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "judge:abl-02",
+      "phaseIndex": 1,
+      "phaseTitle": "Judge",
+      "agentId": "a41344e46d0c9fcb0",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785777995743,
+      "queuedAt": 1785777995736,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-02",
+      "promptPreview": "You are judging ONE build of a snackbar component for an optimistic save (confirmation message + inline Undo + explicit dismiss), built against the design system at /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/arena/DESIGN.md.\n\nJudge ONLY these three files:\n- /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/round2/ablation/abl-02/postsave.png  (the snackbar visibl…",
+      "lastProgressAt": 1785778078630,
+      "tokens": 83677,
+      "toolCalls": 6,
+      "durationMs": 82887,
+      "resultPreview": "{\"build\":\"abl-02\",\"overall_score\":85,\"ship_ready\":true,\"defects\":[{\"severity\":\"low\",\"what\":\"Undo has zero visible button affordance — no background, no border, distinguished from plain body text only by font-weight (500 vs 400).\",\"evidence\":\".btn--ghost: background: transparent; border-color: transparent (index.html lines 156-160); no hover/focus state visible in the static post-save frame.\"},{\"se…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "judge:abl-03",
+      "phaseIndex": 1,
+      "phaseTitle": "Judge",
+      "agentId": "a1a536fe80bf6eb7d",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785777995744,
+      "queuedAt": 1785777995736,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-03",
+      "promptPreview": "You are judging ONE build of a snackbar component for an optimistic save (confirmation message + inline Undo + explicit dismiss), built against the design system at /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/arena/DESIGN.md.\n\nJudge ONLY these three files:\n- /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/round2/ablation/abl-03/postsave.png  (the snackbar visibl…",
+      "lastProgressAt": 1785778099602,
+      "tokens": 82981,
+      "toolCalls": 5,
+      "durationMs": 103858,
+      "resultPreview": "{\"build\":\"abl-03\",\"one_line\":\"A well-tokenized, restrained snackbar (16px message, 16px/500-weight orange Undo, subtle 2px drain-timer) sits below a \\\"Save change\\\" button whose label has visibly wrapped to two lines in both captured states, reading as broken craft in the very screenshot being judged.\",\"overall_score\":74,\"ship_ready\":false,\"proportion_verdict\":\"Confirmation message (\\\"Change saved…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "judge:abl-04",
+      "phaseIndex": 1,
+      "phaseTitle": "Judge",
+      "agentId": "ad1b8ed10e3da0b31",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785777995744,
+      "queuedAt": 1785777995736,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-04",
+      "promptPreview": "You are judging ONE build of a snackbar component for an optimistic save (confirmation message + inline Undo + explicit dismiss), built against the design system at /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/arena/DESIGN.md.\n\nJudge ONLY these three files:\n- /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/round2/ablation/abl-04/postsave.png  (the snackbar visibl…",
+      "lastProgressAt": 1785778067937,
+      "tokens": 81023,
+      "toolCalls": 6,
+      "durationMs": 72193,
+      "resultPreview": "{\"build\":\"abl-04\",\"one_line\":\"Clean, restrained snackbar with correct token usage for color/space/motion, but it ignores the design system's mandatory font tokens entirely — a hard-rule violation, not a polish nit.\",\"overall_score\":76,\"ship_ready\":false,\"proportion_verdict\":\"Confirmation message (\\\"Change saved\\\") and Undo are both var(--type-body, 16px) = 16px — identical size, the standard snack…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "judge:abl-05",
+      "phaseIndex": 1,
+      "phaseTitle": "Judge",
+      "agentId": "a686c27d99d0be0ae",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785777995744,
+      "queuedAt": 1785777995736,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-05",
+      "promptPreview": "You are judging ONE build of a snackbar component for an optimistic save (confirmation message + inline Undo + explicit dismiss), built against the design system at /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/arena/DESIGN.md.\n\nJudge ONLY these three files:\n- /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/round2/ablation/abl-05/postsave.png  (the snackbar visibl…",
+      "lastProgressAt": 1785778077895,
+      "tokens": 82622,
+      "toolCalls": 5,
+      "durationMs": 82151,
+      "resultPreview": "{\"build\":\"abl-05\",\"one_line\":\"Restrained, well-proportioned snackbar — confirmation message and inline Undo share the same 16px/500-weight type scale, differentiated by hue alone (white vs accent #ed4609, ~4.7:1 contrast on #141414), with a clean divider and a proper 44px dismiss target.\",\"overall_score\":88,\"ship_ready\":true,\"proportion_verdict\":\"Confirmation message (\\\"Change saved\\\") and the inl…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 6,
+      "label": "judge:abl-06",
+      "phaseIndex": 1,
+      "phaseTitle": "Judge",
+      "agentId": "a532027351151e728",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785777995744,
+      "queuedAt": 1785777995736,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-06",
+      "promptPreview": "You are judging ONE build of a snackbar component for an optimistic save (confirmation message + inline Undo + explicit dismiss), built against the design system at /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/arena/DESIGN.md.\n\nJudge ONLY these three files:\n- /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/round2/ablation/abl-06/postsave.png  (the snackbar visibl…",
+      "lastProgressAt": 1785778060604,
+      "tokens": 77726,
+      "toolCalls": 4,
+      "durationMs": 64859,
+      "resultPreview": "{\"build\":\"abl-06\",\"one_line\":\"Restrained, correctly-proportioned snackbar — message and Undo share the same 16px body size, distinguished only by weight+accent, with one measurable contrast nit on the Undo color.\",\"overall_score\":83,\"ship_ready\":true,\"proportion_verdict\":\"Confirmation message \\\"Change saved\\\" is 16px / font-weight 400 (var(--type-body), .snackbar__message has no weight override). …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 7,
+      "label": "judge:abl-07",
+      "phaseIndex": 1,
+      "phaseTitle": "Judge",
+      "agentId": "a459dfa2e71aa7f41",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785777995745,
+      "queuedAt": 1785777995736,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-07",
+      "promptPreview": "You are judging ONE build of a snackbar component for an optimistic save (confirmation message + inline Undo + explicit dismiss), built against the design system at /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/arena/DESIGN.md.\n\nJudge ONLY these three files:\n- /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/round2/ablation/abl-07/postsave.png  (the snackbar visibl…",
+      "lastProgressAt": 1785778075808,
+      "tokens": 82483,
+      "toolCalls": 5,
+      "durationMs": 80063,
+      "resultPreview": "{\"build\":\"abl-07\",\"one_line\":\"Clean, restrained, fully-tokenized toast with correct tap-target sizing and motion — proportion is same-size/weight-differentiated (defensible) but Undo never picks up the system's accent color, so its only differentiator from the confirmation text is font-weight.\",\"overall_score\":83,\"ship_ready\":true,\"proportion_verdict\":\"Confirmation message ('Change saved', .c-toas…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 8,
+      "label": "judge:abl-08",
+      "phaseIndex": 1,
+      "phaseTitle": "Judge",
+      "agentId": "aa4c390a07a4b1500",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785777995745,
+      "queuedAt": 1785777995736,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-08",
+      "promptPreview": "You are judging ONE build of a snackbar component for an optimistic save (confirmation message + inline Undo + explicit dismiss), built against the design system at /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/arena/DESIGN.md.\n\nJudge ONLY these three files:\n- /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/round2/ablation/abl-08/postsave.png  (the snackbar visibl…",
+      "lastProgressAt": 1785778050362,
+      "tokens": 80894,
+      "toolCalls": 5,
+      "durationMs": 54617,
+      "resultPreview": "{\"build\":\"abl-08\",\"overall_score\":85,\"ship_ready\":true,\"defects\":[{\"severity\":\"medium\",\"what\":\"The decorative checkmark icon is colored with --color-accent (#ed4609), the same hue used for the Undo action, contradicting DESIGN.md's own rule 'everything decorative is monochrome' (line 60) and diluting the footer's stated intent that '--color-accent marks Undo only, never the surface.' A design-exac…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 9,
+      "label": "judge:abl-09",
+      "phaseIndex": 1,
+      "phaseTitle": "Judge",
+      "agentId": "afe706400b5408e56",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785777995745,
+      "queuedAt": 1785777995736,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-09",
+      "promptPreview": "You are judging ONE build of a snackbar component for an optimistic save (confirmation message + inline Undo + explicit dismiss), built against the design system at /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/arena/DESIGN.md.\n\nJudge ONLY these three files:\n- /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/round2/ablation/abl-09/postsave.png  (the snackbar visibl…",
+      "lastProgressAt": 1785778066993,
+      "tokens": 75958,
+      "toolCalls": 4,
+      "durationMs": 71248,
+      "resultPreview": "{\"build\":\"abl-09\",\"overall_score\":79,\"ship_ready\":true,\"defects\":[{\"severity\":\"medium\",\"what\":\"The Undo action's accent color (declared only as an underline in the CSS) reads in the rendered PNG as if it's tinting the glyphs themselves, making 'Undo' the most visually prominent element in the bar — competing with, rather than deferring to, the white 'Change saved' confirmation text.\",\"evidence\":\"i…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 10,
+      "label": "judge:abl-10",
+      "phaseIndex": 1,
+      "phaseTitle": "Judge",
+      "agentId": "a14d772c7d7c62d5b",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785777995745,
+      "queuedAt": 1785777995736,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-10",
+      "promptPreview": "You are judging ONE build of a snackbar component for an optimistic save (confirmation message + inline Undo + explicit dismiss), built against the design system at /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/arena/DESIGN.md.\n\nJudge ONLY these three files:\n- /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/round2/ablation/abl-10/postsave.png  (the snackbar visibl…",
+      "lastProgressAt": 1785778046652,
+      "tokens": 78801,
+      "toolCalls": 4,
+      "durationMs": 50907,
+      "resultPreview": "{\"build\":\"abl-10\",\"one_line\":\"Restrained, systematically-tokened snackbar with correct proportion (message and Undo both 16px, hierarchy carried by color/weight not size); one real token violation (hardcoded 11px meta text) keeps it just short of flawless.\",\"overall_score\":87,\"ship_ready\":true,\"proportion_verdict\":\"Confirmation message \\\"Change saved\\\" and inline \\\"Undo\\\" are BOTH set at --type-bo…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 11,
+      "label": "judge:abl-11",
+      "phaseIndex": 1,
+      "phaseTitle": "Judge",
+      "agentId": "a40ca062c3fbf2c33",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785777995746,
+      "queuedAt": 1785777995736,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-11",
+      "promptPreview": "You are judging ONE build of a snackbar component for an optimistic save (confirmation message + inline Undo + explicit dismiss), built against the design system at /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/arena/DESIGN.md.\n\nJudge ONLY these three files:\n- /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/round2/ablation/abl-11/postsave.png  (the snackbar visibl…",
+      "lastProgressAt": 1785778095020,
+      "tokens": 83613,
+      "toolCalls": 6,
+      "durationMs": 99274,
+      "resultPreview": "{\"build\":\"abl-11\",\"overall_score\":80,\"ship_ready\":false,\"one_line\":\"Tight token discipline and a restrained, geometrically consistent build, undercut by an Undo action that's typographically invisible from the confirmation message until hovered.\",\"defects\":[{\"severity\":\"medium\",\"what\":\"Undo has zero resting-state visual distinction from the confirmation message — same color, size, and weight, so i…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 12,
+      "label": "judge:abl-12",
+      "phaseIndex": 1,
+      "phaseTitle": "Judge",
+      "agentId": "a924e6f8c6cfb91fc",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785777995746,
+      "queuedAt": 1785777995736,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-12",
+      "promptPreview": "You are judging ONE build of a snackbar component for an optimistic save (confirmation message + inline Undo + explicit dismiss), built against the design system at /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/arena/DESIGN.md.\n\nJudge ONLY these three files:\n- /Users/accunliffe/projects/raven-mcp/.claude/pregate-2026-08-02/round2/ablation/abl-12/postsave.png  (the snackbar visibl…",
+      "lastProgressAt": 1785778056100,
+      "tokens": 81665,
+      "toolCalls": 5,
+      "durationMs": 60354,
+      "resultPreview": "{\"build\":\"abl-12\",\"one_line\":\"Restrained, well-tokenized snackbar with correct proportion discipline — confirmation and Undo share one 16px type size and let color/weight (not size) carry the hierarchy.\",\"overall_score\":87,\"ship_ready\":true,\"proportion_verdict\":\"Confirmation message (\\\"Change saved\\\") and the Undo action are both var(--type-body) = 16px — identical measured size (index.html lines …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 13,
+      "label": "refute:abl-10",
+      "phaseIndex": 2,
+      "phaseTitle": "Adversarial",
+      "agentId": "ac62852decdcd6383",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785778046663,
+      "queuedAt": 1785778046654,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-10",
+      "promptPreview": "Another reviewer judged a snackbar build. Your job is to REFUTE their verdict — assume they are wrong and try to prove it. Default to overturning a defect if its evidence does not hold up.\n\nTheir verdict on abl-10:\n{\n  \"build\": \"abl-10\",\n  \"one_line\": \"Restrained, systematically-tokened snackbar with correct proportion (message and Undo both 16px, hierarchy carried by color/weight not size); one r…",
+      "lastProgressAt": 1785778095666,
+      "tokens": 79896,
+      "toolCalls": 4,
+      "durationMs": 49002,
+      "resultPreview": "{\"build\":\"abl-10\",\"sustained\":true,\"corrected_score\":86,\"note\":\"Both claimed defects verify cleanly against the code. (1) Line 261 `font-size: 11px;` on `.snackbar-meta` is indeed a hardcoded one-off — :root's smallest defined token is --type-label at 13px (line 22), confirmed by reading the full :root block; no smaller token exists that 11px could be mapped to. Medium severity is fair since it's …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 14,
+      "label": "refute:abl-08",
+      "phaseIndex": 2,
+      "phaseTitle": "Adversarial",
+      "agentId": "a111a1982d5cd2bab",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785778050363,
+      "queuedAt": 1785778050362,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-08",
+      "promptPreview": "Another reviewer judged a snackbar build. Your job is to REFUTE their verdict — assume they are wrong and try to prove it. Default to overturning a defect if its evidence does not hold up.\n\nTheir verdict on abl-08:\n{\n  \"build\": \"abl-08\",\n  \"overall_score\": 85,\n  \"ship_ready\": true,\n  \"defects\": [\n    {\n      \"severity\": \"medium\",\n      \"what\": \"The decorative checkmark icon is colored with --color…",
+      "lastProgressAt": 1785778128599,
+      "tokens": 81636,
+      "toolCalls": 5,
+      "durationMs": 78236,
+      "resultPreview": "{\"build\":\"abl-08\",\"sustained\":true,\"corrected_score\":89,\"note\":\"Verified against index.html CSS and both screenshots.\\\\n\\\\nDEFECT 1 (icon/accent duplication) CONFIRMED — holds up. Line 234 `.snackbar__icon { color: var(--color-accent) }` and line 275 `.snackbar__undo { color: var(--color-accent) }` do share the one accent hue (#ed4609), and it's visible in postsave.png (the checkmark is unmistakab…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 15,
+      "label": "refute:abl-12",
+      "phaseIndex": 2,
+      "phaseTitle": "Adversarial",
+      "agentId": "ae72c1169dd4d812d",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785778056101,
+      "queuedAt": 1785778056101,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-12",
+      "promptPreview": "Another reviewer judged a snackbar build. Your job is to REFUTE their verdict — assume they are wrong and try to prove it. Default to overturning a defect if its evidence does not hold up.\n\nTheir verdict on abl-12:\n{\n  \"build\": \"abl-12\",\n  \"one_line\": \"Restrained, well-tokenized snackbar with correct proportion discipline — confirmation and Undo share one 16px type size and let color/weight (not s…",
+      "lastProgressAt": 1785778138249,
+      "tokens": 81540,
+      "toolCalls": 4,
+      "durationMs": 82148,
+      "resultPreview": "{\"build\":\"abl-12\",\"sustained\":true,\"corrected_score\":82,\"note\":\"Verified against index.html and both renders. All three reviewer-cited line ranges (.snackbar__message ~251-258, .snackbar__undo ~267-280) check out: message has no explicit font-weight, Undo is 500-weight accent orange, both inherit --type-body:16px — the core proportion claim (single flat 16px size, hierarchy via color/weight not si…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 16,
+      "label": "refute:abl-01",
+      "phaseIndex": 2,
+      "phaseTitle": "Adversarial",
+      "agentId": "ae6b2ceaf850df396",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785778058597,
+      "queuedAt": 1785778058596,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-01",
+      "promptPreview": "Another reviewer judged a snackbar build. Your job is to REFUTE their verdict — assume they are wrong and try to prove it. Default to overturning a defect if its evidence does not hold up.\n\nTheir verdict on abl-01:\n{\n  \"build\": \"abl-01\",\n  \"overall_score\": 87,\n  \"ship_ready\": true,\n  \"defects\": [\n    {\n      \"severity\": \"low\",\n      \"what\": \"An auto-dismiss progress-timer bar (2px orange line alon…",
+      "lastProgressAt": 1785778117814,
+      "tokens": 81740,
+      "toolCalls": 4,
+      "durationMs": 59217,
+      "resultPreview": "{\"build\":\"abl-01\",\"sustained\":true,\"corrected_score\":83,\"note\":\"All three reported defects hold up on direct inspection of index.html. (1) Timer bar scope-creep confirmed verbatim — lines 49-52 and 316-329 literally comment 'local component tokens (not in DESIGN.md)' and 'not in DESIGN.md, defined here'; three added CSS custom properties plus a new DOM node (#snackbar-timer) beyond the brief's thr…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 17,
+      "label": "refute:abl-06",
+      "phaseIndex": 2,
+      "phaseTitle": "Adversarial",
+      "agentId": "af05a05c094922f59",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785778060605,
+      "queuedAt": 1785778060604,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-06",
+      "promptPreview": "Another reviewer judged a snackbar build. Your job is to REFUTE their verdict — assume they are wrong and try to prove it. Default to overturning a defect if its evidence does not hold up.\n\nTheir verdict on abl-06:\n{\n  \"build\": \"abl-06\",\n  \"one_line\": \"Restrained, correctly-proportioned snackbar — message and Undo share the same 16px body size, distinguished only by weight+accent, with one measura…",
+      "lastProgressAt": 1785778125600,
+      "tokens": 80929,
+      "toolCalls": 6,
+      "durationMs": 64995,
+      "resultPreview": "{\"build\":\"abl-06\",\"sustained\":true,\"corrected_score\":82,\"note\":\"All three reviewer defects verified directly against the CSS/render and hold up.\\n\\n1. Undo contrast (medium): independently recomputed relative luminance from scratch — #ed4609 → L=0.2241, #1c1c1c → L=0.0116, ratio = 0.2741/0.0616 = 4.449:1. Matches the reviewer's number exactly. Confirmed at index.html lines 14 (--color-accent), 8 (…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 18,
+      "label": "refute:abl-09",
+      "phaseIndex": 2,
+      "phaseTitle": "Adversarial",
+      "agentId": "a4f5836f3d5a65156",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785778066994,
+      "queuedAt": 1785778066993,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-09",
+      "promptPreview": "Another reviewer judged a snackbar build. Your job is to REFUTE their verdict — assume they are wrong and try to prove it. Default to overturning a defect if its evidence does not hold up.\n\nTheir verdict on abl-09:\n{\n  \"build\": \"abl-09\",\n  \"overall_score\": 79,\n  \"ship_ready\": true,\n  \"defects\": [\n    {\n      \"severity\": \"medium\",\n      \"what\": \"The Undo action's accent color (declared only as an u…",
+      "lastProgressAt": 1785778167702,
+      "tokens": 81937,
+      "toolCalls": 12,
+      "durationMs": 100708,
+      "resultPreview": "{\"build\":\"abl-09\",\"sustained\":true,\"corrected_score\":89,\"note\":\"Two of the three defects don't survive pixel-level verification; the ship-ready call holds and gets stronger, though the score itself should move up, not stay at 79.\\n\\nDEFECT 1 (medium, \\\"Undo glyphs tinted orange\\\") — OVERTURNED. Sampled actual pixel values in postsave.png at the Undo glyph strokes: solid (255,255,255) white, exactl…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 19,
+      "label": "refute:abl-04",
+      "phaseIndex": 2,
+      "phaseTitle": "Adversarial",
+      "agentId": "a70351fb2639ba747",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785778067940,
+      "queuedAt": 1785778067938,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-04",
+      "promptPreview": "Another reviewer judged a snackbar build. Your job is to REFUTE their verdict — assume they are wrong and try to prove it. Default to overturning a defect if its evidence does not hold up.\n\nTheir verdict on abl-04:\n{\n  \"build\": \"abl-04\",\n  \"one_line\": \"Clean, restrained snackbar with correct token usage for color/space/motion, but it ignores the design system's mandatory font tokens entirely — a h…",
+      "lastProgressAt": 1785778128707,
+      "tokens": 78792,
+      "toolCalls": 4,
+      "durationMs": 60766,
+      "resultPreview": "{\"build\":\"abl-04\",\"sustained\":true,\"corrected_score\":76,\"note\":\"All three defects check out against the actual file. Confirmed independently: (1) High — :root block (lines 8-43) defines color/type/space/motion tokens but zero font tokens; html,body (line 52) is hardcoded to `-apple-system, BlinkMacSystemFont, \\\"Segoe UI\\\", sans-serif` with no @font-face, no --font-body/--font-display anywhere in t…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 20,
+      "label": "refute:abl-07",
+      "phaseIndex": 2,
+      "phaseTitle": "Adversarial",
+      "agentId": "a8c2a7c5fe8b59f2c",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785778075809,
+      "queuedAt": 1785778075808,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-07",
+      "promptPreview": "Another reviewer judged a snackbar build. Your job is to REFUTE their verdict — assume they are wrong and try to prove it. Default to overturning a defect if its evidence does not hold up.\n\nTheir verdict on abl-07:\n{\n  \"build\": \"abl-07\",\n  \"one_line\": \"Clean, restrained, fully-tokenized toast with correct tap-target sizing and motion — proportion is same-size/weight-differentiated (defensible) but…",
+      "lastProgressAt": 1785778135057,
+      "tokens": 80474,
+      "toolCalls": 7,
+      "durationMs": 59248,
+      "resultPreview": "{\"build\":\"abl-07\",\"sustained\":true,\"corrected_score\":79,\"note\":\"All three of the reviewer's defects check out against the CSS and render. Medium defect (Undo vs message differentiated only by font-weight, not color) is confirmed: line 117 `.btn { font-weight:500 }` applies to `.btn.btn--ghost` (the Undo button, line 347 `class=\\\\\\\"btn btn--ghost\\\\\\\"`), while `.c-toast__message` (line 242-248) sets…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 21,
+      "label": "refute:abl-05",
+      "phaseIndex": 2,
+      "phaseTitle": "Adversarial",
+      "agentId": "ad10c3983277b827c",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785778077897,
+      "queuedAt": 1785778077896,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-05",
+      "promptPreview": "Another reviewer judged a snackbar build. Your job is to REFUTE their verdict — assume they are wrong and try to prove it. Default to overturning a defect if its evidence does not hold up.\n\nTheir verdict on abl-05:\n{\n  \"build\": \"abl-05\",\n  \"one_line\": \"Restrained, well-proportioned snackbar — confirmation message and inline Undo share the same 16px/500-weight type scale, differentiated by hue alon…",
+      "lastProgressAt": 1785778164922,
+      "tokens": 81563,
+      "toolCalls": 6,
+      "durationMs": 87025,
+      "resultPreview": "{\"build\":\"abl-05\",\"sustained\":true,\"corrected_score\":86,\"note\":\"All three reviewer-cited defects check out against the CSS: message and Undo are both var(--type-body)=16px/font-weight:500 (index.html lines 22, 146, 204-211, 282-283 — .btn--text never overrides size/weight, confirmed by reading the full ruleset); .snackbar__actions gap is var(--space-xs)=4px (lines 35, 293); dismiss glyph is a 16x1…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 22,
+      "label": "refute:abl-02",
+      "phaseIndex": 2,
+      "phaseTitle": "Adversarial",
+      "agentId": "a7ab63f33fbd181ee",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785778078631,
+      "queuedAt": 1785778078630,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-02",
+      "promptPreview": "Another reviewer judged a snackbar build. Your job is to REFUTE their verdict — assume they are wrong and try to prove it. Default to overturning a defect if its evidence does not hold up.\n\nTheir verdict on abl-02:\n{\n  \"build\": \"abl-02\",\n  \"overall_score\": 85,\n  \"ship_ready\": true,\n  \"defects\": [\n    {\n      \"severity\": \"low\",\n      \"what\": \"Undo has zero visible button affordance — no background,…",
+      "lastProgressAt": 1785778145838,
+      "tokens": 79191,
+      "toolCalls": 12,
+      "durationMs": 67207,
+      "resultPreview": "{\"build\":\"abl-02\",\"sustained\":true,\"corrected_score\":81,\"note\":\"All three reviewer defects verified directly against index.html CSS and the full-res postsave.png crop, and hold up:\\n1. .btn--ghost (Undo) confirmed transparent background/border (lines 156-160) — zoomed crop of the toast confirms zero button chrome, Undo distinguished from \\\"Change saved\\\" only by weight/color, and from the X icon o…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 23,
+      "label": "refute:abl-11",
+      "phaseIndex": 2,
+      "phaseTitle": "Adversarial",
+      "agentId": "ad8f7c1ca5dfce384",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785778095023,
+      "queuedAt": 1785778095021,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-11",
+      "promptPreview": "Another reviewer judged a snackbar build. Your job is to REFUTE their verdict — assume they are wrong and try to prove it. Default to overturning a defect if its evidence does not hold up.\n\nTheir verdict on abl-11:\n{\n  \"build\": \"abl-11\",\n  \"overall_score\": 80,\n  \"ship_ready\": false,\n  \"one_line\": \"Tight token discipline and a restrained, geometrically consistent build, undercut by an Undo action t…",
+      "lastProgressAt": 1785778153796,
+      "tokens": 80373,
+      "toolCalls": 7,
+      "durationMs": 58773,
+      "resultPreview": "{\"build\":\"abl-11\",\"sustained\":true,\"corrected_score\":79,\"note\":\"All three defects verified directly against index.html and both renders; none overturned.\\n\\nDefect 1 (medium, Undo indistinguishable at rest) — CONFIRMED. Code: .snackbar__message is color:var(--color-fg,#fff), font-size:var(--type-body,16px), no weight override (inherits body default 400). .btn base sets color:var(--color-fg,#fff), …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 24,
+      "label": "refute:abl-03",
+      "phaseIndex": 2,
+      "phaseTitle": "Adversarial",
+      "agentId": "a53ef0ee7a30bb846",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1785778099604,
+      "queuedAt": 1785778099603,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "abl-03",
+      "promptPreview": "Another reviewer judged a snackbar build. Your job is to REFUTE their verdict — assume they are wrong and try to prove it. Default to overturning a defect if its evidence does not hold up.\n\nTheir verdict on abl-03:\n{\n  \"build\": \"abl-03\",\n  \"one_line\": \"A well-tokenized, restrained snackbar (16px message, 16px/500-weight orange Undo, subtle 2px drain-timer) sits below a \\\"Save change\\\" button whose…",
+      "lastProgressAt": 1785778210922,
+      "tokens": 87130,
+      "toolCalls": 15,
+      "durationMs": 111318,
+      "resultPreview": "{\"build\":\"abl-03\",\"sustained\":true,\"corrected_score\":74,\"note\":\"All three defects verified directly against the artifact and hold up.\\n\\nHigh (button wrap): Confirmed by pixel-measuring both idle.png and postsave.png — cropped the action row and the \\\"Save change\\\" label visibly wraps to \\\"Save\\\"/\\\"change\\\" on two lines in BOTH captures, giving the button roughly 2x its single-line height. Root ca…"
+    }
+  ],
+  "totalTokens": 1943973,
+  "totalToolCalls": 145
+}

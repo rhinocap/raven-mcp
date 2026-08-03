@@ -1,0 +1,12 @@
+{"build":"build-01","tag":"div","cls":"snackbar__body","px":16,"hits":[]}
+{"build":"build-02","tag":"p","cls":"snackbar-root__message","px":16,"hits":[{"sel":".snackbar-root__message","fs":"var(--type-body, 16px)"}]}
+{"build":"build-03","tag":"p","cls":"snackbar__message","px":27,"hits":[{"sel":".snackbar__message","fs":"var(--type-h3, 27px)"}]}
+{"build":"build-04","tag":"div","cls":"snackbar__body","px":16,"hits":[]}
+{"build":"build-05","tag":"span","cls":"snackbar__message","px":16,"hits":[{"sel":".snackbar__message","fs":"var(--type-body)"}]}
+{"build":"build-06","tag":"div","cls":"snackbar__message","px":27,"hits":[{"sel":".snackbar__message","fs":"var(--type-h3)"}]}
+{"build":"build-07","tag":"p","cls":"snackbar__message","px":27,"hits":[{"sel":".snackbar__message","fs":"var(--type-h3, 27px)"}]}
+{"build":"build-08","tag":"div","cls":"snackbar__body","px":16,"hits":[]}
+{"build":"build-09","tag":"p","cls":"snackbar__message","px":27,"hits":[{"sel":".snackbar__message","fs":"var(--type-h3)"}]}
+{"build":"build-10","tag":"span","cls":"snackbar-message","px":16,"hits":[{"sel":".snackbar-message","fs":"var(--text-body, 16px)"}]}
+{"build":"build-11","tag":"span","cls":"snackbar-message","px":16,"hits":[{"sel":".snackbar-message","fs":"var(--type-body)"}]}
+{"build":"build-12","tag":"p","cls":"c-toast__message","px":27,"hits":[{"sel":".c-toast__message","fs":"var(--type-h3, 27px)"}]}
