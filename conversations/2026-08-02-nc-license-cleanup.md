@@ -120,3 +120,15 @@ commits only and must re-check status immediately before committing. Branch rema
 ## Next (pattern-library thread)
 Blocked on Andrew's NC push. Then: branch feat/pattern-library off updated main, commit
 the spec (with §17), Phase 0 per §13 — spec claims now pre-verified, drift pre-corrected.
+
+## Sol falsification pass on §17 (done-gate disposition)
+GPT-5.6-Sol (medium, read-only) falsified the §17 addendum itself. Four objections,
+all real, all against §17's own accounting (Sol spot-checked corrections 1/3/4/11
+against source and corroborated them): (1) "4 overturned" was wrong — the raw journal
+holds exactly 3; (2) the framer-motion correction upgraded a "likely" finding to
+"verified" — downgraded to expected-pending-live-probe, Phase 3 pre-measurement is the
+probe; (3) the licensing web agent dispositioned 14 of its 15 claims — coverage gap
+now stated in §17; (4) "every checkable claim" contradicted the GUESSED list —
+narrowed to repo claims. All four fixed in the spec (§17 header, correction 2, new
+coverage-gap note). Scratchpad backup refreshed. Auto-save incident #4 (re-staged AM
+after the edits) — unstaged; tally now 4; spec still untracked, in zero commits.
