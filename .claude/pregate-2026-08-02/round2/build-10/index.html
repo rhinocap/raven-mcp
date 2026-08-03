@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Snackbar — optimistic save</title>
+<style>
+  :root {
+    /* ---- DESIGN.md tokens (arena) ---- */
+    --bg: #050505;
+    --bg-elev: #141414;
+    --bg-card: #1c1c1c;
+    --fg: #ffffff;
+    --fg-muted: #b8b8b8;
+    --fg-dim: #828282;
+    --line: #363636;
+    --line-strong: #545454;
+    --accent: #ed4609;
+
+    --font-display: "Untitled Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-body: "Untitled Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, monospace;
+    --font-serif: "Domaine Display SemiBold", Georgia, serif;
+
+    --text-label: 13px;
+    --text-body: 16px;
+    --text-lead: 20px;
+    --text-h3: 27px;
+    --text-h2: 56px;
+    --text-h1: 96px;
+
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-xxl: 48px;
+
+    --duration-fast: 120ms;
+    --duration-base: 200ms;
+    --duration-slow: 400ms;
+    --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-site: cubic-bezier(0.56, 0.22, 0.05, 0.99);
+
+    /* component-local addition: DESIGN.md has no dwell-time token, so the
+       hold duration for an auto-dismissing snackbar is added here, following
+       the same var(--token, fallback) discipline as everything else. */
+    --duration-snackbar-hold: 6000ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      --duration-fast: 0.001ms;
+      --duration-base: 0.001ms;
+      --duration-slow: 0.001ms;
+      --duration-snackbar-hold: 0.001ms;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { overflow-x: clip; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg, #050505);
+    color: var(--fg, #ffffff);
+    font-family: var(--font-body, sans-serif);
+    font-size: var(--text-body, 16px);
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-xxl, 48px);
+    padding: var(--space-xl, 32px);
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Demo harness                                                      */
+  /* ---------------------------------------------------------------- */
+
+  .demo {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xl, 32px);
+  }
+
+  .demo-eyebrow {
+    font-size: var(--text-label, 13px);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--fg-dim, #828282);
+  }
+
+  .demo-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm, 8px);
+    padding-bottom: var(--space-lg, 24px);
+    border-bottom: 1px solid var(--line, #363636);
+  }
+
+  .demo-field-label {
+    font-size: var(--text-label, 13px);
+    color: var(--fg-muted, #b8b8b8);
+  }
+
+  .demo-field-value {
+    font-size: var(--text-lead, 20px);
+    color: var(--fg, #ffffff);
+  }
+
+  .demo-field-value[data-pending="true"] {
+    color: var(--fg-muted, #b8b8b8);
+  }
+
+  .demo-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md, 16px);
+  }
+
+  /* Semantic button classes, per DESIGN.md component contract */
+  .btn {
+    font-family: inherit;
+    font-size: var(--text-body, 16px);
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    min-height: 44px;
+    padding: 0 var(--space-lg, 24px);
+    transition: background-color var(--duration-fast, 120ms) var(--ease-out-quart),
+                border-color var(--duration-fast, 120ms) var(--ease-out-quart),
+                color var(--duration-fast, 120ms) var(--ease-out-quart);
+  }
+
+  .btn-primary {
+    background: var(--fg, #ffffff);
+    color: var(--bg, #050505);
+  }
+  .btn-primary:hover { background: var(--fg-muted, #b8b8b8); }
+  .btn-primary:active { background: var(--fg-dim, #828282); }
+  .btn-primary:disabled {
+    background: var(--bg-card, #1c1c1c);
+    color: var(--fg-dim, #828282);
+    cursor: not-allowed;
+  }
+  .btn-primary:focus-visible {
+    outline: 2px solid var(--accent, #ed4609);
+    outline-offset: 2px;
+  }
+
+  .demo-hint {
+    font-size: var(--text-label, 13px);
+    color: var(--fg-dim, #828282);
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Snackbar component                                                */
+  /* ---------------------------------------------------------------- */
+
+  .snackbar-region {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: var(--space-xl, 32px);
+    display: flex;
+    justify-content: center;
+    padding: 0 var(--space-md, 16px);
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  .snackbar {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-md, 16px);
+    max-width: 480px;
+    width: 100%;
+    background: var(--bg-elev, #141414);
+    border: 1px solid var(--line, #363636);
+    border-radius: 8px;
+    padding: var(--space-md, 16px) var(--space-md, 16px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity var(--duration-base, 200ms) var(--ease-out-quart),
+                transform var(--duration-base, 200ms) var(--ease-out-quart);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .snackbar[data-state="visible"] {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .snackbar[data-state="hidden"] {
+    display: none;
+  }
+
+  .snackbar-message {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--text-body, 16px);
+    color: var(--fg, #ffffff);
+  }
+
+  .snackbar-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm, 8px);
+    flex-shrink: 0;
+  }
+
+  /* Undo is the accent's single earned use here: punctuation on an
+     interactive control, never a fill. */
+  .btn-undo {
+    background: transparent;
+    border: none;
+    color: var(--accent, #ed4609);
+    font-family: inherit;
+    font-size: var(--text-body, 16px);
+    font-weight: 500;
+    cursor: pointer;
+    min-height: 44px;
+    padding: 0 var(--space-sm, 8px);
+    border-radius: 6px;
+  }
+  .btn-undo:hover { color: var(--fg, #ffffff); background: var(--bg-card, #1c1c1c); }
+  .btn-undo:active { color: var(--fg-muted, #b8b8b8); }
+  .btn-undo:focus-visible {
+    outline: 2px solid var(--accent, #ed4609);
+    outline-offset: 2px;
+  }
+
+  .btn-dismiss {
+    background: transparent;
+    border: none;
+    color: var(--fg-dim, #828282);
+    cursor: pointer;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    flex-shrink: 0;
+  }
+  .btn-dismiss:hover { color: var(--fg, #ffffff); background: var(--bg-card, #1c1c1c); }
+  .btn-dismiss:active { color: var(--fg-muted, #b8b8b8); }
+  .btn-dismiss:focus-visible {
+    outline: 2px solid var(--accent, #ed4609);
+    outline-offset: 2px;
+  }
+  .btn-dismiss svg { width: 16px; height: 16px; stroke: currentColor; }
+
+  /* The dwell timer is structural signal (how long until the save commits),
+     not decoration — a hairline that drains, monochrome. */
+  .snackbar-timer {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 2px;
+    width: 100%;
+    background: var(--line-strong, #545454);
+    transform-origin: left;
+    transform: scaleX(1);
+  }
+  .snackbar-timer[data-running="true"] {
+    transition: transform var(--duration-snackbar-hold, 6000ms) linear;
+    transform: scaleX(0);
+  }
+
+  @media (max-width: 520px) {
+    .snackbar { max-width: none; }
+  }
+</style>
+</head>
+<body>
+
+  <main class="demo">
+    <div class="demo-eyebrow">Optimistic save — demo harness</div>
+
+    <div class="demo-field">
+      <span class="demo-field-label">Project title</span>
+      <span class="demo-field-value" id="fieldValue" data-pending="false">Q3 onboarding revamp</span>
+    </div>
+
+    <div class="demo-actions">
+      <button class="btn btn-primary" id="saveBtn" type="button">Save change</button>
+      <span class="demo-hint" id="hint">Click Save — the title updates immediately, before the write is confirmed.</span>
+    </div>
+  </main>
+
+  <div class="snackbar-region" aria-live="polite">
+    <div class="snackbar" id="snackbar" data-state="hidden" role="status">
+      <span class="snackbar-message" id="snackbarMessage">Change saved</span>
+      <div class="snackbar-actions">
+        <button class="btn-undo" id="undoBtn" type="button">Undo</button>
+        <button class="btn-dismiss" id="dismissBtn" type="button" aria-label="Dismiss">
+          <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 2L14 14M14 2L2 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="snackbar-timer" id="snackbarTimer"></div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  var PREVIOUS_VALUE = "Q3 onboarding revamp";
+  var NEXT_VALUE = "Q3 onboarding revamp — v2";
+  var HOLD_MS = 6000;
+
+  var fieldValue = document.getElementById("fieldValue");
+  var saveBtn = document.getElementById("saveBtn");
+  var hint = document.getElementById("hint");
+  var snackbar = document.getElementById("snackbar");
+  var snackbarMessage = document.getElementById("snackbarMessage");
+  var undoBtn = document.getElementById("undoBtn");
+  var dismissBtn = document.getElementById("dismissBtn");
+  var timer = document.getElementById("snackbarTimer");
+
+  var dismissTimeout = null;
+  var hideTimeout = null;
+  var committed = false;
+
+  function reducedMotion() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function clearTimers() {
+    if (dismissTimeout) { clearTimeout(dismissTimeout); dismissTimeout = null; }
+    if (hideTimeout) { clearTimeout(hideTimeout); hideTimeout = null; }
+  }
+
+  function showSnackbar(message, opts) {
+    opts = opts || {};
+    clearTimers();
+
+    snackbarMessage.textContent = message;
+    undoBtn.style.display = opts.showUndo === false ? "none" : "";
+
+    // reset then restart the timer transition (force reflow)
+    timer.setAttribute("data-running", "false");
+    timer.style.transition = "none";
+    timer.style.transform = "scaleX(1)";
+    // eslint-disable-next-line no-unused-expressions
+    timer.offsetHeight;
+    timer.style.transition = "";
+
+    snackbar.setAttribute("data-state", "visible");
+
+    requestAnimationFrame(function () {
+      timer.setAttribute("data-running", "true");
+    });
+
+    var hold = reducedMotion() ? Math.min(HOLD_MS, 2000) : HOLD_MS;
+
+    dismissTimeout = setTimeout(function () {
+      onAutoDismiss(opts.onCommit);
+    }, hold);
+  }
+
+  function hideSnackbar() {
+    clearTimers();
+    snackbar.setAttribute("data-state", "hidden-anim");
+    snackbar.removeAttribute("data-state");
+    snackbar.setAttribute("data-state", "hidden");
+    // small delay to let opacity/transform settle before display:none is
+    // reapplied via the [data-state="hidden"] rule — handled by CSS since
+    // hidden sets display:none instantly, matching a restrained, non-lingering exit.
+  }
+
+  function onAutoDismiss(onCommit) {
+    hideSnackbar();
+    if (typeof onCommit === "function") onCommit();
+  }
+
+  function commitSave() {
+    committed = true;
+    hint.textContent = "Change committed.";
+  }
+
+  saveBtn.addEventListener("click", function () {
+    // 1. Optimistic update — the UI reflects the change instantly.
+    fieldValue.textContent = NEXT_VALUE;
+    fieldValue.setAttribute("data-pending", "true");
+    committed = false;
+    hint.textContent = "Saved optimistically — undo within a few seconds, or let it commit.";
+
+    // 2. Confirmation snackbar with inline Undo, auto-dismissing.
+    showSnackbar("Change saved", {
+      showUndo: true,
+      onCommit: function () {
+        fieldValue.setAttribute("data-pending", "false");
+        commitSave();
+      }
+    });
+  });
+
+  undoBtn.addEventListener("click", function () {
+    // Revert the optimistic change.
+    fieldValue.textContent = PREVIOUS_VALUE;
+    fieldValue.setAttribute("data-pending", "false");
+    hint.textContent = "Change undone — reverted to the previous value.";
+    hideSnackbar();
+
+    // Brief, non-actionable confirmation that the undo landed.
+    showSnackbar("Change reverted", { showUndo: false });
+  });
+
+  dismissBtn.addEventListener("click", function () {
+    // Explicit dismiss commits the save immediately rather than waiting
+    // out the timer — dismissing is not the same as undoing.
+    var wasShowingUndo = undoBtn.style.display !== "none";
+    hideSnackbar();
+    if (wasShowingUndo && !committed && fieldValue.getAttribute("data-pending") === "true") {
+      fieldValue.setAttribute("data-pending", "false");
+      commitSave();
+    }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && snackbar.getAttribute("data-state") === "visible") {
+      dismissBtn.click();
+    }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snackbar — optimistic save</title>
+<style>
+  /* ---------------------------------------------------------------
+     Design tokens — sourced verbatim from project DESIGN.md
+     --------------------------------------------------------------- */
+  :root {
+    --bg: #050505;
+    --bg-elev: #141414;
+    --bg-card: #1c1c1c;
+    --fg: #ffffff;
+    --fg-muted: #b8b8b8;
+    --fg-dim: #828282;
+    --line: #363636;
+    --line-strong: #545454;
+    --accent: #ed4609;
+
+    --type-label: 13px;
+    --type-body: 16px;
+    --type-lead: 20px;
+    --type-h3: 27px;
+    --type-h2: 56px;
+    --type-h1: 96px;
+
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-xxl: 48px;
+
+    --duration-fast: 120ms;
+    --duration-base: 200ms;
+    --duration-slow: 400ms;
+
+    --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-site: cubic-bezier(0.56, 0.22, 0.05, 0.99);
+
+    --font-display: "Untitled Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-body: "Untitled Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, "SF Mono", monospace;
+
+    --page-max: 720px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg, #050505);
+    color: var(--fg, #ffffff);
+    font-family: var(--font-body);
+    min-height: 100%;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: var(--space-xxl) var(--space-lg);
+  }
+
+  .stage {
+    width: 100%;
+    max-width: var(--page-max);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xxl);
+  }
+
+  /* ---------------------------------------------------------------
+     Demo harness — editorial, hairline-ruled, no card-soup
+     --------------------------------------------------------------- */
+  .harness-label {
+    font-family: var(--font-mono);
+    font-size: var(--type-label);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--fg-dim);
+    margin: 0 0 var(--space-sm) 0;
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: var(--type-h3);
+    line-height: 1.2;
+    margin: 0 0 var(--space-xs) 0;
+    color: var(--fg);
+  }
+
+  p.description {
+    font-size: var(--type-body);
+    line-height: 1.5;
+    color: var(--fg-muted);
+    margin: 0 0 var(--space-lg) 0;
+    max-width: 52ch;
+  }
+
+  .field-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    padding: var(--space-lg) 0;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .field-row + .field-row {
+    border-top: none;
+  }
+
+  .field-name {
+    font-size: var(--type-body);
+    color: var(--fg);
+  }
+
+  .field-value {
+    font-family: var(--font-mono);
+    font-size: var(--type-label);
+    color: var(--fg-muted);
+  }
+
+  .field-value.is-dirty {
+    color: var(--accent);
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding-top: var(--space-lg);
+  }
+
+  /* ---------------------------------------------------------------
+     Buttons — semantic classes, full state set
+     --------------------------------------------------------------- */
+  .btn {
+    appearance: none;
+    border: none;
+    background: none;
+    font-family: var(--font-body);
+    font-size: var(--type-body);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    min-height: 44px;
+    padding: 0 var(--space-lg);
+    border-radius: 2px;
+    transition: background-color var(--duration-fast) var(--ease-out-quart),
+                color var(--duration-fast) var(--ease-out-quart),
+                border-color var(--duration-fast) var(--ease-out-quart),
+                opacity var(--duration-fast) var(--ease-out-quart);
+  }
+
+  .btn-primary {
+    background: var(--fg);
+    color: var(--bg);
+    border: 1px solid var(--fg);
+  }
+  .btn-primary:hover { background: var(--fg-muted); border-color: var(--fg-muted); }
+  .btn-primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn-primary:active { background: var(--fg-dim); border-color: var(--fg-dim); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--fg-muted);
+    border: 1px solid var(--line);
+  }
+  .btn-ghost:hover { color: var(--fg); border-color: var(--line-strong); }
+  .btn-ghost:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn-ghost:active { color: var(--fg-dim); border-color: var(--line); }
+  .btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ---------------------------------------------------------------
+     Snackbar component
+     --------------------------------------------------------------- */
+  .snackbar-region {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: var(--space-xl);
+    display: flex;
+    justify-content: center;
+    padding: 0 var(--space-lg);
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  .snackbar {
+    pointer-events: auto;
+    width: 100%;
+    max-width: 480px;
+    background: var(--bg-elev);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    box-shadow: 0 1px 0 var(--line);
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md) var(--space-md) var(--space-md) var(--space-lg);
+    overflow: hidden;
+    position: relative;
+
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity var(--duration-slow) var(--ease-out-expo),
+                transform var(--duration-slow) var(--ease-out-expo);
+  }
+
+  .snackbar.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .snackbar.is-leaving {
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity var(--duration-base) var(--ease-out-quart),
+                transform var(--duration-base) var(--ease-out-quart);
+  }
+
+  .snackbar-icon {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    color: var(--fg-muted);
+    display: flex;
+  }
+
+  .snackbar-body {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .snackbar-message {
+    font-size: var(--type-body);
+    color: var(--fg);
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .snackbar-meta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--fg-dim);
+  }
+
+  .snackbar-actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+  }
+
+  /* Undo — accent used purely as punctuation on the one actionable word,
+     never as a fill or background. */
+  .snackbar-undo {
+    appearance: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-body);
+    font-weight: 500;
+    font-size: var(--type-body);
+    color: var(--accent);
+    padding: var(--space-sm) var(--space-sm);
+    min-height: 44px;
+    min-width: 44px;
+    border-radius: 2px;
+    transition: opacity var(--duration-fast) var(--ease-out-quart);
+  }
+  .snackbar-undo:hover { opacity: 0.8; }
+  .snackbar-undo:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .snackbar-undo:active { opacity: 0.6; }
+
+  /* Dismiss — icon-only ghost control, monochrome (decorative chrome
+     carries no color per COLOR-control-signal-only). */
+  .snackbar-dismiss {
+    appearance: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--fg-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 2px;
+    transition: color var(--duration-fast) var(--ease-out-quart);
+  }
+  .snackbar-dismiss:hover { color: var(--fg); }
+  .snackbar-dismiss:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .snackbar-dismiss:active { color: var(--fg-muted); }
+  .snackbar-dismiss svg { width: 16px; height: 16px; }
+
+  /* Auto-dismiss progress — motion reveals structure (time remaining),
+     it does not decorate. Monochrome hairline, not accent-filled. */
+  .snackbar-progress-track {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--line);
+  }
+  .snackbar-progress-fill {
+    height: 100%;
+    width: 100%;
+    background: var(--line-strong);
+    transform-origin: left center;
+    transform: scaleX(1);
+  }
+  .snackbar-progress-fill.is-running {
+    transition: transform linear;
+  }
+
+  .snackbar[data-state="undone"] .snackbar-icon { color: var(--fg-dim); }
+
+  /* ---------------------------------------------------------------
+     Reduced motion — non-negotiable, clamps every duration to
+     near-zero per MOTION-prefers-reduced-motion.
+     --------------------------------------------------------------- */
+  @media (prefers-reduced-motion: reduce) {
+    .snackbar,
+    .snackbar.is-leaving,
+    .snackbar-progress-fill.is-running,
+    .btn,
+    .snackbar-undo,
+    .snackbar-dismiss {
+      transition-duration: 0.001ms !important;
+    }
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>
+</head>
+<body>
+
+  <main class="stage">
+    <div>
+      <p class="harness-label">Demo harness</p>
+      <h1>Optimistic save</h1>
+      <p class="description">
+        Editing a field commits immediately in the UI. Save happens in the
+        background; the snackbar confirms it, offers Undo while the change is
+        still reversible, auto-dismisses after a few seconds, or can be
+        dismissed by hand.
+      </p>
+
+      <div class="field-row">
+        <span class="field-name">Display name</span>
+        <span class="field-value" id="field-value">Andrew Cunliffe</span>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="save-btn" type="button">Save change</button>
+        <button class="btn btn-ghost" id="reset-btn" type="button">Reset demo</button>
+      </div>
+    </div>
+  </main>
+
+  <div class="snackbar-region" aria-live="polite" id="snackbar-region"></div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    var DISMISS_MS = 5000;
+
+    var fieldValueEl = document.getElementById('field-value');
+    var saveBtn = document.getElementById('save-btn');
+    var resetBtn = document.getElementById('reset-btn');
+    var region = document.getElementById('snackbar-region');
+
+    var ORIGINAL_VALUE = 'Andrew Cunliffe';
+    var SAVED_VALUE = 'Andrew C.';
+
+    var activeSnackbar = null; // { root, timerId, rafId, deadline, undone }
+
+    function clearActive() {
+      if (!activeSnackbar) return;
+      if (activeSnackbar.timerId) clearTimeout(activeSnackbar.timerId);
+      if (activeSnackbar.rafId) cancelAnimationFrame(activeSnackbar.rafId);
+      activeSnackbar = null;
+    }
+
+    function removeSnackbar(root, afterExit) {
+      root.classList.remove('is-visible');
+      root.classList.add('is-leaving');
+      var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var exitMs = prefersReduced ? 0 : 200;
+      window.setTimeout(function () {
+        if (root.parentNode) root.parentNode.removeChild(root);
+        if (afterExit) afterExit();
+      }, exitMs);
+    }
+
+    function buildSnackbar(message) {
+      var root = document.createElement('div');
+      root.className = 'snackbar';
+      root.setAttribute('role', 'status');
+      root.dataset.state = 'saved';
+
+      root.innerHTML =
+        '<span class="snackbar-icon" aria-hidden="true">' +
+          '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+            '<path d="M4 10.5L8 14.5L16 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '</svg>' +
+        '</span>' +
+        '<span class="snackbar-body">' +
+          '<span class="snackbar-message" data-role="message">' + message + '</span>' +
+          '<span class="snackbar-meta" data-role="meta">Saved · dismisses automatically</span>' +
+        '</span>' +
+        '<span class="snackbar-actions">' +
+          '<button type="button" class="snackbar-undo" data-role="undo">Undo</button>' +
+          '<button type="button" class="snackbar-dismiss" data-role="dismiss" aria-label="Dismiss">' +
+            '<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+              '<path d="M3 3L13 13M13 3L3 13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>' +
+            '</svg>' +
+          '</button>' +
+        '</span>' +
+        '<span class="snackbar-progress-track" aria-hidden="true">' +
+          '<span class="snackbar-progress-fill" data-role="progress"></span>' +
+        '</span>';
+
+      return root;
+    }
+
+    function showSnackbar(message) {
+      // Only one snackbar owns the auto-save lifecycle at a time.
+      clearActive();
+      var existing = region.querySelector('.snackbar');
+      if (existing) {
+        if (existing.parentNode) existing.parentNode.removeChild(existing);
+      }
+
+      var root = buildSnackbar(message);
+      region.appendChild(root);
+
+      var progressFill = root.querySelector('[data-role="progress"]');
+      var undoBtn = root.querySelector('[data-role="undo"]');
+      var dismissBtn = root.querySelector('[data-role="dismiss"]');
+      var metaEl = root.querySelector('[data-role="meta"]');
+
+      var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      // Enter transition.
+      requestAnimationFrame(function () {
+        root.classList.add('is-visible');
+      });
+
+      var state = {
+        root: root,
+        timerId: null,
+        rafId: null,
+        undone: false
+      };
+      activeSnackbar = state;
+
+      function finish() {
+        clearActive();
+        removeSnackbar(root, null);
+      }
+
+      function startCountdown() {
+        if (prefersReduced) {
+          // Still auto-dismisses, just without an animated fill.
+          state.timerId = window.setTimeout(finish, DISMISS_MS);
+          return;
+        }
+        progressFill.classList.add('is-running');
+        progressFill.style.transitionDuration = DISMISS_MS + 'ms';
+        // Force layout so the transition below actually animates from 1 → 0.
+        void progressFill.offsetWidth;
+        progressFill.style.transform = 'scaleX(0)';
+        state.timerId = window.setTimeout(finish, DISMISS_MS);
+      }
+
+      // Give the enter animation a beat before starting the countdown so
+      // the two motions don't compete for attention.
+      window.setTimeout(startCountdown, prefersReduced ? 0 : 260);
+
+      undoBtn.addEventListener('click', function () {
+        if (state.undone) return;
+        state.undone = true;
+        clearActive();
+        fieldValueEl.textContent = ORIGINAL_VALUE;
+        fieldValueEl.classList.remove('is-dirty');
+        root.dataset.state = 'undone';
+        root.querySelector('[data-role="message"]').textContent = 'Change undone';
+        metaEl.textContent = 'Reverted to previous value';
+        progressFill.style.transitionDuration = '0ms';
+        progressFill.style.transform = 'scaleX(1)';
+        undoBtn.remove();
+        window.setTimeout(function () { removeSnackbar(root, null); }, 1600);
+      });
+
+      dismissBtn.addEventListener('click', function () {
+        clearActive();
+        removeSnackbar(root, null);
+      });
+    }
+
+    function simulateSave() {
+      saveBtn.disabled = true;
+      var original = saveBtn.textContent;
+      saveBtn.textContent = 'Saving…';
+
+      // Optimistic UI: field updates immediately.
+      fieldValueEl.textContent = SAVED_VALUE;
+      fieldValueEl.classList.add('is-dirty');
+
+      window.setTimeout(function () {
+        saveBtn.disabled = false;
+        saveBtn.textContent = original;
+        showSnackbar('Change saved');
+      }, 260);
+    }
+
+    function resetDemo() {
+      clearActive();
+      var existing = region.querySelector('.snackbar');
+      if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+      fieldValueEl.textContent = ORIGINAL_VALUE;
+      fieldValueEl.classList.remove('is-dirty');
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save change';
+    }
+
+    saveBtn.addEventListener('click', simulateSave);
+    resetBtn.addEventListener('click', resetDemo);
+  })();
+  </script>
+</body>
+</html>

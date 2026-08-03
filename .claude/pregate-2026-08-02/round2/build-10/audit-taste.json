@@ -1,0 +1,131 @@
+{
+  "tool": "audit_taste",
+  "profile": "andrew",
+  "target": "html",
+  "findings": [],
+  "suppressed": [],
+  "not_assessed": [
+    {
+      "rule_id": "COLOR-accent-punctuation-not-fill",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "COLOR-functional-color-conventional",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "COLOR-control-signal-only",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "TYPE-no-faux-anything",
+      "reason": "faux-font detection requires rendered font metrics"
+    },
+    {
+      "rule_id": "TYPE-serif-authorial-only",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "LAYOUT-no-card-soup",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "LAYOUT-proportional-frames",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "LAYOUT-flex-scroll-containers",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "LAYOUT-overflow-clip-html-body",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "SPACING-generous-negative-space",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "MOTION-prefers-reduced-motion",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "MOTION-reveals-structure",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "TOKEN-semantic-names",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "TOKEN-semantic-button-classes",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "OTHER-hover-state-required",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "OTHER-no-load-bearing-decoration",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "OTHER-dynamic-dom-not-css-hide",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "ASSET-icon-stroke-current-color",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "ASSET-icon-sizes-consistent",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "VOICE-work-is-subject",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "ASSET-CLEARANCE-nda-no-client-ui-in-public",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "ASSET-CLEARANCE-no-watermark-artifacts",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "ASSET-CLEARANCE-strip-environment-chrome",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "CONTENT-ACCURACY-read-before-asserting",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "CONTENT-ACCURACY-open-references-before-scoring",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "CONTENT-ACCURACY-verbatim-copy-ships-as-written",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "CSS-ARITHMETIC-cover-fit-viewport-aspect",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "PROCESS-REUSE-substitution-preserves-composition",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    },
+    {
+      "rule_id": "PROCESS-REUSE-no-context-crossing",
+      "reason": "no deterministic detector for this clause — requires judgment (use an LLM layer such as a design-judge skill)"
+    }
+  ],
+  "skipped_out_of_scope": [],
+  "disabled_by_binding": [],
+  "binding": "",
+  "surface_applied": "portfolio editor surface",
+  "verdict": "PASS",
+  "verdict_line": "Verdict: PASS (no findings)"
+}

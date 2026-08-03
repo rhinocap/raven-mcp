@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snackbar — optimistic save</title>
+<style>
+  :root {
+    /* ---- color tokens (arena DESIGN.md) ---- */
+    --color-bg: #050505;
+    --color-bg-elev: #141414;
+    --color-bg-card: #1c1c1c;
+    --color-fg: #ffffff;
+    --color-fg-muted: #b8b8b8;
+    --color-fg-dim: #828282;
+    --color-line: #363636;
+    --color-line-strong: #545454;
+    --color-accent: #ed4609;
+
+    /* ---- type tokens ---- */
+    --type-label: 13px;
+    --type-body: 16px;
+    --type-lead: 20px;
+    --type-h3: 27px;
+    --type-h2: 56px;
+    --type-h1: 96px;
+
+    /* ---- space tokens ---- */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-xxl: 48px;
+
+    /* ---- motion tokens ---- */
+    --motion-duration-fast: 120ms;
+    --motion-duration-base: 200ms;
+    --motion-duration-slow: 400ms;
+    --motion-easing-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --motion-easing-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --motion-easing-site: cubic-bezier(0.56, 0.22, 0.05, 0.99);
+
+    /* ---- fonts (tokens only, per brief) ---- */
+    --font-body: "Untitled Sans", -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --font-display: "Untitled Sans", -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    /* ---- local component tokens (not in DESIGN.md; defined here, documented in BUILD-LOG) ---- */
+    --radius-snackbar: 3px;
+    --snackbar-auto-dismiss-ms: 5000;
+    --snackbar-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-bg, #050505);
+    color: var(--color-fg, #ffffff);
+    font-family: var(--font-body);
+    font-size: var(--type-body, 16px);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Demo harness                                                      */
+  /* ---------------------------------------------------------------- */
+
+  .stage {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-xxl, 48px);
+    padding: var(--space-xl, 32px);
+    text-align: center;
+  }
+
+  .stage__eyebrow {
+    font-size: var(--type-label, 13px);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-fg-dim, #828282);
+  }
+
+  .stage__title {
+    font-size: var(--type-h3, 27px);
+    font-weight: 500;
+    margin: 0;
+    max-width: 32ch;
+  }
+
+  .doc-card {
+    border: 1px solid var(--color-line, #363636);
+    padding: var(--space-lg, 24px) var(--space-xl, 32px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-xl, 32px);
+    min-width: 320px;
+  }
+
+  .doc-card__label {
+    font-size: var(--type-label, 13px);
+    color: var(--color-fg-dim, #828282);
+    text-align: left;
+  }
+
+  .doc-card__status {
+    font-size: var(--type-body, 16px);
+    font-weight: 500;
+    text-align: left;
+    margin-top: var(--space-xs, 4px);
+  }
+
+  .doc-card__status[data-state="published"] {
+    color: var(--color-accent, #ed4609);
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Buttons — semantic classes, hover + focus-visible + active + disabled */
+  /* ---------------------------------------------------------------- */
+
+  .btn {
+    font-family: inherit;
+    font-size: var(--type-body, 16px);
+    font-weight: 500;
+    border: 1px solid var(--color-line-strong, #545454);
+    background: transparent;
+    color: var(--color-fg, #ffffff);
+    padding: var(--space-sm, 8px) var(--space-lg, 24px);
+    min-height: 44px;
+    cursor: pointer;
+    transition: border-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart),
+                background-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart);
+  }
+
+  .btn:hover {
+    border-color: var(--color-fg, #ffffff);
+  }
+
+  .btn:focus-visible {
+    outline: 1px solid var(--color-accent, #ed4609);
+    outline-offset: 2px;
+  }
+
+  .btn:active {
+    background: var(--color-bg-card, #1c1c1c);
+  }
+
+  .btn:disabled {
+    color: var(--color-fg-dim, #828282);
+    border-color: var(--color-line, #363636);
+    cursor: not-allowed;
+  }
+
+  .btn--primary {
+    background: var(--color-fg, #ffffff);
+    color: var(--color-bg, #050505);
+    border-color: var(--color-fg, #ffffff);
+  }
+
+  .btn--primary:hover {
+    background: var(--color-fg-muted, #b8b8b8);
+    border-color: var(--color-fg-muted, #b8b8b8);
+  }
+
+  .btn--primary:active {
+    background: var(--color-line-strong, #545454);
+    border-color: var(--color-line-strong, #545454);
+  }
+
+  .btn--ghost {
+    border-color: transparent;
+    color: var(--color-fg-muted, #b8b8b8);
+    padding: var(--space-xs, 4px) var(--space-sm, 8px);
+    min-height: 32px;
+    min-width: 32px;
+  }
+
+  .btn--ghost:hover {
+    color: var(--color-fg, #ffffff);
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Snackbar component                                                 */
+  /* ---------------------------------------------------------------- */
+
+  .snackbar-region {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: var(--space-xl, 32px);
+    display: flex;
+    justify-content: center;
+    padding: 0 var(--space-md, 16px);
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  .snackbar {
+    pointer-events: auto;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-lg, 24px);
+    max-width: 480px;
+    width: 100%;
+    background: var(--color-bg-elev, #141414);
+    border: 1px solid var(--color-line, #363636);
+    border-radius: var(--radius-snackbar, 3px);
+    box-shadow: var(--snackbar-shadow, 0 4px 16px rgba(0,0,0,0.5));
+    padding: var(--space-md, 16px) var(--space-md, 16px) var(--space-md, 16px) var(--space-lg, 24px);
+    overflow: hidden;
+
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity var(--motion-duration-base, 200ms) var(--motion-easing-out-quart),
+                transform var(--motion-duration-base, 200ms) var(--motion-easing-out-quart);
+  }
+
+  .snackbar[data-open="true"] {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .snackbar__body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs, 4px);
+  }
+
+  .snackbar__message {
+    font-size: var(--type-body, 16px);
+    color: var(--color-fg, #ffffff);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .snackbar__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm, 8px);
+    flex-shrink: 0;
+  }
+
+  .snackbar__undo {
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: var(--type-body, 16px);
+    font-weight: 500;
+    color: var(--color-accent, #ed4609);
+    cursor: pointer;
+    padding: var(--space-sm, 8px) var(--space-xs, 4px);
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    transition: opacity var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart);
+  }
+
+  .snackbar__undo:hover {
+    opacity: 0.8;
+  }
+
+  .snackbar__undo:focus-visible {
+    outline: 1px solid var(--color-accent, #ed4609);
+    outline-offset: 2px;
+  }
+
+  .snackbar__undo:active {
+    opacity: 0.6;
+  }
+
+  .snackbar__dismiss {
+    background: none;
+    border: none;
+    color: var(--color-fg-dim, #828282);
+    cursor: pointer;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart);
+  }
+
+  .snackbar__dismiss:hover {
+    color: var(--color-fg, #ffffff);
+  }
+
+  .snackbar__dismiss:focus-visible {
+    outline: 1px solid var(--color-accent, #ed4609);
+    outline-offset: 2px;
+  }
+
+  .snackbar__dismiss svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+  }
+
+  /* timer — functional affordance for remaining time before auto-dismiss,
+     not decoration; monochrome-with-accent per token rule */
+  .snackbar__timer {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 2px;
+    width: 100%;
+    background: var(--color-accent, #ed4609);
+    transform-origin: left center;
+    transform: scaleX(1);
+  }
+
+  .snackbar__timer[data-run="true"] {
+    transition: transform linear;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Reduced motion — clamp everything to near-zero, non-negotiable    */
+  /* ---------------------------------------------------------------- */
+
+  @media (prefers-reduced-motion: reduce) {
+    .snackbar,
+    .btn,
+    .snackbar__undo,
+    .snackbar__dismiss,
+    .snackbar__timer[data-run="true"] {
+      transition-duration: 0.001ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+  <main class="stage">
+    <p class="stage__eyebrow">Component demo</p>
+    <h1 class="stage__title">Optimistic save with inline undo</h1>
+
+    <div class="doc-card">
+      <div>
+        <div class="doc-card__label">Document status</div>
+        <div class="doc-card__status" id="doc-status" data-state="draft">Draft</div>
+      </div>
+      <button class="btn btn--primary" id="save-btn" type="button">Save change</button>
+    </div>
+  </main>
+
+  <div class="snackbar-region" aria-live="polite">
+    <div class="snackbar" id="snackbar" data-open="false" role="status">
+      <div class="snackbar__body">
+        <span class="snackbar__message" id="snackbar-message">Change saved.</span>
+      </div>
+      <div class="snackbar__actions">
+        <button class="snackbar__undo" id="snackbar-undo" type="button">Undo</button>
+        <button class="snackbar__dismiss" id="snackbar-dismiss" type="button" aria-label="Dismiss">
+          <svg viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M1 1L13 13M13 1L1 13" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="snackbar__timer" id="snackbar-timer"></div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  var AUTO_DISMISS_MS = parseInt(
+    getComputedStyle(document.documentElement)
+      .getPropertyValue('--snackbar-auto-dismiss-ms') || '5000',
+    10
+  );
+
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var saveBtn = document.getElementById('save-btn');
+  var statusEl = document.getElementById('doc-status');
+  var snackbar = document.getElementById('snackbar');
+  var messageEl = document.getElementById('snackbar-message');
+  var undoBtn = document.getElementById('snackbar-undo');
+  var dismissBtn = document.getElementById('snackbar-dismiss');
+  var timerEl = document.getElementById('snackbar-timer');
+
+  var dismissTimeout = null;
+  var previousStatus = null; // holds prior state for undo
+
+  function clearDismissTimer() {
+    if (dismissTimeout) {
+      clearTimeout(dismissTimeout);
+      dismissTimeout = null;
+    }
+  }
+
+  function openSnackbar(message) {
+    messageEl.textContent = message;
+    snackbar.setAttribute('data-open', 'true');
+
+    // reset + (re)start the timer bar
+    timerEl.setAttribute('data-run', 'false');
+    timerEl.style.transition = 'none';
+    timerEl.style.transform = 'scaleX(1)';
+
+    // force reflow so the next transition actually runs
+    // eslint-disable-next-line no-unused-expressions
+    timerEl.offsetHeight;
+
+    if (!reduceMotion) {
+      timerEl.setAttribute('data-run', 'true');
+      timerEl.style.transition = 'transform ' + AUTO_DISMISS_MS + 'ms linear';
+      timerEl.style.transform = 'scaleX(0)';
+    } else {
+      // reduced motion: no ticking bar, snackbar still auto-dismisses on schedule
+      timerEl.style.transform = 'scaleX(0)';
+    }
+
+    clearDismissTimer();
+    dismissTimeout = setTimeout(function () {
+      closeSnackbar();
+    }, AUTO_DISMISS_MS);
+  }
+
+  function closeSnackbar() {
+    clearDismissTimer();
+    snackbar.setAttribute('data-open', 'false');
+    previousStatus = null;
+  }
+
+  function setStatus(state, label) {
+    statusEl.setAttribute('data-state', state);
+    statusEl.textContent = label;
+  }
+
+  saveBtn.addEventListener('click', function () {
+    // optimistic update — flips immediately, no spinner, no wait for a server
+    previousStatus = { state: 'draft', label: 'Draft' };
+    setStatus('published', 'Published');
+    openSnackbar('Change saved.');
+  });
+
+  undoBtn.addEventListener('click', function () {
+    if (previousStatus) {
+      setStatus(previousStatus.state, previousStatus.label);
+    }
+    closeSnackbar();
+  });
+
+  dismissBtn.addEventListener('click', function () {
+    closeSnackbar();
+  });
+
+  // keyboard: Escape dismisses when the snackbar is open and focus is inside it
+  snackbar.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      closeSnackbar();
+    }
+  });
+})();
+</script>
+</body>
+</html>

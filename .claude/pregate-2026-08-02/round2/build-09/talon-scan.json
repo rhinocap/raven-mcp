@@ -1,0 +1,27 @@
+{
+  "tool": "talon_scan",
+  "rule_count": 15,
+  "findings": [
+    {
+      "rule": "TAL-003",
+      "severity": "warning",
+      "message": "1 near-duplicate color pair(s) within ~5% lightness: #141414 / #1c1c1c",
+      "fix": "Collapse near-duplicate hexes into a single token — e.g. #333 and #363636 are noise, not two colors.",
+      "source": "color-palette-discipline"
+    },
+    {
+      "rule": "TAL-011",
+      "severity": "error",
+      "message": "No <nav>/<main>/<header>/<footer> or ARIA landmark roles found",
+      "fix": "Wrap primary regions in semantic elements: <header>, <nav>, <main>, <footer> (or role=\"banner\"/\"navigation\"/\"main\"/\"contentinfo\") so assistive tech can jump between regions.",
+      "source": "screen-reader-support"
+    }
+  ],
+  "passes": [
+    "Color palette is tight (9 distinct colors)",
+    "Font-family budget is tight (1 distinct families)",
+    "Heading hierarchy has no level skips (1 headings)",
+    "Respects prefers-reduced-motion"
+  ],
+  "waived_by_taste_count": 0
+}

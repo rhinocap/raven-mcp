@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Snackbar — optimistic save</title>
+<style>
+  :root {
+    /* ---- colors ---- */
+    --color-bg: #050505;
+    --color-bg-elev: #141414;
+    --color-bg-card: #1c1c1c;
+    --color-fg: #ffffff;
+    --color-fg-muted: #b8b8b8;
+    --color-fg-dim: #828282;
+    --color-line: #363636;
+    --color-line-strong: #545454;
+    --color-accent: #ed4609;
+
+    /* ---- type (px scale tokens; font-size consumed via var()) ---- */
+    --type-label: 13px;
+    --type-body: 16px;
+    --type-lead: 20px;
+    --type-h3: 27px;
+    --type-h2: 56px;
+    --type-h1: 96px;
+
+    /* ---- font families (tokens only, never literals on elements) ---- */
+    --font-display: "Untitled Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-body: "Untitled Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, "SF Mono", monospace;
+    --font-serif: "Domaine Display", Georgia, serif;
+
+    /* ---- space ---- */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-xxl: 48px;
+
+    /* ---- motion ---- */
+    --motion-duration-fast: 120ms;
+    --motion-duration-base: 200ms;
+    --motion-duration-slow: 400ms;
+    --motion-easing-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --motion-easing-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --motion-easing-site: cubic-bezier(0.56, 0.22, 0.05, 0.99);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--color-bg, #050505);
+    color: var(--color-fg, #ffffff);
+    font-family: var(--font-body);
+    min-height: 100%;
+  }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-xl, 32px);
+    padding: var(--space-xxl, 48px) var(--space-lg, 24px);
+  }
+
+  .demo-heading {
+    font-family: var(--font-display);
+    font-size: var(--type-h3, 27px);
+    font-weight: 500;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  .demo-copy {
+    font-family: var(--font-body);
+    font-size: var(--type-body, 16px);
+    color: var(--color-fg-muted, #b8b8b8);
+    max-width: 46ch;
+    text-align: center;
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .demo-field {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md, 16px);
+    border-top: 1px solid var(--color-line, #363636);
+    border-bottom: 1px solid var(--color-line, #363636);
+    padding: var(--space-lg, 24px) 0;
+    width: min(100%, 480px);
+  }
+
+  .demo-field__label {
+    font-family: var(--font-body);
+    font-size: var(--type-label, 13px);
+    color: var(--color-fg-dim, #828282);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+  }
+
+  .demo-field__value {
+    font-family: var(--font-body);
+    font-size: var(--type-body, 16px);
+    color: var(--color-fg, #ffffff);
+    flex: 1;
+  }
+
+  /* ---------- semantic button classes ---------- */
+  .btn {
+    appearance: none;
+    border: 1px solid transparent;
+    border-radius: 0;
+    font-family: var(--font-body);
+    font-size: var(--type-body, 16px);
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-xs, 4px);
+    min-height: 44px;
+    min-width: 44px;
+    padding: var(--space-sm, 8px) var(--space-md, 16px);
+    transition: background-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart),
+                border-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart),
+                color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart);
+  }
+  .btn:focus-visible {
+    outline: 1px solid var(--color-accent, #ed4609);
+    outline-offset: 2px;
+  }
+  .btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .btn--primary {
+    background: var(--color-fg, #ffffff);
+    color: var(--color-bg, #050505);
+    border-color: var(--color-fg, #ffffff);
+  }
+  .btn--primary:hover:not(:disabled) { background: var(--color-fg-muted, #b8b8b8); border-color: var(--color-fg-muted, #b8b8b8); }
+  .btn--primary:active:not(:disabled) { background: var(--color-fg-dim, #828282); border-color: var(--color-fg-dim, #828282); }
+
+  /* Gap 6 substitute: no "secondary" variant exists in the system (diff_design_system
+     flagged it missing). Using the registered "ghost" variant as the secondary/quiet
+     substitute for both snackbar actions — see BUILD-LOG.md item 3. */
+  .btn--ghost {
+    background: transparent;
+    color: var(--color-fg-muted, #b8b8b8);
+    border-color: transparent;
+  }
+  .btn--ghost:hover:not(:disabled) { color: var(--color-fg, #ffffff); background: var(--color-bg-card, #1c1c1c); }
+  .btn--ghost:active:not(:disabled) { color: var(--color-fg, #ffffff); background: var(--color-line, #363636); }
+
+  /* Gap 5 substitute: no "loading" button state is registered (diff_design_system
+     flagged it missing). Substitute is the existing "disabled" state plus a
+     data-loading attribute that swaps the label — see BUILD-LOG.md item 3. */
+  .btn[data-loading="true"] {
+    cursor: default;
+    opacity: 0.6;
+  }
+
+  .icon {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    flex-shrink: 0;
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* ---------- snackbar component ---------- */
+  /* Archetype "toast" matched no component in the design system (composed-prompt
+     gap #3) — named as .snackbar / data-component="snackbar". Archetype "text"
+     for the message node likewise had no match (gap #4) — named
+     .snackbar__message. See BUILD-LOG.md item 2. */
+  .snackbar-region {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: var(--space-xl, 32px);
+    display: flex;
+    justify-content: center;
+    padding: 0 var(--space-lg, 24px);
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  .snackbar {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-md, 16px);
+    background: var(--color-bg-elev, #141414);
+    border: 1px solid var(--color-line-strong, #545454);
+    padding: var(--space-sm, 8px) var(--space-sm, 8px) var(--space-sm, 8px) var(--space-md, 16px);
+    max-width: min(100%, 560px);
+  }
+
+  .snackbar__message {
+    font-family: var(--font-body);
+    font-size: var(--type-body, 16px);
+    font-weight: 400;
+    line-height: 1.2;
+    color: var(--color-fg, #ffffff);
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .snackbar__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs, 4px);
+    flex-shrink: 0;
+  }
+
+  .snackbar__undo {
+    font-weight: 500;
+  }
+
+  /* Enter: transform + opacity, base duration, out-expo (reported choice — see
+     BUILD-LOG.md item 1). */
+  .snackbar[data-phase="entering"],
+  .snackbar[data-phase="visible"] {
+    animation: snackbar-enter var(--motion-duration-base, 200ms) var(--motion-easing-out-expo) both;
+  }
+
+  /* Exit: opacity only, fast duration, out-quart (reported choice — see
+     BUILD-LOG.md item 1). */
+  .snackbar[data-phase="exiting"] {
+    animation: snackbar-exit var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart) both;
+  }
+
+  @keyframes snackbar-enter {
+    from { opacity: 0; transform: translateY(var(--space-sm, 8px)); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes snackbar-exit {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+  }
+
+  /* MOTION-prefers-reduced-motion: collapse to opacity-only, near-zero duration. */
+  @media (prefers-reduced-motion: reduce) {
+    .snackbar[data-phase="entering"],
+    .snackbar[data-phase="visible"] {
+      animation-name: snackbar-enter-reduced;
+      animation-duration: 0.01ms;
+    }
+    .snackbar[data-phase="exiting"] {
+      animation-duration: 0.01ms;
+    }
+    @keyframes snackbar-enter-reduced {
+      from { opacity: 0; transform: none; }
+      to   { opacity: 1; transform: none; }
+    }
+  }
+</style>
+</head>
+<body>
+
+  <h1 class="demo-heading">Optimistic save — snackbar harness</h1>
+  <p class="demo-copy">
+    Press Save change to commit an optimistic edit. The snackbar confirms the
+    save, offers Undo, and auto-dismisses after five seconds.
+  </p>
+
+  <div class="demo-field">
+    <span class="demo-field__label">Headline</span>
+    <span class="demo-field__value" id="demo-field-value">Selected work, plainly stated</span>
+    <button class="btn btn--primary" id="save-trigger" type="button">Save change</button>
+  </div>
+
+  <!-- Structure: transient confirmation surface, bottom of viewport, single instance.
+       Hidden state is omitted from the DOM entirely (OTHER-dynamic-dom-not-css-hide) —
+       nothing renders here until a save commits. -->
+  <div class="snackbar-region" id="snackbar-region"></div>
+
+  <script>
+    (function () {
+      var region = document.getElementById('snackbar-region');
+      var saveTrigger = document.getElementById('save-trigger');
+      var fieldValue = document.getElementById('demo-field-value');
+
+      var AUTO_DISMISS_MS = 5000;
+      var EXIT_MS_FAST = 120; // matches --motion-duration-fast
+      var EXIT_MS_REDUCED = 20; // safety margin over the 0.01ms reduced-motion animation
+
+      var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      var state = 'hidden'; // hidden | visible | undoing
+      var timeoutId = null;
+      var previousValue = null;
+      var snackbarEl = null;
+
+      function exitDurationMs() {
+        return prefersReduced ? EXIT_MS_REDUCED : EXIT_MS_FAST;
+      }
+
+      function clearTimer() {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+      }
+
+      function render() {
+        region.innerHTML = '';
+        if (state === 'hidden') {
+          snackbarEl = null;
+          return;
+        }
+
+        var el = document.createElement('div');
+        el.className = 'snackbar';
+        el.setAttribute('data-component', 'snackbar');
+        el.setAttribute('role', 'status');
+        el.setAttribute('aria-live', 'polite');
+        el.setAttribute('aria-atomic', 'true');
+        el.setAttribute('data-phase', state === 'undoing' ? 'exiting' : 'visible');
+
+        var message = document.createElement('p');
+        message.className = 'snackbar__message';
+        message.setAttribute('data-component', 'snackbar-message');
+        message.textContent = 'Change saved';
+        el.appendChild(message);
+
+        var actions = document.createElement('div');
+        actions.className = 'snackbar__actions';
+
+        if (state === 'visible') {
+          var undoBtn = document.createElement('button');
+          undoBtn.type = 'button';
+          undoBtn.className = 'btn btn--ghost snackbar__undo';
+          undoBtn.textContent = 'Undo';
+          undoBtn.addEventListener('click', onUndoPressed);
+          actions.appendChild(undoBtn);
+
+          var dismissBtn = document.createElement('button');
+          dismissBtn.type = 'button';
+          dismissBtn.className = 'btn btn--ghost snackbar__dismiss';
+          dismissBtn.setAttribute('aria-label', 'Dismiss');
+          dismissBtn.innerHTML =
+            '<svg class="icon" viewBox="0 0 16 16" aria-hidden="true">' +
+            '<path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' +
+            '</svg>';
+          dismissBtn.addEventListener('click', onDismissPressed);
+          actions.appendChild(dismissBtn);
+        }
+
+        el.appendChild(actions);
+        region.appendChild(el);
+        snackbarEl = el;
+      }
+
+      function goHidden() {
+        clearTimer();
+        state = 'hidden';
+        render();
+      }
+
+      function goVisible() {
+        clearTimer();
+        state = 'visible';
+        render();
+        timeoutId = setTimeout(onTimeout, AUTO_DISMISS_MS);
+      }
+
+      function goUndoing() {
+        clearTimer();
+        state = 'undoing';
+        render(); // re-renders with data-phase="exiting" — plays the exit animation immediately
+        setTimeout(onRevertComplete, exitDurationMs());
+      }
+
+      function exitThenHide(afterExit) {
+        clearTimer();
+        if (snackbarEl) {
+          snackbarEl.setAttribute('data-phase', 'exiting');
+          // remove undo/dismiss affordances immediately so they are not
+          // interactive during the exit animation
+          var actions = snackbarEl.querySelector('.snackbar__actions');
+          if (actions) actions.innerHTML = '';
+        }
+        setTimeout(function () {
+          goHidden();
+          if (afterExit) afterExit();
+        }, exitDurationMs());
+      }
+
+      function onTimeout() {
+        // visible -> hidden on timeout 5000ms
+        exitThenHide();
+      }
+
+      function onDismissPressed() {
+        // visible -> hidden on dismiss-pressed
+        exitThenHide();
+      }
+
+      function onUndoPressed() {
+        // visible -> undoing on undo-pressed; snackbar exits immediately
+        goUndoing();
+      }
+
+      function onRevertComplete() {
+        // undoing -> hidden on revert-complete
+        if (previousValue !== null) {
+          fieldValue.textContent = previousValue;
+          previousValue = null;
+        }
+        goHidden();
+      }
+
+      function simulateOptimisticSave() {
+        previousValue = fieldValue.textContent;
+        fieldValue.textContent = 'Selected work, plainly stated — revised';
+        // hidden -> visible on save-committed
+        goVisible();
+      }
+
+      saveTrigger.addEventListener('click', function () {
+        simulateOptimisticSave();
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>

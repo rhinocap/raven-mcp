@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snackbar — optimistic save</title>
+<style>
+  :root {
+    /* colors */
+    --color-bg: #050505;
+    --color-bg-elev: #141414;
+    --color-bg-card: #1c1c1c;
+    --color-fg: #ffffff;
+    --color-fg-muted: #b8b8b8;
+    --color-fg-dim: #828282;
+    --color-line: #363636;
+    --color-line-strong: #545454;
+    --color-accent: #ed4609;
+
+    /* type (px, as authored in DESIGN.md) */
+    --type-label: 13px;
+    --type-body: 16px;
+    --type-lead: 20px;
+    --type-h3: 27px;
+    --type-h2: 56px;
+    --type-h1: 96px;
+
+    /* space */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-xxl: 48px;
+
+    /* motion */
+    --motion-duration-fast: 120ms;
+    --motion-duration-base: 200ms;
+    --motion-duration-slow: 400ms;
+    --motion-easing-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --motion-easing-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --motion-easing-site: cubic-bezier(0.56, 0.22, 0.05, 0.99);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-bg, #050505);
+    color: var(--color-fg, #ffffff);
+    font-family: var(--font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+    font-size: var(--type-body, 16px);
+    line-height: 1.5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-xl, 32px);
+    padding: var(--space-xl, 32px);
+  }
+
+  .demo-frame {
+    width: min(560px, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg, 24px);
+    border-top: 1px solid var(--color-line, #363636);
+    padding-top: var(--space-xl, 32px);
+  }
+
+  .demo-frame h1 {
+    font-size: var(--type-h3, 27px);
+    font-weight: 500;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  .demo-frame p {
+    margin: 0;
+    color: var(--color-fg-muted, #b8b8b8);
+    font-size: var(--type-body, 16px);
+  }
+
+  .demo-frame .field-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md, 16px);
+    padding: var(--space-md, 16px) 0;
+    border-bottom: 1px solid var(--color-line, #363636);
+  }
+
+  .demo-frame .field-label {
+    font-size: var(--type-label, 13px);
+    color: var(--color-fg-dim, #828282);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .demo-frame .field-value {
+    font-size: var(--type-body, 16px);
+    color: var(--color-fg, #ffffff);
+  }
+
+  /* ---- semantic button classes ---- */
+  .btn {
+    appearance: none;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    font-family: inherit;
+    font-size: var(--type-body, 16px);
+    font-weight: 500;
+    cursor: pointer;
+    min-height: 44px;
+    min-width: 44px;
+    padding: var(--space-sm, 8px) var(--space-md, 16px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-xs, 4px);
+    transition: background-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease),
+                border-color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease),
+                color var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease);
+  }
+
+  .btn:focus-visible {
+    outline: 2px solid var(--color-accent, #ed4609);
+    outline-offset: 2px;
+  }
+
+  .btn--primary {
+    background: var(--color-accent, #ed4609);
+    border-color: var(--color-accent, #ed4609);
+    color: var(--color-bg, #050505);
+  }
+  .btn--primary:hover {
+    background: color-mix(in srgb, var(--color-accent, #ed4609) 88%, #000);
+    border-color: color-mix(in srgb, var(--color-accent, #ed4609) 88%, #000);
+  }
+  .btn--primary:active {
+    background: color-mix(in srgb, var(--color-accent, #ed4609) 76%, #000);
+  }
+  .btn--primary:disabled {
+    background: var(--color-bg-card, #1c1c1c);
+    border-color: var(--color-line, #363636);
+    color: var(--color-fg-dim, #828282);
+    cursor: not-allowed;
+  }
+
+  /* ghost variant — used here for the snackbar's text-weight actions
+     (undo / dismiss). The system's button component only defines
+     primary/ghost, not the "secondary" variant the archetype called
+     for; ghost is the correct substitute for a low-emphasis inline
+     action. See BUILD-LOG.md item 5. */
+  .btn--ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--color-fg, #ffffff);
+  }
+  .btn--ghost:hover {
+    background: var(--color-bg-card, #1c1c1c);
+  }
+  .btn--ghost:active {
+    background: var(--color-bg-elev, #141414);
+  }
+  .btn--ghost:disabled {
+    color: var(--color-fg-dim, #828282);
+    cursor: not-allowed;
+  }
+
+  .btn--ghost.btn--icon {
+    padding: var(--space-sm, 8px);
+    color: var(--color-fg-muted, #b8b8b8);
+  }
+  .btn--ghost.btn--icon:hover {
+    color: var(--color-fg, #ffffff);
+  }
+
+  /* ---- c-toast: the snackbar component ---- */
+  /* No existing component matched the "toast" archetype in the
+     inventoried system, so a new component is authored here and
+     named c-toast. See BUILD-LOG.md item 3. */
+  .toast-region {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: var(--space-xl, 32px);
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  .c-toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm, 8px);
+    max-width: min(480px, calc(100vw - var(--space-xl, 32px) * 2));
+    background: var(--color-bg-elev, #141414);
+    border: 1px solid var(--color-line, #363636);
+    padding: var(--space-sm, 8px) var(--space-sm, 8px) var(--space-sm, 8px) var(--space-md, 16px);
+    will-change: transform, opacity;
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  .c-toast.is-entering,
+  .c-toast.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity var(--motion-duration-base, 200ms) var(--motion-easing-out-quart, ease),
+                transform var(--motion-duration-base, 200ms) var(--motion-easing-out-quart, ease);
+  }
+
+  .c-toast.is-exiting {
+    opacity: 0;
+    transition: opacity var(--motion-duration-fast, 120ms) var(--motion-easing-out-quart, ease);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .c-toast {
+      transform: none;
+    }
+    .c-toast.is-entering,
+    .c-toast.is-visible,
+    .c-toast.is-exiting {
+      transform: none;
+      transition-property: opacity;
+    }
+  }
+
+  /* c-toast__message — the "text" archetype; a plain element within
+     c-toast rather than a separate registered component, since it
+     carries no independent interactive or visual identity. See
+     BUILD-LOG.md item 4. */
+  .c-toast__message {
+    font-size: var(--type-body, 16px);
+    line-height: 1.3;
+    color: var(--color-fg, #ffffff);
+    margin: 0;
+    white-space: nowrap;
+  }
+
+  .c-toast__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs, 4px);
+    margin-left: var(--space-sm, 8px);
+  }
+
+  .c-toast__divider {
+    width: 1px;
+    align-self: stretch;
+    background: var(--color-line, #363636);
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>
+</head>
+<body>
+
+  <main class="demo-frame">
+    <h1>Portfolio editor — project fields</h1>
+    <p>Click Save to simulate an optimistic save. The change commits immediately and a confirmation snackbar appears with 5 seconds to undo.</p>
+
+    <div class="field-row">
+      <span class="field-label">Project title</span>
+      <span class="field-value" id="field-value">Marginalia — case study</span>
+    </div>
+
+    <button class="btn btn--primary" id="save-btn" type="button">Save change</button>
+  </main>
+
+  <!-- toast-region: the live region hosting the transient c-toast.
+       role="status" + aria-live="polite" satisfy the semantic-role /
+       live-region requirement (spec Structure section, checked
+       agent-asserted per A6). The c-toast node itself is only ever
+       present in the DOM while visible or animating out — per
+       OTHER-dynamic-dom-not-css-hide it is inserted/removed, never
+       CSS-hidden, in the "hidden" state. -->
+  <div class="toast-region" id="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <script>
+    (function () {
+      var SAVE_BTN = document.getElementById('save-btn');
+      var FIELD_VALUE = document.getElementById('field-value');
+      var REGION = document.getElementById('toast-region');
+
+      var ENTER_MS = 200; // motion.duration.base
+      var EXIT_MS = 120;  // motion.duration.fast
+      var AUTO_DISMISS_MS = 5000;
+
+      var state = 'hidden'; // hidden | visible | undoing
+      var toastEl = null;
+      var dismissTimer = null;
+      var previousValue = null;
+
+      function clearTimer() {
+        if (dismissTimer) {
+          clearTimeout(dismissTimer);
+          dismissTimer = null;
+        }
+      }
+
+      function removeToast() {
+        if (toastEl && toastEl.parentNode) {
+          toastEl.parentNode.removeChild(toastEl);
+        }
+        toastEl = null;
+      }
+
+      function buildToast() {
+        var el = document.createElement('div');
+        el.className = 'c-toast';
+
+        var msg = document.createElement('p');
+        msg.className = 'c-toast__message';
+        msg.textContent = 'Change saved';
+        el.appendChild(msg);
+
+        var actions = document.createElement('div');
+        actions.className = 'c-toast__actions';
+
+        var divider = document.createElement('span');
+        divider.className = 'c-toast__divider';
+        divider.setAttribute('aria-hidden', 'true');
+        actions.appendChild(divider);
+
+        var undoBtn = document.createElement('button');
+        undoBtn.type = 'button';
+        undoBtn.className = 'btn btn--ghost';
+        undoBtn.textContent = 'Undo';
+        undoBtn.addEventListener('click', onUndoPressed);
+        actions.appendChild(undoBtn);
+
+        var dismissBtn = document.createElement('button');
+        dismissBtn.type = 'button';
+        dismissBtn.className = 'btn btn--ghost btn--icon';
+        dismissBtn.setAttribute('aria-label', 'Dismiss');
+        dismissBtn.innerHTML =
+          '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">' +
+          '<path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' +
+          '</svg>';
+        dismissBtn.addEventListener('click', onDismissPressed);
+        actions.appendChild(dismissBtn);
+
+        el.appendChild(actions);
+        return el;
+      }
+
+      // hidden -> visible, on save-committed
+      function showToast() {
+        clearTimer();
+        removeToast();
+
+        state = 'visible';
+        toastEl = buildToast();
+        toastEl.classList.add('is-entering');
+        REGION.appendChild(toastEl);
+
+        // force layout so the entering class transitions from its
+        // pre-transition state rather than snapping in
+        // eslint-disable-next-line no-unused-expressions
+        toastEl.offsetHeight;
+        toastEl.classList.remove('is-entering');
+        toastEl.classList.add('is-visible');
+
+        dismissTimer = setTimeout(onTimeout, AUTO_DISMISS_MS);
+      }
+
+      // visible -> hidden, on timeout 5000ms
+      function onTimeout() {
+        if (state !== 'visible') return;
+        exitAndHide();
+      }
+
+      // visible -> hidden, on dismiss-pressed
+      function onDismissPressed() {
+        if (state !== 'visible') return;
+        clearTimer();
+        exitAndHide();
+      }
+
+      // visible -> undoing, on undo-pressed (exits immediately)
+      function onUndoPressed() {
+        if (state !== 'visible') return;
+        clearTimer();
+        state = 'undoing';
+        revertField();
+        exitImmediately(onRevertComplete);
+      }
+
+      function exitAndHide() {
+        exitImmediately(function () {
+          state = 'hidden';
+        });
+      }
+
+      // undoing -> hidden, on revert-complete
+      function onRevertComplete() {
+        state = 'hidden';
+      }
+
+      function exitImmediately(done) {
+        if (!toastEl) {
+          if (done) done();
+          return;
+        }
+        var el = toastEl;
+        el.classList.remove('is-entering', 'is-visible');
+        el.classList.add('is-exiting');
+
+        var settled = false;
+        function finish() {
+          if (settled) return;
+          settled = true;
+          el.removeEventListener('transitionend', finish);
+          if (el.parentNode) el.parentNode.removeChild(el);
+          if (toastEl === el) toastEl = null;
+          if (done) done();
+        }
+
+        var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        el.addEventListener('transitionend', finish);
+        // fallback timer in case transitionend doesn't fire (e.g. reduced motion, 0-duration)
+        setTimeout(finish, prefersReduced ? 0 : EXIT_MS + 50);
+      }
+
+      function revertField() {
+        if (previousValue !== null) {
+          FIELD_VALUE.textContent = previousValue;
+          previousValue = null;
+        }
+      }
+
+      SAVE_BTN.addEventListener('click', function () {
+        // simulate an optimistic save: the field commits immediately
+        previousValue = FIELD_VALUE.textContent;
+        FIELD_VALUE.textContent = FIELD_VALUE.textContent + ' (edited)';
+        showToast();
+      });
+    })();
+  </script>
+</body>
+</html>

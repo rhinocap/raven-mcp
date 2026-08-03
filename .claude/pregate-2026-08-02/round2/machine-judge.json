@@ -1,0 +1,119 @@
+{
+  "build-01": {
+    "bytes": 14000,
+    "taste_verdict": "PASS",
+    "taste_findings": [],
+    "taste_not_assessed": 29,
+    "talon_findings": [
+      "warning:TAL-003",
+      "error:TAL-011"
+    ]
+  },
+  "build-02": {
+    "bytes": 12207,
+    "taste_verdict": "PASS",
+    "taste_findings": [],
+    "taste_not_assessed": 29,
+    "talon_findings": [
+      "warning:TAL-003",
+      "error:TAL-011"
+    ]
+  },
+  "build-03": {
+    "bytes": 13883,
+    "taste_verdict": "PASS",
+    "taste_findings": [],
+    "taste_not_assessed": 29,
+    "talon_findings": [
+      "warning:TAL-003",
+      "error:TAL-011"
+    ]
+  },
+  "build-04": {
+    "bytes": 14981,
+    "taste_verdict": "PASS",
+    "taste_findings": [],
+    "taste_not_assessed": 29,
+    "talon_findings": [
+      "warning:TAL-003",
+      "warning:TAL-008",
+      "error:TAL-011"
+    ]
+  },
+  "build-05": {
+    "bytes": 14597,
+    "taste_verdict": "PASS",
+    "taste_findings": [],
+    "taste_not_assessed": 29,
+    "talon_findings": [
+      "warning:TAL-003"
+    ]
+  },
+  "build-06": {
+    "bytes": 13825,
+    "taste_verdict": "PASS",
+    "taste_findings": [],
+    "taste_not_assessed": 29,
+    "talon_findings": [
+      "warning:TAL-003",
+      "error:TAL-011"
+    ]
+  },
+  "build-07": {
+    "bytes": 11680,
+    "taste_verdict": "PASS",
+    "taste_findings": [],
+    "taste_not_assessed": 29,
+    "talon_findings": [
+      "warning:TAL-003",
+      "error:TAL-011"
+    ]
+  },
+  "build-08": {
+    "bytes": 13106,
+    "taste_verdict": "PASS",
+    "taste_findings": [],
+    "taste_not_assessed": 29,
+    "talon_findings": [
+      "warning:TAL-003",
+      "warning:TAL-008"
+    ]
+  },
+  "build-09": {
+    "bytes": 10869,
+    "taste_verdict": "PASS",
+    "taste_findings": [],
+    "taste_not_assessed": 29,
+    "talon_findings": [
+      "warning:TAL-003",
+      "error:TAL-011"
+    ]
+  },
+  "build-10": {
+    "bytes": 13074,
+    "taste_verdict": "PASS",
+    "taste_findings": [],
+    "taste_not_assessed": 29,
+    "talon_findings": [
+      "warning:TAL-003"
+    ]
+  },
+  "build-11": {
+    "bytes": 16775,
+    "taste_verdict": "PASS",
+    "taste_findings": [],
+    "taste_not_assessed": 29,
+    "talon_findings": [
+      "warning:TAL-003"
+    ]
+  },
+  "build-12": {
+    "bytes": 13580,
+    "taste_verdict": "PASS",
+    "taste_findings": [],
+    "taste_not_assessed": 29,
+    "talon_findings": [
+      "warning:TAL-003"
+    ]
+  }
+}

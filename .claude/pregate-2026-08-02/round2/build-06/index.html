@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snackbar — optimistic save</title>
+<style>
+  :root {
+    /* colors */
+    --color-bg: #050505;
+    --color-bg-elev: #141414;
+    --color-bg-card: #1c1c1c;
+    --color-fg: #ffffff;
+    --color-fg-muted: #b8b8b8;
+    --color-fg-dim: #828282;
+    --color-line: #363636;
+    --color-line-strong: #545454;
+    --color-accent: #ed4609;
+
+    /* type */
+    --type-label: 13px;
+    --type-body: 16px;
+    --type-lead: 20px;
+    --type-h3: 27px;
+    --type-h2: 56px;
+    --type-h1: 96px;
+
+    /* fonts (tokens only; system fallbacks since no font files are loaded in this fixture) */
+    --font-display: "Untitled Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-body: "Untitled Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, "SF Mono", monospace;
+    --font-serif: "Domaine Display SemiBold", Georgia, serif;
+
+    /* space */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-xxl: 48px;
+
+    /* motion */
+    --motion-duration-fast: 120ms;
+    --motion-duration-base: 200ms;
+    --motion-duration-slow: 400ms;
+    --motion-easing-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --motion-easing-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --motion-easing-site: cubic-bezier(0.56, 0.22, 0.05, 0.99);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--color-bg, #050505);
+    color: var(--color-fg, #ffffff);
+    font-family: var(--font-body);
+    font-size: var(--type-body);
+    min-height: 100%;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-xxl) var(--space-lg);
+    gap: var(--space-xl);
+  }
+
+  .demo-header {
+    max-width: 640px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+
+  .demo-header h1 {
+    font-family: var(--font-display);
+    font-size: var(--type-h3);
+    font-weight: 500;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  .demo-header p {
+    font-family: var(--font-body);
+    font-size: var(--type-body);
+    color: var(--color-fg-muted);
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .demo-stage {
+    max-width: 640px;
+    width: 100%;
+    border-top: 1px solid var(--color-line);
+    padding-top: var(--space-xl);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+  }
+
+  .field-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-md);
+    padding-bottom: var(--space-md);
+    border-bottom: 1px solid var(--color-line);
+  }
+
+  .field-row .field-label {
+    font-family: var(--font-body);
+    font-size: var(--type-label);
+    color: var(--color-fg-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .field-row .field-value {
+    font-family: var(--font-body);
+    font-size: var(--type-lead);
+    color: var(--color-fg);
+  }
+
+  .demo-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+  }
+
+  .demo-hint {
+    font-family: var(--font-body);
+    font-size: var(--type-label);
+    color: var(--color-fg-dim);
+  }
+
+  /* --- semantic button classes --- */
+  .btn {
+    appearance: none;
+    -webkit-appearance: none;
+    font-family: var(--font-body);
+    font-size: var(--type-body);
+    font-weight: 500;
+    border-radius: 2px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 var(--space-lg);
+    transition: background-color var(--motion-duration-fast) var(--motion-easing-out-quart),
+                border-color var(--motion-duration-fast) var(--motion-easing-out-quart),
+                color var(--motion-duration-fast) var(--motion-easing-out-quart),
+                opacity var(--motion-duration-fast) var(--motion-easing-out-quart);
+  }
+
+  .btn:focus-visible {
+    outline: 1px solid var(--color-fg);
+    outline-offset: 2px;
+  }
+
+  .btn--primary {
+    background: var(--color-fg);
+    color: var(--color-bg);
+    border: 1px solid var(--color-fg);
+  }
+  .btn--primary:hover {
+    background: var(--color-fg-muted);
+    border-color: var(--color-fg-muted);
+  }
+  .btn--primary:active {
+    background: var(--color-fg-dim);
+    border-color: var(--color-fg-dim);
+  }
+  .btn--primary:disabled {
+    background: var(--color-bg-card);
+    color: var(--color-fg-dim);
+    border-color: var(--color-line);
+    cursor: not-allowed;
+  }
+
+  .btn--ghost {
+    background: transparent;
+    color: var(--color-fg);
+    border: 1px solid var(--color-line-strong);
+  }
+  .btn--ghost:hover {
+    border-color: var(--color-fg);
+    background: var(--color-bg-elev);
+  }
+  .btn--ghost:active {
+    background: var(--color-bg-card);
+  }
+  .btn--ghost:disabled {
+    color: var(--color-fg-dim);
+    border-color: var(--color-line);
+    cursor: not-allowed;
+  }
+
+  /* small text-weight action button used inside the snackbar (still semantic .btn) */
+  .btn--text {
+    background: transparent;
+    border: none;
+    color: var(--color-accent);
+    padding: 0 var(--space-sm);
+    min-width: 44px;
+    font-weight: 500;
+  }
+  .btn--text:hover {
+    color: var(--color-fg);
+  }
+  .btn--text:active {
+    color: var(--color-fg-muted);
+  }
+
+  .btn--icon {
+    background: transparent;
+    border: none;
+    color: var(--color-fg-muted);
+    padding: 0;
+    width: 44px;
+    min-width: 44px;
+  }
+  .btn--icon:hover {
+    color: var(--color-fg);
+  }
+  .btn--icon:active {
+    color: var(--color-fg-dim);
+  }
+
+  /* --- snackbar component --- */
+  .snackbar-region {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: var(--space-xl);
+    display: flex;
+    justify-content: center;
+    padding: 0 var(--space-lg);
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  .snackbar {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    width: min(480px, 100%);
+    background: var(--color-bg-elev);
+    border: 1px solid var(--color-line);
+    padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-lg);
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  .snackbar[data-phase="enter"] {
+    animation: snackbar-enter var(--motion-duration-base) var(--motion-easing-out-quart) forwards;
+  }
+
+  .snackbar[data-phase="exit"] {
+    animation: snackbar-exit var(--motion-duration-fast) var(--motion-easing-out-quart) forwards;
+  }
+
+  @keyframes snackbar-enter {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes snackbar-exit {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(0); }
+  }
+
+  .snackbar__message {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-body);
+    font-size: var(--type-h3);
+    font-weight: 500;
+    color: var(--color-fg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .snackbar__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    flex-shrink: 0;
+  }
+
+  .snackbar__divider {
+    width: 1px;
+    align-self: stretch;
+    background: var(--color-line);
+    margin: var(--space-sm) 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .snackbar {
+      transform: none !important;
+    }
+    .snackbar[data-phase="enter"] {
+      animation: snackbar-enter-reduced var(--motion-duration-base) linear forwards;
+    }
+    .snackbar[data-phase="exit"] {
+      animation: snackbar-exit-reduced var(--motion-duration-fast) linear forwards;
+    }
+    @keyframes snackbar-enter-reduced {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes snackbar-exit-reduced {
+      from { opacity: 1; }
+      to   { opacity: 0; }
+    }
+  }
+</style>
+</head>
+<body>
+
+  <div class="demo-header">
+    <h1>Optimistic save — snackbar demo</h1>
+    <p>Press "Save change" to simulate an optimistic save. A confirmation snackbar appears with an inline Undo. It auto-dismisses after 5 seconds, or dismiss it explicitly with the close control. Choosing Undo reverts immediately and exits without the auto-dismiss delay.</p>
+  </div>
+
+  <div class="demo-stage">
+    <div class="field-row">
+      <span class="field-label">Section title</span>
+      <span class="field-value" id="field-value">Field notes</span>
+    </div>
+    <div class="demo-actions">
+      <button type="button" class="btn btn--primary" id="save-btn">Save change</button>
+      <span class="demo-hint" id="demo-hint">idle</span>
+    </div>
+  </div>
+
+  <!-- live region container: snackbar node only exists in the DOM while visible/undoing -->
+  <div class="snackbar-region" id="snackbar-region" aria-live="polite" aria-atomic="true"></div>
+
+  <script>
+    (function () {
+      var STATE = { HIDDEN: 'hidden', VISIBLE: 'visible', UNDOING: 'undoing' };
+      var state = STATE.HIDDEN;
+
+      var region = document.getElementById('snackbar-region');
+      var saveBtn = document.getElementById('save-btn');
+      var hint = document.getElementById('demo-hint');
+      var fieldValue = document.getElementById('field-value');
+
+      var AUTO_DISMISS_MS = 5000;
+      var autoDismissTimer = null;
+      var snackbarEl = null;
+      var previousValue = null;
+
+      function setHint(text) {
+        hint.textContent = text;
+      }
+
+      function clearAutoDismiss() {
+        if (autoDismissTimer) {
+          clearTimeout(autoDismissTimer);
+          autoDismissTimer = null;
+        }
+      }
+
+      function renderSnackbar(phase) {
+        var el = document.createElement('div');
+        el.className = 'snackbar';
+        el.setAttribute('role', 'status');
+        el.dataset.phase = phase;
+
+        var message = document.createElement('div');
+        message.className = 'snackbar__message';
+        message.textContent = 'Change saved';
+        el.appendChild(message);
+
+        var divider = document.createElement('div');
+        divider.className = 'snackbar__divider';
+        el.appendChild(divider);
+
+        var actions = document.createElement('div');
+        actions.className = 'snackbar__actions';
+
+        var undoBtn = document.createElement('button');
+        undoBtn.type = 'button';
+        undoBtn.className = 'btn btn--text';
+        undoBtn.textContent = 'Undo';
+        undoBtn.addEventListener('click', onUndoPressed);
+        actions.appendChild(undoBtn);
+
+        var dismissBtn = document.createElement('button');
+        dismissBtn.type = 'button';
+        dismissBtn.className = 'btn btn--icon';
+        dismissBtn.setAttribute('aria-label', 'Dismiss');
+        dismissBtn.innerHTML =
+          '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+          '<path d="M3 3L13 13M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' +
+          '</svg>';
+        dismissBtn.addEventListener('click', onDismissPressed);
+        actions.appendChild(dismissBtn);
+
+        el.appendChild(actions);
+        return el;
+      }
+
+      function enterVisible() {
+        state = STATE.VISIBLE;
+        region.innerHTML = '';
+        snackbarEl = renderSnackbar('enter');
+        region.appendChild(snackbarEl);
+        setHint('visible — auto-dismiss in 5s');
+
+        clearAutoDismiss();
+        autoDismissTimer = setTimeout(function () {
+          onTimeout();
+        }, AUTO_DISMISS_MS);
+      }
+
+      function exitToHidden(afterLabel) {
+        if (!snackbarEl) {
+          state = STATE.HIDDEN;
+          setHint(afterLabel);
+          return;
+        }
+        var el = snackbarEl;
+        el.dataset.phase = 'exit';
+
+        var done = false;
+        function finish() {
+          if (done) return;
+          done = true;
+          if (el.parentNode) el.parentNode.removeChild(el);
+          state = STATE.HIDDEN;
+          snackbarEl = null;
+          setHint(afterLabel);
+        }
+
+        el.addEventListener('animationend', finish, { once: true });
+        // fallback in case animationend does not fire (e.g. reduced-motion edge cases)
+        setTimeout(finish, 500);
+      }
+
+      function onTimeout() {
+        if (state !== STATE.VISIBLE) return;
+        clearAutoDismiss();
+        exitToHidden('idle');
+      }
+
+      function onDismissPressed() {
+        if (state !== STATE.VISIBLE) return;
+        clearAutoDismiss();
+        exitToHidden('idle');
+      }
+
+      function onUndoPressed() {
+        if (state !== STATE.VISIBLE) return;
+        clearAutoDismiss();
+        state = STATE.UNDOING;
+        setHint('undoing — reverting…');
+
+        // undoing exits the snackbar immediately (no exit transition delay per spec:
+        // "the save is being reverted, snackbar exits immediately")
+        if (snackbarEl && snackbarEl.parentNode) {
+          snackbarEl.parentNode.removeChild(snackbarEl);
+        }
+        snackbarEl = null;
+
+        // simulate revert completing
+        setTimeout(function () {
+          if (previousValue !== null) {
+            fieldValue.textContent = previousValue;
+            previousValue = null;
+          }
+          state = STATE.HIDDEN;
+          setHint('idle — reverted');
+        }, 250);
+      }
+
+      function simulateOptimisticSave() {
+        if (state !== STATE.HIDDEN) {
+          // a save committed while a prior snackbar is still up: treat as a fresh
+          // save-committed event and restart the visible timer/content.
+          clearAutoDismiss();
+        }
+        previousValue = fieldValue.textContent;
+        fieldValue.textContent = 'Field notes — updated';
+        enterVisible();
+      }
+
+      saveBtn.addEventListener('click', simulateOptimisticSave);
+    })();
+  </script>
+</body>
+</html>
