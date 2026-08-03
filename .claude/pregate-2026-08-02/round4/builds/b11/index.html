@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kettle — review queue</title>
+<style>
+/* ------------------------------------------------------------------
+   Tokens. Every visual value below this block is var(--token).
+   Colour / type / space / motion are verbatim from arena/DESIGN.md.
+   ------------------------------------------------------------------ */
+:root {
+  --surface-base: #0e1113;
+  --surface-raised: #171b1e;
+  --surface-recessed: #0a0c0e;
+  --surface-sunken: #060809;
+  --ink-primary: #e8eaec;
+  --ink-secondary: #9aa3a9;
+  --ink-faint: #5f686e;
+  --rule-hair: #242a2e;
+  --rule-solid: #39424a;
+  --signal-flag: #d4573a;
+  --signal-hold: #c08a2e;
+  --signal-clear: #4a8f6d;
+  --focus-ring: #6ea8d8;
+
+  --type-ui-dense: 13px;
+  --type-ui: 14px;
+  --type-ui-lead: 16px;
+  --type-section: 20px;
+  --type-page: 28px;
+
+  --space-hair: 2px;
+  --space-tight: 6px;
+  --space-snug: 10px;
+  --space-base: 16px;
+  --space-loose: 24px;
+  --space-slack: 40px;
+
+  --duration-snap: 90ms;
+  --duration-base: 160ms;
+  --duration-settle: 260ms;
+  --easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --easing-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Derived structural tokens. DESIGN.md states these as prose rules
+     (1px hairline, 2px focus ring at 2px offset, 40px select gutter,
+     44px hit target, radius never above 3px) but carries no token for
+     them; they are declared here so nothing downstream is a bare px. */
+  --stroke-hair: 1px;
+  --stroke-mark: 2px;
+  --rule-width: var(--stroke-hair);
+  --focus-width: var(--stroke-mark);
+  --focus-offset: 2px;
+  --radius: 3px;
+  --gutter-select: 40px;
+  --hit-min: 44px;
+  --check-box: 16px;
+  --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: var(--surface-base);
+  color: var(--ink-primary);
+  font-family: var(--font-ui);
+  font-size: var(--type-ui);
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+/* --- masthead ---------------------------------------------------- */
+
+.masthead {
+  padding: var(--space-loose) var(--space-loose) var(--space-base);
+  border-bottom: var(--rule-width) solid var(--rule-solid);
+}
+.masthead h1 {
+  margin: 0;
+  font-size: var(--type-page);
+  font-weight: 600;
+}
+.masthead-meta {
+  margin-top: var(--space-tight);
+  font-size: var(--type-ui);
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- ds-action-rail ---------------------------------------------- */
+/* dec_rail_position: in normal flow above the list, never fixed.
+   dec_1: full height in idle; count left, actions right; nothing in
+   the rail appears or disappears when a selection is made. */
+
+.ds-action-rail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-base);
+  padding: var(--space-snug) var(--space-loose);
+  border-bottom: var(--rule-width) solid var(--rule-hair);
+}
+.rail-count {
+  font-size: var(--type-ui-lead);
+  color: var(--ink-primary);
+  font-variant-numeric: tabular-nums;
+}
+.ds-action-rail[data-state="idle"] .rail-count { color: var(--ink-secondary); }
+.rail-actions { display: flex; align-items: center; gap: var(--space-tight); }
+.rail-actions .rail-gap { width: var(--space-base); }
+
+button {
+  font-family: inherit;
+  font-size: var(--type-ui);
+  color: var(--ink-primary);
+  background: transparent;
+  border: var(--rule-width) solid var(--rule-solid);
+  border-radius: var(--radius);
+  min-height: var(--hit-min);
+  padding: var(--space-tight) var(--space-snug);
+  cursor: pointer;
+  transition: background-color var(--duration-snap) var(--easing-standard);
+}
+button:hover:not(:disabled) { background: var(--surface-recessed); }
+button:disabled {
+  color: var(--ink-faint);
+  border-color: var(--rule-hair);
+  cursor: default;
+}
+
+/* --- ds-undo-strip ----------------------------------------------- */
+/* dec_4: enters at base, leaves at base with exit easing, auto-dismiss
+   at 8s, no countdown, no progress, no timer digits.
+   The slot keeps its height at all times so the queue never shifts
+   under the reviewer's cursor (same trade as dec_1 on the rail). */
+
+.undo-slot {
+  display: flex;
+  align-items: center;
+  /* border-box: the hairline is inside min-height, so reserve both or
+     the queue drops 1px the first time the strip appears. */
+  min-height: calc(var(--hit-min) + var(--rule-width));
+  padding: 0 var(--space-loose);
+  border-bottom: var(--rule-width) solid var(--rule-hair);
+}
+.ds-undo-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-snug);
+  font-size: var(--type-ui);
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+  opacity: 1;
+  transition: opacity var(--duration-base) var(--easing-standard);
+}
+.ds-undo-strip[hidden] { display: none; }
+.ds-undo-strip[data-state="entering"] { opacity: 0; }
+.ds-undo-strip[data-state="leaving"] {
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--easing-exit);
+}
+.ds-undo-strip button { border-color: var(--rule-hair); }
+
+/* --- queue head --------------------------------------------------- */
+
+.queue-head {
+  display: grid;
+  grid-template-columns: var(--gutter-select) 1fr auto;
+  column-gap: var(--space-snug);
+  align-items: center;
+  padding: var(--space-tight) var(--space-loose);
+  border-bottom: var(--rule-width) solid var(--rule-solid);
+  font-size: var(--type-ui);
+  color: var(--ink-faint);
+}
+.queue-head label[for] { cursor: pointer; }
+
+/* --- ds-select-cell ---------------------------------------------- */
+/* dec_5: fixed 40px gutter, never collapses. The 44px hit area
+   extends vertically and beyond the gutter; the gutter stays 40px. */
+
+.ds-select-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--gutter-select);
+}
+.ds-select-cell input {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--hit-min);
+  height: var(--hit-min);
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+.select-box {
+  position: relative;
+  width: var(--check-box);
+  height: var(--check-box);
+  border: var(--rule-width) solid var(--rule-solid);
+  border-radius: var(--radius);
+  background: var(--surface-base);
+  pointer-events: none;
+}
+.ds-select-cell:hover .select-box { border-color: var(--ink-secondary); }
+.ds-select-cell input:focus-visible ~ .select-box {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+.ds-select-cell input:disabled ~ .select-box { opacity: 0.4; }
+.select-box::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: var(--space-tight);
+  height: var(--space-snug);
+  border: solid var(--surface-base);
+  border-width: 0 var(--stroke-mark) var(--stroke-mark) 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+  opacity: 0;
+}
+.select-box::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--space-snug);
+  height: var(--stroke-mark);
+  background: var(--surface-base);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+}
+.ds-select-cell input:checked ~ .select-box,
+.ds-select-cell input:indeterminate ~ .select-box {
+  background: var(--ink-primary);
+  border-color: var(--ink-primary);
+}
+.ds-select-cell input:checked ~ .select-box::after { opacity: 1; }
+.ds-select-cell input:indeterminate ~ .select-box::after { opacity: 0; }
+.ds-select-cell input:indeterminate ~ .select-box::before { opacity: 1; }
+
+/* --- ds-queue-row ------------------------------------------------- */
+/* Hover, focus-within and selection all take --surface-recessed:
+   a depth ramp, so a touched row reads pressed-in, not lifted.
+   No transition on the row — selection is instant (MOTION rule). */
+
+.queue { list-style: none; margin: 0; padding: 0; }
+.ds-queue-row {
+  display: grid;
+  grid-template-columns: var(--gutter-select) 1fr auto;
+  column-gap: var(--space-snug);
+  align-items: center;
+  padding: var(--space-snug) var(--space-loose);
+  border-bottom: var(--rule-width) solid var(--rule-hair);
+  transition: none;
+}
+.ds-queue-row:hover,
+.ds-queue-row:focus-within,
+.ds-queue-row[data-selected="true"] { background: var(--surface-recessed); }
+.row-main { min-width: 0; }
+.row-excerpt {
+  font-size: var(--type-ui-dense);
+  color: var(--ink-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.row-meta {
+  display: flex;
+  gap: var(--space-tight);
+  margin-top: var(--space-hair);
+  font-size: var(--type-ui-dense);
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.row-meta .row-id { color: var(--ink-secondary); }
+.ds-queue-row[data-variant="compact"] .row-meta { display: none; }
+
+/* --- ds-status-pill ----------------------------------------------- */
+/* dec_2: outlined pill, 1px border in the signal hue, ink-primary
+   text on surface-base. Never a filled chip. Label always present. */
+
+.ds-status-pill {
+  font-size: var(--type-ui-dense);
+  color: var(--ink-primary);
+  background: var(--surface-base);
+  border: var(--rule-width) solid var(--rule-solid);
+  border-radius: var(--radius);
+  padding: var(--space-hair) var(--space-tight);
+  white-space: nowrap;
+}
+.ds-status-pill[data-variant="flagged"] { border-color: var(--signal-flag); }
+.ds-status-pill[data-variant="held"] { border-color: var(--signal-hold); }
+.ds-status-pill[data-variant="cleared"] { border-color: var(--signal-clear); }
+
+/* --- ds-load-more ------------------------------------------------- */
+
+.load-region { padding: var(--space-base) var(--space-loose); }
+.ds-load-more[data-state="exhausted"] { color: var(--ink-faint); }
+
+/* --- ds-empty-rest ------------------------------------------------ */
+/* An inert well: --surface-sunken. The two variants are not merged. */
+
+.ds-empty-rest {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-base);
+  margin: var(--space-loose);
+  padding: var(--space-slack);
+  background: var(--surface-sunken);
+  border: var(--rule-width) solid var(--rule-hair);
+  border-radius: var(--radius);
+}
+.ds-empty-rest p {
+  margin: 0;
+  font-size: var(--type-ui);
+  color: var(--ink-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Movement is removed; every state change still lands. */
+  * { transition-duration: 0ms !important; }
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <h1>Review queue</h1>
+  <p class="masthead-meta" id="masthead-meta"></p>
+</header>
+
+<!-- ds-action-rail precedes the list in DOM order (dec_rail_before_list). -->
+<div class="ds-action-rail" data-ds="ds-action-rail" data-state="idle">
+  <span class="rail-count" id="rail-count" aria-live="polite">0 selected</span>
+  <div class="rail-actions">
+    <button type="button" id="act-hold" disabled>Hold</button>
+    <button type="button" id="act-clear" disabled>Clear</button>
+    <span class="rail-gap" aria-hidden="true"></span>
+    <!-- PROVISIONAL LABEL. Decision-graph node dec_destructive_label is
+         CONTESTED: T&S ops want "Reject", Legal wants "Remove", neither
+         has conceded, and the node says not to pick one silently. The
+         label is isolated in DESTRUCTIVE below and raised in NOTES.md. -->
+    <button type="button" id="act-destructive" disabled></button>
+  </div>
+</div>
+
+<div class="undo-slot">
+  <div class="ds-undo-strip" data-ds="ds-undo-strip" id="undo-strip" role="status" hidden>
+    <span id="undo-text"></span>
+    <button type="button" id="undo-button">Undo</button>
+  </div>
+</div>
+
+<main id="queue-region"></main>
+
+<div class="load-region" id="load-region"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* dec_destructive_label is CONTESTED — see the comment in the rail.
+     One constant, one place to change when the humans close it. */
+  var DESTRUCTIVE = { label: "Remove", past: "removed" };
+
+  /* Mirrors of --duration-base and --duration-settle, plus the 8s
+     auto-dismiss fixed by dec_4. */
+  var DURATION_BASE = 160;
+  var DURATION_SETTLE = 260;
+  var UNDO_DISMISS = 8000;
+
+  var PAGES = [
+    [
+      { id: "K-4471", time: "09:02", author: "@noor_h",    excerpt: '"shipping delays again, third week running"', status: "flagged" },
+      { id: "K-4472", time: "09:04", author: "@dvsg",      excerpt: '"link in bio for the full list"',             status: "held" },
+      { id: "K-4473", time: "09:07", author: "@mara.p",    excerpt: '"anyone else getting this error on upload"',  status: "cleared" },
+      { id: "K-4474", time: "09:11", author: "@tt_ronin",  excerpt: '"reposting since it got taken down"',         status: "flagged" },
+      { id: "K-4475", time: "09:12", author: "@quietkiln", excerpt: '"the receipts are in the thread"',            status: "flagged" },
+      { id: "K-4476", time: "09:15", author: "@halcy0n",   excerpt: '"DM me if you want the discount code"',       status: "held" },
+      { id: "K-4477", time: "09:19", author: "@b_orchard", excerpt: '"not sure this belongs here but"',            status: "cleared" },
+      { id: "K-4478", time: "09:23", author: "@sm1th",     excerpt: '"same account, new handle"',                  status: "flagged" },
+      { id: "K-4479", time: "09:26", author: "@tessel",    excerpt: '"screenshots attached, timestamps intact"',   status: "cleared" },
+      { id: "K-4480", time: "09:31", author: "@nvrmnd_",   excerpt: '"last warning before I escalate"',            status: "flagged" },
+      { id: "K-4481", time: "09:33", author: "@pol_ax",    excerpt: '"cross-posted from the other board"',         status: "held" },
+      { id: "K-4482", time: "09:38", author: "@wren.k",    excerpt: '"closing the loop on this one"',              status: "cleared" }
+    ],
+    [
+      { id: "K-4483", time: "09:41", author: "@oddment",   excerpt: '"the policy page says otherwise"',            status: "flagged" },
+      { id: "K-4484", time: "09:44", author: "@lune_",     excerpt: '"adding context in the replies"',             status: "cleared" },
+      { id: "K-4485", time: "09:47", author: "@gravl",     excerpt: '"third report on this account today"',        status: "flagged" },
+      { id: "K-4486", time: "09:49", author: "@itsfine",   excerpt: '"escalating per the runbook"',                status: "held" },
+      { id: "K-4487", time: "09:52", author: "@porthole9", excerpt: '"duplicate of K-4474"',                       status: "flagged" },
+      { id: "K-4488", time: "09:55", author: "@andesite",  excerpt: '"no action needed, closing"',                 status: "cleared" },
+      { id: "K-4489", time: "09:58", author: "@tinct",     excerpt: '"requesting a second reviewer"',              status: "held" },
+      { id: "K-4490", time: "10:02", author: "@vellum_",   excerpt: '"attaching the original submission"',         status: "cleared" }
+    ]
+  ];
+
+  var PILL = { flagged: "Flagged", held: "Held", cleared: "Cleared" };
+  var TOTAL = PAGES[0].length + PAGES[1].length;
+
+  var rows = [];
+  var pagesLoaded = 1;
+  var selected = new Set();
+  var lastToggled = null;
+  var undoRecord = null;
+  var undoTimer = null;
+  var leaveTimer = null;
+  var loadState = "idle";
+  var emptyOverride = null;   // "no-results" | "no-queue" | null
+
+  var queueRegion = document.getElementById("queue-region");
+  var loadRegion = document.getElementById("load-region");
+  var railEl = document.querySelector(".ds-action-rail");
+  var countEl = document.getElementById("rail-count");
+  var metaEl = document.getElementById("masthead-meta");
+  var undoStrip = document.getElementById("undo-strip");
+  var undoText = document.getElementById("undo-text");
+  var btnHold = document.getElementById("act-hold");
+  var btnClear = document.getElementById("act-clear");
+  var btnDestructive = document.getElementById("act-destructive");
+
+  btnDestructive.textContent = DESTRUCTIVE.label;
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function loadPages(n) {
+    var out = [];
+    for (var i = 0; i < n; i++) {
+      PAGES[i].forEach(function (r) { out.push({ id: r.id, time: r.time, author: r.author, excerpt: r.excerpt, status: r.status }); });
+    }
+    return out;
+  }
+
+  /* ---- render ---------------------------------------------------- */
+
+  function rowMarkup(r) {
+    return '<li class="ds-queue-row" data-ds="ds-queue-row" data-id="' + esc(r.id) + '" data-variant="default" data-selected="false">' +
+             '<label class="ds-select-cell" data-ds="ds-select-cell">' +
+               '<input type="checkbox" data-row="' + esc(r.id) + '" aria-label="Select ' + esc(r.id) + '">' +
+               '<span class="select-box" aria-hidden="true"></span>' +
+             '</label>' +
+             '<div class="row-main">' +
+               '<div class="row-excerpt">' + esc(r.excerpt) + '</div>' +
+               '<div class="row-meta">' +
+                 '<span class="row-id">' + esc(r.id) + '</span><span aria-hidden="true">·</span>' +
+                 '<span>' + esc(r.time) + '</span><span aria-hidden="true">·</span>' +
+                 '<span>' + esc(r.author) + '</span>' +
+               '</div>' +
+             '</div>' +
+             '<span class="ds-status-pill" data-ds="ds-status-pill" data-variant="' + esc(r.status) + '">' + PILL[r.status] + '</span>' +
+           '</li>';
+  }
+
+  function emptyMarkup(variant) {
+    if (variant === "no-results") {
+      return '<div class="ds-empty-rest" data-ds="ds-empty-rest" data-variant="no-results">' +
+               '<p>No rows match the filter.</p>' +
+               '<button type="button" id="clear-filter">Clear filter</button>' +
+             '</div>';
+    }
+    return '<div class="ds-empty-rest" data-ds="ds-empty-rest" data-variant="no-queue">' +
+             '<p>Queue empty.</p>' +
+           '</div>';
+  }
+
+  function renderQueue() {
+    if (!rows.length) {
+      queueRegion.innerHTML = emptyMarkup(emptyOverride === "no-results" ? "no-results" : "no-queue");
+      var cf = document.getElementById("clear-filter");
+      if (cf) cf.addEventListener("click", clearFilter);
+      return;
+    }
+    queueRegion.innerHTML =
+      '<div class="queue-head">' +
+        '<div class="ds-select-cell" data-ds="ds-select-cell">' +
+          '<input type="checkbox" id="select-page">' +
+          '<span class="select-box" aria-hidden="true"></span>' +
+        '</div>' +
+        '<label for="select-page">Select page</label>' +
+        '<span>Status</span>' +
+      '</div>' +
+      '<ul class="queue">' + rows.map(rowMarkup).join("") + '</ul>';
+
+    document.getElementById("select-page").addEventListener("change", onSelectPage);
+    queueRegion.querySelectorAll('.ds-queue-row input[type="checkbox"]').forEach(function (input) {
+      input.addEventListener("click", onRowCheckbox);
+    });
+    queueRegion.querySelectorAll(".ds-queue-row").forEach(function (row) {
+      row.addEventListener("click", function (e) {
+        if (e.target.closest(".ds-select-cell")) return;
+        toggle(row.dataset.id, e.shiftKey);
+      });
+    });
+  }
+
+  function renderLoadMore() {
+    if (emptyOverride) { loadRegion.innerHTML = ""; return; }
+    var exhausted = pagesLoaded >= PAGES.length;
+    var state = loadState === "loading" ? "loading" : (exhausted ? "exhausted" : "idle");
+    var label = state === "loading" ? "Loading" : (state === "exhausted" ? "End of queue" : "Load more");
+    loadRegion.innerHTML =
+      '<button type="button" class="ds-load-more" data-ds="ds-load-more" data-state="' + state + '"' +
+        (state === "idle" ? "" : " disabled") +
+        (state === "loading" ? ' aria-busy="true"' : "") + ">" + label + "</button>";
+    if (state === "idle") {
+      loadRegion.querySelector(".ds-load-more").addEventListener("click", loadMore);
+    }
+  }
+
+  function renderMeta() {
+    var total = emptyOverride === "no-queue" ? 0 : TOTAL;
+    metaEl.textContent = rows.length + " of " + total + " loaded";
+  }
+
+  function updateSelectionUI() {
+    var n = 0;
+    queueRegion.querySelectorAll(".ds-queue-row").forEach(function (row) {
+      var on = selected.has(row.dataset.id);
+      if (on) n++;
+      row.dataset.selected = on ? "true" : "false";
+      var input = row.querySelector('input[type="checkbox"]');
+      input.checked = on;
+    });
+    countEl.textContent = n + " selected";
+    railEl.dataset.state = n ? "armed" : "idle";
+    btnHold.disabled = btnClear.disabled = btnDestructive.disabled = n === 0;
+
+    var header = document.getElementById("select-page");
+    if (header) {
+      header.checked = rows.length > 0 && n === rows.length;
+      header.indeterminate = n > 0 && n < rows.length;
+    }
+  }
+
+  function render() {
+    renderQueue();
+    renderLoadMore();
+    renderMeta();
+    updateSelectionUI();
+  }
+
+  /* ---- selection -------------------------------------------------- */
+
+  function toggle(id, extend) {
+    var index = rows.findIndex(function (r) { return r.id === id; });
+    if (index < 0) return;
+    if (extend && lastToggled !== null && lastToggled < rows.length) {
+      var on = !selected.has(id);
+      var a = Math.min(index, lastToggled), b = Math.max(index, lastToggled);
+      for (var i = a; i <= b; i++) {
+        if (on) selected.add(rows[i].id); else selected.delete(rows[i].id);
+      }
+    } else if (selected.has(id)) {
+      selected.delete(id);
+    } else {
+      selected.add(id);
+    }
+    lastToggled = index;
+    updateSelectionUI();
+  }
+
+  function onRowCheckbox(e) {
+    e.stopPropagation();
+    toggle(e.currentTarget.dataset.row, e.shiftKey);
+  }
+
+  function onSelectPage(e) {
+    if (e.currentTarget.checked) {
+      rows.forEach(function (r) { selected.add(r.id); });
+    } else {
+      selected.clear();
+    }
+    lastToggled = null;
+    updateSelectionUI();
+  }
+
+  /* ---- bulk actions ----------------------------------------------- */
+  /* dec_no_confirm_modal: applied immediately, no dialog anywhere.
+     Reversal through ds-undo-strip is the control that works. */
+
+  function apply(kind) {
+    var ids = rows.filter(function (r) { return selected.has(r.id); }).map(function (r) { return r.id; });
+    if (!ids.length) return;
+    var entries, past;
+
+    if (kind === "destructive") {
+      entries = [];
+      rows.forEach(function (r, i) { if (selected.has(r.id)) entries.push({ index: i, row: r }); });
+      rows = rows.filter(function (r) { return !selected.has(r.id); });
+      past = DESTRUCTIVE.past;
+    } else {
+      var status = kind === "hold" ? "held" : "cleared";
+      entries = [];
+      rows.forEach(function (r) {
+        if (selected.has(r.id)) { entries.push({ id: r.id, prev: r.status }); r.status = status; }
+      });
+      past = status;
+    }
+
+    undoRecord = { kind: kind, entries: entries, selection: ids.slice() };
+    selected.clear();
+    lastToggled = null;
+    render();
+    showUndo(ids.length + " " + past + ".");
+  }
+
+  function undo() {
+    if (!undoRecord) return;
+    if (undoRecord.kind === "destructive") {
+      undoRecord.entries.forEach(function (e) { rows.splice(e.index, 0, e.row); });
+    } else {
+      undoRecord.entries.forEach(function (e) {
+        var row = rows.find(function (r) { return r.id === e.id; });
+        if (row) row.status = e.prev;
+      });
+    }
+    /* The batch the reviewer assembled comes back with it — the same
+       trade dec_selection_persists makes for paging. */
+    selected = new Set(undoRecord.selection.filter(function (id) {
+      return rows.some(function (r) { return r.id === id; });
+    }));
+    undoRecord = null;
+    hideUndo();
+    render();
+  }
+
+  function showUndo(text) {
+    clearTimeout(undoTimer);
+    clearTimeout(leaveTimer);
+    undoText.textContent = text;
+    undoStrip.hidden = false;
+    undoStrip.dataset.state = "entering";
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { undoStrip.dataset.state = "visible"; });
+    });
+    undoTimer = setTimeout(function () { undoRecord = null; hideUndo(); }, UNDO_DISMISS);
+  }
+
+  function hideUndo() {
+    clearTimeout(undoTimer);
+    if (undoStrip.hidden) return;
+    undoStrip.dataset.state = "leaving";
+    leaveTimer = setTimeout(function () {
+      undoStrip.hidden = true;
+      undoStrip.removeAttribute("data-state");
+    }, DURATION_BASE);
+  }
+
+  /* ---- paging ------------------------------------------------------ */
+  /* dec_load_more + dec_selection_persists: appends, keeps scroll,
+     keeps the existing selection; new rows arrive unselected. */
+
+  function loadMore() {
+    if (loadState === "loading" || pagesLoaded >= PAGES.length) return;
+    loadState = "loading";
+    renderLoadMore();
+    setTimeout(function () {
+      PAGES[pagesLoaded].forEach(function (r) {
+        rows.push({ id: r.id, time: r.time, author: r.author, excerpt: r.excerpt, status: r.status });
+      });
+      pagesLoaded++;
+      loadState = "idle";
+      render();
+    }, DURATION_SETTLE);
+  }
+
+  /* ---- empty states ------------------------------------------------ */
+
+  function clearFilter() {
+    emptyOverride = null;
+    rows = loadPages(pagesLoaded);
+    selected.clear();
+    lastToggled = null;
+    history.replaceState(null, "", location.pathname);
+    render();
+  }
+
+  /* ---- boot --------------------------------------------------------- */
+
+  var param = new URLSearchParams(location.search).get("state");
+  if (param === "no-results" || param === "no-queue") {
+    emptyOverride = param;
+    rows = [];
+  } else {
+    rows = loadPages(1);
+  }
+
+  btnHold.addEventListener("click", function () { apply("hold"); });
+  btnClear.addEventListener("click", function () { apply("clear"); });
+  btnDestructive.addEventListener("click", function () { apply("destructive"); });
+  document.getElementById("undo-button").addEventListener("click", undo);
+
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,767 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kettle — Review queue</title>
+<style>
+  :root {
+    /* --- design system tokens (raw values live here and nowhere else) --- */
+    --color-surface-base: #0e1113;
+    --color-surface-raised: #171b1e;
+    --color-surface-recessed: #0a0c0e;
+    --color-surface-sunken: #060809;
+    --color-ink-primary: #e8eaec;
+    --color-ink-secondary: #9aa3a9;
+    --color-ink-faint: #5f686e;
+    --color-rule-hair: #242a2e;
+    --color-rule-solid: #39424a;
+    --color-signal-flag: #d4573a;
+    --color-signal-hold: #c08a2e;
+    --color-signal-clear: #4a8f6d;
+    --color-focus-ring: #6ea8d8;
+
+    --type-ui-dense: 13px;
+    --type-ui: 14px;
+    --type-ui-lead: 16px;
+    --type-section: 20px;
+    --type-page: 28px;
+
+    --space-hair: 2px;
+    --space-tight: 6px;
+    --space-snug: 10px;
+    --space-base: 16px;
+    --space-loose: 24px;
+    --space-slack: 40px;
+
+    --motion-duration-snap: 90ms;
+    --motion-duration-base: 160ms;
+    --motion-duration-settle: 260ms;
+    --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+    --motion-easing-exit: cubic-bezier(0.4, 0, 1, 1);
+
+    /* --- derived, composed from tokens only --- */
+    --space-none: 0;
+    --rule-width: 1px;
+    --radius-hair: var(--space-hair);
+    --gutter: var(--space-slack);                                                  /* 40px */
+    --hit-min: calc(var(--space-slack) + var(--space-hair) + var(--space-hair));   /* 44px */
+    --count-min: calc(var(--space-slack) * 3);
+    --status-min: calc(var(--space-slack) * 2);
+    --undo-window: 8s;
+    --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: var(--space-none); padding: var(--space-none); }
+  [hidden] { display: none !important; }
+
+  html, body {
+    background: var(--color-surface-base);
+    color: var(--color-ink-primary);
+  }
+
+  body {
+    font-family: var(--font-ui);
+    font-size: var(--type-ui);
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible,
+  .ds-select-cell:has(input:focus-visible) {
+    outline: var(--space-hair) solid var(--color-focus-ring);
+    outline-offset: var(--space-hair);
+  }
+
+  .sr-only {
+    position: absolute;
+    width: var(--space-hair);
+    height: var(--space-hair);
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .queue-screen {
+    padding: var(--space-loose) var(--space-base) var(--space-slack);
+  }
+
+  .screen-title {
+    font-size: var(--type-page);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--color-ink-primary);
+    padding-bottom: var(--space-base);
+  }
+
+  /* ---------- ds-action-rail ---------- */
+  /* Static, above the list, in DOM order. Identical box in idle and armed:
+     it never grows, never collapses, never moves the queue under the cursor. */
+  .ds-action-rail {
+    display: flex;
+    align-items: center;
+    gap: var(--space-base);
+    padding: var(--space-snug) var(--space-base);
+    min-height: calc(var(--hit-min) + var(--space-snug) + var(--space-snug));
+    background: var(--color-surface-base);
+    border-top: var(--rule-width) solid var(--color-rule-hair);
+    border-bottom: var(--rule-width) solid var(--color-rule-hair);
+  }
+
+  .rail-count {
+    font-size: var(--type-ui-lead);
+    min-width: var(--count-min);
+    color: var(--color-ink-secondary);
+  }
+
+  .ds-action-rail[data-state="armed"] .rail-count { color: var(--color-ink-primary); }
+
+  .rail-actions { display: flex; gap: var(--space-tight); }
+
+  .rail-action {
+    min-height: var(--hit-min);
+    min-width: var(--hit-min);
+    padding: var(--space-tight) var(--space-base);
+    font-family: var(--font-ui);
+    font-size: var(--type-ui);
+    color: var(--color-ink-primary);
+    background: var(--color-surface-base);
+    border: var(--rule-width) solid var(--color-rule-hair);
+    border-radius: var(--radius-hair);
+    cursor: pointer;
+    transition:
+      background-color var(--motion-duration-snap) var(--motion-easing-standard),
+      border-color var(--motion-duration-snap) var(--motion-easing-standard);
+  }
+
+  .rail-action--destructive { border-color: var(--color-rule-solid); }
+
+  .rail-action:hover:not(:disabled) {
+    background: var(--color-surface-recessed);
+    border-color: var(--color-rule-solid);
+  }
+
+  .rail-action:disabled {
+    color: var(--color-ink-secondary);
+    border-color: var(--color-rule-hair);
+    cursor: default;
+  }
+
+  /* ---------- queue header ---------- */
+  .queue-head,
+  .ds-queue-row {
+    display: grid;
+    grid-template-columns: var(--gutter) minmax(0, 1fr) max-content;
+    align-items: center;
+    gap: var(--space-snug);
+    padding: var(--space-tight) var(--space-base);
+    border-left: var(--space-hair) solid transparent;
+  }
+
+  .queue-head {
+    border-bottom: var(--rule-width) solid var(--color-rule-solid);
+    font-size: var(--type-ui-dense);
+    color: var(--color-ink-secondary);
+  }
+
+  .col-status { min-width: var(--status-min); }
+
+  /* ---------- ds-queue-row ---------- */
+  /* No transition anywhere on a row: reviewers rubber-band across dozens. */
+  .queue-list { list-style: none; }
+
+  .ds-queue-row {
+    min-height: calc(var(--hit-min) + var(--space-tight));
+    border-bottom: var(--rule-width) solid var(--color-rule-hair);
+  }
+
+  .ds-queue-row:hover,
+  .ds-queue-row:focus-within { background: var(--color-surface-recessed); }
+
+  .ds-queue-row[data-state~="selected"] {
+    background: var(--color-surface-recessed);
+    border-left-color: var(--color-rule-solid);
+  }
+
+  .ds-queue-row[data-state~="disabled"] {
+    color: var(--color-ink-secondary);
+    pointer-events: none;
+  }
+
+  .row-excerpt {
+    font-size: var(--type-ui-dense);
+    color: var(--color-ink-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .row-meta {
+    font-size: var(--type-ui-dense);
+    color: var(--color-ink-secondary);
+  }
+
+  /* ---------- ds-select-cell ---------- */
+  /* Always present, never hover-revealed. The gutter stays 40px and the left
+     text edge never moves; the cell's own 44px hit area spills 2px past the
+     gutter horizontally and 6px past the row vertically, so the hit target
+     never costs the queue its density. */
+  .ds-select-cell {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    justify-self: center;
+    align-self: center;
+    width: var(--hit-min);
+    height: var(--hit-min);
+    margin-block: calc(var(--space-tight) * -1);
+    border-radius: var(--radius-hair);
+    cursor: pointer;
+  }
+
+  .ds-select-cell input {
+    position: absolute;
+    inset: var(--space-none);
+    width: var(--hit-min);
+    height: var(--hit-min);
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .select-box {
+    position: relative;
+    display: block;
+    width: var(--space-base);
+    height: var(--space-base);
+    background: var(--color-surface-recessed);
+    border: var(--rule-width) solid var(--color-rule-solid);
+    border-radius: var(--radius-hair);
+  }
+
+  .ds-select-cell:hover .select-box { border-color: var(--color-ink-secondary); }
+
+  .ds-select-cell input:checked ~ .select-box {
+    background: var(--color-ink-primary);
+    border-color: var(--color-ink-primary);
+  }
+
+  .ds-select-cell input:checked ~ .select-box::after {
+    content: "";
+    position: absolute;
+    left: calc(var(--space-hair) * 2);
+    top: var(--space-hair);
+    width: var(--space-tight);
+    height: var(--space-snug);
+    border-right: var(--space-hair) solid var(--color-surface-base);
+    border-bottom: var(--space-hair) solid var(--color-surface-base);
+    transform: rotate(45deg);
+  }
+
+  .ds-select-cell input:indeterminate ~ .select-box {
+    background: var(--color-ink-primary);
+    border-color: var(--color-ink-primary);
+  }
+
+  .ds-select-cell input:indeterminate ~ .select-box::after {
+    content: "";
+    position: absolute;
+    left: var(--space-hair);
+    right: var(--space-hair);
+    top: calc(50% - var(--rule-width));
+    height: var(--space-hair);
+    background: var(--color-surface-base);
+    transform: none;
+    border: var(--space-none);
+  }
+
+  .ds-select-cell input:disabled ~ .select-box { border-color: var(--color-rule-hair); }
+
+  /* ---------- ds-status-pill ---------- */
+  /* No fill, no signal-hue text: a semantic mark plus its mandatory label. */
+  .ds-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-tight);
+    min-width: var(--status-min);
+    font-size: var(--type-ui-dense);
+    color: var(--color-ink-secondary);
+    white-space: nowrap;
+  }
+
+  .pill-dot {
+    flex: none;
+    width: var(--space-tight);
+    height: var(--space-tight);
+    border-radius: var(--radius-hair);
+    background: var(--color-rule-solid);
+  }
+
+  .ds-status-pill[data-variant="flagged"] .pill-dot { background: var(--color-signal-flag); }
+  .ds-status-pill[data-variant="held"] .pill-dot { background: var(--color-signal-hold); }
+  .ds-status-pill[data-variant="cleared"] .pill-dot { background: var(--color-signal-clear); }
+
+  /* ---------- ds-load-more ---------- */
+  /* Carries its own loading state in place; full width, fixed height, no shift. */
+  .ds-load-more {
+    display: block;
+    width: 100%;
+    min-height: var(--hit-min);
+    padding: var(--space-snug) var(--space-base);
+    font-family: var(--font-ui);
+    font-size: var(--type-ui);
+    color: var(--color-ink-primary);
+    background: var(--color-surface-base);
+    border: var(--rule-width) solid var(--color-rule-hair);
+    border-top: var(--space-none);
+    cursor: pointer;
+    transition: background-color var(--motion-duration-snap) var(--motion-easing-standard);
+  }
+
+  .ds-load-more:hover:not(:disabled) { background: var(--color-surface-recessed); }
+
+  .ds-load-more[data-state="loading"] {
+    color: var(--color-ink-secondary);
+    cursor: default;
+  }
+
+  .ds-load-more[data-state="exhausted"] {
+    color: var(--color-ink-secondary);
+    background: var(--color-surface-sunken);
+    cursor: default;
+  }
+
+  /* ---------- ds-undo-strip ---------- */
+  .ds-undo-strip {
+    position: fixed;
+    right: var(--space-loose);
+    bottom: var(--space-loose);
+    display: flex;
+    align-items: center;
+    gap: var(--space-base);
+    padding: var(--space-tight) var(--space-tight) var(--space-tight) var(--space-base);
+    background: var(--color-surface-raised);
+    border: var(--rule-width) solid var(--color-rule-solid);
+    border-radius: var(--radius-hair);
+    font-size: var(--type-ui);
+    color: var(--color-ink-primary);
+    transition:
+      opacity var(--motion-duration-base) var(--motion-easing-standard),
+      transform var(--motion-duration-base) var(--motion-easing-standard);
+  }
+
+  .ds-undo-strip[data-state="entering"] { opacity: 0; transform: translateY(var(--space-snug)); }
+  .ds-undo-strip[data-state="visible"] { opacity: 1; transform: translateY(var(--space-none)); }
+  .ds-undo-strip[data-state="leaving"] {
+    opacity: 0;
+    transform: translateY(var(--space-snug));
+    transition-timing-function: var(--motion-easing-exit);
+  }
+
+  .undo-action {
+    min-height: var(--hit-min);
+    min-width: var(--hit-min);
+    padding: var(--space-tight) var(--space-base);
+    font-family: var(--font-ui);
+    font-size: var(--type-ui);
+    color: var(--color-ink-primary);
+    background: var(--color-surface-recessed);
+    border: var(--rule-width) solid var(--color-rule-solid);
+    border-radius: var(--radius-hair);
+    cursor: pointer;
+  }
+
+  .undo-action:hover { border-color: var(--color-ink-secondary); }
+
+  /* ---------- ds-empty-rest ---------- */
+  .ds-empty-rest {
+    padding: var(--space-slack) var(--space-base);
+    background: var(--color-surface-sunken);
+    border: var(--rule-width) solid var(--color-rule-hair);
+  }
+
+  .empty-title {
+    font-size: var(--type-section);
+    font-weight: 600;
+    color: var(--color-ink-primary);
+  }
+
+  .empty-body {
+    padding-top: var(--space-snug);
+    font-size: var(--type-ui);
+    color: var(--color-ink-secondary);
+  }
+
+  .empty-action {
+    margin-top: var(--space-base);
+    min-height: var(--hit-min);
+    min-width: var(--hit-min);
+    padding: var(--space-tight) var(--space-base);
+    font-family: var(--font-ui);
+    font-size: var(--type-ui);
+    color: var(--color-ink-primary);
+    background: var(--color-surface-base);
+    border: var(--rule-width) solid var(--color-rule-solid);
+    border-radius: var(--radius-hair);
+    cursor: pointer;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition: none !important;
+      animation: none !important;
+    }
+  }
+</style>
+
+<main class="queue-screen">
+  <h1 class="screen-title">Review queue</h1>
+
+  <!-- ds-action-rail precedes the list in DOM order as well as visually:
+       bulk actions must not sit 50+ tab stops behind the queue. -->
+  <div class="ds-action-rail" data-ds="ds-action-rail" data-state="idle" id="rail" aria-label="Bulk actions">
+    <p class="rail-count" id="rail-count" role="status" aria-live="polite">0 selected</p>
+    <div class="rail-actions">
+      <button type="button" class="rail-action" data-action="hold">Hold</button>
+      <button type="button" class="rail-action" data-action="clear">Clear</button>
+      <button type="button" class="rail-action rail-action--destructive" data-action="reject"
+              data-contested="dec_destructive_label">Reject</button>
+    </div>
+  </div>
+
+  <div class="queue-head" id="queue-head">
+    <label class="ds-select-cell" data-ds="ds-select-cell" data-scope="page">
+      <input type="checkbox" id="select-page">
+      <span class="select-box" aria-hidden="true"></span>
+      <span class="sr-only">Select every item on this page</span>
+    </label>
+    <span class="col-label">Item</span>
+    <span class="col-label col-status">Status</span>
+  </div>
+
+  <ul class="queue-list" id="queue-list"></ul>
+
+  <button type="button" class="ds-load-more" data-ds="ds-load-more" data-state="default" id="load-more">
+    Load 8 more
+  </button>
+
+  <div class="ds-empty-rest" data-ds="ds-empty-rest" data-variant="no-results" id="empty-no-results" hidden>
+    <p class="empty-title">No matches</p>
+    <p class="empty-body">The active filter returned nothing. The queue itself still holds items.</p>
+    <button type="button" class="empty-action" id="clear-filter">Show the full queue</button>
+  </div>
+
+  <div class="ds-empty-rest" data-ds="ds-empty-rest" data-variant="no-queue" id="empty-no-queue" hidden>
+    <p class="empty-title">Queue empty</p>
+    <p class="empty-body">Nothing is waiting for review.</p>
+  </div>
+</main>
+
+<div class="ds-undo-strip" data-ds="ds-undo-strip" data-state="visible" id="undo-strip" role="status" aria-live="polite" hidden>
+  <span class="undo-label" id="undo-label">3 held</span>
+  <button type="button" class="undo-action" id="undo-action">Undo</button>
+</div>
+
+<p class="sr-only" id="announcer" role="status" aria-live="polite"></p>
+
+<script>
+(function () {
+  "use strict";
+
+  var PAGE_1 = [
+    { id: "K-4471", at: "09:02", author: "@noor_h",    excerpt: '"shipping delays again, third week running"', status: "flagged" },
+    { id: "K-4472", at: "09:04", author: "@dvsg",      excerpt: '"link in bio for the full list"',             status: "held" },
+    { id: "K-4473", at: "09:07", author: "@mara.p",    excerpt: '"anyone else getting this error on upload"',  status: "cleared" },
+    { id: "K-4474", at: "09:11", author: "@tt_ronin",  excerpt: '"reposting since it got taken down"',         status: "flagged" },
+    { id: "K-4475", at: "09:12", author: "@quietkiln", excerpt: '"the receipts are in the thread"',            status: "flagged" },
+    { id: "K-4476", at: "09:15", author: "@halcy0n",   excerpt: '"DM me if you want the discount code"',       status: "held" },
+    { id: "K-4477", at: "09:19", author: "@b_orchard", excerpt: '"not sure this belongs here but"',            status: "cleared" },
+    { id: "K-4478", at: "09:23", author: "@sm1th",     excerpt: '"same account, new handle"',                  status: "flagged" },
+    { id: "K-4479", at: "09:26", author: "@tessel",    excerpt: '"screenshots attached, timestamps intact"',   status: "cleared" },
+    { id: "K-4480", at: "09:31", author: "@nvrmnd_",   excerpt: '"last warning before I escalate"',            status: "flagged" },
+    { id: "K-4481", at: "09:33", author: "@pol_ax",    excerpt: '"cross-posted from the other board"',         status: "held" },
+    { id: "K-4482", at: "09:38", author: "@wren.k",    excerpt: '"closing the loop on this one"',              status: "cleared" }
+  ];
+
+  var PAGE_2 = [
+    { id: "K-4483", at: "09:41", author: "@oddment",   excerpt: '"the policy page says otherwise"',    status: "flagged" },
+    { id: "K-4484", at: "09:44", author: "@lune_",     excerpt: '"adding context in the replies"',     status: "cleared" },
+    { id: "K-4485", at: "09:47", author: "@gravl",     excerpt: '"third report on this account today"', status: "flagged" },
+    { id: "K-4486", at: "09:49", author: "@itsfine",   excerpt: '"escalating per the runbook"',        status: "held" },
+    { id: "K-4487", at: "09:52", author: "@porthole9", excerpt: '"duplicate of K-4474"',               status: "flagged" },
+    { id: "K-4488", at: "09:55", author: "@andesite",  excerpt: '"no action needed, closing"',         status: "cleared" },
+    { id: "K-4489", at: "09:58", author: "@tinct",     excerpt: '"requesting a second reviewer"',      status: "held" },
+    { id: "K-4490", at: "10:02", author: "@vellum_",   excerpt: '"attaching the original submission"', status: "cleared" }
+  ];
+
+  var VERB = { hold: "held", clear: "cleared", reject: "rejected" };
+  var STATUS = { hold: "held", clear: "cleared" };
+
+  var cs = getComputedStyle(document.documentElement);
+  var num = function (name) { return parseFloat(cs.getPropertyValue(name)); };
+  var D_BASE = num("--motion-duration-base");
+  var D_SETTLE = num("--motion-duration-settle");
+  var UNDO_WINDOW = num("--undo-window") * 1000;
+
+  var rail = document.getElementById("rail");
+  var railCount = document.getElementById("rail-count");
+  var railActions = Array.prototype.slice.call(document.querySelectorAll(".rail-action"));
+  var head = document.getElementById("queue-head");
+  var selectPage = document.getElementById("select-page");
+  var list = document.getElementById("queue-list");
+  var loadMore = document.getElementById("load-more");
+  var emptyNoResults = document.getElementById("empty-no-results");
+  var emptyNoQueue = document.getElementById("empty-no-queue");
+  var strip = document.getElementById("undo-strip");
+  var stripLabel = document.getElementById("undo-label");
+  var undoAction = document.getElementById("undo-action");
+  var announcer = document.getElementById("announcer");
+
+  var params = new URLSearchParams(location.search);
+  var forced = params.get("state");
+  var filtered = forced === "no-results";
+
+  var rows = (forced === "no-queue" ? [] : PAGE_1).map(function (r) { return Object.assign({}, r); });
+  var exhausted = forced === "no-queue";
+  var selected = Object.create(null);
+  var selectedCount = 0;
+  var lastAction = null;
+  var dismissTimer = null, leaveTimer = null;
+
+  function announce(text) { announcer.textContent = text; }
+
+  function isSelected(id) { return selected[id] === true; }
+
+  function setSelected(id, on) {
+    if (on === isSelected(id)) return;
+    if (on) { selected[id] = true; selectedCount += 1; }
+    else { delete selected[id]; selectedCount -= 1; }
+    var el = list.querySelector('[data-id="' + id + '"]');
+    if (el) {
+      if (on) el.setAttribute("data-state", "selected");
+      else el.removeAttribute("data-state");
+      var box = el.querySelector("input");
+      if (box && box.checked !== on) box.checked = on;
+    }
+    syncRail();
+  }
+
+  function selectedIdsInOrder() {
+    return rows.filter(function (r) { return isSelected(r.id); }).map(function (r) { return r.id; });
+  }
+
+  function syncRail() {
+    var live = selectedIdsInOrder().length;
+    railCount.textContent = live + " selected";
+    rail.setAttribute("data-state", live > 0 ? "armed" : "idle");
+    railActions.forEach(function (b) { b.disabled = live === 0; });
+    selectPage.checked = rows.length > 0 && live === rows.length;
+    selectPage.indeterminate = live > 0 && live < rows.length;
+    selectPage.disabled = rows.length === 0;
+  }
+
+  function makeRow(item) {
+    var li = document.createElement("li");
+    li.className = "ds-queue-row";
+    li.setAttribute("data-ds", "ds-queue-row");
+    li.setAttribute("data-id", item.id);
+    if (isSelected(item.id)) li.setAttribute("data-state", "selected");
+
+    var cell = document.createElement("label");
+    cell.className = "ds-select-cell";
+    cell.setAttribute("data-ds", "ds-select-cell");
+
+    var input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = isSelected(item.id);
+    input.addEventListener("change", function () { setSelected(item.id, input.checked); });
+
+    var box = document.createElement("span");
+    box.className = "select-box";
+    box.setAttribute("aria-hidden", "true");
+
+    var cellLabel = document.createElement("span");
+    cellLabel.className = "sr-only";
+    cellLabel.textContent = "Select " + item.id;
+
+    cell.appendChild(input);
+    cell.appendChild(box);
+    cell.appendChild(cellLabel);
+
+    var body = document.createElement("div");
+    body.className = "row-body";
+
+    var excerpt = document.createElement("p");
+    excerpt.className = "row-excerpt";
+    excerpt.textContent = item.excerpt;
+
+    var meta = document.createElement("p");
+    meta.className = "row-meta";
+    meta.textContent = item.id + " · " + item.at + " · " + item.author;
+
+    body.appendChild(excerpt);
+    body.appendChild(meta);
+
+    var pill = document.createElement("span");
+    pill.className = "ds-status-pill";
+    pill.setAttribute("data-ds", "ds-status-pill");
+    pill.setAttribute("data-variant", item.status);
+
+    var dot = document.createElement("span");
+    dot.className = "pill-dot";
+    dot.setAttribute("aria-hidden", "true");
+    pill.appendChild(dot);
+    pill.appendChild(document.createTextNode(item.status));
+
+    li.appendChild(cell);
+    li.appendChild(body);
+    li.appendChild(pill);
+
+    li.addEventListener("click", function (event) {
+      if (event.target.closest(".ds-select-cell")) return;
+      setSelected(item.id, !isSelected(item.id));
+    });
+
+    return li;
+  }
+
+  function renderList() {
+    list.textContent = "";
+    var frag = document.createDocumentFragment();
+    rows.forEach(function (item) { frag.appendChild(makeRow(item)); });
+    list.appendChild(frag);
+  }
+
+  function renderView() {
+    var showResultsEmpty = filtered;
+    var showQueueEmpty = !filtered && rows.length === 0;
+    var showQueue = !showResultsEmpty && !showQueueEmpty;
+
+    rail.hidden = !showQueue;
+    head.hidden = !showQueue;
+    list.hidden = !showQueue;
+    loadMore.hidden = !showQueue;
+    emptyNoResults.hidden = !showResultsEmpty;
+    emptyNoQueue.hidden = !showQueueEmpty;
+
+    if (showQueue) syncRail();
+  }
+
+  /* ---------- ds-undo-strip ---------- */
+  function hideStrip(immediate) {
+    clearTimeout(dismissTimer);
+    clearTimeout(leaveTimer);
+    if (immediate || strip.hidden) {
+      strip.hidden = true;
+      strip.setAttribute("data-state", "visible");
+      return;
+    }
+    strip.setAttribute("data-state", "leaving");
+    leaveTimer = setTimeout(function () {
+      strip.hidden = true;
+      strip.setAttribute("data-state", "visible");
+    }, D_BASE);
+  }
+
+  function showStrip(text) {
+    clearTimeout(dismissTimer);
+    clearTimeout(leaveTimer);
+    stripLabel.textContent = text;
+    strip.hidden = false;
+    strip.setAttribute("data-state", "entering");
+    void strip.offsetWidth; // flush the entering frame so the 160ms enter actually runs
+    strip.setAttribute("data-state", "visible");
+    dismissTimer = setTimeout(function () {
+      lastAction = null;
+      hideStrip(false);
+    }, UNDO_WINDOW);
+  }
+
+  /* ---------- bulk actions ---------- */
+  function applyAction(kind) {
+    var ids = selectedIdsInOrder();
+    if (ids.length === 0) return;
+
+    var before = ids.map(function (id) {
+      var index = rows.findIndex(function (r) { return r.id === id; });
+      return { index: index, item: Object.assign({}, rows[index]) };
+    });
+
+    if (kind === "reject") {
+      rows = rows.filter(function (r) { return !isSelected(r.id); });
+    } else {
+      rows.forEach(function (r) { if (isSelected(r.id)) r.status = STATUS[kind]; });
+    }
+
+    selected = Object.create(null);
+    selectedCount = 0;
+    lastAction = { kind: kind, before: before, removed: kind === "reject" };
+
+    renderList();
+    renderView();
+    showStrip(ids.length + " " + VERB[kind]);
+    announce(ids.length + " items " + VERB[kind] + ". Selection cleared.");
+  }
+
+  function reverse() {
+    if (!lastAction) { hideStrip(false); return; }
+    if (lastAction.removed) {
+      lastAction.before
+        .slice()
+        .sort(function (a, b) { return a.index - b.index; })
+        .forEach(function (entry) { rows.splice(entry.index, 0, entry.item); });
+    } else {
+      lastAction.before.forEach(function (entry) {
+        var target = rows.find(function (r) { return r.id === entry.item.id; });
+        if (target) target.status = entry.item.status;
+      });
+    }
+    var n = lastAction.before.length;
+    lastAction = null;
+    renderList();
+    renderView();
+    hideStrip(false);
+    announce(n + " items restored.");
+  }
+
+  /* ---------- paging ---------- */
+  loadMore.addEventListener("click", function () {
+    if (exhausted || loadMore.getAttribute("data-state") === "loading") return;
+    loadMore.setAttribute("data-state", "loading");
+    loadMore.textContent = "Loading";
+    setTimeout(function () {
+      // Selection is deliberately not cleared: batches are assembled across pages.
+      rows = rows.concat(PAGE_2.map(function (r) { return Object.assign({}, r); }));
+      exhausted = true;
+      renderList();
+      renderView();
+      loadMore.setAttribute("data-state", "exhausted");
+      loadMore.textContent = "End of queue";
+      announce("8 items added. " + rows.length + " in the queue.");
+    }, D_SETTLE);
+  });
+
+  /* ---------- wiring ---------- */
+  selectPage.addEventListener("change", function () {
+    var on = selectPage.checked;
+    rows.forEach(function (r) { setSelected(r.id, on); });
+    syncRail();
+  });
+
+  railActions.forEach(function (button) {
+    button.addEventListener("click", function () { applyAction(button.getAttribute("data-action")); });
+  });
+
+  undoAction.addEventListener("click", reverse);
+
+  var clearFilter = document.getElementById("clear-filter");
+  if (clearFilter) {
+    clearFilter.addEventListener("click", function () { location.href = location.pathname; });
+  }
+
+  if (exhausted) {
+    loadMore.setAttribute("data-state", "exhausted");
+    loadMore.textContent = "End of queue";
+  }
+
+  renderList();
+  renderView();
+})();
+</script>

@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="kettle">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kettle — Review queue</title>
+<style>
+/* ------------------------------------------------------------------
+   Kettle design tokens. DESIGN.md front-matter, verbatim, plus the
+   derived tokens the build needs so that no bare value appears in any
+   rule below (COLOR-tokens-only).
+------------------------------------------------------------------ */
+:root{
+  /* surfaces — a DEPTH ramp, not a lightness ramp */
+  --surface-base:#0e1113;
+  --surface-raised:#171b1e;
+  --surface-recessed:#0a0c0e;
+  --surface-sunken:#060809;
+
+  --ink-primary:#e8eaec;
+  --ink-secondary:#9aa3a9;
+  --ink-faint:#5f686e;
+
+  --rule-hair:#242a2e;
+  --rule-solid:#39424a;
+
+  --signal-flag:#d4573a;
+  --signal-hold:#c08a2e;
+  --signal-clear:#4a8f6d;
+
+  --focus-ring:#6ea8d8;
+
+  --type-ui-dense:13px;
+  --type-ui:14px;
+  --type-ui-lead:16px;
+  --type-section:20px;
+  --type-page:28px;
+
+  --space-hair:2px;
+  --space-tight:6px;
+  --space-snug:10px;
+  --space-base:16px;
+  --space-loose:24px;
+  --space-slack:40px;
+
+  --dur-snap:90ms;
+  --dur-base:160ms;
+  --dur-settle:260ms;
+  --ease-standard:cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit:cubic-bezier(0.4, 0, 1, 1);
+
+  /* derived — declared as tokens so nothing below is a bare value */
+  --font-ui:ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --weight-regular:400;
+  --weight-medium:500;
+  --weight-semibold:600;
+  --leading-dense:1.35;
+  --leading-flat:1.1;
+  --border-hair:1px;
+  --border-mark:2px;
+  --radius-sm:3px;
+  --gutter-select:40px;   /* dec_5 — fixed left gutter, never collapses */
+  --hit-min:44px;         /* A11Y-44px-hit-target */
+  --rail-min-h:44px;
+  --check-box:16px;
+  --check-w:9px;
+  --check-h:5px;
+  --focus-width:2px;
+  --focus-offset:2px;
+  --col-status:96px;
+  --zero:0px;
+}
+
+*,*::before,*::after{box-sizing:border-box;}
+
+html,body{
+  margin:var(--zero);
+  padding:var(--zero);
+  background:var(--surface-base);
+}
+
+body{
+  font-family:var(--font-ui);
+  font-size:var(--type-ui);
+  line-height:var(--leading-dense);
+  color:var(--ink-primary);
+  -webkit-font-smoothing:antialiased;
+}
+
+/* Focus is always visible and never removed. */
+:where(a,button,input,[tabindex]):focus-visible{
+  outline:var(--focus-width) solid var(--focus-ring);
+  outline-offset:var(--focus-offset);
+}
+
+/* ---------------------------------------------- page frame */
+.console{
+  min-height:100vh;
+  background:var(--surface-base);
+}
+
+.console-head{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:var(--space-base);
+  padding:var(--space-loose) var(--space-loose) var(--space-base);
+}
+.console-title{
+  margin:var(--zero);
+  font-size:var(--type-page);
+  font-weight:var(--weight-semibold);
+  line-height:var(--leading-flat);
+  color:var(--ink-primary);
+}
+.console-shift{
+  margin:var(--zero);
+  font-size:var(--type-ui);
+  color:var(--ink-secondary);
+  font-variant-numeric:tabular-nums;
+}
+
+.queue-head{
+  display:flex;
+  align-items:baseline;
+  gap:var(--space-snug);
+  padding:var(--zero) var(--space-loose) var(--space-snug);
+}
+.queue-heading{
+  margin:var(--zero);
+  font-size:var(--type-section);
+  font-weight:var(--weight-medium);
+  line-height:var(--leading-flat);
+  color:var(--ink-primary);
+}
+.queue-total{
+  font-size:var(--type-ui);
+  color:var(--ink-secondary);
+  font-variant-numeric:tabular-nums;
+}
+
+/* ---------------------------------------------- ds-action-rail
+   dec_rail_position — above the list, in normal flow, scrolls away.
+   dec_1 — full height in idle; nothing appears or disappears on select.
+   dec_rail_before_list — precedes the list in DOM order.
+*/
+.ds-action-rail{
+  display:flex;
+  align-items:center;
+  gap:var(--space-base);
+  min-height:var(--rail-min-h);
+  padding:var(--space-snug) var(--space-loose);
+  border-top:var(--border-hair) solid var(--rule-solid);
+  border-bottom:var(--border-hair) solid var(--rule-solid);
+  background:var(--surface-base);
+}
+.rail-count{
+  margin:var(--zero);
+  flex:0 0 auto;
+  font-size:var(--type-ui-lead);      /* ui-lead is the selection count and nothing else */
+  font-weight:var(--weight-medium);
+  color:var(--ink-faint);
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+}
+.ds-action-rail[data-state="armed"] .rail-count{color:var(--ink-primary);}
+
+/* reserved slot: the undo strip lives here so the rail never changes height */
+.rail-slot{
+  flex:1 1 auto;
+  min-width:var(--zero);
+  display:flex;
+  align-items:center;
+}
+
+.rail-actions{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:var(--space-tight);
+}
+.rail-action{
+  min-height:var(--hit-min);
+  padding:var(--zero) var(--space-base);
+  font-family:inherit;
+  font-size:var(--type-ui);
+  font-weight:var(--weight-medium);
+  line-height:var(--leading-flat);
+  color:var(--ink-primary);
+  background:var(--surface-base);
+  border:var(--border-hair) solid var(--rule-hair);
+  border-radius:var(--radius-sm);
+  cursor:pointer;
+  transition:background-color var(--dur-snap) var(--ease-standard),
+             border-color var(--dur-snap) var(--ease-standard);
+}
+.rail-action:hover:not(:disabled){
+  background:var(--surface-recessed);
+  border-color:var(--rule-solid);
+}
+.rail-action:disabled{
+  color:var(--ink-faint);
+  border-color:var(--rule-hair);
+  cursor:default;
+}
+/* the destructive action is weighted, not coloured — signal hues are semantic */
+.rail-action[data-weight="destructive"]{
+  border-color:var(--rule-solid);
+  font-weight:var(--weight-semibold);
+}
+.rail-action[data-weight="destructive"]:disabled{border-color:var(--rule-hair);}
+
+/* ---------------------------------------------- ds-undo-strip
+   dec_3 copy, dec_4 timing (base in, base out, 8s, no countdown).
+*/
+.ds-undo-strip{
+  display:flex;
+  align-items:center;
+  gap:var(--space-snug);
+  max-width:100%;
+  padding:var(--space-tight) var(--space-snug);
+  background:var(--surface-raised);
+  border-radius:var(--radius-sm);
+  font-size:var(--type-ui);
+  color:var(--ink-primary);
+  white-space:nowrap;
+  overflow:hidden;
+}
+.ds-undo-strip[data-state="entering"],
+.ds-undo-strip[data-state="leaving"]{opacity:0;}
+.ds-undo-strip[data-state="entering"]{transform:translateY(calc(var(--space-tight) * -1));}
+.ds-undo-strip[data-state="visible"]{
+  opacity:1;
+  transform:translateY(var(--zero));
+  transition:opacity var(--dur-base) var(--ease-standard),
+             transform var(--dur-base) var(--ease-standard);
+}
+.ds-undo-strip[data-state="leaving"]{
+  transition:opacity var(--dur-base) var(--ease-exit);
+}
+.undo-text{overflow:hidden;text-overflow:ellipsis;}
+.undo-button{
+  /* 44px hit area that does not grow the rail — dec_1 forbids the rail
+     changing height and shifting the queue under the reviewer's cursor. */
+  min-height:var(--hit-min);
+  margin-block:calc(var(--space-tight) * -1);
+  padding:var(--zero) var(--space-snug);
+  font-family:inherit;
+  font-size:var(--type-ui);
+  font-weight:var(--weight-medium);
+  color:var(--ink-primary);
+  background:none;
+  border:var(--border-hair) solid var(--rule-solid);
+  border-radius:var(--radius-sm);
+  cursor:pointer;
+}
+
+/* ---------------------------------------------- column strip */
+.queue-columns{
+  display:grid;
+  grid-template-columns:var(--gutter-select) minmax(var(--zero),1fr) var(--col-status);
+  align-items:center;
+  gap:var(--space-snug);
+  min-height:var(--hit-min);
+  padding-inline:var(--space-loose);
+  border-left:var(--border-mark) solid transparent;
+  border-bottom:var(--border-hair) solid var(--rule-hair);
+}
+.queue-columns .ds-select-cell{margin-block:var(--zero);}
+.column-label{
+  font-size:var(--type-ui);
+  color:var(--ink-secondary);
+  padding-block:var(--space-tight);
+}
+
+/* ---------------------------------------------- ds-queue-row */
+.queue-list{
+  list-style:none;
+  margin:var(--zero);
+  padding:var(--zero);
+}
+.ds-queue-row{
+  display:grid;
+  grid-template-columns:var(--gutter-select) minmax(var(--zero),1fr) var(--col-status);
+  align-items:start;
+  gap:var(--space-snug);
+  padding-block:var(--space-snug);
+  padding-inline:var(--space-loose);
+  border-left:var(--border-mark) solid transparent;
+  border-bottom:var(--border-hair) solid var(--rule-hair);
+  background:var(--surface-base);
+  /* MOTION-selection-is-instant: no transition on this background, ever. */
+}
+.ds-queue-row[data-variant="compact"]{padding-block:var(--space-tight);}
+.ds-queue-row:hover,
+.ds-queue-row:focus-within{background:var(--surface-recessed);}
+.ds-queue-row[data-selected="true"]{
+  background:var(--surface-recessed);
+  border-left-color:var(--ink-primary);
+}
+.ds-queue-row[data-disabled="true"]{
+  color:var(--ink-faint);
+  pointer-events:none;
+}
+
+.row-body{min-width:var(--zero);}
+.row-excerpt{
+  margin:var(--zero);
+  font-size:var(--type-ui-dense);
+  color:var(--ink-primary);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.row-meta{
+  margin:var(--space-hair) var(--zero) var(--zero);
+  font-size:var(--type-ui-dense);
+  color:var(--ink-secondary);
+  display:flex;
+  gap:var(--space-tight);
+  align-items:baseline;
+}
+.ds-queue-row[data-variant="compact"] .row-meta{display:none;}
+.meta-id,.meta-time{
+  font-family:var(--font-mono);
+  font-variant-numeric:tabular-nums;
+}
+.meta-sep{color:var(--ink-faint);}
+.row-status{justify-self:start;}
+
+/* ---------------------------------------------- ds-select-cell
+   dec_5 — 40px gutter, 44px hit area that overflows it vertically.
+*/
+.ds-select-cell{
+  position:relative;
+  display:grid;
+  place-items:center;
+  width:var(--gutter-select);
+  height:var(--hit-min);
+  /* the 44px hit area overflows the row's own padding without widening the
+     40px gutter — dec_5 */
+  margin-block:calc(var(--space-snug) * -1);
+  border-radius:var(--radius-sm);
+  cursor:pointer;
+}
+.ds-queue-row[data-variant="compact"] .ds-select-cell{
+  margin-block:calc(var(--space-tight) * -1);
+}
+.ds-select-cell:has(input:focus-visible){
+  outline:var(--focus-width) solid var(--focus-ring);
+  outline-offset:var(--focus-offset);
+}
+.ds-select-cell input{
+  position:absolute;
+  inset:var(--zero);
+  width:100%;
+  height:100%;
+  margin:var(--zero);
+  opacity:0;
+  cursor:pointer;
+}
+.ds-select-cell input:disabled{cursor:default;}
+.select-box{
+  width:var(--check-box);
+  height:var(--check-box);
+  display:grid;
+  place-items:center;
+  border:var(--border-hair) solid var(--ink-secondary);
+  border-radius:var(--radius-sm);
+  background:var(--surface-base);
+  pointer-events:none;
+}
+.ds-select-cell:hover .select-box{border-color:var(--ink-primary);}
+.ds-select-cell input:checked ~ .select-box,
+.ds-select-cell input:indeterminate ~ .select-box{
+  background:var(--ink-primary);
+  border-color:var(--ink-primary);
+}
+.ds-select-cell input:checked ~ .select-box::after{
+  content:"";
+  width:var(--check-w);
+  height:var(--check-h);
+  border-left:var(--border-mark) solid var(--surface-base);
+  border-bottom:var(--border-mark) solid var(--surface-base);
+  transform:translateY(calc(var(--space-hair) / -2)) rotate(-45deg);
+}
+.ds-select-cell input:indeterminate ~ .select-box::after{
+  content:"";
+  width:var(--check-w);
+  height:var(--zero);
+  border-bottom:var(--border-mark) solid var(--surface-base);
+}
+.ds-select-cell input:disabled ~ .select-box{
+  border-color:var(--ink-faint);
+  background:var(--surface-base);
+}
+.select-cell-label{
+  font-size:var(--type-ui);
+  color:var(--ink-secondary);
+}
+
+/* ---------------------------------------------- ds-status-pill
+   dec_2 — outlined pill, signal hue border, ink-primary text.
+   Text label is mandatory (A11Y-status-never-colour-alone).
+*/
+.ds-status-pill{
+  display:inline-block;
+  padding:var(--zero) var(--space-tight);
+  font-size:var(--type-ui-dense);
+  line-height:calc(var(--type-ui-lead) + var(--space-hair));
+  color:var(--ink-primary);
+  background:var(--surface-base);
+  border:var(--border-hair) solid var(--rule-solid);
+  border-radius:var(--radius-sm);
+  white-space:nowrap;
+}
+.ds-status-pill[data-variant="flagged"]{border-color:var(--signal-flag);}
+.ds-status-pill[data-variant="held"]{border-color:var(--signal-hold);}
+.ds-status-pill[data-variant="cleared"]{border-color:var(--signal-clear);}
+
+/* ---------------------------------------------- ds-load-more
+   dec_load_more — explicit button, appends, exhausted terminal.
+*/
+.load-more-region{
+  padding:var(--space-base) var(--space-loose) var(--space-slack);
+}
+.ds-load-more{
+  min-height:var(--hit-min);
+  padding:var(--zero) var(--space-base);
+  font-family:inherit;
+  font-size:var(--type-ui);
+  font-weight:var(--weight-medium);
+  color:var(--ink-primary);
+  background:var(--surface-base);
+  border:var(--border-hair) solid var(--rule-hair);
+  border-radius:var(--radius-sm);
+  cursor:pointer;
+  transition:background-color var(--dur-snap) var(--ease-standard),
+             border-color var(--dur-snap) var(--ease-standard);
+}
+.ds-load-more:hover:not(:disabled){
+  background:var(--surface-recessed);
+  border-color:var(--rule-solid);
+}
+.ds-load-more[data-state="loading"]{color:var(--ink-secondary);cursor:default;}
+.ds-load-more[data-state="exhausted"]{
+  color:var(--ink-faint);
+  border-color:var(--rule-hair);
+  cursor:default;
+}
+
+/* ---------------------------------------------- ds-empty-rest
+   An inert well. Two variants, and they never say the same thing.
+*/
+.ds-empty-rest{
+  margin:var(--zero) var(--space-loose) var(--space-slack);
+  padding:var(--space-slack) var(--space-loose);
+  background:var(--surface-sunken);
+  border:var(--border-hair) solid var(--rule-hair);
+  border-radius:var(--radius-sm);
+}
+.empty-line{
+  margin:var(--zero);
+  font-size:var(--type-ui);
+  color:var(--ink-secondary);
+  font-variant-numeric:tabular-nums;
+}
+.empty-action{
+  margin-top:var(--space-snug);
+  min-height:var(--hit-min);
+  padding:var(--zero) var(--space-base);
+  font-family:inherit;
+  font-size:var(--type-ui);
+  font-weight:var(--weight-medium);
+  color:var(--ink-primary);
+  background:var(--surface-base);
+  border:var(--border-hair) solid var(--rule-solid);
+  border-radius:var(--radius-sm);
+  cursor:pointer;
+}
+
+.is-hidden{display:none !important;}
+
+.visually-hidden{
+  position:absolute;
+  width:var(--border-hair);
+  height:var(--border-hair);
+  margin:calc(var(--border-hair) * -1);
+  padding:var(--zero);
+  overflow:hidden;
+  clip-path:inset(50%);
+  white-space:nowrap;
+}
+
+/* MOTION-reduced-motion-honoured — movement goes, the signal stays. */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    transition-duration:var(--zero) !important;
+    animation-duration:var(--zero) !important;
+    animation-iteration-count:1 !important;
+  }
+  .ds-undo-strip[data-state="entering"]{transform:none;}
+}
+</style>
+</head>
+<body>
+
+<main class="console">
+
+  <header class="console-head">
+    <h1 class="console-title">Kettle</h1>
+    <p class="console-shift">Reviewer <span class="meta-id">r-2041</span> · shift 09:00–15:00</p>
+  </header>
+
+  <div class="queue-head">
+    <h2 class="queue-heading" id="queue-heading">Review queue</h2>
+    <span class="queue-total" data-total>20 in queue</span>
+  </div>
+
+  <!-- dec_rail_before_list: the rail precedes the list in DOM order. -->
+  <div class="ds-action-rail" data-ds="ds-action-rail" data-state="idle">
+    <p class="rail-count" aria-live="polite"><span data-count>0</span> selected</p>
+    <div class="rail-slot" data-undo-slot></div>
+    <div class="rail-actions">
+      <button type="button" class="rail-action" data-action="hold" disabled>Hold</button>
+      <button type="button" class="rail-action" data-action="clear" disabled>Clear</button>
+      <!-- dec_destructive_label is CONTESTED (ops: "Reject" / legal: "Remove").
+           Shipped as "Reject" with the conflict surfaced in NOTES.md, not silently
+           resolved. Flip DESTRUCTIVE_LABEL below to change it in one place. -->
+      <button type="button" class="rail-action" data-action="reject" data-weight="destructive"
+              data-contested="dec_destructive_label" disabled>Reject</button>
+    </div>
+  </div>
+
+  <div class="queue-columns" data-columns>
+    <label class="ds-select-cell" data-ds="ds-select-cell" data-role="page">
+      <input type="checkbox" data-select-page aria-label="Select page">
+      <span class="select-box" aria-hidden="true"></span>
+    </label>
+    <span class="column-label">Select page</span>
+    <span class="column-label">Status</span>
+  </div>
+
+  <ul class="queue-list" data-list aria-labelledby="queue-heading"></ul>
+
+  <div class="load-more-region" data-load-region>
+    <button type="button" class="ds-load-more" data-ds="ds-load-more" data-state="idle" data-load-more>Load more</button>
+  </div>
+
+  <div data-empty-slot></div>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  /* dec_destructive_label is contested. One constant, one place to flip it. */
+  var DESTRUCTIVE_LABEL = "Reject";
+  var DESTRUCTIVE_PAST  = "rejected";
+
+  var PAGE1 = [
+    { id:"K-4471", at:"09:02", author:"@noor_h",   excerpt:"shipping delays again, third week running", status:"flagged" },
+    { id:"K-4472", at:"09:04", author:"@dvsg",     excerpt:"link in bio for the full list",             status:"held"    },
+    { id:"K-4473", at:"09:07", author:"@mara.p",   excerpt:"anyone else getting this error on upload",  status:"cleared" },
+    { id:"K-4474", at:"09:11", author:"@tt_ronin", excerpt:"reposting since it got taken down",         status:"flagged" },
+    { id:"K-4475", at:"09:12", author:"@quietkiln",excerpt:"the receipts are in the thread",            status:"flagged" },
+    { id:"K-4476", at:"09:15", author:"@halcy0n",  excerpt:"DM me if you want the discount code",       status:"held"    },
+    { id:"K-4477", at:"09:19", author:"@b_orchard",excerpt:"not sure this belongs here but",            status:"cleared" },
+    { id:"K-4478", at:"09:23", author:"@sm1th",    excerpt:"same account, new handle",                  status:"flagged" },
+    { id:"K-4479", at:"09:26", author:"@tessel",   excerpt:"screenshots attached, timestamps intact",   status:"cleared" },
+    { id:"K-4480", at:"09:31", author:"@nvrmnd_",  excerpt:"last warning before I escalate",            status:"flagged" },
+    { id:"K-4481", at:"09:33", author:"@pol_ax",   excerpt:"cross-posted from the other board",         status:"held"    },
+    { id:"K-4482", at:"09:38", author:"@wren.k",   excerpt:"closing the loop on this one",              status:"cleared" }
+  ];
+
+  var PAGE2 = [
+    { id:"K-4483", at:"09:41", author:"@oddment",  excerpt:"the policy page says otherwise",            status:"flagged" },
+    { id:"K-4484", at:"09:44", author:"@lune_",    excerpt:"adding context in the replies",             status:"cleared" },
+    { id:"K-4485", at:"09:47", author:"@gravl",    excerpt:"third report on this account today",        status:"flagged" },
+    { id:"K-4486", at:"09:49", author:"@itsfine",  excerpt:"escalating per the runbook",                status:"held"    },
+    { id:"K-4487", at:"09:52", author:"@porthole9",excerpt:"duplicate of K-4474",                       status:"flagged" },
+    { id:"K-4488", at:"09:55", author:"@andesite", excerpt:"no action needed, closing",                 status:"cleared" },
+    { id:"K-4489", at:"09:58", author:"@tinct",    excerpt:"requesting a second reviewer",              status:"held"    },
+    { id:"K-4490", at:"10:02", author:"@vellum_",  excerpt:"attaching the original submission",         status:"cleared" }
+  ];
+
+  var STATUS_LABEL = { flagged:"Flagged", held:"Held", cleared:"Cleared" };
+
+  var params  = new URLSearchParams(location.search);
+  var forced  = params.get("state");            /* no-results | no-queue */
+  var density = params.get("density") === "compact" ? "compact" : "default";
+
+  var state = {
+    rows: forced === "no-queue" ? [] : PAGE1.map(function (r) { return Object.assign({}, r); }),
+    page: forced === "no-queue" ? 2 : 1,
+    filtered: forced === "no-results",          /* a filter that matched nothing */
+    selected: new Set(),
+    lastAction: null
+  };
+
+  var el = {
+    list:       document.querySelector("[data-list]"),
+    columns:    document.querySelector("[data-columns]"),
+    rail:       document.querySelector(".ds-action-rail"),
+    count:      document.querySelector("[data-count]"),
+    total:      document.querySelector("[data-total]"),
+    selectPage: document.querySelector("[data-select-page]"),
+    loadRegion: document.querySelector("[data-load-region]"),
+    loadMore:   document.querySelector("[data-load-more]"),
+    undoSlot:   document.querySelector("[data-undo-slot]"),
+    emptySlot:  document.querySelector("[data-empty-slot]"),
+    actions:    Array.prototype.slice.call(document.querySelectorAll("[data-action]"))
+  };
+
+  document.querySelector('[data-action="reject"]').textContent = DESTRUCTIVE_LABEL;
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c];
+    });
+  }
+
+  /* Rows the reviewer can currently see. The simulated filter matches nothing. */
+  function visibleRows() { return state.filtered ? [] : state.rows; }
+
+  function rowMarkup(row) {
+    var checked = state.selected.has(row.id) ? " checked" : "";
+    return '' +
+      '<li class="ds-queue-row" data-ds="ds-queue-row" data-id="' + esc(row.id) + '"' +
+          ' data-variant="' + density + '" data-selected="' + (checked ? "true" : "false") + '">' +
+        '<label class="ds-select-cell" data-ds="ds-select-cell">' +
+          '<input type="checkbox" data-row-select="' + esc(row.id) + '"' + checked +
+                 ' aria-label="Select ' + esc(row.id) + '">' +
+          '<span class="select-box" aria-hidden="true"></span>' +
+        '</label>' +
+        '<div class="row-body">' +
+          '<p class="row-excerpt">' + esc(row.excerpt) + '</p>' +
+          '<p class="row-meta">' +
+            '<span class="meta-id">' + esc(row.id) + '</span>' +
+            '<span class="meta-sep" aria-hidden="true">·</span>' +
+            '<span class="meta-time">' + esc(row.at) + '</span>' +
+            '<span class="meta-sep" aria-hidden="true">·</span>' +
+            '<span class="meta-author">' + esc(row.author) + '</span>' +
+          '</p>' +
+        '</div>' +
+        '<span class="row-status">' +
+          '<span class="ds-status-pill" data-ds="ds-status-pill" data-variant="' + esc(row.status) + '">' +
+            STATUS_LABEL[row.status] +
+          '</span>' +
+        '</span>' +
+      '</li>';
+  }
+
+  function emptyMarkup(variant) {
+    if (variant === "no-results") {
+      return '<div class="ds-empty-rest" data-ds="ds-empty-rest" data-variant="no-results">' +
+               '<p class="empty-line">0 matches.</p>' +
+               '<button type="button" class="empty-action" data-clear-filter>Clear filter</button>' +
+             '</div>';
+    }
+    return '<div class="ds-empty-rest" data-ds="ds-empty-rest" data-variant="no-queue">' +
+             '<p class="empty-line">Queue empty.</p>' +
+           '</div>';
+  }
+
+  function render() {
+    var rows = visibleRows();
+    var empty = rows.length === 0;
+
+    el.list.innerHTML = rows.map(rowMarkup).join("");
+    el.emptySlot.innerHTML = empty ? emptyMarkup(state.filtered ? "no-results" : "no-queue") : "";
+
+    el.list.classList.toggle("is-hidden", empty);
+    el.columns.classList.toggle("is-hidden", empty);
+    el.loadRegion.classList.toggle("is-hidden", empty);
+
+    el.total.textContent = state.rows.length + " in queue";
+
+    /* dec_indeterminate_header — tri-state, partial never renders unchecked. */
+    var pageSelected = rows.filter(function (r) { return state.selected.has(r.id); }).length;
+    el.selectPage.checked = rows.length > 0 && pageSelected === rows.length;
+    el.selectPage.indeterminate = pageSelected > 0 && pageSelected < rows.length;
+    el.selectPage.disabled = rows.length === 0;
+
+    var n = state.selected.size;
+    el.count.textContent = String(n);
+    el.rail.setAttribute("data-state", n > 0 ? "armed" : "idle");
+    el.actions.forEach(function (b) { b.disabled = n === 0; });
+  }
+
+  /* ---------------- selection ---------------- */
+
+  el.list.addEventListener("change", function (e) {
+    var input = e.target.closest("[data-row-select]");
+    if (!input) return;
+    var id = input.getAttribute("data-row-select");
+    if (input.checked) state.selected.add(id); else state.selected.delete(id);
+    render();
+  });
+
+  el.selectPage.addEventListener("change", function () {
+    var rows = visibleRows();
+    var all = rows.every(function (r) { return state.selected.has(r.id); });
+    rows.forEach(function (r) {
+      if (all) state.selected.delete(r.id); else state.selected.add(r.id);
+    });
+    render();
+  });
+
+  /* ---------------- bulk actions ----------------
+     dec_no_confirm_modal — apply immediately, reverse through ds-undo-strip. */
+
+  function snapshot() {
+    return {
+      rows: state.rows.map(function (r) { return Object.assign({}, r); }),
+      selected: Array.from(state.selected)
+    };
+  }
+
+  function applyAction(kind) {
+    var ids = new Set(state.selected);
+    if (ids.size === 0) return;
+    var before = snapshot();
+    var n = 0;
+
+    if (kind === "reject") {
+      state.rows = state.rows.filter(function (r) {
+        if (ids.has(r.id)) { n++; return false; }
+        return true;
+      });
+    } else {
+      var next = kind === "hold" ? "held" : "cleared";
+      state.rows.forEach(function (r) { if (ids.has(r.id)) { r.status = next; n++; } });
+    }
+
+    state.selected.clear();
+    state.lastAction = {
+      before: before,
+      verb: kind === "hold" ? "held" : kind === "clear" ? "cleared" : DESTRUCTIVE_PAST,
+      count: n
+    };
+    render();
+    showUndo();
+  }
+
+  el.actions.forEach(function (b) {
+    b.addEventListener("click", function () { applyAction(b.getAttribute("data-action")); });
+  });
+
+  /* ---------------- ds-undo-strip ----------------
+     dec_3 copy: "<count> <verb>. Undo".  dec_4: 160ms in/out, 8s, no countdown. */
+
+  var undoTimer = null;
+  var leaveTimer = null;
+
+  function clearUndo() {
+    if (undoTimer) { clearTimeout(undoTimer); undoTimer = null; }
+    if (leaveTimer) { clearTimeout(leaveTimer); leaveTimer = null; }
+    el.undoSlot.innerHTML = "";
+  }
+
+  function showUndo() {
+    clearUndo();
+    var a = state.lastAction;
+    el.undoSlot.innerHTML =
+      '<div class="ds-undo-strip" data-ds="ds-undo-strip" data-state="entering" role="status">' +
+        '<span class="undo-text">' + a.count + " " + esc(a.verb) + '.</span>' +
+        '<button type="button" class="undo-button" data-undo>Undo</button>' +
+      '</div>';
+    var strip = el.undoSlot.firstChild;
+    requestAnimationFrame(function () { strip.setAttribute("data-state", "visible"); });
+
+    undoTimer = setTimeout(function () {
+      strip.setAttribute("data-state", "leaving");
+      leaveTimer = setTimeout(function () { clearUndo(); state.lastAction = null; }, 160);
+    }, 8000);
+  }
+
+  el.undoSlot.addEventListener("click", function (e) {
+    if (!e.target.closest("[data-undo]") || !state.lastAction) return;
+    state.rows = state.lastAction.before.rows;
+    state.selected = new Set(state.lastAction.before.selected);
+    state.lastAction = null;
+    clearUndo();
+    render();
+  });
+
+  /* ---------------- ds-load-more ----------------
+     dec_load_more + dec_selection_persists — append, keep selection, new rows unselected. */
+
+  el.loadMore.addEventListener("click", function () {
+    if (el.loadMore.getAttribute("data-state") !== "idle") return;
+    el.loadMore.setAttribute("data-state", "loading");
+    el.loadMore.textContent = "Loading";
+    el.loadMore.disabled = true;
+
+    setTimeout(function () {
+      state.rows = state.rows.concat(PAGE2.map(function (r) { return Object.assign({}, r); }));
+      state.page = 2;
+      el.loadMore.setAttribute("data-state", "exhausted");
+      el.loadMore.textContent = "End of queue";
+      render();
+    }, 260);
+  });
+
+  /* ---------------- empty-state filter reset ---------------- */
+
+  el.emptySlot.addEventListener("click", function (e) {
+    if (!e.target.closest("[data-clear-filter]")) return;
+    state.filtered = false;
+    if (state.rows.length === 0) {
+      state.rows = PAGE1.map(function (r) { return Object.assign({}, r); });
+      state.page = 1;
+    }
+    render();
+  });
+
+  if (state.page === 2) {
+    el.loadMore.setAttribute("data-state", "exhausted");
+    el.loadMore.textContent = "End of queue";
+    el.loadMore.disabled = true;
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>

@@ -45,3 +45,6 @@ dist/
 
 # decision-store runtime consultation trace (it52) — not source of truth
 .raven/decisions/consultations.jsonl
+
+# Personal taste-store snapshots captured for pre-gate experiments (public repo)
+.claude/pregate-*/round*/taste/

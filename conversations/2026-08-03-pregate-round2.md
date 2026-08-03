@@ -377,3 +377,384 @@ overriding the project's own falsifier).
 - `217543e` emphasis-ramp guard + 7 tests. Suite 1165 / 1162 pass / 0 fail / 3 skipped.
 - Neither pushed. `217543e` touches `src/`, which since the 2026-07-27 unpin rebuilds the live
   mcp.ravenmcp.ai endpoint — human-gated.
+
+---
+
+## Window 13 — Andrew's call, the §13 amendment, and the round-4 fixture
+
+### Decisions taken (AskUserQuestion, disambiguating "do both")
+- **§13: amend, then re-run on a harder task.** Nothing is deleted. `compose_build_prompt`
+  stays alive, on probation.
+- **Taste snapshot: gitignore it.** `round3/taste/` stays on disk, never reaches the public
+  repo. `.gitignore` entry + `git rm --cached -r` (the auto-save hook had already staged it).
+
+### §13 amended — `docs/spec-pattern-library.md:555`
+Original clause kept verbatim (rounds 1–3 were run against it), superseded by four conditions:
+1. The task must be one the agent **cannot do cold** — it must turn on facts that exist only in
+   this project's stores. A pattern with a well-known canonical shape is disqualified by
+   construction. This is round 3's diagnosed failure mode, not a post-hoc excuse.
+2. **Three arms.** A = composed, B1 = the literal §13 one-liner, B2 = a generous one-liner
+   granting every Raven tool. **A must beat B2**, not merely B1. A beating B1 while tying B2
+   means the composer is a convenience wrapper — a delete on different grounds.
+3. **The endpoint must be shown able to fail** before it is trusted, and δ is pre-registered
+   against the endpoint's demonstrated range, not its nominal scale.
+4. **Equivalence still fires the delete.** What changed is that "no better on a task where
+   better was impossible" no longer counts as having run the gate.
+
+### Round-4 fixture — `.claude/pregate-2026-08-02/round4/`
+"Kettle", an internal T&S moderation console. Deliberately project-specific throughout.
+
+- `arena/DESIGN.md` — 4-step **depth** ramp (recessed is the row hover, darker than the page),
+  5 type steps with no 18/24, 7 `ds-*` components with real names.
+- `arena/.raven/decisions/nodes.json` — 7 decisions, 6 active with `alternatives_rejected[]`,
+  1 **contested** (`dec_destructive_label`: Reject vs Remove, T&S ops vs legal).
+- `taste/kettle.{json,surfaces,decisions}.json` — 18 rules, 1 binding, 5 dimension decisions.
+
+### Three things that were checked rather than assumed
+1. **`get_taste_profile` returns `surfaces`** (src/index.ts:7335). So `design_notes` and
+   `voice_note` reach EVERY arm — they are not discriminators, and the amendment's condition 1
+   was wrong to imply they were. The Decision Graph and `list_taste_decisions` carry the load.
+2. **`decision_list` with no `status` calls `listActiveDecisions()`** (src/index.ts:7011);
+   `include_candidates` adds candidates, not contested. The contested decision is genuinely
+   unreachable on the default path. Asserted in `verify-fixture.mjs`, not assumed. This is the
+   sharpest A-vs-B2 discriminator.
+3. **The leak check found a real leak and a false positive.** The binding's `layout` note said
+   "the action rail sits above the list in normal flow" — that handed `dec_rail_position` to
+   every arm; removed. And a `/40px/` detector was matching `--space-slack: 40px`, a legitimate
+   token; tightened, and T5 reframed to measure the *stability of the text edge*, which cannot
+   be hit by guessing a token value.
+
+### Pre-registration — `round4/PREREGISTRATION.md`
+3 arms, n=6, 18 builds. Primary = 13 checks (D1–D8 from the Decision Graph, T1–T5 from
+`list_taste_decisions`), all verified absent from every B1-reachable source. 8 controls reported
+separately as a manipulation check, never merged. δ = ±1.5 on a 13-point scale, derived from the
+demonstrated range. Explicit **inconclusive** branch, bounded: one more round, then delete.
+
+Stated deviations rather than quiet drops: no blind judge panel (round-2 test-retest r ≈ 0; round-3
+residual 74.6%), no `inventory_design_system`/`diff_design_system` leg (`read_design_md` already
+returns the inventory, so it would be a manufactured discriminator), no human forced-choice anchor
+(21% power).
+
+Also recorded: **A > B1 is expected by construction** — the primary is built from B1-unreachable
+facts — so it is a fixture manipulation check, not evidence. A vs B2 decides.
+
+### Harness — `round4/measure.mjs`
+21 Playwright checks. Validated against two purpose-built fixtures before any build runs:
+`fixtures/conformant/` → **21/21**, `fixtures/defective/` → **0/21**. First run, both exact.
+Mutation testing in progress (18 single-defect mutants) — a harness that scores its own reference
+implementation 21/21 proves very little on its own.
+
+Harness bugs caught during construction: C7 was matching a substring of the `transition` shorthand
+(now parses the longhand arrays); T4 reconstructed elapsed time from a hardcoded 2.25s offset (now
+stamps `performance.now()` in-page at the click); C8 measured hidden controls inside pre-rendered
+empty states and would have failed every build that has them (now visible-only, with a ≥4 floor so
+a build cannot pass by hiding everything).
+
+### Carried forward
+- Run the mutation matrix, then derive arm A's composed prompt, seal `SEALED-ASSIGNMENT-R4.md`,
+  run 18 builds.
+- Uncommitted: `.gitignore`, `docs/spec-pattern-library.md` (§13 amendment), all of `round4/`.
+- Still unpushed: `d6aef1a`, `8df47bb`, `ab46ec8`, `217543e`, `9cbfc12`. `217543e` touches `src/`
+  → human-gated.
+- **UNVERIFIED, flagged:** the round-2 ablation arrays quoted earlier in this log were
+  reconstructed from memory, not read from `round2/raw/`. Not data.
+
+## Window 14 — arm A composed, round 4 sealed and running
+
+**The premise I carried in was wrong, and it changed the round for the better.**
+`compose_build_prompt` is **built** — `src/reference-prompt.ts` (50KB), registered at
+`src/index.ts:2943`, `readOnly` in `TOOL_ACCESS`. I had it recorded as spec-only. So arm A
+is the real tool's real output, not a hand-derived reconstruction, which closes the biggest
+soft spot rounds 1–3 all had: nobody can say I graded my own paraphrase of the tool.
+
+### Step 3 — arm A (`COMPOSED-PROMPT.md`, `ARM-A-PROMPT.md`, `compose4.mjs`)
+
+`compose_build_prompt` called against the fixture stores via `RAVEN_TASTE_HOME` /
+`RAVEN_DECISIONS_HOME`. Andrew's live `~/.raven` untouched. **Three independent runs, one
+hash** — `9861b70f…`, 52 lines. Resolved: 29 tokens, 7 components, `binding_resolved:true`,
+6 active decisions consulted, `dec_destructive_label` routed into `## Gaps` as an open
+question. Called **without** a skeleton on purpose — round 4 copies no reference, so the
+grounding-half branch is the honest one.
+
+**Composer property found while checking, recorded pre-data.** The prompt never states a
+decision's *chosen position* — only its rejected alternatives plus rationale
+(`src/reference-prompt.ts:920-921`) — and it **silently drops any active decision with an
+empty `alternatives_rejected[]`**. That is a §9 template gap, not an implementation slip:
+there is no output section for a chosen position. Checked rather than assumed: all six
+active fixture decisions carry 2–3 rejections, so nothing is dropped here. And all 13
+primary checks were traced line-by-line to arm A's text *before* the round, so a low arm-A
+score cannot later be waved away as an unreachable endpoint.
+
+### Step 4 — sealed (`SEALED-ASSIGNMENT-R4.md`, `SEAL-HASHES.txt`)
+
+Seeded Fisher–Yates, run once, 6/6/6, opaque build ids. Hashes recorded at seal time.
+
+**`raven-cli.mjs` — the B arms needed tool access they did not have.** The session's MCP
+server resolves its taste store from `~/.raven`, which has no `kettle` profile, so a B-arm
+agent calling `get_taste_profile` would have got "not found" and had no tools at all. The
+shim runs the same registered handlers against the fixture stores. **The arm restriction is
+enforced in the shim, not in the builder's prompt** — B1 gets exactly the three tools §13
+names and nothing else; `compose_build_prompt` is denied to both B arms.
+
+**B2 is the stronger arm on paper, deliberately.** Verified through the shim: `decision_list`
+hands B2 each decision's full `statement` — the chosen position outright — where arm A only
+gets rejections and must infer. `list_taste_decisions` gives it all five dimension decisions
+in full text. The single thing B2 must think to ask for is the contested decision:
+`decision_list {}` returns the six active ones and hides `dec_destructive_label`; only
+`{"status":"contested"}` surfaces it. So on 12 of 13 checks B2 has the *more direct* access.
+
+### Step 5 — running
+
+18 prompts generated (`make-prompts.mjs`); task body confirmed byte-identical across arms.
+Builds dispatched 4 at a time per the sealed protocol. Builder model deliberately left at
+the session model — round 3's diagnosis turns on what an Opus-class agent knows cold, so
+changing the builder tier would change the thing being measured.
+
+### Pre-data validation completed this window
+
+- `analyze4.mjs` written **before** any result existed; **all four decision branches fired
+  correctly** on synthetic data (PASS / equivalence / inferior / inconclusive).
+- `tstat.mjs` reused verbatim from round 3; self-check passes on five published t values.
+- `leak-check.mjs` written; its LCS **matches brute force on 400 random cases**. It looks
+  for a build that transcribed the conformant fixture or another build — the prose "don't
+  read the answer key" instruction measured rather than trusted.
+
+### Carried forward
+
+1. Finish the 18 builds, then `measure.mjs` → `leak-check.mjs` → `analyze4.mjs` → `VERDICT-R4.md`.
+2. Sol falsification pass over the analysis before any of it reaches Andrew.
+3. Commit the round-4 tree + `.gitignore` + the §13 amendment — all still uncommitted.
+4. Push decision on `d6aef1a`, `8df47bb`, `ab46ec8`, `217543e`, `9cbfc12` — Andrew's call;
+   `217543e` touches `src/` so it is human-gated.
+5. **UNVERIFIED, still flagged:** the round-2 ablation arrays were reconstructed from
+   memory, never read from `round2/raw/`. Not data.
+
+### Window 15 — arm integrity, and a near-miss on the fixture store
+
+**Dispatch state at checkpoint:** b01–b12 dispatched. Complete: b01–b08. In flight: b09,
+b10, b11, b12. Not yet dispatched: b13–b18. Cap held at 4 throughout, per the sealed
+protocol.
+
+**No build score has been read.** §8 forbids it until all 18 exist, and `analyze4.mjs` now
+refuses to run on a partial file (exit 1, names the missing ids).
+
+#### Arm integrity is measured, not asserted
+
+Subagents inherit this session's MCP config, so a builder could have called
+`mcp__raven__*` directly against Andrew's real `~/.raven` store and bypassed
+`raven-cli.mjs` and its arm restriction entirely. `arm-integrity.mjs` parses each agent's
+JSONL for actual `tool_use` blocks and counts them.
+
+The first version of that check was worthless: `grep -o 'mcp__raven__[a-z_]*'` matched the
+*deferred-tool listing in every agent's system prompt*, so it returned ~105 tool names for
+every build including arm A, which has no tools at all. Parsing the JSONL was the fix.
+
+Second correction: b08 (B1) was flagged for calling `__list__`. That is the
+deliberately-bad-tool-name probe the shim explicitly invites ("Run it with a bad tool name
+to see the list"). Probe names are now excluded, and a **BREACH** (going around the shim)
+is separated from a **refused reach** (asking the shim and being told no — the gate
+working).
+
+Result across the six builds checked so far:
+
+```
+b01 [A ]  mcp=0  cli=0                                    arm intact
+b02 [B2]  mcp=0  cli=10   reached for and was refused: compose_build_prompt
+b03 [A ]  mcp=0  cli=0                                    arm intact
+b04 [B2]  mcp=0  cli=12   reached for and was refused: compose_build_prompt
+b06 [B1]  mcp=0  cli=3  (read_design_md, get_taste_profile)
+b08 [B1]  mcp=0  cli=8  (read_design_md, get_taste_profile, audit_taste)
+```
+
+`mcp=0` everywhere — nobody went around the shim. Arm A used zero tools. B1 stayed inside
+its three. **Both completed B2 builds reached for `compose_build_prompt` and were refused
+in code.** That is the payoff for enforcing the arm restriction in `raven-cli.mjs` rather
+than in prose, and it is a reportable finding whichever way the round lands.
+
+#### Near-miss: b04 called `decision_scope` against the fixture store
+
+`decision_scope` is classified **destructive**. Checked immediately rather than after the
+round: the store mtimes are 13:12–13:16, which predate every build, and
+`verify-fixture.mjs` still reports `FIXTURE OK`. **No mutation occurred.**
+
+Chose detection over prevention. `chmod`-ing the store read-only mid-round would change
+the conditions the first eleven builds ran under, which is exactly what the
+pre-registration exists to prevent. Instead `STORE-BASELINE.txt` now pins every input:
+
+```
+8f991eee…  arena/.raven/decisions/edges.json
+0f416aea…  arena/.raven/decisions/nodes.json
+c8d5ee85…  taste/kettle.decisions.json
+59b8d15c…  taste/kettle.json
+80d93ea9…  taste/kettle.surfaces.json
+221c6b0c…  arena/DESIGN.md
+```
+
+Re-verifying these after build 18 proves all 18 read an identical store. If they moved, the
+round is void — and it will say so rather than being quietly rationalised.
+
+`agent-map.txt` records the agent-id → build-id mapping so the integrity check can be
+re-run over the full set at the end.
+
+#### An asymmetry, disclosed rather than corrected
+
+`inventory_design_system` and `diff_design_system` throw ENOENT on `project_dir` when a
+project has no `.raven/design-system-source.json` (`src/design-system-diff.ts:41-43`). The
+composer catches that and falls back; the raw tools do not. That favours arm A. B2 still
+has a working path via `design_file_path` — verified through the shim, returns full
+inventory and diff — so it costs B2 one failed call, not the capability. Recorded in
+PREREGISTRATION Amendment 3 and deliberately left in place; changing the fixture mid-round
+is the worse sin.
+
+#### Carried forward (supersedes the previous list)
+
+1. Dispatch b13–b18, refilling to the cap of 4.
+2. `measure.mjs builds /tmp/r4-scores.json` → `leak-check.mjs` → `arm-integrity.mjs` over
+   all 18 → re-verify `STORE-BASELINE.txt` → `analyze4.mjs` → `VERDICT-R4.md`.
+3. Sol falsification pass over the analysis before any of it reaches Andrew.
+4. Commit the round-4 tree + `.gitignore` + the §13 amendment — all still uncommitted.
+5. Push decision on `d6aef1a`, `8df47bb`, `ab46ec8`, `217543e`, `9cbfc12` — Andrew's call;
+   `217543e` touches `src/` so it is human-gated.
+6. **UNVERIFIED, still flagged:** the round-2 ablation arrays were reconstructed from
+   memory, never read from `round2/raw/`. Not data.
+
+---
+
+## Window 16 — round 4 completed, measured, falsified, and found INVALID
+
+### The headline
+
+**Round 4 does not bear on §13.** It ran cleanly to 18/18, the arithmetic is correct, and
+the verdict it produces is worthless, because **the arms were never isolated**. All six
+arm-A builds read `round4/arena/DESIGN.md` off disk. Arm A was therefore not "the composed
+prompt alone" — it was "the composed prompt plus the design system". The contrast the round
+exists to measure did not exist.
+
+That is a design error of mine, not builder misconduct. Details in §4 below.
+
+### Run completion
+
+18/18 builds, no re-runs, no failures. Fixture store hashed identically at three points:
+before dispatch, twelve builds in, and after all eighteen (`STORE-BASELINE.txt`). Zero MCP
+`tool_use` blocks in any namespace across all 18 transcripts — the shim held; four of six
+B2 builds reached for `compose_build_prompt` and were refused in code.
+
+Leak check: no build is a >3sd lexical outlier against the answer key. Two build-pairs
+tripped the 12-gram Jaccard threshold; `inspect-pair.mjs` (written to print the literal
+longest common substring rather than argue about a number) showed both share only the 12
+seed rows handed verbatim to every builder in `TASK.md`. Dispositioned, not suppressed.
+
+### Pre-registered result (reported, not decisive)
+
+| arm | n | mean | sd | scores |
+|---|---|---|---|---|
+| A | 6 | 10.83 | 0.41 | 11, 11, 11, 10, 11, 11 |
+| B2 | 6 | 9.67 | 3.27 | 6, 12, 12, 12, 5, 11 |
+| B1 | 6 | 9.33 | 1.86 | 10, 10, 11, 7, 7, 11 |
+
+A−B2 = +1.17, Welch 95% CI [−2.26, +4.59], se 1.344, df 5.16 → INCONCLUSIVE. A−B1 = +1.50
+[−0.45, +3.45]. Controls: A−B2 −0.33 [−1.30, +0.64]; A−B1 −0.50 [−1.51, +0.51].
+
+The one non-obvious pattern: arm A's sd is **0.41** against B2's **3.27**. A never fell
+below 10; B2 produced two 5s and two 12s. If the composer buys anything it looks like floor,
+not ceiling — and n=6 against sd 3.3 cannot resolve that. Round 5 should pre-register the
+endpoint that matches the claim.
+
+### My own harness bug, found by reading failures rather than code
+
+`measure.mjs:262` T2 requires the pill background be `rgba(0,0,0,0)`, `transparent`, or
+equal to the parent's. The taste decision it scores says the pill is *"a 1px border in the
+signal hue with --ink-primary text **on --surface-base**"*. `--surface-base` is `#0e1113`,
+an opaque colour. **The literally-correct rendering scores FAIL.** The check encodes
+"transparent" where the source says "on --surface-base".
+
+`measure.mjs` was NOT edited — it verifies against the seal and stays the harness of record.
+`posthoc-t2.mjs` re-opens all 18 builds and reports both scorings side by side: A 0/6 → 0/6,
+B1 6/6 → 6/6, **B2 0/6 → 6/6**. So the bug had been *favouring the tool*. Corrected, Δ falls
+to +0.17 [−3.26, +3.59] — still inconclusive.
+
+### The arm-isolation failure
+
+Sol's objection 8 named a gap in `arm-integrity.mjs`: it inspects MCP `tool_use` blocks and
+`raven-cli.mjs` invocations, and never asks whether a builder simply **read the fixture files
+from the shell**. I wrote `arm-integrity2.mjs` to close it. The trick is stripping shim
+invocations before grepping, so a legitimate `raven-cli.mjs B2 read_design_md '{"path":...}'`
+is not counted as a raw read of its own argument.
+
+| arm | out of arm |
+|---|---|
+| **A** | **6 of 6** — all read `arena/DESIGN.md`; b01, b07 also read `.raven/decisions/nodes.json` |
+| **B1** | **4 of 6** — b12, b16, b17 read `nodes.json`; b10 enumerated and sized it |
+| B2 | 0 (full surface — a direct read is redundant with what it could fetch) |
+
+**The ground rules permitted it.** `make-prompts.mjs:65-71` says *"Do not read anything under
+this round's directory other than what you are pointed at above"* and its "Specifically:"
+list names only `fixtures/`, `measure.mjs`, `PREREGISTRATION.md`, and other `builds/`. And
+`ARM-A-PROMPT.md:3` — the composer's own output — cites the DESIGN.md path. So the treatment
+told the builder where the file was and the rules said pointed-at material was fair game.
+
+This is the "enforce gates in the engine, not in prose" rule failing in my own harness, in a
+round built to test rigour. The B2 arm restriction *was* enforced in code and held perfectly
+across 18 builds; the arm-A information boundary was prose and broke 6/6.
+
+**What it does and does not contaminate:** `DESIGN.md` carries tokens and the component
+inventory but **not** the taste decisions — the pill-outline and undo-copy rules live in
+`taste/kettle.decisions.json`, which no arm-A build read. So T2/T3 are not explained by the
+breach. The token/structure checks are. I am not re-analysing around it; dropping checks
+after seeing scores is the laundering the pre-registration exists to prevent.
+
+### Sol falsification pass — 9 objections, 3 FATAL, "would not sign"
+
+All nine sustained in whole or part, each dispositioned individually in `VERDICT-R4.md` §3.
+The ones that changed the document:
+
+- **OBJ2 (FATAL)** — `ARM-A-PROMPT.md:2` reads *"…call compose_build_prompt again with it as
+  `skeleton` — this response is the grounding half only."* Arm A was handed a prompt that
+  declares itself incomplete and instructs a second call the arm had no tools to make.
+- **OBJ3 (FATAL)** — seal verifies OK for `TASK.md`, `measure.mjs`, `ARM-A-PROMPT.md`,
+  `SEALED-ASSIGNMENT-R4.md`, `raven-cli.mjs`, `compose4.mjs`. `PREREGISTRATION.md` FAILS
+  (three appended amendments — and the seal cannot tell an append from a rewrite of §5).
+  `analyze4.mjs` was never sealed. Nothing is committed, so provenance is assertion.
+- **OBJ4 (MATERIAL)** — `COMPOSED-PROMPT.md:79-102`, written *before* the data, graded all
+  13 checks reachable and concluded *"the endpoint measures the composer, not a hole in it."*
+  My first verdict draft then claimed the 0/6 results **confirmed a predicted defect**. They
+  did the opposite: they **falsified my own pre-round judgement**, which had counted
+  inference-from-a-rejection as reachability. Corrected in writing.
+- **OBJ1** — verified live: `analyze4.mjs:44-45` returns PASS before testing equivalence, so
+  an interval like [+0.5, +1.2] satisfies both branches and silently reports PASS. Did not
+  bind this round; must be made mutually exclusive.
+- **OBJ5** — verified live: T3's `/^\d+\s+\w+\.\s*Undo$/i` accepts `"3 items. Undo"`. It
+  enforces neither past tense nor the no-"items" rule `PREREGISTRATION.md:79` claims for it.
+  Also true: `posthoc-t2.mjs` used a broader pill selector than `measure.mjs`. Unresolved.
+- **OBJ8** — its stated mechanism (a `mcp__claude_ai_Raven_MCP__*` bypass) is **refuted**:
+  zero such blocks exist. Its *other* half found the round-invalidating breach.
+
+The general lesson, worth keeping: **the objection that mattered was refuted on its stated
+mechanism and correct about the underlying gap.** Verifying it away on the mechanism alone
+would have shipped an invalid round as a result.
+
+### What survives
+
+A narrow, verified code defect, independent of this round: `src/reference-prompt.ts:914-921`
+emits only `alternatives_rejected` + `rationale`, has no field for a decision's chosen
+position, and `continue`s past any active decision with an empty `alternatives_rejected[]`.
+True by reading. The evidence that it *costs* something is suggestive and uncontrolled.
+
+### Carried forward (supersedes the previous list)
+
+1. **Ask Andrew the probation-clock question.** `PREREGISTRATION.md:5` fires the delete after
+   a second inconclusive round. Round 4 was **invalid**, for a reason unrelated to the
+   tool's performance. Whether that burns a slot is unspecified and is his call — my
+   recommendation (it should not) is self-serving by construction.
+2. Commit the round-4 tree + `.gitignore` + `docs/spec-pattern-library.md` — still 81 staged
+   additions, zero history.
+3. Push decision on `d6aef1a`, `8df47bb`, `ab46ec8`, `217543e`, `9cbfc12`; `217543e` touches
+   `src/` so it is human-gated.
+4. Round 5 requirements, if there is one: isolate arms **mechanically** (per-build worktree
+   or a fixture store outside the round tree); decide what arm A *is* (drive both composer
+   calls, or test the grounding half on purpose and say so); seal `analyze4.mjs`; commit the
+   pre-registration to git before the first build; fix T2 and T3 before sealing; make the
+   decision branches mutually exclusive; fold the shell-read check into the integrity script.
+5. `/revisit` retrospective still owed (clear `conversations/PROMOTION-QUEUE.md` first).
+6. **UNVERIFIED, still flagged:** the round-2 ablation arrays were reconstructed from memory,
+   never read from `round2/raw/`. Not data.

@@ -1,0 +1,783 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review queue — Kettle</title>
+<style>
+  :root {
+    /* --- Kettle design system tokens (DESIGN.md front matter) --- */
+    --surface-base: #0e1113;
+    --surface-raised: #171b1e;
+    --surface-recessed: #0a0c0e;
+    --surface-sunken: #060809;
+    --ink-primary: #e8eaec;
+    --ink-secondary: #9aa3a9;
+    --ink-faint: #5f686e;
+    --rule-hair: #242a2e;
+    --rule-solid: #39424a;
+    --signal-flag: #d4573a;
+    --signal-hold: #c08a2e;
+    --signal-clear: #4a8f6d;
+    --focus-ring: #6ea8d8;
+
+    --type-ui-dense: 13px;
+    --type-ui: 14px;
+    --type-ui-lead: 16px;
+    --type-section: 20px;
+    --type-page: 28px;
+
+    --space-hair: 2px;
+    --space-tight: 6px;
+    --space-snug: 10px;
+    --space-base: 16px;
+    --space-loose: 24px;
+    --space-slack: 40px;
+
+    --duration-snap: 90ms;
+    --duration-base: 160ms;
+    --duration-settle: 260ms;
+    --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+    /* --- local extensions: values the system needs but does not name --- */
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --rule-width: 1px;
+    --radius-max: 3px;
+    --hit-min: 44px;
+    --gutter-select: var(--space-slack);
+    --check-box: 16px;
+    --check-tick-w: 5px;
+    --check-tick-h: 9px;
+    --line-dense: 1.35;
+    --line-ui: 1.45;
+    --load-more-min: 13ch;
+    --filter-width: 28ch;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { color-scheme: dark; }
+
+  body {
+    margin: 0;
+    background: var(--surface-base);
+    color: var(--ink-primary);
+    font-family: var(--font-ui);
+    font-size: var(--type-ui);
+    line-height: var(--line-ui);
+  }
+
+  /* Focus is always visible, never removed. ds-select-cell declares the same ring
+     on its own control below. */
+  button:focus-visible,
+  input[type="search"]:focus-visible {
+    outline: var(--space-hair) solid var(--focus-ring);
+    outline-offset: var(--space-hair);
+  }
+
+  /* ---------- page head ---------- */
+
+  .page-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-loose);
+    padding: var(--space-loose);
+    border-bottom: var(--rule-width) solid var(--rule-solid);
+  }
+
+  .page-title {
+    margin: 0;
+    font-size: var(--type-page);
+    font-weight: 600;
+    line-height: var(--line-dense);
+  }
+
+  .page-count {
+    margin: var(--space-tight) 0 0;
+    font-size: var(--type-ui);
+    color: var(--ink-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .queue-filter {
+    display: flex;
+    align-items: center;
+    gap: var(--space-snug);
+  }
+
+  .queue-filter label {
+    font-size: var(--type-ui);
+    color: var(--ink-secondary);
+  }
+
+  .queue-filter input {
+    min-height: var(--hit-min);
+    width: var(--filter-width);
+    padding: 0 var(--space-snug);
+    background: var(--surface-recessed);
+    border: var(--rule-width) solid var(--rule-solid);
+    border-radius: var(--radius-max);
+    color: var(--ink-primary);
+    font-family: var(--font-ui);
+    font-size: var(--type-ui);
+  }
+
+  .queue-filter input::placeholder { color: var(--ink-faint); }
+
+  /* ---------- ds-action-rail ---------- */
+
+  .ds-action-rail {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-loose);
+    min-height: var(--hit-min);
+    padding: var(--space-snug) var(--space-loose);
+    border-bottom: var(--rule-width) solid var(--rule-solid);
+  }
+
+  .rail-count {
+    margin: 0;
+    font-size: var(--type-ui-lead);
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ds-action-rail[data-state="armed"] .rail-count { color: var(--ink-primary); }
+
+  .rail-actions {
+    display: flex;
+    gap: var(--space-snug);
+  }
+
+  .rail-action,
+  .rest-action,
+  .undo-action,
+  .ds-load-more {
+    min-height: var(--hit-min);
+    padding: 0 var(--space-base);
+    background: var(--surface-base);
+    color: var(--ink-primary);
+    border: var(--rule-width) solid var(--rule-solid);
+    border-radius: var(--radius-max);
+    font-family: var(--font-ui);
+    font-size: var(--type-ui);
+    cursor: pointer;
+  }
+
+  .rail-action:hover,
+  .rest-action:hover,
+  .undo-action:hover,
+  .ds-load-more:hover { background: var(--surface-recessed); }
+
+  .rail-action[disabled],
+  .ds-load-more[disabled] {
+    color: var(--ink-faint);
+    border-color: var(--rule-hair);
+    background: var(--surface-base);
+    cursor: default;
+  }
+
+  /* ---------- ds-undo-strip (reserved slot: the queue never shifts) ---------- */
+
+  .undo-slot {
+    min-height: calc(var(--hit-min) + var(--space-hair));
+    padding: 0 var(--space-loose);
+    display: flex;
+    align-items: center;
+  }
+
+  .ds-undo-strip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-base);
+    padding: 0 var(--space-snug) 0 var(--space-base);
+    min-height: var(--hit-min);
+    background: var(--surface-raised);
+    border: var(--rule-width) solid var(--rule-solid);
+    border-radius: var(--radius-max);
+    font-size: var(--type-ui);
+    transition: opacity var(--duration-base) var(--ease-standard),
+                transform var(--duration-base) var(--ease-standard);
+  }
+
+  .ds-undo-strip[data-state="entering"] { opacity: 0; transform: translateY(-4px); }
+  .ds-undo-strip[data-state="visible"] { opacity: 1; transform: none; }
+  .ds-undo-strip[data-state="leaving"] {
+    opacity: 0;
+    transform: translateY(-4px);
+    transition-timing-function: var(--ease-exit);
+  }
+
+  .undo-text { font-variant-numeric: tabular-nums; }
+
+  .undo-action { padding: 0 var(--space-snug); }
+
+  /* ---------- list head ---------- */
+
+  .queue-head {
+    display: grid;
+    grid-template-columns: var(--gutter-select) 1fr;
+    align-items: center;
+    column-gap: var(--space-snug);
+    padding: 0 var(--space-loose);
+    border-bottom: var(--rule-width) solid var(--rule-hair);
+  }
+
+  .queue-head label {
+    font-size: var(--type-ui);
+    color: var(--ink-secondary);
+    cursor: pointer;
+  }
+
+  /* ---------- ds-select-cell ---------- */
+
+  .ds-select-cell {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: var(--gutter-select);
+    height: var(--hit-min);
+  }
+
+  .ds-select-cell input {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: var(--hit-min);
+    height: var(--hit-min);
+    margin: 0;
+    appearance: none;
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+
+  .ds-select-cell .box {
+    pointer-events: none;   /* the input owns the whole hit area */
+    width: var(--check-box);
+    height: var(--check-box);
+    border: var(--rule-width) solid var(--rule-solid);
+    border-radius: var(--radius-max);
+    background: var(--surface-recessed);
+    position: relative;
+  }
+
+  .ds-select-cell input:hover + .box { border-color: var(--ink-secondary); }
+
+  /* The ring sits on the control itself, so it describes the real hit area. */
+  .ds-select-cell input:focus-visible {
+    outline: var(--space-hair) solid var(--focus-ring);
+    outline-offset: var(--space-hair);
+  }
+
+  .ds-select-cell input:focus-visible + .box { border-color: var(--ink-secondary); }
+
+  .ds-select-cell input:checked + .box::after {
+    content: "";
+    position: absolute;
+    left: var(--space-tight);
+    top: var(--space-hair);
+    width: var(--check-tick-w);
+    height: var(--check-tick-h);
+    border: solid var(--ink-primary);
+    border-width: 0 var(--space-hair) var(--space-hair) 0;
+    transform: rotate(45deg);
+  }
+
+  .ds-select-cell input:indeterminate + .box::after {
+    content: "";
+    position: absolute;
+    left: var(--space-hair);
+    top: var(--space-tight);
+    width: var(--space-snug);
+    height: var(--space-hair);
+    background: var(--ink-primary);
+  }
+
+  .ds-select-cell input:checked + .box,
+  .ds-select-cell input:indeterminate + .box { border-color: var(--ink-secondary); }
+
+  /* ---------- ds-queue-row ---------- */
+
+  .queue-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .ds-queue-row {
+    display: grid;
+    grid-template-columns: var(--gutter-select) 1fr auto;
+    align-items: center;
+    column-gap: var(--space-snug);
+    padding: var(--space-tight) var(--space-loose);
+    border-bottom: var(--rule-width) solid var(--rule-hair);
+    font-size: var(--type-ui-dense);
+    line-height: var(--line-dense);
+  }
+
+  .ds-queue-row:hover { background: var(--surface-recessed); }
+  .ds-queue-row:focus-within { background: var(--surface-recessed); }
+  .ds-queue-row[data-selected="true"] { background: var(--surface-recessed); }
+
+  .ds-queue-row[data-selected="true"] .row-excerpt { color: var(--ink-primary); }
+
+  .row-body { min-width: 0; }
+
+  .row-excerpt {
+    margin: 0;
+    color: var(--ink-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .row-meta {
+    margin: 0;
+    color: var(--ink-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ds-queue-row[data-variant="compact"] .row-meta { display: none; }
+
+  /* ---------- ds-status-pill ---------- */
+
+  .ds-status-pill {
+    display: inline-block;
+    padding: 0 var(--space-tight);
+    background: var(--surface-base);
+    color: var(--ink-primary);
+    border: var(--rule-width) solid var(--rule-solid);
+    border-radius: var(--radius-max);
+    font-size: var(--type-ui-dense);
+    line-height: var(--line-ui);
+    white-space: nowrap;
+  }
+
+  .ds-status-pill[data-variant="flagged"] { border-color: var(--signal-flag); }
+  .ds-status-pill[data-variant="held"] { border-color: var(--signal-hold); }
+  .ds-status-pill[data-variant="cleared"] { border-color: var(--signal-clear); }
+
+  /* ---------- ds-load-more ---------- */
+
+  .load-more-slot {
+    padding: var(--space-base) var(--space-loose) var(--space-slack);
+  }
+
+  .ds-load-more {
+    min-width: var(--load-more-min);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- ds-empty-rest ---------- */
+
+  .ds-empty-rest {
+    background: var(--surface-sunken);
+    padding: var(--space-slack) var(--space-loose);
+    border-bottom: var(--rule-width) solid var(--rule-hair);
+  }
+
+  .rest-head {
+    margin: 0;
+    font-size: var(--type-section);
+    line-height: var(--line-dense);
+  }
+
+  .rest-body {
+    margin: var(--space-tight) 0 0;
+    font-size: var(--type-ui);
+    color: var(--ink-secondary);
+  }
+
+  .ds-empty-rest .rest-action { margin-top: var(--space-base); }
+
+  .hidden { display: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ds-undo-strip { transition: none; }
+    .ds-undo-strip[data-state="entering"],
+    .ds-undo-strip[data-state="leaving"] { transform: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="page-head">
+    <div>
+      <h1 class="page-title">Review queue</h1>
+      <p class="page-count" id="queue-count">12 in queue</p>
+    </div>
+    <div class="queue-filter">
+      <label for="filter-input">Filter</label>
+      <input id="filter-input" type="search" autocomplete="off" placeholder="id, handle, text, status">
+    </div>
+  </header>
+
+  <!-- ds-action-rail precedes the list in DOM order (dec_rail_before_list) and stays
+       in normal flow above it (dec_rail_position). Full height in idle (kettle dec_1). -->
+  <div class="ds-action-rail" data-ds="ds-action-rail" data-state="idle">
+    <p class="rail-count" id="selection-count" aria-live="polite">0 selected</p>
+    <div class="rail-actions">
+      <button type="button" class="rail-action" data-action="hold" disabled>Hold</button>
+      <button type="button" class="rail-action" data-action="clear" disabled>Clear</button>
+      <button type="button" class="rail-action" data-action="reject" data-contested="dec_destructive_label" disabled>Reject</button>
+    </div>
+  </div>
+
+  <!-- Reserved slot: the undo strip never shifts the queue when it appears. -->
+  <div class="undo-slot" id="undo-slot"></div>
+
+  <div class="queue-head">
+    <span class="ds-select-cell" data-ds="ds-select-cell" data-scope="page">
+      <input type="checkbox" id="select-all">
+      <span class="box" aria-hidden="true"></span>
+    </span>
+    <label for="select-all">Select all visible</label>
+  </div>
+
+  <ul class="queue-list" id="queue-list"></ul>
+
+  <div id="empty-slot"></div>
+
+  <div class="load-more-slot">
+    <button type="button" class="ds-load-more" data-ds="ds-load-more" data-state="idle" id="load-more">Load more</button>
+  </div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var PAGE1 = [
+    { id: "K-4471", submitted: "09:02", author: "@noor_h",    excerpt: "shipping delays again, third week running", status: "flagged" },
+    { id: "K-4472", submitted: "09:04", author: "@dvsg",      excerpt: "link in bio for the full list",            status: "held" },
+    { id: "K-4473", submitted: "09:07", author: "@mara.p",    excerpt: "anyone else getting this error on upload", status: "cleared" },
+    { id: "K-4474", submitted: "09:11", author: "@tt_ronin",  excerpt: "reposting since it got taken down",        status: "flagged" },
+    { id: "K-4475", submitted: "09:12", author: "@quietkiln", excerpt: "the receipts are in the thread",           status: "flagged" },
+    { id: "K-4476", submitted: "09:15", author: "@halcy0n",   excerpt: "DM me if you want the discount code",      status: "held" },
+    { id: "K-4477", submitted: "09:19", author: "@b_orchard", excerpt: "not sure this belongs here but",           status: "cleared" },
+    { id: "K-4478", submitted: "09:23", author: "@sm1th",     excerpt: "same account, new handle",                 status: "flagged" },
+    { id: "K-4479", submitted: "09:26", author: "@tessel",    excerpt: "screenshots attached, timestamps intact",  status: "cleared" },
+    { id: "K-4480", submitted: "09:31", author: "@nvrmnd_",   excerpt: "last warning before I escalate",           status: "flagged" },
+    { id: "K-4481", submitted: "09:33", author: "@pol_ax",    excerpt: "cross-posted from the other board",        status: "held" },
+    { id: "K-4482", submitted: "09:38", author: "@wren.k",    excerpt: "closing the loop on this one",             status: "cleared" }
+  ];
+
+  var PAGE2 = [
+    { id: "K-4483", submitted: "09:41", author: "@oddment",   excerpt: "the policy page says otherwise",   status: "flagged" },
+    { id: "K-4484", submitted: "09:44", author: "@lune_",     excerpt: "adding context in the replies",    status: "cleared" },
+    { id: "K-4485", submitted: "09:47", author: "@gravl",     excerpt: "third report on this account today", status: "flagged" },
+    { id: "K-4486", submitted: "09:49", author: "@itsfine",   excerpt: "escalating per the runbook",       status: "held" },
+    { id: "K-4487", submitted: "09:52", author: "@porthole9", excerpt: "duplicate of K-4474",              status: "flagged" },
+    { id: "K-4488", submitted: "09:55", author: "@andesite",  excerpt: "no action needed, closing",        status: "cleared" },
+    { id: "K-4489", submitted: "09:58", author: "@tinct",     excerpt: "requesting a second reviewer",     status: "held" },
+    { id: "K-4490", submitted: "10:02", author: "@vellum_",   excerpt: "attaching the original submission", status: "cleared" }
+  ];
+
+  var LABEL = { flagged: "Flagged", held: "Held", cleared: "Cleared" };
+  var PAST = { hold: "held", clear: "cleared", reject: "rejected" };
+  var UNDO_MS = 8000;          // dec_4: 8s, no countdown, no progress bar
+  var FETCH_MS = 260;          // simulated page fetch, held to --duration-settle
+
+  var listEl = document.getElementById("queue-list");
+  var emptyEl = document.getElementById("empty-slot");
+  var railEl = document.querySelector(".ds-action-rail");
+  var countEl = document.getElementById("selection-count");
+  var queueCountEl = document.getElementById("queue-count");
+  var selectAllEl = document.getElementById("select-all");
+  var loadMoreEl = document.getElementById("load-more");
+  var filterEl = document.getElementById("filter-input");
+  var undoSlot = document.getElementById("undo-slot");
+
+  var params = new URLSearchParams(location.search);
+  var rowVariant = params.get("variant") === "compact" ? "compact" : "default";
+
+  var rows = PAGE1.slice().map(function (r) { return Object.assign({}, r); });
+  var selected = new Set();
+  var exhausted = false;
+  var lastAction = null;
+  var undoTimer = null;
+  var undoEl = null;
+
+  // Dev controls for the two rest states (see NOTES.md).
+  if (params.get("state") === "empty") { rows = []; exhausted = true; }
+  if (params.get("page") === "2") { appendPage2(); }
+  var initialFilter = params.get("state") === "no-results" ? "zzz" : (params.get("filter") || "");
+  filterEl.value = initialFilter;
+
+  function filterText() { return filterEl.value.trim().toLowerCase(); }
+
+  function matches(row) {
+    var q = filterText();
+    if (!q) return true;
+    return (row.id + " " + row.author + " " + row.excerpt + " " + row.status).toLowerCase().indexOf(q) !== -1;
+  }
+
+  function visible() { return rows.filter(matches); }
+
+  function buildRow(row) {
+    var li = document.createElement("li");
+    li.className = "ds-queue-row";
+    li.setAttribute("data-ds", "ds-queue-row");
+    li.setAttribute("data-id", row.id);
+    li.setAttribute("data-variant", rowVariant);
+    li.setAttribute("data-status", row.status);
+    li.setAttribute("data-selected", selected.has(row.id) ? "true" : "false");
+
+    var cell = document.createElement("span");
+    cell.className = "ds-select-cell";
+    cell.setAttribute("data-ds", "ds-select-cell");
+
+    var box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = selected.has(row.id);
+    box.setAttribute("aria-label", "Select " + row.id);
+    box.addEventListener("change", function () {
+      if (box.checked) selected.add(row.id); else selected.delete(row.id);
+      li.setAttribute("data-selected", box.checked ? "true" : "false");
+      syncSelection();
+    });
+
+    var mark = document.createElement("span");
+    mark.className = "box";
+    mark.setAttribute("aria-hidden", "true");
+
+    cell.appendChild(box);
+    cell.appendChild(mark);
+
+    var body = document.createElement("div");
+    body.className = "row-body";
+
+    var excerpt = document.createElement("p");
+    excerpt.className = "row-excerpt";
+    excerpt.textContent = row.excerpt;
+
+    var meta = document.createElement("p");
+    meta.className = "row-meta";
+    meta.textContent = row.id + " · " + row.submitted + " · " + row.author;
+
+    body.appendChild(excerpt);
+    body.appendChild(meta);
+
+    var pill = document.createElement("span");
+    pill.className = "ds-status-pill";
+    pill.setAttribute("data-ds", "ds-status-pill");
+    pill.setAttribute("data-variant", row.status);
+    pill.textContent = LABEL[row.status];
+
+    li.appendChild(cell);
+    li.appendChild(body);
+    li.appendChild(pill);
+    return li;
+  }
+
+  function buildRest(variant) {
+    var wrap = document.createElement("div");
+    wrap.className = "ds-empty-rest";
+    wrap.setAttribute("data-ds", "ds-empty-rest");
+    wrap.setAttribute("data-variant", variant);
+
+    var head = document.createElement("p");
+    head.className = "rest-head";
+    var body = document.createElement("p");
+    body.className = "rest-body";
+
+    if (variant === "no-results") {
+      head.textContent = "0 matches";
+      body.textContent = rows.length + " in queue. Filter: " + filterEl.value.trim();
+      wrap.appendChild(head);
+      wrap.appendChild(body);
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "rest-action";
+      btn.textContent = "Clear filter";
+      btn.addEventListener("click", function () {
+        filterEl.value = "";
+        render();
+        filterEl.focus();
+      });
+      wrap.appendChild(btn);
+    } else {
+      head.textContent = "Queue empty";
+      body.textContent = "0 items awaiting review.";
+      wrap.appendChild(head);
+      wrap.appendChild(body);
+    }
+    return wrap;
+  }
+
+  function render() {
+    var shown = visible();
+
+    listEl.textContent = "";
+    var frag = document.createDocumentFragment();
+    shown.forEach(function (row) { frag.appendChild(buildRow(row)); });
+    listEl.appendChild(frag);
+
+    emptyEl.textContent = "";
+    if (rows.length === 0) {
+      emptyEl.appendChild(buildRest("no-queue"));
+    } else if (shown.length === 0) {
+      emptyEl.appendChild(buildRest("no-results"));
+    }
+
+    queueCountEl.textContent = filterText()
+      ? shown.length + " of " + rows.length + " shown"
+      : rows.length + " in queue";
+
+    syncSelection();
+  }
+
+  function syncSelection() {
+    var n = selected.size;
+    countEl.textContent = n + " selected";
+    railEl.setAttribute("data-state", n > 0 ? "armed" : "idle");
+    document.querySelectorAll(".rail-action").forEach(function (b) { b.disabled = n === 0; });
+
+    var shown = visible();
+    var picked = shown.filter(function (r) { return selected.has(r.id); }).length;
+    selectAllEl.checked = shown.length > 0 && picked === shown.length;
+    selectAllEl.indeterminate = picked > 0 && picked < shown.length;
+    selectAllEl.disabled = shown.length === 0;
+    selectAllEl.setAttribute("aria-label", "Select all visible (" + shown.length + ")");
+  }
+
+  selectAllEl.addEventListener("change", function () {
+    var on = selectAllEl.checked;
+    visible().forEach(function (r) { if (on) selected.add(r.id); else selected.delete(r.id); });
+    listEl.querySelectorAll(".ds-queue-row").forEach(function (li) {
+      var input = li.querySelector("input[type=checkbox]");
+      input.checked = on;
+      li.setAttribute("data-selected", on ? "true" : "false");
+    });
+    syncSelection();
+  });
+
+  filterEl.addEventListener("input", render);
+
+  /* ---------- bulk actions: apply immediately, reverse with ds-undo-strip (dec_no_confirm_modal) ---------- */
+
+  document.querySelectorAll(".rail-action").forEach(function (btn) {
+    btn.addEventListener("click", function () { apply(btn.getAttribute("data-action")); });
+  });
+
+  function apply(kind) {
+    if (selected.size === 0) return;
+
+    var affected = rows.filter(function (r) { return selected.has(r.id); });
+    if (affected.length === 0) return;
+
+    var undo;
+    if (kind === "reject") {
+      var removed = [];
+      rows.forEach(function (r, i) { if (selected.has(r.id)) removed.push({ index: i, row: r }); });
+      rows = rows.filter(function (r) { return !selected.has(r.id); });
+      undo = function () {
+        removed.forEach(function (entry) { rows.splice(entry.index, 0, entry.row); });
+      };
+    } else {
+      var target = kind === "hold" ? "held" : "cleared";
+      var before = affected.map(function (r) { return { row: r, status: r.status }; });
+      affected.forEach(function (r) { r.status = target; });
+      undo = function () {
+        before.forEach(function (entry) { entry.row.status = entry.status; });
+      };
+    }
+
+    var n = affected.length;
+    selected.clear();
+    lastAction = { verb: PAST[kind], count: n, undo: undo };
+    render();
+    showUndo();
+  }
+
+  /* ---------- ds-undo-strip ---------- */
+
+  function reduced() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function showUndo() {
+    clearUndo(true);
+    var strip = document.createElement("div");
+    strip.className = "ds-undo-strip";
+    strip.setAttribute("data-ds", "ds-undo-strip");
+    strip.setAttribute("data-state", "entering");
+    strip.setAttribute("role", "status");
+
+    var text = document.createElement("span");
+    text.className = "undo-text";
+    text.textContent = lastAction.count + " " + lastAction.verb + ".";
+
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "undo-action";
+    btn.textContent = "Undo";
+    btn.addEventListener("click", function () {
+      if (lastAction) { lastAction.undo(); lastAction = null; }
+      clearUndo(true);
+      render();
+    });
+
+    strip.appendChild(text);
+    strip.appendChild(btn);
+    undoSlot.appendChild(strip);
+    undoEl = strip;
+
+    void strip.offsetWidth;
+    strip.setAttribute("data-state", "visible");
+
+    undoTimer = window.setTimeout(function () { clearUndo(false); }, UNDO_MS);
+  }
+
+  function clearUndo(immediate) {
+    if (undoTimer) { window.clearTimeout(undoTimer); undoTimer = null; }
+    var el = undoEl;
+    if (!el) return;
+    undoEl = null;
+    if (immediate || reduced()) { el.remove(); return; }
+    el.setAttribute("data-state", "leaving");
+    window.setTimeout(function () { el.remove(); }, 160);
+  }
+
+  /* ---------- ds-load-more (dec_load_more, dec_selection_persists) ---------- */
+
+  function appendPage2() {
+    PAGE2.forEach(function (r) { rows.push(Object.assign({}, r)); });
+    exhausted = true;
+  }
+
+  loadMoreEl.addEventListener("click", function () {
+    if (exhausted || loadMoreEl.getAttribute("data-state") === "loading") return;
+    loadMoreEl.setAttribute("data-state", "loading");
+    loadMoreEl.disabled = true;
+    loadMoreEl.textContent = "Loading…";
+    window.setTimeout(function () {
+      appendPage2();          // selection is untouched: appended rows arrive unselected
+      render();
+      syncLoadMore();
+    }, FETCH_MS);
+  });
+
+  function syncLoadMore() {
+    if (exhausted) {
+      loadMoreEl.setAttribute("data-state", "exhausted");
+      loadMoreEl.disabled = true;
+      loadMoreEl.textContent = "End of queue";
+    } else {
+      loadMoreEl.setAttribute("data-state", "idle");
+      loadMoreEl.disabled = false;
+      loadMoreEl.textContent = "Load more";
+    }
+  }
+
+  render();
+  syncLoadMore();
+})();
+</script>
+</body>
+</html>

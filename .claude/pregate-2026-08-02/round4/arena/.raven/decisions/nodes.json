@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "node_kind": "decision",
+      "id": "dec_rail_position",
+      "author": "kettle-team",
+      "statement": "The ds-action-rail is anchored ABOVE the queue list, in normal flow, and scrolls away with the page. It is not fixed, floating, or bottom-anchored.",
+      "rationale": "Reviewers work the bottom of a long queue. A bottom-floating bar occludes exactly the rows they are about to act on, and a fixed top bar steals 56px of the densest region on the screen.",
+      "rationale_missing": false,
+      "scope": "layout",
+      "component_ref": "kettle/queue/ds-action-rail",
+      "alternatives_rejected": [
+        "Bottom-anchored floating bar (the common pattern; occludes the rows under review)",
+        "Fixed/sticky top bar (permanently costs vertical density in a dense queue)",
+        "Right sidebar rail (breaks the row scan line)"
+      ],
+      "status": "active",
+      "superseded_by": null,
+      "created_at": "2026-06-11T00:00:00.000Z"
+    },
+    {
+      "node_kind": "decision",
+      "id": "dec_no_confirm_modal",
+      "author": "kettle-team",
+      "statement": "Destructive bulk actions apply IMMEDIATELY and are reversed through ds-undo-strip. There is no confirmation dialog anywhere in Kettle.",
+      "rationale": "Instrumented over six weeks: reviewers dismissed the confirmation dialog in a median of 380ms, i.e. without reading it, so it prevented nothing while costing roughly two seconds per action across ~200 actions a shift. Reversal after the fact is the control that actually works.",
+      "rationale_missing": false,
+      "scope": "interaction",
+      "component_ref": "kettle/queue/bulk-actions",
+      "alternatives_rejected": [
+        "Confirmation modal (measured ineffective: 380ms median dismissal)",
+        "Type-to-confirm for large selections (rejected: reviewers batch 50+ routinely)",
+        "Delayed apply with a countdown (rejected: blocks the next action)"
+      ],
+      "status": "active",
+      "superseded_by": null,
+      "created_at": "2026-06-11T00:00:00.000Z"
+    },
+    {
+      "node_kind": "decision",
+      "id": "dec_load_more",
+      "author": "kettle-team",
+      "statement": "The queue pages with an explicit ds-load-more button that appends to the existing list and has an exhausted terminal state.",
+      "rationale": "Selection must be able to span pages, and the reviewer must never lose scroll position mid-batch.",
+      "rationale_missing": false,
+      "scope": "interaction",
+      "component_ref": "kettle/queue/ds-load-more",
+      "alternatives_rejected": [
+        "Infinite scroll (loses scroll position after an action mutates the list)",
+        "Numbered pagination (selection cannot span pages)"
+      ],
+      "status": "active",
+      "superseded_by": null,
+      "created_at": "2026-06-18T00:00:00.000Z"
+    },
+    {
+      "node_kind": "decision",
+      "id": "dec_selection_persists",
+      "author": "kettle-team",
+      "statement": "Selection SURVIVES a ds-load-more fetch. Newly appended rows arrive unselected; already-selected rows stay selected.",
+      "rationale": "Reviewers assemble a batch across two or three pages before acting on it. Clearing on fetch silently discards their work.",
+      "rationale_missing": false,
+      "scope": "interaction",
+      "component_ref": "kettle/queue/ds-load-more",
+      "alternatives_rejected": [
+        "Clear selection on fetch (safer-looking, discards assembled batches)",
+        "Warn-and-clear (a dialog, which dec_no_confirm_modal forbids)"
+      ],
+      "status": "active",
+      "superseded_by": null,
+      "created_at": "2026-06-18T00:00:00.000Z"
+    },
+    {
+      "node_kind": "decision",
+      "id": "dec_rail_before_list",
+      "author": "kettle-team",
+      "statement": "ds-action-rail precedes the queue list in DOM order, so a keyboard reviewer reaches the bulk actions without tabbing through every row.",
+      "rationale": "A 50-row queue puts the bulk actions 50+ tab stops away if DOM order follows the eye. Visual order and DOM order agree here anyway, because the rail is above the list.",
+      "rationale_missing": false,
+      "scope": "accessibility",
+      "component_ref": "kettle/queue",
+      "alternatives_rejected": [
+        "Skip-link to the actions (an extra affordance to teach, for a problem ordering solves)",
+        "aria-flowto / positive tabindex reordering (fragile, unsupported)"
+      ],
+      "status": "active",
+      "superseded_by": null,
+      "created_at": "2026-06-25T00:00:00.000Z"
+    },
+    {
+      "node_kind": "decision",
+      "id": "dec_indeterminate_header",
+      "author": "kettle-team",
+      "statement": "The header ds-select-cell is tri-state. A partial selection renders INDETERMINATE, never unchecked.",
+      "rationale": "An unchecked header over a partial selection reads as 'nothing is selected' and has caused reviewers to re-select an already-assembled batch.",
+      "rationale_missing": false,
+      "scope": "interaction",
+      "component_ref": "kettle/queue/ds-select-cell",
+      "alternatives_rejected": [
+        "Two-state header plus a separate 'Select all N' link (two controls for one concept)",
+        "No header control at all"
+      ],
+      "status": "active",
+      "superseded_by": null,
+      "created_at": "2026-06-25T00:00:00.000Z"
+    },
+    {
+      "node_kind": "decision",
+      "id": "dec_destructive_label",
+      "author": "kettle-team",
+      "statement": "CONTESTED: the destructive bulk action's label. T&S ops want 'Reject' because it matches the policy taxonomy reviewers are trained on. Legal wants 'Remove' because it describes the effect on the content and is what appears in the user-facing notice.",
+      "rationale": "Unresolved. Both sides have a real constraint and neither has conceded. Do not pick one silently — surface it as an open question and let the humans close it.",
+      "rationale_missing": false,
+      "scope": "content",
+      "component_ref": "kettle/queue/ds-action-rail",
+      "alternatives_rejected": [],
+      "status": "contested",
+      "superseded_by": null,
+      "created_at": "2026-07-02T00:00:00.000Z"
+    }
+  ]
+}

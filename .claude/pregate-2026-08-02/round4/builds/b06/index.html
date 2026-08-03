@@ -1,0 +1,939 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kettle — review queue</title>
+<style>
+/* ------------------------------------------------------------------ */
+/* Tokens — DESIGN.md frontmatter, canonical machine names.            */
+/* ------------------------------------------------------------------ */
+:root {
+  --color-surface-base: #0e1113;
+  --color-surface-raised: #171b1e;
+  --color-surface-recessed: #0a0c0e;
+  --color-surface-sunken: #060809;
+  --color-ink-primary: #e8eaec;
+  --color-ink-secondary: #9aa3a9;
+  --color-ink-faint: #5f686e;
+  --color-rule-hair: #242a2e;
+  --color-rule-solid: #39424a;
+  --color-signal-flag: #d4573a;
+  --color-signal-hold: #c08a2e;
+  --color-signal-clear: #4a8f6d;
+  --color-focus-ring: #6ea8d8;
+
+  /* The DESIGN.md prose and every taste rule name these without the
+     `color-` prefix. Both spellings resolve to the same value. */
+  --surface-base: var(--color-surface-base);
+  --surface-raised: var(--color-surface-raised);
+  --surface-recessed: var(--color-surface-recessed);
+  --surface-sunken: var(--color-surface-sunken);
+  --ink-primary: var(--color-ink-primary);
+  --ink-secondary: var(--color-ink-secondary);
+  --ink-faint: var(--color-ink-faint);
+  --rule-hair: var(--color-rule-hair);
+  --rule-solid: var(--color-rule-solid);
+  --signal-flag: var(--color-signal-flag);
+  --signal-hold: var(--color-signal-hold);
+  --signal-clear: var(--color-signal-clear);
+  --focus-ring: var(--color-focus-ring);
+
+  --type-ui-dense: 13px;
+  --type-ui: 14px;
+  --type-ui-lead: 16px;
+  --type-section: 20px;
+  --type-page: 28px;
+
+  --space-hair: 2px;
+  --space-tight: 6px;
+  --space-snug: 10px;
+  --space-base: 16px;
+  --space-loose: 24px;
+  --space-slack: 40px;
+
+  --motion-duration-snap: 90ms;
+  --motion-duration-base: 160ms;
+  --motion-duration-settle: 260ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --motion-easing-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* ---- Project-local additions. DESIGN.md ships no token for these
+     three and the rules still require every value to come from one.
+     Flagged in NOTES.md. ---- */
+  --font-ui: ui-sans-serif, system-ui, sans-serif;
+  --rule-width: 1px;   /* hairline / region rule thickness */
+  --hit-min: 44px;     /* mandated minimum hit target */
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--surface-base);
+  color: var(--ink-primary);
+  font-family: var(--font-ui);
+  font-size: var(--type-ui);
+  line-height: 1.4;
+}
+
+:focus-visible {
+  outline: var(--space-hair) solid var(--focus-ring);
+  outline-offset: var(--space-hair);
+}
+
+input, button, select, textarea { font: inherit; }
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: var(--rule-width) solid transparent;
+  border-radius: var(--space-hair);
+  cursor: pointer;
+}
+button[disabled] { cursor: default; }
+
+/* ------------------------------------------------------------------ */
+/* Page frame                                                          */
+/* ------------------------------------------------------------------ */
+/* Bottom slack keeps the fixed ds-undo-strip from occluding the last row
+   when the queue is scrolled to its end. */
+.page { padding: 0 0 calc(var(--space-slack) * 3); }
+
+.page__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-loose);
+  padding: var(--space-loose) var(--space-loose) var(--space-base);
+}
+
+.page__title {
+  margin: 0;
+  font-size: var(--type-page);
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.page__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-loose);
+}
+
+.control { display: flex; align-items: center; gap: var(--space-snug); }
+.control__label { color: var(--ink-secondary); font-size: var(--type-ui); }
+
+.control__field {
+  width: calc(var(--space-slack) * 8);
+  min-height: var(--hit-min);
+  padding: 0 var(--space-snug);
+  font: inherit;
+  color: var(--ink-primary);
+  background: var(--surface-recessed);
+  border: var(--rule-width) solid var(--rule-solid);
+  border-radius: var(--space-hair);
+}
+.control__field::placeholder { color: var(--ink-faint); }
+.control__field::-webkit-search-cancel-button { filter: grayscale(1); }
+
+.control__toggle {
+  display: flex;
+  border: var(--rule-width) solid var(--rule-solid);
+  border-radius: var(--space-hair);
+  overflow: hidden;
+}
+.control__option {
+  min-height: var(--hit-min);
+  padding: 0 var(--space-base);
+  color: var(--ink-secondary);
+  border: 0;
+  border-radius: 0;
+  transition: background var(--motion-duration-snap) var(--motion-easing-standard);
+}
+.control__option:hover { background: var(--surface-recessed); }
+.control__option[aria-pressed="true"] {
+  color: var(--ink-primary);
+  background: var(--surface-recessed);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ */
+/* ds-action-rail                                                      */
+/* ------------------------------------------------------------------ */
+.queue-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-base);
+  border-top: var(--rule-width) solid var(--rule-solid);
+  border-bottom: var(--rule-width) solid var(--rule-solid);
+}
+
+.ds-action-rail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-loose);
+  padding: var(--space-snug) var(--space-loose);
+}
+
+.ds-action-rail__count {
+  margin: 0;
+  min-width: calc(var(--space-slack) * 3);
+  font-size: var(--type-ui-lead);
+  font-weight: 600;
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.ds-action-rail[data-state="armed"] .ds-action-rail__count { color: var(--ink-primary); }
+
+.ds-action-rail__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+}
+
+.ds-action-rail__action {
+  min-height: var(--hit-min);
+  padding: 0 var(--space-base);
+  color: var(--ink-secondary);
+  border-color: var(--rule-solid);
+  transition:
+    background var(--motion-duration-snap) var(--motion-easing-standard),
+    color var(--motion-duration-snap) var(--motion-easing-standard),
+    border-color var(--motion-duration-snap) var(--motion-easing-standard);
+}
+.ds-action-rail[data-state="armed"] .ds-action-rail__action { color: var(--ink-primary); }
+.ds-action-rail__action:hover:not([disabled]) { background: var(--surface-recessed); }
+.ds-action-rail__action[disabled] { color: var(--ink-faint); border-color: var(--rule-hair); }
+
+/* The destructive action is separated by a region rule and by distance,
+   not by a signal hue — the signal hues mean flagged/held/cleared only. */
+.ds-action-rail__action--destructive {
+  margin-left: var(--space-base);
+  border-left-width: var(--rule-width);
+}
+.ds-action-rail__actions::after { content: none; }
+.ds-action-rail__spacer {
+  width: var(--rule-width);
+  align-self: stretch;
+  min-height: var(--hit-min);
+  background: var(--rule-solid);
+  margin: 0 var(--space-tight);
+}
+
+/* ------------------------------------------------------------------ */
+/* Queue head                                                          */
+/* ------------------------------------------------------------------ */
+.queue-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  padding: 0 var(--space-loose);
+  border-top: var(--rule-width) solid var(--rule-hair);
+}
+.queue-head__count { margin-left: auto; }
+.queue-head__label { color: var(--ink-secondary); font-size: var(--type-ui-dense); }
+.queue-head__count {
+  color: var(--ink-secondary);
+  font-size: var(--type-ui-dense);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ */
+/* ds-select-cell                                                      */
+/* ------------------------------------------------------------------ */
+.ds-select-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--hit-min);
+  min-height: var(--hit-min);
+  cursor: pointer;
+}
+.ds-select-cell__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.ds-select-cell__box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-base);
+  height: var(--space-base);
+  border: var(--rule-width) solid var(--rule-solid);
+  border-radius: var(--space-hair);
+  background: var(--surface-recessed);
+  color: var(--surface-base);
+  font-size: var(--type-ui-dense);
+  line-height: 1;
+  pointer-events: none;
+}
+.ds-select-cell:hover .ds-select-cell__box { border-color: var(--ink-secondary); }
+.ds-select-cell__input:checked ~ .ds-select-cell__box {
+  background: var(--ink-primary);
+  border-color: var(--ink-primary);
+}
+.ds-select-cell__input:checked ~ .ds-select-cell__box::after { content: "\2713"; }
+.ds-select-cell__input:indeterminate ~ .ds-select-cell__box {
+  background: var(--ink-secondary);
+  border-color: var(--ink-secondary);
+}
+.ds-select-cell__input:indeterminate ~ .ds-select-cell__box::after { content: "\2013"; }
+.ds-select-cell__input:focus-visible ~ .ds-select-cell__box {
+  outline: var(--space-hair) solid var(--focus-ring);
+  outline-offset: var(--space-hair);
+}
+.ds-select-cell__input:disabled ~ .ds-select-cell__box { opacity: 0.4; }
+
+/* ------------------------------------------------------------------ */
+/* ds-queue-row                                                        */
+/* ------------------------------------------------------------------ */
+.queue { margin: 0; padding: 0; list-style: none; }
+
+.ds-queue-row {
+  display: grid;
+  /* Status leads the content column: at full width a right-anchored pill
+     sits a screen-width away from the text it describes. */
+  grid-template-columns: var(--hit-min) max-content 1fr;
+  align-items: center;
+  gap: var(--space-base);
+  padding: var(--space-tight) var(--space-loose);
+  border-bottom: var(--rule-width) solid var(--rule-hair);
+  /* No transition on the row's background: selection must be instant. */
+}
+.ds-queue-row:hover { background: var(--surface-recessed); }
+.ds-queue-row:focus-within { background: var(--surface-recessed); }
+.ds-queue-row[data-state="selected"] {
+  background: var(--surface-recessed);
+  box-shadow: inset var(--space-hair) 0 0 0 var(--rule-solid);
+}
+.ds-queue-row[data-disabled="true"] {
+  color: var(--ink-faint);
+  background: var(--surface-sunken);
+}
+.ds-queue-row[data-disabled="true"] .ds-queue-row__excerpt { color: var(--ink-faint); }
+
+.ds-queue-row__body { min-width: 0; }
+
+.ds-queue-row__excerpt {
+  margin: 0;
+  font-size: var(--type-ui-dense);
+  color: var(--ink-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ds-queue-row__meta {
+  margin: 0;
+  display: flex;
+  gap: var(--space-snug);
+  font-size: var(--type-ui-dense);
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.ds-queue-row[data-variant="compact"] .ds-queue-row__meta { display: none; }
+
+.ds-queue-row__id { color: var(--ink-secondary); }
+.ds-queue-row__sep { color: var(--ink-faint); }
+
+/* ------------------------------------------------------------------ */
+/* ds-status-pill                                                      */
+/* ------------------------------------------------------------------ */
+.ds-status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-width: calc(var(--space-slack) * 2);
+  padding: 0 var(--space-tight);
+  font-size: var(--type-ui-dense);
+  border: var(--rule-width) solid currentColor;
+  border-radius: var(--space-hair);
+  white-space: nowrap;
+}
+.ds-status-pill[data-variant="flagged"] { color: var(--signal-flag); }
+.ds-status-pill[data-variant="held"] { color: var(--signal-hold); }
+.ds-status-pill[data-variant="cleared"] { color: var(--signal-clear); }
+
+/* ------------------------------------------------------------------ */
+/* ds-load-more                                                        */
+/* ------------------------------------------------------------------ */
+.queue-foot { padding: var(--space-base) var(--space-loose); }
+
+.ds-load-more {
+  min-height: var(--hit-min);
+  padding: 0 var(--space-base);
+  color: var(--ink-primary);
+  border-color: var(--rule-solid);
+  font-variant-numeric: tabular-nums;
+  transition: background var(--motion-duration-snap) var(--motion-easing-standard);
+}
+.ds-load-more:hover:not([disabled]) { background: var(--surface-recessed); }
+.ds-load-more[data-state="loading"] { color: var(--ink-secondary); }
+.ds-load-more[data-state="exhausted"] {
+  color: var(--ink-faint);
+  border-color: var(--rule-hair);
+}
+
+/* ------------------------------------------------------------------ */
+/* ds-undo-strip — the one thing that floats above the page            */
+/* ------------------------------------------------------------------ */
+.ds-undo-strip {
+  position: fixed;
+  left: var(--space-loose);
+  right: var(--space-loose);
+  bottom: var(--space-loose);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  padding: var(--space-snug) var(--space-base);
+  background: var(--surface-raised);
+  border: var(--rule-width) solid var(--rule-solid);
+  border-radius: var(--space-hair);
+  transition:
+    opacity var(--motion-duration-base) var(--motion-easing-standard),
+    transform var(--motion-duration-base) var(--motion-easing-standard);
+}
+.ds-undo-strip[data-state="entering"] {
+  opacity: 0;
+  transform: translateY(var(--space-snug));
+}
+.ds-undo-strip[data-state="visible"] { opacity: 1; transform: translateY(0); }
+.ds-undo-strip[data-state="leaving"] {
+  opacity: 0;
+  transform: translateY(var(--space-snug));
+  transition-duration: var(--motion-duration-snap);
+  transition-timing-function: var(--motion-easing-exit);
+}
+.ds-undo-strip__label {
+  margin: 0;
+  margin-right: auto;
+  font-variant-numeric: tabular-nums;
+}
+.ds-undo-strip__action {
+  min-height: var(--hit-min);
+  padding: 0 var(--space-base);
+  border-color: var(--rule-solid);
+  transition: background var(--motion-duration-snap) var(--motion-easing-standard);
+}
+.ds-undo-strip__action:hover { background: var(--surface-recessed); }
+.ds-undo-strip__dismiss {
+  min-height: var(--hit-min);
+  padding: 0 var(--space-base);
+  color: var(--ink-secondary);
+  transition: color var(--motion-duration-snap) var(--motion-easing-standard);
+}
+.ds-undo-strip__dismiss:hover { color: var(--ink-primary); }
+
+/* ------------------------------------------------------------------ */
+/* ds-empty-rest                                                       */
+/* ------------------------------------------------------------------ */
+.ds-empty-rest {
+  margin: 0 var(--space-loose);
+  padding: var(--space-slack) var(--space-loose);
+  background: var(--surface-sunken);
+  border: var(--rule-width) solid var(--rule-hair);
+  border-radius: var(--space-hair);
+}
+.ds-empty-rest__line {
+  margin: 0;
+  font-size: var(--type-ui);
+  color: var(--ink-primary);
+}
+.ds-empty-rest__sub {
+  margin: var(--space-tight) 0 0;
+  font-size: var(--type-ui-dense);
+  color: var(--ink-secondary);
+}
+.ds-empty-rest__action {
+  margin-top: var(--space-base);
+  min-height: var(--hit-min);
+  padding: 0 var(--space-base);
+  border-color: var(--rule-solid);
+  transition: background var(--motion-duration-snap) var(--motion-easing-standard);
+}
+.ds-empty-rest__action:hover { background: var(--surface-recessed); }
+
+/* ------------------------------------------------------------------ */
+/* Reduced motion — movement removed, every state signal retained.     */
+/* ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  .control__option,
+  .ds-action-rail__action,
+  .ds-load-more,
+  .ds-undo-strip,
+  .ds-undo-strip__action,
+  .ds-undo-strip__dismiss,
+  .ds-empty-rest__action { transition: none; }
+  .ds-undo-strip[data-state="entering"],
+  .ds-undo-strip[data-state="visible"],
+  .ds-undo-strip[data-state="leaving"] { transform: none; }
+  .ds-undo-strip[data-state="entering"] { opacity: 1; }
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header class="page__head">
+    <h1 class="page__title">Review queue</h1>
+    <div class="page__controls">
+      <div class="control">
+        <label class="control__label" for="filter">Filter</label>
+        <input class="control__field" id="filter" type="search" autocomplete="off" placeholder="id, handle, text, status">
+      </div>
+      <div class="control">
+        <span class="control__label" id="density-label">Density</span>
+        <div class="control__toggle" role="group" aria-labelledby="density-label">
+          <button class="control__option" type="button" data-variant="default" aria-pressed="true">Default</button>
+          <button class="control__option" type="button" data-variant="compact" aria-pressed="false">Compact</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="queue-toolbar">
+
+    <div class="ds-action-rail" data-ds="ds-action-rail" data-state="idle">
+      <p class="ds-action-rail__count" id="count" aria-live="polite">0 selected</p>
+      <div class="ds-action-rail__actions">
+        <button class="ds-action-rail__action" type="button" data-action="hold" disabled>Hold</button>
+        <button class="ds-action-rail__action" type="button" data-action="clear" disabled>Clear</button>
+        <span class="ds-action-rail__spacer" aria-hidden="true"></span>
+        <button class="ds-action-rail__action ds-action-rail__action--destructive" type="button" data-action="remove" disabled>Remove</button>
+      </div>
+    </div>
+
+    <div class="queue-head">
+      <label class="ds-select-cell" data-ds="ds-select-cell" data-scope="page">
+        <input class="ds-select-cell__input" id="select-all" type="checkbox" aria-labelledby="select-all-label">
+        <span class="ds-select-cell__box" aria-hidden="true"></span>
+      </label>
+      <span class="queue-head__label" id="select-all-label">All on this page</span>
+      <span class="queue-head__count" id="head-count">12 items</span>
+    </div>
+
+  </div>
+
+  <ul class="queue" id="queue"></ul>
+
+  <div id="rest"></div>
+
+  <div class="queue-foot" id="foot">
+    <button class="ds-load-more" data-ds="ds-load-more" data-state="idle" id="load-more" type="button">Load more</button>
+  </div>
+
+</div>
+
+<div id="undo-host"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var PAGE_1 = [
+    { id: 'K-4471', submitted: '09:02', author: '@noor_h',    excerpt: '"shipping delays again, third week running"', status: 'flagged' },
+    { id: 'K-4472', submitted: '09:04', author: '@dvsg',      excerpt: '"link in bio for the full list"',            status: 'held'    },
+    { id: 'K-4473', submitted: '09:07', author: '@mara.p',    excerpt: '"anyone else getting this error on upload"', status: 'cleared' },
+    { id: 'K-4474', submitted: '09:11', author: '@tt_ronin',  excerpt: '"reposting since it got taken down"',        status: 'flagged' },
+    { id: 'K-4475', submitted: '09:12', author: '@quietkiln', excerpt: '"the receipts are in the thread"',           status: 'flagged' },
+    { id: 'K-4476', submitted: '09:15', author: '@halcy0n',   excerpt: '"DM me if you want the discount code"',      status: 'held'    },
+    { id: 'K-4477', submitted: '09:19', author: '@b_orchard', excerpt: '"not sure this belongs here but"',           status: 'cleared' },
+    { id: 'K-4478', submitted: '09:23', author: '@sm1th',     excerpt: '"same account, new handle"',                 status: 'flagged' },
+    { id: 'K-4479', submitted: '09:26', author: '@tessel',    excerpt: '"screenshots attached, timestamps intact"',  status: 'cleared' },
+    { id: 'K-4480', submitted: '09:31', author: '@nvrmnd_',   excerpt: '"last warning before I escalate"',           status: 'flagged' },
+    { id: 'K-4481', submitted: '09:33', author: '@pol_ax',    excerpt: '"cross-posted from the other board"',        status: 'held'    },
+    { id: 'K-4482', submitted: '09:38', author: '@wren.k',    excerpt: '"closing the loop on this one"',             status: 'cleared' }
+  ];
+
+  var PAGE_2 = [
+    { id: 'K-4483', submitted: '09:41', author: '@oddment',   excerpt: '"the policy page says otherwise"',    status: 'flagged' },
+    { id: 'K-4484', submitted: '09:44', author: '@lune_',     excerpt: '"adding context in the replies"',     status: 'cleared' },
+    { id: 'K-4485', submitted: '09:47', author: '@gravl',     excerpt: '"third report on this account today"', status: 'flagged' },
+    { id: 'K-4486', submitted: '09:49', author: '@itsfine',   excerpt: '"escalating per the runbook"',        status: 'held'    },
+    { id: 'K-4487', submitted: '09:52', author: '@porthole9', excerpt: '"duplicate of K-4474"',               status: 'flagged' },
+    { id: 'K-4488', submitted: '09:55', author: '@andesite',  excerpt: '"no action needed, closing"',         status: 'cleared' },
+    { id: 'K-4489', submitted: '09:58', author: '@tinct',     excerpt: '"requesting a second reviewer"',      status: 'held'    },
+    { id: 'K-4490', submitted: '10:02', author: '@vellum_',   excerpt: '"attaching the original submission"', status: 'cleared' }
+  ];
+
+  var PILL_LABEL = { flagged: 'Flagged', held: 'Held', cleared: 'Cleared' };
+  var PAST_TENSE = { hold: 'held', clear: 'cleared', remove: 'removed' };
+
+  var params = new URLSearchParams(location.search);
+  var forced = params.get('state');
+
+  var state = {
+    rows: PAGE_1.map(function (r) { return Object.assign({}, r); }),
+    selected: new Set(),
+    query: '',
+    exhausted: false,
+    loading: false,
+    variant: 'default',
+    undo: null
+  };
+
+  if (forced === 'no-queue') { state.rows = []; state.exhausted = true; }
+  if (forced === 'no-results') { state.query = 'zzzz'; }
+
+  var el = {
+    queue: document.getElementById('queue'),
+    rest: document.getElementById('rest'),
+    foot: document.getElementById('foot'),
+    loadMore: document.getElementById('load-more'),
+    count: document.getElementById('count'),
+    headCount: document.getElementById('head-count'),
+    selectAll: document.getElementById('select-all'),
+    rail: document.querySelector('.ds-action-rail'),
+    filter: document.getElementById('filter'),
+    undoHost: document.getElementById('undo-host')
+  };
+
+  el.filter.value = state.query;
+
+  /* ---------------------------------------------------------------- */
+
+  function visible() {
+    var q = state.query.trim().toLowerCase();
+    if (!q) return state.rows;
+    return state.rows.filter(function (r) {
+      return (r.id + ' ' + r.author + ' ' + r.excerpt + ' ' + r.status).toLowerCase().indexOf(q) !== -1;
+    });
+  }
+
+  function makeSelectCell(row) {
+    var label = document.createElement('label');
+    label.className = 'ds-select-cell';
+    label.setAttribute('data-ds', 'ds-select-cell');
+    label.setAttribute('data-scope', 'row');
+
+    var input = document.createElement('input');
+    input.className = 'ds-select-cell__input';
+    input.type = 'checkbox';
+    input.checked = state.selected.has(row.id);
+    input.setAttribute('aria-label', 'Select ' + row.id);
+    input.addEventListener('change', function () {
+      if (input.checked) state.selected.add(row.id);
+      else state.selected.delete(row.id);
+      syncSelection();
+    });
+
+    var box = document.createElement('span');
+    box.className = 'ds-select-cell__box';
+    box.setAttribute('aria-hidden', 'true');
+
+    label.appendChild(input);
+    label.appendChild(box);
+    return label;
+  }
+
+  function makeRow(row) {
+    var li = document.createElement('li');
+    li.className = 'ds-queue-row';
+    li.setAttribute('data-ds', 'ds-queue-row');
+    li.setAttribute('data-id', row.id);
+    li.setAttribute('data-variant', state.variant);
+    if (state.selected.has(row.id)) {
+      li.setAttribute('data-state', 'selected');
+      li.setAttribute('aria-selected', 'true');
+    } else {
+      li.setAttribute('aria-selected', 'false');
+    }
+
+    li.appendChild(makeSelectCell(row));
+
+    var body = document.createElement('div');
+    body.className = 'ds-queue-row__body';
+
+    var excerpt = document.createElement('p');
+    excerpt.className = 'ds-queue-row__excerpt';
+    excerpt.textContent = row.excerpt;
+
+    var meta = document.createElement('p');
+    meta.className = 'ds-queue-row__meta';
+    [
+      ['ds-queue-row__id', row.id],
+      ['ds-queue-row__sep', '·'],
+      ['ds-queue-row__time', row.submitted],
+      ['ds-queue-row__sep', '·'],
+      ['ds-queue-row__author', row.author]
+    ].forEach(function (pair) {
+      var s = document.createElement('span');
+      s.className = pair[0];
+      s.textContent = pair[1];
+      meta.appendChild(s);
+    });
+
+    body.appendChild(excerpt);
+    body.appendChild(meta);
+
+    var pill = document.createElement('span');
+    pill.className = 'ds-status-pill';
+    pill.setAttribute('data-ds', 'ds-status-pill');
+    pill.setAttribute('data-variant', row.status);
+    pill.textContent = PILL_LABEL[row.status];
+
+    li.appendChild(pill);
+    li.appendChild(body);
+
+    return li;
+  }
+
+  function makeEmptyRest(variant) {
+    var box = document.createElement('div');
+    box.className = 'ds-empty-rest';
+    box.setAttribute('data-ds', 'ds-empty-rest');
+    box.setAttribute('data-variant', variant);
+
+    var line = document.createElement('p');
+    line.className = 'ds-empty-rest__line';
+
+    if (variant === 'no-results') {
+      line.textContent = '0 matches for "' + state.query.trim() + '".';
+      box.appendChild(line);
+
+      var sub = document.createElement('p');
+      sub.className = 'ds-empty-rest__sub';
+      sub.textContent = state.rows.length + ' items in the queue, none matching the filter.';
+      box.appendChild(sub);
+
+      var action = document.createElement('button');
+      action.className = 'ds-empty-rest__action';
+      action.type = 'button';
+      action.textContent = 'Clear filter';
+      action.addEventListener('click', function () {
+        state.query = '';
+        el.filter.value = '';
+        render();
+        el.filter.focus();
+      });
+      box.appendChild(action);
+    } else {
+      line.textContent = 'Queue empty.';
+      box.appendChild(line);
+
+      var sub2 = document.createElement('p');
+      sub2.className = 'ds-empty-rest__sub';
+      sub2.textContent = '0 items awaiting review.';
+      box.appendChild(sub2);
+    }
+
+    return box;
+  }
+
+  /* ---------------------------------------------------------------- */
+
+  function syncSelection() {
+    var vis = visible();
+    var n = state.selected.size;
+
+    el.count.textContent = n + ' selected';
+    el.rail.setAttribute('data-state', n > 0 ? 'armed' : 'idle');
+
+    Array.prototype.forEach.call(
+      el.rail.querySelectorAll('.ds-action-rail__action'),
+      function (b) { b.disabled = n === 0; }
+    );
+
+    var selectedVisible = vis.filter(function (r) { return state.selected.has(r.id); }).length;
+    el.selectAll.checked = vis.length > 0 && selectedVisible === vis.length;
+    el.selectAll.indeterminate = selectedVisible > 0 && selectedVisible < vis.length;
+    el.selectAll.disabled = vis.length === 0;
+
+    Array.prototype.forEach.call(el.queue.children, function (li) {
+      var on = state.selected.has(li.getAttribute('data-id'));
+      if (on) li.setAttribute('data-state', 'selected');
+      else li.removeAttribute('data-state');
+      li.setAttribute('aria-selected', on ? 'true' : 'false');
+      var input = li.querySelector('.ds-select-cell__input');
+      if (input.checked !== on) input.checked = on;
+    });
+  }
+
+  function render() {
+    // Drop any selection that the current filter has hidden, so a bulk
+    // action can only ever touch rows the reviewer can see.
+    var visIds = new Set(visible().map(function (r) { return r.id; }));
+    state.selected.forEach(function (id) { if (!visIds.has(id)) state.selected.delete(id); });
+
+    var vis = visible();
+
+    el.queue.textContent = '';
+    vis.forEach(function (row) { el.queue.appendChild(makeRow(row)); });
+
+    el.rest.textContent = '';
+    if (vis.length === 0) {
+      el.rest.appendChild(makeEmptyRest(state.rows.length === 0 ? 'no-queue' : 'no-results'));
+      el.foot.hidden = true;
+    } else {
+      el.foot.hidden = false;
+    }
+
+    el.headCount.textContent = state.query.trim()
+      ? vis.length + ' of ' + state.rows.length + ' items'
+      : vis.length + ' items';
+
+    if (state.loading) {
+      el.loadMore.setAttribute('data-state', 'loading');
+      el.loadMore.textContent = 'Loading…';
+      el.loadMore.disabled = true;
+    } else if (state.exhausted) {
+      el.loadMore.setAttribute('data-state', 'exhausted');
+      el.loadMore.textContent = 'End of queue';
+      el.loadMore.disabled = true;
+    } else {
+      el.loadMore.setAttribute('data-state', 'idle');
+      el.loadMore.textContent = 'Load more';
+      el.loadMore.disabled = false;
+    }
+
+    syncSelection();
+  }
+
+  /* ---- undo strip ------------------------------------------------- */
+
+  function hideUndo(immediate) {
+    var strip = el.undoHost.firstElementChild;
+    if (!strip) return;
+    if (immediate) { el.undoHost.textContent = ''; return; }
+    strip.setAttribute('data-state', 'leaving');
+    setTimeout(function () {
+      if (strip.parentNode === el.undoHost) el.undoHost.removeChild(strip);
+    }, 90);
+  }
+
+  function showUndo(label) {
+    el.undoHost.textContent = '';
+
+    var strip = document.createElement('div');
+    strip.className = 'ds-undo-strip';
+    strip.setAttribute('data-ds', 'ds-undo-strip');
+    strip.setAttribute('data-state', 'entering');
+    strip.setAttribute('role', 'status');
+
+    var text = document.createElement('p');
+    text.className = 'ds-undo-strip__label';
+    text.textContent = label;
+
+    var undo = document.createElement('button');
+    undo.className = 'ds-undo-strip__action';
+    undo.type = 'button';
+    undo.textContent = 'Undo';
+    undo.addEventListener('click', undoLast);
+
+    var dismiss = document.createElement('button');
+    dismiss.className = 'ds-undo-strip__dismiss';
+    dismiss.type = 'button';
+    dismiss.textContent = 'Dismiss';
+    dismiss.addEventListener('click', function () { state.undo = null; hideUndo(false); });
+
+    strip.appendChild(text);
+    strip.appendChild(undo);
+    strip.appendChild(dismiss);
+    el.undoHost.appendChild(strip);
+
+    requestAnimationFrame(function () { strip.setAttribute('data-state', 'visible'); });
+  }
+
+  function undoLast() {
+    if (!state.undo) return;
+    state.rows = state.undo.rows.map(function (r) { return Object.assign({}, r); });
+    state.selected = new Set();
+    state.undo = null;
+    hideUndo(false);
+    render();
+  }
+
+  /* ---- bulk actions ----------------------------------------------- */
+
+  function applyBulk(kind) {
+    var ids = new Set(state.selected);
+    if (ids.size === 0) return;
+
+    var before = state.rows.map(function (r) { return Object.assign({}, r); });
+
+    if (kind === 'remove') {
+      state.rows = state.rows.filter(function (r) { return !ids.has(r.id); });
+    } else {
+      var next = kind === 'hold' ? 'held' : 'cleared';
+      state.rows = state.rows.map(function (r) {
+        return ids.has(r.id) ? Object.assign({}, r, { status: next }) : r;
+      });
+    }
+
+    state.selected = new Set();
+    state.undo = { rows: before };
+    render();
+    showUndo(ids.size + ' ' + PAST_TENSE[kind]);
+  }
+
+  /* ---- wiring ----------------------------------------------------- */
+
+  el.selectAll.addEventListener('change', function () {
+    var vis = visible();
+    var all = vis.length > 0 && vis.every(function (r) { return state.selected.has(r.id); });
+    vis.forEach(function (r) {
+      if (all) state.selected.delete(r.id);
+      else state.selected.add(r.id);
+    });
+    syncSelection();
+  });
+
+  Array.prototype.forEach.call(
+    el.rail.querySelectorAll('.ds-action-rail__action'),
+    function (b) {
+      b.addEventListener('click', function () { applyBulk(b.getAttribute('data-action')); });
+    }
+  );
+
+  el.loadMore.addEventListener('click', function () {
+    if (state.loading || state.exhausted) return;
+    state.loading = true;
+    render();
+    // Held in the control's own loading state for one `base` beat, then
+    // appended in place. No skeleton, no overlay, no layout shift.
+    setTimeout(function () {
+      state.rows = state.rows.concat(PAGE_2.map(function (r) { return Object.assign({}, r); }));
+      state.loading = false;
+      state.exhausted = true;
+      render();
+      el.loadMore.focus();
+    }, 160);
+  });
+
+  el.filter.addEventListener('input', function () {
+    state.query = el.filter.value;
+    render();
+  });
+
+  Array.prototype.forEach.call(
+    document.querySelectorAll('.control__option'),
+    function (b) {
+      b.addEventListener('click', function () {
+        state.variant = b.getAttribute('data-variant');
+        Array.prototype.forEach.call(
+          document.querySelectorAll('.control__option'),
+          function (o) {
+            o.setAttribute('aria-pressed', o === b ? 'true' : 'false');
+          }
+        );
+        render();
+      });
+    }
+  );
+
+  render();
+})();
+</script>
+</body>
+</html>

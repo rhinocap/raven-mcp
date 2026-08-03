@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review queue — Kettle</title>
+<style>
+:root{
+  /* ---------- Design-system tokens (arena/DESIGN.md front matter) ---------- */
+  --color-surface-base:#0e1113;
+  --color-surface-raised:#171b1e;
+  --color-surface-recessed:#0a0c0e;
+  --color-surface-sunken:#060809;
+  --color-ink-primary:#e8eaec;
+  --color-ink-secondary:#9aa3a9;
+  --color-ink-faint:#5f686e;
+  --color-rule-hair:#242a2e;
+  --color-rule-solid:#39424a;
+  --color-signal-flag:#d4573a;
+  --color-signal-hold:#c08a2e;
+  --color-signal-clear:#4a8f6d;
+  --color-focus-ring:#6ea8d8;
+
+  --type-ui-dense:13px;
+  --type-ui:14px;
+  --type-ui-lead:16px;
+  --type-section:20px;
+  --type-page:28px;
+
+  --space-hair:2px;
+  --space-tight:6px;
+  --space-snug:10px;
+  --space-base:16px;
+  --space-loose:24px;
+  --space-slack:40px;
+
+  --motion-duration-snap:90ms;
+  --motion-duration-base:160ms;
+  --motion-duration-settle:260ms;
+  --motion-easing-standard:cubic-bezier(0.2, 0, 0, 1);
+  --motion-easing-exit:cubic-bezier(0.4, 0, 1, 1);
+
+  /* ---------- Local structural constants — NOT design-system tokens ----------
+     The system tokenises colour, type, space and motion only. These are the
+     structural dimensions the brief fixes in prose: the 44px hit area, the
+     fixed 40px selection gutter, hairline rules, radius never above 3px. */
+  --struct-zero:0;
+  --struct-hit:44px;
+  --struct-gutter:40px;
+  --struct-hairline:1px;
+  --struct-radius:2px;
+  --struct-focus:2px;
+  --struct-box:16px;
+  --struct-dot:6px;
+  --struct-tick-inline:6px;
+  --struct-tick-block:10px;
+  --struct-status-col:92px;
+  --font-ui:ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none !important}
+
+html,body{margin:var(--struct-zero);padding:var(--struct-zero)}
+body{
+  background:var(--color-surface-base);
+  color:var(--color-ink-primary);
+  font-family:var(--font-ui);
+  font-size:var(--type-ui);
+  line-height:1.4;
+  -webkit-font-smoothing:antialiased;
+}
+
+:focus-visible{
+  outline:var(--struct-focus) solid var(--color-focus-ring);
+  outline-offset:var(--struct-focus);
+}
+
+.visually-hidden{
+  position:absolute;
+  width:var(--struct-hairline);height:var(--struct-hairline);
+  overflow:hidden;clip-path:inset(50%);white-space:nowrap;
+  margin:var(--struct-zero);padding:var(--struct-zero);border:none;
+}
+
+.console{
+  padding-block:var(--space-loose) var(--space-slack);
+  padding-inline:var(--space-loose);
+}
+
+/* ---------- page head ---------- */
+.page-head{padding-block-end:var(--space-base)}
+.page-title{
+  font-size:var(--type-page);
+  font-weight:600;
+  line-height:1.15;
+  margin:var(--struct-zero);
+}
+
+/* ---------- ds-action-rail ---------- */
+/* In flow, above the list: never bottom-floating, never sticky, never a
+   sidebar. Fixed height in both states so arming it shifts nothing. */
+.ds-action-rail{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:var(--space-base);
+  min-height:var(--struct-hit);
+}
+.rail-count{
+  font-size:var(--type-ui-lead);
+  color:var(--color-ink-primary);
+  margin:var(--struct-zero);
+}
+.ds-action-rail[data-state="idle"] .rail-count{color:var(--color-ink-secondary)}
+.rail-actions{display:flex;align-items:center;gap:var(--space-tight)}
+.rail-action{
+  font-family:var(--font-ui);
+  font-size:var(--type-ui);
+  color:var(--color-ink-primary);
+  background:transparent;
+  border:var(--struct-hairline) solid var(--color-rule-solid);
+  border-radius:var(--struct-radius);
+  min-height:var(--struct-hit);
+  padding-inline:var(--space-base);
+  cursor:pointer;
+  transition:background-color var(--motion-duration-snap) var(--motion-easing-standard),
+             border-color var(--motion-duration-snap) var(--motion-easing-standard);
+}
+.rail-action:hover:not(:disabled){background:var(--color-surface-recessed)}
+.rail-action:disabled{
+  color:var(--color-ink-secondary);
+  border-color:var(--color-rule-hair);
+  cursor:default;
+}
+.rail-action--terminal{margin-inline-start:var(--space-base)}
+
+/* ---------- ds-undo-strip ---------- */
+/* The slot is permanently reserved, so the strip arriving and leaving never
+   moves the queue under the reviewer's cursor. */
+.undo-slot{
+  display:flex;align-items:center;
+  min-height:var(--struct-hit);
+}
+.ds-undo-strip{
+  display:flex;align-items:center;gap:var(--space-base);
+  opacity:1;transform:none;
+  transition:opacity var(--motion-duration-base) var(--motion-easing-standard),
+             transform var(--motion-duration-base) var(--motion-easing-standard);
+}
+.ds-undo-strip[data-state="entering"],
+.ds-undo-strip[data-state="leaving"]{
+  opacity:0;
+  transform:translateY(calc(var(--space-tight) * -1));
+}
+.ds-undo-strip[data-state="leaving"]{
+  transition-duration:var(--motion-duration-snap);
+  transition-timing-function:var(--motion-easing-exit);
+}
+.undo-label{
+  font-size:var(--type-ui);
+  color:var(--color-ink-secondary);
+  margin:var(--struct-zero);
+}
+.undo-action{
+  font-family:var(--font-ui);
+  font-size:var(--type-ui);
+  color:var(--color-ink-primary);
+  background:transparent;border:none;
+  min-height:var(--struct-hit);
+  padding-inline:var(--space-snug);
+  text-decoration:underline;
+  text-underline-offset:var(--space-hair);
+  cursor:pointer;
+}
+
+/* ---------- queue head ---------- */
+.queue-head,.ds-queue-row{
+  display:grid;
+  grid-template-columns:var(--struct-gutter) minmax(var(--struct-zero),1fr) var(--struct-status-col);
+  align-items:center;
+  gap:var(--space-snug);
+}
+.queue-head{
+  min-height:var(--struct-hit);
+  border-block-end:var(--struct-hairline) solid var(--color-rule-solid);
+}
+.queue-head-label{
+  display:flex;align-items:center;
+  min-height:var(--struct-hit);
+  font-size:var(--type-ui);
+  color:var(--color-ink-secondary);
+  cursor:pointer;
+}
+.queue-count{
+  font-size:var(--type-ui);
+  color:var(--color-ink-secondary);
+}
+
+/* ---------- ds-queue-row ---------- */
+.ds-queue-list{
+  list-style:none;
+  margin:var(--struct-zero);
+  padding:var(--struct-zero);
+}
+.ds-queue-row{
+  position:relative;
+  padding-block:var(--space-tight);
+  border-block-end:var(--struct-hairline) solid var(--color-rule-hair);
+}
+/* No transition here on purpose: the tint has to land on the frame the
+   pointer crosses the row, because reviewers rubber-band across dozens. */
+.ds-queue-row:hover,
+.ds-queue-row:focus-within,
+.ds-queue-row[data-selected="true"]{background:var(--color-surface-recessed)}
+.ds-queue-row[data-selected="true"]::before{
+  content:"";
+  position:absolute;
+  inset-block:var(--struct-zero);
+  inset-inline-start:var(--struct-zero);
+  width:var(--struct-focus);
+  background:var(--color-rule-solid);
+}
+.row-body{
+  display:flex;flex-direction:column;
+  gap:var(--space-hair);
+  min-width:var(--struct-zero);
+}
+.row-excerpt{
+  font-size:var(--type-ui-dense);
+  line-height:1.35;
+  color:var(--color-ink-primary);
+  margin:var(--struct-zero);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.row-meta{
+  font-size:var(--type-ui-dense);
+  line-height:1.35;
+  color:var(--color-ink-secondary);
+  margin:var(--struct-zero);
+}
+
+/* ---------- ds-select-cell ---------- */
+/* The gutter stays 40px. The 44px hit area is centred on it and is allowed
+   to overhang, vertically and horizontally, so the text edge never moves. */
+.ds-select-cell{position:relative;align-self:stretch}
+.select-hit{
+  position:absolute;
+  inset-block-start:50%;inset-inline-start:50%;
+  transform:translate(-50%,-50%);
+  width:var(--struct-hit);height:var(--struct-hit);
+  display:block;
+  cursor:pointer;
+}
+/* The control itself carries the 44px area; the 16px box is drawn on it. */
+.select-box{
+  appearance:none;-webkit-appearance:none;
+  position:relative;display:block;
+  width:var(--struct-hit);height:var(--struct-hit);
+  margin:var(--struct-zero);
+  background:transparent;border:none;
+  cursor:pointer;
+}
+.select-box::before{
+  content:"";
+  position:absolute;
+  inset-block-start:50%;inset-inline-start:50%;
+  transform:translate(-50%,-50%);
+  width:var(--struct-box);height:var(--struct-box);
+  background:transparent;
+  border:var(--struct-hairline) solid var(--color-ink-faint);
+  border-radius:var(--struct-radius);
+}
+.select-box:hover::before{border-color:var(--color-ink-secondary)}
+.select-box:checked::before{
+  background:var(--color-ink-primary);
+  border-color:var(--color-ink-primary);
+}
+.select-box:checked::after{
+  content:"";
+  position:absolute;
+  inset-block-start:50%;inset-inline-start:50%;
+  width:var(--struct-tick-inline);height:var(--struct-tick-block);
+  border-inline-end:var(--struct-focus) solid var(--color-surface-base);
+  border-block-end:var(--struct-focus) solid var(--color-surface-base);
+  transform:translate(-50%,-62%) rotate(45deg);
+}
+.select-box:indeterminate::before{border-color:var(--color-ink-primary)}
+.select-box:indeterminate::after{
+  content:"";
+  position:absolute;
+  inset-block-start:50%;inset-inline-start:50%;
+  transform:translate(-50%,-50%);
+  width:var(--struct-tick-inline);height:var(--struct-focus);
+  background:var(--color-ink-primary);
+}
+.select-box:disabled{cursor:default}
+.select-box:disabled::before{border-color:var(--color-rule-hair)}
+.select-box:focus-visible{outline:none}
+.select-box:focus-visible::before{
+  outline:var(--struct-focus) solid var(--color-focus-ring);
+  outline-offset:var(--struct-focus);
+}
+
+/* ---------- ds-status-pill ---------- */
+/* Not a chip. A semantic dot plus a mandatory neutral text label, so fifty
+   rows of status do not out-shout fifty rows of content. */
+.ds-status-pill{
+  display:inline-flex;align-items:center;
+  gap:var(--space-tight);
+  font-size:var(--type-ui-dense);
+  color:var(--color-ink-secondary);
+  white-space:nowrap;
+}
+.pill-dot{
+  flex:none;
+  width:var(--struct-dot);height:var(--struct-dot);
+  border-radius:var(--struct-radius);
+}
+.ds-status-pill[data-variant="flagged"] .pill-dot{background:var(--color-signal-flag)}
+.ds-status-pill[data-variant="held"] .pill-dot{background:var(--color-signal-hold)}
+.ds-status-pill[data-variant="cleared"] .pill-dot{background:var(--color-signal-clear)}
+
+/* ---------- ds-load-more ---------- */
+.ds-load-more{
+  display:block;width:100%;
+  font-family:var(--font-ui);
+  font-size:var(--type-ui);
+  color:var(--color-ink-primary);
+  background:transparent;
+  border:none;
+  border-block-end:var(--struct-hairline) solid var(--color-rule-hair);
+  min-height:var(--struct-hit);
+  cursor:pointer;
+  transition:background-color var(--motion-duration-snap) var(--motion-easing-standard);
+}
+.ds-load-more:hover:not(:disabled){background:var(--color-surface-recessed)}
+.ds-load-more[data-state="loading"],
+.ds-load-more[data-state="exhausted"]{
+  color:var(--color-ink-secondary);
+  cursor:default;
+}
+
+/* ---------- ds-empty-rest ---------- */
+.ds-empty-rest{
+  background:var(--color-surface-sunken);
+  border-block-end:var(--struct-hairline) solid var(--color-rule-hair);
+  padding:var(--space-slack);
+}
+.empty-title{
+  font-size:var(--type-section);
+  font-weight:600;
+  line-height:1.2;
+  color:var(--color-ink-primary);
+  margin:var(--struct-zero);
+}
+.empty-line{
+  font-size:var(--type-ui);
+  color:var(--color-ink-secondary);
+  margin:var(--struct-zero);
+  padding-block-start:var(--space-tight);
+}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{transition:none !important;animation:none !important}
+}
+</style>
+</head>
+<body>
+<main class="console">
+
+  <header class="page-head">
+    <h1 class="page-title">Review queue</h1>
+  </header>
+
+  <div class="ds-action-rail" data-ds="ds-action-rail" data-state="idle" role="group" aria-label="Bulk actions">
+    <p class="rail-count" id="rail-count" aria-live="polite" aria-atomic="true">0 selected</p>
+    <div class="rail-actions">
+      <button type="button" class="rail-action" data-action="held" disabled>Hold</button>
+      <button type="button" class="rail-action" data-action="cleared" disabled>Clear</button>
+      <!-- Label CONTESTED (dec_destructive_label): T&S ops want "Reject",
+           Legal wants "Remove". Shipped as "Reject" provisionally; see NOTES.md. -->
+      <button type="button" class="rail-action rail-action--terminal" data-action="rejected"
+              data-contested="dec_destructive_label" disabled>Reject</button>
+    </div>
+  </div>
+
+  <div class="undo-slot" id="undo-slot" role="status" aria-live="polite"></div>
+
+  <div class="queue-head">
+    <div class="ds-select-cell" data-ds="ds-select-cell" data-scope="page">
+      <label class="select-hit" for="select-all">
+        <input type="checkbox" class="select-box" id="select-all">
+      </label>
+    </div>
+    <label class="queue-head-label" for="select-all">Select all shown</label>
+    <span class="queue-count" id="queue-count">12 items</span>
+  </div>
+
+  <ul class="ds-queue-list" id="queue" aria-label="Review queue"></ul>
+
+  <button type="button" class="ds-load-more" data-ds="ds-load-more" id="load-more" data-state="idle">Load more</button>
+
+</main>
+
+<script>
+(function(){
+  "use strict";
+
+  var PAGES = [
+    [
+      {id:"K-4471", submitted:"09:02", author:"@noor_h",    excerpt:"shipping delays again, third week running", status:"flagged"},
+      {id:"K-4472", submitted:"09:04", author:"@dvsg",      excerpt:"link in bio for the full list",            status:"held"},
+      {id:"K-4473", submitted:"09:07", author:"@mara.p",    excerpt:"anyone else getting this error on upload", status:"cleared"},
+      {id:"K-4474", submitted:"09:11", author:"@tt_ronin",  excerpt:"reposting since it got taken down",        status:"flagged"},
+      {id:"K-4475", submitted:"09:12", author:"@quietkiln", excerpt:"the receipts are in the thread",           status:"flagged"},
+      {id:"K-4476", submitted:"09:15", author:"@halcy0n",   excerpt:"DM me if you want the discount code",      status:"held"},
+      {id:"K-4477", submitted:"09:19", author:"@b_orchard", excerpt:"not sure this belongs here but",           status:"cleared"},
+      {id:"K-4478", submitted:"09:23", author:"@sm1th",     excerpt:"same account, new handle",                 status:"flagged"},
+      {id:"K-4479", submitted:"09:26", author:"@tessel",    excerpt:"screenshots attached, timestamps intact",  status:"cleared"},
+      {id:"K-4480", submitted:"09:31", author:"@nvrmnd_",   excerpt:"last warning before I escalate",           status:"flagged"},
+      {id:"K-4481", submitted:"09:33", author:"@pol_ax",    excerpt:"cross-posted from the other board",        status:"held"},
+      {id:"K-4482", submitted:"09:38", author:"@wren.k",    excerpt:"closing the loop on this one",             status:"cleared"}
+    ],
+    [
+      {id:"K-4483", submitted:"09:41", author:"@oddment",   excerpt:"the policy page says otherwise",           status:"flagged"},
+      {id:"K-4484", submitted:"09:44", author:"@lune_",     excerpt:"adding context in the replies",            status:"cleared"},
+      {id:"K-4485", submitted:"09:47", author:"@gravl",     excerpt:"third report on this account today",       status:"flagged"},
+      {id:"K-4486", submitted:"09:49", author:"@itsfine",   excerpt:"escalating per the runbook",               status:"held"},
+      {id:"K-4487", submitted:"09:52", author:"@porthole9", excerpt:"duplicate of K-4474",                      status:"flagged"},
+      {id:"K-4488", submitted:"09:55", author:"@andesite",  excerpt:"no action needed, closing",                status:"cleared"},
+      {id:"K-4489", submitted:"09:58", author:"@tinct",     excerpt:"requesting a second reviewer",             status:"held"},
+      {id:"K-4490", submitted:"10:02", author:"@vellum_",   excerpt:"attaching the original submission",        status:"cleared"}
+    ]
+  ];
+
+  var STATUS_LABEL = {flagged:"Flagged", held:"Held", cleared:"Cleared"};
+  var ACTION_VERB  = {held:"held", cleared:"cleared", rejected:"rejected"};
+  var EMPTY_COPY   = {
+    "no-results":{title:"No matches",  line:"No items match the current filter."},
+    "no-queue":  {title:"Queue empty", line:"Nothing is awaiting review."}
+  };
+
+  /* 8s: the median time to notice a mis-click in the shadowing sessions. */
+  var UNDO_MS = 8000;
+  var SNAP_MS = 90;
+  var SETTLE_MS = 260;
+
+  var params = new URLSearchParams(window.location.search);
+  var forcedEmpty = params.get("empty");
+  if (forcedEmpty !== "no-results" && forcedEmpty !== "no-queue") forcedEmpty = null;
+
+  var list       = document.getElementById("queue");
+  var loadMore   = document.getElementById("load-more");
+  var selectAll  = document.getElementById("select-all");
+  var railCount  = document.getElementById("rail-count");
+  var queueCount = document.getElementById("queue-count");
+  var undoSlot   = document.getElementById("undo-slot");
+  var rail       = document.querySelector(".ds-action-rail");
+  var actionBtns = Array.prototype.slice.call(document.querySelectorAll(".rail-action"));
+
+  var items      = forcedEmpty ? [] : PAGES[0].map(clone);
+  var pagesLoaded= forcedEmpty ? PAGES.length : 1;
+  var selected   = new Set();
+  var anchorId   = null;
+  var pending    = null;   /* the reversible record of the last bulk action */
+  var undoTimer  = null;
+  var emptyNode  = null;
+
+  function clone(o){ return {id:o.id, submitted:o.submitted, author:o.author, excerpt:o.excerpt, status:o.status}; }
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function indexOf(id){ for (var i=0;i<items.length;i++) if (items[i].id===id) return i; return -1; }
+
+  /* ---------------- rendering ---------------- */
+
+  function buildRow(item){
+    var li = document.createElement("li");
+    li.className = "ds-queue-row";
+    li.setAttribute("data-ds","ds-queue-row");
+    li.setAttribute("data-id", item.id);
+    li.setAttribute("data-status", item.status);
+    li.setAttribute("data-selected","false");
+    li.innerHTML =
+      '<div class="ds-select-cell" data-ds="ds-select-cell">' +
+        '<label class="select-hit">' +
+          '<input type="checkbox" class="select-box" data-row-check>' +
+          '<span class="visually-hidden">Select ' + esc(item.id) + '</span>' +
+        '</label>' +
+      '</div>' +
+      '<div class="row-body">' +
+        '<p class="row-excerpt">' + esc(item.excerpt) + '</p>' +
+        '<p class="row-meta">' + esc(item.id) + ' · ' + esc(item.submitted) + ' · ' + esc(item.author) + '</p>' +
+      '</div>' +
+      '<span class="ds-status-pill" data-ds="ds-status-pill" data-variant="' + item.status + '">' +
+        '<span class="pill-dot" aria-hidden="true"></span>' + STATUS_LABEL[item.status] +
+      '</span>';
+    return li;
+  }
+
+  function mountEmpty(variant){
+    if (emptyNode && emptyNode.getAttribute("data-variant") === variant) return;
+    unmountEmpty();
+    var copy = EMPTY_COPY[variant];
+    emptyNode = document.createElement("div");
+    emptyNode.className = "ds-empty-rest";
+    emptyNode.setAttribute("data-ds","ds-empty-rest");
+    emptyNode.setAttribute("data-variant", variant);
+    emptyNode.innerHTML =
+      '<h2 class="empty-title">' + copy.title + '</h2>' +
+      '<p class="empty-line">' + copy.line + '</p>';
+    list.parentNode.insertBefore(emptyNode, list);
+  }
+
+  function unmountEmpty(){
+    if (emptyNode && emptyNode.parentNode) emptyNode.parentNode.removeChild(emptyNode);
+    emptyNode = null;
+  }
+
+  function renderList(){
+    var variant = forcedEmpty ? forcedEmpty : (items.length === 0 ? "no-queue" : null);
+
+    if (variant){
+      list.replaceChildren();
+      list.hidden = true;
+      loadMore.hidden = true;
+      mountEmpty(variant);
+    } else {
+      unmountEmpty();
+      list.hidden = false;
+      loadMore.hidden = false;
+      var frag = document.createDocumentFragment();
+      for (var i=0;i<items.length;i++) frag.appendChild(buildRow(items[i]));
+      list.replaceChildren(frag);
+    }
+
+    queueCount.textContent = items.length + (items.length === 1 ? " item" : " items");
+  }
+
+  function syncSelection(){
+    var rows = list.querySelectorAll(".ds-queue-row");
+    for (var i=0;i<rows.length;i++){
+      var on = selected.has(rows[i].getAttribute("data-id"));
+      rows[i].setAttribute("data-selected", on ? "true" : "false");
+      rows[i].querySelector(".select-box").checked = on;
+    }
+
+    var n = selected.size;
+    railCount.textContent = n + " selected";
+    rail.setAttribute("data-state", n > 0 ? "armed" : "idle");
+    for (var b=0;b<actionBtns.length;b++) actionBtns[b].disabled = (n === 0);
+
+    /* Three-state header: an unchecked box over a partial selection reads as
+       "nothing is selected" and gets batches re-assembled from scratch. */
+    var total = items.length;
+    selectAll.disabled      = (total === 0);
+    selectAll.checked       = (total > 0 && n === total);
+    selectAll.indeterminate = (n > 0 && n < total);
+  }
+
+  /* ---------------- selection ---------------- */
+
+  function setSelected(id, on){
+    if (on) selected.add(id); else selected.delete(id);
+  }
+
+  function selectRange(fromId, toId, on){
+    var a = indexOf(fromId), b = indexOf(toId);
+    if (a < 0 || b < 0) { setSelected(toId, on); return; }
+    var lo = Math.min(a,b), hi = Math.max(a,b);
+    for (var i=lo;i<=hi;i++) setSelected(items[i].id, on);
+  }
+
+  var forwardedShift = false;
+
+  list.addEventListener("click", function(e){
+    var row = e.target.closest(".ds-queue-row");
+    if (!row) return;
+    var box = e.target.closest(".select-box");
+
+    /* A click on the label forwards a second click to the input; act once,
+       and carry the modifier across, which the forwarded event drops. */
+    if (!box && e.target.closest(".select-hit")) { forwardedShift = e.shiftKey; return; }
+
+    var id = row.getAttribute("data-id");
+    var want = box ? box.checked : !selected.has(id);
+    var shift = e.shiftKey || forwardedShift;
+    forwardedShift = false;
+
+    if (shift && anchorId && anchorId !== id) selectRange(anchorId, id, want);
+    else setSelected(id, want);
+
+    anchorId = id;
+    syncSelection();
+  });
+
+  selectAll.addEventListener("click", function(){
+    var all = items.length > 0 && selected.size === items.length;
+    selected.clear();
+    if (!all) for (var i=0;i<items.length;i++) selected.add(items[i].id);
+    anchorId = null;
+    syncSelection();
+  });
+
+  /* ---------------- bulk actions ---------------- */
+
+  function applyAction(kind){
+    if (selected.size === 0) return;
+
+    var snapshot = [];
+    for (var i=0;i<items.length;i++){
+      if (selected.has(items[i].id)) snapshot.push({index:i, item:clone(items[i])});
+    }
+    var count = snapshot.length;
+
+    if (kind === "rejected"){
+      items = items.filter(function(it){ return !selected.has(it.id); });
+    } else {
+      for (var j=0;j<items.length;j++){
+        if (selected.has(items[j].id)) items[j].status = kind;
+      }
+    }
+
+    selected.clear();
+    anchorId = null;
+    pending = {kind:kind, snapshot:snapshot};
+
+    renderList();
+    syncSelection();
+    showUndo(count, ACTION_VERB[kind]);
+  }
+
+  for (var a=0;a<actionBtns.length;a++){
+    actionBtns[a].addEventListener("click", function(e){
+      applyAction(e.currentTarget.getAttribute("data-action"));
+    });
+  }
+
+  /* ---------------- ds-undo-strip ---------------- */
+
+  function showUndo(count, verb){
+    window.clearTimeout(undoTimer);
+    undoSlot.replaceChildren();
+
+    var strip = document.createElement("div");
+    strip.className = "ds-undo-strip";
+    strip.setAttribute("data-ds","ds-undo-strip");
+    strip.setAttribute("data-state","entering");
+    strip.innerHTML =
+      '<p class="undo-label">' + count + ' ' + verb + '</p>' +
+      '<button type="button" class="undo-action">Undo</button>';
+    undoSlot.appendChild(strip);
+
+    strip.querySelector(".undo-action").addEventListener("click", revert);
+    window.requestAnimationFrame(function(){ strip.setAttribute("data-state","visible"); });
+    undoTimer = window.setTimeout(dismissUndo, UNDO_MS);
+  }
+
+  function dismissUndo(){
+    window.clearTimeout(undoTimer);
+    pending = null;
+    var strip = undoSlot.querySelector(".ds-undo-strip");
+    if (!strip) return;
+    strip.setAttribute("data-state","leaving");
+    window.setTimeout(function(){
+      if (strip.parentNode) strip.parentNode.removeChild(strip);
+    }, SNAP_MS);
+  }
+
+  function revert(){
+    if (!pending) return;
+    var kind = pending.kind, snapshot = pending.snapshot;
+
+    if (kind === "rejected"){
+      snapshot.slice().sort(function(x,y){ return x.index - y.index; })
+        .forEach(function(s){ items.splice(Math.min(s.index, items.length), 0, s.item); });
+    } else {
+      snapshot.forEach(function(s){
+        var k = indexOf(s.item.id);
+        if (k >= 0) items[k].status = s.item.status;
+      });
+    }
+
+    dismissUndo();
+    renderList();
+    syncSelection();
+  }
+
+  /* ---------------- ds-load-more ---------------- */
+
+  loadMore.addEventListener("click", function(){
+    if (pagesLoaded >= PAGES.length) return;
+
+    loadMore.setAttribute("data-state","loading");
+    loadMore.disabled = true;
+    loadMore.textContent = "Loading…";
+
+    window.setTimeout(function(){
+      pagesLoaded += 1;
+      /* Selection is deliberately not cleared: batches are assembled across
+         pages before they are acted on. */
+      items = items.concat(PAGES[pagesLoaded - 1].map(clone));
+      renderList();
+      syncSelection();
+
+      if (pagesLoaded >= PAGES.length){
+        loadMore.setAttribute("data-state","exhausted");
+        loadMore.disabled = true;
+        loadMore.textContent = "End of queue";
+      } else {
+        loadMore.setAttribute("data-state","idle");
+        loadMore.disabled = false;
+        loadMore.textContent = "Load more";
+      }
+    }, SETTLE_MS);
+  });
+
+  /* ---------------- init ---------------- */
+
+  if (forcedEmpty){
+    loadMore.hidden = true;
+    loadMore.setAttribute("data-state","exhausted");
+    loadMore.disabled = true;
+    loadMore.textContent = "End of queue";
+  }
+
+  renderList();
+  syncSelection();
+})();
+</script>
+</body>
+</html>

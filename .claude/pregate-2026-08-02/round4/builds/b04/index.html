@@ -1,0 +1,940 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kettle — review queue</title>
+<style>
+:root {
+  color-scheme: dark;
+
+  /* ---- tokens: DESIGN.md frontmatter, verbatim ---- */
+  --surface-base: #0e1113;
+  --surface-raised: #171b1e;
+  --surface-recessed: #0a0c0e;
+  --surface-sunken: #060809;
+
+  --ink-primary: #e8eaec;
+  --ink-secondary: #9aa3a9;
+  --ink-faint: #5f686e;
+
+  --rule-hair: #242a2e;
+  --rule-solid: #39424a;
+
+  --signal-flag: #d4573a;
+  --signal-hold: #c08a2e;
+  --signal-clear: #4a8f6d;
+
+  --focus-ring: #6ea8d8;
+
+  --type-ui-dense: 13px;
+  --type-ui: 14px;
+  --type-ui-lead: 16px;
+  --type-section: 20px;
+  --type-page: 28px;
+
+  --space-hair: 2px;
+  --space-tight: 6px;
+  --space-snug: 10px;
+  --space-base: 16px;
+  --space-loose: 24px;
+  --space-slack: 40px;
+
+  --duration-snap: 90ms;
+  --duration-base: 160ms;
+  --duration-settle: 260ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* ---- derived tokens: not in DESIGN.md, added so no bare value
+         appears outside :root. See NOTES.md. ---- */
+  --font-ui: system-ui, sans-serif;
+  --border-hair: 1px;
+  --border-mark: 2px;
+  --radius-pill: 3px;
+  --hit-min: 44px;
+  --gutter-select: var(--space-slack);   /* dec_5: fixed 40px, never collapses */
+  --col-status: 112px;
+  --btn-load-min: 128px;
+  --focus-width: 2px;
+  --focus-offset: 2px;
+  --strip-rise: 4px;                     /* motion distance */
+  --line-dense: 1.35;
+  --line-ui: 1.4;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-strong: 600;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--surface-base);
+  color: var(--ink-primary);
+  font-family: var(--font-ui);
+  font-size: var(--type-ui);
+  line-height: var(--line-ui);
+}
+
+body.is-dragging { user-select: none; }
+
+:focus-visible {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.console {
+  padding: var(--space-loose) var(--space-base) var(--space-slack);
+}
+
+/* ---------- header ---------- */
+
+.console-head {
+  padding-bottom: var(--space-base);
+}
+
+.console-title {
+  margin: 0;
+  font-size: var(--type-page);
+  font-weight: var(--weight-medium);
+  line-height: var(--line-ui);
+  color: var(--ink-primary);
+}
+
+.console-meta {
+  margin: var(--space-tight) 0 0;
+  font-size: var(--type-ui);
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.sep { color: var(--ink-faint); }
+
+.link-action {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--ink-primary);
+  text-decoration: underline;
+  text-underline-offset: var(--space-hair);
+  cursor: pointer;
+}
+
+/* ---------- ds-action-rail ---------- */
+
+.ds-action-rail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-base);
+  padding: var(--space-tight) 0;
+  border-top: var(--border-hair) solid var(--rule-solid);
+  border-bottom: var(--border-hair) solid var(--rule-hair);
+}
+
+.rail-count {
+  margin: 0;
+  font-size: var(--type-ui-lead);
+  font-weight: var(--weight-medium);
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-action-rail[data-state="armed"] .rail-count { color: var(--ink-primary); }
+
+.rail-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+}
+
+.rail-action {
+  appearance: none;
+  min-height: var(--hit-min);
+  padding: 0 var(--space-base);
+  font: inherit;
+  font-size: var(--type-ui);
+  color: var(--ink-primary);
+  background: var(--surface-base);
+  border: var(--border-hair) solid var(--rule-hair);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background-color var(--duration-snap) var(--ease-standard),
+              border-color var(--duration-snap) var(--ease-standard);
+}
+
+.rail-action:hover:not(:disabled) {
+  background: var(--surface-recessed);
+  border-color: var(--rule-solid);
+}
+
+.rail-action:disabled {
+  color: var(--ink-faint);
+  border-color: var(--rule-hair);
+  cursor: default;
+}
+
+/* destructive is separated and edged, never signal-coloured:
+   the signal hues are status, not emphasis. */
+.rail-action--destructive {
+  margin-left: var(--space-snug);
+  border-color: var(--rule-solid);
+}
+
+.rail-action--destructive:disabled { border-color: var(--rule-hair); }
+
+/* ---------- ds-undo-strip (reserved lane, never shifts the list) ---------- */
+
+.undo-lane {
+  display: flex;
+  align-items: center;
+  min-height: var(--hit-min);
+  border-bottom: var(--border-hair) solid var(--rule-solid);
+}
+
+.ds-undo-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-snug);
+  font-size: var(--type-ui);
+  color: var(--ink-primary);
+  opacity: 0;
+  transform: translateY(var(--strip-rise));
+}
+
+.ds-undo-strip[data-state="visible"] {
+  opacity: 1;
+  transform: none;
+  transition: opacity var(--duration-base) var(--ease-standard),
+              transform var(--duration-base) var(--ease-standard);
+}
+
+.ds-undo-strip[data-state="leaving"] {
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-exit);
+}
+
+.undo-action {
+  appearance: none;
+  position: relative;
+  background: none;
+  border: 0;
+  padding: 0 var(--space-tight);
+  margin: 0;
+  font: inherit;
+  font-size: var(--type-ui);
+  color: var(--ink-primary);
+  text-decoration: underline;
+  text-underline-offset: var(--space-hair);
+  cursor: pointer;
+}
+
+/* 44px hit area without a 44px box */
+.undo-action::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: var(--hit-min);
+  transform: translateY(-50%);
+}
+
+/* ---------- queue table ---------- */
+
+.queue {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.queue col.col-select { width: var(--gutter-select); }
+.queue col.col-status { width: var(--col-status); }
+
+.queue-head th {
+  padding: var(--space-tight) var(--space-snug);
+  text-align: left;
+  font-size: var(--type-ui-dense);
+  font-weight: var(--weight-regular);
+  color: var(--ink-secondary);
+  border-bottom: var(--border-hair) solid var(--rule-hair);
+  vertical-align: middle;
+}
+
+.queue-head th.head-select { padding: 0; }
+
+/* ---------- ds-select-cell ---------- */
+
+.ds-select-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--gutter-select);
+  min-height: var(--type-ui-lead);
+  cursor: pointer;
+}
+
+/* dec_5: the gutter stays 40px; the 44px hit area extends past it */
+.ds-select-cell::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--hit-min);
+  height: var(--hit-min);
+  transform: translate(-50%, -50%);
+}
+
+.ds-select-cell input {
+  margin: 0;
+  width: var(--type-ui-dense);
+  height: var(--type-ui-dense);
+  accent-color: var(--ink-secondary);
+  cursor: pointer;
+}
+
+/* ---------- ds-queue-row ---------- */
+
+.ds-queue-row {
+  border-bottom: var(--border-hair) solid var(--rule-hair);
+  border-left: var(--border-mark) solid transparent;
+  background: var(--surface-base);
+}
+
+.ds-queue-row:hover { background: var(--surface-recessed); }
+.ds-queue-row:focus-within { background: var(--surface-recessed); }
+
+/* MOTION-selection-is-instant: no transition on the row tint */
+.ds-queue-row[data-state="selected"] {
+  background: var(--surface-recessed);
+  border-left-color: var(--ink-secondary);
+}
+
+.ds-queue-row td {
+  padding: var(--space-tight) var(--space-snug);
+  vertical-align: top;
+}
+
+.ds-queue-row td.cell-select { padding: var(--space-tight) 0; }
+
+.row-excerpt {
+  margin: 0;
+  font-size: var(--type-ui-dense);
+  line-height: var(--line-dense);
+  color: var(--ink-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-meta {
+  margin: var(--space-hair) 0 0;
+  font-size: var(--type-ui-dense);
+  line-height: var(--line-dense);
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ds-queue-row compact variant drops the secondary metadata line */
+.ds-queue-row[data-variant="compact"] .row-meta { display: none; }
+
+/* ---------- ds-status-pill ---------- */
+
+.ds-status-pill {
+  display: inline-block;
+  padding: 0 var(--space-tight);
+  font-size: var(--type-ui-dense);
+  line-height: var(--line-dense);
+  color: var(--ink-primary);
+  background: var(--surface-base);
+  border: var(--border-hair) solid var(--rule-solid);
+  border-radius: var(--radius-pill);
+}
+
+.ds-status-pill[data-variant="flagged"] { border-color: var(--signal-flag); }
+.ds-status-pill[data-variant="held"]    { border-color: var(--signal-hold); }
+.ds-status-pill[data-variant="cleared"] { border-color: var(--signal-clear); }
+
+/* ---------- ds-load-more ---------- */
+
+.list-foot {
+  display: flex;
+  padding-top: var(--space-base);
+}
+
+.ds-load-more {
+  appearance: none;
+  min-width: var(--btn-load-min);
+  min-height: var(--hit-min);
+  padding: 0 var(--space-base);
+  font: inherit;
+  font-size: var(--type-ui);
+  color: var(--ink-primary);
+  background: var(--surface-base);
+  border: var(--border-hair) solid var(--rule-hair);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background-color var(--duration-snap) var(--ease-standard),
+              border-color var(--duration-snap) var(--ease-standard);
+}
+
+.ds-load-more:hover:not(:disabled) {
+  background: var(--surface-recessed);
+  border-color: var(--rule-solid);
+}
+
+.ds-load-more[data-state="loading"] {
+  color: var(--ink-secondary);
+  cursor: default;
+}
+
+.ds-load-more[data-state="exhausted"] {
+  color: var(--ink-secondary);
+  background: var(--surface-sunken);
+  cursor: default;
+}
+
+/* ---------- ds-empty-rest ---------- */
+
+.ds-empty-rest {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-snug);
+  padding: var(--space-loose) var(--space-snug);
+  background: var(--surface-sunken);
+  border-bottom: var(--border-hair) solid var(--rule-hair);
+}
+
+.empty-line {
+  margin: 0;
+  font-size: var(--type-ui);
+  color: var(--ink-secondary);
+}
+
+.empty-action {
+  appearance: none;
+  min-height: var(--hit-min);
+  padding: 0 var(--space-base);
+  font: inherit;
+  font-size: var(--type-ui);
+  color: var(--ink-primary);
+  background: var(--surface-base);
+  border: var(--border-hair) solid var(--rule-hair);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: border-color var(--duration-snap) var(--ease-standard);
+}
+
+.empty-action:hover { border-color: var(--rule-solid); }
+
+[hidden] { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* movement goes; the state change itself does not. The undo strip still
+     appears at full opacity and still says what happened — it just stops
+     travelling to get there. */
+  *, *::before, *::after {
+    transition-property: none !important;
+    animation: none !important;
+  }
+  .ds-undo-strip { transform: none !important; }
+}
+</style>
+</head>
+<body>
+<main class="console">
+
+  <header class="console-head">
+    <h1 class="console-title">Review queue</h1>
+    <p class="console-meta">
+      <span id="queue-count">12 in queue</span><span id="filter-note" hidden>
+        <span class="sep">·</span> filter: <span id="filter-term"></span>
+        <span class="sep">·</span> <button type="button" class="link-action" id="clear-filter-head">Clear filter</button>
+      </span>
+    </p>
+  </header>
+
+  <!-- dec_rail_before_list: the rail precedes the list in DOM order.
+       dec_rail_position: in normal flow above the list, not fixed. -->
+  <div class="ds-action-rail" data-ds="ds-action-rail" data-state="idle" id="rail">
+    <p class="rail-count" id="rail-count" aria-live="polite">0 selected</p>
+    <div class="rail-actions">
+      <button type="button" class="rail-action" id="act-hold" disabled>Hold</button>
+      <button type="button" class="rail-action" id="act-clear" disabled>Clear</button>
+      <button type="button" class="rail-action rail-action--destructive" id="act-destructive" disabled>Remove</button>
+    </div>
+  </div>
+
+  <div class="undo-lane">
+    <div class="ds-undo-strip" data-ds="ds-undo-strip" data-state="leaving" id="undo-strip" role="status" aria-live="polite" hidden>
+      <span id="undo-text"></span>
+      <button type="button" class="undo-action" id="undo-action">Undo</button>
+    </div>
+  </div>
+
+  <table class="queue" id="queue">
+    <colgroup>
+      <col class="col-select">
+      <col>
+      <col class="col-status">
+    </colgroup>
+    <thead>
+      <tr class="queue-head">
+        <th scope="col" class="head-select">
+          <label class="ds-select-cell" data-ds="ds-select-cell" data-scope="page" id="head-select-cell">
+            <input type="checkbox" id="head-select" aria-label="Select all rows on this page">
+          </label>
+        </th>
+        <th scope="col">Submission</th>
+        <th scope="col">Status</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <div id="empty-slot"></div>
+
+  <div class="list-foot" id="list-foot">
+    <button type="button" class="ds-load-more" data-ds="ds-load-more" data-state="default" id="load-more">Load more</button>
+  </div>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------------------------------------------------------
+     PROVISIONAL — dec_destructive_label is CONTESTED in the decision
+     graph. T&S ops want "Reject" (policy taxonomy); Legal wants
+     "Remove" (effect on the content, and the wording of the
+     user-facing notice). Neither has conceded. This build renders
+     "Remove" so the console works, but the label is NOT settled —
+     see NOTES.md. Change these two strings together.
+     --------------------------------------------------------------- */
+  var DESTRUCTIVE_LABEL = "Remove";
+  var DESTRUCTIVE_PAST = "removed";
+
+  var PAGE_1 = [
+    ["K-4471", "09:02", "@noor_h",    "\"shipping delays again, third week running\"", "flagged"],
+    ["K-4472", "09:04", "@dvsg",      "\"link in bio for the full list\"",             "held"],
+    ["K-4473", "09:07", "@mara.p",    "\"anyone else getting this error on upload\"",  "cleared"],
+    ["K-4474", "09:11", "@tt_ronin",  "\"reposting since it got taken down\"",         "flagged"],
+    ["K-4475", "09:12", "@quietkiln", "\"the receipts are in the thread\"",            "flagged"],
+    ["K-4476", "09:15", "@halcy0n",   "\"DM me if you want the discount code\"",       "held"],
+    ["K-4477", "09:19", "@b_orchard", "\"not sure this belongs here but\"",            "cleared"],
+    ["K-4478", "09:23", "@sm1th",     "\"same account, new handle\"",                  "flagged"],
+    ["K-4479", "09:26", "@tessel",    "\"screenshots attached, timestamps intact\"",   "cleared"],
+    ["K-4480", "09:31", "@nvrmnd_",   "\"last warning before I escalate\"",            "flagged"],
+    ["K-4481", "09:33", "@pol_ax",    "\"cross-posted from the other board\"",         "held"],
+    ["K-4482", "09:38", "@wren.k",    "\"closing the loop on this one\"",              "cleared"]
+  ];
+
+  var PAGE_2 = [
+    ["K-4483", "09:41", "@oddment",   "\"the policy page says otherwise\"",   "flagged"],
+    ["K-4484", "09:44", "@lune_",     "\"adding context in the replies\"",    "cleared"],
+    ["K-4485", "09:47", "@gravl",     "\"third report on this account today\"", "flagged"],
+    ["K-4486", "09:49", "@itsfine",   "\"escalating per the runbook\"",       "held"],
+    ["K-4487", "09:52", "@porthole9", "\"duplicate of K-4474\"",              "flagged"],
+    ["K-4488", "09:55", "@andesite",  "\"no action needed, closing\"",        "cleared"],
+    ["K-4489", "09:58", "@tinct",     "\"requesting a second reviewer\"",     "held"],
+    ["K-4490", "10:02", "@vellum_",   "\"attaching the original submission\"", "cleared"]
+  ];
+
+  function toRows(src) {
+    return src.map(function (r) {
+      return { id: r[0], submitted: r[1], author: r[2], excerpt: r[3], status: r[4] };
+    });
+  }
+
+  var STATUS_LABEL = { flagged: "Flagged", held: "Held", cleared: "Cleared" };
+
+  /* ---------------- state ---------------- */
+
+  var params = new URL(window.location.href).searchParams;
+  var forcedEmpty = params.get("empty") === "1";
+  var filter = (params.get("q") || "").trim();
+
+  var rows = forcedEmpty ? [] : toRows(PAGE_1);
+  var totalLoaded = rows.length;
+  var page = 1;
+  var selected = new Set();
+  var lastAction = null;
+  var drag = null;
+
+  /* ---------------- elements ---------------- */
+
+  var el = {
+    queue: document.getElementById("queue"),
+    tbody: document.getElementById("rows"),
+    headSelect: document.getElementById("head-select"),
+    headSelectCell: document.getElementById("head-select-cell"),
+    rail: document.getElementById("rail"),
+    railCount: document.getElementById("rail-count"),
+    hold: document.getElementById("act-hold"),
+    clear: document.getElementById("act-clear"),
+    destructive: document.getElementById("act-destructive"),
+    undoStrip: document.getElementById("undo-strip"),
+    undoText: document.getElementById("undo-text"),
+    undoAction: document.getElementById("undo-action"),
+    loadMore: document.getElementById("load-more"),
+    listFoot: document.getElementById("list-foot"),
+    emptySlot: document.getElementById("empty-slot"),
+    queueCount: document.getElementById("queue-count"),
+    filterNote: document.getElementById("filter-note"),
+    filterTerm: document.getElementById("filter-term"),
+    clearFilterHead: document.getElementById("clear-filter-head")
+  };
+
+  el.destructive.textContent = DESTRUCTIVE_LABEL;
+
+  /* ---------------- derived ---------------- */
+
+  function visibleRows() {
+    if (!filter) return rows;
+    var q = filter.toLowerCase();
+    return rows.filter(function (r) {
+      return (r.id + " " + r.submitted + " " + r.author + " " + r.excerpt + " " + r.status)
+        .toLowerCase().indexOf(q) !== -1;
+    });
+  }
+
+  /* ---------------- render ---------------- */
+
+  function renderRows() {
+    var vis = visibleRows();
+
+    el.tbody.textContent = "";
+    el.emptySlot.textContent = "";
+
+    var emptyKind = null;
+    if (rows.length === 0) emptyKind = "no-queue";
+    else if (vis.length === 0) emptyKind = "no-results";
+
+    el.queue.hidden = emptyKind !== null;
+    el.listFoot.hidden = emptyKind !== null;
+
+    if (emptyKind) {
+      el.emptySlot.appendChild(buildEmpty(emptyKind));
+    } else {
+      var frag = document.createDocumentFragment();
+      vis.forEach(function (r) { frag.appendChild(buildRow(r)); });
+      el.tbody.appendChild(frag);
+    }
+
+    // header meta line
+    el.queueCount.textContent = filter
+      ? vis.length + " of " + rows.length + " in queue"
+      : rows.length + " in queue";
+    el.filterNote.hidden = !filter;
+    el.filterTerm.textContent = filter;
+
+    // ds-load-more terminal state
+    if (page >= 2) {
+      el.loadMore.dataset.state = "exhausted";
+      el.loadMore.disabled = true;
+      el.loadMore.textContent = "End of queue";
+    }
+  }
+
+  function buildRow(r) {
+    var tr = document.createElement("tr");
+    tr.className = "ds-queue-row";
+    tr.setAttribute("data-ds", "ds-queue-row");
+    tr.setAttribute("data-id", r.id);
+    tr.setAttribute("data-variant", "default");
+
+    var tdSel = document.createElement("td");
+    tdSel.className = "cell-select";
+    var label = document.createElement("label");
+    label.className = "ds-select-cell";
+    label.setAttribute("data-ds", "ds-select-cell");
+    var input = document.createElement("input");
+    input.type = "checkbox";
+    input.setAttribute("aria-label", "Select " + r.id);
+    label.appendChild(input);
+    tdSel.appendChild(label);
+
+    var tdBody = document.createElement("td");
+    var excerpt = document.createElement("p");
+    excerpt.className = "row-excerpt";
+    excerpt.textContent = r.excerpt;
+    var meta = document.createElement("p");
+    meta.className = "row-meta";
+    meta.appendChild(document.createTextNode(r.id + " "));
+    meta.appendChild(sep());
+    meta.appendChild(document.createTextNode(" " + r.submitted + " "));
+    meta.appendChild(sep());
+    meta.appendChild(document.createTextNode(" " + r.author));
+    tdBody.appendChild(excerpt);
+    tdBody.appendChild(meta);
+
+    var tdStatus = document.createElement("td");
+    var pill = document.createElement("span");
+    pill.className = "ds-status-pill";
+    pill.setAttribute("data-ds", "ds-status-pill");
+    pill.setAttribute("data-variant", r.status);
+    pill.textContent = STATUS_LABEL[r.status];
+    tdStatus.appendChild(pill);
+
+    tr.appendChild(tdSel);
+    tr.appendChild(tdBody);
+    tr.appendChild(tdStatus);
+    return tr;
+  }
+
+  function sep() {
+    var s = document.createElement("span");
+    s.className = "sep";
+    s.textContent = "·";
+    return s;
+  }
+
+  function buildEmpty(kind) {
+    var box = document.createElement("div");
+    box.className = "ds-empty-rest";
+    box.setAttribute("data-ds", "ds-empty-rest");
+    box.setAttribute("data-variant", kind);
+
+    var line = document.createElement("p");
+    line.className = "empty-line";
+
+    if (kind === "no-results") {
+      line.textContent = "0 rows match the filter.";
+      box.appendChild(line);
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "empty-action";
+      btn.textContent = "Clear filter";
+      btn.addEventListener("click", clearFilter);
+      box.appendChild(btn);
+    } else {
+      line.textContent = "Queue empty.";
+      box.appendChild(line);
+    }
+    return box;
+  }
+
+  /* ---------------- selection ---------------- */
+
+  function syncSelection() {
+    var vis = visibleRows();
+    var visIds = vis.map(function (r) { return r.id; });
+
+    Array.prototype.forEach.call(el.tbody.children, function (tr) {
+      var on = selected.has(tr.getAttribute("data-id"));
+      if (on) tr.setAttribute("data-state", "selected");
+      else tr.removeAttribute("data-state");
+      var cell = tr.querySelector(".ds-select-cell");
+      var box = cell.querySelector("input");
+      box.checked = on;
+      if (on) cell.setAttribute("data-state", "checked");
+      else cell.removeAttribute("data-state");
+    });
+
+    // dec_indeterminate_header: tri-state, partial is never unchecked
+    var selVis = visIds.filter(function (id) { return selected.has(id); }).length;
+    el.headSelect.checked = visIds.length > 0 && selVis === visIds.length;
+    el.headSelect.indeterminate = selVis > 0 && selVis < visIds.length;
+    el.headSelect.disabled = visIds.length === 0;
+    if (el.headSelect.indeterminate) el.headSelectCell.setAttribute("data-state", "indeterminate");
+    else if (el.headSelect.checked) el.headSelectCell.setAttribute("data-state", "checked");
+    else el.headSelectCell.removeAttribute("data-state");
+
+    var n = selected.size;
+    el.railCount.textContent = n + " selected";
+    el.rail.dataset.state = n > 0 ? "armed" : "idle";
+    el.hold.disabled = n === 0;
+    el.clear.disabled = n === 0;
+    el.destructive.disabled = n === 0;
+  }
+
+  function setSelected(id, on) {
+    if (on) selected.add(id); else selected.delete(id);
+    syncSelection();
+  }
+
+  /* ---------------- bulk actions ---------------- */
+
+  function applyBulk(kind) {
+    var ids = rows.filter(function (r) { return selected.has(r.id); })
+                  .map(function (r) { return r.id; });
+    if (ids.length === 0) return;
+
+    var idSet = new Set(ids);
+    var before = [];
+    rows.forEach(function (r, i) {
+      if (idSet.has(r.id)) before.push({ index: i, row: r, status: r.status });
+    });
+
+    var past;
+    if (kind === "destructive") {
+      rows = rows.filter(function (r) { return !idSet.has(r.id); });
+      past = DESTRUCTIVE_PAST;
+    } else {
+      var next = kind === "hold" ? "held" : "cleared";
+      rows.forEach(function (r) { if (idSet.has(r.id)) r.status = next; });
+      past = next;
+    }
+
+    lastAction = { kind: kind, before: before, selection: new Set(ids) };
+    selected = new Set();
+
+    renderRows();
+    syncSelection();
+    showUndo(ids.length + " " + past + ".");
+  }
+
+  function undoLast() {
+    if (!lastAction) return;
+    var a = lastAction;
+
+    if (a.kind === "destructive") {
+      a.before.slice().sort(function (x, y) { return x.index - y.index; })
+        .forEach(function (b) {
+          rows.splice(Math.min(b.index, rows.length), 0, b.row);
+        });
+    } else {
+      a.before.forEach(function (b) { b.row.status = b.status; });
+    }
+
+    // the action cleared the selection, so reversing it restores the batch
+    selected = new Set(a.selection);
+    hideUndo();
+    renderRows();
+    syncSelection();
+  }
+
+  /* ---------------- ds-undo-strip ---------------- */
+
+  var undoDismissTimer = null;
+  var undoLeaveTimer = null;
+  var UNDO_DWELL_MS = 8000;   // dec_4: 8s, no countdown, no progress bar
+  var LEAVE_MS = 160;         // --duration-base
+
+  function showUndo(text) {
+    window.clearTimeout(undoDismissTimer);
+    window.clearTimeout(undoLeaveTimer);
+    el.undoText.textContent = text;
+    el.undoStrip.hidden = false;
+    el.undoStrip.dataset.state = "entering";
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(function () {
+        el.undoStrip.dataset.state = "visible";
+      });
+    });
+    undoDismissTimer = window.setTimeout(hideUndo, UNDO_DWELL_MS);
+  }
+
+  function hideUndo() {
+    window.clearTimeout(undoDismissTimer);
+    lastAction = null;
+    if (el.undoStrip.hidden) return;
+    el.undoStrip.dataset.state = "leaving";
+    undoLeaveTimer = window.setTimeout(function () {
+      el.undoStrip.hidden = true;
+    }, LEAVE_MS);
+  }
+
+  /* ---------------- ds-load-more ---------------- */
+
+  function loadMore() {
+    if (page >= 2) return;
+    el.loadMore.dataset.state = "loading";
+    el.loadMore.disabled = true;
+    el.loadMore.textContent = "Loading";
+    window.setTimeout(function () {
+      page = 2;
+      // dec_selection_persists: appended rows arrive unselected, existing
+      // selection is untouched.
+      rows = rows.concat(toRows(PAGE_2));
+      totalLoaded = rows.length;
+      renderRows();
+      syncSelection();
+    }, 260); // --duration-settle
+  }
+
+  /* ---------------- filter ---------------- */
+
+  function clearFilter() {
+    filter = "";
+    try {
+      var u = new URL(window.location.href);
+      u.searchParams.delete("q");
+      window.history.replaceState(null, "", u.toString());
+    } catch (e) { /* file:// may refuse history writes; state is in memory */ }
+    renderRows();
+    syncSelection();
+  }
+
+  /* ---------------- events ---------------- */
+
+  // row selection: click anywhere on the row, drag to extend
+  el.tbody.addEventListener("pointerdown", function (e) {
+    if (e.button !== 0) return;
+    var tr = e.target.closest("tr.ds-queue-row");
+    if (!tr) return;
+    e.preventDefault();
+    var id = tr.getAttribute("data-id");
+    var target = !selected.has(id);
+    drag = target;
+    document.body.classList.add("is-dragging");
+    setSelected(id, target);
+    var box = tr.querySelector(".ds-select-cell input");
+    if (box) box.focus({ preventScroll: true });
+  });
+
+  el.tbody.addEventListener("pointerover", function (e) {
+    if (drag === null) return;
+    var tr = e.target.closest("tr.ds-queue-row");
+    if (!tr) return;
+    setSelected(tr.getAttribute("data-id"), drag);
+  });
+
+  window.addEventListener("pointerup", function () {
+    drag = null;
+    document.body.classList.remove("is-dragging");
+  });
+
+  // a real mouse click already toggled via pointerdown; stop the label
+  // from toggling a second time. detail === 0 means keyboard, leave it.
+  el.tbody.addEventListener("click", function (e) {
+    if (e.detail > 0 && e.target.closest(".ds-select-cell")) e.preventDefault();
+  });
+
+  // keyboard path (Space on a focused ds-select-cell input)
+  el.tbody.addEventListener("change", function (e) {
+    var tr = e.target.closest("tr.ds-queue-row");
+    if (!tr) return;
+    setSelected(tr.getAttribute("data-id"), e.target.checked);
+  });
+
+  el.headSelect.addEventListener("change", function () {
+    var visIds = visibleRows().map(function (r) { return r.id; });
+    if (el.headSelect.checked) visIds.forEach(function (id) { selected.add(id); });
+    else visIds.forEach(function (id) { selected.delete(id); });
+    syncSelection();
+  });
+
+  el.hold.addEventListener("click", function () { applyBulk("hold"); });
+  el.clear.addEventListener("click", function () { applyBulk("clear"); });
+  el.destructive.addEventListener("click", function () { applyBulk("destructive"); });
+  el.undoAction.addEventListener("click", undoLast);
+  el.loadMore.addEventListener("click", loadMore);
+  el.clearFilterHead.addEventListener("click", clearFilter);
+
+  /* ---------------- start ---------------- */
+
+  renderRows();
+  syncSelection();
+})();
+</script>
+</body>
+</html>

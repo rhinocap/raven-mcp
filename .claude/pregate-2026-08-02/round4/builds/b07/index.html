@@ -1,0 +1,828 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kettle — review queue</title>
+<style>
+/* ---------------------------------------------------------------------------
+   Design tokens. Every literal value in this file lives here and nowhere else.
+   Values transcribed from the Kettle DESIGN.md front matter.
+   Two entries are local additions, marked LOCAL — see NOTES.md.
+   --------------------------------------------------------------------------- */
+:root{
+  --color-surface-base:#0e1113;
+  --color-surface-raised:#171b1e;
+  --color-surface-recessed:#0a0c0e;
+  --color-surface-sunken:#060809;
+  --color-ink-primary:#e8eaec;
+  --color-ink-secondary:#9aa3a9;
+  --color-ink-faint:#5f686e;
+  --color-rule-hair:#242a2e;
+  --color-rule-solid:#39424a;
+  --color-signal-flag:#d4573a;
+  --color-signal-hold:#c08a2e;
+  --color-signal-clear:#4a8f6d;
+  --color-focus-ring:#6ea8d8;
+  --type-ui-dense:13px;
+  --type-ui:14px;
+  --type-ui-lead:16px;
+  --type-section:20px;
+  --type-page:28px;
+  --space-hair:2px;
+  --space-tight:6px;
+  --space-snug:10px;
+  --space-base:16px;
+  --space-loose:24px;
+  --space-slack:40px;
+  --motion-duration-snap:90ms;
+  --motion-duration-base:160ms;
+  --motion-duration-settle:260ms;
+  --motion-easing-standard:cubic-bezier(0.2, 0, 0, 1);
+  --motion-easing-exit:cubic-bezier(0.4, 0, 1, 1);
+  --font-ui:ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; /* LOCAL */
+  --hit-min:44px;                                                           /* LOCAL */
+}
+
+*{box-sizing:border-box;}
+[hidden]{display:none !important;}
+html{background:var(--color-surface-base);}
+body{
+  margin:0;
+  background:var(--color-surface-base);
+  color:var(--color-ink-primary);
+  font-family:var(--font-ui);
+  font-size:var(--type-ui);
+  line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+}
+p{margin:0;}
+
+/* Focus is never removed. --focus-ring is the only place this hue appears. */
+:focus-visible{
+  outline:var(--space-hair) solid var(--color-focus-ring);
+  outline-offset:var(--space-hair);
+}
+
+.vh{
+  position:absolute;
+  width:1px;height:1px;
+  overflow:hidden;
+  clip-path:inset(50%);
+  white-space:nowrap;
+}
+
+/* --- page ---------------------------------------------------------------- */
+/* One column, full width. No sidebar, no tabs, no breadcrumb. */
+.kettle{
+  padding:var(--space-loose) var(--space-base) var(--space-slack);
+}
+.kettle__head{
+  display:flex;
+  align-items:center;
+  gap:var(--space-base);
+  padding-bottom:var(--space-base);
+}
+.kettle__title{
+  margin:0;
+  font-size:var(--type-page);
+  font-weight:600;
+  line-height:1.15;
+}
+.kettle__filter{margin-left:auto;}
+.kettle__filter input{
+  min-height:var(--hit-min);
+  width:34ch;
+  padding:0 var(--space-snug);
+  background:var(--color-surface-recessed);
+  border:1px solid var(--color-rule-solid);
+  border-radius:var(--space-hair);
+  color:var(--color-ink-primary);
+  font-family:var(--font-ui);
+  font-size:var(--type-ui);
+}
+.kettle__filter input::placeholder{color:var(--color-ink-secondary);opacity:1;}
+
+/* --- ds-action-rail ------------------------------------------------------- */
+/* dec_rail_position: above the list, in normal flow, scrolls with the page.
+   The rail's height is identical in idle and armed — the actions are always
+   present and the count never moves, so nothing shifts under the cursor when a
+   row is checked. */
+.ds-action-rail{
+  display:grid;
+  grid-template-columns:auto minmax(0, 1fr) auto;
+  align-items:center;
+  gap:var(--space-base);
+  min-height:var(--hit-min);
+  padding:var(--space-tight) 0;
+  border-top:1px solid var(--color-rule-hair);
+  border-bottom:1px solid var(--color-rule-hair);
+}
+.ds-action-rail__count{
+  font-size:var(--type-ui-lead);
+  color:var(--color-ink-secondary);
+  white-space:nowrap;
+}
+.ds-action-rail[data-state="armed"] .ds-action-rail__count{color:var(--color-ink-primary);}
+.ds-action-rail__actions{
+  display:flex;
+  gap:var(--space-tight);
+  justify-self:end;
+}
+.ds-action{
+  min-height:var(--hit-min);
+  min-width:var(--hit-min);
+  padding:0 var(--space-base);
+  background:var(--color-surface-recessed);
+  border:1px solid var(--color-rule-solid);
+  border-radius:var(--space-hair);
+  color:var(--color-ink-primary);
+  font-family:var(--font-ui);
+  font-size:var(--type-ui);
+  cursor:pointer;
+  transition:border-color var(--motion-duration-snap) var(--motion-easing-standard);
+}
+.ds-action:hover:not(:disabled){border-color:var(--color-ink-secondary);}
+.ds-action:disabled{
+  color:var(--color-ink-secondary);
+  border-color:var(--color-rule-hair);
+  cursor:default;
+}
+
+/* --- ds-undo-strip -------------------------------------------------------- */
+/* Sits in the rail's middle column, which is always reserved, so it can never
+   push the queue. No countdown, no progress bar. Auto-dismisses at 8s. */
+.ds-undo-strip{
+  display:flex;
+  align-items:center;
+  justify-self:center;
+  gap:var(--space-snug);
+  /* No vertical padding and no border: the strip is exactly as tall as the
+     action buttons, so the rail's height is identical whether it is present or
+     not and the queue never moves under the reviewer. */
+  padding:0 var(--space-snug);
+  background:var(--color-surface-raised);
+  border-radius:var(--space-hair);
+  color:var(--color-ink-primary);
+  font-size:var(--type-ui);
+  white-space:nowrap;
+  opacity:0;
+  transform:translateY(calc(var(--space-tight) * -1));
+  transition:
+    opacity var(--motion-duration-base) var(--motion-easing-standard),
+    transform var(--motion-duration-base) var(--motion-easing-standard);
+}
+.ds-undo-strip[data-state="visible"]{opacity:1;transform:none;}
+.ds-undo-strip[data-state="leaving"]{
+  opacity:0;
+  transition:opacity var(--motion-duration-settle) var(--motion-easing-exit);
+}
+.ds-undo-strip__action{
+  min-height:var(--hit-min);
+  min-width:var(--hit-min);
+  padding:0 var(--space-snug);
+  background:none;
+  border:1px solid var(--color-rule-solid);
+  border-radius:var(--space-hair);
+  color:var(--color-ink-primary);
+  font-family:var(--font-ui);
+  font-size:var(--type-ui);
+  cursor:pointer;
+  transition:border-color var(--motion-duration-snap) var(--motion-easing-standard);
+}
+.ds-undo-strip__action:hover{border-color:var(--color-ink-secondary);}
+
+/* --- queue head + rows ---------------------------------------------------- */
+/* The 40px gutter is fixed, so the left text edge never moves. The selection
+   control's own 44px hit area is wider than the gutter and overhangs it; the
+   gutter does not grow to fit. */
+.ds-queue-head,
+.ds-queue-row{
+  display:grid;
+  grid-template-columns:var(--space-slack) minmax(0, 1fr) 10ch;
+  align-items:center;
+  gap:var(--space-snug);
+  padding:var(--space-tight) var(--space-snug);
+}
+.ds-queue-head{
+  border-bottom:1px solid var(--color-rule-solid);
+  font-size:var(--type-ui);
+  color:var(--color-ink-secondary);
+}
+.ds-queue{
+  margin:0;
+  padding:0;
+  list-style:none;
+}
+.ds-queue-row{
+  border-bottom:1px solid var(--color-rule-hair);
+}
+/* Depth ramp: hover and selection are recessed — darker than the page, so the
+   row reads pressed-in. No transition: reviewers rubber-band across dozens of
+   rows and a fading tint lags the cursor. */
+.ds-queue-row:hover,
+.ds-queue-row:focus-within,
+.ds-queue-row[data-state~="selected"]{
+  background:var(--color-surface-recessed);
+}
+.ds-queue-row[data-state~="disabled"]{
+  background:var(--color-surface-sunken);
+}
+.ds-queue-row[data-state~="disabled"] .ds-queue-row__excerpt{
+  color:var(--color-ink-secondary);
+  text-decoration:line-through;
+}
+.ds-queue-row__body{min-width:0;}
+.ds-queue-row__excerpt{
+  font-size:var(--type-ui-dense);
+  color:var(--color-ink-primary);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.ds-queue-row__meta{
+  display:flex;
+  gap:var(--space-snug);
+  font-size:var(--type-ui-dense);
+  color:var(--color-ink-secondary);
+  overflow:hidden;
+  white-space:nowrap;
+}
+/* compact variant: drops the secondary metadata line. The hit area then
+   overhangs the row vertically, which is the documented trade. */
+.ds-queue-row[data-variant="compact"]{position:relative;}
+.ds-queue-row[data-variant="compact"] .ds-queue-row__meta{display:none;}
+.ds-queue-row[data-variant="compact"] .ds-select-cell{
+  position:absolute;
+  left:var(--space-snug);
+  top:50%;
+  transform:translateY(-50%);
+}
+
+/* --- ds-select-cell ------------------------------------------------------- */
+/* Always present. Never revealed on hover — a control that appears on hover
+   reflows the text under the cursor. */
+.ds-select-cell{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  justify-self:center;
+  width:var(--hit-min);
+  height:var(--hit-min);
+  cursor:pointer;
+}
+.ds-select-cell input{
+  position:absolute;
+  inset:0;
+  width:var(--hit-min);
+  height:var(--hit-min);
+  margin:0;
+  appearance:none;
+  -webkit-appearance:none;
+  background:none;
+  border:0;
+  cursor:pointer;
+}
+/* The outline moves to the drawn box; focus stays visible. */
+.ds-select-cell input:focus{outline:none;}
+.ds-select-cell__box{
+  position:relative;
+  width:var(--space-base);
+  height:var(--space-base);
+  background:var(--color-surface-recessed);
+  border:1px solid var(--color-ink-faint);
+  border-radius:var(--space-hair);
+  pointer-events:none;
+}
+.ds-select-cell input:checked ~ .ds-select-cell__box{
+  background:var(--color-ink-primary);
+  border-color:var(--color-ink-primary);
+}
+/* dec_indeterminate_header: a partial selection renders mixed, never unchecked. */
+.ds-select-cell input:indeterminate ~ .ds-select-cell__box{
+  border-color:var(--color-ink-primary);
+}
+.ds-select-cell input:indeterminate ~ .ds-select-cell__box::after{
+  content:"";
+  position:absolute;
+  left:var(--space-hair);
+  right:var(--space-hair);
+  top:50%;
+  height:var(--space-hair);
+  transform:translateY(-50%);
+  background:var(--color-ink-primary);
+}
+.ds-select-cell input:focus-visible ~ .ds-select-cell__box{
+  outline:var(--space-hair) solid var(--color-focus-ring);
+  outline-offset:var(--space-hair);
+}
+.ds-select-cell input:disabled ~ .ds-select-cell__box{
+  border-color:var(--color-rule-hair);
+  background:var(--color-surface-sunken);
+}
+
+/* --- ds-status-pill ------------------------------------------------------- */
+/* Neutral text label with a small semantic marker. No filled hue block: three
+   saturated blocks per row is unreadable across a long queue. Status is never
+   colour alone — the label is mandatory. */
+.ds-status-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:var(--space-tight);
+  font-size:var(--type-ui-dense);
+  color:var(--color-ink-secondary);
+  white-space:nowrap;
+}
+.ds-status-pill::before{
+  content:"";
+  flex:none;
+  width:var(--space-tight);
+  height:var(--space-tight);
+  border-radius:var(--space-hair);
+  background:var(--color-rule-solid);
+}
+.ds-status-pill[data-variant="flagged"]::before{background:var(--color-signal-flag);}
+.ds-status-pill[data-variant="held"]::before{background:var(--color-signal-hold);}
+.ds-status-pill[data-variant="cleared"]::before{background:var(--color-signal-clear);}
+
+/* --- ds-load-more --------------------------------------------------------- */
+/* dec_load_more: explicit paging that appends. Carries its own loading and
+   exhausted states in place — no skeleton, no spinner over the list. */
+.ds-load-more{
+  display:block;
+  width:100%;
+  min-height:var(--hit-min);
+  margin-top:var(--space-base);
+  padding:0 var(--space-base);
+  background:var(--color-surface-recessed);
+  border:1px solid var(--color-rule-hair);
+  border-radius:var(--space-hair);
+  color:var(--color-ink-primary);
+  font-family:var(--font-ui);
+  font-size:var(--type-ui);
+  cursor:pointer;
+  transition:border-color var(--motion-duration-snap) var(--motion-easing-standard);
+}
+.ds-load-more:hover:not(:disabled){border-color:var(--color-ink-secondary);}
+.ds-load-more[data-state="loading"]{color:var(--color-ink-secondary);cursor:progress;}
+.ds-load-more[data-state="exhausted"]{
+  color:var(--color-ink-secondary);
+  border-style:dashed;
+  cursor:default;
+}
+
+/* --- ds-empty-rest -------------------------------------------------------- */
+/* An inert well. The two variants say different things and are never merged. */
+.ds-empty-rest{
+  margin-top:var(--space-base);
+  padding:var(--space-slack) var(--space-loose);
+  background:var(--color-surface-sunken);
+  border:1px solid var(--color-rule-hair);
+  border-radius:var(--space-hair);
+}
+.ds-empty-rest__title{
+  font-size:var(--type-section);
+  color:var(--color-ink-primary);
+}
+.ds-empty-rest__body{
+  margin-top:var(--space-tight);
+  font-size:var(--type-ui);
+  color:var(--color-ink-secondary);
+  max-width:64ch;
+}
+
+/* Motion is decoration here. Removing it entirely — rather than shortening it —
+   guarantees the states it carries land instantly and are never clamped away. */
+@media (prefers-reduced-motion: reduce){
+  *{transition:none !important;}
+  .ds-undo-strip{transform:none;}
+}
+</style>
+</head>
+<body>
+<main class="kettle">
+
+  <header class="kettle__head">
+    <h1 class="kettle__title">Review queue</h1>
+    <div class="kettle__filter">
+      <label class="vh" for="q">Filter the queue</label>
+      <input id="q" type="text" autocomplete="off" spellcheck="false"
+             placeholder="Filter by id, author, text, or status">
+    </div>
+  </header>
+
+  <!-- dec_rail_before_list: the rail precedes the list in DOM order, so the
+       bulk actions are not 50 tab stops away. -->
+  <div class="ds-action-rail" data-ds="ds-action-rail" data-state="idle" id="rail">
+    <p class="ds-action-rail__count" id="count" aria-live="polite" aria-atomic="true">0 selected</p>
+
+    <div class="ds-undo-strip" data-ds="ds-undo-strip" data-state="idle" role="status" id="undo-strip" hidden>
+      <span class="ds-undo-strip__text" id="undo-text"></span>
+      <button type="button" class="ds-undo-strip__action" id="undo">Undo</button>
+    </div>
+
+    <div class="ds-action-rail__actions">
+      <button type="button" class="ds-action" data-action="hold" disabled>Hold</button>
+      <button type="button" class="ds-action" data-action="clear" disabled>Clear</button>
+      <!-- dec_destructive_label is CONTESTED (Reject vs Remove). The label below
+           is a placeholder so the build runs; it is not a resolution. -->
+      <button type="button" class="ds-action" data-action="destructive"
+              data-contested="dec_destructive_label"
+              title="Label unresolved — dec_destructive_label (Reject / Remove)" disabled>Reject</button>
+    </div>
+  </div>
+
+  <div class="ds-queue-head" id="queue-head">
+    <label class="ds-select-cell" data-ds="ds-select-cell" data-scope="page">
+      <input type="checkbox" id="select-all" aria-label="Select every row currently in the queue">
+      <span class="ds-select-cell__box" aria-hidden="true"></span>
+    </label>
+    <span>Submission</span>
+    <span>Status</span>
+  </div>
+
+  <ul class="ds-queue" id="queue" role="list" aria-label="Review queue"></ul>
+
+  <button type="button" class="ds-load-more" data-ds="ds-load-more" id="load-more"
+          data-state="default">Load more</button>
+
+  <div class="ds-empty-rest" data-ds="ds-empty-rest" data-variant="no-results" id="empty-no-results" hidden>
+    <p class="ds-empty-rest__title">No submissions match this filter</p>
+    <p class="ds-empty-rest__body">The queue itself is not empty. Clearing the filter brings every submission back, and the current selection is untouched.</p>
+  </div>
+
+  <div class="ds-empty-rest" data-ds="ds-empty-rest" data-variant="no-queue" id="empty-no-queue" hidden>
+    <p class="ds-empty-rest__title">The queue is clear</p>
+    <p class="ds-empty-rest__body">Nothing is waiting for review. New submissions arrive here as they are reported.</p>
+  </div>
+
+  <p class="vh" role="status" id="announcer"></p>
+
+</main>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ---- seeded data ------------------------------------------------------ */
+  var PAGE1 = [
+    ['K-4471','09:02','@noor_h','shipping delays again, third week running','flagged'],
+    ['K-4472','09:04','@dvsg','link in bio for the full list','held'],
+    ['K-4473','09:07','@mara.p','anyone else getting this error on upload','cleared'],
+    ['K-4474','09:11','@tt_ronin','reposting since it got taken down','flagged'],
+    ['K-4475','09:12','@quietkiln','the receipts are in the thread','flagged'],
+    ['K-4476','09:15','@halcy0n','DM me if you want the discount code','held'],
+    ['K-4477','09:19','@b_orchard','not sure this belongs here but','cleared'],
+    ['K-4478','09:23','@sm1th','same account, new handle','flagged'],
+    ['K-4479','09:26','@tessel','screenshots attached, timestamps intact','cleared'],
+    ['K-4480','09:31','@nvrmnd_','last warning before I escalate','flagged'],
+    ['K-4481','09:33','@pol_ax','cross-posted from the other board','held'],
+    ['K-4482','09:38','@wren.k','closing the loop on this one','cleared']
+  ];
+  var PAGE2 = [
+    ['K-4483','09:41','@oddment','the policy page says otherwise','flagged'],
+    ['K-4484','09:44','@lune_','adding context in the replies','cleared'],
+    ['K-4485','09:47','@gravl','third report on this account today','flagged'],
+    ['K-4486','09:49','@itsfine','escalating per the runbook','held'],
+    ['K-4487','09:52','@porthole9','duplicate of K-4474','flagged'],
+    ['K-4488','09:55','@andesite','no action needed, closing','cleared'],
+    ['K-4489','09:58','@tinct','requesting a second reviewer','held'],
+    ['K-4490','10:02','@vellum_','attaching the original submission','cleared']
+  ];
+
+  var STATUS_LABEL = { flagged:'Flagged', held:'Held', cleared:'Cleared' };
+
+  /* dec_destructive_label is CONTESTED. Both the button and the undo strip read
+     from here, so resolving the decision is a one-line change. */
+  var DESTRUCTIVE = { label:'Reject', past:'rejected' };
+
+  /* 8s: the measured median time to notice a mis-click. Not 4s, and not
+     persist-until-dismissed. */
+  var UNDO_WINDOW = 8000;
+
+  function toRow(t){
+    return { id:t[0], submitted:t[1], author:t[2], excerpt:t[3], status:t[4],
+             selected:false, disabled:false };
+  }
+
+  /* ---- state ------------------------------------------------------------ */
+  var params = new URLSearchParams(location.search);
+  var ROW_VARIANT = params.get('row') === 'compact' ? 'compact' : 'default';
+  var startEmpty  = params.get('queue') === 'empty';
+
+  var state = {
+    rows: startEmpty ? [] : PAGE1.map(toRow),
+    exhausted: startEmpty,
+    filter: params.get('q') || '',
+    pending: null,   /* the reversible bulk action */
+    anchor: null     /* shift-click range anchor */
+  };
+
+  var el = {
+    queue:     document.getElementById('queue'),
+    head:      document.getElementById('queue-head'),
+    rail:      document.getElementById('rail'),
+    count:     document.getElementById('count'),
+    selectAll: document.getElementById('select-all'),
+    loadMore:  document.getElementById('load-more'),
+    strip:     document.getElementById('undo-strip'),
+    stripText: document.getElementById('undo-text'),
+    undo:      document.getElementById('undo'),
+    noResults: document.getElementById('empty-no-results'),
+    noQueue:   document.getElementById('empty-no-queue'),
+    filter:    document.getElementById('q'),
+    announcer: document.getElementById('announcer')
+  };
+
+  el.filter.value = state.filter;
+
+  function esc(s){
+    return String(s).replace(/[&<>"]/g, function(c){
+      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c];
+    });
+  }
+
+  function visibleRows(){
+    var q = state.filter.trim().toLowerCase();
+    if (!q) return state.rows;
+    return state.rows.filter(function(r){
+      return (r.id + ' ' + r.author + ' ' + r.excerpt + ' ' + r.status)
+        .toLowerCase().indexOf(q) !== -1;
+    });
+  }
+  function selectedRows(){
+    return state.rows.filter(function(r){ return r.selected; });
+  }
+
+  /* ---- render ----------------------------------------------------------- */
+  function rowNode(r){
+    var li = document.createElement('li');
+    li.className = 'ds-queue-row';
+    li.setAttribute('data-ds', 'ds-queue-row');
+    li.setAttribute('data-id', r.id);
+    li.setAttribute('data-variant', ROW_VARIANT);
+    var st = [];
+    if (r.selected) st.push('selected');
+    if (r.disabled) st.push('disabled');
+    if (st.length) li.setAttribute('data-state', st.join(' '));
+    li.innerHTML =
+      '<label class="ds-select-cell" data-ds="ds-select-cell" data-scope="row">' +
+        '<input type="checkbox" aria-label="Select ' + esc(r.id) + '"' +
+          (r.selected ? ' checked' : '') + (r.disabled ? ' disabled' : '') + '>' +
+        '<span class="ds-select-cell__box" aria-hidden="true"></span>' +
+      '</label>' +
+      '<div class="ds-queue-row__body">' +
+        '<p class="ds-queue-row__excerpt">' + esc(r.excerpt) + '</p>' +
+        '<p class="ds-queue-row__meta">' +
+          '<span>' + esc(r.id) + '</span>' +
+          '<span>' + esc(r.submitted) + '</span>' +
+          '<span>' + esc(r.author) + '</span>' +
+        '</p>' +
+      '</div>' +
+      '<span class="ds-status-pill" data-ds="ds-status-pill" data-variant="' + esc(r.status) + '">' +
+        STATUS_LABEL[r.status] +
+      '</span>';
+    return li;
+  }
+
+  function render(){
+    var vis = visibleRows();
+    var emptyQueue = state.rows.length === 0;
+    var noResults  = !emptyQueue && vis.length === 0;
+
+    el.queue.textContent = '';
+    if (!emptyQueue && !noResults){
+      var frag = document.createDocumentFragment();
+      vis.forEach(function(r){ frag.appendChild(rowNode(r)); });
+      el.queue.appendChild(frag);
+    }
+
+    el.queue.hidden    = emptyQueue || noResults;
+    el.head.hidden     = emptyQueue || noResults;
+    el.loadMore.hidden = emptyQueue || noResults;
+    el.noResults.hidden = !noResults;
+    el.noQueue.hidden   = !emptyQueue;
+
+    syncSelection();
+  }
+
+  function syncSelection(){
+    var n = selectedRows().length;
+    el.count.textContent = n + ' selected';
+    el.rail.setAttribute('data-state', n ? 'armed' : 'idle');
+
+    var actions = el.rail.querySelectorAll('.ds-action');
+    for (var i = 0; i < actions.length; i++) actions[i].disabled = n === 0;
+
+    /* dec_indeterminate_header: tri-state, never unchecked over a partial set. */
+    var vis = visibleRows().filter(function(r){ return !r.disabled; });
+    var picked = vis.filter(function(r){ return r.selected; }).length;
+    el.selectAll.checked = vis.length > 0 && picked === vis.length;
+    el.selectAll.indeterminate = picked > 0 && picked < vis.length;
+    el.selectAll.disabled = vis.length === 0;
+  }
+
+  function announce(msg){ el.announcer.textContent = msg; }
+
+  /* ---- selection -------------------------------------------------------- */
+  function rowById(id){
+    for (var i = 0; i < state.rows.length; i++){
+      if (state.rows[i].id === id) return state.rows[i];
+    }
+    return null;
+  }
+
+  function setSelected(row, on){
+    if (row.disabled) return;
+    row.selected = !!on;
+    var li = el.queue.querySelector('[data-id="' + row.id + '"]');
+    if (li){
+      var st = [];
+      if (row.selected) st.push('selected');
+      if (row.disabled) st.push('disabled');
+      if (st.length) li.setAttribute('data-state', st.join(' '));
+      else li.removeAttribute('data-state');
+      var box = li.querySelector('input[type="checkbox"]');
+      if (box) box.checked = row.selected;
+    }
+  }
+
+  /* Reviewers select by clicking the row, then immediately clicking an action,
+     so the whole row is the target — not just the control. */
+  el.queue.addEventListener('click', function(ev){
+    var li = ev.target.closest('.ds-queue-row');
+    if (!li) return;
+    var row = rowById(li.getAttribute('data-id'));
+    if (!row || row.disabled) return;
+
+    var fromControl = !!ev.target.closest('.ds-select-cell');
+    var next = fromControl ? ev.target.checked : !row.selected;
+    if (fromControl && ev.target.tagName !== 'INPUT') return;
+
+    if (ev.shiftKey && state.anchor){
+      var vis = visibleRows();
+      var a = vis.indexOf(rowById(state.anchor));
+      var b = vis.indexOf(row);
+      if (a > -1 && b > -1){
+        var lo = Math.min(a, b), hi = Math.max(a, b);
+        for (var i = lo; i <= hi; i++) setSelected(vis[i], next);
+      }
+    } else {
+      setSelected(row, next);
+    }
+    state.anchor = row.id;
+    syncSelection();
+  });
+
+  el.selectAll.addEventListener('change', function(){
+    var on = el.selectAll.checked;
+    visibleRows().forEach(function(r){ setSelected(r, on); });
+    state.anchor = null;
+    syncSelection();
+  });
+
+  /* ---- filter ----------------------------------------------------------- */
+  /* dec_selection_persists is about paging, but the same reasoning holds for a
+     filter: narrowing the view never discards an assembled batch. */
+  el.filter.addEventListener('input', function(){
+    state.filter = el.filter.value;
+    state.anchor = null;
+    render();
+  });
+
+  /* ---- paging ----------------------------------------------------------- */
+  /* dec_load_more: appends, keeps scroll position, and the selection survives.
+     Appended rows arrive unselected. */
+  el.loadMore.addEventListener('click', function(){
+    if (state.exhausted) return;
+    el.loadMore.setAttribute('data-state', 'loading');
+    el.loadMore.textContent = 'Loading…';
+    void el.loadMore.offsetHeight;
+
+    PAGE2.forEach(function(t){ state.rows.push(toRow(t)); });
+    state.exhausted = true;
+    render();
+
+    el.loadMore.setAttribute('data-state', 'exhausted');
+    el.loadMore.textContent = 'End of queue';
+    el.loadMore.disabled = true;
+    announce(PAGE2.length + ' submissions added. ' + state.rows.length + ' in the queue.');
+  });
+
+  /* ---- bulk actions ----------------------------------------------------- */
+  /* dec_no_confirm_modal: applies immediately, reversed afterwards. No dialog. */
+  var undoTimer = null;
+
+  function commitPending(){
+    if (!state.pending) return;
+    if (state.pending.kind === 'destructive'){
+      var ids = {};
+      state.pending.snapshot.forEach(function(s){ ids[s.id] = true; });
+      state.rows = state.rows.filter(function(r){ return !ids[r.id]; });
+    }
+    state.pending = null;
+  }
+
+  function showStrip(text){
+    el.stripText.textContent = text;
+    el.strip.hidden = false;
+    void el.strip.offsetHeight;
+    el.strip.setAttribute('data-state', 'visible');
+  }
+
+  function hideStrip(){
+    if (el.strip.hidden) return;
+    el.strip.setAttribute('data-state', 'leaving');
+    window.setTimeout(function(){
+      if (el.strip.getAttribute('data-state') !== 'leaving') return;
+      el.strip.hidden = true;
+      el.strip.setAttribute('data-state', 'idle');
+      el.stripText.textContent = '';
+    }, 260);
+  }
+
+  function applyBulk(kind){
+    var targets = selectedRows().filter(function(r){ return !r.disabled; });
+    if (!targets.length) return;
+
+    window.clearTimeout(undoTimer);
+    commitPending();
+
+    var snapshot = targets.map(function(r){
+      return { id:r.id, status:r.status, index:state.rows.indexOf(r) };
+    });
+
+    var verb;
+    if (kind === 'hold'){
+      verb = 'held';
+      targets.forEach(function(r){ r.status = 'held'; r.selected = false; });
+    } else if (kind === 'clear'){
+      verb = 'cleared';
+      targets.forEach(function(r){ r.status = 'cleared'; r.selected = false; });
+    } else {
+      verb = DESTRUCTIVE.past;
+      /* Held in a disabled state for the reversal window, then dropped. */
+      targets.forEach(function(r){ r.disabled = true; r.selected = false; });
+    }
+
+    state.pending = { kind:kind, snapshot:snapshot };
+    state.anchor = null;
+    render();
+
+    showStrip(targets.length + ' ' + verb);
+    announce(targets.length + ' ' + verb + '. Reversible for eight seconds.');
+    undoTimer = window.setTimeout(function(){
+      commitPending();
+      render();
+      hideStrip();
+    }, UNDO_WINDOW);
+  }
+
+  function undoLast(){
+    if (!state.pending) return;
+    window.clearTimeout(undoTimer);
+    var p = state.pending;
+    state.pending = null;
+
+    p.snapshot.forEach(function(s){
+      var r = rowById(s.id);
+      if (!r) return;
+      r.status = s.status;
+      r.disabled = false;
+      r.selected = true;   /* the batch comes back intact, ready to re-act on */
+    });
+
+    render();
+    hideStrip();
+    announce('Reversed. ' + p.snapshot.length + ' restored and still selected.');
+  }
+
+  el.rail.addEventListener('click', function(ev){
+    var btn = ev.target.closest('.ds-action');
+    if (!btn || btn.disabled) return;
+    applyBulk(btn.getAttribute('data-action'));
+  });
+  el.undo.addEventListener('click', undoLast);
+
+  /* ---- dev hooks (see NOTES.md) ----------------------------------------- */
+  if (state.exhausted && !startEmpty){
+    el.loadMore.setAttribute('data-state', 'exhausted');
+    el.loadMore.textContent = 'End of queue';
+    el.loadMore.disabled = true;
+  }
+  if (params.get('state') === 'loading'){
+    el.loadMore.setAttribute('data-state', 'loading');
+    el.loadMore.textContent = 'Loading…';
+  }
+  if (startEmpty){
+    el.loadMore.disabled = true;
+    el.loadMore.setAttribute('data-state', 'exhausted');
+    el.loadMore.textContent = 'End of queue';
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>

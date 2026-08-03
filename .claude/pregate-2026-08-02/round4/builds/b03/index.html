@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kettle — Review queue</title>
+<style>
+/* ------------------------------------------------------------------
+   Tokens. Every literal in this file lives in this block and nowhere
+   else; every rule below reads var(--token).
+   ------------------------------------------------------------------ */
+:root {
+  color-scheme: dark;
+
+  /* colour */
+  --color-surface-base: #0e1113;
+  --color-surface-raised: #171b1e;
+  --color-surface-recessed: #0a0c0e;
+  --color-surface-sunken: #060809;
+  --color-ink-primary: #e8eaec;
+  --color-ink-secondary: #9aa3a9;
+  --color-ink-faint: #5f686e;
+  --color-rule-hair: #242a2e;
+  --color-rule-solid: #39424a;
+  --color-signal-flag: #d4573a;
+  --color-signal-hold: #c08a2e;
+  --color-signal-clear: #4a8f6d;
+  --color-focus-ring: #6ea8d8;
+
+  /* type */
+  --type-ui-dense: 13px;
+  --type-ui: 14px;
+  --type-ui-lead: 16px;
+  --type-section: 20px;
+  --type-page: 28px;
+
+  /* space */
+  --space-hair: 2px;
+  --space-tight: 6px;
+  --space-snug: 10px;
+  --space-base: 16px;
+  --space-loose: 24px;
+  --space-slack: 40px;
+
+  /* motion */
+  --motion-duration-snap: 90ms;
+  --motion-duration-base: 160ms;
+  --motion-duration-settle: 260ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --motion-easing-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* derived — not declared by the brief, recorded in NOTES.md */
+  --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --leading-dense: 1.35;
+  --rule-width: 1px;
+  --radius-sm: 2px;
+  --focus-width: 2px;
+  --focus-offset: 2px;
+  --hit-min: 44px;
+  --gutter: var(--space-slack);
+  --control-box: var(--space-base);
+  --status-col: 88px;
+  --count-min: 128px;
+  --load-more-min: 160px;
+  --hairline: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-snap: 0ms;
+    --motion-duration-base: 0ms;
+    --motion-duration-settle: 0ms;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Ground
+   ------------------------------------------------------------------ */
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-surface-base);
+}
+
+body {
+  font-family: var(--font-ui);
+  font-size: var(--type-ui);
+  line-height: var(--leading-dense);
+  color: var(--color-ink-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, p, ul { margin: 0; padding: 0; }
+ul { list-style: none; }
+
+[hidden] { display: none !important; }
+
+.vh {
+  position: absolute;
+  inline-size: var(--hairline);
+  block-size: var(--hairline);
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+:where(button, input):focus-visible {
+  outline: var(--focus-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.ds-page {
+  inline-size: 100%;
+  padding-inline: var(--space-base);
+  padding-block-end: var(--space-slack);
+}
+
+.ds-page__head {
+  padding-block: var(--space-loose) var(--space-base);
+}
+
+.ds-page__title {
+  font-size: var(--type-page);
+  font-weight: 500;
+  color: var(--color-ink-primary);
+}
+
+/* ------------------------------------------------------------------
+   ds-action-rail — always present, always the same height, never moves.
+   Sits above the list in both visual and DOM order.
+   ------------------------------------------------------------------ */
+.ds-action-rail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  padding-block: var(--space-snug);
+  background-color: var(--color-surface-base);
+  border-block-start: var(--rule-width) solid var(--color-rule-hair);
+  border-block-end: var(--rule-width) solid var(--color-rule-hair);
+}
+
+.ds-action-rail__count {
+  font-size: var(--type-ui-lead);
+  color: var(--color-ink-secondary);
+  min-inline-size: var(--count-min);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-action-rail[data-state="armed"] .ds-action-rail__count {
+  color: var(--color-ink-primary);
+}
+
+.ds-action-rail__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-snug);
+}
+
+.ds-action-rail__reversal {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  min-block-size: var(--hit-min);
+}
+
+/* shared control skin — the rail actions, the paging control, the undo action */
+.ds-action-rail__action,
+.ds-load-more,
+.ds-undo-strip__action {
+  font-family: var(--font-ui);
+  font-size: var(--type-ui);
+  line-height: var(--leading-dense);
+  color: var(--color-ink-primary);
+  background-color: var(--color-surface-base);
+  border: var(--rule-width) solid var(--color-rule-solid);
+  border-radius: var(--radius-sm);
+  min-block-size: var(--hit-min);
+  min-inline-size: var(--hit-min);
+  padding-inline: var(--space-base);
+  padding-block: var(--space-tight);
+  cursor: pointer;
+}
+
+.ds-action-rail__action:hover:not(:disabled),
+.ds-load-more:hover:not(:disabled),
+.ds-undo-strip__action:hover {
+  background-color: var(--color-surface-recessed);
+}
+
+.ds-action-rail__action:disabled,
+.ds-load-more:disabled {
+  color: var(--color-ink-secondary);
+  border-color: var(--color-rule-hair);
+  cursor: default;
+}
+
+/* ------------------------------------------------------------------
+   ds-undo-strip
+   ------------------------------------------------------------------ */
+.ds-undo-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-snug);
+  opacity: 0;
+  transform: translateY(calc(var(--space-tight) * -1));
+  transition:
+    opacity var(--motion-duration-base) var(--motion-easing-standard),
+    transform var(--motion-duration-base) var(--motion-easing-standard);
+}
+
+.ds-undo-strip[data-state="visible"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.ds-undo-strip[data-state="leaving"] {
+  opacity: 0;
+  transition-duration: var(--motion-duration-snap);
+  transition-timing-function: var(--motion-easing-exit);
+}
+
+.ds-undo-strip__label {
+  font-size: var(--type-ui);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------
+   Queue
+   ------------------------------------------------------------------ */
+.ds-queue__head,
+.ds-queue-row {
+  display: grid;
+  grid-template-columns: var(--gutter) var(--status-col) minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--space-snug);
+}
+
+.ds-queue__head {
+  padding-block: var(--space-tight);
+  border-block-end: var(--rule-width) solid var(--color-rule-hair);
+}
+
+.ds-queue__label {
+  font-size: var(--type-ui-dense);
+  color: var(--color-ink-secondary);
+}
+
+.ds-queue-row {
+  padding-block: var(--space-tight);
+  background-color: var(--color-surface-base);
+  border-block-end: var(--rule-width) solid var(--color-rule-hair);
+  transition: none;
+  cursor: default;
+}
+
+.ds-queue-row:hover,
+.ds-queue-row:focus-within {
+  background-color: var(--color-surface-recessed);
+}
+
+.ds-queue-row[data-selected="true"] {
+  background-color: var(--color-surface-recessed);
+  border-block-end-color: var(--color-rule-solid);
+}
+
+.ds-queue-row__body { min-inline-size: 0; }
+
+.ds-queue-row__excerpt {
+  font-size: var(--type-ui-dense);
+  color: var(--color-ink-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-queue-row__meta {
+  font-size: var(--type-ui-dense);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-queue-row[data-variant="compact"] .ds-queue-row__meta { display: none; }
+
+/* ------------------------------------------------------------------
+   ds-select-cell — owns a 44px hit area that overruns the 40px gutter
+   horizontally; the gutter track itself never varies, so the text edge
+   to its right is stable down the whole queue.
+   ------------------------------------------------------------------ */
+.ds-select-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  inline-size: var(--hit-min);
+  block-size: var(--hit-min);
+  justify-self: center;
+  cursor: pointer;
+}
+
+.ds-select-cell input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.ds-select-cell__box {
+  display: grid;
+  place-items: center;
+  inline-size: var(--control-box);
+  block-size: var(--control-box);
+  background-color: var(--color-surface-base);
+  border: var(--rule-width) solid var(--color-rule-solid);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+}
+
+.ds-select-cell:hover .ds-select-cell__box { border-color: var(--color-ink-secondary); }
+
+.ds-select-cell input:checked ~ .ds-select-cell__box {
+  background-color: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+}
+
+.ds-select-cell input:checked ~ .ds-select-cell__box::after {
+  content: "";
+  inline-size: var(--space-tight);
+  block-size: var(--space-snug);
+  border-inline-end: var(--space-hair) solid var(--color-surface-base);
+  border-block-end: var(--space-hair) solid var(--color-surface-base);
+  transform: rotate(45deg);
+  margin-block-end: var(--space-hair);
+}
+
+.ds-select-cell input:indeterminate ~ .ds-select-cell__box {
+  background-color: var(--color-surface-base);
+  border-color: var(--color-ink-primary);
+}
+
+.ds-select-cell input:indeterminate ~ .ds-select-cell__box::after {
+  content: "";
+  inline-size: var(--space-snug);
+  block-size: var(--space-hair);
+  background-color: var(--color-ink-primary);
+  border: 0;
+  transform: none;
+  margin-block-end: 0;
+}
+
+.ds-select-cell input:focus-visible ~ .ds-select-cell__box {
+  outline: var(--focus-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+/* ------------------------------------------------------------------
+   ds-status-pill — the hue is a mark, not a fill and not the text.
+   The text label is always present and always neutral.
+   ------------------------------------------------------------------ */
+.ds-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  font-size: var(--type-ui-dense);
+  color: var(--color-ink-secondary);
+}
+
+.ds-status-pill__mark {
+  inline-size: var(--space-hair);
+  block-size: var(--space-snug);
+  flex: 0 0 auto;
+  background-color: var(--color-rule-solid);
+}
+
+.ds-status-pill[data-variant="flagged"] .ds-status-pill__mark { background-color: var(--color-signal-flag); }
+.ds-status-pill[data-variant="held"] .ds-status-pill__mark { background-color: var(--color-signal-hold); }
+.ds-status-pill[data-variant="cleared"] .ds-status-pill__mark { background-color: var(--color-signal-clear); }
+
+/* ------------------------------------------------------------------
+   ds-load-more — carries its own state in place, fixed footprint.
+   ------------------------------------------------------------------ */
+.ds-queue__foot { padding-block: var(--space-base); }
+
+.ds-load-more {
+  min-inline-size: var(--load-more-min);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-load-more[data-state="loading"] { color: var(--color-ink-secondary); }
+
+/* ------------------------------------------------------------------
+   ds-empty-rest — an inert well. Two variants, two different texts.
+   ------------------------------------------------------------------ */
+.ds-empty-rest {
+  background-color: var(--color-surface-sunken);
+  border-block-end: var(--rule-width) solid var(--color-rule-hair);
+  padding-block: var(--space-slack);
+  padding-inline: var(--space-slack);
+}
+
+.ds-empty-rest__title {
+  font-size: var(--type-section);
+  font-weight: 500;
+  color: var(--color-ink-primary);
+}
+
+.ds-empty-rest__body {
+  font-size: var(--type-ui);
+  color: var(--color-ink-secondary);
+  margin-block-start: var(--space-snug);
+}
+</style>
+</head>
+<body>
+
+<main class="ds-page">
+
+  <header class="ds-page__head">
+    <h1 class="ds-page__title">Review queue</h1>
+  </header>
+
+  <!-- ds-action-rail sits before the list in DOM order as well as visually,
+       so the bulk actions are not 50+ tab stops away. -->
+  <div class="ds-action-rail" data-ds="ds-action-rail" data-state="idle" role="group" aria-label="Bulk actions">
+    <p class="ds-action-rail__count" id="selection-count" aria-live="polite">0 selected</p>
+    <div class="ds-action-rail__actions">
+      <button type="button" class="ds-action-rail__action" data-action="hold" disabled>Hold</button>
+      <button type="button" class="ds-action-rail__action" data-action="clear" disabled>Clear</button>
+      <button type="button" class="ds-action-rail__action" data-action="destructive" data-contested="dec_destructive_label" disabled>Reject</button>
+    </div>
+    <div class="ds-action-rail__reversal" id="reversal-slot"></div>
+  </div>
+
+  <section class="ds-queue" aria-labelledby="queue-heading">
+    <h2 class="vh" id="queue-heading">Items awaiting review</h2>
+
+    <div class="ds-queue__head" id="queue-head">
+      <label class="ds-select-cell" data-ds="ds-select-cell" data-scope="page">
+        <input type="checkbox" id="select-all" aria-label="Select every loaded item">
+        <span class="ds-select-cell__box" aria-hidden="true"></span>
+      </label>
+      <span class="ds-queue__label">Status</span>
+      <span class="ds-queue__label">Item</span>
+    </div>
+
+    <ul class="ds-queue__list" id="queue-list"></ul>
+
+    <div id="empty-slot"></div>
+
+    <div class="ds-queue__foot" id="queue-foot">
+      <button type="button" class="ds-load-more" data-ds="ds-load-more" data-state="default" id="load-more">Load more</button>
+    </div>
+  </section>
+
+  <p class="vh" role="status" id="announcer"></p>
+
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  /* CONTESTED — dec_destructive_label. T&S ops want "Reject" (policy
+     taxonomy), Legal wants "Remove" (user-facing notice). Not settled here;
+     both the control label and the reversal verb read from these two
+     constants so the contest resolves in one edit. */
+  var DESTRUCTIVE_LABEL = 'Reject';
+  var DESTRUCTIVE_PAST = 'rejected';
+
+  var PAGE_ONE = [
+    { id: 'K-4471', at: '09:02', author: '@noor_h',    excerpt: 'shipping delays again, third week running', status: 'flagged' },
+    { id: 'K-4472', at: '09:04', author: '@dvsg',      excerpt: 'link in bio for the full list',            status: 'held' },
+    { id: 'K-4473', at: '09:07', author: '@mara.p',    excerpt: 'anyone else getting this error on upload', status: 'cleared' },
+    { id: 'K-4474', at: '09:11', author: '@tt_ronin',  excerpt: 'reposting since it got taken down',        status: 'flagged' },
+    { id: 'K-4475', at: '09:12', author: '@quietkiln', excerpt: 'the receipts are in the thread',           status: 'flagged' },
+    { id: 'K-4476', at: '09:15', author: '@halcy0n',   excerpt: 'DM me if you want the discount code',      status: 'held' },
+    { id: 'K-4477', at: '09:19', author: '@b_orchard', excerpt: 'not sure this belongs here but',           status: 'cleared' },
+    { id: 'K-4478', at: '09:23', author: '@sm1th',     excerpt: 'same account, new handle',                 status: 'flagged' },
+    { id: 'K-4479', at: '09:26', author: '@tessel',    excerpt: 'screenshots attached, timestamps intact',  status: 'cleared' },
+    { id: 'K-4480', at: '09:31', author: '@nvrmnd_',   excerpt: 'last warning before I escalate',           status: 'flagged' },
+    { id: 'K-4481', at: '09:33', author: '@pol_ax',    excerpt: 'cross-posted from the other board',        status: 'held' },
+    { id: 'K-4482', at: '09:38', author: '@wren.k',    excerpt: 'closing the loop on this one',             status: 'cleared' }
+  ];
+
+  var PAGE_TWO = [
+    { id: 'K-4483', at: '09:41', author: '@oddment',   excerpt: 'the policy page says otherwise',      status: 'flagged' },
+    { id: 'K-4484', at: '09:44', author: '@lune_',     excerpt: 'adding context in the replies',       status: 'cleared' },
+    { id: 'K-4485', at: '09:47', author: '@gravl',     excerpt: 'third report on this account today',  status: 'flagged' },
+    { id: 'K-4486', at: '09:49', author: '@itsfine',   excerpt: 'escalating per the runbook',          status: 'held' },
+    { id: 'K-4487', at: '09:52', author: '@porthole9', excerpt: 'duplicate of K-4474',                 status: 'flagged' },
+    { id: 'K-4488', at: '09:55', author: '@andesite',  excerpt: 'no action needed, closing',           status: 'cleared' },
+    { id: 'K-4489', at: '09:58', author: '@tinct',     excerpt: 'requesting a second reviewer',        status: 'held' },
+    { id: 'K-4490', at: '10:02', author: '@vellum_',   excerpt: 'attaching the original submission',   status: 'cleared' }
+  ];
+
+  var STATUS_LABEL = { flagged: 'Flagged', held: 'Held', cleared: 'Cleared' };
+  var PAST_TENSE = { hold: 'held', clear: 'cleared', destructive: DESTRUCTIVE_PAST };
+
+  var UNDO_LIFETIME = 8000;   /* 8s — the measured median time to notice a mis-click */
+  var PAGE_LATENCY = 240;
+  var LEAVE_GRACE = 200;
+
+  var demoState = new URLSearchParams(window.location.search).get('state');
+  var isDemoEmpty = demoState === 'no-results' || demoState === 'no-queue';
+
+  var rows = isDemoEmpty ? [] : PAGE_ONE.map(copy);
+  var selected = new Set();
+  var exhausted = isDemoEmpty;
+  var anchor = null;
+  var lastAction = null;
+  var undoTimer = null;
+  var leaveTimer = null;
+
+  var list = document.getElementById('queue-list');
+  var queueHead = document.getElementById('queue-head');
+  var emptySlot = document.getElementById('empty-slot');
+  var foot = document.getElementById('queue-foot');
+  var rail = document.querySelector('.ds-action-rail');
+  var countEl = document.getElementById('selection-count');
+  var reversalSlot = document.getElementById('reversal-slot');
+  var loadMore = document.getElementById('load-more');
+  var selectAll = document.getElementById('select-all');
+  var announcer = document.getElementById('announcer');
+  var actionButtons = Array.prototype.slice.call(document.querySelectorAll('[data-action]'));
+
+  document.querySelector('[data-action="destructive"]').textContent = DESTRUCTIVE_LABEL;
+
+  function copy(item) {
+    return { id: item.id, at: item.at, author: item.author, excerpt: item.excerpt, status: item.status };
+  }
+
+  function indexOf(id) {
+    for (var i = 0; i < rows.length; i++) { if (rows[i].id === id) { return i; } }
+    return -1;
+  }
+
+  function announce(text) { announcer.textContent = text; }
+
+  /* ---------------------------------------------------------------- */
+
+  function rowEl(item) {
+    var li = document.createElement('li');
+    li.className = 'ds-queue-row';
+    li.setAttribute('data-ds', 'ds-queue-row');
+    li.setAttribute('data-variant', 'default');
+    li.setAttribute('data-id', item.id);
+    li.setAttribute('data-status', item.status);
+    li.setAttribute('data-selected', selected.has(item.id) ? 'true' : 'false');
+
+    var cell = document.createElement('label');
+    cell.className = 'ds-select-cell';
+    cell.setAttribute('data-ds', 'ds-select-cell');
+
+    var input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = selected.has(item.id);
+    input.setAttribute('aria-label', 'Select ' + item.id);
+
+    var box = document.createElement('span');
+    box.className = 'ds-select-cell__box';
+    box.setAttribute('aria-hidden', 'true');
+
+    cell.appendChild(input);
+    cell.appendChild(box);
+
+    var pill = document.createElement('span');
+    pill.className = 'ds-status-pill';
+    pill.setAttribute('data-ds', 'ds-status-pill');
+    pill.setAttribute('data-variant', item.status);
+
+    var mark = document.createElement('span');
+    mark.className = 'ds-status-pill__mark';
+    mark.setAttribute('aria-hidden', 'true');
+
+    var pillText = document.createElement('span');
+    pillText.className = 'ds-status-pill__label';
+    pillText.textContent = STATUS_LABEL[item.status];
+
+    pill.appendChild(mark);
+    pill.appendChild(pillText);
+
+    var body = document.createElement('div');
+    body.className = 'ds-queue-row__body';
+
+    var excerpt = document.createElement('p');
+    excerpt.className = 'ds-queue-row__excerpt';
+    excerpt.textContent = '“' + item.excerpt + '”';
+
+    var meta = document.createElement('p');
+    meta.className = 'ds-queue-row__meta';
+    meta.textContent = item.id + ' · ' + item.at + ' · ' + item.author;
+
+    body.appendChild(excerpt);
+    body.appendChild(meta);
+
+    li.appendChild(cell);
+    li.appendChild(pill);
+    li.appendChild(body);
+    return li;
+  }
+
+  function emptyEl(variant) {
+    var text = variant === 'no-results'
+      ? { title: 'No matches', body: 'The current filter returned nothing. Clearing it restores the queue.' }
+      : { title: 'Queue empty', body: 'Nothing is waiting for review.' };
+
+    var wrap = document.createElement('div');
+    wrap.className = 'ds-empty-rest';
+    wrap.setAttribute('data-ds', 'ds-empty-rest');
+    wrap.setAttribute('data-variant', variant);
+
+    var title = document.createElement('p');
+    title.className = 'ds-empty-rest__title';
+    title.textContent = text.title;
+
+    var body = document.createElement('p');
+    body.className = 'ds-empty-rest__body';
+    body.textContent = text.body;
+
+    wrap.appendChild(title);
+    wrap.appendChild(body);
+    return wrap;
+  }
+
+  /* ---------------------------------------------------------------- */
+
+  function rebuild() {
+    list.textContent = '';
+    rows.forEach(function (item) { list.appendChild(rowEl(item)); });
+    syncEmpty();
+    syncSelection();
+  }
+
+  function syncEmpty() {
+    var populated = rows.length > 0;
+    queueHead.hidden = !populated;
+    list.hidden = !populated;
+    emptySlot.textContent = '';
+    if (!populated) {
+      emptySlot.appendChild(emptyEl(demoState === 'no-results' ? 'no-results' : 'no-queue'));
+    }
+    foot.hidden = isDemoEmpty;
+  }
+
+  function syncSelection() {
+    var count = 0;
+    rows.forEach(function (item) { if (selected.has(item.id)) { count++; } });
+
+    Array.prototype.forEach.call(list.children, function (li) {
+      var isOn = selected.has(li.getAttribute('data-id'));
+      li.setAttribute('data-selected', isOn ? 'true' : 'false');
+      var input = li.querySelector('input');
+      if (input.checked !== isOn) { input.checked = isOn; }
+    });
+
+    countEl.textContent = count + ' selected';
+    rail.setAttribute('data-state', count > 0 ? 'armed' : 'idle');
+    actionButtons.forEach(function (btn) { btn.disabled = count === 0; });
+
+    selectAll.checked = rows.length > 0 && count === rows.length;
+    selectAll.indeterminate = count > 0 && count < rows.length;
+    selectAll.disabled = rows.length === 0;
+  }
+
+  function setSelected(index, on) {
+    if (index < 0 || index >= rows.length) { return; }
+    if (on) { selected.add(rows[index].id); } else { selected.delete(rows[index].id); }
+  }
+
+  function selectRange(from, to, on) {
+    var lo = Math.min(from, to);
+    var hi = Math.max(from, to);
+    for (var i = lo; i <= hi; i++) { setSelected(i, on); }
+  }
+
+  /* ---------------------------------------------------------------- */
+
+  list.addEventListener('click', function (event) {
+    var li = event.target.closest('.ds-queue-row');
+    if (!li) { return; }
+    var index = indexOf(li.getAttribute('data-id'));
+    if (index < 0) { return; }
+
+    if (event.shiftKey && anchor !== null && anchor < rows.length) {
+      event.preventDefault();
+      selectRange(anchor, index, selected.has(rows[anchor].id));
+      syncSelection();
+      return;
+    }
+
+    if (event.target.closest('.ds-select-cell')) { return; }
+
+    setSelected(index, !selected.has(rows[index].id));
+    anchor = index;
+    syncSelection();
+  });
+
+  list.addEventListener('change', function (event) {
+    var input = event.target;
+    if (!input.matches('.ds-select-cell input')) { return; }
+    var li = input.closest('.ds-queue-row');
+    var index = indexOf(li.getAttribute('data-id'));
+    if (index < 0) { return; }
+    setSelected(index, input.checked);
+    anchor = index;
+    syncSelection();
+  });
+
+  selectAll.addEventListener('change', function () {
+    if (selectAll.checked) {
+      rows.forEach(function (item) { selected.add(item.id); });
+    } else {
+      rows.forEach(function (item) { selected.delete(item.id); });
+    }
+    anchor = null;
+    syncSelection();
+  });
+
+  /* ---------------------------------------------------------------- */
+
+  actionButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () { runAction(btn.getAttribute('data-action')); });
+  });
+
+  function runAction(kind) {
+    var affected = rows.filter(function (item) { return selected.has(item.id); });
+    if (affected.length === 0) { return; }
+
+    var restore = { kind: kind, selection: new Set(selected), entries: [] };
+
+    if (kind === 'destructive') {
+      for (var i = rows.length - 1; i >= 0; i--) {
+        if (selected.has(rows[i].id)) {
+          restore.entries.unshift({ index: i, item: rows[i] });
+          rows.splice(i, 1);
+        }
+      }
+    } else {
+      var next = kind === 'hold' ? 'held' : 'cleared';
+      rows.forEach(function (item) {
+        if (selected.has(item.id)) {
+          restore.entries.push({ id: item.id, status: item.status });
+          item.status = next;
+        }
+      });
+    }
+
+    lastAction = restore;
+    selected.clear();
+    anchor = null;
+    rebuild();
+    showReversal(affected.length, kind);
+  }
+
+  /* ---------------------------------------------------------------- */
+
+  function clearTimers() {
+    if (undoTimer) { window.clearTimeout(undoTimer); undoTimer = null; }
+    if (leaveTimer) { window.clearTimeout(leaveTimer); leaveTimer = null; }
+  }
+
+  function showReversal(count, kind) {
+    clearTimers();
+    reversalSlot.textContent = '';
+
+    var strip = document.createElement('div');
+    strip.className = 'ds-undo-strip';
+    strip.setAttribute('data-ds', 'ds-undo-strip');
+    strip.setAttribute('data-state', 'entering');
+    strip.setAttribute('role', 'status');
+
+    var label = document.createElement('span');
+    label.className = 'ds-undo-strip__label';
+    label.textContent = count + ' ' + PAST_TENSE[kind];
+
+    var action = document.createElement('button');
+    action.type = 'button';
+    action.className = 'ds-undo-strip__action';
+    action.textContent = 'Undo';
+    action.addEventListener('click', reverse);
+
+    strip.appendChild(label);
+    strip.appendChild(action);
+    reversalSlot.appendChild(strip);
+
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(function () { strip.setAttribute('data-state', 'visible'); });
+    });
+
+    undoTimer = window.setTimeout(function () { dismissReversal(); }, UNDO_LIFETIME);
+  }
+
+  function dismissReversal() {
+    var strip = reversalSlot.firstElementChild;
+    if (!strip) { return; }
+    clearTimers();
+    strip.setAttribute('data-state', 'leaving');
+    leaveTimer = window.setTimeout(function () { reversalSlot.textContent = ''; }, LEAVE_GRACE);
+  }
+
+  function reverse() {
+    if (!lastAction) { return; }
+
+    if (lastAction.kind === 'destructive') {
+      lastAction.entries.forEach(function (entry) { rows.splice(entry.index, 0, entry.item); });
+    } else {
+      lastAction.entries.forEach(function (entry) {
+        var index = indexOf(entry.id);
+        if (index >= 0) { rows[index].status = entry.status; }
+      });
+    }
+
+    selected = new Set(lastAction.selection);
+    lastAction = null;
+    clearTimers();
+    reversalSlot.textContent = '';
+    rebuild();
+    announce('Last action reversed.');
+  }
+
+  /* ---------------------------------------------------------------- */
+
+  loadMore.addEventListener('click', function () {
+    if (exhausted || loadMore.getAttribute('data-state') === 'loading') { return; }
+
+    loadMore.setAttribute('data-state', 'loading');
+    loadMore.textContent = 'Loading';
+    loadMore.disabled = true;
+
+    window.setTimeout(function () {
+      /* selection is deliberately untouched — a batch may span pages */
+      PAGE_TWO.forEach(function (item) { rows.push(copy(item)); });
+      exhausted = true;
+      loadMore.setAttribute('data-state', 'exhausted');
+      loadMore.textContent = 'End of queue';
+      rebuild();
+      announce(PAGE_TWO.length + ' items added. End of queue.');
+    }, PAGE_LATENCY);
+  });
+
+  /* ---------------------------------------------------------------- */
+
+  rebuild();
+  if (isDemoEmpty) {
+    loadMore.setAttribute('data-state', 'exhausted');
+    loadMore.textContent = 'End of queue';
+    loadMore.disabled = true;
+  }
+}());
+</script>
+
+</body>
+</html>

@@ -1,0 +1,218 @@
+<meta charset="utf-8">
+<title>Queue (deliberately defective harness fixture)</title>
+<!--
+  This fixture exists to prove the harness can FAIL. Every one of the 21 checks is
+  violated on purpose. If measure.mjs scores it above 0/21, the harness is broken and
+  the number it produces on real builds means nothing. See PREREGISTRATION.md §6.
+-->
+<style>
+:root {
+  --ink: #e8eaec;
+  --dense: 13px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 24px 24px 120px;
+  background: #0e1113;                 /* C1: literal, outside :root */
+  color: var(--ink);
+  font-family: system-ui, sans-serif;
+  font-size: 15px;                     /* C3: not on the scale */
+}
+h1 { font-size: 24px; }                /* C3: not on the scale */
+
+/* C6: rows fade and rise in on load. */
+@keyframes rowIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.ds-queue-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0;
+  border-bottom: 1px solid #242a2e;
+  font-size: 15px;                     /* C3 again: row text is not ui-dense */
+  animation: rowIn 600ms ease both;
+  transition: background-color 200ms ease;   /* C7: transition on the row background */
+}
+.ds-queue-row:hover { background: #171b1e; }  /* C2: --surface-raised, the wrong direction */
+
+/* T5: the selection control is REVEALED on hover, so the text edge moves. */
+.ds-select-cell { width: 0; overflow: hidden; }
+.ds-queue-row:hover .ds-select-cell,
+.ds-queue-row.is-sel .ds-select-cell { width: 22px; }
+.ds-select-cell input { width: 14px; height: 14px; }
+
+/* T2 + C5: filled chip, colour only, no text. */
+.badge {                                /* C4: a banned generic name */
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #d4573a;
+}
+.badge[data-v="held"] { background: #c08a2e; }
+.badge[data-v="cleared"] { background: #4a8f6d; }
+
+/* D1 + D6 + T1: fixed to the bottom, after the list, and it collapses when idle. */
+.ds-action-rail {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 0;
+  overflow: hidden;
+  padding: 0 24px;
+  background: #171b1e;
+  border-top: 1px solid #39424a;
+}
+.ds-action-rail.armed { height: 48px; }
+.ds-action-rail button {
+  height: 24px;                        /* C8: nowhere near 44px */
+  padding: 0 8px;
+  font-size: 18px;                     /* C3: not on the scale */
+  font-family: inherit;
+  color: #e8eaec;
+  background: transparent;
+  border: 1px solid #39424a;
+}
+.toolbar { display: flex; gap: 8px; align-items: center; }   /* C4 */
+
+.confirm {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);      /* C1: rgba outside :root */
+}
+.confirm[open] { display: flex; }
+.confirm > div { background: #171b1e; padding: 24px; border: 1px solid #39424a; }
+.confirm button { height: 24px; font-size: 18px; }
+</style>
+
+<h1>Queue</h1>
+
+<div class="toolbar">
+  <label class="checkbox"><input type="checkbox" id="all"> Select all</label>
+</div>
+
+<div id="queue"></div>
+
+<!-- D6: the rail comes AFTER the list in document order. -->
+<div class="ds-action-rail" data-ds="ds-action-rail">
+  <span id="count">0</span>
+  <button type="button" id="a-hold">Hold</button>
+  <button type="button" id="a-clear">Clear</button>
+  <button type="button" id="a-destructive">Delete</button>
+</div>
+
+<!-- D2: a confirmation dialog. D3/T3/T4: there is no undo affordance anywhere. -->
+<div class="confirm" role="alertdialog" id="confirm" aria-label="Confirm delete">
+  <div>
+    <p>Delete the selected items? This cannot be undone.</p>
+    <button type="button" id="c-yes">Delete</button>
+    <button type="button" id="c-no">Cancel</button>
+  </div>
+</div>
+
+<script>
+const PAGE1 = [
+  ['K-4471','09:02','@noor_h','shipping delays again, third week running','flagged'],
+  ['K-4472','09:04','@dvsg','link in bio for the full list','held'],
+  ['K-4473','09:07','@mara.p','anyone else getting this error on upload','cleared'],
+  ['K-4474','09:11','@tt_ronin','reposting since it got taken down','flagged'],
+  ['K-4475','09:12','@quietkiln','the receipts are in the thread','flagged'],
+  ['K-4476','09:15','@halcy0n','DM me if you want the discount code','held'],
+  ['K-4477','09:19','@b_orchard','not sure this belongs here but','cleared'],
+  ['K-4478','09:23','@sm1th','same account, new handle','flagged'],
+  ['K-4479','09:26','@tessel','screenshots attached, timestamps intact','cleared'],
+  ['K-4480','09:31','@nvrmnd_','last warning before I escalate','flagged'],
+  ['K-4481','09:33','@pol_ax','cross-posted from the other board','held'],
+  ['K-4482','09:38','@wren.k','closing the loop on this one','cleared'],
+];
+const PAGE2 = [
+  ['K-4483','09:41','@oddment','the policy page says otherwise','flagged'],
+  ['K-4484','09:44','@lune_','adding context in the replies','cleared'],
+  ['K-4485','09:47','@gravl','third report on this account today','flagged'],
+  ['K-4486','09:49','@itsfine','escalating per the runbook','held'],
+  ['K-4487','09:52','@porthole9','duplicate of K-4474','flagged'],
+  ['K-4488','09:55','@andesite','no action needed, closing','cleared'],
+  ['K-4489','09:58','@tinct','requesting a second reviewer','held'],
+  ['K-4490','10:02','@vellum_','attaching the original submission','cleared'],
+];
+
+const queue = document.getElementById('queue');
+const rail = document.querySelector('.ds-action-rail');
+const allEl = document.getElementById('all');
+const confirmEl = document.getElementById('confirm');
+let loaded = false;
+
+function rowEl([id, at, who, what, status]) {
+  const row = document.createElement('div');
+  row.className = 'ds-queue-row';
+  row.setAttribute('data-ds', 'ds-queue-row');
+  row.setAttribute('data-id', id);
+
+  const cell = document.createElement('label');
+  cell.className = 'ds-select-cell';
+  cell.setAttribute('data-ds', 'ds-select-cell');
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.addEventListener('change', () => { row.classList.toggle('is-sel', cb.checked); sync(); });
+  cell.appendChild(cb);
+  row.appendChild(cell);
+
+  for (const t of [id, at, who, what]) {
+    const s = document.createElement('span');
+    s.textContent = t;
+    row.appendChild(s);
+  }
+  const b = document.createElement('span');
+  b.className = 'badge';
+  b.setAttribute('data-v', status);      // colour only, no label
+  row.appendChild(b);
+  return row;
+}
+
+const rows = () => Array.from(queue.querySelectorAll('.ds-queue-row'));
+const selected = () => rows().filter((r) => r.querySelector('input').checked);
+
+function sync() {
+  const n = selected().length;
+  document.getElementById('count').textContent = String(n);
+  rail.classList.toggle('armed', n > 0);
+  allEl.checked = n === rows().length && n > 0;   // D7: two-state, never indeterminate
+}
+
+for (const r of PAGE1) queue.appendChild(rowEl(r));
+
+// D4: infinite scroll. No paging control exists.
+window.addEventListener('scroll', () => {
+  if (loaded) return;
+  if (window.scrollY + window.innerHeight >= document.body.scrollHeight - 40) {
+    loaded = true;
+    for (const r of PAGE2) queue.appendChild(rowEl(r));
+    sync();
+  }
+});
+
+allEl.addEventListener('change', () => {
+  for (const r of rows()) {
+    const cb = r.querySelector('input');
+    cb.checked = allEl.checked;
+    r.classList.toggle('is-sel', cb.checked);
+  }
+  sync();
+});
+
+document.getElementById('a-hold').addEventListener('click', () => sync());
+document.getElementById('a-clear').addEventListener('click', () => sync());
+document.getElementById('a-destructive').addEventListener('click', () => confirmEl.setAttribute('open', ''));
+document.getElementById('c-no').addEventListener('click', () => confirmEl.removeAttribute('open'));
+document.getElementById('c-yes').addEventListener('click', () => {
+  for (const r of selected()) r.remove();
+  confirmEl.removeAttribute('open');
+  sync();
+});
+
+sync();
+</script>

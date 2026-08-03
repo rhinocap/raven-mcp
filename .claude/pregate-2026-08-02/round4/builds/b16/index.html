@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kettle — bulk review queue</title>
+<style>
+  :root {
+    /* --- design system tokens (DESIGN.md frontmatter) --- */
+    --color-surface-base: #0e1113;
+    --color-surface-raised: #171b1e;
+    --color-surface-recessed: #0a0c0e;
+    --color-surface-sunken: #060809;
+    --color-ink-primary: #e8eaec;
+    --color-ink-secondary: #9aa3a9;
+    --color-ink-faint: #5f686e;
+    --color-rule-hair: #242a2e;
+    --color-rule-solid: #39424a;
+    --color-signal-flag: #d4573a;
+    --color-signal-hold: #c08a2e;
+    --color-signal-clear: #4a8f6d;
+    --color-focus-ring: #6ea8d8;
+
+    --type-ui-dense: 13px;
+    --type-ui: 14px;
+    --type-ui-lead: 16px;
+    --type-section: 20px;
+    --type-page: 28px;
+
+    --space-hair: 2px;
+    --space-tight: 6px;
+    --space-snug: 10px;
+    --space-base: 16px;
+    --space-loose: 24px;
+    --space-slack: 40px;
+
+    --motion-duration-snap: 90ms;
+    --motion-duration-base: 160ms;
+    --motion-duration-settle: 260ms;
+    --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+    --motion-easing-exit: cubic-bezier(0.4, 0, 1, 1);
+
+    /* aliases used by the DESIGN.md prose and the taste rules */
+    --surface-base: var(--color-surface-base);
+    --surface-raised: var(--color-surface-raised);
+    --surface-recessed: var(--color-surface-recessed);
+    --surface-sunken: var(--color-surface-sunken);
+    --ink-primary: var(--color-ink-primary);
+    --ink-secondary: var(--color-ink-secondary);
+    --ink-faint: var(--color-ink-faint);
+    --rule-hair: var(--color-rule-hair);
+    --rule-solid: var(--color-rule-solid);
+    --signal-flag: var(--color-signal-flag);
+    --signal-hold: var(--color-signal-hold);
+    --signal-clear: var(--color-signal-clear);
+    --focus-ring: var(--color-focus-ring);
+
+    /* local tokens: the system declares none of these (see NOTES.md) */
+    --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --rule-width: 1px;
+    --hit-min: 44px;
+    --control-box: 16px;
+    --control-min-w: 168px;
+    --col-status: 96px;
+    --tick-inset-x: 4px;
+    --tick-inset-y: 1px;
+    --tick-w: 5px;
+    --tick-h: 9px;
+    --bar-inset-x: 3px;
+    --bar-w: 8px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--surface-base);
+    color: var(--ink-primary);
+    font-family: var(--font-ui);
+    font-size: var(--type-ui);
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: var(--space-hair) solid var(--focus-ring);
+    outline-offset: var(--space-hair);
+  }
+
+  .console {
+    padding: var(--space-loose) var(--space-loose) var(--space-slack);
+  }
+
+  .console-title {
+    font-size: var(--type-page);
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 0 0 var(--space-loose);
+  }
+
+  /* ---------------- queue head ---------------- */
+
+  .queue-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-loose);
+    padding-bottom: var(--space-snug);
+    border-bottom: var(--rule-width) solid var(--rule-solid);
+  }
+
+  .queue-heading {
+    font-size: var(--type-section);
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 0;
+  }
+
+  .queue-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-loose);
+  }
+
+  .control-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-snug);
+  }
+
+  .control-label {
+    font-size: var(--type-ui);
+    color: var(--ink-secondary);
+  }
+
+  .filter-input {
+    min-height: var(--hit-min);
+    min-width: var(--control-min-w);
+    padding: 0 var(--space-snug);
+    background: var(--surface-recessed);
+    color: var(--ink-primary);
+    border: var(--rule-width) solid var(--rule-hair);
+    border-radius: var(--space-hair);
+    font-family: var(--font-ui);
+    font-size: var(--type-ui);
+    transition: border-color var(--motion-duration-snap) var(--motion-easing-standard);
+  }
+  .filter-input::placeholder { color: var(--ink-faint); }
+  .filter-input:hover { border-color: var(--rule-solid); }
+
+  /* ---------------- buttons ---------------- */
+
+  .btn {
+    min-height: var(--hit-min);
+    padding: 0 var(--space-base);
+    background: transparent;
+    color: var(--ink-primary);
+    border: var(--rule-width) solid var(--rule-solid);
+    border-radius: var(--space-hair);
+    font-family: var(--font-ui);
+    font-size: var(--type-ui);
+    line-height: 1.4;
+    cursor: pointer;
+    transition:
+      color var(--motion-duration-snap) var(--motion-easing-standard),
+      border-color var(--motion-duration-snap) var(--motion-easing-standard),
+      background-color var(--motion-duration-snap) var(--motion-easing-standard);
+  }
+  .btn:hover:not(:disabled) {
+    background: var(--surface-recessed);
+    border-color: var(--ink-secondary);
+  }
+  .btn:disabled {
+    color: var(--ink-faint);
+    border-color: var(--rule-hair);
+    cursor: default;
+  }
+  .btn--quiet {
+    border-color: transparent;
+    color: var(--ink-secondary);
+    padding: 0 var(--space-snug);
+  }
+  .btn--quiet:hover:not(:disabled) {
+    color: var(--ink-primary);
+    border-color: var(--rule-hair);
+  }
+  .btn[aria-pressed="true"] {
+    color: var(--ink-primary);
+    border-color: var(--rule-solid);
+    background: var(--surface-recessed);
+  }
+
+  /* ---------------- ds-action-rail ---------------- */
+
+  .ds-action-rail {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-base);
+    padding: var(--space-base) 0;
+    border-bottom: var(--rule-width) solid var(--rule-solid);
+  }
+
+  .selection-count {
+    font-size: var(--type-ui-lead);
+    color: var(--ink-secondary);
+    margin: 0;
+    min-width: var(--control-min-w);
+  }
+  .ds-action-rail[data-state="armed"] .selection-count {
+    color: var(--ink-primary);
+    font-weight: 600;
+  }
+
+  .rail-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-snug);
+  }
+
+  .rail-actions .destructive {
+    margin-left: var(--space-snug);
+    padding-left: var(--space-loose);
+    border-left: var(--rule-width) solid var(--rule-hair);
+    border-radius: 0;
+  }
+
+  .rail-note {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: var(--type-ui);
+    color: var(--ink-secondary);
+  }
+
+  /* ---------------- ds-undo-strip ---------------- */
+
+  .ds-undo-strip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-base);
+    margin: var(--space-snug) 0 0;
+    padding: var(--space-snug) var(--space-base);
+    background: var(--surface-raised);
+    border: var(--rule-width) solid var(--rule-solid);
+    border-radius: var(--space-hair);
+    font-size: var(--type-ui);
+    transition:
+      opacity var(--motion-duration-base) var(--motion-easing-standard),
+      transform var(--motion-duration-base) var(--motion-easing-standard);
+  }
+  .ds-undo-strip[hidden] { display: none; }
+  .ds-undo-strip[data-state="entering"] { opacity: 0; transform: translateY(calc(-1 * var(--space-tight))); }
+  .ds-undo-strip[data-state="visible"] { opacity: 1; transform: none; }
+  .ds-undo-strip[data-state="leaving"] {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--space-tight)));
+    transition:
+      opacity var(--motion-duration-snap) var(--motion-easing-exit),
+      transform var(--motion-duration-snap) var(--motion-easing-exit);
+  }
+  .undo-summary { margin: 0; margin-right: auto; }
+
+  /* ---------------- list ---------------- */
+
+  .queue-list-head,
+  .ds-queue-row {
+    display: grid;
+    grid-template-columns: var(--hit-min) minmax(0, 1fr) var(--col-status);
+    align-items: center;
+    column-gap: var(--space-snug);
+    border-left: var(--space-hair) solid transparent;
+    padding-right: var(--space-snug);
+  }
+
+  .queue-list-head {
+    padding-top: var(--space-tight);
+    padding-bottom: var(--space-tight);
+    border-bottom: var(--rule-width) solid var(--rule-hair);
+    color: var(--ink-secondary);
+    font-size: var(--type-ui);
+  }
+  .queue-list-head[hidden] { display: none; }
+  .select-page-label { cursor: pointer; }
+
+  .queue-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .ds-queue-row {
+    padding-top: var(--space-tight);
+    padding-bottom: var(--space-tight);
+    border-bottom: var(--rule-width) solid var(--rule-hair);
+    /* no transition here: selection tint must change instantly */
+  }
+  .ds-queue-row:hover { background: var(--surface-recessed); }
+  .ds-queue-row:focus-within { background: var(--surface-recessed); }
+  .ds-queue-row[data-selected="true"] {
+    background: var(--surface-recessed);
+    border-left-color: var(--rule-solid);
+  }
+  .ds-queue-row[data-disabled="true"] { color: var(--ink-faint); }
+
+  .row-body { min-width: 0; }
+
+  .row-excerpt {
+    margin: 0;
+    font-size: var(--type-ui-dense);
+    line-height: 1.35;
+    color: var(--ink-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .row-meta {
+    margin: var(--space-hair) 0 0;
+    font-size: var(--type-ui-dense);
+    line-height: 1.35;
+    color: var(--ink-secondary);
+  }
+  .row-meta .sep {
+    color: var(--ink-faint);
+    padding: 0 var(--space-tight);
+  }
+  .ds-queue-row[data-variant="compact"] .row-meta { display: none; }
+  .ds-queue-row[data-variant="compact"] {
+    /* the 44px select cell sets the floor; the row gives up its own padding */
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  /* ---------------- ds-select-cell ---------------- */
+
+  .ds-select-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--hit-min);
+    min-height: var(--hit-min);
+  }
+
+  .select-box {
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+    width: var(--control-box);
+    height: var(--control-box);
+    background: var(--surface-base);
+    border: var(--rule-width) solid var(--rule-solid);
+    border-radius: var(--space-hair);
+    cursor: pointer;
+    position: relative;
+    flex: none;
+  }
+  .select-box:hover { border-color: var(--ink-secondary); }
+  .select-box:checked,
+  .select-box:indeterminate {
+    background: var(--ink-primary);
+    border-color: var(--ink-primary);
+  }
+  .select-box:checked::after {
+    content: "";
+    position: absolute;
+    left: var(--tick-inset-x);
+    top: var(--tick-inset-y);
+    width: var(--tick-w);
+    height: var(--tick-h);
+    border: solid var(--surface-base);
+    border-width: 0 var(--space-hair) var(--space-hair) 0;
+    transform: rotate(45deg);
+  }
+  .select-box:indeterminate::after {
+    content: "";
+    position: absolute;
+    left: var(--bar-inset-x);
+    top: var(--space-tight);
+    width: var(--bar-w);
+    height: var(--space-hair);
+    background: var(--surface-base);
+  }
+  .select-box:disabled { cursor: default; border-color: var(--rule-hair); }
+
+  /* ---------------- ds-status-pill ---------------- */
+
+  .ds-status-pill {
+    display: inline-block;
+    justify-self: start;
+    padding: 0 var(--space-tight);
+    font-size: var(--type-ui-dense);
+    line-height: 1.6;
+    border: var(--rule-width) solid currentColor;
+    border-radius: var(--space-hair);
+    white-space: nowrap;
+  }
+  .ds-status-pill[data-variant="flagged"] { color: var(--signal-flag); }
+  .ds-status-pill[data-variant="held"] { color: var(--signal-hold); }
+  .ds-status-pill[data-variant="cleared"] { color: var(--signal-clear); }
+
+  /* ---------------- ds-load-more ---------------- */
+
+  .load-more-slot {
+    padding-top: var(--space-base);
+  }
+
+  .ds-load-more {
+    min-width: var(--control-min-w);
+  }
+  .ds-load-more[data-state="exhausted"] {
+    color: var(--ink-faint);
+    border-color: var(--rule-hair);
+    cursor: default;
+  }
+
+  /* ---------------- ds-empty-rest ---------------- */
+
+  .ds-empty-rest {
+    background: var(--surface-sunken);
+    border: var(--rule-width) solid var(--rule-hair);
+    border-radius: var(--space-hair);
+    padding: var(--space-slack) var(--space-base);
+    margin-top: var(--space-base);
+    display: flex;
+    align-items: center;
+    gap: var(--space-base);
+    font-size: var(--type-ui);
+  }
+  .empty-line { margin: 0; color: var(--ink-secondary); }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* movement removed; the state itself is never clamped */
+    * { transition-duration: 0ms !important; }
+    .ds-undo-strip[data-state="entering"],
+    .ds-undo-strip[data-state="leaving"] { transform: none; }
+  }
+</style>
+</head>
+<body>
+<main class="console">
+  <h1 class="console-title">Kettle</h1>
+
+  <section aria-labelledby="queue-heading">
+    <div class="queue-head">
+      <h2 class="queue-heading" id="queue-heading">Review queue</h2>
+
+      <div class="queue-controls">
+        <div class="control-group">
+          <label class="control-label" for="filter">Filter</label>
+          <input class="filter-input" id="filter" type="search" autocomplete="off" placeholder="id, author, text">
+        </div>
+        <div class="control-group">
+          <span class="control-label" id="density-label">Density</span>
+          <div role="group" aria-labelledby="density-label" class="control-group">
+            <button type="button" class="btn btn--quiet" id="density-default" aria-pressed="true">Default</button>
+            <button type="button" class="btn btn--quiet" id="density-compact" aria-pressed="false">Compact</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ds-action-rail precedes the list in DOM order (dec_rail_before_list) and sits
+         in normal flow above it, not fixed or floating (dec_rail_position). -->
+    <div class="ds-action-rail" data-ds="ds-action-rail" data-state="idle">
+      <p class="selection-count" id="selection-count" aria-live="polite">0 selected</p>
+      <div class="rail-actions">
+        <button type="button" class="btn" id="action-hold" disabled>Hold</button>
+        <button type="button" class="btn" id="action-clear" disabled>Clear</button>
+        <button type="button" class="btn destructive" id="action-destructive" disabled>Reject / Remove</button>
+      </div>
+      <p class="rail-note">Destructive label unresolved: Reject (T&amp;S ops) vs Remove (Legal). Shipped as both until the humans close dec_destructive_label.</p>
+    </div>
+
+    <div class="ds-undo-strip" data-ds="ds-undo-strip" data-state="entering" role="status" id="undo-strip" hidden>
+      <p class="undo-summary" id="undo-summary"></p>
+      <button type="button" class="btn" id="undo-action">Undo</button>
+      <button type="button" class="btn btn--quiet" id="undo-dismiss">Dismiss</button>
+    </div>
+
+    <div class="queue-list-head" id="list-head">
+      <div class="ds-select-cell" data-ds="ds-select-cell">
+        <input class="select-box" type="checkbox" id="select-page">
+      </div>
+      <label class="select-page-label" for="select-page">Select page</label>
+      <span>Status</span>
+    </div>
+
+    <ol class="queue-list" id="queue-list"></ol>
+
+    <div id="empty-slot"></div>
+
+    <div class="load-more-slot">
+      <button type="button" class="btn ds-load-more" data-ds="ds-load-more" data-state="default" id="load-more">Load more</button>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var PAGE1 = [
+    { id: "K-4471", at: "09:02", author: "@noor_h",    excerpt: '"shipping delays again, third week running"', status: "flagged" },
+    { id: "K-4472", at: "09:04", author: "@dvsg",      excerpt: '"link in bio for the full list"',            status: "held" },
+    { id: "K-4473", at: "09:07", author: "@mara.p",    excerpt: '"anyone else getting this error on upload"', status: "cleared" },
+    { id: "K-4474", at: "09:11", author: "@tt_ronin",  excerpt: '"reposting since it got taken down"',        status: "flagged" },
+    { id: "K-4475", at: "09:12", author: "@quietkiln", excerpt: '"the receipts are in the thread"',           status: "flagged" },
+    { id: "K-4476", at: "09:15", author: "@halcy0n",   excerpt: '"DM me if you want the discount code"',      status: "held" },
+    { id: "K-4477", at: "09:19", author: "@b_orchard", excerpt: '"not sure this belongs here but"',           status: "cleared" },
+    { id: "K-4478", at: "09:23", author: "@sm1th",     excerpt: '"same account, new handle"',                 status: "flagged" },
+    { id: "K-4479", at: "09:26", author: "@tessel",    excerpt: '"screenshots attached, timestamps intact"',  status: "cleared" },
+    { id: "K-4480", at: "09:31", author: "@nvrmnd_",   excerpt: '"last warning before I escalate"',           status: "flagged" },
+    { id: "K-4481", at: "09:33", author: "@pol_ax",    excerpt: '"cross-posted from the other board"',        status: "held" },
+    { id: "K-4482", at: "09:38", author: "@wren.k",    excerpt: '"closing the loop on this one"',             status: "cleared" }
+  ];
+
+  var PAGE2 = [
+    { id: "K-4483", at: "09:41", author: "@oddment",   excerpt: '"the policy page says otherwise"',      status: "flagged" },
+    { id: "K-4484", at: "09:44", author: "@lune_",     excerpt: '"adding context in the replies"',       status: "cleared" },
+    { id: "K-4485", at: "09:47", author: "@gravl",     excerpt: '"third report on this account today"',  status: "flagged" },
+    { id: "K-4486", at: "09:49", author: "@itsfine",   excerpt: '"escalating per the runbook"',          status: "held" },
+    { id: "K-4487", at: "09:52", author: "@porthole9", excerpt: '"duplicate of K-4474"',                 status: "flagged" },
+    { id: "K-4488", at: "09:55", author: "@andesite",  excerpt: '"no action needed, closing"',           status: "cleared" },
+    { id: "K-4489", at: "09:58", author: "@tinct",     excerpt: '"requesting a second reviewer"',        status: "held" },
+    { id: "K-4490", at: "10:02", author: "@vellum_",   excerpt: '"attaching the original submission"',   status: "cleared" }
+  ];
+
+  var STATUS_LABEL = { flagged: "Flagged", held: "Held", cleared: "Cleared" };
+  var DESTRUCTIVE_LABEL = "Reject / Remove";
+  var DESTRUCTIVE_PAST = "rejected / removed";
+
+  var params = new URLSearchParams(location.search);
+  var startEmpty = params.get("empty") === "1";
+
+  var state = {
+    rows: startEmpty ? [] : PAGE1.map(function (r) { return Object.assign({}, r); }),
+    page: startEmpty ? 2 : 1,
+    selected: new Set(),
+    filter: params.get("q") || "",
+    variant: "default",
+    undo: null,
+    loading: false,
+    lastClickedIndex: -1
+  };
+
+  var el = {
+    list: document.getElementById("queue-list"),
+    listHead: document.getElementById("list-head"),
+    selectPage: document.getElementById("select-page"),
+    count: document.getElementById("selection-count"),
+    rail: document.querySelector(".ds-action-rail"),
+    hold: document.getElementById("action-hold"),
+    clear: document.getElementById("action-clear"),
+    destructive: document.getElementById("action-destructive"),
+    loadMore: document.getElementById("load-more"),
+    emptySlot: document.getElementById("empty-slot"),
+    undoStrip: document.getElementById("undo-strip"),
+    undoSummary: document.getElementById("undo-summary"),
+    undoAction: document.getElementById("undo-action"),
+    undoDismiss: document.getElementById("undo-dismiss"),
+    filter: document.getElementById("filter"),
+    densityDefault: document.getElementById("density-default"),
+    densityCompact: document.getElementById("density-compact")
+  };
+
+  el.filter.value = state.filter;
+  el.destructive.textContent = DESTRUCTIVE_LABEL;
+
+  function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  function matches(row) {
+    var q = state.filter.trim().toLowerCase();
+    if (!q) return true;
+    return (row.id + " " + row.author + " " + row.excerpt + " " + row.status).toLowerCase().indexOf(q) !== -1;
+  }
+
+  function visibleRows() {
+    return state.rows.filter(matches);
+  }
+
+  function rowMarkup(row) {
+    return '<li class="ds-queue-row" data-ds="ds-queue-row" data-id="' + esc(row.id) + '"' +
+      ' data-variant="' + state.variant + '" data-status="' + esc(row.status) + '"' +
+      ' data-selected="' + (state.selected.has(row.id) ? "true" : "false") + '">' +
+        '<div class="ds-select-cell" data-ds="ds-select-cell">' +
+          '<input class="select-box" type="checkbox" data-row-check="' + esc(row.id) + '"' +
+          ' aria-labelledby="ex-' + esc(row.id) + '"' + (state.selected.has(row.id) ? " checked" : "") + '>' +
+        '</div>' +
+        '<div class="row-body">' +
+          '<p class="row-excerpt" id="ex-' + esc(row.id) + '">' + esc(row.excerpt) + '</p>' +
+          '<p class="row-meta">' + esc(row.id) +
+            '<span class="sep" aria-hidden="true">&middot;</span>' + esc(row.at) +
+            '<span class="sep" aria-hidden="true">&middot;</span>' + esc(row.author) +
+          '</p>' +
+        '</div>' +
+        '<span class="ds-status-pill" data-ds="ds-status-pill" data-variant="' + esc(row.status) + '">' +
+          STATUS_LABEL[row.status] +
+        '</span>' +
+      '</li>';
+  }
+
+  function emptyMarkup() {
+    if (state.rows.length === 0) {
+      return '<div class="ds-empty-rest" data-ds="ds-empty-rest" data-variant="no-queue">' +
+        '<p class="empty-line">Queue empty. Nothing awaiting review.</p>' +
+      '</div>';
+    }
+    return '<div class="ds-empty-rest" data-ds="ds-empty-rest" data-variant="no-results">' +
+      '<p class="empty-line">0 items match the filter.</p>' +
+      '<button type="button" class="btn" id="clear-filter">Clear filter</button>' +
+    '</div>';
+  }
+
+  function render() {
+    var visible = visibleRows();
+
+    el.list.innerHTML = visible.map(rowMarkup).join("");
+    el.listHead.hidden = visible.length === 0;
+
+    if (visible.length === 0) {
+      el.emptySlot.innerHTML = emptyMarkup();
+      var cf = document.getElementById("clear-filter");
+      if (cf) {
+        cf.addEventListener("click", function () {
+          state.filter = "";
+          el.filter.value = "";
+          render();
+          el.filter.focus();
+        });
+      }
+    } else {
+      el.emptySlot.innerHTML = "";
+    }
+
+    renderLoadMore();
+    renderSelection();
+  }
+
+  function renderLoadMore() {
+    if (state.loading) {
+      el.loadMore.dataset.state = "loading";
+      el.loadMore.textContent = "Loading";
+      el.loadMore.disabled = true;
+    } else if (state.page >= 2) {
+      el.loadMore.dataset.state = "exhausted";
+      el.loadMore.textContent = "End of queue";
+      el.loadMore.disabled = true;
+    } else {
+      el.loadMore.dataset.state = "default";
+      el.loadMore.textContent = "Load more";
+      el.loadMore.disabled = false;
+    }
+  }
+
+  function renderSelection() {
+    var visible = visibleRows();
+    var n = state.selected.size;
+
+    el.count.textContent = n + " selected";
+    el.rail.dataset.state = n > 0 ? "armed" : "idle";
+    el.hold.disabled = n === 0;
+    el.clear.disabled = n === 0;
+    el.destructive.disabled = n === 0;
+
+    Array.prototype.forEach.call(el.list.children, function (li) {
+      var on = state.selected.has(li.dataset.id);
+      li.dataset.selected = on ? "true" : "false";
+      var box = li.querySelector(".select-box");
+      if (box.checked !== on) box.checked = on;
+    });
+
+    var selectedVisible = visible.filter(function (r) { return state.selected.has(r.id); }).length;
+    el.selectPage.disabled = visible.length === 0;
+    el.selectPage.checked = visible.length > 0 && selectedVisible === visible.length;
+    el.selectPage.indeterminate = selectedVisible > 0 && selectedVisible < visible.length;
+  }
+
+  /* ---------------- selection ---------------- */
+
+  el.list.addEventListener("click", function (ev) {
+    var box = ev.target.closest(".select-box");
+    if (!box) return;
+    var li = box.closest(".ds-queue-row");
+    var visible = visibleRows();
+    var index = visible.findIndex(function (r) { return r.id === li.dataset.id; });
+
+    if (ev.shiftKey && state.lastClickedIndex > -1 && index > -1) {
+      var lo = Math.min(index, state.lastClickedIndex);
+      var hi = Math.max(index, state.lastClickedIndex);
+      var on = box.checked;
+      for (var i = lo; i <= hi; i++) {
+        if (on) state.selected.add(visible[i].id);
+        else state.selected.delete(visible[i].id);
+      }
+    } else if (box.checked) {
+      state.selected.add(li.dataset.id);
+    } else {
+      state.selected.delete(li.dataset.id);
+    }
+
+    state.lastClickedIndex = index;
+    renderSelection();
+  });
+
+  el.selectPage.addEventListener("change", function () {
+    var visible = visibleRows();
+    visible.forEach(function (r) {
+      if (el.selectPage.checked) state.selected.add(r.id);
+      else state.selected.delete(r.id);
+    });
+    state.lastClickedIndex = -1;
+    renderSelection();
+  });
+
+  /* ---------------- bulk actions ---------------- */
+
+  function selectedRows() {
+    return state.rows.filter(function (r) { return state.selected.has(r.id); });
+  }
+
+  function apply(kind) {
+    var targets = selectedRows();
+    if (targets.length === 0) return;
+
+    var before = targets.map(function (r) {
+      return { id: r.id, index: state.rows.indexOf(r), status: r.status, row: Object.assign({}, r) };
+    });
+    var ids = targets.map(function (r) { return r.id; });
+
+    if (kind === "destructive") {
+      state.rows = state.rows.filter(function (r) { return !state.selected.has(r.id); });
+    } else {
+      var next = kind === "hold" ? "held" : "cleared";
+      targets.forEach(function (r) { r.status = next; });
+    }
+
+    state.undo = { kind: kind, before: before, ids: ids };
+    state.selected.clear();
+    state.lastClickedIndex = -1;
+    render();
+
+    var verb = kind === "hold" ? "held" : kind === "clear" ? "cleared" : DESTRUCTIVE_PAST;
+    showUndo(targets.length + " " + verb);
+  }
+
+  el.hold.addEventListener("click", function () { apply("hold"); });
+  el.clear.addEventListener("click", function () { apply("clear"); });
+  el.destructive.addEventListener("click", function () { apply("destructive"); });
+
+  /* ---------------- ds-undo-strip ---------------- */
+
+  function showUndo(summary) {
+    el.undoSummary.textContent = summary;
+    el.undoStrip.hidden = false;
+    el.undoStrip.dataset.state = "entering";
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { el.undoStrip.dataset.state = "visible"; });
+    });
+  }
+
+  function hideUndo() {
+    if (el.undoStrip.hidden) return;
+    el.undoStrip.dataset.state = "leaving";
+    var done = false;
+    var finish = function () {
+      if (done) return;
+      done = true;
+      el.undoStrip.hidden = true;
+    };
+    el.undoStrip.addEventListener("transitionend", finish, { once: true });
+    setTimeout(finish, 120);
+  }
+
+  el.undoAction.addEventListener("click", function () {
+    var u = state.undo;
+    if (!u) return;
+
+    if (u.kind === "destructive") {
+      u.before.slice().sort(function (a, b) { return a.index - b.index; })
+        .forEach(function (b) { state.rows.splice(b.index, 0, b.row); });
+    } else {
+      u.before.forEach(function (b) {
+        var row = state.rows.find(function (r) { return r.id === b.id; });
+        if (row) row.status = b.status;
+      });
+    }
+
+    /* the reviewer's assembled batch is restored with it — same reasoning as
+       dec_selection_persists: never silently discard an assembled selection */
+    state.selected = new Set(u.ids);
+    state.undo = null;
+    state.lastClickedIndex = -1;
+    hideUndo();
+    render();
+  });
+
+  el.undoDismiss.addEventListener("click", function () {
+    state.undo = null;
+    hideUndo();
+  });
+
+  /* ---------------- ds-load-more ---------------- */
+
+  el.loadMore.addEventListener("click", function () {
+    if (state.page >= 2 || state.loading) return;
+    state.loading = true;
+    renderLoadMore();
+    setTimeout(function () {
+      var have = {};
+      state.rows.forEach(function (r) { have[r.id] = true; });
+      PAGE2.forEach(function (r) {
+        if (!have[r.id]) state.rows.push(Object.assign({}, r));
+      });
+      state.page = 2;
+      state.loading = false;
+      /* selection survives the fetch (dec_selection_persists); appended rows arrive unselected */
+      render();
+    }, 160);
+  });
+
+  /* ---------------- filter + density ---------------- */
+
+  el.filter.addEventListener("input", function () {
+    state.filter = el.filter.value;
+    state.lastClickedIndex = -1;
+    render();
+  });
+
+  function setVariant(v) {
+    state.variant = v;
+    el.densityDefault.setAttribute("aria-pressed", String(v === "default"));
+    el.densityCompact.setAttribute("aria-pressed", String(v === "compact"));
+    render();
+  }
+  el.densityDefault.addEventListener("click", function () { setVariant("default"); });
+  el.densityCompact.addEventListener("click", function () { setVariant("compact"); });
+
+  render();
+})();
+</script>
+</body>
+</html>

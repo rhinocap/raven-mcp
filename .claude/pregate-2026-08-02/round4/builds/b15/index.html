@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kettle — review queue</title>
+<style>
+:root{
+  /* --- surfaces: a depth ramp, not a lightness ramp --- */
+  --surface-base:#0e1113;
+  --surface-raised:#171b1e;
+  --surface-recessed:#0a0c0e;
+  --surface-sunken:#060809;
+
+  --ink-primary:#e8eaec;
+  --ink-secondary:#9aa3a9;
+  --ink-faint:#5f686e;
+
+  --rule-hair:#242a2e;
+  --rule-solid:#39424a;
+
+  --signal-flag:#d4573a;
+  --signal-hold:#c08a2e;
+  --signal-clear:#4a8f6d;
+
+  --focus-ring:#6ea8d8;
+
+  --type-ui-dense:13px;
+  --type-ui:14px;
+  --type-ui-lead:16px;
+  --type-section:20px;
+  --type-page:28px;
+
+  --space-hair:2px;
+  --space-tight:6px;
+  --space-snug:10px;
+  --space-base:16px;
+  --space-loose:24px;
+  --space-slack:40px;
+
+  --dur-snap:90ms;
+  --dur-base:160ms;
+  --dur-settle:260ms;
+  --ease-standard:cubic-bezier(0.2,0,0,1);
+  --ease-exit:cubic-bezier(0.4,0,1,1);
+
+  /* derived tokens — values the sources mandate but do not name. See NOTES.md */
+  --font-ui:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --hit-target:44px;          /* mandated 44px minimum hit area */
+  --gutter-select:var(--space-slack); /* mandated 40px selection gutter */
+  --rule-width:1px;           /* hairline */
+  --radius-mark:2px;
+  --radius-pill:3px;          /* system ceiling */
+  --control-box:14px;
+  --mark-bar:8px;
+  --mark-check-w:4px;
+  --mark-check-h:8px;
+  --undo-rise:8px;            /* motion distance */
+  --weight-regular:400;
+  --weight-medium:600;
+  --leading-dense:1.4;
+}
+
+*{box-sizing:border-box;}
+
+html,body{margin:0;padding:0;}
+
+body{
+  background:var(--surface-base);
+  color:var(--ink-primary);
+  font-family:var(--font-ui);
+  font-size:var(--type-ui);
+  font-weight:var(--weight-regular);
+  line-height:var(--leading-dense);
+  -webkit-font-smoothing:antialiased;
+}
+
+:focus-visible{
+  outline:var(--space-hair) solid var(--focus-ring);
+  outline-offset:var(--space-hair);
+}
+
+.k-shell{
+  padding:var(--space-loose) var(--space-loose) var(--space-slack);
+}
+
+.k-title{
+  font-size:var(--type-page);
+  font-weight:var(--weight-medium);
+  color:var(--ink-primary);
+  margin:0 0 var(--space-loose);
+}
+
+/* ---------- ds-action-rail ---------- */
+/* Above the list, in normal flow, scrolls with the page. Never fixed. */
+.ds-action-rail{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:var(--space-base);
+  min-height:var(--hit-target);
+  padding:var(--space-snug) 0;
+  border-block-end:var(--rule-width) solid var(--rule-solid);
+}
+
+.k-count{
+  margin:0;
+  font-size:var(--type-ui-lead);
+  color:var(--ink-secondary);
+}
+.ds-action-rail[data-state="armed"] .k-count{color:var(--ink-primary);}
+
+.k-actions{display:flex;align-items:center;gap:var(--space-snug);}
+
+.k-action{
+  min-height:var(--hit-target);
+  padding:0 var(--space-base);
+  font-family:inherit;
+  font-size:var(--type-ui);
+  font-weight:var(--weight-regular);
+  color:var(--ink-primary);
+  background:var(--surface-base);
+  border:var(--rule-width) solid var(--rule-solid);
+  border-radius:var(--radius-mark);
+  cursor:pointer;
+  transition:background-color var(--dur-snap) var(--ease-standard),
+             border-color var(--dur-snap) var(--ease-standard);
+}
+.k-action:hover:not(:disabled){background:var(--surface-recessed);}
+.k-action:disabled{
+  color:var(--ink-faint);
+  border-color:var(--rule-hair);
+  cursor:default;
+}
+/* the destructive action is separated by space, never by a signal hue */
+.k-action--destructive{margin-inline-start:var(--space-loose);}
+
+/* ---------- queue head ---------- */
+.k-head{
+  display:grid;
+  grid-template-columns:var(--gutter-select) 1fr auto;
+  align-items:center;
+  gap:var(--space-base);
+  min-block-size:var(--hit-target);
+  padding:var(--space-tight) 0;
+  border-block-end:var(--rule-width) solid var(--rule-hair);
+  border-inline-start:var(--space-hair) solid transparent;
+}
+.k-col{font-size:var(--type-ui);color:var(--ink-secondary);}
+.k-col--status{justify-self:end;}
+.k-head[hidden]{display:none;}
+
+/* ---------- ds-select-cell ---------- */
+/* 40px gutter; the 44px hit area overflows it rather than widening it. */
+.ds-select-cell{
+  position:relative;
+  display:grid;
+  place-items:center;
+  inline-size:var(--gutter-select);
+}
+.ds-select-cell input{
+  font-size:inherit;
+  position:absolute;
+  inset-block-start:50%;
+  inset-inline-start:50%;
+  transform:translate(-50%,-50%);
+  inline-size:var(--hit-target);
+  block-size:var(--hit-target);
+  margin:0;
+  opacity:0;
+  cursor:pointer;
+  z-index:1;
+}
+.k-box{
+  display:grid;
+  place-items:center;
+  inline-size:var(--control-box);
+  block-size:var(--control-box);
+  border:var(--rule-width) solid var(--rule-solid);
+  border-radius:var(--radius-mark);
+  background:var(--surface-base);
+}
+.ds-select-cell:hover .k-box{border-color:var(--ink-secondary);}
+.ds-select-cell:has(input:focus-visible) .k-box{
+  outline:var(--space-hair) solid var(--focus-ring);
+  outline-offset:var(--space-hair);
+}
+.ds-select-cell:has(input:checked) .k-box{
+  background:var(--ink-primary);
+  border-color:var(--ink-primary);
+}
+.ds-select-cell:has(input:checked) .k-box::after{
+  content:"";
+  inline-size:var(--mark-check-w);
+  block-size:var(--mark-check-h);
+  border-inline-end:var(--space-hair) solid var(--surface-base);
+  border-block-end:var(--space-hair) solid var(--surface-base);
+  transform:rotate(45deg);
+  margin-block-end:var(--space-hair);
+}
+.ds-select-cell:has(input:indeterminate) .k-box{
+  background:var(--surface-base);
+  border-color:var(--ink-primary);
+}
+.ds-select-cell:has(input:indeterminate) .k-box::after{
+  content:"";
+  inline-size:var(--mark-bar);
+  block-size:var(--space-hair);
+  background:var(--ink-primary);
+  transform:none;
+  margin:0;
+}
+.ds-select-cell:has(input:disabled) .k-box{border-color:var(--rule-hair);}
+
+/* ---------- ds-queue-row ---------- */
+.k-queue{display:block;}
+
+.ds-queue-row{
+  display:grid;
+  grid-template-columns:var(--gutter-select) 1fr auto;
+  align-items:center;
+  gap:var(--space-base);
+  min-block-size:var(--hit-target);
+  padding:var(--space-tight) 0;
+  border-block-end:var(--rule-width) solid var(--rule-hair);
+  border-inline-start:var(--space-hair) solid transparent;
+  cursor:default;
+  /* no transition here: selection tint must change instantly */
+}
+.ds-queue-row:hover{background:var(--surface-recessed);}
+.ds-queue-row:focus-within{background:var(--surface-recessed);}
+.ds-queue-row[data-state="selected"]{
+  background:var(--surface-recessed);
+  border-inline-start-color:var(--ink-primary);
+}
+.ds-queue-row[data-state="disabled"]{
+  color:var(--ink-faint);
+  pointer-events:none;
+}
+
+.k-body{min-inline-size:0;display:flex;flex-direction:column;gap:var(--space-hair);}
+.k-excerpt{
+  font-size:var(--type-ui-dense);
+  color:var(--ink-primary);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.k-meta{
+  font-size:var(--type-ui-dense);
+  color:var(--ink-secondary);
+}
+.ds-queue-row[data-variant="compact"] .k-meta{display:none;}
+
+/* ---------- ds-status-pill ---------- */
+.ds-status-pill{
+  justify-self:end;
+  font-size:var(--type-ui-dense);
+  color:var(--ink-primary);
+  background:var(--surface-base);
+  padding:var(--space-hair) var(--space-snug);
+  border:var(--rule-width) solid var(--rule-solid);
+  border-radius:var(--radius-pill);
+  white-space:nowrap;
+}
+.ds-status-pill[data-variant="flagged"]{border-color:var(--signal-flag);}
+.ds-status-pill[data-variant="held"]{border-color:var(--signal-hold);}
+.ds-status-pill[data-variant="cleared"]{border-color:var(--signal-clear);}
+
+/* ---------- ds-load-more ---------- */
+.ds-load-more{
+  display:block;
+  inline-size:100%;
+  min-block-size:var(--hit-target);
+  padding:var(--space-snug) var(--space-base);
+  font-family:inherit;
+  font-size:var(--type-ui);
+  color:var(--ink-primary);
+  background:var(--surface-base);
+  border:0;
+  border-block-end:var(--rule-width) solid var(--rule-hair);
+  cursor:pointer;
+  text-align:center;
+  transition:background-color var(--dur-snap) var(--ease-standard);
+}
+.ds-load-more[data-state="hovered"],
+.ds-load-more[data-state="idle"]:hover{background:var(--surface-recessed);}
+.ds-load-more[data-state="loading"]{color:var(--ink-secondary);cursor:default;}
+.ds-load-more[data-state="exhausted"]{color:var(--ink-faint);cursor:default;}
+
+/* ---------- ds-empty-rest ---------- */
+.ds-empty-rest{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:var(--space-base);
+  padding:var(--space-slack) var(--space-base);
+  background:var(--surface-sunken);
+  border-block-end:var(--rule-width) solid var(--rule-hair);
+}
+.k-empty-line{margin:0;font-size:var(--type-ui);color:var(--ink-secondary);}
+
+/* ---------- ds-undo-strip ---------- */
+.ds-undo-strip{
+  position:fixed;
+  inset-block-end:var(--space-loose);
+  inset-inline-start:var(--space-loose);
+  display:flex;
+  align-items:center;
+  gap:var(--space-base);
+  padding:var(--space-tight) var(--space-base);
+  font-size:var(--type-ui);
+  color:var(--ink-primary);
+  background:var(--surface-raised);
+  border:var(--rule-width) solid var(--rule-solid);
+  border-radius:var(--radius-mark);
+  transition:opacity var(--dur-base) var(--ease-standard),
+             transform var(--dur-base) var(--ease-standard);
+}
+.ds-undo-strip[hidden]{display:none;}
+.ds-undo-strip[data-state="entering"]{opacity:0;transform:translateY(var(--undo-rise));}
+.ds-undo-strip[data-state="visible"]{opacity:1;transform:translateY(0);}
+.ds-undo-strip[data-state="leaving"]{
+  opacity:0;
+  transform:translateY(var(--undo-rise));
+  transition-timing-function:var(--ease-exit);
+}
+.k-undo-text{white-space:nowrap;}
+.k-undo-action{
+  min-height:var(--hit-target);
+  padding:0 var(--space-base);
+  font-family:inherit;
+  font-size:var(--type-ui);
+  color:var(--ink-primary);
+  background:var(--surface-raised);
+  border:var(--rule-width) solid var(--rule-solid);
+  border-radius:var(--radius-mark);
+  cursor:pointer;
+  transition:background-color var(--dur-snap) var(--ease-standard);
+}
+.k-undo-action:hover{background:var(--surface-recessed);}
+
+.k-sr{
+  position:absolute;
+  inline-size:var(--rule-width);
+  block-size:var(--rule-width);
+  overflow:hidden;
+  clip-path:inset(50%);
+  white-space:nowrap;
+}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    transition-duration:0.01ms !important;
+    animation-duration:0.01ms !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<main class="k-shell">
+  <h1 class="k-title">Review queue</h1>
+
+  <!-- rail precedes the list in DOM order, so bulk actions are reachable without tabbing the queue -->
+  <div class="ds-action-rail" data-ds="ds-action-rail" data-state="idle">
+    <p class="k-count" id="count" aria-live="polite">0 selected</p>
+    <div class="k-actions">
+      <button type="button" class="k-action" data-action="hold" disabled>Hold</button>
+      <button type="button" class="k-action" data-action="clear" disabled>Clear</button>
+      <button type="button" class="k-action k-action--destructive" data-action="remove" disabled>Remove</button>
+    </div>
+  </div>
+
+  <div class="k-head" id="head">
+    <span class="ds-select-cell" data-ds="ds-select-cell">
+      <input type="checkbox" id="selectPage" aria-label="Select every row on this page">
+      <span class="k-box" aria-hidden="true"></span>
+    </span>
+    <span class="k-col">Item</span>
+    <span class="k-col k-col--status">Status</span>
+  </div>
+
+  <div class="k-queue" id="queue" role="list"></div>
+
+  <button type="button" class="ds-load-more" data-ds="ds-load-more" data-state="idle" id="loadMore">Load more</button>
+</main>
+
+<div class="ds-undo-strip" data-ds="ds-undo-strip" data-state="entering" id="undo" role="status" hidden>
+  <span class="k-undo-text" id="undoText"></span>
+  <button type="button" class="k-undo-action" id="undoAction">Undo</button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var PAGE1 = [
+    {id:"K-4471", at:"09:02", author:"@noor_h",   excerpt:"shipping delays again, third week running", status:"flagged"},
+    {id:"K-4472", at:"09:04", author:"@dvsg",     excerpt:"link in bio for the full list",             status:"held"},
+    {id:"K-4473", at:"09:07", author:"@mara.p",   excerpt:"anyone else getting this error on upload",  status:"cleared"},
+    {id:"K-4474", at:"09:11", author:"@tt_ronin", excerpt:"reposting since it got taken down",         status:"flagged"},
+    {id:"K-4475", at:"09:12", author:"@quietkiln",excerpt:"the receipts are in the thread",            status:"flagged"},
+    {id:"K-4476", at:"09:15", author:"@halcy0n",  excerpt:"DM me if you want the discount code",       status:"held"},
+    {id:"K-4477", at:"09:19", author:"@b_orchard",excerpt:"not sure this belongs here but",            status:"cleared"},
+    {id:"K-4478", at:"09:23", author:"@sm1th",    excerpt:"same account, new handle",                  status:"flagged"},
+    {id:"K-4479", at:"09:26", author:"@tessel",   excerpt:"screenshots attached, timestamps intact",   status:"cleared"},
+    {id:"K-4480", at:"09:31", author:"@nvrmnd_",  excerpt:"last warning before I escalate",            status:"flagged"},
+    {id:"K-4481", at:"09:33", author:"@pol_ax",   excerpt:"cross-posted from the other board",         status:"held"},
+    {id:"K-4482", at:"09:38", author:"@wren.k",   excerpt:"closing the loop on this one",              status:"cleared"}
+  ];
+
+  var PAGE2 = [
+    {id:"K-4483", at:"09:41", author:"@oddment",  excerpt:"the policy page says otherwise",   status:"flagged"},
+    {id:"K-4484", at:"09:44", author:"@lune_",    excerpt:"adding context in the replies",    status:"cleared"},
+    {id:"K-4485", at:"09:47", author:"@gravl",    excerpt:"third report on this account today",status:"flagged"},
+    {id:"K-4486", at:"09:49", author:"@itsfine",  excerpt:"escalating per the runbook",       status:"held"},
+    {id:"K-4487", at:"09:52", author:"@porthole9",excerpt:"duplicate of K-4474",              status:"flagged"},
+    {id:"K-4488", at:"09:55", author:"@andesite", excerpt:"no action needed, closing",        status:"cleared"},
+    {id:"K-4489", at:"09:58", author:"@tinct",    excerpt:"requesting a second reviewer",     status:"held"},
+    {id:"K-4490", at:"10:02", author:"@vellum_",  excerpt:"attaching the original submission",status:"cleared"}
+  ];
+
+  var PILL = {flagged:"Flagged", held:"Held", cleared:"Cleared"};
+  var PAST = {hold:"held", clear:"cleared", remove:"removed"};
+  var NEXT_STATUS = {hold:"held", clear:"cleared"};
+
+  var params  = new URLSearchParams(location.search);
+  var query   = (params.get("q") || "").trim();
+  var compact = params.get("compact") === "1";
+  var forceEmpty = params.get("empty") === "1";
+
+  var rows = forceEmpty ? [] : PAGE1.map(function(r){ return Object.assign({}, r); });
+  var page = forceEmpty ? 2 : 1;
+  var selected = new Set();
+  var lastAction = null;
+  var loading = false;
+  var undoTimer = null;
+
+  var elQueue   = document.getElementById("queue");
+  var elHead    = document.getElementById("head");
+  var elRail    = document.querySelector(".ds-action-rail");
+  var elCount   = document.getElementById("count");
+  var elPageBox = document.getElementById("selectPage");
+  var elMore    = document.getElementById("loadMore");
+  var elUndo    = document.getElementById("undo");
+  var elUndoTxt = document.getElementById("undoText");
+  var elUndoAct = document.getElementById("undoAction");
+
+  function visibleRows(){
+    if(!query) return rows;
+    var q = query.toLowerCase();
+    return rows.filter(function(r){
+      return (r.excerpt + " " + r.author + " " + r.id).toLowerCase().indexOf(q) !== -1;
+    });
+  }
+
+  function esc(s){
+    return String(s).replace(/[&<>"]/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];
+    });
+  }
+
+  function rowMarkup(r){
+    return '<div class="ds-queue-row" data-ds="ds-queue-row" data-id="' + esc(r.id) + '"' +
+           ' data-variant="' + (compact ? "compact" : "default") + '" data-state="default" role="listitem">' +
+             '<span class="ds-select-cell" data-ds="ds-select-cell">' +
+               '<input type="checkbox" data-row="' + esc(r.id) + '" aria-label="Select ' + esc(r.id) + '">' +
+               '<span class="k-box" aria-hidden="true"></span>' +
+             '</span>' +
+             '<span class="k-body">' +
+               '<span class="k-excerpt">' + esc(r.excerpt) + '</span>' +
+               '<span class="k-meta">' + esc(r.id) + ' &middot; ' + esc(r.at) + ' &middot; ' + esc(r.author) + '</span>' +
+             '</span>' +
+             '<span class="ds-status-pill" data-ds="ds-status-pill" data-variant="' + esc(r.status) + '">' +
+               PILL[r.status] +
+             '</span>' +
+           '</div>';
+  }
+
+  function emptyMarkup(){
+    if(rows.length === 0){
+      return '<div class="ds-empty-rest" data-ds="ds-empty-rest" data-variant="no-queue">' +
+               '<p class="k-empty-line">Queue empty.</p>' +
+             '</div>';
+    }
+    return '<div class="ds-empty-rest" data-ds="ds-empty-rest" data-variant="no-results">' +
+             '<p class="k-empty-line">No rows match “' + esc(query) + '”.</p>' +
+             '<button type="button" class="k-action" id="clearFilter">Clear filter</button>' +
+           '</div>';
+  }
+
+  function renderList(){
+    var vis = visibleRows();
+    if(vis.length === 0){
+      elQueue.innerHTML = emptyMarkup();
+      elHead.hidden = true;
+      var cf = document.getElementById("clearFilter");
+      if(cf) cf.addEventListener("click", function(){
+        location.search = "";
+      });
+    }else{
+      elQueue.innerHTML = vis.map(rowMarkup).join("");
+      elHead.hidden = false;
+    }
+    renderLoadMore();
+    syncSelection();
+  }
+
+  function renderLoadMore(){
+    if(loading){ elMore.dataset.state = "loading"; elMore.textContent = "Loading"; elMore.disabled = true; return; }
+    if(page >= 2){ elMore.dataset.state = "exhausted"; elMore.textContent = "End of queue"; elMore.disabled = true; return; }
+    elMore.dataset.state = "idle"; elMore.textContent = "Load more"; elMore.disabled = false;
+  }
+
+  function syncSelection(){
+    var vis = visibleRows();
+    var live = rows.filter(function(r){ return selected.has(r.id); });
+    var n = live.length;
+
+    elCount.textContent = n + " selected";
+    elRail.dataset.state = n > 0 ? "armed" : "idle";
+    document.querySelectorAll(".k-action[data-action]").forEach(function(b){ b.disabled = n === 0; });
+
+    Array.prototype.forEach.call(elQueue.querySelectorAll(".ds-queue-row"), function(row){
+      var on = selected.has(row.dataset.id);
+      row.dataset.state = on ? "selected" : "default";
+      var box = row.querySelector("input[type=checkbox]");
+      if(box) box.checked = on;
+    });
+
+    var visSelected = vis.filter(function(r){ return selected.has(r.id); }).length;
+    elPageBox.disabled = vis.length === 0;
+    elPageBox.checked = vis.length > 0 && visSelected === vis.length;
+    elPageBox.indeterminate = visSelected > 0 && visSelected < vis.length;
+  }
+
+  /* ---- selection ---- */
+  elQueue.addEventListener("change", function(e){
+    var box = e.target.closest("input[data-row]");
+    if(!box) return;
+    if(box.checked) selected.add(box.dataset.row); else selected.delete(box.dataset.row);
+    syncSelection();
+  });
+
+  elQueue.addEventListener("click", function(e){
+    if(e.target.closest(".ds-select-cell")) return;
+    if(e.target.closest("button")) return;
+    var row = e.target.closest(".ds-queue-row");
+    if(!row) return;
+    if(window.getSelection && String(window.getSelection())) return;
+    if(selected.has(row.dataset.id)) selected.delete(row.dataset.id); else selected.add(row.dataset.id);
+    syncSelection();
+  });
+
+  elPageBox.addEventListener("change", function(){
+    var vis = visibleRows();
+    var all = vis.every(function(r){ return selected.has(r.id); });
+    vis.forEach(function(r){ if(all) selected.delete(r.id); else selected.add(r.id); });
+    syncSelection();
+  });
+
+  /* ---- bulk actions: applied immediately, reversed by ds-undo-strip ---- */
+  document.querySelectorAll(".k-action[data-action]").forEach(function(btn){
+    btn.addEventListener("click", function(){ apply(btn.dataset.action); });
+  });
+
+  function apply(action){
+    var targets = rows.filter(function(r){ return selected.has(r.id); });
+    if(targets.length === 0) return;
+    var n = targets.length;
+
+    if(action === "remove"){
+      var removed = [];
+      targets.forEach(function(r){ removed.push({index: rows.indexOf(r), row: r}); });
+      removed.sort(function(a,b){ return a.index - b.index; });
+      rows = rows.filter(function(r){ return !selected.has(r.id); });
+      lastAction = function(){
+        removed.forEach(function(entry){ rows.splice(entry.index, 0, entry.row); });
+      };
+    }else{
+      var before = targets.map(function(r){ return {row: r, status: r.status}; });
+      targets.forEach(function(r){ r.status = NEXT_STATUS[action]; });
+      lastAction = function(){
+        before.forEach(function(entry){ entry.row.status = entry.status; });
+      };
+    }
+
+    selected.clear();
+    renderList();
+    showUndo(n + " " + PAST[action] + ".");
+  }
+
+  /* ---- ds-undo-strip ---- */
+  function showUndo(text){
+    if(undoTimer) clearTimeout(undoTimer);
+    elUndoTxt.textContent = text;
+    elUndo.hidden = false;
+    elUndo.dataset.state = "entering";
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){ elUndo.dataset.state = "visible"; });
+    });
+    undoTimer = setTimeout(hideUndo, 8000);
+  }
+
+  function hideUndo(){
+    if(undoTimer){ clearTimeout(undoTimer); undoTimer = null; }
+    if(elUndo.hidden) return;
+    elUndo.dataset.state = "leaving";
+    setTimeout(function(){
+      if(elUndo.dataset.state === "leaving") elUndo.hidden = true;
+    }, 160);
+  }
+
+  elUndoAct.addEventListener("click", function(){
+    if(lastAction){ lastAction(); lastAction = null; renderList(); }
+    hideUndo();
+  });
+
+  /* ---- ds-load-more: appends, preserves selection ---- */
+  elMore.addEventListener("click", function(){
+    if(loading || page >= 2) return;
+    loading = true;
+    renderLoadMore();
+    setTimeout(function(){
+      rows = rows.concat(PAGE2.map(function(r){ return Object.assign({}, r); }));
+      page = 2;
+      loading = false;
+      renderList();
+    }, 260);
+  });
+
+  renderList();
+})();
+</script>
+</body>
+</html>
