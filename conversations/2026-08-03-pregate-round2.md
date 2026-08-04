@@ -1152,3 +1152,73 @@ removes a decision from force." Not touched here. One line, not a fix.
 
 After the fixes: **1153 tests, 1150 pass, 0 fail, 3 skipped**; `verify-arrays.mjs` exits 0 with all
 7 published figures reproducing; `sync-manifest-tools.mjs` produces no diff; tool count unmoved.
+
+---
+
+## Window 21 — the push, and what the verification can and cannot prove
+
+Andrew said **"push"**, which was the answer to the one gate genuinely reserved for him: these
+commits touch `src/`, and since the 2026-07-27 unpin every push to `main` rebuilds the live
+OAuth-bearing endpoint at `mcp.ravenmcp.ai`. Gate satisfied explicitly, not inferred.
+
+**Pushed `d60c052..985e5ce`** — 4 commits, 12 files, +778/-7. Verified two independent ways:
+`git ls-remote origin main` and local `HEAD` both return
+`985e5ce4e177dea8f27dbbcd146047f9e4b25cc4`.
+
+**Deploy verified.** Newest `site` production deployment `dpl_AY1341iMaEdBoB8rN6rwGha6h48k` is
+`READY`, `meta.githubCommitSha` = `985e5ce…`, branch `main`. Its own `alias[]` contains
+**`mcp.ravenmcp.ai`** with `aliasAssigned: true` — read off the deployment record, which per the
+ledger is the only thing that actually names the owning project. Not inferred from a URL probe.
+
+**Anon surface verified.** POST `tools/list` to `https://mcp.ravenmcp.ai/api/mcp` returns **45
+tools**; sha256 of the newline-joined sorted names is
+`f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6` — the frozen golden hash,
+exact match. Controls on the same fetch: `get_principles` present (must be), `decision_list`
+absent (it is in `REMOTE_GATED_TOOLS`). The frozen surface did not move.
+
+### The first probe returned zero rows and was NOT read as a negative
+`GET /v6/deployments?app=site` came back **HTTP 200 with zero deployments** — because `teamId` was
+omitted and the token defaults to a personal scope holding no projects. An empty 200 and "no
+deploy exists" are the same bytes. Re-run with a positive control (print status + body first, list
+projects, list teams) and the real scope `team_olGEVPv4S4lDPwkgjuHrd7uo`, which returned 5 rows.
+This is the session's own rule doing its job on the session itself.
+
+### Sol's objection that survived — logged honestly, not closed
+Sol's adverse pass **refuted the claim as strictly worded**. Confirmed: the four-commit range, the
+deployment record, the alias distinguishing `site` from `web`, the 45-name hash. **Not proven: that
+the anon response came from build `985e5ce`.** The response carries no deployment id or commit sha,
+and because the only `src` change (`decision_list` gaining `include_contested`) is *gated*, the old
+and new builds return an identical anonymous payload.
+
+I tried to close it and **the test failed to discriminate.** Hashing the full tool payload
+(names + descriptions + schemas) from three sources:
+
+| source | n | name hash | full hash |
+|---|---|---|---|
+| alias `mcp.ravenmcp.ai` | 45 | `f64bb185…` | `40ea4817…` |
+| `dpl` @ `985e5ce` (new) | 45 | `f64bb185…` | `40ea4817…` |
+| `dpl` @ `d60c052` (prev) | 45 | `f64bb185…` | `40ea4817…` |
+
+The previous build is **byte-identical** on this surface, so the match is consistent with the new
+build serving but does not prove it. What actually establishes routing is Vercel's alias record on
+`dpl_AY…`, not the payload. Stated as measured: **routing is proven by the API; build identity is
+not observable from the anonymous surface, by design.** The identical payload is the *desired*
+result — a frozen surface that did not move for a gated change.
+
+Sol's second point — that a name-only hash says nothing about schemas or descriptions — **is now
+closed**: the full-payload hash above covers descriptions and input schemas, and it is unchanged.
+
+### `codex exec` failed silently twice — cause unidentified
+Two Sol runs **exited 0 with no model output at all**, terminating after `UserPromptSubmit` without
+ever reaching a `Stop` hook. A third run at `low` effort produced a full result. An
+`invalid_grant` OAuth refresh error for the `vercel` MCP server appears in the *successful* runs
+too, so **it is not the cause** — the cause is unidentified and worth watching, because a done-gate
+that exits 0 having verified nothing fails open. Concrete instance of "a silent clean exit is a
+failed run." The surviving pass ran at `low`, below the `medium` default.
+
+### Carried forward
+- Sol ran at `low` effort, not the `medium` default — re-run at `medium` if this claim gets leaned on.
+- The silent `codex exec` failure mode is undiagnosed. If it recurs, capture the full stderr and
+  check whether a Codex hook is rejecting the prompt.
+- Pre-existing, untouched: `decisionsForPaths` (`src/design-review.ts:992`) still treats contested
+  decisions as applicable to `review_diff`.
