@@ -98,6 +98,18 @@ channel through which method identity can leak to a nominally blind judge.
 
 ## Results
 
+> **Every number in the three tables below was re-derived from `raw/` on 2026-08-03 and matches
+> exactly** — all six arm means, both medians, all four ranges, all four refuted means, every
+> ship-ready count, every high-defect count, the −15.7 and −2.0 deltas, and all seven noise-floor
+> rows including n, mean, mean absolute deviation, sd, and max. Reproduce with
+> `node verify-arrays.mjs` from this directory; it reads only `raw/round2-judges-refuters.json`
+> and `raw/ablation-judges-refuters.json` plus the two mapping tables.
+>
+> This matters because the arrays had been quoted from memory in the session log and were
+> flagged **UNVERIFIED** through four windows — a reconstruction that happens to be right is
+> still not data until it is read back from the source. It has now been read back. The flag is
+> cleared, and the numbers below are KNOWN.
+
 ### Round 2 — as shipped (wf_7ac08a99-1e0, 39 agents, 0 errors)
 
 | arm | judge mean | median | range | refuted mean | ship-ready | high defects |

@@ -25,7 +25,8 @@
     "SECURITY.md"
   ],
   "scripts": {
-    "build": "tsc",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc",
     "build:mcpb": "bash scripts/build-mcpb.sh",
     "release": "bash scripts/release.sh",
     "dev": "tsx src/index.ts",

@@ -6963,16 +6963,20 @@ server.tool(
 
 server.tool(
   "decision_list",
-  "List decisions in the local Decision Graph. Defaults to active decisions.",
+  "List decisions in the local Decision Graph. Defaults to ACTIVE decisions only — the ones that currently govern. Contesting a decision is what stops it governing, so contested decisions are deliberately excluded from the default: pass status:'contested' to review disputes, or include_contested:true to see both. A decision you cannot find is not the same as a decision that does not exist.",
   {
     status: z.enum(["candidate", "active", "superseded", "contested"]).optional().describe("Decision status to list. Omit to list active decisions."),
     include_candidates: z.boolean().optional().describe("When true and status is omitted, include uncommitted imported candidates with active decisions."),
+    include_contested: z.boolean().optional().describe("When true and status is omitted, include contested decisions alongside active ones. They do NOT govern — contesting is what removes a decision from force — but they are listed so an open dispute is discoverable rather than silently invisible. Read each decision's status field."),
     drafts_only: z.boolean().optional().describe("When true, return active decisions awaiting a rationale or confirmation."),
   },
-  async function ({ status, include_candidates, drafts_only }) {
+  async function ({ status, include_candidates, include_contested, drafts_only }) {
     var decisions: DecisionNode[] = status === undefined
       ? await decisionGraphStore.listActiveDecisions()
       : await decisionGraphStore.listDecisions(status);
+    if (status === undefined && include_contested === true) {
+      decisions = decisions.concat(await decisionGraphStore.listDecisions("contested"));
+    }
     if (status === undefined && include_candidates === true) {
       decisions = decisions.concat(await decisionGraphStore.listDecisions("candidate"));
     }

@@ -1017,3 +1017,79 @@ file deletion leaves the same orphan in the npm payload. A `rimraf dist` in `bui
 **Lesson filed:** `feedback-dont-reinterpret-a-gate-you-set-yourself` — when a gate you
 wrote in advance fires against you, the reinterpretation that rescues the result is suspect
 in proportion to how well it works.
+
+---
+
+## Window 20 — four follow-ups, and a fix the tests refused
+
+Andrew: *"1. write the loine 2. fix it 3. run it 4. verify them"* — all four of the numbered
+next-steps I'd closed the previous window with.
+
+### 1. The `dist` orphan class, closed in the engine
+
+`"build": "npm run clean && tsc"`, where `clean` is a dependency-free
+`node -e "require('fs').rmSync('dist',{recursive:true,force:true})"` — no new devDependency, works
+on Windows. This is the mechanical closure of what Sol caught: `dist/` is gitignored, so a clean
+`git status` says nothing about the npm payload, and `files:["dist/"]` would have shipped the
+deleted `reference-prompt` implementation. Verified by rebuilding: `npm pack --dry-run` contains
+zero `reference-prompt` entries and the orphans do not return.
+
+### 2. `decision_list` — and the invariant that stopped my first fix
+
+I specced this as "contested decisions still bind, so include them by default." **That premise was
+wrong**, and `test/decision-graph.test.mjs:1141` says so in a comment written before I got here:
+
+    // The M1/M2 binding rule requires status "active", so contesting is what stops it governing.
+
+Contesting a decision is the mechanism that *removes it from force*. Excluding contested from the
+default list is the designed invariant, not the bug. Reverted that half before it reached a build.
+
+The real defect was narrower: an open dispute was **undiscoverable**, not wrongly excluded. So the
+default is untouched, and the fix is `include_contested` — an explicit opt-IN, symmetric with the
+existing `include_candidates` — plus a description that now names what the tool excludes by
+default and how to reach it. Contested decisions come back labelled `status: "contested"`, so
+nothing about what governs has changed.
+
+**Mutation-validated, because the test count didn't move.** I added assertions inside an existing
+test, so the suite stayed at exactly 1153 — the same trap I wrote up one window ago. Flipped
+`include_contested === true` to a value that can never match in `dist/`, re-ran, and got
+`AssertionError: include_contested surfaces the contested decision`. Restored, green again. An
+unchanged test count is not evidence.
+
+### 3. `/revisit`
+
+Promotion queue was already empty. One rule promoted this run — see below.
+
+### 4. The round-2 arrays are no longer UNVERIFIED
+
+They were quoted from memory and flagged **UNVERIFIED** across four windows. Re-derived every
+number from `raw/round2-judges-refuters.json` and `raw/ablation-judges-refuters.json`:
+
+    Round 2   A [83,64,64,60,72,64] mean 67.8 median 64.0 range 60-83 refuted 67.5 ship 1/6 high 5
+              B [83,85,76,85,87,85] mean 83.5 median 85.0 range 76-87 refuted 82.5 ship 5/6 high 0
+              diff A-B  -15.7
+    Ablation  A [85,76,88,83,79,80] mean 81.8 median 81.5 range 76-88 refuted 81.7 ship 4/6 high 1
+              B [87,74,83,85,87,87] mean 83.8 median 86.0 range 74-87 refuted 82.7 ship 5/6 high 1
+    Noise     7 unablated artifacts judged twice: +0 -7 +2 +9 +2 -13 +2
+              n=7 mean -0.7 mean-abs-dev 5.0 sample sd 7.16 max 13
+
+**Every figure matches VERDICT.md exactly** — all six means, both medians, four ranges, four
+refuted means, every ship-ready and high-defect count, both deltas, and all seven noise-floor rows.
+The reconstruction was right. It was still not data until it was read back, which is the whole
+point of the flag. Now reproducible: `node verify-arrays.mjs` from the round2 directory, reading
+only `raw/` plus the two mapping tables. Flag cleared in `VERDICT.md`.
+
+### The lesson promoted this window
+
+Andrew asked *"what's taking so long"* for the **third** time (2026-07-09, 2026-07-24, today), and
+the stall-trigger rule was already resident in CLAUDE.md — so a third prose copy was the wrong
+move. The third occurrence had a **different root cause**: the watcher was broken, not the job.
+`vercel ls site | sed -n '5p'` read the first deployment row while the build was queued; once it
+resolved, the table shifted and line 5 became a header that never matches. The deploy was Ready in
+**50 seconds**; I waited 28 minutes. An `until` loop has no failure mode that speaks — a broken
+predicate and a pending job emit identical silence.
+
+Promoted to `~/.claude/CLAUDE.md:90` (match on content never position; test the predicate once
+before arming; treat silence as a trigger to check state directly) + memory
+`feedback-a-silent-watcher-is-not-a-pending-job` + its MEMORY.md index line. All three
+grep-confirmed.

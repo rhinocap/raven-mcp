@@ -1144,6 +1144,27 @@ test('decision_contest stops a decision governing, records who and why, and only
     const stillThere = JSON.parse((await client.callTool({ name: 'decision_get', arguments: { id: decision.id } })).content[0].text);
     assert.equal(stillThere.node.id, decision.id, 'contesting deletes nothing');
 
+    // ...but not governing must not mean undiscoverable. include_contested surfaces the
+    // open dispute without putting it back in force: the status field still says contested.
+    const withContested = JSON.parse((await client.callTool({
+      name: 'decision_list',
+      arguments: { include_contested: true },
+    })).content[0].text);
+    const surfaced = withContested.find((node) => node.id === decision.id);
+    assert.ok(surfaced, 'include_contested surfaces the contested decision');
+    assert.equal(surfaced.status, 'contested', 'and it is still labelled contested, not active');
+
+    // include_contested is inert when an explicit status is given — status wins.
+    const explicitActive = JSON.parse((await client.callTool({
+      name: 'decision_list',
+      arguments: { status: 'active', include_contested: true },
+    })).content[0].text);
+    assert.equal(
+      explicitActive.some((node) => node.id === decision.id),
+      false,
+      'status:active never returns a contested decision, whatever include_contested says',
+    );
+
     // Without evidence, gap_scan must still ask for an experiment — the two gap types
     // stay distinguishable, which is the reason the reason is NOT stored as evidence.
     const gaps = JSON.parse((await client.callTool({ name: 'gap_scan', arguments: {} })).content[0].text);
