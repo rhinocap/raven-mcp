@@ -569,6 +569,44 @@ The reference is named by `reference_url` or by an existing bound `ReferenceCapt
 
   Rounds 1–3 do not close this gate under the amended conditions. Round 4 is owed.
 
+  **RESOLVED 2026-08-03 — the gate fired and `compose_build_prompt` is deleted.** Round 4 was
+  invalid (all six arm-A builds read the fixture `DESIGN.md` off disk). Round 5 fixed the
+  isolation mechanically and verified it — 0 out-of-arm reads across 18 transcripts, checker
+  positive-controlled by planting violations it caught, no leak outliers — and returned
+  A 9.33/16 against B2's 14.50, Δ −5.17, 95% CI [−6.93, −3.40] against δ = ±2.0. That is the
+  inferior branch. **The round is nonetheless recorded as invalid**, because §5's control clause
+  fired (A 3.83 vs B2 6.83 of 8) and the proposed rescue — that the control set was
+  mis-specified — was refuted as outcome-dependent relabeling; on the five controls needing no
+  `DESIGN.md` content at all, A still trailed 3.00 to 4.67.
+
+  Deletion therefore rests on the burden, not on a certified round: **deletion was always the
+  default, A had to beat B2, and across five rounds it never did.** Two independent advisory
+  passes, given the evidence cold, returned the same recommendation. No reading of round 5's
+  data has arm A passing. Two round-independent facts about the artifact reinforce it: the
+  composer crashed on the second call it instructed every caller to make (a skeleton node
+  missing `archetype` passed lint, then died on `.toLowerCase()` of undefined), and it cited
+  `DESIGN.md` as its grounding while never emitting a single token *value* — an agent holding
+  only the composer had to invent `#101215`.
+
+  What was removed: `src/reference-prompt.ts`, `test/reference-prompt.test.mjs`, the
+  `server.tool` registration with its `TOOL_ACCESS` and `REMOTE_GATED_TOOLS` entries, and the
+  count contract in reverse — local **106 → 105**, gated **61 → 60**, three `src/index.ts`
+  comment blocks and the six tests that assert them. The anonymous 45-tool surface and its
+  golden hash are untouched, which is exactly what gating it bought.
+
+  **One result survives the deletion and is worth acting on separately.** D11 — pre-registered
+  as "the sharpest check" — measured whether a build surfaces a *contested* decision as
+  unresolved. Arm A scored **6/6**; B2, holding every tool, scored **2/6**. `decision_list`
+  with no `status` returns only active decisions, so the full surface reaches contested ones
+  only by asking explicitly, and mostly did not. That is a real gap in contested-decision
+  discoverability, it belongs to the Decision Graph tools rather than to a prompt composer, and
+  it is not addressed by this deletion. Full evidence: `.claude/pregate-2026-08-02/round5/`.
+
+  Phase 0 as specified no longer exists. Anything that revives a composer starts from zero as a
+  new proposal with its own falsifier — and if the real product is an *additive* tool called
+  alongside `read_design_md` rather than the standalone one this clause specified, that is a
+  different tool than the one tested here, and the original contract was wrong.
+
 ### Phase 1 — critique session and markup (~1 week)
 
 Bridge routes `GET /critique`, `GET /reference/<id>.png`, `POST /critique`; write-through persistence to `~/.raven/critique/<id>.json`; re-attachable sessions; `start_grab_session` refuses during `collecting`. Markup tab in `browser/raven-grab.js`, gated on `mode:'critique'`, box/arrow/pin on a plain canvas, typed notes, no dependency. Four session tools. Extraction with the substring quote gate. Rules proposed, never auto-written.

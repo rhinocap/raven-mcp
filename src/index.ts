@@ -45,7 +45,6 @@ import { startGrabSession, getGrabbedElements, stopGrabSession, getPageTemplate,
 import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, recordConsultation, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
 import { FAIL_ON_RULES, proposePolish, reviewDiff } from "./design-review.js";
 import { configureSource, readSourceConfig, inventoryFromDesignMd, diffDesignSystem, listBaselineComponents } from "./design-system-diff.js";
-import { composeBuildPrompt, type ComposeBuildPromptArgs } from "./reference-prompt.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -1849,14 +1848,14 @@ function numberedDocMaterial(repoRelative: string, content: string): string {
   }).join("\n");
 }
 
-// The 61 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
+// The 60 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
 // 33 are stateful/local (per-user ~/.raven files, or the create_generation_job
 // subprocess), 6 reach the filesystem/network or have an external side effect,
 // 2 are Talon tools pending a remote-safety pass, 14 are DESIGN.md / review /
 // grab-bridge tools, 4 are design-system diff tools, plus the local audit
-// dispatcher and the compose_build_prompt composer (project-file + local-store reads).
+// dispatcher.
 // Everything else (45 stateless tools, including the 5 guarded browser URL audits
-// added in Phase 3) is remote-safe, from 106 local tools.
+// added in Phase 3) is remote-safe, from 105 local tools.
 // Traced to docs/remote-mcp-scope.md §2; asserted at build time.
 function resolveDesignSystemPath(projectDir?: string, designFilePath?: string): string {
   if (designFilePath) return resolve(designFilePath);
@@ -1909,10 +1908,7 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   "review_diff", "polish_diff",
   // Local orchestration over existing tool handlers; excluded to preserve the
   // frozen anonymous 45-tool surface and hash.
-  "audit",
-  // Prompt composer: reads project files (DESIGN.md, registry, repo scan) and
-  // the local taste + decision stores; excluded for the same frozen-45 reason.
-  "compose_build_prompt"
+  "audit"
 ]);
 
 // Structured-output tools consumed by CI must stay byte-deterministic.
@@ -2009,7 +2005,6 @@ const TOOL_ACCESS: Record<string, "readOnly" | "destructive"> = {
   list_design_systems: "readOnly",
   get_design_system: "readOnly",
   read_design_md: "readOnly",
-  compose_build_prompt: "readOnly",
   review_diff: "readOnly",
   polish_diff: "readOnly",
   init_design_md: "destructive",
@@ -2162,18 +2157,18 @@ function toolAnnotations(toolName: string): {
     : { title: toolTitle(toolName), readOnlyHint: true, destructiveHint: false, openWorldHint: openWorld };
 }
 
-// buildServer() returns a FRESH McpServer with all 106 local tools + the usage-log/
+// buildServer() returns a FRESH McpServer with all 105 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
 export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }): McpServer {
-// remote = serve only the 45 stateless remote-safe tools (gate off the 61 gated tools
+// remote = serve only the 45 stateless remote-safe tools (gate off the 60 gated tools
 // as appropriate; authenticated stores selectively restore taste tools). evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 106.
+// without threading opts. stdio callers pass nothing → remote=false → all 105.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -2936,39 +2931,6 @@ server.tool(
         }],
         isError: true
       };
-    }
-  }
-);
-
-server.tool(
-  "compose_build_prompt",
-  "Compose a grounded build prompt from the project's own DESIGN.md tokens, component inventory, taste profile, surface binding, and decision graph — plus an optional caller-authored skeleton (structure/states/content/motion, strictly colorless/typeless/sizeless; the composer lints it, binds archetypes to your real components, and snaps motion numbers to your motion tokens). Without a skeleton it returns the grounding half and asks the caller to derive one from the reference it is holding. Read-only: decisions are read directly from the store, never via decision_list, and reference_url is provenance only — never fetched.",
-  {
-    intent: z.string().describe("What is being built, in one line (e.g. 'optimistic save with an undo affordance'). Becomes the prompt's title."),
-    project_dir: z.string().describe("Project root. Resolves DESIGN.md (via .raven/design-system-source.json, else <project_dir>/DESIGN.md), roots the component inventory, and its basename is the default surface-binding project name. Does NOT scope the Decision Graph — that store is resolved globally, and the output states where decisions actually came from."),
-    profile: z.string().describe("Taste profile name. Required: there is no default profile, and its rules' negative_prompts are the Prohibitions block."),
-    skeleton: z.object({
-      structure: z.any(),
-      states: z.any().optional(),
-      content: z.any().optional(),
-      motion: z.any().optional(),
-      provenance: z.any().optional()
-    }).passthrough().optional().describe("Caller-authored Skeleton JSON: { structure: StructureNode, states?, content?, motion?, provenance? }. Must be colorless, typeless, and sizeless — a hex value, font name, or absolute px (outside MotionSpec pixel distances) fails lint. Omit to receive the grounding half plus a derive-and-re-submit instruction."),
-    reference_url: z.string().optional().describe("URL of the reference being copied, for provenance lines only. Never fetched, and never used to resolve the surface binding."),
-    session_id: z.string().optional().describe("Critique session id this build came from, for provenance."),
-    ref_ids: z.array(z.string()).optional().describe("Bound ReferenceCapture ids cited in the prompt's Reference line."),
-    surface: z.string().optional().describe("Surface name for taste-rule scoping when no binding resolves (a resolved binding's own surface wins)."),
-    project: z.string().optional().describe("Project name for surface-binding resolution. Defaults to basename(project_dir)."),
-    design_file_path: z.string().optional().describe("Explicit DESIGN.md path; overrides project_dir resolution."),
-    inventory_source: z.enum(["auto", "design-md", "registry", "scan", "none"]).optional().describe("Component inventory rung: auto (DESIGN.md manifest → shadcn registry.json → repo scan → unbound), or pin one. Default: auto."),
-    components: z.array(z.object({ id: z.string() }).passthrough()).optional().describe("Optional caller-supplied ComponentDecl[] (e.g. Figma enrichment the calling agent fetched itself); merged into the resolved inventory.")
-  },
-  async function (params) {
-    try {
-      var composed = await composeBuildPrompt(params as ComposeBuildPromptArgs, { tasteStore: tasteStore, decisionStore: decisionGraphStore });
-      return { content: [{ type: "text" as const, text: JSON.stringify(composed, null, 2) }] };
-    } catch (err) {
-      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
     }
   }
 );
@@ -7804,7 +7766,7 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 106 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 105 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });

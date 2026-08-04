@@ -96,10 +96,6 @@
       "description": "Parse a DESIGN.md file and return its frontmatter, Markdown body, and flattened token index."
     },
     {
-      "name": "compose_build_prompt",
-      "description": "Compose a grounded build prompt from the project's own DESIGN.md tokens, component inventory, taste profile, surface…"
-    },
-    {
       "name": "review_diff",
       "description": "Review added UI-code lines in a unified diff against the project's own DESIGN.md tokens and active recorded design…"
     },
