@@ -857,3 +857,62 @@ Harness complete and green on every gate. **No builds dispatched. Nothing commit
 5. `measure5.mjs` → `arm-integrity5.mjs` → `leak-check5.mjs` → `analyze5.mjs`
 6. Sol medium report-only falsification pass → `VERDICT-R5.md`
 7. `RAVEN_NO_USAGE_LOG=1 npm test` → push → verify anon hash `f64bb18…2bb0a6` against prod
+
+## Window 18 — round 5 closes: invalid as a confirmatory test, delete on the exploratory read
+
+All 18 builds reported. b17 landed mid-scoring, so measurement was re-run after its
+notification; scores were byte-identical, confirming nothing was read mid-write.
+
+**Results.** Primary (16 discriminating checks, δ = ±2.0 fixed pre-build):
+A 9.33 sd 1.37 · B1 6.50 sd 0.84 · B2 14.50 sd 1.38. A−B2 = −5.17, Welch 95% CI
+[−6.93, −3.40], df 10.0 → §6 branch 2, DELETE (inferior). Manipulation check passed
+(A > B1 by 2.83 [1.33, 4.33]). S1 gives F = 1.02 [0.20, 5.14] — the round-4 hint that
+the composer raises the *floor* does not survive isolation. S2: min(A) 8, min(B2) 12.
+
+**Integrity — the round-4 defect did not recur.** 0 out-of-arm reads across all 18
+transcripts. Before trusting that, positive-controlled the checker: 910 tool_use nodes
+parsed, every build used the shim; then planted a store `cat` and a cross-build `Read`
+in a fake transcript and confirmed both fire while a legitimate shim call does not.
+Leak check clean — no >3sd outlier vs the answer key or between builds.
+
+**Why it is invalid anyway.** §5's control clause fired: A 3.83 vs B2 6.83, CI
+[−5.34, −0.66]. I proposed calling the control set mis-specified — C3 (exact type ramp),
+C4 (seven `ds-*` names), C2 (`recessed`) all need DESIGN.md content arm A cannot reach,
+and the composer emits token names but never values. **Sol refuted it and was right:**
+relabeling controls as endpoints after seeing the arm split is outcome-dependent, and it
+was the reading that manufactured a decision instead of a second invalid round.
+
+The deciding check was one Sol asked for. Classifying controls by what each one *reads*
+(not by how arms scored), five are genuinely arm-neutral: C1, C5, C6, C7, C8. There
+A 3.00 vs B2 4.67 — so the gap is **not** fully explained by mis-specification, and a
+general execution difference cannot be excluded at n=6. `r5-neutral-subset.mjs`,
+labelled post-hoc exploratory in its own header.
+
+Sensitivity (Sol computed, both widen the gap): drop A's best → −5.70 [−7.15, −4.25];
+drop B2's worst → −5.67 [−7.15, −4.18]. Sol returned REFUTED on "is there any reading
+where A passes" — there is none.
+
+**Methodological finding worth carrying.** §5 assumes arms differing only in tools should
+not differ on controls. When the treatment *is* how much information a tool hands over,
+any check the information touches is treatment-dependent and execution quality is itself
+downstream of prompt quality — a true control may not exist in this design. Two rounds
+have now failed for different reasons (4 on execution, 5 on design) with the exploratory
+answer pointing the same way both times. Whether to design a round 6, act on §13 without
+a certified round, or rewrite §13 is **Andrew's call** — recorded in VERDICT-R5.md, not
+decided.
+
+**Nothing deleted.** `compose_build_prompt` ships unchanged.
+
+**Product findings held back deliberately** (the composer is the round's independent
+variable): the `archetype` skeleton crash on the second call the tool instructs everyone
+to make — Sol independently confirmed it counts as a tool defect, not a harness artifact —
+and the never-emits-token-values contract gap. Both in
+`FINDING-skeleton-archetype-crash.md` with a named fix in `src/reference-prompt.ts` ~193.
+
+**Commits.** Round-5 results + raw evidence (18 builds, scores, all four analysis outputs,
+the arena fixture) committed. Secret-scanned before the public commit: every hit was
+"token" in its design-token sense, and the store path appears nowhere in the outputs —
+redaction held end to end.
+
+**Next:** `RAVEN_NO_USAGE_LOG=1 npm test` → push → verify anon hash `f64bb18…2bb0a6`
+against production. Then the skeleton-lint fix, one test per field.
