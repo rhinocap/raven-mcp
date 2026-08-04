@@ -6967,14 +6967,17 @@ server.tool(
   {
     status: z.enum(["candidate", "active", "superseded", "contested"]).optional().describe("Decision status to list. Omit to list active decisions."),
     include_candidates: z.boolean().optional().describe("When true and status is omitted, include uncommitted imported candidates with active decisions."),
-    include_contested: z.boolean().optional().describe("When true and status is omitted, include contested decisions alongside active ones. They do NOT govern — contesting is what removes a decision from force — but they are listed so an open dispute is discoverable rather than silently invisible. Read each decision's status field."),
+    include_contested: z.boolean().optional().describe("When true and status is omitted, include contested decisions alongside active ones. They do NOT govern — contesting is what removes a decision from force — but they are listed so an open dispute is discoverable rather than silently invisible. Read each decision's status field. Ignored when drafts_only is set: a contested decision is not a draft."),
     drafts_only: z.boolean().optional().describe("When true, return active decisions awaiting a rationale or confirmation."),
   },
   async function ({ status, include_candidates, include_contested, drafts_only }) {
     var decisions: DecisionNode[] = status === undefined
       ? await decisionGraphStore.listActiveDecisions()
       : await decisionGraphStore.listDecisions(status);
-    if (status === undefined && include_contested === true) {
+    // drafts_only asks "which governing decisions still need a rationale" — a contested
+    // decision is not a draft, it is a decision someone has taken out of force, so
+    // include_contested must not smuggle one into that list.
+    if (status === undefined && include_contested === true && drafts_only !== true) {
       decisions = decisions.concat(await decisionGraphStore.listDecisions("contested"));
     }
     if (status === undefined && include_candidates === true) {

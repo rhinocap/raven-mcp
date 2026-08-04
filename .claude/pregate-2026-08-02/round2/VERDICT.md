@@ -65,8 +65,8 @@ After hand-repairing the defect in the five affected artifacts, the arms are sta
 indistinguishable — mean 81.8 vs 83.8, difference **−2.0**, Welch ~95% CI **[−8.0, +4.0]**. That
 interval **includes zero and admits a meaningful advantage in either direction**. It supports
 "cannot distinguish", not "no better". With n=6 per arm and a judge instrument whose test-retest
-mean absolute deviation is 5.0 (max swing 13 on byte-identical input), the experiment has nowhere
-near the power to demonstrate equivalence.
+mean absolute change is 5.0 points (max swing 13 on byte-identical input), the experiment has
+nowhere near the power to demonstrate equivalence.
 
 Four further limits, three of them found by the falsification pass and not by me:
 
@@ -101,9 +101,17 @@ channel through which method identity can leak to a nominally blind judge.
 > **Every number in the three tables below was re-derived from `raw/` on 2026-08-03 and matches
 > exactly** — all six arm means, both medians, all four ranges, all four refuted means, every
 > ship-ready count, every high-defect count, the −15.7 and −2.0 deltas, and all seven noise-floor
-> rows including n, mean, mean absolute deviation, sd, and max. Reproduce with
-> `node verify-arrays.mjs` from this directory; it reads only `raw/round2-judges-refuters.json`
-> and `raw/ablation-judges-refuters.json` plus the two mapping tables.
+> rows including n, mean, mean |Δ|, sd, and max. Reproduce with `node verify-arrays.mjs` from
+> this directory; it reads `raw/round2-judges-refuters.json` and
+> `raw/ablation-judges-refuters.json`, checks those files for duplicate, missing, extra, and
+> non-numeric rows, compares each computed figure against the published one, and **exits 1 on
+> any mismatch** rather than printing numbers for a human to eyeball.
+>
+> **The one step that is not mechanized:** the build→arm maps are transcribed by hand from
+> `ARM-MAPPING.md` and `ABLATION-MAPPING.md`, which are prose tables. The script constrains that
+> transcription (12 rows each, no duplicates, every id present in `raw/`, six builds per arm) but
+> cannot prove an arm label was not swapped. Read the two mapping files if that is what you are
+> checking.
 >
 > This matters because the arrays had been quoted from memory in the session log and were
 > flagged **UNVERIFIED** through four windows — a reconstruction that happens to be right is
@@ -144,7 +152,9 @@ build-02) and received no ablation — an unplanned test-retest control:
 | build-10 | 87 | 74 | **−13** |
 | build-11 | 85 | 87 | +2 |
 
-n=7, mean −0.7, mean absolute deviation 5.0, sample sd 7.16, max 13. Test-retest correlation on
+n=7, mean −0.7, mean absolute change (mean |Δ|) 5.0, sample sd 7.16 (n−1), max 13. Mean |Δ| is the
+statistic a noise floor wants — the typical size of a re-judge swing — and is not the same as mean
+absolute deviation about the mean, which is 5.3 here. Test-retest correlation on
 unchanged input is ≈ **−0.21** — the instrument barely agrees with itself build-to-build. Treat
 any single build's score as ±13 and only arm-level aggregates as meaningful.
 

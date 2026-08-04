@@ -1144,15 +1144,46 @@ test('decision_contest stops a decision governing, records who and why, and only
     const stillThere = JSON.parse((await client.callTool({ name: 'decision_get', arguments: { id: decision.id } })).content[0].text);
     assert.equal(stillThere.node.id, decision.id, 'contesting deletes nothing');
 
-    // ...but not governing must not mean undiscoverable. include_contested surfaces the
-    // open dispute without putting it back in force: the status field still says contested.
+    // ...but not governing must not mean undiscoverable. Three controls, so the
+    // assertions below cannot be satisfied by an implementation that simply swaps
+    // active for contested: one governing decision, one active draft (no rationale),
+    // and one contested draft.
+    const governing = JSON.parse((await client.callTool({
+      name: 'decision_add',
+      arguments: {
+        statement: 'The pay step keeps a single primary action',
+        rationale: 'Two primaries on the pay step split intent.',
+        scope: 'checkout hierarchy',
+        component_ref: 'PayStep',
+      },
+    })).content[0].text);
+    const draft = JSON.parse((await client.callTool({
+      name: 'decision_add',
+      arguments: { statement: 'Receipts use tabular figures', scope: 'checkout receipt', component_ref: 'Receipt' },
+    })).content[0].text);
+    const contestedDraft = JSON.parse((await client.callTool({
+      name: 'decision_add',
+      arguments: { statement: 'Errors render inline', scope: 'checkout errors', component_ref: 'ErrorText' },
+    })).content[0].text);
+    await client.callTool({
+      name: 'decision_contest',
+      arguments: { id: contestedDraft.id, reason: 'Inline errors were never tested with a screen reader.' },
+    });
+
+    // include_contested surfaces the open dispute without putting it back in force:
+    // the status field still says contested, and nothing active is displaced.
     const withContested = JSON.parse((await client.callTool({
       name: 'decision_list',
       arguments: { include_contested: true },
     })).content[0].text);
+    const ids = withContested.map((node) => node.id);
     const surfaced = withContested.find((node) => node.id === decision.id);
     assert.ok(surfaced, 'include_contested surfaces the contested decision');
     assert.equal(surfaced.status, 'contested', 'and it is still labelled contested, not active');
+    assert.ok(ids.includes(contestedDraft.id), 'every contested decision is surfaced, not just one');
+    assert.ok(ids.includes(governing.id), 'and the governing decisions are still there — added to, not swapped');
+    assert.ok(ids.includes(draft.id), 'including the active draft');
+    assert.equal(new Set(ids).size, ids.length, 'no decision is listed twice');
 
     // include_contested is inert when an explicit status is given — status wins.
     const explicitActive = JSON.parse((await client.callTool({
@@ -1164,6 +1195,19 @@ test('decision_contest stops a decision governing, records who and why, and only
       false,
       'status:active never returns a contested decision, whatever include_contested says',
     );
+
+    // ...and inert under drafts_only. A contested decision is not a draft awaiting a
+    // rationale — it is one somebody took out of force — so include_contested must not
+    // smuggle a rationale-less contested decision into the drafts list.
+    const drafts = JSON.parse((await client.callTool({
+      name: 'decision_list',
+      arguments: { drafts_only: true, include_contested: true },
+    })).content[0].text);
+    const draftIds = drafts.map((node) => node.id);
+    assert.ok(draftIds.includes(draft.id), 'drafts_only still returns the active draft');
+    assert.equal(draftIds.includes(contestedDraft.id), false,
+      'a contested decision with no rationale is not a draft');
+    assert.equal(draftIds.includes(governing.id), false, 'and a decision with a rationale is not a draft');
 
     // Without evidence, gap_scan must still ask for an experiment — the two gap types
     // stay distinguishable, which is the reason the reason is NOT stored as evidence.

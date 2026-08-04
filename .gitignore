@@ -52,3 +52,8 @@ dist/
 # Harness mutants: 24 single-defect copies of a fixture, regenerated deterministically by
 # mutate5.mjs. The evidence is the matrix it prints, which IS committed.
 .claude/pregate-*/round*/mutants/
+
+# Raw adverse-pass transcripts (public repo). Codex echoes the loaded skill files
+# verbatim — personal quotes, home-directory paths, private rule text — so the log
+# itself never ships. The dispositioned findings go in the session log instead.
+.claude/pregate-*/sol/

@@ -1071,7 +1071,7 @@ number from `raw/round2-judges-refuters.json` and `raw/ablation-judges-refuters.
     Ablation  A [85,76,88,83,79,80] mean 81.8 median 81.5 range 76-88 refuted 81.7 ship 4/6 high 1
               B [87,74,83,85,87,87] mean 83.8 median 86.0 range 74-87 refuted 82.7 ship 5/6 high 1
     Noise     7 unablated artifacts judged twice: +0 -7 +2 +9 +2 -13 +2
-              n=7 mean -0.7 mean-abs-dev 5.0 sample sd 7.16 max 13
+              n=7 mean -0.7 mean |delta| 5.0 sample sd 7.16 max 13
 
 **Every figure matches VERDICT.md exactly** — all six means, both medians, four ranges, four
 refuted means, every ship-ready and high-defect count, both deltas, and all seven noise-floor rows.
@@ -1093,3 +1093,62 @@ Promoted to `~/.claude/CLAUDE.md:90` (match on content never position; test the 
 before arming; treat silence as a trigger to check state directly) + memory
 `feedback-a-silent-watcher-is-not-a-pending-job` + its MEMORY.md index line. All three
 grep-confirmed.
+
+### The done-gate pass, and the five objections that stuck
+
+Sol (gpt-5.6-sol, medium, report-only, sandboxed read-only) got the commit plus six numbered
+claims and was told to refute them. It returned **eight objections**. Five were real.
+
+**1. `drafts_only` could return a contested decision. FIXED.** The one defect my own reading
+missed. `include_contested` appended contested rows, and `drafts_only` then filtered the combined
+array by rationale state only — so a contested decision with no rationale survived a call whose
+schema promises "active decisions awaiting a rationale." A contested decision is not a draft; it is
+one somebody took out of force. The concat is now skipped entirely under `drafts_only`, and the
+parameter description says so.
+
+**2. The new assertions passed against materially broken implementations. FIXED.** The test had
+exactly one decision in the store, and it was the contested one — so "include_contested surfaces
+it" was equally satisfied by an implementation that returned *only* contested decisions and dropped
+every active one. Correct objection. The test now seeds three controls (a governing decision, an
+active draft, a contested draft) and asserts the actives are still present, that every contested
+decision is surfaced rather than one, and that no id appears twice. Both new assertions were
+mutation-validated: swapping `concat` for assignment trips *"added to, not swapped"*, and removing
+the `drafts_only` guard trips *"a contested decision with no rationale is not a draft."*
+
+**3. "Mean absolute deviation 5.0" is the wrong name for that number. FIXED.** I had found this
+one myself minutes earlier. The script computes `mean(|Δ|)` — mean absolute *change*, 5.0 — which
+is the right statistic for a noise floor and the wrong label, since mean absolute deviation
+conventionally centres on the mean and is 5.3 here. Corrected in the script, in `VERDICT.md` twice,
+and in this log. The sample sd (7.16, n−1) was checked and is correct, and it is the figure the CI
+actually rests on, so no conclusion moves.
+
+**4. The verifier verified nothing — it printed. FIXED.** It computed the numbers and left a human
+to compare them against `VERDICT.md` by eye, which is the same unreliable step the exercise existed
+to remove. It now asserts: the published figures are transcribed into the script, every produced
+line is compared character-for-character, and it **exits 1** on a mismatch. It also rejects
+duplicate build ids, ids missing from `raw/`, raw rows no map claims, unbalanced arms, and
+non-finite scores. `VERDICT.md`'s claim that it "reads the two mapping tables" was false and is
+corrected: **the build→arm maps are transcribed by hand**, and that is now stated as the one
+un-mechanized step, along with what the integrity checks can and cannot prove about it.
+
+**5. The working tree was not clean — I had created `.claude/pregate-2026-08-02/sol/`. HANDLED.**
+The raw adverse-pass log is now gitignored rather than committed: Codex echoes every loaded skill
+file verbatim, so the transcript carries Andrew's private rule text, personal quotes, and home
+directory paths, and this repo is public. The dispositioned findings live here instead. The
+auto-save hook had already staged it — caught by re-reading the index before committing, which is
+the whole reason that check exists.
+
+**6.** Sol could not run the suite (`EPERM` on `dist` — its sandbox is read-only, and `build` now
+starts by removing `dist`). Not a defect; the numbers below are from my own run.
+**7.** Repo visibility was asserted, not checked. Now checked: `gh repo view` returns
+`"visibility":"PUBLIC"`. The claim was right and is now evidence.
+**8.** `ideas-and-innovations.md` said `Status: shipped` on a commit that is local-only. Corrected
+to "committed locally, not pushed."
+
+Sol also surfaced, without being asked, that `decisionsForPaths` (`src/design-review.ts:992`) returns
+everything except `superseded` — so `review_diff` already treats contested decisions as applicable.
+That is pre-existing and deliberate (its comment says so), but it sits in tension with "contesting
+removes a decision from force." Not touched here. One line, not a fix.
+
+After the fixes: **1153 tests, 1150 pass, 0 fail, 3 skipped**; `verify-arrays.mjs` exits 0 with all
+7 published figures reproducing; `sync-manifest-tools.mjs` produces no diff; tool count unmoved.
