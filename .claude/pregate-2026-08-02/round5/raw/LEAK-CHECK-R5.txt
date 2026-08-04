@@ -1,0 +1,33 @@
+18/18 builds present
+
+## vs the conformant fixture (the answer key)
+  b10  J3 0.1187  LCS 283
+  b12  J3 0.1128  LCS 89
+  b13  J3 0.1120  LCS 283
+  b01  J3 0.1118  LCS 283
+  b11  J3 0.1060  LCS 458
+  b14  J3 0.1036  LCS 76
+  b15  J3 0.1012  LCS 283
+  b04  J3 0.1003  LCS 86
+  b06  J3 0.0999  LCS 304
+  b08  J3 0.0984  LCS 95
+  b03  J3 0.0964  LCS 283
+  b09  J3 0.0942  LCS 458
+  b17  J3 0.0907  LCS 86
+  b07  J3 0.0882  LCS 283
+  b18  J3 0.0881  LCS 67
+  b02  J3 0.0848  LCS 162
+  b05  J3 0.0744  LCS 86
+  b16  J3 0.0675  LCS 67
+
+  mean J3 0.0972  sd 0.0134
+  no build is a >3sd outlier against the answer key
+
+## build-vs-build (cross-contamination)
+  mean J3 0.1514  sd 0.0390   top 5 pairs:
+    b01-b13  0.2564
+    b06-b09  0.2550
+    b01-b10  0.2506
+    b08-b12  0.2337
+    b10-b13  0.2331
+  no pair is a >3sd outlier

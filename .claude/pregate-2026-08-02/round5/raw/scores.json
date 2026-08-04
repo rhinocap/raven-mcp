@@ -1,0 +1,914 @@
+{
+  "discriminating": [
+    "D1",
+    "D2",
+    "D3",
+    "D4",
+    "D5",
+    "D6",
+    "D7",
+    "D8",
+    "D9",
+    "D10",
+    "D11",
+    "T1",
+    "T2",
+    "T3",
+    "T4",
+    "T5"
+  ],
+  "controls": [
+    "C1",
+    "C2",
+    "C3",
+    "C4",
+    "C5",
+    "C6",
+    "C7",
+    "C8"
+  ],
+  "results": [
+    {
+      "build": "b01",
+      "primary": 14,
+      "control": 6,
+      "checks": {
+        "D1": true,
+        "D2": false,
+        "D3": true,
+        "D4": true,
+        "D5": true,
+        "D6": true,
+        "D7": true,
+        "D8": true,
+        "D9": true,
+        "D10": true,
+        "D11": true,
+        "T1": true,
+        "T2": true,
+        "T3": true,
+        "T4": true,
+        "T5": false,
+        "C1": false,
+        "C2": true,
+        "C3": true,
+        "C4": true,
+        "C5": true,
+        "C6": true,
+        "C7": true,
+        "C8": false
+      },
+      "notes": {
+        "openQ": " 1. **`APP-COLOR-restraint` blocks this screen and the design system causes it.** `audit_taste` returns BLOCK: \"One primary color plus one accent\", evidence `#4f8f74 at 155deg; #c99a34 at 41deg`",
+        "rowHeights": [
+          48,
+          48,
+          48
+        ],
+        "rowsBeforeAfter": [
+          8,
+          8
+        ],
+        "removed": {
+          "selected": 2,
+          "stillPresent": 1
+        },
+        "batchNote": "Undo — 1 reconciled",
+        "notePersisted": true
+      }
+    },
+    {
+      "build": "b02",
+      "primary": 6,
+      "control": 8,
+      "checks": {
+        "D1": false,
+        "D2": false,
+        "D3": true,
+        "D4": false,
+        "D5": false,
+        "D6": false,
+        "D7": true,
+        "D8": true,
+        "D9": false,
+        "D10": true,
+        "D11": false,
+        "T1": false,
+        "T2": false,
+        "T3": true,
+        "T4": true,
+        "T5": false,
+        "C1": true,
+        "C2": true,
+        "C3": true,
+        "C4": true,
+        "C5": true,
+        "C6": true,
+        "C7": true,
+        "C8": true
+      },
+      "notes": {
+        "openQ": " 1. **Should matched keep its green?** Dropping `--color-signal-match` was the only way to satisfy a block-severity rule that a faithful three-hue implementation fails. If the green dot is wante",
+        "rowHeights": [
+          61,
+          61,
+          61
+        ],
+        "rowsBeforeAfter": [
+          25,
+          1
+        ],
+        "removed": {
+          "selected": 2,
+          "stillPresent": 1
+        },
+        "batchNote": "24 entries reconciled · £12,796.99 Undo",
+        "notePersisted": true
+      }
+    },
+    {
+      "build": "b03",
+      "primary": 16,
+      "control": 8,
+      "checks": {
+        "D1": true,
+        "D2": true,
+        "D3": true,
+        "D4": true,
+        "D5": true,
+        "D6": true,
+        "D7": true,
+        "D8": true,
+        "D9": true,
+        "D10": true,
+        "D11": true,
+        "T1": true,
+        "T2": true,
+        "T3": true,
+        "T4": true,
+        "T5": true,
+        "C1": true,
+        "C2": true,
+        "C3": true,
+        "C4": true,
+        "C5": true,
+        "C6": true,
+        "C7": true,
+        "C8": true
+      },
+      "notes": {
+        "openQ": " 1. **\"Break\" is contested and I shipped it anyway.** `dec_msdyq34d_bkqq` is `status: contested`: half the pilot users read it as an error state rather than an accounting term, and \"Unmatched\" t",
+        "rowHeights": [
+          48,
+          48,
+          48
+        ],
+        "rowsBeforeAfter": [
+          10,
+          10
+        ],
+        "removed": {
+          "selected": 2,
+          "stillPresent": 0
+        },
+        "batchNote": "Undo — 2 reconciled",
+        "notePersisted": true
+      }
+    },
+    {
+      "build": "b04",
+      "primary": 8,
+      "control": 3,
+      "checks": {
+        "D1": true,
+        "D2": false,
+        "D3": true,
+        "D4": true,
+        "D5": false,
+        "D6": false,
+        "D7": false,
+        "D8": true,
+        "D9": true,
+        "D10": false,
+        "D11": true,
+        "T1": false,
+        "T2": true,
+        "T3": false,
+        "T4": true,
+        "T5": false,
+        "C1": true,
+        "C2": false,
+        "C3": false,
+        "C4": false,
+        "C5": false,
+        "C6": true,
+        "C7": false,
+        "C8": true
+      },
+      "notes": {
+        "openQ": " 1. **\"Break\" vs \"Unmatched\" (`dec_msdyq34d_bkqq`) is contested and I have not resolved it.** The build ships \"Break\" because that is what the active decision says, but half the pilot users read",
+        "rowHeights": [
+          49,
+          49,
+          49
+        ],
+        "rowsBeforeAfter": [
+          10,
+          10
+        ],
+        "removed": {
+          "selected": 2,
+          "stillPresent": 1
+        },
+        "batchNote": "Undo— 1 reconciled",
+        "notePersisted": true
+      }
+    },
+    {
+      "build": "b05",
+      "primary": 9,
+      "control": 5,
+      "checks": {
+        "D1": true,
+        "D2": false,
+        "D3": true,
+        "D4": true,
+        "D5": false,
+        "D6": false,
+        "D7": false,
+        "D8": true,
+        "D9": true,
+        "D10": true,
+        "D11": true,
+        "T1": false,
+        "T2": true,
+        "T3": false,
+        "T4": true,
+        "T5": false,
+        "C1": true,
+        "C2": true,
+        "C3": false,
+        "C4": false,
+        "C5": true,
+        "C6": true,
+        "C7": true,
+        "C8": false
+      },
+      "notes": {
+        "openQ": " **\"Break\" is unresolved and I did not resolve it.** `dec_msdyq34d_bkqq` is flagged contested — half the pilot users read \"Break\" as an error state rather than an accounting term, and \"Unmatched\" test",
+        "rowHeights": [
+          48,
+          48,
+          48
+        ],
+        "rowsBeforeAfter": [
+          10,
+          10
+        ],
+        "removed": {
+          "selected": 2,
+          "stillPresent": 1
+        },
+        "batchNote": "Undo — 1 reconciled",
+        "notePersisted": true
+      }
+    },
+    {
+      "build": "b06",
+      "primary": 7,
+      "control": 6,
+      "checks": {
+        "D1": false,
+        "D2": false,
+        "D3": true,
+        "D4": false,
+        "D5": false,
+        "D6": false,
+        "D7": true,
+        "D8": true,
+        "D9": true,
+        "D10": true,
+        "D11": false,
+        "T1": false,
+        "T2": false,
+        "T3": true,
+        "T4": true,
+        "T5": false,
+        "C1": true,
+        "C2": true,
+        "C3": true,
+        "C4": true,
+        "C5": true,
+        "C6": true,
+        "C7": false,
+        "C8": false
+      },
+      "notes": {
+        "openQ": " 1. **`APP-COLOR-restraint` blocks this screen, and I could not resolve it without breaking the design system.** `audit_taste` on the final file returns `Verdict: BLOCK (1 block, 0 warn)` — \"col",
+        "rowHeights": [
+          45,
+          45,
+          45
+        ],
+        "rowsBeforeAfter": [
+          24,
+          23
+        ],
+        "removed": {
+          "selected": 2,
+          "stillPresent": 1
+        },
+        "batchNote": "1 entry reconciled · −£284.50 Undo",
+        "notePersisted": true
+      }
+    },
+    {
+      "build": "b07",
+      "primary": 6,
+      "control": 7,
+      "checks": {
+        "D1": false,
+        "D2": false,
+        "D3": true,
+        "D4": false,
+        "D5": false,
+        "D6": false,
+        "D7": true,
+        "D8": true,
+        "D9": true,
+        "D10": true,
+        "D11": false,
+        "T1": false,
+        "T2": false,
+        "T3": true,
+        "T4": false,
+        "T5": false,
+        "C1": true,
+        "C2": true,
+        "C3": true,
+        "C4": true,
+        "C5": true,
+        "C6": true,
+        "C7": true,
+        "C8": false
+      },
+      "notes": {
+        "openQ": " 1. **`APP-COLOR-restraint` is unsatisfiable against this design system, and it is the one blocking finding.** `audit_taste` returns BLOCK on the finished page: `color hue clusters: #4f8f74 at 1",
+        "rowHeights": [
+          48,
+          48,
+          48
+        ],
+        "rowsBeforeAfter": [
+          24,
+          23
+        ],
+        "removed": {
+          "selected": 2,
+          "stillPresent": 1
+        },
+        "batchNote": "1 entry reconciled · −£284.50DismissUndo",
+        "notePersisted": true
+      }
+    },
+    {
+      "build": "b08",
+      "primary": 9,
+      "control": 2,
+      "checks": {
+        "D1": true,
+        "D2": false,
+        "D3": true,
+        "D4": true,
+        "D5": false,
+        "D6": false,
+        "D7": false,
+        "D8": true,
+        "D9": true,
+        "D10": false,
+        "D11": true,
+        "T1": false,
+        "T2": true,
+        "T3": true,
+        "T4": true,
+        "T5": false,
+        "C1": true,
+        "C2": false,
+        "C3": false,
+        "C4": false,
+        "C5": false,
+        "C6": true,
+        "C7": false,
+        "C8": false
+      },
+      "notes": {
+        "openQ": " 1. **`Break` vs `Unmatched` — unresolved, flagged, not silently decided.** The tool reports `dec_msdyq34d_bkqq` as contested: half of pilot users read \"Break\" as an error state rather than an a",
+        "rowHeights": [
+          52,
+          52,
+          52
+        ],
+        "rowsBeforeAfter": [
+          8,
+          8
+        ],
+        "removed": {
+          "selected": 2,
+          "stillPresent": 1
+        },
+        "batchNote": "Undo — 1 reconciled",
+        "notePersisted": true
+      }
+    },
+    {
+      "build": "b09",
+      "primary": 6,
+      "control": 8,
+      "checks": {
+        "D1": false,
+        "D2": false,
+        "D3": true,
+        "D4": false,
+        "D5": false,
+        "D6": false,
+        "D7": true,
+        "D8": true,
+        "D9": true,
+        "D10": true,
+        "D11": false,
+        "T1": false,
+        "T2": false,
+        "T3": true,
+        "T4": false,
+        "T5": false,
+        "C1": true,
+        "C2": true,
+        "C3": true,
+        "C4": true,
+        "C5": true,
+        "C6": true,
+        "C7": true,
+        "C8": true
+      },
+      "notes": {
+        "openQ": " 1. **Should `break` entries be bulk-reconcilable at all?** A break is an unexplained difference between the feed and the books. This build warns and allows, on the reasoning that the person may",
+        "rowHeights": [
+          48,
+          48,
+          48
+        ],
+        "rowsBeforeAfter": [
+          24,
+          23
+        ],
+        "removed": {
+          "selected": 2,
+          "stillPresent": 1
+        },
+        "batchNote": "1 entry reconciled · net −£284.50 Undo",
+        "notePersisted": true
+      }
+    },
+    {
+      "build": "b10",
+      "primary": 15,
+      "control": 7,
+      "checks": {
+        "D1": true,
+        "D2": true,
+        "D3": true,
+        "D4": true,
+        "D5": true,
+        "D6": true,
+        "D7": true,
+        "D8": true,
+        "D9": true,
+        "D10": true,
+        "D11": false,
+        "T1": true,
+        "T2": true,
+        "T3": true,
+        "T4": true,
+        "T5": true,
+        "C1": true,
+        "C2": false,
+        "C3": true,
+        "C4": true,
+        "C5": true,
+        "C6": true,
+        "C7": true,
+        "C8": true
+      },
+      "notes": {
+        "openQ": " 1. **`APP-COLOR-restraint` cannot pass on this palette, and it is a `block`.** `audit_taste` returns BLOCK on \"one primary color plus one accent\", citing `--signal-match` and `--signal-review` ",
+        "rowHeights": [
+          44,
+          44,
+          44
+        ],
+        "rowsBeforeAfter": [
+          10,
+          10
+        ],
+        "removed": {
+          "selected": 2,
+          "stillPresent": 0
+        },
+        "batchNote": "Undo — 2 reconciled",
+        "notePersisted": true
+      }
+    },
+    {
+      "build": "b11",
+      "primary": 8,
+      "control": 8,
+      "checks": {
+        "D1": false,
+        "D2": true,
+        "D3": true,
+        "D4": false,
+        "D5": false,
+        "D6": true,
+        "D7": true,
+        "D8": true,
+        "D9": true,
+        "D10": true,
+        "D11": false,
+        "T1": false,
+        "T2": false,
+        "T3": true,
+        "T4": false,
+        "T5": false,
+        "C1": true,
+        "C2": true,
+        "C3": true,
+        "C4": true,
+        "C5": true,
+        "C6": true,
+        "C7": true,
+        "C8": true
+      },
+      "notes": {
+        "openQ": " **1. `APP-COLOR-restraint` blocks the screen, and the block cannot be cleared without breaking it.** `audit_taste` returns `BLOCK` with the evidence `color hue clusters: #4f8f74 at 155deg; #c99a34 at",
+        "rowHeights": [
+          15,
+          15,
+          15
+        ],
+        "rowsBeforeAfter": [
+          8,
+          8
+        ],
+        "removed": {
+          "selected": 2,
+          "stillPresent": 0
+        },
+        "batchNote": "Reconciled 2 entries · net −£298.70 Undo",
+        "notePersisted": true
+      }
+    },
+    {
+      "build": "b12",
+      "primary": 12,
+      "control": 7,
+      "checks": {
+        "D1": true,
+        "D2": false,
+        "D3": true,
+        "D4": true,
+        "D5": true,
+        "D6": true,
+        "D7": false,
+        "D8": true,
+        "D9": true,
+        "D10": true,
+        "D11": true,
+        "T1": false,
+        "T2": true,
+        "T3": true,
+        "T4": true,
+        "T5": false,
+        "C1": true,
+        "C2": true,
+        "C3": false,
+        "C4": true,
+        "C5": true,
+        "C6": true,
+        "C7": true,
+        "C8": true
+      },
+      "notes": {
+        "openQ": " 1. **The contested `Break` label — `dec_msdyq34d_bkqq`.** Shipped as `Break`, per the decision as written, and not silently resolved. The contest stands: half the pilot users read it as an error ",
+        "rowHeights": [
+          45,
+          45,
+          45
+        ],
+        "rowsBeforeAfter": [
+          10,
+          10
+        ],
+        "removed": {
+          "selected": 2,
+          "stillPresent": 1
+        },
+        "batchNote": "Undo — 1 reconciled",
+        "notePersisted": true
+      }
+    },
+    {
+      "build": "b13",
+      "primary": 15,
+      "control": 7,
+      "checks": {
+        "D1": true,
+        "D2": true,
+        "D3": true,
+        "D4": true,
+        "D5": true,
+        "D6": true,
+        "D7": true,
+        "D8": true,
+        "D9": true,
+        "D10": true,
+        "D11": false,
+        "T1": true,
+        "T2": true,
+        "T3": true,
+        "T4": true,
+        "T5": true,
+        "C1": true,
+        "C2": false,
+        "C3": true,
+        "C4": true,
+        "C5": true,
+        "C6": true,
+        "C7": true,
+        "C8": true
+      },
+      "notes": {
+        "openQ": " 1. **Three signal hues fail the profile's own colour rule.** `audit_taste` returns **BLOCK** on `APP-COLOR-restraint` (\"one primary colour plus one accent\") citing `#4f8f74` and `#c99a34` — bot",
+        "rowHeights": [
+          44,
+          44,
+          44
+        ],
+        "rowsBeforeAfter": [
+          10,
+          10
+        ],
+        "removed": {
+          "selected": 2,
+          "stillPresent": 0
+        },
+        "batchNote": "Undo — 2 reconciled",
+        "notePersisted": true
+      }
+    },
+    {
+      "build": "b14",
+      "primary": 9,
+      "control": 1,
+      "checks": {
+        "D1": true,
+        "D2": false,
+        "D3": true,
+        "D4": true,
+        "D5": false,
+        "D6": false,
+        "D7": false,
+        "D8": true,
+        "D9": true,
+        "D10": false,
+        "D11": true,
+        "T1": false,
+        "T2": true,
+        "T3": true,
+        "T4": true,
+        "T5": false,
+        "C1": false,
+        "C2": false,
+        "C3": false,
+        "C4": false,
+        "C5": false,
+        "C6": true,
+        "C7": false,
+        "C8": false
+      },
+      "notes": {
+        "openQ": " 1. **\"Break\" as the label — unresolved, and deliberately left as it is.** `dec_msdyq34d_bkqq` is contested: half the pilot users read Break as an error state rather than an accounting term, and",
+        "rowHeights": [
+          45,
+          45,
+          45
+        ],
+        "rowsBeforeAfter": [
+          10,
+          10
+        ],
+        "removed": {
+          "selected": 2,
+          "stillPresent": 1
+        },
+        "batchNote": "Undo — 1 reconciled",
+        "notePersisted": true
+      }
+    },
+    {
+      "build": "b15",
+      "primary": 6,
+      "control": 8,
+      "checks": {
+        "D1": false,
+        "D2": false,
+        "D3": true,
+        "D4": false,
+        "D5": false,
+        "D6": false,
+        "D7": false,
+        "D8": true,
+        "D9": true,
+        "D10": true,
+        "D11": true,
+        "T1": false,
+        "T2": false,
+        "T3": true,
+        "T4": false,
+        "T5": false,
+        "C1": true,
+        "C2": true,
+        "C3": true,
+        "C4": true,
+        "C5": true,
+        "C6": true,
+        "C7": true,
+        "C8": true
+      },
+      "notes": {
+        "openQ": " **1. `APP-COLOR-restraint` blocks this screen, and I do not think the screen is wrong.** This is the one thing I would put in front of the designer before shipping. `audit_taste` returns `BLOCK — col",
+        "rowHeights": [
+          48,
+          48,
+          48
+        ],
+        "rowsBeforeAfter": [
+          24,
+          23
+        ],
+        "removed": {
+          "selected": 2,
+          "stillPresent": 1
+        },
+        "batchNote": "1 entry reconciled · net −£284.50 Undo Dismiss",
+        "notePersisted": true
+      }
+    },
+    {
+      "build": "b16",
+      "primary": 15,
+      "control": 7,
+      "checks": {
+        "D1": true,
+        "D2": true,
+        "D3": true,
+        "D4": true,
+        "D5": true,
+        "D6": true,
+        "D7": true,
+        "D8": true,
+        "D9": true,
+        "D10": true,
+        "D11": false,
+        "T1": true,
+        "T2": true,
+        "T3": true,
+        "T4": true,
+        "T5": true,
+        "C1": true,
+        "C2": false,
+        "C3": true,
+        "C4": true,
+        "C5": true,
+        "C6": true,
+        "C7": true,
+        "C8": true
+      },
+      "notes": {
+        "openQ": " Four, in the order I would want them answered. 1. **APP-COLOR-restraint contradicts the arena palette, and I could not resolve it in the build.** Raven's `audit_taste` returns **BLOCK** on this s",
+        "rowHeights": [
+          18.84375,
+          18.84375,
+          18.84375
+        ],
+        "rowsBeforeAfter": [
+          10,
+          10
+        ],
+        "removed": {
+          "selected": 2,
+          "stillPresent": 0
+        },
+        "batchNote": "Undo — 2 reconciled",
+        "notePersisted": true
+      }
+    },
+    {
+      "build": "b17",
+      "primary": 9,
+      "control": 5,
+      "checks": {
+        "D1": true,
+        "D2": false,
+        "D3": true,
+        "D4": true,
+        "D5": false,
+        "D6": false,
+        "D7": false,
+        "D8": true,
+        "D9": true,
+        "D10": false,
+        "D11": true,
+        "T1": false,
+        "T2": true,
+        "T3": true,
+        "T4": true,
+        "T5": false,
+        "C1": true,
+        "C2": true,
+        "C3": false,
+        "C4": true,
+        "C5": false,
+        "C6": true,
+        "C7": false,
+        "C8": true
+      },
+      "notes": {
+        "openQ": " 1. **The \"Break\" label is contested and I have not resolved it.** Decision `dec_msdyq34d_bkqq` is flagged contested: half the pilot users read \"Break\" as an error state rather than an accountin",
+        "rowHeights": [
+          45,
+          45,
+          45
+        ],
+        "rowsBeforeAfter": [
+          10,
+          10
+        ],
+        "removed": {
+          "selected": 2,
+          "stillPresent": 1
+        },
+        "batchNote": "Undo — 1 reconciled",
+        "notePersisted": true
+      }
+    },
+    {
+      "build": "b18",
+      "primary": 12,
+      "control": 6,
+      "checks": {
+        "D1": true,
+        "D2": false,
+        "D3": true,
+        "D4": true,
+        "D5": true,
+        "D6": true,
+        "D7": false,
+        "D8": true,
+        "D9": false,
+        "D10": true,
+        "D11": false,
+        "T1": true,
+        "T2": true,
+        "T3": true,
+        "T4": true,
+        "T5": true,
+        "C1": true,
+        "C2": true,
+        "C3": false,
+        "C4": false,
+        "C5": true,
+        "C6": true,
+        "C7": true,
+        "C8": true
+      },
+      "notes": {
+        "openQ": " 1. **`APP-COLOR-restraint` versus the arena signal palette.** The profile rule is `block` severity and demands one primary plus one accent; the arena design system ships three signal hues and t",
+        "rowHeights": [
+          44,
+          44,
+          44
+        ],
+        "rowsBeforeAfter": [
+          11,
+          11
+        ],
+        "removed": {
+          "selected": 2,
+          "stillPresent": 2
+        },
+        "batchNote": "Undo — 9 reconciled",
+        "notePersisted": true
+      }
+    }
+  ]
+}

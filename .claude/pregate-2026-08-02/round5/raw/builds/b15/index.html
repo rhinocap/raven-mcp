@@ -1,0 +1,1065 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reconciliation review — Arena</title>
+
+<style>
+/* ------------------------------------------------------------------
+   TOKEN LAYER — the only place in this file where literal values appear.
+   Values are taken verbatim from the arena DESIGN.md frontmatter and use
+   the cssVar names that file declares. Everything below this block
+   references these through var()/calc().
+   ------------------------------------------------------------------ */
+:root {
+  color-scheme: dark;
+
+  /* colors */
+  --color-surface-base:     #101215;
+  --color-surface-raised:   #171a1e;
+  --color-surface-recessed: #0b0d0f;
+  --color-ink-primary:      #e6e8ea;
+  --color-ink-secondary:    #9aa1a8;
+  --color-signal-match:     #4f8f74;
+  --color-signal-review:    #c99a34;
+  --color-signal-break:     #cf5b45;
+  --color-hairline:         #242a30;
+
+  /* type — the five-step ramp, carrying the unit DESIGN.md implies */
+  --type-xs: 12px;
+  --type-sm: 13px;
+  --type-md: 15px;
+  --type-lg: 19px;
+  --type-xl: 26px;
+
+  /* space */
+  --space-tight:  8px;
+  --space-base:   16px;
+  --space-wide:   24px;
+  --space-column: 56px;
+
+  /* motion */
+  --motion-duration-fast: 110ms;
+  --motion-duration-base: 180ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* typeface — DESIGN.md declares no font token; see NOTES.md open questions */
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* leading */
+  --leading-tight: 1.2;
+  --leading-base:  1.45;
+
+  /* ------------------------------------------------------------------
+     DERIVED LAYER — every value below is computed from a token above, so
+     the geometry moves when the scale moves. No independent constants.
+     ------------------------------------------------------------------ */
+  --hairline-w: calc(var(--space-tight) / 8);   /* 1px  */
+  --rail-w:     calc(var(--space-tight) / 4);   /* 2px  */
+  --radius:     calc(var(--space-tight) / 2);   /* 4px  */
+  --dot:        calc(var(--space-tight) - var(--rail-w)); /* 6px */
+
+  /* 48px: clears the 44 minimum on every interactive target */
+  --control-h: calc(var(--space-wide) + var(--space-base) + var(--space-tight));
+  --row-h:     var(--control-h);
+  --box:       calc(var(--space-base) + var(--space-tight) / 2); /* 20px */
+
+  /* column geometry — --space-column is the unit meant for exactly this */
+  --col-select: var(--control-h);                                       /* 48  */
+  --col-date:   calc(var(--space-column) * 2);                          /* 112 */
+  --col-marker: calc(var(--space-column) * 2 + var(--space-wide));      /* 136 */
+  --col-amount: calc(var(--space-column) * 2 + var(--space-wide) * 2);  /* 160 */
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-surface-base);
+  color: var(--color-ink-primary);
+  font-family: var(--font-sans);
+  font-size: var(--type-sm);
+  line-height: var(--leading-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+h1, p { margin: 0; }
+
+:focus-visible {
+  outline: var(--rail-w) solid var(--color-ink-primary);
+  outline-offset: calc(var(--hairline-w) * -1);
+}
+
+.sr-only {
+  position: absolute;
+  width: var(--hairline-w);
+  height: var(--hairline-w);
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- screen */
+
+.screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-base);
+  padding: var(--space-wide) var(--space-column) var(--space-wide);
+}
+
+.screen > * { flex: none; }
+
+.screen__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-wide);
+}
+
+.screen__title {
+  margin: 0;
+  font-size: var(--type-lg);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+}
+
+.screen__context {
+  margin-top: calc(var(--space-tight) / 2);
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+.screen__meta {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+/* ----------------------------------------------------------- filter chip */
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+}
+
+.filter-row__label {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  padding-right: calc(var(--space-tight) / 2);
+}
+
+.ds-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  height: var(--control-h);
+  padding: 0 var(--space-base);
+  border: var(--hairline-w) solid var(--color-hairline);
+  border-radius: var(--radius);
+  background: var(--color-surface-raised);
+  color: var(--color-ink-secondary);
+  font-size: var(--type-sm);
+}
+
+.ds-filter-chip:hover {
+  background: var(--color-surface-recessed);
+  color: var(--color-ink-primary);
+}
+
+.ds-filter-chip[aria-pressed="true"] {
+  background: var(--color-surface-recessed);
+  border-color: var(--color-ink-secondary);
+  color: var(--color-ink-primary);
+  font-weight: 600;
+}
+
+.ds-filter-chip__dot {
+  width: var(--dot);
+  height: var(--dot);
+  border-radius: var(--dot);
+  flex: none;
+}
+
+.ds-filter-chip__count {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-secondary);
+}
+
+.ds-filter-chip[aria-pressed="true"] .ds-filter-chip__count { color: var(--color-ink-primary); }
+
+/* -------------------------------------------------------- reconcile bar */
+
+.ds-reconcile-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-base);
+  min-height: calc(var(--control-h) + var(--space-base));
+  padding: 0 var(--space-base) 0 var(--space-wide);
+  border: var(--hairline-w) solid var(--color-hairline);
+  border-radius: var(--radius);
+  background: var(--color-surface-raised);
+}
+
+.ds-reconcile-bar[data-state="idle"] { border-style: dashed; background: none; }
+
+.ds-reconcile-bar__summary {
+  font-size: var(--type-md);
+  color: var(--color-ink-secondary);
+}
+
+.ds-reconcile-bar[data-state="armed"] .ds-reconcile-bar__summary { color: var(--color-ink-primary); }
+
+.ds-reconcile-bar__count { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.ds-reconcile-bar__hidden {
+  display: block;
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+.ds-reconcile-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  flex: none;
+}
+
+/* actions belong to the component that owns them rather than to a new
+   button primitive — DESIGN.md's vocabulary has no generic button */
+.ds-reconcile-bar__action,
+.ds-batch-note__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--control-h);
+  padding: 0 var(--space-base);
+  border-radius: var(--radius);
+  border: var(--hairline-w) solid transparent;
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+.ds-reconcile-bar__action:hover,
+.ds-batch-note__action:hover {
+  background: var(--color-surface-recessed);
+  color: var(--color-ink-primary);
+}
+
+.ds-reconcile-bar__action--primary {
+  background: var(--color-ink-primary);
+  color: var(--color-surface-base);
+  font-weight: 600;
+  padding: 0 var(--space-wide);
+}
+
+.ds-reconcile-bar__action--primary:hover { background: var(--color-ink-secondary); }
+
+.ds-reconcile-bar__action[hidden],
+.ds-batch-note__action[hidden] { display: none; }
+
+.ds-reconcile-bar__action[disabled] {
+  cursor: default;
+  background: none;
+  border-color: var(--color-hairline);
+  color: var(--color-ink-secondary);
+  opacity: 0.6;
+}
+
+/* ------------------------------------------------------------ batch note */
+
+.ds-batch-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-base);
+  min-height: var(--control-h);
+  padding: 0 var(--space-tight) 0 var(--space-wide);
+  border: var(--hairline-w) solid var(--color-hairline);
+  border-left: var(--rail-w) solid var(--color-ink-primary);
+  border-radius: var(--radius);
+  background: var(--color-surface-raised);
+  opacity: 1;
+  transition: opacity var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.ds-batch-note[hidden] { display: none; }
+
+.ds-batch-note__text { font-size: var(--type-sm); }
+.ds-batch-note__amount { color: var(--color-ink-secondary); font-variant-numeric: tabular-nums; }
+.ds-batch-note__actions { display: flex; gap: var(--space-tight); flex: none; }
+
+/* ------------------------------------------------------------ entry list */
+
+.entry-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  border: var(--hairline-w) solid var(--color-hairline);
+  border-radius: var(--radius);
+  background: var(--color-surface-raised);
+  overflow: hidden;
+}
+
+/* the column header scrolls inside the list so it can never drift out of
+   alignment with the rows when a scrollbar takes width */
+.entry-list__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns:
+    var(--col-select) var(--col-date) minmax(0, 1fr) var(--col-marker) var(--col-amount);
+  align-items: center;
+  height: var(--control-h);
+  padding-right: var(--space-wide);
+  border-bottom: var(--hairline-w) solid var(--color-hairline);
+  background: var(--color-surface-recessed);
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+.entry-list__scroll {
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+}
+
+.entry-list__empty {
+  padding: var(--space-column) var(--space-wide);
+  text-align: center;
+  color: var(--color-ink-secondary);
+  font-size: var(--type-md);
+}
+
+/* ------------------------------------------------------------- entry row */
+
+.ds-entry-row {
+  display: grid;
+  grid-template-columns:
+    var(--col-select) var(--col-date) minmax(0, 1fr) var(--col-marker) var(--col-amount);
+  align-items: center;
+  height: var(--row-h);
+  padding-right: var(--space-wide);
+  border-bottom: var(--hairline-w) solid var(--color-hairline);
+  font-size: var(--type-sm);
+  cursor: default;
+  box-shadow: inset var(--rail-w) 0 0 transparent;
+}
+
+.ds-entry-row:last-child { border-bottom: 0; }
+
+/* hover pushes the row back, it does not lift it */
+.ds-entry-row:hover { background: var(--color-surface-recessed); }
+
+/* selection feedback is immediate — no transition on this background */
+.ds-entry-row[aria-selected="true"] {
+  background: var(--color-surface-recessed);
+  box-shadow: inset var(--rail-w) 0 0 var(--color-ink-primary);
+}
+
+.ds-entry-row:focus-visible {
+  outline: var(--rail-w) solid var(--color-ink-primary);
+  outline-offset: calc(var(--rail-w) * -1);
+}
+
+.ds-entry-row__select,
+.entry-list__head-select {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--col-select);
+  height: var(--control-h);
+}
+
+/* the input carries the full 48x48 hit area; the 20x20 box is drawn inside it */
+.ds-entry-row__select input,
+.entry-list__head-select input {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  margin: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  cursor: pointer;
+}
+
+.ds-entry-row__select input::before,
+.entry-list__head-select input::before {
+  content: "";
+  box-sizing: border-box;
+  width: var(--box);
+  height: var(--box);
+  border: var(--hairline-w) solid var(--color-ink-secondary);
+  border-radius: var(--radius);
+}
+
+.ds-entry-row__select input:hover::before,
+.entry-list__head-select input:hover::before { border-color: var(--color-ink-primary); }
+
+.ds-entry-row__select input:checked::before,
+.entry-list__head-select input:checked::before,
+.entry-list__head-select input:indeterminate::before {
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+}
+
+/* tick */
+.ds-entry-row__select input:checked::after,
+.entry-list__head-select input:checked::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(var(--space-tight) / 2);
+  height: var(--space-tight);
+  border: solid var(--color-surface-base);
+  border-width: 0 var(--rail-w) var(--rail-w) 0;
+  transform: translate(-50%, -60%) rotate(45deg);
+}
+
+/* partial */
+.entry-list__head-select input:indeterminate::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--space-tight);
+  height: var(--rail-w);
+  background: var(--color-surface-base);
+  transform: translate(-50%, -50%);
+}
+
+.ds-entry-row__select input:disabled,
+.entry-list__head-select input:disabled { opacity: 0.4; cursor: default; }
+
+.ds-entry-row__date {
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-entry-row__desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: var(--space-base);
+}
+
+/* ---------------------------------------------------------- match marker */
+
+.ds-match-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  color: var(--color-ink-primary);
+}
+
+.ds-match-marker__dot {
+  width: var(--dot);
+  height: var(--dot);
+  border-radius: var(--dot);
+  flex: none;
+}
+
+.ds-match-marker[data-state="match"]  .ds-match-marker__dot,
+.ds-filter-chip[data-filter="match"]  .ds-filter-chip__dot { background: var(--color-signal-match); }
+.ds-match-marker[data-state="review"] .ds-match-marker__dot,
+.ds-filter-chip[data-filter="review"] .ds-filter-chip__dot { background: var(--color-signal-review); }
+.ds-match-marker[data-state="break"]  .ds-match-marker__dot,
+.ds-filter-chip[data-filter="break"]  .ds-filter-chip__dot { background: var(--color-signal-break); }
+
+/* ------------------------------------------------------------ amount cell */
+
+.ds-amount-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.entry-list__head .ds-amount-cell { text-align: right; }
+
+/* ----------------------------------------------------------- total footer */
+
+.ds-total-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-wide);
+  padding: var(--space-base) var(--space-wide);
+  border: var(--hairline-w) solid var(--color-hairline);
+  border-radius: var(--radius);
+  background: var(--color-surface-raised);
+}
+
+.ds-total-footer__label {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+.ds-total-footer__count {
+  font-size: var(--type-md);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-total-footer__figures {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-column);
+}
+
+.ds-total-footer__figure { text-align: right; }
+
+.ds-total-footer__value {
+  font-size: var(--type-md);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-total-footer__figure--net .ds-total-footer__value {
+  font-size: var(--type-xl);
+  line-height: var(--leading-tight);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+
+<div class="screen">
+
+  <header class="screen__head">
+    <div>
+      <h1 class="screen__title">Reconciliation review</h1>
+      <p class="screen__context">Arena Ltd · Current account 20-45-11 · 1–27 July 2026</p>
+    </div>
+    <p class="screen__meta">Bank feed imported 27 Jul 2026, 08:14</p>
+  </header>
+
+  <div class="filter-row" role="group" aria-label="Filter entries by match state">
+    <span class="filter-row__label">Match state</span>
+    <button type="button" class="ds-filter-chip" data-filter="all" aria-pressed="true">
+      All <span class="ds-filter-chip__count" data-count="all">24</span>
+    </button>
+    <button type="button" class="ds-filter-chip" data-filter="match" aria-pressed="false">
+      <span class="ds-filter-chip__dot" aria-hidden="true"></span>
+      Matched <span class="ds-filter-chip__count" data-count="match">13</span>
+    </button>
+    <button type="button" class="ds-filter-chip" data-filter="review" aria-pressed="false">
+      <span class="ds-filter-chip__dot" aria-hidden="true"></span>
+      Needs review <span class="ds-filter-chip__count" data-count="review">7</span>
+    </button>
+    <button type="button" class="ds-filter-chip" data-filter="break" aria-pressed="false">
+      <span class="ds-filter-chip__dot" aria-hidden="true"></span>
+      Break <span class="ds-filter-chip__count" data-count="break">4</span>
+    </button>
+  </div>
+
+  <div class="ds-reconcile-bar" data-state="idle" id="reconcileBar">
+    <p class="ds-reconcile-bar__summary" id="reconcileSummary">Nothing selected</p>
+    <div class="ds-reconcile-bar__actions">
+      <button type="button" class="ds-reconcile-bar__action" id="clearBtn" hidden>Clear selection</button>
+      <button type="button" class="ds-reconcile-bar__action ds-reconcile-bar__action--primary" id="reconcileBtn" disabled>Reconcile</button>
+    </div>
+  </div>
+
+  <div class="ds-batch-note" id="batchNote" hidden>
+    <p class="ds-batch-note__text" id="batchNoteText"></p>
+    <div class="ds-batch-note__actions">
+      <button type="button" class="ds-batch-note__action" id="undoBtn">Undo</button>
+      <button type="button" class="ds-batch-note__action" id="dismissBtn">Dismiss</button>
+    </div>
+  </div>
+
+  <div class="entry-list">
+    <div class="entry-list__scroll" id="listScroll">
+      <div class="entry-list__head" role="presentation">
+        <span class="entry-list__head-select">
+          <input type="checkbox" id="selectAll" aria-label="Select every entry in view">
+        </span>
+        <span>Date</span>
+        <span>Description</span>
+        <span>Match</span>
+        <span class="ds-amount-cell">Amount (GBP)</span>
+      </div>
+      <div role="grid" aria-multiselectable="true" aria-label="Unreconciled entries" id="entryGrid"></div>
+      <p class="entry-list__empty" id="emptyNote" hidden></p>
+    </div>
+  </div>
+
+  <footer class="ds-total-footer">
+    <div>
+      <p class="ds-total-footer__label">Still unreconciled</p>
+      <p class="ds-total-footer__count" id="footerCount"></p>
+    </div>
+    <div class="ds-total-footer__figures">
+      <div class="ds-total-footer__figure">
+        <p class="ds-total-footer__label">Money in</p>
+        <p class="ds-total-footer__value" id="footerIn"></p>
+      </div>
+      <div class="ds-total-footer__figure">
+        <p class="ds-total-footer__label">Money out</p>
+        <p class="ds-total-footer__value" id="footerOut"></p>
+      </div>
+      <div class="ds-total-footer__figure ds-total-footer__figure--net">
+        <p class="ds-total-footer__label">Net</p>
+        <p class="ds-total-footer__value" id="footerNet"></p>
+      </div>
+    </div>
+  </footer>
+
+  <p class="sr-only" role="status" aria-live="polite" id="liveRegion"></p>
+</div>
+
+<script>
+'use strict';
+
+/* ------------------------------------------------------------------ data */
+
+var ENTRIES = [
+  { id: 1,  date: '2026-07-02', desc: 'Kingsway Supplies Ltd',              amount: -284.50, state: 'match'  },
+  { id: 2,  date: '2026-07-02', desc: 'Card payment — SUMUP *CAFE',         amount:  -14.20, state: 'review' },
+  { id: 3,  date: '2026-07-03', desc: 'Invoice 20418 — Hartley & Co',       amount: 3150.00, state: 'match'  },
+  { id: 4,  date: '2026-07-03', desc: 'Direct debit — BRITISH GAS',         amount: -212.88, state: 'match'  },
+  { id: 5,  date: '2026-07-04', desc: 'FASTER PAYMENT REF 88213',           amount:  940.00, state: 'break'  },
+  { id: 6,  date: '2026-07-06', desc: 'Kingsway Supplies Ltd',              amount:  -96.75, state: 'match'  },
+  { id: 7,  date: '2026-07-07', desc: 'Card payment — TFL TRAVEL',          amount:   -8.40, state: 'review' },
+  { id: 8,  date: '2026-07-08', desc: 'Invoice 20419 — Marchmont Trust',    amount: 1875.00, state: 'match'  },
+  { id: 9,  date: '2026-07-09', desc: 'Standing order — OFFICE RENT',       amount: -1450.00, state: 'match' },
+  { id: 10, date: '2026-07-10', desc: 'Refund — Kingsway Supplies Ltd',     amount:   42.30, state: 'review' },
+  { id: 11, date: '2026-07-11', desc: 'FASTER PAYMENT REF 88407',           amount:  512.00, state: 'break'  },
+  { id: 12, date: '2026-07-13', desc: 'Card payment — AMZN MKTPLACE',       amount: -137.99, state: 'review' },
+  { id: 13, date: '2026-07-14', desc: 'Invoice 20420 — Hartley & Co',       amount: 2240.00, state: 'match'  },
+  { id: 14, date: '2026-07-15', desc: 'Direct debit — VODAFONE',            amount:  -78.00, state: 'match'  },
+  { id: 15, date: '2026-07-16', desc: 'Card payment — SUMUP *CAFE',         amount:  -11.60, state: 'review' },
+  { id: 16, date: '2026-07-17', desc: 'Kingsway Supplies Ltd',              amount: -318.05, state: 'match'  },
+  { id: 17, date: '2026-07-18', desc: 'FASTER PAYMENT REF 88612',           amount:  275.00, state: 'break'  },
+  { id: 18, date: '2026-07-20', desc: 'Invoice 20421 — Delaney Partners',   amount: 4100.00, state: 'match'  },
+  { id: 19, date: '2026-07-21', desc: 'Card payment — STATIONERY DIRECT',   amount:  -63.44, state: 'review' },
+  { id: 20, date: '2026-07-22', desc: 'Direct debit — INSURANCE PREMIUM',   amount: -189.50, state: 'match'  },
+  { id: 21, date: '2026-07-23', desc: 'Kingsway Supplies Ltd',              amount: -145.20, state: 'match'  },
+  { id: 22, date: '2026-07-24', desc: 'FASTER PAYMENT REF 88903',           amount: 1020.00, state: 'break'  },
+  { id: 23, date: '2026-07-25', desc: 'Invoice 20422 — Marchmont Trust',    amount: 1660.00, state: 'match'  },
+  { id: 24, date: '2026-07-27', desc: 'Card payment — TFL TRAVEL',          amount:   -6.80, state: 'review' }
+];
+
+var STATE_LABEL = { match: 'Matched', review: 'Needs review', break: 'Break' };
+var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+/* ----------------------------------------------------------------- state */
+
+var reconciled = Object.create(null);   /* id -> batch id */
+var selected   = Object.create(null);   /* id -> true     */
+var filters    = Object.create(null);   /* state -> true; empty means all */
+var lastBatch  = null;                  /* { ids, net, seq } */
+var batchSeq   = 0;
+var anchorId   = null;
+var focusId    = null;
+
+/* ------------------------------------------------------------- formatting */
+
+var gbp = new Intl.NumberFormat('en-GB', {
+  style: 'currency', currency: 'GBP',
+  minimumFractionDigits: 2, maximumFractionDigits: 2
+});
+
+function money(n) {
+  return (n < 0 ? '−' : '') + gbp.format(Math.abs(n));
+}
+
+function shortDate(iso) {
+  var p = iso.split('-');
+  return p[2] + ' ' + MONTHS[parseInt(p[1], 10) - 1];
+}
+
+function longDate(iso) {
+  var p = iso.split('-');
+  return parseInt(p[2], 10) + ' ' + MONTHS[parseInt(p[1], 10) - 1] + ' ' + p[0];
+}
+
+function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+
+/* ----------------------------------------------------------------- model */
+
+function open()      { return ENTRIES.filter(function (e) { return !reconciled[e.id]; }); }
+function anyFilter() { return Object.keys(filters).length > 0; }
+
+function visible() {
+  return open().filter(function (e) { return !anyFilter() || filters[e.state]; });
+}
+
+function selectedEntries() {
+  return open().filter(function (e) { return selected[e.id]; });
+}
+
+function sum(list) {
+  return list.reduce(function (t, e) { return t + e.amount; }, 0);
+}
+
+/* ---------------------------------------------------------------- render */
+
+var grid        = document.getElementById('entryGrid');
+var emptyNote   = document.getElementById('emptyNote');
+var selectAll   = document.getElementById('selectAll');
+var bar         = document.getElementById('reconcileBar');
+var barSummary  = document.getElementById('reconcileSummary');
+var reconcileBtn= document.getElementById('reconcileBtn');
+var clearBtn    = document.getElementById('clearBtn');
+var note        = document.getElementById('batchNote');
+var noteText    = document.getElementById('batchNoteText');
+var undoBtn     = document.getElementById('undoBtn');
+var dismissBtn  = document.getElementById('dismissBtn');
+var live        = document.getElementById('liveRegion');
+
+function buildRow(entry, index) {
+  var row = document.createElement('div');
+  row.className = 'ds-entry-row';
+  row.setAttribute('role', 'row');
+  row.setAttribute('aria-selected', selected[entry.id] ? 'true' : 'false');
+  row.setAttribute('aria-rowindex', String(index + 1));
+  row.dataset.id = String(entry.id);
+  row.tabIndex = -1;
+  row.setAttribute('aria-label',
+    longDate(entry.date) + ', ' + entry.desc + ', ' +
+    gbp.format(Math.abs(entry.amount)) + (entry.amount < 0 ? ' out' : ' in') + ', ' +
+    STATE_LABEL[entry.state]);
+
+  var selCell = document.createElement('span');
+  selCell.className = 'ds-entry-row__select';
+  selCell.setAttribute('role', 'gridcell');
+  var box = document.createElement('input');
+  box.type = 'checkbox';
+  box.checked = !!selected[entry.id];
+  box.tabIndex = -1;
+  box.setAttribute('aria-hidden', 'true');
+  selCell.appendChild(box);
+
+  var date = document.createElement('span');
+  date.className = 'ds-entry-row__date';
+  date.setAttribute('role', 'gridcell');
+  date.textContent = shortDate(entry.date);
+
+  var desc = document.createElement('span');
+  desc.className = 'ds-entry-row__desc';
+  desc.setAttribute('role', 'gridcell');
+  desc.textContent = entry.desc;
+  desc.title = entry.desc;
+
+  var markCell = document.createElement('span');
+  markCell.setAttribute('role', 'gridcell');
+  var mark = document.createElement('span');
+  mark.className = 'ds-match-marker';
+  mark.dataset.state = entry.state;
+  var dot = document.createElement('span');
+  dot.className = 'ds-match-marker__dot';
+  dot.setAttribute('aria-hidden', 'true');
+  var markText = document.createElement('span');
+  markText.textContent = STATE_LABEL[entry.state];
+  mark.appendChild(dot);
+  mark.appendChild(markText);
+  markCell.appendChild(mark);
+
+  var amount = document.createElement('span');
+  amount.className = 'ds-amount-cell';
+  amount.setAttribute('role', 'gridcell');
+  amount.textContent = money(entry.amount);
+
+  row.appendChild(selCell);
+  row.appendChild(date);
+  row.appendChild(desc);
+  row.appendChild(markCell);
+  row.appendChild(amount);
+  return row;
+}
+
+function renderList() {
+  var rows = visible();
+  var frag = document.createDocumentFragment();
+
+  rows.forEach(function (e, i) { frag.appendChild(buildRow(e, i)); });
+  grid.textContent = '';
+  grid.appendChild(frag);
+  grid.setAttribute('aria-rowcount', String(rows.length));
+
+  if (rows.length === 0) {
+    emptyNote.hidden = false;
+    emptyNote.textContent = open().length === 0
+      ? 'Every entry is reconciled.'
+      : 'No unreconciled entries in this filter.';
+  } else {
+    emptyNote.hidden = true;
+  }
+
+  /* roving tab stop */
+  var ids = rows.map(function (e) { return e.id; });
+  if (focusId === null || ids.indexOf(focusId) === -1) focusId = ids.length ? ids[0] : null;
+  if (focusId !== null) {
+    var el = grid.querySelector('[data-id="' + focusId + '"]');
+    if (el) el.tabIndex = 0;
+  }
+
+  var allSelected = rows.length > 0 && rows.every(function (e) { return selected[e.id]; });
+  var someSelected = rows.some(function (e) { return selected[e.id]; });
+  selectAll.checked = allSelected;
+  selectAll.indeterminate = !allSelected && someSelected;
+  selectAll.disabled = rows.length === 0;
+}
+
+function renderChips() {
+  var o = open();
+  document.querySelector('[data-count="all"]').textContent = String(o.length);
+  ['match', 'review', 'break'].forEach(function (s) {
+    document.querySelector('[data-count="' + s + '"]').textContent =
+      String(o.filter(function (e) { return e.state === s; }).length);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.ds-filter-chip'), function (chip) {
+    var f = chip.dataset.filter;
+    var on = f === 'all' ? !anyFilter() : !!filters[f];
+    chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+}
+
+function renderBar() {
+  var sel = selectedEntries();
+  var vis = visible();
+  var visIds = Object.create(null);
+  vis.forEach(function (e) { visIds[e.id] = true; });
+  var hidden = sel.filter(function (e) { return !visIds[e.id]; });
+
+  if (sel.length === 0) {
+    bar.dataset.state = 'idle';
+    barSummary.textContent = 'Nothing selected';
+    reconcileBtn.disabled = true;
+    reconcileBtn.textContent = 'Reconcile';
+    clearBtn.hidden = true;
+  } else {
+    bar.dataset.state = 'armed';
+    barSummary.textContent = '';
+    var head = document.createElement('span');
+    head.className = 'ds-reconcile-bar__count';
+    head.textContent = plural(sel.length, 'entry', 'entries') + ' selected';
+    barSummary.appendChild(head);
+    barSummary.appendChild(document.createTextNode(' · net ' + money(sum(sel))));
+    if (hidden.length) {
+      var warn = document.createElement('span');
+      warn.className = 'ds-reconcile-bar__hidden';
+      warn.textContent = plural(hidden.length, 'entry is', 'entries are') +
+        ' outside the current filter and will still be reconciled.';
+      barSummary.appendChild(warn);
+    }
+    reconcileBtn.disabled = false;
+    reconcileBtn.textContent = 'Reconcile ' + sel.length;
+    clearBtn.hidden = false;
+  }
+}
+
+function renderFooter() {
+  var o = open();
+  var moneyIn  = sum(o.filter(function (e) { return e.amount > 0; }));
+  var moneyOut = sum(o.filter(function (e) { return e.amount < 0; }));
+  var countText = plural(o.length, 'entry', 'entries');
+  if (anyFilter()) {
+    countText += '  ·  ' + visible().length + ' in view';
+  }
+  document.getElementById('footerCount').textContent = countText;
+  document.getElementById('footerIn').textContent  = money(moneyIn);
+  document.getElementById('footerOut').textContent = money(moneyOut);
+  document.getElementById('footerNet').textContent = money(moneyIn + moneyOut);
+}
+
+function render() {
+  renderChips();
+  renderList();
+  renderBar();
+  renderFooter();
+}
+
+function announce(msg) { live.textContent = msg; }
+
+/* ------------------------------------------------------------ selection */
+
+function setSelected(id, on) {
+  if (on) selected[id] = true; else delete selected[id];
+}
+
+function toggle(id, extend) {
+  var rows = visible();
+  if (extend && anchorId !== null) {
+    var ids = rows.map(function (e) { return e.id; });
+    var a = ids.indexOf(anchorId), b = ids.indexOf(id);
+    if (a !== -1 && b !== -1) {
+      var lo = Math.min(a, b), hi = Math.max(a, b);
+      for (var i = lo; i <= hi; i++) setSelected(ids[i], true);
+      focusId = id;
+      render();
+      focusRow(id);
+      return;
+    }
+  }
+  setSelected(id, !selected[id]);
+  anchorId = id;
+  focusId = id;
+  render();
+  focusRow(id);
+}
+
+function focusRow(id) {
+  focusId = id;
+  Array.prototype.forEach.call(grid.children, function (r) {
+    r.tabIndex = r.dataset.id === String(id) ? 0 : -1;
+  });
+  var el = grid.querySelector('[data-id="' + id + '"]');
+  if (el) el.focus();
+}
+
+/* -------------------------------------------------------------- actions */
+
+function reconcileSelection() {
+  var sel = selectedEntries();
+  if (!sel.length) return;
+  batchSeq += 1;
+  var ids = sel.map(function (e) { return e.id; });
+  ids.forEach(function (id) { reconciled[id] = batchSeq; delete selected[id]; });
+  lastBatch = { ids: ids, net: sum(sel), seq: batchSeq };
+  anchorId = null;
+  focusId = null;
+  showNote();
+  render();
+  announce(plural(ids.length, 'entry', 'entries') + ' reconciled. Undo is available.');
+}
+
+function showNote() {
+  noteText.textContent = '';
+  var strong = document.createElement('span');
+  strong.textContent = plural(lastBatch.ids.length, 'entry', 'entries') + ' reconciled';
+  var amt = document.createElement('span');
+  amt.className = 'ds-batch-note__amount';
+  amt.textContent = '  ·  net ' + money(lastBatch.net);
+  noteText.appendChild(strong);
+  noteText.appendChild(amt);
+  note.hidden = false;
+}
+
+function undoBatch() {
+  if (!lastBatch) return;
+  lastBatch.ids.forEach(function (id) {
+    delete reconciled[id];
+    selected[id] = true;              /* restored and still selected */
+  });
+  var n = lastBatch.ids.length;
+  lastBatch = null;
+  note.hidden = true;
+  render();
+  announce(plural(n, 'entry', 'entries') + ' restored to the unreconciled list.');
+}
+
+/* --------------------------------------------------------------- events */
+
+grid.addEventListener('click', function (e) {
+  var row = e.target.closest('.ds-entry-row');
+  if (!row) return;
+  toggle(Number(row.dataset.id), e.shiftKey);
+  if (e.shiftKey) {
+    var s = window.getSelection();
+    if (s) s.removeAllRanges();
+  }
+});
+
+grid.addEventListener('keydown', function (e) {
+  var row = e.target.closest('.ds-entry-row');
+  if (!row) return;
+  var rows = visible().map(function (x) { return x.id; });
+  var i = rows.indexOf(Number(row.dataset.id));
+
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    var next = e.key === 'ArrowDown' ? Math.min(i + 1, rows.length - 1) : Math.max(i - 1, 0);
+    if (e.shiftKey) {
+      if (anchorId === null) anchorId = rows[i];
+      setSelected(rows[i], true);
+      setSelected(rows[next], true);
+      focusId = rows[next];
+      render();
+      focusRow(rows[next]);
+    } else {
+      focusRow(rows[next]);
+    }
+  } else if (e.key === 'Home' || e.key === 'End') {
+    e.preventDefault();
+    focusRow(e.key === 'Home' ? rows[0] : rows[rows.length - 1]);
+  } else if (e.key === ' ' || e.key === 'Spacebar') {
+    e.preventDefault();
+    toggle(rows[i], e.shiftKey);
+    focusRow(rows[i]);
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    selected = Object.create(null);
+    anchorId = null;
+    render();
+    focusRow(rows[i]);
+  }
+});
+
+selectAll.addEventListener('change', function () {
+  var rows = visible();
+  var allSelected = rows.length > 0 && rows.every(function (e) { return selected[e.id]; });
+  rows.forEach(function (e) { setSelected(e.id, !allSelected); });
+  anchorId = null;
+  render();
+});
+
+Array.prototype.forEach.call(document.querySelectorAll('.ds-filter-chip'), function (chip) {
+  chip.addEventListener('click', function () {
+    var f = chip.dataset.filter;
+    if (f === 'all') {
+      filters = Object.create(null);
+    } else if (filters[f]) {
+      delete filters[f];
+    } else {
+      filters[f] = true;
+    }
+    render();
+  });
+});
+
+reconcileBtn.addEventListener('click', reconcileSelection);
+
+clearBtn.addEventListener('click', function () {
+  selected = Object.create(null);
+  anchorId = null;
+  render();
+  announce('Selection cleared.');
+});
+
+undoBtn.addEventListener('click', undoBatch);
+
+dismissBtn.addEventListener('click', function () {
+  note.hidden = true;
+  lastBatch = null;
+});
+
+document.addEventListener('keydown', function (e) {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && lastBatch) {
+    e.preventDefault();
+    undoBatch();
+  }
+});
+
+render();
+</script>

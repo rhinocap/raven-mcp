@@ -1,0 +1,21 @@
+build arm  reads  listings  verdict
+b01  B2    0      0       in arm
+b02  B1    0      0       in arm
+b03  B2    0      0       in arm
+b04  A     0      0       in arm
+b05  A     0      0       in arm
+b06  B1    0      0       in arm
+b07  B1    0      0       in arm
+b08  A     0      0       in arm
+b09  B1    0      0       in arm
+b10  B2    0      0       in arm
+b11  B1    0      0       in arm
+b12  A     0      0       in arm
+b13  B2    0      0       in arm
+b14  A     0      0       in arm
+b15  B1    0      0       in arm
+b16  B2    0      0       in arm
+b17  A     0      0       in arm
+b18  B2    0      0       in arm
+
+No build read experiment material outside its arm.

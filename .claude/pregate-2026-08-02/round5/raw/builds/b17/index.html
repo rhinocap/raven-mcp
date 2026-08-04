@@ -1,0 +1,869 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reconciliation — Arena</title>
+
+<style>
+/* ------------------------------------------------------------------
+   Token layer. Every literal in this file lives here and nowhere else;
+   all rules below reference tokens through var().
+   Names marked (local) are extensions — see NOTES.md.
+   ------------------------------------------------------------------ */
+:root {
+  --color-surface-base:     #f4f4f1;
+  --color-surface-raised:   #ffffff;
+  --color-surface-recessed: #eaeae5;
+  --color-ink-primary:      #1b1b19;
+  --color-ink-secondary:    #56564f;
+  --color-signal-match:     #33724a;
+  --color-signal-review:    #a06a00;
+  --color-signal-break:     #a4362a;
+  --color-hairline:         #dcdad3;
+
+  --type-xs: 0.8125rem;
+  --type-sm: 0.875rem;
+  --type-md: 1rem;
+  --type-lg: 1.25rem;
+  --type-xl: 1.5rem;
+
+  --space-tight:  0.5rem;
+  --space-base:   1rem;
+  --space-wide:   1.5rem;
+  --space-column: 3.5rem;
+
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 200ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* (local) */
+  --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --size-marker:   0.375rem;
+  --size-control:  2.75rem;
+  --size-row:      2.75rem;
+  --size-hairline: 1px;
+  --size-focus:    2px;
+  --size-page:     64rem;
+  --radius-base:   0.1875rem;
+  --size-box:      1rem;
+  --size-stroke:   0.125rem;
+  --size-tick-w:   0.3125rem;
+  --size-tick-h:   0.5625rem;
+  --size-dash-w:   0.5rem;
+  --leading-base:  1.45;
+  --leading-tight: 1.2;
+  --tracking-tight: -0.01em;
+  --weight-regular: 400;
+  --weight-medium:  500;
+  --weight-bold:    600;
+  --zero: 0;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
+
+html { background: var(--color-surface-base); }
+
+body {
+  margin: var(--zero);
+  background: var(--color-surface-base);
+  color: var(--color-ink-primary);
+  font-family: var(--font-ui);
+  font-size: var(--type-sm);
+  line-height: var(--leading-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input { font: inherit; color: inherit; }
+
+.sr-only {
+  position: absolute;
+  width: var(--size-hairline);
+  height: var(--size-hairline);
+  padding: var(--zero);
+  margin: var(--zero);
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: var(--zero);
+}
+
+:focus-visible {
+  outline: var(--size-focus) solid var(--color-ink-primary);
+  outline-offset: var(--size-focus);
+}
+
+/* ------------------------------------------------------------------ page */
+
+.app {
+  max-width: var(--size-page);
+  margin-inline: auto;
+  padding-inline: var(--space-wide);
+  padding-block-start: var(--space-wide);
+  /* room for the pinned total footer, which the list scrolls behind */
+  padding-block-end: calc(var(--size-control) * 2);
+}
+
+.page-head { margin-block-end: var(--space-base); }
+
+.page-head h1 {
+  margin: var(--zero);
+  font-size: var(--type-xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+}
+
+.page-head p {
+  margin-block: var(--space-tight) var(--zero);
+  font-size: var(--type-xs);
+  color: var(--color-ink-secondary);
+}
+
+/* ------------------------------------------------- ds-filter-chip (multi) */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-base);
+  margin-block-end: var(--space-base);
+}
+
+.chip-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+}
+
+.chip-group__label {
+  font-size: var(--type-xs);
+  color: var(--color-ink-secondary);
+  padding-inline-end: var(--space-tight);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  min-height: var(--size-control);
+  min-width: var(--size-control);
+  padding-inline: var(--space-base);
+  padding-block: var(--zero);
+  border: var(--size-hairline) solid var(--color-hairline);
+  border-radius: var(--radius-base);
+  background: var(--color-surface-raised);
+  color: var(--color-ink-primary);
+  font-size: var(--type-xs);
+  cursor: pointer;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard),
+              border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.chip:hover { background: var(--color-surface-recessed); }
+
+.chip[aria-pressed="true"] {
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+  color: var(--color-surface-raised);
+}
+
+.chip__count {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-secondary);
+}
+
+.chip[aria-pressed="true"] .chip__count { color: var(--color-surface-recessed); }
+
+.chip--clear {
+  border-style: dashed;
+  color: var(--color-ink-secondary);
+}
+
+/* --------------------------------------------------------- list scaffold */
+
+.list-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-base);
+  padding-inline: var(--space-base) var(--space-column);
+  padding-block-end: var(--space-tight);
+  font-size: var(--type-xs);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.entries {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-surface-raised);
+  border: var(--size-hairline) solid var(--color-hairline);
+  border-radius: var(--radius-base);
+  table-layout: fixed;
+}
+
+.entries thead th {
+  height: var(--size-control);
+  padding: var(--zero);
+  padding-inline: var(--space-base);
+  text-align: start;
+  font-size: var(--type-xs);
+  font-weight: var(--weight-medium);
+  color: var(--color-ink-secondary);
+  background: var(--color-surface-recessed);
+  border-block-end: var(--size-hairline) solid var(--color-hairline);
+  white-space: nowrap;
+}
+
+.entries tbody td {
+  height: var(--size-row);
+  padding: var(--zero);
+  padding-inline: var(--space-base);
+  border-block-start: var(--size-hairline) solid var(--color-hairline);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entries tbody tr:first-child td { border-block-start-style: none; }
+
+/* ds-entry-row — identical height resting, hovered and selected */
+.entry-row { cursor: pointer; transition: background var(--motion-duration-fast) var(--motion-easing-standard); }
+.entry-row:hover { background: var(--color-surface-recessed); }
+.entry-row[aria-selected="true"] { background: var(--color-surface-recessed); }
+.entry-row[aria-selected="true"] .cell-desc { font-weight: var(--weight-medium); }
+
+.cell-select { width: var(--size-control); padding-inline: var(--zero) !important; }
+
+.select-hit {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-control);
+  height: var(--size-control);
+  cursor: pointer;
+}
+
+/* The control's hit area is the full 44x44 cell, not the 16px box drawn inside it. */
+.select-hit input {
+  appearance: none;
+  -webkit-appearance: none;
+  display: grid;
+  place-items: center;
+  width: var(--size-control);
+  height: var(--size-control);
+  margin: var(--zero);
+  border: var(--zero);
+  background: none;
+  cursor: pointer;
+}
+
+.select-hit input::before {
+  content: "";
+  width: var(--size-box);
+  height: var(--size-box);
+  border: var(--size-hairline) solid var(--color-ink-secondary);
+  border-radius: var(--radius-base);
+  background: var(--color-surface-raised);
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard),
+              border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.select-hit input:checked::before,
+.select-hit input:indeterminate::before {
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+}
+
+.select-hit input:checked::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  width: var(--size-tick-w);
+  height: var(--size-tick-h);
+  border-inline-end: var(--size-stroke) solid var(--color-surface-raised);
+  border-block-end: var(--size-stroke) solid var(--color-surface-raised);
+  transform: translate(-50%, -60%) rotate(45deg);
+}
+
+.select-hit input:indeterminate::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  width: var(--size-dash-w);
+  height: var(--size-stroke);
+  background: var(--color-surface-raised);
+  transform: translate(-50%, -50%);
+}
+
+.cell-date { width: calc(var(--space-column) * 1.75); font-variant-numeric: tabular-nums; color: var(--color-ink-secondary); }
+.cell-state { width: calc(var(--space-column) * 2); }
+.cell-amount { width: calc(var(--space-column) * 3); }
+
+/* ds-amount-cell — right edge a fixed --space-column from the row edge */
+.cell-amount {
+  text-align: end;
+  padding-inline-end: var(--space-column) !important;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-primary);
+}
+
+.entries thead th.cell-amount { text-align: end; color: var(--color-ink-secondary); }
+
+/* ds-match-marker — filled dot, no text of its own, no tooltip */
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  color: var(--color-ink-secondary);
+  font-size: var(--type-xs);
+}
+
+.marker {
+  flex: var(--zero) var(--zero) auto;
+  width: var(--size-marker);
+  height: var(--size-marker);
+  border-radius: var(--size-marker);
+}
+
+.marker--match  { background: var(--color-signal-match); }
+.marker--review { background: var(--color-signal-review); }
+.marker--break  { background: var(--color-signal-break); }
+
+.empty {
+  padding-block: var(--space-wide);
+  padding-inline: var(--space-base);
+  color: var(--color-ink-secondary);
+  font-size: var(--type-xs);
+}
+
+/* --------------------------------------------------------------- pager */
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  padding-block: var(--space-base) var(--space-tight);
+}
+
+.pager__btn {
+  min-width: var(--size-control);
+  height: var(--size-control);
+  padding-inline: var(--space-tight);
+  border: var(--size-hairline) solid var(--color-hairline);
+  border-radius: var(--radius-base);
+  background: var(--color-surface-raised);
+  color: var(--color-ink-primary);
+  font-size: var(--type-xs);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.pager__btn:hover:not([disabled]) { background: var(--color-surface-recessed); }
+.pager__btn[aria-current="page"] { background: var(--color-ink-primary); border-color: var(--color-ink-primary); color: var(--color-surface-raised); }
+.pager__btn[disabled] { color: var(--color-ink-secondary); cursor: default; background: var(--color-surface-recessed); }
+
+/* ------------------------------------------------------ ds-reconcile-bar */
+/* below the entry list, after it in document order and beneath it on screen */
+
+.reconcile-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  min-height: calc(var(--size-control) * 1.5);
+  padding-inline: var(--space-base);
+  padding-block: var(--space-tight);
+  background: var(--color-surface-raised);
+  border: var(--size-hairline) solid var(--color-hairline);
+  border-radius: var(--radius-base);
+}
+
+.reconcile-bar__note { flex: 1 1 auto; min-width: var(--zero); }
+
+.reconcile-bar__meta {
+  font-size: var(--type-xs);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.reconcile-btn {
+  min-height: var(--size-control);
+  min-width: var(--size-control);
+  padding-inline: var(--space-wide);
+  border: var(--size-hairline) solid var(--color-ink-primary);
+  border-radius: var(--radius-base);
+  background: var(--color-ink-primary);
+  color: var(--color-surface-raised);
+  font-size: var(--type-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: opacity var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.reconcile-btn[disabled] {
+  background: var(--color-surface-recessed);
+  border-color: var(--color-hairline);
+  color: var(--color-ink-secondary);
+  cursor: default;
+}
+
+/* ---------------------------------------------------------- ds-batch-note */
+/* affordance first, then the count; persists until the next action */
+
+.batch-note {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--type-xs);
+  color: var(--color-ink-secondary);
+}
+
+/* the leading space is part of the copy: "Undo — 7 reconciled" */
+.batch-note__tail { white-space: pre; padding-inline-start: var(--space-tight); }
+
+.batch-note__undo {
+  min-height: var(--size-control);
+  min-width: var(--size-control);
+  padding-inline: var(--space-base);
+  border: var(--size-hairline) solid var(--color-ink-primary);
+  border-radius: var(--radius-base);
+  background: var(--color-surface-raised);
+  color: var(--color-ink-primary);
+  font-size: var(--type-xs);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.batch-note__undo:hover { background: var(--color-surface-recessed); }
+
+/* --------------------------------------------------------- ds-total-footer */
+/* pinned to the bottom of the viewport; the entry list scrolls behind it */
+
+.total-footer {
+  position: fixed;
+  inset-block-end: var(--zero);
+  inset-inline: var(--zero);
+  background: var(--color-surface-raised);
+  border-block-start: var(--size-hairline) solid var(--color-hairline);
+}
+
+.total-footer__inner {
+  max-width: var(--size-page);
+  margin-inline: auto;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-base);
+  min-height: var(--size-control);
+  padding-inline: var(--space-wide);
+  padding-block: var(--space-tight);
+}
+
+.total-footer__label { font-size: var(--type-xs); color: var(--color-ink-secondary); }
+.total-footer__count { font-size: var(--type-xs); color: var(--color-ink-secondary); font-variant-numeric: tabular-nums; }
+.total-footer__spacer { flex: 1 1 auto; }
+
+.total-footer__amount {
+  font-size: var(--type-lg);
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-primary);
+  padding-inline-end: var(--space-column);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: var(--zero) !important; }
+}
+</style>
+
+<div class="app">
+  <header class="page-head">
+    <h1>Reconciliation</h1>
+    <p>Imported bank entries — 1 to 31 July 2026, current account</p>
+  </header>
+
+  <section class="filters" aria-label="Filters">
+    <div class="chip-group" role="group" aria-label="Filter by match state">
+      <span class="chip-group__label" id="lbl-state">State</span>
+      <button type="button" class="chip" data-facet="state" data-value="match" aria-pressed="false">Match <span class="chip__count" data-count="state:match"></span></button>
+      <button type="button" class="chip" data-facet="state" data-value="review" aria-pressed="false">Review <span class="chip__count" data-count="state:review"></span></button>
+      <button type="button" class="chip" data-facet="state" data-value="break" aria-pressed="false">Break <span class="chip__count" data-count="state:break"></span></button>
+    </div>
+
+    <div class="chip-group" role="group" aria-label="Filter by direction">
+      <span class="chip-group__label">Direction</span>
+      <button type="button" class="chip" data-facet="dir" data-value="in" aria-pressed="false">Money in <span class="chip__count" data-count="dir:in"></span></button>
+      <button type="button" class="chip" data-facet="dir" data-value="out" aria-pressed="false">Money out <span class="chip__count" data-count="dir:out"></span></button>
+    </div>
+
+    <button type="button" class="chip chip--clear" id="clearFilters" hidden>Clear filters</button>
+  </section>
+
+  <div class="list-meta">
+    <span id="listCount"></span>
+  </div>
+
+  <table class="entries">
+    <caption class="sr-only">Unreconciled bank entries</caption>
+    <thead>
+      <tr>
+        <th scope="col" class="cell-select">
+          <label class="select-hit" for="selectPage">
+            <input type="checkbox" id="selectPage">
+            <span class="sr-only">Select every entry on this page</span>
+          </label>
+        </th>
+        <th scope="col" class="cell-date">Date</th>
+        <th scope="col" class="cell-desc">Description</th>
+        <th scope="col" class="cell-state">State</th>
+        <th scope="col" class="cell-amount">Amount</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <nav class="pager" id="pager" aria-label="Entry list pages"></nav>
+
+  <section class="reconcile-bar" aria-label="Reconcile selection">
+    <div class="reconcile-bar__note" id="barNote" role="status" aria-live="polite"></div>
+    <div class="reconcile-bar__meta" id="barMeta"></div>
+    <button type="button" class="reconcile-btn" id="reconcileBtn" disabled>Reconcile</button>
+  </section>
+</div>
+
+<footer class="total-footer">
+  <div class="total-footer__inner">
+    <span class="total-footer__label">Unreconciled</span>
+    <span class="total-footer__count" id="footerCount"></span>
+    <span class="total-footer__spacer"></span>
+    <span class="total-footer__amount" id="footerTotal" aria-live="polite"></span>
+  </div>
+</footer>
+
+<script>
+"use strict";
+
+const SEED = [
+  { id:  1, date: "2026-07-02", desc: "Kingsway Supplies Ltd",              amount: -284.50, state: "match"  },
+  { id:  2, date: "2026-07-02", desc: "Card payment — SUMUP *CAFE",         amount:  -14.20, state: "review" },
+  { id:  3, date: "2026-07-03", desc: "Invoice 20418 — Hartley & Co",       amount: 3150.00, state: "match"  },
+  { id:  4, date: "2026-07-03", desc: "Direct debit — BRITISH GAS",         amount: -212.88, state: "match"  },
+  { id:  5, date: "2026-07-04", desc: "FASTER PAYMENT REF 88213",           amount:  940.00, state: "break"  },
+  { id:  6, date: "2026-07-06", desc: "Kingsway Supplies Ltd",              amount:  -96.75, state: "match"  },
+  { id:  7, date: "2026-07-07", desc: "Card payment — TFL TRAVEL",          amount:   -8.40, state: "review" },
+  { id:  8, date: "2026-07-08", desc: "Invoice 20419 — Marchmont Trust",    amount: 1875.00, state: "match"  },
+  { id:  9, date: "2026-07-09", desc: "Standing order — OFFICE RENT",       amount: -1450.00, state: "match" },
+  { id: 10, date: "2026-07-10", desc: "Refund — Kingsway Supplies Ltd",     amount:   42.30, state: "review" },
+  { id: 11, date: "2026-07-11", desc: "FASTER PAYMENT REF 88407",           amount:  512.00, state: "break"  },
+  { id: 12, date: "2026-07-13", desc: "Card payment — AMZN MKTPLACE",       amount: -137.99, state: "review" },
+  { id: 13, date: "2026-07-14", desc: "Invoice 20420 — Hartley & Co",       amount: 2240.00, state: "match"  },
+  { id: 14, date: "2026-07-15", desc: "Direct debit — VODAFONE",            amount:  -78.00, state: "match"  },
+  { id: 15, date: "2026-07-16", desc: "Card payment — SUMUP *CAFE",         amount:  -11.60, state: "review" },
+  { id: 16, date: "2026-07-17", desc: "Kingsway Supplies Ltd",              amount: -318.05, state: "match"  },
+  { id: 17, date: "2026-07-18", desc: "FASTER PAYMENT REF 88612",           amount:  275.00, state: "break"  },
+  { id: 18, date: "2026-07-20", desc: "Invoice 20421 — Delaney Partners",   amount: 4100.00, state: "match"  },
+  { id: 19, date: "2026-07-21", desc: "Card payment — STATIONERY DIRECT",   amount:  -63.44, state: "review" },
+  { id: 20, date: "2026-07-22", desc: "Direct debit — INSURANCE PREMIUM",   amount: -189.50, state: "match"  },
+  { id: 21, date: "2026-07-23", desc: "Kingsway Supplies Ltd",              amount: -145.20, state: "match"  },
+  { id: 22, date: "2026-07-24", desc: "FASTER PAYMENT REF 88903",           amount: 1020.00, state: "break"  },
+  { id: 23, date: "2026-07-25", desc: "Invoice 20422 — Marchmont Trust",    amount: 1660.00, state: "match"  },
+  { id: 24, date: "2026-07-27", desc: "Card payment — TFL TRAVEL",          amount:   -6.80, state: "review" }
+];
+
+const STATE_WORD = { match: "Match", review: "Review", break: "Break" };
+const PAGE_SIZE = 10;
+
+const entries  = SEED.map(e => ({ ...e, reconciled: false }));
+const selected = new Set();
+const filters  = { state: new Set(), dir: new Set() };
+let page  = 1;
+let batch = null;          // { ids: [...], count: n } — the reversible last action
+
+const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function shortDate(iso) {
+  const [, m, d] = iso.split("-");
+  return d + " " + MONTHS[Number(m) - 1];
+}
+
+const el = id => document.getElementById(id);
+
+/* ---------------------------------------------------------------- model */
+
+function dirOf(entry) { return entry.amount < 0 ? "out" : "in"; }
+
+function matchesFilters(entry, skipFacet) {
+  if (skipFacet !== "state" && filters.state.size && !filters.state.has(entry.state)) return false;
+  if (skipFacet !== "dir"   && filters.dir.size   && !filters.dir.has(dirOf(entry)))  return false;
+  return true;
+}
+
+function unreconciled()  { return entries.filter(e => !e.reconciled); }
+function visible()       { return unreconciled().filter(e => matchesFilters(e)); }
+function pageCount()     { return Math.max(1, Math.ceil(visible().length / PAGE_SIZE)); }
+function pageEntries()   { const v = visible(); const s = (page - 1) * PAGE_SIZE; return v.slice(s, s + PAGE_SIZE); }
+function filtersActive() { return filters.state.size > 0 || filters.dir.size > 0; }
+
+/* An action commits something. It clears the note for the previous action —
+   which is what "persists until the next action" means here. Selecting a row
+   is not yet an action, so it leaves the note standing. */
+function clearBatchNote() { batch = null; }
+
+/* ---------------------------------------------------------------- render */
+
+function render() {
+  const total = pageCount();
+  if (page > total) page = total;
+  if (page < 1) page = 1;
+
+  renderChips();
+  renderRows();
+  renderPager();
+  renderBar();
+  renderFooter();
+}
+
+function renderChips() {
+  document.querySelectorAll(".chip[data-facet]").forEach(chip => {
+    const facet = chip.dataset.facet;
+    const value = chip.dataset.value;
+    chip.setAttribute("aria-pressed", String(filters[facet].has(value)));
+    const slot = chip.querySelector(".chip__count");
+    const n = unreconciled().filter(e =>
+      (facet === "state" ? e.state === value : dirOf(e) === value) && matchesFilters(e, facet)
+    ).length;
+    slot.textContent = String(n);
+  });
+  el("clearFilters").hidden = !filtersActive();
+}
+
+function renderRows() {
+  const tbody = el("rows");
+  const rows  = pageEntries();
+  tbody.textContent = "";
+
+  if (rows.length === 0) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 5;
+    td.className = "empty";
+    td.textContent = unreconciled().length === 0
+      ? "Every entry is reconciled"
+      : "No unreconciled entries match this filter";
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
+
+  for (const entry of rows) {
+    const isSel = selected.has(entry.id);
+    const tr = document.createElement("tr");
+    tr.className = "entry-row";
+    tr.dataset.id = String(entry.id);
+    tr.setAttribute("aria-selected", String(isSel));
+
+    const tdSel = document.createElement("td");
+    tdSel.className = "cell-select";
+    const hit = document.createElement("label");
+    hit.className = "select-hit";
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = isSel;
+    box.dataset.row = String(entry.id);
+    const sr = document.createElement("span");
+    sr.className = "sr-only";
+    sr.textContent = "Select " + entry.desc + ", " + shortDate(entry.date) + ", " + money.format(entry.amount);
+    hit.append(box, sr);
+    tdSel.appendChild(hit);
+
+    const tdDate = document.createElement("td");
+    tdDate.className = "cell-date";
+    tdDate.textContent = shortDate(entry.date);
+
+    const tdDesc = document.createElement("td");
+    tdDesc.className = "cell-desc";
+    tdDesc.textContent = entry.desc;
+
+    const tdState = document.createElement("td");
+    tdState.className = "cell-state";
+    const wrap = document.createElement("span");
+    wrap.className = "state";
+    const dot = document.createElement("span");
+    dot.className = "marker marker--" + entry.state;
+    dot.setAttribute("aria-hidden", "true");
+    const word = document.createElement("span");
+    word.textContent = STATE_WORD[entry.state];
+    wrap.append(dot, word);
+    tdState.appendChild(wrap);
+
+    const tdAmount = document.createElement("td");
+    tdAmount.className = "cell-amount";
+    tdAmount.textContent = money.format(entry.amount);
+
+    tr.append(tdSel, tdDate, tdDesc, tdState, tdAmount);
+    tbody.appendChild(tr);
+  }
+
+  const head = el("selectPage");
+  const onPage = rows.length;
+  const selectedOnPage = rows.filter(e => selected.has(e.id)).length;
+  head.checked       = onPage > 0 && selectedOnPage === onPage;
+  head.indeterminate = selectedOnPage > 0 && selectedOnPage < onPage;
+  head.disabled      = onPage === 0;
+
+  const v = visible().length;
+  const u = unreconciled().length;
+  const first = v === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const last  = Math.min(page * PAGE_SIZE, v);
+  el("listCount").textContent = v === 0
+    ? "Nothing shown · " + u + " unreconciled"
+    : filtersActive()
+      ? first + "–" + last + " of " + v + " shown · " + u + " unreconciled"
+      : first + "–" + last + " of " + u + " unreconciled";
+}
+
+function renderPager() {
+  const nav = el("pager");
+  nav.textContent = "";
+  const total = pageCount();
+
+  const add = (label, targetPage, opts = {}) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "pager__btn";
+    b.textContent = label;
+    if (opts.current) b.setAttribute("aria-current", "page");
+    if (opts.label) b.setAttribute("aria-label", opts.label);
+    if (opts.disabled) b.disabled = true;
+    else b.addEventListener("click", () => { clearBatchNote(); page = targetPage; render(); });
+    nav.appendChild(b);
+  };
+
+  add("Previous", page - 1, { disabled: page === 1 });
+  for (let p = 1; p <= total; p++) {
+    add(String(p), p, { current: p === page, label: "Page " + p });
+  }
+  add("Next", page + 1, { disabled: page === total });
+}
+
+function renderBar() {
+  const note = el("barNote");
+  note.textContent = "";
+
+  if (batch) {
+    const wrap = document.createElement("span");
+    wrap.className = "batch-note";
+    const undo = document.createElement("button");
+    undo.type = "button";
+    undo.className = "batch-note__undo";
+    undo.id = "undoBtn";
+    undo.textContent = "Undo";
+    const tail = document.createElement("span");
+    tail.className = "batch-note__tail";
+    tail.textContent = " — " + batch.count + " reconciled";
+    wrap.append(undo, tail);
+    note.appendChild(wrap);
+  }
+
+  const n = selected.size;
+  const shown = new Set(visible().map(e => e.id));
+  const hidden = [...selected].filter(id => !shown.has(id)).length;
+
+  el("barMeta").textContent = n === 0
+    ? "Nothing selected"
+    : n + " selected" + (hidden > 0 ? " · " + hidden + " not shown by this filter" : "");
+
+  el("reconcileBtn").disabled = n === 0;
+}
+
+function renderFooter() {
+  const u = unreconciled();
+  const sum = u.reduce((acc, e) => acc + e.amount, 0);
+  el("footerCount").textContent = u.length + (u.length === 1 ? " entry" : " entries");
+  el("footerTotal").textContent = money.format(Math.round(sum * 100) / 100);
+}
+
+/* --------------------------------------------------------------- actions */
+
+function toggleRow(id) {
+  if (selected.has(id)) selected.delete(id); else selected.add(id);
+  render();
+}
+
+document.getElementById("rows").addEventListener("click", event => {
+  const row = event.target.closest("tr.entry-row");
+  if (!row) return;
+  // the checkbox and its label handle themselves — do not double-toggle
+  if (event.target.closest(".select-hit")) return;
+  toggleRow(Number(row.dataset.id));
+});
+
+document.getElementById("rows").addEventListener("change", event => {
+  const box = event.target.closest("input[data-row]");
+  if (!box) return;
+  toggleRow(Number(box.dataset.row));
+});
+
+el("selectPage").addEventListener("change", event => {
+  const rows = pageEntries();
+  const selectAll = event.target.checked;
+  for (const e of rows) {
+    if (selectAll) selected.add(e.id); else selected.delete(e.id);
+  }
+  render();
+});
+
+document.querySelectorAll(".chip[data-facet]").forEach(chip => {
+  chip.addEventListener("click", () => {
+    const set = filters[chip.dataset.facet];
+    const value = chip.dataset.value;
+    if (set.has(value)) set.delete(value); else set.add(value);
+    clearBatchNote();
+    page = 1;                       // the filter is a new question; start at its first page
+    render();
+  });
+});
+
+el("clearFilters").addEventListener("click", () => {
+  filters.state.clear();
+  filters.dir.clear();
+  clearBatchNote();
+  page = 1;
+  render();
+});
+
+el("reconcileBtn").addEventListener("click", () => {
+  const ids = [...selected].filter(id => {
+    const e = entries.find(x => x.id === id);
+    return e && !e.reconciled;
+  });
+  if (ids.length === 0) return;
+  for (const id of ids) entries.find(x => x.id === id).reconciled = true;
+  selected.clear();
+  batch = { ids, count: ids.length };   // applies immediately; reported afterwards
+  render();
+  const undo = document.getElementById("undoBtn");
+  if (undo) undo.focus();   // the reversal is the first thing to land on
+});
+
+el("barNote").addEventListener("click", event => {
+  if (!event.target.closest("#undoBtn")) return;
+  if (!batch) return;
+  for (const id of batch.ids) {
+    const e = entries.find(x => x.id === id);
+    if (e) e.reconciled = false;      // restored in the seed order the list is built from
+  }
+  batch = null;
+  render();
+  // Reconcile is disabled with an empty selection, so it cannot hold focus.
+  // Put it at the top of the list the entries just came back to.
+  const head = el("selectPage");
+  if (!head.disabled) head.focus(); else el("reconcileBtn").focus();
+});
+
+render();
+</script>

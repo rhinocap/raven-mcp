@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reconciliation review — Ledger</title>
+<style>
+/* ------------------------------------------------------------------ *
+ * Tokens — arena/DESIGN.md, verbatim. Type values are unitless in the
+ * source; CSS requires a unit, so they are written in px here.
+ * ------------------------------------------------------------------ */
+:root {
+  --color-surface-base:     #101215;
+  --color-surface-raised:   #171a1e;
+  --color-surface-recessed: #0b0d0f;
+  --color-ink-primary:      #e6e8ea;
+  --color-ink-secondary:    #9aa1a8;
+  --color-signal-match:     #4f8f74;
+  --color-signal-review:    #c99a34;
+  --color-signal-break:     #cf5b45;
+  --color-hairline:         #242a30;
+
+  --type-xs: 12px;
+  --type-sm: 13px;
+  --type-md: 15px;
+  --type-lg: 19px;
+  --type-xl: 26px;
+
+  --space-tight:  8px;
+  --space-base:  16px;
+  --space-wide:  24px;
+  --space-column: 56px;
+
+  --motion-duration-fast: 110ms;
+  --motion-duration-base: 180ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Derived tokens. Three primitives DESIGN.md does not carry, each
+     tied to a value the system already states. Listed in NOTES.md. */
+  --hairline-width: 1px;                              /* the hairline, at its own weight */
+  --edge-width: calc(var(--hairline-width) * 2);      /* selected-row edge */
+  --target-min: 44px;                                 /* A11Y-target-size */
+
+  /* Geometry, all derived from --space-column. */
+  --row-height:   var(--target-min);
+  --col-select:   var(--space-column);
+  --col-date:     calc(var(--space-column) * 2);
+  --col-state:    calc(var(--space-column) * 2);
+  --col-amount:   calc(var(--space-column) * 2.5);
+  --screen-width: calc(var(--space-column) * 22);
+
+  --font-ui: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* ------------------------------------------------------------------ *
+ * Layout scaffolding. l-* classes are structural only — they are not
+ * components and deliberately do not take ds-* names.
+ * ------------------------------------------------------------------ */
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--color-surface-base);
+  color: var(--color-ink-primary);
+  font-family: var(--font-ui);
+  font-size: var(--type-sm);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+.l-screen {
+  height: 100%;
+  max-width: var(--screen-width);
+  margin: 0 auto;
+  padding: var(--space-wide) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-base);
+}
+
+.l-eyebrow {
+  display: block;
+  font-size: var(--type-xs);
+  line-height: var(--space-base);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-secondary);
+}
+
+.l-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-base);
+  flex-shrink: 0;
+}
+.l-head h1 {
+  margin: 0;
+  font-size: var(--type-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.l-head p {
+  margin: 0;
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+.l-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-wide);
+  flex-shrink: 0;
+}
+.l-toolbar__group { display: flex; flex-direction: column; gap: var(--space-tight); }
+.l-toolbar__controls { display: flex; align-items: center; gap: var(--space-tight); }
+.l-toolbar__spacer { flex: 1; }
+
+/* Shared button shape. Every interactive target clears 44 x 44. */
+.l-action {
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+  padding: 0 var(--space-base);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-tight);
+  font: inherit;
+  font-size: var(--type-sm);
+  color: var(--color-ink-primary);
+  background: transparent;
+  border: var(--hairline-width) solid var(--color-hairline);
+  cursor: pointer;
+}
+.l-action:hover:not(:disabled) { border-color: var(--color-ink-secondary); }
+.l-action:disabled { color: var(--color-ink-secondary); cursor: default; }
+.l-action--primary {
+  background: var(--color-ink-primary);
+  color: var(--color-surface-base);
+  border-color: var(--color-ink-primary);
+  font-weight: 600;
+}
+.l-action--primary:hover:not(:disabled) { border-color: var(--color-ink-primary); }
+.l-action--primary:disabled {
+  background: transparent;
+  color: var(--color-ink-secondary);
+  border-color: var(--color-hairline);
+  font-weight: 400;
+}
+
+:focus-visible {
+  outline: var(--edge-width) solid var(--color-ink-primary);
+  outline-offset: var(--hairline-width);
+}
+
+/* ------------------------------------------------------------------ *
+ * ds-filter-chip
+ * ------------------------------------------------------------------ */
+.ds-filter-chip {
+  min-height: var(--target-min);
+  padding: 0 var(--space-base);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  font: inherit;
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  background: transparent;
+  border: var(--hairline-width) solid var(--color-hairline);
+  cursor: pointer;
+  transition:
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.ds-filter-chip:hover { color: var(--color-ink-primary); border-color: var(--color-ink-secondary); }
+.ds-filter-chip[aria-pressed="true"] {
+  color: var(--color-ink-primary);
+  background: var(--color-surface-raised);
+  border-color: var(--color-ink-secondary);
+}
+.ds-filter-chip__count {
+  font-size: var(--type-xs);
+  color: var(--color-ink-secondary);
+}
+
+.l-search {
+  min-height: var(--target-min);
+  min-width: calc(var(--space-column) * 5);
+  padding: 0 var(--space-base);
+  font: inherit;
+  font-size: var(--type-sm);
+  color: var(--color-ink-primary);
+  background: var(--color-surface-recessed);
+  border: var(--hairline-width) solid var(--color-hairline);
+}
+.l-search::placeholder { color: var(--color-ink-secondary); }
+.l-search:hover { border-color: var(--color-ink-secondary); }
+
+/* ------------------------------------------------------------------ *
+ * ds-reconcile-bar — idle until entries are selected, armed once they are
+ * ------------------------------------------------------------------ */
+.ds-reconcile-bar {
+  flex-shrink: 0;
+  min-height: calc(var(--target-min) + var(--space-base));
+  padding: var(--space-tight) var(--space-base);
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  background: var(--color-surface-raised);
+  border: var(--hairline-width) solid var(--color-hairline);
+}
+.ds-reconcile-bar[data-state="armed"] { border-color: var(--color-ink-secondary); }
+.ds-reconcile-bar__status {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--type-md);
+  color: var(--color-ink-secondary);
+}
+.ds-reconcile-bar[data-state="armed"] .ds-reconcile-bar__status { color: var(--color-ink-primary); }
+.ds-reconcile-bar__figure { color: var(--color-ink-secondary); }
+
+/* ------------------------------------------------------------------ *
+ * ds-batch-note — what the surface says after a bulk action
+ * ------------------------------------------------------------------ */
+.ds-batch-note {
+  flex-shrink: 0;
+  min-height: calc(var(--target-min) + var(--space-base));
+  padding: var(--space-tight) var(--space-base);
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  background: var(--color-surface-recessed);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-left: var(--edge-width) solid var(--color-ink-secondary);
+}
+.ds-batch-note[hidden] { display: none; }
+.ds-batch-note__text { flex: 1; min-width: 0; font-size: var(--type-sm); }
+.ds-batch-note__depth { color: var(--color-ink-secondary); }
+
+/* ------------------------------------------------------------------ *
+ * ds-entry-row and the list it lives in
+ * ------------------------------------------------------------------ */
+.l-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: var(--hairline-width) solid var(--color-hairline);
+}
+
+.l-list__head,
+.ds-entry-row {
+  display: grid;
+  grid-template-columns:
+    var(--col-select) var(--col-date) minmax(0, 1fr) var(--col-state) var(--col-amount);
+  align-items: center;
+}
+
+.l-list__head {
+  flex-shrink: 0;
+  min-height: calc(var(--space-wide) + var(--space-tight));
+  background: var(--color-surface-raised);
+  border-bottom: var(--hairline-width) solid var(--color-hairline);
+}
+.l-list__head span { font-size: var(--type-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-ink-secondary); }
+.l-list__head .l-amount-head { text-align: right; padding-right: var(--space-base); }
+
+.l-list__body { flex: 1; min-height: 0; overflow-y: auto; }
+
+.l-list__empty {
+  padding: var(--space-wide) var(--space-base);
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+/* The select cell is a full-height 44 x 56 target wrapping the checkbox. */
+.l-select-cell {
+  height: 100%;
+  min-height: var(--target-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+/* Drawn by hand so the input's own hit rect is 44 x 44, not the ~16px
+   the native control ships at. The mark stays 16px. */
+.l-select-cell input {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: var(--target-min);
+  height: var(--target-min);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.l-select-cell input::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--space-base);
+  height: var(--space-base);
+  border: var(--hairline-width) solid var(--color-ink-secondary);
+}
+.l-select-cell input:hover::before { border-color: var(--color-ink-primary); }
+.l-select-cell input:disabled { cursor: default; }
+.l-select-cell input:disabled::before { border-color: var(--color-hairline); }
+.l-select-cell input:checked::before {
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+}
+.l-select-cell input:indeterminate::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--space-tight);
+  height: var(--edge-width);
+  background: var(--color-ink-primary);
+}
+
+.ds-entry-row {
+  min-height: var(--row-height);
+  border-bottom: var(--hairline-width) solid var(--color-hairline);
+  cursor: pointer;
+  /* No transition on background: selection feedback is immediate. */
+}
+.ds-entry-row:last-child { border-bottom: 0; }
+.ds-entry-row:hover { background: var(--color-surface-recessed); }
+.ds-entry-row:has(:focus-visible) { background: var(--color-surface-recessed); }
+.ds-entry-row[aria-selected="true"] {
+  background: var(--color-surface-raised);
+  box-shadow: inset var(--edge-width) 0 0 0 var(--color-ink-primary);
+}
+.ds-entry-row[aria-selected="true"]:hover { background: var(--color-surface-recessed); }
+
+.ds-entry-row__date {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  padding-right: var(--space-base);
+}
+.ds-entry-row__desc {
+  font-size: var(--type-sm);
+  color: var(--color-ink-primary);
+  padding-right: var(--space-base);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: text;
+}
+
+/* ds-match-marker — the confidence signal. Hue carries state, nothing else. */
+.ds-match-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  font-size: var(--type-sm);
+  padding-right: var(--space-base);
+}
+.ds-match-marker__dot {
+  width: var(--space-tight);
+  height: var(--space-tight);
+  flex-shrink: 0;
+  background: currentColor;
+}
+.ds-match-marker[data-state="match"]  { color: var(--color-signal-match); }
+.ds-match-marker[data-state="review"] { color: var(--color-signal-review); }
+.ds-match-marker[data-state="break"]  { color: var(--color-signal-break); }
+
+/* ds-amount-cell */
+.ds-amount-cell {
+  font-size: var(--type-sm);
+  text-align: right;
+  padding-right: var(--space-base);
+  user-select: text;
+}
+
+/* Page control belongs to the list, not to a component of its own. */
+.l-list__page-control {
+  flex-shrink: 0;
+  min-height: var(--target-min);
+  padding: 0 var(--space-tight) 0 var(--space-base);
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  background: var(--color-surface-raised);
+  border-top: var(--hairline-width) solid var(--color-hairline);
+}
+.l-list__page-control p { margin: 0; flex: 1; font-size: var(--type-xs); color: var(--color-ink-secondary); }
+
+/* ------------------------------------------------------------------ *
+ * ds-total-footer
+ * ------------------------------------------------------------------ */
+.ds-total-footer {
+  flex-shrink: 0;
+  padding: var(--space-tight) var(--space-base);
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-wide);
+  background: var(--color-surface-raised);
+  border: var(--hairline-width) solid var(--color-hairline);
+}
+.ds-total-footer__figure {
+  display: block;
+  font-size: var(--type-xl);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+.ds-total-footer__meta {
+  display: block;
+  margin-top: var(--space-tight);
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+.ds-total-footer__aside {
+  margin-left: auto;
+  text-align: right;
+}
+.ds-total-footer__aside p { margin: 0; font-size: var(--type-sm); }
+.ds-total-footer__aside p + p { margin-top: var(--space-tight); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="l-screen">
+
+  <header class="l-head">
+    <h1>Reconciliation review</h1>
+    <p>Bank feed &middot; imported 2&ndash;27 July 2026</p>
+  </header>
+
+  <!-- Filters ------------------------------------------------------ -->
+  <div class="l-toolbar">
+    <div class="l-toolbar__group">
+      <span class="l-eyebrow" id="filter-state-label">Match state</span>
+      <div class="l-toolbar__controls" role="group" aria-labelledby="filter-state-label">
+        <button type="button" class="ds-filter-chip" data-filter="match" aria-pressed="false">
+          <span class="ds-match-marker" data-state="match" aria-hidden="true"><span class="ds-match-marker__dot"></span></span>
+          Matched <span class="ds-filter-chip__count" data-count="match">13</span>
+        </button>
+        <button type="button" class="ds-filter-chip" data-filter="review" aria-pressed="false">
+          <span class="ds-match-marker" data-state="review" aria-hidden="true"><span class="ds-match-marker__dot"></span></span>
+          Review <span class="ds-filter-chip__count" data-count="review">7</span>
+        </button>
+        <button type="button" class="ds-filter-chip" data-filter="break" aria-pressed="false">
+          <span class="ds-match-marker" data-state="break" aria-hidden="true"><span class="ds-match-marker__dot"></span></span>
+          Break <span class="ds-filter-chip__count" data-count="break">4</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="l-toolbar__group">
+      <label class="l-eyebrow" for="search">Description</label>
+      <input class="l-search" id="search" type="search" autocomplete="off" placeholder="Filter by description">
+    </div>
+
+    <div class="l-toolbar__spacer"></div>
+
+    <div class="l-toolbar__group">
+      <span class="l-eyebrow">&nbsp;</span>
+      <button type="button" class="l-action" id="clear-filters" disabled>Clear filters</button>
+    </div>
+  </div>
+
+  <!-- ds-reconcile-bar --------------------------------------------- -->
+  <div class="ds-reconcile-bar" data-state="idle">
+    <p class="ds-reconcile-bar__status" id="reconcile-status" aria-live="polite">No entries selected</p>
+    <button type="button" class="l-action" id="clear-selection" disabled>Clear selection</button>
+    <button type="button" class="l-action l-action--primary" id="reconcile" disabled>Reconcile</button>
+  </div>
+
+  <!-- ds-batch-note ------------------------------------------------ -->
+  <div class="ds-batch-note" id="batch-note" hidden>
+    <p class="ds-batch-note__text" id="batch-note-text" aria-live="polite"></p>
+    <button type="button" class="l-action" id="undo">Undo</button>
+  </div>
+
+  <!-- List --------------------------------------------------------- -->
+  <div class="l-list">
+    <div class="l-list__head">
+      <label class="l-select-cell">
+        <input type="checkbox" id="select-page" aria-label="Select all entries on this page">
+      </label>
+      <span>Date</span>
+      <span>Description</span>
+      <span>Match</span>
+      <span class="l-amount-head">Amount</span>
+    </div>
+    <div class="l-list__body" id="list-body"></div>
+    <div class="l-list__page-control">
+      <p id="page-summary"></p>
+      <button type="button" class="l-action" id="prev-page">Previous</button>
+      <button type="button" class="l-action" id="next-page">Next</button>
+    </div>
+  </div>
+
+  <!-- ds-total-footer ---------------------------------------------- -->
+  <footer class="ds-total-footer">
+    <div>
+      <span class="l-eyebrow">Unreconciled</span>
+      <span class="ds-total-footer__figure" id="total-figure">&mdash;</span>
+      <span class="ds-total-footer__meta" id="total-meta"></span>
+    </div>
+    <div class="ds-total-footer__aside">
+      <p id="total-in-view"></p>
+      <p id="total-reconciled"></p>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* Seed data. Amounts held in pence so totals never drift. */
+  var SEED = [
+    ["2026-07-02", "Kingsway Supplies Ltd",              -28450, "match"],
+    ["2026-07-02", "Card payment — SUMUP *CAFE",     -1420, "review"],
+    ["2026-07-03", "Invoice 20418 — Hartley & Co",  315000, "match"],
+    ["2026-07-03", "Direct debit — BRITISH GAS",    -21288, "match"],
+    ["2026-07-04", "FASTER PAYMENT REF 88213",            94000, "break"],
+    ["2026-07-06", "Kingsway Supplies Ltd",               -9675, "match"],
+    ["2026-07-07", "Card payment — TFL TRAVEL",       -840, "review"],
+    ["2026-07-08", "Invoice 20419 — Marchmont Trust",187500, "match"],
+    ["2026-07-09", "Standing order — OFFICE RENT",  -145000, "match"],
+    ["2026-07-10", "Refund — Kingsway Supplies Ltd",   4230, "review"],
+    ["2026-07-11", "FASTER PAYMENT REF 88407",             51200, "break"],
+    ["2026-07-13", "Card payment — AMZN MKTPLACE",   -13799, "review"],
+    ["2026-07-14", "Invoice 20420 — Hartley & Co",   224000, "match"],
+    ["2026-07-15", "Direct debit — VODAFONE",         -7800, "match"],
+    ["2026-07-16", "Card payment — SUMUP *CAFE",      -1160, "review"],
+    ["2026-07-17", "Kingsway Supplies Ltd",               -31805, "match"],
+    ["2026-07-18", "FASTER PAYMENT REF 88612",             27500, "break"],
+    ["2026-07-20", "Invoice 20421 — Delaney Partners",410000, "match"],
+    ["2026-07-21", "Card payment — STATIONERY DIRECT", -6344, "review"],
+    ["2026-07-22", "Direct debit — INSURANCE PREMIUM",-18950, "match"],
+    ["2026-07-23", "Kingsway Supplies Ltd",               -14520, "match"],
+    ["2026-07-24", "FASTER PAYMENT REF 88903",            102000, "break"],
+    ["2026-07-25", "Invoice 20422 — Marchmont Trust",166000, "match"],
+    ["2026-07-27", "Card payment — TFL TRAVEL",        -680, "review"]
+  ].map(function (r, i) {
+    return { id: i + 1, date: r[0], desc: r[1], pence: r[2], state: r[3] };
+  });
+
+  /* Eight per page: three even pages, and the screen still fits 1440x900
+     with the batch note open, so no state makes the list scroll. */
+  var PAGE_SIZE = 8;
+  var LABEL = { match: "Matched", review: "Review", break: "Break" };
+
+  var reconciled = new Set();   /* ids removed from the unreconciled list */
+  var selected = new Set();     /* ids selected on the current page + filter */
+  var states = new Set();       /* active match-state filters; empty = all */
+  var query = "";
+  var page = 0;
+  var undoStack = [];           /* [{ ids: [...], pence: n }] — most recent last */
+  var anchor = -1;              /* row index for shift-click ranges */
+
+  var el = {};
+  ["reconcile-status", "clear-selection", "reconcile", "batch-note", "batch-note-text",
+   "undo", "select-page", "list-body", "page-summary", "prev-page", "next-page",
+   "total-figure", "total-meta", "total-in-view", "total-reconciled",
+   "clear-filters", "search"].forEach(function (id) {
+    el[id] = document.getElementById(id);
+  });
+
+  /* ---------------------------------------------------------------- */
+
+  function money(pence) {
+    var sign = pence < 0 ? "−" : "";
+    var abs = Math.abs(pence);
+    var whole = String(Math.floor(abs / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    var frac = String(abs % 100).padStart(2, "0");
+    return sign + "£" + whole + "." + frac;
+  }
+
+  function entryCount(n) { return n === 1 ? "1 entry" : n + " entries"; }
+
+  function unreconciled() {
+    return SEED.filter(function (e) { return !reconciled.has(e.id); });
+  }
+
+  function visible() {
+    var q = query.trim().toLowerCase();
+    return unreconciled().filter(function (e) {
+      if (states.size && !states.has(e.state)) return false;
+      if (q && e.desc.toLowerCase().indexOf(q) === -1) return false;
+      return true;
+    });
+  }
+
+  function pageCount(list) { return Math.max(1, Math.ceil(list.length / PAGE_SIZE)); }
+
+  function pageItems(list) { return list.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE); }
+
+  function sum(list) {
+    return list.reduce(function (t, e) { return t + e.pence; }, 0);
+  }
+
+  function filtered() { return states.size > 0 || query.trim() !== ""; }
+
+  /* ---------------------------------------------------------------- *
+   * Render
+   * ---------------------------------------------------------------- */
+
+  function renderRows() {
+    var list = visible();
+    var pages = pageCount(list);
+    if (page > pages - 1) page = pages - 1;
+    if (page < 0) page = 0;
+    var items = pageItems(list);
+
+    el["list-body"].textContent = "";
+
+    if (items.length === 0) {
+      var empty = document.createElement("p");
+      empty.className = "l-list__empty";
+      empty.textContent = unreconciled().length === 0
+        ? "Nothing left to reconcile."
+        : "No entries match the current filter.";
+      el["list-body"].appendChild(empty);
+    }
+
+    items.forEach(function (e, index) {
+      var row = document.createElement("div");
+      row.className = "ds-entry-row";
+      row.setAttribute("role", "row");
+      row.setAttribute("aria-selected", selected.has(e.id) ? "true" : "false");
+      row.dataset.id = String(e.id);
+      row.dataset.index = String(index);
+
+      /* Deliberately a div, not a label: a wrapping label forwards a second
+         click to the checkbox and the row would toggle twice. */
+      var cell = document.createElement("div");
+      cell.className = "l-select-cell";
+      var box = document.createElement("input");
+      box.type = "checkbox";
+      box.checked = selected.has(e.id);
+      box.setAttribute("aria-label",
+        e.date + ", " + e.desc + ", " + money(e.pence) + ", " + LABEL[e.state]);
+      cell.appendChild(box);
+
+      var date = document.createElement("span");
+      date.className = "ds-entry-row__date";
+      date.textContent = e.date;
+
+      var desc = document.createElement("span");
+      desc.className = "ds-entry-row__desc";
+      desc.textContent = e.desc;
+      desc.title = e.desc;
+
+      var marker = document.createElement("span");
+      marker.className = "ds-match-marker";
+      marker.dataset.state = e.state;
+      var dot = document.createElement("span");
+      dot.className = "ds-match-marker__dot";
+      marker.appendChild(dot);
+      marker.appendChild(document.createTextNode(LABEL[e.state]));
+
+      var amount = document.createElement("span");
+      amount.className = "ds-amount-cell";
+      amount.textContent = money(e.pence);
+
+      row.appendChild(cell);
+      row.appendChild(date);
+      row.appendChild(desc);
+      row.appendChild(marker);
+      row.appendChild(amount);
+      el["list-body"].appendChild(row);
+    });
+
+    el["page-summary"].textContent = list.length === 0
+      ? "No entries"
+      : "Page " + (page + 1) + " of " + pages + " · " +
+        (page * PAGE_SIZE + 1) + "–" + (page * PAGE_SIZE + items.length) +
+        " of " + entryCount(list.length);
+
+    el["prev-page"].disabled = page === 0;
+    el["next-page"].disabled = page >= pages - 1;
+  }
+
+  function renderSelection() {
+    var items = pageItems(visible());
+
+    Array.prototype.forEach.call(el["list-body"].children, function (row) {
+      if (!row.dataset || !row.dataset.id) return;
+      var on = selected.has(Number(row.dataset.id));
+      row.setAttribute("aria-selected", on ? "true" : "false");
+      var box = row.querySelector("input");
+      if (box) box.checked = on;
+    });
+
+    var onPage = items.filter(function (e) { return selected.has(e.id); });
+    el["select-page"].checked = items.length > 0 && onPage.length === items.length;
+    el["select-page"].indeterminate = onPage.length > 0 && onPage.length < items.length;
+    el["select-page"].disabled = items.length === 0;
+
+    var bar = document.querySelector(".ds-reconcile-bar");
+    var picked = SEED.filter(function (e) { return selected.has(e.id); });
+
+    if (picked.length === 0) {
+      bar.dataset.state = "idle";
+      el["reconcile-status"].textContent = "No entries selected";
+      el.reconcile.textContent = "Reconcile";
+      el.reconcile.disabled = true;
+      el["clear-selection"].disabled = true;
+    } else {
+      bar.dataset.state = "armed";
+      el["reconcile-status"].textContent = entryCount(picked.length) + " selected";
+      var fig = document.createElement("span");
+      fig.className = "ds-reconcile-bar__figure";
+      fig.textContent = " · net " + money(sum(picked));
+      el["reconcile-status"].appendChild(fig);
+      el.reconcile.textContent = "Reconcile " + picked.length;
+      el.reconcile.disabled = false;
+      el["clear-selection"].disabled = false;
+    }
+  }
+
+  function renderTotals() {
+    var open = unreconciled();
+    var inPence = open.reduce(function (t, e) { return e.pence > 0 ? t + e.pence : t; }, 0);
+    var outPence = open.reduce(function (t, e) { return e.pence < 0 ? t + e.pence : t; }, 0);
+
+    el["total-figure"].textContent = money(sum(open));
+    el["total-meta"].textContent =
+      entryCount(open.length) + " · in " + money(inPence) + " · out " + money(outPence);
+
+    var view = visible();
+    el["total-in-view"].textContent = filtered()
+      ? "In view: " + entryCount(view.length) + " · net " + money(sum(view))
+      : "";
+    el["total-reconciled"].textContent = reconciled.size === 0
+      ? "Reconciled this session: none"
+      : "Reconciled this session: " + entryCount(reconciled.size);
+
+    ["match", "review", "break"].forEach(function (s) {
+      var n = open.filter(function (e) { return e.state === s; }).length;
+      document.querySelector('[data-count="' + s + '"]').textContent = String(n);
+    });
+  }
+
+  function renderNote() {
+    if (undoStack.length === 0) {
+      el["batch-note"].hidden = true;
+      el["batch-note-text"].textContent = "";
+      return;
+    }
+    var last = undoStack[undoStack.length - 1];
+    el["batch-note"].hidden = false;
+    el["batch-note-text"].textContent =
+      "Reconciled " + entryCount(last.ids.length) + " · net " + money(last.pence);
+    if (undoStack.length > 1) {
+      var depth = document.createElement("span");
+      depth.className = "ds-batch-note__depth";
+      depth.textContent = " · " + undoStack.length + " batches this session";
+      el["batch-note-text"].appendChild(depth);
+    }
+  }
+
+  function renderFilters() {
+    document.querySelectorAll(".ds-filter-chip").forEach(function (chip) {
+      chip.setAttribute("aria-pressed", states.has(chip.dataset.filter) ? "true" : "false");
+    });
+    el["clear-filters"].disabled = !filtered();
+  }
+
+  function render() {
+    renderFilters();
+    renderRows();
+    renderSelection();
+    renderTotals();
+    renderNote();
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Behaviour
+   * ---------------------------------------------------------------- */
+
+  function resetSelection() {
+    selected.clear();
+    anchor = -1;
+  }
+
+  function toggle(id, on) {
+    if (on) selected.add(id); else selected.delete(id);
+  }
+
+  el["list-body"].addEventListener("click", function (ev) {
+    var row = ev.target.closest(".ds-entry-row");
+    if (!row) return;
+
+    /* A drag that produced a text selection is not a row click. */
+    var sel = window.getSelection();
+    if (sel && String(sel).length > 0 && ev.target.closest(".ds-entry-row__desc, .ds-amount-cell")) return;
+
+    var id = Number(row.dataset.id);
+    var index = Number(row.dataset.index);
+    var onCheckbox = ev.target.tagName === "INPUT";
+    var want = onCheckbox ? ev.target.checked : !selected.has(id);
+
+    if (ev.shiftKey && anchor > -1) {
+      var items = pageItems(visible());
+      var lo = Math.min(anchor, index), hi = Math.max(anchor, index);
+      for (var i = lo; i <= hi; i++) toggle(items[i].id, want);
+    } else {
+      toggle(id, want);
+      anchor = index;
+    }
+    renderSelection();
+  });
+
+  el["select-page"].addEventListener("change", function () {
+    var items = pageItems(visible());
+    items.forEach(function (e) { toggle(e.id, el["select-page"].checked); });
+    anchor = -1;
+    renderSelection();
+  });
+
+  el["clear-selection"].addEventListener("click", function () {
+    resetSelection();
+    renderSelection();
+  });
+
+  el.reconcile.addEventListener("click", function () {
+    if (selected.size === 0) return;
+    var ids = SEED.filter(function (e) { return selected.has(e.id); }).map(function (e) { return e.id; });
+    var pence = sum(SEED.filter(function (e) { return selected.has(e.id); }));
+    ids.forEach(function (id) { reconciled.add(id); });
+    undoStack.push({ ids: ids, pence: pence });
+    resetSelection();
+    render();
+    el.undo.focus();
+  });
+
+  el.undo.addEventListener("click", function () {
+    var last = undoStack.pop();
+    if (!last) return;
+    last.ids.forEach(function (id) { reconciled.delete(id); });
+    resetSelection();
+    render();
+    if (undoStack.length > 0) el.undo.focus(); else el["select-page"].focus();
+  });
+
+  document.querySelectorAll(".ds-filter-chip").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      var s = chip.dataset.filter;
+      if (states.has(s)) states.delete(s); else states.add(s);
+      page = 0;
+      resetSelection();
+      render();
+    });
+  });
+
+  el.search.addEventListener("input", function () {
+    query = el.search.value;
+    page = 0;
+    resetSelection();
+    render();
+  });
+
+  el["clear-filters"].addEventListener("click", function () {
+    states.clear();
+    query = "";
+    el.search.value = "";
+    page = 0;
+    resetSelection();
+    render();
+  });
+
+  el["prev-page"].addEventListener("click", function () {
+    page = Math.max(0, page - 1);
+    resetSelection();
+    render();
+  });
+
+  el["next-page"].addEventListener("click", function () {
+    page = Math.min(pageCount(visible()) - 1, page + 1);
+    resetSelection();
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

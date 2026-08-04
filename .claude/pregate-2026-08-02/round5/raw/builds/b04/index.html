@@ -1,0 +1,1106 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reconciliation — Arena</title>
+<style>
+/* ------------------------------------------------------------------
+   Design-system tokens (arena · DESIGN.md, via compose_build_prompt).
+   Literal values live in this block ONLY. Everything below uses var().
+   ------------------------------------------------------------------ */
+:root {
+  --color-surface-base:     #F5F4F1;
+  --color-surface-raised:   #FFFFFF;
+  --color-surface-recessed: #EBE8E2;
+  --color-ink-primary:      #1A1A18;
+  --color-ink-secondary:    #5F5D57;
+  --color-signal-match:     #2E6F4E;
+  --color-signal-review:    #9A6400;
+  --color-signal-break:     #A33A2A;
+  --color-hairline:         #DEDBD4;
+
+  --type-xs: 0.8125rem;   /* 13px — the APP-TYPE-floor, used for column labels only */
+  --type-sm: 0.875rem;
+  --type-md: 0.9375rem;
+  --type-lg: 1.125rem;
+  --type-xl: 1.5rem;
+
+  --space-tight:  8px;
+  --space-base:   16px;
+  --space-wide:   24px;
+  --space-column: 56px;   /* dec_5 — fixed right inset of the amount column */
+
+  --motion-duration-fast: 110ms;
+  --motion-duration-base: 200ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Local constants the disclosed token set does not cover. Declared here so
+     no literal appears anywhere else in the sheet. See NOTES.md → Decisions. */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --hairline-width: 1px;
+  --focus-ring-width: 2px;
+  --marker-size: 6px;               /* dec_1 — filled 6px dot, no text of its own */
+  --radius-control: 6px;
+  --radius-pill: 999px;
+  --page-max: 1180px;
+  --row-height: calc(var(--space-wide) * 2);                                        /* 48 */
+  --control-min: calc(var(--space-wide) + var(--space-base) + var(--space-tight));  /* 48 */
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--color-surface-base);
+  color: var(--color-ink-primary);
+  font-family: var(--font-sans);
+  font-size: var(--type-md);
+  line-height: 1.45;
+}
+
+.sr-only {
+  position: absolute;
+  width: var(--hairline-width);
+  height: var(--hairline-width);
+  padding: 0;
+  margin: calc(var(--hairline-width) * -1);
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-ink-primary);
+  outline-offset: var(--focus-ring-width);
+}
+
+/* ---------------------------------------------- page shell */
+
+.page {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: var(--space-base) var(--space-wide) 0;
+  /* the entry list scrolls behind the pinned total footer (dec_4), but every
+     row must still be reachable, so the shell reserves the footer's height */
+  padding-bottom: calc(var(--control-min) + var(--space-base) + var(--space-base));
+}
+
+.page-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-base);
+  padding-bottom: var(--space-tight);
+}
+
+h1 {
+  font-size: var(--type-xl);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.caption {
+  margin: 0;
+  color: var(--color-ink-secondary);
+  font-size: var(--type-sm);
+}
+
+/* ---------------------------------------------- filters */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-base);
+  padding: 0 0 var(--space-base);
+}
+
+.chipset {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+}
+
+.chipset + .chipset {
+  padding-left: var(--space-base);
+  border-left: var(--hairline-width) solid var(--color-hairline);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  min-height: var(--control-min);
+  min-width: var(--control-min);
+  padding: 0 var(--space-base);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-raised);
+  color: var(--color-ink-secondary);
+  font: inherit;
+  font-size: var(--type-sm);
+  cursor: pointer;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard),
+              color var(--motion-duration-fast) var(--motion-easing-standard),
+              border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.chip:hover { border-color: var(--color-ink-secondary); }
+
+.chip[aria-pressed="true"] {
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+  color: var(--color-surface-base);
+}
+
+.chip-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.filter-status {
+  margin: 0;
+  color: var(--color-ink-secondary);
+  font-size: var(--type-sm);
+}
+
+.text-button {
+  min-height: var(--control-min);
+  min-width: var(--control-min);
+  padding: 0 var(--space-base);
+  border: var(--hairline-width) solid transparent;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--color-ink-secondary);
+  font: inherit;
+  font-size: var(--type-sm);
+  text-decoration: underline;
+  text-underline-offset: var(--space-tight);
+  cursor: pointer;
+}
+
+.text-button:hover { color: var(--color-ink-primary); }
+
+.filters .filter-status { margin-left: auto; }
+
+/* ---------------------------------------------- entry list */
+
+.list-frame {
+  background: var(--color-surface-raised);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+thead th {
+  height: var(--row-height);
+  padding: 0 var(--space-base);
+  border-bottom: var(--hairline-width) solid var(--color-hairline);
+  background: var(--color-surface-raised);
+  color: var(--color-ink-secondary);
+  font-size: var(--type-xs);
+  font-weight: 500;
+  text-align: left;
+}
+
+.col-select { width: 6%; }
+.col-date   { width: 13%; }
+.col-desc   { width: 46%; }
+.col-state  { width: 15%; }
+.col-amount { width: 20%; }
+
+/* dec_5 — the amount column is right-aligned and its right edge sits a fixed
+   --space-column from the row edge, identical on every row */
+.col-amount,
+.cell-amount {
+  text-align: right;
+  padding-right: var(--space-column);
+}
+
+tbody tr {
+  height: var(--row-height);          /* dec_msdyq34c_bmr7 — identical resting,
+                                         hovered and selected; nothing expands */
+  border-bottom: var(--hairline-width) solid var(--color-hairline);
+  cursor: default;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+tbody tr:last-child { border-bottom: 0; }
+tbody tr:hover { background: var(--color-surface-base); }
+tbody tr[aria-selected="true"] { background: var(--color-surface-recessed); }
+
+td {
+  padding: 0 var(--space-base);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell-date {
+  color: var(--color-ink-secondary);
+  font-size: var(--type-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.cell-desc { font-size: var(--type-md); }
+
+.cell-state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  height: var(--row-height);
+  color: var(--color-ink-secondary);   /* dec_1 — the state word lives in the row
+                                          body, not inside the marker */
+  font-size: var(--type-sm);
+}
+
+.cell-amount {
+  font-size: var(--type-md);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-primary);     /* dec_msdyq34c_we0s — a negative is
+                                          ink-primary with a leading minus */
+}
+
+/* ds-match-marker — filled dot in the signal hue, no text, no tooltip */
+.marker {
+  flex: 0 0 auto;
+  width: var(--marker-size);
+  height: var(--marker-size);
+  border-radius: var(--radius-pill);
+  background: var(--color-ink-secondary);
+}
+
+.marker[data-state="match"]  { background: var(--color-signal-match); }
+.marker[data-state="review"] { background: var(--color-signal-review); }
+.marker[data-state="break"]  { background: var(--color-signal-break); }
+
+/* selection control — the input itself carries the full hit area, with the
+   visual box drawn inside it, so the target and the control are one element */
+.checkbox {
+  display: flex;
+  align-items: center;
+  margin-left: calc(var(--space-tight) * -1);
+  cursor: pointer;
+}
+
+.checkbox input {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--control-min);
+  height: var(--control-min);
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.checkbox input::before {
+  content: "";
+  position: absolute;
+  inset: calc((var(--control-min) - var(--space-base)) / 2);
+  border: var(--hairline-width) solid var(--color-ink-secondary);
+  border-radius: calc(var(--radius-control) / 2);
+  background: var(--color-surface-raised);
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard),
+              border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.checkbox input:checked::before,
+.checkbox input:indeterminate::before {
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+}
+
+.checkbox input:checked::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(var(--space-tight) / 2);
+  height: calc(var(--space-tight) * 1.1);
+  border: solid var(--color-surface-raised);
+  border-width: 0 var(--focus-ring-width) var(--focus-ring-width) 0;
+  transform: translate(-50%, -60%) rotate(45deg);
+}
+
+.checkbox input:indeterminate::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--space-tight);
+  height: var(--focus-ring-width);
+  background: var(--color-surface-raised);
+  transform: translate(-50%, -50%);
+}
+
+.checkbox input:hover::before { border-color: var(--color-ink-primary); }
+
+.checkbox input:focus-visible { outline: none; }
+
+.checkbox input:focus-visible::before {
+  outline: var(--focus-ring-width) solid var(--color-ink-primary);
+  outline-offset: var(--focus-ring-width);
+}
+
+.checkbox input:disabled { cursor: default; }
+.checkbox input:disabled::before { opacity: 0.45; }
+
+.empty[hidden] { display: none; }
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-tight);
+  padding: var(--space-wide) var(--space-base);
+  color: var(--color-ink-secondary);
+  font-size: var(--type-sm);
+}
+
+/* ---------------------------------------------- pager */
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  padding: var(--space-tight) 0;
+}
+
+.pager-page,
+.pager-step {
+  min-width: var(--control-min);
+  min-height: var(--control-min);
+  padding: 0 var(--space-tight);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+  color: var(--color-ink-secondary);
+  font: inherit;
+  font-size: var(--type-sm);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.pager-page[aria-current="page"] {
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+  color: var(--color-surface-base);
+}
+
+.pager-step[disabled] {
+  color: var(--color-ink-secondary);
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pager-status {
+  margin: 0 0 0 auto;
+  color: var(--color-ink-secondary);
+  font-size: var(--type-sm);
+}
+
+/* ---------------------------------------------- reconcile bar (dec_msdyq34a_04p3:
+   after the list in document order and beneath it on screen — never floating) */
+
+.reconcile-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  padding: var(--space-base);
+  background: var(--color-surface-raised);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius-control);
+}
+
+.selection-count {
+  margin: 0;
+  font-size: var(--type-sm);
+}
+
+.selection-count .muted { color: var(--color-ink-secondary); }
+
+.bar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  margin-left: auto;
+}
+
+.button {
+  min-height: var(--control-min);
+  min-width: var(--control-min);
+  padding: 0 var(--space-wide);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+  color: var(--color-ink-primary);
+  font: inherit;
+  font-size: var(--type-sm);
+  cursor: pointer;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard),
+              border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.button:hover { border-color: var(--color-ink-secondary); }
+
+.button-primary {
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+  color: var(--color-surface-raised);
+}
+
+.button-primary:hover { background: var(--color-ink-secondary); border-color: var(--color-ink-secondary); }
+
+.button[aria-disabled="true"] {
+  background: var(--color-surface-recessed);
+  border-color: var(--color-hairline);
+  color: var(--color-ink-secondary);
+  cursor: default;
+}
+
+/* ---------------------------------------------- batch note (dec_2 / dec_3:
+   affordance first, then the count; persists until the next action; no timer) */
+
+.batch-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  font-size: var(--type-sm);
+  animation: note-in var(--motion-duration-base) var(--motion-easing-standard);
+}
+
+.batch-note .note-text { color: var(--color-ink-secondary); }
+
+.batch-note .button {
+  background: var(--color-surface-raised);
+  border-color: var(--color-ink-primary);
+}
+
+@keyframes note-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ---------------------------------------------- total footer (dec_4: pinned to
+   the bottom of the viewport, list scrolls behind it) */
+
+.total-footer {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  height: calc(var(--control-min) + var(--space-base));
+  padding: 0 var(--space-wide);
+  background: var(--color-surface-raised);
+  border-top: var(--hairline-width) solid var(--color-hairline);
+}
+
+.total-inner {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-base);
+  width: 100%;
+  max-width: var(--page-max);
+  margin: 0 auto;
+}
+
+.total-label {
+  color: var(--color-ink-secondary);
+  font-size: var(--type-sm);
+}
+
+.total-amount {
+  font-size: var(--type-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.total-meta {
+  margin-left: auto;
+  color: var(--color-ink-secondary);
+  font-size: var(--type-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header class="page-header">
+    <h1>Reconciliation</h1>
+    <p class="caption">Business current account &middot; statement imported 28 Jul 2026</p>
+  </header>
+
+  <section class="filters" aria-label="Filter entries">
+    <div class="chipset" role="group" aria-label="Match state">
+      <button type="button" class="chip" data-facet="state" data-value="match" aria-pressed="false">
+        <span class="marker" data-state="match" aria-hidden="true"></span>Match<span class="chip-count" data-count="match"></span>
+      </button>
+      <button type="button" class="chip" data-facet="state" data-value="review" aria-pressed="false">
+        <span class="marker" data-state="review" aria-hidden="true"></span>Review<span class="chip-count" data-count="review"></span>
+      </button>
+      <button type="button" class="chip" data-facet="state" data-value="break" aria-pressed="false">
+        <span class="marker" data-state="break" aria-hidden="true"></span>Break<span class="chip-count" data-count="break"></span>
+      </button>
+    </div>
+    <div class="chipset" role="group" aria-label="Amount">
+      <button type="button" class="chip" data-facet="amount" data-value="in" aria-pressed="false">
+        Money in<span class="chip-count" data-count="in"></span>
+      </button>
+      <button type="button" class="chip" data-facet="amount" data-value="out" aria-pressed="false">
+        Money out<span class="chip-count" data-count="out"></span>
+      </button>
+      <button type="button" class="chip" data-facet="amount" data-value="over" aria-pressed="false">
+        Over &pound;1,000<span class="chip-count" data-count="over"></span>
+      </button>
+    </div>
+    <button type="button" class="text-button" id="clear-filters" hidden>Clear filters</button>
+    <p class="filter-status" id="filter-status" role="status" aria-live="polite"></p>
+  </section>
+
+  <div class="list-frame">
+    <table aria-label="Imported entries">
+      <caption class="sr-only">Imported bank entries awaiting reconciliation</caption>
+      <thead>
+        <tr>
+          <th scope="col" class="col-select">
+            <label class="checkbox">
+              <input type="checkbox" id="select-page">
+              <span class="sr-only">Select every entry on this page</span>
+            </label>
+          </th>
+          <th scope="col" class="col-date">Date</th>
+          <th scope="col" class="col-desc">Description</th>
+          <th scope="col" class="col-state">State</th>
+          <th scope="col" class="col-amount">Amount</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty" hidden>
+      <p id="empty-text"></p>
+      <button type="button" class="text-button" id="empty-clear" hidden>Clear filters</button>
+    </div>
+  </div>
+
+  <nav class="pager" id="pager" aria-label="Entry pages"></nav>
+
+  <section class="reconcile-bar" aria-label="Reconcile selected entries">
+    <p class="selection-count" id="selection-count">No entries selected</p>
+    <div class="batch-note-slot" id="batch-note-slot" role="status" aria-live="polite"></div>
+    <div class="bar-actions">
+      <button type="button" class="button" id="clear-selection" aria-disabled="true">Clear selection</button>
+      <button type="button" class="button button-primary" id="reconcile" aria-disabled="true">Reconcile</button>
+    </div>
+  </section>
+
+</div>
+
+<footer class="total-footer" aria-label="Unreconciled total">
+  <div class="total-inner" role="status" aria-live="polite">
+    <span class="total-label">Unreconciled</span>
+    <span class="total-amount" id="total-amount"></span>
+    <span class="total-meta" id="total-meta"></span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------------------------------------------------------------- data */
+
+  var SEED = [
+    ['2026-07-02', 'Kingsway Supplies Ltd',            -284.50, 'match'],
+    ['2026-07-02', 'Card payment — SUMUP *CAFE',   -14.20, 'review'],
+    ['2026-07-03', 'Invoice 20418 — Hartley & Co', 3150.00, 'match'],
+    ['2026-07-03', 'Direct debit — BRITISH GAS',   -212.88, 'match'],
+    ['2026-07-04', 'FASTER PAYMENT REF 88213',           940.00, 'break'],
+    ['2026-07-06', 'Kingsway Supplies Ltd',              -96.75, 'match'],
+    ['2026-07-07', 'Card payment — TFL TRAVEL',      -8.40, 'review'],
+    ['2026-07-08', 'Invoice 20419 — Marchmont Trust', 1875.00, 'match'],
+    ['2026-07-09', 'Standing order — OFFICE RENT', -1450.00, 'match'],
+    ['2026-07-10', 'Refund — Kingsway Supplies Ltd',  42.30, 'review'],
+    ['2026-07-11', 'FASTER PAYMENT REF 88407',           512.00, 'break'],
+    ['2026-07-13', 'Card payment — AMZN MKTPLACE',  -137.99, 'review'],
+    ['2026-07-14', 'Invoice 20420 — Hartley & Co',  2240.00, 'match'],
+    ['2026-07-15', 'Direct debit — VODAFONE',        -78.00, 'match'],
+    ['2026-07-16', 'Card payment — SUMUP *CAFE',     -11.60, 'review'],
+    ['2026-07-17', 'Kingsway Supplies Ltd',             -318.05, 'match'],
+    ['2026-07-18', 'FASTER PAYMENT REF 88612',           275.00, 'break'],
+    ['2026-07-20', 'Invoice 20421 — Delaney Partners', 4100.00, 'match'],
+    ['2026-07-21', 'Card payment — STATIONERY DIRECT', -63.44, 'review'],
+    ['2026-07-22', 'Direct debit — INSURANCE PREMIUM', -189.50, 'match'],
+    ['2026-07-23', 'Kingsway Supplies Ltd',             -145.20, 'match'],
+    ['2026-07-24', 'FASTER PAYMENT REF 88903',          1020.00, 'break'],
+    ['2026-07-25', 'Invoice 20422 — Marchmont Trust', 1660.00, 'match'],
+    ['2026-07-27', 'Card payment — TFL TRAVEL',      -6.80, 'review']
+  ];
+
+  var STATE_WORD = { match: 'Match', review: 'Review', break: 'Break' };
+  var PER_PAGE = 10;
+
+  var ledger = SEED.map(function (row, i) {
+    return { id: i + 1, date: row[0], description: row[1], amount: row[2], state: row[3] };
+  });
+
+  var selected = new Set();
+  var filters = { state: new Set(), amount: new Set() };
+  var page = 0;
+  var reconciled = 0;
+  var lastBatch = null;   /* { items: [{ entry, index }], count } — undoable */
+  var note = null;        /* { kind: 'undo' | 'restored', count } */
+
+  /* ------------------------------------------------------------ helpers */
+
+  var money = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
+  var dateFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  function formatDate(iso) {
+    var parts = iso.split('-');
+    return dateFmt.format(new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
+  }
+
+  function matchesAmount(entry, value) {
+    if (value === 'in') { return entry.amount > 0; }
+    if (value === 'out') { return entry.amount < 0; }
+    return Math.abs(entry.amount) >= 1000;
+  }
+
+  /* facets AND together; chips inside one facet widen it
+     (dec_msdyq34b_8daa — a second chip narrows the question further) */
+  function matches(entry) {
+    if (filters.state.size && !filters.state.has(entry.state)) { return false; }
+    if (!filters.amount.size) { return true; }
+    var ok = false;
+    filters.amount.forEach(function (value) { if (matchesAmount(entry, value)) { ok = true; } });
+    return ok;
+  }
+
+  function visible() { return ledger.filter(matches); }
+
+  function pageCount(list) { return Math.max(1, Math.ceil(list.length / PER_PAGE)); }
+
+  function pageSlice(list) { return list.slice(page * PER_PAGE, page * PER_PAGE + PER_PAGE); }
+
+  function filtersActive() { return filters.state.size > 0 || filters.amount.size > 0; }
+
+  function el(id) { return document.getElementById(id); }
+
+  function setDisabled(button, isDisabled) {
+    button.setAttribute('aria-disabled', isDisabled ? 'true' : 'false');
+    button.disabled = false;   /* kept focusable so the state is announceable */
+  }
+
+  /* An action other than the one that produced it clears the note
+     (dec_3 — it never auto-dismisses, and it never outlives the next action). */
+  function clearNote() {
+    if (note) { note = null; }
+    if (lastBatch) { lastBatch = null; }
+  }
+
+  /* ------------------------------------------------------------ rendering */
+
+  function renderChips() {
+    var chips = document.querySelectorAll('.chip');
+    Array.prototype.forEach.call(chips, function (chip) {
+      var facet = chip.dataset.facet;
+      var value = chip.dataset.value;
+      chip.setAttribute('aria-pressed', filters[facet].has(value) ? 'true' : 'false');
+      var count = chip.querySelector('.chip-count');
+      var n = ledger.filter(function (entry) {
+        return facet === 'state' ? entry.state === value : matchesAmount(entry, value);
+      }).length;
+      count.textContent = String(n);
+    });
+    el('clear-filters').hidden = !filtersActive();
+  }
+
+  function renderRows(list) {
+    var rows = el('rows');
+    var slice = pageSlice(list);
+    rows.textContent = '';
+
+    slice.forEach(function (entry) {
+      var tr = document.createElement('tr');
+      tr.dataset.id = String(entry.id);
+      tr.setAttribute('aria-selected', selected.has(entry.id) ? 'true' : 'false');
+
+      var tdSelect = document.createElement('td');
+      var label = document.createElement('label');
+      label.className = 'checkbox';
+      var box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = selected.has(entry.id);
+      box.dataset.id = String(entry.id);
+      var boxLabel = document.createElement('span');
+      boxLabel.className = 'sr-only';
+      boxLabel.textContent = 'Select ' + entry.description + ', ' + formatDate(entry.date);
+      label.appendChild(box);
+      label.appendChild(boxLabel);
+      tdSelect.appendChild(label);
+
+      var tdDate = document.createElement('td');
+      tdDate.className = 'cell-date';
+      tdDate.textContent = formatDate(entry.date);
+
+      var tdDesc = document.createElement('td');
+      tdDesc.className = 'cell-desc';
+      tdDesc.textContent = entry.description;
+
+      var tdState = document.createElement('td');
+      var stateWrap = document.createElement('span');
+      stateWrap.className = 'cell-state';
+      var marker = document.createElement('span');
+      marker.className = 'marker';
+      marker.dataset.state = entry.state;      /* no tooltip — dec_msdyq34c_64s3 */
+      marker.setAttribute('aria-hidden', 'true');
+      var word = document.createElement('span');
+      word.textContent = STATE_WORD[entry.state];
+      stateWrap.appendChild(marker);
+      stateWrap.appendChild(word);
+      tdState.appendChild(stateWrap);
+
+      var tdAmount = document.createElement('td');
+      tdAmount.className = 'cell-amount';
+      tdAmount.textContent = money.format(entry.amount);
+
+      tr.appendChild(tdSelect);
+      tr.appendChild(tdDate);
+      tr.appendChild(tdDesc);
+      tr.appendChild(tdState);
+      tr.appendChild(tdAmount);
+      rows.appendChild(tr);
+    });
+
+    var empty = el('empty');
+    var emptyClear = el('empty-clear');
+    if (slice.length === 0) {
+      empty.hidden = false;
+      if (ledger.length === 0) {
+        el('empty-text').textContent = 'Everything is reconciled.';
+        emptyClear.hidden = true;
+      } else {
+        el('empty-text').textContent = 'No entries match these filters.';
+        emptyClear.hidden = false;
+      }
+    } else {
+      empty.hidden = true;
+      emptyClear.hidden = true;
+    }
+
+    /* header control: unchecked / mixed / checked over this page
+       (dec_msdyq34c_0pco — it reports a mixed state, it never hides) */
+    var header = el('select-page');
+    var onPage = slice.length;
+    var chosen = slice.filter(function (entry) { return selected.has(entry.id); }).length;
+    header.checked = onPage > 0 && chosen === onPage;
+    header.indeterminate = chosen > 0 && chosen < onPage;
+    header.disabled = onPage === 0;
+  }
+
+  function renderPager(list) {
+    var pager = el('pager');
+    pager.textContent = '';
+    var total = pageCount(list);
+
+    var prev = document.createElement('button');
+    prev.type = 'button';
+    prev.className = 'pager-step';
+    prev.id = 'pager-prev';
+    prev.textContent = 'Previous';
+    prev.disabled = page === 0;
+    prev.addEventListener('click', function () { goToPage(page - 1); });
+    pager.appendChild(prev);
+
+    for (var i = 0; i < total; i += 1) {
+      (function (index) {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'pager-page';
+        button.id = 'pager-page-' + (index + 1);
+        button.textContent = String(index + 1);
+        button.setAttribute('aria-label', 'Page ' + (index + 1));
+        if (index === page) { button.setAttribute('aria-current', 'page'); }
+        button.addEventListener('click', function () { goToPage(index); });
+        pager.appendChild(button);
+      }(i));
+    }
+
+    var next = document.createElement('button');
+    next.type = 'button';
+    next.className = 'pager-step';
+    next.id = 'pager-next';
+    next.textContent = 'Next';
+    next.disabled = page >= total - 1;
+    next.addEventListener('click', function () { goToPage(page + 1); });
+    pager.appendChild(next);
+
+    var status = document.createElement('p');
+    status.className = 'pager-status';
+    var first = list.length === 0 ? 0 : page * PER_PAGE + 1;
+    var last = Math.min(list.length, (page + 1) * PER_PAGE);
+    status.textContent = list.length === 0
+      ? 'No entries on this page'
+      : first + '–' + last + ' of ' + list.length;
+    pager.appendChild(status);
+  }
+
+  function renderBar(list) {
+    var count = selected.size;
+    var visibleIds = list.map(function (entry) { return entry.id; });
+    var hidden = 0;
+    selected.forEach(function (id) { if (visibleIds.indexOf(id) === -1) { hidden += 1; } });
+
+    var text = el('selection-count');
+    text.textContent = '';
+    /* the note and the selection count share the bar's left slot — a selection
+       is always the next action after a batch, so the two never coexist */
+    text.hidden = Boolean(note);
+    if (count === 0) {
+      text.textContent = 'No entries selected';
+    } else {
+      var head = document.createElement('span');
+      head.textContent = count + (count === 1 ? ' entry selected' : ' entries selected');
+      text.appendChild(head);
+      if (hidden > 0) {
+        var muted = document.createElement('span');
+        muted.className = 'muted';
+        muted.textContent = ' — ' + hidden + ' not shown by the current filter';
+        text.appendChild(muted);
+      }
+    }
+
+    setDisabled(el('reconcile'), count === 0);
+    setDisabled(el('clear-selection'), count === 0);
+  }
+
+  function renderNote() {
+    var slot = el('batch-note-slot');
+    slot.textContent = '';
+    if (!note) { return; }
+
+    var wrap = document.createElement('div');
+    wrap.className = 'batch-note';
+
+    if (note.kind === 'undo') {
+      /* dec_2 — affordance first, then the count. Em dash, no trailing period. */
+      var undo = document.createElement('button');
+      undo.type = 'button';
+      undo.className = 'button';
+      undo.id = 'undo';
+      undo.textContent = 'Undo';
+      undo.addEventListener('click', undoBatch);
+      var label = document.createElement('span');
+      label.className = 'note-text';
+      label.textContent = '— ' + note.count + ' reconciled';
+      wrap.appendChild(undo);
+      wrap.appendChild(label);
+    } else {
+      var restored = document.createElement('span');
+      restored.className = 'note-text';
+      restored.textContent = 'Restored — ' + note.count +
+        (note.count === 1 ? ' entry back on the list' : ' entries back on the list');
+      wrap.appendChild(restored);
+    }
+
+    slot.appendChild(wrap);
+  }
+
+  function renderTotals() {
+    var total = ledger.reduce(function (sum, entry) { return sum + entry.amount; }, 0);
+    el('total-amount').textContent = money.format(total);
+    var meta = ledger.length + (ledger.length === 1 ? ' entry' : ' entries');
+    if (reconciled > 0) { meta += ' · ' + reconciled + ' reconciled'; }
+    el('total-meta').textContent = meta;
+  }
+
+  function focusKey(node) {
+    if (!node || node === document.body) { return null; }
+    if (node.type === 'checkbox' && node.dataset && node.dataset.id) { return 'row:' + node.dataset.id; }
+    if (node.id) { return 'id:' + node.id; }
+    return null;
+  }
+
+  function restoreFocus(key) {
+    if (!key) { return; }
+    var target = key.indexOf('row:') === 0
+      ? document.querySelector('#rows input[data-id="' + key.slice(4) + '"]')
+      : document.getElementById(key.slice(3));
+    if (target && typeof target.focus === 'function' && !target.disabled) {
+      target.focus({ preventScroll: true });
+    }
+  }
+
+  function render() {
+    var key = focusKey(document.activeElement);
+    var list = visible();
+    var total = pageCount(list);
+    if (page > total - 1) { page = total - 1; }
+    if (page < 0) { page = 0; }
+
+    renderChips();
+    renderRows(list);
+    renderPager(list);
+    renderBar(list);
+    renderNote();
+    renderTotals();
+
+    el('filter-status').textContent = filtersActive()
+      ? 'Showing ' + list.length + ' of ' + ledger.length + ' entries'
+      : ledger.length + (ledger.length === 1 ? ' entry' : ' entries');
+
+    restoreFocus(key);
+  }
+
+  /* ------------------------------------------------------------ actions */
+
+  function goToPage(index) {
+    clearNote();                 /* a navigation ends the note (dec_3) */
+    page = index;
+    render();
+  }
+
+  function toggleChip(facet, value) {
+    clearNote();
+    if (filters[facet].has(value)) { filters[facet].delete(value); }
+    else { filters[facet].add(value); }
+    /* the filter selection itself survives page changes and bulk actions
+       (dec_msdyq34b_zxp6) — only an explicit clear resets it */
+    render();
+  }
+
+  function toggleEntry(id, force) {
+    clearNote();
+    var on = typeof force === 'boolean' ? force : !selected.has(id);
+    if (on) { selected.add(id); } else { selected.delete(id); }
+    render();
+  }
+
+  function togglePage(on) {
+    clearNote();
+    pageSlice(visible()).forEach(function (entry) {
+      if (on) { selected.add(entry.id); } else { selected.delete(entry.id); }
+    });
+    render();
+  }
+
+  /* dec_msdyq34a_tfum — applies immediately, no confirmation; the surface
+     reports what happened afterwards */
+  function reconcile() {
+    if (selected.size === 0) { return; }
+
+    var items = [];
+    ledger.forEach(function (entry, index) {
+      if (selected.has(entry.id)) { items.push({ entry: entry, index: index }); }
+    });
+
+    ledger = ledger.filter(function (entry) { return !selected.has(entry.id); });
+    reconciled += items.length;
+    lastBatch = { items: items, count: items.length };
+    note = { kind: 'undo', count: items.length };
+    selected.clear();
+    render();
+
+    var undo = el('undo');
+    if (undo) { undo.focus(); }
+  }
+
+  function undoBatch() {
+    if (!lastBatch) { return; }
+    var count = lastBatch.count;
+    lastBatch.items.forEach(function (item) {
+      var at = Math.min(item.index, ledger.length);
+      ledger.splice(at, 0, item.entry);
+    });
+    reconciled -= count;
+    lastBatch = null;
+    note = { kind: 'restored', count: count };
+    render();
+
+    var header = el('select-page');
+    if (header && !header.disabled) { header.focus(); }
+  }
+
+  /* ------------------------------------------------------------ wiring */
+
+  Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (chip) {
+    chip.addEventListener('click', function () {
+      toggleChip(chip.dataset.facet, chip.dataset.value);
+    });
+  });
+
+  el('clear-filters').addEventListener('click', function () {
+    clearNote();
+    filters.state.clear();
+    filters.amount.clear();
+    render();
+  });
+
+  el('empty-clear').addEventListener('click', function () {
+    clearNote();
+    filters.state.clear();
+    filters.amount.clear();
+    render();
+  });
+
+  el('select-page').addEventListener('change', function (event) {
+    togglePage(event.target.checked);
+  });
+
+  /* rows are selected by their checkbox or by click — no shift-range,
+     no drag selection (dec_msdyq34d_jfkp) */
+  el('rows').addEventListener('change', function (event) {
+    var box = event.target;
+    if (box && box.type === 'checkbox' && box.dataset.id) {
+      toggleEntry(Number(box.dataset.id), box.checked);
+    }
+  });
+
+  el('rows').addEventListener('click', function (event) {
+    if (event.target.closest('label.checkbox')) { return; }
+    var tr = event.target.closest('tr');
+    if (!tr || !tr.dataset.id) { return; }
+    toggleEntry(Number(tr.dataset.id));
+  });
+
+  el('reconcile').addEventListener('click', function () {
+    if (el('reconcile').getAttribute('aria-disabled') === 'true') { return; }
+    reconcile();
+  });
+
+  el('clear-selection').addEventListener('click', function () {
+    if (el('clear-selection').getAttribute('aria-disabled') === 'true') { return; }
+    clearNote();
+    selected.clear();
+    render();
+  });
+
+  render();
+}());
+</script>
+
+</body>
+</html>

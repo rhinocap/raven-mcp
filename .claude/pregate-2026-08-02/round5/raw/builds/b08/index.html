@@ -1,0 +1,971 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unreconciled entries — Arena</title>
+<style>
+/* ------------------------------------------------------------------
+   TOKEN LAYER — the only literals in this file.
+   The design system exposes these token NAMES (colors / type / space /
+   motion) but the compose_build_prompt response did not disclose their
+   VALUES, so the values below are placeholders held in one place.
+   Everything past this block consumes them through var() only.
+   The names under LOCAL are not in the disclosed token list; they are
+   declared here rather than inlined as literals further down.
+   ------------------------------------------------------------------ */
+:root {
+  --color-surface-base:      #faf9f6;
+  --color-surface-raised:    #ffffff;
+  --color-surface-recessed:  #f0eee9;
+  --color-ink-primary:       #1c1b19;
+  --color-ink-secondary:     #55514a;
+  --color-signal-match:      #2c6a4d;
+  --color-signal-review:     #8a5712;
+  --color-signal-break:      #a3331d;
+  --color-hairline:          #e2ded7;
+
+  --type-xs: 13px;
+  --type-sm: 14px;
+  --type-md: 15px;
+  --type-lg: 20px;
+  --type-xl: 28px;
+
+  --space-tight: 8px;
+  --space-base: 16px;
+  --space-wide: 32px;
+  --space-column: 56px;
+
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 200ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* LOCAL — structural constants, not colour/type decisions */
+  --font-sans: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --hairline-width: 1px;
+  --radius-sm: 4px;
+  --radius-pill: 999px;
+  --control-min: 44px;   /* tap-target floor */
+  --row-height: 52px;
+  --box-size: 18px;
+  --dot-size: 6px;
+  --rail-width: 3px;
+  --bar-height: 64px;
+  --note-height: 44px;
+  --footer-height: 64px;
+  --date-col: 92px;
+  --state-col: 128px;
+  --amount-col: 200px;
+  --shell-max: 1120px;
+  --tracking-tight: -0.01em;
+  --tracking-label: 0.06em;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-surface-base);
+  color: var(--color-ink-primary);
+  font-family: var(--font-sans);
+  font-size: var(--type-md);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: var(--hairline-width);
+  height: var(--hairline-width);
+  margin: calc(-1 * var(--hairline-width));
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+:focus-visible {
+  outline: var(--rail-width) solid var(--color-ink-primary);
+  outline-offset: calc(var(--hairline-width) * 2);
+}
+
+/* ---------------- shell ---------------- */
+
+.shell {
+  max-width: var(--shell-max);
+  margin: 0 auto;
+  padding: var(--space-wide) var(--space-wide)
+           calc(var(--footer-height) + var(--space-wide));
+}
+
+.page-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-base);
+  margin: 0 0 var(--space-base);
+}
+
+.page-head h1 {
+  margin: 0;
+  font-size: var(--type-xl);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+}
+
+.page-head .source {
+  margin: 0;
+  color: var(--color-ink-secondary);
+  font-size: var(--type-sm);
+}
+
+/* ---------------- filters ---------------- */
+
+.filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-base);
+  padding: 0 0 var(--space-base);
+}
+
+.chip-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+}
+
+.chip-group > .group-label {
+  color: var(--color-ink-secondary);
+  font-size: var(--type-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  margin-right: var(--space-tight);
+}
+
+.chip {
+  min-height: var(--control-min);
+  min-width: var(--control-min);
+  padding: 0 var(--space-base);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-raised);
+  color: var(--color-ink-primary);
+  font: inherit;
+  font-size: var(--type-sm);
+  cursor: pointer;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard),
+              border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.chip:hover { background: var(--color-surface-recessed); }
+
+.chip[aria-pressed="true"] {
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+  color: var(--color-surface-base);
+}
+
+.chip .chip-count {
+  color: var(--color-ink-secondary);
+  margin-left: var(--space-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+.chip[aria-pressed="true"] .chip-count { color: var(--color-surface-recessed); }
+
+.filter-clear {
+  min-height: var(--control-min);
+  padding: 0 var(--space-base);
+  border: 0;
+  background: none;
+  color: var(--color-ink-secondary);
+  font: inherit;
+  font-size: var(--type-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.filter-clear[hidden] { display: none; }
+
+/* ---------------- entry list ---------------- */
+
+.list-panel {
+  background: var(--color-surface-raised);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+table.entries {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+table.entries thead th {
+  background: var(--color-surface-recessed);
+  border-bottom: var(--hairline-width) solid var(--color-hairline);
+  color: var(--color-ink-secondary);
+  font-size: var(--type-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  text-align: left;
+  padding: 0 var(--space-base);
+  height: var(--control-min);
+}
+
+th.col-select, td.col-select { width: var(--control-min); padding: 0; }
+th.col-date,   td.col-date   { width: var(--date-col); }
+th.col-state,  td.col-state  { width: var(--state-col); }
+th.col-amount, td.col-amount {
+  width: var(--amount-col);
+  text-align: right;
+  padding-right: var(--space-column); /* fixed right edge on every row */
+}
+
+td.col-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+table.entries tbody tr {
+  height: var(--row-height);          /* identical resting / hover / selected */
+  border-bottom: var(--hairline-width) solid var(--color-hairline);
+  cursor: pointer;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+table.entries tbody tr:last-child { border-bottom: 0; }
+table.entries tbody tr:hover { background: var(--color-surface-recessed); }
+
+table.entries tbody tr.is-selected {
+  background: var(--color-surface-recessed);
+  box-shadow: inset var(--rail-width) 0 0 0 var(--color-ink-primary);
+}
+
+table.entries tbody td {
+  padding: 0 var(--space-base);
+  vertical-align: middle;
+}
+
+.select-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-min);
+  height: var(--control-min);
+  cursor: pointer;
+}
+
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: var(--box-size);
+  height: var(--box-size);
+  margin: 0;
+  border: var(--hairline-width) solid var(--color-ink-secondary);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  cursor: pointer;
+  position: relative;
+}
+
+input[type="checkbox"]:checked,
+input[type="checkbox"]:indeterminate {
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+}
+
+input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--color-surface-base);
+  clip-path: polygon(14% 46%, 8% 56%, 40% 82%, 92% 24%, 84% 16%, 39% 66%);
+}
+
+input[type="checkbox"]:indeterminate::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--color-surface-base);
+  clip-path: polygon(20% 44%, 80% 44%, 80% 56%, 20% 56%);
+}
+
+.entry-date {
+  color: var(--color-ink-secondary);
+  font-size: var(--type-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.state-cell { display: flex; align-items: center; gap: var(--space-tight); }
+
+.marker {
+  width: var(--dot-size);
+  height: var(--dot-size);
+  border-radius: var(--radius-pill);
+  flex: 0 0 auto;
+}
+
+.marker.state-match  { background: var(--color-signal-match); }
+.marker.state-review { background: var(--color-signal-review); }
+.marker.state-break  { background: var(--color-signal-break); }
+
+.state-word {
+  color: var(--color-ink-secondary);
+  font-size: var(--type-sm);
+}
+
+.amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.empty-state {
+  padding: var(--space-wide) var(--space-base);
+  color: var(--color-ink-secondary);
+  text-align: center;
+}
+
+/* ---------------- reconcile bar (below the list) ---------------- */
+
+.reconcile-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-base);
+  min-height: var(--bar-height);
+  margin-top: var(--space-base);
+  padding: 0 var(--space-base);
+  background: var(--color-surface-raised);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+}
+
+.bar-count {
+  font-size: var(--type-md);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar-count .muted { color: var(--color-ink-secondary); }
+
+.bar-actions { display: flex; align-items: center; gap: var(--space-tight); }
+
+.btn {
+  min-height: var(--control-min);
+  min-width: var(--control-min);
+  padding: 0 var(--space-base);
+  border: var(--hairline-width) solid var(--color-ink-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-ink-primary);
+  color: var(--color-surface-base);
+  font: inherit;
+  font-size: var(--type-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.btn:hover { opacity: 0.88; }
+
+.btn[disabled] {
+  background: var(--color-surface-recessed);
+  border-color: var(--color-hairline);
+  color: var(--color-ink-secondary);
+  cursor: default;
+  opacity: 1;
+}
+
+.btn-quiet {
+  background: var(--color-surface-raised);
+  border-color: var(--color-hairline);
+  color: var(--color-ink-primary);
+  font-weight: 400;
+}
+
+.btn-quiet[disabled] { color: var(--color-ink-secondary); }
+
+/* ---------------- batch note (undo) ---------------- */
+
+.batch-note {
+  display: flex;
+  align-items: center;
+  min-height: var(--note-height);
+  margin-top: var(--space-tight);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--motion-duration-base) var(--motion-easing-standard);
+}
+
+.batch-note.is-shown { opacity: 1; visibility: visible; }
+
+.batch-note .undo {
+  min-height: var(--control-min);
+  min-width: var(--control-min);
+  padding: 0 var(--space-base);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-recessed);
+  color: var(--color-ink-primary);
+  font: inherit;
+  font-size: var(--type-sm);
+  cursor: pointer;
+}
+
+.batch-note .undo:hover { background: var(--color-surface-raised); }
+
+/* ---------------- pager ---------------- */
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  margin-top: var(--space-base);
+}
+
+.pager .page-of {
+  margin-right: auto;
+  color: var(--color-ink-secondary);
+  font-size: var(--type-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.pager button {
+  min-height: var(--control-min);
+  min-width: var(--control-min);
+  padding: 0 var(--space-tight);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-ink-primary);
+  font: inherit;
+  font-size: var(--type-sm);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.pager button:hover:not([disabled]) { background: var(--color-surface-recessed); }
+
+.pager button[aria-current="page"] {
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+  color: var(--color-surface-base);
+  font-weight: 600;
+}
+
+.pager button[disabled] { color: var(--color-ink-secondary); cursor: default; }
+
+.pager .step { padding: 0 var(--space-base); }
+
+/* ---------------- total footer (pinned) ---------------- */
+
+.total-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--footer-height);
+  display: flex;
+  align-items: center;
+  background: var(--color-surface-raised);
+  border-top: var(--hairline-width) solid var(--color-hairline);
+}
+
+.total-inner {
+  width: 100%;
+  max-width: var(--shell-max);
+  margin: 0 auto;
+  padding: 0 var(--space-wide);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-base);
+}
+
+.total-left {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-base);
+}
+
+.total-label {
+  color: var(--color-ink-secondary);
+  font-size: var(--type-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+}
+
+.total-meta {
+  color: var(--color-ink-secondary);
+  font-size: var(--type-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.total-value {
+  font-size: var(--type-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 1ms !important; }
+}
+</style>
+</head>
+<body>
+
+<main class="shell">
+  <header class="page-head">
+    <h1>Unreconciled entries</h1>
+    <p class="source">Bank feed · July 2026</p>
+  </header>
+
+  <section class="filters" aria-label="Filter entries">
+    <div class="chip-group" role="group" aria-label="Match state">
+      <span class="group-label" id="lbl-state">State</span>
+      <button type="button" class="chip" data-family="state" data-value="match"  aria-pressed="false">Match <span class="chip-count" data-count="match"></span></button>
+      <button type="button" class="chip" data-family="state" data-value="review" aria-pressed="false">Review <span class="chip-count" data-count="review"></span></button>
+      <button type="button" class="chip" data-family="state" data-value="break"  aria-pressed="false">Break <span class="chip-count" data-count="break"></span></button>
+    </div>
+
+    <div class="chip-group" role="group" aria-label="Direction">
+      <span class="group-label">Direction</span>
+      <button type="button" class="chip" data-family="direction" data-value="out" aria-pressed="false">Money out</button>
+      <button type="button" class="chip" data-family="direction" data-value="in"  aria-pressed="false">Money in</button>
+    </div>
+
+    <div class="chip-group" role="group" aria-label="Size">
+      <span class="group-label">Size</span>
+      <button type="button" class="chip" data-family="size" data-value="over1000" aria-pressed="false">Over £1,000</button>
+    </div>
+
+    <button type="button" class="filter-clear" id="clearFilters" hidden>Clear filters</button>
+  </section>
+
+  <div class="list-panel">
+    <table class="entries">
+      <caption class="visually-hidden" id="tableCaption">Imported bank entries awaiting reconciliation</caption>
+      <thead>
+        <tr>
+          <th scope="col" class="col-select">
+            <label class="select-cell" for="selectPage">
+              <input type="checkbox" id="selectPage">
+              <span class="visually-hidden">Select all entries on this page</span>
+            </label>
+          </th>
+          <th scope="col" class="col-date">Date</th>
+          <th scope="col" class="col-desc">Description</th>
+          <th scope="col" class="col-state">State</th>
+          <th scope="col" class="col-amount">Amount</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p class="empty-state" id="emptyState" hidden>No entries match these filters</p>
+  </div>
+
+  <div class="reconcile-bar">
+    <p class="bar-count" id="selectionCount">Nothing selected</p>
+    <div class="bar-actions">
+      <button type="button" class="btn btn-quiet" id="clearSelection" disabled>Clear selection</button>
+      <button type="button" class="btn" id="reconcile" disabled>Reconcile</button>
+    </div>
+  </div>
+
+  <div class="batch-note" id="batchNote" role="status" aria-live="polite">
+    <button type="button" class="undo" id="undo"></button>
+  </div>
+
+  <nav class="pager" id="pager" aria-label="Entry list pages"></nav>
+
+  <p class="visually-hidden" role="status" aria-live="polite" id="listStatus"></p>
+</main>
+
+<footer class="total-footer">
+  <div class="total-inner">
+    <span class="total-left">
+      <span class="total-label">Unreconciled</span>
+      <span class="total-meta" id="totalMeta"></span>
+    </span>
+    <span class="total-value" id="totalValue" aria-live="polite"></span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var SEED = [
+    { id: 1,  date: "2026-07-02", desc: "Kingsway Supplies Ltd",            amount: -284.50, state: "match"  },
+    { id: 2,  date: "2026-07-02", desc: "Card payment — SUMUP *CAFE",       amount:  -14.20, state: "review" },
+    { id: 3,  date: "2026-07-03", desc: "Invoice 20418 — Hartley & Co",     amount: 3150.00, state: "match"  },
+    { id: 4,  date: "2026-07-03", desc: "Direct debit — BRITISH GAS",       amount: -212.88, state: "match"  },
+    { id: 5,  date: "2026-07-04", desc: "FASTER PAYMENT REF 88213",         amount:  940.00, state: "break"  },
+    { id: 6,  date: "2026-07-06", desc: "Kingsway Supplies Ltd",            amount:  -96.75, state: "match"  },
+    { id: 7,  date: "2026-07-07", desc: "Card payment — TFL TRAVEL",        amount:   -8.40, state: "review" },
+    { id: 8,  date: "2026-07-08", desc: "Invoice 20419 — Marchmont Trust",  amount: 1875.00, state: "match"  },
+    { id: 9,  date: "2026-07-09", desc: "Standing order — OFFICE RENT",     amount:-1450.00, state: "match"  },
+    { id: 10, date: "2026-07-10", desc: "Refund — Kingsway Supplies Ltd",   amount:   42.30, state: "review" },
+    { id: 11, date: "2026-07-11", desc: "FASTER PAYMENT REF 88407",         amount:  512.00, state: "break"  },
+    { id: 12, date: "2026-07-13", desc: "Card payment — AMZN MKTPLACE",     amount: -137.99, state: "review" },
+    { id: 13, date: "2026-07-14", desc: "Invoice 20420 — Hartley & Co",     amount: 2240.00, state: "match"  },
+    { id: 14, date: "2026-07-15", desc: "Direct debit — VODAFONE",          amount:  -78.00, state: "match"  },
+    { id: 15, date: "2026-07-16", desc: "Card payment — SUMUP *CAFE",       amount:  -11.60, state: "review" },
+    { id: 16, date: "2026-07-17", desc: "Kingsway Supplies Ltd",            amount: -318.05, state: "match"  },
+    { id: 17, date: "2026-07-18", desc: "FASTER PAYMENT REF 88612",         amount:  275.00, state: "break"  },
+    { id: 18, date: "2026-07-20", desc: "Invoice 20421 — Delaney Partners", amount: 4100.00, state: "match"  },
+    { id: 19, date: "2026-07-21", desc: "Card payment — STATIONERY DIRECT", amount:  -63.44, state: "review" },
+    { id: 20, date: "2026-07-22", desc: "Direct debit — INSURANCE PREMIUM", amount: -189.50, state: "match"  },
+    { id: 21, date: "2026-07-23", desc: "Kingsway Supplies Ltd",            amount: -145.20, state: "match"  },
+    { id: 22, date: "2026-07-24", desc: "FASTER PAYMENT REF 88903",         amount: 1020.00, state: "break"  },
+    { id: 23, date: "2026-07-25", desc: "Invoice 20422 — Marchmont Trust",  amount: 1660.00, state: "match"  },
+    { id: 24, date: "2026-07-27", desc: "Card payment — TFL TRAVEL",        amount:   -6.80, state: "review" }
+  ];
+
+  var STATE_WORD = { match: "Match", review: "Review", break: "Break" };
+  var PAGE_SIZE = 8;
+  var THRESHOLD = 1000;
+
+  var reconciled = Object.create(null);   // id -> true
+  var selected   = Object.create(null);   // id -> true
+  var filters    = { state: {}, direction: {}, size: {} };
+  var page = 1;
+  var lastBatch = null;                   // { ids: [], count: n }
+
+  var money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
+
+  var el = {
+    rows: document.getElementById("rows"),
+    empty: document.getElementById("emptyState"),
+    selectPage: document.getElementById("selectPage"),
+    selectionCount: document.getElementById("selectionCount"),
+    reconcile: document.getElementById("reconcile"),
+    clearSelection: document.getElementById("clearSelection"),
+    batchNote: document.getElementById("batchNote"),
+    undo: document.getElementById("undo"),
+    pager: document.getElementById("pager"),
+    totalValue: document.getElementById("totalValue"),
+    totalMeta: document.getElementById("totalMeta"),
+    listStatus: document.getElementById("listStatus"),
+    clearFilters: document.getElementById("clearFilters"),
+    caption: document.getElementById("tableCaption")
+  };
+
+  // ---------- data helpers ----------
+
+  function unreconciled() {
+    return SEED.filter(function (e) { return !reconciled[e.id]; });
+  }
+
+  function familyActive(f) { return Object.keys(filters[f]).length > 0; }
+
+  function anyFilter() {
+    return familyActive("state") || familyActive("direction") || familyActive("size");
+  }
+
+  function passes(e) {
+    if (familyActive("state") && !filters.state[e.state]) return false;
+    if (familyActive("direction")) {
+      var dir = e.amount < 0 ? "out" : "in";
+      if (!filters.direction[dir]) return false;
+    }
+    if (familyActive("size") && filters.size.over1000 && Math.abs(e.amount) < THRESHOLD) return false;
+    return true;
+  }
+
+  function visible() { return unreconciled().filter(passes); }
+
+  function pageCount() { return Math.max(1, Math.ceil(visible().length / PAGE_SIZE)); }
+
+  function pageRows() {
+    var v = visible();
+    var start = (page - 1) * PAGE_SIZE;
+    return v.slice(start, start + PAGE_SIZE);
+  }
+
+  function selectedIds() {
+    return unreconciled().filter(function (e) { return selected[e.id]; })
+                         .map(function (e) { return e.id; });
+  }
+
+  function formatDate(iso) {
+    var parts = iso.split("-");
+    var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return parts[2] + " " + months[Number(parts[1]) - 1];
+  }
+
+  // ---------- rendering ----------
+
+  function renderRows() {
+    var rows = pageRows();
+    el.rows.textContent = "";
+
+    rows.forEach(function (e) {
+      var tr = document.createElement("tr");
+      tr.dataset.id = String(e.id);
+      if (selected[e.id]) tr.classList.add("is-selected");
+
+      var tdSel = document.createElement("td");
+      tdSel.className = "col-select";
+      var label = document.createElement("label");
+      label.className = "select-cell";
+      var box = document.createElement("input");
+      box.type = "checkbox";
+      box.checked = !!selected[e.id];
+      box.setAttribute("aria-label", "Select " + e.desc + ", " + formatDate(e.date) + ", " + money.format(e.amount));
+      box.addEventListener("change", function (ev) {
+        ev.stopPropagation();
+        setSelected(e.id, box.checked);
+      });
+      label.addEventListener("click", function (ev) { ev.stopPropagation(); });
+      label.appendChild(box);
+      tdSel.appendChild(label);
+
+      var tdDate = document.createElement("td");
+      tdDate.className = "col-date";
+      var dateSpan = document.createElement("span");
+      dateSpan.className = "entry-date";
+      dateSpan.textContent = formatDate(e.date);
+      tdDate.appendChild(dateSpan);
+
+      var tdDesc = document.createElement("td");
+      tdDesc.className = "col-desc";
+      tdDesc.textContent = e.desc;
+
+      var tdState = document.createElement("td");
+      tdState.className = "col-state";
+      var wrap = document.createElement("span");
+      wrap.className = "state-cell";
+      var dot = document.createElement("span");
+      dot.className = "marker state-" + e.state;
+      dot.setAttribute("aria-hidden", "true");
+      var word = document.createElement("span");
+      word.className = "state-word";
+      word.textContent = STATE_WORD[e.state];
+      wrap.appendChild(dot);
+      wrap.appendChild(word);
+      tdState.appendChild(wrap);
+
+      var tdAmount = document.createElement("td");
+      tdAmount.className = "col-amount";
+      var amt = document.createElement("span");
+      amt.className = "amount";
+      amt.textContent = money.format(e.amount);
+      tdAmount.appendChild(amt);
+
+      tr.appendChild(tdSel);
+      tr.appendChild(tdDate);
+      tr.appendChild(tdDesc);
+      tr.appendChild(tdState);
+      tr.appendChild(tdAmount);
+
+      tr.addEventListener("click", function () { setSelected(e.id, !selected[e.id]); });
+
+      el.rows.appendChild(tr);
+    });
+
+    el.empty.hidden = rows.length > 0;
+    el.empty.textContent = unreconciled().length === 0
+      ? "All entries reconciled"
+      : "No entries match these filters";
+  }
+
+  function renderHeaderControl() {
+    var rows = pageRows();
+    var ids = rows.map(function (e) { return e.id; });
+    var picked = ids.filter(function (id) { return selected[id]; }).length;
+    el.selectPage.checked = ids.length > 0 && picked === ids.length;
+    el.selectPage.indeterminate = picked > 0 && picked < ids.length;
+    el.selectPage.disabled = ids.length === 0;
+  }
+
+  function renderBar() {
+    var n = selectedIds().length;
+    var onPage = pageRows().filter(function (e) { return selected[e.id]; }).length;
+
+    if (n === 0) {
+      el.selectionCount.textContent = "Nothing selected";
+    } else if (n === onPage) {
+      el.selectionCount.textContent = n + (n === 1 ? " entry selected" : " entries selected");
+    } else {
+      el.selectionCount.textContent = "";
+      var strong = document.createTextNode(n + (n === 1 ? " entry selected " : " entries selected "));
+      var muted = document.createElement("span");
+      muted.className = "muted";
+      muted.textContent = "— " + onPage + " on this page";
+      el.selectionCount.appendChild(strong);
+      el.selectionCount.appendChild(muted);
+    }
+
+    el.reconcile.disabled = n === 0;
+    el.clearSelection.disabled = n === 0;
+    el.reconcile.textContent = n === 0 ? "Reconcile"
+      : "Reconcile " + n + (n === 1 ? " entry" : " entries");
+  }
+
+  function renderNote() {
+    if (!lastBatch) {
+      el.batchNote.classList.remove("is-shown");
+      el.undo.textContent = "";
+      el.undo.tabIndex = -1;
+      return;
+    }
+    el.undo.textContent = "Undo — " + lastBatch.count + " reconciled";
+    el.undo.tabIndex = 0;
+    el.batchNote.classList.add("is-shown");
+  }
+
+  function renderPager() {
+    var total = pageCount();
+    el.pager.textContent = "";
+
+    var of = document.createElement("span");
+    of.className = "page-of";
+    of.textContent = "Page " + page + " of " + total;
+    el.pager.appendChild(of);
+
+    var prev = document.createElement("button");
+    prev.type = "button";
+    prev.className = "step";
+    prev.textContent = "Previous";
+    prev.disabled = page === 1;
+    prev.addEventListener("click", function () { goToPage(page - 1); });
+    el.pager.appendChild(prev);
+
+    for (var i = 1; i <= total; i++) {
+      (function (n) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.textContent = String(n);
+        b.setAttribute("aria-label", "Page " + n);
+        if (n === page) b.setAttribute("aria-current", "page");
+        b.addEventListener("click", function () { goToPage(n); });
+        el.pager.appendChild(b);
+      })(i);
+    }
+
+    var next = document.createElement("button");
+    next.type = "button";
+    next.className = "step";
+    next.textContent = "Next";
+    next.disabled = page === total;
+    next.addEventListener("click", function () { goToPage(page + 1); });
+    el.pager.appendChild(next);
+  }
+
+  function renderTotal() {
+    var open = unreconciled();
+    var sum = open.reduce(function (acc, e) { return acc + e.amount; }, 0);
+    el.totalValue.textContent = money.format(sum);
+    var meta = open.length + (open.length === 1 ? " entry" : " entries");
+    if (anyFilter()) meta += " · " + visible().length + " shown";
+    el.totalMeta.textContent = meta;
+  }
+
+  function renderChips() {
+    var open = unreconciled();
+    ["match", "review", "break"].forEach(function (s) {
+      var node = document.querySelector('[data-count="' + s + '"]');
+      node.textContent = String(open.filter(function (e) { return e.state === s; }).length);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".chip"), function (chip) {
+      var on = !!filters[chip.dataset.family][chip.dataset.value];
+      chip.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    el.clearFilters.hidden = !anyFilter();
+  }
+
+  function renderStatus() {
+    var v = visible().length;
+    el.listStatus.textContent =
+      v + (v === 1 ? " entry" : " entries") + " shown, page " + page + " of " + pageCount();
+    el.caption.textContent =
+      "Imported bank entries awaiting reconciliation — page " + page + " of " + pageCount();
+  }
+
+  function render() {
+    var total = pageCount();
+    if (page > total) page = total;
+    if (page < 1) page = 1;
+    renderRows();
+    renderHeaderControl();
+    renderBar();
+    renderNote();
+    renderPager();
+    renderTotal();
+    renderChips();
+    renderStatus();
+  }
+
+  // ---------- actions ----------
+
+  function setSelected(id, on) {
+    if (on) selected[id] = true; else delete selected[id];
+    render();
+  }
+
+  function goToPage(n) {
+    if (n === page) return;
+    page = n;
+    lastBatch = null;          // navigation ends the batch note
+    render();
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  el.selectPage.addEventListener("change", function () {
+    var rows = pageRows();
+    var allOn = rows.every(function (e) { return selected[e.id]; }) && rows.length > 0;
+    rows.forEach(function (e) {
+      if (allOn) delete selected[e.id]; else selected[e.id] = true;
+    });
+    render();
+  });
+
+  el.clearSelection.addEventListener("click", function () {
+    selected = Object.create(null);
+    render();
+  });
+
+  el.reconcile.addEventListener("click", function () {
+    var ids = selectedIds();
+    if (ids.length === 0) return;
+    ids.forEach(function (id) { reconciled[id] = true; });
+    selected = Object.create(null);
+    lastBatch = { ids: ids, count: ids.length };
+    render();
+    el.undo.focus();
+  });
+
+  el.undo.addEventListener("click", function () {
+    if (!lastBatch) return;
+    lastBatch.ids.forEach(function (id) { delete reconciled[id]; });
+    lastBatch = null;
+    render();
+    el.reconcile.focus();
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll(".chip"), function (chip) {
+    chip.addEventListener("click", function () {
+      var f = chip.dataset.family, v = chip.dataset.value;
+      if (filters[f][v]) delete filters[f][v]; else filters[f][v] = true;
+      page = 1;
+      lastBatch = null;        // a filter change ends the batch note
+      render();
+    });
+  });
+
+  el.clearFilters.addEventListener("click", function () {
+    filters = { state: {}, direction: {}, size: {} };
+    page = 1;
+    lastBatch = null;
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

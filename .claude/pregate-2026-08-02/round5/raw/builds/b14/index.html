@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reconciliation — Current account</title>
+<style>
+/* ---------------------------------------------------------------------------
+   TOKEN LAYER — the only place a raw value is written.
+   Token names come from the design system (colors / type / space / motion).
+   Values had to be materialised here: the page must open from disk with no
+   network, and the store's values are not disclosed through the tool. Every
+   rule below this block uses var() only. See NOTES.md.
+   --------------------------------------------------------------------------- */
+:root {
+  --color-surface-base:     rgb(250 250 249);
+  --color-surface-raised:   rgb(255 255 255);
+  --color-surface-recessed: rgb(238 238 236);
+  --color-ink-primary:      rgb(28 30 32);
+  --color-ink-secondary:    rgb(95 99 104);
+  --color-signal-match:     rgb(21 128 61);
+  --color-signal-review:    rgb(180 83 9);
+  --color-signal-break:     rgb(159 18 57);
+  --color-hairline:         rgb(224 224 220);
+
+  --type-xs: 0.8125rem;
+  --type-sm: 0.875rem;
+  --type-md: 1rem;
+  --type-lg: 1.25rem;
+  --type-xl: 1.75rem;
+
+  --space-tight:  0.5rem;
+  --space-base:   1rem;
+  --space-wide:   2rem;
+  --space-column: 3.5rem;
+
+  --motion-duration-fast: 90ms;
+  --motion-duration-base: 180ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Local primitives — not in the design system's token set. Flagged in NOTES.md. */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Helvetica Neue", sans-serif;
+  --hairline-width: 0.0625rem;
+  --marker-dot: 0.375rem;
+  --control-min: 2.75rem;
+  --row-height: 2.75rem;
+  --page-max: 78rem;
+  --radius: 0.25rem;
+  --col-date: 9rem;
+  --col-state: 9rem;
+  --col-amount: 14rem;
+}
+
+/* --------------------------------------------------------------------------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { background: var(--color-surface-base); }
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--type-sm);
+  line-height: 1.45;
+  color: var(--color-ink-primary);
+  background: var(--color-surface-base);
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: calc(var(--space-wide) * 2 + var(--space-tight));
+}
+
+button { font: inherit; color: inherit; }
+
+:focus-visible {
+  outline: 0.125rem solid var(--color-ink-primary);
+  outline-offset: 0.125rem;
+}
+
+.page {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: var(--space-base) var(--space-wide) 0;
+}
+
+/* ---- header --------------------------------------------------------------- */
+
+.page-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-base);
+  padding-bottom: var(--space-tight);
+}
+.page-head h1 {
+  margin: 0;
+  font-size: var(--type-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.page-head .meta {
+  font-size: var(--type-xs);
+  color: var(--color-ink-secondary);
+}
+
+/* ---- filters -------------------------------------------------------------- */
+
+.filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-wide);
+  padding: var(--space-tight) 0;
+  border-top: var(--hairline-width) solid var(--color-hairline);
+}
+.facet { display: flex; align-items: center; gap: var(--space-tight); }
+.facet-label {
+  font-size: var(--type-xs);
+  color: var(--color-ink-secondary);
+  padding-right: var(--space-tight);
+}
+.chip {
+  min-height: var(--control-min);
+  min-width: var(--control-min);
+  padding: 0 var(--space-base);
+  font-size: var(--type-sm);
+  color: var(--color-ink-primary);
+  background: var(--color-surface-raised);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard),
+              border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.chip:hover { background: var(--color-surface-base); }
+.chip[aria-pressed="true"] {
+  background: var(--color-surface-recessed);
+  border-color: var(--color-ink-secondary);
+  font-weight: 600;
+}
+.filter-state {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  font-size: var(--type-xs);
+  color: var(--color-ink-secondary);
+}
+.link-button {
+  min-height: var(--control-min);
+  min-width: var(--control-min);
+  padding: 0 var(--space-tight);
+  font-size: var(--type-xs);
+  color: var(--color-ink-primary);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 0.1875rem;
+  cursor: pointer;
+}
+.link-button[hidden] { display: none; }
+
+/* ---- entry list ----------------------------------------------------------- */
+
+.list-frame {
+  background: var(--color-surface-raised);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius);
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+thead th {
+  height: var(--control-min);
+  padding: 0;
+  font-size: var(--type-xs);
+  font-weight: 500;
+  color: var(--color-ink-secondary);
+  text-align: left;
+  border-bottom: var(--hairline-width) solid var(--color-hairline);
+  background: var(--color-surface-raised);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+tbody tr {
+  height: var(--row-height);
+  border-bottom: var(--hairline-width) solid var(--color-hairline);
+  cursor: default;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard);
+  /* the selected marker is drawn with an inset shadow so the row never changes size */
+  box-shadow: inset 0.1875rem 0 0 0 transparent;
+}
+tbody tr:last-child { border-bottom: 0; }
+tbody tr:hover { background: var(--color-surface-base); }
+tbody tr[aria-selected="true"] {
+  background: var(--color-surface-recessed);
+  box-shadow: inset 0.1875rem 0 0 0 var(--color-ink-primary);
+}
+tbody tr[aria-selected="true"]:hover { background: var(--color-surface-recessed); }
+
+td { padding: 0; vertical-align: middle; }
+
+.col-select { width: var(--space-column); }
+.col-date   { width: var(--col-date); }
+.col-state  { width: var(--col-state); }
+.col-amount { width: var(--col-amount); }
+
+.cell-select label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-min);
+  height: var(--control-min);
+  margin: 0 auto;
+  cursor: pointer;
+}
+.cell-select input { width: var(--type-md); height: var(--type-md); cursor: pointer; }
+
+.cell-date {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cell-desc {
+  font-size: var(--type-sm);
+  color: var(--color-ink-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: var(--space-base);
+}
+.cell-state {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  white-space: nowrap;
+}
+.marker {
+  display: inline-block;
+  width: var(--marker-dot);
+  height: var(--marker-dot);
+  border-radius: 50%;
+  margin-right: var(--space-tight);
+  vertical-align: middle;
+}
+.marker-match  { background: var(--color-signal-match); }
+.marker-review { background: var(--color-signal-review); }
+.marker-break  { background: var(--color-signal-break); }
+
+.cell-amount,
+.head-amount {
+  text-align: right;
+  padding-right: var(--space-column);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cell-amount { font-size: var(--type-sm); color: var(--color-ink-primary); }
+
+.head-select label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-min);
+  height: var(--control-min);
+  margin: 0 auto;
+  cursor: pointer;
+}
+.head-select input { width: var(--type-md); height: var(--type-md); cursor: pointer; }
+.head-date, .head-desc, .head-state { padding-left: 0; }
+
+.empty {
+  padding: var(--space-wide);
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+/* ---- pager ---------------------------------------------------------------- */
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  padding: var(--space-tight) 0;
+}
+.pager .pager-label {
+  font-size: var(--type-xs);
+  color: var(--color-ink-secondary);
+  padding-right: var(--space-tight);
+}
+.page-button {
+  min-width: var(--control-min);
+  min-height: var(--control-min);
+  padding: 0 var(--space-tight);
+  font-size: var(--type-sm);
+  font-variant-numeric: tabular-nums;
+  background: var(--color-surface-raised);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.page-button:hover { background: var(--color-surface-base); }
+.page-button[aria-current="page"] {
+  background: var(--color-surface-recessed);
+  border-color: var(--color-ink-secondary);
+  font-weight: 600;
+}
+
+/* ---- reconcile bar (below the list, in flow, never floating) --------------- */
+
+.reconcile-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  padding: var(--space-tight) 0;
+  border-top: var(--hairline-width) solid var(--color-hairline);
+}
+.selection-count { font-size: var(--type-sm); color: var(--color-ink-secondary); }
+.selection-count strong { color: var(--color-ink-primary); font-weight: 600; }
+.primary-button {
+  min-height: var(--control-min);
+  padding: 0 var(--space-wide);
+  font-size: var(--type-sm);
+  font-weight: 600;
+  color: var(--color-surface-raised);
+  background: var(--color-ink-primary);
+  border: var(--hairline-width) solid var(--color-ink-primary);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: opacity var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.primary-button:disabled {
+  color: var(--color-ink-secondary);
+  background: var(--color-surface-raised);
+  border-color: var(--color-hairline);
+  cursor: default;
+}
+
+/* ---- batch note (persists until the next action) --------------------------- */
+
+/* the slot is always reserved, so applying a batch never shifts the page under the cursor */
+.batch-note {
+  min-height: var(--control-min);
+  padding-bottom: var(--space-tight);
+}
+.undo-button {
+  min-height: var(--control-min);
+  padding: 0 var(--space-base);
+  font-size: var(--type-sm);
+  color: var(--color-ink-primary);
+  background: var(--color-surface-recessed);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.undo-button:hover { background: var(--color-surface-base); }
+
+/* ---- total footer (pinned; the list scrolls behind it) --------------------- */
+
+.total-footer {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  background: var(--color-surface-raised);
+  border-top: var(--hairline-width) solid var(--color-hairline);
+  z-index: 2;
+}
+.total-inner {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: var(--space-tight) var(--space-wide);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-base);
+}
+.total-label {
+  font-size: var(--type-xs);
+  color: var(--color-ink-secondary);
+}
+.total-figure {
+  font-size: var(--type-xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  margin-left: auto;
+}
+.total-count { font-size: var(--type-xs); color: var(--color-ink-secondary); }
+
+.sr-only {
+  position: absolute;
+  width: var(--hairline-width);
+  height: var(--hairline-width);
+  padding: 0;
+  margin: calc(var(--hairline-width) * -1);
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0ms !important; }
+}
+</style>
+</head>
+<body>
+
+<main class="page">
+
+  <header class="page-head">
+    <h1>Reconciliation</h1>
+    <p class="meta">Current account — Northbank 40&#8209;12&#8209;88 · imported 2–27 July 2026</p>
+  </header>
+
+  <section class="filters" role="group" aria-label="Filter entries">
+    <div class="facet" role="group" aria-label="Match state">
+      <span class="facet-label" id="facet-state">State</span>
+      <button type="button" class="chip" data-facet="state" data-value="match"  aria-pressed="false">Match</button>
+      <button type="button" class="chip" data-facet="state" data-value="review" aria-pressed="false">Review</button>
+      <button type="button" class="chip" data-facet="state" data-value="break"  aria-pressed="false">Break</button>
+    </div>
+    <div class="facet" role="group" aria-label="Amount">
+      <span class="facet-label" id="facet-amount">Amount</span>
+      <button type="button" class="chip" data-facet="amount" data-value="in"    aria-pressed="false">Money in</button>
+      <button type="button" class="chip" data-facet="amount" data-value="out"   aria-pressed="false">Money out</button>
+      <button type="button" class="chip" data-facet="amount" data-value="large" aria-pressed="false">£500 and over</button>
+    </div>
+    <div class="filter-state">
+      <span id="filter-summary"></span>
+      <button type="button" class="link-button" id="clear-filters" hidden>Clear filters</button>
+    </div>
+  </section>
+
+  <div class="list-frame">
+    <table id="entry-table" aria-label="Unreconciled entries">
+      <colgroup>
+        <col class="col-select">
+        <col class="col-date">
+        <col class="col-desc">
+        <col class="col-state">
+        <col class="col-amount">
+      </colgroup>
+      <thead>
+        <tr>
+          <th scope="col" class="head-select">
+            <label>
+              <input type="checkbox" id="select-page" aria-label="Select every entry on this page">
+              <span class="sr-only">Select every entry on this page</span>
+            </label>
+          </th>
+          <th scope="col" class="head-date">Date</th>
+          <th scope="col" class="head-desc">Description</th>
+          <th scope="col" class="head-state">State</th>
+          <th scope="col" class="head-amount">Amount</th>
+        </tr>
+      </thead>
+      <tbody id="entry-body"></tbody>
+    </table>
+    <p class="empty" id="empty-note" hidden></p>
+  </div>
+
+  <nav class="pager" id="pager" aria-label="Pages"></nav>
+
+  <div class="reconcile-bar">
+    <p class="selection-count" id="selection-count" aria-live="polite"></p>
+    <button type="button" class="primary-button" id="reconcile" disabled>Reconcile selected</button>
+  </div>
+
+  <div class="batch-note" id="batch-note" role="status" aria-live="polite"></div>
+
+</main>
+
+<footer class="total-footer">
+  <div class="total-inner">
+    <span class="total-label">Unreconciled</span>
+    <span class="total-count" id="total-count"></span>
+    <span class="total-figure" id="total-figure"></span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  var SEED = [
+    { id:  1, date: '2026-07-02', desc: 'Kingsway Supplies Ltd',              amount:  -284.50, state: 'match'  },
+    { id:  2, date: '2026-07-02', desc: 'Card payment — SUMUP *CAFE',         amount:   -14.20, state: 'review' },
+    { id:  3, date: '2026-07-03', desc: 'Invoice 20418 — Hartley & Co',       amount:  3150.00, state: 'match'  },
+    { id:  4, date: '2026-07-03', desc: 'Direct debit — BRITISH GAS',         amount:  -212.88, state: 'match'  },
+    { id:  5, date: '2026-07-04', desc: 'FASTER PAYMENT REF 88213',           amount:   940.00, state: 'break'  },
+    { id:  6, date: '2026-07-06', desc: 'Kingsway Supplies Ltd',              amount:   -96.75, state: 'match'  },
+    { id:  7, date: '2026-07-07', desc: 'Card payment — TFL TRAVEL',          amount:    -8.40, state: 'review' },
+    { id:  8, date: '2026-07-08', desc: 'Invoice 20419 — Marchmont Trust',    amount:  1875.00, state: 'match'  },
+    { id:  9, date: '2026-07-09', desc: 'Standing order — OFFICE RENT',       amount: -1450.00, state: 'match'  },
+    { id: 10, date: '2026-07-10', desc: 'Refund — Kingsway Supplies Ltd',     amount:    42.30, state: 'review' },
+    { id: 11, date: '2026-07-11', desc: 'FASTER PAYMENT REF 88407',           amount:   512.00, state: 'break'  },
+    { id: 12, date: '2026-07-13', desc: 'Card payment — AMZN MKTPLACE',       amount:  -137.99, state: 'review' },
+    { id: 13, date: '2026-07-14', desc: 'Invoice 20420 — Hartley & Co',       amount:  2240.00, state: 'match'  },
+    { id: 14, date: '2026-07-15', desc: 'Direct debit — VODAFONE',            amount:   -78.00, state: 'match'  },
+    { id: 15, date: '2026-07-16', desc: 'Card payment — SUMUP *CAFE',         amount:   -11.60, state: 'review' },
+    { id: 16, date: '2026-07-17', desc: 'Kingsway Supplies Ltd',              amount:  -318.05, state: 'match'  },
+    { id: 17, date: '2026-07-18', desc: 'FASTER PAYMENT REF 88612',           amount:   275.00, state: 'break'  },
+    { id: 18, date: '2026-07-20', desc: 'Invoice 20421 — Delaney Partners',   amount:  4100.00, state: 'match'  },
+    { id: 19, date: '2026-07-21', desc: 'Card payment — STATIONERY DIRECT',   amount:   -63.44, state: 'review' },
+    { id: 20, date: '2026-07-22', desc: 'Direct debit — INSURANCE PREMIUM',   amount:  -189.50, state: 'match'  },
+    { id: 21, date: '2026-07-23', desc: 'Kingsway Supplies Ltd',              amount:  -145.20, state: 'match'  },
+    { id: 22, date: '2026-07-24', desc: 'FASTER PAYMENT REF 88903',           amount:  1020.00, state: 'break'  },
+    { id: 23, date: '2026-07-25', desc: 'Invoice 20422 — Marchmont Trust',    amount:  1660.00, state: 'match'  },
+    { id: 24, date: '2026-07-27', desc: 'Card payment — TFL TRAVEL',          amount:    -6.80, state: 'review' }
+  ];
+
+  var PER_PAGE = 10;
+  var STATE_WORD = { match: 'Match', review: 'Review', break: 'Break' };
+
+  var money = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function shortDate(iso) {
+    var p = iso.split('-');
+    return String(Number(p[2])) + ' ' + MONTHS[Number(p[1]) - 1] + ' ' + p[0];
+  }
+
+  var reconciled = new Set();   // ids removed from the unreconciled list
+  var selected   = new Set();   // ids currently selected (persists across pages and filters)
+  var filters    = { state: new Set(), amount: new Set() };
+  var page       = 1;
+  var lastBatch  = null;        // { ids: [] } — the batch the note can reverse
+
+  var body        = document.getElementById('entry-body');
+  var emptyNote   = document.getElementById('empty-note');
+  var selectPage  = document.getElementById('select-page');
+  var pager       = document.getElementById('pager');
+  var countEl     = document.getElementById('selection-count');
+  var reconcileEl = document.getElementById('reconcile');
+  var noteEl      = document.getElementById('batch-note');
+  var totalFigure = document.getElementById('total-figure');
+  var totalCount  = document.getElementById('total-count');
+  var summaryEl   = document.getElementById('filter-summary');
+  var clearEl     = document.getElementById('clear-filters');
+  var chips       = Array.prototype.slice.call(document.querySelectorAll('.chip'));
+
+  function unreconciled() {
+    return SEED.filter(function (e) { return !reconciled.has(e.id); });
+  }
+
+  function matchesFilters(e) {
+    if (filters.state.size && !filters.state.has(e.state)) return false;
+    if (filters.amount.size) {
+      var ok = false;
+      if (filters.amount.has('in')    && e.amount > 0) ok = true;
+      if (filters.amount.has('out')   && e.amount < 0) ok = true;
+      if (filters.amount.has('large') && Math.abs(e.amount) >= 500) ok = true;
+      if (!ok) return false;
+    }
+    return true;
+  }
+
+  function visible() { return unreconciled().filter(matchesFilters); }
+
+  function pageCount(rows) { return Math.max(1, Math.ceil(rows.length / PER_PAGE)); }
+
+  function pageRows(rows) {
+    var total = pageCount(rows);
+    if (page > total) page = total;
+    if (page < 1) page = 1;
+    return rows.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  }
+
+  /* The note reverses one batch. Any other action ends it — it never expires on its own. */
+  function endBatchNote() {
+    if (lastBatch) { lastBatch = null; noteEl.textContent = ''; }
+  }
+
+  function render() {
+    var rows = visible();
+    var shown = pageRows(rows);
+
+    body.textContent = '';
+    shown.forEach(function (e) {
+      var tr = document.createElement('tr');
+      tr.dataset.id = String(e.id);
+      tr.setAttribute('aria-selected', selected.has(e.id) ? 'true' : 'false');
+
+      var tdSel = document.createElement('td');
+      tdSel.className = 'cell-select';
+      var label = document.createElement('label');
+      var box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = selected.has(e.id);
+      box.setAttribute('aria-label', 'Select ' + e.desc + ', ' + shortDate(e.date) + ', ' + money.format(e.amount));
+      label.appendChild(box);
+      tdSel.appendChild(label);
+
+      var tdDate = document.createElement('td');
+      tdDate.className = 'cell-date';
+      tdDate.textContent = shortDate(e.date);
+
+      var tdDesc = document.createElement('td');
+      tdDesc.className = 'cell-desc';
+      tdDesc.textContent = e.desc;
+
+      var tdState = document.createElement('td');
+      tdState.className = 'cell-state';
+      var dot = document.createElement('span');
+      dot.className = 'marker marker-' + e.state;
+      dot.setAttribute('aria-hidden', 'true');
+      tdState.appendChild(dot);
+      tdState.appendChild(document.createTextNode(STATE_WORD[e.state]));
+
+      var tdAmount = document.createElement('td');
+      tdAmount.className = 'cell-amount';
+      tdAmount.textContent = money.format(e.amount);
+
+      tr.appendChild(tdSel);
+      tr.appendChild(tdDate);
+      tr.appendChild(tdDesc);
+      tr.appendChild(tdState);
+      tr.appendChild(tdAmount);
+      body.appendChild(tr);
+    });
+
+    /* empty states */
+    if (!rows.length) {
+      emptyNote.hidden = false;
+      emptyNote.textContent = unreconciled().length
+        ? 'No entries match these filters.'
+        : 'Nothing left to reconcile.';
+    } else {
+      emptyNote.hidden = true;
+      emptyNote.textContent = '';
+    }
+
+    /* header select control — mixed when some but not all of this page is selected */
+    var shownIds = shown.map(function (e) { return e.id; });
+    var selectedHere = shownIds.filter(function (id) { return selected.has(id); }).length;
+    selectPage.disabled = shownIds.length === 0;
+    selectPage.checked = shownIds.length > 0 && selectedHere === shownIds.length;
+    selectPage.indeterminate = selectedHere > 0 && selectedHere < shownIds.length;
+
+    renderPager(rows);
+    renderSelection(shownIds);
+    renderFilterSummary(rows);
+    renderTotal();
+  }
+
+  function renderPager(rows) {
+    var total = pageCount(rows);
+    pager.textContent = '';
+    var label = document.createElement('span');
+    label.className = 'pager-label';
+    label.textContent = total === 1 ? 'Page' : 'Pages';
+    pager.appendChild(label);
+    for (var i = 1; i <= total; i++) {
+      (function (n) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'page-button';
+        b.textContent = String(n);
+        b.setAttribute('aria-label', 'Page ' + n);
+        if (n === page) b.setAttribute('aria-current', 'page');
+        b.addEventListener('click', function () {
+          if (n === page) return;
+          endBatchNote();            /* moving on is the next action */
+          page = n;
+          render();
+        });
+        pager.appendChild(b);
+      }(i));
+    }
+  }
+
+  function renderSelection(shownIds) {
+    var n = selected.size;
+    reconcileEl.disabled = n === 0;
+    if (n === 0) {
+      countEl.textContent = 'Nothing selected';
+      return;
+    }
+    var offView = 0;
+    selected.forEach(function (id) { if (shownIds.indexOf(id) === -1) offView++; });
+    countEl.textContent = '';
+    var strong = document.createElement('strong');
+    strong.textContent = String(n);
+    countEl.appendChild(strong);
+    countEl.appendChild(document.createTextNode(n === 1 ? ' selected' : ' selected'));
+    if (offView) {
+      countEl.appendChild(document.createTextNode(' · ' + offView + ' not in view'));
+    }
+  }
+
+  function renderFilterSummary(rows) {
+    var active = filters.state.size + filters.amount.size;
+    var all = unreconciled().length;
+    clearEl.hidden = active === 0;
+    summaryEl.textContent = active
+      ? 'Showing ' + rows.length + ' of ' + all
+      : all + (all === 1 ? ' entry' : ' entries');
+  }
+
+  function renderTotal() {
+    var rows = unreconciled();
+    var sum = rows.reduce(function (a, e) { return a + e.amount; }, 0);
+    totalFigure.textContent = money.format(sum);
+    totalCount.textContent = rows.length + (rows.length === 1 ? ' entry' : ' entries');
+  }
+
+  /* ---- interaction ------------------------------------------------------- */
+
+  function toggle(id, on) {
+    endBatchNote();
+    if (on === undefined) on = !selected.has(id);
+    if (on) selected.add(id); else selected.delete(id);
+  }
+
+  body.addEventListener('click', function (ev) {
+    var tr = ev.target.closest('tr');
+    if (!tr) return;
+    var id = Number(tr.dataset.id);
+    /* the checkbox fires its own change event — don't double-toggle */
+    if (ev.target.closest('.cell-select')) return;
+    toggle(id);
+    render();
+  });
+
+  body.addEventListener('change', function (ev) {
+    if (ev.target.type !== 'checkbox') return;
+    var tr = ev.target.closest('tr');
+    if (!tr) return;
+    toggle(Number(tr.dataset.id), ev.target.checked);
+    render();
+  });
+
+  selectPage.addEventListener('change', function () {
+    endBatchNote();
+    var shown = pageRows(visible());
+    var on = selectPage.checked;
+    shown.forEach(function (e) { if (on) selected.add(e.id); else selected.delete(e.id); });
+    render();
+  });
+
+  chips.forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      endBatchNote();
+      var set = filters[chip.dataset.facet];
+      var value = chip.dataset.value;
+      var on = chip.getAttribute('aria-pressed') === 'true';
+      if (on) set.delete(value); else set.add(value);
+      chip.setAttribute('aria-pressed', on ? 'false' : 'true');
+      page = 1;                     /* a new question starts at the first page */
+      render();
+    });
+  });
+
+  clearEl.addEventListener('click', function () {
+    endBatchNote();
+    filters.state.clear();
+    filters.amount.clear();
+    chips.forEach(function (c) { c.setAttribute('aria-pressed', 'false'); });
+    page = 1;
+    render();
+  });
+
+  /* Applies immediately — no confirmation step. The note that follows is the reversal. */
+  reconcileEl.addEventListener('click', function () {
+    if (!selected.size) return;
+    var ids = Array.from(selected);
+    ids.forEach(function (id) { reconciled.add(id); });
+    selected.clear();
+    lastBatch = { ids: ids };
+    showBatchNote(ids.length);
+    render();
+  });
+
+  function showBatchNote(n) {
+    noteEl.textContent = '';
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'undo-button';
+    b.textContent = 'Undo — ' + n + ' reconciled';
+    b.addEventListener('click', function () {
+      if (!lastBatch) return;
+      lastBatch.ids.forEach(function (id) { reconciled.delete(id); });
+      lastBatch = null;
+      noteEl.textContent = '';
+      render();
+    });
+    noteEl.appendChild(b);
+  }
+
+  render();
+}());
+</script>
+</body>
+</html>

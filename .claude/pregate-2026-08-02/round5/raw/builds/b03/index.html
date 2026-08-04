@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reconciliation review — Ledger</title>
+<style>
+/* ---------------------------------------------------------------------------
+   Tokens. Every literal value in this file lives here and nowhere else.
+   Colours, type steps, space steps and motion come from arena/DESIGN.md.
+   The geometry block below extends the vocabulary with the values DESIGN.md
+   does not name (row height, target size, column widths). See NOTES.md.
+--------------------------------------------------------------------------- */
+:root {
+  /* colours — DESIGN.md */
+  --color-surface-base: #101215;
+  --color-surface-raised: #171a1e;
+  --color-surface-recessed: #0b0d0f;
+  --color-ink-primary: #e6e8ea;
+  --color-ink-secondary: #9aa1a8;
+  --color-signal-match: #4f8f74;
+  --color-signal-review: #c99a34;
+  --color-signal-break: #cf5b45;
+  --color-hairline: #242a30;
+
+  /* type — DESIGN.md, five steps, fixed */
+  --type-xs: 12px;
+  --type-sm: 13px;
+  --type-md: 15px;
+  --type-lg: 19px;
+  --type-xl: 26px;
+
+  /* space — DESIGN.md */
+  --space-tight: 8px;
+  --space-base: 16px;
+  --space-wide: 24px;
+  --space-column: 56px;
+
+  /* motion — DESIGN.md */
+  --motion-duration-fast: 110ms;
+  --motion-duration-base: 180ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* geometry — extension, documented in NOTES.md */
+  --size-row: 48px;
+  --size-target: 48px;
+  --size-marker: 6px;
+  --size-box: 18px;
+  --size-tick: 5px;
+  --size-tick-tall: 9px;
+  --size-hairline: 1px;
+  --size-focus: 2px;
+  --size-accent: 2px;
+  --size-shell: 1040px;
+  --col-select: 48px;
+  --col-date: 96px;
+  --col-state: 112px;
+  --col-amount: 132px;
+  --radius-sm: 3px;
+  --radius-pill: 999px;
+  --leading-tight: 1.2;
+  --leading-base: 1.45;
+  --tracking-wide: 0.07em;
+  --opacity-disabled: 0.4;
+  --font-ui: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--color-surface-base);
+  color: var(--color-ink-primary);
+  font-family: var(--font-ui);
+  font-size: var(--type-sm);
+  line-height: var(--leading-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+:focus-visible {
+  outline: var(--size-focus) solid var(--color-ink-primary);
+  outline-offset: calc(var(--size-focus) * -1);
+}
+
+/* --- shell ---------------------------------------------------------------- */
+
+.ds-shell {
+  height: 100vh;
+  max-width: var(--size-shell);
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  border-left: var(--size-hairline) solid var(--color-hairline);
+  border-right: var(--size-hairline) solid var(--color-hairline);
+}
+
+/* Shared horizontal geometry. Every band is inset --space-wide on the left and
+   --space-column on the right, so the amount column's right edge is a fixed
+   --space-column from the row edge on every row, header and total. */
+.ds-band {
+  padding-left: var(--space-wide);
+  padding-right: var(--space-column);
+  flex-shrink: 0;
+}
+
+/* --- page head ------------------------------------------------------------ */
+
+.ds-page-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-base);
+  padding-top: var(--space-wide);
+  padding-bottom: var(--space-wide);
+  border-bottom: var(--size-hairline) solid var(--color-hairline);
+}
+
+.ds-page-head h1 {
+  margin: 0;
+  font-size: var(--type-lg);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  letter-spacing: 0;
+}
+
+.ds-page-head .ds-meta {
+  margin: 0;
+  margin-top: var(--space-tight);
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+.ds-progress {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- filters -------------------------------------------------------------- */
+
+.ds-filter-bank {
+  display: flex;
+  align-items: center;
+  gap: var(--space-wide);
+  padding-top: var(--space-tight);
+  padding-bottom: var(--space-tight);
+  border-bottom: var(--size-hairline) solid var(--color-hairline);
+  flex-wrap: wrap;
+}
+
+.ds-filter-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+}
+
+.ds-filter-group-label {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  margin-right: var(--space-tight);
+}
+
+.ds-filter-chip {
+  height: var(--size-target);
+  min-width: var(--size-target);
+  padding-left: var(--space-base);
+  padding-right: var(--space-base);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  border: var(--size-hairline) solid var(--color-hairline);
+  border-radius: var(--radius-pill);
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  cursor: pointer;
+  transition:
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.ds-filter-chip:hover { background: var(--color-surface-recessed); color: var(--color-ink-primary); }
+
+.ds-filter-chip[aria-pressed="true"] {
+  background: var(--color-surface-raised);
+  border-color: var(--color-ink-secondary);
+  color: var(--color-ink-primary);
+}
+
+.ds-filter-chip .ds-chip-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-secondary);
+}
+
+.ds-filter-chip .ds-match-marker { margin-right: 0; }
+
+.ds-filter-reset {
+  height: var(--size-target);
+  padding-left: var(--space-base);
+  padding-right: var(--space-base);
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.ds-filter-reset:hover:not(:disabled) { color: var(--color-ink-primary); }
+.ds-filter-reset:disabled { opacity: var(--opacity-disabled); cursor: default; }
+
+/* --- list head ------------------------------------------------------------ */
+
+.ds-list-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  height: var(--size-row);
+  border-bottom: var(--size-hairline) solid var(--color-hairline);
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.ds-select-all {
+  width: var(--size-target);
+  height: var(--size-target);
+  margin-left: calc(var(--space-tight) * -1);
+  padding-left: var(--space-tight);
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+/* --- list ----------------------------------------------------------------- */
+
+.ds-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.ds-entry-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  height: var(--size-row);
+  padding-left: var(--space-wide);
+  padding-right: var(--space-column);
+  border-bottom: var(--size-hairline) solid var(--color-hairline);
+  background: var(--color-surface-base);
+  font-size: var(--type-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Hover pushes the row back. Selection sits it up. Neither changes its height,
+   and neither is transitioned. */
+.ds-entry-row:not([aria-checked="true"]):hover { background: var(--color-surface-recessed); }
+.ds-entry-row[aria-checked="true"] { background: var(--color-surface-raised); }
+.ds-entry-row[aria-checked="true"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--size-accent);
+  background: var(--color-ink-primary);
+}
+
+.ds-select-cell {
+  width: var(--col-select);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.ds-select-box {
+  width: var(--size-box);
+  height: var(--size-box);
+  flex-shrink: 0;
+  border: var(--size-hairline) solid var(--color-ink-secondary);
+  border-radius: var(--radius-sm);
+  position: relative;
+}
+
+[aria-checked="true"] .ds-select-box,
+[aria-checked="mixed"] .ds-select-box {
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+}
+
+[aria-checked="true"] .ds-select-box::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  margin: auto;
+  width: var(--size-tick);
+  height: var(--size-tick-tall);
+  border-right: var(--size-focus) solid var(--color-surface-base);
+  border-bottom: var(--size-focus) solid var(--color-surface-base);
+  transform: translateY(calc(var(--size-hairline) * -1)) rotate(45deg);
+}
+
+[aria-checked="mixed"] .ds-select-box::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  margin: auto;
+  width: var(--size-tick-tall);
+  height: var(--size-focus);
+  background: var(--color-surface-base);
+}
+
+.ds-date-cell {
+  width: var(--col-date);
+  flex-shrink: 0;
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-desc-cell {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-ink-primary);
+}
+
+.ds-state-cell {
+  width: var(--col-state);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  color: var(--color-ink-secondary);
+}
+
+.ds-match-marker {
+  width: var(--size-marker);
+  height: var(--size-marker);
+  border-radius: var(--radius-pill);
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.ds-match-marker[data-state="match"]  { background: var(--color-signal-match); }
+.ds-match-marker[data-state="review"] { background: var(--color-signal-review); }
+.ds-match-marker[data-state="break"]  { background: var(--color-signal-break); }
+
+.ds-amount-cell {
+  width: var(--col-amount);
+  flex-shrink: 0;
+  text-align: right;
+  color: var(--color-ink-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-list-empty {
+  padding-top: var(--space-wide);
+  padding-bottom: var(--space-wide);
+  padding-left: var(--space-wide);
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+/* --- pager ---------------------------------------------------------------- */
+
+.ds-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-base);
+  padding-top: var(--space-tight);
+  padding-bottom: var(--space-tight);
+  border-top: var(--size-hairline) solid var(--color-hairline);
+}
+
+.ds-pager-set {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+}
+
+.ds-pager-label {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  margin-right: var(--space-tight);
+}
+
+.ds-pager-step,
+.ds-pager-page {
+  height: var(--size-target);
+  min-width: var(--size-target);
+  padding-left: var(--space-base);
+  padding-right: var(--space-base);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.ds-pager-step:hover:not(:disabled),
+.ds-pager-page:hover { background: var(--color-surface-recessed); color: var(--color-ink-primary); }
+.ds-pager-step:disabled { opacity: var(--opacity-disabled); cursor: default; }
+
+.ds-pager-page[aria-current="page"] {
+  background: var(--color-surface-raised);
+  color: var(--color-ink-primary);
+}
+
+.ds-pager-range {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- batch note ----------------------------------------------------------- */
+
+.ds-batch-note {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding-top: var(--space-tight);
+  padding-bottom: var(--space-tight);
+  border-top: var(--size-hairline) solid var(--color-hairline);
+  background: var(--color-surface-recessed);
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+.ds-batch-note[hidden] { display: none; }
+
+.ds-batch-note-undo {
+  height: var(--size-target);
+  padding-left: var(--space-tight);
+  padding-right: var(--space-tight);
+  margin-left: calc(var(--space-tight) * -1);
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--type-sm);
+  color: var(--color-ink-primary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  text-decoration: underline;
+  text-underline-offset: var(--size-focus);
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.ds-batch-note-undo:hover { background: var(--color-surface-raised); }
+
+/* --- reconcile bar -------------------------------------------------------- */
+
+.ds-reconcile-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-base);
+  padding-top: var(--space-tight);
+  padding-bottom: var(--space-tight);
+  border-top: var(--size-hairline) solid var(--color-hairline);
+  background: var(--color-surface-raised);
+}
+
+.ds-reconcile-bar[data-state="idle"] { background: var(--color-surface-base); }
+
+.ds-reconcile-summary {
+  font-size: var(--type-md);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-reconcile-bar[data-state="armed"] .ds-reconcile-summary { color: var(--color-ink-primary); }
+
+.ds-reconcile-summary .ds-aside {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+.ds-reconcile-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+}
+
+.ds-button {
+  height: var(--size-target);
+  min-width: var(--size-target);
+  padding-left: var(--space-wide);
+  padding-right: var(--space-wide);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  font-size: var(--type-sm);
+  cursor: pointer;
+  transition:
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.ds-button-primary {
+  background: var(--color-ink-primary);
+  color: var(--color-surface-base);
+  font-weight: 600;
+}
+
+.ds-button-primary:disabled {
+  background: var(--color-surface-raised);
+  color: var(--color-ink-secondary);
+  cursor: default;
+}
+
+.ds-button-quiet {
+  border: var(--size-hairline) solid var(--color-hairline);
+  color: var(--color-ink-secondary);
+}
+
+.ds-button-quiet:hover:not(:disabled) {
+  color: var(--color-ink-primary);
+  border-color: var(--color-ink-secondary);
+}
+
+.ds-button-quiet:disabled { opacity: var(--opacity-disabled); cursor: default; }
+
+/* --- total footer --------------------------------------------------------- */
+
+.ds-total-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-base);
+  padding-top: var(--space-base);
+  padding-bottom: var(--space-base);
+  border-top: var(--size-hairline) solid var(--color-hairline);
+  background: var(--color-surface-recessed);
+}
+
+.ds-total-lead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-tight);
+}
+
+.ds-total-label {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.ds-total-count {
+  font-size: var(--type-sm);
+  color: var(--color-ink-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-total-inview {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-total-inview[hidden] { display: none; }
+
+.ds-total-value {
+  width: var(--col-amount);
+  flex-shrink: 0;
+  text-align: right;
+  font-size: var(--type-lg);
+  color: var(--color-ink-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--leading-tight);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0ms !important; }
+}
+</style>
+</head>
+<body>
+
+<main class="ds-shell">
+
+  <header class="ds-page-head ds-band">
+    <div>
+      <h1>Reconciliation review</h1>
+      <p class="ds-meta">Business current account &middot; July 2026</p>
+    </div>
+    <p class="ds-progress" id="progress"></p>
+  </header>
+
+  <section class="ds-filter-bank ds-band" aria-label="Filters">
+    <div class="ds-filter-group" role="group" aria-label="Filter by state">
+      <span class="ds-filter-group-label" id="lbl-state">State</span>
+      <button type="button" class="ds-filter-chip" data-filter="state" data-value="match" aria-pressed="false">
+        <span class="ds-match-marker" data-state="match" aria-hidden="true"></span>
+        <span>Match</span><span class="ds-chip-count" data-count="match"></span>
+      </button>
+      <button type="button" class="ds-filter-chip" data-filter="state" data-value="review" aria-pressed="false">
+        <span class="ds-match-marker" data-state="review" aria-hidden="true"></span>
+        <span>Review</span><span class="ds-chip-count" data-count="review"></span>
+      </button>
+      <button type="button" class="ds-filter-chip" data-filter="state" data-value="break" aria-pressed="false">
+        <span class="ds-match-marker" data-state="break" aria-hidden="true"></span>
+        <span>Break</span><span class="ds-chip-count" data-count="break"></span>
+      </button>
+    </div>
+
+    <div class="ds-filter-group" role="group" aria-label="Filter by amount">
+      <span class="ds-filter-group-label">Amount</span>
+      <button type="button" class="ds-filter-chip" data-filter="amount" data-value="over500" aria-pressed="false">
+        <span>Over &pound;500</span><span class="ds-chip-count" data-count="over500"></span>
+      </button>
+    </div>
+
+    <button type="button" class="ds-filter-reset" id="filter-reset" disabled>Clear filters</button>
+  </section>
+
+  <div class="ds-list-head ds-band">
+    <span class="ds-select-cell">
+      <button type="button" class="ds-select-all" id="select-all" role="checkbox" aria-checked="false" aria-label="Select page">
+        <span class="ds-select-box" aria-hidden="true"></span>
+      </button>
+    </span>
+    <span class="ds-date-cell">Date</span>
+    <span class="ds-desc-cell">Description</span>
+    <span class="ds-state-cell">State</span>
+    <span class="ds-amount-cell">Amount</span>
+  </div>
+
+  <div class="ds-list" id="list" role="group" aria-label="Imported entries"></div>
+
+  <nav class="ds-pager ds-band" aria-label="Entry pages">
+    <div class="ds-pager-set">
+      <span class="ds-pager-label">Page</span>
+      <button type="button" class="ds-pager-step" id="page-prev">Previous</button>
+      <span class="ds-pager-set" id="page-numbers"></span>
+      <button type="button" class="ds-pager-step" id="page-next">Next</button>
+    </div>
+    <span class="ds-pager-range" id="page-range"></span>
+  </nav>
+
+  <div class="ds-batch-note ds-band" id="batch-note" role="status" aria-live="polite" hidden>
+    <button type="button" class="ds-batch-note-undo" id="batch-undo">Undo</button>
+    <span id="batch-text"></span>
+  </div>
+
+  <div class="ds-reconcile-bar ds-band" id="reconcile-bar" data-state="idle">
+    <p class="ds-reconcile-summary" id="reconcile-summary">Nothing selected</p>
+    <div class="ds-reconcile-actions">
+      <button type="button" class="ds-button ds-button-quiet" id="clear-selection" disabled>Clear selection</button>
+      <button type="button" class="ds-button ds-button-primary" id="reconcile" disabled>Reconcile</button>
+    </div>
+  </div>
+
+  <footer class="ds-total-footer ds-band">
+    <span class="ds-total-lead">
+      <span class="ds-total-label">Unreconciled</span>
+      <span class="ds-total-count" id="total-count"></span>
+    </span>
+    <span class="ds-total-inview" id="total-inview" hidden></span>
+    <span class="ds-total-value" id="total-value"></span>
+  </footer>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  /* --- seed data --------------------------------------------------------- */
+
+  var ENTRIES = [
+    { id: 1,  date: "2026-07-02", desc: "Kingsway Supplies Ltd",             amount: -284.50,  state: "match"  },
+    { id: 2,  date: "2026-07-02", desc: "Card payment — SUMUP *CAFE",   amount: -14.20,   state: "review" },
+    { id: 3,  date: "2026-07-03", desc: "Invoice 20418 — Hartley & Co", amount: 3150.00,  state: "match"  },
+    { id: 4,  date: "2026-07-03", desc: "Direct debit — BRITISH GAS",   amount: -212.88,  state: "match"  },
+    { id: 5,  date: "2026-07-04", desc: "FASTER PAYMENT REF 88213",          amount: 940.00,   state: "break"  },
+    { id: 6,  date: "2026-07-06", desc: "Kingsway Supplies Ltd",             amount: -96.75,   state: "match"  },
+    { id: 7,  date: "2026-07-07", desc: "Card payment — TFL TRAVEL",    amount: -8.40,    state: "review" },
+    { id: 8,  date: "2026-07-08", desc: "Invoice 20419 — Marchmont Trust", amount: 1875.00, state: "match" },
+    { id: 9,  date: "2026-07-09", desc: "Standing order — OFFICE RENT", amount: -1450.00, state: "match"  },
+    { id: 10, date: "2026-07-10", desc: "Refund — Kingsway Supplies Ltd", amount: 42.30,  state: "review" },
+    { id: 11, date: "2026-07-11", desc: "FASTER PAYMENT REF 88407",          amount: 512.00,   state: "break"  },
+    { id: 12, date: "2026-07-13", desc: "Card payment — AMZN MKTPLACE", amount: -137.99,  state: "review" },
+    { id: 13, date: "2026-07-14", desc: "Invoice 20420 — Hartley & Co", amount: 2240.00,  state: "match"  },
+    { id: 14, date: "2026-07-15", desc: "Direct debit — VODAFONE",      amount: -78.00,   state: "match"  },
+    { id: 15, date: "2026-07-16", desc: "Card payment — SUMUP *CAFE",   amount: -11.60,   state: "review" },
+    { id: 16, date: "2026-07-17", desc: "Kingsway Supplies Ltd",             amount: -318.05,  state: "match"  },
+    { id: 17, date: "2026-07-18", desc: "FASTER PAYMENT REF 88612",          amount: 275.00,   state: "break"  },
+    { id: 18, date: "2026-07-20", desc: "Invoice 20421 — Delaney Partners", amount: 4100.00, state: "match" },
+    { id: 19, date: "2026-07-21", desc: "Card payment — STATIONERY DIRECT", amount: -63.44, state: "review" },
+    { id: 20, date: "2026-07-22", desc: "Direct debit — INSURANCE PREMIUM", amount: -189.50, state: "match" },
+    { id: 21, date: "2026-07-23", desc: "Kingsway Supplies Ltd",             amount: -145.20,  state: "match"  },
+    { id: 22, date: "2026-07-24", desc: "FASTER PAYMENT REF 88903",          amount: 1020.00,  state: "break"  },
+    { id: 23, date: "2026-07-25", desc: "Invoice 20422 — Marchmont Trust", amount: 1660.00, state: "match" },
+    { id: 24, date: "2026-07-27", desc: "Card payment — TFL TRAVEL",    amount: -6.80,    state: "review" }
+  ];
+
+  var PAGE_SIZE = 10;
+  var THRESHOLD = 500;
+  var STATE_WORD = { match: "Match", review: "Review", "break": "Break" };
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  var money = new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: "GBP",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+
+  /* --- state ------------------------------------------------------------- */
+
+  var reconciled = Object.create(null);   // id -> true
+  var selected = Object.create(null);     // id -> true
+  var filterStates = Object.create(null); // state -> true
+  var filterOver = false;
+  var page = 1;
+  var lastBatch = null;                   // array of ids, one level of undo
+
+  /* --- derivations ------------------------------------------------------- */
+
+  function isReconciled(e) { return reconciled[e.id] === true; }
+  function isSelected(e) { return selected[e.id] === true; }
+
+  function unreconciled() {
+    return ENTRIES.filter(function (e) { return !isReconciled(e); });
+  }
+
+  function anyFilter() {
+    return filterOver || Object.keys(filterStates).length > 0;
+  }
+
+  function passesFilter(e) {
+    var states = Object.keys(filterStates);
+    if (states.length > 0 && filterStates[e.state] !== true) return false;
+    if (filterOver && Math.abs(e.amount) < THRESHOLD) return false;
+    return true;
+  }
+
+  function visible() {
+    return unreconciled().filter(passesFilter);
+  }
+
+  function totalPages() {
+    return Math.max(1, Math.ceil(visible().length / PAGE_SIZE));
+  }
+
+  function pageEntries() {
+    var v = visible();
+    var start = (page - 1) * PAGE_SIZE;
+    return v.slice(start, start + PAGE_SIZE);
+  }
+
+  function selectedIds() {
+    return Object.keys(selected).map(Number);
+  }
+
+  function selectedEntries() {
+    return ENTRIES.filter(isSelected);
+  }
+
+  function sum(list) {
+    return list.reduce(function (t, e) { return t + e.amount; }, 0);
+  }
+
+  function clampPage() {
+    var max = totalPages();
+    if (page > max) page = max;
+    if (page < 1) page = 1;
+  }
+
+  function fmtDate(iso) {
+    var parts = iso.split("-");
+    return parts[2] + " " + MONTHS[Number(parts[1]) - 1];
+  }
+
+  /* --- note lifecycle ----------------------------------------------------
+     The batch note never expires on a timer and never counts down. It is
+     cleared by the next action: another reconcile replaces it, undo consumes
+     it, and a page or filter change is the navigation that ends it. Building
+     the next selection does not clear it. */
+
+  function clearNote() {
+    lastBatch = null;
+  }
+
+  /* --- rendering --------------------------------------------------------- */
+
+  var list = document.getElementById("list");
+  var selectAll = document.getElementById("select-all");
+  var progress = document.getElementById("progress");
+  var pageNumbers = document.getElementById("page-numbers");
+  var pageRange = document.getElementById("page-range");
+  var prevBtn = document.getElementById("page-prev");
+  var nextBtn = document.getElementById("page-next");
+  var note = document.getElementById("batch-note");
+  var noteText = document.getElementById("batch-text");
+  var bar = document.getElementById("reconcile-bar");
+  var barSummary = document.getElementById("reconcile-summary");
+  var reconcileBtn = document.getElementById("reconcile");
+  var clearBtn = document.getElementById("clear-selection");
+  var filterReset = document.getElementById("filter-reset");
+  var totalCount = document.getElementById("total-count");
+  var totalValue = document.getElementById("total-value");
+  var totalInview = document.getElementById("total-inview");
+
+  function renderList() {
+    var rows = pageEntries();
+    list.textContent = "";
+
+    if (rows.length === 0) {
+      var empty = document.createElement("p");
+      empty.className = "ds-list-empty";
+      empty.textContent = unreconciled().length === 0
+        ? "Nothing left to reconcile"
+        : "No entries match the current filter";
+      list.appendChild(empty);
+      return;
+    }
+
+    var frag = document.createDocumentFragment();
+
+    rows.forEach(function (e) {
+      var row = document.createElement("div");
+      row.className = "ds-entry-row";
+      row.setAttribute("role", "checkbox");
+      row.setAttribute("tabindex", "0");
+      row.setAttribute("aria-checked", isSelected(e) ? "true" : "false");
+      row.dataset.id = String(e.id);
+
+      var selectCell = document.createElement("span");
+      selectCell.className = "ds-select-cell";
+      var box = document.createElement("span");
+      box.className = "ds-select-box";
+      box.setAttribute("aria-hidden", "true");
+      selectCell.appendChild(box);
+
+      var dateCell = document.createElement("span");
+      dateCell.className = "ds-date-cell";
+      dateCell.textContent = fmtDate(e.date);
+
+      var descCell = document.createElement("span");
+      descCell.className = "ds-desc-cell";
+      descCell.textContent = e.desc;
+
+      var stateCell = document.createElement("span");
+      stateCell.className = "ds-state-cell";
+      var marker = document.createElement("span");
+      marker.className = "ds-match-marker";
+      marker.setAttribute("data-state", e.state);
+      marker.setAttribute("aria-hidden", "true");
+      var word = document.createElement("span");
+      word.textContent = STATE_WORD[e.state];
+      stateCell.appendChild(marker);
+      stateCell.appendChild(word);
+
+      var amountCell = document.createElement("span");
+      amountCell.className = "ds-amount-cell";
+      amountCell.textContent = money.format(e.amount);
+
+      row.appendChild(selectCell);
+      row.appendChild(dateCell);
+      row.appendChild(descCell);
+      row.appendChild(stateCell);
+      row.appendChild(amountCell);
+      frag.appendChild(row);
+    });
+
+    list.appendChild(frag);
+  }
+
+  function renderSelectAll() {
+    var rows = pageEntries();
+    var on = rows.filter(isSelected).length;
+    var value = "false";
+    if (rows.length > 0 && on === rows.length) value = "true";
+    else if (on > 0) value = "mixed";
+    selectAll.setAttribute("aria-checked", value);
+    selectAll.disabled = rows.length === 0;
+  }
+
+  function renderFilters() {
+    var pool = unreconciled();
+    var counts = {
+      match: pool.filter(function (e) { return e.state === "match"; }).length,
+      review: pool.filter(function (e) { return e.state === "review"; }).length,
+      "break": pool.filter(function (e) { return e.state === "break"; }).length,
+      over500: pool.filter(function (e) { return Math.abs(e.amount) >= THRESHOLD; }).length
+    };
+
+    Array.prototype.forEach.call(document.querySelectorAll("[data-count]"), function (el) {
+      el.textContent = String(counts[el.dataset.count]);
+    });
+
+    Array.prototype.forEach.call(document.querySelectorAll(".ds-filter-chip"), function (chip) {
+      var on = chip.dataset.filter === "state"
+        ? filterStates[chip.dataset.value] === true
+        : filterOver;
+      chip.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+
+    filterReset.disabled = !anyFilter();
+  }
+
+  function renderPager() {
+    var max = totalPages();
+    pageNumbers.textContent = "";
+    for (var i = 1; i <= max; i += 1) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ds-pager-page";
+      btn.dataset.page = String(i);
+      btn.textContent = String(i);
+      if (i === page) btn.setAttribute("aria-current", "page");
+      pageNumbers.appendChild(btn);
+    }
+    prevBtn.disabled = page <= 1;
+    nextBtn.disabled = page >= max;
+
+    var v = visible();
+    if (v.length === 0) {
+      pageRange.textContent = "No entries in view";
+    } else {
+      var start = (page - 1) * PAGE_SIZE + 1;
+      var end = Math.min(page * PAGE_SIZE, v.length);
+      pageRange.textContent = "Entries " + start + "–" + end + " of " + v.length;
+    }
+  }
+
+  function renderBar() {
+    var picked = selectedEntries();
+    var n = picked.length;
+
+    if (n === 0) {
+      bar.dataset.state = "idle";
+      barSummary.textContent = "Nothing selected";
+      reconcileBtn.disabled = true;
+      clearBtn.disabled = true;
+      return;
+    }
+
+    bar.dataset.state = "armed";
+    barSummary.textContent = "";
+
+    var head = document.createElement("span");
+    head.textContent = n + (n === 1 ? " entry selected" : " entries selected");
+    barSummary.appendChild(head);
+
+    var aside = document.createElement("span");
+    aside.className = "ds-aside";
+    var offPage = n - pageEntries().filter(isSelected).length;
+    var tail = "  ·  " + money.format(sum(picked));
+    if (offPage > 0) tail += "  ·  " + offPage + " not in view";
+    aside.textContent = tail;
+    barSummary.appendChild(aside);
+
+    reconcileBtn.disabled = false;
+    clearBtn.disabled = false;
+  }
+
+  function renderNote() {
+    if (lastBatch === null) {
+      note.hidden = true;
+      noteText.textContent = "";
+      return;
+    }
+    note.hidden = false;
+    noteText.textContent = "— " + lastBatch.length + " reconciled";
+  }
+
+  function renderTotals() {
+    var open = unreconciled();
+    totalCount.textContent = open.length + (open.length === 1 ? " entry" : " entries");
+    totalValue.textContent = money.format(sum(open));
+
+    if (anyFilter()) {
+      var v = visible();
+      totalInview.hidden = false;
+      totalInview.textContent = "In view  ·  " + v.length + "  ·  " + money.format(sum(v));
+    } else {
+      totalInview.hidden = true;
+      totalInview.textContent = "";
+    }
+
+    var done = ENTRIES.length - open.length;
+    progress.textContent = done + " of " + ENTRIES.length + " reconciled";
+  }
+
+  function render() {
+    clampPage();
+    renderList();
+    renderSelectAll();
+    renderFilters();
+    renderPager();
+    renderBar();
+    renderNote();
+    renderTotals();
+  }
+
+  /* --- interactions ------------------------------------------------------ */
+
+  /* Selection never rebuilds the list. Only the affected rows' marks, the
+     header control and the bar change, so nothing under the cursor moves and
+     keyboard focus is never thrown away. */
+  function syncRowMarks() {
+    Array.prototype.forEach.call(list.querySelectorAll(".ds-entry-row"), function (el) {
+      el.setAttribute("aria-checked", selected[Number(el.dataset.id)] === true ? "true" : "false");
+    });
+    renderSelectAll();
+    renderBar();
+  }
+
+  function toggle(id) {
+    if (selected[id] === true) delete selected[id];
+    else selected[id] = true;
+    syncRowMarks();
+  }
+
+  list.addEventListener("click", function (ev) {
+    var row = ev.target.closest(".ds-entry-row");
+    if (!row) return;
+    toggle(Number(row.dataset.id));
+  });
+
+  list.addEventListener("keydown", function (ev) {
+    if (ev.key !== " " && ev.key !== "Enter") return;
+    var row = ev.target.closest(".ds-entry-row");
+    if (!row) return;
+    ev.preventDefault();
+    toggle(Number(row.dataset.id));
+  });
+
+  selectAll.addEventListener("click", function () {
+    var rows = pageEntries();
+    if (rows.length === 0) return;
+    var allOn = rows.every(isSelected);
+    rows.forEach(function (e) {
+      if (allOn) delete selected[e.id];
+      else selected[e.id] = true;
+    });
+    syncRowMarks();
+  });
+
+  document.querySelector(".ds-filter-bank").addEventListener("click", function (ev) {
+    var chip = ev.target.closest(".ds-filter-chip");
+    if (chip) {
+      if (chip.dataset.filter === "state") {
+        var v = chip.dataset.value;
+        if (filterStates[v] === true) delete filterStates[v];
+        else filterStates[v] = true;
+      } else {
+        filterOver = !filterOver;
+      }
+      page = 1;
+      clearNote();
+      render();
+      return;
+    }
+    if (ev.target.closest("#filter-reset")) {
+      filterStates = Object.create(null);
+      filterOver = false;
+      page = 1;
+      clearNote();
+      render();
+    }
+  });
+
+  pageNumbers.addEventListener("click", function (ev) {
+    var btn = ev.target.closest(".ds-pager-page");
+    if (!btn) return;
+    page = Number(btn.dataset.page);
+    clearNote();
+    render();
+  });
+
+  prevBtn.addEventListener("click", function () {
+    page = Math.max(1, page - 1);
+    clearNote();
+    render();
+  });
+
+  nextBtn.addEventListener("click", function () {
+    page = Math.min(totalPages(), page + 1);
+    clearNote();
+    render();
+  });
+
+  reconcileBtn.addEventListener("click", function () {
+    var ids = selectedIds();
+    if (ids.length === 0) return;
+    ids.forEach(function (id) { reconciled[id] = true; });
+    selected = Object.create(null);
+    lastBatch = ids;
+    render();
+  });
+
+  clearBtn.addEventListener("click", function () {
+    selected = Object.create(null);
+    syncRowMarks();
+  });
+
+  document.getElementById("batch-undo").addEventListener("click", function () {
+    if (lastBatch === null) return;
+    var ids = lastBatch;
+    ids.forEach(function (id) { delete reconciled[id]; });
+    selected = Object.create(null);
+    ids.forEach(function (id) { selected[id] = true; });
+    lastBatch = null;
+    render();
+  });
+
+  render();
+}());
+</script>
+
+</body>
+</html>

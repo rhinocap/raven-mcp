@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reconciliation — Business current account</title>
+<style>
+/* ==========================================================================
+   TOKEN LAYER — the only place in this file where a literal value appears.
+   Group 1 mirrors the 21 tokens named by arena/DESIGN.md (compose_build_prompt
+   disclosed the token NAMES and CSS variable names, not their values, so the
+   values below are a local materialisation — see NOTES.md, Open questions).
+   Group 2 are local additions: quantities the screen needs that the design
+   system does not currently expose. Both are listed in NOTES.md.
+   ========================================================================== */
+:root {
+  /* -- group 1: arena/DESIGN.md token names ------------------------------ */
+  --color-surface-base:      #F6F5F1;
+  --color-surface-raised:    #FFFFFF;
+  --color-surface-recessed:  #ECEAE3;
+  --color-ink-primary:       #1B1A17;
+  --color-ink-secondary:     #5C5A52;
+  --color-signal-match:      #2F6B4E;
+  --color-signal-review:     #9A6207;
+  --color-signal-break:      #A83A2C;
+  --color-hairline:          #DEDBD2;
+
+  --type-xs: 13px;
+  --type-sm: 15px;
+  --type-md: 17px;
+  --type-lg: 22px;
+  --type-xl: 30px;
+
+  --space-tight:  8px;
+  --space-base:   12px;
+  --space-wide:   20px;
+  --space-column: 56px;   /* fixed amount-column inset — taste decision dec_5 */
+
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 200ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* -- group 2: local additions (not in DESIGN.md; reported in NOTES.md) -- */
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --hairline-width: 1px;
+  --rule-strong: 3px;          /* selected-row inset rule */
+  --focus-width: 2px;
+  --focus-offset: 2px;
+  --radius-sm: 4px;
+  --radius-pill: 999px;
+  --marker-size: 6px;          /* filled match dot — taste decision dec_1 */
+  --control-min: 44px;         /* tap-target floor — acceptance criterion A3 */
+  --row-height: 48px;
+  --box-size: 18px;            /* drawn checkbox */
+  --col-select: 56px;
+  --col-marker: 20px;
+  --col-date: 108px;
+  --col-state: 92px;
+  --col-amount: 148px;
+  --page-inset: calc(var(--space-wide) * 2);
+  --footer-height: 72px;
+}
+
+/* ==========================================================================
+   BASE
+   ========================================================================== */
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--color-surface-base);
+  color: var(--color-ink-primary);
+  font-family: var(--font-sans);
+  font-size: var(--type-sm);
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+button { font: inherit; color: inherit; }
+
+:focus-visible {
+  outline: var(--focus-width) solid var(--color-ink-primary);
+  outline-offset: var(--focus-offset);
+}
+
+.sr-only {
+  position: absolute;
+  width: var(--hairline-width);
+  height: var(--hairline-width);
+  margin: calc(var(--hairline-width) * -1);
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   SCREEN SHELL
+   ========================================================================== */
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-base);
+  max-width: 100%;
+  padding:
+    var(--space-wide)
+    var(--page-inset)
+    calc(var(--footer-height) + var(--space-wide))
+    var(--page-inset);
+}
+
+/* -- title block ---------------------------------------------------------- */
+.title-block {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-base);
+  flex-wrap: wrap;
+}
+
+.screen-title {
+  margin: 0;
+  font-size: var(--type-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.account-meta {
+  margin: 0;
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+/* ==========================================================================
+   FILTER BAR
+   ========================================================================== */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-wide);
+  flex-wrap: wrap;
+  padding: 0;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+}
+
+.filter-group-label {
+  font-size: var(--type-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-secondary);
+  margin-inline-end: var(--space-tight);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  min-height: var(--control-min);
+  padding-inline: var(--space-base);
+  background: var(--color-surface-raised);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius-pill);
+  font-size: var(--type-sm);
+  color: var(--color-ink-primary);
+  cursor: pointer;
+}
+
+.chip:hover { background: var(--color-surface-recessed); }
+
+.chip[aria-checked="true"] {
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+  color: var(--color-surface-raised);
+}
+
+.chip-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-secondary);
+}
+
+.chip[aria-checked="true"] .chip-count { color: var(--color-surface-recessed); }
+
+.filter-summary {
+  margin: 0;
+  margin-inline-start: auto;
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   ENTRY TABLE
+   ========================================================================== */
+.entry-table-frame {
+  background: var(--color-surface-raised);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.entry-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.entry-table th,
+.entry-table td {
+  text-align: start;
+  vertical-align: middle;
+  padding: 0;
+}
+
+.entry-table thead th {
+  height: var(--control-min);
+  background: var(--color-surface-recessed);
+  border-block-end: var(--hairline-width) solid var(--color-hairline);
+  font-size: var(--type-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-secondary);
+}
+
+.col-select { width: var(--col-select); }
+.col-marker { width: var(--col-marker); }
+.col-date   { width: var(--col-date); }
+.col-state  { width: var(--col-state); }
+.col-amount { width: calc(var(--col-amount) + var(--space-column)); }
+
+.entry-row { height: var(--row-height); cursor: pointer; }
+
+.entry-row > td {
+  border-block-end: var(--hairline-width) solid var(--color-hairline);
+  background: var(--color-surface-raised);
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.entry-row:last-child > td { border-block-end: 0; }
+
+.entry-row:hover > td { background: var(--color-surface-recessed); }
+
+.entry-row.is-selected > td { background: var(--color-surface-recessed); }
+
+/* the selected rule is an inset shadow, so a selected row is exactly as tall
+   as a resting one — decision dec_msdyq34c_bmr7 */
+.entry-row.is-selected > td:first-child {
+  box-shadow: inset var(--rule-strong) 0 0 0 var(--color-ink-primary);
+}
+
+.entry-row.is-leaving > td {
+  opacity: 0;
+  transition: opacity var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+/* -- cells ----------------------------------------------------------------
+   Scoped under .entry-table so they outrank the `padding: 0` cell reset above;
+   the amount inset in particular is load-bearing (taste decision dec_5).      */
+.entry-table .cell-select { text-align: center; }
+
+.select-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-min);
+  height: var(--control-min);
+  cursor: pointer;
+}
+
+.select-box input {
+  width: var(--box-size);
+  height: var(--box-size);
+  margin: 0;
+  accent-color: var(--color-ink-primary);
+  cursor: pointer;
+}
+
+.match-marker {
+  display: block;
+  width: var(--marker-size);
+  height: var(--marker-size);
+  border-radius: var(--radius-pill);
+  margin-inline: auto;
+}
+
+.match-marker[data-state="match"]  { background: var(--color-signal-match); }
+.match-marker[data-state="review"] { background: var(--color-signal-review); }
+.match-marker[data-state="break"]  { background: var(--color-signal-break); }
+
+.entry-row .cell-date {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+  padding-inline-end: var(--space-base);
+}
+
+.entry-row .cell-description {
+  font-size: var(--type-sm);
+  color: var(--color-ink-primary);
+  padding-inline-end: var(--space-base);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-row .cell-state {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+.entry-row .cell-amount {
+  font-size: var(--type-sm);
+  color: var(--color-ink-primary);
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  padding-inline-end: var(--space-column);
+}
+
+/* column labels sit on the same edges as the figures beneath them */
+.entry-table thead .cell-date { padding-inline-end: var(--space-base); }
+
+.entry-table thead .cell-amount {
+  text-align: end;
+  padding-inline-end: var(--space-column);
+}
+
+/* -- empty state ---------------------------------------------------------- */
+.empty-state {
+  padding: var(--space-wide);
+  text-align: center;
+  font-size: var(--type-md);
+  color: var(--color-ink-secondary);
+  background: var(--color-surface-raised);
+}
+
+.empty-state[hidden] { display: none; }
+
+/* ==========================================================================
+   PAGER
+   ========================================================================== */
+.pager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+}
+
+.pager[hidden] { display: none; }
+
+.pager-label {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  margin-inline-end: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.pager-btn {
+  min-width: var(--control-min);
+  height: var(--control-min);
+  padding-inline: var(--space-base);
+  background: var(--color-surface-raised);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  font-size: var(--type-sm);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.pager-btn:hover:not(:disabled) { background: var(--color-surface-recessed); }
+
+.pager-btn[aria-current="page"] {
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+  color: var(--color-surface-raised);
+}
+
+.pager-btn:disabled {
+  color: var(--color-ink-secondary);
+  background: var(--color-surface-recessed);
+  cursor: default;
+}
+
+/* ==========================================================================
+   RECONCILE BAR — after the list in document order and beneath it on screen
+   (decision dec_msdyq34a_04p3). Never floats, never overlays.
+   ========================================================================== */
+.reconcile-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  flex-wrap: wrap;
+  padding: var(--space-base) var(--space-wide);
+  background: var(--color-surface-raised);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+}
+
+.selection-count {
+  margin: 0;
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+  min-width: var(--col-date);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-min);
+  padding-inline: var(--space-wide);
+  border-radius: var(--radius-sm);
+  border: var(--hairline-width) solid transparent;
+  cursor: pointer;
+}
+
+.btn-primary {
+  font-size: var(--type-md);
+  background: var(--color-ink-primary);
+  color: var(--color-surface-raised);
+}
+
+.btn-primary:disabled {
+  background: var(--color-surface-recessed);
+  border-color: var(--color-hairline);
+  color: var(--color-ink-secondary);
+  cursor: default;
+}
+
+.btn-quiet {
+  font-size: var(--type-sm);
+  background: transparent;
+  border-color: var(--color-hairline);
+  color: var(--color-ink-secondary);
+}
+
+.btn-quiet:hover:not(:disabled) {
+  background: var(--color-surface-recessed);
+  color: var(--color-ink-primary);
+}
+
+.btn-quiet:disabled { color: var(--color-ink-secondary); opacity: 1; cursor: default; }
+
+/* -- batch note — persists until the next action (decision dec_3) --------- */
+.batch-note {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 0;
+  margin-inline-start: var(--space-tight);
+  font-size: var(--type-sm);
+  color: var(--color-ink-primary);
+}
+
+.batch-note[hidden] { display: none; }
+
+.batch-note.is-entering { animation: note-in var(--motion-duration-base) var(--motion-easing-standard); }
+
+@keyframes note-in { from { opacity: 0; } to { opacity: 1; } }
+
+.undo-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-min);
+  padding-inline: var(--space-tight);
+  margin-inline-start: calc(var(--space-tight) * -1);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  font-size: var(--type-sm);
+  color: var(--color-ink-primary);
+  text-decoration: underline;
+  text-underline-offset: var(--focus-offset);
+  cursor: pointer;
+}
+
+.undo-action:hover { background: var(--color-surface-recessed); }
+
+.batch-note-count { font-variant-numeric: tabular-nums; }
+
+/* ==========================================================================
+   TOTAL FOOTER — pinned to the bottom of the viewport, list scrolls behind it
+   (taste decision dec_4).
+   ========================================================================== */
+.total-footer {
+  position: fixed;
+  inset-block-end: 0;
+  inset-inline: 0;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-base);
+  height: var(--footer-height);
+  padding-inline: var(--page-inset);
+  background: var(--color-surface-raised);
+  border-block-start: var(--hairline-width) solid var(--color-hairline);
+}
+
+.total-label {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+.total-amount {
+  margin-inline-start: auto;
+  font-size: var(--type-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  padding-inline-end: var(--space-column);
+}
+
+/* ==========================================================================
+   REDUCED MOTION
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .entry-row > td,
+  .entry-row.is-leaving > td { transition: none; }
+  .batch-note.is-entering { animation: none; }
+}
+</style>
+</head>
+<body>
+
+<main class="screen">
+
+  <div class="title-block" role="region" aria-labelledby="screen-title">
+    <h1 class="screen-title" id="screen-title">Reconciliation</h1>
+    <p class="account-meta">Business current account · July 2026</p>
+  </div>
+
+  <div class="filter-bar" role="toolbar" aria-label="Filter entries">
+    <div class="filter-group" role="group" aria-label="Match state">
+      <span class="filter-group-label">State</span>
+      <button type="button" class="chip" role="switch" aria-checked="false" data-filter="state" data-value="match">
+        <span class="match-marker" data-state="match" aria-hidden="true"></span>
+        Match <span class="chip-count" data-count="match">0</span>
+      </button>
+      <button type="button" class="chip" role="switch" aria-checked="false" data-filter="state" data-value="review">
+        <span class="match-marker" data-state="review" aria-hidden="true"></span>
+        Review <span class="chip-count" data-count="review">0</span>
+      </button>
+      <button type="button" class="chip" role="switch" aria-checked="false" data-filter="state" data-value="break">
+        <span class="match-marker" data-state="break" aria-hidden="true"></span>
+        Break <span class="chip-count" data-count="break">0</span>
+      </button>
+    </div>
+
+    <div class="filter-group" role="group" aria-label="Direction">
+      <span class="filter-group-label">Direction</span>
+      <button type="button" class="chip" role="switch" aria-checked="false" data-filter="direction" data-value="in">
+        Money in <span class="chip-count" data-count="in">0</span>
+      </button>
+      <button type="button" class="chip" role="switch" aria-checked="false" data-filter="direction" data-value="out">
+        Money out <span class="chip-count" data-count="out">0</span>
+      </button>
+    </div>
+
+    <p class="filter-summary" id="filter-summary">24 entries</p>
+  </div>
+
+  <div class="entry-table-frame">
+    <table class="entry-table" aria-label="Unreconciled entries">
+      <colgroup>
+        <col class="col-select">
+        <col class="col-marker">
+        <col class="col-date">
+        <col>
+        <col class="col-state">
+        <col class="col-amount">
+      </colgroup>
+      <thead>
+        <tr>
+          <th scope="col" class="cell-select">
+            <label class="select-box">
+              <input type="checkbox" id="select-all" aria-label="Select all entries on this page">
+            </label>
+          </th>
+          <th scope="col"><span class="sr-only">Match marker</span></th>
+          <th scope="col" class="cell-date">Date</th>
+          <th scope="col">Description</th>
+          <th scope="col">State</th>
+          <th scope="col" class="cell-amount">Amount</th>
+        </tr>
+      </thead>
+      <tbody id="entry-rows"></tbody>
+    </table>
+    <p class="empty-state" id="empty-state" role="status" hidden></p>
+  </div>
+
+  <nav class="pager" id="pager" aria-label="Entry pages">
+    <span class="pager-label" id="pager-label"></span>
+    <button type="button" class="pager-btn" id="page-prev">Previous</button>
+    <span id="page-numbers" style="display:contents"></span>
+    <button type="button" class="pager-btn" id="page-next">Next</button>
+  </nav>
+
+  <div class="reconcile-bar" role="region" aria-label="Bulk actions">
+    <p class="selection-count" id="selection-count" role="status" aria-live="polite">Nothing selected</p>
+    <button type="button" class="btn btn-primary" id="reconcile-action" disabled>Reconcile</button>
+    <button type="button" class="btn btn-quiet" id="clear-selection" disabled>Clear selection</button>
+    <p class="batch-note" id="batch-note" role="status" aria-live="polite" hidden>
+      <button type="button" class="undo-action" id="undo-action">Undo</button><span class="batch-note-count" id="batch-note-count"></span>
+    </p>
+  </div>
+
+</main>
+
+<footer class="total-footer" role="contentinfo">
+  <span class="total-label" id="total-label">Unreconciled</span>
+  <span class="total-amount" id="total-amount" role="status" aria-live="polite"></span>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  /* -- seed data: amounts held as integer pence ---------------------------- */
+  var ENTRIES = [
+    { id: 1,  date: "2026-07-02", description: "Kingsway Supplies Ltd",            pence:  -28450, state: "match"  },
+    { id: 2,  date: "2026-07-02", description: "Card payment — SUMUP *CAFE",       pence:   -1420, state: "review" },
+    { id: 3,  date: "2026-07-03", description: "Invoice 20418 — Hartley & Co",     pence:  315000, state: "match"  },
+    { id: 4,  date: "2026-07-03", description: "Direct debit — BRITISH GAS",       pence:  -21288, state: "match"  },
+    { id: 5,  date: "2026-07-04", description: "FASTER PAYMENT REF 88213",         pence:   94000, state: "break"  },
+    { id: 6,  date: "2026-07-06", description: "Kingsway Supplies Ltd",            pence:   -9675, state: "match"  },
+    { id: 7,  date: "2026-07-07", description: "Card payment — TFL TRAVEL",        pence:    -840, state: "review" },
+    { id: 8,  date: "2026-07-08", description: "Invoice 20419 — Marchmont Trust",  pence:  187500, state: "match"  },
+    { id: 9,  date: "2026-07-09", description: "Standing order — OFFICE RENT",     pence: -145000, state: "match"  },
+    { id: 10, date: "2026-07-10", description: "Refund — Kingsway Supplies Ltd",   pence:    4230, state: "review" },
+    { id: 11, date: "2026-07-11", description: "FASTER PAYMENT REF 88407",         pence:   51200, state: "break"  },
+    { id: 12, date: "2026-07-13", description: "Card payment — AMZN MKTPLACE",     pence:  -13799, state: "review" },
+    { id: 13, date: "2026-07-14", description: "Invoice 20420 — Hartley & Co",     pence:  224000, state: "match"  },
+    { id: 14, date: "2026-07-15", description: "Direct debit — VODAFONE",          pence:   -7800, state: "match"  },
+    { id: 15, date: "2026-07-16", description: "Card payment — SUMUP *CAFE",       pence:   -1160, state: "review" },
+    { id: 16, date: "2026-07-17", description: "Kingsway Supplies Ltd",            pence:  -31805, state: "match"  },
+    { id: 17, date: "2026-07-18", description: "FASTER PAYMENT REF 88612",         pence:   27500, state: "break"  },
+    { id: 18, date: "2026-07-20", description: "Invoice 20421 — Delaney Partners", pence:  410000, state: "match"  },
+    { id: 19, date: "2026-07-21", description: "Card payment — STATIONERY DIRECT", pence:   -6344, state: "review" },
+    { id: 20, date: "2026-07-22", description: "Direct debit — INSURANCE PREMIUM", pence:  -18950, state: "match"  },
+    { id: 21, date: "2026-07-23", description: "Kingsway Supplies Ltd",            pence:  -14520, state: "match"  },
+    { id: 22, date: "2026-07-24", description: "FASTER PAYMENT REF 88903",         pence:  102000, state: "break"  },
+    { id: 23, date: "2026-07-25", description: "Invoice 20422 — Marchmont Trust",  pence:  166000, state: "match"  },
+    { id: 24, date: "2026-07-27", description: "Card payment — TFL TRAVEL",        pence:    -680, state: "review" }
+  ];
+
+  /* The word shown in the row body for each match state. `break` is the
+     contested label (decision dec_msdyq34d_bkqq) — it lives here alone so a
+     ruling either way is a one-line change. See NOTES.md, Open questions. */
+  var STATE_WORDS = { match: "Match", review: "Review", "break": "Break" };
+
+  // 10 rows is what fits above the pinned footer at 1440×900 without the page
+  // itself scrolling, and it divides 24 into three even-feeling pages.
+  var PAGE_SIZE = 10;
+
+  var reconciled = new Set();
+  var selected = new Set();
+  var filters = { state: new Set(), direction: new Set() };
+  var page = 0;
+  var lastBatch = null;   // { ids: [] } — one level of undo
+  var noteCount = 0;      // 0 = no batch note showing
+
+  /* -- elements ----------------------------------------------------------- */
+  var el = {
+    rows: document.getElementById("entry-rows"),
+    selectAll: document.getElementById("select-all"),
+    empty: document.getElementById("empty-state"),
+    pager: document.getElementById("pager"),
+    pagerLabel: document.getElementById("pager-label"),
+    pageNumbers: document.getElementById("page-numbers"),
+    pagePrev: document.getElementById("page-prev"),
+    pageNext: document.getElementById("page-next"),
+    selectionCount: document.getElementById("selection-count"),
+    reconcile: document.getElementById("reconcile-action"),
+    clear: document.getElementById("clear-selection"),
+    note: document.getElementById("batch-note"),
+    noteCount: document.getElementById("batch-note-count"),
+    undo: document.getElementById("undo-action"),
+    summary: document.getElementById("filter-summary"),
+    totalLabel: document.getElementById("total-label"),
+    totalAmount: document.getElementById("total-amount")
+  };
+
+  /* -- formatting --------------------------------------------------------- */
+  var MONEY = new Intl.NumberFormat("en-GB", {
+    style: "currency", currency: "GBP", minimumFractionDigits: 2
+  });
+
+  // Negatives read in ink-primary with a leading minus sign — never a signal
+  // hue, never parentheses (decision dec_msdyq34c_we0s).
+  function money(pence) {
+    var s = MONEY.format(Math.abs(pence) / 100);
+    return pence < 0 ? "−" + s : s;
+  }
+
+  function shortDate(iso) {
+    var parts = iso.split("-");
+    var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return parts[2] + " " + months[Number(parts[1]) - 1] + " " + parts[0];
+  }
+
+  function plural(n, one, many) { return n + " " + (n === 1 ? one : many); }
+
+  /* -- derived sets ------------------------------------------------------- */
+  function unreconciled() {
+    return ENTRIES.filter(function (e) { return !reconciled.has(e.id); });
+  }
+
+  function directionOf(e) { return e.pence < 0 ? "out" : "in"; }
+
+  // Chips are multi-select. Within a group the values are alternatives (OR);
+  // the two groups narrow each other (AND) — decision dec_msdyq34b_8daa.
+  function passes(e, skipGroup) {
+    if (skipGroup !== "state" && filters.state.size && !filters.state.has(e.state)) return false;
+    if (skipGroup !== "direction" && filters.direction.size && !filters.direction.has(directionOf(e))) return false;
+    return true;
+  }
+
+  function visible() {
+    return unreconciled().filter(function (e) { return passes(e); });
+  }
+
+  function pageEntries() {
+    return visible().slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  }
+
+  function pageCount() {
+    return Math.max(1, Math.ceil(visible().length / PAGE_SIZE));
+  }
+
+  /* -- render ------------------------------------------------------------- */
+  function render() {
+    if (page > pageCount() - 1) page = pageCount() - 1;
+    if (page < 0) page = 0;
+
+    var rows = pageEntries();
+
+    el.rows.textContent = "";
+    rows.forEach(function (e) { el.rows.appendChild(rowFor(e)); });
+
+    var all = unreconciled();
+    var shown = visible();
+
+    // empty state
+    if (rows.length === 0) {
+      el.empty.hidden = false;
+      el.empty.textContent = all.length === 0
+        ? "Everything is reconciled."
+        : "No entries match these filters.";
+    } else {
+      el.empty.hidden = true;
+    }
+
+    // header select control: checked / mixed / unchecked, scoped to this page
+    // (decision dec_msdyq34c_0pco)
+    var onPage = rows.length;
+    var pickedOnPage = rows.filter(function (e) { return selected.has(e.id); }).length;
+    el.selectAll.checked = onPage > 0 && pickedOnPage === onPage;
+    el.selectAll.indeterminate = pickedOnPage > 0 && pickedOnPage < onPage;
+    el.selectAll.disabled = onPage === 0;
+    el.selectAll.setAttribute(
+      "aria-checked", el.selectAll.indeterminate ? "mixed" : String(el.selectAll.checked)
+    );
+
+    // chip counts, faceted against the other group
+    ["match", "review", "break"].forEach(function (v) {
+      var n = all.filter(function (e) { return e.state === v && passes(e, "state"); }).length;
+      document.querySelector('[data-count="' + v + '"]').textContent = n;
+    });
+    ["in", "out"].forEach(function (v) {
+      var n = all.filter(function (e) { return directionOf(e) === v && passes(e, "direction"); }).length;
+      document.querySelector('[data-count="' + v + '"]').textContent = n;
+    });
+
+    var filtered = filters.state.size > 0 || filters.direction.size > 0;
+    el.summary.textContent = filtered
+      ? shown.length + " of " + plural(all.length, "entry", "entries")
+      : plural(all.length, "entry", "entries");
+
+    // pager — numbered, no infinite scroll, no load-more (dec_msdyq34b_d90i)
+    renderPager();
+
+    // selection + actions
+    var n = selected.size;
+    el.selectionCount.textContent = n === 0 ? "Nothing selected" : plural(n, "entry", "entries") + " selected";
+    el.reconcile.textContent = n === 0 ? "Reconcile" : "Reconcile " + plural(n, "entry", "entries");
+    el.reconcile.disabled = n === 0;
+    el.clear.disabled = n === 0;
+
+    // batch note — affordance first, then the count (decision dec_2)
+    if (noteCount > 0) {
+      el.note.hidden = false;
+      el.noteCount.textContent = " — " + noteCount + " reconciled";
+      el.undo.setAttribute("aria-label", "Undo — " + noteCount + " reconciled");
+    } else {
+      el.note.hidden = true;
+    }
+
+    // running total of everything still unreconciled, across all pages and
+    // regardless of the filters in force
+    var total = all.reduce(function (sum, e) { return sum + e.pence; }, 0);
+    el.totalLabel.textContent = "Unreconciled · " + plural(all.length, "entry", "entries");
+    el.totalAmount.textContent = money(total);
+  }
+
+  function rowFor(e) {
+    var tr = document.createElement("tr");
+    tr.className = "entry-row" + (selected.has(e.id) ? " is-selected" : "");
+    tr.dataset.id = String(e.id);
+    tr.setAttribute("aria-selected", selected.has(e.id) ? "true" : "false");
+
+    var tdSelect = document.createElement("td");
+    tdSelect.className = "cell-select";
+    var label = document.createElement("label");
+    label.className = "select-box";
+    var box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = selected.has(e.id);
+    box.setAttribute("aria-label",
+      "Select " + e.description + ", " + shortDate(e.date) + ", " + money(e.pence));
+    box.addEventListener("change", function () { toggle(e.id); });
+    label.appendChild(box);
+    tdSelect.appendChild(label);
+
+    var tdMarker = document.createElement("td");
+    var marker = document.createElement("span");
+    // no text, no tooltip, no title attribute — the word is in the row body
+    // (decisions dec_1 and dec_msdyq34c_64s3)
+    marker.className = "match-marker";
+    marker.dataset.state = e.state;
+    marker.setAttribute("aria-hidden", "true");
+    tdMarker.appendChild(marker);
+
+    var tdDate = document.createElement("td");
+    tdDate.className = "cell-date";
+    tdDate.textContent = shortDate(e.date);
+
+    var tdDesc = document.createElement("td");
+    tdDesc.className = "cell-description";
+    tdDesc.textContent = e.description;
+
+    var tdState = document.createElement("td");
+    tdState.className = "cell-state";
+    tdState.textContent = STATE_WORDS[e.state];
+
+    var tdAmount = document.createElement("td");
+    tdAmount.className = "cell-amount";
+    tdAmount.textContent = money(e.pence);
+
+    tr.append(tdSelect, tdMarker, tdDate, tdDesc, tdState, tdAmount);
+
+    // a row is selected by its checkbox or by click; no shift-drag range
+    // selection (decision dec_msdyq34d_jfkp)
+    tr.addEventListener("click", function (ev) {
+      if (ev.target.closest(".select-box")) return;
+      toggle(e.id);
+    });
+
+    return tr;
+  }
+
+  function renderPager() {
+    var pages = pageCount();
+    el.pager.hidden = pages < 2;
+    if (pages < 2) return;
+
+    var shown = visible().length;
+    var from = page * PAGE_SIZE + 1;
+    var to = Math.min(shown, page * PAGE_SIZE + PAGE_SIZE);
+    el.pagerLabel.textContent = from + "–" + to + " of " + shown;
+
+    el.pageNumbers.textContent = "";
+    for (var i = 0; i < pages; i++) {
+      (function (i) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "pager-btn";
+        b.textContent = String(i + 1);
+        b.setAttribute("aria-label", "Page " + (i + 1));
+        if (i === page) b.setAttribute("aria-current", "page");
+        b.addEventListener("click", function () { goToPage(i); });
+        el.pageNumbers.appendChild(b);
+      })(i);
+    }
+
+    el.pagePrev.disabled = page === 0;
+    el.pageNext.disabled = page === pages - 1;
+  }
+
+  /* -- actions ------------------------------------------------------------ */
+  // The batch note persists until the next action or a navigation. It never
+  // auto-dismisses and never counts down (decision dec_3).
+  function consumeNote() { noteCount = 0; lastBatch = null; }
+
+  function toggle(id) {
+    consumeNote();
+    if (selected.has(id)) selected.delete(id); else selected.add(id);
+    render();
+  }
+
+  function selectPage(on) {
+    consumeNote();
+    pageEntries().forEach(function (e) {
+      if (on) selected.add(e.id); else selected.delete(e.id);
+    });
+    render();
+  }
+
+  function clearSelection() {
+    consumeNote();
+    selected.clear();
+    render();
+  }
+
+  function goToPage(i) {
+    consumeNote();
+    page = i;                 // filters and selection both survive the move
+    render();                 // (decision dec_msdyq34b_zxp6)
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  function setFilter(group, value, on) {
+    consumeNote();
+    if (on) filters[group].add(value); else filters[group].delete(value);
+    // the visible set has changed underneath the selection, so the selection
+    // is released rather than left pointing at rows that are no longer on
+    // screen — see NOTES.md, Decisions
+    selected.clear();
+    page = 0;
+    render();
+  }
+
+  function motionMs(name) {
+    var raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    var n = parseFloat(raw);
+    return isNaN(n) ? 0 : (raw.indexOf("ms") > -1 ? n : n * 1000);
+  }
+
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  // Reconciling applies immediately — no confirmation dialog — and the surface
+  // reports what happened afterwards (decision dec_msdyq34a_tfum).
+  function reconcile() {
+    if (selected.size === 0) return;
+    var ids = Array.from(selected);
+    var count = ids.length;
+
+    function apply() {
+      ids.forEach(function (id) { reconciled.add(id); });
+      selected.clear();
+      lastBatch = { ids: ids };
+      noteCount = count;
+      render();
+      el.note.classList.remove("is-entering");
+      void el.note.offsetWidth;
+      el.note.classList.add("is-entering");
+      el.undo.focus();       // the Reconcile button just went disabled
+    }
+
+    var leaving = Array.prototype.filter.call(
+      el.rows.querySelectorAll(".entry-row"),
+      function (tr) { return ids.indexOf(Number(tr.dataset.id)) > -1; }
+    );
+
+    if (reduced.matches || leaving.length === 0) { apply(); return; }
+    leaving.forEach(function (tr) { tr.classList.add("is-leaving"); });
+    window.setTimeout(apply, motionMs("--motion-duration-fast"));
+  }
+
+  function undo() {
+    if (!lastBatch) return;
+    var ids = lastBatch.ids;
+    ids.forEach(function (id) { reconciled.delete(id); });
+    selected = new Set(ids);   // the batch comes back still selected
+    lastBatch = null;
+    noteCount = 0;
+    render();
+    el.reconcile.focus();
+  }
+
+  /* -- wiring ------------------------------------------------------------- */
+  el.selectAll.addEventListener("change", function () { selectPage(el.selectAll.checked); });
+  el.reconcile.addEventListener("click", reconcile);
+  el.clear.addEventListener("click", clearSelection);
+  el.undo.addEventListener("click", undo);
+  el.pagePrev.addEventListener("click", function () { goToPage(page - 1); });
+  el.pageNext.addEventListener("click", function () { goToPage(page + 1); });
+
+  Array.prototype.forEach.call(document.querySelectorAll(".chip"), function (chip) {
+    chip.addEventListener("click", function () {
+      var on = chip.getAttribute("aria-checked") !== "true";
+      chip.setAttribute("aria-checked", String(on));
+      setFilter(chip.dataset.filter, chip.dataset.value, on);
+    });
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

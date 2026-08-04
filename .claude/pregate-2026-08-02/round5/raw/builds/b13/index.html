@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reconciliation — Ledger</title>
+<style>
+/* ------------------------------------------------------------------
+   Tokens — arena/DESIGN.md. Every visual value below is a token.
+   ------------------------------------------------------------------ */
+:root {
+  color-scheme: dark;
+
+  /* colours */
+  --color-surface-base:     #101215;
+  --color-surface-raised:   #171a1e;
+  --color-surface-recessed: #0b0d0f;
+  --color-ink-primary:      #e6e8ea;
+  --color-ink-secondary:    #9aa1a8;
+  --color-signal-match:     #4f8f74;
+  --color-signal-review:    #c99a34;
+  --color-signal-break:     #cf5b45;
+  --color-hairline:         #242a30;
+
+  /* type ramp — five steps, unitless as the system declares them */
+  --type-xs: 12;
+  --type-sm: 13;
+  --type-md: 15;
+  --type-lg: 19;
+  --type-xl: 26;
+
+  /* space */
+  --space-tight:  8px;
+  --space-base:  16px;
+  --space-wide:  24px;
+  --space-column: 56px;
+
+  /* motion */
+  --motion-duration-fast: 110ms;
+  --motion-duration-base: 180ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ----------------------------------------------------------------
+     Local additions. DESIGN.md defines colour, type, space and motion
+     but no geometry primitives, so these are declared here rather than
+     written as bare literals in the rules below. Flagged in NOTES.md.
+     ---------------------------------------------------------------- */
+  --type-unit: 0.0625rem;            /* ramp step -> rem, so the ramp scales with the browser font size */
+  --font-ui: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --size-hairline: 1px;
+  --size-ring: 2px;
+  --size-marker: 6px;                /* ds-match-marker dot, per taste decision dec_1 */
+  --size-check: 16px;
+  --size-tick-w: 4px;
+  --size-tick-h: 8px;
+  --size-dash: 8px;
+  --size-target: 44px;               /* A11Y-target-size floor; also the entry-row height */
+  --size-date-col: 64px;
+  --size-state-col: 128px;
+  --size-amount-col: 128px;
+  --size-page-max: 1120px;
+  --size-footer: 72px;
+
+  --radius-sm: 2px;
+  --radius-round: 50%;
+
+  /* derived type steps */
+  --fs-xs: calc(var(--type-xs) * var(--type-unit));
+  --fs-sm: calc(var(--type-sm) * var(--type-unit));
+  --fs-md: calc(var(--type-md) * var(--type-unit));
+  --fs-lg: calc(var(--type-lg) * var(--type-unit));
+  --fs-xl: calc(var(--type-xl) * var(--type-unit));
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--color-surface-base);
+  color: var(--color-ink-primary);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: var(--size-ring) solid var(--color-ink-primary);
+  outline-offset: var(--size-ring);
+}
+
+/* ------------------------------------------------------------------ */
+/* Page shell                                                          */
+/* ------------------------------------------------------------------ */
+
+.ledger-scroll {
+  height: 100%;
+  overflow-y: auto;
+  padding-bottom: calc(var(--size-footer) + var(--space-base));
+}
+
+.ledger-column {
+  max-width: var(--size-page-max);
+  margin: 0 auto;
+  padding: var(--space-wide) var(--space-wide) 0;
+}
+
+.ds-page-header {
+  padding-bottom: var(--space-base);
+}
+
+.ds-page-header__title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.ds-page-header__meta {
+  margin: var(--space-tight) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--color-ink-secondary);
+}
+
+/* ------------------------------------------------------------------ */
+/* ds-filter-bar / ds-filter-chip                                      */
+/* ------------------------------------------------------------------ */
+
+.ds-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-base) var(--space-wide);
+  padding: var(--space-tight) 0 var(--space-base);
+  border-bottom: var(--size-hairline) solid var(--color-hairline);
+}
+
+.ds-filter-bar__group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+}
+
+.ds-filter-bar__label {
+  font-size: var(--fs-xs);
+  color: var(--color-ink-secondary);
+}
+
+.ds-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  min-height: var(--size-target);
+  padding: 0 var(--space-base);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  color: var(--color-ink-secondary);
+  background: transparent;
+  border: var(--size-hairline) solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard),
+              color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.ds-filter-chip:hover {
+  background: var(--color-surface-recessed);
+  color: var(--color-ink-primary);
+}
+
+.ds-filter-chip[aria-pressed="true"] {
+  background: var(--color-surface-raised);
+  color: var(--color-ink-primary);
+  border-color: var(--color-ink-secondary);
+}
+
+.ds-filter-chip__count {
+  font-size: var(--fs-xs);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-filter-bar__clear {
+  min-height: var(--size-target);
+  padding: 0 var(--space-base);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  color: var(--color-ink-secondary);
+  background: transparent;
+  border: var(--size-hairline) solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.ds-filter-bar__clear:hover { color: var(--color-ink-primary); }
+.ds-filter-bar__clear[hidden] { display: none; }
+
+/* ------------------------------------------------------------------ */
+/* ds-entry-list                                                       */
+/* ------------------------------------------------------------------ */
+
+.ds-entry-list {
+  padding-top: var(--space-base);
+}
+
+.ds-entry-list__head,
+.ds-entry-row {
+  display: grid;
+  grid-template-columns:
+    var(--size-target)
+    var(--size-date-col)
+    minmax(0, 1fr)
+    var(--size-state-col)
+    var(--size-amount-col);
+  align-items: center;
+  column-gap: var(--space-base);
+  padding-left: var(--space-tight);
+  padding-right: var(--space-column);
+}
+
+.ds-entry-list__head {
+  height: var(--size-target);
+  font-size: var(--fs-xs);
+  color: var(--color-ink-secondary);
+  border-bottom: var(--size-hairline) solid var(--color-hairline);
+}
+
+.ds-entry-list__head .ds-entry-list__pick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-target);
+  height: var(--size-target);
+}
+
+/* The checkbox itself is the 44x44 target; the 16px box is painted on it,
+   so the hit area is the control rather than a wrapper around it. */
+.ds-pick-box {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex: none;
+  width: var(--size-target);
+  height: var(--size-target);
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.ds-pick-box::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--size-check);
+  height: var(--size-check);
+  transform: translate(-50%, -50%);
+  border: var(--size-hairline) solid var(--color-ink-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.ds-pick-box:hover::before { border-color: var(--color-ink-primary); }
+
+.ds-pick-box:checked::before,
+.ds-pick-box:indeterminate::before {
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+}
+
+.ds-pick-box:checked::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--size-tick-w);
+  height: var(--size-tick-h);
+  transform: translate(-50%, -62%) rotate(45deg);
+  border-right: var(--size-ring) solid var(--color-surface-base);
+  border-bottom: var(--size-ring) solid var(--color-surface-base);
+}
+
+.ds-pick-box:indeterminate::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--size-dash);
+  height: 0;
+  transform: translate(-50%, -50%);
+  border-top: var(--size-ring) solid var(--color-surface-base);
+}
+
+.ds-pick-box:disabled { cursor: default; }
+.ds-pick-box:disabled::before { border-color: var(--color-hairline); }
+
+.ds-pick-box:focus-visible { outline: none; }
+
+.ds-entry-list__pick .ds-pick-box:focus-visible::before {
+  outline: var(--size-ring) solid var(--color-ink-primary);
+  outline-offset: var(--size-ring);
+}
+
+.ds-entry-list__amount-label { text-align: right; }
+
+.ds-entry-list__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* ds-entry-row — same height resting, hovered and selected.
+   Hover pushes the row back; selection lifts it. No transition on
+   either background: selection feedback is immediate. */
+.ds-entry-row {
+  height: var(--size-target);
+  border-bottom: var(--size-hairline) solid var(--color-hairline);
+  cursor: default;
+}
+
+.ds-entry-row:hover { background: var(--color-surface-recessed); }
+
+.ds-entry-row.is-selected,
+.ds-entry-row.is-selected:hover { background: var(--color-surface-raised); }
+
+.ds-entry-row:has(:focus-visible) {
+  outline: var(--size-ring) solid var(--color-ink-primary);
+  outline-offset: calc(var(--size-ring) * -1);
+}
+
+.ds-entry-row__pick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-target);
+  height: var(--size-target);
+}
+
+.ds-entry-row__date {
+  font-size: var(--fs-sm);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ds-entry-row__desc {
+  font-size: var(--fs-sm);
+  color: var(--color-ink-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-entry-row__state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  font-size: var(--fs-sm);
+  color: var(--color-ink-secondary);
+  white-space: nowrap;
+}
+
+/* ds-match-marker — a filled dot in the signal hue, carrying no text
+   and no tooltip. The state word sits beside it in the row body. */
+.ds-match-marker {
+  flex: none;
+  width: var(--size-marker);
+  height: var(--size-marker);
+  border-radius: var(--radius-round);
+}
+
+.ds-match-marker--match  { background: var(--color-signal-match); }
+.ds-match-marker--review { background: var(--color-signal-review); }
+.ds-match-marker--break  { background: var(--color-signal-break); }
+
+/* ds-amount-cell — right-aligned, never a signal hue, minus sign
+   leading, right edge a fixed --space-column from the row edge. */
+.ds-amount-cell {
+  text-align: right;
+  font-size: var(--fs-sm);
+  color: var(--color-ink-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ds-entry-list__empty {
+  padding: var(--space-wide) var(--space-tight);
+  font-size: var(--fs-sm);
+  color: var(--color-ink-secondary);
+  border-bottom: var(--size-hairline) solid var(--color-hairline);
+}
+
+/* ------------------------------------------------------------------ */
+/* ds-pager — numbered, no infinite scroll, no load-more               */
+/* ------------------------------------------------------------------ */
+
+.ds-pager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  padding: var(--space-tight) 0 var(--space-base);
+}
+
+.ds-pager__range {
+  font-size: var(--fs-xs);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+  margin-right: auto;
+  padding-left: var(--space-tight);
+}
+
+.ds-pager__step,
+.ds-pager__page {
+  min-width: var(--size-target);
+  min-height: var(--size-target);
+  padding: 0 var(--space-tight);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  color: var(--color-ink-secondary);
+  background: transparent;
+  border: var(--size-hairline) solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard),
+              color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.ds-pager__step { padding: 0 var(--space-base); }
+
+.ds-pager__step:hover:not(:disabled),
+.ds-pager__page:hover {
+  background: var(--color-surface-recessed);
+  color: var(--color-ink-primary);
+}
+
+.ds-pager__page[aria-current="page"] {
+  background: var(--color-surface-raised);
+  color: var(--color-ink-primary);
+  border-color: var(--color-ink-secondary);
+}
+
+/* A disabled step loses its box rather than its legibility: the text stays
+   at --color-ink-secondary so it can still be read. */
+.ds-pager__step:disabled {
+  border-color: transparent;
+  cursor: default;
+}
+
+/* ------------------------------------------------------------------ */
+/* ds-reconcile-bar — below the list, in flow, never floating          */
+/* ------------------------------------------------------------------ */
+
+.ds-reconcile-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  min-height: calc(var(--size-target) + var(--space-base));
+  padding: var(--space-tight) var(--space-base);
+  background: var(--color-surface-raised);
+  border: var(--size-hairline) solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+}
+
+.ds-reconcile-bar__status {
+  font-size: var(--fs-sm);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-reconcile-bar--armed .ds-reconcile-bar__status { color: var(--color-ink-primary); }
+
+.ds-reconcile-bar__action {
+  margin-left: auto;
+  min-height: var(--size-target);
+  padding: 0 var(--space-wide);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--color-ink-secondary);
+  background: var(--color-surface-recessed);
+  border: var(--size-hairline) solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  cursor: default;
+}
+
+.ds-reconcile-bar--armed .ds-reconcile-bar__action {
+  color: var(--color-surface-base);
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------ */
+/* ds-batch-note — the affordance first, then the count. No timer.     */
+/* ------------------------------------------------------------------ */
+
+.ds-batch-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  margin-top: var(--space-base);
+  padding: var(--space-tight) var(--space-base);
+  background: var(--color-surface-recessed);
+  border: var(--size-hairline) solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+}
+
+.ds-batch-note[hidden] { display: none; }
+
+.ds-batch-note__undo {
+  min-height: var(--size-target);
+  padding: 0 var(--space-base);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--color-ink-primary);
+  background: transparent;
+  border: var(--size-hairline) solid var(--color-ink-secondary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.ds-batch-note__undo:hover { background: var(--color-surface-base); }
+
+.ds-batch-note__text {
+  font-size: var(--fs-sm);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ */
+/* ds-total-footer — pinned; the list scrolls behind it                */
+/* ------------------------------------------------------------------ */
+
+.ds-total-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--size-footer);
+  background: var(--color-surface-raised);
+  border-top: var(--size-hairline) solid var(--color-hairline);
+}
+
+.ds-total-footer__inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-wide);
+  height: 100%;
+  max-width: var(--size-page-max);
+  margin: 0 auto;
+  padding: 0 var(--space-wide);
+}
+
+.ds-total-footer__label {
+  font-size: var(--fs-xs);
+  color: var(--color-ink-secondary);
+  display: block;
+}
+
+.ds-total-footer__count {
+  font-size: var(--fs-sm);
+  color: var(--color-ink-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-total-footer__filtered {
+  font-size: var(--fs-sm);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-total-footer__filtered[hidden] { display: none; }
+
+.ds-total-footer__total {
+  margin-left: auto;
+  font-size: var(--fs-xl);
+  color: var(--color-ink-primary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: var(--size-hairline);
+  height: var(--size-hairline);
+  margin: calc(var(--size-hairline) * -1);
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="ledger-scroll">
+  <div class="ledger-column">
+
+    <header class="ds-page-header">
+      <h1 class="ds-page-header__title">Reconciliation</h1>
+      <p class="ds-page-header__meta">Business current account · bank feed · July 2026</p>
+    </header>
+
+    <section class="ds-filter-bar" id="filter-bar" aria-label="Filters">
+      <div class="ds-filter-bar__group" role="group" aria-label="Match state">
+        <span class="ds-filter-bar__label">State</span>
+        <button type="button" class="ds-filter-chip" data-group="state" data-value="match" aria-pressed="false">
+          Matched <span class="ds-filter-chip__count" data-count="state:match">0</span>
+        </button>
+        <button type="button" class="ds-filter-chip" data-group="state" data-value="review" aria-pressed="false">
+          Needs review <span class="ds-filter-chip__count" data-count="state:review">0</span>
+        </button>
+        <button type="button" class="ds-filter-chip" data-group="state" data-value="break" aria-pressed="false">
+          Break <span class="ds-filter-chip__count" data-count="state:break">0</span>
+        </button>
+      </div>
+
+      <div class="ds-filter-bar__group" role="group" aria-label="Amount">
+        <span class="ds-filter-bar__label">Amount</span>
+        <button type="button" class="ds-filter-chip" data-group="amount" data-value="in" aria-pressed="false">
+          Money in <span class="ds-filter-chip__count" data-count="amount:in">0</span>
+        </button>
+        <button type="button" class="ds-filter-chip" data-group="amount" data-value="out" aria-pressed="false">
+          Money out <span class="ds-filter-chip__count" data-count="amount:out">0</span>
+        </button>
+        <button type="button" class="ds-filter-chip" data-group="amount" data-value="large" aria-pressed="false">
+          Over £1,000 <span class="ds-filter-chip__count" data-count="amount:large">0</span>
+        </button>
+      </div>
+
+      <button type="button" class="ds-filter-bar__clear" id="clear-filters" hidden>Clear filters</button>
+    </section>
+
+    <section class="ds-entry-list" aria-label="Unreconciled entries">
+      <div class="ds-entry-list__head">
+        <label class="ds-entry-list__pick">
+          <input type="checkbox" class="ds-pick-box" id="select-page" aria-label="Select every entry on this page">
+        </label>
+        <span>Date</span>
+        <span>Description</span>
+        <span>State</span>
+        <span class="ds-entry-list__amount-label">Amount</span>
+      </div>
+
+      <ul class="ds-entry-list__rows" id="rows"></ul>
+      <p class="ds-entry-list__empty" id="empty" hidden></p>
+
+      <nav class="ds-pager" id="pager" aria-label="Entry list pages"></nav>
+    </section>
+
+    <div class="ds-reconcile-bar" id="reconcile-bar">
+      <span class="ds-reconcile-bar__status" id="reconcile-status">Select entries to reconcile</span>
+      <button type="button" class="ds-reconcile-bar__action" id="reconcile-action" disabled>Reconcile</button>
+    </div>
+
+    <div class="ds-batch-note" id="batch-note" role="status" aria-live="polite" hidden>
+      <button type="button" class="ds-batch-note__undo" id="undo">Undo</button>
+      <span class="ds-batch-note__text" id="batch-note-text"></span>
+    </div>
+
+  </div>
+</div>
+
+<footer class="ds-total-footer">
+  <div class="ds-total-footer__inner">
+    <div>
+      <span class="ds-total-footer__label">Unreconciled</span>
+      <span class="ds-total-footer__count" id="total-count">24 entries</span>
+    </div>
+    <span class="ds-total-footer__filtered" id="total-filtered" hidden></span>
+    <span class="ds-total-footer__total" id="total-amount">£0.00</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* --------------------------------------------------------------
+     Seed data. Amounts held in pence so totals never drift.
+     -------------------------------------------------------------- */
+  var ENTRIES = [
+    { id:  1, date: '2026-07-02', desc: 'Kingsway Supplies Ltd',            pence:  -28450, state: 'match'  },
+    { id:  2, date: '2026-07-02', desc: 'Card payment — SUMUP *CAFE',       pence:   -1420, state: 'review' },
+    { id:  3, date: '2026-07-03', desc: 'Invoice 20418 — Hartley & Co',     pence:  315000, state: 'match'  },
+    { id:  4, date: '2026-07-03', desc: 'Direct debit — BRITISH GAS',       pence:  -21288, state: 'match'  },
+    { id:  5, date: '2026-07-04', desc: 'FASTER PAYMENT REF 88213',         pence:   94000, state: 'break'  },
+    { id:  6, date: '2026-07-06', desc: 'Kingsway Supplies Ltd',            pence:   -9675, state: 'match'  },
+    { id:  7, date: '2026-07-07', desc: 'Card payment — TFL TRAVEL',        pence:    -840, state: 'review' },
+    { id:  8, date: '2026-07-08', desc: 'Invoice 20419 — Marchmont Trust',  pence:  187500, state: 'match'  },
+    { id:  9, date: '2026-07-09', desc: 'Standing order — OFFICE RENT',     pence: -145000, state: 'match'  },
+    { id: 10, date: '2026-07-10', desc: 'Refund — Kingsway Supplies Ltd',   pence:    4230, state: 'review' },
+    { id: 11, date: '2026-07-11', desc: 'FASTER PAYMENT REF 88407',         pence:   51200, state: 'break'  },
+    { id: 12, date: '2026-07-13', desc: 'Card payment — AMZN MKTPLACE',     pence:  -13799, state: 'review' },
+    { id: 13, date: '2026-07-14', desc: 'Invoice 20420 — Hartley & Co',     pence:  224000, state: 'match'  },
+    { id: 14, date: '2026-07-15', desc: 'Direct debit — VODAFONE',          pence:   -7800, state: 'match'  },
+    { id: 15, date: '2026-07-16', desc: 'Card payment — SUMUP *CAFE',       pence:   -1160, state: 'review' },
+    { id: 16, date: '2026-07-17', desc: 'Kingsway Supplies Ltd',            pence:  -31805, state: 'match'  },
+    { id: 17, date: '2026-07-18', desc: 'FASTER PAYMENT REF 88612',         pence:   27500, state: 'break'  },
+    { id: 18, date: '2026-07-20', desc: 'Invoice 20421 — Delaney Partners', pence:  410000, state: 'match'  },
+    { id: 19, date: '2026-07-21', desc: 'Card payment — STATIONERY DIRECT', pence:   -6344, state: 'review' },
+    { id: 20, date: '2026-07-22', desc: 'Direct debit — INSURANCE PREMIUM', pence:  -18950, state: 'match'  },
+    { id: 21, date: '2026-07-23', desc: 'Kingsway Supplies Ltd',            pence:  -14520, state: 'match'  },
+    { id: 22, date: '2026-07-24', desc: 'FASTER PAYMENT REF 88903',         pence:  102000, state: 'break'  },
+    { id: 23, date: '2026-07-25', desc: 'Invoice 20422 — Marchmont Trust',  pence:  166000, state: 'match'  },
+    { id: 24, date: '2026-07-27', desc: 'Card payment — TFL TRAVEL',        pence:    -680, state: 'review' }
+  ];
+
+  var STATE_WORD = { match: 'Matched', review: 'Needs review', break: 'Break' };
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var PAGE_SIZE = 10;
+  var LARGE_PENCE = 100000; /* "Over £1,000" */
+
+  /* --------------------------------------------------------------
+     State
+     -------------------------------------------------------------- */
+  var reconciled = Object.create(null);   /* id -> true */
+  var selected   = Object.create(null);   /* id -> true, page-scoped */
+  var filters    = { state: Object.create(null), amount: Object.create(null) };
+  var page = 1;
+  var lastBatch = null;                   /* array of ids, or null */
+
+  var el = {
+    rows:            document.getElementById('rows'),
+    empty:           document.getElementById('empty'),
+    pager:           document.getElementById('pager'),
+    selectPage:      document.getElementById('select-page'),
+    filterBar:       document.getElementById('filter-bar'),
+    clearFilters:    document.getElementById('clear-filters'),
+    bar:             document.getElementById('reconcile-bar'),
+    barStatus:       document.getElementById('reconcile-status'),
+    barAction:       document.getElementById('reconcile-action'),
+    note:            document.getElementById('batch-note'),
+    noteText:        document.getElementById('batch-note-text'),
+    undo:            document.getElementById('undo'),
+    totalCount:      document.getElementById('total-count'),
+    totalFiltered:   document.getElementById('total-filtered'),
+    totalAmount:     document.getElementById('total-amount')
+  };
+
+  /* --------------------------------------------------------------
+     Formatting
+     -------------------------------------------------------------- */
+  function money(pence) {
+    var neg = pence < 0;
+    var abs = Math.abs(pence);
+    var whole = Math.floor(abs / 100);
+    var frac = String(abs % 100);
+    if (frac.length < 2) { frac = '0' + frac; }
+    var grouped = String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return (neg ? '−' : '') + '£' + grouped + '.' + frac;
+  }
+
+  function shortDate(iso) {
+    var parts = iso.split('-');
+    return parts[2] + ' ' + MONTHS[Number(parts[1]) - 1];
+  }
+
+  function entryCount(n) { return n + (n === 1 ? ' entry' : ' entries'); }
+
+  /* --------------------------------------------------------------
+     Selectors
+     -------------------------------------------------------------- */
+  function keys(obj) { return Object.keys(obj); }
+
+  function unreconciled() {
+    return ENTRIES.filter(function (e) { return !reconciled[e.id]; });
+  }
+
+  function matchesAmount(e, value) {
+    if (value === 'in') { return e.pence > 0; }
+    if (value === 'out') { return e.pence < 0; }
+    return Math.abs(e.pence) >= LARGE_PENCE;
+  }
+
+  /* Within a group the chips read as OR; across groups they narrow. */
+  function passesFilters(e) {
+    var stateKeys = keys(filters.state);
+    if (stateKeys.length && !filters.state[e.state]) { return false; }
+    var amountKeys = keys(filters.amount);
+    if (amountKeys.length) {
+      var hit = false;
+      for (var i = 0; i < amountKeys.length; i++) {
+        if (matchesAmount(e, amountKeys[i])) { hit = true; break; }
+      }
+      if (!hit) { return false; }
+    }
+    return true;
+  }
+
+  function filtered() { return unreconciled().filter(passesFilters); }
+
+  function anyFilterActive() {
+    return keys(filters.state).length > 0 || keys(filters.amount).length > 0;
+  }
+
+  function sum(list) {
+    return list.reduce(function (acc, e) { return acc + e.pence; }, 0);
+  }
+
+  /* --------------------------------------------------------------
+     Render
+     -------------------------------------------------------------- */
+  function render() {
+    var list = filtered();
+    var pageCount = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+    if (page > pageCount) { page = pageCount; }
+    if (page < 1) { page = 1; }
+
+    var start = (page - 1) * PAGE_SIZE;
+    var pageRows = list.slice(start, start + PAGE_SIZE);
+
+    renderRows(pageRows);
+    renderPager(list.length, pageCount, start, pageRows.length);
+    renderChips();
+    renderSelectPage(pageRows);
+    renderBar();
+    renderFooter(list);
+  }
+
+  function renderRows(pageRows) {
+    el.rows.textContent = '';
+
+    if (!pageRows.length) {
+      el.empty.hidden = false;
+      el.empty.textContent = unreconciled().length === 0
+        ? 'Nothing left to reconcile'
+        : 'No entries match the current filters';
+      return;
+    }
+    el.empty.hidden = true;
+
+    var frag = document.createDocumentFragment();
+
+    pageRows.forEach(function (e) {
+      var row = document.createElement('li');
+      row.className = 'ds-entry-row' + (selected[e.id] ? ' is-selected' : '');
+      row.setAttribute('data-id', String(e.id));
+
+      var pick = document.createElement('label');
+      pick.className = 'ds-entry-row__pick';
+      var box = document.createElement('input');
+      box.type = 'checkbox';
+      box.className = 'ds-pick-box';
+      box.checked = !!selected[e.id];
+      box.setAttribute('aria-label',
+        'Select ' + e.desc + ', ' + shortDate(e.date) + ', ' +
+        money(e.pence) + ', ' + STATE_WORD[e.state].toLowerCase());
+      pick.appendChild(box);
+
+      var date = document.createElement('span');
+      date.className = 'ds-entry-row__date';
+      date.textContent = shortDate(e.date);
+
+      var desc = document.createElement('span');
+      desc.className = 'ds-entry-row__desc';
+      desc.textContent = e.desc;
+
+      var state = document.createElement('span');
+      state.className = 'ds-entry-row__state';
+      var marker = document.createElement('span');
+      marker.className = 'ds-match-marker ds-match-marker--' + e.state;
+      marker.setAttribute('aria-hidden', 'true');
+      state.appendChild(marker);
+      state.appendChild(document.createTextNode(STATE_WORD[e.state]));
+
+      var amount = document.createElement('span');
+      amount.className = 'ds-amount-cell';
+      amount.textContent = money(e.pence);
+
+      row.appendChild(pick);
+      row.appendChild(date);
+      row.appendChild(desc);
+      row.appendChild(state);
+      row.appendChild(amount);
+      frag.appendChild(row);
+    });
+
+    el.rows.appendChild(frag);
+  }
+
+  function renderPager(total, pageCount, start, shown) {
+    el.pager.textContent = '';
+
+    var range = document.createElement('span');
+    range.className = 'ds-pager__range';
+    range.textContent = total === 0
+      ? '0 entries'
+      : (start + 1) + '–' + (start + shown) + ' of ' + entryCount(total);
+    el.pager.appendChild(range);
+
+    var prev = document.createElement('button');
+    prev.type = 'button';
+    prev.className = 'ds-pager__step';
+    prev.textContent = 'Previous';
+    prev.disabled = page <= 1;
+    prev.addEventListener('click', function () { goToPage(page - 1); });
+    el.pager.appendChild(prev);
+
+    for (var p = 1; p <= pageCount; p++) {
+      (function (n) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'ds-pager__page';
+        b.textContent = String(n);
+        b.setAttribute('aria-label', 'Page ' + n);
+        if (n === page) { b.setAttribute('aria-current', 'page'); }
+        b.addEventListener('click', function () { goToPage(n); });
+        el.pager.appendChild(b);
+      })(p);
+    }
+
+    var next = document.createElement('button');
+    next.type = 'button';
+    next.className = 'ds-pager__step';
+    next.textContent = 'Next';
+    next.disabled = page >= pageCount;
+    next.addEventListener('click', function () { goToPage(page + 1); });
+    el.pager.appendChild(next);
+  }
+
+  function renderChips() {
+    var pool = unreconciled();
+    var counts = {
+      'state:match': 0, 'state:review': 0, 'state:break': 0,
+      'amount:in': 0, 'amount:out': 0, 'amount:large': 0
+    };
+    pool.forEach(function (e) {
+      counts['state:' + e.state]++;
+      if (e.pence > 0) { counts['amount:in']++; }
+      if (e.pence < 0) { counts['amount:out']++; }
+      if (Math.abs(e.pence) >= LARGE_PENCE) { counts['amount:large']++; }
+    });
+
+    Array.prototype.forEach.call(
+      el.filterBar.querySelectorAll('.ds-filter-chip'),
+      function (chip) {
+        var group = chip.getAttribute('data-group');
+        var value = chip.getAttribute('data-value');
+        chip.setAttribute('aria-pressed', filters[group][value] ? 'true' : 'false');
+        var slot = chip.querySelector('[data-count]');
+        slot.textContent = String(counts[group + ':' + value]);
+      }
+    );
+
+    el.clearFilters.hidden = !anyFilterActive();
+  }
+
+  function renderSelectPage(pageRows) {
+    var onPage = pageRows.length;
+    var chosen = pageRows.filter(function (e) { return selected[e.id]; }).length;
+    el.selectPage.disabled = onPage === 0;
+    el.selectPage.checked = onPage > 0 && chosen === onPage;
+    el.selectPage.indeterminate = chosen > 0 && chosen < onPage;
+  }
+
+  function renderBar() {
+    var n = keys(selected).length;
+    if (n === 0) {
+      el.bar.classList.remove('ds-reconcile-bar--armed');
+      el.barStatus.textContent = 'Select entries to reconcile';
+      el.barAction.textContent = 'Reconcile';
+      el.barAction.disabled = true;
+    } else {
+      el.bar.classList.add('ds-reconcile-bar--armed');
+      el.barStatus.textContent = n + ' selected';
+      el.barAction.textContent = 'Reconcile ' + n;
+      el.barAction.disabled = false;
+    }
+  }
+
+  function renderFooter(list) {
+    var open = unreconciled();
+    el.totalCount.textContent = entryCount(open.length);
+    el.totalAmount.textContent = money(sum(open));
+
+    if (anyFilterActive()) {
+      el.totalFiltered.hidden = false;
+      el.totalFiltered.textContent = 'Filtered · ' + entryCount(list.length) + ' · ' + money(sum(list));
+    } else {
+      el.totalFiltered.hidden = true;
+      el.totalFiltered.textContent = '';
+    }
+  }
+
+  /* --------------------------------------------------------------
+     Behaviour
+     -------------------------------------------------------------- */
+  function currentPageIds() {
+    return Array.prototype.map.call(
+      el.rows.querySelectorAll('.ds-entry-row'),
+      function (r) { return Number(r.getAttribute('data-id')); }
+    );
+  }
+
+  function clearSelection() { selected = Object.create(null); }
+
+  function toggle(id, on) {
+    if (on) { selected[id] = true; } else { delete selected[id]; }
+  }
+
+  /* Selection is page-scoped: it never survives a page or filter change,
+     so the bar can only ever act on entries that are on screen. */
+  function goToPage(n) {
+    if (n === page) { return; }
+    page = n;
+    clearSelection();
+    hideNote();          /* a page change is a navigation */
+    render();
+  }
+
+  function hideNote() {
+    lastBatch = null;
+    el.note.hidden = true;
+    el.noteText.textContent = '';
+  }
+
+  function showNote(count) {
+    el.noteText.textContent = '— ' + count + ' reconciled';
+    el.note.hidden = false;
+  }
+
+  el.rows.addEventListener('change', function (ev) {
+    var box = ev.target;
+    if (box.tagName !== 'INPUT') { return; }
+    var row = box.closest('.ds-entry-row');
+    if (!row) { return; }
+    var id = Number(row.getAttribute('data-id'));
+    toggle(id, box.checked);
+    row.classList.toggle('is-selected', box.checked);
+    renderSelectPage(filtered().slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE));
+    renderBar();
+  });
+
+  /* A row is selected by its checkbox or by a click anywhere on it.
+     No shift-click range, no drag selection. */
+  el.rows.addEventListener('click', function (ev) {
+    if (ev.target.closest('.ds-entry-row__pick')) { return; }
+    var row = ev.target.closest('.ds-entry-row');
+    if (!row) { return; }
+    var id = Number(row.getAttribute('data-id'));
+    var next = !selected[id];
+    toggle(id, next);
+    row.classList.toggle('is-selected', next);
+    var box = row.querySelector('input');
+    if (box) { box.checked = next; }
+    renderSelectPage(filtered().slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE));
+    renderBar();
+  });
+
+  el.selectPage.addEventListener('click', function () {
+    var ids = currentPageIds();
+    var allOn = ids.length > 0 && ids.every(function (id) { return selected[id]; });
+    ids.forEach(function (id) { toggle(id, !allOn); });
+    render();
+  });
+
+  el.filterBar.addEventListener('click', function (ev) {
+    var chip = ev.target.closest('.ds-filter-chip');
+    if (!chip) { return; }
+    var group = chip.getAttribute('data-group');
+    var value = chip.getAttribute('data-value');
+    if (filters[group][value]) { delete filters[group][value]; }
+    else { filters[group][value] = true; }
+    page = 1;
+    clearSelection();     /* the visible set has changed */
+    render();             /* the batch note survives: a filter is not a navigation */
+  });
+
+  el.clearFilters.addEventListener('click', function () {
+    filters = { state: Object.create(null), amount: Object.create(null) };
+    page = 1;
+    clearSelection();
+    render();
+  });
+
+  /* Applies immediately. No confirmation dialog — the action is reversible
+     and the surface reports what happened afterwards. */
+  el.barAction.addEventListener('click', function () {
+    var ids = keys(selected).map(Number);
+    if (!ids.length) { return; }
+    ids.forEach(function (id) { reconciled[id] = true; });
+    clearSelection();
+    lastBatch = ids;
+    showNote(ids.length);
+    render();
+  });
+
+  el.undo.addEventListener('click', function () {
+    if (!lastBatch) { return; }
+    lastBatch.forEach(function (id) { delete reconciled[id]; });
+    hideNote();
+    clearSelection();
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

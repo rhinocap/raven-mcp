@@ -1,0 +1,990 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Reconciliation review — Ledger</title>
+<style>
+/* ------------------------------------------------------------------ *
+ * TOKENS
+ * Every literal in this file lives in this block. Everything below it
+ * references var(--token) only.  [COLOR-tokens-only]
+ * ------------------------------------------------------------------ */
+:root{
+  /* DESIGN.md — colours */
+  --color-surface-base:#101215;
+  --color-surface-raised:#171a1e;
+  --color-surface-recessed:#0b0d0f;
+  --color-ink-primary:#e6e8ea;
+  --color-ink-secondary:#9aa1a8;
+  --color-signal-match:#4f8f74;
+  --color-signal-review:#c99a34;
+  --color-signal-break:#cf5b45;
+  --color-hairline:#242a30;
+
+  /* DESIGN.md — type. Five steps. Does not grow. [TYPE-fixed-ramp] */
+  --type-xs:12px;
+  --type-sm:13px;
+  --type-md:15px;
+  --type-lg:19px;
+  --type-xl:26px;
+
+  /* DESIGN.md — space */
+  --space-tight:8px;
+  --space-base:16px;
+  --space-wide:24px;
+  --space-column:56px;
+
+  /* DESIGN.md — motion */
+  --motion-duration-fast:110ms;
+  --motion-duration-base:180ms;
+  --motion-easing-standard:cubic-bezier(0.2, 0, 0, 1);
+
+  /* Derived geometry — calc() over the space scale, so the 8pt rhythm holds */
+  --size-row:calc(var(--space-wide) * 2);                              /* 48 — also the 44+ target floor */
+  --size-control:calc(var(--space-wide) * 2);                          /* 48 */
+  --size-bar:calc(var(--space-wide) * 2 + var(--space-base));          /* 64 */
+  --size-footer:calc(var(--space-wide) * 2 + var(--space-tight));      /* 56 */
+  --size-col-date:calc(var(--space-column) + var(--space-base));       /* 72 */
+  --size-col-state:calc(var(--space-column) + var(--space-wide));      /* 80 */
+  --size-col-amount:calc(var(--space-column) * 2);                     /* 112 */
+  --size-box:var(--space-base);                                        /* 16 */
+  --size-marker:6px;                    /* fixed by taste decision dec_1 */
+
+  /* Derived stroke + glyph geometry */
+  --width-hairline:1px;
+  --width-focus:2px;
+  --radius:calc(var(--space-tight) / 4);                               /* 2 */
+  --tick-w:5px; --tick-h:9px; --tick-stroke:2px; --tick-nudge:-1px;
+  --dash-w:9px; --dash-h:2px;
+
+  /* Derived typographic */
+  --font-ui:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"Helvetica Neue",Arial,sans-serif;
+  --leading-tight:1.2;
+  --leading-base:1.45;
+  --tracking-label:0.07em;
+}
+
+/* ------------------------------------------------------------------ *
+ * FRAME
+ * ------------------------------------------------------------------ */
+*,*::before,*::after{box-sizing:border-box;}
+
+html,body{height:100%;}
+
+body{
+  margin:0;
+  background:var(--color-surface-base);
+  color:var(--color-ink-primary);
+  font-family:var(--font-ui);
+  font-size:var(--type-sm);
+  line-height:var(--leading-base);
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+
+.ds-screen{
+  display:flex;
+  flex-direction:column;
+  height:100%;
+  padding:0 var(--space-wide) var(--size-footer);
+}
+
+/* ------------------------------------------------------------------ *
+ * SCREEN HEAD
+ * ------------------------------------------------------------------ */
+.ds-screen-head{
+  display:flex;
+  align-items:baseline;
+  gap:var(--space-base);
+  padding:var(--space-base) 0 var(--space-tight);
+}
+.ds-screen-head__title{
+  margin:0;
+  font-size:var(--type-xl);
+  font-weight:600;
+  letter-spacing:-0.01em;
+  line-height:var(--leading-tight);
+}
+.ds-screen-head__meta{
+  margin:0;
+  color:var(--color-ink-secondary);
+  font-size:var(--type-sm);
+}
+
+/* ------------------------------------------------------------------ *
+ * ds-filter-chip  (default / hover / active) + the set that holds them
+ * ------------------------------------------------------------------ */
+.ds-filter-set{
+  display:flex;
+  align-items:center;
+  gap:var(--space-tight);
+  padding:var(--space-tight) 0;
+  border-block-end:var(--width-hairline) solid var(--color-hairline);
+}
+.ds-filter-set__label{
+  color:var(--color-ink-secondary);
+  font-size:var(--type-sm);
+  letter-spacing:var(--tracking-label);
+  text-transform:uppercase;
+  margin-inline-end:var(--space-tight);
+}
+.ds-filter-set__rule{
+  inline-size:var(--width-hairline);
+  block-size:var(--space-base);
+  background:var(--color-hairline);
+  margin-inline:var(--space-tight);
+}
+.ds-filter-set__count{
+  margin-inline-start:auto;
+  color:var(--color-ink-secondary);
+  font-size:var(--type-sm);
+  font-variant-numeric:tabular-nums;
+  padding-inline-end:var(--space-column);
+}
+
+.ds-filter-chip{
+  min-block-size:var(--size-control);
+  min-inline-size:var(--size-control);
+  padding-inline:var(--space-base);
+  display:inline-flex;
+  align-items:center;
+  gap:var(--space-tight);
+  background:none;
+  color:var(--color-ink-secondary);
+  border:var(--width-hairline) solid var(--color-hairline);
+  border-radius:var(--radius);
+  font:inherit;
+  font-size:var(--type-sm);
+  cursor:pointer;
+  transition:border-color var(--motion-duration-fast) var(--motion-easing-standard),
+             color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.ds-filter-chip:hover{
+  background:var(--color-surface-recessed);
+  color:var(--color-ink-primary);
+  border-color:var(--color-ink-secondary);
+}
+.ds-filter-chip[aria-pressed="true"]{
+  background:var(--color-surface-raised);
+  color:var(--color-ink-primary);
+  border-color:var(--color-ink-primary);
+}
+.ds-filter-chip__dot{
+  inline-size:var(--size-marker);
+  block-size:var(--size-marker);
+  border-radius:50%;
+  flex:0 0 auto;
+}
+.ds-filter-chip--reset{border-style:dashed;}
+.ds-filter-chip[hidden]{display:none;}
+
+/* ------------------------------------------------------------------ *
+ * ds-entry-list + ds-list-head
+ * ------------------------------------------------------------------ */
+.ds-entry-list{
+  flex:1;
+  min-block-size:0;
+  display:flex;
+  flex-direction:column;
+}
+
+.ds-row-frame{
+  display:grid;
+  grid-template-columns:
+    var(--size-control)          /* select */
+    var(--space-base)            /* ds-match-marker */
+    var(--size-col-state)        /* the marker's word, beside it */
+    var(--size-col-date)
+    minmax(0,1fr)                /* description */
+    var(--size-col-amount);
+  align-items:center;
+  column-gap:var(--space-base);
+  padding-inline-end:var(--space-column);   /* dec_5: amount right edge, fixed */
+}
+
+.ds-list-head{
+  block-size:var(--size-row);
+  color:var(--color-ink-secondary);
+  font-size:var(--type-sm);
+  letter-spacing:var(--tracking-label);
+  text-transform:uppercase;
+  border-block-end:var(--width-hairline) solid var(--color-hairline);
+}
+.ds-list-head__amount{text-align:end;}
+
+.ds-entry-list__scroll{
+  flex:1;
+  min-block-size:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  margin:0;
+  padding:0;
+  list-style:none;
+}
+
+/* ------------------------------------------------------------------ *
+ * ds-entry-row  (hover / focus-visible / selected)
+ * Constant height in every state. [dec_msdyq34c_bmr7]
+ * ------------------------------------------------------------------ */
+.ds-entry-row{
+  block-size:var(--size-row);
+  border-block-end:var(--width-hairline) solid var(--color-hairline);
+  cursor:default;
+  /* no transition on background — selection feedback is instant */
+}
+.ds-entry-row:hover{
+  background:var(--color-surface-recessed);   /* hover pushes back */
+}
+.ds-entry-row[aria-selected="true"],
+.ds-entry-row[aria-selected="true"]:hover{
+  background:var(--color-surface-raised);
+  box-shadow:inset var(--width-focus) 0 0 0 var(--color-ink-primary);
+}
+.ds-entry-row:has(.ds-select-control:focus-visible){
+  outline:var(--width-focus) solid var(--color-ink-primary);
+  outline-offset:calc(var(--width-focus) * -1);
+}
+
+.ds-entry-row__date{
+  color:var(--color-ink-secondary);
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+}
+.ds-entry-row__desc{
+  color:var(--color-ink-primary);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.ds-entry-row__state{
+  color:var(--color-ink-secondary);
+  white-space:nowrap;
+}
+
+/* ds-match-marker — filled dot, no text, no tooltip [dec_1, dec_msdyq34c_64s3] */
+.ds-match-marker{
+  inline-size:var(--size-marker);
+  block-size:var(--size-marker);
+  border-radius:50%;
+  justify-self:center;
+}
+.ds-match-marker--match{background:var(--color-signal-match);}
+.ds-match-marker--review{background:var(--color-signal-review);}
+.ds-match-marker--break{background:var(--color-signal-break);}
+
+/* ds-amount-cell — negatives in --ink-primary with a leading minus [dec_msdyq34c_we0s] */
+.ds-amount-cell{
+  text-align:end;
+  color:var(--color-ink-primary);
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+}
+
+.ds-empty{
+  padding:var(--space-wide) 0;
+  color:var(--color-ink-secondary);
+  font-size:var(--type-sm);
+}
+
+/* ------------------------------------------------------------------ *
+ * Select control (row + list header). 48x48 target, mixed state.
+ * ------------------------------------------------------------------ */
+.ds-select-control{
+  appearance:none;
+  -webkit-appearance:none;
+  position:relative;
+  display:grid;
+  place-items:center;
+  inline-size:var(--size-control);
+  block-size:var(--size-control);
+  margin:0;
+  padding:0;
+  background:none;
+  border:0;
+  font:inherit;
+  font-size:var(--type-sm);
+  cursor:pointer;
+}
+.ds-select-control::before{
+  content:"";
+  inline-size:var(--size-box);
+  block-size:var(--size-box);
+  background:var(--color-surface-base);
+  border:var(--width-hairline) solid var(--color-ink-secondary);
+  border-radius:var(--radius);
+}
+.ds-select-control:hover::before{border-color:var(--color-ink-primary);}
+.ds-select-control:checked::before,
+.ds-select-control:indeterminate::before{
+  background:var(--color-ink-primary);
+  border-color:var(--color-ink-primary);
+}
+.ds-select-control:checked::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  margin:auto;
+  inline-size:var(--tick-w);
+  block-size:var(--tick-h);
+  border:solid var(--color-surface-base);
+  border-width:0 var(--tick-stroke) var(--tick-stroke) 0;
+  translate:0 var(--tick-nudge);
+  transform:rotate(45deg);
+}
+.ds-select-control:indeterminate::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  margin:auto;
+  inline-size:var(--dash-w);
+  block-size:var(--dash-h);
+  background:var(--color-surface-base);
+  border-radius:var(--radius);
+}
+.ds-select-control:disabled{opacity:0.4;cursor:default;}
+.ds-select-control:focus-visible{
+  outline:var(--width-focus) solid var(--color-ink-primary);
+  outline-offset:calc(var(--width-focus) * -1);
+}
+
+/* ------------------------------------------------------------------ *
+ * ds-pager — numbered, no infinite scroll [dec_msdyq34b_d90i]
+ * ------------------------------------------------------------------ */
+.ds-pager{
+  display:flex;
+  align-items:center;
+  gap:var(--space-tight);
+  padding-block:var(--space-tight);
+  border-block-start:var(--width-hairline) solid var(--color-hairline);
+}
+.ds-pager__position{
+  color:var(--color-ink-secondary);
+  font-size:var(--type-sm);
+  font-variant-numeric:tabular-nums;
+}
+.ds-pager__controls{
+  margin-inline-start:auto;
+  display:flex;
+  gap:var(--space-tight);
+  padding-inline-end:var(--space-column);
+}
+.ds-pager__step{
+  min-inline-size:var(--size-control);
+  min-block-size:var(--size-control);
+  padding-inline:var(--space-tight);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  background:none;
+  color:var(--color-ink-secondary);
+  border:var(--width-hairline) solid var(--color-hairline);
+  border-radius:var(--radius);
+  font:inherit;
+  font-size:var(--type-sm);
+  font-variant-numeric:tabular-nums;
+  cursor:pointer;
+  transition:border-color var(--motion-duration-fast) var(--motion-easing-standard),
+             color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.ds-pager__step:hover:not(:disabled){
+  color:var(--color-ink-primary);
+  border-color:var(--color-ink-secondary);
+}
+.ds-pager__step[aria-current="page"]{
+  background:var(--color-surface-raised);
+  color:var(--color-ink-primary);
+  border-color:var(--color-ink-primary);
+}
+.ds-pager__step:disabled{opacity:0.4;cursor:default;}
+
+/* ------------------------------------------------------------------ *
+ * ds-reconcile-bar — below the list, in flow, never overlaying it
+ * [dec_msdyq34a_04p3] ; idle / armed
+ * ------------------------------------------------------------------ */
+.ds-reconcile-bar{
+  display:flex;
+  align-items:center;
+  gap:var(--space-base);
+  block-size:var(--size-bar);
+  padding-inline-end:var(--space-column);
+  border-block-start:var(--width-hairline) solid var(--color-hairline);
+}
+.ds-reconcile-bar__status{
+  margin:0;
+  font-size:var(--type-md);
+  color:var(--color-ink-secondary);
+}
+.ds-reconcile-bar[data-state="armed"] .ds-reconcile-bar__status{color:var(--color-ink-primary);}
+.ds-reconcile-bar__aside{
+  margin:0;
+  font-size:var(--type-sm);
+  color:var(--color-ink-secondary);
+}
+.ds-reconcile-bar__actions{
+  margin-inline-start:auto;
+  display:flex;
+  gap:var(--space-tight);
+}
+
+.ds-action{
+  min-block-size:var(--size-control);
+  min-inline-size:var(--size-control);
+  padding-inline:var(--space-base);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:var(--radius);
+  font:inherit;
+  font-size:var(--type-sm);
+  cursor:pointer;
+  transition:border-color var(--motion-duration-fast) var(--motion-easing-standard),
+             color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.ds-action--quiet{
+  background:none;
+  color:var(--color-ink-secondary);
+  border:var(--width-hairline) solid var(--color-hairline);
+}
+.ds-action--quiet:hover:not(:disabled){
+  color:var(--color-ink-primary);
+  border-color:var(--color-ink-secondary);
+}
+.ds-action--primary{
+  background:var(--color-ink-primary);
+  color:var(--color-surface-base);
+  border:var(--width-hairline) solid var(--color-ink-primary);
+  font-weight:600;
+}
+.ds-action:disabled{
+  background:none;
+  color:var(--color-ink-secondary);
+  border:var(--width-hairline) solid var(--color-hairline);
+  font-weight:400;
+  cursor:default;
+  opacity:0.6;
+}
+.ds-action:focus-visible,
+.ds-filter-chip:focus-visible,
+.ds-pager__step:focus-visible,
+.ds-batch-note__undo:focus-visible{
+  outline:var(--width-focus) solid var(--color-ink-primary);
+  outline-offset:var(--width-focus);
+}
+
+/* ------------------------------------------------------------------ *
+ * ds-batch-note — "Undo — 7 reconciled". Never auto-dismisses. [dec_2, dec_3]
+ * ------------------------------------------------------------------ */
+.ds-batch-note{
+  display:flex;
+  align-items:center;
+  block-size:var(--size-row);
+  padding-inline-end:var(--space-column);
+  background:var(--color-surface-recessed);
+  border-block-start:var(--width-hairline) solid var(--color-hairline);
+  font-size:var(--type-sm);
+  color:var(--color-ink-secondary);
+}
+.ds-batch-note[hidden]{display:none;}
+.ds-batch-note__undo{
+  min-block-size:var(--size-control);
+  min-inline-size:var(--size-control);
+  padding-inline:var(--space-tight);
+  display:inline-flex;
+  align-items:center;
+  background:none;
+  border:0;
+  color:var(--color-ink-primary);
+  font:inherit;
+  font-size:var(--type-sm);
+  font-weight:600;
+  text-decoration:underline;
+  text-underline-offset:var(--tick-stroke);
+  cursor:pointer;
+}
+.ds-batch-note__count{font-variant-numeric:tabular-nums;}
+
+/* ------------------------------------------------------------------ *
+ * ds-total-footer — pinned to the viewport bottom [dec_4]
+ * Right edge of the figure lands on the amount column's edge.
+ * ------------------------------------------------------------------ */
+.ds-total-footer{
+  position:fixed;
+  inset-inline:0;
+  inset-block-end:0;
+  block-size:var(--size-footer);
+  display:flex;
+  align-items:center;
+  gap:var(--space-base);
+  padding-inline:var(--space-wide) calc(var(--space-wide) + var(--space-column));
+  background:var(--color-surface-raised);
+  border-block-start:var(--width-hairline) solid var(--color-hairline);
+}
+.ds-total-footer__label{
+  color:var(--color-ink-secondary);
+  font-size:var(--type-sm);
+  letter-spacing:var(--tracking-label);
+  text-transform:uppercase;
+}
+.ds-total-footer__count{
+  color:var(--color-ink-secondary);
+  font-size:var(--type-sm);
+  font-variant-numeric:tabular-nums;
+}
+.ds-total-footer__amount{
+  margin-inline-start:auto;
+  font-size:var(--type-lg);
+  font-weight:600;
+  font-variant-numeric:tabular-nums;
+}
+
+/* Visually hidden live region for assistive announcements */
+.ds-screen-reader-only{
+  position:absolute;
+  inset-block-start:0;
+  inset-inline-start:0;
+  margin:0;
+  inline-size:var(--width-hairline);
+  block-size:var(--width-hairline);
+  overflow:hidden;
+  clip-path:inset(50%);
+  white-space:nowrap;
+}
+
+@media (prefers-reduced-motion: reduce){
+  *{transition-duration:0ms !important;}
+}
+</style>
+</head>
+<body>
+
+<main class="ds-screen">
+
+  <header class="ds-screen-head">
+    <h1 class="ds-screen-head__title">Reconciliation review</h1>
+    <p class="ds-screen-head__meta">Imported bank entries — July 2026</p>
+  </header>
+
+  <section class="ds-filter-set" aria-label="Filter entries">
+    <span class="ds-filter-set__label">Filter</span>
+
+    <button type="button" class="ds-filter-chip" data-group="state" data-value="match" aria-pressed="false">
+      <span class="ds-filter-chip__dot ds-match-marker--match"></span>Match
+    </button>
+    <button type="button" class="ds-filter-chip" data-group="state" data-value="review" aria-pressed="false">
+      <span class="ds-filter-chip__dot ds-match-marker--review"></span>Review
+    </button>
+    <button type="button" class="ds-filter-chip" data-group="state" data-value="break" aria-pressed="false">
+      <span class="ds-filter-chip__dot ds-match-marker--break"></span>Break
+    </button>
+
+    <span class="ds-filter-set__rule" aria-hidden="true"></span>
+
+    <button type="button" class="ds-filter-chip" data-group="size" data-value="over500" aria-pressed="false">
+      Over £500
+    </button>
+
+    <button type="button" class="ds-filter-chip ds-filter-chip--reset" id="filterReset" hidden>
+      Clear filters
+    </button>
+
+    <span class="ds-filter-set__count" id="filterCount">24 of 24 shown</span>
+  </section>
+
+  <div class="ds-entry-list">
+    <div class="ds-list-head ds-row-frame">
+      <input type="checkbox" class="ds-select-control" id="selectPage"
+             aria-label="Select every entry on this page">
+      <span aria-hidden="true"></span>
+      <span>State</span>
+      <span>Date</span>
+      <span>Description</span>
+      <span class="ds-list-head__amount">Amount</span>
+    </div>
+    <ul class="ds-entry-list__scroll" id="entryRows" aria-label="Unreconciled entries"></ul>
+  </div>
+
+  <nav class="ds-pager" aria-label="Entry list pages">
+    <span class="ds-pager__position" id="pagerPosition">Page 1 of 2</span>
+    <div class="ds-pager__controls" id="pagerControls"></div>
+  </nav>
+
+  <section class="ds-reconcile-bar" id="reconcileBar" data-state="idle" aria-label="Reconcile selection">
+    <p class="ds-reconcile-bar__status" id="reconcileStatus">No entries selected</p>
+    <p class="ds-reconcile-bar__aside" id="reconcileAside"></p>
+    <div class="ds-reconcile-bar__actions">
+      <button type="button" class="ds-action ds-action--quiet" id="clearSelection" disabled>Clear</button>
+      <button type="button" class="ds-action ds-action--primary" id="reconcileAction" disabled>Reconcile</button>
+    </div>
+  </section>
+
+  <div class="ds-batch-note" id="batchNote" hidden>
+    <button type="button" class="ds-batch-note__undo" id="batchUndo">Undo</button>
+    <span class="ds-batch-note__count" id="batchCount"></span>
+  </div>
+
+</main>
+
+<footer class="ds-total-footer">
+  <span class="ds-total-footer__label">Unreconciled</span>
+  <span class="ds-total-footer__count" id="totalCount">24 entries</span>
+  <span class="ds-total-footer__amount" id="totalAmount">£0.00</span>
+</footer>
+
+<p class="ds-screen-reader-only" role="status" aria-live="polite" id="liveRegion"></p>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------------------------------------------------------------- *
+   * Seed data — 24 entries, verbatim, in order.
+   * ---------------------------------------------------------------- */
+  var SEED = [
+    { id:1,  date:'2026-07-02', desc:'Kingsway Supplies Ltd',            amount:-284.50,  state:'match'  },
+    { id:2,  date:'2026-07-02', desc:'Card payment — SUMUP *CAFE',       amount:-14.20,   state:'review' },
+    { id:3,  date:'2026-07-03', desc:'Invoice 20418 — Hartley & Co',     amount:3150.00,  state:'match'  },
+    { id:4,  date:'2026-07-03', desc:'Direct debit — BRITISH GAS',       amount:-212.88,  state:'match'  },
+    { id:5,  date:'2026-07-04', desc:'FASTER PAYMENT REF 88213',         amount:940.00,   state:'break'  },
+    { id:6,  date:'2026-07-06', desc:'Kingsway Supplies Ltd',            amount:-96.75,   state:'match'  },
+    { id:7,  date:'2026-07-07', desc:'Card payment — TFL TRAVEL',        amount:-8.40,    state:'review' },
+    { id:8,  date:'2026-07-08', desc:'Invoice 20419 — Marchmont Trust',  amount:1875.00,  state:'match'  },
+    { id:9,  date:'2026-07-09', desc:'Standing order — OFFICE RENT',     amount:-1450.00, state:'match'  },
+    { id:10, date:'2026-07-10', desc:'Refund — Kingsway Supplies Ltd',   amount:42.30,    state:'review' },
+    { id:11, date:'2026-07-11', desc:'FASTER PAYMENT REF 88407',         amount:512.00,   state:'break'  },
+    { id:12, date:'2026-07-13', desc:'Card payment — AMZN MKTPLACE',     amount:-137.99,  state:'review' },
+    { id:13, date:'2026-07-14', desc:'Invoice 20420 — Hartley & Co',     amount:2240.00,  state:'match'  },
+    { id:14, date:'2026-07-15', desc:'Direct debit — VODAFONE',          amount:-78.00,   state:'match'  },
+    { id:15, date:'2026-07-16', desc:'Card payment — SUMUP *CAFE',       amount:-11.60,   state:'review' },
+    { id:16, date:'2026-07-17', desc:'Kingsway Supplies Ltd',            amount:-318.05,  state:'match'  },
+    { id:17, date:'2026-07-18', desc:'FASTER PAYMENT REF 88612',         amount:275.00,   state:'break'  },
+    { id:18, date:'2026-07-20', desc:'Invoice 20421 — Delaney Partners', amount:4100.00,  state:'match'  },
+    { id:19, date:'2026-07-21', desc:'Card payment — STATIONERY DIRECT', amount:-63.44,   state:'review' },
+    { id:20, date:'2026-07-22', desc:'Direct debit — INSURANCE PREMIUM', amount:-189.50,  state:'match'  },
+    { id:21, date:'2026-07-23', desc:'Kingsway Supplies Ltd',            amount:-145.20,  state:'match'  },
+    { id:22, date:'2026-07-24', desc:'FASTER PAYMENT REF 88903',         amount:1020.00,  state:'break'  },
+    { id:23, date:'2026-07-25', desc:'Invoice 20422 — Marchmont Trust',  amount:1660.00,  state:'match'  },
+    { id:24, date:'2026-07-27', desc:'Card payment — TFL TRAVEL',        amount:-6.80,    state:'review' }
+  ];
+
+  var PAGE_SIZE = 10;
+  var THRESHOLD = 500;
+
+  var STATE_WORD = { match:'Match', review:'Review', break:'Break' };
+
+  /* ---------------------------------------------------------------- *
+   * State
+   * ---------------------------------------------------------------- */
+  var reconciled = Object.create(null);   /* id -> true */
+  var selected   = Object.create(null);   /* id -> true */
+  var stateFilter = Object.create(null);  /* 'match'|'review'|'break' -> true */
+  var sizeFilter = false;                 /* Over £500 */
+  var page = 0;
+  var lastBatch = null;                   /* array of ids */
+
+  /* ---------------------------------------------------------------- *
+   * Elements
+   * ---------------------------------------------------------------- */
+  var el = {
+    rows:            document.getElementById('entryRows'),
+    selectPage:      document.getElementById('selectPage'),
+    filterCount:     document.getElementById('filterCount'),
+    filterReset:     document.getElementById('filterReset'),
+    pagerPosition:   document.getElementById('pagerPosition'),
+    pagerControls:   document.getElementById('pagerControls'),
+    reconcileBar:    document.getElementById('reconcileBar'),
+    reconcileStatus: document.getElementById('reconcileStatus'),
+    reconcileAside:  document.getElementById('reconcileAside'),
+    reconcileAction: document.getElementById('reconcileAction'),
+    clearSelection:  document.getElementById('clearSelection'),
+    batchNote:       document.getElementById('batchNote'),
+    batchUndo:       document.getElementById('batchUndo'),
+    batchCount:      document.getElementById('batchCount'),
+    totalCount:      document.getElementById('totalCount'),
+    totalAmount:     document.getElementById('totalAmount'),
+    live:            document.getElementById('liveRegion')
+  };
+
+  /* ---------------------------------------------------------------- *
+   * Helpers
+   * ---------------------------------------------------------------- */
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function money(n) {
+    var sign = n < 0 ? '-' : '';
+    return sign + '£' + Math.abs(n).toLocaleString('en-GB', {
+      minimumFractionDigits: 2, maximumFractionDigits: 2
+    });
+  }
+
+  function shortDate(iso) {
+    var parts = iso.split('-');
+    var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+  }
+
+  function longDate(iso) {
+    var parts = iso.split('-');
+    var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+  }
+
+  function keys(o) { return Object.keys(o); }
+
+  function plural(n, one, many) { return n === 1 ? one : many; }
+
+  /* Unreconciled pool, original order */
+  function pool() {
+    return SEED.filter(function (e) { return !reconciled[e.id]; });
+  }
+
+  /* State chips are a union within their group; the size chip ANDs on top */
+  function passes(e) {
+    var states = keys(stateFilter);
+    if (states.length && !stateFilter[e.state]) return false;
+    if (sizeFilter && Math.abs(e.amount) <= THRESHOLD) return false;
+    return true;
+  }
+
+  function filtered() { return pool().filter(passes); }
+
+  function pageCount(list) { return Math.max(1, Math.ceil(list.length / PAGE_SIZE)); }
+
+  function currentPageRows(list) {
+    return list.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  }
+
+  function selectedIds() {
+    return keys(selected).map(Number);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Render
+   * ---------------------------------------------------------------- */
+  function renderRows(rows) {
+    if (!rows.length) {
+      var msg = pool().length === 0
+        ? 'Nothing left to reconcile'
+        : 'No entries match the filter';
+      el.rows.innerHTML = '<li class="ds-empty">' + msg + '</li>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < rows.length; i++) {
+      var e = rows[i];
+      var label = longDate(e.date) + ', ' + e.desc + ', ' + money(e.amount) + ', ' + STATE_WORD[e.state];
+      html +=
+        '<li class="ds-entry-row ds-row-frame" data-id="' + e.id + '" aria-selected="false">' +
+          '<input type="checkbox" class="ds-select-control" aria-label="Select ' + esc(label) + '">' +
+          '<span class="ds-match-marker ds-match-marker--' + e.state + '"></span>' +
+          '<span class="ds-entry-row__state">' + STATE_WORD[e.state] + '</span>' +
+          '<span class="ds-entry-row__date">' + esc(shortDate(e.date)) + '</span>' +
+          '<span class="ds-entry-row__desc">' + esc(e.desc) + '</span>' +
+          '<span class="ds-amount-cell">' + esc(money(e.amount)) + '</span>' +
+        '</li>';
+    }
+    el.rows.innerHTML = html;
+  }
+
+  function renderPager(list) {
+    var total = pageCount(list);
+    el.pagerPosition.textContent = 'Page ' + (page + 1) + ' of ' + total;
+
+    var html = '<button type="button" class="ds-pager__step" data-step="prev"' +
+               (page === 0 ? ' disabled' : '') + '>Previous</button>';
+    for (var p = 0; p < total; p++) {
+      html += '<button type="button" class="ds-pager__step" data-page="' + p + '"' +
+              (p === page ? ' aria-current="page"' : '') + '>' + (p + 1) + '</button>';
+    }
+    html += '<button type="button" class="ds-pager__step" data-step="next"' +
+            (page >= total - 1 ? ' disabled' : '') + '>Next</button>';
+    el.pagerControls.innerHTML = html;
+  }
+
+  function renderFilters(list) {
+    var chips = document.querySelectorAll('.ds-filter-chip[data-group]');
+    for (var i = 0; i < chips.length; i++) {
+      var c = chips[i];
+      var on = c.dataset.group === 'state'
+        ? !!stateFilter[c.dataset.value]
+        : sizeFilter;
+      c.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    var active = keys(stateFilter).length > 0 || sizeFilter;
+    el.filterReset.hidden = !active;
+    el.filterCount.textContent = list.length + ' of ' + pool().length + ' shown';
+  }
+
+  function renderTotals() {
+    var open = pool();
+    var sum = open.reduce(function (a, e) { return a + e.amount; }, 0);
+    el.totalCount.textContent = open.length + ' ' + plural(open.length, 'entry', 'entries');
+    el.totalAmount.textContent = money(sum);
+  }
+
+  function renderSelection(rows) {
+    var ids = selectedIds();
+    var n = ids.length;
+
+    /* per-row */
+    var nodes = el.rows.querySelectorAll('.ds-entry-row');
+    var onPage = 0;
+    for (var i = 0; i < nodes.length; i++) {
+      var id = Number(nodes[i].dataset.id);
+      var on = !!selected[id];
+      if (on) onPage++;
+      nodes[i].setAttribute('aria-selected', on ? 'true' : 'false');
+      nodes[i].querySelector('.ds-select-control').checked = on;
+    }
+
+    /* header control — mixed state when the page is partly selected */
+    el.selectPage.disabled = rows.length === 0;
+    el.selectPage.checked = rows.length > 0 && onPage === rows.length;
+    el.selectPage.indeterminate = onPage > 0 && onPage < rows.length;
+
+    /* ds-reconcile-bar */
+    el.reconcileBar.dataset.state = n > 0 ? 'armed' : 'idle';
+    el.reconcileStatus.textContent = n > 0
+      ? n + ' selected'
+      : 'No entries selected';
+    var elsewhere = n - onPage;
+    el.reconcileAside.textContent = elsewhere > 0
+      ? '· ' + elsewhere + ' not on this page'
+      : '';
+    el.reconcileAction.textContent = n > 0 ? 'Reconcile ' + n : 'Reconcile';
+    el.reconcileAction.disabled = n === 0;
+    el.clearSelection.disabled = n === 0;
+  }
+
+  function renderNote() {
+    if (!lastBatch) { el.batchNote.hidden = true; return; }
+    el.batchNote.hidden = false;
+    el.batchCount.textContent = ' — ' + lastBatch.length + ' reconciled';
+  }
+
+  function render() {
+    var list = filtered();
+    var total = pageCount(list);
+    if (page > total - 1) page = total - 1;
+    if (page < 0) page = 0;
+    var rows = currentPageRows(list);
+
+    renderRows(rows);
+    renderPager(list);
+    renderFilters(list);
+    renderTotals();
+    renderSelection(rows);
+    renderNote();
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Actions
+   * ---------------------------------------------------------------- */
+  function clearNote() { lastBatch = null; }
+
+  function toggle(id, on) {
+    if (on) selected[id] = true; else delete selected[id];
+  }
+
+  function reconcile() {
+    var ids = selectedIds();
+    if (!ids.length) return;
+    for (var i = 0; i < ids.length; i++) reconciled[ids[i]] = true;
+    selected = Object.create(null);
+    lastBatch = ids;
+    render();
+    el.live.textContent = ids.length + ' ' + plural(ids.length, 'entry', 'entries') + ' reconciled';
+    el.batchUndo.focus();
+  }
+
+  function undo() {
+    if (!lastBatch) return;
+    var n = lastBatch.length;
+    for (var i = 0; i < lastBatch.length; i++) delete reconciled[lastBatch[i]];
+    clearNote();
+    render();
+    el.live.textContent = n + ' ' + plural(n, 'entry', 'entries') + ' returned to the list';
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Events
+   * ---------------------------------------------------------------- */
+
+  /* Row: checkbox change */
+  el.rows.addEventListener('change', function (ev) {
+    var box = ev.target.closest('.ds-select-control');
+    if (!box) return;
+    var row = box.closest('.ds-entry-row');
+    if (!row) return;
+    toggle(Number(row.dataset.id), box.checked);
+    renderSelection(currentPageRows(filtered()));
+  });
+
+  /* Row: click anywhere else on the row (no shift-range, no drag-select) */
+  el.rows.addEventListener('click', function (ev) {
+    if (ev.target.closest('.ds-select-control')) return;
+    var row = ev.target.closest('.ds-entry-row');
+    if (!row) return;
+    var id = Number(row.dataset.id);
+    toggle(id, !selected[id]);
+    renderSelection(currentPageRows(filtered()));
+  });
+
+  /* List header control: acts on the whole page */
+  el.selectPage.addEventListener('change', function () {
+    var rows = currentPageRows(filtered());
+    var on = el.selectPage.checked;
+    for (var i = 0; i < rows.length; i++) toggle(rows[i].id, on);
+    renderSelection(rows);
+  });
+
+  /* Filter chips: multi-select, survive a page change */
+  document.querySelector('.ds-filter-set').addEventListener('click', function (ev) {
+    var chip = ev.target.closest('.ds-filter-chip');
+    if (!chip) return;
+
+    if (chip.id === 'filterReset') {
+      stateFilter = Object.create(null);
+      sizeFilter = false;
+    } else if (chip.dataset.group === 'state') {
+      var v = chip.dataset.value;
+      if (stateFilter[v]) delete stateFilter[v]; else stateFilter[v] = true;
+    } else {
+      sizeFilter = !sizeFilter;
+    }
+    page = 0;
+    clearNote();
+    render();
+  });
+
+  /* Pager */
+  el.pagerControls.addEventListener('click', function (ev) {
+    var b = ev.target.closest('.ds-pager__step');
+    if (!b || b.disabled) return;
+    if (b.dataset.step === 'prev') page -= 1;
+    else if (b.dataset.step === 'next') page += 1;
+    else page = Number(b.dataset.page);
+    clearNote();
+    render();
+    el.rows.scrollTop = 0;
+  });
+
+  /* Reconcile bar */
+  el.reconcileAction.addEventListener('click', reconcile);
+  el.clearSelection.addEventListener('click', function () {
+    selected = Object.create(null);
+    renderSelection(currentPageRows(filtered()));
+  });
+
+  /* Undo */
+  el.batchUndo.addEventListener('click', undo);
+
+  render();
+})();
+</script>
+
+</body>
+</html>

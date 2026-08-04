@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reconciliation — Ledger</title>
+<style>
+/* ------------------------------------------------------------------
+   Tokens — arena / DESIGN.md
+   Base tokens are transcribed verbatim from the design system.
+   Derived tokens below are composed from base tokens only; they exist
+   so that every value used in a declaration is var(--token).
+   ------------------------------------------------------------------ */
+:root {
+  /* colour */
+  --color-surface-base:     #101215;
+  --color-surface-raised:   #171a1e;
+  --color-surface-recessed: #0b0d0f;
+  --color-ink-primary:      #e6e8ea;
+  --color-ink-secondary:    #9aa1a8;
+  --color-signal-match:     #4f8f74;
+  --color-signal-review:    #c99a34;
+  --color-signal-break:     #cf5b45;
+  --color-hairline:         #242a30;
+
+  /* type — five steps, does not grow */
+  --type-xs: 12px;
+  --type-sm: 13px;
+  --type-md: 15px;
+  --type-lg: 19px;
+  --type-xl: 26px;
+
+  /* space — four steps */
+  --space-tight:  8px;
+  --space-base:   16px;
+  --space-wide:   24px;
+  --space-column: 56px;
+
+  /* motion */
+  --motion-duration-fast: 110ms;
+  --motion-duration-base: 180ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ---- derived: strokes ---- */
+  --stroke-hairline: 1px;
+  --stroke-focus:    2px;
+  --stroke-rail:     calc(var(--space-tight) / 2);          /* 4px  */
+  --radius-control:  calc(var(--space-tight) / 2);          /* 4px  */
+
+  /* ---- derived: colour ---- */
+  /* Selection tint sits between base and raised so signal-hue text on a
+     selected row keeps its contrast ratio. Hover stays recessed. */
+  --color-surface-selected: color-mix(in srgb, var(--color-surface-raised) 55%, var(--color-surface-base));
+  --color-signal-none: var(--color-ink-secondary);
+
+  /* ---- derived: geometry ---- */
+  --screen-max:   calc(var(--space-column) * 22);           /* 1232px */
+  --row-height:   calc(var(--space-wide) * 2);              /* 48px   */
+  --control-height: calc(var(--space-wide) * 2);            /* 48px   */
+  --marker-dot:   var(--space-tight);                       /* 8px    */
+  --checkbox-size: var(--space-base);                       /* 16px   */
+  --col-select:   var(--space-column);                      /* 56px   */
+  --col-date:     calc(var(--space-column) * 2);            /* 112px  */
+  --col-marker:   calc(var(--space-column) * 2.5);          /* 140px  */
+  --col-amount:   calc(var(--space-column) * 2.5);          /* 140px  */
+
+  /* ---- derived: text ---- */
+  --font-ui: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --leading-tight: 1.2;
+  --leading-base: 1.45;
+  --tracking-label: 0.08em;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-bold: 600;
+}
+
+* { box-sizing: border-box; }
+
+/* The class-level display rules below would otherwise out-specify the UA
+   rule for [hidden]. */
+[hidden] { display: none !important; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+/* Keep the root and every form control on the five-step ramp — browser
+   defaults would otherwise introduce 16px and 13.33px. */
+html { font-size: var(--type-md); }
+input, button, label { font-size: var(--type-sm); }
+
+body {
+  background: var(--color-surface-base);
+  color: var(--color-ink-primary);
+  font-family: var(--font-ui);
+  font-size: var(--type-sm);
+  line-height: var(--leading-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Layout shell. Structural only — not design-system components. */
+.screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: var(--screen-max);
+  margin: 0 auto;
+  padding: var(--space-wide) var(--space-wide) var(--space-base);
+  gap: var(--space-base);
+}
+
+/* ---------------- header ---------------- */
+
+.screen-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-wide);
+  flex-shrink: 0;
+}
+
+.screen-head h1 {
+  margin: 0;
+  font-size: var(--type-lg);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  letter-spacing: 0;
+}
+
+.screen-head p {
+  margin: var(--space-tight) 0 0;
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+.screen-head-counts {
+  display: flex;
+  gap: var(--space-wide);
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.screen-head-counts b {
+  color: var(--color-ink-primary);
+  font-weight: var(--weight-medium);
+}
+
+/* ---------------- filters ---------------- */
+
+.screen-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  flex-shrink: 0;
+}
+
+.controls-label {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.controls-set {
+  display: flex;
+  gap: var(--space-tight);
+  flex-wrap: wrap;
+}
+
+/* ds-filter-chip — default / hover / active */
+.ds-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  min-height: var(--control-height);
+  padding: 0 var(--space-base);
+  border: var(--stroke-hairline) solid var(--color-hairline);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-base);
+  color: var(--color-ink-secondary);
+  font: inherit;
+  font-size: var(--type-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.ds-filter-chip:hover {
+  background: var(--color-surface-recessed);
+  color: var(--color-ink-primary);
+}
+
+.ds-filter-chip[aria-pressed="true"] {
+  background: var(--color-surface-raised);
+  border-color: var(--color-ink-secondary);
+  color: var(--color-ink-primary);
+}
+
+.ds-filter-chip:focus-visible {
+  outline: var(--stroke-focus) solid var(--color-ink-primary);
+  outline-offset: var(--stroke-focus);
+}
+
+.ds-filter-chip .count {
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-filter-chip[aria-pressed="true"] .count {
+  color: var(--color-ink-primary);
+}
+
+/* ---------------- reconcile bar ---------------- */
+
+/* ds-reconcile-bar — idle / armed */
+.ds-reconcile-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-base);
+  min-height: calc(var(--space-column) + var(--space-tight));
+  padding: var(--space-tight) var(--space-base) var(--space-tight) var(--space-wide);
+  border: var(--stroke-hairline) solid var(--color-hairline);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-recessed);
+  flex-shrink: 0;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.ds-reconcile-bar[data-state="armed"] {
+  background: var(--color-surface-raised);
+  border-color: var(--color-ink-secondary);
+}
+
+.ds-reconcile-bar .summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-tight);
+  flex-wrap: wrap;
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-reconcile-bar[data-state="armed"] .summary .lead {
+  color: var(--color-ink-primary);
+  font-size: var(--type-md);
+}
+
+.ds-reconcile-bar .actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+}
+
+/* buttons */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-height);
+  min-width: var(--control-height);
+  padding: 0 var(--space-base);
+  border-radius: var(--radius-control);
+  border: var(--stroke-hairline) solid transparent;
+  font: inherit;
+  font-size: var(--type-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.button:focus-visible {
+  outline: var(--stroke-focus) solid var(--color-ink-primary);
+  outline-offset: var(--stroke-focus);
+}
+
+.button-primary {
+  background: var(--color-ink-primary);
+  color: var(--color-surface-base);
+  font-weight: var(--weight-medium);
+}
+
+.button-primary:hover:not(:disabled) {
+  background: var(--color-ink-secondary);
+}
+
+.button-primary:disabled {
+  background: var(--color-surface-base);
+  color: var(--color-ink-secondary);
+  border-color: var(--color-hairline);
+  cursor: default;
+}
+
+.button-quiet {
+  background: transparent;
+  color: var(--color-ink-secondary);
+  border-color: var(--color-hairline);
+}
+
+.button-quiet:hover {
+  background: var(--color-surface-recessed);
+  color: var(--color-ink-primary);
+}
+
+/* ---------------- batch note ---------------- */
+
+/* ds-batch-note */
+#note-slot:empty { display: none; }
+
+.ds-batch-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-base);
+  min-height: var(--control-height);
+  padding: var(--space-tight) var(--space-tight) var(--space-tight) var(--space-wide);
+  border: var(--stroke-hairline) solid var(--color-hairline);
+  border-left: var(--stroke-rail) solid var(--color-ink-primary);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+  flex-shrink: 0;
+}
+
+.ds-batch-note .text {
+  font-size: var(--type-sm);
+  color: var(--color-ink-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-batch-note .text .aside {
+  color: var(--color-ink-secondary);
+}
+
+.ds-batch-note .actions {
+  display: flex;
+  gap: var(--space-tight);
+}
+
+/* ---------------- entry list ---------------- */
+
+.ds-entry-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  border: var(--stroke-hairline) solid var(--color-hairline);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-base);
+  overflow: hidden;
+}
+
+.ds-entry-list-head,
+.ds-entry-row {
+  display: grid;
+  grid-template-columns:
+    var(--col-select)
+    var(--col-date)
+    minmax(0, 1fr)
+    var(--col-marker)
+    var(--col-amount);
+  align-items: center;
+  padding: 0 var(--space-wide);
+}
+
+.ds-entry-list-head {
+  min-height: var(--control-height);
+  border-bottom: var(--stroke-hairline) solid var(--color-hairline);
+  background: var(--color-surface-recessed);
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.ds-entry-list-head .select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  min-height: var(--control-height);
+  margin-left: calc(var(--space-wide) * -1);
+  padding-left: var(--space-wide);
+  grid-column: 1 / 3;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.ds-entry-list-head .select-all:hover {
+  color: var(--color-ink-primary);
+}
+
+.ds-entry-list-head .head-amount { text-align: right; }
+
+.ds-entry-list-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ds-entry-row — hover / focus-visible / selected */
+.ds-entry-row {
+  position: relative;
+  min-height: var(--row-height);
+  border-bottom: var(--stroke-hairline) solid var(--color-hairline);
+  font-size: var(--type-sm);
+  cursor: pointer;
+  /* No transition on the row background: selection feedback is immediate. */
+}
+
+.ds-entry-row:last-child { border-bottom: 0; }
+
+.ds-entry-row:hover {
+  background: var(--color-surface-recessed);
+}
+
+.ds-entry-row:has(input:focus-visible) {
+  outline: var(--stroke-focus) solid var(--color-ink-primary);
+  outline-offset: calc(var(--stroke-focus) * -1);
+}
+
+.ds-entry-row[data-selected="true"] {
+  background: var(--color-surface-selected);
+}
+
+.ds-entry-row[data-selected="true"]:hover {
+  background: var(--color-surface-recessed);
+}
+
+.ds-entry-row[data-selected="true"]::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: var(--stroke-rail);
+  background: var(--color-ink-primary);
+}
+
+.ds-entry-row input[type="checkbox"],
+.ds-entry-list-head input[type="checkbox"] {
+  width: var(--checkbox-size);
+  height: var(--checkbox-size);
+  margin: 0;
+  accent-color: var(--color-ink-primary);
+  cursor: pointer;
+}
+
+.ds-entry-row .cell-date {
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-entry-row .cell-description {
+  color: var(--color-ink-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: var(--space-base);
+}
+
+/* ds-match-marker */
+.ds-match-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  color: var(--color-ink-secondary);
+}
+
+.ds-match-marker .dot {
+  width: var(--marker-dot);
+  height: var(--marker-dot);
+  border-radius: var(--marker-dot);
+  background: var(--color-signal-none);
+  flex-shrink: 0;
+}
+
+.ds-match-marker[data-state="match"]  .dot { background: var(--color-signal-match); }
+.ds-match-marker[data-state="review"] .dot { background: var(--color-signal-review); }
+.ds-match-marker[data-state="break"]  .dot { background: var(--color-signal-break); }
+
+.ds-match-marker[data-state="match"]  { color: var(--color-signal-match); }
+.ds-match-marker[data-state="review"] { color: var(--color-signal-review); }
+.ds-match-marker[data-state="break"]  { color: var(--color-signal-break); }
+
+/* ds-amount-cell */
+.ds-amount-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-primary);
+}
+
+.list-empty {
+  margin: 0;
+  padding: var(--space-column) var(--space-wide);
+  text-align: center;
+  color: var(--color-ink-secondary);
+  font-size: var(--type-sm);
+}
+
+/* ---------------- total footer ---------------- */
+
+/* ds-total-footer */
+.ds-total-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-wide);
+  min-height: calc(var(--space-column) + var(--space-tight));
+  padding: var(--space-tight) var(--space-wide);
+  border: var(--stroke-hairline) solid var(--color-hairline);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-recessed);
+  flex-shrink: 0;
+}
+
+.ds-total-footer .group {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-tight) / 2);
+}
+
+.ds-total-footer .label {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.ds-total-footer .value {
+  font-size: var(--type-md);
+  color: var(--color-ink-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-total-footer .net .value {
+  font-size: var(--type-lg);
+  line-height: var(--leading-tight);
+}
+
+.ds-total-footer .net {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.ds-total-footer .filtered {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0ms !important; }
+}
+</style>
+</head>
+<body>
+<main class="screen">
+
+  <header class="screen-head">
+    <div>
+      <h1>Reconciliation</h1>
+      <p>Business current account &middot; ending 4471 &middot; bank feed 1&ndash;27 July 2026</p>
+    </div>
+    <div class="screen-head-counts">
+      <span><b id="count-imported">24</b> imported</span>
+      <span><b id="count-open">24</b> unreconciled</span>
+      <span><b id="count-done">0</b> reconciled</span>
+    </div>
+  </header>
+
+  <section class="screen-controls" aria-label="Filter by match state">
+    <span class="controls-label" id="filter-label">Match state</span>
+    <div class="controls-set" role="group" aria-labelledby="filter-label" id="filter-set">
+      <button type="button" class="ds-filter-chip" data-filter="all" aria-pressed="true">
+        All <span class="count" data-count="all">24</span>
+      </button>
+      <button type="button" class="ds-filter-chip" data-filter="match" aria-pressed="false">
+        <span class="ds-match-marker" data-state="match" aria-hidden="true"><span class="dot"></span></span>
+        Matched <span class="count" data-count="match">13</span>
+      </button>
+      <button type="button" class="ds-filter-chip" data-filter="review" aria-pressed="false">
+        <span class="ds-match-marker" data-state="review" aria-hidden="true"><span class="dot"></span></span>
+        Review <span class="count" data-count="review">7</span>
+      </button>
+      <button type="button" class="ds-filter-chip" data-filter="break" aria-pressed="false">
+        <span class="ds-match-marker" data-state="break" aria-hidden="true"><span class="dot"></span></span>
+        Break <span class="count" data-count="break">4</span>
+      </button>
+    </div>
+  </section>
+
+  <div class="ds-reconcile-bar" id="reconcile-bar" data-state="idle">
+    <p class="summary" id="reconcile-summary">Select entries to reconcile</p>
+    <div class="actions">
+      <button type="button" class="button button-quiet" id="clear-selection" hidden>Clear selection</button>
+      <button type="button" class="button button-primary" id="reconcile" disabled>Reconcile</button>
+    </div>
+  </div>
+
+  <div id="note-slot" role="status" aria-live="polite"></div>
+
+  <section class="ds-entry-list" aria-label="Unreconciled entries">
+    <div class="ds-entry-list-head">
+      <label class="select-all">
+        <input type="checkbox" id="select-all">
+        <span id="select-all-text">All shown</span>
+      </label>
+      <span>Description</span>
+      <span>Match</span>
+      <span class="head-amount">Amount</span>
+    </div>
+    <div class="ds-entry-list-body" id="entry-list-body"></div>
+  </section>
+
+  <footer class="ds-total-footer">
+    <div class="group">
+      <span class="label">Unreconciled</span>
+      <span class="value" id="total-count">24 entries</span>
+    </div>
+    <div class="group">
+      <span class="label">Money in</span>
+      <span class="value" id="total-in">&pound;0.00</span>
+    </div>
+    <div class="group">
+      <span class="label">Money out</span>
+      <span class="value" id="total-out">&pound;0.00</span>
+    </div>
+    <div class="group">
+      <span class="label">In this filter</span>
+      <span class="filtered" id="total-filtered">No filter</span>
+    </div>
+    <div class="group net">
+      <span class="label">Net outstanding</span>
+      <span class="value" id="total-net">&pound;0.00</span>
+    </div>
+  </footer>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  /* Seed data. Amounts held in pence as integers so totals never drift. */
+  var SEED = [
+    { id:  1, date: "2026-07-02", description: "Kingsway Supplies Ltd",             pence:  -28450, state: "match"  },
+    { id:  2, date: "2026-07-02", description: "Card payment — SUMUP *CAFE",   pence:   -1420, state: "review" },
+    { id:  3, date: "2026-07-03", description: "Invoice 20418 — Hartley & Co", pence:  315000, state: "match"  },
+    { id:  4, date: "2026-07-03", description: "Direct debit — BRITISH GAS",   pence:  -21288, state: "match"  },
+    { id:  5, date: "2026-07-04", description: "FASTER PAYMENT REF 88213",          pence:   94000, state: "break"  },
+    { id:  6, date: "2026-07-06", description: "Kingsway Supplies Ltd",             pence:   -9675, state: "match"  },
+    { id:  7, date: "2026-07-07", description: "Card payment — TFL TRAVEL",    pence:    -840, state: "review" },
+    { id:  8, date: "2026-07-08", description: "Invoice 20419 — Marchmont Trust", pence: 187500, state: "match" },
+    { id:  9, date: "2026-07-09", description: "Standing order — OFFICE RENT", pence: -145000, state: "match"  },
+    { id: 10, date: "2026-07-10", description: "Refund — Kingsway Supplies Ltd", pence:   4230, state: "review" },
+    { id: 11, date: "2026-07-11", description: "FASTER PAYMENT REF 88407",          pence:   51200, state: "break"  },
+    { id: 12, date: "2026-07-13", description: "Card payment — AMZN MKTPLACE", pence:  -13799, state: "review" },
+    { id: 13, date: "2026-07-14", description: "Invoice 20420 — Hartley & Co", pence:  224000, state: "match"  },
+    { id: 14, date: "2026-07-15", description: "Direct debit — VODAFONE",      pence:   -7800, state: "match"  },
+    { id: 15, date: "2026-07-16", description: "Card payment — SUMUP *CAFE",   pence:   -1160, state: "review" },
+    { id: 16, date: "2026-07-17", description: "Kingsway Supplies Ltd",             pence:  -31805, state: "match"  },
+    { id: 17, date: "2026-07-18", description: "FASTER PAYMENT REF 88612",          pence:   27500, state: "break"  },
+    { id: 18, date: "2026-07-20", description: "Invoice 20421 — Delaney Partners", pence: 410000, state: "match" },
+    { id: 19, date: "2026-07-21", description: "Card payment — STATIONERY DIRECT", pence: -6344, state: "review" },
+    { id: 20, date: "2026-07-22", description: "Direct debit — INSURANCE PREMIUM", pence: -18950, state: "match" },
+    { id: 21, date: "2026-07-23", description: "Kingsway Supplies Ltd",             pence:  -14520, state: "match"  },
+    { id: 22, date: "2026-07-24", description: "FASTER PAYMENT REF 88903",          pence:  102000, state: "break"  },
+    { id: 23, date: "2026-07-25", description: "Invoice 20422 — Marchmont Trust", pence: 166000, state: "match" },
+    { id: 24, date: "2026-07-27", description: "Card payment — TFL TRAVEL",    pence:    -680, state: "review" }
+  ];
+
+  var STATE_LABEL = { match: "Matched", review: "Review", "break": "Break" };
+  var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  /* ---------------- state ---------------- */
+
+  var reconciled = new Set();     /* entry ids removed from the working list */
+  var selected   = new Set();     /* entry ids currently selected            */
+  var filters    = new Set();     /* empty set == all states                 */
+  var batches    = [];            /* undo stack of bulk reconcile actions    */
+  var anchorId   = null;          /* for shift-click range selection         */
+
+  /* ---------------- helpers ---------------- */
+
+  var gbp = new Intl.NumberFormat("en-GB", {
+    style: "currency", currency: "GBP",
+    minimumFractionDigits: 2, maximumFractionDigits: 2
+  });
+
+  function money(pence) {
+    /* U+2212 minus reads better than a hyphen in a column of figures. */
+    return gbp.format(pence / 100).replace("-", "−");
+  }
+
+  function shortDate(iso) {
+    var p = iso.split("-");
+    return p[2] + " " + MONTHS[parseInt(p[1], 10) - 1];
+  }
+
+  function openEntries() {
+    return SEED.filter(function (e) { return !reconciled.has(e.id); });
+  }
+
+  function visibleEntries() {
+    return openEntries().filter(function (e) {
+      return filters.size === 0 || filters.has(e.state);
+    });
+  }
+
+  function sumPence(list) {
+    return list.reduce(function (t, e) { return t + e.pence; }, 0);
+  }
+
+  function entriesLabel(n) {
+    return n + (n === 1 ? " entry" : " entries");
+  }
+
+  function el(id) { return document.getElementById(id); }
+
+  /* ---------------- rendering ---------------- */
+
+  var listBody = el("entry-list-body");
+
+  function rowMarkup(entry) {
+    var isSelected = selected.has(entry.id);
+    return '<label class="ds-entry-row" data-id="' + entry.id + '" data-selected="' + isSelected + '">' +
+      '<input type="checkbox" data-id="' + entry.id + '"' + (isSelected ? " checked" : "") +
+        ' aria-label="Select ' + escapeAttr(entry.description) + ', ' + shortDate(entry.date) + ', ' + money(entry.pence) + '">' +
+      '<span class="cell-date">' + shortDate(entry.date) + '</span>' +
+      '<span class="cell-description">' + escapeHtml(entry.description) + '</span>' +
+      '<span class="ds-match-marker" data-state="' + entry.state + '">' +
+        '<span class="dot" aria-hidden="true"></span>' + STATE_LABEL[entry.state] +
+      '</span>' +
+      '<span class="ds-amount-cell">' + money(entry.pence) + '</span>' +
+    '</label>';
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function escapeAttr(s) {
+    return escapeHtml(s).replace(/"/g, "&quot;");
+  }
+
+  function render() {
+    var open = openEntries();
+    var visible = visibleEntries();
+
+    /* --- rows. No entrance animation: the list simply is what it is. --- */
+    var focusedId = null;
+    if (document.activeElement && document.activeElement.matches("input[type=checkbox][data-id]")) {
+      focusedId = document.activeElement.getAttribute("data-id");
+    }
+
+    if (visible.length === 0) {
+      listBody.innerHTML = '<p class="list-empty">' +
+        (open.length === 0
+          ? "Every imported entry has been reconciled."
+          : "No unreconciled entries in this filter.") +
+        '</p>';
+    } else {
+      listBody.innerHTML = visible.map(rowMarkup).join("");
+    }
+
+    if (focusedId) {
+      var restore = listBody.querySelector('input[data-id="' + focusedId + '"]');
+      if (restore) { restore.focus(); }
+    }
+
+    /* --- counts on the filter chips --- */
+    setText('[data-count="all"]', String(open.length));
+    ["match", "review", "break"].forEach(function (s) {
+      setText('[data-count="' + s + '"]', String(open.filter(function (e) { return e.state === s; }).length));
+    });
+
+    /* --- header counts --- */
+    el("count-open").textContent = String(open.length);
+    el("count-done").textContent = String(reconciled.size);
+
+    /* --- select-all control --- */
+    var selectAll = el("select-all");
+    var visibleSelected = visible.filter(function (e) { return selected.has(e.id); }).length;
+    selectAll.disabled = visible.length === 0;
+    selectAll.checked = visible.length > 0 && visibleSelected === visible.length;
+    selectAll.indeterminate = visibleSelected > 0 && visibleSelected < visible.length;
+    el("select-all-text").textContent = visible.length === 0
+      ? "All shown"
+      : "All shown (" + visible.length + ")";
+
+    /* --- reconcile bar --- */
+    renderReconcileBar(visible);
+
+    /* --- footer --- */
+    renderFooter(open, visible);
+
+    /* --- batch note --- */
+    renderNote();
+  }
+
+  function setText(selector, value) {
+    var node = document.querySelector(selector);
+    if (node) { node.textContent = value; }
+  }
+
+  function renderReconcileBar(visible) {
+    var bar = el("reconcile-bar");
+    var summary = el("reconcile-summary");
+    var reconcileButton = el("reconcile");
+    var clearButton = el("clear-selection");
+
+    var chosen = SEED.filter(function (e) { return selected.has(e.id); });
+    var visibleIds = new Set(visible.map(function (e) { return e.id; }));
+    var hidden = chosen.filter(function (e) { return !visibleIds.has(e.id); }).length;
+
+    if (chosen.length === 0) {
+      bar.setAttribute("data-state", "idle");
+      summary.innerHTML = "Select entries to reconcile";
+      reconcileButton.disabled = true;
+      reconcileButton.textContent = "Reconcile";
+      clearButton.hidden = true;
+      return;
+    }
+
+    bar.setAttribute("data-state", "armed");
+    summary.innerHTML =
+      '<span class="lead">' + entriesLabel(chosen.length) + " selected</span>" +
+      "<span>· " + money(sumPence(chosen)) + "</span>" +
+      (hidden > 0 ? "<span>· " + hidden + " not shown in this filter</span>" : "");
+    reconcileButton.disabled = false;
+    reconcileButton.textContent = "Reconcile " + chosen.length;
+    clearButton.hidden = false;
+  }
+
+  function renderFooter(open, visible) {
+    var inPence = sumPence(open.filter(function (e) { return e.pence > 0; }));
+    var outPence = sumPence(open.filter(function (e) { return e.pence < 0; }));
+
+    el("total-count").textContent = entriesLabel(open.length);
+    el("total-in").textContent = money(inPence);
+    el("total-out").textContent = money(outPence);
+    el("total-net").textContent = money(inPence + outPence);
+
+    el("total-filtered").textContent = filters.size === 0
+      ? "No filter — all states"
+      : entriesLabel(visible.length) + " · " + money(sumPence(visible));
+  }
+
+  function renderNote() {
+    var slot = el("note-slot");
+    if (batches.length === 0) { slot.innerHTML = ""; return; }
+
+    var batch = batches[batches.length - 1];
+    var older = batches.length - 1;
+
+    slot.innerHTML =
+      '<div class="ds-batch-note">' +
+        '<span class="text">' +
+          entriesLabel(batch.ids.length) + " reconciled · " + money(batch.pence) +
+          (older > 0 ? ' <span class="aside">· ' + older + " earlier " +
+             (older === 1 ? "batch" : "batches") + " can be undone after this one</span>" : "") +
+        "</span>" +
+        '<span class="actions">' +
+          '<button type="button" class="button button-quiet" id="dismiss-note">Dismiss</button>' +
+          '<button type="button" class="button button-primary" id="undo-batch">Undo</button>' +
+        "</span>" +
+      "</div>";
+
+    el("undo-batch").addEventListener("click", undoLastBatch);
+    el("dismiss-note").addEventListener("click", function () {
+      batches = [];
+      render();
+    });
+  }
+
+  /* ---------------- actions ---------------- */
+
+  function toggleEntry(id, on) {
+    if (on) { selected.add(id); } else { selected.delete(id); }
+  }
+
+  function selectRange(fromId, toId) {
+    var visible = visibleEntries();
+    var a = visible.findIndex(function (e) { return e.id === fromId; });
+    var b = visible.findIndex(function (e) { return e.id === toId; });
+    if (a < 0 || b < 0) { return; }
+    var lo = Math.min(a, b), hi = Math.max(a, b);
+    for (var i = lo; i <= hi; i++) { selected.add(visible[i].id); }
+  }
+
+  function reconcileSelection() {
+    var chosen = SEED.filter(function (e) { return selected.has(e.id); });
+    if (chosen.length === 0) { return; }
+
+    var ids = chosen.map(function (e) { return e.id; });
+    ids.forEach(function (id) { reconciled.add(id); });
+    batches.push({ ids: ids, pence: sumPence(chosen) });
+    selected.clear();
+    anchorId = null;
+    render();
+  }
+
+  function undoLastBatch() {
+    var batch = batches.pop();
+    if (!batch) { return; }
+    batch.ids.forEach(function (id) { reconciled.delete(id); });
+    render();
+  }
+
+  /* ---------------- events ---------------- */
+
+  /* Row selection. The row is a <label>, so a click anywhere in it drives
+     the checkbox natively; shift-click extends from the last anchor. */
+  listBody.addEventListener("click", function (event) {
+    var row = event.target.closest(".ds-entry-row");
+    if (!row) { return; }
+    var id = Number(row.getAttribute("data-id"));
+
+    if (event.shiftKey && anchorId !== null && anchorId !== id) {
+      event.preventDefault();
+      selectRange(anchorId, id);
+      render();
+      return;
+    }
+    anchorId = id;
+  });
+
+  listBody.addEventListener("change", function (event) {
+    var box = event.target;
+    if (!box.matches('input[type="checkbox"][data-id]')) { return; }
+    toggleEntry(Number(box.getAttribute("data-id")), box.checked);
+    render();
+  });
+
+  /* Arrow keys walk the list without leaving the keyboard. */
+  listBody.addEventListener("keydown", function (event) {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") { return; }
+    var boxes = Array.prototype.slice.call(listBody.querySelectorAll('input[type="checkbox"][data-id]'));
+    var index = boxes.indexOf(document.activeElement);
+    if (index < 0) { return; }
+    event.preventDefault();
+    var next = boxes[index + (event.key === "ArrowDown" ? 1 : -1)];
+    if (next) { next.focus(); }
+  });
+
+  el("select-all").addEventListener("change", function (event) {
+    var visible = visibleEntries();
+    if (event.target.checked) {
+      visible.forEach(function (e) { selected.add(e.id); });
+    } else {
+      visible.forEach(function (e) { selected.delete(e.id); });
+    }
+    render();
+  });
+
+  el("filter-set").addEventListener("click", function (event) {
+    var chip = event.target.closest(".ds-filter-chip");
+    if (!chip) { return; }
+    var value = chip.getAttribute("data-filter");
+
+    if (value === "all") {
+      filters.clear();
+    } else if (filters.has(value)) {
+      filters.delete(value);
+    } else {
+      filters.add(value);
+    }
+
+    document.querySelectorAll(".ds-filter-chip").forEach(function (c) {
+      var v = c.getAttribute("data-filter");
+      var on = v === "all" ? filters.size === 0 : filters.has(v);
+      c.setAttribute("aria-pressed", String(on));
+    });
+
+    anchorId = null;
+    render();
+  });
+
+  el("reconcile").addEventListener("click", reconcileSelection);
+
+  el("clear-selection").addEventListener("click", function () {
+    selected.clear();
+    anchorId = null;
+    render();
+  });
+
+  document.addEventListener("keydown", function (event) {
+    var undoChord = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z";
+    if (undoChord && batches.length > 0) {
+      event.preventDefault();
+      undoLastBatch();
+      return;
+    }
+    if (event.key === "Escape" && selected.size > 0) {
+      selected.clear();
+      anchorId = null;
+      render();
+    }
+  });
+
+  el("count-imported").textContent = String(SEED.length);
+  render();
+})();
+</script>
+</body>
+</html>

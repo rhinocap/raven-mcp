@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reconciliation review — Ledger</title>
+<style>
+/* ------------------------------------------------------------------
+   Tokens — arena / DESIGN.md
+   The only literal values in this stylesheet live in these two blocks.
+   Everything below references them through var().
+   ------------------------------------------------------------------ */
+:root {
+  /* colours */
+  --color-surface-base:     #101215;
+  --color-surface-raised:   #171a1e;
+  --color-surface-recessed: #0b0d0f;
+  --color-ink-primary:      #e6e8ea;
+  --color-ink-secondary:    #9aa1a8;
+  /* --color-signal-match is defined by the system but not declared here:
+     a matched entry is the non-event on this screen and carries no hue.
+     Colour is spent on the two states that need attention. See NOTES.md. */
+  --color-signal-review:    #c99a34;
+  --color-signal-break:     #cf5b45;
+  --color-hairline:         #242a30;
+
+  /* type ramp — five steps, does not grow */
+  --type-xs: 12px;
+  --type-sm: 13px;
+  --type-md: 15px;
+  --type-lg: 19px;
+  --type-xl: 26px;
+
+  /* space */
+  --space-tight:  8px;
+  --space-base:   16px;
+  --space-wide:   24px;
+  --space-column: 56px;
+
+  /* motion */
+  --motion-duration-fast: 110ms;
+  --motion-duration-base: 180ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ------------------------------------------------------------------
+   Derived layer — geometry the system does not yet name.
+   Declared here so no use site carries a literal. See NOTES.md.
+   ------------------------------------------------------------------ */
+:root {
+  --font-family-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+                    "Helvetica Neue", Arial, sans-serif;
+
+  --size-hairline:      1px;
+  --size-target-min:    44px;   /* A11Y-target-size */
+  --size-control-box:   16px;
+  --size-marker-dot:    6px;
+  --size-focus-ring:    2px;
+  --size-selected-edge: 2px;
+  --radius-control:     4px;
+
+  --tracking-label: 0.08em;
+  --leading-tight:  1.2;
+  --leading-base:   1.45;
+
+  /* column geometry — built from --space-column */
+  --col-select: var(--size-target-min);
+  --col-date:   calc(var(--space-column) * 2);
+  --col-state:  calc(var(--space-column) * 2.25);
+  --col-amount: calc(var(--space-column) * 2.5);
+  --shell-max:  calc(var(--space-column) * 20);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-surface-base);
+  color: var(--color-ink-primary);
+  font-family: var(--font-family-ui);
+  font-size: var(--type-sm);
+  line-height: var(--leading-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+button { font: inherit; color: inherit; }
+
+:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-ink-secondary);
+  outline-offset: var(--size-focus-ring);
+}
+
+.u-hidden { display: none !important; }
+
+.u-label {
+  font-size: var(--type-xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-ink-secondary);
+}
+
+.u-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ---------------------------------------------------------------- shell */
+
+.ds-screen {
+  height: 100%;
+  width: 100%;
+  max-width: var(--shell-max);
+  margin-inline: auto;
+  padding-inline: var(--space-wide);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ds-screen__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-wide);
+  padding-block: var(--space-wide) var(--space-base);
+}
+
+.ds-screen__title {
+  margin: 0;
+  font-size: var(--type-lg);
+  line-height: var(--leading-tight);
+  font-weight: 600;
+}
+
+.ds-screen__meta {
+  margin: 0;
+  margin-top: var(--space-tight);
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+.ds-screen__keys {
+  margin: 0;
+  font-size: var(--type-xs);
+  color: var(--color-ink-secondary);
+  white-space: nowrap;
+}
+
+.ds-screen__keys kbd {
+  font: inherit;
+  color: var(--color-ink-primary);
+}
+
+/* ---------------------------------------------------------- filter chips */
+
+.ds-filter-set {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  padding-block: var(--space-tight);
+  border-top: var(--size-hairline) solid var(--color-hairline);
+}
+
+.ds-filter-set__label {
+  margin-right: var(--space-tight);
+}
+
+.ds-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  min-height: var(--size-target-min);
+  padding-inline: var(--space-base);
+  background: transparent;
+  color: var(--color-ink-secondary);
+  border: var(--size-hairline) solid var(--color-hairline);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.ds-filter-chip:hover {
+  background: var(--color-surface-recessed);
+  color: var(--color-ink-primary);
+}
+
+.ds-filter-chip[aria-pressed="true"] {
+  background: var(--color-surface-raised);
+  color: var(--color-ink-primary);
+  border-color: var(--color-ink-secondary);
+}
+
+.ds-filter-chip__count {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-secondary);
+}
+
+.ds-filter-chip[aria-pressed="true"] .ds-filter-chip__count {
+  color: var(--color-ink-primary);
+}
+
+.ds-filter-chip__dot {
+  width: var(--size-marker-dot);
+  height: var(--size-marker-dot);
+  border-radius: var(--size-marker-dot);
+  flex: none;
+}
+
+/* -------------------------------------------------------- reconcile bar */
+
+.ds-reconcile-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-base);
+  min-height: var(--size-target-min);
+  padding: var(--space-tight) var(--space-base);
+  margin-block: var(--space-tight);
+  border: var(--size-hairline) solid var(--color-hairline);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-recessed);
+}
+
+.ds-reconcile-bar[data-state="armed"] {
+  background: var(--color-surface-raised);
+  border-color: var(--color-ink-secondary);
+}
+
+.ds-reconcile-bar__read {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-base);
+  min-width: 0;
+}
+
+.ds-reconcile-bar__count {
+  font-size: var(--type-md);
+  color: var(--color-ink-secondary);
+}
+
+.ds-reconcile-bar[data-state="armed"] .ds-reconcile-bar__count {
+  color: var(--color-ink-primary);
+}
+
+.ds-reconcile-bar__sum {
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+.ds-reconcile-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  flex: none;
+}
+
+/* ------------------------------------------------------------- controls */
+
+.ds-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--size-target-min);
+  min-width: var(--size-target-min);
+  padding-inline: var(--space-base);
+  border-radius: var(--radius-control);
+  border: var(--size-hairline) solid var(--color-hairline);
+  background: transparent;
+  color: var(--color-ink-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  /* no transition: the bar arming is selection feedback, and that is immediate */
+}
+
+.ds-action:hover:not(:disabled) {
+  background: var(--color-surface-recessed);
+  color: var(--color-ink-primary);
+  border-color: var(--color-ink-secondary);
+}
+
+.ds-action--primary {
+  background: var(--color-ink-primary);
+  color: var(--color-surface-base);
+  border-color: var(--color-ink-primary);
+  font-weight: 600;
+}
+
+.ds-action--primary:hover:not(:disabled) {
+  background: var(--color-ink-primary);
+  color: var(--color-surface-base);
+  border-color: var(--color-ink-primary);
+}
+
+.ds-action:disabled {
+  cursor: default;
+  color: var(--color-ink-secondary);
+  border-color: var(--color-hairline);
+  background: transparent;
+  opacity: 0.55;
+}
+
+/* ------------------------------------------------------------ the list */
+
+.ds-entry-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: var(--size-hairline) solid var(--color-hairline);
+}
+
+.ds-entry-list__table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.ds-entry-row > * {
+  border-bottom: var(--size-hairline) solid var(--color-hairline);
+  padding-inline: var(--space-tight);
+  text-align: left;
+  vertical-align: middle;
+  height: var(--size-target-min);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-entry-row--head > * {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-surface-base);
+  font-weight: 400;
+  height: auto;
+  padding-block: var(--space-tight);
+}
+
+.ds-entry-row {
+  scroll-margin-block: var(--size-target-min);
+}
+
+.ds-entry-row:not(.ds-entry-row--head) {
+  cursor: pointer;
+}
+
+/* hover pushes the row back — it does not lift it */
+.ds-entry-row:not(.ds-entry-row--head):hover:not([aria-selected="true"]) > * {
+  background: var(--color-surface-recessed);
+}
+
+/* selection feedback is immediate — no transition on this background */
+.ds-entry-row[aria-selected="true"] > * {
+  background: var(--color-surface-raised);
+}
+
+.ds-entry-row[aria-selected="true"] > *:first-child {
+  box-shadow: inset var(--size-selected-edge) 0 0 var(--color-ink-primary);
+}
+
+.ds-entry-row:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-ink-secondary);
+  outline-offset: calc(var(--size-focus-ring) * -1);
+}
+
+.ds-entry-row__select { width: var(--col-select); padding-inline: 0; }
+.ds-entry-row__date   { width: var(--col-date); color: var(--color-ink-secondary); }
+.ds-entry-row__state  { width: var(--col-state); }
+.ds-entry-row__amount { width: var(--col-amount); }
+
+.ds-entry-row__desc { color: var(--color-ink-primary); }
+
+.ds-entry-row[aria-selected="true"] .ds-entry-row__date {
+  color: var(--color-ink-primary);
+}
+
+/* ------------------------------------------------------------ the box */
+
+.ds-entry-row__box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-target-min);
+  height: var(--size-target-min);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.ds-entry-row__box:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.ds-entry-row__box > span {
+  display: block;
+  width: var(--size-control-box);
+  height: var(--size-control-box);
+  border: var(--size-hairline) solid var(--color-ink-secondary);
+  border-radius: var(--radius-control);
+  position: relative;
+}
+
+.ds-entry-row__box[aria-checked="true"] > span,
+.ds-entry-row__box[aria-checked="mixed"] > span {
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+}
+
+.ds-entry-row__box[aria-checked="true"] > span::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--color-surface-base);
+  clip-path: polygon(19% 47%, 12% 57%, 40% 79%, 88% 27%, 79% 19%, 39% 62%);
+}
+
+.ds-entry-row__box[aria-checked="mixed"] > span::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--color-surface-base);
+  clip-path: polygon(20% 44%, 80% 44%, 80% 56%, 20% 56%);
+}
+
+/* -------------------------------------------------------- match marker */
+
+.ds-match-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  color: var(--color-ink-secondary);
+}
+
+.ds-entry-row[aria-selected="true"] .ds-match-marker {
+  color: var(--color-ink-primary);
+}
+
+.ds-match-marker__dot {
+  width: var(--size-marker-dot);
+  height: var(--size-marker-dot);
+  border-radius: var(--size-marker-dot);
+  flex: none;
+}
+
+/* matched — no signal hue; the dot follows the surrounding ink and recedes */
+.ds-match-marker[data-state="match"] .ds-match-marker__dot,
+.ds-filter-chip[data-state="match"] .ds-filter-chip__dot { background: currentColor; }
+
+.ds-match-marker[data-state="review"] .ds-match-marker__dot,
+.ds-filter-chip[data-state="review"] .ds-filter-chip__dot { background: var(--color-signal-review); }
+
+.ds-match-marker[data-state="break"] .ds-match-marker__dot,
+.ds-filter-chip[data-state="break"] .ds-filter-chip__dot { background: var(--color-signal-break); }
+
+/* ---------------------------------------------------------- amount cell */
+
+.ds-amount-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  color: var(--color-ink-primary);
+  padding-right: var(--space-base);
+}
+
+/* ------------------------------------------------------------ empty */
+
+.ds-entry-list__empty {
+  padding: var(--space-column) var(--space-base);
+  color: var(--color-ink-secondary);
+  text-align: center;
+}
+
+/* ------------------------------------------------------------ batch note */
+
+.ds-batch-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-base);
+  min-height: var(--size-target-min);
+  padding: var(--space-tight) var(--space-tight) var(--space-tight) var(--space-base);
+  margin-top: var(--space-tight);
+  border: var(--size-hairline) solid var(--color-hairline);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+}
+
+.ds-batch-note__read {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-base);
+  min-width: 0;
+}
+
+.ds-batch-note__line { color: var(--color-ink-primary); }
+.ds-batch-note__sub  { color: var(--color-ink-secondary); font-size: var(--type-xs); }
+
+/* --------------------------------------------------------- total footer */
+
+.ds-total-footer {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-wide);
+  padding-block: var(--space-base) var(--space-wide);
+  margin-top: var(--space-tight);
+  border-top: var(--size-hairline) solid var(--color-hairline);
+}
+
+.ds-total-footer__group {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-base);
+}
+
+.ds-total-footer__count { color: var(--color-ink-secondary); }
+
+.ds-total-footer__value {
+  font-size: var(--type-xl);
+  line-height: var(--leading-tight);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.ds-total-footer__filtered { color: var(--color-ink-secondary); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0ms !important; }
+}
+</style>
+</head>
+<body>
+
+<main class="ds-screen">
+
+  <header class="ds-screen__head">
+    <div>
+      <h1 class="ds-screen__title">Reconciliation review</h1>
+      <p class="ds-screen__meta" id="feedMeta"></p>
+    </div>
+    <p class="ds-screen__keys">
+      <kbd>Space</kbd> select · <kbd>Shift</kbd>+click range · <kbd>Esc</kbd> clear · <kbd>⌘Z</kbd> undo
+    </p>
+  </header>
+
+  <div class="ds-filter-set" role="group" aria-label="Filter by match state">
+    <span class="u-label ds-filter-set__label">Filter</span>
+    <button type="button" class="ds-filter-chip" data-filter="all"    aria-pressed="true">All <span class="ds-filter-chip__count" data-count="all">0</span></button>
+    <button type="button" class="ds-filter-chip" data-filter="match"  data-state="match"  aria-pressed="false"><span class="ds-filter-chip__dot"></span>Matched <span class="ds-filter-chip__count" data-count="match">0</span></button>
+    <button type="button" class="ds-filter-chip" data-filter="review" data-state="review" aria-pressed="false"><span class="ds-filter-chip__dot"></span>Review <span class="ds-filter-chip__count" data-count="review">0</span></button>
+    <button type="button" class="ds-filter-chip" data-filter="break"  data-state="break"  aria-pressed="false"><span class="ds-filter-chip__dot"></span>Break <span class="ds-filter-chip__count" data-count="break">0</span></button>
+  </div>
+
+  <div class="ds-reconcile-bar" id="reconcileBar" data-state="idle">
+    <div class="ds-reconcile-bar__read">
+      <span class="ds-reconcile-bar__count" id="barCount">No entries selected</span>
+      <span class="ds-reconcile-bar__sum u-num" id="barSum"></span>
+      <span class="ds-reconcile-bar__sum" id="barHidden"></span>
+    </div>
+    <div class="ds-reconcile-bar__actions">
+      <button type="button" class="ds-action" id="clearBtn" disabled>Clear</button>
+      <button type="button" class="ds-action ds-action--primary" id="reconcileBtn" disabled>Reconcile</button>
+    </div>
+  </div>
+
+  <div class="ds-entry-list" id="entryList">
+    <table class="ds-entry-list__table" role="grid" aria-label="Unreconciled entries">
+      <colgroup>
+        <col style="width: var(--col-select)">
+        <col style="width: var(--col-date)">
+        <col>
+        <col style="width: var(--col-state)">
+        <col style="width: var(--col-amount)">
+      </colgroup>
+      <thead>
+        <tr class="ds-entry-row ds-entry-row--head" role="row">
+          <th class="ds-entry-row__select" scope="col">
+            <button type="button" class="ds-entry-row__box" id="selectAll" role="checkbox"
+                    aria-checked="false" aria-label="Select all shown entries"
+                    title="Select all shown entries"><span></span></button>
+          </th>
+          <th class="ds-entry-row__date u-label" scope="col">Date</th>
+          <th class="u-label" scope="col">Description</th>
+          <th class="ds-entry-row__state u-label" scope="col">Match</th>
+          <th class="ds-entry-row__amount u-label" scope="col" style="text-align:right; padding-right: var(--space-base)">Amount</th>
+        </tr>
+      </thead>
+      <tbody id="entryBody"></tbody>
+    </table>
+    <p class="ds-entry-list__empty u-hidden" id="emptyNote"></p>
+  </div>
+
+  <div class="ds-batch-note u-hidden" id="batchNote">
+    <div class="ds-batch-note__read">
+      <span class="ds-batch-note__line" id="batchLine" role="status" aria-live="polite"></span>
+      <span class="ds-batch-note__sub" id="batchSub"></span>
+    </div>
+    <button type="button" class="ds-action" id="undoBtn">Undo</button>
+  </div>
+
+  <footer class="ds-total-footer">
+    <div class="ds-total-footer__group">
+      <span class="u-label">Unreconciled</span>
+      <span class="ds-total-footer__count u-num" id="totalCount"></span>
+      <span class="ds-total-footer__filtered u-num" id="totalFiltered"></span>
+    </div>
+    <span class="ds-total-footer__value" id="totalValue"></span>
+  </footer>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var RAW = [
+    ["2026-07-02", "Kingsway Supplies Ltd",              -284.50, "match"],
+    ["2026-07-02", "Card payment — SUMUP *CAFE",     -14.20, "review"],
+    ["2026-07-03", "Invoice 20418 — Hartley & Co",  3150.00, "match"],
+    ["2026-07-03", "Direct debit — BRITISH GAS",    -212.88, "match"],
+    ["2026-07-04", "FASTER PAYMENT REF 88213",            940.00, "break"],
+    ["2026-07-06", "Kingsway Supplies Ltd",               -96.75, "match"],
+    ["2026-07-07", "Card payment — TFL TRAVEL",       -8.40, "review"],
+    ["2026-07-08", "Invoice 20419 — Marchmont Trust",1875.00, "match"],
+    ["2026-07-09", "Standing order — OFFICE RENT", -1450.00, "match"],
+    ["2026-07-10", "Refund — Kingsway Supplies Ltd",  42.30, "review"],
+    ["2026-07-11", "FASTER PAYMENT REF 88407",            512.00, "break"],
+    ["2026-07-13", "Card payment — AMZN MKTPLACE",  -137.99, "review"],
+    ["2026-07-14", "Invoice 20420 — Hartley & Co",  2240.00, "match"],
+    ["2026-07-15", "Direct debit — VODAFONE",        -78.00, "match"],
+    ["2026-07-16", "Card payment — SUMUP *CAFE",     -11.60, "review"],
+    ["2026-07-17", "Kingsway Supplies Ltd",              -318.05, "match"],
+    ["2026-07-18", "FASTER PAYMENT REF 88612",            275.00, "break"],
+    ["2026-07-20", "Invoice 20421 — Delaney Partners",4100.00, "match"],
+    ["2026-07-21", "Card payment — STATIONERY DIRECT",-63.44, "review"],
+    ["2026-07-22", "Direct debit — INSURANCE PREMIUM",-189.50, "match"],
+    ["2026-07-23", "Kingsway Supplies Ltd",              -145.20, "match"],
+    ["2026-07-24", "FASTER PAYMENT REF 88903",           1020.00, "break"],
+    ["2026-07-25", "Invoice 20422 — Marchmont Trust",1660.00, "match"],
+    ["2026-07-27", "Card payment — TFL TRAVEL",       -6.80, "review"]
+  ];
+
+  var STATE_LABEL = { match: "Matched", review: "Review", break: "Break" };
+  var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  var entries = RAW.map(function (r, i) {
+    return {
+      id: i + 1,
+      date: r[0],
+      desc: r[1],
+      pence: Math.round(r[2] * 100),
+      state: r[3],
+      batch: null
+    };
+  });
+
+  var selected = new Set();
+  var batches = [];
+  var batchSeq = 0;
+  var filter = "all";
+  var anchorId = null;
+  var focusId = null;
+
+  /* ---------------------------------------------------------- helpers */
+
+  var nf = new Intl.NumberFormat("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  function money(pence) {
+    return (pence < 0 ? "−" : "") + "£" + nf.format(Math.abs(pence) / 100);
+  }
+
+  function shortDate(iso) {
+    var p = iso.split("-");
+    return p[2] + " " + MONTHS[Number(p[1]) - 1] + " " + p[0];
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function open() {
+    return entries.filter(function (e) { return e.batch === null; });
+  }
+
+  function visible() {
+    return open().filter(function (e) { return filter === "all" || e.state === filter; });
+  }
+
+  function sum(list) {
+    return list.reduce(function (t, e) { return t + e.pence; }, 0);
+  }
+
+  /* ------------------------------------------------------------ nodes */
+
+  var $ = function (id) { return document.getElementById(id); };
+  var entryBody   = $("entryBody");
+  var entryList   = $("entryList");
+  var emptyNote   = $("emptyNote");
+  var selectAll   = $("selectAll");
+  var reconcileBar= $("reconcileBar");
+  var barCount    = $("barCount");
+  var barSum      = $("barSum");
+  var barHidden   = $("barHidden");
+  var clearBtn    = $("clearBtn");
+  var reconcileBtn= $("reconcileBtn");
+  var batchNote   = $("batchNote");
+  var batchLine   = $("batchLine");
+  var batchSub    = $("batchSub");
+  var undoBtn     = $("undoBtn");
+  var totalCount  = $("totalCount");
+  var totalValue  = $("totalValue");
+  var totalFilter = $("totalFiltered");
+  var feedMeta    = $("feedMeta");
+
+  feedMeta.textContent = "Bank feed · " + shortDate(entries[0].date) +
+    " – " + shortDate(entries[entries.length - 1].date) + " · " +
+    entries.length + " imported";
+
+  /* ----------------------------------------------------------- render */
+
+  function render() {
+    var vis = visible();
+    var visIds = new Set(vis.map(function (e) { return e.id; }));
+    var hadFocus = entryBody.contains(document.activeElement);
+
+    if (focusId !== null && !visIds.has(focusId)) focusId = null;
+    if (focusId === null && vis.length) focusId = vis[0].id;
+
+    /* rows — content appears, it does not animate in */
+    entryBody.innerHTML = vis.map(function (e) {
+      var sel = selected.has(e.id);
+      var label = "Select " + shortDate(e.date) + ", " + e.desc + ", " + money(e.pence);
+      return '<tr class="ds-entry-row" role="row" data-id="' + e.id + '"' +
+             ' aria-selected="' + (sel ? "true" : "false") + '"' +
+             ' tabindex="' + (e.id === focusId ? "0" : "-1") + '">' +
+               '<td class="ds-entry-row__select" role="gridcell">' +
+                 '<button type="button" class="ds-entry-row__box" role="checkbox"' +
+                 ' aria-checked="' + (sel ? "true" : "false") + '"' +
+                 ' aria-label="' + esc(label) + '" tabindex="-1"><span></span></button>' +
+               '</td>' +
+               '<td class="ds-entry-row__date u-num" role="gridcell">' + esc(shortDate(e.date)) + '</td>' +
+               '<td class="ds-entry-row__desc" role="gridcell" title="' + esc(e.desc) + '">' + esc(e.desc) + '</td>' +
+               '<td class="ds-entry-row__state" role="gridcell">' +
+                 '<span class="ds-match-marker" data-state="' + e.state + '">' +
+                   '<span class="ds-match-marker__dot"></span>' + STATE_LABEL[e.state] +
+                 '</span>' +
+               '</td>' +
+               '<td class="ds-entry-row__amount ds-amount-cell" role="gridcell">' + money(e.pence) + '</td>' +
+             '</tr>';
+    }).join("");
+
+    /* empty states */
+    if (!vis.length) {
+      emptyNote.classList.remove("u-hidden");
+      emptyNote.textContent = open().length
+        ? "No open entries in this filter."
+        : "Nothing left to reconcile.";
+    } else {
+      emptyNote.classList.add("u-hidden");
+    }
+
+    /* header control acts on the whole page of entries currently listed */
+    var selVis = vis.filter(function (e) { return selected.has(e.id); }).length;
+    selectAll.setAttribute("aria-checked",
+      selVis === 0 ? "false" : (selVis === vis.length ? "true" : "mixed"));
+    selectAll.disabled = vis.length === 0;
+
+    /* counts on the chips */
+    var openList = open();
+    document.querySelector('[data-count="all"]').textContent = openList.length;
+    ["match", "review", "break"].forEach(function (s) {
+      document.querySelector('[data-count="' + s + '"]').textContent =
+        openList.filter(function (e) { return e.state === s; }).length;
+    });
+
+    /* reconcile bar — idle until entries are selected, armed once they are */
+    var selList = openList.filter(function (e) { return selected.has(e.id); });
+    if (selList.length) {
+      reconcileBar.dataset.state = "armed";
+      barCount.textContent = selList.length + (selList.length === 1 ? " entry" : " entries") + " selected";
+      barSum.textContent = money(sum(selList));
+      var hidden = selList.filter(function (e) { return !visIds.has(e.id); }).length;
+      barHidden.textContent = hidden ? "· " + hidden + " outside the current filter" : "";
+      reconcileBtn.disabled = false;
+      reconcileBtn.textContent = "Reconcile " + selList.length;
+      clearBtn.disabled = false;
+    } else {
+      reconcileBar.dataset.state = "idle";
+      barCount.textContent = "No entries selected";
+      barSum.textContent = "";
+      barHidden.textContent = "";
+      reconcileBtn.disabled = true;
+      reconcileBtn.textContent = "Reconcile";
+      clearBtn.disabled = true;
+    }
+
+    /* batch note — persists until undone or superseded */
+    var last = batches[batches.length - 1];
+    if (last) {
+      batchNote.classList.remove("u-hidden");
+      batchLine.textContent = last.ids.length +
+        (last.ids.length === 1 ? " entry" : " entries") + " reconciled · " + money(last.pence);
+      batchSub.textContent = batches.length > 1
+        ? batches.length + " batches this session · undo reverses the most recent"
+        : "";
+    } else {
+      batchNote.classList.add("u-hidden");
+      batchLine.textContent = "";
+      batchSub.textContent = "";
+    }
+
+    /* running total of what is still unreconciled */
+    totalCount.textContent = openList.length + (openList.length === 1 ? " entry" : " entries");
+    totalValue.textContent = money(sum(openList));
+    totalFilter.textContent = (filter === "all" || vis.length === 0)
+      ? ""
+      : "· shown " + vis.length + " · " + money(sum(vis));
+
+    if (hadFocus && focusId !== null) {
+      var row = entryBody.querySelector('[data-id="' + focusId + '"]');
+      if (row) row.focus({ preventScroll: false });
+    }
+  }
+
+  /* --------------------------------------------------------- selection */
+
+  function toggle(id, on) {
+    var want = (typeof on === "boolean") ? on : !selected.has(id);
+    if (want) selected.add(id); else selected.delete(id);
+  }
+
+  function selectRange(fromId, toId) {
+    var vis = visible();
+    var a = vis.findIndex(function (e) { return e.id === fromId; });
+    var b = vis.findIndex(function (e) { return e.id === toId; });
+    if (a < 0 || b < 0) { toggle(toId, true); return; }
+    var lo = Math.min(a, b), hi = Math.max(a, b);
+    for (var i = lo; i <= hi; i++) selected.add(vis[i].id);
+  }
+
+  /* ---------------------------------------------------------- actions */
+
+  function reconcile() {
+    var ids = open().filter(function (e) { return selected.has(e.id); }).map(function (e) { return e.id; });
+    if (!ids.length) return;
+    batchSeq += 1;
+    var pence = 0;
+    entries.forEach(function (e) {
+      if (ids.indexOf(e.id) !== -1) { e.batch = batchSeq; pence += e.pence; }
+    });
+    batches.push({ id: batchSeq, ids: ids, pence: pence });
+    selected.clear();
+    anchorId = null;
+    focusId = null;
+    render();
+    undoBtn.focus();
+  }
+
+  function undo() {
+    var b = batches.pop();
+    if (!b) return;
+    entries.forEach(function (e) { if (e.batch === b.id) e.batch = null; });
+    focusId = b.ids[0];
+    render();
+    var row = entryBody.querySelector('[data-id="' + b.ids[0] + '"]');
+    if (row) { row.focus(); row.scrollIntoView({ block: "nearest" }); }
+  }
+
+  /* ----------------------------------------------------------- events */
+
+  entryBody.addEventListener("click", function (ev) {
+    var row = ev.target.closest(".ds-entry-row");
+    if (!row) return;
+    var id = Number(row.dataset.id);
+    if (ev.shiftKey && anchorId !== null) {
+      selectRange(anchorId, id);
+      var s = window.getSelection(); if (s) s.removeAllRanges();
+    } else {
+      toggle(id);
+      anchorId = id;
+    }
+    focusId = id;
+    render();
+    var again = entryBody.querySelector('[data-id="' + id + '"]');
+    if (again) again.focus();
+  });
+
+  entryBody.addEventListener("keydown", function (ev) {
+    var row = ev.target.closest(".ds-entry-row");
+    if (!row) return;
+    var id = Number(row.dataset.id);
+    var vis = visible();
+    var idx = vis.findIndex(function (e) { return e.id === id; });
+
+    if (ev.key === " " || ev.key === "Spacebar") {
+      ev.preventDefault();
+      toggle(id);
+      anchorId = id;
+      focusId = id;
+      render();
+      return;
+    }
+    if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+      ev.preventDefault();
+      var next = vis[idx + (ev.key === "ArrowDown" ? 1 : -1)];
+      if (!next) return;
+      if (ev.shiftKey) { selected.add(id); selected.add(next.id); anchorId = anchorId === null ? id : anchorId; }
+      focusId = next.id;
+      render();
+      var el = entryBody.querySelector('[data-id="' + next.id + '"]');
+      if (el) { el.focus(); el.scrollIntoView({ block: "nearest" }); }
+    }
+  });
+
+  selectAll.addEventListener("click", function () {
+    var vis = visible();
+    var allOn = vis.length > 0 && vis.every(function (e) { return selected.has(e.id); });
+    vis.forEach(function (e) { toggle(e.id, !allOn); });
+    anchorId = null;
+    render();
+  });
+
+  document.querySelectorAll(".ds-filter-chip").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      filter = chip.dataset.filter;
+      document.querySelectorAll(".ds-filter-chip").forEach(function (c) {
+        c.setAttribute("aria-pressed", c === chip ? "true" : "false");
+      });
+      anchorId = null;
+      focusId = null;
+      entryList.scrollTop = 0;
+      render();
+    });
+  });
+
+  reconcileBtn.addEventListener("click", reconcile);
+  undoBtn.addEventListener("click", undo);
+  clearBtn.addEventListener("click", function () {
+    selected.clear();
+    anchorId = null;
+    render();
+  });
+
+  document.addEventListener("keydown", function (ev) {
+    var mod = ev.metaKey || ev.ctrlKey;
+    if (mod && (ev.key === "z" || ev.key === "Z")) { ev.preventDefault(); undo(); return; }
+    if (mod && (ev.key === "a" || ev.key === "A")) {
+      ev.preventDefault();
+      visible().forEach(function (e) { selected.add(e.id); });
+      render();
+      return;
+    }
+    if (ev.key === "Escape") {
+      if (selected.size) { selected.clear(); anchorId = null; render(); }
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

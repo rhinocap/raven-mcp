@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ledger — reconciliation review</title>
+<style>
+/* ---------------------------------------------------------------------------
+   Tokens. Literal values appear only here, in the token definitions themselves.
+   Everything below this block is var() or calc() of var().
+   Block 1: verbatim from arena/DESIGN.md.
+   Block 2: derived — see NOTES.md "Decisions".
+--------------------------------------------------------------------------- */
+:root{
+  /* --- DESIGN.md, verbatim --- */
+  --color-surface-base:#101215;
+  --color-surface-raised:#171a1e;
+  --color-surface-recessed:#0b0d0f;
+  --color-ink-primary:#e6e8ea;
+  --color-ink-secondary:#9aa1a8;
+  --color-signal-match:#4f8f74;
+  --color-signal-review:#c99a34;
+  --color-signal-break:#cf5b45;
+  --color-hairline:#242a30;
+
+  --type-xs:12px;
+  --type-sm:13px;
+  --type-md:15px;
+  --type-lg:19px;
+  --type-xl:26px;
+
+  --space-tight:8px;
+  --space-base:16px;
+  --space-wide:24px;
+  --space-column:56px;
+
+  --motion-duration-fast:110ms;
+  --motion-duration-base:180ms;
+  --motion-easing-standard:cubic-bezier(0.2, 0, 0, 1);
+
+  /* --- derived --- */
+  --font-ui:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --weight-regular:400;
+  --weight-medium:500;
+  --leading-tight:1.2;
+  --leading-base:1.45;
+  --radius:4px;
+  --hairline-width:1px;
+  --focus-width:2px;
+  --marker-size:6px;                                  /* taste dec_1 */
+  --target-min:44px;                                  /* A11Y-target-size */
+
+  --row-height:var(--target-min);
+  --control-size:var(--space-base);
+  --col-select:var(--target-min);
+  --col-date:calc(var(--space-column) + var(--space-wide));
+  --col-state:calc(var(--space-column) * 1.5);
+  --col-amount:calc(var(--space-column) * 2);
+  --shell-max:calc(var(--space-column) * 20);
+  --band-height:calc(var(--space-column) + var(--space-tight));
+  --footer-height:calc(var(--space-column) + var(--space-base));
+}
+
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0;
+  background:var(--color-surface-base);
+  color:var(--color-ink-primary);
+  font-family:var(--font-ui);
+  font-size:var(--type-sm);
+  line-height:var(--leading-base);
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+button{font:inherit;color:inherit;}
+
+/* --- screen shell ------------------------------------------------------- */
+.ds-screen{
+  height:100%;
+  display:flex;
+  flex-direction:column;
+}
+.ds-screen__inner{
+  width:100%;
+  max-width:var(--shell-max);
+  margin:0 auto;
+  padding-left:var(--space-wide);
+  padding-right:var(--space-wide);
+}
+
+.ds-screen-header{
+  padding-top:var(--space-wide);
+  padding-bottom:var(--space-base);
+  flex:0 0 auto;
+}
+.ds-screen-header h1{
+  margin:0;
+  font-size:var(--type-md);
+  font-weight:var(--weight-medium);
+  line-height:var(--leading-tight);
+  letter-spacing:0;
+}
+.ds-screen-header p{
+  margin:0;
+  margin-top:var(--space-tight);
+  font-size:var(--type-xs);
+  color:var(--color-ink-secondary);
+  line-height:var(--leading-tight);
+}
+
+/* --- filters ------------------------------------------------------------ */
+.ds-filter-set{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:var(--space-tight);
+  padding-bottom:var(--space-base);
+  flex-wrap:wrap;
+}
+.ds-filter-set__label{
+  font-size:var(--type-xs);
+  color:var(--color-ink-secondary);
+  margin-right:var(--space-tight);
+}
+.ds-filter-set__label + .ds-filter-chip{margin-left:0;}
+.ds-filter-set__group{
+  display:flex;
+  align-items:center;
+  gap:var(--space-tight);
+  margin-right:var(--space-wide);
+}
+.ds-filter-set__tail{
+  margin-left:auto;
+  display:flex;
+  align-items:center;
+  gap:var(--space-base);
+}
+.ds-filter-set__count{
+  font-size:var(--type-xs);
+  color:var(--color-ink-secondary);
+  font-variant-numeric:tabular-nums;
+}
+
+.ds-filter-chip{
+  min-height:var(--target-min);
+  min-width:var(--target-min);
+  display:inline-flex;
+  align-items:center;
+  gap:var(--space-tight);
+  padding-left:var(--space-base);
+  padding-right:var(--space-base);
+  background:var(--color-surface-base);
+  border:var(--hairline-width) solid var(--color-hairline);
+  border-radius:var(--radius);
+  color:var(--color-ink-secondary);
+  font-size:var(--type-sm);
+  cursor:pointer;
+  transition:background var(--motion-duration-fast) var(--motion-easing-standard),
+             color var(--motion-duration-fast) var(--motion-easing-standard),
+             border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.ds-filter-chip[hidden]{display:none;}
+.ds-filter-chip:hover{background:var(--color-surface-recessed);}
+.ds-filter-chip[aria-pressed="true"]{
+  background:var(--color-surface-raised);
+  border-color:var(--color-ink-secondary);
+  color:var(--color-ink-primary);
+}
+.ds-filter-chip:focus-visible{
+  outline:var(--focus-width) solid var(--color-ink-primary);
+  outline-offset:var(--focus-width);
+}
+.ds-filter-chip__marker{
+  width:var(--marker-size);
+  height:var(--marker-size);
+  border-radius:var(--marker-size);
+  flex:0 0 auto;
+}
+
+/* --- entry list --------------------------------------------------------- */
+.ds-entry-list{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+  scrollbar-color:var(--color-hairline) var(--color-surface-base);
+}
+.ds-entry-list::-webkit-scrollbar{width:var(--space-tight);}
+.ds-entry-list::-webkit-scrollbar-track{background:var(--color-surface-base);}
+.ds-entry-list::-webkit-scrollbar-thumb{
+  background:var(--color-hairline);
+  border-radius:var(--radius);
+}
+.ds-entry-list__frame{
+  width:100%;
+  max-width:var(--shell-max);
+  margin:0 auto;
+  padding-left:var(--space-wide);
+  padding-right:var(--space-wide);
+}
+.ds-entry-list__empty{
+  height:calc(var(--row-height) * 3);
+  display:flex;
+  align-items:center;
+  color:var(--color-ink-secondary);
+  font-size:var(--type-sm);
+  padding-left:var(--space-tight);
+}
+
+/* --- entry row ---------------------------------------------------------- */
+.ds-entry-row{
+  display:grid;
+  grid-template-columns:
+    var(--col-select)
+    var(--col-date)
+    minmax(0,1fr)
+    var(--col-state)
+    var(--col-amount);
+  align-items:center;
+  column-gap:var(--space-base);
+  height:var(--row-height);
+  padding-left:var(--space-tight);
+  padding-right:var(--space-column);
+  border-bottom:var(--hairline-width) solid var(--color-hairline);
+  cursor:default;
+}
+.ds-entry-row--entry{cursor:pointer;}
+.ds-entry-row--entry:hover{background:var(--color-surface-recessed);}
+.ds-entry-row--entry[aria-selected="true"]{background:var(--color-surface-raised);}
+.ds-entry-row--entry:focus-within{
+  box-shadow:inset var(--focus-width) 0 0 var(--color-ink-primary);
+}
+
+.ds-entry-row--header{
+  position:sticky;
+  top:0;
+  z-index:1;
+  background:var(--color-surface-base);
+  color:var(--color-ink-secondary);
+  font-size:var(--type-xs);
+}
+.ds-entry-row--header .ds-entry-row__date,
+.ds-entry-row--header .ds-entry-row__desc,
+.ds-entry-row--header .ds-entry-row__state,
+.ds-entry-row--header .ds-amount-cell{
+  color:var(--color-ink-secondary);
+  font-size:var(--type-xs);
+}
+
+.ds-entry-row__select{
+  width:var(--col-select);
+  height:var(--row-height);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.ds-entry-row__date{
+  font-size:var(--type-sm);
+  color:var(--color-ink-secondary);
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+}
+.ds-entry-row__desc{
+  font-size:var(--type-sm);
+  color:var(--color-ink-primary);
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.ds-entry-row__state{
+  display:flex;
+  align-items:center;
+  gap:var(--space-tight);
+  font-size:var(--type-sm);
+  color:var(--color-ink-secondary);
+  white-space:nowrap;
+}
+
+.ds-match-marker{
+  width:var(--marker-size);
+  height:var(--marker-size);
+  border-radius:var(--marker-size);
+  flex:0 0 auto;
+}
+.ds-match-marker--match{background:var(--color-signal-match);}
+.ds-match-marker--review{background:var(--color-signal-review);}
+.ds-match-marker--break{background:var(--color-signal-break);}
+
+.ds-amount-cell{
+  text-align:right;
+  font-size:var(--type-sm);
+  color:var(--color-ink-primary);
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+}
+
+/* --- checkbox ----------------------------------------------------------- */
+/* The control the eye sees is --control-size; the control the pointer hits is
+   the full --target-min square (rule A11Y-target-size). */
+.ds-entry-row__box{
+  appearance:none;
+  -webkit-appearance:none;
+  margin:0;
+  width:var(--target-min);
+  height:var(--target-min);
+  display:grid;
+  place-content:center;
+  background:none;
+  border:0;
+  cursor:pointer;
+}
+.ds-entry-row__box::before{
+  content:"";
+  grid-area:1 / 1;
+  place-self:center;
+  width:var(--control-size);
+  height:var(--control-size);
+  border:var(--hairline-width) solid var(--color-ink-secondary);
+  border-radius:var(--radius);
+}
+.ds-entry-row__box:checked::before,
+.ds-entry-row__box:indeterminate::before{
+  background:var(--color-ink-primary);
+  border-color:var(--color-ink-primary);
+}
+.ds-entry-row__box:checked::after{
+  content:"";
+  grid-area:1 / 1;
+  place-self:center;
+  width:calc(var(--control-size) / 4);
+  height:calc(var(--control-size) / 2);
+  border-right:var(--focus-width) solid var(--color-surface-base);
+  border-bottom:var(--focus-width) solid var(--color-surface-base);
+  transform:translateY(calc(var(--hairline-width) * -1)) rotate(45deg);
+}
+.ds-entry-row__box:indeterminate::after{
+  content:"";
+  grid-area:1 / 1;
+  place-self:center;
+  width:calc(var(--control-size) / 2);
+  height:var(--focus-width);
+  background:var(--color-surface-base);
+}
+.ds-entry-row__box:focus-visible{outline:none;}
+.ds-entry-row__box:focus-visible::before{
+  outline:var(--focus-width) solid var(--color-ink-primary);
+  outline-offset:var(--focus-width);
+}
+
+/* --- pager -------------------------------------------------------------- */
+.ds-entry-pager{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:var(--space-tight);
+  padding-top:var(--space-base);
+  padding-bottom:var(--space-base);
+}
+.ds-entry-pager__page{
+  min-width:var(--target-min);
+  height:var(--target-min);
+  padding-left:var(--space-tight);
+  padding-right:var(--space-tight);
+  background:var(--color-surface-base);
+  border:var(--hairline-width) solid var(--color-hairline);
+  border-radius:var(--radius);
+  color:var(--color-ink-secondary);
+  font-size:var(--type-sm);
+  font-variant-numeric:tabular-nums;
+  cursor:pointer;
+  transition:background var(--motion-duration-fast) var(--motion-easing-standard),
+             color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.ds-entry-pager__page:hover{background:var(--color-surface-recessed);}
+.ds-entry-pager__page[aria-current="page"]{
+  background:var(--color-surface-raised);
+  border-color:var(--color-ink-secondary);
+  color:var(--color-ink-primary);
+}
+.ds-entry-pager__page:focus-visible{
+  outline:var(--focus-width) solid var(--color-ink-primary);
+  outline-offset:var(--focus-width);
+}
+
+/* --- reconcile bar ------------------------------------------------------ */
+.ds-reconcile-bar{
+  flex:0 0 auto;
+  height:var(--band-height);
+  border-top:var(--hairline-width) solid var(--color-hairline);
+  background:var(--color-surface-base);
+}
+.ds-reconcile-bar__inner{
+  height:100%;
+  display:flex;
+  align-items:center;
+  gap:var(--space-base);
+}
+.ds-reconcile-bar__action{
+  margin-left:auto;
+  display:flex;
+  align-items:center;
+  gap:var(--space-base);
+}
+.ds-reconcile-bar__count{
+  font-size:var(--type-sm);
+  color:var(--color-ink-secondary);
+  font-variant-numeric:tabular-nums;
+}
+.ds-reconcile-bar__apply{
+  height:var(--target-min);
+  min-width:var(--target-min);
+  padding-left:var(--space-wide);
+  padding-right:var(--space-wide);
+  border:var(--hairline-width) solid var(--color-ink-primary);
+  border-radius:var(--radius);
+  background:var(--color-ink-primary);
+  color:var(--color-surface-base);
+  font-size:var(--type-sm);
+  font-weight:var(--weight-medium);
+  cursor:pointer;
+}
+.ds-reconcile-bar[data-state="idle"] .ds-reconcile-bar__apply{
+  background:var(--color-surface-base);
+  border-color:var(--color-hairline);
+  color:var(--color-ink-secondary);
+  cursor:default;
+}
+.ds-reconcile-bar__apply:focus-visible{
+  outline:var(--focus-width) solid var(--color-ink-primary);
+  outline-offset:var(--focus-width);
+}
+
+/* --- batch note --------------------------------------------------------- */
+.ds-batch-note{
+  display:flex;
+  align-items:center;
+  gap:var(--space-tight);
+  font-size:var(--type-sm);
+  color:var(--color-ink-secondary);
+}
+.ds-batch-note[hidden]{display:none;}
+.ds-batch-note__undo{
+  height:var(--target-min);
+  min-width:var(--target-min);
+  padding-left:var(--space-base);
+  padding-right:var(--space-base);
+  background:var(--color-surface-raised);
+  border:var(--hairline-width) solid var(--color-ink-secondary);
+  border-radius:var(--radius);
+  color:var(--color-ink-primary);
+  font-size:var(--type-sm);
+  font-weight:var(--weight-medium);
+  cursor:pointer;
+}
+.ds-batch-note__undo:hover{background:var(--color-surface-recessed);}
+.ds-batch-note__undo:focus-visible{
+  outline:var(--focus-width) solid var(--color-ink-primary);
+  outline-offset:var(--focus-width);
+}
+.ds-batch-note__count{font-variant-numeric:tabular-nums;}
+
+/* --- total footer ------------------------------------------------------- */
+.ds-total-footer{
+  flex:0 0 auto;
+  height:var(--footer-height);
+  background:var(--color-surface-raised);
+  border-top:var(--hairline-width) solid var(--color-hairline);
+}
+.ds-total-footer__inner{
+  height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:var(--space-base);
+}
+.ds-total-footer__label{
+  display:flex;
+  flex-direction:column;
+  gap:0;
+}
+.ds-total-footer__label span:first-child{
+  font-size:var(--type-sm);
+  color:var(--color-ink-primary);
+  line-height:var(--leading-tight);
+}
+.ds-total-footer__label span:last-child{
+  font-size:var(--type-xs);
+  color:var(--color-ink-secondary);
+  line-height:var(--leading-base);
+  font-variant-numeric:tabular-nums;
+}
+.ds-total-footer__figure{
+  font-size:var(--type-xl);
+  color:var(--color-ink-primary);
+  font-variant-numeric:tabular-nums;
+  line-height:var(--leading-tight);
+}
+
+@media (prefers-reduced-motion:reduce){
+  *{transition-duration:0ms !important;}
+}
+</style>
+</head>
+<body>
+<div class="ds-screen">
+
+  <header class="ds-screen-header ds-screen__inner">
+    <h1>Reconciliation review</h1>
+    <p>Current account 20-41-88 — imported 2026-07-02 to 2026-07-27</p>
+  </header>
+
+  <div class="ds-filter-set ds-screen__inner" role="group" aria-label="Filters">
+    <div class="ds-filter-set__group">
+      <span class="ds-filter-set__label" id="filter-state-label">State</span>
+      <button type="button" class="ds-filter-chip" data-group="state" data-value="match" aria-pressed="false">
+        <span class="ds-filter-chip__marker ds-match-marker--match" aria-hidden="true"></span>Matched
+      </button>
+      <button type="button" class="ds-filter-chip" data-group="state" data-value="review" aria-pressed="false">
+        <span class="ds-filter-chip__marker ds-match-marker--review" aria-hidden="true"></span>Review
+      </button>
+      <button type="button" class="ds-filter-chip" data-group="state" data-value="break" aria-pressed="false">
+        <span class="ds-filter-chip__marker ds-match-marker--break" aria-hidden="true"></span>Break
+      </button>
+    </div>
+    <div class="ds-filter-set__group">
+      <span class="ds-filter-set__label">Amount</span>
+      <button type="button" class="ds-filter-chip" data-group="amount" data-value="over500" aria-pressed="false">Over £500</button>
+      <button type="button" class="ds-filter-chip" data-group="amount" data-value="under100" aria-pressed="false">Under £100</button>
+    </div>
+    <div class="ds-filter-set__tail">
+      <span class="ds-filter-set__count" id="filter-count" aria-live="polite"></span>
+      <button type="button" class="ds-filter-chip" id="filter-clear" hidden>Clear filters</button>
+    </div>
+  </div>
+
+  <div class="ds-entry-list" id="entry-list">
+    <div class="ds-entry-list__frame" role="grid" aria-label="Imported entries" aria-rowcount="0">
+      <div class="ds-entry-row ds-entry-row--header" role="row">
+        <span class="ds-entry-row__select" role="columnheader">
+          <input type="checkbox" class="ds-entry-row__box" id="select-page"
+                 aria-label="Select every entry on this page">
+        </span>
+        <span class="ds-entry-row__date" role="columnheader">Date</span>
+        <span class="ds-entry-row__desc" role="columnheader">Description</span>
+        <span class="ds-entry-row__state" role="columnheader">State</span>
+        <span class="ds-amount-cell" role="columnheader">Amount (GBP)</span>
+      </div>
+      <div id="entry-rows" role="rowgroup"></div>
+    </div>
+  </div>
+
+  <nav class="ds-entry-pager ds-screen__inner" id="pager" aria-label="Entry list pages"></nav>
+
+  <div class="ds-reconcile-bar" id="reconcile-bar" data-state="idle">
+    <div class="ds-reconcile-bar__inner ds-screen__inner">
+      <div class="ds-batch-note" id="batch-note" role="status" aria-live="polite" hidden>
+        <button type="button" class="ds-batch-note__undo" id="undo">Undo</button>
+        <span class="ds-batch-note__count" id="batch-note-count"></span>
+      </div>
+      <div class="ds-reconcile-bar__action">
+        <span class="ds-reconcile-bar__count" id="selection-count" aria-live="polite"></span>
+        <button type="button" class="ds-reconcile-bar__apply" id="reconcile" disabled>Reconcile</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="ds-total-footer">
+    <div class="ds-total-footer__inner ds-screen__inner">
+      <span class="ds-total-footer__label">
+        <span>Unreconciled</span>
+        <span id="total-count"></span>
+      </span>
+      <span class="ds-total-footer__figure" id="total-figure"></span>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------------------------------------------------------------- data */
+  var SEED = [
+    ['2026-07-02', 'Kingsway Supplies Ltd',              -284.50, 'match'],
+    ['2026-07-02', 'Card payment — SUMUP *CAFE',      -14.20, 'review'],
+    ['2026-07-03', 'Invoice 20418 — Hartley & Co',   3150.00, 'match'],
+    ['2026-07-03', 'Direct debit — BRITISH GAS',     -212.88, 'match'],
+    ['2026-07-04', 'FASTER PAYMENT REF 88213',             940.00, 'break'],
+    ['2026-07-06', 'Kingsway Supplies Ltd',                -96.75, 'match'],
+    ['2026-07-07', 'Card payment — TFL TRAVEL',        -8.40, 'review'],
+    ['2026-07-08', 'Invoice 20419 — Marchmont Trust',1875.00, 'match'],
+    ['2026-07-09', 'Standing order — OFFICE RENT',  -1450.00, 'match'],
+    ['2026-07-10', 'Refund — Kingsway Supplies Ltd',   42.30, 'review'],
+    ['2026-07-11', 'FASTER PAYMENT REF 88407',             512.00, 'break'],
+    ['2026-07-13', 'Card payment — AMZN MKTPLACE',   -137.99, 'review'],
+    ['2026-07-14', 'Invoice 20420 — Hartley & Co',   2240.00, 'match'],
+    ['2026-07-15', 'Direct debit — VODAFONE',         -78.00, 'match'],
+    ['2026-07-16', 'Card payment — SUMUP *CAFE',      -11.60, 'review'],
+    ['2026-07-17', 'Kingsway Supplies Ltd',               -318.05, 'match'],
+    ['2026-07-18', 'FASTER PAYMENT REF 88612',             275.00, 'break'],
+    ['2026-07-20', 'Invoice 20421 — Delaney Partners',4100.00,'match'],
+    ['2026-07-21', 'Card payment — STATIONERY DIRECT', -63.44,'review'],
+    ['2026-07-22', 'Direct debit — INSURANCE PREMIUM',-189.50,'match'],
+    ['2026-07-23', 'Kingsway Supplies Ltd',               -145.20, 'match'],
+    ['2026-07-24', 'FASTER PAYMENT REF 88903',            1020.00, 'break'],
+    ['2026-07-25', 'Invoice 20422 — Marchmont Trust',1660.00, 'match'],
+    ['2026-07-27', 'Card payment — TFL TRAVEL',        -6.80, 'review']
+  ];
+
+  var STATE_WORD = { match: 'Matched', review: 'Review', break: 'Break' };
+  var PAGE_SIZE = 10;
+
+  var entries = SEED.map(function (row, i) {
+    return {
+      id: i + 1,
+      date: row[0],
+      description: row[1],
+      amount: row[2],
+      state: row[3],
+      reconciled: false
+    };
+  });
+
+  var selected = new Set();
+  var filters = { state: new Set(), amount: new Set() };
+  var page = 0;
+  var lastBatch = null;              /* { ids: [], selectionBefore: [] } */
+
+  /* ---------------------------------------------------------------- dom */
+  var el = {
+    rows:        document.getElementById('entry-rows'),
+    grid:        document.querySelector('[role="grid"]'),
+    selectPage:  document.getElementById('select-page'),
+    pager:       document.getElementById('pager'),
+    bar:         document.getElementById('reconcile-bar'),
+    reconcile:   document.getElementById('reconcile'),
+    selCount:    document.getElementById('selection-count'),
+    note:        document.getElementById('batch-note'),
+    noteCount:   document.getElementById('batch-note-count'),
+    undo:        document.getElementById('undo'),
+    filterCount: document.getElementById('filter-count'),
+    filterClear: document.getElementById('filter-clear'),
+    totalCount:  document.getElementById('total-count'),
+    totalFigure: document.getElementById('total-figure'),
+    list:        document.getElementById('entry-list')
+  };
+
+  /* ------------------------------------------------------------- helpers */
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  /* Negative amounts: --ink-primary, leading minus sign, never parenthesised,
+     never a signal hue (graph decision dec_msdyq34c_we0s). */
+  function money(n) {
+    var body = Math.abs(n).toLocaleString('en-GB', {
+      minimumFractionDigits: 2, maximumFractionDigits: 2
+    });
+    return (n < 0 ? '−' : '') + body;
+  }
+  function poundMoney(n) {
+    return (n < 0 ? '−' : '') + '£' +
+      Math.abs(n).toLocaleString('en-GB', {
+        minimumFractionDigits: 2, maximumFractionDigits: 2
+      });
+  }
+
+  function unreconciled() {
+    return entries.filter(function (e) { return !e.reconciled; });
+  }
+
+  /* Chips are multi-select. Within a group the chips are an OR; across groups
+     they are an AND, so a compound question ("review AND over a threshold")
+     can be asked (graph decision dec_msdyq34b_8daa). */
+  function passes(e) {
+    if (filters.state.size && !filters.state.has(e.state)) return false;
+    if (filters.amount.size) {
+      var abs = Math.abs(e.amount);
+      var hit = false;
+      if (filters.amount.has('over500') && abs > 500) hit = true;
+      if (filters.amount.has('under100') && abs < 100) hit = true;
+      if (!hit) return false;
+    }
+    return true;
+  }
+
+  function visible() { return unreconciled().filter(passes); }
+
+  function pageCount(list) {
+    return Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+  }
+
+  function pageSlice(list) {
+    return list.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  }
+
+  function clampPage(list) {
+    var last = pageCount(list) - 1;
+    if (page > last) page = last;
+    if (page < 0) page = 0;
+  }
+
+  function filtersActive() {
+    return filters.state.size > 0 || filters.amount.size > 0;
+  }
+
+  /* The batch note persists until the next *action* or a navigation: another
+     reconcile, an undo, a page change, or a filter change. Selecting rows does
+     not clear it (taste dec_3 — it never auto-dismisses, never counts down). */
+  function clearNote() {
+    lastBatch = null;
+    el.note.hidden = true;
+  }
+
+  /* --------------------------------------------------------------- render */
+  function render(opts) {
+    var list = visible();
+    clampPage(list);
+    var rows = pageSlice(list);
+
+    if (opts && opts.selectionOnly) syncRows(rows); else renderRows(rows);
+    renderHeaderControl(rows);
+    renderPager(list);
+    renderBar(rows);
+    renderFilters(list);
+    renderTotal();
+  }
+
+  /* A selection change never rebuilds the list — the row set is identical, so
+     the existing nodes are updated in place. Feedback is immediate and keyboard
+     focus is not thrown away (taste rule MOTION-selection-instant). */
+  function syncRows(rows) {
+    rows.forEach(function (e) {
+      var node = el.rows.querySelector('.ds-entry-row--entry[data-id="' + e.id + '"]');
+      if (!node) return;
+      var on = selected.has(e.id);
+      node.setAttribute('aria-selected', on ? 'true' : 'false');
+      var box = node.querySelector('.ds-entry-row__box');
+      if (box) box.checked = on;
+    });
+  }
+
+  function renderRows(rows) {
+    if (!rows.length) {
+      var msg = unreconciled().length === 0
+        ? 'Nothing left to reconcile'
+        : 'No entries match the filter';
+      el.rows.innerHTML =
+        '<div class="ds-entry-list__empty" role="row">' +
+          '<span role="gridcell">' + esc(msg) + '</span>' +
+        '</div>';
+      el.grid.setAttribute('aria-rowcount', '0');
+      return;
+    }
+
+    /* Rows are written straight in. List content appears; it does not animate
+       in (taste rule MOTION-no-list-entrance). */
+    el.rows.innerHTML = rows.map(function (e) {
+      var isSel = selected.has(e.id);
+      return '' +
+        '<div class="ds-entry-row ds-entry-row--entry" role="row" data-id="' + e.id + '"' +
+        ' aria-selected="' + (isSel ? 'true' : 'false') + '">' +
+          '<span class="ds-entry-row__select" role="gridcell">' +
+            '<input type="checkbox" class="ds-entry-row__box" data-id="' + e.id + '"' +
+              (isSel ? ' checked' : '') +
+              ' aria-label="Select ' + esc(e.date) + ' ' + esc(e.description) + '">' +
+          '</span>' +
+          '<span class="ds-entry-row__date" role="gridcell">' + esc(e.date) + '</span>' +
+          '<span class="ds-entry-row__desc" role="gridcell">' + esc(e.description) + '</span>' +
+          '<span class="ds-entry-row__state" role="gridcell">' +
+            '<span class="ds-match-marker ds-match-marker--' + e.state + '" aria-hidden="true"></span>' +
+            STATE_WORD[e.state] +
+          '</span>' +
+          '<span class="ds-amount-cell" role="gridcell">' + money(e.amount) + '</span>' +
+        '</div>';
+    }).join('');
+
+    el.grid.setAttribute('aria-rowcount', String(rows.length + 1));
+  }
+
+  /* The header control reports a mixed state when some but not all rows on the
+     page are selected (graph decision dec_msdyq34c_0pco). */
+  function renderHeaderControl(rows) {
+    var onPage = rows.length;
+    var sel = rows.filter(function (e) { return selected.has(e.id); }).length;
+    el.selectPage.disabled = onPage === 0;
+    el.selectPage.checked = onPage > 0 && sel === onPage;
+    el.selectPage.indeterminate = sel > 0 && sel < onPage;
+  }
+
+  /* A numbered pager. No infinite scroll, no load-more
+     (graph decision dec_msdyq34b_d90i). */
+  function renderPager(list) {
+    var total = pageCount(list);
+    var out = '<span class="ds-filter-set__label">Page</span>';
+    for (var i = 0; i < total; i++) {
+      out += '<button type="button" class="ds-entry-pager__page" data-page="' + i + '"' +
+             (i === page ? ' aria-current="page"' : '') + '>' + (i + 1) + '</button>';
+    }
+    el.pager.innerHTML = out;
+  }
+
+  function renderBar(rows) {
+    var live = unreconciled().filter(function (e) { return selected.has(e.id); });
+    var n = live.length;
+    var onPage = rows.filter(function (e) { return selected.has(e.id); }).length;
+    var elsewhere = n - onPage;
+
+    el.bar.setAttribute('data-state', n > 0 ? 'armed' : 'idle');
+    el.reconcile.disabled = n === 0;
+
+    if (n === 0) {
+      el.selCount.textContent = '';
+    } else {
+      el.selCount.textContent = n + ' selected' +
+        (elsewhere > 0 ? ' — ' + elsewhere + ' not on this page' : '');
+    }
+  }
+
+  function renderFilters(list) {
+    var totalOpen = unreconciled().length;
+    el.filterCount.textContent = filtersActive()
+      ? 'Showing ' + list.length + ' of ' + totalOpen
+      : totalOpen + ' entries';
+    el.filterClear.hidden = !filtersActive();
+  }
+
+  /* The running total is every unreconciled entry, not the filtered subset:
+     it is the number the whole task drives to zero (taste dec_4). */
+  function renderTotal() {
+    var open = unreconciled();
+    var sum = open.reduce(function (a, e) { return a + e.amount; }, 0);
+    el.totalCount.textContent = open.length + (open.length === 1 ? ' entry' : ' entries');
+    el.totalFigure.textContent = poundMoney(sum);
+  }
+
+  /* --------------------------------------------------------------- events */
+  function toggle(id) {
+    if (selected.has(id)) selected.delete(id); else selected.add(id);
+  }
+
+  /* Rows are selected one at a time by their checkbox or by clicking the row.
+     No shift-drag range selection (graph decision dec_msdyq34d_jfkp). */
+  el.rows.addEventListener('change', function (ev) {
+    var box = ev.target.closest('.ds-entry-row__box');
+    if (!box) return;
+    var id = Number(box.getAttribute('data-id'));
+    if (box.checked) selected.add(id); else selected.delete(id);
+    render({ selectionOnly: true });
+  });
+
+  el.rows.addEventListener('click', function (ev) {
+    if (ev.target.closest('.ds-entry-row__box')) return;   /* change handles it */
+    var row = ev.target.closest('.ds-entry-row--entry');
+    if (!row) return;
+    toggle(Number(row.getAttribute('data-id')));
+    render({ selectionOnly: true });
+  });
+
+  /* The header control acts on the whole page of entries. From mixed it fills
+     the page; from full it empties it (graph decision dec_msdyq34c_0pco). */
+  el.selectPage.addEventListener('change', function () {
+    var on = el.selectPage.checked;
+    pageSlice(visible()).forEach(function (e) {
+      if (on) selected.add(e.id); else selected.delete(e.id);
+    });
+    render({ selectionOnly: true });
+  });
+
+  document.querySelectorAll('.ds-filter-chip[data-group]').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var group = filters[chip.getAttribute('data-group')];
+      var value = chip.getAttribute('data-value');
+      if (group.has(value)) group.delete(value); else group.add(value);
+      chip.setAttribute('aria-pressed', group.has(value) ? 'true' : 'false');
+      /* Chip selections survive a page change; a filter change is a navigation,
+         so it retires the undo (graph decision dec_msdyq34b_zxp6 + taste dec_3). */
+      clearNote();
+      render();
+      el.list.scrollTop = 0;
+    });
+  });
+
+  el.filterClear.addEventListener('click', function () {
+    filters.state.clear();
+    filters.amount.clear();
+    document.querySelectorAll('.ds-filter-chip[data-group]').forEach(function (c) {
+      c.setAttribute('aria-pressed', 'false');
+    });
+    clearNote();
+    render();
+    el.list.scrollTop = 0;
+  });
+
+  el.pager.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('.ds-entry-pager__page');
+    if (!btn) return;
+    page = Number(btn.getAttribute('data-page'));
+    clearNote();
+    render();
+    el.list.scrollTop = 0;
+  });
+
+  /* Applies immediately. No confirmation dialog; the surface reports what
+     happened afterwards (graph decision dec_msdyq34a_tfum). */
+  el.reconcile.addEventListener('click', function () {
+    var ids = unreconciled()
+      .filter(function (e) { return selected.has(e.id); })
+      .map(function (e) { return e.id; });
+    if (!ids.length) return;
+
+    var before = Array.from(selected);
+    entries.forEach(function (e) { if (ids.indexOf(e.id) !== -1) e.reconciled = true; });
+    selected.clear();
+    lastBatch = { ids: ids, selectionBefore: before };
+
+    /* "Undo — 7 reconciled": affordance first, then the count. Em dash, no
+       trailing period, no second person (taste dec_2). */
+    el.noteCount.textContent = '— ' + ids.length + ' reconciled';
+    el.note.hidden = false;
+    render();
+  });
+
+  el.undo.addEventListener('click', function () {
+    if (!lastBatch) return;
+    var ids = lastBatch.ids;
+    var before = lastBatch.selectionBefore;
+    entries.forEach(function (e) { if (ids.indexOf(e.id) !== -1) e.reconciled = false; });
+    selected = new Set(before);
+    clearNote();
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

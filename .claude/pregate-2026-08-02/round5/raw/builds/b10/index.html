@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reconciliation review — Ledger</title>
+<style>
+/* ------------------------------------------------------------------ *
+ * Tokens. Every visual value below this block is var(--token).
+ * The colour / type / space / motion groups are the arena DESIGN.md
+ * frontmatter verbatim. The "derived" group composes values the system
+ * needs but does not name, from the scale it does name.
+ * ------------------------------------------------------------------ */
+:root {
+  color-scheme: dark;
+
+  /* colours — DESIGN.md */
+  --color-surface-base:     #101215;
+  --color-surface-raised:   #171a1e;
+  --color-surface-recessed: #0b0d0f;
+  --color-ink-primary:      #e6e8ea;
+  --color-ink-secondary:    #9aa1a8;
+  --color-signal-match:     #4f8f74;
+  --color-signal-review:    #c99a34;
+  --color-signal-break:     #cf5b45;
+  --color-hairline:         #242a30;
+
+  /* type — DESIGN.md ramp (12 / 13 / 15 / 19 / 26), expressed against the
+     root font size so a raised browser text size still scales it */
+  --type-xs: calc(12 / 16 * 1rem);
+  --type-sm: calc(13 / 16 * 1rem);
+  --type-md: calc(15 / 16 * 1rem);
+  --type-lg: calc(19 / 16 * 1rem);
+  --type-xl: calc(26 / 16 * 1rem);
+
+  /* space — DESIGN.md */
+  --space-tight:  8px;
+  --space-base:   16px;
+  --space-wide:   24px;
+  --space-column: 56px;
+
+  /* motion — DESIGN.md */
+  --motion-duration-fast: 110ms;
+  --motion-duration-base: 180ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* derived — composed from the scale above, no new steps */
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --hairline-width: 1px;
+  --marker-size: 6px;                                  /* the 6px dot */
+  --target-min: 44px;                                  /* interactive minimum */
+  --row-height: var(--target-min);
+  --head-height: calc(var(--space-base) * 2 + var(--space-tight));
+  --footer-height: calc(var(--space-column) + var(--space-tight));
+  --radius-control: var(--space-tight);
+  --radius-tight: calc(var(--space-tight) / 2);
+  --control-box: calc(var(--space-base) + var(--space-tight) / 2);
+  --focus-ring: calc(var(--space-tight) / 4);
+  --page-max: calc(var(--space-column) * 20);
+  --col-select: var(--target-min);
+  --col-date:   calc(var(--space-column) + var(--space-wide) + var(--space-base));
+  --col-state:  calc(var(--space-column) * 2 + var(--space-base));
+  --col-amount: calc(var(--space-column) * 2 + var(--space-wide) + var(--space-tight));
+  --leading-tight: 1.2;
+  --leading-body: 1.45;
+  --tracking-caps: 0.06em;
+}
+
+/* ------------------------------------------------------------------ *
+ * Base
+ * ------------------------------------------------------------------ */
+* { box-sizing: border-box; }
+
+html { font-size: 100%; }
+
+body {
+  margin: 0;
+  padding-bottom: var(--footer-height);
+  background: var(--color-surface-base);
+  color: var(--color-ink-primary);
+  font-family: var(--font-sans);
+  font-size: var(--type-sm);
+  line-height: var(--leading-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: var(--focus-ring) solid var(--color-ink-primary);
+  outline-offset: var(--focus-ring);
+  border-radius: var(--radius-tight);
+}
+
+button { font: inherit; color: inherit; }
+
+.ds-page {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 0 var(--space-wide);
+}
+
+/* ------------------------------------------------------------------ *
+ * Page head
+ * ------------------------------------------------------------------ */
+.ds-page__head {
+  padding: var(--space-base) 0;
+  border-bottom: var(--hairline-width) solid var(--color-hairline);
+}
+.ds-page__title {
+  margin: 0;
+  font-size: var(--type-lg);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  letter-spacing: calc(var(--tracking-caps) * -0.25);
+}
+.ds-page__meta {
+  margin: 0;
+  padding-top: var(--radius-tight);
+  font-size: var(--type-sm);
+  color: var(--color-ink-secondary);
+}
+
+/* ------------------------------------------------------------------ *
+ * ds-filter-chip
+ * ------------------------------------------------------------------ */
+.ds-filters {
+  display: flex;
+  align-items: center;
+  gap: var(--space-wide);
+  padding: var(--space-tight) 0;
+  border-bottom: var(--hairline-width) solid var(--color-hairline);
+}
+.ds-filters__group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+}
+.ds-filters__label {
+  font-size: var(--type-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--color-ink-secondary);
+}
+.ds-filters__set {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+}
+.ds-filters__spacer { flex: 1 1 auto; }
+
+.ds-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+  padding: 0 var(--space-base);
+  background: transparent;
+  color: var(--color-ink-secondary);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius-control);
+  font-size: var(--type-sm);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard),
+              border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.ds-filter-chip:hover { background: var(--color-surface-recessed); }
+.ds-filter-chip[aria-pressed="true"] {
+  background: var(--color-surface-raised);
+  border-color: var(--color-ink-primary);
+  color: var(--color-ink-primary);
+}
+
+.ds-filters__clear {
+  min-height: var(--target-min);
+  padding: 0 var(--space-base);
+  background: transparent;
+  border: var(--hairline-width) solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--color-ink-secondary);
+  font-size: var(--type-sm);
+  cursor: pointer;
+}
+.ds-filters__clear:hover {
+  background: var(--color-surface-recessed);
+  color: var(--color-ink-primary);
+}
+.ds-filters__clear[hidden] { display: none; }
+
+/* ------------------------------------------------------------------ *
+ * ds-match-marker — hue and shape only, never text, never a tooltip
+ * ------------------------------------------------------------------ */
+.ds-match-marker {
+  flex: 0 0 auto;
+  width: var(--marker-size);
+  height: var(--marker-size);
+  border-radius: var(--marker-size);
+  background: var(--color-ink-secondary);
+}
+.ds-match-marker--match  { background: var(--color-signal-match); }
+.ds-match-marker--review { background: var(--color-signal-review); }
+.ds-match-marker--break  { background: var(--color-signal-break); }
+
+/* ------------------------------------------------------------------ *
+ * ds-select-control — the checkbox, sized to the interactive minimum
+ * ------------------------------------------------------------------ */
+.ds-select-control {
+  display: grid;
+  place-items: center;
+  width: var(--target-min);
+  height: var(--target-min);
+  cursor: pointer;
+}
+/* the input itself carries the 44x44 target; the pseudo-elements draw the box */
+.ds-select-control input {
+  appearance: none;
+  -webkit-appearance: none;
+  display: grid;
+  width: var(--target-min);
+  height: var(--target-min);
+  margin: 0;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+.ds-select-control input::before {
+  content: "";
+  grid-area: 1 / 1;
+  place-self: center;
+  width: var(--control-box);
+  height: var(--control-box);
+  border: var(--hairline-width) solid var(--color-ink-secondary);
+  border-radius: var(--radius-tight);
+}
+.ds-select-control input:checked::before,
+.ds-select-control input:indeterminate::before {
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+}
+.ds-select-control input:checked::after {
+  content: "";
+  grid-area: 1 / 1;
+  place-self: center;
+  width: calc(var(--space-tight) * 0.75);
+  height: calc(var(--space-base) * 0.5);
+  border: solid var(--color-surface-base);
+  border-width: 0 var(--focus-ring) var(--focus-ring) 0;
+  transform: translateY(calc(var(--focus-ring) * -0.5)) rotate(45deg);
+}
+.ds-select-control input:indeterminate::after {
+  content: "";
+  grid-area: 1 / 1;
+  place-self: center;
+  width: calc(var(--space-tight) * 1.25);
+  height: var(--focus-ring);
+  background: var(--color-surface-base);
+}
+
+/* ------------------------------------------------------------------ *
+ * ds-entry-row + list head — one shared column geometry
+ * ------------------------------------------------------------------ */
+.ds-entry-head,
+.ds-entry-row {
+  display: grid;
+  grid-template-columns: var(--col-select) var(--col-date) 1fr var(--col-state) var(--col-amount);
+  align-items: center;
+  gap: var(--space-base);
+  padding-left: var(--space-tight);
+  padding-right: var(--space-column);
+}
+
+.ds-entry-head {
+  height: var(--head-height);
+  border-bottom: var(--hairline-width) solid var(--color-hairline);
+  font-size: var(--type-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--color-ink-secondary);
+}
+.ds-entry-head__amount { text-align: right; }
+
+.ds-entry-row {
+  height: var(--row-height);
+  border-bottom: var(--hairline-width) solid var(--color-hairline);
+  border-left: var(--focus-ring) solid transparent;
+  padding-left: calc(var(--space-tight) - var(--focus-ring));
+  cursor: pointer;
+}
+.ds-entry-row:hover { background: var(--color-surface-recessed); }
+.ds-entry-row[data-selected="true"] {
+  background: var(--color-surface-raised);
+  border-left-color: var(--color-ink-primary);
+}
+.ds-entry-row:has(:focus-visible) { background: var(--color-surface-recessed); }
+.ds-entry-row[data-selected="true"]:hover,
+.ds-entry-row[data-selected="true"]:has(:focus-visible) {
+  background: var(--color-surface-raised);
+}
+
+.ds-entry-row__date {
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ds-entry-row__desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ds-entry-row__state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  color: var(--color-ink-secondary);
+  white-space: nowrap;
+}
+
+/* ds-amount-cell — right-aligned; its right edge is --space-column from
+   the row edge on every row, whatever the content width */
+.ds-amount-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ds-entry-list__empty {
+  padding: var(--space-wide) var(--space-tight);
+  color: var(--color-ink-secondary);
+  border-bottom: var(--hairline-width) solid var(--color-hairline);
+}
+
+/* ------------------------------------------------------------------ *
+ * ds-pager — numbered, no infinite scroll, no load-more
+ * ------------------------------------------------------------------ */
+.ds-pager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  padding: var(--space-tight) 0;
+  padding-left: var(--space-tight);
+  padding-right: var(--space-column);
+}
+.ds-pager__count {
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.ds-pager__spacer { flex: 1 1 auto; }
+.ds-pager__set {
+  display: flex;
+  align-items: center;
+  gap: var(--radius-tight);
+}
+.ds-pager__set[hidden] { display: none; }
+.ds-pager__step,
+.ds-pager__page {
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  padding: 0 var(--space-tight);
+  background: transparent;
+  border: var(--hairline-width) solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--color-ink-secondary);
+  font-size: var(--type-sm);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.ds-pager__step { padding: 0 var(--space-base); }
+.ds-pager__step:hover:not(:disabled),
+.ds-pager__page:hover { background: var(--color-surface-recessed); color: var(--color-ink-primary); }
+.ds-pager__step:disabled { opacity: 0.4; cursor: default; }
+.ds-pager__page[aria-current="page"] {
+  background: var(--color-surface-raised);
+  border-color: var(--color-hairline);
+  color: var(--color-ink-primary);
+}
+.ds-pager[hidden] { display: none; }
+
+/* ------------------------------------------------------------------ *
+ * ds-batch-note — what the surface says after a bulk action.
+ * Affordance first. No countdown, no auto-dismiss.
+ * ------------------------------------------------------------------ */
+.ds-batch-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  min-height: calc(var(--target-min) + var(--space-tight));
+  margin-top: var(--space-tight);
+  padding: 0 var(--space-base);
+  background: var(--color-surface-raised);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius-control);
+  font-size: var(--type-sm);
+}
+.ds-batch-note[hidden] { display: none; }
+.ds-batch-note__undo {
+  min-height: var(--target-min);
+  padding: 0 var(--space-base);
+  background: transparent;
+  border: var(--hairline-width) solid var(--color-ink-secondary);
+  border-radius: var(--radius-control);
+  color: var(--color-ink-primary);
+  font-size: var(--type-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+.ds-batch-note__undo:hover { background: var(--color-surface-recessed); }
+
+/* ------------------------------------------------------------------ *
+ * ds-reconcile-bar — below the list, in flow, idle until armed
+ * ------------------------------------------------------------------ */
+.ds-reconcile-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  min-height: calc(var(--target-min) + var(--space-tight));
+  margin-top: var(--space-tight);
+  padding: 0 var(--space-base);
+  background: transparent;
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius-control);
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.ds-reconcile-bar[data-state="armed"] { background: var(--color-surface-raised); }
+.ds-reconcile-bar__status {
+  margin: 0;
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.ds-reconcile-bar[data-state="armed"] .ds-reconcile-bar__status { color: var(--color-ink-primary); }
+.ds-reconcile-bar__spacer { flex: 1 1 auto; }
+.ds-reconcile-bar__action {
+  min-height: var(--target-min);
+  padding: 0 var(--space-wide);
+  background: var(--color-ink-primary);
+  color: var(--color-surface-base);
+  border: var(--hairline-width) solid var(--color-ink-primary);
+  border-radius: var(--radius-control);
+  font-size: var(--type-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.ds-reconcile-bar__action:disabled {
+  background: transparent;
+  border-color: var(--color-hairline);
+  color: var(--color-ink-secondary);
+  cursor: default;
+}
+
+/* ------------------------------------------------------------------ *
+ * ds-total-footer — pinned; the list scrolls behind it
+ * ------------------------------------------------------------------ */
+.ds-total-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--footer-height);
+  background: var(--color-surface-raised);
+  border-top: var(--hairline-width) solid var(--color-hairline);
+}
+.ds-total-footer__inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  height: 100%;
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 0 var(--space-wide);
+  padding-right: calc(var(--space-wide) + var(--space-column));
+}
+.ds-total-footer__label {
+  font-size: var(--type-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--color-ink-secondary);
+}
+.ds-total-footer__meta {
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.ds-total-footer__spacer { flex: 1 1 auto; }
+.ds-total-footer__value {
+  font-size: var(--type-xl);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 1ms !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="ds-page">
+
+  <header class="ds-page__head">
+    <h1 class="ds-page__title">Reconciliation review</h1>
+    <p class="ds-page__meta">Business current account · 2–27 July 2026 · 24 imported entries</p>
+  </header>
+
+  <section class="ds-filters" aria-label="Filters">
+    <div class="ds-filters__group">
+      <span class="ds-filters__label" id="filter-state-label">State</span>
+      <div class="ds-filters__set" role="group" aria-labelledby="filter-state-label">
+        <button type="button" class="ds-filter-chip" data-dim="state" data-value="match" aria-pressed="false">
+          <span class="ds-match-marker ds-match-marker--match" aria-hidden="true"></span>Matched
+        </button>
+        <button type="button" class="ds-filter-chip" data-dim="state" data-value="review" aria-pressed="false">
+          <span class="ds-match-marker ds-match-marker--review" aria-hidden="true"></span>Review
+        </button>
+        <button type="button" class="ds-filter-chip" data-dim="state" data-value="break" aria-pressed="false">
+          <span class="ds-match-marker ds-match-marker--break" aria-hidden="true"></span>Break
+        </button>
+      </div>
+    </div>
+
+    <div class="ds-filters__group">
+      <span class="ds-filters__label" id="filter-amount-label">Amount</span>
+      <div class="ds-filters__set" role="group" aria-labelledby="filter-amount-label">
+        <button type="button" class="ds-filter-chip" data-dim="amount" data-value="large" aria-pressed="false">Over £1,000</button>
+      </div>
+    </div>
+
+    <span class="ds-filters__spacer"></span>
+    <button type="button" class="ds-filters__clear" id="clearFilters" hidden>Clear filters</button>
+  </section>
+
+  <div class="ds-entry-head">
+    <span class="ds-entry-head__select">
+      <label class="ds-select-control">
+        <input type="checkbox" id="selectPage" aria-label="Select every entry on this page">
+      </label>
+    </span>
+    <span>Date</span>
+    <span>Description</span>
+    <span>State</span>
+    <span class="ds-entry-head__amount">Amount</span>
+  </div>
+
+  <div class="ds-entry-list" id="entryList" role="list" aria-label="Unreconciled entries"></div>
+
+  <nav class="ds-pager" id="pager" aria-label="Entry list pages">
+    <span class="ds-pager__count" id="pagerCount"></span>
+    <span class="ds-pager__spacer"></span>
+    <button type="button" class="ds-pager__step" id="pagerPrev">Previous</button>
+    <span class="ds-pager__set" id="pagerPages"></span>
+    <button type="button" class="ds-pager__step" id="pagerNext">Next</button>
+  </nav>
+
+  <div class="ds-batch-note" id="batchNote" role="status" aria-live="polite" hidden>
+    <button type="button" class="ds-batch-note__undo" id="undoButton">Undo</button>
+    <span id="batchNoteText"></span>
+  </div>
+
+  <div class="ds-reconcile-bar" id="reconcileBar" data-state="idle">
+    <p class="ds-reconcile-bar__status" id="reconcileStatus">Nothing selected</p>
+    <span class="ds-reconcile-bar__spacer"></span>
+    <button type="button" class="ds-reconcile-bar__action" id="reconcileButton" disabled>Reconcile</button>
+  </div>
+
+</div>
+
+<footer class="ds-total-footer">
+  <div class="ds-total-footer__inner">
+    <span class="ds-total-footer__label">Unreconciled</span>
+    <span class="ds-total-footer__meta" id="totalMeta"></span>
+    <span class="ds-total-footer__spacer"></span>
+    <span class="ds-total-footer__value" id="totalValue"></span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  var PAGE_SIZE = 10;
+  var LARGE = 1000;
+
+  var STATE_WORD = { match: 'Matched', review: 'Review', 'break': 'Break' };
+
+  var ENTRIES = [
+    { id:  1, date: '2026-07-02', description: 'Kingsway Supplies Ltd',            amount:  -284.50, state: 'match'  },
+    { id:  2, date: '2026-07-02', description: 'Card payment — SUMUP *CAFE',       amount:   -14.20, state: 'review' },
+    { id:  3, date: '2026-07-03', description: 'Invoice 20418 — Hartley & Co',     amount:  3150.00, state: 'match'  },
+    { id:  4, date: '2026-07-03', description: 'Direct debit — BRITISH GAS',       amount:  -212.88, state: 'match'  },
+    { id:  5, date: '2026-07-04', description: 'FASTER PAYMENT REF 88213',         amount:   940.00, state: 'break'  },
+    { id:  6, date: '2026-07-06', description: 'Kingsway Supplies Ltd',            amount:   -96.75, state: 'match'  },
+    { id:  7, date: '2026-07-07', description: 'Card payment — TFL TRAVEL',        amount:    -8.40, state: 'review' },
+    { id:  8, date: '2026-07-08', description: 'Invoice 20419 — Marchmont Trust',  amount:  1875.00, state: 'match'  },
+    { id:  9, date: '2026-07-09', description: 'Standing order — OFFICE RENT',     amount: -1450.00, state: 'match'  },
+    { id: 10, date: '2026-07-10', description: 'Refund — Kingsway Supplies Ltd',   amount:    42.30, state: 'review' },
+    { id: 11, date: '2026-07-11', description: 'FASTER PAYMENT REF 88407',         amount:   512.00, state: 'break'  },
+    { id: 12, date: '2026-07-13', description: 'Card payment — AMZN MKTPLACE',     amount:  -137.99, state: 'review' },
+    { id: 13, date: '2026-07-14', description: 'Invoice 20420 — Hartley & Co',     amount:  2240.00, state: 'match'  },
+    { id: 14, date: '2026-07-15', description: 'Direct debit — VODAFONE',          amount:   -78.00, state: 'match'  },
+    { id: 15, date: '2026-07-16', description: 'Card payment — SUMUP *CAFE',       amount:   -11.60, state: 'review' },
+    { id: 16, date: '2026-07-17', description: 'Kingsway Supplies Ltd',            amount:  -318.05, state: 'match'  },
+    { id: 17, date: '2026-07-18', description: 'FASTER PAYMENT REF 88612',         amount:   275.00, state: 'break'  },
+    { id: 18, date: '2026-07-20', description: 'Invoice 20421 — Delaney Partners', amount:  4100.00, state: 'match'  },
+    { id: 19, date: '2026-07-21', description: 'Card payment — STATIONERY DIRECT', amount:   -63.44, state: 'review' },
+    { id: 20, date: '2026-07-22', description: 'Direct debit — INSURANCE PREMIUM', amount:  -189.50, state: 'match'  },
+    { id: 21, date: '2026-07-23', description: 'Kingsway Supplies Ltd',            amount:  -145.20, state: 'match'  },
+    { id: 22, date: '2026-07-24', description: 'FASTER PAYMENT REF 88903',         amount:  1020.00, state: 'break'  },
+    { id: 23, date: '2026-07-25', description: 'Invoice 20422 — Marchmont Trust',  amount:  1660.00, state: 'match'  },
+    { id: 24, date: '2026-07-27', description: 'Card payment — TFL TRAVEL',        amount:    -6.80, state: 'review' }
+  ];
+
+  var app = {
+    reconciled: new Set(),
+    selected: new Set(),
+    filters: { state: new Set(), amount: new Set() },
+    page: 1,
+    batch: null
+  };
+
+  /* ---------------------------------------------------------------- */
+
+  var el = {
+    list:        document.getElementById('entryList'),
+    selectPage:  document.getElementById('selectPage'),
+    pager:       document.getElementById('pager'),
+    pagerCount:  document.getElementById('pagerCount'),
+    pagerPrev:   document.getElementById('pagerPrev'),
+    pagerNext:   document.getElementById('pagerNext'),
+    pagerPages:  document.getElementById('pagerPages'),
+    bar:         document.getElementById('reconcileBar'),
+    barStatus:   document.getElementById('reconcileStatus'),
+    barAction:   document.getElementById('reconcileButton'),
+    note:        document.getElementById('batchNote'),
+    noteText:    document.getElementById('batchNoteText'),
+    undo:        document.getElementById('undoButton'),
+    clear:       document.getElementById('clearFilters'),
+    totalValue:  document.getElementById('totalValue'),
+    totalMeta:   document.getElementById('totalMeta'),
+    chips:       Array.prototype.slice.call(document.querySelectorAll('.ds-filter-chip'))
+  };
+
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function formatDate(iso) {
+    var p = iso.split('-');
+    return p[2] + ' ' + MONTHS[Number(p[1]) - 1] + ' ' + p[0];
+  }
+
+  function formatMoney(n) {
+    var sign = n < 0 ? '−' : '';
+    return sign + '£' + Math.abs(n).toLocaleString('en-GB', {
+      minimumFractionDigits: 2, maximumFractionDigits: 2
+    });
+  }
+
+  function spokenMoney(n) {
+    return (n < 0 ? 'minus ' : '') + '£' + Math.abs(n).toFixed(2);
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function sum(rows) {
+    return rows.reduce(function (t, e) { return t + e.amount; }, 0);
+  }
+
+  /* ---------------------------------------------------------------- */
+
+  function filtersActive() {
+    return app.filters.state.size > 0 || app.filters.amount.size > 0;
+  }
+
+  function passesFilters(e) {
+    var stateOk = app.filters.state.size === 0 || app.filters.state.has(e.state);
+    var amountOk = app.filters.amount.size === 0 ||
+      (app.filters.amount.has('large') && Math.abs(e.amount) >= LARGE);
+    return stateOk && amountOk;
+  }
+
+  function unreconciled() {
+    return ENTRIES.filter(function (e) { return !app.reconciled.has(e.id); });
+  }
+
+  function visible() {
+    return unreconciled().filter(passesFilters);
+  }
+
+  function pageCount(rows) {
+    return Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  }
+
+  function pageRows() {
+    var rows = visible();
+    var pages = pageCount(rows);
+    if (app.page > pages) { app.page = pages; }
+    var start = (app.page - 1) * PAGE_SIZE;
+    return rows.slice(start, start + PAGE_SIZE);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Render
+   * ---------------------------------------------------------------- */
+
+  function buildRow(e) {
+    var row = document.createElement('div');
+    row.className = 'ds-entry-row';
+    row.setAttribute('role', 'listitem');
+    row.dataset.id = String(e.id);
+    row.dataset.selected = app.selected.has(e.id) ? 'true' : 'false';
+
+    var label = escapeHtml(e.description) + ', ' + formatDate(e.date) + ', ' +
+      spokenMoney(e.amount) + ', ' + STATE_WORD[e.state];
+
+    row.innerHTML =
+      '<span class="ds-entry-row__select">' +
+        '<label class="ds-select-control">' +
+          '<input type="checkbox" data-id="' + e.id + '" aria-label="' + label + '"' +
+          (app.selected.has(e.id) ? ' checked' : '') + '>' +
+        '</label>' +
+      '</span>' +
+      '<span class="ds-entry-row__date">' + formatDate(e.date) + '</span>' +
+      '<span class="ds-entry-row__desc">' + escapeHtml(e.description) + '</span>' +
+      '<span class="ds-entry-row__state">' +
+        '<span class="ds-match-marker ds-match-marker--' + e.state + '" aria-hidden="true"></span>' +
+        STATE_WORD[e.state] +
+      '</span>' +
+      '<span class="ds-amount-cell">' + formatMoney(e.amount) + '</span>';
+
+    row.querySelector('input').addEventListener('change', function (ev) {
+      setSelected(e.id, ev.target.checked);
+    });
+
+    row.addEventListener('click', function (ev) {
+      if (ev.target.closest('.ds-select-control')) { return; }
+      setSelected(e.id, !app.selected.has(e.id));
+    });
+
+    return row;
+  }
+
+  function renderList() {
+    var rows = pageRows();
+    el.list.textContent = '';
+
+    if (rows.length === 0) {
+      var empty = document.createElement('p');
+      empty.className = 'ds-entry-list__empty';
+      empty.textContent = unreconciled().length === 0
+        ? 'Nothing left to reconcile'
+        : 'No entries match the filter';
+      el.list.appendChild(empty);
+      return;
+    }
+
+    var frag = document.createDocumentFragment();
+    rows.forEach(function (e) { frag.appendChild(buildRow(e)); });
+    el.list.appendChild(frag);
+  }
+
+  function renderPager() {
+    var rows = visible();
+    var pages = pageCount(rows);
+    var start = rows.length === 0 ? 0 : (app.page - 1) * PAGE_SIZE + 1;
+    var end = Math.min(app.page * PAGE_SIZE, rows.length);
+
+    el.pagerCount.textContent = rows.length === 0
+      ? '0 entries'
+      : 'Showing ' + start + '–' + end + ' of ' + rows.length +
+        (rows.length === 1 ? ' entry' : ' entries');
+
+    el.pagerPages.textContent = '';
+    for (var n = 1; n <= pages; n++) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'ds-pager__page';
+      b.textContent = String(n);
+      b.dataset.page = String(n);
+      if (n === app.page) { b.setAttribute('aria-current', 'page'); }
+      b.setAttribute('aria-label', 'Page ' + n);
+      el.pagerPages.appendChild(b);
+    }
+
+    el.pagerPrev.disabled = app.page <= 1;
+    el.pagerNext.disabled = app.page >= pages;
+
+    var single = pages <= 1;
+    el.pagerPrev.hidden = single;
+    el.pagerNext.hidden = single;
+    el.pagerPages.hidden = single;
+  }
+
+  function renderFilters() {
+    el.chips.forEach(function (chip) {
+      var on = app.filters[chip.dataset.dim].has(chip.dataset.value);
+      chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    el.clear.hidden = !filtersActive();
+  }
+
+  function renderNote() {
+    if (!app.batch) {
+      el.note.hidden = true;
+      el.noteText.textContent = '';
+      return;
+    }
+    var n = app.batch.ids.length;
+    el.note.hidden = false;
+    el.noteText.textContent = '— ' + n + ' reconciled';
+  }
+
+  function renderFooter() {
+    var open = unreconciled();
+    el.totalValue.textContent = formatMoney(sum(open));
+
+    var meta = open.length + (open.length === 1 ? ' entry' : ' entries');
+    if (filtersActive()) {
+      var shown = visible();
+      meta += ' · filtered ' + formatMoney(sum(shown)) + ' across ' + shown.length;
+    }
+    el.totalMeta.textContent = meta;
+  }
+
+  function syncSelection() {
+    var rows = pageRows();
+    var ids = rows.map(function (e) { return e.id; });
+    var chosen = ids.filter(function (id) { return app.selected.has(id); });
+
+    Array.prototype.forEach.call(el.list.querySelectorAll('.ds-entry-row'), function (row) {
+      var id = Number(row.dataset.id);
+      var on = app.selected.has(id);
+      row.dataset.selected = on ? 'true' : 'false';
+      var input = row.querySelector('input');
+      if (input.checked !== on) { input.checked = on; }
+    });
+
+    el.selectPage.checked = ids.length > 0 && chosen.length === ids.length;
+    el.selectPage.indeterminate = chosen.length > 0 && chosen.length < ids.length;
+    el.selectPage.disabled = ids.length === 0;
+
+    var count = app.selected.size;
+    if (count === 0) {
+      el.bar.dataset.state = 'idle';
+      el.barStatus.textContent = 'Nothing selected';
+      el.barAction.disabled = true;
+    } else {
+      var picked = ENTRIES.filter(function (e) { return app.selected.has(e.id); });
+      el.bar.dataset.state = 'armed';
+      el.barStatus.textContent = count + (count === 1 ? ' entry' : ' entries') +
+        ' selected · ' + formatMoney(sum(picked));
+      el.barAction.disabled = false;
+    }
+  }
+
+  function render() {
+    renderFilters();
+    renderList();
+    renderPager();
+    renderNote();
+    renderFooter();
+    syncSelection();
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Actions
+   * ---------------------------------------------------------------- */
+
+  function setSelected(id, on) {
+    if (on) { app.selected.add(id); } else { app.selected.delete(id); }
+    syncSelection();
+  }
+
+  // A page change or a filter change is a navigation: the selection is
+  // page-scoped, and the batch note is cleared.
+  function navigate(fn) {
+    app.selected.clear();
+    app.batch = null;
+    fn();
+    render();
+  }
+
+  function reconcile() {
+    var ids = Array.from(app.selected);
+    if (ids.length === 0) { return; }
+    ids.forEach(function (id) { app.reconciled.add(id); });
+    app.batch = { ids: ids };
+    app.selected.clear();
+    render();
+    el.undo.focus();
+  }
+
+  function undo() {
+    if (!app.batch) { return; }
+    app.batch.ids.forEach(function (id) { app.reconciled.delete(id); });
+    app.batch = null;
+    render();
+    if (!el.selectPage.disabled) { el.selectPage.focus(); }
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Wiring
+   * ---------------------------------------------------------------- */
+
+  el.selectPage.addEventListener('change', function () {
+    var ids = pageRows().map(function (e) { return e.id; });
+    var all = ids.length > 0 && ids.every(function (id) { return app.selected.has(id); });
+    ids.forEach(function (id) {
+      if (all) { app.selected.delete(id); } else { app.selected.add(id); }
+    });
+    syncSelection();
+  });
+
+  el.chips.forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var set = app.filters[chip.dataset.dim];
+      var value = chip.dataset.value;
+      navigate(function () {
+        if (set.has(value)) { set.delete(value); } else { set.add(value); }
+        app.page = 1;
+      });
+    });
+  });
+
+  el.clear.addEventListener('click', function () {
+    navigate(function () {
+      app.filters.state.clear();
+      app.filters.amount.clear();
+      app.page = 1;
+    });
+  });
+
+  el.pagerPrev.addEventListener('click', function () {
+    navigate(function () { app.page = Math.max(1, app.page - 1); });
+  });
+
+  el.pagerNext.addEventListener('click', function () {
+    navigate(function () { app.page = Math.min(pageCount(visible()), app.page + 1); });
+  });
+
+  el.pagerPages.addEventListener('click', function (ev) {
+    var b = ev.target.closest('.ds-pager__page');
+    if (!b) { return; }
+    navigate(function () { app.page = Number(b.dataset.page); });
+  });
+
+  el.barAction.addEventListener('click', reconcile);
+  el.undo.addEventListener('click', undo);
+
+  render();
+})();
+</script>
+
+</body>
+</html>

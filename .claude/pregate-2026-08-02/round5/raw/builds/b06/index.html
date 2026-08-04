@@ -1,0 +1,973 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reconciliation review — Ledger</title>
+<link rel="icon" href="data:,">
+<style>
+/* ---------------------------------------------------------------------------
+   Tokens. This block is the only place a literal value appears; it is the
+   definition site for the DESIGN.md vocabulary. Everything below references
+   var(--token) only. Derived tokens are computed from the primitives so that
+   geometry never introduces a value the system does not already own.
+   --------------------------------------------------------------------------- */
+:root {
+  --color-surface-base:     #101215;
+  --color-surface-raised:   #171a1e;
+  --color-surface-recessed: #0b0d0f;
+  --color-ink-primary:      #e6e8ea;
+  --color-ink-secondary:    #9aa1a8;
+  --color-signal-match:     #4f8f74;
+  --color-signal-review:    #c99a34;
+  --color-signal-break:     #cf5b45;
+  --color-hairline:         #242a30;
+
+  --type-xs: 12;
+  --type-sm: 13;
+  --type-md: 15;
+  --type-lg: 19;
+  --type-xl: 26;
+
+  --space-tight:  8px;
+  --space-base:   16px;
+  --space-wide:   24px;
+  --space-column: 56px;
+
+  --motion-duration-fast: 110ms;
+  --motion-duration-base: 180ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Derived — arithmetic on the space scale, no new magnitudes invented. */
+  --hairline-width: calc(var(--space-tight) / 8);                                        /*  1px */
+  --rail-width:     calc(var(--space-tight) / 4);                                        /*  2px */
+  --radius:         calc(var(--space-tight) / 4);                                        /*  2px */
+  --target-min:     calc(var(--space-wide) + var(--space-base) + var(--space-tight) / 2); /* 44px */
+  --col-date:       calc(var(--space-column) * 1.75);
+  --col-marker:     calc(var(--space-column) * 2.25);
+  --col-amount:     calc(var(--space-column) * 2.25);
+  --measure:        calc(var(--space-column) * 22);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-surface-base);
+  color: var(--color-ink-primary);
+  font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: calc(var(--type-sm) * 1px);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+.ds-screen {
+  height: 100%;
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: var(--space-wide) var(--space-wide) 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+}
+
+/* --- head ---------------------------------------------------------------- */
+
+.ds-screen-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-base);
+  padding-bottom: var(--space-base);
+  flex-shrink: 0;
+}
+
+.ds-screen-head h1 {
+  margin: 0;
+  font-size: calc(var(--type-lg) * 1px);
+  font-weight: 600;
+  letter-spacing: calc(var(--space-tight) * -0.01);
+}
+
+.ds-screen-head p {
+  margin: 0;
+  color: var(--color-ink-secondary);
+  font-size: calc(var(--type-sm) * 1px);
+}
+
+/* --- ds-filter-chip ------------------------------------------------------ */
+
+.ds-filter-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  padding-bottom: var(--space-base);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.ds-filter-row > .ds-filter-label {
+  color: var(--color-ink-secondary);
+  font-size: calc(var(--type-xs) * 1px);
+  text-transform: uppercase;
+  letter-spacing: calc(var(--space-tight) * 0.08);
+  margin-right: var(--space-tight);
+}
+
+.ds-filter-chip {
+  appearance: none;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+  padding: 0 var(--space-base);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  background: var(--color-surface-raised);
+  color: var(--color-ink-secondary);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: calc(var(--type-sm) * 1px);
+  cursor: pointer;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard),
+              color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.ds-filter-chip:hover {
+  background: var(--color-surface-recessed);
+  color: var(--color-ink-primary);
+}
+
+.ds-filter-chip[aria-pressed="true"] {
+  background: var(--color-surface-recessed);
+  color: var(--color-ink-primary);
+  border-color: var(--color-ink-secondary);
+}
+
+.ds-filter-chip .ds-filter-count {
+  color: var(--color-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-filter-chip[aria-pressed="true"] .ds-filter-count { color: var(--color-ink-primary); }
+
+.ds-filter-chip .ds-dot {
+  width: calc(var(--space-tight) / 1);
+  height: calc(var(--space-tight) / 1);
+  border-radius: var(--space-tight);
+  flex-shrink: 0;
+}
+
+/* --- list ---------------------------------------------------------------- */
+
+.ds-list {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-raised);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.ds-row-grid {
+  display: grid;
+  grid-template-columns:
+    var(--target-min)
+    var(--col-date)
+    minmax(0, 1fr)
+    var(--col-marker)
+    var(--col-amount);
+  align-items: center;
+}
+
+.ds-list-head {
+  flex-shrink: 0;
+  border-bottom: var(--hairline-width) solid var(--color-hairline);
+  background: var(--color-surface-raised);
+  color: var(--color-ink-secondary);
+  font-size: calc(var(--type-xs) * 1px);
+  text-transform: uppercase;
+  letter-spacing: calc(var(--space-tight) * 0.08);
+  padding-right: var(--space-base);
+}
+
+.ds-list-head .ds-head-cell { padding: var(--space-tight) 0; }
+.ds-list-head .ds-head-cell.is-end { text-align: right; }
+
+.ds-list-body {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Scrollbar styled to the token set where the platform draws a classic one.
+   On macOS the scrollbar is an overlay and only appears while scrolling, so the
+   "there is more below" cue is carried by the stated counts in the head and the
+   ds-total-footer, not by the scrollbar. */
+.ds-list-body::-webkit-scrollbar {
+  width: var(--space-tight);
+}
+
+.ds-list-body::-webkit-scrollbar-track {
+  background: var(--color-surface-raised);
+}
+
+.ds-list-body::-webkit-scrollbar-thumb {
+  background: var(--color-hairline);
+  border-radius: var(--radius);
+}
+
+.ds-list-body::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-secondary);
+}
+
+/* --- ds-entry-row -------------------------------------------------------- */
+
+.ds-entry-row {
+  min-height: var(--target-min);
+  border-bottom: var(--hairline-width) solid var(--color-hairline);
+  border-left: var(--rail-width) solid transparent;
+  padding-right: var(--space-base);
+  cursor: default;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.ds-entry-row:hover { background: var(--color-surface-recessed); }
+
+/* Selection feedback is immediate — no transition on this background. */
+.ds-entry-row.is-selected {
+  background: var(--color-surface-recessed);
+  border-left-color: var(--color-ink-primary);
+  transition: none;
+}
+
+.ds-entry-row:focus-within {
+  outline: var(--rail-width) solid var(--color-ink-secondary);
+  outline-offset: calc(var(--rail-width) * -1);
+}
+
+.ds-select {
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.ds-select input {
+  appearance: none;
+  margin: 0;
+  width: var(--space-base);
+  height: var(--space-base);
+  border: var(--hairline-width) solid var(--color-ink-secondary);
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+}
+
+.ds-select input:checked {
+  background: var(--color-ink-primary);
+  border-color: var(--color-ink-primary);
+}
+
+.ds-select input:checked::after,
+.ds-select input:indeterminate::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: calc(var(--space-tight) * 0.75);
+  height: calc(var(--space-tight) * 0.375);
+  border-left: var(--rail-width) solid var(--color-surface-base);
+  border-bottom: var(--rail-width) solid var(--color-surface-base);
+  transform: translateY(calc(var(--space-tight) * -0.125)) rotate(-45deg);
+}
+
+.ds-select input:indeterminate {
+  background: var(--color-ink-secondary);
+  border-color: var(--color-ink-secondary);
+}
+
+.ds-select input:indeterminate::after {
+  width: calc(var(--space-tight) * 0.875);
+  height: 0;
+  border-left: 0;
+  transform: none;
+}
+
+.ds-select input:focus-visible {
+  outline: var(--rail-width) solid var(--color-ink-primary);
+  outline-offset: var(--rail-width);
+}
+
+.ds-entry-date {
+  color: var(--color-ink-secondary);
+  font-size: calc(var(--type-sm) * 1px);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ds-entry-desc {
+  font-size: calc(var(--type-sm) * 1px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: var(--space-base);
+}
+
+/* --- ds-match-marker ----------------------------------------------------- */
+
+.ds-match-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  font-size: calc(var(--type-sm) * 1px);
+  color: var(--color-ink-secondary);
+  white-space: nowrap;
+}
+
+.ds-match-marker .ds-dot {
+  width: calc(var(--space-tight) * 0.75);
+  height: calc(var(--space-tight) * 0.75);
+  border-radius: var(--space-tight);
+  flex-shrink: 0;
+}
+
+.ds-dot.is-match  { background: var(--color-signal-match); }
+.ds-dot.is-review { background: var(--color-signal-review); }
+.ds-dot.is-break  { background: var(--color-signal-break); }
+
+/* --- ds-amount-cell ------------------------------------------------------ */
+
+.ds-amount-cell {
+  text-align: right;
+  font-size: calc(var(--type-sm) * 1px);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ds-empty {
+  padding: var(--space-column) var(--space-wide);
+  color: var(--color-ink-secondary);
+  font-size: calc(var(--type-md) * 1px);
+  text-align: center;
+}
+
+/* --- ds-reconcile-bar ---------------------------------------------------- */
+
+.ds-reconcile-bar {
+  flex-shrink: 0;
+  margin-top: var(--space-base);
+  min-height: calc(var(--target-min) + var(--space-base));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-base);
+  padding: 0 var(--space-tight) 0 var(--space-base);
+  background: var(--color-surface-raised);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius);
+  transition: border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.ds-reconcile-bar[data-state="idle"] {
+  color: var(--color-ink-secondary);
+}
+
+.ds-reconcile-bar[data-state="armed"] {
+  border-color: var(--color-ink-secondary);
+}
+
+.ds-bar-message {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  min-width: 0;
+}
+
+.ds-reconcile-summary {
+  margin: 0;
+  font-size: calc(var(--type-sm) * 1px);
+}
+
+.ds-reconcile-summary strong { font-weight: 600; }
+.ds-reconcile-summary .ds-sub { color: var(--color-ink-secondary); }
+.ds-reconcile-summary .ds-amount { font-variant-numeric: tabular-nums; }
+
+.ds-reconcile-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+}
+
+.ds-action {
+  appearance: none;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+  padding: 0 var(--space-base);
+  background: transparent;
+  color: var(--color-ink-secondary);
+  border: var(--hairline-width) solid transparent;
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: calc(var(--type-sm) * 1px);
+  cursor: pointer;
+  transition: color var(--motion-duration-fast) var(--motion-easing-standard),
+              background var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.ds-action:hover:not(:disabled) {
+  background: var(--color-surface-recessed);
+  color: var(--color-ink-primary);
+}
+
+.ds-action.is-primary {
+  background: var(--color-ink-primary);
+  color: var(--color-surface-base);
+  font-weight: 600;
+}
+
+.ds-action.is-primary:hover:not(:disabled) {
+  background: var(--color-ink-primary);
+  color: var(--color-surface-base);
+  opacity: 0.88;
+}
+
+.ds-action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ds-action:focus-visible {
+  outline: var(--rail-width) solid var(--color-ink-primary);
+  outline-offset: var(--rail-width);
+}
+
+/* --- ds-batch-note ------------------------------------------------------- */
+
+.ds-batch-note {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+  flex-shrink: 0;
+  padding: 0 var(--space-tight) 0 var(--space-base);
+  min-height: var(--target-min);
+  background: var(--color-surface-recessed);
+  border: var(--hairline-width) solid var(--color-hairline);
+  border-radius: var(--radius);
+  font-size: calc(var(--type-sm) * 1px);
+}
+
+.ds-batch-note[hidden] { display: none; }
+.ds-batch-note .ds-sub { color: var(--color-ink-secondary); }
+
+/* --- ds-total-footer ----------------------------------------------------- */
+
+.ds-total-footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-wide);
+  padding: var(--space-base) var(--space-base) var(--space-wide);
+}
+
+.ds-total-footer .ds-total-label {
+  display: block;
+  color: var(--color-ink-secondary);
+  font-size: calc(var(--type-xs) * 1px);
+  text-transform: uppercase;
+  letter-spacing: calc(var(--space-tight) * 0.08);
+  margin-bottom: calc(var(--space-tight) / 2);
+}
+
+.ds-total-footer .ds-total-value {
+  font-size: calc(var(--type-xl) * 1px);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.ds-total-footer .ds-total-meta {
+  color: var(--color-ink-secondary);
+  font-size: calc(var(--type-sm) * 1px);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.ds-total-footer .ds-total-meta span { display: block; }
+
+.ds-visually-hidden {
+  position: absolute;
+  width: var(--hairline-width);
+  height: var(--hairline-width);
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<main class="ds-screen">
+
+  <header class="ds-screen-head">
+    <div>
+      <h1>Reconciliation review</h1>
+      <p id="feedMeta">Bank feed imported 27 July 2026</p>
+    </div>
+    <p id="clearedMeta"></p>
+  </header>
+
+  <div class="ds-filter-row" role="group" aria-label="Filter by match state">
+    <span class="ds-filter-label">Match state</span>
+    <button class="ds-filter-chip" type="button" data-filter="all" aria-pressed="true">
+      All <span class="ds-filter-count" data-count="all">24</span>
+    </button>
+    <button class="ds-filter-chip" type="button" data-filter="match" aria-pressed="false">
+      <span class="ds-dot is-match" aria-hidden="true"></span>
+      Matched <span class="ds-filter-count" data-count="match">13</span>
+    </button>
+    <button class="ds-filter-chip" type="button" data-filter="review" aria-pressed="false">
+      <span class="ds-dot is-review" aria-hidden="true"></span>
+      Review <span class="ds-filter-count" data-count="review">7</span>
+    </button>
+    <button class="ds-filter-chip" type="button" data-filter="break" aria-pressed="false">
+      <span class="ds-dot is-break" aria-hidden="true"></span>
+      Break <span class="ds-filter-count" data-count="break">4</span>
+    </button>
+  </div>
+
+  <section class="ds-list" aria-label="Unreconciled entries">
+    <div class="ds-list-head ds-row-grid">
+      <label class="ds-select">
+        <input type="checkbox" id="selectAll" aria-describedby="selectAllHint">
+        <span class="ds-visually-hidden" id="selectAllHint">Select every entry shown by the current filter</span>
+      </label>
+      <span class="ds-head-cell">Date</span>
+      <span class="ds-head-cell">Description</span>
+      <span class="ds-head-cell">Match</span>
+      <span class="ds-head-cell is-end">Amount</span>
+    </div>
+    <ul class="ds-list-body" id="listBody"></ul>
+  </section>
+
+  <div class="ds-reconcile-bar" id="reconcileBar" data-state="idle">
+    <div class="ds-bar-message">
+      <span class="ds-batch-note" id="batchNote" role="status" aria-live="polite" hidden>
+        <span id="batchNoteText"></span>
+        <button class="ds-action" type="button" id="undoBtn">Undo</button>
+      </span>
+      <p class="ds-reconcile-summary" id="reconcileSummary">Nothing selected</p>
+    </div>
+    <div class="ds-reconcile-actions">
+      <button class="ds-action" type="button" id="clearSelection" hidden>Clear</button>
+      <button class="ds-action is-primary" type="button" id="reconcileBtn" disabled>Reconcile</button>
+    </div>
+  </div>
+
+  <footer class="ds-total-footer">
+    <div>
+      <span class="ds-total-label">Unreconciled</span>
+      <span class="ds-total-value" id="totalValue">—</span>
+    </div>
+    <p class="ds-total-meta" id="totalMeta"></p>
+  </footer>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var SEED = [
+    { date: "2026-07-02", desc: "Kingsway Supplies Ltd",             amount: -284.50, state: "match"  },
+    { date: "2026-07-02", desc: "Card payment — SUMUP *CAFE",        amount:  -14.20, state: "review" },
+    { date: "2026-07-03", desc: "Invoice 20418 — Hartley & Co",      amount: 3150.00, state: "match"  },
+    { date: "2026-07-03", desc: "Direct debit — BRITISH GAS",        amount: -212.88, state: "match"  },
+    { date: "2026-07-04", desc: "FASTER PAYMENT REF 88213",          amount:  940.00, state: "break"  },
+    { date: "2026-07-06", desc: "Kingsway Supplies Ltd",             amount:  -96.75, state: "match"  },
+    { date: "2026-07-07", desc: "Card payment — TFL TRAVEL",         amount:   -8.40, state: "review" },
+    { date: "2026-07-08", desc: "Invoice 20419 — Marchmont Trust",   amount: 1875.00, state: "match"  },
+    { date: "2026-07-09", desc: "Standing order — OFFICE RENT",      amount:-1450.00, state: "match"  },
+    { date: "2026-07-10", desc: "Refund — Kingsway Supplies Ltd",    amount:   42.30, state: "review" },
+    { date: "2026-07-11", desc: "FASTER PAYMENT REF 88407",          amount:  512.00, state: "break"  },
+    { date: "2026-07-13", desc: "Card payment — AMZN MKTPLACE",      amount: -137.99, state: "review" },
+    { date: "2026-07-14", desc: "Invoice 20420 — Hartley & Co",      amount: 2240.00, state: "match"  },
+    { date: "2026-07-15", desc: "Direct debit — VODAFONE",           amount:  -78.00, state: "match"  },
+    { date: "2026-07-16", desc: "Card payment — SUMUP *CAFE",        amount:  -11.60, state: "review" },
+    { date: "2026-07-17", desc: "Kingsway Supplies Ltd",             amount: -318.05, state: "match"  },
+    { date: "2026-07-18", desc: "FASTER PAYMENT REF 88612",          amount:  275.00, state: "break"  },
+    { date: "2026-07-20", desc: "Invoice 20421 — Delaney Partners",  amount: 4100.00, state: "match"  },
+    { date: "2026-07-21", desc: "Card payment — STATIONERY DIRECT",  amount:  -63.44, state: "review" },
+    { date: "2026-07-22", desc: "Direct debit — INSURANCE PREMIUM",  amount: -189.50, state: "match"  },
+    { date: "2026-07-23", desc: "Kingsway Supplies Ltd",             amount: -145.20, state: "match"  },
+    { date: "2026-07-24", desc: "FASTER PAYMENT REF 88903",          amount: 1020.00, state: "break"  },
+    { date: "2026-07-25", desc: "Invoice 20422 — Marchmont Trust",   amount: 1660.00, state: "match"  },
+    { date: "2026-07-27", desc: "Card payment — TFL TRAVEL",         amount:   -6.80, state: "review" }
+  ];
+
+  var STATE_LABEL = { match: "Matched", review: "Review", break: "Break" };
+
+  var entries = SEED.map(function (row, i) {
+    return {
+      id: i + 1,
+      date: row.date,
+      desc: row.desc,
+      amount: row.amount,
+      state: row.state,
+      reconciled: false,
+      selected: false
+    };
+  });
+
+  var filter = "all";
+  var lastClickedId = null;
+  var undoStack = [];
+
+  var listBody       = document.getElementById("listBody");
+  var selectAll      = document.getElementById("selectAll");
+  var reconcileBar   = document.getElementById("reconcileBar");
+  var reconcileSum   = document.getElementById("reconcileSummary");
+  var reconcileBtn   = document.getElementById("reconcileBtn");
+  var clearBtn       = document.getElementById("clearSelection");
+  var batchNote      = document.getElementById("batchNote");
+  var batchNoteText  = document.getElementById("batchNoteText");
+  var undoBtn        = document.getElementById("undoBtn");
+  var totalValue     = document.getElementById("totalValue");
+  var totalMeta      = document.getElementById("totalMeta");
+  var clearedMeta    = document.getElementById("clearedMeta");
+  var chips          = Array.prototype.slice.call(document.querySelectorAll(".ds-filter-chip"));
+
+  var money = new Intl.NumberFormat("en-GB", {
+    style: "currency", currency: "GBP", minimumFractionDigits: 2, maximumFractionDigits: 2
+  });
+
+  function fmtAmount(value) {
+    var s = money.format(Math.abs(value));
+    return (value < 0 ? "−" : "") + s;
+  }
+
+  function fmtDate(iso) {
+    var parts = iso.split("-");
+    var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return parts[2] + " " + months[Number(parts[1]) - 1];
+  }
+
+  function open()      { return entries.filter(function (e) { return !e.reconciled; }); }
+  function visible()   { return open().filter(function (e) { return filter === "all" || e.state === filter; }); }
+  function selected()  { return open().filter(function (e) { return e.selected; }); }
+
+  function sum(list) {
+    return list.reduce(function (acc, e) { return acc + e.amount; }, 0);
+  }
+
+  /* --- render ------------------------------------------------------------ */
+
+  function renderList() {
+    var rows = visible();
+    listBody.textContent = "";
+
+    if (!rows.length) {
+      var li = document.createElement("li");
+      li.className = "ds-empty";
+      li.textContent = open().length
+        ? "No entries in this filter."
+        : "Everything is reconciled.";
+      listBody.appendChild(li);
+      return;
+    }
+
+    var frag = document.createDocumentFragment();
+
+    rows.forEach(function (e) {
+      var li = document.createElement("li");
+      li.className = "ds-entry-row ds-row-grid" + (e.selected ? " is-selected" : "");
+      li.dataset.id = String(e.id);
+
+      var label = document.createElement("label");
+      label.className = "ds-select";
+
+      var box = document.createElement("input");
+      box.type = "checkbox";
+      box.checked = e.selected;
+      box.dataset.id = String(e.id);
+      box.setAttribute("aria-label",
+        "Select " + fmtDate(e.date) + ", " + e.desc + ", " +
+        fmtAmount(e.amount) + ", " + STATE_LABEL[e.state]);
+      label.appendChild(box);
+
+      var date = document.createElement("span");
+      date.className = "ds-entry-date";
+      date.textContent = fmtDate(e.date);
+
+      var desc = document.createElement("span");
+      desc.className = "ds-entry-desc";
+      desc.textContent = e.desc;
+      desc.title = e.desc;
+
+      var marker = document.createElement("span");
+      marker.className = "ds-match-marker";
+      var dot = document.createElement("span");
+      dot.className = "ds-dot is-" + e.state;
+      dot.setAttribute("aria-hidden", "true");
+      var markerText = document.createElement("span");
+      markerText.textContent = STATE_LABEL[e.state];
+      marker.appendChild(dot);
+      marker.appendChild(markerText);
+
+      var amount = document.createElement("span");
+      amount.className = "ds-amount-cell";
+      amount.textContent = fmtAmount(e.amount);
+
+      li.appendChild(label);
+      li.appendChild(date);
+      li.appendChild(desc);
+      li.appendChild(marker);
+      li.appendChild(amount);
+      frag.appendChild(li);
+    });
+
+    listBody.appendChild(frag);
+  }
+
+  function renderChips() {
+    var live = open();
+    var counts = {
+      all:    live.length,
+      match:  live.filter(function (e) { return e.state === "match";  }).length,
+      review: live.filter(function (e) { return e.state === "review"; }).length,
+      "break":live.filter(function (e) { return e.state === "break";  }).length
+    };
+    Object.keys(counts).forEach(function (key) {
+      var el = document.querySelector('[data-count="' + key + '"]');
+      if (el) el.textContent = String(counts[key]);
+    });
+    chips.forEach(function (chip) {
+      chip.setAttribute("aria-pressed", chip.dataset.filter === filter ? "true" : "false");
+    });
+  }
+
+  function renderSelectAll() {
+    var rows = visible();
+    var picked = rows.filter(function (e) { return e.selected; }).length;
+    selectAll.disabled = rows.length === 0;
+    selectAll.checked = rows.length > 0 && picked === rows.length;
+    selectAll.indeterminate = picked > 0 && picked < rows.length;
+  }
+
+  function renderBar() {
+    var sel = selected();
+    var hidden = sel.filter(function (e) { return filter !== "all" && e.state !== filter; }).length;
+
+    if (!sel.length) {
+      reconcileBar.dataset.state = "idle";
+      reconcileSum.textContent = undoStack.length ? "" : "Nothing selected";
+      reconcileBtn.disabled = true;
+      reconcileBtn.textContent = "Reconcile";
+      clearBtn.hidden = true;
+      return;
+    }
+
+    reconcileBar.dataset.state = "armed";
+    reconcileSum.textContent = "";
+
+    var count = document.createElement("strong");
+    count.textContent = sel.length + (sel.length === 1 ? " entry selected" : " entries selected");
+
+    var amount = document.createElement("span");
+    amount.className = "ds-sub ds-amount";
+    amount.textContent = " · " + fmtAmount(sum(sel));
+
+    reconcileSum.appendChild(count);
+    reconcileSum.appendChild(amount);
+
+    if (hidden) {
+      var note = document.createElement("span");
+      note.className = "ds-sub";
+      note.textContent = " · " + hidden + " not shown by this filter";
+      reconcileSum.appendChild(note);
+    }
+
+    reconcileBtn.disabled = false;
+    reconcileBtn.textContent = "Reconcile " + sel.length;
+    clearBtn.hidden = false;
+  }
+
+  function renderTotals() {
+    var live = open();
+    var vis = visible();
+    var moneyIn = live.filter(function (e) { return e.amount > 0; });
+    var moneyOut = live.filter(function (e) { return e.amount < 0; });
+
+    totalValue.textContent = fmtAmount(sum(live));
+    totalMeta.textContent = "";
+
+    var line1 = document.createElement("span");
+    line1.textContent = live.length + (live.length === 1 ? " entry" : " entries") +
+      " · in " + fmtAmount(sum(moneyIn)) + " · out " + fmtAmount(sum(moneyOut));
+    totalMeta.appendChild(line1);
+
+    if (filter !== "all") {
+      var line2 = document.createElement("span");
+      line2.textContent = "Filter " + STATE_LABEL[filter].toLowerCase() + ": " +
+        vis.length + " · " + fmtAmount(sum(vis));
+      totalMeta.appendChild(line2);
+    }
+
+    var done = entries.length - live.length;
+    clearedMeta.textContent = done
+      ? done + " of " + entries.length + " reconciled"
+      : entries.length + " entries to review";
+  }
+
+  function renderNote() {
+    var top = undoStack[undoStack.length - 1];
+    if (!top) {
+      batchNote.hidden = true;
+      batchNoteText.textContent = "";
+      return;
+    }
+    batchNote.hidden = false;
+    batchNoteText.textContent = "";
+    var main = document.createElement("span");
+    main.textContent = top.ids.length +
+      (top.ids.length === 1 ? " entry reconciled" : " entries reconciled");
+    var amt = document.createElement("span");
+    amt.className = "ds-sub";
+    amt.textContent = " · " + fmtAmount(top.total);
+    batchNoteText.appendChild(main);
+    batchNoteText.appendChild(amt);
+  }
+
+  function render() {
+    renderList();
+    renderChips();
+    renderSelectAll();
+    renderBar();
+    renderTotals();
+    renderNote();
+  }
+
+  /* --- behaviour --------------------------------------------------------- */
+
+  function byId(id) {
+    return entries.filter(function (e) { return e.id === id; })[0];
+  }
+
+  function setSelected(id, value, withRange) {
+    var rows = visible();
+    if (withRange && lastClickedId !== null) {
+      var a = rows.findIndex(function (e) { return e.id === lastClickedId; });
+      var b = rows.findIndex(function (e) { return e.id === id; });
+      if (a > -1 && b > -1) {
+        var from = Math.min(a, b), to = Math.max(a, b);
+        for (var i = from; i <= to; i++) rows[i].selected = value;
+        lastClickedId = id;
+        render();
+        return;
+      }
+    }
+    var entry = byId(id);
+    if (entry) entry.selected = value;
+    lastClickedId = id;
+    render();
+  }
+
+  listBody.addEventListener("mousedown", function (ev) {
+    // Capture shift before the click resolves, and stop the browser's
+    // shift-drag text selection inside the list.
+    if (ev.shiftKey) ev.preventDefault();
+  });
+
+  listBody.addEventListener("click", function (ev) {
+    var li = ev.target.closest(".ds-entry-row");
+    if (!li) return;
+    var id = Number(li.dataset.id);
+    var entry = byId(id);
+    if (!entry) return;
+
+    if (ev.target.tagName === "INPUT") return; // handled by change
+    ev.preventDefault();
+    setSelected(id, !entry.selected, ev.shiftKey);
+  });
+
+  listBody.addEventListener("change", function (ev) {
+    if (ev.target.tagName !== "INPUT") return;
+    setSelected(Number(ev.target.dataset.id), ev.target.checked, false);
+  });
+
+  selectAll.addEventListener("change", function () {
+    var value = selectAll.checked;
+    visible().forEach(function (e) { e.selected = value; });
+    lastClickedId = null;
+    render();
+  });
+
+  chips.forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      filter = chip.dataset.filter;
+      lastClickedId = null;
+      render();
+    });
+  });
+
+  clearBtn.addEventListener("click", function () {
+    open().forEach(function (e) { e.selected = false; });
+    lastClickedId = null;
+    render();
+  });
+
+  reconcileBtn.addEventListener("click", function () {
+    var sel = selected();
+    if (!sel.length) return;
+    var batch = { ids: sel.map(function (e) { return e.id; }), total: sum(sel) };
+    sel.forEach(function (e) { e.reconciled = true; e.selected = false; });
+    undoStack.push(batch);
+    lastClickedId = null;
+    render();
+    undoBtn.focus();
+  });
+
+  function undo() {
+    var batch = undoStack.pop();
+    if (!batch) return;
+    batch.ids.forEach(function (id) {
+      var entry = byId(id);
+      if (entry) { entry.reconciled = false; entry.selected = false; }
+    });
+    lastClickedId = null;
+    render();
+  }
+
+  undoBtn.addEventListener("click", undo);
+
+  document.addEventListener("keydown", function (ev) {
+    var key = ev.key.toLowerCase();
+    if ((ev.metaKey || ev.ctrlKey) && key === "z" && !ev.shiftKey) {
+      if (!undoStack.length) return;
+      ev.preventDefault();
+      undo();
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
