@@ -916,3 +916,104 @@ redaction held end to end.
 
 **Next:** `RAVEN_NO_USAGE_LOG=1 npm test` → push → verify anon hash `f64bb18…2bb0a6`
 against production. Then the skeleton-lint fix, one test per field.
+
+---
+
+## Window 19 — the gate is executed: `compose_build_prompt` deleted
+
+Three messages from Andrew closed this out:
+
+1. *"What is Rewrite §13 and what does it get us?"* — explained option 3: replace the
+   composer-alone-vs-its-own-inputs comparison with an additive one (full surface +
+   composer vs full surface alone), which measures the claim §13 actually makes
+   (determinism, one auditable composition, fewer correction round-trips). Cost: it is a
+   softer burden than delete-by-default, arrived at after five failures to clear the
+   original.
+2. *"Ask Fable and GPT 5.6 Sol xHigh what to do, then tell me what they say"*
+3. *"Just delete and let's move forward"*
+
+**Both advisors were given the question cold** (`/tmp/r5-decision-brief.md`, written to
+withhold my own view) and **both chose delete.** I verified their factual claims rather
+than relaying them, which caught one material error:
+
+- **Fable's error:** claimed the tool "was never registered on the 105-tool surface, so no
+  count contract, no hash, no shipped consumer moves." False — it was in `TOOL_ACCESS` and
+  `REMOTE_GATED_TOOLS`, and stdio asserted 106. The deletion *did* pay the count tax in
+  reverse. Corrected to Andrew before he decided.
+- **Fable's probation-clock reading is contestable**: §0 grants one more round after an
+  *inconclusive* round 5. Round 5 was **invalid**, not inconclusive. Flagged as genuinely
+  undetermined; Andrew's decision made it moot.
+
+### What was removed
+
+`src/reference-prompt.ts` (990 lines, composer + `Skeleton`/`StructureNode`/`StateMachine`/
+`ContentSlot`/`MotionSpec`/`Provenance`), `test/reference-prompt.test.mjs` (632 lines), and
+from `src/index.ts` the registration block, the `TOOL_ACCESS` entry, the
+`REMOTE_GATED_TOOLS` entry, and the import. Every removal was made by a Python script with
+an assertion on each match rather than by hand.
+
+Count contract paid in reverse: **stdio 106 → 105, gated 61 → 60.** Six count-asserting
+tests updated (`taste-remote-full`, `audit-dispatch`, `grab-bridge`, `decision-import`,
+`design-review`, `redis-taste-store`); `design-review` also regex-asserts three comment
+strings inside `src/index.ts`, so the comments and the test move together.
+`manifest.json`, `README.md`, `site/llms.txt`, `web/public/llms.txt` regenerated.
+
+Commit **`e31b268`** — 15 files, +68/−1694.
+
+### Two gotchas worth keeping
+
+- **`sync-manifest-tools.mjs` reads `dist/`, not `src/`.** Running it before `npm run build`
+  synced 106 tools off a stale build and blew up `manifest-tools.test.mjs` with a huge
+  deepStrictEqual diff. Build first, then sync.
+- **`git commit --only <path>` cannot take a path already staged-as-deleted by `git rm`** —
+  `fatal: pathspec did not match any files`. Inspected the index instead (only my two
+  deletions staged, no foreign files from the auto-save hook), `git add`ed the 13 modified
+  paths explicitly, then `git commit --file=`.
+
+### The falsification pass found one real problem
+
+Sol (medium, report-only, cold) returned CLEAN on five of six checks — no surviving
+references, count contracts consistent and all four `design-review` regexes still matching,
+`tsc --noEmit` exit 0, `TOOL_ACCESS` exhaustive, no collateral edits — and **PROBLEM** on
+the sixth:
+
+> `dist/reference-prompt.js` and its `.d.ts`/`.map` survive. `package.json` packages all of
+> `dist/`, and `build`/`prepublishOnly` run bare `tsc` with no clean, so publishing from
+> this tree would ship the deleted implementation.
+
+Correct, and invisible to the commit because `dist/` is gitignored — a repo-clean check
+would never have caught it. Removed the three orphans, rebuilt, and confirmed
+`npm pack --dry-run` now contains zero `reference-prompt` entries.
+
+**Adjacent problem, reported not fixed:** bare `tsc` never cleans `dist/`, so *any* future
+file deletion leaves the same orphan in the npm payload. A `rimraf dist` in `build` (or a
+`prepublishOnly` clean) would close the class. Out of scope for this deletion.
+
+### Verification
+
+- `RAVEN_NO_USAGE_LOG=1 npm test` → **1153 / 1150 pass / 0 fail / 3 skipped**, ~44s, re-run
+  after the `dist/` clean. Note the coincidence: 1153 before the composer existed and 1153
+  after it was deleted. An unchanged number is not proof nothing moved.
+- Local probe: `stdio local: 105 | composer present: false` · `anon: 45 hash: f64bb18529f4`
+  · `GOLDEN MATCH: true`.
+  **Probe gotcha:** passing `tasteStore` to a `remote: true` build sets `hasUserStore` and
+  restores the 11 authed taste tools → 56, not 45. The anon probe takes `{ remote: true }`
+  and nothing else.
+- Production baseline pre-push: `mcp.ravenmcp.ai` anon **45**, hash `f64bb18…2bb0a6`,
+  composer absent. It was gated, so the anon surface never carried it — which means the
+  hash **cannot** confirm this deploy. Landing must be verified off the `site` project's
+  deployment alias list.
+
+### Carried forward
+
+- **D11 survivor finding:** contested-decision discoverability, A 6/6 vs B2 2/6.
+  `decision_list` with no `status` returns only active decisions. Belongs to the Decision
+  Graph tools, untouched by this deletion. Recorded in `docs/spec-pattern-library.md`.
+- The skeleton-lint `archetype` fix is **moot** — its file is deleted.
+- Round-2 ablation arrays remain **UNVERIFIED** (reconstructed from memory, never read from
+  `round2/raw/`). Not data.
+- A `/revisit` retrospective is owed.
+
+**Lesson filed:** `feedback-dont-reinterpret-a-gate-you-set-yourself` — when a gate you
+wrote in advance fires against you, the reinterpretation that rescues the result is suspect
+in proportion to how well it works.
