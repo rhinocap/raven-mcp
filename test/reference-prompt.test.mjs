@@ -172,6 +172,13 @@ const contestedDecision = parse(await call('decision_add', {
   statement: 'Warnings use amber', scope: 'notifications', component_ref: 'snackbar',
 }));
 await call('decision_contest', { id: contestedDecision.id, reason: 'conflicts with the monochrome direction' });
+// No alternatives_rejected, deliberately. Until it57 the composer `continue`d past exactly
+// this shape and the decision never reached the prompt at all — a settled, uncontested
+// decision silently absent because nobody had written down what it beat.
+const unrejectedDecision = parse(await call('decision_add', {
+  statement: 'Snackbars anchor to the bottom-left of the viewport', rationale: 'keeps the primary action column clear',
+  scope: 'notifications', component_ref: 'snackbar',
+}));
 
 // decision_contest itself records a consultation event, so snapshot the trace
 // file AFTER seeding — the purity assertion is about compose alone.
@@ -533,4 +540,93 @@ test('emphasis ramp: the clamp survives to the composed prompt the caller reads'
     intent: 'snackbar', project_dir: projectDir, profile: PROFILE, skeleton: SKELETON,
   }));
   assert.ok(/transient surface/.test(out.prompt), 'the clamp must reach the prompt, not just the gaps array');
+});
+
+// ---------------------------------------------------------------------------
+// Decisions in force (it57). A decision has two halves — what was chosen and
+// what was rejected — and only the rejected half was ever emitted. A builder
+// could read that a bounce entrance was rejected and still not know that "fade
+// and rise" was the thing chosen. Round 4 of the §13 pre-gate ran on a composer
+// with this gap and could not tell whether arm A lost on the concept or on the
+// missing half.
+// ---------------------------------------------------------------------------
+
+const sectionOf = (prompt, heading) => {
+  const start = prompt.indexOf(`## ${heading}`);
+  if (start === -1) return null;
+  const rest = prompt.slice(start + heading.length + 3);
+  const next = rest.indexOf('\n## ');
+  return next === -1 ? rest : rest.slice(0, next);
+};
+
+test('decisions in force: the chosen position of a taste decision reaches the prompt', async () => {
+  const out = parse(await call('compose_build_prompt', {
+    intent: 'snackbar', project_dir: projectDir, profile: PROFILE, skeleton: SKELETON,
+  }));
+  const inForce = sectionOf(out.prompt, 'Decisions in force');
+  assert.ok(inForce, 'the section must exist');
+  assert.match(inForce, /fade and rise entrance/, 'the chosen position, not only the rejected one');
+  assert.match(inForce, /motion \(taste decision `/, 'attributed to its dimension and id');
+});
+
+test('decisions in force: the chosen position of an active Decision Graph node reaches the prompt', async () => {
+  const out = parse(await call('compose_build_prompt', {
+    intent: 'snackbar', project_dir: projectDir, profile: PROFILE, skeleton: SKELETON,
+  }));
+  const inForce = sectionOf(out.prompt, 'Decisions in force');
+  assert.match(inForce, /Snackbars auto-dismiss after 5 seconds/);
+  assert.match(inForce, new RegExp(`\`${activeDecision.id}\``), 'cited by id so it can be looked up');
+  assert.match(inForce, /notifications · snackbar/, 'scope and component carried through');
+});
+
+test('decisions in force: a decision with no rejected alternatives is NOT dropped', async () => {
+  // The regression that mattered: `continue` on an empty alternatives_rejected[]
+  // meant a settled decision vanished from the prompt entirely.
+  const out = parse(await call('compose_build_prompt', {
+    intent: 'snackbar', project_dir: projectDir, profile: PROFILE, skeleton: SKELETON,
+  }));
+  const inForce = sectionOf(out.prompt, 'Decisions in force');
+  assert.match(inForce, /Snackbars anchor to the bottom-left of the viewport/);
+  assert.match(inForce, new RegExp(`\`${unrejectedDecision.id}\``));
+  // and it still must not appear as a prohibition — it rejects nothing
+  const prohibitions = sectionOf(out.prompt, 'Prohibitions');
+  assert.doesNotMatch(prohibitions, new RegExp(`\`${unrejectedDecision.id}\``));
+});
+
+test('decisions in force: contested decisions stay out of it', async () => {
+  // A contested decision is an open question, not a settled one. It belongs
+  // under Gaps; putting it in force would tell the builder to build to a
+  // position that is actively under dispute.
+  const out = parse(await call('compose_build_prompt', {
+    intent: 'snackbar', project_dir: projectDir, profile: PROFILE, skeleton: SKELETON,
+  }));
+  const inForce = sectionOf(out.prompt, 'Decisions in force');
+  assert.doesNotMatch(inForce, /Warnings use amber/);
+  assert.doesNotMatch(inForce, new RegExp(`\`${contestedDecision.id}\``));
+  assert.match(sectionOf(out.prompt, 'Gaps / decisions for you'), /Warnings use amber/);
+});
+
+test('decisions in force: the grounding-only branch carries it too', async () => {
+  // The no-skeleton branch is what an agent gets on the first call, and it was
+  // the branch the §13 pre-gate actually measured. If the chosen positions only
+  // appeared once a skeleton existed, the first call would still be half-blind.
+  const out = parse(await call('compose_build_prompt', {
+    intent: 'snackbar', project_dir: projectDir, profile: PROFILE,
+  }));
+  assert.equal(out.skeleton_required, true, 'this must be the grounding-only branch');
+  const inForce = sectionOf(out.prompt, 'Decisions in force');
+  assert.ok(inForce, 'the section must survive the no-skeleton branch');
+  assert.match(inForce, /fade and rise entrance/);
+  assert.match(inForce, /Snackbars auto-dismiss after 5 seconds/);
+  assert.match(inForce, /Snackbars anchor to the bottom-left of the viewport/);
+});
+
+test('decisions in force: rejected alternatives are still emitted, under Prohibitions', async () => {
+  // The fix adds a half; it does not move the existing one.
+  const out = parse(await call('compose_build_prompt', {
+    intent: 'snackbar', project_dir: projectDir, profile: PROFILE, skeleton: SKELETON,
+  }));
+  const prohibitions = sectionOf(out.prompt, 'Prohibitions');
+  assert.match(prohibitions, /bounce/, 'the rejected taste alternative');
+  assert.match(prohibitions, /persistent until dismissed/, 'the rejected graph alternative');
 });

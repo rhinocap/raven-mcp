@@ -895,6 +895,29 @@ export async function composeBuildPrompt(args: ComposeBuildPromptArgs, deps: Com
   }
   lines.push("");
 
+  // A decision has two halves: what was chosen and what was rejected. Until it57 only the
+  // rejected half was ever emitted (below, under Prohibitions), so a builder reading this
+  // prompt could see that a filled chip was rejected and still not know an outlined pill
+  // was the thing chosen. Worse, a decision carrying no rejected alternatives vanished
+  // entirely — `continue` on an empty array, twice. The chosen position is the load-bearing
+  // half; it gets its own section, and nothing is skipped for lack of a rejection.
+  lines.push("## Decisions in force");
+  lines.push("Settled. Build to these; do not re-open them.");
+  var decisionCount = 0;
+  for (var tdc = 0; tdc < tasteDecisions.length; tdc++) {
+    var td2 = tasteDecisions[tdc];
+    lines.push("- " + td2.dimension + " (taste decision `" + td2.id + "`): " + td2.decision + (td2.why ? " — \"" + td2.why + "\"" : ""));
+    decisionCount++;
+  }
+  for (var adc = 0; adc < active.length; adc++) {
+    var ad2 = active[adc];
+    var where = [ad2.scope, ad2.component_ref].filter(function(s) { return !!s; }).join(" · ");
+    lines.push("- Decision Graph `" + ad2.id + "` (active" + (where ? ", " + where : "") + "): " + ad2.statement + (ad2.rationale ? " — \"" + ad2.rationale + "\"" : ""));
+    decisionCount++;
+  }
+  if (decisionCount === 0) lines.push("- (no taste decisions or active Decision Graph entries apply to this surface)");
+  lines.push("");
+
   lines.push("## Prohibitions");
   var prohibitionCount = 0;
   var offRules = new Set<string>();
