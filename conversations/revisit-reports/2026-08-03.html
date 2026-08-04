@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revisit — 2026-08-03 (§13 pre-gate, the deletion, and four follow-ups)</title>
+<style>
+  :root {
+    --bg-base: #1a1a22;
+    --bg-surface: #212129;
+    --bg-raised: #2a2a33;
+    --border: rgba(255, 255, 255, 0.06);
+    --border-strong: rgba(255, 255, 255, 0.1);
+    --text-primary: #F0F0F2;
+    --text-secondary: #9498A0;
+    --text-tertiary: #5C5F68;
+    --text-accent: #0077c5;
+    --accent-blue: #0077c5;
+    --accent-green: #00E676;
+    --accent-orange: #FFAB40;
+    --accent-pink: #FF4081;
+    --accent-yellow: #FFD740;
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+    --max-width: 960px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .cover {
+    padding: 80px 24px 64px;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 0%, rgba(0, 119, 197, 0.15), transparent),
+      radial-gradient(ellipse 60% 60% at 80% 20%, rgba(0, 230, 118, 0.07), transparent),
+      linear-gradient(180deg, #1f1f2b 0%, var(--bg-base) 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .cover-inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+  }
+  .cover-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 16px;
+  }
+  .cover h1 {
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+  .cover .subtitle {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 680px;
+    margin-bottom: 48px;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .stat {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .stat-value {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .stat-value.green { color: var(--accent-green); }
+  .stat-value.blue { color: var(--accent-blue); }
+  .stat-value.orange { color: var(--accent-orange); }
+  .stat-value.yellow { color: var(--accent-yellow); }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+  .body {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+  .section {
+    margin-bottom: 48px;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-accent);
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .badge-shipped { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-verified { background: rgba(0,119,197,0.15); color: var(--accent-blue); }
+  .badge-miss { background: rgba(255,171,64,0.12); color: var(--accent-orange); }
+  .badge-repeat { background: rgba(255,64,129,0.12); color: var(--accent-pink); }
+  .badge-win { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .badge-fixed { background: rgba(0,230,118,0.12); color: var(--accent-green); }
+  .card p, .card li {
+    color: var(--text-secondary);
+    margin-top: 4px;
+    line-height: 1.65;
+  }
+  .card ul { padding-left: 18px; margin-top: 8px; }
+  .card ul li { margin-bottom: 4px; }
+  .card code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: rgba(255,255,255,0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-primary);
+  }
+  .card blockquote {
+    margin-top: 10px;
+    padding: 10px 16px;
+    border-left: 3px solid var(--accent-orange);
+    background: rgba(255,171,64,0.06);
+    color: var(--text-primary);
+    font-style: italic;
+  }
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 32px 0;
+  }
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .table-wrap {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    padding: 14px 20px;
+    text-align: left;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 14px 20px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  td:first-child { color: var(--text-primary); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  .highlight {
+    background: rgba(0,119,197,0.08);
+    border: 1px solid rgba(0,119,197,0.2);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .highlight p { color: var(--text-primary); }
+  .tag-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .tag {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-label">Revisit · 2026-08-03 · Manual /revisit</div>
+    <h1>The gate fired<br>against its author</h1>
+    <p class="subtitle">§13 of the pattern-library spec said, months before any of this: <em>if it is no better, delete the tool.</em> Five rounds of A/B later — three of them invalidated by their own controls — the numbers came back ambiguous, and ambiguity resolved toward deletion because deletion was the pre-registered default. <code>compose_build_prompt</code> is gone. The interesting part is not the experiment, which was underpowered; it is that a rule written by someone who wanted the tool to survive was honoured by the same person when it didn't.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value orange">~57%</div>
+        <div class="stat-label">First-attempt accuracy (4/7)</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value green">~93%</div>
+        <div class="stat-label">Autonomy — in the 90–95 band</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value blue">6</div>
+        <div class="stat-label">Real objections from adverse passes</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value green">0</div>
+        <div class="stat-label">Push rejections</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="body">
+
+  <div class="section">
+    <div class="section-label">The finding</div>
+    <div class="highlight">
+      <p><strong>A falsification gate attached to a tool at spec time works, and it is cheap.</strong> The value was not the experiment's precision — round 4 was invalidated, round 5 closed invalid, and the ablation's ~95% CI of [−8.0, +4.0] supports "cannot distinguish", never "no better". The value was that <em>deletion was the default</em>, so a result nobody could read cleanly resolved toward removing a thing that had not shown it earned its place. Without the pre-registration, the same ambiguity resolves the other way every time, and the tool survives on the strength of having been built.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">What deleting it actually cost, and what it bought <span class="badge badge-shipped">Shipped</span></div>
+      <p>15 files, −1694 lines, stdio tool count 106 → 105 and gated 61 → 60. The anonymous 45-tool hash never moved — which is precisely what gating the tool bought: it was in <code>REMOTE_GATED_TOOLS</code> and never in <code>AUTHED_USER_TASTE_TOOLS</code>, so neither <code>/api/mcp</code> nor <code>/api/mcp-user</code> ever served it, and the deploy was a functional no-op for every remote surface. That also means the hash <em>cannot</em> confirm the deploy — provenance had to come from the deployment's <code>meta.githubCommitSha</code>, which the Vercel CLI's thin <code>inspect --json</code> does not carry. It came from the v13 REST API instead.</p>
+      <p>The one real capability that died with it survived as a defect report: contested-decision discoverability, where the composer beat the full tool surface 6/6 to 2/6. That is now <code>include_contested</code> on <code>decision_list</code>.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Mistakes &amp; lessons</div>
+
+    <div class="card">
+      <div class="card-title">A check whose failure looks like its success <span class="badge badge-repeat">Twice, one session</span></div>
+      <p>Two instances of the same root failure, hours apart.</p>
+      <p><strong>The watcher.</strong> <code>until vercel ls site | sed -n '5p' | grep -qE 'Ready|Error'</code>. Line 5 was the first deployment row <em>while the build was queued</em>; once it resolved the table shifted and line 5 became a header, which never matches. The deploy was Ready in 50 seconds. I sat on it for ~28 minutes.</p>
+      <blockquote>What's taking so long, deploy more agents</blockquote>
+      <p>The honest answer was that nothing was slow, agents cannot parallelise a single Vercel build, and my own watcher was broken. Third occurrence of that question (07-09, 07-24, today) — but the first two were pacing, and this one was a broken instrument, so a third prose copy of the pacing rule would have caught nothing.</p>
+      <p><strong>The verifier.</strong> <code>verify-arrays.mjs</code> re-derived every figure in a published evidence table correctly — and then <em>printed</em> them, leaving me to compare against <code>VERDICT.md</code> by eye. The unreliable human step the script existed to remove was still there, at the end, wearing the script's credibility. Sol named it: "does not verify."</p>
+      <p><strong>Rule, promoted to a loaded surface:</strong> name the input that makes a check FAIL and the visible difference between failing and passing. "It would print different numbers and I'd notice" means it is a report, not a check. Match on content never position; test the predicate once before arming it; assert and exit non-zero.</p>
+      <div class="tag-row"><span class="tag">~/.claude/CLAUDE.md:90</span><span class="tag">feedback-a-silent-watcher-is-not-a-pending-job</span><span class="tag">MEMORY.md:119</span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">A new optional parameter, unchecked against its siblings <span class="badge badge-miss">Accuracy miss</span></div>
+      <p><code>include_contested</code> was checked against <code>status</code> — explicit status wins, tested — and never against <code>drafts_only</code>. So a contested decision with no rationale could appear in a list whose schema promises "active decisions awaiting a rationale". Sol found it in a commit I had already made. The schema was sitting right there as the checklist; the combination test is three lines.</p>
+      <p><strong>Rule:</strong> a new optional parameter is not done until it has been walked against every sibling parameter it can combine with.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">An unchanged test count proving nothing — twice <span class="badge badge-fixed">Caught both times</span></div>
+      <p>1153 tests before the change and 1153 after, because the new assertions live inside an existing test. The trap was written up one window earlier and then walked into anyway. Both times the fix was mutation validation rather than trust: breaking <code>include_contested === true</code> produced <em>"include_contested surfaces the contested decision"</em>; swapping <code>concat</code> for assignment produced <em>"added to, not swapped"</em>; removing the <code>drafts_only</code> guard produced <em>"a contested decision with no rationale is not a draft."</em> Each assertion was shown to bite the exact hole it claims to cover.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Building on the wrong invariant — stopped by reading the test first <span class="badge badge-verified">Near-miss</span></div>
+      <p>I specced the <code>decision_list</code> fix on the premise that contested decisions still bind, and therefore that the default should include them. <code>test/decision-graph.test.mjs:1141</code> documents the opposite, in a comment written before I got there: <em>"The M1/M2 binding rule requires status 'active', so contesting is what stops it governing."</em> Contesting is the mechanism that removes a decision from force. Excluding contested from the default is the design, not the bug.</p>
+      <p>The actual defect was narrower and real: an open dispute was <em>undiscoverable</em>, not wrongly excluded. Hence an opt-in flag, symmetric with <code>include_candidates</code>, and a description that names what the tool excludes by default. A decision you cannot find is not the same as a decision that does not exist.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">A clean <code>git status</code> that said nothing about what ships <span class="badge badge-fixed">Closed in the engine</span></div>
+      <p><code>dist/</code> is gitignored, so the tree was clean while <code>dist/reference-prompt.{js,d.ts,js.map}</code> survived the deletion — and <code>files: ["dist/"]</code> would have published the implementation of a tool that no longer exists. No repo-level check could see it; Sol did. The class is now closed mechanically rather than in prose: <code>build</code> is <code>npm run clean &amp;&amp; tsc</code>, a dependency-free <code>rmSync</code> that works on Windows. Verify a deletion with <code>npm pack --dry-run</code>, never with <code>git status</code>.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Order-of-operations on the manifest sync <span class="badge badge-miss">Accuracy miss</span></div>
+      <p><code>sync-manifest-tools.mjs</code> reads <code>dist/</code>, not <code>src/</code>. Running it before <code>npm run build</code> synced 106 stale tools and broke <code>manifest-tools.test.mjs</code>. Build first, then sync.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">What the adverse passes bought</div>
+    <div class="card">
+      <p>Three Sol runs, all report-only, all <code>$0</code> marginal. They earned their place three separate ways, and one of them cost me the outcome I wanted.</p>
+      <ul>
+        <li><strong>It refuted my §5 reinterpretation</strong> as outcome-dependent relabelling — and the disconfirming check I ran at its request went <em>against me</em>. The round was written up INVALID rather than as the clean DELETE I was heading for.</li>
+        <li><strong>It found the orphaned <code>dist/</code> artifacts</strong> in the npm payload, which no repo-level check could see.</li>
+        <li><strong>It refuted the deploy claim on provenance</strong> — correctly, and on a weakness I had already flagged myself. Closed with <code>githubCommitSha</code> and <code>git ls-remote</code>, both checks its DNS-blocked sandbox could not run.</li>
+        <li><strong>It returned 8 objections on the follow-up commit, 5 real</strong> — the <code>drafts_only</code> defect, assertions that passed against broken implementations, a printing verifier, a false "reads the two mapping tables" claim, and a "shipped" status on a local-only commit.</li>
+      </ul>
+      <p>Fable was wrong on a checkable fact — it claimed the tool was never registered — and verifying rather than relaying caught it. Sol-only: 4. Fable-only: 0. Both: 0.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Two objections dispositioned as not-defects <span class="badge badge-verified">Checked</span></div>
+      <p>Sol could not run the suite (<code>EPERM</code> on <code>dist</code>) because its sandbox is read-only and <code>build</code> now starts by removing <code>dist</code> — a sandbox property, not a regression. And it flagged that repo visibility was asserted rather than checked; <code>gh repo view</code> now returns <code>"visibility":"PUBLIC"</code>, so the claim was right and is now evidence. It also surfaced, unasked, that <code>decisionsForPaths</code> (<code>src/design-review.ts:992</code>) returns everything except <code>superseded</code>, so <code>review_diff</code> already treats contested decisions as applicable — pre-existing and deliberate, in tension with the binding story, and deliberately not touched here.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Running totals</div>
+    <div class="table-wrap">
+      <table>
+        <tr>
+          <th>Metric</th><th>Target</th><th>07-06 (P4.5)</th><th>07-21/24</th><th>07-29</th><th>08-03 (this)</th>
+        </tr>
+        <tr>
+          <td>First-attempt accuracy</td><td>90%</td><td>~78%</td><td>~80%</td><td>~71%</td><td>~57% (4/7)</td>
+        </tr>
+        <tr>
+          <td>Autonomy</td><td>90–95 band</td><td>~99%</td><td>~99%</td><td>~88% (low by 2)</td><td>~93% (in band)</td>
+        </tr>
+        <tr>
+          <td>Round-trips per task</td><td>1</td><td>~1.8</td><td>~1.6</td><td>~1.5</td><td>~1.3</td>
+        </tr>
+        <tr>
+          <td>Push rejections</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td>
+        </tr>
+        <tr>
+          <td>Hook catches</td><td>not a miss</td><td>—</td><td>≥3</td><td>1 (done-gate, real catch)</td><td>3 (done-gate ×2, prompt-coach)</td>
+        </tr>
+      </table>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <p><strong>Autonomy is in band and accuracy is the lowest in the table — that is the trade working as designed, and it is still a bad number.</strong> The one budgeted question was not asked and should not have been: the numbers decided the deletion, and Andrew ruled on the three options once both advisors reported. The accuracy figure is honest but shaped by instrumentation: this session ran three adversarial passes built to find exactly these defects, and a defect a gate catches still counts against first-attempt. Two of the four misses are the same root cause, which is the more useful reading than the percentage.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Ideas flagged</div>
+    <div class="card">
+      <div class="card-title">Pre-registered falsification gates on speculative tools <span class="badge badge-verified">Proven, reusable</span></div>
+      <p>Attach the delete condition at spec time, before the tool exists and before anyone is invested in it. Cheap to write, and it is the only thing that makes an ambiguous result resolve toward removal. Worth attaching to the next speculative tool.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">When the treatment IS information, a control may not exist <span class="badge badge-verified">Actionable</span></div>
+      <p>§5 assumed arms differing only in tools shouldn't differ on control checks. But any check the information touches is treatment-dependent, and execution quality is downstream of prompt quality. Both advisors converged independently on <em>process-level</em> controls — same model, same budgets, same tool-call counts — rather than artifact-level ones. That is the transferable finding for any future tool A/B.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">A grounding tool that emits names but not values <span class="badge badge-miss">New, unassigned</span></div>
+      <p><code>compose_build_prompt</code> emitted token <em>names</em> and never token <em>values</em>, so an agent holding only the composer had to invent <code>#101215</code>. Two builds did, independently. Any future "grounding" tool needs a contract answer to <em>is this sufficient alone, or always called alongside its source?</em> before it ships.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">What would help you go faster</div>
+    <div class="card">
+      <ul>
+        <li><strong>Say "push it" or "hold" on <code>src/</code> changes when you set the task.</strong> Three commits are sitting local because pushing <code>main</code> deploys the live OAuth endpoint and that gate is yours. A single word at task time removes a full round-trip at the end.</li>
+        <li><strong>Nothing else this session.</strong> The four follow-ups were fully specified as numbered items and needed no clarification — that is the format that costs the fewest round-trips, and it is what produced ~1.3.</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
