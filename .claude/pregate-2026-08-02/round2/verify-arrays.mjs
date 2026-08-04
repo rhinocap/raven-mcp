@@ -1,6 +1,6 @@
 // Re-derives every number in VERDICT.md's three tables from raw/, so the arrays stop
 // being a memory reconstruction and become a reproducible computation that FAILS LOUDLY.
-// Run from .claude/pregate-2026-08-02/round2/:  node verify-arrays.mjs   (exit 1 on any mismatch)
+// Run from anywhere:  node verify-arrays.mjs   (exit 1 on any mismatch)
 //
 // One step is not mechanized: ABL_MAP and R2_ARMS are transcribed BY HAND from
 // ARM-MAPPING.md and ABLATION-MAPPING.md, because those files are prose tables. The
@@ -8,6 +8,13 @@
 // every id present in raw/, both arms balanced) but they cannot prove an arm label was
 // not swapped — read the two mapping files if that is the thing you are checking.
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+// Resolve raw/ against THIS FILE, not the caller's cwd — a check that only runs from one
+// directory is a check that silently stops running.
+const HERE = dirname(fileURLToPath(import.meta.url));
+const raw = (name) => join(HERE, "raw", name);
 
 function index(rows, label) {
   const map = {};
@@ -18,8 +25,8 @@ function index(rows, label) {
   return map;
 }
 
-const R2 = index(JSON.parse(readFileSync("raw/round2-judges-refuters.json", "utf8")).result.builds, "round2");
-const ABL = index(JSON.parse(readFileSync("raw/ablation-judges-refuters.json", "utf8")).result.rows, "ablation");
+const R2 = index(JSON.parse(readFileSync(raw("round2-judges-refuters.json"), "utf8")).result.builds, "round2");
+const ABL = index(JSON.parse(readFileSync(raw("ablation-judges-refuters.json"), "utf8")).result.rows, "ablation");
 
 // From ARM-MAPPING.md / ABLATION-MAPPING.md: [source build, arm, was ablated]
 const ABL_MAP = {
