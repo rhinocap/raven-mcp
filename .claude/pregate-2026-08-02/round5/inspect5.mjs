@@ -1,0 +1,23 @@
+const STORE='/Users/accunliffe/.pregate-r5-8f3a2c', REPO='/Users/accunliffe/projects/raven-mcp';
+const ARENA=STORE+'/arena';
+process.env.RAVEN_NO_USAGE_LOG='1';
+process.env.RAVEN_TASTE_HOME=STORE+'/taste';
+process.env.RAVEN_DECISIONS_HOME=ARENA+'/.raven/decisions';
+process.env.RAVEN_NO_CONSULTATION_TRACE='1';
+const {buildServer}=await import(REPO+'/dist/index.js');
+const {FsTasteStore}=await import(REPO+'/dist/taste-store.js');
+const s=buildServer({remote:false,tasteStore:new FsTasteStore()});
+const call=async(n,a={})=>(await s._registeredTools[n].handler(a,{}))?.content?.[0]?.text??'';
+console.log('--- compose schema:', JSON.stringify(Object.keys(s._registeredTools.compose_build_prompt.inputSchema?.shape??{})));
+const c=await call('compose_build_prompt',{project_dir:ARENA,design_file_path:ARENA+'/DESIGN.md',intent:'Build the reconciliation review screen.',profile:'ledger',project:'arena',surface:'reconciliation review screen'});
+console.log('--- composed length', c.length);
+console.log(c.slice(0,3000));
+console.log('=== default decision_list contested? ');
+const d=await call('decision_list',{});
+console.log(/unmatched/i.test(d), d.length);
+
+for (const m of d.matchAll(/.{90}unmatched.{90}/gis)) console.log('LEAK>>', m[0].replace(/\s+/g,' '));
+const j=JSON.parse(d);
+console.log('keys', Object.keys(j));
+const arr = Array.isArray(j)?j:(j.decisions||j.active||[]);
+console.log('n', arr.length, 'statuses', [...new Set(arr.map(x=>x.status))]);

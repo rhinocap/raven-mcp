@@ -1,0 +1,54 @@
+mC1  primary 16/16   control 7/8   
+mC2  primary 16/16   control 7/8   
+mC3  primary 16/16   control 7/8   
+mC4  primary 16/16   control 7/8   
+mC5  primary 16/16   control 7/8   
+mC6  primary 16/16   control 7/8   
+mC7  primary 16/16   control 7/8   
+mC8  primary 16/16   control 7/8   
+mD1  primary 15/16   control 8/8   D1
+mD10  primary 15/16   control 8/8   D10
+mD11  primary 15/16   control 8/8   D11
+mD2  primary 15/16   control 8/8   D2
+mD3  primary 14/16   control 8/8   D3,T3
+mD4  primary 14/16   control 8/8   D4,D5
+mD5  primary 15/16   control 8/8   D5
+mD6  primary 15/16   control 8/8   D6
+mD7  primary 15/16   control 8/8   D7
+mD8  primary 15/16   control 8/8   D8
+mD9  primary 15/16   control 8/8   D9
+mT1  primary 15/16   control 8/8   T1
+mT2  primary 15/16   control 8/8   T2
+mT3  primary 15/16   control 8/8   T3
+mT4  primary 15/16   control 8/8   T4
+mT5  primary 15/16   control 8/8   T5
+
+wrote /tmp/r5-mutant-scores.json
+
+target  hit  co-flips (unexpected marked !)   defect
+D1       ok  -                               reconcile bar moved above the list
+D2       ok  -                               reconcile does not remove the entries it acted on
+D3       ok  T3                              no visible report after a bulk action
+D4       ok  D5                              load-more button instead of a numbered pager
+D5       ok  -                               filters clear when the page changes
+D6       ok  -                               filter chips are single-select
+D7       ok  -                               negative amounts in parentheses
+D8       ok  -                               row grows on hover
+D9       ok  -                               header control is binary, never mixed
+D10      ok  -                               marker carries a tooltip
+D11      ok  -                               the contested label is silently decided instead of raised
+T1       ok  -                               marker is 12px, outside the dot size the decision names
+T2       ok  -                               batch note leads with the count, not the affordance
+T3       ok  -                               batch note auto-dismisses after five seconds
+T4       ok  -                               total footer sits at the end of the page, not pinned
+T5       ok  -                               amount column edge is not the fixed 56px
+C1       ok  -                               a literal colour outside the token block
+C2       ok  -                               row hover lifts instead of recessing
+C3       ok  -                               a font size outside the five-step ramp
+C4       ok  -                               a banned component name
+C5       ok  -                               an icon-only filter control
+C6       ok  -                               rows animate in
+C7       ok  -                               a transition on the row background
+C8       ok  -                               a target below 44x44
+
+ALL 24 CHECKS SPECIFIC — each defect flips its own check and nothing outside the declared couplings.

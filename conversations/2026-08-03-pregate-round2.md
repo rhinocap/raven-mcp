@@ -758,3 +758,102 @@ True by reading. The evidence that it *costs* something is suggestive and uncont
 5. `/revisit` retrospective still owed (clear `conversations/PROMOTION-QUEUE.md` first).
 6. **UNVERIFIED, still flagged:** the round-2 ablation arrays were reconstructed from memory,
    never read from `round2/raw/`. Not data.
+
+---
+
+## Window 17 — round 5 built and validated (harness only; no builds dispatched)
+
+Mandate from Andrew, verbatim: **"Run round 5 then push"**. Round 4 was INVALID because the
+arm-A boundary lived in prose and broke 6/6 — every arm-A builder read the fixture `DESIGN.md`
+straight off disk, because the composed prompt cited its absolute path. Round 5's whole design
+is the fix for that one sentence: **isolate the arms mechanically, not in prose.**
+
+### The four mechanical changes
+
+1. Fixture store lives OUTSIDE the repo at an undisclosed path (`~/.pregate-r5-8f3a2c`).
+   No prompt names it. Finding it means going looking, which the ground rules forbid.
+2. Every absolute path is redacted out of every tool result by the shim, uniformly for all
+   three arms.
+3. Path arguments are injected by the shim from each tool's own zod `inputSchema.shape` —
+   no builder ever types a path, so no builder ever learns one.
+4. **All three arms are tool arms.** A = `compose_build_prompt` only; B1 = the literal §13
+   one-liner tools (`read_design_md`, `get_taste_profile`, `audit_taste`); B2 = the full
+   local surface minus the composer. B2 is the deciding comparison.
+
+Arm A's prompt block is deliberately only: *"Call `compose_build_prompt` and follow what it
+gives you, then do the task."* The two-call instruction comes from the composer's own
+grounding response. Putting it in the prompt would make "the composer helped" and "being told
+to do two passes helped" inseparable in the prose as well as in the tool.
+
+### measure5.mjs — four fixes, each of which would have wrecked the round
+
+- **Fixture dirs were unscorable.** The dir filter was `^b\d+$`, so the answer key could not
+  be run through the scorer. Added `R5_DIR_PATTERN`, keeping `^b\d+$` as the production
+  default. The fixture is scored by the same code path on purpose.
+- **C7 could never pass.** `getComputedStyle(el).transitionProperty` computes to `"all"` on
+  an element with no transition at all, so the property name alone says nothing. Now a
+  property only counts if its paired `transitionDuration` is > 0. Same class as the earlier
+  C1 bug: a harness that cannot pass is as broken as one that cannot fail.
+- **D5/D6 failed on the conformant fixture.** `renderFilters()` rebuilds the chip DOM, so
+  node references captured before a click are detached. Chips are now addressed BY LABEL and
+  re-queried after every click. A harness that punished re-rendering would be measuring the
+  rendering strategy, not the decision.
+- **D2 failed on the conformant fixture (12 → 12 rows).** With 12 of 24 per page, removing 2
+  refills the page from the remainder — a count test would fail the very build the decisions
+  ask for. Removal is now checked by row IDENTITY.
+
+### Harness validation — the three-part proof Amendment 1 requires
+
+| gate | result |
+|---|---|
+| conformant fixture | **16/16 discriminating + 8/8 control**, exactly |
+| defective fixture (plausible cold build, every decision inverted) | **0/16 + 0/8**, exactly |
+| mutation matrix (`mutate5.mjs`, 24 single-defect mutants) | **24/24 specific** |
+| fixture isolation (`verify-fixture5.mjs`) | 16 facts absent from the shared surface, present in the composer, reachable by B2, contested label gated |
+| decision rule (`validate-analyze5.mjs`) | all 4 branches reachable, incl. the round-4 ordering bug |
+
+Declared co-flips, and only these: `D3 → T3`, `D4 → D5`. Every mutant `find` string must match
+exactly once or authoring is rejected.
+
+### Two leaks found and removed from the shared `DESIGN.md`
+
+- `ds-filter-chip — narrows the list. Several may be relevant at once.` → gave away D6.
+- `ds-amount-cell — the money. Right-hand end of the row.` → gave away T5.
+
+A leak inflates the B arms and biases against arm A — conservative, but it wastes a check.
+Also re-seeded: `filter_multi`'s rationale said "unmatched", colliding with D11's probe.
+New decision IDs after the re-seed: `bar_below=dec_msdyq34a_04p3`, `no_confirm=…_tfum`,
+`paginate=…b_d90i`, `filter_multi=…b_8daa`, `filter_persists=…b_zxp6`, `negative_ink=…c_we0s`,
+`row_height_stable=…c_bmr7`, `header_tristate=…c_0pco`, `marker_no_tooltip=…c_64s3`,
+`select_no_drag=…d_jfkp`, `break_label=…d_bkqq` (contested).
+
+### Pre-registration (`PREREGISTRATION-R5.md`, 11 sections)
+
+- δ = 0.15 × 16 = 2.4, **rounded DOWN to ±2.0** — a tighter equivalence band is harder on the
+  tool, which is the direction a self-interested party must round.
+- **Equivalence is tested FIRST.** Round 4's `analyze4.mjs` tested `lo > 0` first, so an
+  interval like [0.5, 1.5] against δ=2 — detectable AND negligible at once — silently
+  resolved as PASS. §13's clause is about "no better", so it is a delete.
+  `validate-analyze5.mjs` carries that exact case as a regression row.
+- §0 states the probation reading plainly: an invalid round is not a reprieve; round 5
+  replaces round 4; INCONCLUSIVE buys exactly one more round; equivalence or inferiority
+  deletes now. Flagged as Andrew's call, because my recommendation is self-serving.
+- Sealed assignment, fixed-seed Fisher–Yates (seed = `pregate-r5-8f3a2c`), 6 per arm.
+- §10 records the residual risk honestly: the path is undisclosed, not blocked; and arm A's
+  two-call workflow is not separable from "being told to do two passes".
+
+### State
+
+Harness complete and green on every gate. **No builds dispatched. Nothing committed yet.**
+`main` is 8 commits ahead of origin; round 5 is entirely untracked.
+
+### Next commands, in order (§11)
+
+1. `node .claude/pregate-2026-08-02/round5/make-prompts5.mjs`
+2. seal → `SEAL-HASHES-R5.txt` (every harness file + both fixtures + assignment.json)
+3. **commit before the first build** — `git commit --only` with explicit paths, after a fresh
+   `git status` (the auto-save hook keeps staging foreign files)
+4. dispatch 18 builders, concurrency 4, record `agent-map.txt`
+5. `measure5.mjs` → `arm-integrity5.mjs` → `leak-check5.mjs` → `analyze5.mjs`
+6. Sol medium report-only falsification pass → `VERDICT-R5.md`
+7. `RAVEN_NO_USAGE_LOG=1 npm test` → push → verify anon hash `f64bb18…2bb0a6` against prod

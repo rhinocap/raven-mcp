@@ -48,3 +48,7 @@ dist/
 
 # Personal taste-store snapshots captured for pre-gate experiments (public repo)
 .claude/pregate-*/round*/taste/
+
+# Harness mutants: 24 single-defect copies of a fixture, regenerated deterministically by
+# mutate5.mjs. The evidence is the matrix it prints, which IS committed.
+.claude/pregate-*/round*/mutants/

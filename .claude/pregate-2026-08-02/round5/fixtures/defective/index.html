@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Reconciliation</title>
+<style>
+  /* Literal values throughout, no tokens — this is the cold build. */
+  body { margin: 0; background: #0d0f12; color: #e6e8ea; font: 14px/1.5 -apple-system, system-ui, sans-serif; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 32px 24px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #8b9299; font-size: 14px; margin: 0 0 24px; }
+
+  .reconcile-bar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #171a1e;
+    border: 1px solid #262a30; border-radius: 8px; margin-bottom: 16px; }
+  .reconcile-bar button { background: #3b74d6; color: #fff; border: 0; border-radius: 6px;
+    padding: 6px 14px; font-size: 14px; height: 30px; cursor: pointer; }
+  .reconcile-bar .count { color: #8b9299; font-size: 14px; }
+
+  .filters { display: flex; gap: 8px; margin-bottom: 16px; }
+  .filter-chip { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 6px;
+    border: 1px solid #262a30; background: transparent; cursor: pointer; padding: 0; }
+  .filter-chip[data-on="1"] { background: #23262a; border-color: #3b74d6; }
+  .filter-chip svg { width: 16px; height: 16px; }
+
+  .list { border: 1px solid #262a30; border-radius: 8px; overflow: hidden; }
+  .list-head, .entry-row { display: grid; grid-template-columns: 40px 110px 1fr 22% 110px; align-items: center;
+    gap: 12px; padding: 8px 16px; }
+  .list-head { background: #171a1e; color: #8b9299; font-size: 14px; }
+  .entry-row { border-top: 1px solid #1c2025; transition: background-color .18s ease; animation: rowIn .28s ease both; }
+  @keyframes rowIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .entry-row:hover { background: #23262a; padding-top: 12px; padding-bottom: 12px; }
+  .entry-row.sel { background: #1d2733; }
+  .entry-row input[type=checkbox] { width: 16px; height: 16px; }
+  .date { color: #8b9299; font-size: 14px; }
+  .desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .amount-cell { font-variant-numeric: tabular-nums; }
+  .amount-cell.neg { color: #cf5b45; }
+  .match-marker { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; font-size: 14px;
+    border-radius: 999px; border: 1px solid currentColor; background: transparent; }
+  .match-marker.match { color: #4f8f74; }
+  .match-marker.review { color: #c99a34; }
+  .match-marker.break { color: #cf5b45; }
+
+  .more { display: block; width: 100%; margin-top: 12px; padding: 10px; background: transparent;
+    color: #b7bec5; border: 1px dashed #262a30; border-radius: 8px; font-size: 14px; cursor: pointer; }
+
+  .total-footer { margin-top: 24px; display: flex; justify-content: space-between; align-items: baseline;
+    padding: 16px; background: #171a1e; border: 1px solid #262a30; border-radius: 8px; }
+  .total-footer .n { font-size: 22px; font-variant-numeric: tabular-nums; }
+
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; place-items: center; }
+  .scrim.open { display: grid; }
+  .confirm { background: #171a1e; border: 1px solid #262a30; border-radius: 10px; padding: 20px; width: 380px; }
+  .confirm h2 { font-size: 16px; margin: 0 0 8px; }
+  .confirm p { color: #8b9299; font-size: 14px; margin: 0 0 16px; }
+  .confirm .row { display: flex; gap: 8px; justify-content: flex-end; }
+  .confirm button { border-radius: 6px; padding: 6px 14px; font-size: 14px; height: 30px; cursor: pointer; }
+  .confirm .go { background: #3b74d6; color: #fff; border: 0; }
+  .confirm .no { background: transparent; color: #b7bec5; border: 1px solid #262a30; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Reconciliation</h1>
+  <p class="sub">24 imported entries from Business Current — July 2026</p>
+
+  <div class="reconcile-bar">
+    <button id="go" type="button">Reconcile selected</button>
+    <span class="count" id="count">0 selected</span>
+  </div>
+
+  <div class="filters" id="filters"></div>
+
+  <div class="list">
+    <div class="list-head">
+      <input type="checkbox" id="all">
+      <span>Date</span><span>Description</span><span>Amount</span><span>State</span>
+    </div>
+    <div id="rows"></div>
+  </div>
+  <button class="more" id="more" type="button">Load more</button>
+
+  <div class="total-footer">
+    <span>Unreconciled</span>
+    <span class="n" id="total">£0.00</span>
+  </div>
+</div>
+
+<div class="scrim" id="scrim">
+  <div class="confirm" role="dialog" aria-modal="true" aria-label="Confirm reconcile">
+    <h2>Reconcile these entries?</h2>
+    <p id="confirmBody">This will mark the selected entries as reconciled.</p>
+    <div class="row">
+      <button class="no" type="button" id="cancel">Cancel</button>
+      <button class="go" type="button" id="confirm">Reconcile</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DATA = [
+  ['2026-07-02','Kingsway Supplies Ltd',-284.50,'match'],
+  ['2026-07-02','Card payment — SUMUP *CAFE',-14.20,'review'],
+  ['2026-07-03','Invoice 20418 — Hartley & Co',3150.00,'match'],
+  ['2026-07-03','Direct debit — BRITISH GAS',-212.88,'match'],
+  ['2026-07-04','FASTER PAYMENT REF 88213',940.00,'break'],
+  ['2026-07-06','Kingsway Supplies Ltd',-96.75,'match'],
+  ['2026-07-07','Card payment — TFL TRAVEL',-8.40,'review'],
+  ['2026-07-08','Invoice 20419 — Marchmont Trust',1875.00,'match'],
+  ['2026-07-09','Standing order — OFFICE RENT',-1450.00,'match'],
+  ['2026-07-10','Refund — Kingsway Supplies Ltd',42.30,'review'],
+  ['2026-07-11','FASTER PAYMENT REF 88407',512.00,'break'],
+  ['2026-07-13','Card payment — AMZN MKTPLACE',-137.99,'review'],
+  ['2026-07-14','Invoice 20420 — Hartley & Co',2240.00,'match'],
+  ['2026-07-15','Direct debit — VODAFONE',-78.00,'match'],
+  ['2026-07-16','Card payment — SUMUP *CAFE',-11.60,'review'],
+  ['2026-07-17','Kingsway Supplies Ltd',-318.05,'match'],
+  ['2026-07-18','FASTER PAYMENT REF 88612',275.00,'break'],
+  ['2026-07-20','Invoice 20421 — Delaney Partners',4100.00,'match'],
+  ['2026-07-21','Card payment — STATIONERY DIRECT',-63.44,'review'],
+  ['2026-07-22','Direct debit — INSURANCE PREMIUM',-189.50,'match'],
+  ['2026-07-23','Kingsway Supplies Ltd',-145.20,'match'],
+  ['2026-07-24','FASTER PAYMENT REF 88903',1020.00,'break'],
+  ['2026-07-25','Invoice 20422 — Marchmont Trust',1660.00,'match'],
+  ['2026-07-27','Card payment — TFL TRAVEL',-6.80,'review'],
+];
+const LABEL = { match: 'Match', review: 'Review', break: 'Break' };
+const ICON = {
+  match: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8.5l3.2 3.2L13 5"/></svg>',
+  review: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3.5"/></svg>',
+  break: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+};
+
+let entries = DATA.map((d, i) => ({ id: i, date: d[0], desc: d[1], amt: d[2], state: d[3], done: false }));
+let shown = 12;
+let filter = null;              // single-select
+let selected = new Set();
+
+const money = (n) => (n < 0 ? '(£' + Math.abs(n).toFixed(2) + ')' : '£' + n.toFixed(2));
+
+function visible() {
+  return entries.filter((e) => !e.done && (!filter || e.state === filter));
+}
+
+function renderFilters() {
+  const host = document.getElementById('filters');
+  host.innerHTML = '';
+  for (const s of ['match', 'review', 'break']) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'filter-chip';
+    b.title = LABEL[s];
+    b.dataset.on = filter === s ? '1' : '0';
+    b.innerHTML = ICON[s];
+    b.addEventListener('click', () => { filter = filter === s ? null : s; shown = 12; render(); });
+    host.appendChild(b);
+  }
+}
+
+function renderRows() {
+  const host = document.getElementById('rows');
+  host.innerHTML = '';
+  for (const e of visible().slice(0, shown)) {
+    const row = document.createElement('div');
+    row.className = 'entry-row' + (selected.has(e.id) ? ' sel' : '');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = selected.has(e.id);
+    cb.addEventListener('change', () => {
+      if (cb.checked) selected.add(e.id); else selected.delete(e.id);
+      render();
+    });
+    const d = document.createElement('span'); d.className = 'date'; d.textContent = e.date;
+    const desc = document.createElement('span'); desc.className = 'desc'; desc.textContent = e.desc;
+    const amt = document.createElement('span');
+    amt.className = 'amount-cell' + (e.amt < 0 ? ' neg' : '');
+    amt.textContent = money(e.amt);
+    const mark = document.createElement('span');
+    mark.className = 'match-marker ' + e.state;
+    mark.title = LABEL[e.state] + ' — confidence from the import rules';
+    mark.textContent = LABEL[e.state];
+    row.append(cb, d, desc, amt, mark);
+    host.appendChild(row);
+  }
+}
+
+function renderChrome() {
+  document.getElementById('count').textContent = selected.size + ' selected';
+  const all = document.getElementById('all');
+  all.checked = selected.size > 0;
+  const rest = visible().reduce((s, e) => s + e.amt, 0);
+  document.getElementById('total').textContent = money(rest);
+  document.getElementById('more').style.display = visible().length > shown ? 'block' : 'none';
+}
+
+function render() { renderFilters(); renderRows(); renderChrome(); }
+
+document.getElementById('all').addEventListener('change', (ev) => {
+  if (ev.target.checked) visible().slice(0, shown).forEach((e) => selected.add(e.id));
+  else selected.clear();
+  render();
+});
+document.getElementById('more').addEventListener('click', () => { shown += 12; render(); });
+document.getElementById('go').addEventListener('click', () => {
+  if (!selected.size) return;
+  document.getElementById('confirmBody').textContent =
+    'This will mark ' + selected.size + ' entries as reconciled.';
+  document.getElementById('scrim').classList.add('open');
+});
+document.getElementById('cancel').addEventListener('click', () => {
+  document.getElementById('scrim').classList.remove('open');
+});
+document.getElementById('confirm').addEventListener('click', () => {
+  for (const id of selected) { const e = entries.find((x) => x.id === id); if (e) e.done = true; }
+  selected.clear();
+  document.getElementById('scrim').classList.remove('open');
+  render();
+});
+
+render();
+</script>
+</body>
+</html>

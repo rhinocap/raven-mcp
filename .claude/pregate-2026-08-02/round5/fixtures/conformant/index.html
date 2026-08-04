@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Reconciliation review</title>
+<style>
+:root {
+  --color-surface-base: #101215;
+  --color-surface-raised: #171a1e;
+  --color-surface-recessed: #0b0d0f;
+  --color-ink-primary: #e6e8ea;
+  --color-ink-secondary: #9aa1a8;
+  --color-signal-match: #4f8f74;
+  --color-signal-review: #c99a34;
+  --color-signal-break: #cf5b45;
+  --color-hairline: #242a30;
+  --type-xs: 12px;
+  --type-sm: 13px;
+  --type-md: 15px;
+  --type-lg: 19px;
+  --type-xl: 26px;
+  --space-tight: 8px;
+  --space-base: 16px;
+  --space-wide: 24px;
+  --space-column: 56px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--color-surface-base);
+  color: var(--color-ink-primary);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: var(--type-sm);
+  padding-bottom: 96px;
+}
+.page { max-width: 1120px; margin: 0 auto; padding: var(--space-wide); }
+h1 { font-size: var(--type-xl); font-weight: 600; margin-bottom: var(--space-base); }
+.sub { font-size: var(--type-md); color: var(--color-ink-secondary); margin-bottom: var(--space-wide); }
+
+.filters { display: flex; gap: var(--space-tight); margin-bottom: var(--space-base); flex-wrap: wrap; }
+.ds-filter-chip {
+  font: inherit; font-size: var(--type-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-ink-secondary);
+  border: 0; border-radius: var(--space-wide);
+  padding: 0 var(--space-base);
+  min-width: 96px; height: 44px;
+  cursor: pointer;
+}
+.ds-filter-chip[aria-pressed="true"] { background: var(--color-surface-recessed); color: var(--color-ink-primary); }
+
+.listhead {
+  display: flex; align-items: center; gap: var(--space-base);
+  padding: 0 var(--space-column) 0 var(--space-base);
+  border-bottom: 1px solid var(--color-hairline);
+  color: var(--color-ink-secondary); font-size: var(--type-xs);
+  height: 44px;
+}
+.listhead .grow { flex: 1; }
+
+input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none;
+  width: 44px; height: 44px; flex: 0 0 44px;
+  background: transparent; border: 0; cursor: pointer;
+  display: grid; place-content: center;
+}
+input[type="checkbox"]::before {
+  content: ""; width: var(--space-base); height: var(--space-base);
+  border: 1px solid var(--color-hairline); border-radius: 3px;
+  background: var(--color-surface-raised);
+}
+input[type="checkbox"]:checked::before { background: var(--color-signal-match); }
+input[type="checkbox"]:indeterminate::before { background: var(--color-ink-secondary); }
+
+#list { list-style: none; }
+.ds-entry-row {
+  display: flex; align-items: center; gap: var(--space-base);
+  padding: 0 var(--space-column) 0 var(--space-base);
+  height: 52px;
+  border-bottom: 1px solid var(--color-hairline);
+  font-size: var(--type-sm);
+  background: var(--color-surface-base);
+}
+.ds-entry-row:hover { background: var(--color-surface-recessed); }
+.ds-entry-row[data-selected="true"] { background: var(--color-surface-recessed); }
+.ds-entry-row .date { color: var(--color-ink-secondary); width: 88px; flex: 0 0 88px; }
+.ds-entry-row .desc { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-entry-row .state { color: var(--color-ink-secondary); font-size: var(--type-xs); width: 72px; flex: 0 0 72px; }
+
+.ds-match-marker {
+  width: var(--space-tight); height: var(--space-tight);
+  border-radius: 50%; flex: 0 0 var(--space-tight);
+}
+.ds-match-marker[data-match="match"] { background: var(--color-signal-match); }
+.ds-match-marker[data-match="review"] { background: var(--color-signal-review); }
+.ds-match-marker[data-match="break"] { background: var(--color-signal-break); }
+
+.ds-amount-cell {
+  font-variant-numeric: tabular-nums;
+  text-align: right; width: 120px; flex: 0 0 120px;
+  color: var(--color-ink-primary);
+}
+
+.pager { display: flex; gap: var(--space-tight); margin-top: var(--space-base); }
+.pager button {
+  font: inherit; font-size: var(--type-sm);
+  min-width: 44px; height: 44px;
+  background: var(--color-surface-raised); color: var(--color-ink-secondary);
+  border: 0; border-radius: var(--space-tight); cursor: pointer;
+}
+.pager button[aria-current="true"] { background: var(--color-surface-recessed); color: var(--color-ink-primary); }
+
+.ds-reconcile-bar {
+  display: flex; align-items: center; gap: var(--space-base);
+  margin-top: var(--space-wide); padding: var(--space-base);
+  background: var(--color-surface-raised);
+  border-radius: var(--space-tight);
+  font-size: var(--type-sm); color: var(--color-ink-secondary);
+}
+.ds-reconcile-bar button {
+  font: inherit; font-size: var(--type-sm);
+  margin-left: auto; padding: 0 var(--space-base); height: 44px;
+  background: var(--color-signal-match); color: var(--color-surface-base);
+  border: 0; border-radius: var(--space-tight); cursor: pointer;
+}
+.ds-reconcile-bar button[disabled] { background: var(--color-surface-recessed); color: var(--color-ink-secondary); cursor: default; }
+
+.ds-batch-note {
+  display: flex; align-items: center; gap: var(--space-tight);
+  margin-top: var(--space-base); padding: 0 var(--space-base);
+  height: 44px;
+  background: var(--color-surface-raised);
+  border-left: 2px solid var(--color-signal-match);
+  font-size: var(--type-sm);
+}
+.ds-batch-note button {
+  font: inherit; font-size: var(--type-sm);
+  background: transparent; border: 0; color: var(--color-ink-primary);
+  text-decoration: underline; cursor: pointer; padding: 0; height: 44px;
+}
+
+.ds-total-footer {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: center; gap: var(--space-base);
+  height: var(--space-column);
+  padding: 0 var(--space-wide);
+  background: var(--color-surface-raised);
+  border-top: 1px solid var(--color-hairline);
+  font-size: var(--type-md);
+}
+.ds-total-footer .label { color: var(--color-ink-secondary); font-size: var(--type-sm); }
+.ds-total-footer .value { margin-left: auto; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Reconciliation review</h1>
+  <p class="sub">24 imported entries awaiting reconciliation.</p>
+
+  <div class="filters" id="filters"></div>
+
+  <div class="listhead">
+    <input type="checkbox" id="selectAll" aria-label="Select all entries on this page">
+    <span class="grow">Entry</span>
+    <span>Amount</span>
+  </div>
+
+  <ul id="list"></ul>
+
+  <div class="pager" id="pager"></div>
+
+  <div class="ds-reconcile-bar" id="bar">
+    <span id="barLabel">No entries selected</span>
+    <button id="reconcile" disabled>Reconcile</button>
+  </div>
+
+  <div id="noteSlot"></div>
+</div>
+
+<div class="ds-total-footer">
+  <span class="label">Unreconciled</span>
+  <span class="value" id="total"></span>
+</div>
+
+<script>
+const SEED = [
+  ['2026-07-02','Kingsway Supplies Ltd',-284.50,'match'],
+  ['2026-07-02','Card payment — SUMUP *CAFE',-14.20,'review'],
+  ['2026-07-03','Invoice 20418 — Hartley & Co',3150.00,'match'],
+  ['2026-07-03','Direct debit — BRITISH GAS',-212.88,'match'],
+  ['2026-07-04','FASTER PAYMENT REF 88213',940.00,'break'],
+  ['2026-07-06','Kingsway Supplies Ltd',-96.75,'match'],
+  ['2026-07-07','Card payment — TFL TRAVEL',-8.40,'review'],
+  ['2026-07-08','Invoice 20419 — Marchmont Trust',1875.00,'match'],
+  ['2026-07-09','Standing order — OFFICE RENT',-1450.00,'match'],
+  ['2026-07-10','Refund — Kingsway Supplies Ltd',42.30,'review'],
+  ['2026-07-11','FASTER PAYMENT REF 88407',512.00,'break'],
+  ['2026-07-13','Card payment — AMZN MKTPLACE',-137.99,'review'],
+  ['2026-07-14','Invoice 20420 — Hartley & Co',2240.00,'match'],
+  ['2026-07-15','Direct debit — VODAFONE',-78.00,'match'],
+  ['2026-07-16','Card payment — SUMUP *CAFE',-11.60,'review'],
+  ['2026-07-17','Kingsway Supplies Ltd',-318.05,'match'],
+  ['2026-07-18','FASTER PAYMENT REF 88612',275.00,'break'],
+  ['2026-07-20','Invoice 20421 — Delaney Partners',4100.00,'match'],
+  ['2026-07-21','Card payment — STATIONERY DIRECT',-63.44,'review'],
+  ['2026-07-22','Direct debit — INSURANCE PREMIUM',-189.50,'match'],
+  ['2026-07-23','Kingsway Supplies Ltd',-145.20,'match'],
+  ['2026-07-24','FASTER PAYMENT REF 88903',1020.00,'break'],
+  ['2026-07-25','Invoice 20422 — Marchmont Trust',1660.00,'match'],
+  ['2026-07-27','Card payment — TFL TRAVEL',-6.80,'review'],
+].map((r, i) => ({ id: i + 1, date: r[0], desc: r[1], amount: r[2], state: r[3], done: false }));
+
+const PER_PAGE = 12;
+const STATES = ['match', 'review', 'break'];
+// The state word lives in the row body, not inside the marker (taste decision `color`).
+const WORD = { match: 'Matched', review: 'Review', break: 'Break' };
+
+let entries = SEED.slice();
+let active = new Set();       // filter chips — multi-select, and they survive page changes
+let selected = new Set();
+let page = 1;
+let lastBatch = null;
+
+const money = (n) => (n < 0 ? '-' : '') + '£' + Math.abs(n).toFixed(2);
+
+function visible() {
+  const live = entries.filter((e) => !e.done);
+  return active.size ? live.filter((e) => active.has(e.state)) : live;
+}
+function pageSlice() {
+  const v = visible();
+  const start = (page - 1) * PER_PAGE;
+  return v.slice(start, start + PER_PAGE);
+}
+
+function renderFilters() {
+  const host = document.getElementById('filters');
+  host.innerHTML = '';
+  for (const s of STATES) {
+    const b = document.createElement('button');
+    b.className = 'ds-filter-chip';
+    b.type = 'button';
+    b.textContent = WORD[s];
+    b.setAttribute('aria-pressed', active.has(s) ? 'true' : 'false');
+    b.addEventListener('click', () => {
+      if (active.has(s)) active.delete(s); else active.add(s);
+      const pages = Math.max(1, Math.ceil(visible().length / PER_PAGE));
+      if (page > pages) page = pages;
+      render();
+    });
+    host.appendChild(b);
+  }
+}
+
+function renderList() {
+  const host = document.getElementById('list');
+  host.innerHTML = '';
+  for (const e of pageSlice()) {
+    const li = document.createElement('li');
+    li.className = 'ds-entry-row';
+    li.dataset.entry = String(e.id);
+    li.dataset.selected = selected.has(e.id) ? 'true' : 'false';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = selected.has(e.id);
+    cb.setAttribute('aria-label', 'Select ' + e.desc);
+    cb.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (selected.has(e.id)) selected.delete(e.id); else selected.add(e.id);
+      render();
+    });
+
+    const marker = document.createElement('span');
+    marker.className = 'ds-match-marker';
+    marker.dataset.match = e.state;
+
+    const date = document.createElement('span');
+    date.className = 'date';
+    date.textContent = e.date;
+
+    const desc = document.createElement('span');
+    desc.className = 'desc';
+    desc.textContent = e.desc;
+
+    const state = document.createElement('span');
+    state.className = 'state';
+    state.textContent = WORD[e.state];
+
+    const amount = document.createElement('span');
+    amount.className = 'ds-amount-cell';
+    amount.textContent = money(e.amount);
+
+    li.append(cb, marker, date, desc, state, amount);
+    li.addEventListener('click', () => {
+      if (selected.has(e.id)) selected.delete(e.id); else selected.add(e.id);
+      render();
+    });
+    host.appendChild(li);
+  }
+}
+
+function renderPager() {
+  const host = document.getElementById('pager');
+  host.innerHTML = '';
+  const pages = Math.max(1, Math.ceil(visible().length / PER_PAGE));
+  for (let p = 1; p <= pages; p++) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = String(p);
+    b.setAttribute('aria-current', p === page ? 'true' : 'false');
+    b.addEventListener('click', () => { page = p; render(); });
+    host.appendChild(b);
+  }
+}
+
+function renderHeader() {
+  const cb = document.getElementById('selectAll');
+  const ids = pageSlice().map((e) => e.id);
+  const hit = ids.filter((id) => selected.has(id)).length;
+  cb.checked = ids.length > 0 && hit === ids.length;
+  cb.indeterminate = hit > 0 && hit < ids.length;
+}
+
+function renderBar() {
+  const n = selected.size;
+  document.getElementById('barLabel').textContent =
+    n === 0 ? 'No entries selected' : n + (n === 1 ? ' entry selected' : ' entries selected');
+  const btn = document.getElementById('reconcile');
+  btn.disabled = n === 0;
+  btn.textContent = 'Reconcile';
+}
+
+function renderNote() {
+  const slot = document.getElementById('noteSlot');
+  slot.innerHTML = '';
+  if (!lastBatch) return;
+  const note = document.createElement('div');
+  note.className = 'ds-batch-note';
+  const undo = document.createElement('button');
+  undo.type = 'button';
+  undo.textContent = 'Undo';
+  undo.addEventListener('click', () => {
+    for (const id of lastBatch) { const e = entries.find((x) => x.id === id); if (e) e.done = false; }
+    lastBatch = null;
+    render();
+  });
+  const rest = document.createElement('span');
+  rest.textContent = ' — ' + lastBatch.length + ' reconciled';
+  note.append(undo, rest);
+  slot.appendChild(note);
+}
+
+function renderTotal() {
+  const sum = entries.filter((e) => !e.done).reduce((a, e) => a + e.amount, 0);
+  document.getElementById('total').textContent = money(sum);
+}
+
+function render() {
+  renderFilters(); renderList(); renderPager(); renderHeader();
+  renderBar(); renderNote(); renderTotal();
+}
+
+document.getElementById('selectAll').addEventListener('click', () => {
+  const ids = pageSlice().map((e) => e.id);
+  const allOn = ids.every((id) => selected.has(id));
+  for (const id of ids) { if (allOn) selected.delete(id); else selected.add(id); }
+  render();
+});
+
+// Applies immediately. No dialog: the action is reversible and the note below reports it.
+document.getElementById('reconcile').addEventListener('click', () => {
+  if (!selected.size) return;
+  const batch = [...selected];
+  for (const id of batch) { const e = entries.find((x) => x.id === id); if (e) e.done = true; }
+  selected.clear();
+  lastBatch = batch;
+  const pages = Math.max(1, Math.ceil(visible().length / PER_PAGE));
+  if (page > pages) page = pages;
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
