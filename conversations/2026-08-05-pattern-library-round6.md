@@ -4,11 +4,18 @@ Per-instance log. Continues `2026-08-05-pattern-library-round5.md`.
 
 ## Where this left off
 
-Rounds 5 through 9 are all dispositioned and every surface is re-verified.
-Nothing is pushed. Local `main` is 9 commits ahead of `origin/main` (`985e5ce`);
-the round-9 batch (§3e) is the uncommitted tree in §4. Sol round 9 has not run
-yet — it is the next action, and no completion claim may reach Andrew before it
-is dispositioned.
+Rounds 5 through 9 are all dispositioned and every surface is re-verified. Round
+9 is committed as `b332f9a`; the working tree is clean and local `main` is **10
+commits ahead** of `origin/main` (`985e5ce`). Nothing is pushed.
+
+A second private-content leak was caught before any push and stripped from the
+unpushed history (§3f) — the §3d fix had been an enumeration of one agent's
+filename, and four `*-codex.log` transcripts from the same fan-out slipped
+through it. The ignore rule is now the class, `.claude/**/*.log`.
+
+**Sol round 9 is running** and its verdict is not yet dispositioned. Reading it
+is the next action, and no completion claim may reach Andrew before it is
+dispositioned.
 
 ## 1. Andrew's reported bug — root-caused, reproduced, and now falsifiable
 
@@ -422,50 +429,136 @@ round), anon remote 45 tools, hash `f64bb18…2bb0a6` matches, overlay mirror
 byte-identical. Full suite **1245 / 1242 pass / 0 fail / 3 skipped**; the live
 e2e passes all 33 checks.
 
-## 4. Uncommitted set
+## 3f. The same leak reopened one round later, because §3d's fix was an enumeration
 
-Everything through round 8 is committed (local `main` is 9 commits ahead of
-`origin/main` at `985e5ce`; the round-7/8 hashes are post-filter-branch:
-`cbba999`, `e675dee`, `ce7a230`, `a6114c4`). What remains uncommitted is the
-round-9 batch:
+The pre-commit evidence scan for round 9 found four MORE agent transcripts
+already committed in the unpushed range:
 
-Modified: `CLAUDE.md`, `src/grab-bridge.ts`, `browser/raven-grab.js`,
-`web/public/raven-grab.js`, `test/grab-bridge-proxy-round4.test.mjs`,
-`test/grab-bridge-proxy-round7.test.mjs`,
+| file | `/Users/accunliffe/…` paths | `.claude/skills` refs | `.codex/memories` refs |
+|---|---|---|---|
+| `A-codex.log` | 24 | 3 | 3 |
+| `A2-codex.log` | 38 | 3 | 1 |
+| `B1-codex.log` | 50 | 2 | 1 |
+| `B2-codex.log` | 23 | 3 | 1 |
+
+These are from the **same fan-out** as the Sol logs §3d stripped, sitting in the
+**same directory**, committed in the **same range**. The §3d fix did not touch
+them.
+
+The reason is worth stating plainly, because I wrote the wrong fix while
+explicitly congratulating myself on writing the right one. §3d correctly
+identified that a *location*-scoped rule (`.claude/pregate-*/sol/`) fails when the
+directory gets a different name, and replaced it with a *filename*-scoped rule
+(`SOL-*.log`). But `SOL-*` is an **enumeration of one agent**. The class is "raw
+agent or tool transcript", and Codex writes `*-codex.log`. Trading one narrow
+predicate for a differently-narrow predicate is not generalisation — and it is
+exactly the trigger-set-narrowing failure mode already recorded in
+`~/.claude/CLAUDE.md` under *"when rewriting a rule, diff the TRIGGER SET, not the
+prose."* I had that rule loaded and still shipped the narrowing.
+
+The rule is now the class:
+
+```
+.claude/pregate-*/sol/
+.claude/**/*.log
+SOL-*.log
+sol-*.log
+```
+
+No `.log` under `.claude/` ships, whoever wrote it. That also sweeps in the
+test-suite captures (`FULL-SUITE-*`, `E2E-*`, `HOLD-BRIDGE`), which are clean but
+are 113KB of regenerable noise whose numbers belong in this file anyway. What
+SHOULD ship as evidence is prose and screenshots — both of which a human reads
+before committing, which is the actual safety property.
+
+Verified with `git check-ignore -v --no-index`, matching `.gitignore:77` on both
+an already-tracked `A2-codex.log` and a new `E2E-ROUND6.log` — not by grepping
+for the filename in `.gitignore`, which is how a rule gets confirmed present and
+non-functional.
+
+Stripped the same way as §3d, over all 10 unpushed commits:
+`git filter-branch --index-filter 'git rm --cached --ignore-unmatch
+".claude/patternlib-2026-08-04/out/*.log"' -- origin/main..HEAD`, 13 files
+removed. Two details that bit or nearly bit:
+
+1. **`refs/original/` from §3d's run still existed**, and filter-branch refuses to
+   overwrite it. The reflex is `-f`; the right move is to look at what it holds
+   first — it was the round-8 pre-strip lineage, divergent from HEAD and still
+   carrying 19 transcripts. Preserved it as `refs/pre-strip/round8-main` rather
+   than discarding it, then cleared `refs/original`.
+2. **The final checkout deletes the now-untracked files from disk again** — the
+   same thing §3d recorded. Copied all 24 to the scratchpad *before* running the
+   rewrite this time, and restored with `cp -n` after. 24 on disk, tree clean.
+
+Rewrite proven surgical: `git diff --name-status refs/original/refs/heads/main
+HEAD` is exactly 13 `D` lines, zero non-`.log` entries, zero non-`D` statuses, and
+`git rev-list --count origin/main..HEAD` still reads 10.
+
+Still true, and still the thing that would have caught this on day one: a
+credential-shaped grep never fires on this class. The scan that works is
+`/Users/<name>`, `.agents/skills`, `.codex/memories` — and it has to run against
+`git ls-tree -r HEAD`, not against `git status`, because the leak was already
+committed both times.
+
+## 4. Committed set — round 9 is `b332f9a`
+
+Round 9 landed as `b332f9a` ("Require a top-level destination for Lax, and
+separate an IME commit from a send"), 13 files, +527/−49. Local `main` is **10
+commits ahead** of `origin/main` at `985e5ce`. Nothing is pushed.
+
+Because §3f's filter-branch rewrote the whole unpushed range afterwards, **every
+hash in §3b–§3e above is stale.** Current lineage, oldest first:
+`ff9bf9e → 4e4793e → 2cea520 → d766d8d → 72ad78e → cbba999 → e675dee → ce7a230
+→ a6114c4 → b332f9a` — re-read them with `git log --oneline origin/main..HEAD`
+rather than trusting any hash written earlier in this file.
+
+Committed in `b332f9a`: `.gitignore`, `CLAUDE.md`, `src/grab-bridge.ts`,
+`browser/raven-grab.js`, `web/public/raven-grab.js`,
+`test/grab-bridge-proxy-round4.test.mjs`, `test/grab-bridge-proxy-round7.test.mjs`,
 `test/grab-bridge-proxy-round8.test.mjs`,
-`test/grab-overlay-key-isolation.test.mjs`, and this file.
+`test/grab-overlay-key-isolation.test.mjs`, this file, and three screenshots
+(`github-typing-fixed-live.png`, `github-send-capture-only.png`,
+`probe-send-label.png` — each opened and read before committing, all showing
+public github.com plus the Raven overlay and no private data).
 
-Untracked evidence: `.claude/patternlib-2026-08-04/out/{FULL-SUITE-ROUND9.log,
-E2E-ROUND9.log, probe-send-label.png, github-typing-fixed-live.png,
-github-send-capture-only.png}`.
-
-Gitignored, in-project, **not** part of the commit: `.mcpb-stage/verify-github-
-typing.mjs`, `.mcpb-stage/verify-github-send.mjs`, `.mcpb-stage/probe-send-
-label.mjs`. Six restored Sol transcripts sit on disk, gitignored by filename.
+On disk, gitignored, **never committed**: 24 `.log` files under
+`.claude/patternlib-2026-08-04/out/`, and the three harnesses
+`.mcpb-stage/{verify-github-typing,verify-github-send,probe-send-label}.mjs`.
 
 Scratchpad only, ephemeral: `/tmp/raven-r9-falsify/{no-guard.js, clock-only.js}`
-(the two neutered overlay copies used for the falsifiability proofs) and
-`/tmp/gb-round9-backup.js`.
+(the two neutered overlay copies used for the falsifiability proofs),
+`/tmp/gb-round9-backup.js`, and the pre-rewrite log backup.
 
 ## 5. Exact next commands
 
+Sol round 9 is **running** — launched detached at xhigh against
+`.claude/patternlib-2026-08-04/briefs/SOL-ROUND9.md`, writing to
+`.claude/patternlib-2026-08-04/out/SOL-ROUND9.log` (cwd confirmed
+`/Users/accunliffe/projects/raven-mcp` via `lsof -a -p <pid> -d cwd`, not assumed).
+Its verdict is not yet dispositioned, so **no completion claim may reach Andrew
+until it is.**
+
 ```sh
-git fetch origin && git status --porcelain
-git commit --only <explicit paths> --file=<message file>   # never a bare git add + commit
-codex exec -m gpt-5.6-sol -c model_reasoning_effort=xhigh \
-  "$(cat .claude/patternlib-2026-08-04/briefs/SOL-ROUND9.md)" \
-  > .claude/patternlib-2026-08-04/out/SOL-ROUND9.log 2>&1 < /dev/null &
-# Re-verify after any round-10 fix:
+# read the verdict when it lands
+tail -60 .claude/patternlib-2026-08-04/out/SOL-ROUND9.log
+
+# re-verify after any round-10 fix
 RAVEN_NO_USAGE_LOG=1 npm test
 node test/e2e-pattern-library.mjs        # not in npm test — real Chromium, proxies live github.com
+cmp browser/raven-grab.js web/public/raven-grab.js
+
+# committing: explicit paths only, never a bare git add + commit
+git fetch origin && git status --porcelain
+git commit --only <explicit paths> --file=<message file>
 ```
 
-Round-9 brief must attack: whether `Sec-Fetch-Dest: document` is the *complete*
-top-level signal (what about `fencedframe`, or a browser that sends `mode` but
-not `dest`?); whether consuming the composition marker on every keydown opens a
-new hole; whether the 100ms residual bound can still swallow a real send;
-whether the new dest tests genuinely fail with the clause removed (they do —
-three of them); and whether round 9 narrowed anything rounds 4/7/8 used to catch.
+The brief attacks: whether `Sec-Fetch-Dest: document` is the *complete* top-level
+signal (`fencedframe`, prerender, a UA sending `mode` without `dest`); whether
+consuming the composition marker on every keydown opens a new hole; whether the
+100ms residual bound can still swallow a real send; whether window-capture
+registration order is actually guaranteed against a site's own listener; whether
+`event.defaultPrevented` is a faithful observable; and whether round 9 narrowed
+anything rounds 4/7/8 used to catch.
 
 Note for whoever picks this up: the running MCP server process holds a **pre-fix
 `dist/`**. Overlay fixes land on a plain reload (the bridge reads the asset from
@@ -473,8 +566,10 @@ disk per request), but bridge-server fixes need a `/mcp` reconnect.
 
 ## 6. Blockers — Andrew only
 
-1. `git push` to `main` (6 commits ahead). **This deploys the live MCP endpoint**
-   since the 2026-07-27 unpin — human-gated.
+1. `git push` to `main` (**10 commits ahead**). **This deploys the live MCP
+   endpoint** since the 2026-07-27 unpin — human-gated. Note the history was
+   rewritten twice locally (§3d, §3f); the range has never been pushed, so this
+   is a plain fast-forward push, not a force.
 2. `npm publish` (passkey 2FA, his terminal).
 3. `cd web && vercel deploy --prod` — the only thing that moves the apex marketing
    site and the public `.mcpb` download.
