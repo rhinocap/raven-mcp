@@ -56,4 +56,14 @@ dist/
 # Raw adverse-pass transcripts (public repo). Codex echoes the loaded skill files
 # verbatim — personal quotes, home-directory paths, private rule text — so the log
 # itself never ships. The dispositioned findings go in the session log instead.
+#
+# The pattern below was originally scoped to one directory, and six Sol logs were
+# committed outside it before anyone noticed — they carried ~450 home-directory
+# paths, a 1642-line private skill file echoed by `sed`, and cross-project rollout
+# summaries out of ~/.codex/memories. Caught before any push and stripped from the
+# unpushed commits. Match the FILENAME anywhere in the repo, not a location, so
+# the next evidence directory cannot reopen this.
 .claude/pregate-*/sol/
+SOL-*.log
+sol-*.log
+**/out/SOL*.log
