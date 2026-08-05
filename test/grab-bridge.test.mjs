@@ -1525,7 +1525,11 @@ test('/agent/wait returns an empty result after a short timeout', async () => {
     const key = sessionKey(session);
     const response = await fetch(`${session.url}/agent/wait?key=${key}&timeout_ms=200`);
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { count: 0, elements: [] });
+    // proxyMode rides on every drain result now, including the empty one — it
+    // is pinned to the session that was drained rather than looked up after the
+    // await, so it cannot be omitted on the timeout path without reintroducing
+    // the lookup. This session is local, hence false.
+    assert.deepEqual(await response.json(), { count: 0, elements: [], proxyMode: false });
     await client.callTool({ name: 'stop_grab_session', arguments: {} });
   });
 });

@@ -321,6 +321,11 @@ export interface GrabBridgeDrainResult {
   elements: GrabBridgeSelection[];
   batchCommit?: { batchId: string; committedAt: string };
   batch?: GrabBatchResult;
+  // Whether the session these selections came from was proxying a third-party
+  // site. It rides on the result rather than being looked up afterwards because
+  // a drain can block for timeoutMs, and a global read after that await belongs
+  // to whatever session is current THEN — see getGrabbedElements.
+  proxyMode?: boolean;
 }
 
 interface BridgeSession {
@@ -555,24 +560,32 @@ export async function getGrabbedElements(timeoutMs?: number): Promise<GrabBridge
     throw new Error("No active grab session");
   }
 
-  if (hasDrainableChanges(currentSession)) {
-    return drainCurrentQueue(currentSession);
+  // Pin the session for the whole call. A drain with timeout_ms can block for
+  // minutes, so anything that asks "was this proxied?" AFTER the await is
+  // reading a global a concurrent start_grab_session may already have replaced
+  // — classifying session A's selections by session B's mode, in either
+  // direction: a proxied capture told to wait for a batchCommit that cannot
+  // arrive, or a local edit told the grab was the outcome. The drain helpers
+  // below already take the pinned session; the mode has to travel with the
+  // result for exactly the same reason.
+  var session = currentSession;
+  var result: GrabBridgeDrainResult;
+  if (hasDrainableChanges(session)) {
+    result = drainCurrentQueue(session);
+  } else if (!timeoutMs || timeoutMs <= 0) {
+    result = { count: 0, elements: [] };
+  } else {
+    result = await waitForGrabItems(session, timeoutMs);
   }
-
-  if (!timeoutMs || timeoutMs <= 0) {
-    return { count: 0, elements: [] };
-  }
-
-  return waitForGrabItems(currentSession, timeoutMs);
+  return { ...result, proxyMode: Boolean(session.proxyTarget) };
 }
 
-// Whether the live session is proxying someone else's site. The two modes end
-// differently and the agent has to be told which one it is in: a local session
-// finishes at a batchCommit marker, a proxied one has no commit to wait for
-// because the authoring routes are withheld. Exported rather than folded into
-// the drain payload so the drain's shape stays exactly what callers already
-// parse; the protocol text is assembled in the tool layer, which is where every
-// other piece of agent-facing guidance lives.
+// Whether the session that is live RIGHT NOW is proxying someone else's site.
+// The two modes end differently: a local session finishes at a batchCommit
+// marker, a proxied one has no commit to wait for because the authoring routes
+// are withheld. Safe only where no await separates this call from the thing it
+// describes — to classify a drain, read `proxyMode` off the drain result, which
+// is pinned to the session the selections actually came from.
 export function isProxyGrabSession(): boolean {
   return Boolean(currentSession && currentSession.proxyTarget);
 }
@@ -1227,9 +1240,44 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
   // a same-origin one — so SameSite has to be enforced here instead. Without it
   // any page that guesses the loopback port gets the proxied site's Strict
   // cookies attached to its request, with a matching Origin stamped on top.
+  // Fetch Metadata is the primary signal but it is NOT universal — Safari before
+  // 16.4 and a number of WebViews omit sec-fetch-* entirely. This used to read a
+  // missing header as "not cross-site", which is the fail-open direction on the
+  // one decision that hands out someone's session cookies: a foreign page in
+  // such a browser could POST to the guessed loopback port, get the Strict jar
+  // attached, and have upstream see a same-origin Origin stamped on top by the
+  // rewrite below. CORS hides the response; it does not stop the request.
+  //
+  // So fall back to headers browsers DO send on exactly the requests that
+  // matter. A cross-origin POST always carries an Origin. A foreign page's
+  // subresource request normally carries a Referer. When all three are absent,
+  // assume cross-site: a genuine same-origin POST from the proxied page always
+  // has an Origin, so a bare non-GET here is not one.
   var fetchSite = String(req.headers["sec-fetch-site"] || "").toLowerCase();
-  var crossSite = fetchSite !== "" && fetchSite !== "same-origin" && fetchSite !== "none";
-  var topLevelGet = method === "GET" && String(req.headers["sec-fetch-mode"] || "").toLowerCase() === "navigate";
+  var bridgeHost = String(req.headers.host || "");
+  var originHost = "";
+  try { if (req.headers.origin) originHost = new URL(String(req.headers.origin)).host; } catch (_originErr) { originHost = ""; }
+  var refererHost = "";
+  try { if (req.headers.referer) refererHost = new URL(String(req.headers.referer)).host; } catch (_refererErr) { refererHost = ""; }
+
+  var crossSite: boolean;
+  if (fetchSite) {
+    crossSite = fetchSite !== "same-origin" && fetchSite !== "none";
+  } else if (originHost) {
+    crossSite = originHost !== bridgeHost;
+  } else if (refererHost) {
+    crossSite = refererHost !== bridgeHost;
+  } else {
+    crossSite = true;
+  }
+  // A metadata-less GET is a plausible top-level navigation — the user typing
+  // the bridge URL in an old browser — so it gets Lax treatment, which is what
+  // a browser would do with that navigation anyway. It never gets Strict,
+  // because crossSite stays true above and Strict is what an attacker wants.
+  var topLevelGet = method === "GET" && (
+    String(req.headers["sec-fetch-mode"] || "").toLowerCase() === "navigate" ||
+    (!fetchSite && !originHost && !refererHost)
+  );
   var jarCookies = proxyCookieHeader(upstreamUrl.pathname, upstreamUrl.protocol === "https:", crossSite, topLevelGet);
   if (jarCookies) headers.set("cookie", jarCookies);
 

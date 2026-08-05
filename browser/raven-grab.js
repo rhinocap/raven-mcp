@@ -344,16 +344,27 @@
   // on document in practice (@github/hotkey, Mousetrap, hotkeys-js all bind it).
   //
   // Narrower than the host guard on purpose, because it fires earlier and so has
-  // more to break: unmodified single printable characters only, originating in a
-  // Raven field. Escape, Tab, Enter and every chord keep travelling — Raven's own
+  // more to break: unmodified text only — single printable characters plus IME
+  // and dead-key composition — originating in a Raven field. Escape, Tab, Enter
+  // and every chord keep travelling — Raven's own
   // global handlers read those off document in capture, and stopping them here
   // would silently break the modal dismiss, the focus trap, Cmd+K, Alt+G and
   // Cmd+. . Propagation only, never preventDefault: the character still has to be
   // typed.
+  // The one class of composed text that is NOT a single-character key. An IME or
+  // dead-key press reports "Dead", "Process" or "Unidentified" — and Android
+  // reports keyCode 229 for nearly everything — so a length check alone leaves
+  // every non-Latin and every accented input falling straight through to the
+  // page's document-capture handler, which can preventDefault it and break the
+  // composition outright. These are text, never a hotkey Raven itself listens
+  // for, so they belong on the same side of the boundary as ordinary characters.
+  var ravenCompositionKeys = { Dead: true, Process: true, Unidentified: true };
   ["keydown", "keypress", "keyup"].forEach(function (eventName) {
     window.addEventListener(eventName, function (event) {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
-      if (typeof event.key === "string" && event.key.length !== 1) return;
+      var composing = event.isComposing === true || event.keyCode === 229 ||
+        (typeof event.key === "string" && ravenCompositionKeys[event.key] === true);
+      if (!composing && typeof event.key === "string" && event.key.length !== 1) return;
       var path = event.composedPath ? event.composedPath() : [];
       var origin = path.length ? path[0] : event.target;
       if (!isTypingTarget(origin)) return;

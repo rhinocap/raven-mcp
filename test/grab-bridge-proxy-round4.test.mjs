@@ -169,20 +169,37 @@ test('SameSite is enforced on the bridge, because upstream can no longer see it'
   }, async (session, sent) => {
     await request(session.url + '/login');
 
-    await request(session.url + '/echo');
+    // A request that DECLARES itself same-origin gets the whole jar. This case
+    // used to be spelled as a bare request with no headers at all, which is not
+    // the same claim: absent Fetch Metadata was being read as proof of
+    // same-site, and Safari before 16.4 and several WebViews omit it entirely.
+    // The round-6 adverse pass named that fail-open as the live hole; the case
+    // below it is the one that closes it.
+    await request(session.url + '/echo', { headers: { 'sec-fetch-site': 'same-origin' } });
     assert.equal(sent[1].cookie, 'strict=1; lax=1; none=1; silent=1',
       'a same-site request gets the whole jar');
+
+    await request(session.url + '/echo');
+    assert.equal(sent[2].cookie, 'lax=1; none=1; silent=1',
+      'a request with no Fetch Metadata, Origin or Referer must not prove same-site — ' +
+      'it is treated as a cross-site top-level GET, so Strict stays home and Lax rides');
+
+    await request(session.url + '/echo', {
+      method: 'POST', body: 'x', headers: { origin: 'http://evil.test' }
+    });
+    assert.equal(sent[3].cookie, 'none=1',
+      'a foreign-Origin POST with no Fetch Metadata kept more than the cookies that opted in');
 
     await request(session.url + '/echo', {
       headers: { 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate' }
     });
-    assert.equal(sent[2].cookie, 'lax=1; none=1; silent=1',
+    assert.equal(sent[4].cookie, 'lax=1; none=1; silent=1',
       'a cross-site top-level navigation drops Strict and keeps Lax');
 
     await request(session.url + '/echo', {
       headers: { 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'no-cors' }
     });
-    assert.equal(sent[3].cookie, 'none=1',
+    assert.equal(sent[5].cookie, 'none=1',
       'a cross-site subresource keeps only the cookies that opted in');
   });
 });

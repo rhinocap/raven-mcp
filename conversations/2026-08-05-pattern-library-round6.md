@@ -107,6 +107,69 @@ say what is actually true.
 
 An earlier full run this window, before the Sol fixes, was 1228/1225/0/3.
 
+## 3b. Round 7 — dispositioning the round-6 adverse pass
+
+Sol round 6 returned **DOES NOT SURVIVE** on four of five claims. Six findings;
+four accepted and fixed, two declined.
+
+**F1 (was P1) — plain-HTTP cookie fail-open. FIXED.** The same bug class as the
+WebSocket one, on the HTTP path and reachable by a wider set of clients:
+`crossSite` was false whenever `sec-fetch-site` was absent, so a foreign page in
+Safari <16.4 or a WebView could POST to the guessed loopback port and be handed
+the proxied site's Strict jar with a same-origin `Origin` stamped on top. Order
+is now Fetch Metadata → `Origin` host → `Referer` host → cross-site.
+
+**F2 (P2) — drain classified by a global read after an await. FIXED.**
+`getGrabbedElements` pins the session and returns `proxyMode` on the result.
+`src/index.ts` reads that instead of calling `isProxyGrabSession()`.
+
+**F3 (P2) — the server-level GRAB instruction still said "wait for batchCommit"
+with no proxy exception. FIXED.** A server-level instruction outranks per-call
+prose in practice, so the round-6 fix could lose the argument to it. The
+exception now sits at the same level as the rule — **stdio only**, because the
+remote surfaces register no grab tools and their instructions are hash-frozen
+(putting it in the shared string broke `ANONYMOUS_INSTRUCTIONS_HASH`, which is
+how the scoping error was caught).
+
+**F4 (P2) — the capture guard missed IME and dead keys. FIXED.** `key.length
+=== 1` excludes `Dead`/`Process`/`Unidentified`, and Android reports keyCode 229
+for nearly everything, so every non-Latin and accented keystroke fell through to
+the page's document-capture handler. Now also matches `isComposing`, keyCode 229
+and those three key names.
+
+**D1/D2 — declined.** The 45-tool hash test running against a local
+`buildServer({remote:true})` rather than the deployed endpoint, and the e2e using
+`InMemoryTransport`, are both pre-existing characterizations already ledgered in
+`CLAUDE.md`, not regressions from this change set. The live endpoint was checked
+by hand this session. Re-attacked in the round-7 brief as declines.
+
+**Every fix was proven falsifiable before being believed** — reverted in `dist/`
+and the intended test watched go red: F1 → the metadata-less cookie test; F2 →
+the parked-drain test; F3 → the instruction test; F4 → the IME test (via
+`RAVEN_GRAB_ASSET_PATH` pointed at a neutered overlay copy).
+
+**Two corrections worth carrying forward.** My first race test passed with the
+fix reverted — `getGrabbedElements` returns without yielding on the immediate
+path, so the interleaving I wrote could never happen. Rewritten to park the drain
+on a timeout, which is the only shape of the bug the public API exposes. And my
+first F3 neutering silently failed to match (`grep -c` returned 0) while the
+tests went green — a "reverted" run that never reverted anything proves nothing.
+Check the substitution landed before reading the result.
+
+**Round-4's SameSite test had encoded the defect.** Its first case sent a bare
+request with no headers and called it "a same-site request gets the whole jar".
+A bare request is exactly what cannot prove same-site. Rewritten so that case
+declares `sec-fetch-site: same-origin`, with the metadata-less case added
+beneath it — the original trigger still fires, plus the one it missed.
+
+Verification after round 7: **1237 tests / 1234 pass / 0 fail / 3 skipped**
+(`.claude/patternlib-2026-08-04/out/FULL-SUITE-ROUND7b.log`), e2e **ALL CHECKS
+PASSED / 0 FAIL**, stdio **108**, `buildServer({remote:true})` **45 tools /
+`f64bb18…2bb0a6`** unchanged, overlay mirror byte-identical.
+
+Sol round 7 (`briefs/SOL-ROUND7.md`) is running against these fixes and against
+both declines.
+
 ## 4. Uncommitted set
 
 Modified: `browser/raven-grab.js`, `web/public/raven-grab.js`, `src/grab-bridge.ts`,

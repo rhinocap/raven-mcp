@@ -129,6 +129,49 @@ test('typing into a Raven field never reaches the host page hotkeys', async (t) 
     'the field lost characters the host page swallowed');
 });
 
+test('IME and dead-key composition inside Raven does not reach the host page either', async (t) => {
+  // An IME or dead-key press reports key "Process"/"Dead"/"Unidentified" — and
+  // Android reports keyCode 229 for nearly everything — so a guard that filters
+  // on key.length === 1 lets every non-Latin and every accented keystroke fall
+  // through to the page, which can preventDefault it and break the composition.
+  // Synthetic dispatch is the right instrument here and only here: what is under
+  // test is propagation out of a shadow root, which the DOM handles identically
+  // for dispatched and native events. Driving a real IME through Playwright
+  // would test the input method, not the boundary.
+  let seen;
+  try {
+    seen = await withOverlay(async (page) => {
+      return page.evaluate(() => {
+        const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+        const field = root.querySelector('.raven-grab-textarea');
+        field.focus();
+        window.__hostKeys.length = 0;
+        window.__hostKeysCapture.length = 0;
+        for (const init of [
+          { key: 'Process', keyCode: 229 },
+          { key: 'Dead', keyCode: 220 },
+          { key: 'Unidentified', keyCode: 229 }
+        ]) {
+          field.dispatchEvent(new KeyboardEvent('keydown', {
+            key: init.key, keyCode: init.keyCode, bubbles: true, composed: true, cancelable: true
+          }));
+        }
+        return { bubble: [...window.__hostKeys], capture: [...window.__hostKeysCapture] };
+      });
+    });
+  } catch (err) {
+    if (/browserType\.launch|Executable doesn't exist/.test(err.message)) {
+      t.skip(`browser unavailable for overlay key isolation (${err.message})`);
+      return;
+    }
+    throw err;
+  }
+  assert.deepEqual(seen.capture, [],
+    'a capture-phase page listener saw IME composition typed into Raven: ' + JSON.stringify(seen.capture));
+  assert.deepEqual(seen.bubble, [],
+    'the host page saw IME composition typed into Raven: ' + JSON.stringify(seen.bubble));
+});
+
 test('the host page still receives its own hotkeys when focus is outside Raven', async (t) => {
   // The guard must be scoped to the overlay. Blanket-swallowing keys would break
   // every site the bridge proxies, which is a worse bug than the one being fixed.

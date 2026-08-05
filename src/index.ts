@@ -2206,6 +2206,16 @@ var server = new McpServer({
 if (remote && hasUserStore) {
   (server as any).server._options.instructions += AUTHED_USER_TASTE_STARTUP_INSTRUCTIONS;
 }
+// The standing GRAB instruction above tells the agent to wait for a batchCommit
+// on every plain drain, and in proxy mode that commit can never arrive — the
+// bridge withholds the route that produces one. get_grabbed_elements says so in
+// its own result, but a server-level instruction outranks per-call prose in
+// practice, so the exception has to live at the same level as the rule. Local
+// only: grab is a stdio feature, the remote endpoints register none of its
+// tools, and the anonymous instructions are a hash-frozen surface.
+if (!remote) {
+  (server as any).server._options.instructions += "\n\nGRAB, PROXY MODE — the exception to waiting for batchCommit. When a drain returns proxyMode true the session is proxying a third-party site: the authoring routes are withheld, no batchCommit will ever arrive, and waiting for one strands the capture. Keep each selection with capture_reference and map it onto this project's tokens with map_reference_to_tokens. The grab itself is the outcome; do not try to apply anything to the page.";
+}
 
 // Wrap every tool handler: log the call to the local usage log, then inject
 // the one-time update banner if one is pending.
@@ -3156,13 +3166,17 @@ server.tool(
       var payload: Record<string, unknown> = { ...grabbed };
       if (grabbed.batchCommit) {
         payload.agent_protocol = "Implement this committed batch now in one patch. Use batch.pending in ascending sequence, resolve every style and reorder target against the batch baseline before structural changes, apply same-parent reorders strictly by sequence, and mark each successful change applied with get_grab_operation. Reject ambiguous or disconnected targets instead of guessing.";
-      } else if (grabbed.count > 0 && isProxyGrabSession()) {
+      } else if (grabbed.count > 0 && grabbed.proxyMode) {
         // start_grab_session already told the agent no batchCommit is coming in
         // proxy mode, and this line used to contradict it on the very next call
         // — the drain said "wait for the batchCommit marker from Apply" while the
         // bridge withholds the route that would ever produce one. An agent that
         // believes the drain waits forever and the capture is never kept, which
         // is the whole feature failing at its last step. Say what to do instead.
+        //
+        // Read off the drain result, not from a live lookup: the await above can
+        // block for timeout_ms, and a global read after it describes whatever
+        // session is current then, not the one these selections came from.
         payload.agent_protocol = "This is a proxied third-party site: the grab IS the outcome and no batchCommit is coming. Keep each of these selections with capture_reference now, then map it onto this project's tokens with map_reference_to_tokens. Do not wait for a commit and do not try to apply anything to the page.";
       } else if (grabbed.count > 0) {
         payload.agent_protocol = "Acknowledge these sent selections, but do not implement them yet. The user may keep editing; wait for the batchCommit marker from Apply.";
