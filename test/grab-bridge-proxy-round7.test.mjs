@@ -140,6 +140,22 @@ test('a request with no Fetch Metadata at all never carries the Strict session c
     assert.equal(seen[0].cookie, '',
       'a POST carrying sec-fetch-mode: navigate but no sec-fetch-site was read as ' +
       'same-site and given the Strict session cookie: ' + seen[0].cookie);
+
+    // And the same shape as a GET, because both cases above are POSTs. Round 11's
+    // adverse pass found the narrower mutation they leave green:
+    // `if (!fetchSite && fetchMode === "navigate" && method === "GET") crossSite = false;`
+    // — reasoning that a POST could be a forged form while a GET navigation is
+    // "just browsing". It is not: a foreign page can navigate a frame or a new
+    // window to any URL with GET, and on a metadata-less browser that request is
+    // byte-identical to the user typing the address. The method says nothing
+    // about who initiated it.
+    seen.length = 0;
+    await request(session.url + '/admin', {
+      headers: { 'sec-fetch-mode': 'navigate' }
+    });
+    assert.equal(seen[0].cookie, '',
+      'a GET carrying sec-fetch-mode: navigate but no sec-fetch-site was read as ' +
+      'same-site and given the Strict session cookie: ' + seen[0].cookie);
   } finally {
     await bridge.stopGrabSession();
     await new Promise((resolve) => upstream.close(resolve));

@@ -55,10 +55,10 @@ const HOST_PAGE = `<!doctype html><html><head><title>hotkey host</title></head><
 </script>
 </body></html>`;
 
-async function withOverlay(fn) {
+async function withOverlay(fn, hostPage) {
   const upstream = createServer((_req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(HOST_PAGE);
+    res.end(hostPage || HOST_PAGE);
   });
   await new Promise((resolve) => upstream.listen(0, '127.0.0.1', resolve));
   const upstreamUrl = 'http://127.0.0.1:' + upstream.address().port;
@@ -566,4 +566,138 @@ test('a commit in the page\'s own field does not disarm Raven\'s next compositio
   assert.equal(seen.commitSent, false,
     'a stale commit flag left over from the PAGE\'s own IME commit disarmed Raven\'s ' +
     'guard, so the next WebKit candidate-commit Enter fired the instruction off');
+});
+
+// A host page that seals every keydown before the overlay's own listener can
+// touch it. The `<head>` placement is load-bearing: the bridge injects the
+// overlay before `</body>`, and same-node/same-phase listeners run in
+// registration order, so this one is guaranteed to run FIRST.
+const HOST_PAGE_SEALING = `<!doctype html><html><head><title>sealing host</title>
+<script>
+  window.__hostKeys = [];
+  window.__hostKeysCapture = [];
+  window.addEventListener('keydown', function (event) {
+    Object.preventExtensions(event);
+  }, true);
+</script>
+</head><body><h1 id="heading">Host page</h1></body></html>`;
+
+test('a page that seals the event object cannot break the IME guard', async (t) => {
+  // Sol round 11, proven with a live probe: `Object.preventExtensions(event)`
+  // makes a strict-mode expando assignment THROW. The overlay is `"use strict"`,
+  // so the old `event.__ravenCompositionCommit = …` line threw inside the
+  // bookkeeping listener and took the rest of that listener with it — including
+  // the `ravenCommitEnterAlreadySeen` update on the following line. The verdict
+  // is now held in a module-private WeakSet, and `WeakSet.add` works fine on a
+  // non-extensible object.
+  //
+  // Reverting to the expando fails this on the FIRST assertion: with the stamp
+  // gone, WebKit's candidate-commit Enter reaches the send handler unmarked.
+  let seen;
+  try {
+    seen = await withOverlay(async (page) => {
+      return page.evaluate(async () => {
+        const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+        const field = root.querySelector('.raven-grab-textarea');
+        field.focus();
+
+        const press = () => {
+          const event = new KeyboardEvent('keydown', {
+            key: 'Enter', keyCode: 13, isComposing: false,
+            bubbles: true, composed: true, cancelable: true
+          });
+          field.dispatchEvent(event);
+          return event.defaultPrevented;
+        };
+
+        // Confirm the fixture actually sealed something, or this test would pass
+        // against a page whose listener never ran.
+        const probe = new KeyboardEvent('keydown', { key: 'x', bubbles: true, composed: true });
+        field.dispatchEvent(probe);
+        const sealed = !Object.isExtensible(probe);
+
+        field.dispatchEvent(new CompositionEvent('compositionend', {
+          data: 'にほんご', bubbles: true, composed: true
+        }));
+        const commit = press();
+        const deliberate = press();
+
+        return { sealed, commit, deliberate };
+      });
+    }, HOST_PAGE_SEALING);
+  } catch (err) {
+    if (/browserType\.launch|Executable doesn't exist/.test(err.message)) {
+      t.skip(`browser unavailable for overlay key isolation (${err.message})`);
+      return;
+    }
+    throw err;
+  }
+
+  assert.equal(seen.sealed, true,
+    'the fixture never sealed the event, so this test proves nothing — the head ' +
+    'script did not run before the overlay, or preventExtensions stopped applying');
+  assert.equal(seen.commit, false,
+    'a page that seals the keydown object disabled the IME guard: the candidate-commit ' +
+    'Enter fired the instruction off. The verdict must not be an expando property');
+  assert.equal(seen.deliberate, true,
+    'a deliberate Enter stopped sending on a sealing page');
+});
+
+test('a page listener between the marker and the send handler cannot forge the verdict', async (t) => {
+  // The other half of the same objection. A window-capture listener registered
+  // AFTER Raven's runs after it in the same phase — squarely in the gap between
+  // recording the verdict and the panel's bubble-phase read. An own property is
+  // readable AND writable there; a WeakSet closed over by the overlay's IIFE is
+  // neither.
+  //
+  // Reverting to the expando fails this on the first assertion: the saboteur
+  // deletes the stamp and WebKit's commit Enter is read as a deliberate send.
+  let seen;
+  try {
+    seen = await withOverlay(async (page) => {
+      return page.evaluate(async () => {
+        const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+        const field = root.querySelector('.raven-grab-textarea');
+        field.focus();
+
+        // Registered now, so strictly after the overlay's own window-capture
+        // listeners. Both directions: erase a real verdict, and forge a false one.
+        window.addEventListener('keydown', function (event) {
+          try {
+            delete event.__ravenCompositionCommit;
+            event.__ravenCompositionCommit = false;
+          } catch (ignored) { /* a sealed event is the other test */ }
+        }, true);
+
+        const press = () => {
+          const event = new KeyboardEvent('keydown', {
+            key: 'Enter', keyCode: 13, isComposing: false,
+            bubbles: true, composed: true, cancelable: true
+          });
+          field.dispatchEvent(event);
+          return event.defaultPrevented;
+        };
+
+        field.dispatchEvent(new CompositionEvent('compositionend', {
+          data: 'にほんご', bubbles: true, composed: true
+        }));
+        const commit = press();
+        const deliberate = press();
+
+        return { commit, deliberate };
+      });
+    });
+  } catch (err) {
+    if (/browserType\.launch|Executable doesn't exist/.test(err.message)) {
+      t.skip(`browser unavailable for overlay key isolation (${err.message})`);
+      return;
+    }
+    throw err;
+  }
+
+  assert.equal(seen.commit, false,
+    'a page listener running between the overlay\'s bookkeeping listener and its send ' +
+    'handler erased the IME verdict, so the candidate-commit Enter sent the instruction');
+  assert.equal(seen.deliberate, true,
+    'a deliberate Enter stopped sending while a page listener was writing the flag');
 });

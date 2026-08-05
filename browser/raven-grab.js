@@ -430,13 +430,23 @@
   //   * The armed marker records WHICH element the composition ended in, and the
   //     Enter has to land in that same element. A blur-driven commit hands focus
   //     somewhere else, and the Enter that follows is a different intent.
-  //   * The verdict rides on the EVENT, not on a module-level variable. A global
-  //     is readable by anything that runs between the bookkeeping listener and
-  //     the send handler — a page's own capture listener can synchronously
+  //   * The verdict is keyed by the EVENT, not held in a module-level variable. A
+  //     global is readable by anything that runs between the bookkeeping listener
+  //     and the send handler — a page's own capture listener can synchronously
   //     dispatch another keydown in that gap and overwrite it, which either
-  //     releases a WebKit commit or swallows a deliberate Enter. Stamping the
-  //     event closes the window completely, because the send handler on the
-  //     panels receives the very object stamped here.
+  //     releases a WebKit commit or swallows a deliberate Enter. Per-event
+  //     identity closes that window, because the send handler on the panels
+  //     receives the very object recorded here.
+  //
+  //     It is a WeakSet and NOT an expando property on the event. An earlier
+  //     version wrote `event.__ravenCompositionCommit`, which failed twice over:
+  //     the page can read, delete or invert an own property in the gap this
+  //     mechanism exists to close, and assigning to an event another listener has
+  //     passed to `Object.preventExtensions` throws under `"use strict"` — which
+  //     this file is — killing the rest of the listener, including the
+  //     `ravenCommitEnterAlreadySeen` update on the next line. `WeakSet.add`
+  //     works on a non-extensible object and the set is closed over by this IIFE,
+  //     so nothing in the page can reach it.
   //
   // Residuals that remain, stated rather than hidden:
   //
@@ -452,9 +462,25 @@
   //     send handler unmarked. The bridge injects the overlay before `</body>`,
   //     so a listener registered in `<head>` wins — this cannot be closed from
   //     inside the page, only noted.
+  //   * The 100ms bound is a FALSE-NEGATIVE risk as well as a guard. A page
+  //     handler that blocks the main thread for longer than that between
+  //     `compositionend` and the commit keydown produces a correctly-ordered pair
+  //     that the clock rejects, and WebKit's stray send comes back. Ordering
+  //     alone would fix that — and it is deliberately not the design, because
+  //     the clock is the only bound on the mouse-candidate residual above.
+  //     Without it, "accept a candidate with the mouse, walk away, come back and
+  //     press Enter" eats the send however many minutes later it happens, since
+  //     that Enter is still the next keydown. A narrow false negative on a
+  //     main-thread-blocking page beats an unbounded false positive on every
+  //     mouse-driven IME, so the clock stays. Clearing the marker on
+  //     blur/pointerdown instead does NOT rescue it: selecting a candidate from
+  //     the IME's own popup is OS chrome and fires no DOM event at all.
   var ravenCompositionEnd = null;   // { at, origin } or null
   var ravenCommitEnterAlreadySeen = false;
   var RAVEN_COMPOSITION_COMMIT_MS = 100;
+  // Per-event, module-private. See the third narrowing above for why this is not
+  // a property on the event.
+  var ravenCompositionCommits = new WeakSet();
 
   function ravenNow() {
     return (typeof performance !== "undefined" && performance && typeof performance.now === "function")
@@ -509,12 +535,12 @@
     // more characters, press Enter, and a fast typist is still inside any window
     // wide enough for a slow one. The clock is a second bound for the case where
     // no keydown follows at all (compose, click away, come back minutes later).
-    event.__ravenCompositionCommit = event.key === "Enter" && (
-      event.isComposing === true ||
-      (!!pending &&
+    if (event.key === "Enter" &&
+        !!pending &&
         ravenNow() - pending.at < RAVEN_COMPOSITION_COMMIT_MS &&
-        pending.origin === ravenEventOrigin(event))
-    );
+        pending.origin === ravenEventOrigin(event)) {
+      ravenCompositionCommits.add(event);
+    }
     // Assigned, never OR-ed: it must describe THIS keydown only, so a character
     // key clears a commit Enter that never produced a `compositionend`. A stale
     // true would disarm the next real WebKit commit.
@@ -524,7 +550,7 @@
   // True for the Enter that only committed an IME candidate.
   function ravenIsCompositionCommit(event) {
     return event.key === "Enter" &&
-      (event.isComposing === true || event.__ravenCompositionCommit === true);
+      (event.isComposing === true || ravenCompositionCommits.has(event));
   }
   ["keydown", "keypress", "keyup"].forEach(function (eventName) {
     window.addEventListener(eventName, function (event) {

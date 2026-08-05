@@ -865,7 +865,204 @@ modified copy via `RAVEN_GRAB_ASSET_PATH`; bridge reverts were applied to
 - Frozen surfaces — `108 45
   f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`, unchanged.
 
-## 4. Committed set — round 11
+## 3i. Round 12 — dispositioning Sol round 11
+
+Sol round 11 (xhigh, detached, report-only) returned **`OVERALL: DOES NOT
+SURVIVE`**. Five objections, four of them real. It independently re-derived the
+frozen surfaces (108 stdio / 45 anon / the golden hash / the overlay mirror) and
+agreed they were unchanged, and it confirmed C2 — the third rewrite of the
+Fetch Metadata cost comment — **SURVIVES**. That is the first claim in this run
+to survive an adverse pass without an edit.
+
+| Claim | Sol | Disposition |
+|---|---|---|
+| C1 — the IME guard's per-event verdict | FAILS | rewritten: expando → module-private `WeakSet` |
+| C2 — the Fetch Metadata cost comment | **SURVIVES** | no change |
+| C3 — the round 4/7/9 tests encode the fix | FAILS | three cases added |
+| C4 — the private-path gate's matcher | FAILS | matcher widened to three real shapes |
+| outside the claims — `capture.test.mjs` skips | FAILS | availability now probed, not inferred |
+
+### C1 — the per-event verdict was written where the page can reach it
+
+Round 11 stamped the composition-commit verdict on the event itself
+(`event.__ravenCompositionCommit`), specifically so anything running between the
+bookkeeping listener and the send handler could not substitute a module global.
+Sol pointed out that an own property is exactly the thing a page CAN reach, and
+proved the worse half with a live probe rather than an argument:
+
+```
+TypeError: Cannot add property __ravenCompositionCommit, object is not extensible
+```
+
+A page that calls `Object.preventExtensions(event)` in a window-capture listener
+makes the assignment **throw**. This file is `"use strict"`, so the throw kills
+the rest of that listener — including the `ravenCommitEnterAlreadySeen` update on
+the very next line, which is the state the conforming-browser narrowing depends
+on. And a page that does not seal the event can simply `delete` the property or
+write `false` onto it. Both directions of the mechanism were reachable from the
+page it was defending against.
+
+The fix is a module-private `WeakSet` closed over by the overlay's IIFE:
+
+- The page has no reference to it, so it can neither read nor forge the verdict.
+- `WeakSet.add` works on a non-extensible object, so sealing the event no longer
+  throws — the guard degrades to "still correct" instead of "half-executed".
+- It is still strictly per-event, which was the whole reason round 11 moved off
+  a module global in the first place. Entries are collected with the event.
+
+Two new tests in `test/grab-overlay-key-isolation.test.mjs` (now 11) pin both
+directions, and both need a real host page rather than a fixture literal —
+`withOverlay` takes an optional host page now:
+
+- **the sealing page** — a `<head>` script registers a window-capture listener
+  that calls `Object.preventExtensions(event)` on every keydown. The test asserts
+  `sealed === true` first, so a Chromium that stopped honouring
+  `preventExtensions` would fail the fixture instead of silently passing the case.
+- **the forging page** — a window-capture listener registered at evaluate time
+  (therefore LAST on the same node and phase, i.e. after the overlay's) tries
+  `delete event.__ravenCompositionCommit` then writes `false`, inside a
+  `try`/`catch` so it survives a sealed event too.
+
+Revert the `WeakSet` back to the expando and **exactly those two go red**; the
+other nine stay green.
+
+**One judgment call kept against Sol's advice, and stated rather than buried.**
+Sol argued the 100ms bound is now pure downside — ordering alone decides the
+verdict, so the clock can only ever produce a false negative for a very slow
+typist. That is true as far as it goes, and it is not the whole trade. Without
+the clock the documented mouse-selected-candidate residual becomes **unbounded in
+time**: accept a candidate with the mouse, walk away, come back minutes later and
+press Enter, and the send is eaten. Clearing the marker on blur or `pointerdown`
+does not rescue it, because an IME candidate popup is OS chrome and fires no DOM
+event in the page. A bounded false negative for a very slow typist is a better
+trade than an unbounded false negative for everyone who uses a mouse with an IME.
+The residual is now documented as the comment's **fourth** entry with that
+reasoning attached, rather than left for a fifth round to rediscover.
+
+### C3 — three tests that still encoded the fix
+
+Same class as round 10's C4, one layer further in. Each of these passes under a
+plausible weakening of the code it is supposed to guard:
+
+1. **`sec-fetch-dest: iframe` + `Sec-Fetch-User: ?1`** (round 4). Nothing
+   separated the `document` allowlist from "top-level means the user did it".
+   They are orthogonal: a user clicking a link **inside an iframe** produces a
+   nested navigation carrying `Sec-Fetch-User: ?1`, so treating user activation
+   as evidence of top-level hands the whole Lax jar to a planted frame the user
+   happened to click in. Added as `sent[8]`; the no-cors case renumbered to
+   `sent[9]`. Admit `?1` as top-level and **only** the round-4 test goes red —
+   rounds 7 and 8 stay green, which is what makes the new case load-bearing.
+2. **A metadata-partial GET** (round 7). The suite had `sec-fetch-mode` present
+   with `sec-fetch-site` absent only for a POST. Reinstating the old
+   `!fetchSite && navigate && GET → same-site` allowance therefore cost nothing.
+   A GET to `/admin` carrying only `sec-fetch-mode: navigate` must now arrive
+   with no cookie; with the allowance restored, **only** that test goes red.
+3. **`Max-Age=0`** (round 9). RFC 6265 has two logout spellings and `Max-Age`
+   outranks `Expires`; the suite only ever used `Expires` in the past. Narrow the
+   parse to `seconds > 0` — a plausible "ignore nonsense values" edit — and the
+   `Expires` deletion, the three-way rotation, and round 2's `Max-Age=1` liveness
+   check all stay green while every `Max-Age=0` logout on the internet silently
+   leaves the session cookie in the jar. Measured: with that narrowing, **only**
+   the new test fails.
+
+### C4 — the private-path matcher walked past three real machine layouts
+
+Round 11 moved the gate onto the index, which was the right fix for the
+worktree-vs-index hole. Sol attacked the matcher instead, and named three shapes
+that are ordinary rather than exotic:
+
+- **`/home/alice@example.com/.claude/…`** — a realm-qualified home directory, what
+  an AD/LDAP-joined Linux box hands every user. `@` was outside the username class.
+- **`/root/.codex/…`** — root's home has no username segment at all. This is the
+  shape *every container agent running as root* produces, which is precisely the
+  environment a CI transcript comes from.
+- **`/Users/someone/work/thing/.claude/settings.local.json`** — a project-scoped
+  tooling directory. The old pattern only ever saw the tooling dir sitting
+  *directly* in `$HOME`.
+
+The third one cannot simply be folded in, and that is the interesting part: **this
+repo's own `.claude/` has exactly that shape**, and it is named legitimately in
+docs, runbooks and session logs. A rule that flags it is a false-positive
+generator, and a noisy gate gets muted — which is the failure mode that let this
+class through three times already. So the nested form is a separate pattern with
+a `repoRoot` prefix exclusion: it fires only when the path is outside this
+checkout, which is exactly the condition that makes it someone else's machine.
+Two negative assertions pin that exclusion.
+
+The old matcher misses all three (measured directly against each fixture, not
+just via the aggregate test), so each new case is independently load-bearing.
+
+**The gate immediately caught my own edit.** Documenting the nested rule meant
+writing a nested path in the header comment, which staged a matching literal into
+the very file that scans itself. It went red on the next run. That is the gate
+working, not a bug — and it is the same reflex the header now warns about: expect
+RED right after editing a file that contained a literal path.
+
+### Outside the claims — a skip that could hide a failure
+
+`src/capture.ts` flattens every launch failure into one `CaptureUnavailableError`:
+a missing `playwright` module, a missing browser revision, and a genuine bug
+inside `launchAuditChromium()` all arrive wearing the same type. `runOrSkip` read
+that type as "chromium isn't installed" and skipped. A real regression in the
+launch path therefore turned the whole capture suite green-with-skips.
+
+Availability is now **measured once at module load** by a probe that does not go
+through the product code at all — import `playwright`, `chromium.launch()`, close.
+If chromium launches for the probe, a `CaptureUnavailableError` out of
+`capturePage` cannot mean "not installed", and it is rethrown with that stated.
+A small test asserts the probe agrees with its environment, so
+`0 fail / 13 skipped` and `0 fail / 0 skipped` stop being indistinguishable in a
+CI log.
+
+**The first version of this fix was not enough, and the measurement is what
+showed it.** Injecting a deliberate throw into `launchAuditChromium()` with
+chromium installed produced **1 fail / 12 skipped** — because for a `file://`
+fixture `capturePage` swallows the launch failure entirely and returns a
+static-extraction result with a warning, so the broken path never reaches
+`runOrSkip` at all. The second face of the same mute. The verdict is now enforced
+inside `usedFileFallback()`, the single point all sixteen call sites already pass
+through: if chromium launched, the fallback firing is a regression, not an
+environment fact. Same injection now produces **17 fail / 0 skipped**, and a clean
+run is unchanged at 38 pass / 1 skip.
+
+**No product code changed for this.** `src/capture.ts` keeps flattening launch
+errors, because that behaviour is part of the frozen stdio surface; only the
+test's interpretation of it changed.
+
+### Falsifiability, measured one revert at a time
+
+| Revert | Expected | Measured |
+|---|---|---|
+| `WeakSet` → expando property on the event | the 2 new overlay tests red | 2 fail / 9 pass |
+| `Sec-Fetch-User: ?1` counts as top-level | only round 4 red | 1 fail / 15 pass (r4+r7+r8) |
+| metadata-less `navigate` GET → same-site | only round 7 red | 1 fail / 18 pass (r4+r7+r8+r9) |
+| `Max-Age` narrowed to `seconds > 0` | only round 9 red | 1 fail / 13 pass (r2+r8+r9) |
+| private-path matcher → the round-11 regex | the gate's fixture test red | 1 fail / 3 pass |
+| `launchAuditChromium()` throws, chromium present | capture tests fail, not skip | 17 fail / 0 skipped (was 1 fail / 12 skipped) |
+
+### Round-12 verification
+
+- `RAVEN_NO_USAGE_LOG=1 npm test` — **1258 tests / 1255 pass / 0 fail / 3
+  skipped**, 44.0s. (+4 over round 11's 1254: two overlay, one round-9 `Max-Age`,
+  one chromium probe. The round-4 and round-7 additions are assertions inside
+  existing tests and move no count.)
+- `node test/e2e-pattern-library.mjs` — 33/33, `ALL CHECKS PASSED`, real Chromium
+  against proxied live `github.com`.
+- `cmp browser/raven-grab.js web/public/raven-grab.js` — byte-identical.
+- Frozen surfaces — `108 45
+  f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`, unchanged.
+
+## 4. Committed set — round 12
+
+Round 12 committed: `CLAUDE.md`, `browser/raven-grab.js`, `web/public/raven-grab.js`,
+`test/grab-overlay-key-isolation.test.mjs`, `test/grab-bridge-proxy-round4.test.mjs`,
+`test/grab-bridge-proxy-round7.test.mjs`, `test/grab-bridge-proxy-round9.test.mjs`,
+`test/no-private-paths.test.mjs`, `test/capture.test.mjs`, this log, and
+`.claude/patternlib-2026-08-04/briefs/BRIEF-ROUND12.md`. Explicit paths, no bare
+`git add`. **No `src/` change in this round** — every fix was in the overlay asset
+or in the tests. `origin/main` is unmoved and nothing is pushed; read the current
+count with `git log --oneline origin/main..HEAD | wc -l` rather than trusting a
+number written here.
 
 Round 11 committed: `CLAUDE.md`, `src/grab-bridge.ts`, `browser/raven-grab.js`,
 `web/public/raven-grab.js`, `test/grab-overlay-key-isolation.test.mjs`,

@@ -18,10 +18,20 @@
 // CONTENT, which is the thing that actually defines the class.
 //
 // What it looks for: an ABSOLUTE path into one of the private agent-tooling
-// directories — `/Users/<name>/.claude`, `.codex`, `.agents`, `.gstack`,
-// `.cursor`, plus the Linux `/home/<name>/…` form of the same. Every one of the
-// three leaks carried that string, and it is never correct in a shipped public
-// repo: it is a local machine path by construction.
+// directories — `.claude`, `.codex`, `.agents`, `.gstack`, `.cursor` — under a
+// home directory. That covers `/Users/<name>/…`, the Linux `/home/<name>/…`
+// form, realm-qualified names (`/home/alice@example.com/…`, which an AD/LDAP
+// box hands out), bare `/root/…` for a container agent, and the same tooling
+// directory NESTED under a project on another machine. Every one of the three
+// leaks carried that string, and it is never correct in a shipped public repo:
+// it is a local machine path by construction.
+//
+// The nested form carries one exception that is load-bearing rather than
+// convenient: a `.claude/` inside THIS checkout has exactly the same shape, and
+// it is named legitimately in docs, runbooks and session logs. Those are
+// excluded by prefix, so the nested rule only ever fires on someone else's
+// machine. Widening it to flag this repo's own paths would produce a gate too
+// noisy to keep, which is the failure mode that let the class through before.
 //
 // It reads the INDEX, not the working tree. `git ls-files` enumerates what is
 // staged, and an adverse pass pointed out that reading the working-tree bytes for
@@ -71,7 +81,40 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 
 // An absolute path into one of the private agent-tooling directories. Tilde
 // forms are documentation and are deliberately not matched — see the header.
-const PRIVATE_PATH = /(?:\/Users|\/home)\/[A-Za-z0-9._-]+\/\.(?:claude|codex|agents|gstack|cursor)\b/;
+//
+// The username class includes `@` because realm-qualified home directories are
+// real: an AD/LDAP-joined Linux box gives `/home/alice@example.com`, and round
+// 11's adverse pass showed the previous class walked straight past one. `/root`
+// is spelled separately because root's home has no username segment at all.
+const TOOL_DIRS = '(?:claude|codex|agents|gstack|cursor)';
+const PRIVATE_PATH = new RegExp(
+  '(?:(?:\\/Users|\\/home)\\/[A-Za-z0-9._@-]+|\\/root)\\/\\.' + TOOL_DIRS + '\\b'
+);
+
+// The same tooling directory NESTED under a home directory rather than sitting
+// directly in it — a home dir, then a project path, then `/.claude`. Every
+// project-scoped `.claude/` has this shape, including this repo's own, which is
+// why it cannot simply be folded into PRIVATE_PATH: a doc or log that names this
+// checkout's own `.claude/` path is not a disclosure and flagging it is how a
+// gate gets muted. So a hit only counts when the path is NOT inside this
+// checkout — which is exactly the condition that makes it someone else's machine.
+const NESTED_PRIVATE_PATH = new RegExp(
+  '(?:(?:\\/Users|\\/home)\\/[A-Za-z0-9._@-]+|\\/root)\\/[^\\s"\'`]{1,200}\\/\\.' + TOOL_DIRS + '\\b',
+  'g'
+);
+
+// True when the text stages an absolute private-tooling path from a machine
+// other than this checkout.
+function findPrivatePath(text) {
+  const direct = PRIVATE_PATH.exec(text);
+  if (direct) return direct[0];
+  NESTED_PRIVATE_PATH.lastIndex = 0;
+  let match;
+  while ((match = NESTED_PRIVATE_PATH.exec(text)) !== null) {
+    if (!match[0].startsWith(repoRoot + '/')) return match[0];
+  }
+  return null;
+}
 
 // Built from fragments on purpose. If this file spelled a matching path out
 // literally it would have to exempt itself from its own scan — and the previous
@@ -84,6 +127,18 @@ const ROOT_LINUX = '/ho' + 'me';
 const DOT = '/.';
 function leak(root, tool, tail) {
   return root + '/someone' + DOT + tool + tail;
+}
+// A realm-qualified home directory, as an AD/LDAP-joined box hands out.
+function leakRealm(tool, tail) {
+  return ROOT_LINUX + '/alice@example.com' + DOT + tool + tail;
+}
+// root's home has no username segment.
+function leakRoot(tool, tail) {
+  return '/ro' + 'ot' + DOT + tool + tail;
+}
+// The tooling directory nested under a project on SOMEONE ELSE's machine.
+function leakNested(root, tool, tail) {
+  return root + '/someone/work/private-thing' + DOT + tool + tail;
 }
 
 // Known-published exceptions, quarantined rather than silently tolerated.
@@ -161,8 +216,15 @@ test('no staged file leaks a private home-directory path into this public repo',
     if (buf.includes(0)) continue;               // binary without a known extension
 
     const text = buf.toString('utf8');
-    const hits = text.split('\n').reduce((n, line) => n + (PRIVATE_PATH.test(line) ? 1 : 0), 0);
-    if (hits > 0 && !KNOWN_PUBLISHED.has(rel)) offenders.push(`${rel} (${hits} lines)`);
+    let hits = 0;
+    let firstHit = null;
+    for (const line of text.split('\n')) {
+      const hit = findPrivatePath(line);
+      if (hit === null) continue;
+      hits += 1;
+      if (firstHit === null) firstHit = hit;
+    }
+    if (hits > 0 && !KNOWN_PUBLISHED.has(rel)) offenders.push(`${rel} (${hits} lines, e.g. ${firstHit})`);
   }
 
   assert.deepEqual(offenders, [],
@@ -177,20 +239,43 @@ test('the gate is falsifiable — its own pattern matches a synthetic leak', () 
   // A check whose failure mode is indistinguishable from its success mode is not
   // a check. This proves the matcher fires, so a clean run above means "scanned
   // and found nothing" rather than "silently matched nothing".
-  assert.ok(PRIVATE_PATH.test('  1642 ' + leak(ROOT_MAC, 'agents', '/skills/gstack/review/SKILL.md')),
+  assert.ok(findPrivatePath('  1642 ' + leak(ROOT_MAC, 'agents', '/skills/gstack/review/SKILL.md')),
     'the matcher missed an absolute private-tooling path');
-  assert.ok(PRIVATE_PATH.test('sed -n \'1,240p\' ' + leak(ROOT_MAC, 'codex', '/memories/MEMORY.md')),
+  assert.ok(findPrivatePath('sed -n \'1,240p\' ' + leak(ROOT_MAC, 'codex', '/memories/MEMORY.md')),
     'the matcher missed an absolute .codex path');
-  assert.ok(PRIVATE_PATH.test('loaded ' + leak(ROOT_LINUX, 'claude', '/CLAUDE.md')),
+  assert.ok(findPrivatePath('loaded ' + leak(ROOT_LINUX, 'claude', '/CLAUDE.md')),
     'the matcher missed the Linux form — a leak from a container or CI agent');
-  assert.ok(!PRIVATE_PATH.test('add the snippet to `~/.codex/config.toml`'),
+
+  // The three shapes round 11's adverse pass found the previous class walking
+  // past. Each one is a real machine layout, not a hypothetical.
+  assert.ok(findPrivatePath('loaded ' + leakRealm('claude', '/CLAUDE.md')),
+    'the matcher missed a realm-qualified home directory — an AD/LDAP-joined ' +
+    'Linux box gives every user one, and the `@` was outside the username class');
+  assert.ok(findPrivatePath('loaded ' + leakRoot('codex', '/config.toml')),
+    'the matcher missed root\'s home, which has no username segment at all — ' +
+    'the shape every container agent running as root produces');
+  assert.ok(findPrivatePath('read ' + leakNested(ROOT_MAC, 'claude', '/settings.local.json')),
+    'the matcher missed a project-scoped tooling directory on another machine — ' +
+    'the previous pattern only saw the tooling dir sitting DIRECTLY in $HOME');
+
+  assert.ok(!findPrivatePath('add the snippet to `~/.codex/config.toml`'),
     'the matcher flagged install documentation, which is the noise that gets a gate muted');
-  assert.ok(!PRIVATE_PATH.test('taste profiles live in ~/.raven/taste'),
+  assert.ok(!findPrivatePath('taste profiles live in ~/.raven/taste'),
     'the matcher flagged the product\'s own config path');
-  assert.ok(!PRIVATE_PATH.test(ROOT_MAC + '/someone/projects/raven-mcp'),
+  assert.ok(!findPrivatePath(ROOT_MAC + '/someone/projects/raven-mcp'),
     'the matcher flagged an ordinary local path, which is noise rather than disclosure');
-  assert.ok(!PRIVATE_PATH.test('scratch dir ' + ROOT_MAC + '/someone/.r5-workspace'),
+  assert.ok(!findPrivatePath('scratch dir ' + ROOT_MAC + '/someone/.r5-workspace'),
     'the matcher flagged an unrelated home dot-directory');
+
+  // The load-bearing negative for the nested pattern. THIS checkout's own
+  // `.claude/` has exactly the same shape as the leak above, and it is named
+  // legitimately in docs and session logs. If this fires, the nested rule is a
+  // false-positive generator and the gate gets muted — which is how the class
+  // escaped three times already.
+  assert.equal(findPrivatePath('see ' + repoRoot + '/.cl' + 'aude/skills/release/SKILL.md'), null,
+    'the matcher flagged this repo\'s OWN project-scoped tooling directory');
+  assert.equal(findPrivatePath(repoRoot + '/.cl' + 'aude'), null,
+    'the matcher flagged this checkout root\'s own tooling directory');
 });
 
 test('the gate scans this file too — it has no self-exclusion', () => {

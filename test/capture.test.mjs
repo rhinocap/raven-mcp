@@ -47,16 +47,56 @@ try {
   process.exit(0);
 }
 
-// ── Helper: skip a whole test if chromium is unavailable ────────────────────
+// ── Is chromium actually available? Probe it ONCE, independently ─────────────
+//
+// `src/capture.ts` flattens every launch failure into a single
+// `CaptureUnavailableError`: a missing `playwright` module, a missing browser
+// revision, and a genuine bug inside `launchAuditChromium()` all arrive here
+// wearing the same type. `runOrSkip` used to read that type as "chromium isn't
+// installed" and skip — which means a real regression in the launch path turns
+// the entire capture suite green-with-skips and nobody looks. An adverse pass
+// named it: a skip that can hide a failure is not a skip, it is a mute.
+//
+// So availability is measured here, once, by a probe that does not go through
+// the product code at all. If chromium launches for US, then a
+// `CaptureUnavailableError` out of `capturePage` cannot mean "not installed" —
+// it means something in the capture path broke, and it is rethrown.
+//
+// The probe is deliberately minimal (import, launch, close). It cannot prove
+// every later capture will succeed, only that "unavailable" is the wrong
+// diagnosis when it does not.
+let chromiumAvailable = false;
+let chromiumProbeError = null;
+try {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch({ headless: true });
+  await browser.close();
+  chromiumAvailable = true;
+} catch (err) {
+  chromiumProbeError = err;
+}
+
+// ── Helper: skip a whole test only when chromium is genuinely absent ─────────
 
 async function runOrSkip(t, fn) {
   try {
     await fn();
   } catch (err) {
     if (CaptureUnavailableError && err instanceof CaptureUnavailableError) {
+      if (chromiumAvailable) {
+        // Not an environment problem. Fail loudly rather than skipping.
+        err.message =
+          'capturePage threw CaptureUnavailableError, but a direct ' +
+          'chromium.launch() succeeded in this same process — so chromium IS ' +
+          'installed and the failure is in the capture/launch path, not the ' +
+          'environment. This used to be silently skipped. ' +
+          `(original message: ${err.message})`;
+        throw err;
+      }
       t.skip(
         'Playwright chromium not installed. ' +
         'Run `npx playwright install chromium` then re-run tests. ' +
+        `(probe: ${chromiumProbeError && chromiumProbeError.message}) ` +
         `(original message: ${err.message})`
       );
       return;
@@ -65,11 +105,43 @@ async function runOrSkip(t, fn) {
   }
 }
 
+test('the chromium probe agrees with the environment it is gating', (t) => {
+  // Makes the probe itself falsifiable rather than an invisible switch: a run
+  // that skips the whole suite has to say WHY here, and a run that does not skip
+  // has proven chromium launched. Without this, "0 fail / 13 skipped" and
+  // "0 fail / 0 skipped" are indistinguishable in a CI log.
+  if (!chromiumAvailable) {
+    t.skip('chromium unavailable — every capture test below will skip. Probe error: ' +
+      (chromiumProbeError && chromiumProbeError.message));
+    return;
+  }
+  assert.equal(chromiumProbeError, null, 'chromium launched but the probe recorded an error');
+});
+
 
 // The file:// no-browser fallback returns instead of throwing — detect it so
 // animation-settle assertions skip (no Animations API there) like runOrSkip does.
+//
+// This is the SECOND face of the same mute `runOrSkip` had, and it hides more
+// than that one did: for a `file://` fixture, `capturePage` swallows the launch
+// failure entirely and returns a static-extraction result with a warning, so a
+// broken launch path never even reaches `runOrSkip`. Measured — with a
+// deliberate throw injected into `launchAuditChromium()` and chromium installed,
+// exactly one test failed and twelve went quietly green-with-skips through here.
+//
+// So the availability verdict is enforced at the single point every one of those
+// call sites already passes through. If chromium launched for the probe above,
+// the fallback firing is not an environment fact, it is a regression.
 function usedFileFallback(result) {
-  return result.warnings.some((w) => w.includes('file URL fallback'));
+  const fellBack = result.warnings.some((w) => w.includes('file URL fallback'));
+  if (fellBack && chromiumAvailable) {
+    throw new Error(
+      'capturePage used the file:// static fallback, but chromium launched ' +
+      'successfully in this same process — the browser path is broken, not absent. ' +
+      'This case used to be skipped silently. Warnings: ' + JSON.stringify(result.warnings)
+    );
+  }
+  return fellBack;
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────

@@ -268,10 +268,30 @@ test('SameSite is enforced on the bridge, because upstream can no longer see it'
       'and handed the Lax jar — the check is enumerating what to refuse instead of ' +
       'what to accept, so every future destination arrives pre-approved');
 
+    // Third, the case round 11's adverse pass found still open: a cross-site
+    // iframe navigation the USER started. `Sec-Fetch-User: ?1` is sent on any
+    // user-activated navigation request, and a nested one qualifies — clicking a
+    // link inside a frame is user activation. So `dest: iframe` + `user: ?1` is a
+    // real, reachable shape, and admitting it "because the user did it" is a
+    // one-line change that every assertion above stays green through. It is still
+    // not top-level, and Lax is defined for top-level navigation only.
+    await request(session.url + '/echo', {
+      headers: {
+        'sec-fetch-site': 'cross-site',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-dest': 'iframe',
+        'sec-fetch-user': '?1'
+      }
+    });
+    assert.equal(sent[8].cookie, 'none=1',
+      'a USER-ACTIVATED cross-site iframe navigation was handed the Lax jar — user ' +
+      'activation says who started it, not whether it is top-level, and an attacker ' +
+      'only has to get one click inside their own frame');
+
     await request(session.url + '/echo', {
       headers: { 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'no-cors' }
     });
-    assert.equal(sent[8].cookie, 'none=1',
+    assert.equal(sent[9].cookie, 'none=1',
       'a cross-site subresource keeps only the cookies that opted in');
   });
 });

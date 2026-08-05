@@ -145,3 +145,46 @@ test('a cookie deleted by upstream stops being sent', async () => {
     await new Promise((resolve) => upstream.close(resolve));
   }
 });
+
+test('a cookie deleted with Max-Age=0 stops being sent', async () => {
+  // The OTHER spelling of logout, and the one round 11's adverse pass found
+  // uncovered. RFC 6265 gives two ways to delete a cookie and real sites are
+  // split between them; the test above only uses `Expires` in the past. Narrow
+  // the Max-Age parse at src/grab-bridge.ts to `seconds > 0` — a plausible
+  // "ignore nonsense values" edit — and the Expires deletion above, the rotation
+  // test, and round 2's `Max-Age=1` liveness check all stay green while every
+  // `Max-Age=0` logout on the internet silently leaves the session cookie in the
+  // jar. Max-Age also OUTRANKS Expires, so a site that sends both is not covered
+  // by the Expires case at all.
+  const seen = [];
+  let issued = 0;
+  const upstream = createServer((req, res) => {
+    seen.push({ url: req.url, cookie: req.headers.cookie || '' });
+    const headers = { 'Content-Type': 'text/html; charset=utf-8' };
+    if (issued === 0) headers['Set-Cookie'] = 'session=live; Path=/; SameSite=Strict';
+    if (issued === 1) headers['Set-Cookie'] = 'session=; Path=/; SameSite=Strict; Max-Age=0';
+    issued += 1;
+    res.writeHead(200, headers);
+    res.end('<!doctype html><html><body><h1>up</h1></body></html>');
+  });
+  await new Promise((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+  const upstreamUrl = 'http://127.0.0.1:' + upstream.address().port;
+
+  try {
+    const session = await bridge.startGrabSession(await designMd(), undefined, upstreamUrl, 'consumer');
+
+    await request(session.url + '/login', { headers: SAME_ORIGIN });   // issues session=live
+    await request(session.url + '/page', { headers: SAME_ORIGIN });    // carries it; server logs out
+    await request(session.url + '/after', { headers: SAME_ORIGIN });   // must carry nothing
+
+    assert.equal(seen[1].cookie, 'session=live',
+      'the control failed — the session cookie was never stored, so the assertion ' +
+      'below would pass against a jar that stores nothing at all: ' + seen[1].cookie);
+    assert.equal(seen[2].cookie, '',
+      'a cookie deleted with Max-Age=0 is still being sent, so the most common ' +
+      'logout spelling leaves the credential in the jar: ' + seen[2].cookie);
+  } finally {
+    await bridge.stopGrabSession();
+    await new Promise((resolve) => upstream.close(resolve));
+  }
+});
