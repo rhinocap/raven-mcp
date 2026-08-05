@@ -671,27 +671,70 @@ push. Nothing else stands between a written file and a commit.
   the frozen golden.
 - `cmp browser/raven-grab.js web/public/raven-grab.js` — byte-identical.
 - `dist/` rebuilt clean after every revert; no revert survives in the tree.
+- Full suite re-run **after** the history rewrite below: still 1249/1246/0.
 
-## 4. Committed set — round 9 is `b332f9a`
+### The strip, and a wrong assumption caught by the verification
 
-Round 9 landed as `b332f9a` ("Require a top-level destination for Lax, and
-separate an IME commit from a send"), 13 files, +527/−49. Local `main` is **10
-commits ahead** of `origin/main` at `985e5ce`. Nothing is pushed.
+`SOL-ROUND2.md` was stripped from the unpushed range with
 
-Because §3f's filter-branch rewrote the whole unpushed range afterwards, **every
-hash in §3b–§3e above is stale.** Current lineage, oldest first:
-`ff9bf9e → 4e4793e → 2cea520 → d766d8d → 72ad78e → cbba999 → e675dee → ce7a230
-→ a6114c4 → b332f9a` — re-read them with `git log --oneline origin/main..HEAD`
-rather than trusting any hash written earlier in this file.
+```sh
+FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --index-filter \
+  'git rm --cached --ignore-unmatch --quiet ".claude/patternlib-2026-08-04/out/SOL-ROUND2.md"' \
+  -- origin/main..HEAD
+```
 
-Committed in `b332f9a`: `.gitignore`, `CLAUDE.md`, `src/grab-bridge.ts`,
-`browser/raven-grab.js`, `web/public/raven-grab.js`,
-`test/grab-bridge-proxy-round4.test.mjs`, `test/grab-bridge-proxy-round7.test.mjs`,
-`test/grab-bridge-proxy-round8.test.mjs`,
-`test/grab-overlay-key-isolation.test.mjs`, this file, and three screenshots
-(`github-typing-fixed-live.png`, `github-send-capture-only.png`,
-`probe-send-label.png` — each opened and read before committing, all showing
-public github.com plus the Raven overlay and no private data).
+The surgical check disagreed with what I expected, and the disagreement was the
+useful part. `git diff --name-status refs/original/refs/heads/main HEAD` printed
+a `D` for that path, which it should not have if the round-10 commit had already
+recorded the deletion. It had not — `git ls-tree refs/original/…` still held the
+blob at the old tip, and `git show --stat <commit> -- <path>` came back empty, so
+the staged deletion never made it into the commit despite the path being passed
+to `git commit --only`. **Had I not run the tree diff and instead trusted the
+staged `D` in `git status`, the file would have stayed in the tree.** The
+filter-branch outcome is strictly better than the deletion I thought I had: the
+blob is absent from *every* commit in the range rather than merely removed at the
+tip.
+
+Verified: 12 commits ahead before and after; `git log origin/main..HEAD -- <path>`
+empty; the same query against the preserved old lineage still names `a524383`,
+which proves the strip did something rather than the query being broken.
+
+The pre-strip refs (`refs/pre-strip/round8-main`, `round9a-main`,
+`round10-main`) still hold the sensitive blobs locally. That is the recovery
+path and is deliberate — `git push` only sends `refs/heads/*`, so they cannot
+leave the machine. Delete them once the range is pushed and settled.
+
+**`SOL-VERDICT-RAW.txt` was NOT stripped and cannot be by me.** It is in
+`2487fb5`, an ancestor of `origin/main`, so it is published; removing it means
+force-pushing a public repo, which breaks every existing clone and still leaves
+the object retrievable by SHA on GitHub. It is deleted going forward and
+quarantined in the gate's `KNOWN_PUBLISHED`. **The call is Andrew's.**
+
+## 4. Committed set — round 10 is `de1c46f`
+
+Round 10 landed as `de1c46f` ("Stop the IME guard eating a deliberate Enter, and
+make three tests encode"), 22 files, +730/−5346. Local `main` is **12 commits
+ahead** of `origin/main` at `985e5ce`. Nothing is pushed.
+
+Because the strip rewrote the whole unpushed range again, **every hash written
+earlier in this file is stale, including §3f's and §3g's.** Current lineage,
+oldest first: `ff9bf9e → 4e4793e → 433b566 → 184ee63 → 394a408 → a9dd740 →
+cb482e0 → 0c53276 → 31ce513 → 96801bf → 4197458 → de1c46f`. Re-read with
+`git log --oneline origin/main..HEAD` rather than trusting any hash here.
+
+Committed in `de1c46f`: `.gitignore`, `CLAUDE.md`, `src/grab-bridge.ts`,
+`browser/raven-grab.js`, `web/public/raven-grab.js`, the four test files
+(`…-round4`, `…-round7`, `…-round8`, `grab-overlay-key-isolation`), the new
+`test/no-private-paths.test.mjs`, both conversation logs, the round-10 brief, and
+the deletion of `SOL-VERDICT-RAW.txt`.
+
+**Briefs were renamed `SOL-ROUND*.md` → `BRIEF-ROUND*.md`.** The ignore pattern
+correctly refused to commit a round-10 brief still using the old name — a glob
+cannot tell my prose from an agent's transcript when both are called
+`SOL-ROUND10.md`. The fix was to rename the file, *not* to add a negation for
+`briefs/`; a negation there would let the next raw transcript dropped into that
+directory ship. The convention is now explicit in `.gitignore`: `SOL-ROUND*` is
+agent OUTPUT and never ships, `BRIEF-ROUND*` is input prose and does.
 
 On disk, gitignored, **never committed**: 24 `.log` files under
 `.claude/patternlib-2026-08-04/out/`, and the three harnesses
@@ -703,34 +746,47 @@ Scratchpad only, ephemeral: `/tmp/raven-r9-falsify/{no-guard.js, clock-only.js}`
 
 ## 5. Exact next commands
 
-Sol round 9 is **running** — launched detached at xhigh against
-`.claude/patternlib-2026-08-04/briefs/SOL-ROUND9.md`, writing to
-`.claude/patternlib-2026-08-04/out/SOL-ROUND9.log` (cwd confirmed
+Sol round 10 is **running** — launched detached at xhigh against
+`.claude/patternlib-2026-08-04/briefs/BRIEF-ROUND10.md`, writing to
+`.claude/patternlib-2026-08-04/out/SOL-ROUND10.log` (cwd confirmed
 `/Users/accunliffe/projects/raven-mcp` via `lsof -a -p <pid> -d cwd`, not assumed).
 Its verdict is not yet dispositioned, so **no completion claim may reach Andrew
 until it is.**
 
 ```sh
 # read the verdict when it lands
-tail -60 .claude/patternlib-2026-08-04/out/SOL-ROUND9.log
+tail -80 .claude/patternlib-2026-08-04/out/SOL-ROUND10.log
 
-# re-verify after any round-10 fix
+# re-verify after any round-11 fix
 RAVEN_NO_USAGE_LOG=1 npm test
 node test/e2e-pattern-library.mjs        # not in npm test — real Chromium, proxies live github.com
 cmp browser/raven-grab.js web/public/raven-grab.js
+
+# frozen surfaces
+node --input-type=module -e "import { createHash } from 'node:crypto'; \
+  import('./dist/index.js').then(({buildServer}) => { \
+    const l = Object.keys(buildServer({remote:false})._registeredTools); \
+    const r = Object.keys(buildServer({remote:true})._registeredTools).sort(); \
+    console.log(l.length, r.length, createHash('sha256').update(r.join('\n')).digest('hex')); })"
+# expect: 108 45 f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6
 
 # committing: explicit paths only, never a bare git add + commit
 git fetch origin && git status --porcelain
 git commit --only <explicit paths> --file=<message file>
 ```
 
-The brief attacks: whether `Sec-Fetch-Dest: document` is the *complete* top-level
-signal (`fencedframe`, prerender, a UA sending `mode` without `dest`); whether
-consuming the composition marker on every keydown opens a new hole; whether the
-100ms residual bound can still swallow a real send; whether window-capture
-registration order is actually guaranteed against a site's own listener; whether
-`event.defaultPrevented` is a faithful observable; and whether round 9 narrowed
-anything rounds 4/7/8 used to catch.
+Round 10's brief hands Sol the three round-9 failures as claims and asks whether
+each disposition is real or cosmetic — **and whether any of them introduced a new
+defect.** It says so explicitly, because round 9's own C3 fix was a regression
+that shipped through a full green suite: *"treat 'the tests pass' as worth nothing
+here."* The specific attacks are whether the `ravenCommitEnterAlreadySeen` flag
+can be set and never cleared (or cleared when it shouldn't be); whether the
+rewritten Fetch Metadata comment is right in *either* direction this time, given
+it has now been wrong in both; which product mutation each changed test still
+cannot detect, stated as a concrete code edit; whether the seed-once fixture
+silently broke a test that depended on re-population; and what private-context
+leak the content gate does not catch (prose with no absolute path, an encoded
+path, a `SKIP_EXT` file that can hold text).
 
 Note for whoever picks this up: the running MCP server process holds a **pre-fix
 `dist/`**. Overlay fixes land on a plain reload (the bridge reads the asset from
@@ -738,12 +794,20 @@ disk per request), but bridge-server fixes need a `/mcp` reconnect.
 
 ## 6. Blockers — Andrew only
 
-1. `git push` to `main` (**10 commits ahead**). **This deploys the live MCP
-   endpoint** since the 2026-07-27 unpin — human-gated. Note the history was
-   rewritten twice locally (§3d, §3f); the range has never been pushed, so this
-   is a plain fast-forward push, not a force.
-2. `npm publish` (passkey 2FA, his terminal).
-3. `cd web && vercel deploy --prod` — the only thing that moves the apex marketing
+1. `git push` to `main` (**12 commits ahead**). **This deploys the live MCP
+   endpoint** since the 2026-07-27 unpin — human-gated. The history was rewritten
+   three times locally (§3d, §3f, and the round-10 strip); the range has never
+   been pushed, so this is still a plain fast-forward push, not a force.
+2. **Whether to force-push to strip `SOL-VERDICT-RAW.txt` from published history.**
+   It is in `2487fb5`, already an ancestor of `origin/main`, so it is public. I
+   deleted it going forward and quarantined it in the gate's `KNOWN_PUBLISHED`,
+   but removing it from history means rewriting a public repo: every existing
+   clone breaks, and GitHub keeps unreachable objects retrievable by SHA anyway,
+   so the rewrite buys less than it costs. **Andrew's call, not mine.** Doing
+   nothing is a defensible answer — the file is Sol's own verdict prose, not a
+   credential.
+3. `npm publish` (passkey 2FA, his terminal).
+4. `cd web && vercel deploy --prod` — the only thing that moves the apex marketing
    site and the public `.mcpb` download.
-4. No hold-open bridge is currently running; he has nothing to click yet. A fresh
+5. No hold-open bridge is currently running; he has nothing to click yet. A fresh
    `start_grab_session` with `proxy_target` is needed before handoff.
