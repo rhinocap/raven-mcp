@@ -1131,6 +1131,26 @@
   shadow.appendChild(edgeTab);
   shadow.appendChild(edgeTabLeft);
 
+  // Keystrokes typed into Raven's own inputs must not also reach the host page.
+  // A shadow root scopes styles, not events: keyboard events are composed, so they
+  // keep bubbling out to document, where sites bind bare-letter hotkeys. Typing
+  // "I really like this" into the instructions box on github.com swallowed the "s"
+  // and opened GitHub's search — @github/hotkey listens on document and calls
+  // preventDefault, so the character never reached the textarea either.
+  // Bubble phase on the host is the right seam: every listener inside the overlay
+  // has already run by the time the event gets here, and the host is a descendant
+  // of documentElement, so this always fires before any page listener on document
+  // or window regardless of which script registered first. Raven's own global
+  // chords (Cmd+K, Escape, Alt+G, Cmd+.) are unaffected — they are registered in
+  // CAPTURE phase on document and have already fired before this point.
+  // Not covered: a page listening in capture on window or document, which runs
+  // before the event reaches us at all. Nothing in a descendant can stop that.
+  for (var stopKeyIndex = 0; stopKeyIndex < 3; stopKeyIndex++) {
+    host.addEventListener(["keydown", "keypress", "keyup"][stopKeyIndex], function (event) {
+      event.stopPropagation();
+    });
+  }
+
   var armed = true;
   function panelPresetKey() {
     return collapsedSides.left && collapsedSides.right ? "page" : collapsedSides.left ? "right" : collapsedSides.right ? "left" : "both";

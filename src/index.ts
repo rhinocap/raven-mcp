@@ -40,11 +40,13 @@ import type { NoteAssessment, MobileSourceKind } from "./taste-fidelity.js";
 import { readFile } from "fs/promises";
 import { registerCalls } from "./calls.js";
 import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
-import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet } from "./designmd.js";
+import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet, type FlattenedDesignToken } from "./designmd.js";
 import { startGrabSession, getGrabbedElements, stopGrabSession, getPageTemplate, setTemplateSlots, listTemplates, getGrabLayers, moveGrabLayer, getGrabOperation } from "./grab-bridge.js";
 import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, recordConsultation, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
 import { FAIL_ON_RULES, proposePolish, reviewDiff } from "./design-review.js";
 import { configureSource, readSourceConfig, inventoryFromDesignMd, diffDesignSystem, listBaselineComponents } from "./design-system-diff.js";
+import { saveReference, getReference, searchReferences } from "./reference-store.js";
+import { mapReferenceToTokens } from "./reference-tokens.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
 
@@ -1848,14 +1850,14 @@ function numberedDocMaterial(repoRelative: string, content: string): string {
   }).join("\n");
 }
 
-// The 60 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
+// The 63 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
 // 33 are stateful/local (per-user ~/.raven files, or the create_generation_job
 // subprocess), 6 reach the filesystem/network or have an external side effect,
 // 2 are Talon tools pending a remote-safety pass, 14 are DESIGN.md / review /
-// grab-bridge tools, 4 are design-system diff tools, plus the local audit
-// dispatcher.
+// grab-bridge tools, 4 are design-system diff tools, 3 are pattern-library tools
+// backed by ~/.raven/references, plus the local audit dispatcher.
 // Everything else (45 stateless tools, including the 5 guarded browser URL audits
-// added in Phase 3) is remote-safe, from 105 local tools.
+// added in Phase 3) is remote-safe, from 108 local tools.
 // Traced to docs/remote-mcp-scope.md §2; asserted at build time.
 function resolveDesignSystemPath(projectDir?: string, designFilePath?: string): string {
   if (designFilePath) return resolve(designFilePath);
@@ -1906,6 +1908,10 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   "get_page_template", "set_template_slot", "list_templates",
   "get_grab_layers", "move_grab_layer", "get_grab_operation",
   "review_diff", "polish_diff",
+  // Pattern library. All three read or write ~/.raven/references, which is
+  // per-machine state with no hosted equivalent yet — same reason the grab
+  // bridge tools above are gated, and it keeps the frozen anonymous 45 intact.
+  "capture_reference", "search_references", "map_reference_to_tokens",
   // Local orchestration over existing tool handlers; excluded to preserve the
   // frozen anonymous 45-tool surface and hash.
   "audit"
@@ -2097,6 +2103,12 @@ const TOOL_ACCESS: Record<string, "readOnly" | "destructive"> = {
   audit_taste: "readOnly",
   talon_scan: "readOnly",
   talon_rules: "readOnly",
+  // Pattern library. capture_reference writes a record under ~/.raven/references;
+  // the other two only read. None of them fetches the captured URL — it is stored
+  // for provenance — so none is open-world.
+  capture_reference: "destructive",
+  search_references: "readOnly",
+  map_reference_to_tokens: "readOnly",
   audit: "readOnly"
 };
 
@@ -2157,18 +2169,18 @@ function toolAnnotations(toolName: string): {
     : { title: toolTitle(toolName), readOnlyHint: true, destructiveHint: false, openWorldHint: openWorld };
 }
 
-// buildServer() returns a FRESH McpServer with all 105 local tools + the usage-log/
+// buildServer() returns a FRESH McpServer with all 108 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
 export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }): McpServer {
-// remote = serve only the 45 stateless remote-safe tools (gate off the 60 gated tools
+// remote = serve only the 45 stateless remote-safe tools (gate off the 63 gated tools
 // as appropriate; authenticated stores selectively restore taste tools). evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 105.
+// without threading opts. stdio callers pass nothing → remote=false → all 108.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -3154,6 +3166,134 @@ server.tool(
         }],
         isError: true
       };
+    }
+  }
+);
+
+// ── Pattern library ─────────────────────────────────────────────────
+// The keep-and-apply half of the grab loop. get_grabbed_elements returns a
+// selection that lives only as long as the tab; these three persist it, find it
+// again later, and translate its raw literals onto the project's own tokens.
+// capture_reference deliberately does NOT drain the bridge itself — draining is
+// get_grabbed_elements' job, and doing it here would steal selections from the
+// apply loop. Pass the fields from a drained selection.
+
+// Grab hands back { hover: { declarations: [{ property, value }] } }, so that
+// shape has to be accepted verbatim — requiring the caller to flatten it first
+// is exactly the seam where a "just pass the selection through" loop breaks.
+// A plain { hover: { color: "red" } } map still works.
+var StateStylesSchema = z.record(z.union([
+  z.record(z.string()),
+  z.object({ declarations: z.array(z.object({ property: z.string(), value: z.string() }).passthrough()) }).passthrough()
+]));
+
+server.tool(
+  "capture_reference",
+  "Persist a pattern grabbed from any page so it survives the browser tab. Call it after get_grabbed_elements returns a selection, passing that selection's selector/styles/html/rect/stateStyles plus the URL it was grabbed from. Stores one JSON record under ~/.raven/references; html over 8000 chars is truncated and flagged, style maps over 200 properties are rejected, and non-http(s) URLs are rejected. Every save gets a fresh ref_id, so grabbing the same element twice keeps both. It does not screenshot, does not fetch the URL, and does not map anything onto the project's tokens — that is map_reference_to_tokens.",
+  {
+    url: z.string().describe("Full http(s) URL of the page the pattern was grabbed from"),
+    selector: z.string().describe("CSS selector of the grabbed element, from the grab selection"),
+    styles: z.record(z.string()).describe("Computed styles exactly as captured; rejected over 200 properties"),
+    owner: z.enum(["self", "third-party"]).describe("Whether the pattern came from the user's own product or someone else's site"),
+    tags: z.array(z.string()).describe("Topic tags for later filtering, e.g. ['hero','typography']"),
+    app: z.string().optional().describe("Human name of the source app, e.g. 'Linear'"),
+    html: z.string().optional().describe("outerHTML of the grabbed element; truncated to 8000 chars on save"),
+    rect: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }).optional().describe("Bounding rect of the grabbed element in page coordinates"),
+    state_styles: StateStylesSchema.optional().describe("Per-state styles, either { hover: { color: 'red' } } or the grab selection's own { hover: { declarations: [{ property, value }] } }"),
+    // get_grabbed_elements returns the field as `stateStyles`, and this tool's own
+    // description tells the agent to pass that selection straight through. Naming
+    // only the snake_case form meant the documented call silently dropped every
+    // state style: extra keys are stripped before the handler ever runs, so
+    // nothing errored and the reference just came back without hover or focus.
+    stateStyles: StateStylesSchema.optional().describe("Alias of state_styles, matching the field name get_grabbed_elements returns"),
+    note: z.string().optional().describe("The designer's own words about why this pattern was kept; the highest-weighted field in search")
+  },
+  async ({ url, selector, styles, owner, tags, app, html, rect, state_styles, stateStyles, note }) => {
+    try {
+      var suppliedStateStyles = state_styles ?? stateStyles;
+      var normalizedStateStyles = suppliedStateStyles === undefined ? undefined : Object.fromEntries(
+        Object.entries(suppliedStateStyles).map(([state, value]) => [
+          state,
+          Array.isArray((value as { declarations?: unknown }).declarations)
+            ? Object.fromEntries((value as { declarations: Array<{ property: string; value: string }> }).declarations
+                .map((declaration) => [declaration.property, declaration.value]))
+            : value as Record<string, string>
+        ])
+      );
+      var reference = saveReference({ url, selector, styles, owner, tags, app, html, rect, state_styles: normalizedStateStyles, note });
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({ ref_id: reference.ref_id, host: reference.host, captured_at: reference.captured_at, reference }, null, 2)
+        }]
+      };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "search_references",
+  "Find patterns previously kept with capture_reference — call it before rebuilding something already grabbed, or to recall 'that hero from Linear'. host, owner, and tags filters compose with AND; the free-text query matches case-insensitively against note, app, tags, and selector, and every result carries a score and a 'why' naming the matched fields. Ordering is deterministic. Returns stored JSON records only, never images; corrupt records are named in skipped[] instead of failing the call. It does not rank against live code and does not fetch the source site.",
+  {
+    query: z.string().optional().describe("Free text matched against note, app, tags, and selector; omit to list everything passing the filters"),
+    host: z.string().optional().describe("Only references grabbed from this host, e.g. 'linear.app'"),
+    owner: z.enum(["self", "third-party"]).optional().describe("Only the user's own product, or only third-party sites"),
+    tags: z.array(z.string()).optional().describe("Only references carrying ALL of these tags")
+  },
+  async ({ query, host, owner, tags }) => {
+    try {
+      var found = searchReferences({ query, host, owner, tags });
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({ total: found.total, corpus_size: found.corpus_size, skipped: found.skipped, results: found.results }, null, 2)
+        }]
+      };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "map_reference_to_tokens",
+  "Translate a captured pattern's raw literals (font-size: 64px, color: rgb(247,248,248)) onto the project's own design tokens, so generated code uses the user's type ramp and palette instead of another site's values. Pure and deterministic — no model, no network. Colours compare by RGBA distance (exact at 0, near under 12; alpha counts), lengths normalize to px at root 16 (near under 2px), unitless numbers near within 1%, font families compare on the first family. A property with a known token family (font-size, line-height, gap, radius, …) only ever binds inside that family: if the closest token by value belongs to another ramp, the result is a gap naming it, not a binding. Winners are ordered by distance, then family fit, then shortest and lexicographic token path. Percent and viewport units, unparseable colour syntaxes, shadows, gradients, and other unmatchable classes become gaps with a stated reason — never a forced match. Broken token chains are reported in diagnostics whether or not anything else matched. A project with no tokens is not an error: every property returns as a gap at coverage 0. It does not invent tokens and does not write code.",
+  {
+    ref_id: z.string().optional().describe("Captured reference to translate; its styles are the input. Supply this or captured."),
+    captured: z.record(z.string()).optional().describe("Raw CSS property/value pairs to translate, if not using a stored ref_id"),
+    design_file_path: z.string().optional().describe("Path to the project's DESIGN.md; its flattened tokens are the target vocabulary. Supply this or tokens."),
+    tokens: z.array(z.any()).optional().describe("Flattened design tokens directly, if not reading a DESIGN.md"),
+    properties: z.array(z.string()).optional().describe("Only map these CSS properties; omit to attempt every captured property"),
+    thresholds: z.object({
+      color: z.number().optional().describe("RGB distance for a near colour match, default 12"),
+      length: z.number().optional().describe("Pixels for a near length match, default 2"),
+      unitless: z.number().optional().describe("Relative difference for a near unitless match, default 0.01"),
+      rootPx: z.number().optional().describe("Root font size used to normalize rem/em, default 16")
+    }).optional().describe("Override the near-match thresholds")
+  },
+  async ({ ref_id, captured, design_file_path, tokens, properties, thresholds }) => {
+    try {
+      var source = captured;
+      if (ref_id) {
+        var stored = getReference(ref_id);
+        if (!stored) throw new Error("No captured reference with ref_id " + ref_id + ". Run search_references to list what is stored.");
+        source = stored.styles;
+      }
+      if (!source) throw new Error("Pass ref_id or captured — there is nothing to translate.");
+      var vocabulary = tokens as FlattenedDesignToken[] | undefined;
+      if (design_file_path) vocabulary = readDesignMd(design_file_path).tokens;
+      if (!vocabulary) throw new Error("Pass design_file_path or tokens — there is no token vocabulary to map onto.");
+      var mapped = mapReferenceToTokens(source, vocabulary, { properties, thresholds });
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({ ref_id: ref_id, coverage: mapped.coverage, ramps_used: mapped.ramps_used, bindings: mapped.bindings, gaps: mapped.gaps, diagnostics: mapped.diagnostics }, null, 2)
+        }]
+      };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
     }
   }
 );
@@ -7773,7 +7913,7 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 105 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 108 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });

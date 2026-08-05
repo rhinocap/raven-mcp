@@ -177,6 +177,15 @@ const COUNT_SURFACES = [
       /(the knowledge layers, the )(\d+)( tools)/,
     ],
   },
+  {
+    // The Tool Reference page. Not listed here originally, and it drifted the
+    // furthest of anything in the repo — 95 while the manifest said 108, thirteen
+    // tools and four releases behind, on the page whose entire job is to say what
+    // the tools are. A surface that states the count belongs in this list; being
+    // legacy is not an exemption, because a legacy page still answers a reader.
+    file: 'site/docs.html',
+    patterns: [/(Raven provides <strong>)(\d+)( tools<\/strong>)/],
+  },
 ];
 
 // Both Vercel projects publish an llms.txt for the same project — web/public/ at

@@ -120,6 +120,18 @@
       "description": "Read newly sent grab selections without deleting their durable change records, optionally waiting up to timeout_ms."
     },
     {
+      "name": "capture_reference",
+      "description": "Persist a pattern grabbed from any page so it survives the browser tab."
+    },
+    {
+      "name": "search_references",
+      "description": "Find patterns previously kept with capture_reference — call it before rebuilding something already grabbed, or to…"
+    },
+    {
+      "name": "map_reference_to_tokens",
+      "description": "Translate a captured pattern's raw literals (font-size: 64px, color: rgb(247,248,248)) onto the project's own design…"
+    },
+    {
       "name": "stop_grab_session",
       "description": "Stop the current grab bridge and clear its queued selections."
     },

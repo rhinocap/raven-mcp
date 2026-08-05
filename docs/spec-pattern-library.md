@@ -1,5 +1,10 @@
 # Raven: pattern reference, interaction capture, and grounded prompt synthesis
 
+> **Status as built (2026-08-04) — the counts in this document are as-of-planning and no longer describe the tree.**
+> This is a planning spec; its tool-count arithmetic (§6, §13, and the 105 → 112 / 60 → 67 projections) was written against a 105-local / 60-gated baseline and is preserved as the reasoning that produced the plan, not as current state.
+> What actually shipped: `compose_build_prompt` was **registered and then deleted** on 2026-08-03 after the §13 falsification gate fired (`.claude/pregate-2026-08-02/round5/VERDICT-R5.md`), so the composer half of this spec is not in the tree. Three tools shipped instead — `capture_reference`, `search_references`, `map_reference_to_tokens` — taking the working tree to **108 local / 63 gated**, with the anonymous surface still 45 and `f64bb18…2bb0a6` unmoved. None of that is on npm yet: published `2.3.0` remains 105 / 60.
+> `CLAUDE.md`'s ground-truth block is the live number; read it, not this header, before quoting a count.
+
 Raven can already tell an agent what a person's rules are (`get_taste_profile`, `read_design_md`, `talon_scan`) but has no way to say *"build it like this."* This spec adds the missing input class — an exemplar the designer chose, marked up, and explained — and the composer that fuses it with the project's own tokens, components, taste rules, and active decisions into a build prompt. It is deliberately small: seven new tools — one composer, four session tools, and two reference-store tools — built on the `ReferenceCapture` record that already exists, plus three new routes on the grab bridge.
 
 ---

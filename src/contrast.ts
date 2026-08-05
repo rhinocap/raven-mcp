@@ -117,7 +117,7 @@ export function collapseShortTextContrastFailures(rows: ContrastRow[]): Contrast
  * Unknown/unparseable → [0, 0, 0, 1] for this legacy public helper only.
  * Audit paths use parseKnownColor and surface parse failures as indeterminate.
  */
-function parseKnownColor(css: string): Rgba | null {
+export function parseKnownColor(css: string): Rgba | null {
   const s = css.trim().toLowerCase();
 
   if (s === "black") return [0, 0, 0, 1];

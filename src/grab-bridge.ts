@@ -404,6 +404,7 @@ export async function startGrabSession(path?: string, port?: number, proxyTarget
 
   var key = randomBytes(32).toString("hex");
   var projectName = grabProjectName(abs);
+  resetProxyCookieJar();
 
   var server = createServer(function (req, res) {
     void handleGrabRequest(abs, key, req, res, normalizedTarget, role);
@@ -485,6 +486,14 @@ export async function startGrabSession(path?: string, port?: number, proxyTarget
   if (warning && normalizedTarget) {
     warning += " proxy_target is ignored in shim mode.";
   }
+  if (!warning && mode === "server" && normalizedTarget) {
+    // Say the real boundary out loud rather than implying isolation the bridge
+    // does not have: the proxied page is served from this origin, so its own
+    // scripts can read the overlay's key and call the routes it unlocks. The
+    // authoring routes are already withheld while proxying and the DESIGN.md path
+    // is withheld from /tokens, but the token names and values are readable.
+    warning = "The proxied page is served from this bridge's own origin, so scripts on that page can both read your DESIGN.md token names and values and post their own selections and instructions into the grab queue, which get_grabbed_elements will hand to your agent as if you had grabbed them. Raven withholds the file path and every authoring route while proxying, but treat what comes back from a proxied grab as untrusted input, and proxy sites you would be comfortable showing your token list to.";
+  }
   var bridgeUrl = "http://127.0.0.1:" + actualPort;
   // Watcher only exists in server mode — shim has no HTTP listener for curl to reach.
   var waitUrl = mode === "server" ? bridgeUrl + "/agent/wait?key=" + key + "&timeout_ms=240000" : "";
@@ -516,6 +525,7 @@ export async function stopGrabSession(): Promise<{ stopped: boolean }> {
 
   var session = currentSession;
   currentSession = null;
+  resetProxyCookieJar();
   session.waiters.splice(0).forEach(function (resolveItems) {
     resolveItems({ count: 0, elements: [] });
   });
@@ -1035,8 +1045,40 @@ async function handleGrabRequest(designMdPath: string, key: string, req: Incomin
   var pathname = new URL(requestUrl, "http://127.0.0.1").pathname;
   var bridgeRoute = pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/grab" || pathname === "/batch" || pathname === "/batch-commit" || pathname === "/agent/wait"
     || pathname === "/template" || pathname === "/template-validation" || pathname === "/components" || pathname === "/layers" || pathname === "/layers-intent" || pathname === "/layers-operation";
-  if (proxyTarget && method !== "OPTIONS" && !bridgeRoute) {
+  var withheldRoute = false;
+  if (proxyTarget && bridgeRoute) {
+    // A proxied page runs same-origin with the overlay, so every route the key
+    // unlocks is reachable by that page's own scripts. Two consequences, both
+    // handled here. First, only the three routes the overlay actually needs are
+    // served while proxying — the authoring surface (layer moves, template and
+    // component writes, batch commits) stays off a third-party origin entirely.
+    // Second, /tokens and /components are ordinary paths a real site may own, so
+    // a request without the key is not ours: forward it upstream instead of
+    // answering 403 and breaking the site the designer came to measure.
+    var overlayRoute = pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/grab";
+    var keyed = new URL(requestUrl, "http://127.0.0.1").searchParams.get("key") === key;
+    bridgeRoute = overlayRoute && keyed;
+    // A withheld route that still carries the right key is Raven's own traffic,
+    // and forwarding it was strictly worse than refusing it: the overlay's layer
+    // move went to the proxied site as an authenticated POST carrying its session
+    // cookie and Raven's capability key, so a site that happens to own /layers
+    // could be made to act on a request the designer never issued. Answer here.
+    withheldRoute = !overlayRoute && keyed;
+  }
+  // OPTIONS was excluded from forwarding wholesale, which meant every upstream
+  // preflight got Raven's own 204 advertising GET/POST and Content-Type. Any real
+  // cross-origin API on the proxied site — anything sending Authorization, or a
+  // PUT or DELETE — was refused by a response the site never sent. Only the
+  // bridge's own routes answer OPTIONS locally.
+  if (proxyTarget && !bridgeRoute && !withheldRoute) {
     await proxyGrabRequest(proxyTarget, key, method, requestUrl, req, res, role);
+    return;
+  }
+  if (withheldRoute) {
+    setCorsHeaders(res);
+    res.statusCode = 404;
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.end("Not available while proxying a third-party site");
     return;
   }
   var bodyText = await readJsonBody(req).then(function (body) {
@@ -1068,15 +1110,26 @@ function proxyGrabUpgrade(proxyTarget: string | undefined, req: IncomingMessage,
     socket.destroy();
     return;
   }
+  // Read the live session target, not the one captured when the server started:
+  // a same-host http->https upgrade moves it, and a WebSocket opened after that
+  // upgrade was still dialling the original http origin, so the socket either
+  // failed or carried the session in clear text.
+  if (currentSession && currentSession.proxyTarget) proxyTarget = currentSession.proxyTarget;
   var target = new URL(proxyTarget);
   var makeRequest = target.protocol === "https:" ? httpsRequest : httpRequest;
+  // Same cookie boundary as the fetch path: the browser's localhost cookies never
+  // travel upstream, and the session jar goes in their place.
+  var upgradeHeaders = Object.assign({}, req.headers, { host: target.host }) as Record<string, unknown>;
+  delete upgradeHeaders.cookie;
+  var upgradeJar = proxyCookieHeader(new URL(req.url || "/", "http://127.0.0.1").pathname);
+  if (upgradeJar) upgradeHeaders.cookie = upgradeJar;
   var upstream = makeRequest({
     protocol: target.protocol,
     hostname: target.hostname,
     port: target.port || (target.protocol === "https:" ? 443 : 80),
     method: req.method,
     path: req.url,
-    headers: Object.assign({}, req.headers, { host: target.host })
+    headers: upgradeHeaders as any
   });
   upstream.on("upgrade", function (upstreamRes, upstreamSocket, upstreamHead) {
     var lines = ["HTTP/1.1 " + upstreamRes.statusCode + " " + (upstreamRes.statusMessage || "Switching Protocols")];
@@ -1102,15 +1155,43 @@ function proxyGrabUpgrade(proxyTarget: string | undefined, req: IncomingMessage,
 }
 
 async function proxyGrabRequest(proxyTarget: string, key: string, method: string, requestUrl: string, req: IncomingMessage, res: ServerResponse, role: GrabRole): Promise<void> {
+  // The session's upstream origin can move under us when a same-host http→https
+  // upgrade is followed (see the redirect handling below), so read the live value.
+  if (currentSession && currentSession.proxyTarget) proxyTarget = currentSession.proxyTarget;
   var targetPath = new URL(requestUrl, "http://127.0.0.1");
   var targetUrl = proxyTarget + targetPath.pathname + targetPath.search;
   var headers = new Headers();
-  var strippedRequestHeaders = new Set(["host", "connection", "accept-encoding", "content-length", "transfer-encoding"]);
+  // sec-fetch-* would tell upstream this is a cross-site request from 127.0.0.1,
+  // which is what makes Origin-gated SaaS (GitHub, Stripe, Linear) answer 403.
+  // sec-fetch-mode is listed for intent only: undici stamps a constant 'cors' on
+  // every outgoing fetch and ignores overrides, so it cannot actually be removed
+  // here — the browser's own value still never reaches upstream.
+  var strippedRequestHeaders = new Set([
+    "host", "connection", "accept-encoding", "content-length", "transfer-encoding",
+    "sec-fetch-site", "sec-fetch-mode", "sec-fetch-dest", "sec-fetch-user",
+    // The browser's 127.0.0.1 cookies belong to whatever else the user runs
+    // locally, not to the proxied site. Upstream gets the session jar instead.
+    "cookie"
+  ]);
   for (var i = 0; i < req.rawHeaders.length; i += 2) {
     var headerName = req.rawHeaders[i];
     var headerValue = req.rawHeaders[i + 1];
     if (!strippedRequestHeaders.has(headerName.toLowerCase())) {
       headers.append(headerName, headerValue);
+    }
+  }
+  var jarCookies = proxyCookieHeader(targetPath.pathname);
+  if (jarCookies) headers.set("cookie", jarCookies);
+
+  var proxyTargetUrl = new URL(proxyTarget);
+  if (headers.has("origin")) headers.set("origin", proxyTargetUrl.origin);
+  if (headers.has("referer")) {
+    try {
+      var incomingReferer = new URL(headers.get("referer") || "");
+      var incomingHost = req.headers.host || "";
+      headers.set("referer", proxyTargetUrl.origin + (incomingReferer.host === incomingHost ? incomingReferer.pathname + incomingReferer.search : "/"));
+    } catch (_err) {
+      headers.set("referer", proxyTargetUrl.origin + "/");
     }
   }
 
@@ -1136,6 +1217,34 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
     });
     res.statusCode = upstream.status;
     copyProxyResponseHeaders(upstream.headers, res);
+    var location = upstream.headers.get("location");
+    if (upstream.status >= 300 && upstream.status < 400 && location) {
+      try {
+        var resolvedLocation = new URL(location, targetUrl);
+        if (sameProxyHost(resolvedLocation, proxyTargetUrl)) {
+          // Same host, so the redirect stays on the bridge as a relative path.
+          // A scheme-only change needs more than that in EITHER direction:
+          // flattening it while the bridge keeps fetching the old scheme makes
+          // the site return the identical redirect for ever, and the browser
+          // loops between two bridge paths with no error to read. Move the
+          // session's upstream origin with the redirect so the next fetch is the
+          // one the site asked for. A downgrade to plaintext is followed but
+          // announced — silently fetching a site over http after it was opened
+          // over https is exactly the kind of thing that should be visible.
+          if (resolvedLocation.protocol !== proxyTargetUrl.protocol && currentSession) {
+            currentSession.proxyTarget = resolvedLocation.origin;
+            if (resolvedLocation.protocol === "http:") {
+              res.setHeader("X-Raven-Proxy-Downgraded", resolvedLocation.origin);
+            }
+          }
+          res.setHeader("Location", resolvedLocation.pathname + resolvedLocation.search + resolvedLocation.hash);
+        } else {
+          res.setHeader("X-Raven-Proxy-Offsite", resolvedLocation.origin);
+        }
+      } catch (_err) {
+        // Leave malformed upstream locations untouched so the bridge preserves the response.
+      }
+    }
     if (method === "HEAD") {
       res.end();
       return;
@@ -1143,17 +1252,26 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
     var responseBody = Buffer.from(await upstream.arrayBuffer());
     var contentType = upstream.headers.get("content-type") || "";
     if (/\btext\/html\b/i.test(contentType)) {
+      var charsetMatch = /\bcharset\s*=\s*["']?\s*([^;\s"']+)/i.exec(contentType);
+      var charset = charsetMatch ? charsetMatch[1].toLowerCase() : "";
+      if (charset && charset !== "utf-8" && charset !== "utf8") {
+        res.setHeader("X-Raven-Proxy-Uninjected", "charset=" + charset);
+        res.end(responseBody);
+        return;
+      }
       var html = responseBody.toString("utf8");
       var proxyBridgeOrigin = currentSession ? 'http://127.0.0.1:' + currentSession.port : '';
       var proxyProjectName = currentSession ? currentSession.projectName : '';
-      var script = grabConfigTag(role, proxyProjectName, proxyBridgeOrigin) + '<script src="/raven-grab.js?key=' + key + '"></script>';
-      if (/<\/body>/i.test(html)) {
-        html = html.replace(/<\/body>/i, function (closingTag) {
-          return script + closingTag;
-        });
-      } else {
-        html += script;
-      }
+      var proxyConfig: Record<string, string> = {
+        bridgeOrigin: proxyBridgeOrigin,
+        projectName: proxyProjectName,
+        ravenVersion: RAVEN_VERSION
+      };
+      if (role === "maintainer") proxyConfig.role = "maintainer";
+      var proxyConfigJson = JSON.stringify(proxyConfig).replace(/</g, "\\u003c");
+      var script = '<script src="/raven-grab.js?key=' + key + '&cfg=' + encodeURIComponent(proxyConfigJson) + '"></script>';
+      var serviceWorkerScript = '<script src="/raven-grab.js?key=' + key + '&sw=1"></script>';
+      html = rewriteProxyHtml(html, proxyTargetUrl, serviceWorkerScript, script);
       responseBody = Buffer.from(html, "utf8");
       res.setHeader("Content-Length", String(responseBody.length));
     }
@@ -1164,6 +1282,86 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.end("Bad gateway: " + message);
   }
+}
+
+function sameProxyHost(left: URL, right: URL): boolean {
+  if (left.hostname.toLowerCase() !== right.hostname.toLowerCase()) return false;
+  if (left.port === right.port) return true;
+  return (!left.port && (right.port === "80" || right.port === "443"))
+    || (!right.port && (left.port === "80" || left.port === "443"));
+}
+
+function htmlAttributeValue(tag: string, name: string): string | null {
+  var match = new RegExp("(?:^|\\s)" + name + "\\s*=\\s*(?:([\"'])(.*?)\\1|([^\\s>]+))", "i").exec(tag);
+  return match ? (match[2] !== undefined ? match[2] : match[3]) : null;
+}
+
+function rewriteHtmlAttribute(tag: string, name: string, value: string): string {
+  return tag.replace(new RegExp("(\\s" + name + "\\s*=\\s*)(?:([\"'])(.*?)\\2|([^\\s>]+))", "i"), function (_match, prefix, quote) {
+    return prefix + (quote ? quote + value + quote : value);
+  });
+}
+
+function rewriteProxyHtml(html: string, proxyTarget: URL, serviceWorkerScript: string, overlayScript: string): string {
+  var protectedBlocks: string[] = [];
+  html = html.replace(/<!--[\s\S]*?-->|<(script|style|template)\b(?:[^>"']|"[^"]*"|'[^']*')*>[\s\S]*?<\/\1\s*>/gi, function (block) {
+    protectedBlocks.push(block);
+    return "\u0000RAVEN-PROTECTED-" + (protectedBlocks.length - 1) + "\u0000";
+  });
+  html = html.replace(/<meta\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi, function (tag) {
+    var httpEquiv = htmlAttributeValue(tag, "http-equiv");
+    return httpEquiv && /^(?:content-security-policy|content-security-policy-report-only)$/i.test(httpEquiv.trim()) ? "" : tag;
+  });
+  html = html.replace(/<base\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi, function (tag) {
+    var href = htmlAttributeValue(tag, "href");
+    if (href === null) return tag;
+    try {
+      var resolvedBase = new URL(href, proxyTarget);
+      return resolvedBase.origin === proxyTarget.origin
+        ? rewriteHtmlAttribute(tag, "href", resolvedBase.pathname + resolvedBase.search + resolvedBase.hash)
+        : tag;
+    } catch (_err) {
+      return tag;
+    }
+  });
+  html = html.replace(/<meta\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi, function (tag) {
+    var httpEquiv = htmlAttributeValue(tag, "http-equiv");
+    var content = htmlAttributeValue(tag, "content");
+    if (!httpEquiv || !/^refresh$/i.test(httpEquiv.trim()) || content === null) return tag;
+    var refreshed = content.replace(/(\burl\s*=\s*)(?:(["'])(.*?)\2|(\S.*?))\s*$/i, function (match, prefix, quote, quotedUrl, bareUrl) {
+      try {
+        var url = quote ? quotedUrl : bareUrl;
+        var wrapper = quote || "";
+        var resolvedRefresh = new URL(url, proxyTarget);
+        return sameProxyHost(resolvedRefresh, proxyTarget)
+          ? prefix + wrapper + resolvedRefresh.pathname + resolvedRefresh.search + resolvedRefresh.hash + wrapper
+          : match;
+      } catch (_err) {
+        return match;
+      }
+    });
+    return rewriteHtmlAttribute(tag, "content", refreshed);
+  });
+  // Run the guard before page scripts but never before the doctype, which would
+  // put the proxied page into quirks mode. Protected raw-text blocks remain hidden
+  // until both injections are placed, so tag-shaped strings cannot capture them.
+  if (/<head\b(?:[^>"']|"[^"]*"|'[^']*')*>/i.test(html)) {
+    html = html.replace(/<head\b(?:[^>"']|"[^"]*"|'[^']*')*>/i, function (headTag) { return headTag + serviceWorkerScript; });
+  } else if (/<html\b(?:[^>"']|"[^"]*"|'[^']*')*>/i.test(html)) {
+    html = html.replace(/<html\b(?:[^>"']|"[^"]*"|'[^']*')*>/i, function (htmlTag) { return htmlTag + serviceWorkerScript; });
+  } else if (/<!doctype[^>]*>/i.test(html)) {
+    html = html.replace(/<!doctype[^>]*>/i, function (doctype) { return doctype + serviceWorkerScript; });
+  } else {
+    html = serviceWorkerScript + html;
+  }
+  if (/<\/body>/i.test(html)) {
+    html = html.replace(/<\/body>/i, function (closingTag) { return overlayScript + closingTag; });
+  } else {
+    html += overlayScript;
+  }
+  return html.replace(/\u0000RAVEN-PROTECTED-(\d+)\u0000/g, function (_placeholder, index) {
+    return protectedBlocks[Number(index)];
+  });
 }
 
 async function readRawBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
@@ -1181,7 +1379,16 @@ async function readRawBody(req: IncomingMessage, maxBytes: number): Promise<Buff
 }
 
 function copyProxyResponseHeaders(headers: Headers, res: ServerResponse): void {
-  var strippedResponseHeaders = new Set(["content-length", "content-encoding", "transfer-encoding", "connection"]);
+  // The bridge is a local, key-gated, user-initiated proxy of a page the user may
+  // view; upstream-origin browser policies cannot be satisfied from 127.0.0.1.
+  var strippedResponseHeaders = new Set([
+    "content-length", "content-encoding", "transfer-encoding", "connection",
+    "content-security-policy", "content-security-policy-report-only", "x-frame-options",
+    "cross-origin-embedder-policy", "cross-origin-opener-policy", "cross-origin-resource-policy",
+    "permissions-policy", "feature-policy", "alt-svc", "report-to", "reporting-endpoints",
+    // set-cookie is withheld deliberately — see proxyCookieJar.
+    "set-cookie"
+  ]);
   headers.forEach(function (headerValue, headerName) {
     if (!strippedResponseHeaders.has(headerName.toLowerCase())) {
       res.setHeader(headerName, headerValue);
@@ -1189,11 +1396,90 @@ function copyProxyResponseHeaders(headers: Headers, res: ServerResponse): void {
   });
   var headersWithCookies = headers as Headers & { getSetCookie?: () => string[] };
   if (typeof headersWithCookies.getSetCookie === "function") {
-    var cookies = headersWithCookies.getSetCookie();
-    if (cookies.length > 0) {
-      res.setHeader("Set-Cookie", cookies);
+    storeProxyCookies(headersWithCookies.getSetCookie());
+  }
+}
+
+// Upstream cookies live here, on the server, for the life of one proxy session —
+// they are never handed to the browser. Rewriting them into 127.0.0.1 cookies (by
+// dropping Secure and Domain) would put a third-party session credential into the
+// localhost cookie store, which is not port-scoped: every other local dev server,
+// and every later proxy session on another port, would receive it. The same jar
+// closes the reverse leak — the browser's own 127.0.0.1 cookies, set by whatever
+// else the user runs locally, must not be forwarded to the proxied site either.
+// Keyed by name AND path, because a jar keyed by name alone is not a cookie jar.
+// A site that sets `sid` for /app and a different `sid` for / has two cookies,
+// and collapsing them sent the /app session to every request for /: the wrong
+// identity, silently, on a site the designer is signed in to. Expiry is stored
+// rather than evaluated once at write time, for the same reason — a Max-Age=1
+// cookie was live when it arrived and stayed in the jar for the whole session.
+interface ProxyCookie {
+  name: string;
+  value: string;
+  path: string;
+  expiresAt: number | null;
+}
+
+var proxyCookieJar = new Map<string, ProxyCookie>();
+
+function resetProxyCookieJar(): void {
+  proxyCookieJar.clear();
+}
+
+function storeProxyCookies(cookies: string[]): void {
+  for (var cookie of cookies) {
+    var parts = cookie.split(";");
+    var separator = parts[0].indexOf("=");
+    if (separator <= 0) continue;
+    var name = parts[0].slice(0, separator).trim();
+    var value = parts[0].slice(separator + 1).trim();
+    if (!name) continue;
+    var attributes = readCookieAttributes(parts.slice(1));
+    var jarKey = name + "\n" + attributes.path;
+    if (attributes.expiresAt !== null && attributes.expiresAt <= Date.now()) proxyCookieJar.delete(jarKey);
+    else proxyCookieJar.set(jarKey, { name: name, value: value, path: attributes.path, expiresAt: attributes.expiresAt });
+  }
+}
+
+function readCookieAttributes(attributes: string[]): { path: string; expiresAt: number | null } {
+  var path = "/";
+  var expiresAt: number | null = null;
+  for (var attribute of attributes) {
+    var index = attribute.indexOf("=");
+    var attributeName = (index === -1 ? attribute : attribute.slice(0, index)).trim().toLowerCase();
+    var attributeValue = index === -1 ? "" : attribute.slice(index + 1).trim();
+    if (attributeName === "path" && attributeValue.startsWith("/")) path = attributeValue;
+    if (attributeName === "max-age") {
+      var seconds = Number(attributeValue);
+      if (Number.isFinite(seconds)) expiresAt = Date.now() + seconds * 1000;
+    }
+    // Max-Age wins over Expires per RFC 6265, so only read Expires if unset.
+    if (attributeName === "expires" && expiresAt === null) {
+      var parsed = Date.parse(attributeValue);
+      if (!Number.isNaN(parsed)) expiresAt = parsed;
     }
   }
+  return { path: path, expiresAt: expiresAt };
+}
+
+/** RFC 6265 §5.1.4: /app matches /app, /app/x and /app/, but never /application. */
+function cookiePathMatches(cookiePath: string, requestPath: string): boolean {
+  if (cookiePath === requestPath) return true;
+  if (!requestPath.startsWith(cookiePath)) return false;
+  return cookiePath.endsWith("/") || requestPath.charAt(cookiePath.length) === "/";
+}
+
+function proxyCookieHeader(requestPath: string): string {
+  var now = Date.now();
+  var matching: ProxyCookie[] = [];
+  proxyCookieJar.forEach(function (cookie, jarKey) {
+    if (cookie.expiresAt !== null && cookie.expiresAt <= now) { proxyCookieJar.delete(jarKey); return; }
+    if (cookiePathMatches(cookie.path, requestPath)) matching.push(cookie);
+  });
+  // Longer paths first, so the more specific cookie is the one a server reading
+  // only the first occurrence of a name sees.
+  matching.sort(function (a, b) { return b.path.length - a.path.length; });
+  return matching.map(function (cookie) { return cookie.name + "=" + cookie.value; }).join("; ");
 }
 
 async function readJsonBody(req: IncomingMessage): Promise<any> {
@@ -1235,7 +1521,24 @@ async function buildGrabResponse(designMdPath: string, key: string, method: stri
     }
     // no-store: the overlay is read from disk per-request so fixes land on plain reload —
     // without it Chrome's heuristic cache kept serving stale overlays across reloads.
-    return { status: 200, headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-store" }, body: readFileSync(GRAB_ASSET_PATH, "utf8") };
+    // Deliberate capability reduction: third-party service workers must not install
+    // against the local bridge origin and retain control after the proxy session.
+    var serviceWorkerPrelude = "if(navigator.serviceWorker){navigator.serviceWorker.register=function(){return Promise.resolve(null);};}\n";
+    if (parsedUrl.searchParams.get("sw") === "1" && currentSession && currentSession.proxyTarget) {
+      return { status: 200, headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-store" }, body: serviceWorkerPrelude };
+    }
+    var grabAssetBody = readFileSync(GRAB_ASSET_PATH, "utf8");
+    var configParam = parsedUrl.searchParams.get("cfg");
+    if (configParam !== null) {
+      try {
+        var parsedConfig = JSON.parse(configParam);
+        var serializedConfig = JSON.stringify(parsedConfig).replace(/</g, "\\u003c");
+        grabAssetBody = "window.ravenGrabConfig=" + serializedConfig + ";\n" + grabAssetBody;
+      } catch (_err) {
+        // A malformed proxy config must not prevent the overlay asset from loading.
+      }
+    }
+    return { status: 200, headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-store" }, body: grabAssetBody };
   }
 
   if (method === "GET" && pathname === "/tokens") {
@@ -1243,10 +1546,16 @@ async function buildGrabResponse(designMdPath: string, key: string, method: stri
       var raw = readFileSync(designMdPath, "utf8");
       var parsed = parseDesignMd(raw);
       var tokens = flattenDesignTokens(parsed.frontmatter);
+      // While proxying, this response is readable by the proxied page's own
+      // scripts (same origin). The token vocabulary is the point of the feature;
+      // the absolute path to the user's DESIGN.md is not, so withhold it there.
+      var proxied = Boolean(currentSession && currentSession.proxyTarget);
       return {
         status: 200,
         headers: { "Content-Type": "application/json; charset=utf-8" },
-        body: JSON.stringify({ path: designMdPath, count: tokens.length, tokens: tokens }, null, 2)
+        body: JSON.stringify(proxied
+          ? { count: tokens.length, tokens: tokens }
+          : { path: designMdPath, count: tokens.length, tokens: tokens }, null, 2)
       };
     } catch (err) {
       return {

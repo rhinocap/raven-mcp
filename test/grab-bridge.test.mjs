@@ -883,7 +883,7 @@ test('tool gating keeps the anonymous remote surface at 45 and gates the local D
     'polish_diff'
   ];
 
-  assert.equal(stdioNames.length, 105);
+  assert.equal(stdioNames.length, 108);
   for (const name of newTools) {
     assert.equal(stdioNames.includes(name), true, `${name} should be registered on stdio`);
     assert.equal(remoteNames.includes(name), false, `${name} should be gated off remote anonymous`);
@@ -941,25 +941,60 @@ test('template routes batch page-scoped slots, round-trip, and flag validation o
   });
 });
 
-test('all new bridge routes require the session key and stay local in proxy mode', async () => {
+test('proxy mode withholds the authoring routes and forwards paths it does not own', async () => {
+  // A proxied page runs same-origin with the overlay, so every route the key
+  // unlocks is reachable by that page's own scripts. Two things follow, and this
+  // test pins both: the authoring surface is not served on a third-party origin
+  // even with the right key, and a path Raven would otherwise reserve goes
+  // upstream when it arrives without the key — /tokens and /components are names
+  // a real site may own, and answering 403 breaks the site being measured.
+  //
+  // The first half originally asserted 502 — "it reached the closed upstream, so
+  // Raven did not answer it." That measured the right intent with the wrong
+  // instrument, and the instrument hid a second defect: withholding was
+  // implemented as "not a bridge route", which fell through to the FORWARDER, so
+  // a keyed /layers POST went to the third-party origin carrying that site's
+  // cookies and Raven's capability key. Refusing locally is the only correct
+  // answer for Raven's own traffic, so these now expect 404 and a companion test
+  // in grab-bridge-proxy-round2 asserts upstream received nothing at all.
   const designPath = await makeDesignFixture();
   await withClient(indexMod.buildServer({}), async (client) => {
+      // Port 9 (discard) is closed here, so anything reaching the proxy 502s —
+      // which is exactly how "Raven did not answer this itself" is observable.
       const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath, proxy_target: 'http://127.0.0.1:9' } });
       const session = JSON.parse(started.content[0].text);
-      const routes = [
+      const key = sessionKey(session);
+      const authoringRoutes = [
         ['GET', '/template?page=%2F'],
         ['POST', '/template'],
         ['POST', '/template-validation'],
         ['POST', '/layers'],
-        ['POST', '/layers-intent']
+        ['POST', '/layers-intent'],
+        ['GET', '/batch'],
+        ['POST', '/batch-commit'],
+        ['GET', '/agent/wait']
       ];
-      for (const [method, route] of routes) {
+      for (const [method, route] of authoringRoutes) {
         const separator = route.includes('?') ? '&' : '?';
-        const forbidden = await fetch(`${session.url}${route}${separator}key=wrong`, {
+        const response = await fetch(`${session.url}${route}${separator}key=${key}`, {
           method, headers: { 'Content-Type': 'application/json' }, body: method === 'POST' ? '{}' : undefined
         });
-        assert.equal(forbidden.status, 403, `${method} ${route} should reject an unregistered key`);
+        assert.equal(response.status, 404,
+          `${method} ${route} must be refused here on a proxied origin — neither served by Raven nor forwarded upstream`);
       }
+
+      // Without the key these are not Raven's requests at all — upstream's.
+      for (const route of ['/tokens', '/components', '/grab']) {
+        const forwarded = await fetch(`${session.url}${route}?key=wrong`);
+        assert.equal(forwarded.status, 502,
+          `${route} without the session key belongs to the proxied site, not to Raven`);
+      }
+
+      // The overlay's own three routes still work with the real key.
+      const tokens = await fetch(`${session.url}/tokens?key=${key}`);
+      assert.equal(tokens.status, 200);
+      assert.equal((await tokens.json()).count, 1);
+
       await client.callTool({ name: 'stop_grab_session', arguments: {} });
   });
 });
@@ -1635,17 +1670,38 @@ test('grab proxy injects exactly one keyed overlay script before the first closi
         const key = sessionKey(session);
         const response = await fetch(`${session.url}/nested/page?view=full`);
         const html = await response.text();
-        const injected = `<script src="/raven-grab.js?key=${key}"></script>`;
 
         assert.equal(response.status, 201);
         assert.equal(response.headers.get('x-upstream'), 'yes');
         assert.equal(response.headers.get('access-control-allow-origin'), null);
-        assert.equal(html.split(injected).length - 1, 1);
-        const configMatch = html.match(/<script>window\.ravenGrabConfig=\{[^<]+\};<\/script>/);
-        assert.ok(configMatch, 'proxied HTML carries bridge, project, and version metadata');
-        assert.match(configMatch[0], /"bridgeOrigin":"http:\/\/127\.0\.0\.1:\d+"/);
-        assert.equal(html, original.replace(/<\/body>/i, `${configMatch[0]}${injected}</BoDy>`));
-        assert.ok(html.indexOf(injected) < html.toLowerCase().indexOf('</body>'));
+
+        // The proxy path carries its config in the SAME-ORIGIN script URL, not in an
+        // inline <script>. An inline tag is dropped by any upstream CSP without
+        // 'unsafe-inline' (github.com, stripe.com), which silently killed the overlay
+        // on exactly the third-party sites this proxy exists to grab from.
+        assert.equal(html.indexOf('<script>window.ravenGrabConfig'), -1,
+          'proxied HTML must not depend on an inline script that upstream CSP can drop');
+        const injectedMatch = html.match(/<script src="\/raven-grab\.js\?key=([a-f0-9]+)&cfg=([^"]+)"><\/script>/);
+        assert.ok(injectedMatch, 'proxied HTML carries one keyed overlay script with its config in the URL');
+        assert.equal(injectedMatch[1], key);
+        assert.equal(html.split(injectedMatch[0]).length - 1, 1);
+
+        const config = JSON.parse(decodeURIComponent(injectedMatch[2]));
+        assert.match(config.bridgeOrigin, /^http:\/\/127\.0\.0\.1:\d+$/);
+        assert.equal(typeof config.ravenVersion, 'string');
+
+        // The service-worker guard must run before page scripts but must NEVER
+        // precede the doctype — anything ahead of it puts the proxied page into
+        // quirks mode and silently changes box-sizing across the whole document.
+        const guard = `<script src="/raven-grab.js?key=${key}&sw=1"></script>`;
+        assert.ok(html.startsWith('<!doctype html>'), 'the doctype must remain the first bytes of the document');
+        assert.equal(html.split(guard).length - 1, 1, 'exactly one service-worker guard');
+        assert.ok(html.indexOf(guard) < html.indexOf(injectedMatch[0]), 'the guard precedes the overlay');
+
+        assert.equal(html, original
+          .replace(/<html>/i, `<html>${guard}`)
+          .replace(/<\/body>/i, `${injectedMatch[0]}</BoDy>`));
+        assert.ok(html.indexOf(injectedMatch[0]) < html.toLowerCase().indexOf('</body>'));
       } finally {
         await client.callTool({ name: 'stop_grab_session', arguments: {} });
       }
@@ -1855,8 +1911,11 @@ test('grab bridge routes remain available while proxy mode is active', { skip: s
 
         assert.equal(response.status, 200);
         assert.equal(response.headers.get('access-control-allow-origin'), '*');
-        assert.equal(tokens.path, path.resolve(designPath));
         assert.equal(tokens.count, 1);
+        // The proxied page shares this origin, so its scripts can read this
+        // response. The token vocabulary is the feature; the absolute path to the
+        // user's DESIGN.md is not, and is withheld while proxying.
+        assert.equal(tokens.path, undefined, 'the DESIGN.md path must not be exposed to a proxied page');
       } finally {
         await client.callTool({ name: 'stop_grab_session', arguments: {} });
       }

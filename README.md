@@ -22,11 +22,11 @@ Raven gives Claude access to a comprehensive design knowledge base:
 
 ## Install
 
-Local stdio (npx / from source) is the **full product**: **105 tools**, including Grab and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
+Local stdio (npx / from source) is the **full product**: **108 tools**, including Grab, the pattern library, and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
 
 | Path | How | Tools | Taste | Grab |
 |------|-----|-------|-------|------|
-| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **105** | Yes | Yes |
+| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **108** | Yes | Yes |
 | Public remote | `https://mcp.ravenmcp.ai/api/mcp` | **~45** | No | No |
 | Auth remote | `https://mcp.ravenmcp.ai/api/mcp-user` (OAuth) | Taste + audits (no Grab) | Yes | **No** |
 
@@ -207,6 +207,49 @@ Setup takes under a minute:
 For a page you control, you can omit `proxy_target` and paste the returned `<script>` tag into the page instead.
 
 Use `read_design_md` to inspect a DESIGN.md file and its flattened token index, `init_design_md` to create one from a stored Raven system, a blank template, or a [getdesign.md](https://getdesign.md) starter, and `update_design_md` to set, rename, or remove one token without rewriting the rest of the file.
+
+### Pattern library — keep what you grab, then translate it
+
+`proxy_target` also accepts a third-party URL, so you can grab from any site you are allowed to
+view, not just your own dev server. What you grab is otherwise gone when the tab closes, and it
+arrives as another site's literal values. Three tools close that loop:
+
+- `capture_reference` — persist a grabbed selection under `~/.raven/references`: selector, computed
+  styles, hover/focus states, bounding rect, truncated HTML, your own note, and tags. One JSON
+  record per capture, so grabbing the same element twice keeps both.
+- `search_references` — find it again later by free text, host, owner, or tags, with a per-result
+  score and a `why` naming the fields that matched.
+- `map_reference_to_tokens` — translate the captured literals onto **your** DESIGN.md tokens, so
+  the code an agent writes uses your type ramp and palette instead of pasted values. Pure and
+  deterministic: no model, no network.
+
+How the mapping decides, because a wrong binding is worse than a stated gap:
+
+- **Colour** matches on RGBA distance, not RGB — the same hex at a different opacity is a near
+  miss, not an exact hit. Hex, `rgb()`/`rgba()` in both comma and space form, `hsl()`, and the CSS
+  named colours all resolve; a syntax the matcher cannot read (`oklch()`, `lab()`) says so by name
+  instead of reporting your palette as empty.
+- **Lengths** normalize to px at a 16px root. Percentages and viewport units need a containing size
+  and are returned as gaps with that reason, never converted on a guess.
+- **Family before proximity.** A property that belongs to a token family binds inside it:
+  `padding-top` takes a spacing token even when a type token is numerically closer, and
+  `line-height` takes the leading token over an equally-exact size token. When no token in the
+  right family is close enough, the result is a gap that *names* the cross-family near miss
+  ("the closest token by value is `space.4` (16px), but it belongs to a different family") rather
+  than binding `font-size` to your spacing ramp.
+- Ties break on distance, then family fit, then shortest and lexicographically-first token path, so
+  the same inputs always produce the same binding regardless of token order.
+- Broken `$ref` chains and cycles in your DESIGN.md come back in `diagnostics` even when every
+  property still found a match — a defect in your own token file is reported, not swallowed.
+
+Respect the source. Grab from sites you are permitted to access; the tools never bypass a paywall
+or a login, and `owner: "third-party"` is recorded on every capture.
+
+One boundary worth stating plainly: while the bridge is proxying a third-party site, that page is
+served from the bridge's own origin, so scripts on it are same-origin with the Raven overlay and can
+read your DESIGN.md token names and values. Raven withholds the DESIGN.md file path and every
+authoring route (layer moves, template and component writes, batch commits) for the duration of a
+proxy session, but proxy sites you would be comfortable showing your token list to.
 
 ## Creative studio
 
