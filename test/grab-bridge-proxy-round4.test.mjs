@@ -231,15 +231,18 @@ test('SameSite is enforced on the bridge, because upstream can no longer see it'
       'a cross-site IFRAME navigation is not top-level and must keep only the ' +
       'cookies that opted in cross-site');
 
-    // The case that separates an ALLOWLIST from a DENYLIST, and the only one that
-    // does. Every assertion above is satisfied by `dest !== "iframe"` just as well
-    // as by `dest === "document"`, so without this line the check could be
-    // rewritten as a denylist and the suite would stay green — while `frame`,
-    // `embed`, `object` and every destination the platform adds later silently
-    // regained Lax. An OMITTED dest is the general form of that: it is not
-    // `iframe`, so a denylist admits it, and it is not `document`, so the
-    // allowlist refuses it. Refusing is correct — a browser old enough to send
-    // `mode` without `dest` cannot prove the navigation was top-level.
+    // Two cases that separate an ALLOWLIST from a DENYLIST. Every assertion
+    // ABOVE is satisfied by `dest !== "iframe"` just as well as by
+    // `dest === "document"`, so on its own this file could not tell the two
+    // apart. (Round 8's frame/embed/object loop can, for those three names — an
+    // earlier version of this comment claimed to be the only such case, which
+    // was wrong. What that loop cannot catch is an enumerated denylist that
+    // simply lists them.)
+    //
+    // First, an OMITTED dest: not `iframe`, so a denylist admits it; not
+    // `document`, so the allowlist refuses it. Refusing is correct — a browser
+    // old enough to send `mode` without `dest` cannot prove the navigation was
+    // top-level.
     await request(session.url + '/echo', {
       headers: { 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate' }
     });
@@ -247,10 +250,28 @@ test('SameSite is enforced on the bridge, because upstream can no longer see it'
       'a cross-site navigation that never said it was top-level was handed the Lax ' +
       'jar — the destination check has become a denylist');
 
+    // Second, a destination this code has never heard of. `fencedframe` is a
+    // real one the platform added after these checks were written, and it is the
+    // general form of the whole problem: a denylist — even an exhaustive one
+    // listing iframe/frame/embed/object — admits every name invented later. An
+    // allowlist of exactly `document` refuses them by construction, and that
+    // difference is only observable on a name nobody enumerated.
+    await request(session.url + '/echo', {
+      headers: {
+        'sec-fetch-site': 'cross-site',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-dest': 'fencedframe'
+      }
+    });
+    assert.equal(sent[7].cookie, 'none=1',
+      'a nested destination the code does not know about was treated as top-level ' +
+      'and handed the Lax jar — the check is enumerating what to refuse instead of ' +
+      'what to accept, so every future destination arrives pre-approved');
+
     await request(session.url + '/echo', {
       headers: { 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'no-cors' }
     });
-    assert.equal(sent[7].cookie, 'none=1',
+    assert.equal(sent[8].cookie, 'none=1',
       'a cross-site subresource keeps only the cookies that opted in');
   });
 });

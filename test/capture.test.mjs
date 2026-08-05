@@ -752,7 +752,17 @@ test('overall_timeout_ms — a page whose load never fires aborts at the deadlin
           overall_timeout_ms: 2000,  // ...the wall-clock ceiling is what must fire
           viewport: { w: 800, h: 600 },
         }),
-        (err) => err instanceof CaptureTimeoutError,
+        (err) => {
+          // `assert.rejects` swallows the original error and throws its own
+          // AssertionError when the predicate returns false — so on a machine
+          // with no Chromium this reported a hard FAILURE ("expected
+          // CaptureTimeoutError") instead of letting runOrSkip skip, and every
+          // other browser test in the run skipped cleanly around it. Re-throwing
+          // hands the real error back to runOrSkip; a validation function that
+          // throws propagates rather than being treated as a false result.
+          if (CaptureUnavailableError && err instanceof CaptureUnavailableError) throw err;
+          return err instanceof CaptureTimeoutError;
+        },
         'must reject with CaptureTimeoutError rather than hanging until goto times out'
       );
       const elapsed = Date.now() - started;

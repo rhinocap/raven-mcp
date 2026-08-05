@@ -710,11 +710,174 @@ force-pushing a public repo, which breaks every existing clone and still leaves
 the object retrievable by SHA on GitHub. It is deleted going forward and
 quarantined in the gate's `KNOWN_PUBLISHED`. **The call is Andrew's.**
 
-## 4. Committed set — round 10 is `de1c46f`
+## 3h. Round 11 — dispositioning Sol round 10
+
+Sol round 10 (xhigh, detached, report-only) returned
+`OVERALL: DOES NOT SURVIVE — C1, C2, C3, and C4 all fail.` All four, plus one
+defect outside the claims. Every one was real.
+
+| Claim | Sol | Disposition |
+|---|---|---|
+| C1 — IME guard separates both commit orderings | FAILS | guard rewritten, three narrowings, +2 tests |
+| C2 — Fetch Metadata cost comment accurate | FAILS | comment rewritten a **third** time |
+| C3 — the three changed tests detect rather than encode | FAILS | three gaps closed |
+| C4 — the private-path gate closes the class | FAILS | gate rewritten: index-based, self-scanning, empty quarantine |
+| outside — `test/capture.test.mjs:749` | defect | fixed, falsifiability measured |
+| frozen surfaces | intact | Sol independently confirmed 108 / 45 / hash / mirror |
+
+### C1 — the guard fired on compositions that were CANCELLED, not committed
+
+`compositionend` does not mean "committed". The UI Events spec fires it on
+Escape, blur, focus change and IME dismissal too. Round 9's guard armed on any
+`compositionend` inside Raven, so an Escape-cancelled composition armed the
+marker and the very next Enter — a deliberate send — was eaten. That is the same
+class of bug round 10 was supposed to have fixed, one layer in.
+
+Three narrowings, all in `browser/raven-grab.js` (~419–480):
+
+1. **Arm only on non-empty `event.data`.** A cancellation carries `data: ""`; a
+   commit carries the committed string. That is the discriminator the spec
+   actually gives you.
+2. **Match the element.** The marker records `origin` from `composedPath()[0]`
+   and the keydown honours it only when the origins are `===`. Both sides use
+   `composedPath()[0]` rather than `event.target`, because from `window` a
+   shadow-tree target retargets to the host — with `target`, every element inside
+   the overlay is indistinguishable, and a composition ending in one field
+   absorbed another's Enter.
+3. **Stamp the verdict on the event, not a global.** `ravenIsCompositionCommit`
+   now reads only `event.__ravenCompositionCommit`, written by a window-capture
+   keydown listener. A module global is readable by anything running between the
+   bookkeeping listener and the send handler, including a page capture handler
+   that synchronously dispatches another keydown.
+
+Plus `compositionstart` clears both pieces of state, so a commit in the *page's*
+own field cannot disarm Raven's next composition.
+
+The comment documents three residuals rather than claiming coverage: a
+mouse-selected candidate (no keydown at all); an IME that reports raw pre-edit
+text as `data` on cancel; and a page script registering a window-capture
+`compositionend` listener before the overlay loads and calling
+`stopImmediatePropagation()` — *"this cannot be closed from inside the page, only
+noted."*
+
+### C2 — the comment was wrong a third time, in a third direction
+
+`src/grab-bridge.ts` ~1319. Round 8's version, round 9's correction of it, and
+round 10's correction of that were each wrong somewhere. The current text opens
+by saying so, and states the RULE with examples rather than asserting a boundary
+it cannot enforce:
+
+> A comment describing a security trade-off is a claim, and it decays exactly
+> like a test does, except that nothing executes it.
+
+What it now gets right: `Origin` is exempted on GET **and HEAD**, not GET alone;
+`no-referrer` strips `Referer` from same-origin links and subresources too; a
+no-CORS POST under `no-referrer` sends `Origin: null`, which throws at `new URL`
+and falls to the cross-site default; a bare top-level navigation loses the Lax
+jar and that is not limited to the first load; `Secure; SameSite=None` rides only
+over https (verified at `proxyCookieHeader:1772`); a reload recovers only if the
+page's referrer policy still emits a `Referer`.
+
+### C3 — three tests that encoded the fix instead of detecting the defect
+
+1. **`…-round4`: `Sec-Fetch-Dest: fencedframe`.** My own comment claimed the
+   `iframe` case was the only one separating an allowlist of exactly `document`
+   from an enumerated denylist. Sol showed that was false — round 8's
+   `frame`/`embed`/`object` loop already separates them. Corrected the comment
+   and added the case that *does* kill the enumerated-denylist mutation: a
+   destination nobody enumerated.
+2. **`…-round7`: `sec-fetch-mode: navigate` with no `sec-fetch-site`.** The
+   existing `cors` case stays green under
+   `if (!fetchSite && fetchMode === "navigate") crossSite = false;` — and that is
+   the more tempting mutation of the two, because `navigate` sounds like the user
+   did it. Nothing in that header says *whose* page issued the navigation.
+3. **`…-round9` (new file, 2 tests): the jar is never observed CHANGING.** Round
+   8 deliberately seeds `Set-Cookie` on the first response only — correct, and it
+   left the suite with exactly one cookie event, so nothing measured the second.
+   Make `storeProxyCookies` ignore every `Set-Cookie` once the jar is non-empty
+   and every pre-existing proxy test still passes, while session rotation,
+   logout and privilege changes are all silently broken upstream. The new file's
+   fixture rotates deliberately; the second test expires a cookie and asserts it
+   stops being sent, with a control on the preceding request so the assertion
+   cannot pass against a jar that stores nothing at all.
+
+### C4 — the gate scanned the worktree, so staging a leak passed cleanly
+
+`test/no-private-paths.test.mjs`, rewritten. `git ls-files` reads the **index**;
+`readFileSync` reads the **worktree**. Stage a leaking blob, then clean the
+worktree, and the old shape hit `ENOENT` and `continue`d — while the staged
+content is exactly what publishes.
+
+It now enumerates `git ls-files -s -z`, reads every blob through one
+`git cat-file --batch`, and matches the staged bytes. Three further changes, each
+answering a specific Sol objection: it asserts the batch walk did not
+desynchronise (`contents.size === entries.length`), it asserts the gate file
+scans **itself** (its own literals are split so it is not its own false
+positive — the previous version excluded itself, which is a hole shaped exactly
+like the thing it guards), and it freezes the quarantine with
+`assert.deepEqual([...KNOWN_PUBLISHED], [])`, because a `<= N` cap is not a
+quarantine when a new offender can take a departed one's slot.
+
+The header now enumerates what it does NOT catch — private prose with no
+absolute path, encoded forms, `$HOME`/Windows paths, the `SKIP_EXT`/8MB/NUL
+skips — and ends: *"Do not read a green run as 'nothing private is committed'."*
+
+The gate went red on its first run. That was correct: the index still held the
+old file with literal paths in it. It passed after `git add`.
+
+### Outside the claims — the harness could not skip
+
+`test/capture.test.mjs:749`. `assert.rejects` swallows the original error and
+throws its own `AssertionError` when the predicate returns false, so on a machine
+with no Chromium `runOrSkip` never saw `CaptureUnavailableError` and the test
+reported a hard failure. The predicate now re-throws it and returns a boolean
+otherwise.
+
+This is also why Sol reported "1249 tests / 1188 pass / 1 fail / 60 skipped"
+against my 1249/1246/0/3 — a contradiction worth chasing rather than dismissing.
+Its sandbox has no Chromium. The disagreement was a real harness defect.
+
+### Falsifiability, measured one revert at a time
+
+Every fix was proven falsifiable before being kept. Overlay reverts ran against a
+modified copy via `RAVEN_GRAB_ASSET_PATH`; bridge reverts were applied to
+`dist/`, then `dist/` was restored from a pristine copy and re-verified with
+`cmp`.
+
+| Revert | Result |
+|---|---|
+| drop the empty-`data` check | 1 red — *"the Enter after an ESCAPE-cancelled composition was swallowed"* |
+| drop the origin match | 1 red — *"a composition that ended in a DIFFERENT element still absorbed this field's Enter"* |
+| drop the `compositionstart` clear | 1 red — the page-field test |
+| enumerated denylist instead of `dest === "document"` | 1 red — the `fencedframe` assertion; round 8's loop stayed green |
+| `!fetchSite && mode === "navigate"` ⇒ same-site | 1 red — the new navigate assertion; the `cors` case stayed green |
+| ignore `Set-Cookie` once the jar is non-empty | both round-9 tests red; rounds 4/7/8 all green |
+| gate: stage a leaking blob, delete the worktree copy | new gate red; old shape would have `continue`d |
+| `capture.test.mjs` old predicate, no Chromium | 1 fail → new predicate 0 fail / 13 skipped |
+
+### Round-11 verification
+
+- `RAVEN_NO_USAGE_LOG=1 npm test` — **1254 tests / 1251 pass / 0 fail / 3
+  skipped**, 43.4s. (+5 over round 10's 1249: two overlay, two round-9, one gate.)
+- `node test/e2e-pattern-library.mjs` — 33/33, real Chromium against proxied live
+  `github.com`.
+- `cmp browser/raven-grab.js web/public/raven-grab.js` — byte-identical.
+- Frozen surfaces — `108 45
+  f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`, unchanged.
+
+## 4. Committed set — round 11
+
+Round 11 committed: `CLAUDE.md`, `src/grab-bridge.ts`, `browser/raven-grab.js`,
+`web/public/raven-grab.js`, `test/grab-overlay-key-isolation.test.mjs`,
+`test/grab-bridge-proxy-round4.test.mjs`, `test/grab-bridge-proxy-round7.test.mjs`,
+`test/grab-bridge-proxy-round9.test.mjs` (new), `test/no-private-paths.test.mjs`,
+`test/capture.test.mjs`, this log, and `…/briefs/BRIEF-ROUND11.md`. Explicit
+paths, no bare `git add`. **`origin/main` is still `985e5ce` and nothing is
+pushed.** Read the current count with `git log --oneline origin/main..HEAD | wc -l`
+rather than trusting a number written here.
 
 Round 10 landed as `de1c46f` ("Stop the IME guard eating a deliberate Enter, and
-make three tests encode"), 22 files, +730/−5346. Local `main` is **12 commits
-ahead** of `origin/main` at `985e5ce`. Nothing is pushed.
+make three tests encode"), 22 files, +730/−5346, at **12 commits ahead**.
 
 Because the strip rewrote the whole unpushed range again, **every hash written
 earlier in this file is stale, including §3f's and §3g's.** Current lineage,
@@ -746,16 +909,19 @@ Scratchpad only, ephemeral: `/tmp/raven-r9-falsify/{no-guard.js, clock-only.js}`
 
 ## 5. Exact next commands
 
-Sol round 10 is **running** — launched detached at xhigh against
-`.claude/patternlib-2026-08-04/briefs/BRIEF-ROUND10.md`, writing to
-`.claude/patternlib-2026-08-04/out/SOL-ROUND10.log` (cwd confirmed
-`/Users/accunliffe/projects/raven-mcp` via `lsof -a -p <pid> -d cwd`, not assumed).
-Its verdict is not yet dispositioned, so **no completion claim may reach Andrew
-until it is.**
+Sol round 11 is **running** — launched detached at xhigh against
+`.claude/patternlib-2026-08-04/briefs/BRIEF-ROUND11.md`, writing to
+`.claude/patternlib-2026-08-04/out/SOL-ROUND11.log` (confirm cwd with
+`lsof -a -p <pid> -d cwd`, never assume it). Its verdict is not yet
+dispositioned, so **no completion claim may reach Andrew until it is.**
+
+The brief warns Sol explicitly that a Chromium-less sandbox will SKIP
+`test/capture.test.mjs`, and that a skip is not a failure — round 10's report
+contained a spurious "1 fail / 60 skipped" for exactly that reason.
 
 ```sh
 # read the verdict when it lands
-tail -80 .claude/patternlib-2026-08-04/out/SOL-ROUND10.log
+tail -80 .claude/patternlib-2026-08-04/out/SOL-ROUND11.log
 
 # re-verify after any round-11 fix
 RAVEN_NO_USAGE_LOG=1 npm test
@@ -775,18 +941,22 @@ git fetch origin && git status --porcelain
 git commit --only <explicit paths> --file=<message file>
 ```
 
-Round 10's brief hands Sol the three round-9 failures as claims and asks whether
-each disposition is real or cosmetic — **and whether any of them introduced a new
-defect.** It says so explicitly, because round 9's own C3 fix was a regression
-that shipped through a full green suite: *"treat 'the tests pass' as worth nothing
-here."* The specific attacks are whether the `ravenCommitEnterAlreadySeen` flag
-can be set and never cleared (or cleared when it shouldn't be); whether the
-rewritten Fetch Metadata comment is right in *either* direction this time, given
-it has now been wrong in both; which product mutation each changed test still
-cannot detect, stated as a concrete code edit; whether the seed-once fixture
-silently broke a test that depended on re-population; and what private-context
-leak the content gate does not catch (prose with no absolute path, an encoded
-path, a `SKIP_EXT` file that can hold text).
+Round 11's brief hands Sol all four round-10 failures as claims, plus the outside
+`capture.test.mjs` defect, and asks whether each disposition is real or cosmetic
+— **and whether any introduced a new defect.** Two rounds have now shipped a
+regression through a fully green suite, so it says *"treat 'the tests pass' as
+worth nothing here"* and asks for arguments from event and HTTP semantics rather
+than from test output. The specific attacks: an IME/browser pairing where a
+cancellation delivers non-empty `data` or a commit delivers empty `data`; a real
+machine where the WebKit `compositionend`→keydown gap exceeds 100ms, or a fast
+typist whose deliberate Enter lands inside it; whether writing
+`__ravenCompositionCommit` on a page-owned event object is observable to the page
+or breaks a sealed event; a factual error in the FOURTH version of the Fetch
+Metadata comment; a concrete one-line product edit that keeps each new test green
+while breaking real behaviour; and the `git cat-file --batch` offset arithmetic
+at a blob boundary, an empty blob, a missing OID, and a `maxBuffer` overflow —
+specifically whether an overflow fails loudly or truncates the scan and reports
+PASS.
 
 Note for whoever picks this up: the running MCP server process holds a **pre-fix
 `dist/`**. Overlay fixes land on a plain reload (the bridge reads the asset from

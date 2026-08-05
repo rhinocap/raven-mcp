@@ -125,6 +125,21 @@ test('a request with no Fetch Metadata at all never carries the Strict session c
     assert.equal(seen[0].cookie, '',
       'a POST carrying sec-fetch-mode but no sec-fetch-site was treated as same-site ' +
       'and given the Strict session cookie: ' + seen[0].cookie);
+
+    // The same shape with `mode: navigate`, because `cors` alone does not pin it.
+    // A rewrite reading a bare `navigate` as proof of a user-initiated same-site
+    // request — `if (!fetchSite && fetchMode === "navigate") crossSite = false;` —
+    // keeps the `cors` case above green and hands the Strict jar to this one. It
+    // is the more tempting mutation of the two, because `navigate` really does
+    // sound like the user did it; nothing about the header says WHOSE page issued
+    // the navigation, which is the only question `sec-fetch-site` answers.
+    seen.length = 0;
+    await request(session.url + '/transfer', {
+      method: 'POST', body: 'amount=1', headers: { 'sec-fetch-mode': 'navigate' }
+    });
+    assert.equal(seen[0].cookie, '',
+      'a POST carrying sec-fetch-mode: navigate but no sec-fetch-site was read as ' +
+      'same-site and given the Strict session cookie: ' + seen[0].cookie);
   } finally {
     await bridge.stopGrabSession();
     await new Promise((resolve) => upstream.close(resolve));

@@ -427,3 +427,143 @@ test('the CONFORMING commit ordering does not cost the user their next Enter', a
     'the Enter immediately after a conforming commit was swallowed — on every ' +
     'browser but WebKit this is the user pressing send and getting nothing');
 });
+
+test('a CANCELLED composition does not eat the Enter that follows it', async (t) => {
+  // `compositionend` does not mean "a candidate was committed". The UI Events
+  // spec fires it whenever a composition completes OR CANCELS — Escape, a blur,
+  // an IME dismissal. An adverse pass caught the guard documenting its residual
+  // as "mouse-selected candidates only" while actually arming on every one of
+  // those, so Escape-then-Enter — cancel the IME, then send — lost the send.
+  //
+  // A cancellation carries an empty `data`; a commit carries the committed
+  // string. That is the discriminator, and this pins it. All three cases below
+  // are in one evaluate so they share a lifecycle, the way a real one does.
+  let seen;
+  try {
+    seen = await withOverlay(async (page) => {
+      return page.evaluate(async () => {
+        const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+        const field = root.querySelector('.raven-grab-textarea');
+        field.focus();
+
+        const enter = () => {
+          const event = new KeyboardEvent('keydown', {
+            key: 'Enter', keyCode: 13, isComposing: false,
+            bubbles: true, composed: true, cancelable: true
+          });
+          field.dispatchEvent(event);
+          return event.defaultPrevented;
+        };
+
+        // Compose, then hit Escape. The Escape keydown comes FIRST, then the
+        // cancelling compositionend — which is why consuming the marker on the
+        // next keydown does not save this case on its own.
+        field.dispatchEvent(new CompositionEvent('compositionstart', {
+          data: '', bubbles: true, composed: true
+        }));
+        field.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'Escape', keyCode: 27, bubbles: true, composed: true, cancelable: true
+        }));
+        field.dispatchEvent(new CompositionEvent('compositionend', {
+          data: '', bubbles: true, composed: true
+        }));
+        const afterCancel = enter();
+
+        // Same shape, but the composition ended somewhere else in the overlay —
+        // the blur/focus-switch case. The Enter lands in a different element, so
+        // it is a different intent and must send.
+        field.dispatchEvent(new CompositionEvent('compositionend', {
+          data: 'にほんご', bubbles: true, composed: true
+        }));
+        const afterCommitHere = enter();
+
+        const elsewhere = root.querySelector('.raven-grab-panel') || root.firstElementChild;
+        elsewhere.dispatchEvent(new CompositionEvent('compositionend', {
+          data: 'にほんご', bubbles: true, composed: true
+        }));
+        const afterCommitElsewhere = enter();
+
+        return { afterCancel, afterCommitHere, afterCommitElsewhere };
+      });
+    });
+  } catch (err) {
+    if (/browserType\.launch|Executable doesn't exist/.test(err.message)) {
+      t.skip(`browser unavailable for overlay key isolation (${err.message})`);
+      return;
+    }
+    throw err;
+  }
+
+  assert.equal(seen.afterCancel, true,
+    'the Enter after an ESCAPE-cancelled composition was swallowed — cancelling the ' +
+    'IME and then pressing send silently does nothing');
+  assert.equal(seen.afterCommitHere, false,
+    'the control failed: a genuine commit in this field stopped being absorbed, so ' +
+    'the assertion above would pass against a guard that armed on nothing at all');
+  assert.equal(seen.afterCommitElsewhere, true,
+    'a composition that ended in a DIFFERENT element still absorbed this field\'s ' +
+    'Enter — the marker is not bound to where the composition happened');
+});
+
+test('a commit in the page\'s own field does not disarm Raven\'s next composition', async (t) => {
+  // `ravenCommitEnterAlreadySeen` is assigned on every keydown page-wide, but
+  // only a Raven-scoped `compositionend` consumes it. So an IME commit in the
+  // PAGE's search box sets the flag and the page's own compositionend — filtered
+  // out by the origin check — never clears it. The next real WebKit commit
+  // inside Raven then reads as already-handled and is released as a send.
+  //
+  // In practice a following keydown usually clears it, because composing
+  // requires typing. `compositionstart` is the lifecycle-correct clearing point
+  // that does not depend on that: a new composition makes any pending Enter
+  // irrelevant by definition. This test isolates the mechanism by leaving no
+  // intervening keydown, which is also the real shape for handwriting and voice
+  // input, where a composition begins with no keydown at all.
+  let seen;
+  try {
+    seen = await withOverlay(async (page) => {
+      return page.evaluate(async () => {
+        const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+        const field = root.querySelector('.raven-grab-textarea');
+
+        // The page's own field, outside the overlay entirely.
+        const pageInput = document.createElement('input');
+        document.body.appendChild(pageInput);
+        pageInput.focus();
+        pageInput.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'Enter', keyCode: 13, isComposing: true,
+          bubbles: true, composed: true, cancelable: true
+        }));
+        pageInput.dispatchEvent(new CompositionEvent('compositionend', {
+          data: 'にほんご', bubbles: true, composed: true
+        }));
+
+        // Now the user composes inside Raven on a WebKit-ordering browser.
+        field.focus();
+        field.dispatchEvent(new CompositionEvent('compositionstart', {
+          data: '', bubbles: true, composed: true
+        }));
+        field.dispatchEvent(new CompositionEvent('compositionend', {
+          data: 'にほんご', bubbles: true, composed: true
+        }));
+        const commit = new KeyboardEvent('keydown', {
+          key: 'Enter', keyCode: 13, isComposing: false,
+          bubbles: true, composed: true, cancelable: true
+        });
+        field.dispatchEvent(commit);
+
+        pageInput.remove();
+        return { commitSent: commit.defaultPrevented };
+      });
+    });
+  } catch (err) {
+    if (/browserType\.launch|Executable doesn't exist/.test(err.message)) {
+      t.skip(`browser unavailable for overlay key isolation (${err.message})`);
+      return;
+    }
+    throw err;
+  }
+
+  assert.equal(seen.commitSent, false,
+    'a stale commit flag left over from the PAGE\'s own IME commit disarmed Raven\'s ' +
+    'guard, so the next WebKit candidate-commit Enter fired the instruction off');
+});

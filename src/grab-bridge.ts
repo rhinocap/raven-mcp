@@ -1316,30 +1316,49 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
   // JavaScript cannot forge either header — `sec-*` are forbidden request header
   // names — but nothing has to be forged when an iframe produces them honestly.
   //
-  // What this costs, scoped to what the code actually does: a browser that sends
-  // no Fetch Metadata at all (Safari before 16.4, some WebViews) can never
-  // satisfy `topLevelGet`, so it can never earn the cross-site Lax allowance.
-  // But that only bites once the request has ALREADY been classified cross-site,
-  // and the ladder above tries two more signals first. Both of the common cases
-  // clear it: a same-origin POST carries an `Origin` (the Fetch spec sets it on
-  // every non-GET), and an in-page link click or subresource carries a `Referer`
-  // — so those get the full jar, Strict included, on the oldest browser there is.
+  // What this costs. THREE earlier versions of this paragraph were wrong, in
+  // different directions — one said Lax never travels without Fetch Metadata,
+  // one said every later navigation carries a Referer, one said the failure was
+  // confined to a bare navigation. So this version states the RULE and gives
+  // examples, rather than claiming a boundary it cannot enforce. A comment
+  // describing a security trade-off is a claim, and it decays exactly like a
+  // test does, except that nothing executes it.
   //
-  // The failure is confined to a request with NO metadata, NO `Origin` and NO
-  // `Referer`, which in practice means a bare top-level navigation: an address
-  // bar entry, a bookmark, or a link out of another app. Those fall to the
-  // `crossSite = true` default and lose the Lax jar — and since an unattributed
-  // `Set-Cookie` parses as Lax (see the default at `sameSite` below), that is the
-  // ordinary session cookie, so the user can land on a login screen. A
-  // `Secure; SameSite=None` cookie still rides, and a reload from the resulting
-  // page works, because it has a Referer.
+  // The rule: a browser that sends no Fetch Metadata (Safari before 16.4, some
+  // WebViews) can never satisfy `topLevelGet`, so it can never earn the
+  // cross-site Lax allowance. That only bites once the ladder above has already
+  // said cross-site, and the ladder tries `Origin` then `Referer` first. So the
+  // question is entirely "does this request carry an attributing header", and
+  // the answer is usually yes:
   //
-  // Two earlier versions of this comment were wrong in opposite directions: one
-  // claimed every later navigation carries a Referer (it does not — a bookmark
-  // carries nothing), the other that Lax never travels at all (it travels on
-  // nearly every request). The narrow statement above is the measured one.
+  //   * A same-origin POST carries an `Origin`. Note this is non-GET AND
+  //     non-HEAD — the Fetch spec exempts both safe methods, not just GET.
+  //   * An in-page link click or subresource normally carries a `Referer`.
   //
-  // It is still accepted deliberately, because the request the user meant is
+  // Both of those get the full jar, Strict included, on the oldest browser there
+  // is. But "normally" is doing real work, and these are NOT the only failures:
+  //
+  //   * `Referrer-Policy: no-referrer`, `referrerpolicy="no-referrer"` and
+  //     `rel="noreferrer"` strip the Referer from same-origin links and
+  //     subresources too. A site that sets that policy loses the jar on requests
+  //     that have nothing to do with navigation.
+  //   * Under `no-referrer`, a no-CORS POST is sent with `Origin: null`. That is
+  //     a string, not a URL — `new URL("null")` throws at the parse above,
+  //     `originHost` stays empty, and the request falls through to the
+  //     cross-site default with no Strict and no Lax.
+  //   * A bare top-level navigation (address bar, bookmark, a link out of
+  //     another app) carries none of the three and loses the Lax jar. Since an
+  //     unattributed `Set-Cookie` parses as Lax (see the `sameSite` default
+  //     below), that is the ordinary session cookie, so the user can land on a
+  //     login screen.
+  //
+  // `Secure; SameSite=None` rides through all of this — but only when the
+  // upstream channel is https, because the `Secure` filter in `proxyCookieHeader`
+  // drops it over plaintext. And a reload from the resulting page recovers only
+  // if that page's referrer policy still emits a Referer; under `no-referrer` it
+  // does not, and the user is stuck rather than one refresh away.
+  //
+  // It is accepted deliberately, because the request the user meant is
   // byte-identical to `<img referrerpolicy="no-referrer" src="http://127.0.0.1:PORT/x">`
   // from a foreign tab. There is no signal left to separate them, and the safe
   // answer to an ambiguity about credentials is to withhold.
