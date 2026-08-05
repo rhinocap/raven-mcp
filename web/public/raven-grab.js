@@ -402,8 +402,29 @@
   // only as a second bound for the case where no keydown follows at all (the
   // user composes, then clicks away and comes back minutes later — a stale
   // marker must not turn their first Enter into a swallowed one).
+  //
+  // But arming on EVERY `compositionend` breaks the conforming browser, which is
+  // the overwhelmingly common one. There the order is keydown-then-end: the
+  // commit Enter has already been dispatched and swallowed by the time
+  // `compositionend` fires, so arming now points the marker at whatever the user
+  // types NEXT — and if that is a deliberate Enter within the window, their send
+  // silently disappears. The whole point of this mechanism is a mis-send, so
+  // trading it for a mis-swallow would be a straight downgrade.
+  //
+  // So arm only in the ordering the fix actually exists for: `compositionend`
+  // WITHOUT a preceding commit Enter. That is precisely WebKit's inversion, and
+  // it costs nothing on a conforming browser, where the commit is already
+  // accounted for.
+  //
+  // One residual, stated rather than hidden: accepting a candidate with the MOUSE
+  // also ends composition with no commit Enter, so it arms. An Enter pressed
+  // within 100ms of that click is swallowed. It is indistinguishable from the
+  // WebKit ordering by construction — the two produce identical event streams —
+  // and it costs a single retry in a case that requires clicking a candidate and
+  // then hitting Enter inside a tenth of a second.
   var ravenCompositionEndedAt = -1;
   var ravenKeyIsCompositionCommit = false;
+  var ravenCommitEnterAlreadySeen = false;
   var RAVEN_COMPOSITION_COMMIT_MS = 100;
 
   function ravenNow() {
@@ -416,6 +437,12 @@
     var path = event.composedPath ? event.composedPath() : [];
     var origin = path.length ? path[0] : event.target;
     if (!ravenContainsNode(origin)) return;
+    // Conforming order — the commit Enter came first and is already handled.
+    // Consume the observation and stay disarmed.
+    if (ravenCommitEnterAlreadySeen) {
+      ravenCommitEnterAlreadySeen = false;
+      return;
+    }
     ravenCompositionEndedAt = ravenNow();
   }, true);
 
@@ -430,6 +457,11 @@
       event.isComposing === true ||
       (pending >= 0 && ravenNow() - pending < RAVEN_COMPOSITION_COMMIT_MS)
     );
+    // Assigned, never OR-ed: it must describe THIS keydown only, so a character
+    // key clears a commit Enter that never produced a `compositionend` (some IMEs
+    // accept a candidate mid-composition without ending it). A stale true would
+    // disarm the next real WebKit commit.
+    ravenCommitEnterAlreadySeen = event.key === "Enter" && event.isComposing === true;
   }, true);
 
   // True for the Enter that only committed an IME candidate.

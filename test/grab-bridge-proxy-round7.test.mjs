@@ -109,6 +109,22 @@ test('a request with no Fetch Metadata at all never carries the Strict session c
     });
     assert.equal(seen[0].cookie, '',
       'a foreign-Origin POST was given the Strict session cookie: ' + seen[0].cookie);
+
+    // PARTIAL metadata, which is the shape the deployed world actually produces —
+    // `sec-fetch-mode` present, `sec-fetch-site` and `sec-fetch-dest` absent. The
+    // classifier keys on `site` and nothing else, and this pins that: a
+    // plausible-looking rewrite that asks "did this request carry any sec-fetch-*
+    // header?" would read the bare `mode` as proof the browser speaks Fetch
+    // Metadata, conclude the absent `site` means same-origin, and hand over the
+    // Strict jar. The header that says who sent it is the only one that answers
+    // the question.
+    seen.length = 0;
+    await request(session.url + '/transfer', {
+      method: 'POST', body: 'amount=1', headers: { 'sec-fetch-mode': 'cors' }
+    });
+    assert.equal(seen[0].cookie, '',
+      'a POST carrying sec-fetch-mode but no sec-fetch-site was treated as same-site ' +
+      'and given the Strict session cookie: ' + seen[0].cookie);
   } finally {
     await bridge.stopGrabSession();
     await new Promise((resolve) => upstream.close(resolve));

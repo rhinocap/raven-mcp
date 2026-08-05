@@ -72,11 +72,23 @@ function request(url, options = {}) {
   });
 }
 
+// Set-Cookie is sent on the FIRST response only, and that is load-bearing.
+// Serving it on every response makes each request re-populate the jar, which
+// destroys every "the cookie was absent" assertion in this file: a bridge that
+// stored nothing at priming time would still show the cookie on the next
+// request, because the response to the one just before it put it there. With
+// one-shot seeding, any cookie observed later can only have come out of the jar
+// the priming navigation filled — so absence means "withheld" and presence means
+// "retained", which is what these tests claim to measure.
 function upstreamRecording(seen, setCookie) {
+  let seeded = false;
   return createServer((req, res) => {
     seen.push({ method: req.method, url: req.url, cookie: req.headers.cookie || '' });
     const headers = { 'Content-Type': 'text/html; charset=utf-8' };
-    if (setCookie) headers['Set-Cookie'] = setCookie;
+    if (setCookie && !seeded) {
+      headers['Set-Cookie'] = setCookie;
+      seeded = true;
+    }
     res.writeHead(200, headers);
     res.end('<!doctype html><html><body><h1>up</h1></body></html>');
   });
@@ -185,6 +197,24 @@ test('a cross-site iframe navigation gets no Lax cookies, because nested is not 
       headers: { 'sec-fetch-site': 'none', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }
     });
 
+    // Control FIRST, and the order is the point. Read after the iframe request it
+    // proves nothing about the moment that matters — it only shows the jar holds
+    // the cookie NOW, which a bridge that stored nothing at priming time could
+    // still satisfy off the iframe response's own Set-Cookie. Asserted here, it
+    // establishes the jar was already populated going INTO the iframe request, so
+    // the empty Cookie below is the nesting decision and not an empty store.
+    // (The upstream seeds once, so nothing can refill it in between either.)
+    //
+    // It has to be spelled as a same-origin request rather than by asserting
+    // `none=1` rode along on the iframe: this fixture's upstream is plaintext
+    // http, so a `Secure` cookie is unsendable by construction and the
+    // cross-site positive belongs in the https fixture in round 4, which has it.
+    seen.length = 0;
+    await request(session.url + '/action', { headers: { 'sec-fetch-site': 'same-origin' } });
+    assert.match(seen[0].cookie, /lax=1/,
+      'the Lax cookie was never in the jar, so the iframe assertion below would ' +
+      'prove nothing: ' + seen[0].cookie);
+
     seen.length = 0;
     await request(session.url + '/action', {
       headers: {
@@ -197,20 +227,6 @@ test('a cross-site iframe navigation gets no Lax cookies, because nested is not 
     assert.doesNotMatch(seen[0].cookie, /lax=1/,
       'a cross-site IFRAME navigation was handed the Lax jar — the upstream site ' +
       'sees an authenticated request from a frame the attacker planted: ' + seen[0].cookie);
-
-    // Control: the jar was live the whole time, so the empty Cookie above is the
-    // nesting decision and not an empty store. Without this, the test would pass
-    // against a bridge that never stored the cookie at all.
-    //
-    // It has to be spelled as a same-origin request rather than by asserting
-    // `none=1` rode along on the iframe: this fixture's upstream is plaintext
-    // http, so a `Secure` cookie is unsendable by construction and the
-    // cross-site positive belongs in the https fixture in round 4, which has it.
-    seen.length = 0;
-    await request(session.url + '/action', { headers: { 'sec-fetch-site': 'same-origin' } });
-    assert.match(seen[0].cookie, /lax=1/,
-      'the Lax cookie was never in the jar, so the iframe assertion above proved ' +
-      'nothing: ' + seen[0].cookie);
   });
 });
 
@@ -225,6 +241,15 @@ test('a nested navigation is judged by destination even when it looks same-site'
       headers: { 'sec-fetch-site': 'none', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }
     });
 
+    // Every assertion in the loop below is an ABSENCE, and three absences against
+    // an empty jar are three passes for the wrong reason. Prove the cookie is
+    // there before looking for it to be withheld.
+    seen.length = 0;
+    await request(session.url + '/seeded', { headers: { 'sec-fetch-site': 'same-origin' } });
+    assert.match(seen[0].cookie, /lax=1/,
+      'the Lax cookie never reached the jar, so the loop below would pass on an ' +
+      'empty store rather than on the destination check: ' + seen[0].cookie);
+
     for (const dest of ['frame', 'embed', 'object']) {
       seen.length = 0;
       await request(session.url + '/nested-' + dest, {
@@ -237,6 +262,14 @@ test('a nested navigation is judged by destination even when it looks same-site'
       assert.doesNotMatch(seen[0].cookie, /lax=1/,
         'sec-fetch-dest=' + dest + ' was treated as a top-level navigation: ' + seen[0].cookie);
     }
+
+    // And a closing control, so the loop is bracketed: the jar survived all three
+    // nested requests, which rules out "the first one emptied it".
+    seen.length = 0;
+    await request(session.url + '/still-there', { headers: { 'sec-fetch-site': 'same-origin' } });
+    assert.match(seen[0].cookie, /lax=1/,
+      'the jar was emptied partway through the loop, so the later iterations ' +
+      'asserted nothing: ' + seen[0].cookie);
   });
 });
 

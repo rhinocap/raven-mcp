@@ -457,7 +457,7 @@ blocked. Committed as `~/.claude` `cc38ea6` (23 files, +195/−64, local only; t
 
 ### Sol refuted the commit: 8 real defects out of 14 claimed
 The falsification pass earned its keep. Working invocation, after two failures:
-`codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium -C /Users/accunliffe/.claude < /dev/null`
+`codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium -C ~/.claude < /dev/null`
 — `gpt-5.6-sol-medium` as a model name is rejected on a ChatGPT account, and it **exits 0 while
 producing nothing**, which is only visible by reading the output file. An nohup'd run from `~/.claude`
 also exited 0 with 72 lines and no report; foreground with explicit `-C` worked.

@@ -350,3 +350,80 @@ test('the Enter that commits an IME candidate does not send, but the next one do
     'an Enter that followed a composition but not immediately was swallowed — the ' +
     'commit marker is being held on a clock instead of on the next keystroke');
 });
+
+test('the CONFORMING commit ordering does not cost the user their next Enter', async (t) => {
+  // The mirror image of the test above, and the case the WebKit fix originally
+  // broke. Every browser except WebKit dispatches the committing Enter FIRST,
+  // with isComposing true, and fires `compositionend` after it. Arming the
+  // commit marker on every `compositionend` therefore armed it AFTER the commit
+  // had already been handled — pointing it at whatever the user typed next. If
+  // that was a deliberate Enter inside the window, their send vanished with no
+  // feedback.
+  //
+  // That is a strictly worse trade than the bug being fixed: the WebKit defect
+  // costs a stray send to Japanese/Chinese/Korean users on one browser, and this
+  // one costs a swallowed send to everyone on every other browser. So arming is
+  // conditioned on `compositionend` NOT having been preceded by the commit
+  // Enter, which is exactly what distinguishes the two orderings.
+  //
+  // `fixtureIsComposing` guards the fixture itself: if Chromium ever stopped
+  // honouring the `isComposing` init member, every assertion below would still
+  // pass while measuring nothing at all.
+  let seen;
+  try {
+    seen = await withOverlay(async (page) => {
+      return page.evaluate(async () => {
+        const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+        const field = root.querySelector('.raven-grab-textarea');
+        field.focus();
+
+        const press = (isComposing) => {
+          const event = new KeyboardEvent('keydown', {
+            key: 'Enter', keyCode: 13, isComposing: isComposing,
+            bubbles: true, composed: true, cancelable: true
+          });
+          field.dispatchEvent(event);
+          return { prevented: event.defaultPrevented, composing: event.isComposing };
+        };
+
+        // A character of the composition, so the lifecycle starts where a real
+        // one does rather than with the commit.
+        field.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'n', keyCode: 78, isComposing: true,
+          bubbles: true, composed: true, cancelable: true
+        }));
+
+        // The conforming order: commit Enter, THEN compositionend.
+        const commit = press(true);
+        field.dispatchEvent(new CompositionEvent('compositionend', {
+          data: 'にほんご', bubbles: true, composed: true
+        }));
+
+        // The user now presses Enter meaning it — immediately, well inside the
+        // 100ms window. This is the press the old code ate.
+        const deliberate = press(false);
+
+        return {
+          commit: commit.prevented,
+          fixtureIsComposing: commit.composing,
+          deliberate: deliberate.prevented
+        };
+      });
+    });
+  } catch (err) {
+    if (/browserType\.launch|Executable doesn't exist/.test(err.message)) {
+      t.skip(`browser unavailable for overlay key isolation (${err.message})`);
+      return;
+    }
+    throw err;
+  }
+
+  assert.equal(seen.fixtureIsComposing, true,
+    'the fixture could not set isComposing, so this test was measuring nothing — ' +
+    'the conforming-ordering assertions below are void until this passes');
+  assert.equal(seen.commit, false,
+    'the Enter that committed a candidate with isComposing true was treated as a send');
+  assert.equal(seen.deliberate, true,
+    'the Enter immediately after a conforming commit was swallowed — on every ' +
+    'browser but WebKit this is the user pressing send and getting nothing');
+});

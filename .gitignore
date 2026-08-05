@@ -68,12 +68,36 @@ dist/
 # agent, and the class is "raw agent or tool transcript" — four `*-codex.log`
 # files from the same fan-out were already committed (unpushed) carrying 23–50
 # home-directory paths each, `~/.claude/skills` and `~/.codex/memories`
-# references. So the rule is now the class: no `.log` under `.claude/` ships,
-# whoever wrote it. That also covers the test-suite captures, which are clean but
-# are 113KB of regenerable noise whose numbers belong in the session log anyway.
+# references. So the rule became: no `.log` under `.claude/` ships, whoever wrote
+# it. That also covers the test-suite captures, which are clean but are 113KB of
+# regenerable noise whose numbers belong in the session log anyway.
+#
+# And it reopened a THIRD time on the very next adverse pass, because `.log` was
+# an enumeration too — by file EXTENSION. `SOL-ROUND2.md` is a 794KB, 11485-line
+# raw transcript that happens to end in `.md`, and it carried the verbatim `sed`
+# dump of a 1642-line private skill file.
+#
+# Three narrowings in a row is the signal that a glob is the wrong instrument: a
+# pattern has to predict the FILENAME, and the thing that actually defines this
+# class is the CONTENT. The real gate is now `test/no-private-paths.test.mjs`,
+# which fails the suite if any tracked file contains an absolute path into a
+# private agent-tooling directory. The patterns below are a convenience so the
+# usual suspects never reach the index; they are not the defense.
+#
 # Evidence that SHOULD ship is prose and screenshots, both of which a human read
 # before committing.
+#
+# NAMING CONVENTION, so the two never collide again: `SOL-ROUND*` is an agent's
+# OUTPUT and never ships; a brief I wrote to send TO an agent is `BRIEF-ROUND*`
+# and does. The `SOL-ROUND*.md` pattern below correctly refused to commit a
+# round-10 brief that was still using the old name — the right fix was to rename
+# the brief, NOT to add a negation for `briefs/`. A negation there would let the
+# next raw transcript dropped into that directory ship, which is the exact hole
+# this rule keeps reopening. If a pattern blocks something you meant to commit,
+# rename the file.
 .claude/pregate-*/sol/
 .claude/**/*.log
+.claude/**/SOL-ROUND*.md
+.claude/**/SOL-VERDICT*.txt
 SOL-*.log
 sol-*.log

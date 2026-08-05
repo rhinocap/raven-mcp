@@ -4,18 +4,25 @@ Per-instance log. Continues `2026-08-05-pattern-library-round5.md`.
 
 ## Where this left off
 
-Rounds 5 through 9 are all dispositioned and every surface is re-verified. Round
-9 is committed as `b332f9a`; the working tree is clean and local `main` is **10
-commits ahead** of `origin/main` (`985e5ce`). Nothing is pushed.
+Rounds 5 through 10 are all dispositioned and every surface is re-verified.
+Sol round 9 returned **DOES NOT SURVIVE** — C1 survived, C2/C3/C4 failed, plus an
+independent P1 on the privacy leak — and all four are now dispositioned in §3g.
+The round-10 work is **uncommitted** in the working tree; local `main` is 10
+commits ahead of `origin/main` (`985e5ce`) and nothing is pushed.
 
-A second private-content leak was caught before any push and stripped from the
-unpushed history (§3f) — the §3d fix had been an enumeration of one agent's
-filename, and four `*-codex.log` transcripts from the same fan-out slipped
-through it. The ignore rule is now the class, `.claude/**/*.log`.
+The most important of those: the round-9 WebKit IME fix was **eating a deliberate
+Enter on every non-WebKit browser**, which is a worse bug than the one it fixed.
+Narrowed and now covered in both orderings (§3g).
 
-**Sol round 9 is running** and its verdict is not yet dispositioned. Reading it
-is the next action, and no completion claim may reach Andrew before it is
-dispositioned.
+A private-content leak reopened for the **third** time, and the glob has been
+retired in favour of an engine gate — `test/no-private-paths.test.mjs`, which
+fails the suite on any tracked file containing an absolute private-tooling path
+(§3g). One file, `SOL-VERDICT-RAW.txt`, is already **published** in `2487fb5`;
+removing it from history is a force-push to a public repo and is Andrew's call,
+not mine. It sits in a capped quarantine list until he decides.
+
+**Sol round 10 has not been run yet** against the round-10 fixes. No completion
+claim may reach Andrew before it is run and dispositioned.
 
 ## 1. Andrew's reported bug — root-caused, reproduced, and now falsifiable
 
@@ -499,6 +506,171 @@ credential-shaped grep never fires on this class. The scan that works is
 `/Users/<name>`, `.agents/skills`, `.codex/memories` — and it has to run against
 `git ls-tree -r HEAD`, not against `git status`, because the leak was already
 committed both times.
+
+## 3g. Round 10 — dispositioning Sol round 9, and the third leak
+
+Sol round 9 ran at **xhigh**, report-only, detached to a file. Verbatim verdict:
+
+> `OVERALL: DOES NOT SURVIVE — C1 survives; C2/C3/C4 fail; the public-repo privacy violation is independently P1.`
+
+| Claim | Sol | Disposition |
+|---|---|---|
+| C1 — `dest === "document"` allowlist is the right check | SURVIVES | no change |
+| C2 — the metadata-less cost comment is accurate | FAILS | comment rewritten |
+| C3 — IME commit is separated from a deliberate send | FAILS (P2) | guard narrowed + new test |
+| C4 — the tests encode the boundary rather than detect it | FAILS (P2) | three test defects fixed |
+| Frozen surface — private material in a published commit | FAILS (P1) | §3f + engine gate; published half is Andrew's call |
+
+### C3 — the WebKit fix was eating everyone else's send
+
+The round-9 guard armed its commit marker on **every** `compositionend`. That is
+correct only for WebKit's inverted ordering. Every other browser dispatches the
+committing Enter FIRST, with `isComposing` true, and fires `compositionend`
+after it — so the marker armed *after* the commit was already handled, pointing
+at whatever the user typed next. A deliberate Enter within 100ms was swallowed
+with no feedback.
+
+That is a strictly worse trade than the bug being fixed: WebKit's defect costs a
+stray send to CJK users on one browser; this cost a **swallowed send to everyone
+on every other browser**. Arming is now conditioned on `compositionend` not
+having been preceded by a commit Enter, which is exactly what separates the two
+orderings. `ravenCommitEnterAlreadySeen` is assigned (never OR-ed) on each
+keydown, so a character key clears a commit Enter that never produced a
+`compositionend` — some IMEs accept a candidate mid-composition without ending
+it, and a stale `true` would disarm the next real WebKit commit.
+
+One residual is written into the comment rather than hidden: accepting a
+candidate with the **mouse** also ends composition with no commit Enter, so it
+arms. An Enter within 100ms of that click is swallowed. It is indistinguishable
+from WebKit's ordering by construction — identical event streams — and costs one
+retry.
+
+The 100ms bound was deliberately **not** tightened. WebKit is banned on this
+host, so the timing cannot be measured, and a speculative narrowing would be
+worse than the known bound.
+
+### C4 — three ways the tests were detecting rather than encoding
+
+1. **Round 4 had no allowlist-vs-denylist discriminator.** Every existing
+   assertion was satisfied by `dest !== "iframe"` just as well as by
+   `dest === "document"`, so the check could have been rewritten as a denylist
+   with the suite still green — while `frame`, `embed`, `object` and every
+   future destination silently regained Lax. Added the omitted-`dest` case,
+   which is the general form: not `iframe` (a denylist admits it), not
+   `document` (the allowlist refuses it).
+2. **Round 7 never tested partial metadata**, which is the shape the deployed
+   world actually produces — `sec-fetch-mode` present, `sec-fetch-site` absent.
+   Added a POST carrying only `mode: cors`. It pins the classifier to `site`
+   specifically, so a rewrite asking "did this carry *any* `sec-fetch-*` header?"
+   cannot conclude the absent `site` means same-origin.
+3. **Round 8's jar control was invalid.** The fixture upstream sent `Set-Cookie`
+   on *every* response, so each request re-populated the jar — which destroys
+   every absence assertion in the file. Fixed at the source (seed once), and the
+   iframe control moved to run **before** the assertion it defends. The
+   nested-destination test had no control at all: three absences against an empty
+   jar are three passes for the wrong reason. It now has one on each side.
+
+### Falsifiability, measured one revert at a time
+
+Every fix was proven falsifiable before being believed.
+
+- **C3** — reverted the guard in a copy pointed at by `RAVEN_GRAB_ASSET_PATH`.
+  Exactly one test red, the new one, failing on `the Enter immediately after a
+  conforming commit was swallowed`. The WebKit test stayed green, proving the fix
+  narrowed the arming rather than deleting the mechanism. The fixture also
+  asserts `isComposing` read back as `true`, so a Chromium that stopped honouring
+  the init member shows up as a broken fixture instead of a silent pass.
+- **Allowlist → denylist** in `dist/` — two red: round 4's new omitted-`dest`
+  case and round 8's `frame`/`embed`/`object` loop. The iframe test correctly
+  stayed green, since a denylist still blocks `iframe`.
+- **Absent `sec-fetch-site` read as same-origin** in `dist/` — one red, the new
+  partial-metadata case. The two pre-existing assertions in that same test both
+  passed, so it covers a hole they did not.
+- **Round 8's control fix** got the strongest demonstration, because a test-only
+  change cannot be falsified by breaking the product alone. Simulated a jar that
+  drops the priming navigation's `Set-Cookie`, then ran both shapes against it:
+
+  | test | old shape | new shape |
+  |---|---|---|
+  | metadata-less GET gets no Lax | **pass** | fail |
+  | cross-site iframe gets no Lax | **pass** | fail |
+  | nested navigation judged by destination | **pass** | fail |
+  | `SameSite=None` without `Secure` dropped | fail | fail |
+
+  Three of four passed against a jar that never stored anything. Only the one
+  test that already asserted presence and absence in the *same request* caught
+  it — which is the shape the other three now have.
+
+### C2 — the cost comment was wrong in the other direction
+
+The comment claimed a metadata-less browser "never receives Lax cookies through
+the proxy." False: the `crossSite` ladder falls through to `Origin` and then
+`Referer`, and both common cases clear it — the Fetch spec sets `Origin` on every
+non-GET, and an in-page link or subresource carries a `Referer`. Those get the
+full jar, Strict included, on the oldest browser there is.
+
+The real failure is confined to a request with no metadata, no `Origin` **and**
+no `Referer` — in practice a bare top-level navigation: address bar, bookmark, or
+a link out of another app. Those lose the Lax jar, and since an unattributed
+`Set-Cookie` parses as Lax, that is the ordinary session cookie. A
+`Secure; SameSite=None` cookie still rides, and a reload from the resulting page
+works because it has a `Referer`.
+
+Two successive versions of this comment were wrong in opposite directions — one
+claimed every later navigation carries a `Referer`, the other that Lax never
+travels at all. Worth naming as its own lesson: **a comment describing a
+security trade-off is a claim, and it decays exactly like a test does.** Neither
+wrong version was caught by any check, because nothing executes a comment.
+
+### The third leak, and why the glob was retired
+
+`.claude/**/*.log` — §3f's fix — was itself an enumeration, by file
+**extension**. `SOL-ROUND2.md` is a 794KB, 11,485-line raw transcript that
+happens to end in `.md`, carrying 135 gstack markers and five `sed`-range dumps
+of a 1,642-line private skill file.
+
+Three narrowings in a row (directory → agent name → extension) is the signal that
+a glob is the wrong instrument: a pattern has to predict the **filename**, and
+the thing that defines this class is the **content**. The gate is now
+`test/no-private-paths.test.mjs`, which fails the suite if any tracked file
+contains an absolute path into a private agent-tooling directory. It carries its
+own falsifiability test, and a `KNOWN_PUBLISHED` quarantine capped at one entry
+so it cannot become an escape hatch.
+
+Calibration mattered: a first draft flagged 40 files, almost all documentation —
+README install steps legitimately say `~/.codex/config.toml`. Tilde forms are
+excluded deliberately; only **absolute** private paths match. A gate that noisy
+gets muted, which is worse than no gate.
+
+**My own leak-scan had also been broken**, and this is the second instance this
+session of the same class: `FILES=$(git diff --name-only …); for f in $FILES`
+does not word-split in zsh, so the loop ran once with one giant filename, failed
+`[ -f "$f" ]`, and printed `total hits: 0` — indistinguishable from clean. Sol
+found real hits in the same range. Rewritten as `| while IFS= read -r f` **with a
+positive control** proving the loop iterates. *A check whose failure mode is
+indistinguishable from its success mode is not a check.*
+
+### Root cause of the published half
+
+`~/.claude/scripts/auto-save-on-turn.sh` runs `git add -A` and then `git commit`,
+with no push. That is how `SOL-VERDICT-RAW.txt` reached commit `2487fb5` on the
+public repo without anyone choosing to commit it. Consequence: **`.gitignore` is
+the only defense at commit time**, and the test gate is the second layer before
+push. Nothing else stands between a written file and a commit.
+
+### Round-10 verification
+
+- `RAVEN_NO_USAGE_LOG=1 npm test` — **1249 tests / 1246 pass / 0 fail / 3
+  skipped / 43.6s**. The +4 over round 9's 1245 is one new test (the conforming
+  ordering) plus the three in the private-path gate, which did not exist when
+  that baseline was taken.
+- `node test/e2e-pattern-library.mjs` — **33/33, exit 0**, live github.com
+  through the proxy with real Chromium.
+- stdio **108**, anon **45**, hash
+  `f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6` — matches
+  the frozen golden.
+- `cmp browser/raven-grab.js web/public/raven-grab.js` — byte-identical.
+- `dist/` rebuilt clean after every revert; no revert survives in the tree.
 
 ## 4. Committed set — round 9 is `b332f9a`
 

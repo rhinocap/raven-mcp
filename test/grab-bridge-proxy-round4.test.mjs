@@ -231,10 +231,26 @@ test('SameSite is enforced on the bridge, because upstream can no longer see it'
       'a cross-site IFRAME navigation is not top-level and must keep only the ' +
       'cookies that opted in cross-site');
 
+    // The case that separates an ALLOWLIST from a DENYLIST, and the only one that
+    // does. Every assertion above is satisfied by `dest !== "iframe"` just as well
+    // as by `dest === "document"`, so without this line the check could be
+    // rewritten as a denylist and the suite would stay green — while `frame`,
+    // `embed`, `object` and every destination the platform adds later silently
+    // regained Lax. An OMITTED dest is the general form of that: it is not
+    // `iframe`, so a denylist admits it, and it is not `document`, so the
+    // allowlist refuses it. Refusing is correct — a browser old enough to send
+    // `mode` without `dest` cannot prove the navigation was top-level.
+    await request(session.url + '/echo', {
+      headers: { 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate' }
+    });
+    assert.equal(sent[6].cookie, 'none=1',
+      'a cross-site navigation that never said it was top-level was handed the Lax ' +
+      'jar — the destination check has become a denylist');
+
     await request(session.url + '/echo', {
       headers: { 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'no-cors' }
     });
-    assert.equal(sent[6].cookie, 'none=1',
+    assert.equal(sent[7].cookie, 'none=1',
       'a cross-site subresource keeps only the cookies that opted in');
   });
 });
