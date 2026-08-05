@@ -80,7 +80,12 @@ test('a Secure cookie IS replayed over an https upstream', { skip: sandboxNoNetw
     return ok('{}');
   }, async (session, sent) => {
     await request(session.url + '/login');
-    await request(session.url + '/echo');
+    // Declared same-origin, so this measures the Secure/Domain/prefix rules and
+    // nothing else. A bare request is cross-site as of round 8 — absent Fetch
+    // Metadata proves nothing — which would filter the jar by SameSite before
+    // these assertions ever saw it, and the test would fail for a reason it is
+    // not about.
+    await request(session.url + '/echo', { headers: { 'sec-fetch-site': 'same-origin' } });
     assert.equal(sent[1].cookie, 'sid=abc',
       'the upstream request must carry the Secure cookie over its https channel: ' + JSON.stringify(sent));
   });
@@ -104,7 +109,12 @@ test('Domain is judged against the upstream host, not the loopback one', { skip:
     return ok('{}');
   }, async (session, sent) => {
     await request(session.url + '/login');
-    await request(session.url + '/echo');
+    // Declared same-origin, so this measures the Secure/Domain/prefix rules and
+    // nothing else. A bare request is cross-site as of round 8 — absent Fetch
+    // Metadata proves nothing — which would filter the jar by SameSite before
+    // these assertions ever saw it, and the test would fail for a reason it is
+    // not about.
+    await request(session.url + '/echo', { headers: { 'sec-fetch-site': 'same-origin' } });
     const cookie = sent[1].cookie;
     assert.match(cookie, /own=yes/, 'a parent domain the host is under must be honoured');
     assert.match(cookie, /exact=yes/, 'and so must the host itself');
@@ -135,7 +145,12 @@ test('a malformed __Secure-/__Host- cookie is rejected, never upgraded', { skip:
     return ok('{}');
   }, async (session, sent) => {
     await request(session.url + '/login');
-    await request(session.url + '/echo');
+    // Declared same-origin, so this measures the Secure/Domain/prefix rules and
+    // nothing else. A bare request is cross-site as of round 8 — absent Fetch
+    // Metadata proves nothing — which would filter the jar by SameSite before
+    // these assertions ever saw it, and the test would fail for a reason it is
+    // not about.
+    await request(session.url + '/echo', { headers: { 'sec-fetch-site': 'same-origin' } });
     const cookie = sent[1].cookie;
     assert.match(cookie, /__Secure-good=yes/);
     assert.match(cookie, /__Host-good=yes/);
@@ -180,9 +195,10 @@ test('SameSite is enforced on the bridge, because upstream can no longer see it'
       'a same-site request gets the whole jar');
 
     await request(session.url + '/echo');
-    assert.equal(sent[2].cookie, 'lax=1; none=1; silent=1',
-      'a request with no Fetch Metadata, Origin or Referer must not prove same-site — ' +
-      'it is treated as a cross-site top-level GET, so Strict stays home and Lax rides');
+    assert.equal(sent[2].cookie, 'none=1',
+      'a request with no Fetch Metadata, Origin or Referer must not prove same-site ' +
+      'OR top-level navigation — a foreign <img referrerpolicy="no-referrer"> looks ' +
+      'exactly like this, so only the cookies that opted in cross-site may ride');
 
     await request(session.url + '/echo', {
       method: 'POST', body: 'x', headers: { origin: 'http://evil.test' }

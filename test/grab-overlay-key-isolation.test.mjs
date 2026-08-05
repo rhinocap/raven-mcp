@@ -130,10 +130,11 @@ test('typing into a Raven field never reaches the host page hotkeys', async (t) 
 });
 
 test('IME and dead-key composition inside Raven does not reach the host page either', async (t) => {
-  // An IME or dead-key press reports key "Process"/"Dead"/"Unidentified" — and
-  // Android reports keyCode 229 for nearly everything — so a guard that filters
-  // on key.length === 1 lets every non-Latin and every accented keystroke fall
-  // through to the page, which can preventDefault it and break the composition.
+  // An IME or dead-key press reports key "Process"/"Dead"/"Unidentified", so a
+  // guard that filters on key.length === 1 lets every non-Latin and every
+  // accented keystroke fall through to the page, which can preventDefault it and
+  // break the composition. Matched on the key NAME, never on keyCode 229 — see
+  // the Android test below for what that costs.
   // Synthetic dispatch is the right instrument here and only here: what is under
   // test is propagation out of a shadow root, which the DOM handles identically
   // for dispatched and native events. Driving a real IME through Playwright
@@ -231,4 +232,45 @@ test('Raven keeps its own chords and non-character keys travelling', async (t) =
   // nothing else in this file.
   assert.deepEqual(seen.bubble, [],
     'the host page saw Raven-internal keys in bubble phase: ' + JSON.stringify(seen.bubble));
+});
+
+test('an Android Enter still reaches Raven, even though Android reports it as keyCode 229', async (t) => {
+  // Android reports keyCode 229 for nearly every key, not only composed ones, so
+  // reading 229 as proof of composition swallows Enter, Escape and Tab on that
+  // whole platform — Enter is how the instruction gets sent, so the panel would
+  // simply stop working there while every other test in this file stayed green.
+  // The composition signals are the three key NAMES plus isComposing; the keyCode
+  // adds nothing they do not already cover and costs exactly this.
+  //
+  // The capture guard sits upstream of both the page's listeners and Raven's own
+  // document-level ones, so "the page's capture listener saw it" is the same
+  // measurement as "Raven could see it" — which is the assertion the IME test
+  // above cannot make on its own.
+  let seen;
+  try {
+    seen = await withOverlay(async (page) => {
+      return page.evaluate(() => {
+        const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+        const field = root.querySelector('.raven-grab-textarea');
+        field.focus();
+        window.__hostKeysCapture.length = 0;
+        for (const key of ['Enter', 'Escape', 'Tab']) {
+          field.dispatchEvent(new KeyboardEvent('keydown', {
+            key: key, keyCode: 229, isComposing: false,
+            bubbles: true, composed: true, cancelable: true
+          }));
+        }
+        return { capture: [...window.__hostKeysCapture] };
+      });
+    });
+  } catch (err) {
+    if (/browserType\.launch|Executable doesn't exist/.test(err.message)) {
+      t.skip(`browser unavailable for overlay key isolation (${err.message})`);
+      return;
+    }
+    throw err;
+  }
+  assert.deepEqual(seen.capture, ['Enter', 'Escape', 'Tab'],
+    'keyCode 229 is being read as composition, so Android loses the keys Raven runs on: ' +
+    JSON.stringify(seen.capture));
 });

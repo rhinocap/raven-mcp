@@ -20,6 +20,13 @@ process.env.RAVEN_GRAB_ASSET_PATH = path.resolve(__dirname, '../browser/raven-gr
 
 const grabBridgeMod = await import(path.resolve(__dirname, '../dist/grab-bridge.js'));
 
+// These suites measure the PATH and DOMAIN rules, so their requests declare
+// themselves same-origin and let the whole jar through. A bare request is
+// cross-site as of round 8 — absent Fetch Metadata proves nothing about who
+// sent it — and would filter the jar by SameSite before these assertions ever
+// saw it, failing them for a reason they are not about.
+const SAME_ORIGIN = { headers: { 'sec-fetch-site': 'same-origin' } };
+
 function request(url, options = {}) {
   const { body, ...rest } = options;
   return new Promise((resolve, reject) => {
@@ -169,21 +176,21 @@ test('cookies are scoped by path and expire while the session is still open', { 
     res.end(JSON.stringify({ cookie: req.headers.cookie || '' }));
   }, async (origin) => {
     await withSession(origin, async (session) => {
-      const atRoot = JSON.parse((await request(session.url + '/echo')).body).cookie;
+      const atRoot = JSON.parse((await request(session.url + '/echo', SAME_ORIGIN)).body).cookie;
       assert.match(atRoot, /sid=root/);
       assert.doesNotMatch(atRoot, /sid=app/, 'the /app session must not be sent to /');
 
-      const atApp = JSON.parse((await request(session.url + '/app/echo')).body).cookie;
+      const atApp = JSON.parse((await request(session.url + '/app/echo', SAME_ORIGIN)).body).cookie;
       assert.match(atApp, /sid=app/, 'the more specific cookie must win under /app');
 
       // /application must not match the /app cookie — RFC 6265 §5.1.4 requires a
       // boundary, and a plain prefix test leaks the cookie to a sibling route.
-      const atSibling = JSON.parse((await request(session.url + '/application/echo')).body).cookie;
+      const atSibling = JSON.parse((await request(session.url + '/application/echo', SAME_ORIGIN)).body).cookie;
       assert.doesNotMatch(atSibling, /sid=app/);
 
       assert.match(atRoot, /ttl=alive/);
       await new Promise((resolve) => setTimeout(resolve, 1100));
-      const afterExpiry = JSON.parse((await request(session.url + '/echo')).body).cookie;
+      const afterExpiry = JSON.parse((await request(session.url + '/echo', SAME_ORIGIN)).body).cookie;
       assert.doesNotMatch(afterExpiry, /ttl=alive/, 'an expired cookie must stop being replayed');
       assert.match(afterExpiry, /sid=root/, 'expiry must not clear the rest of the jar');
     });
@@ -218,10 +225,10 @@ test('a cookie with no Path belongs to its directory, and a foreign Domain is re
     await withSession(origin, async (session) => {
       await request(session.url + '/account/login');
 
-      const atAccount = JSON.parse((await request(session.url + '/account/echo')).body).cookie;
+      const atAccount = JSON.parse((await request(session.url + '/account/echo', SAME_ORIGIN)).body).cookie;
       assert.match(atAccount, /acct=deep/, 'the default path is the response directory, so /account keeps it');
 
-      const atRoot = JSON.parse((await request(session.url + '/echo')).body).cookie;
+      const atRoot = JSON.parse((await request(session.url + '/echo', SAME_ORIGIN)).body).cookie;
       assert.doesNotMatch(atRoot, /acct=deep/,
         'a Path-less cookie set at /account/login must not replay site-wide');
       assert.match(atRoot, /own=yes/, 'a Domain the responding host actually matches is honoured');

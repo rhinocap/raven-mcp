@@ -1066,9 +1066,36 @@ function notifyFixedMove(intent: LayersIntent): void {
   }
 }
 
+/**
+ * A loopback server can be reached by a NAME as well as by an address. An
+ * attacker who serves `rebind.example` and then re-points its DNS at 127.0.0.1
+ * gets a page whose origin the browser genuinely believes is the same as this
+ * bridge's: `Origin` and `Host` agree, `Sec-Fetch-Site` legitimately says
+ * `same-origin`, and every same-site check below answers yes. That page could
+ * then read the overlay script — capability key and all — and pull the proxied
+ * site's Strict cookies through the proxy. Binding to 127.0.0.1 does not stop
+ * it, because the connection really does arrive on the loopback interface.
+ *
+ * The Host header is the one thing rebinding cannot hide: the browser sends the
+ * name the page was loaded from. Nothing Raven issues ever uses a name other
+ * than the two below, so anything else is not ours.
+ */
+function isLoopbackHost(hostHeader: string, port: number): boolean {
+  return hostHeader === "127.0.0.1:" + port || hostHeader === "localhost:" + port;
+}
+
 async function handleGrabRequest(designMdPath: string, key: string, req: IncomingMessage, res: ServerResponse, proxyTarget?: string, role: GrabRole = "consumer"): Promise<void> {
   var method = req.method || "GET";
   var requestUrl = req.url || "/";
+  if (currentSession && !isLoopbackHost(String(req.headers.host || ""), currentSession.port)) {
+    // 421 is the honest code — this server is not authoritative for that name —
+    // and it is what closes DNS rebinding for the whole HTTP surface at once,
+    // authoring routes included.
+    res.statusCode = 421;
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.end("Raven Grab serves 127.0.0.1 only");
+    return;
+  }
   var pathname = new URL(requestUrl, "http://127.0.0.1").pathname;
   var bridgeRoute = pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/grab" || pathname === "/batch" || pathname === "/batch-commit" || pathname === "/agent/wait"
     || pathname === "/template" || pathname === "/template-validation" || pathname === "/components" || pathname === "/layers" || pathname === "/layers-intent" || pathname === "/layers-operation";
@@ -1270,14 +1297,21 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
   } else {
     crossSite = true;
   }
-  // A metadata-less GET is a plausible top-level navigation — the user typing
-  // the bridge URL in an old browser — so it gets Lax treatment, which is what
-  // a browser would do with that navigation anyway. It never gets Strict,
-  // because crossSite stays true above and Strict is what an attacker wants.
-  var topLevelGet = method === "GET" && (
-    String(req.headers["sec-fetch-mode"] || "").toLowerCase() === "navigate" ||
-    (!fetchSite && !originHost && !refererHost)
-  );
+  // Lax rides only on a request that SAYS it is a top-level navigation. A
+  // metadata-less GET was briefly allowed here on the theory that it is the user
+  // typing the bridge URL into an old browser — but a subresource in that same
+  // old browser is indistinguishable from it, and a foreign page can issue one
+  // at will: `<img referrerpolicy="no-referrer" src="http://127.0.0.1:PORT/x">`
+  // sends no metadata, no Origin and no Referer either. A browser would attach
+  // nothing to that; the allowance attached the whole Lax jar. Cross-site Lax is
+  // for top-level safe-method navigation, and nothing else qualifies.
+  //
+  // What that costs: the first metadata-less load in Safari <16.4 gets no site
+  // cookies. The jar is empty at that point anyway — it only ever holds what
+  // this session fetched — and every same-origin navigation after it carries a
+  // Referer, which is enough to be recognised as same-site above.
+  var topLevelGet = method === "GET" &&
+    String(req.headers["sec-fetch-mode"] || "").toLowerCase() === "navigate";
   var jarCookies = proxyCookieHeader(upstreamUrl.pathname, upstreamUrl.protocol === "https:", crossSite, topLevelGet);
   if (jarCookies) headers.set("cookie", jarCookies);
 
@@ -1565,6 +1599,13 @@ function storeProxyCookies(cookies: string[], responseUrl: URL): void {
     // then behaves as though the site had sent a well-formed one, so the jar and
     // the browser disagree about whether the cookie exists at all.
     if (!prefixedCookieIsValid(name, attributes, responseUrl)) continue;
+    // `SameSite=None` without `Secure` is rejected outright by every current
+    // browser, so a site that sends it has no such cookie. Keeping it here would
+    // manufacture a credential the browser refused — and it is the one setting
+    // that opts a cookie INTO travelling cross-site, which the bridge would then
+    // replay on a request no browser would have attached it to. Match the
+    // browser: the cookie does not exist.
+    if (attributes.sameSite === "none" && !attributes.secure) continue;
     var jarKey = name + "\n" + attributes.path;
     if (attributes.expiresAt !== null && attributes.expiresAt <= Date.now()) proxyCookieJar.delete(jarKey);
     else proxyCookieJar.set(jarKey, {

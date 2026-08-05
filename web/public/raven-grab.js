@@ -352,19 +352,28 @@
   // Cmd+. . Propagation only, never preventDefault: the character still has to be
   // typed.
   // The one class of composed text that is NOT a single-character key. An IME or
-  // dead-key press reports "Dead", "Process" or "Unidentified" — and Android
-  // reports keyCode 229 for nearly everything — so a length check alone leaves
-  // every non-Latin and every accented input falling straight through to the
-  // page's document-capture handler, which can preventDefault it and break the
-  // composition outright. These are text, never a hotkey Raven itself listens
-  // for, so they belong on the same side of the boundary as ordinary characters.
+  // dead-key press reports "Dead", "Process" or "Unidentified", so a length
+  // check alone leaves every non-Latin and every accented input falling straight
+  // through to the page's document-capture handler, which can preventDefault it
+  // and break the composition outright. These are text, never a hotkey Raven
+  // itself listens for, so they belong on the same side of the boundary as
+  // ordinary characters.
+  //
+  // keyCode 229 is deliberately NOT one of the signals, though Android reports
+  // it for nearly every key. That breadth is exactly the problem: on that
+  // platform `Enter` arrives as keyCode 229 too, so reading it as composition
+  // swallows the very keys the paragraph above promises to leave alone — the
+  // instruction box would stop sending on Android outright, and Escape and Tab
+  // would stop reaching the modal and focus-trap handlers. Android's legacy
+  // spelling of a composed key is `key: "Unidentified"`, which is named below;
+  // its modern one sets `isComposing`. Neither needs the keyCode.
   var ravenCompositionKeys = { Dead: true, Process: true, Unidentified: true };
   ["keydown", "keypress", "keyup"].forEach(function (eventName) {
     window.addEventListener(eventName, function (event) {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
-      var composing = event.isComposing === true || event.keyCode === 229 ||
-        (typeof event.key === "string" && ravenCompositionKeys[event.key] === true);
-      if (!composing && typeof event.key === "string" && event.key.length !== 1) return;
+      var ravenKeyName = typeof event.key === "string" ? event.key : "";
+      var composing = event.isComposing === true || ravenCompositionKeys[ravenKeyName] === true;
+      if (!composing && ravenKeyName.length !== 1) return;
       var path = event.composedPath ? event.composedPath() : [];
       var origin = path.length ? path[0] : event.target;
       if (!isTypingTarget(origin)) return;

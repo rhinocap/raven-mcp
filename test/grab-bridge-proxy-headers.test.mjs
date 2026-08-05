@@ -136,7 +136,13 @@ test('grab proxy hardens policy, config, redirects, and cookies by effect', { sk
       // to set — which a browser drops outright. A proxy is not exempt from
       // either, so only the cookie the site was actually entitled to send comes
       // back.
-      const replayed = await request(session.url + '/echo-cookie', { headers: { Cookie: 'other_local_app=leak' } });
+      // Declared same-origin because this measures WHICH cookies the jar was
+      // entitled to keep, not SameSite. A bare request is cross-site as of
+      // round 8 — absent Fetch Metadata proves nothing — and would filter the
+      // jar before these assertions saw it.
+      const replayed = await request(session.url + '/echo-cookie', {
+        headers: { Cookie: 'other_local_app=leak', 'sec-fetch-site': 'same-origin' }
+      });
       const seen = JSON.parse(replayed.body);
       assert.equal(seen.cookie, 'pref=insecure-mode');
       assert.doesNotMatch(seen.cookie, /sid=abc/,
