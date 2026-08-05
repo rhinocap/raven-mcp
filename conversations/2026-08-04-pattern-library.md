@@ -408,7 +408,14 @@ still ignored everything else a browser enforces:
 - **`Secure`** was not retained at all, so a Secure cookie was replayed over an
   http upstream.
 - **`__Secure-` / `__Host-` prefixes** are browser-enforced promises; storing
-  them without enforcing turns the prefix into a lie, so they now force `secure`.
+  them without enforcing turns the prefix into a lie.
+  *Corrected in round 5 — this originally read "so they now force `secure`",
+  which described the wrong remedy AND the wrong behaviour. A browser REJECTS a
+  cookie whose prefix promise is unkept (RFC 6265bis §4.1.3); it does not upgrade
+  it. Forcing the flag accepts a malformed cookie and then treats it as though
+  the site had sent a well-formed one, so the jar and the browser end up
+  disagreeing about whether the cookie exists. The code now rejects, and
+  `test/grab-bridge-proxy-round4.test.mjs` holds it there.*
 
 The regression test Sol named by file and line is the one that made this
 concrete: it stored `sid=abc; Secure; Domain=example.com` against a plaintext
@@ -456,19 +463,85 @@ Round 2 moved leg B onto a real MCP client, which is what caught the
 hand-wrote the selection object, so `/grab` and `get_grabbed_elements` could both
 be broken and the run would print ALL CHECKS PASSED.
 
-It now posts the overlay's own payload to the proxied `/grab`, drains it with
+It now posts a selection to the proxied `/grab`, drains it with
 `get_grabbed_elements`, and feeds *that* returned element into
 `capture_reference` — selector, styles, html, rect and state map all come from
-the drain. Causality proven by deleting `currentSession.queue.push(item)` from
-`dist/` and re-running: two FAILs and an early exit, where the old script would
-have been green.
+the drain.
+
+*Corrected in round 5 — this originally called it "the overlay's own payload",
+which it was not: the object was still hand-written, so the seam was real but
+the payload was fiction, and the script could not tell. The literal claimed
+`width: 50%` where the overlay reports the resolved `640px`, wrote `padding-top`
+where the overlay reports the `padding` shorthand, and drained flat where the
+real overlay nests everything under `payload`. Round 5 replaced it with a real
+Chromium driving the real overlay against a DOM fixture — and that leg
+immediately found a defect no module-level check could see (see round 5).*
+
+Causality proven by deleting `currentSession.queue.push(item)` from `dist/` and
+re-running: two FAILs and an early exit, where the old script would have been
+green.
+
+## Round 5 — the browser leg, and what it found
+
+Round 4's six findings are all dispositioned. Five were the work above; the sixth
+(#5, "produce the payload with the overlay's own extractor") turned out to be the
+one that mattered, because executing it found a defect in the feature itself.
+
+**The e2e now drives the real overlay.** Real Chromium, the overlay booted
+through the bridge against a local DOM fixture, a raw mouse click on the element,
+a typed instruction, a real press of Send, drained through a real MCP client.
+Three things about the old hand-written literal were simply wrong, and none of
+them could have been noticed without a browser: it claimed `width: 50%` where the
+overlay reports the resolved `640px`; it wrote `padding-top` where the overlay
+reports the `padding` shorthand; and it drained FLAT, where the real overlay
+nests everything under `payload`. Every downstream assertion had been grading a
+shape the feature never emits.
+
+Two mechanical notes for whoever writes the next one. `page.click()` fails
+actionability — the overlay host covers the viewport and Playwright cannot see
+that it is `pointer-events: none` — so use `page.mouse.click(x, y)`. And the
+click must land in the gap between the docked panels (they occupy x 12–332 and
+948–1268 at the default viewport); five debugging rounds went into theorising
+about overlay internals before measuring two rectangles settled it in one step.
+
+**The defect it found: a successful grab looked like a failed one.** The bridge
+withholds `/batch-commit` from a proxied third-party origin deliberately — the
+authoring surface has no business on someone else's page. The overlay could not
+see that intent, so it finished every send by posting the commit, got the
+designed 404 back, and rendered it as a failure: the button read "Retry send" and
+the site's console carried `[Raven Grab] POST /batch-commit failed`. The
+selection had in fact reached Raven's queue and was durable. So the primary path
+of the whole feature — grab a pattern from someone else's site — ended in a
+visible error every single time, and the refusal producing it was correct.
+
+The fix is one field: the injected proxy config now carries
+`authoring: "withheld"`, and the overlay treats registration as terminal in that
+mode, labelling it "1 pattern captured ✓". `start_grab_session`'s agent protocol
+was saying "No HTTP listener is available in this environment" for the same
+reason — it could only see an empty `watch_command`, not why — and now
+distinguishes shim mode from proxy mode and tells the agent no `batchCommit`
+marker is coming.
+
+Causality proven by reverting only the bridge flag in `dist/`: the exact original
+symptom reproduced — "Retry send" plus the 404 console error — then green after
+restore.
+
+**One test rewritten because it was not a check.** The e2e's console assertion
+originally ran immediately after the drain, and the drain returns as soon as
+`/grab` lands, which is earlier than the send finishes. It passed on timing, not
+on behaviour — it reported clean on the very defect above. It now records every
+label the send button passes through and asserts the sequence, which also proves
+"Retry send" never appeared.
 
 ## State
 
-- `RAVEN_NO_USAGE_LOG=1 npm test` → **1218 / 1215 pass / 0 fail / 3 skipped**, ~46s
-- `node test/e2e-pattern-library.mjs` → ALL CHECKS PASSED against live github.com
-- stdio 108 tools; anon remote 45, hash `f64bb18…2bb0a6` unmoved
-- `site/raven.mcpb` and `web/public/raven.mcpb` rebuilt, byte-identical to each other
-- `browser/raven-grab.js` and `web/public/raven-grab.js` byte-identical, unchanged this round
+- `RAVEN_NO_USAGE_LOG=1 npm test` → **1227 / 1224 pass / 0 fail / 3 skipped**, ~45s
+- `node test/e2e-pattern-library.mjs` → ALL CHECKS PASSED (32) against live github.com
+- stdio 108 tools; anon remote live-checked at 45, hash `f64bb18…2bb0a6` unmoved
+  (this round adds no tools, so a merge cannot move it)
+- `site/raven.mcpb` and `web/public/raven.mcpb` rebuilt, both `dfa5c8fe…bef4ea`
+- `browser/raven-grab.js` and `web/public/raven-grab.js` byte-identical — the
+  overlay changed this round, and the mirror is enforced by a test whose failure
+  output is a ~580k-character diff
 
 Andrew's gates are untouched: nothing pushed, nothing published, no deploy.

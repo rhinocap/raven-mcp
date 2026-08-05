@@ -286,6 +286,36 @@ test('camel-case plurals bind across the families, not just tracking', () => {
   assert.equal(mapReferenceToTokens({ 'border-radius': '4px' }, [token('radii.sm', '4px')]).bindings[0]?.token, 'radii.sm');
 });
 
+// Sol round 4, defect #4. Shopify Polaris namespaces the category INTO the
+// segment: `--p-font-letter-spacing-dense: -0.2px` is one segment naming no
+// family by the whole-segment vocabulary, so it fell to the loose tier, where
+// `font` reads as family and `letter-spacing` reads as tracking — two hits,
+// demoted out of family. A real token in a shipped design system was a gap.
+test('a compound family name inside a longer segment still names its family', () => {
+  const polaris = mapReferenceToTokens({ 'letter-spacing': '-0.2px' }, [token('p-font-letter-spacing-dense', '-0.2px')]);
+  assert.equal(polaris.bindings[0]?.token, 'p-font-letter-spacing-dense', polaris.gaps[0]?.why);
+  assert.equal(polaris.bindings[0].verdict, 'exact');
+
+  // The same shape across the other compound names, and through camelCase.
+  assert.equal(mapReferenceToTokens({ 'font-size': '16px' }, [token('p-font-size-body', '16px')]).bindings[0]?.token, 'p-font-size-body');
+  assert.equal(mapReferenceToTokens({ 'border-radius': '8px' }, [token('p-border-radius-200', '8px')]).bindings[0]?.token, 'p-border-radius-200');
+  assert.equal(mapReferenceToTokens({ 'letter-spacing': '-0.2px' }, [token('pFontLetterSpacingDense', '-0.2px')]).bindings[0]?.token, 'pFontLetterSpacingDense');
+});
+
+test('a GENERIC word inside a longer segment is still invisible', () => {
+  // The narrow half of the rule above, and the reason it only scans compound
+  // names: `color.text-primary` contains `text`, which is font-size vocabulary.
+  // Scanning single generic words would make a colour token the best-ranked
+  // font-size candidate — strictly worse than the gap it was fixing.
+  const colour = mapReferenceToTokens({ 'font-size': '16px' }, [token('color.text-primary', '16px')]);
+  assert.deepEqual(colour.bindings, [], 'a colour token must not become a font-size binding');
+  const gap = mapReferenceToTokens({ 'font-size': '16px' }, [token('space.gap-md', '16px')]);
+  assert.deepEqual(gap.bindings, [], 'nor a spacing token');
+  // And the round-2 case has to keep holding through the new scan.
+  const padding = mapReferenceToTokens({ 'padding-top': '0px' }, [token('type.letter-spacing.none', '0px')]);
+  assert.deepEqual(padding.bindings, [], 'padding must still refuse a tracking token');
+});
+
 test('a loose-tier path that reads as two families is a gap, not a coin flip', () => {
   // `spacing` reads as both tracking and gap. The loose tier is a guess, and a
   // guess that fits two families is not one worth acting on — the designer can

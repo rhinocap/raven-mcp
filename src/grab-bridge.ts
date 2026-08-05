@@ -566,6 +566,17 @@ export async function getGrabbedElements(timeoutMs?: number): Promise<GrabBridge
   return waitForGrabItems(currentSession, timeoutMs);
 }
 
+// Whether the live session is proxying someone else's site. The two modes end
+// differently and the agent has to be told which one it is in: a local session
+// finishes at a batchCommit marker, a proxied one has no commit to wait for
+// because the authoring routes are withheld. Exported rather than folded into
+// the drain payload so the drain's shape stays exactly what callers already
+// parse; the protocol text is assembled in the tool layer, which is where every
+// other piece of agent-facing guidance lives.
+export function isProxyGrabSession(): boolean {
+  return Boolean(currentSession && currentSession.proxyTarget);
+}
+
 export function queueGrabSelection(selection: unknown): GrabBridgeSelection {
   if (!currentSession) {
     throw new Error("No active grab session");
@@ -1118,13 +1129,32 @@ function proxyGrabUpgrade(proxyTarget: string | undefined, req: IncomingMessage,
   // upgrade was still dialling the original http origin, so the socket either
   // failed or carried the session in clear text.
   if (currentSession && currentSession.proxyTarget) proxyTarget = currentSession.proxyTarget;
+  // The handshake has to prove it came from the proxied page before the session
+  // jar is attached. It used to be waved through as "same-site by construction",
+  // and the construction was false: a WebSocket open is not subject to CORS, so
+  // any page anywhere can dial ws://127.0.0.1:<port> and — with the jar attached
+  // unconditionally — have the bridge hand SameSite=Strict session cookies to
+  // upstream on its behalf. The port is random, which is a speed bump and not a
+  // boundary. Browsers always send Origin on an upgrade, so a mismatch is a
+  // decisive signal; a missing Origin means a non-browser client, which is not
+  // the attack this closes and which already needs local access to reach here.
+  var upgradeOrigin = typeof req.headers.origin === "string" ? req.headers.origin : "";
+  if (upgradeOrigin && currentSession) {
+    var expectedOrigins = ["http://127.0.0.1:" + currentSession.port, "http://localhost:" + currentSession.port];
+    if (expectedOrigins.indexOf(upgradeOrigin) === -1) {
+      socket.destroy();
+      return;
+    }
+  }
   var target = new URL(proxyTarget);
   var makeRequest = target.protocol === "https:" ? httpsRequest : httpRequest;
   // Same cookie boundary as the fetch path: the browser's localhost cookies never
   // travel upstream, and the session jar goes in their place.
   var upgradeHeaders = Object.assign({}, req.headers, { host: target.host }) as Record<string, unknown>;
   delete upgradeHeaders.cookie;
-  var upgradeJar = proxyCookieHeader(new URL(req.url || "/", "http://127.0.0.1").pathname, target.protocol === "https:");
+  // Same-site is now something the Origin check above established rather than
+  // something assumed, so the jar can be released on those terms.
+  var upgradeJar = proxyCookieHeader(new URL(req.url || "/", "http://127.0.0.1").pathname, target.protocol === "https:", false, false);
   if (upgradeJar) upgradeHeaders.cookie = upgradeJar;
   var upstream = makeRequest({
     protocol: target.protocol,
@@ -1163,6 +1193,14 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
   if (currentSession && currentSession.proxyTarget) proxyTarget = currentSession.proxyTarget;
   var targetPath = new URL(requestUrl, "http://127.0.0.1");
   var targetUrl = proxyTarget + targetPath.pathname + targetPath.search;
+  // The cookie jar has to reason about the UPSTREAM request, not the loopback one
+  // the browser made. Handing it `targetPath` meant the scheme was always http:
+  // and the host was always 127.0.0.1 — so a Secure cookie was never replayed even
+  // over a genuine https upstream, a legitimate Domain=<the real site> was rejected
+  // as foreign, and a cookie claiming Domain=127.0.0.1 from any site was accepted.
+  // The round-3 regression test could not see any of it: its fixture upstream WAS
+  // plaintext 127.0.0.1, so the right answer and the wrong mechanism agree there.
+  var upstreamUrl = new URL(targetUrl);
   var headers = new Headers();
   // sec-fetch-* would tell upstream this is a cross-site request from 127.0.0.1,
   // which is what makes Origin-gated SaaS (GitHub, Stripe, Linear) answer 403.
@@ -1183,7 +1221,16 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
       headers.append(headerName, headerValue);
     }
   }
-  var jarCookies = proxyCookieHeader(targetPath.pathname, targetPath.protocol === "https:");
+  // Read the browser's own fetch metadata BEFORE it is stripped. The bridge
+  // rewrites Origin and drops sec-fetch-* so that Origin-gated SaaS answers at
+  // all, which also means upstream can no longer tell a cross-site request from
+  // a same-origin one — so SameSite has to be enforced here instead. Without it
+  // any page that guesses the loopback port gets the proxied site's Strict
+  // cookies attached to its request, with a matching Origin stamped on top.
+  var fetchSite = String(req.headers["sec-fetch-site"] || "").toLowerCase();
+  var crossSite = fetchSite !== "" && fetchSite !== "same-origin" && fetchSite !== "none";
+  var topLevelGet = method === "GET" && String(req.headers["sec-fetch-mode"] || "").toLowerCase() === "navigate";
+  var jarCookies = proxyCookieHeader(upstreamUrl.pathname, upstreamUrl.protocol === "https:", crossSite, topLevelGet);
   if (jarCookies) headers.set("cookie", jarCookies);
 
   var proxyTargetUrl = new URL(proxyTarget);
@@ -1219,7 +1266,7 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
       redirect: "manual"
     });
     res.statusCode = upstream.status;
-    copyProxyResponseHeaders(upstream.headers, res, targetPath);
+    copyProxyResponseHeaders(upstream.headers, res, upstreamUrl);
     var location = upstream.headers.get("location");
     if (upstream.status >= 300 && upstream.status < 400 && location) {
       try {
@@ -1272,7 +1319,16 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
       var proxyConfig: Record<string, string> = {
         bridgeOrigin: proxyBridgeOrigin,
         projectName: proxyProjectName,
-        ravenVersion: RAVEN_VERSION
+        ravenVersion: RAVEN_VERSION,
+        // The authoring routes — /batch-commit, /layers, /template, /components —
+        // are withheld from a proxied third-party origin on purpose, a few dozen
+        // lines up in handleGrabRequest. The overlay could not see that, so it
+        // finished every send by POSTing the commit, got the designed 404, and
+        // showed the designer "Retry send" on a grab that had in fact landed in
+        // Raven's queue. Telling it what the bridge is already doing costs one
+        // field; inferring it from a 404 is how a deliberate refusal reads as a
+        // bug. Grabbing from someone else's site is capture, not authoring.
+        authoring: "withheld"
       };
       if (role === "maintainer") proxyConfig.role = "maintainer";
       var proxyConfigJson = JSON.stringify(proxyConfig).replace(/</g, "\\u003c");
@@ -1340,7 +1396,14 @@ function rewriteProxyHtml(html: string, proxyTarget: URL, serviceWorkerScript: s
         var url = quote ? quotedUrl : bareUrl;
         var wrapper = quote || "";
         var resolvedRefresh = new URL(url, proxyTarget);
-        return sameProxyHost(resolvedRefresh, proxyTarget)
+        // sameProxyHost compares hostname and port only, so `https://site/x` from an
+        // http session read as same-site and was rewritten to a bridge-relative path
+        // — the browser then loaded it back over the plaintext session and the site's
+        // own upgrade was silently undone. The redirect handler refuses exactly this;
+        // a meta refresh is the same navigation by another spelling. When the schemes
+        // differ the absolute URL is left alone: the browser follows it offsite, out
+        // of the bridge, on the scheme the site actually asked for.
+        return resolvedRefresh.protocol === proxyTarget.protocol && sameProxyHost(resolvedRefresh, proxyTarget)
           ? prefix + wrapper + resolvedRefresh.pathname + resolvedRefresh.search + resolvedRefresh.hash + wrapper
           : match;
       } catch (_err) {
@@ -1426,6 +1489,7 @@ interface ProxyCookie {
   path: string;
   expiresAt: number | null;
   secure: boolean;
+  sameSite: "strict" | "lax" | "none";
 }
 
 var proxyCookieJar = new Map<string, ProxyCookie>();
@@ -1447,10 +1511,12 @@ function storeProxyCookies(cookies: string[], responseUrl: URL): void {
     // else. Browsers drop it; a jar that keeps it would replay a foreign
     // credential on every request for the life of the session.
     if (attributes.domain !== null && !domainMatches(responseUrl.hostname, attributes.domain)) continue;
-    // __Secure- and __Host- are promises a browser enforces. A jar that stores
-    // them without enforcing turns the prefix into a lie, so treat the prefix as
-    // the Secure attribute whether or not the site remembered to send it.
-    if (/^__(secure|host)-/i.test(name)) attributes.secure = true;
+    // __Secure- and __Host- are promises a browser enforces by REJECTING the
+    // cookie when the promise is not kept (RFC 6265bis §4.1.3). Upgrading it to
+    // secure instead — which is what this did — accepts a malformed cookie and
+    // then behaves as though the site had sent a well-formed one, so the jar and
+    // the browser disagree about whether the cookie exists at all.
+    if (!prefixedCookieIsValid(name, attributes, responseUrl)) continue;
     var jarKey = name + "\n" + attributes.path;
     if (attributes.expiresAt !== null && attributes.expiresAt <= Date.now()) proxyCookieJar.delete(jarKey);
     else proxyCookieJar.set(jarKey, {
@@ -1458,9 +1524,29 @@ function storeProxyCookies(cookies: string[], responseUrl: URL): void {
       value: value,
       path: attributes.path,
       expiresAt: attributes.expiresAt,
-      secure: attributes.secure
+      secure: attributes.secure,
+      sameSite: attributes.sameSite
     });
   }
+}
+
+/**
+ * RFC 6265bis §4.1.3. `__Secure-` requires Secure and a secure origin.
+ * `__Host-` requires all of that plus an explicit `Path=/` and no `Domain` at
+ * all — that is what makes a __Host- cookie unspreadable to a sibling
+ * subdomain, and it is the whole reason the prefix exists.
+ */
+function prefixedCookieIsValid(name: string, attributes: CookieAttributes, responseUrl: URL): boolean {
+  var lowered = name.toLowerCase();
+  var isHost = lowered.startsWith("__host-");
+  if (!isHost && !lowered.startsWith("__secure-")) return true;
+  if (!attributes.secure) return false;
+  if (responseUrl.protocol !== "https:") return false;
+  if (!isHost) return true;
+  // Path=/ must be STATED, not merely arrived at: a __Host- cookie set at / with
+  // no Path attribute defaults to / too, and accepting it would let the same
+  // header mean different things depending on where it was sent from.
+  return attributes.domain === null && attributes.explicitPath === "/";
 }
 
 /** RFC 6265 §5.1.3: example.com covers example.com and www.example.com, never notexample.com. */
@@ -1484,18 +1570,26 @@ function defaultCookiePath(responsePath: string): string {
   return responsePath.slice(0, lastSlash);
 }
 
-function readCookieAttributes(attributes: string[], responseUrl: URL): { path: string; expiresAt: number | null; secure: boolean; domain: string | null } {
+function readCookieAttributes(attributes: string[], responseUrl: URL): CookieAttributes {
   var path = defaultCookiePath(responseUrl.pathname);
+  var explicitPath: string | null = null;
   var expiresAt: number | null = null;
   var secure = false;
   var domain: string | null = null;
+  // Absent SameSite is Lax in every current browser, and defaulting it to None
+  // here would hand back exactly the cross-site protection this is enforcing.
+  var sameSite: "strict" | "lax" | "none" = "lax";
   for (var attribute of attributes) {
     var index = attribute.indexOf("=");
     var attributeName = (index === -1 ? attribute : attribute.slice(0, index)).trim().toLowerCase();
     var attributeValue = index === -1 ? "" : attribute.slice(index + 1).trim();
-    if (attributeName === "path" && attributeValue.startsWith("/")) path = attributeValue;
+    if (attributeName === "path" && attributeValue.startsWith("/")) { path = attributeValue; explicitPath = attributeValue; }
     if (attributeName === "secure") secure = true;
     if (attributeName === "domain" && attributeValue) domain = attributeValue;
+    if (attributeName === "samesite") {
+      var declared = attributeValue.toLowerCase();
+      if (declared === "strict" || declared === "lax" || declared === "none") sameSite = declared;
+    }
     if (attributeName === "max-age") {
       var seconds = Number(attributeValue);
       if (Number.isFinite(seconds)) expiresAt = Date.now() + seconds * 1000;
@@ -1506,7 +1600,16 @@ function readCookieAttributes(attributes: string[], responseUrl: URL): { path: s
       if (!Number.isNaN(parsed)) expiresAt = parsed;
     }
   }
-  return { path: path, expiresAt: expiresAt, secure: secure, domain: domain };
+  return { path: path, explicitPath: explicitPath, expiresAt: expiresAt, secure: secure, domain: domain, sameSite: sameSite };
+}
+
+interface CookieAttributes {
+  path: string;
+  explicitPath: string | null;
+  expiresAt: number | null;
+  secure: boolean;
+  domain: string | null;
+  sameSite: "strict" | "lax" | "none";
 }
 
 /** RFC 6265 §5.1.4: /app matches /app, /app/x and /app/, but never /application. */
@@ -1516,7 +1619,7 @@ function cookiePathMatches(cookiePath: string, requestPath: string): boolean {
   return cookiePath.endsWith("/") || requestPath.charAt(cookiePath.length) === "/";
 }
 
-function proxyCookieHeader(requestPath: string, secureChannel: boolean): string {
+function proxyCookieHeader(requestPath: string, secureChannel: boolean, crossSite?: boolean, topLevelGet?: boolean): string {
   var now = Date.now();
   var matching: ProxyCookie[] = [];
   proxyCookieJar.forEach(function (cookie, jarKey) {
@@ -1524,6 +1627,12 @@ function proxyCookieHeader(requestPath: string, secureChannel: boolean): string 
     // A Secure cookie over plaintext is the exact disclosure the attribute
     // exists to prevent, and a proxy is not exempt from it.
     if (cookie.secure && !secureChannel) return;
+    // Upstream cannot see that this request was cross-site — the bridge strips
+    // sec-fetch-* and rewrites Origin so Origin-gated sites answer at all — so
+    // SameSite is enforced here or nowhere. Strict never travels cross-site;
+    // Lax travels only on a top-level GET navigation, same as a browser.
+    if (crossSite && cookie.sameSite === "strict") return;
+    if (crossSite && cookie.sameSite === "lax" && !topLevelGet) return;
     if (cookiePathMatches(cookie.path, requestPath)) matching.push(cookie);
   });
   // Longer paths first, so the more specific cookie is the one a server reading

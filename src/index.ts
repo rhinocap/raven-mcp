@@ -41,7 +41,7 @@ import { readFile } from "fs/promises";
 import { registerCalls } from "./calls.js";
 import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
 import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet, type FlattenedDesignToken } from "./designmd.js";
-import { startGrabSession, getGrabbedElements, stopGrabSession, getPageTemplate, setTemplateSlots, listTemplates, getGrabLayers, moveGrabLayer, getGrabOperation } from "./grab-bridge.js";
+import { startGrabSession, getGrabbedElements, stopGrabSession, getPageTemplate, setTemplateSlots, listTemplates, getGrabLayers, moveGrabLayer, getGrabOperation, isProxyGrabSession } from "./grab-bridge.js";
 import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, recordConsultation, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
 import { FAIL_ON_RULES, proposePolish, reviewDiff } from "./design-review.js";
 import { configureSource, readSourceConfig, inventoryFromDesignMd, diffDesignSystem, listBaselineComponents } from "./design-system-diff.js";
@@ -3115,8 +3115,15 @@ server.tool(
       var protocol = "Tell the user in ONE line that sends and component requests from the overlay arrive in this agent session and are held until Apply commits the batch; for teams, briefly mention GitHub routing with COMPONENT_REQUEST_GITHUB_REPO and optional COMPONENT_REQUEST_GITHUB_TOKEN.";
       if (session.watch_command) {
         protocol += " Now run watch_command as a background Bash task. Sends may arrive before a commit: acknowledge them without implementing and re-launch watch_command. When batchCommit appears, use the batch field already present in the watch_command output; it is pinned to the committed batchId. Do not re-fetch via batch:true. Resolve every target against the pre-reorder baseline, then implement batch.pending in ascending sequence in one patch.";
+      } else if (proxy_target) {
+        // watch_command comes back empty for two unrelated reasons, and naming
+        // the wrong one changes what the agent does next. Proxying withholds the
+        // watcher route on purpose, and nothing gets applied to someone else's
+        // page — so no batchCommit will ever arrive, and an agent told to wait
+        // for one waits forever. Here the grab IS the outcome.
+        protocol = "Tell the user in ONE line that the overlay is capture-only on this proxied site: they can measure and grab, and nothing will be written to the page. Drain sends with get_grabbed_elements whenever control returns to you, keep each selection with capture_reference, and map it onto this project's tokens with map_reference_to_tokens. Do not wait for a batchCommit marker — none is coming.";
       } else {
-        protocol += " No HTTP listener is available in this environment, so drain sends by calling get_grabbed_elements whenever control returns to you.";
+        protocol += " This environment has no HTTP listener for a watcher to poll, so drain sends by calling get_grabbed_elements whenever control returns to you.";
       }
       payload.agent_protocol = protocol;
       return {
@@ -3149,6 +3156,14 @@ server.tool(
       var payload: Record<string, unknown> = { ...grabbed };
       if (grabbed.batchCommit) {
         payload.agent_protocol = "Implement this committed batch now in one patch. Use batch.pending in ascending sequence, resolve every style and reorder target against the batch baseline before structural changes, apply same-parent reorders strictly by sequence, and mark each successful change applied with get_grab_operation. Reject ambiguous or disconnected targets instead of guessing.";
+      } else if (grabbed.count > 0 && isProxyGrabSession()) {
+        // start_grab_session already told the agent no batchCommit is coming in
+        // proxy mode, and this line used to contradict it on the very next call
+        // — the drain said "wait for the batchCommit marker from Apply" while the
+        // bridge withholds the route that would ever produce one. An agent that
+        // believes the drain waits forever and the capture is never kept, which
+        // is the whole feature failing at its last step. Say what to do instead.
+        payload.agent_protocol = "This is a proxied third-party site: the grab IS the outcome and no batchCommit is coming. Keep each of these selections with capture_reference now, then map it onto this project's tokens with map_reference_to_tokens. Do not wait for a commit and do not try to apply anything to the page.";
       } else if (grabbed.count > 0) {
         payload.agent_protocol = "Acknowledge these sent selections, but do not implement them yet. The user may keep editing; wait for the batchCommit marker from Apply.";
       }

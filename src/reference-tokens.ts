@@ -332,6 +332,39 @@ function segmentVariants(segment: string): string[] {
   return Array.from(variants);
 }
 
+/**
+ * The compound (multi-word) family names, longest first. A segment is normally
+ * matched whole, but real systems namespace the category INTO the segment:
+ * Shopify Polaris ships `--p-font-letter-spacing-dense`, which is one segment
+ * naming no family outright, so it fell to the loose tier — where `font` reads
+ * as family and `letter-spacing` reads as tracking, two hits, demoted to
+ * out-of-family. A real letter-spacing token in a shipped design system became
+ * a gap.
+ *
+ * Only COMPOUND names are scanned inside a segment. Scanning generic single
+ * words too would be strictly worse than the bug: `color.text-primary` contains
+ * `text`, which is font-size vocabulary, so a colour token would become the
+ * best-ranked font-size candidate. A hyphenated name like `letter-spacing` or
+ * `border-radius` is specific enough that finding it inside a longer segment is
+ * evidence, not coincidence.
+ */
+const COMPOUND_FAMILY_NAMES: Array<{ id: string; name: string }> = FAMILIES
+  .flatMap((family) => family.names.filter((name) => name.indexOf("-") !== -1).map((name) => ({ id: family.id, name })))
+  .sort((a, b) => b.name.length - a.name.length);
+
+/** Whether `name` appears in `segment` as a whole run of hyphen-delimited words. */
+function containsCompoundName(segment: string, name: string): boolean {
+  var at = segment.indexOf(name);
+  while (at !== -1) {
+    var beforeOk = at === 0 || segment[at - 1] === "-";
+    var end = at + name.length;
+    var afterOk = end === segment.length || segment[end] === "-";
+    if (beforeOk && afterOk) return true;
+    at = segment.indexOf(name, at + 1);
+  }
+  return false;
+}
+
 /** Every family a token path names outright, one dot-separated segment at a time. */
 function declaredFamilies(tokenPath: string): Set<string> {
   var declared = new Set<string>();
@@ -339,6 +372,12 @@ function declaredFamilies(tokenPath: string): Set<string> {
     var variants = segmentVariants(segment);
     for (var family of FAMILIES) {
       if (variants.some((variant) => family.names.indexOf(variant) !== -1)) declared.add(family.id);
+    }
+    // `segmentVariants` hyphenates camelCase, so `fontLetterSpacing` and
+    // `font-letter-spacing` are the same run of words by the time we look.
+    var hyphenated = segment.replace(/([a-z0-9])([A-Z])/g, "$1-$2").replace(/[_\s]+/g, "-").toLowerCase();
+    for (var compound of COMPOUND_FAMILY_NAMES) {
+      if (containsCompoundName(hyphenated, compound.name)) declared.add(compound.id);
     }
   }
   return declared;

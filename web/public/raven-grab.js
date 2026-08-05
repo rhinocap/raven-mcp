@@ -44,6 +44,10 @@
     ? suppliedGrabConfig
     : null;
   var grabRole = suppliedGrabConfig && suppliedGrabConfig.role === "maintainer" ? "maintainer" : "consumer";
+  // Set by the bridge while it is proxying a third-party site, where it withholds
+  // the authoring routes. A send is then complete once the selection reaches the
+  // queue: there is nothing on someone else's page to commit a change to.
+  var captureOnly = !!(suppliedGrabConfig && suppliedGrabConfig.authoring === "withheld");
   var ravenVersion = suppliedGrabConfig && suppliedGrabConfig.ravenVersion ? String(suppliedGrabConfig.ravenVersion) : "";
   // Config wins, then the page's own title, then the host. All three resolve locally --
   // the grab bridge runs on the user's machine, so none of this needs the network.
@@ -314,6 +318,53 @@
     "position:fixed;inset:0;pointer-events:none;z-index:" + Z_INDEX + ";font-family:Geist,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;";
   (document.documentElement || document.body).appendChild(host);
   var shadow = host.attachShadow({ mode: "open" });
+
+  // Second half of the keystroke boundary. The first half is the host bubble-phase
+  // guard further down (search "Keystrokes typed into Raven's own inputs"), which
+  // is what actually fixed the reported github.com bug and is the broader of the
+  // two — it stops every key event, not just characters. Read that one first.
+  //
+  // It closes bubble phase and says so honestly: "Not covered: a page listening in
+  // capture on window or document, which runs before the event reaches us at all."
+  // That is true of a guard on the host and is a real remaining hole — capture
+  // descends window → document → … → host, so a site's document-capture listener
+  // has already run before a host-level guard sees anything. Measured with a
+  // four-phase spy on a proxied page: with only the host guard installed,
+  // docBubble/winBubble were empty and docCapture/winCapture still received every
+  // character, retargeted to the host <div>.
+  //
+  // Registering on window in CAPTURE is the only position upstream of a listener
+  // on document, and it wins by position rather than by registration order, which
+  // this overlay cannot control. That closes document-capture. Window-capture
+  // stays open and cannot be closed from here: same-node order IS registration
+  // order, and the bridge injects this overlay before </body>, so every script on
+  // the page has already run. Moving the injection into <head> to win that last
+  // node would reorder the whole overlay against the page it decorates — not
+  // worth it for a case no reported bug has hit, since bare-letter hotkeys live
+  // on document in practice (@github/hotkey, Mousetrap, hotkeys-js all bind it).
+  //
+  // Narrower than the host guard on purpose, because it fires earlier and so has
+  // more to break: unmodified single printable characters only, originating in a
+  // Raven field. Escape, Tab, Enter and every chord keep travelling — Raven's own
+  // global handlers read those off document in capture, and stopping them here
+  // would silently break the modal dismiss, the focus trap, Cmd+K, Alt+G and
+  // Cmd+. . Propagation only, never preventDefault: the character still has to be
+  // typed.
+  ["keydown", "keypress", "keyup"].forEach(function (eventName) {
+    window.addEventListener(eventName, function (event) {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (typeof event.key === "string" && event.key.length !== 1) return;
+      var path = event.composedPath ? event.composedPath() : [];
+      var origin = path.length ? path[0] : event.target;
+      if (!isTypingTarget(origin)) return;
+      if (!ravenContainsNode(origin)) return;
+      // Immediate, because plain stopPropagation spares listeners on this same
+      // node, and window is a node sites bind too. Raven registers no other
+      // window-level key listener, so the only thing this can silence is the
+      // page's — which is the entire point.
+      event.stopImmediatePropagation();
+    }, true);
+  });
 
   var style = document.createElement("style");
   style.textContent = `
@@ -1143,8 +1194,13 @@
   // or window regardless of which script registered first. Raven's own global
   // chords (Cmd+K, Escape, Alt+G, Cmd+.) are unaffected — they are registered in
   // CAPTURE phase on document and have already fired before this point.
-  // Not covered: a page listening in capture on window or document, which runs
-  // before the event reaches us at all. Nothing in a descendant can stop that.
+  // Not covered from here: a page listening in CAPTURE on window or document,
+  // which runs before the event reaches us at all — nothing in a descendant can
+  // stop that. Document-capture is closed separately by the narrower window-level
+  // guard installed at overlay construction (search "Second half of the keystroke
+  // boundary"); window-capture stays open by choice, reasoned about there. Both
+  // guards are load-bearing and neither subsumes the other: this one is broad in
+  // which keys it stops, that one is early in where it stops them.
   for (var stopKeyIndex = 0; stopKeyIndex < 3; stopKeyIndex++) {
     host.addEventListener(["keydown", "keypress", "keyup"][stopKeyIndex], function (event) {
       event.stopPropagation();
@@ -1372,6 +1428,18 @@
     if (!target) return false;
     var tag = target.tagName ? String(target.tagName).toLowerCase() : "";
     return tag === "input" || tag === "textarea" || tag === "select" || target.isContentEditable === true;
+  }
+  // Raven is two disjoint subtrees, not one: the shadow host, and the settings
+  // modal, which is deliberately appended at document level so it can sit above
+  // the host's stacking context. Anything asking "did this come from Raven?"
+  // has to ask about both, and the Cmd+K handler below was the only place that
+  // knew it. It is a function declaration so the key guard installed at overlay
+  // construction can call it long before this line is reached.
+  function ravenContainsNode(node) {
+    if (!node) return false;
+    return (settingsModal && settingsModal.contains && settingsModal.contains(node)) ||
+      (host && host.contains && host.contains(node)) ||
+      (shadow && shadow.contains && shadow.contains(node));
   }
   function feedbackEndpoint() {
     if (suppliedGrabConfig && suppliedGrabConfig.feedbackEndpoint) return String(suppliedGrabConfig.feedbackEndpoint);
@@ -8001,6 +8069,10 @@
       return { state: "applying", label: "Applying " + activeCount + " changes…", enabled: false, count: activeCount };
     }
     if (dispatchState === "done") {
+      // "Applied" would be a lie on someone else's site — nothing was changed
+      // there, and nothing was meant to be. What happened is that the pattern is
+      // now Raven's to keep.
+      if (activeDispatch && activeDispatch.capturedOnly) return { state: "done", label: activeCount + (activeCount === 1 ? " pattern captured ✓" : " patterns captured ✓"), enabled: false, count: nextCount };
       if (grabConfig && activeDispatch && activeDispatch.styleRecords.length && activeDispatch.styleRecords.every(function (record) { return record.state === "preview-only"; })) return { state: "done", label: "Preview only", enabled: false, count: nextCount };
       if (grabConfig && activeDispatch && activeDispatch.styleRecords.length && activeDispatch.styleRecords.every(function (record) { return record.state === "sent-locally"; })) return { state: "done", label: "Sent locally", enabled: false, count: nextCount };
       counts = activeDispatchCounts();
@@ -8673,6 +8745,16 @@
         dispatchState = "registration-error";
         renderPanel();
         if (activeDispatch.registrationErrors.batchMismatch) setGlobalActionStatus(activeDispatch.registrationErrors.batchMismatch, "error");
+        return;
+      }
+      if (captureOnly) {
+        // The bridge withholds /batch-commit from a proxied third-party origin by
+        // design, so posting it returned a 404 that this overlay reported as a
+        // failed send — every successful grab from another site ended on "Retry
+        // send" while the selection was already queued and durable. Registration
+        // IS the terminal step here.
+        activeDispatch.capturedOnly = true;
+        finishActiveDispatch();
         return;
       }
       dispatchState = "committing";
@@ -11259,10 +11341,7 @@
       // strangers' dev servers, and taking their shortcut out from under them is the
       // fastest route to a top-voted bug. The footer bar opens the modal by click for
       // everyone, so nothing is unreachable without the chord.
-      var insideRaven = (settingsModal.contains && settingsModal.contains(keyTarget)) ||
-        (host.contains && host.contains(keyTarget)) ||
-        (shadow.contains && shadow.contains(keyTarget));
-      if (!insideRaven) return;
+      if (!ravenContainsNode(keyTarget)) return;
       if (isTypingTarget(keyTarget) && !(settingsModal.contains && settingsModal.contains(keyTarget))) return;
       event.preventDefault();
       event.stopImmediatePropagation();
