@@ -266,6 +266,54 @@ mirror byte-identical.
 Sol round 8 (`briefs/SOL-ROUND8.md`, **xhigh** — this is a security boundary) is
 running against all four fixes and, most importantly, against the test churn.
 
+## 3d. A private-content leak into this public repo, caught before any push
+
+Reading `.gitignore` for an unrelated reason surfaced a rule I had been
+violating for five commits:
+
+```
+# Raw adverse-pass transcripts (public repo). Codex echoes the loaded skill files
+# verbatim — personal quotes, home-directory paths, private rule text — so the log
+# itself never ships.
+.claude/pregate-*/sol/
+```
+
+That rule names **one directory**. This round's evidence lives in
+`.claude/patternlib-2026-08-04/out/`, so it never applied, and six Sol
+transcripts had been committed through it — `SOL-codex`, `ROUND3`, `ROUND4`,
+`ROUND5`, `ROUND6`, `ROUND7`. Between them: ~450 `/Users/accunliffe/...` paths,
+a 1642-line private skill file echoed verbatim by a `sed` range, and
+cross-project rollout summaries read out of `~/.codex/memories/MEMORY.md`
+(other project names, session IDs, past conclusions). **This repository is
+public.**
+
+Nothing had been pushed — `origin/main` was still at `985e5ce` — so this was
+strippable rather than publishable-and-retractable:
+
+1. Widened the ignore to match the **filename anywhere in the tree**
+   (`SOL-*.log`, `sol-*.log`, `**/out/SOL*.log`), committed as `6f84716` with
+   the reasoning in the message. A location-scoped rule for sensitive content
+   fails silently the moment a directory gets a different name; a filename-scoped
+   one cannot.
+2. `git filter-branch --index-filter 'git rm --cached --ignore-unmatch …' --
+   origin/main..HEAD` over all eight unpushed commits.
+3. **filter-branch checks out the rewritten tree when it finishes, which deleted
+   the six now-untracked logs from disk.** Noticed because a verification count
+   came back `1` where it should have been `7` — restored all six from
+   `refs/original/refs/heads/main`, byte sizes 590KB–2.1MB.
+4. Confirmed the rewrite touched nothing else:
+   `git diff --name-status refs/original/refs/heads/main HEAD` lists exactly six
+   `D` lines and nothing more.
+
+Worth naming: the credential-shaped scan I ran *before* committing
+(`sk-|token|secret|api_key|password|Bearer`) came back clean, because this leak
+class is private **prose and paths**, not credentials. The grep that would have
+caught it is `/Users/<name>`, `.agents/skills`, `.codex/memories`. Filed as a
+cross-project memory (`feedback-scope-sensitive-ignores-by-filename`).
+
+The transcripts remain on disk locally. Their dispositioned findings are in
+§2/§3b/§3c above, which is what the original rule already prescribed.
+
 ## 4. Uncommitted set
 
 Everything through round 7 is committed (`5ae6909`). What remains uncommitted is
