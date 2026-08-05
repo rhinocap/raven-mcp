@@ -207,15 +207,34 @@ test('SameSite is enforced on the bridge, because upstream can no longer see it'
       'a foreign-Origin POST with no Fetch Metadata kept more than the cookies that opted in');
 
     await request(session.url + '/echo', {
-      headers: { 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate' }
+      headers: {
+        'sec-fetch-site': 'cross-site',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-dest': 'document'
+      }
     });
     assert.equal(sent[4].cookie, 'lax=1; none=1; silent=1',
       'a cross-site top-level navigation drops Strict and keeps Lax');
 
+    // The destination is what makes it TOP-level. This case used to be spelled
+    // without one, which meant an attacker's <iframe src="…127.0.0.1:PORT/echo">
+    // — cross-site, navigate, dest=iframe — was indistinguishable from the line
+    // above and rode the same Lax jar.
+    await request(session.url + '/echo', {
+      headers: {
+        'sec-fetch-site': 'cross-site',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-dest': 'iframe'
+      }
+    });
+    assert.equal(sent[5].cookie, 'none=1',
+      'a cross-site IFRAME navigation is not top-level and must keep only the ' +
+      'cookies that opted in cross-site');
+
     await request(session.url + '/echo', {
       headers: { 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'no-cors' }
     });
-    assert.equal(sent[5].cookie, 'none=1',
+    assert.equal(sent[6].cookie, 'none=1',
       'a cross-site subresource keeps only the cookies that opted in');
   });
 });

@@ -63,7 +63,17 @@ dist/
 # summaries out of ~/.codex/memories. Caught before any push and stripped from the
 # unpushed commits. Match the FILENAME anywhere in the repo, not a location, so
 # the next evidence directory cannot reopen this.
+#
+# It reopened anyway, one round later. Naming `SOL-*` was an ENUMERATION of one
+# agent, and the class is "raw agent or tool transcript" — four `*-codex.log`
+# files from the same fan-out were already committed (unpushed) carrying 23–50
+# home-directory paths each, `~/.claude/skills` and `~/.codex/memories`
+# references. So the rule is now the class: no `.log` under `.claude/` ships,
+# whoever wrote it. That also covers the test-suite captures, which are clean but
+# are 113KB of regenerable noise whose numbers belong in the session log anyway.
+# Evidence that SHOULD ship is prose and screenshots, both of which a human read
+# before committing.
 .claude/pregate-*/sol/
+.claude/**/*.log
 SOL-*.log
 sol-*.log
-**/out/SOL*.log

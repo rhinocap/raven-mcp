@@ -4,10 +4,11 @@ Per-instance log. Continues `2026-08-05-pattern-library-round5.md`.
 
 ## Where this left off
 
-Rounds 5, 6, 7 and 8 are all dispositioned and every surface is re-verified.
-Nothing is pushed. `main` is 6 commits ahead of `origin/main` (`985e5ce`); the
-round-7 batch is committed as `5ae6909` and the round-8 batch (§3c) is the
-uncommitted tree in §4. Sol round 8 is running against it.
+Rounds 5 through 9 are all dispositioned and every surface is re-verified.
+Nothing is pushed. Local `main` is 9 commits ahead of `origin/main` (`985e5ce`);
+the round-9 batch (§3e) is the uncommitted tree in §4. Sol round 9 has not run
+yet — it is the next action, and no completion claim may reach Andrew before it
+is dispositioned.
 
 ## 1. Andrew's reported bug — root-caused, reproduced, and now falsifiable
 
@@ -314,47 +315,157 @@ cross-project memory (`feedback-scope-sensitive-ignores-by-filename`).
 The transcripts remain on disk locally. Their dispositioned findings are in
 §2/§3b/§3c above, which is what the original rule already prescribed.
 
+## 3e. Round 9 — dispositioning the round-8 adverse pass
+
+Sol round 8 (xhigh) returned **DOES NOT SURVIVE — G1 and G3 hold; G2 and G4 fail,
+and the tests encode rather than detect both key boundary mistakes.** Its positive
+finding mattered as much as its objections: the five carrier rewrites did **not**
+narrow detection — every site round 2 and round 4 used to catch still fires.
+
+**G2 P1 — `navigate` was never the same as top-level (real, fixed).**
+`src/grab-bridge.ts` released the Lax jar on any cross-site GET declaring
+`Sec-Fetch-Mode: navigate`. A foreign page that plants
+`<iframe src="http://127.0.0.1:PORT/action">` sends exactly that. The only header
+that differs is `Sec-Fetch-Dest` — `iframe` rather than `document` — and it was
+not being read, so upstream saw an authenticated request from a frame the
+attacker chose. `topLevelGet` now requires `dest === "document"`, an allowlist of
+one rather than a denylist, so `frame`/`embed`/`object` and any future
+destination lose Lax by default.
+
+**G2 P2 — the comment overclaimed (real, fixed).** It said a metadata-less
+browser only loses Lax on the *first* load because every later navigation carries
+a `Referer`. False: an address-bar or bookmark navigation carries neither
+`Origin` nor `Referer`, so a logged-in user on such a browser can be bounced to a
+login screen mid-session. The cost is real and is now written down honestly
+rather than minimised; it is still accepted, because a metadata-less GET is
+byte-identical to a foreign subresource and the only alternative is trusting a
+header a foreign page can set.
+
+**G4 P2 — WebKit bug 165004 (real, fixed).** Dropping `keyCode === 229` was
+right for Android and left one case genuinely uncovered: macOS Safari with the
+Japanese Hiragana IME fires `compositionend` FIRST, then a keydown with
+`key: "Enter"` and `isComposing: false`. That Enter accepted a candidate; the
+user never asked to send. The fix tracks composition **lifecycle** and marks the
+next keydown.
+
+Two design calls inside that fix, both load-bearing:
+
+- **Placement.** It sits in the send handler, not the window-capture guard. The
+  named harm is "clicks Send while the user is only accepting a candidate", and
+  Enter must keep reaching the page by design (test 4 asserts Escape/Tab/chords
+  travel). Swallowing at capture would be broader than the defect.
+- **Ordering, not a clock.** The first version keyed on a 100ms window alone.
+  That is wrong: compose, type three more characters, press Enter, and a fast
+  typist is still inside any window wide enough to cover a slow one — the send
+  gets eaten. The marker is now consumed by the very next keydown whatever it is;
+  the 100ms bound survives only so a stale marker cannot outlive the user
+  composing, clicking away, and coming back. The falsifiability run proves the
+  distinction: reverting the consume-on-next-keydown line fails on **`a
+  deliberate Enter stopped sending`**, not on the IME assertion.
+
+**Test churn P1 — the suites encoded the iframe bug (real, fixed).** Both
+navigation assertions omitted the destination, so the attack passed them
+unchanged. `round8` gained a paired `document`/`iframe` case plus a
+`frame`/`embed`/`object` sweep; `round4:209` now declares `dest: document` and
+has an `iframe` sibling asserting only the opted-in cookie rides.
+
+**Test churn P3 — "no Fetch Metadata" was sending some (real, fixed).** Measured
+on Node 26.5.0 rather than taken on Sol's word, and it is worse than reported:
+Node's `fetch` stamps `sec-fetch-mode` on every request AND **overwrites the
+value you give it** — a request sent with `navigate` arrives as `cors`. So round
+7's priming navigation was not a navigation on the wire either. Those tests now
+go out over `node:http`, verified to put exactly the headers given on the socket
+and nothing else.
+
+**G1 and G3 confirmed, no action.** Sol found the Host allowlist correct against
+case, trailing-dot, IPv6, duplicate and absolute-form variants, and the
+`SameSite=None`/`Secure` drop correct per RFC6265bis.
+
+### Falsifiability, one revert at a time
+
+| Reverted | Goes red |
+|---|---|
+| `dest === "document"` neutralised in `dist/` | 3 tests across rounds 4 and 8 |
+| send-handler guard deleted (`RAVEN_GRAB_ASSET_PATH` copy) | the IME commit assertion |
+| marker held on a clock instead of the next keydown | the deliberate-Enter assertion |
+
+### Three defects in my own harness, none in the product
+
+The live send verification reported `FAIL the panel never confirmed the capture`
+while the drain simultaneously showed the capture arriving — a contradiction that
+had to be one or the other. It was the harness, three times over:
+
+1. It read `root.textContent`, which includes the shadow `<style>` block, so the
+   check was matching against 900 characters of CSS custom properties.
+2. Fixing that, it clicked buttons by matching the *text* `send`/`apply`, which
+   hit the feedback dialog's "Send Raven" and left the settings modal open over
+   everything the assertions then read. Now it clicks `[data-send-batch]` by
+   attribute.
+3. Fixing that, it still failed — because the confirmation is a **hold, not a
+   final state**. A focused probe caught `"1 pattern captured ✓"` at t=300/800/
+   1500ms and `"Send to agent"` from t=2500ms; the harness sampled at 2700ms,
+   after the reset. It now samples during the hold and separately asserts the
+   reset.
+
+The original version printed `NOTE` whichever way it went, which is a report and
+not a check — the exact shape the standing rule names. It asserts now, and prints
+what it read in both directions.
+
+**Live surface, re-verified against fresh `dist` on real github.com:** field holds
+`"I really like this"`, GitHub sees zero keys in either phase, no search dialog,
+zero console errors, zero 4xx/5xx, drain returns `proxyMode: true`, no
+`batchCommit`, selector `#hero-section-brand-heading`, instruction intact, 39
+style properties captured. Screenshot inspected with eyes.
+
+**Frozen surfaces re-checked:** stdio 108 tools (unchanged — no tool added this
+round), anon remote 45 tools, hash `f64bb18…2bb0a6` matches, overlay mirror
+byte-identical. Full suite **1245 / 1242 pass / 0 fail / 3 skipped**; the live
+e2e passes all 33 checks.
+
 ## 4. Uncommitted set
 
-Everything through round 7 is committed (`5ae6909`). What remains uncommitted is
-the round-8 batch:
+Everything through round 8 is committed (local `main` is 9 commits ahead of
+`origin/main` at `985e5ce`; the round-7/8 hashes are post-filter-branch:
+`cbba999`, `e675dee`, `ce7a230`, `a6114c4`). What remains uncommitted is the
+round-9 batch:
 
 Modified: `CLAUDE.md`, `src/grab-bridge.ts`, `browser/raven-grab.js`,
-`web/public/raven-grab.js`, `test/grab-bridge-proxy-round2.test.mjs`,
-`test/grab-bridge-proxy-round4.test.mjs`,
-`test/grab-bridge-proxy-headers.test.mjs`,
+`web/public/raven-grab.js`, `test/grab-bridge-proxy-round4.test.mjs`,
+`test/grab-bridge-proxy-round7.test.mjs`,
+`test/grab-bridge-proxy-round8.test.mjs`,
 `test/grab-overlay-key-isolation.test.mjs`, and this file.
 
-New: `test/grab-bridge-proxy-round8.test.mjs`,
-`.claude/patternlib-2026-08-04/briefs/SOL-ROUND8.md`, and evidence
-`out/{FULL-SUITE-ROUND8.log, …8b.log, …8c.log, E2E-ROUND8.log, SOL-ROUND8.log}`.
+Untracked evidence: `.claude/patternlib-2026-08-04/out/{FULL-SUITE-ROUND9.log,
+E2E-ROUND9.log, probe-send-label.png, github-typing-fixed-live.png,
+github-send-capture-only.png}`.
 
-Staged from before: `.claude/patternlib-2026-08-04/out/SOL-ROUND7.log` — Sol has
-exited, so it is now safe to commit.
+Gitignored, in-project, **not** part of the commit: `.mcpb-stage/verify-github-
+typing.mjs`, `.mcpb-stage/verify-github-send.mjs`, `.mcpb-stage/probe-send-
+label.mjs`. Six restored Sol transcripts sit on disk, gitignored by filename.
 
-Scratchpad only, ephemeral, **must not be relied on**: `raven-grab-229.js`,
-`raven-grab-nohost.js` (the two neutered overlay copies used for falsifiability
-proofs), `round7-commit-msg.txt`.
+Scratchpad only, ephemeral: `/tmp/raven-r9-falsify/{no-guard.js, clock-only.js}`
+(the two neutered overlay copies used for the falsifiability proofs) and
+`/tmp/gb-round9-backup.js`.
 
 ## 5. Exact next commands
 
 ```sh
 git fetch origin && git status --porcelain
 git commit --only <explicit paths> --file=<message file>   # never a bare git add + commit
-# Read Sol round 8 when it lands, then disposition every real objection:
-cat .claude/patternlib-2026-08-04/out/SOL-ROUND8.log
-# Re-verify after any round-9 fix:
+codex exec -m gpt-5.6-sol -c model_reasoning_effort=xhigh \
+  "$(cat .claude/patternlib-2026-08-04/briefs/SOL-ROUND9.md)" \
+  > .claude/patternlib-2026-08-04/out/SOL-ROUND9.log 2>&1 < /dev/null &
+# Re-verify after any round-10 fix:
 RAVEN_NO_USAGE_LOG=1 npm test
 node test/e2e-pattern-library.mjs        # not in npm test — real Chromium, proxies live github.com
 ```
 
-Round-8 brief attacks: the `Host` allowlist (parsing edge cases, `[::1]`, the
-`currentSession &&` fail-open window, whether the WebSocket path is equivalently
-covered, any legitimate caller now getting 421); the navigate-only Lax rule
-against a real login flow through the proxy; the `SameSite=None`/`Secure` drop;
-whether removing keyCode 229 reopens the IME gap on any real Android build; and
-above all whether making five older suites declare `sec-fetch-site: same-origin`
-**narrowed what those tests used to catch**.
+Round-9 brief must attack: whether `Sec-Fetch-Dest: document` is the *complete*
+top-level signal (what about `fencedframe`, or a browser that sends `mode` but
+not `dest`?); whether consuming the composition marker on every keydown opens a
+new hole; whether the 100ms residual bound can still swallow a real send;
+whether the new dest tests genuinely fail with the clause removed (they do —
+three of them); and whether round 9 narrowed anything rounds 4/7/8 used to catch.
 
 Note for whoever picks this up: the running MCP server process holds a **pre-fix
 `dist/`**. Overlay fixes land on a plain reload (the bridge reads the asset from

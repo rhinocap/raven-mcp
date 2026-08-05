@@ -12,7 +12,7 @@
 //    could hand session A's selections session B's protocol.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
+import { createServer, request as httpRequest } from 'node:http';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -20,6 +20,33 @@ import path from 'node:path';
 process.env.RAVEN_NO_USAGE_LOG = '1';
 
 const bridge = await import('../dist/grab-bridge.js');
+
+// These tests are ABOUT Fetch Metadata, so they cannot go out over Node's fetch:
+// it stamps `sec-fetch-mode` on every request it sends and overwrites the value
+// you gave it. Measured on Node 26.5.0 — a bare POST arrives carrying
+// `sec-fetch-mode: cors`, and a request sent with `navigate` arrives as `cors`
+// too. So the test named "no Fetch Metadata at all" was sending some, and the
+// priming navigation was not a navigation on the wire. node:http sends exactly
+// the headers it is handed and nothing else.
+function request(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const target = new URL(url);
+    const req = httpRequest({
+      hostname: target.hostname,
+      port: target.port,
+      path: target.pathname + target.search,
+      method: options.method || 'GET',
+      headers: options.headers || {}
+    }, (res) => {
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString('utf8') }));
+    });
+    req.on('error', reject);
+    if (options.body) req.write(options.body);
+    req.end();
+  });
+}
 
 async function designMd() {
   const dir = await mkdtemp(path.join(tmpdir(), 'raven-round7-'));
@@ -60,8 +87,8 @@ test('a request with no Fetch Metadata at all never carries the Strict session c
     const session = await bridge.startGrabSession(await designMd(), undefined, upstreamUrl, 'consumer');
 
     // A legitimate top-level navigation, which is how the jar gets populated.
-    await fetch(session.url + '/', {
-      headers: { 'sec-fetch-site': 'none', 'sec-fetch-mode': 'navigate' }
+    await request(session.url + '/', {
+      headers: { 'sec-fetch-site': 'none', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }
     });
     assert.ok(seen.length >= 1, 'the first navigation never reached upstream');
 
@@ -70,14 +97,14 @@ test('a request with no Fetch Metadata at all never carries the Strict session c
     // strongest form of the case — it is exactly what the old code read as
     // "same-site by absence".
     seen.length = 0;
-    await fetch(session.url + '/transfer', { method: 'POST', body: 'amount=1' });
+    await request(session.url + '/transfer', { method: 'POST', body: 'amount=1' });
     assert.equal(seen.length, 1, 'the POST did not reach upstream at all');
     assert.equal(seen[0].cookie, '',
       'a metadata-less cross-site POST was given the Strict session cookie: ' + seen[0].cookie);
 
     // And a foreign Origin must not help either, even with no Fetch Metadata.
     seen.length = 0;
-    await fetch(session.url + '/transfer', {
+    await request(session.url + '/transfer', {
       method: 'POST', body: 'amount=1', headers: { origin: 'http://evil.test' }
     });
     assert.equal(seen[0].cookie, '',
@@ -98,14 +125,14 @@ test('the proxied page\'s own request still gets its session cookie back', async
 
   try {
     const session = await bridge.startGrabSession(await designMd(), undefined, upstreamUrl, 'consumer');
-    await fetch(session.url + '/', {
-      headers: { 'sec-fetch-site': 'none', 'sec-fetch-mode': 'navigate' }
+    await request(session.url + '/', {
+      headers: { 'sec-fetch-site': 'none', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }
     });
 
     seen.length = 0;
     // No Fetch Metadata, but an Origin that IS the bridge — the shape a same-page
     // fetch takes in a browser too old to send sec-fetch-*.
-    await fetch(session.url + '/api/thing', {
+    await request(session.url + '/api/thing', {
       method: 'POST', body: '{}', headers: { origin: session.url }
     });
     assert.match(seen[0].cookie, /session=secret-value/,

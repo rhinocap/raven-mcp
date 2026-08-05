@@ -1306,12 +1306,31 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
   // nothing to that; the allowance attached the whole Lax jar. Cross-site Lax is
   // for top-level safe-method navigation, and nothing else qualifies.
   //
-  // What that costs: the first metadata-less load in Safari <16.4 gets no site
-  // cookies. The jar is empty at that point anyway — it only ever holds what
-  // this session fetched — and every same-origin navigation after it carries a
-  // Referer, which is enough to be recognised as same-site above.
+  // `navigate` alone is not enough, because a NESTED navigation is also a
+  // navigation. A foreign page's `<iframe src="http://127.0.0.1:PORT/action">`
+  // arrives as cross-site + navigate, differing from a real top-level load only
+  // in `Sec-Fetch-Dest`, which reads `iframe` instead of `document`. Without
+  // that check the whole Lax jar rides on a frame the attacker planted, and the
+  // upstream site sees an authenticated request. Lax is defined for TOP-LEVEL
+  // navigation, so the destination is the half of the signal that says "top".
+  // JavaScript cannot forge either header — `sec-*` are forbidden request header
+  // names — but nothing has to be forged when an iframe produces them honestly.
+  //
+  // What this costs, stated honestly: a browser that sends no Fetch Metadata at
+  // all (Safari before 16.4, some WebViews) can never satisfy this, so it never
+  // receives Lax cookies through the proxy. That is not limited to the first
+  // load — an address-bar or bookmark navigation later in the session carries no
+  // Origin and no Referer either, so a logged-in user on such a browser can be
+  // bounced back to a login screen. An earlier version of this comment claimed
+  // every later navigation carries a Referer; that is false, and the real cost
+  // is the one written here. It is accepted deliberately: a metadata-less GET is
+  // byte-identical to a foreign subresource, so there is no signal left to tell
+  // an intentional navigation from an attacker's, and the safe answer is to
+  // withhold. Fixing it would mean trusting a header a foreign page can set.
+  var fetchDest = String(req.headers["sec-fetch-dest"] || "").toLowerCase();
   var topLevelGet = method === "GET" &&
-    String(req.headers["sec-fetch-mode"] || "").toLowerCase() === "navigate";
+    String(req.headers["sec-fetch-mode"] || "").toLowerCase() === "navigate" &&
+    fetchDest === "document";
   var jarCookies = proxyCookieHeader(upstreamUrl.pathname, upstreamUrl.protocol === "https:", crossSite, topLevelGet);
   if (jarCookies) headers.set("cookie", jarCookies);
 

@@ -367,7 +367,75 @@
   // would stop reaching the modal and focus-trap handlers. Android's legacy
   // spelling of a composed key is `key: "Unidentified"`, which is named below;
   // its modern one sets `isComposing`. Neither needs the keyCode.
+  //
+  // Dropping it does leave one real case uncovered here — WebKit's out-of-order
+  // IME commit, where the Enter arrives with isComposing already false. That is
+  // a composition question, not a character-boundary one, so it is answered by
+  // the lifecycle tracking below rather than by widening this guard.
   var ravenCompositionKeys = { Dead: true, Process: true, Unidentified: true };
+
+  // Composition LIFECYCLE, tracked because the keyCode cannot stand in for it.
+  //
+  // A conforming browser dispatches the committing Enter with isComposing true,
+  // and the capture guard above swallows it — that Enter accepted a candidate,
+  // it did not ask to send. WebKit gets the order wrong (bug 165004, fixed on
+  // main only in April 2026): with the Japanese Hiragana IME it fires
+  // `compositionend` FIRST and then a keydown whose key is "Enter" and whose
+  // isComposing is already false. Nothing about that event distinguishes it from
+  // a deliberate send — which is exactly why the old `keyCode === 229` test
+  // seemed to work, and exactly why it could not stay: Android stamps 229 on
+  // nearly every key, so the same clause that caught Safari's commit swallowed
+  // Enter, Escape and Tab across that entire platform.
+  //
+  // The signal that actually separates them is the one the keyCode was proxying
+  // for: did a composition just end? Android's stray 229 arrives with no
+  // preceding `compositionend`; Safari's commit Enter always follows one
+  // immediately. So record when composition ends and treat only the Enter that
+  // lands in that window as a commit. A second, deliberate Enter falls outside
+  // it and sends normally.
+  // The rule is ORDERING, not elapsed time: only the keydown that arrives
+  // IMMEDIATELY after `compositionend` can be that composition's commit. A clock
+  // window alone is the wrong instrument — compose, type three more characters,
+  // press Enter, and a fast typist is still inside any window wide enough to
+  // cover a slow one, so the send would be eaten. The marker is therefore
+  // consumed by the very next keydown whatever that key is, and the clock stays
+  // only as a second bound for the case where no keydown follows at all (the
+  // user composes, then clicks away and comes back minutes later — a stale
+  // marker must not turn their first Enter into a swallowed one).
+  var ravenCompositionEndedAt = -1;
+  var ravenKeyIsCompositionCommit = false;
+  var RAVEN_COMPOSITION_COMMIT_MS = 100;
+
+  function ravenNow() {
+    return (typeof performance !== "undefined" && performance && typeof performance.now === "function")
+      ? performance.now()
+      : Date.now();
+  }
+
+  window.addEventListener("compositionend", function (event) {
+    var path = event.composedPath ? event.composedPath() : [];
+    var origin = path.length ? path[0] : event.target;
+    if (!ravenContainsNode(origin)) return;
+    ravenCompositionEndedAt = ravenNow();
+  }, true);
+
+  // Bookkeeping only — it decides nothing and blocks nothing. It runs in window
+  // capture, which is upstream of every other listener including the send
+  // handler on the panels, so by the time anything consults the flag it is
+  // already correct for THIS event.
+  window.addEventListener("keydown", function (event) {
+    var pending = ravenCompositionEndedAt;
+    ravenCompositionEndedAt = -1;
+    ravenKeyIsCompositionCommit = event.key === "Enter" && (
+      event.isComposing === true ||
+      (pending >= 0 && ravenNow() - pending < RAVEN_COMPOSITION_COMMIT_MS)
+    );
+  }, true);
+
+  // True for the Enter that only committed an IME candidate.
+  function ravenIsCompositionCommit(event) {
+    return event.key === "Enter" && (event.isComposing === true || ravenKeyIsCompositionCommit);
+  }
   ["keydown", "keypress", "keyup"].forEach(function (eventName) {
     window.addEventListener(eventName, function (event) {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -10867,6 +10935,10 @@
   });
   onPanels("keydown", function (event) {
     if (event.key !== "Enter") return;
+    // An Enter that only accepted an IME candidate must not send. On a
+    // conforming browser the capture guard already swallowed it; this is the
+    // WebKit ordering case, where it arrives looking like a deliberate press.
+    if (ravenIsCompositionCommit(event)) return;
     var target = event.target;
     if (!target || !target.getAttribute) return;
     var isInstruction = target.getAttribute("data-instruction") !== null;

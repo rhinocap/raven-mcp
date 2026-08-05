@@ -274,3 +274,79 @@ test('an Android Enter still reaches Raven, even though Android reports it as ke
     'keyCode 229 is being read as composition, so Android loses the keys Raven runs on: ' +
     JSON.stringify(seen.capture));
 });
+
+test('the Enter that commits an IME candidate does not send, but the next one does', async (t) => {
+  // The other half of dropping keyCode 229 — and the case that made the keyCode
+  // look load-bearing in the first place. WebKit bug 165004 (fixed on main only
+  // in April 2026): with the Japanese Hiragana IME, macOS Safari fires
+  // `compositionend` FIRST and then a keydown whose key is "Enter" and whose
+  // isComposing is already false. That Enter accepted a candidate; the user has
+  // not asked to send anything. Nothing on the event itself separates it from a
+  // deliberate press, so the separator has to be the composition lifecycle.
+  //
+  // The observable is `defaultPrevented`, not a network call: the send handler
+  // calls preventDefault before it looks for the button, so the flag is true
+  // exactly when the handler decided this Enter meant send. Asserting on the
+  // button instead would pass against a broken guard whenever the button
+  // happened to be absent or disabled.
+  //
+  // Both halves are load-bearing. Without the second assertion this test passes
+  // just as well against an overlay that swallowed EVERY Enter — which would
+  // break sending for everyone, not only IME users.
+  let seen;
+  try {
+    seen = await withOverlay(async (page) => {
+      return page.evaluate(async () => {
+        const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+        const field = root.querySelector('.raven-grab-textarea');
+        field.focus();
+
+        const press = () => {
+          const event = new KeyboardEvent('keydown', {
+            key: 'Enter', keyCode: 13, isComposing: false,
+            bubbles: true, composed: true, cancelable: true
+          });
+          field.dispatchEvent(event);
+          return event.defaultPrevented;
+        };
+
+        // Safari's ordering, reproduced exactly: compositionend, then the Enter.
+        field.dispatchEvent(new CompositionEvent('compositionend', {
+          data: 'にほんご', bubbles: true, composed: true
+        }));
+        const commit = press();
+
+        // The user now presses Enter again, meaning it this time.
+        const deliberate = press();
+
+        // And an Enter that follows a composition but is not the next key must
+        // also send — the marker belongs to one keydown, not to a stretch of
+        // time. A clock-only guard fails this one.
+        field.dispatchEvent(new CompositionEvent('compositionend', {
+          data: 'にほんご', bubbles: true, composed: true
+        }));
+        field.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'a', keyCode: 65, bubbles: true, composed: true, cancelable: true
+        }));
+        const afterTyping = press();
+
+        return { commit, deliberate, afterTyping };
+      });
+    });
+  } catch (err) {
+    if (/browserType\.launch|Executable doesn't exist/.test(err.message)) {
+      t.skip(`browser unavailable for overlay key isolation (${err.message})`);
+      return;
+    }
+    throw err;
+  }
+
+  assert.equal(seen.commit, false,
+    'the Enter that only committed an IME candidate was treated as a send — on macOS ' +
+    'Safari every Japanese/Chinese/Korean user would fire the instruction off mid-word');
+  assert.equal(seen.deliberate, true,
+    'a deliberate Enter stopped sending, which breaks the panel for everyone');
+  assert.equal(seen.afterTyping, true,
+    'an Enter that followed a composition but not immediately was swallowed — the ' +
+    'commit marker is being held on a clock instead of on the next keystroke');
+});

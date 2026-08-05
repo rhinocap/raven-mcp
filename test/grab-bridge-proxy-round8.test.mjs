@@ -157,14 +157,86 @@ test('a metadata-less GET does not get Lax cookies, because a foreign subresourc
     assert.doesNotMatch(seen[0].cookie, /lax=1/,
       'a metadata-less cross-site GET was given the Lax jar: ' + seen[0].cookie);
 
-    // A declared navigation is still Lax-eligible — that is the case the
-    // attribute exists for, and removing it would be a different bug.
+    // A declared TOP-LEVEL navigation is still Lax-eligible — that is the case
+    // the attribute exists for, and removing it would be a different bug.
     seen.length = 0;
     await request(session.url + '/page', {
-      headers: { 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate' }
+      headers: {
+        'sec-fetch-site': 'cross-site',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-dest': 'document'
+      }
     });
     assert.match(seen[0].cookie, /lax=1/,
       'a declared cross-site top-level navigation lost its Lax cookie: ' + seen[0].cookie);
+  });
+});
+
+test('a cross-site iframe navigation gets no Lax cookies, because nested is not top-level', async () => {
+  // `navigate` alone does not mean top-level. A foreign page that plants
+  // `<iframe src="http://127.0.0.1:PORT/action">` produces a request that is
+  // cross-site AND navigate, identical to a real top-level load in every header
+  // the bridge was reading. Only Sec-Fetch-Dest separates them: `iframe` versus
+  // `document`. Without this pair the iframe attack passes the test above
+  // unchanged — which it did, until this case was added.
+  const seen = [];
+  await withProxySession(seen, ['lax=1; Path=/; SameSite=Lax', 'none=1; Path=/; Secure; SameSite=None'], async (session) => {
+    await request(session.url + '/', {
+      headers: { 'sec-fetch-site': 'none', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }
+    });
+
+    seen.length = 0;
+    await request(session.url + '/action', {
+      headers: {
+        'sec-fetch-site': 'cross-site',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-dest': 'iframe'
+      }
+    });
+    assert.equal(seen.length, 1, 'the iframe request did not reach upstream at all');
+    assert.doesNotMatch(seen[0].cookie, /lax=1/,
+      'a cross-site IFRAME navigation was handed the Lax jar — the upstream site ' +
+      'sees an authenticated request from a frame the attacker planted: ' + seen[0].cookie);
+
+    // Control: the jar was live the whole time, so the empty Cookie above is the
+    // nesting decision and not an empty store. Without this, the test would pass
+    // against a bridge that never stored the cookie at all.
+    //
+    // It has to be spelled as a same-origin request rather than by asserting
+    // `none=1` rode along on the iframe: this fixture's upstream is plaintext
+    // http, so a `Secure` cookie is unsendable by construction and the
+    // cross-site positive belongs in the https fixture in round 4, which has it.
+    seen.length = 0;
+    await request(session.url + '/action', { headers: { 'sec-fetch-site': 'same-origin' } });
+    assert.match(seen[0].cookie, /lax=1/,
+      'the Lax cookie was never in the jar, so the iframe assertion above proved ' +
+      'nothing: ' + seen[0].cookie);
+  });
+});
+
+test('a nested navigation is judged by destination even when it looks same-site', async () => {
+  // `frame` is the older spelling and `embed`/`object` navigate too. None of
+  // them are top-level, and the check is an allowlist of one value rather than a
+  // denylist, so this pins that choice: anything that is not `document` loses
+  // Lax, whatever new destination the platform adds next.
+  const seen = [];
+  await withProxySession(seen, 'lax=1; Path=/; SameSite=Lax', async (session) => {
+    await request(session.url + '/', {
+      headers: { 'sec-fetch-site': 'none', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }
+    });
+
+    for (const dest of ['frame', 'embed', 'object']) {
+      seen.length = 0;
+      await request(session.url + '/nested-' + dest, {
+        headers: {
+          'sec-fetch-site': 'cross-site',
+          'sec-fetch-mode': 'navigate',
+          'sec-fetch-dest': dest
+        }
+      });
+      assert.doesNotMatch(seen[0].cookie, /lax=1/,
+        'sec-fetch-dest=' + dest + ' was treated as a top-level navigation: ' + seen[0].cookie);
+    }
   });
 });
 
