@@ -1572,6 +1572,27 @@ test('start_grab_session returns a keyed wait URL and background watch command',
   });
 });
 
+test('proxy mode advertises no wait URL or watch command', async () => {
+  // /agent/wait is one of the routes proxy mode withholds, so handing back a
+  // keyed wait_url pointed at it is an instruction to run a command that 404s
+  // for as long as the agent is willing to retry. Worse, the watch_command is
+  // the shape an agent is most likely to run unattended — it loops on curl and
+  // only exits on a selection, so the advertised-but-withheld route reads as
+  // "the designer has not grabbed anything yet" instead of as a refusal.
+  const designPath = await makeDesignFixture();
+  await withClient(indexMod.buildServer({}), async (client) => {
+    const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath, proxy_target: 'http://127.0.0.1:9' } });
+    const session = JSON.parse(started.content[0].text);
+    assert.equal(session.mode, 'server', 'the proxy only exists in server mode');
+    assert.equal(session.wait_url, '');
+    assert.equal(session.watch_command, '');
+    const key = sessionKey(session);
+    const refused = await fetch(`${session.url}/agent/wait?key=${key}&timeout_ms=100`);
+    assert.equal(refused.status, 404, 'and the route it would have named is genuinely withheld');
+    await client.callTool({ name: 'stop_grab_session', arguments: {} });
+  });
+});
+
 test('watch_command run in a real shell exits with the sent selection', async (t) => {
   const designPath = await makeDesignFixture();
   await withClient(indexMod.buildServer({}), async (client) => {

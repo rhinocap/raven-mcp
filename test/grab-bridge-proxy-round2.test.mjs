@@ -189,3 +189,45 @@ test('cookies are scoped by path and expire while the session is still open', { 
     });
   });
 });
+
+test('a cookie with no Path belongs to its directory, and a foreign Domain is refused', { skip: sandboxNoNetwork ? 'sandbox does not permit loopback listeners' : false }, async () => {
+  // Two holes the path-scoping fix left open. The default path was hard-coded to
+  // "/" instead of derived from the response URL (RFC 6265 §5.1.4), so a login
+  // cookie set at /account/login replayed on every request the session made —
+  // the exact site-wide leak the path fix had just closed for cookies that
+  // bothered to say Path. And Domain was parsed and dropped, so any response
+  // could claim a cookie for a host it has no authority over; a browser rejects
+  // that outright, and a proxy standing in for one has to as well.
+  await withUpstream((req, res) => {
+    if (req.url.startsWith('/page')) return html(res);
+    if (req.url === '/account/login') {
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Set-Cookie': [
+          'acct=deep',
+          'own=yes; Path=/; Domain=127.0.0.1',
+          'foreign=nope; Path=/; Domain=example.com'
+        ]
+      });
+      res.end('{}');
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ cookie: req.headers.cookie || '' }));
+  }, async (origin) => {
+    await withSession(origin, async (session) => {
+      await request(session.url + '/account/login');
+
+      const atAccount = JSON.parse((await request(session.url + '/account/echo')).body).cookie;
+      assert.match(atAccount, /acct=deep/, 'the default path is the response directory, so /account keeps it');
+
+      const atRoot = JSON.parse((await request(session.url + '/echo')).body).cookie;
+      assert.doesNotMatch(atRoot, /acct=deep/,
+        'a Path-less cookie set at /account/login must not replay site-wide');
+      assert.match(atRoot, /own=yes/, 'a Domain the responding host actually matches is honoured');
+      assert.doesNotMatch(atRoot, /foreign=nope/,
+        'a cookie claiming a Domain the host does not match must be dropped');
+      assert.doesNotMatch(atAccount, /foreign=nope/);
+    });
+  });
+});

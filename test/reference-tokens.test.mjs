@@ -263,3 +263,38 @@ test('hue accepts every CSS angle unit, not only degrees', () => {
   const result = mapReferenceToTokens({ color: 'hsl(.5turn 100% 50%)' }, [token('color.cyan', '#00ffff')]);
   assert.equal(result.bindings[0].verdict, 'exact');
 });
+
+// Sol round 3, defect #3. The segment vocabulary knew `letterspacing` but not
+// the camel-case plural `letterSpacings` that Chakra actually ships, so the path
+// declared no family, fell through to the loose tier, and `padding-top: 0px`
+// bound to a tracking token at 0.4px — the same cross-family binding the
+// segment table was written to stop, arriving through its own fallback.
+test('a camel-case plural token path still names its family', () => {
+  const gap = mapReferenceToTokens({ 'padding-top': '0px' }, [token('letterSpacings.wide', '0.025em')]);
+  assert.deepEqual(gap.bindings, [], 'padding must not take a letter-spacing token');
+  assert.equal(gap.gaps.length, 1);
+
+  const bound = mapReferenceToTokens({ 'letter-spacing': '0.025em' }, [token('letterSpacings.wide', '0.025em')]);
+  assert.equal(bound.bindings[0].token, 'letterSpacings.wide', 'and the property it DOES belong to must still bind');
+});
+
+test('camel-case plurals bind across the families, not just tracking', () => {
+  // fontSizes / lineHeights / radii are the shipped spellings in Chakra,
+  // Tamagui and styled-system. Each one was a gap before the normalisation.
+  assert.equal(mapReferenceToTokens({ 'font-size': '16px' }, [token('fontSizes.md', '16px')]).bindings[0]?.token, 'fontSizes.md');
+  assert.equal(mapReferenceToTokens({ 'line-height': '64px' }, [token('lineHeights.hero', '64px')]).bindings[0]?.token, 'lineHeights.hero');
+  assert.equal(mapReferenceToTokens({ 'border-radius': '4px' }, [token('radii.sm', '4px')]).bindings[0]?.token, 'radii.sm');
+});
+
+test('a loose-tier path that reads as two families is a gap, not a coin flip', () => {
+  // `spacing` reads as both tracking and gap. The loose tier is a guess, and a
+  // guess that fits two families is not one worth acting on — the designer can
+  // see a gap, but cannot see a wrong token.
+  const ambiguous = mapReferenceToTokens({ 'padding-top': '4px' }, [token('theme.spacingTrack', '4px')]);
+  assert.deepEqual(ambiguous.bindings, []);
+
+  // The unambiguous loose case must survive it: brand.cornerRadius names no
+  // family segment but reads as exactly one.
+  const unambiguous = mapReferenceToTokens({ 'border-radius': '8px' }, [token('brand.cornerRadius', '8px')]);
+  assert.equal(unambiguous.bindings[0].token, 'brand.cornerRadius');
+});

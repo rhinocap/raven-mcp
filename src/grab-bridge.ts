@@ -492,11 +492,14 @@ export async function startGrabSession(path?: string, port?: number, proxyTarget
     // scripts can read the overlay's key and call the routes it unlocks. The
     // authoring routes are already withheld while proxying and the DESIGN.md path
     // is withheld from /tokens, but the token names and values are readable.
-    warning = "The proxied page is served from this bridge's own origin, so scripts on that page can both read your DESIGN.md token names and values and post their own selections and instructions into the grab queue, which get_grabbed_elements will hand to your agent as if you had grabbed them. Raven withholds the file path and every authoring route while proxying, but treat what comes back from a proxied grab as untrusted input, and proxy sites you would be comfortable showing your token list to.";
+    warning = "Proxy mode is capture-only: measure and grab a third-party page, then map what you grabbed onto your own tokens. The authoring surface — templates, layers, batch edits and the agent watcher — is withheld while proxying and its controls will not work. The reason is that the proxied page is served from this bridge's own origin, so scripts on that page can both read your DESIGN.md token names and values and post their own selections and instructions into the grab queue, which get_grabbed_elements will hand to your agent as if you had grabbed them. Raven withholds the file path and every authoring route, but treat what comes back from a proxied grab as untrusted input, and proxy sites you would be comfortable showing your token list to.";
   }
   var bridgeUrl = "http://127.0.0.1:" + actualPort;
-  // Watcher only exists in server mode — shim has no HTTP listener for curl to reach.
-  var waitUrl = mode === "server" ? bridgeUrl + "/agent/wait?key=" + key + "&timeout_ms=240000" : "";
+  // Watcher only exists in server mode — shim has no HTTP listener for curl to
+  // reach — and NOT while proxying, where /agent/wait is one of the withheld
+  // routes. Handing back a wait_url that 404s is worse than handing back none:
+  // the agent polls a dead URL and reads the silence as "nothing grabbed yet".
+  var waitUrl = mode === "server" && !normalizedTarget ? bridgeUrl + "/agent/wait?key=" + key + "&timeout_ms=240000" : "";
   var watchCommand = waitUrl
     ? "f=0; while :; do r=$(curl -sf '" + waitUrl + "') || { f=$((f+1)); [ \"$f\" -ge 5 ] && exit 1; sleep 2; continue; }; f=0; if [ -n \"$r\" ] && { ! printf '%s' \"$r\" | grep -q '\"count\": 0' || printf '%s' \"$r\" | grep -q '\"batchCommit\"'; }; then printf '%s\\n' \"$r\"; exit 0; fi; done"
     : "";
@@ -1121,7 +1124,7 @@ function proxyGrabUpgrade(proxyTarget: string | undefined, req: IncomingMessage,
   // travel upstream, and the session jar goes in their place.
   var upgradeHeaders = Object.assign({}, req.headers, { host: target.host }) as Record<string, unknown>;
   delete upgradeHeaders.cookie;
-  var upgradeJar = proxyCookieHeader(new URL(req.url || "/", "http://127.0.0.1").pathname);
+  var upgradeJar = proxyCookieHeader(new URL(req.url || "/", "http://127.0.0.1").pathname, target.protocol === "https:");
   if (upgradeJar) upgradeHeaders.cookie = upgradeJar;
   var upstream = makeRequest({
     protocol: target.protocol,
@@ -1180,7 +1183,7 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
       headers.append(headerName, headerValue);
     }
   }
-  var jarCookies = proxyCookieHeader(targetPath.pathname);
+  var jarCookies = proxyCookieHeader(targetPath.pathname, targetPath.protocol === "https:");
   if (jarCookies) headers.set("cookie", jarCookies);
 
   var proxyTargetUrl = new URL(proxyTarget);
@@ -1216,28 +1219,32 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
       redirect: "manual"
     });
     res.statusCode = upstream.status;
-    copyProxyResponseHeaders(upstream.headers, res);
+    copyProxyResponseHeaders(upstream.headers, res, targetPath);
     var location = upstream.headers.get("location");
     if (upstream.status >= 300 && upstream.status < 400 && location) {
       try {
         var resolvedLocation = new URL(location, targetUrl);
-        if (sameProxyHost(resolvedLocation, proxyTargetUrl)) {
-          // Same host, so the redirect stays on the bridge as a relative path.
-          // A scheme-only change needs more than that in EITHER direction:
-          // flattening it while the bridge keeps fetching the old scheme makes
-          // the site return the identical redirect for ever, and the browser
-          // loops between two bridge paths with no error to read. Move the
-          // session's upstream origin with the redirect so the next fetch is the
-          // one the site asked for. A downgrade to plaintext is followed but
-          // announced — silently fetching a site over http after it was opened
-          // over https is exactly the kind of thing that should be visible.
-          if (resolvedLocation.protocol !== proxyTargetUrl.protocol && currentSession) {
+        var downgrade = resolvedLocation.protocol === "http:" && proxyTargetUrl.protocol === "https:";
+        if (sameProxyHost(resolvedLocation, proxyTargetUrl) && !downgrade) {
+          // Same host, so the redirect stays on the bridge as a relative path. An
+          // http→https upgrade needs one thing more: flattening it while the
+          // bridge keeps fetching http:// makes the site return the identical
+          // redirect for ever, and the browser loops between two bridge paths
+          // with no error to read. Move the session's upstream origin with it.
+          if (resolvedLocation.protocol === "https:" && proxyTargetUrl.protocol === "http:" && currentSession) {
             currentSession.proxyTarget = resolvedLocation.origin;
-            if (resolvedLocation.protocol === "http:") {
-              res.setHeader("X-Raven-Proxy-Downgraded", resolvedLocation.origin);
-            }
           }
           res.setHeader("Location", resolvedLocation.pathname + resolvedLocation.search + resolvedLocation.hash);
+        } else if (downgrade) {
+          // The downgrade is NOT symmetric with the upgrade, and treating it as
+          // "just a scheme change" was a TLS strip wearing a loop fix's clothes:
+          // it moved a session the user opened over https onto plaintext on the
+          // site's own say-so, and replayed the jar — Secure cookies included —
+          // over it. Announcing that in a response header is not consent. Leave
+          // the absolute location so the browser leaves the bridge, which both
+          // breaks the loop and puts the decision back where it belongs.
+          res.setHeader("Location", resolvedLocation.href);
+          res.setHeader("X-Raven-Proxy-Offsite", resolvedLocation.origin);
         } else {
           res.setHeader("X-Raven-Proxy-Offsite", resolvedLocation.origin);
         }
@@ -1378,7 +1385,7 @@ async function readRawBody(req: IncomingMessage, maxBytes: number): Promise<Buff
   return Buffer.concat(chunks);
 }
 
-function copyProxyResponseHeaders(headers: Headers, res: ServerResponse): void {
+function copyProxyResponseHeaders(headers: Headers, res: ServerResponse, responseUrl: URL): void {
   // The bridge is a local, key-gated, user-initiated proxy of a page the user may
   // view; upstream-origin browser policies cannot be satisfied from 127.0.0.1.
   var strippedResponseHeaders = new Set([
@@ -1396,7 +1403,7 @@ function copyProxyResponseHeaders(headers: Headers, res: ServerResponse): void {
   });
   var headersWithCookies = headers as Headers & { getSetCookie?: () => string[] };
   if (typeof headersWithCookies.getSetCookie === "function") {
-    storeProxyCookies(headersWithCookies.getSetCookie());
+    storeProxyCookies(headersWithCookies.getSetCookie(), responseUrl);
   }
 }
 
@@ -1418,6 +1425,7 @@ interface ProxyCookie {
   value: string;
   path: string;
   expiresAt: number | null;
+  secure: boolean;
 }
 
 var proxyCookieJar = new Map<string, ProxyCookie>();
@@ -1426,7 +1434,7 @@ function resetProxyCookieJar(): void {
   proxyCookieJar.clear();
 }
 
-function storeProxyCookies(cookies: string[]): void {
+function storeProxyCookies(cookies: string[], responseUrl: URL): void {
   for (var cookie of cookies) {
     var parts = cookie.split(";");
     var separator = parts[0].indexOf("=");
@@ -1434,21 +1442,60 @@ function storeProxyCookies(cookies: string[]): void {
     var name = parts[0].slice(0, separator).trim();
     var value = parts[0].slice(separator + 1).trim();
     if (!name) continue;
-    var attributes = readCookieAttributes(parts.slice(1));
+    var attributes = readCookieAttributes(parts.slice(1), responseUrl);
+    // A Domain the responding host is not allowed to set is a cookie for someone
+    // else. Browsers drop it; a jar that keeps it would replay a foreign
+    // credential on every request for the life of the session.
+    if (attributes.domain !== null && !domainMatches(responseUrl.hostname, attributes.domain)) continue;
+    // __Secure- and __Host- are promises a browser enforces. A jar that stores
+    // them without enforcing turns the prefix into a lie, so treat the prefix as
+    // the Secure attribute whether or not the site remembered to send it.
+    if (/^__(secure|host)-/i.test(name)) attributes.secure = true;
     var jarKey = name + "\n" + attributes.path;
     if (attributes.expiresAt !== null && attributes.expiresAt <= Date.now()) proxyCookieJar.delete(jarKey);
-    else proxyCookieJar.set(jarKey, { name: name, value: value, path: attributes.path, expiresAt: attributes.expiresAt });
+    else proxyCookieJar.set(jarKey, {
+      name: name,
+      value: value,
+      path: attributes.path,
+      expiresAt: attributes.expiresAt,
+      secure: attributes.secure
+    });
   }
 }
 
-function readCookieAttributes(attributes: string[]): { path: string; expiresAt: number | null } {
-  var path = "/";
+/** RFC 6265 §5.1.3: example.com covers example.com and www.example.com, never notexample.com. */
+function domainMatches(host: string, domain: string): boolean {
+  var candidate = domain.replace(/^\./, "").toLowerCase();
+  var subject = host.toLowerCase();
+  if (subject === candidate) return true;
+  return subject.endsWith("." + candidate);
+}
+
+/**
+ * RFC 6265 §5.1.4 default-path: a cookie set at /account/login with no Path
+ * attribute belongs to /account, NOT to /. Defaulting everything to / was the
+ * jar's own version of the bug it had already been fixed for once — a cookie
+ * scoped to one area of a site replayed across all of it.
+ */
+function defaultCookiePath(responsePath: string): string {
+  if (!responsePath.startsWith("/")) return "/";
+  var lastSlash = responsePath.lastIndexOf("/");
+  if (lastSlash === 0) return "/";
+  return responsePath.slice(0, lastSlash);
+}
+
+function readCookieAttributes(attributes: string[], responseUrl: URL): { path: string; expiresAt: number | null; secure: boolean; domain: string | null } {
+  var path = defaultCookiePath(responseUrl.pathname);
   var expiresAt: number | null = null;
+  var secure = false;
+  var domain: string | null = null;
   for (var attribute of attributes) {
     var index = attribute.indexOf("=");
     var attributeName = (index === -1 ? attribute : attribute.slice(0, index)).trim().toLowerCase();
     var attributeValue = index === -1 ? "" : attribute.slice(index + 1).trim();
     if (attributeName === "path" && attributeValue.startsWith("/")) path = attributeValue;
+    if (attributeName === "secure") secure = true;
+    if (attributeName === "domain" && attributeValue) domain = attributeValue;
     if (attributeName === "max-age") {
       var seconds = Number(attributeValue);
       if (Number.isFinite(seconds)) expiresAt = Date.now() + seconds * 1000;
@@ -1459,7 +1506,7 @@ function readCookieAttributes(attributes: string[]): { path: string; expiresAt: 
       if (!Number.isNaN(parsed)) expiresAt = parsed;
     }
   }
-  return { path: path, expiresAt: expiresAt };
+  return { path: path, expiresAt: expiresAt, secure: secure, domain: domain };
 }
 
 /** RFC 6265 §5.1.4: /app matches /app, /app/x and /app/, but never /application. */
@@ -1469,11 +1516,14 @@ function cookiePathMatches(cookiePath: string, requestPath: string): boolean {
   return cookiePath.endsWith("/") || requestPath.charAt(cookiePath.length) === "/";
 }
 
-function proxyCookieHeader(requestPath: string): string {
+function proxyCookieHeader(requestPath: string, secureChannel: boolean): string {
   var now = Date.now();
   var matching: ProxyCookie[] = [];
   proxyCookieJar.forEach(function (cookie, jarKey) {
     if (cookie.expiresAt !== null && cookie.expiresAt <= now) { proxyCookieJar.delete(jarKey); return; }
+    // A Secure cookie over plaintext is the exact disclosure the attribute
+    // exists to prevent, and a proxy is not exempt from it.
+    if (cookie.secure && !secureChannel) return;
     if (cookiePathMatches(cookie.path, requestPath)) matching.push(cookie);
   });
   // Longer paths first, so the more specific cookie is the one a server reading

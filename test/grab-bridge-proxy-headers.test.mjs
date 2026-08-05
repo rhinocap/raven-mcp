@@ -128,9 +128,19 @@ test('grab proxy hardens policy, config, redirects, and cookies by effect', { sk
 
       // They are held server-side for this session and replayed upstream instead —
       // and the browser's own localhost cookies never travel the other way.
+      //
+      // `sid` is deliberately BOTH Secure and Domain=example.com while the fixture
+      // upstream is plaintext 127.0.0.1, and this test used to assert it replayed
+      // anyway. That is two leaks in one line: a Secure cookie disclosed over
+      // http, and a cookie claiming a domain the responding host is not allowed
+      // to set — which a browser drops outright. A proxy is not exempt from
+      // either, so only the cookie the site was actually entitled to send comes
+      // back.
       const replayed = await request(session.url + '/echo-cookie', { headers: { Cookie: 'other_local_app=leak' } });
       const seen = JSON.parse(replayed.body);
-      assert.equal(seen.cookie, 'sid=abc; pref=insecure-mode');
+      assert.equal(seen.cookie, 'pref=insecure-mode');
+      assert.doesNotMatch(seen.cookie, /sid=abc/,
+        'a Secure cookie for a foreign Domain must not be replayed over plaintext');
       assert.doesNotMatch(seen.cookie, /other_local_app/,
         "the browser's 127.0.0.1 cookies must not be forwarded to the proxied site");
     } finally {
@@ -212,7 +222,7 @@ test('grab proxy rewrites only same-host meta refresh URLs', { skip: sandboxNoNe
   }
 });
 
-test('grab proxy treats a scheme-only redirect change as same-site', { skip: sandboxNoNetwork ? 'sandbox does not permit loopback listeners' : false }, async function () {
+test('grab proxy sends an https-to-http redirect offsite instead of downgrading the session', { skip: sandboxNoNetwork ? 'sandbox does not permit loopback listeners' : false }, async function () {
   var fixtureDir = await mkdtemp(path.join(tmpdir(), 'raven-grab-scheme-'));
   var designPath = path.join(fixtureDir, 'DESIGN.md');
   await writeFile(designPath, '# Scheme redirect\n', 'utf8');
@@ -220,28 +230,54 @@ test('grab proxy treats a scheme-only redirect change as same-site', { skip: san
   var fetched = [];
   globalThis.fetch = async function (input) {
     fetched.push(String(input));
-    if (fetched.length === 1) {
-      return new Response(null, { status: 302, headers: { Location: 'http://fixture.test:443/next?scheme=http' } });
-    }
-    return new Response('landed', { status: 200, headers: { 'Content-Type': 'text/plain' } });
+    return new Response(null, { status: 302, headers: { Location: 'http://fixture.test:443/next?scheme=http' } });
   };
   var session = await grabBridgeMod.startGrabSession(designPath, undefined, 'https://fixture.test:443');
   try {
+    // Rewriting this to a bridge-relative path and moving the session's upstream
+    // to http would break the redirect loop, and an earlier revision did exactly
+    // that. It is a TLS strip wearing a loop fix's clothes: every subsequent
+    // request for that session, including replayed cookies, would travel in the
+    // clear because one response said so. The scheme is not a detail the
+    // redirect gets to change on the user's behalf — so the downgrade leaves the
+    // proxy entirely and the browser makes its own decision about it.
     var response = await request(session.url + '/redirect');
-    assert.equal(response.headers.location, '/next?scheme=http');
-    assert.equal(response.headers['x-raven-proxy-offsite'], undefined);
+    assert.equal(response.headers.location, 'http://fixture.test:443/next?scheme=http');
+    assert.equal(response.headers['x-raven-proxy-offsite'], 'http://fixture.test:443');
+    assert.equal(response.headers['x-raven-proxy-downgraded'], undefined,
+      'a downgrade is refused, not announced-and-followed');
+    assert.equal(fetched.length, 1, 'the bridge must not fetch the plaintext destination itself');
+  } finally {
+    globalThis.fetch = originalFetch;
+    await grabBridgeMod.stopGrabSession();
+  }
+});
 
-    // The relative Location is only half of it. If the session keeps fetching
-    // https while the site keeps answering "go to http", the browser follows the
-    // same bridge path for ever and nothing ever reports an error — so the
-    // session's upstream origin has to move with the redirect. A downgrade is
-    // followed but announced, because fetching over plaintext a site that was
-    // opened over https should never be silent.
-    assert.equal(response.headers['x-raven-proxy-downgraded'], 'http://fixture.test:443');
-    var next = await request(session.url + '/next?scheme=http');
+test('grab proxy rebinds an http-to-https upgrade and keeps proxying it', { skip: sandboxNoNetwork ? 'sandbox does not permit loopback listeners' : false }, async function () {
+  var fixtureDir = await mkdtemp(path.join(tmpdir(), 'raven-grab-upgrade-'));
+  var designPath = path.join(fixtureDir, 'DESIGN.md');
+  await writeFile(designPath, '# Scheme upgrade\n', 'utf8');
+  var originalFetch = globalThis.fetch;
+  var fetched = [];
+  globalThis.fetch = async function (input) {
+    fetched.push(String(input));
+    if (fetched.length === 1) {
+      return new Response(null, { status: 302, headers: { Location: 'https://fixture.test/next?scheme=https' } });
+    }
+    return new Response('landed', { status: 200, headers: { 'Content-Type': 'text/plain' } });
+  };
+  var session = await grabBridgeMod.startGrabSession(designPath, undefined, 'http://fixture.test');
+  try {
+    // The upgrade is the asymmetric half: it strictly improves the channel, and
+    // a site that answers every plaintext request with "use https" would loop
+    // for ever if the session stayed on http. So this one rebinds.
+    var response = await request(session.url + '/redirect');
+    assert.equal(response.headers.location, '/next?scheme=https');
+    assert.equal(response.headers['x-raven-proxy-offsite'], undefined);
+    var next = await request(session.url + '/next?scheme=https');
     assert.equal(next.body, 'landed');
-    assert.ok(fetched[1].startsWith('http://fixture.test:443/next'),
-      'the follow-up fetch must go to the downgraded origin, not back to https: ' + fetched[1]);
+    assert.ok(fetched[1].startsWith('https://fixture.test/next'),
+      'the follow-up fetch must go to the upgraded origin: ' + fetched[1]);
   } finally {
     globalThis.fetch = originalFetch;
     await grabBridgeMod.stopGrabSession();

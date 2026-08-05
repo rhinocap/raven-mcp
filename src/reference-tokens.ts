@@ -310,12 +310,35 @@ const FAMILIES: Array<{ id: string; property: RegExp; names: string[]; loose: Re
   { id: "zindex", property: /^z-index$/, names: ["zindex", "z-index", "z", "layer", "layers", "elevation", "elevations", "depth", "depths"], loose: /z-?index|layer|elevation|depth/ }
 ];
 
+/**
+ * The spellings one segment can wear. Real token files write the same idea as
+ * `letterSpacings`, `letter-spacings`, `letterspacing` and `letter_spacing`, and
+ * a vocabulary list can only ever enumerate some of them. Chakra ships
+ * `letterSpacings.wide` — camel-case AND plural — which matched no name, so the
+ * path declared no family, fell to the loose tier, and bound `padding-top: 0px`
+ * to a tracking token at 0.4px. Normalising here is what keeps that vocabulary
+ * from having to guess every author's casing.
+ */
+function segmentVariants(segment: string): string[] {
+  var lower = segment.toLowerCase();
+  var hyphenated = segment.replace(/([a-z0-9])([A-Z])/g, "$1-$2").replace(/[_\s]+/g, "-").toLowerCase();
+  var collapsed = hyphenated.replace(/-/g, "");
+  var variants = new Set<string>([lower, hyphenated, collapsed]);
+  for (var form of Array.from(variants)) {
+    if (form.endsWith("ies")) variants.add(form.slice(0, -3) + "y");
+    if (form.endsWith("es")) variants.add(form.slice(0, -2));
+    if (form.endsWith("s")) variants.add(form.slice(0, -1));
+  }
+  return Array.from(variants);
+}
+
 /** Every family a token path names outright, one dot-separated segment at a time. */
 function declaredFamilies(tokenPath: string): Set<string> {
   var declared = new Set<string>();
-  for (var segment of tokenPath.toLowerCase().split(".")) {
+  for (var segment of tokenPath.split(".")) {
+    var variants = segmentVariants(segment);
     for (var family of FAMILIES) {
-      if (family.names.indexOf(segment) !== -1) declared.add(family.id);
+      if (variants.some((variant) => family.names.indexOf(variant) !== -1)) declared.add(family.id);
     }
   }
   return declared;
@@ -337,7 +360,15 @@ function affinityRank(property: string, tokenPath: string): number {
   var declared = declaredFamilies(tokenPath);
   if (declared.has(family.id)) return declared.size === 1 ? 0 : 1;
   if (declared.size > 0) return 3;
-  return family.loose.test(tokenPath.toLowerCase()) ? 2 : 3;
+  // The loose tier is a guess, and a guess that fits two families is not a
+  // guess worth acting on — `spacing` alone reads as both tracking and gap.
+  // Ambiguity here is what turned the fallback into a cross-family binder, so an
+  // ambiguous path is a gap the designer can see rather than a wrong token they
+  // cannot.
+  var lowered = tokenPath.toLowerCase();
+  var looseHits = FAMILIES.filter((candidate) => candidate.loose.test(lowered));
+  if (looseHits.length !== 1) return 3;
+  return looseHits[0].id === family.id ? 2 : 3;
 }
 
 /** Whether the property declares a token family at all — most do not. */

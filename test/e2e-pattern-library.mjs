@@ -45,10 +45,49 @@ function check(label, ok, detail) {
   if (!ok) failures++;
 }
 
+// The MCP client comes up first, because the grab drain in leg A goes through it
+// — the queue seam is only tested if the same process holds both ends.
+const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
+const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+const server = indexMod.buildServer({ remote: false });
+const client = new Client({ name: 'raven-e2e', version: '1.0.0' }, { capabilities: {} });
+await server.connect(serverTransport);
+await client.connect(clientTransport);
+
+async function callTool(name, args) {
+  const result = await client.callTool({ name, arguments: args });
+  if (result.isError) throw new Error(`${name} failed: ${result.content[0].text}`);
+  return JSON.parse(result.content[0].text);
+}
+
 // ── Leg A: does a CSP-strict third-party site come through usable? ──
 const TARGET = 'https://github.com';
 const session = await bridge.startGrabSession(designPath, undefined, TARGET, 'consumer');
 console.log(`\nbridge up at ${session.url} proxying ${TARGET}\n`);
+
+// What the overlay posts when the designer picks the hero headline. Leg B used to
+// hand-write this object straight into capture_reference, which meant /grab and
+// get_grabbed_elements could both be broken and the script still printed ALL
+// CHECKS PASSED. It now travels the real route: POST /grab → the session queue →
+// get_grabbed_elements → capture_reference.
+const overlaySend = {
+  selector: 'h1.hero-title',
+  html: '<h1 class="hero-title">Build and ship software on a single, collaborative platform</h1>',
+  rect: { x: 24, y: 180, width: 720, height: 148 },
+  styles: {
+    'font-size': '64px',
+    'line-height': '64px',
+    'font-weight': '510',
+    'color': 'rgb(247, 248, 248)',
+    'letter-spacing': '-1.408px',
+    'padding-top': '25px',
+    'width': '50%'
+  },
+  stateStyles: { hover: { declarations: [{ property: 'color', value: 'rgb(255, 255, 255)' }] } },
+  instruction: 'Keep this one.'
+};
+let drained = null;
 
 let html = '';
 try {
@@ -75,15 +114,40 @@ try {
     html.slice(0, 40).replace(/\n/g, ' '));
 
   // The overlay asset itself must be servable, or the injected tag 404s.
+  let overlayKey = '';
   if (overlay) {
     const assetUrl = session.url + overlay[0].match(/src="([^"]+)"/)[1].replace(/&amp;/g, '&');
+    overlayKey = new URL(assetUrl).searchParams.get('key') || '';
     const asset = await fetch(assetUrl);
     const assetBody = await asset.text();
     check('overlay asset serves with its config prefix', asset.status === 200
       && assetBody.startsWith('window.ravenGrabConfig='), `HTTP ${asset.status}, ${assetBody.length} bytes`);
   }
+
+  // ── The queue seam: the overlay's POST, then the agent's drain ──
+  const sent = await fetch(`${session.url}/grab?key=${overlayKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(overlaySend)
+  });
+  check('the proxied overlay can post a selection to /grab', sent.status === 202, `HTTP ${sent.status}`);
+
+  const drain = await callTool('get_grabbed_elements', {});
+  check('get_grabbed_elements drained exactly that selection',
+    drain.count === 1 && drain.elements[0].selector === overlaySend.selector,
+    `count ${drain.count}, selector ${drain.elements?.[0]?.selector}`);
+  drained = drain.elements?.[0] || null;
+  check('the drained selection still carries its styles and hover state',
+    Boolean(drained) && drained.styles?.['font-weight'] === '510'
+      && drained.stateStyles?.hover?.declarations?.[0]?.value === 'rgb(255, 255, 255)',
+    JSON.stringify(drained?.stateStyles));
 } finally {
   await bridge.stopGrabSession();
+}
+
+if (!drained) {
+  console.log('\nFAIL  nothing came back from the grab queue — the rest of the run has no input');
+  process.exit(1);
 }
 
 // ── Leg B: capture → search → map, THROUGH THE TOOLS ──
@@ -99,44 +163,27 @@ try {
 // client against the stdio server, so schema, handler and serialization are all
 // in the path.
 console.log('');
-const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
-const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
-const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-const server = indexMod.buildServer({ remote: false });
-const client = new Client({ name: 'raven-e2e', version: '1.0.0' }, { capabilities: {} });
-await server.connect(serverTransport);
-await client.connect(clientTransport);
-
-async function callTool(name, args) {
-  const result = await client.callTool({ name, arguments: args });
-  if (result.isError) throw new Error(`${name} failed: ${result.content[0].text}`);
-  return JSON.parse(result.content[0].text);
-}
-
 const listed = (await client.listTools()).tools.map((tool) => tool.name);
 check('all three pattern-library tools are registered on the stdio server',
   ['capture_reference', 'search_references', 'map_reference_to_tokens'].every((name) => listed.includes(name)),
   `${listed.length} tools listed`);
 
-const captured = {
-  'font-size': '64px',
-  'line-height': '64px',
-  'font-weight': '510',
-  'color': 'rgb(247, 248, 248)',
-  'letter-spacing': '-1.408px',
-  'padding-top': '25px',
-  'width': '50%'
-};
-
+// Everything below is fed from what the drain returned, not from a literal — so
+// the selector, the styles and the state map are the ones that actually crossed
+// the bridge. The field names are the ones get_grabbed_elements uses, which is
+// exactly the seam that shipped broken: capture_reference declared `state_styles`
+// while its own description told callers to pass `stateStyles`, and MCP strips
+// unknown keys before the handler runs, so the documented call stored a reference
+// with no states and returned success.
 const saved = await callTool('capture_reference', {
   url: TARGET + '/features',
   app: 'GitHub',
   owner: 'third-party',
-  selector: 'h1.hero-title',
-  styles: captured,
-  // Deliberately the field name and value shape get_grabbed_elements returns,
-  // not the tidy one — this is the seam the direct-module version could not test.
-  stateStyles: { hover: { declarations: [{ property: 'color', value: 'rgb(255, 255, 255)' }] } },
+  selector: drained.selector,
+  styles: drained.styles,
+  html: drained.html,
+  rect: drained.rect,
+  stateStyles: drained.stateStyles,
   note: 'The hero headline weight — 510 is the detail that makes it read tight.',
   tags: ['hero', 'typography']
 });

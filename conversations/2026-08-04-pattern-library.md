@@ -364,3 +364,111 @@ the wrong behaviour — not the fix breaking something real:
 2. **Push to `main`** — deploys the live `mcp.ravenmcp.ai` endpoint. His gate.
 3. **`npm publish`** — passkey 2FA, his terminal. Published `2.3.0` stays 105/60.
 4. **Decide on proxy mode's scope** — Sol's ship recommendation above.
+
+# 2026-08-05 — Sol round 3
+
+Round 3 came back **DOES NOT SURVIVE** with five findings, four of them P1. Three
+were real defects in code I had written that same day; one was a defect I had
+introduced *while fixing* a round-2 finding, which is the more interesting one.
+
+## The reversal: my own round-2 fix was a TLS strip
+
+Round 2 left a redirect loop: a site that answers `https://…` with
+`Location: http://same-host/…` sent the browser round the same bridge path for
+ever. I broke the loop by making the proxy treat a scheme-only change as
+same-site — rewrite the `Location` to a bridge-relative path, and move the
+session's upstream origin to match. Symmetric, tidy, and wrong.
+
+Sol's line: *"avoiding the old loop did not require accepting downgrades."* One
+redirect response could move an entire session from TLS to plaintext, and every
+subsequent request — including the replayed cookie jar — travelled in the clear
+because the site said so. I had even extended the regression test to assert the
+new behaviour, so the suite was green on the leak.
+
+The fix is asymmetric, because the two directions are not the same thing:
+
+- **http → https (upgrade)** rebinds. It strictly improves the channel, and a
+  site that answers every plaintext request with "use https" needs the session
+  to move or it loops.
+- **https → http (downgrade)** goes offsite: absolute `Location`,
+  `X-Raven-Proxy-Offsite`, no rebind, and the bridge never fetches the plaintext
+  destination itself. The browser makes that call, not the proxy.
+
+## The cookie jar, again
+
+Round 2 fixed name+path collapsing and write-time expiry. Round 3 found the jar
+still ignored everything else a browser enforces:
+
+- **default path** was hard-coded to `/` rather than derived from the response
+  URL (RFC 6265 §5.1.4), so a cookie set at `/account/login` with no `Path`
+  replayed on every request the session made — the site-wide leak the round-2
+  path fix had just closed for cookies that bothered to say `Path`.
+- **`Domain`** was parsed and dropped, so any response could claim a cookie for
+  a host it has no authority over.
+- **`Secure`** was not retained at all, so a Secure cookie was replayed over an
+  http upstream.
+- **`__Secure-` / `__Host-` prefixes** are browser-enforced promises; storing
+  them without enforcing turns the prefix into a lie, so they now force `secure`.
+
+The regression test Sol named by file and line is the one that made this
+concrete: it stored `sid=abc; Secure; Domain=example.com` against a plaintext
+`127.0.0.1` fixture and asserted it came back. It now asserts the opposite, and
+names both reasons the cookie is dropped.
+
+## `wait_url` advertised a route proxy mode withholds
+
+`/agent/wait` is one of the routes proxy mode refuses, but `startGrabSession`
+still returned a keyed `wait_url` and the `watch_command` built from it. That
+command is the shape an agent is most likely to run unattended — it loops on
+curl and only exits on a selection, so a 404 reads as "the designer hasn't
+grabbed anything yet" rather than as a refusal. Both are now empty while
+proxying, and the proxy-mode warning was rewritten to say plainly that the
+authoring surface is withheld and why.
+
+## The token mapper cross-bound a real family
+
+`FAMILIES` knew singular `letterspacing` but not the actual Chakra segment
+`letterSpacings`, so a path naming no *recognised* family fell to the loose tier
+and stayed eligible. Runtime counterexample from Sol: `padding-top: 0px` bound to
+`letterSpacings.wide: 0.025em` as a "near spacing token at 0.4px".
+
+Two changes: segments are normalised for camel-case and plurals before
+classification, and a loose-tier candidate that matches two or more families is
+demoted to a gap — `spacing` alone reads as both tracking and gap, and a guess
+that fits two families is not a guess worth acting on.
+
+Verified by probe rather than by reading the diff:
+
+| captured | token | before | after |
+| --- | --- | --- | --- |
+| `padding-top: 0px` | `letterSpacings.wide` | bound (wrong) | **gap** |
+| `letter-spacing: 0.025em` | `letterSpacings.wide` | bound | bound |
+| `font-size: 16px` | `fontSizes.md` | gap | **bound** |
+| `line-height: 64px` | `lineHeights.hero` | gap | **bound** |
+| `border-radius: 4px` | `radii.sm` | gap | **bound** |
+| `border-radius: 4px` | `brand.cornerRadius` (loose) | bound | bound |
+| `height: 2px` | `highlight.height` | gap | gap |
+
+## The e2e was still only half a seam test
+
+Round 2 moved leg B onto a real MCP client, which is what caught the
+`stateStyles` schema mismatch. Sol pointed out the other half: the script still
+hand-wrote the selection object, so `/grab` and `get_grabbed_elements` could both
+be broken and the run would print ALL CHECKS PASSED.
+
+It now posts the overlay's own payload to the proxied `/grab`, drains it with
+`get_grabbed_elements`, and feeds *that* returned element into
+`capture_reference` — selector, styles, html, rect and state map all come from
+the drain. Causality proven by deleting `currentSession.queue.push(item)` from
+`dist/` and re-running: two FAILs and an early exit, where the old script would
+have been green.
+
+## State
+
+- `RAVEN_NO_USAGE_LOG=1 npm test` → **1218 / 1215 pass / 0 fail / 3 skipped**, ~46s
+- `node test/e2e-pattern-library.mjs` → ALL CHECKS PASSED against live github.com
+- stdio 108 tools; anon remote 45, hash `f64bb18…2bb0a6` unmoved
+- `site/raven.mcpb` and `web/public/raven.mcpb` rebuilt, byte-identical to each other
+- `browser/raven-grab.js` and `web/public/raven-grab.js` byte-identical, unchanged this round
+
+Andrew's gates are untouched: nothing pushed, nothing published, no deploy.
