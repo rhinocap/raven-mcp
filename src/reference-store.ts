@@ -176,7 +176,19 @@ export function listReferences(opts: ReferenceFilters = {}): ReferenceListResult
     try {
       var reference = readRecord(join(referenceHome(), file), file.slice(0, -5));
       if (matchesFilters(reference, opts)) references.push(reference);
-    } catch (_error) {
+    } catch (error) {
+      // A file the INDEX names but the directory does not hold is not an
+      // unreadable record — it is a record that is GONE, with an index that has
+      // not caught up. deleteReference unlinks the record and then rewrites the
+      // index, so any failure between those two lines lands here on every
+      // subsequent read, and recordFiles unions the index with the directory, so
+      // the stale id survives the scan. Filing it as `skipped` made a takedown
+      // report "N unreadable record(s) were left on disk" about a disk that is
+      // clean — and no later call could clear it, because nothing prunes the
+      // index for a file that is not there. That is the retryability claim in
+      // deleteReference failing in the other direction: not a false all-clear,
+      // but a permanent false NOT-clear.
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
       skipped.push(file);
     }
   }
@@ -314,6 +326,14 @@ export interface ForgetResult {
   // removal to a preview and these appeared after it. Empty unless expected_ref_ids
   // was supplied.
   appeared_since_preview: string[];
+  // Records still matching the host AFTER the sweep, read back from disk rather
+  // than inferred from what this run did. `appeared_since_preview` only ever
+  // names what the PIN excluded, so an unpinned call — or a capture that lands
+  // after the plan was computed — left material on disk with every failure field
+  // empty and the tool reporting the host cleared. The re-read cannot close that
+  // window (a capture landing after it is still missed), but it moves the
+  // unobserved gap from "the whole sweep" to "the last few syscalls".
+  still_present: string[];
 }
 
 // A stored `host` is always `new URL(record.url).hostname` — readRecord enforces
@@ -350,6 +370,43 @@ function isIpLiteral(host: string): boolean {
   return host.startsWith("[") || /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
 }
 
+// canonicalHost NORMALISES; it does not judge. WHATWG hostname parsing accepts
+// strings no name server could answer for: `linear..app`, `.linear.app`, `-x.app`
+// and a 300-character label all parse and come back unchanged (measured, Node
+// 26.5.0). That is harmless for matching and dangerous for a takedown — a host
+// typed with one of those in it matches nothing, and "matched nothing" is
+// returned as `removed: []` with every failure field empty, which is the exact
+// shape of "this host was already clear". The typo produced the empty result,
+// not the corpus, and nothing in the answer says so.
+//
+// The check lives at the REQUEST seam and deliberately NOT inside canonicalHost.
+// hostMatches canonicalises the STORED host through the same function, and a
+// record captured from a malformed authority has to stay matchable — `-x.app` is
+// a subdomain of `app` and must still come out on a takedown for `app`.
+// Tightening the shared normaliser would make exactly those records unmatchable
+// while still reporting the host cleared, which is the false all-clear this
+// function exists to prevent, one layer down.
+//
+// Underscores are allowed: they are illegal in a DNS hostname and legal in a URL
+// authority, browsers resolve them, and a corpus can hold one. Refusing to take
+// down a host a record actually has is the inverse failure.
+var HOST_LABEL = /^[a-z0-9_](?:[a-z0-9_-]*[a-z0-9_])?$/;
+
+export function hostSyntaxProblem(host: string): string | null {
+  // An address is not a name and has no labels to check. canonicalHost has
+  // already normalised the odd IPv4 spellings by the time this runs.
+  if (isIpLiteral(host)) return null;
+  if (host.length > 253) return "it is longer than 253 characters, which no hostname is";
+  for (var label of host.split(".")) {
+    if (!label) return "it has an empty label — two dots in a row, or a leading dot";
+    if (label.length > 63) return "the label " + JSON.stringify(label) + " is longer than 63 characters";
+    if (!HOST_LABEL.test(label)) {
+      return "the label " + JSON.stringify(label) + " is not a legal hostname label";
+    }
+  }
+  return null;
+}
+
 export function hostMatches(recordHost: string, requested: string): boolean {
   var a = canonicalHost(recordHost);
   var b = canonicalHost(requested);
@@ -367,8 +424,14 @@ export function hostMatches(recordHost: string, requested: string): boolean {
   // (`x.127.0.0.1` read as a subdomain of the address) cannot arise at all
   // because that string is not a parseable hostname — validatedUrl rejects it at
   // capture, so no record can hold it. Measured on Node 26.5.0, both facts.
-  // There is therefore no input reaching this line today; it is here so a future
-  // change to canonicalHost cannot quietly reopen the class.
+  //
+  // Plenty of input REACHES this line — `hostMatches("127.0.0.1", "127.0.0.2")`
+  // is two addresses and hits it on the first operand. An earlier version of this
+  // comment said no input reached it at all, which was simply false and made the
+  // clause look like dead code a cleanup could take. What no input does today is
+  // reach it and CHANGE the outcome: every case that gets here is one where the
+  // suffix test below would have answered false anyway. The clause is here so a
+  // future change to canonicalHost cannot quietly reopen the class.
   if (isIpLiteral(a) || isIpLiteral(b)) return false;
   return a.endsWith("." + b);
 }
@@ -386,9 +449,20 @@ export function referencesForHost(host: string): ForgetResult {
   // for `linear.app/pricing`, `http://linear.app` and anything else that is not a
   // bare authority; matching would then quietly remove nothing and report a clean
   // result, which reads exactly like "this host was already clear".
-  if (!canonicalHost(requested)) {
+  var canonical = canonicalHost(requested);
+  if (!canonical) {
     throw new Error(
       "host must be a bare hostname like 'linear.app' — got " + JSON.stringify(requested)
+    );
+  }
+  // Parseable is not the same as real. See hostSyntaxProblem: a takedown for
+  // `linear..app` matches nothing and reads back as a clean, cleared host.
+  var problem = hostSyntaxProblem(canonical);
+  if (problem) {
+    throw new Error(
+      "host " + JSON.stringify(requested) + " cannot name a site — " + problem
+      + ". Nothing was removed; check the spelling. A takedown that matches nothing "
+      + "returns an empty result, which reads exactly like 'already cleared'."
     );
   }
   var listed = listReferences();
@@ -406,6 +480,9 @@ export function referencesForHost(host: string): ForgetResult {
     failed: [],
     index_unreadable: listed.index_unreadable,
     appeared_since_preview: [],
+    // A plan, not a sweep — nothing has been removed yet, so everything matched
+    // is still present and naming it here twice would say nothing.
+    still_present: [],
   };
 }
 
@@ -441,6 +518,35 @@ export function deleteReferencesByHost(host: string, expected_ref_ids?: string[]
       failed.push({ ref_id: ref_id, reason: (error as Error).message });
     }
   }
+  // Read the disk back rather than reporting what this run intended.
+  //
+  // Everything above is computed from ONE scan taken before the first unlink, so
+  // the answer describes a directory as it was, not as it is. Two ordinary cases
+  // land material outside every failure field: an unpinned call cannot flag what
+  // appeared mid-sweep (there is no baseline to compare against), and a capture
+  // that finishes after the plan was computed is simply not in it. Both end with
+  // `removed` populated, `failed`/`appeared_since_preview` empty, and a record
+  // from the host still on disk — reported as cleared.
+  //
+  // This does not make the sweep atomic and does not claim to: a capture landing
+  // after this line is still missed. It narrows the unobserved window from the
+  // whole sweep to the gap between the last unlink and this read, and turns the
+  // common case from a false all-clear into a named leftover the caller can act on.
+  var remaining: string[] = [];
+  try {
+    for (var stillThere of referencesForHost(host).removed) {
+      // Only what is not already named. A pinned-out record and a failed one are
+      // both correctly still on disk and both already reported; repeating them
+      // here would make every pinned call look like it left something behind.
+      if (appeared.indexOf(stillThere) !== -1) continue;
+      if (failed.some(function(entry) { return entry.ref_id === stillThere; })) continue;
+      remaining.push(stillThere);
+    }
+  } catch (_error) {
+    // The re-read is a check on the sweep, not part of it. If it cannot run, the
+    // removals above still happened and are still reported; swallowing here keeps
+    // a verification failure from being read as a deletion failure.
+  }
   return {
     host: planned.host,
     removed: removed,
@@ -448,6 +554,7 @@ export function deleteReferencesByHost(host: string, expected_ref_ids?: string[]
     failed: failed,
     index_unreadable: planned.index_unreadable,
     appeared_since_preview: appeared,
+    still_present: remaining,
   };
 }
 
@@ -625,6 +732,24 @@ export function attachReferenceImage(
     try { unlinkSync(temp); } catch (_error) { /* renamed away on the success path */ }
   }
   reference.image = { file: file, width: width, height: height, fidelity: "offline" };
+  // The record was read at the top of this function and a headless Chromium
+  // render happened in between, so the reference in hand is a cached copy of
+  // something that may no longer exist. A takedown landing inside that window
+  // removed the record and its image, reported success, and then this write put
+  // BOTH back: third-party JSON and a rendered PNG of somebody's design, restored
+  // after they were told it was gone. The takedown's report was already sent.
+  //
+  // Re-reading the path closes the render-sized hole, not the whole race — a
+  // removal between this check and the write still resurrects. That residual is
+  // two syscalls wide instead of several seconds, and it is stated rather than
+  // implied because nothing here can close it: the store has no lock.
+  if (!existsSync(recordPath(ref_id))) {
+    try { unlinkSync(target); } catch (_cleanup) { /* nothing to remove */ }
+    throw new Error(
+      "reference " + ref_id + " was removed while its image was being rendered; "
+      + "the image was discarded rather than restoring a record that was deleted"
+    );
+  }
   try {
     atomicWriteJson(recordPath(ref_id), reference);
   } catch (error) {

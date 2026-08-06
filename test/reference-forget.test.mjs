@@ -539,3 +539,191 @@ test('forget_references is registered on stdio and gated off the anonymous remot
   assert.equal(remote.includes('forget_references'), false);
   assert.equal(remote.length, 45);
 });
+
+// ---------------------------------------------------------------------------
+// Round 3. Five findings from an adverse correctness pass, each with the input
+// that produced the wrong outcome.
+// ---------------------------------------------------------------------------
+
+test('a hostname that parses but could never name a site is refused, not answered with a clean empty result', () => {
+  // The takedown's one forbidden outcome is a false all-clear, and WHATWG
+  // hostname parsing hands you one for free: `linear..app` PARSES (measured,
+  // Node 26.5.0) and comes back unchanged, so canonicalHost returns it, nothing
+  // matches it, and the caller is told "Removed 0 record(s)" with every failure
+  // field empty — indistinguishable from a host that really is clear. The typo
+  // produced the empty result. So did `.linear.app`, `-x.app`, an over-long
+  // label, and an over-long name.
+  withReferenceHome(() => {
+    save('https://linear.app/pricing');
+    for (const typo of [
+      'linear..app',
+      '.linear.app',
+      '-x.app',
+      'x-.app',
+      'a'.repeat(64) + '.app',
+      ('a'.repeat(60) + '.').repeat(5) + 'app',
+    ]) {
+      assert.throws(
+        () => store.deleteReferencesByHost(typo, undefined),
+        /cannot name a site/,
+        'a takedown for ' + JSON.stringify(typo) + ' must be refused, not reported as clear'
+      );
+    }
+    // Refused means untouched — the record that the typo was aimed at is still here.
+    assert.equal(store.listReferences().total, 1);
+    // And the well-formed spelling still works, or the check has replaced one
+    // false all-clear with a takedown nobody can run.
+    assert.equal(store.deleteReferencesByHost('linear.app').removed.length, 1);
+  });
+});
+
+test('a malformed STORED host is still matchable, because refusing it would hide it', () => {
+  // The check above lives at the request seam and deliberately NOT inside
+  // canonicalHost. hostMatches canonicalises the stored host through the same
+  // function, so moving the check there would make a record captured from
+  // `-x.app` unmatchable by any takedown at all — still on disk, never reported,
+  // which is the same false all-clear one layer down. `-x.app` is a subdomain of
+  // `app` and must come out on a takedown for `app`.
+  withReferenceHome(() => {
+    save('https://-x.app/hero');
+    assert.equal(store.hostMatches('-x.app', 'app'), true);
+    const swept = store.deleteReferencesByHost('app', undefined);
+    assert.equal(swept.removed.length, 1, 'a record stored at a malformed host must still be removable');
+    assert.equal(store.listReferences().total, 0);
+  });
+});
+
+test('an index entry whose record file is gone is not reported as an unreadable record left on disk', () => {
+  // deleteReference unlinks the record and THEN rewrites the index, so any
+  // failure between those two lines leaves an id in the index with no file. Every
+  // later read hit ENOENT and filed it under `skipped`, which the tool renders as
+  // "1 unreadable record(s) were left on disk. This host is NOT fully cleared." —
+  // about a disk that is clean. Nothing prunes the index for a file that is not
+  // there, so that sentence was permanent: a false NOT-clear with no way out.
+  withReferenceHome((home) => {
+    const stays = save('https://linear.app/pricing');
+    const vanishes = save('https://linear.app/changelog');
+    // Exactly the half-state the delete path can leave: file gone, index intact.
+    rmSync(path.join(home, vanishes.ref_id + '.json'));
+    assert.ok(
+      JSON.parse(readFileSync(path.join(home, 'index.json'), 'utf8')).ref_ids.includes(vanishes.ref_id),
+      'the fixture must leave the index naming the missing record, or it measures nothing'
+    );
+    const listed = store.listReferences();
+    assert.deepEqual(listed.skipped, [], 'a record that is not on disk is not a record left on disk');
+    assert.equal(listed.total, 1);
+    assert.equal(listed.references[0].ref_id, stays.ref_id);
+    // And the takedown reports the host cleared, which it now is.
+    const swept = store.deleteReferencesByHost('linear.app', undefined);
+    assert.deepEqual(swept.skipped, []);
+    assert.deepEqual(swept.still_present, []);
+  });
+});
+
+test('what is still on disk is read back after the sweep, and named once or not at all', () => {
+  // Everything a sweep reports is computed from ONE scan taken before the first
+  // unlink, so the answer describes the directory as it was. still_present is a
+  // re-read of the directory as it IS. It must not double-report: a pinned-out
+  // record and a record that would not delete are both correctly still there and
+  // both already named, and repeating them would make every pinned call look
+  // like it left something behind.
+  withReferenceHome((home) => {
+    const kept = save('https://linear.app/pricing');
+    const taken = save('https://linear.app/changelog');
+    const pinned = store.deleteReferencesByHost('linear.app', [taken.ref_id]);
+    assert.deepEqual(pinned.removed, [taken.ref_id]);
+    assert.deepEqual(pinned.appeared_since_preview, [kept.ref_id]);
+    assert.deepEqual(pinned.still_present, [], 'a pinned-out record is named in appeared_since_preview, not twice');
+
+    // A record whose image will not unlink survives on purpose, and is already
+    // named in failed[].
+    mkdirSync(store.referenceImagePath(kept.ref_id), { recursive: true });
+    const blocked = store.deleteReferencesByHost('linear.app', undefined);
+    assert.deepEqual(blocked.removed, []);
+    assert.equal(blocked.failed.length, 1);
+    assert.equal(blocked.failed[0].ref_id, kept.ref_id);
+    assert.deepEqual(blocked.still_present, [], 'a failed removal is named in failed[], not twice');
+  });
+  // The positive direction — a record landing between the plan and the sweep and
+  // coming back in still_present — needs a genuinely concurrent writer: the
+  // sweep is synchronous, so nothing in this process can create a record while
+  // it runs. It is stated here rather than left looking covered.
+});
+
+test('a clean sweep says the disk is clean, having looked', () => {
+  withReferenceHome(() => {
+    save('https://linear.app/pricing');
+    const swept = store.deleteReferencesByHost('linear.app', undefined);
+    assert.equal(swept.removed.length, 1);
+    assert.deepEqual(swept.still_present, []);
+    assert.deepEqual(swept.failed, []);
+    assert.deepEqual(swept.skipped, []);
+  });
+});
+
+test('an image rendered while its reference was being removed does not put the reference back', () => {
+  // attachReferenceImage reads the record, renders in headless Chromium, then
+  // writes the record back — and a whole render sits between the read and the
+  // write. A takedown landing in that window removed the record and its image and
+  // reported success; the write-back then restored BOTH, third-party JSON and a
+  // rendered PNG of somebody's design, after they had been told it was gone.
+  withReferenceHome((home) => {
+    const reference = save('https://linear.app/pricing');
+    const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64)]);
+    // The takedown has to land INSIDE the call, after the record is read and
+    // before it is written back — deleting first only reproduces the case the
+    // opening getReference already catches, which is why the first draft of this
+    // test passed against the defect. `size.height` is read after that load, so a
+    // getter on it is a real synchronous hook into the middle of the function.
+    let sweptDuringRender = null;
+    const size = {
+      width: 100,
+      get height() {
+        if (!sweptDuringRender) sweptDuringRender = store.deleteReferencesByHost('linear.app', undefined);
+        return 80;
+      }
+    };
+    assert.throws(
+      () => store.attachReferenceImage(reference.ref_id, new Uint8Array(png), size),
+      /was removed while its image was being rendered/
+    );
+    assert.deepEqual(sweptDuringRender.removed, [reference.ref_id], 'the fixture must actually remove it mid-call');
+    assert.deepEqual(sweptDuringRender.still_present, [], 'and must have reported the host clear at the time');
+    assert.equal(existsSync(path.join(home, reference.ref_id + '.json')), false, 'the record must stay deleted');
+    assert.equal(existsSync(path.join(home, 'images', reference.ref_id + '.png')), false, 'and so must its image');
+    assert.equal(store.listReferences().total, 0);
+  });
+});
+
+test('forget_references does not claim a repair it did not make, and says when it was not pinned', async () => {
+  // Two sentences the tool used to get wrong. The index rebuild happens inside
+  // deleteReference, so a run that matched nothing rebuilds nothing — and the
+  // note said "was rebuilt" unconditionally, telling the caller a repair had
+  // happened on exactly the runs where it had not. And an unpinned removal has
+  // no baseline, so appeared_since_preview is empty because nothing was
+  // compared, not because nothing arrived; an empty field read as an all-clear.
+  await withClient(async (client, home) => {
+    await call(client, 'capture_reference', {
+      url: 'https://linear.app/pricing', selector: '.hero', styles: { color: 'rgb(0, 0, 0)' }, owner: 'third-party', tags: ['hero']
+    });
+    writeFileSync(path.join(home, 'index.json'), '{ not json');
+    const done = await call(client, 'forget_references', { host: 'linear.app', confirm: true });
+    assert.equal(done.index_unreadable, true);
+    assert.doesNotMatch(done.note, /was rebuilt/, 'the note must not claim a rebuild this run did not do');
+    assert.match(done.note, /the next capture or removal\s+rebuilds it/);
+    assert.match(done.note, /not pinned to a preview/);
+
+    // And a pinned call does not carry the unpinned warning.
+    await call(client, 'capture_reference', {
+      url: 'https://linear.app/changelog', selector: '.nav', styles: { color: 'rgb(0, 0, 0)' }, owner: 'third-party', tags: ['hero']
+    });
+    const preview = await raw(client, 'forget_references', { host: 'linear.app' });
+    // Two-segment shape on purpose: /ref_[a-z0-9_]+/ also matches the "ref_ids"
+    // inside the prompt's own "pass expected_ref_ids" sentence, which made this
+    // count 2 and the fixture look like it had two records.
+    const ids = String(preview.content[0].text).match(/\bref_[a-z0-9]+_[a-z0-9]+\b/g) || [];
+    assert.equal(ids.length, 1, 'the preview must name the id the confirm pins to');
+    const pinnedRun = await call(client, 'forget_references', { host: 'linear.app', confirm: true, expected_ref_ids: ids });
+    assert.doesNotMatch(pinnedRun.note, /not pinned to a preview/);
+  });
+});

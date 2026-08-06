@@ -3473,7 +3473,8 @@ server.tool(
         );
       }
       var result = deleteReferencesByHost(host, expected_ref_ids);
-      var cleared = !result.skipped.length && !result.failed.length && !result.appeared_since_preview.length;
+      var cleared = !result.skipped.length && !result.failed.length
+        && !result.appeared_since_preview.length && !result.still_present.length;
       return {
         content: [{
           type: "text" as const,
@@ -3487,11 +3488,30 @@ server.tool(
               + (result.appeared_since_preview.length
                 ? result.appeared_since_preview.length + " record(s) from this host appeared after the "
                   + "preview and were NOT removed (see appeared_since_preview[]); call again to take them. " : "")
+              + (result.still_present.length
+                ? result.still_present.length + " record(s) from this host are STILL on disk after "
+                  + "the sweep (see still_present[]); call again. " : "")
               // Reported, but it does not make the host un-cleared: an unreadable
-              // index leaves no record behind. The directory scan finds them all
-              // and the index is rebuilt on the way through.
+              // index leaves no record behind. The directory scan finds them all.
+              //
+              // It does NOT say "and was rebuilt". The rebuild happens inside
+              // deleteReference, so a run that matched nothing rebuilds nothing,
+              // and this sentence was telling the caller a repair had happened on
+              // exactly the runs where it had not.
               + (result.index_unreadable
-                ? "The index could not be read and was rebuilt; no record was left behind by it. " : "")
+                ? "The index could not be read; every record was found by scanning the "
+                  + "directory, so none was hidden by it, and the next capture or removal "
+                  + "rebuilds it. " : "")
+              // An unpinned removal has no baseline, so it cannot report what
+              // appeared mid-sweep — `appeared_since_preview` is empty because
+              // nothing was compared, not because nothing arrived. Saying so is
+              // the difference between a caller trusting an empty field and
+              // knowing it was never filled in.
+              + (Array.isArray(expected_ref_ids)
+                ? ""
+                : "This removal was not pinned to a preview (no expected_ref_ids), so anything "
+                  + "captured from this host while it ran was removed without being reported "
+                  + "separately. ")
               + (cleared ? "" : "This host is NOT fully cleared.")
           }, null, 2)
         }]
