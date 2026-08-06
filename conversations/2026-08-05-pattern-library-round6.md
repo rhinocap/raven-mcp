@@ -1215,6 +1215,73 @@ like one measurement.
   `src/grab-bridge.ts` changed this round, so `dist/` was rebuilt
   (`npm run build` = `clean && tsc`) before any of the above.
 
+## 3k. Round 14 — dispositioning Sol round 13
+
+Sol round 13 (xhigh, detached, 9579-line log at `.claude/patternlib-2026-08-04/out/SOL-ROUND13.log`)
+returned `OVERALL: DOES NOT SURVIVE` on **all six** claims. Every one was real.
+
+| Claim | Sol's finding | Round-14 disposition |
+|---|---|---|
+| C1 — the IME verdict survives a hostile realm | The shadow root is **OPEN**. A page reaches the Raven field through `shadowRoot` and dispatches synthetic `compositionstart`/`compositionend` at it, forging the marker without touching any prototype. Capturing the WeakSet methods does nothing about feeding the mechanism rather than tampering with it. | **Claim corrected, hole left open deliberately.** The forged verdict only ever SUPPRESSES one Enter; the same attacker can `remove()` the host, read every keystroke, and synthesise the Send click. `isTrusted` would close it and buys nothing. The comment now says this is a correctness mechanism against the browser's event ordering, **not** a security boundary — the open shadow root means there is no such boundary to hold. |
+| C2 — the 100ms bound is a bound again | The sign check accepts every non-negative delta **including zero forever**. `performance.now = () => 0` gives `0 - 0 < 100` for hours. The backwards-clock test covers only a *decreasing* clock. | **Fixed.** The stamp records BOTH clocks; elapsed time is the **larger** of the `performance.now` and `Date.now` deltas. A page must freeze both, pre-injection, to hold the window open. Taking the larger also preserves round 13's property — a backward reading yields `Infinity`, and `Infinity` wins. |
+| C3 — the Max-Age parse matches §5.2.2 | `Max-Age=` + 400 nines → `Number` is `Infinity` → `isFinite` false → attribute dropped → the past `Expires` on the same header then deletes the cookie. **§5.3 gives Max-Age precedence.** | **Fixed.** Syntactic validity and representability are now separate questions. A well-formed digit string always sets `maxAgeApplied` (which is what suppresses `Expires`, replacing the old `expiresAt === null` guard) and only its magnitude is clamped, to `MAX_COOKIE_EXPIRY_MS = 8.64e15`. |
+| C4 — the gate's bypasses are closed | The 200-char span cap is a **third** bypass: home dir + 201 chars + `/.claude/settings.json` → no match. It is also absent from the header's stated-limits list. | **Fixed.** `NESTED_SPAN_MAX = 4096` — PATH_MAX on Linux, 4× macOS's 1024, so every path a real filesystem can hold now fits. Kept bounded rather than removed because an unbounded lazy class over an 8MB blob is quadratic. The residual bound is now the fifth entry in the header's "does NOT catch" list. |
+| C5 — `capture.test.mjs` cannot report a failure as a skip | `message.includes(distCapture)` routes a **missing transitive dependency** into the skip branch. | **Fixed** (measured, see below). |
+| C6 — the round-13 tests encode rather than detect | The backwards-clock test passes against the constant-clock defect; `/^-?\d+/` (no `$`) accepts `Max-Age=5junk` with every test green. | **Fixed** — three new tests, each proven red by its own revert. |
+
+### The Node error-shape measurement behind C5
+
+Sol asserted `err.url` is populated for a missing *entry* module and not for a
+missing *transitive* one. Measured directly on **Node v26.5.0** with a temp-dir
+probe rather than taken on trust:
+
+| Scenario | `err.code` | `err.url` | Message names `dist/capture.js`? |
+|---|---|---|---|
+| entry module absent | `ERR_MODULE_NOT_FOUND` | `file://…/dist/capture.js` | yes — as the **missing module** |
+| transitive dep absent | `ERR_MODULE_NOT_FOUND` | `undefined` | yes — as the **importer** |
+| syntax error in the module | `undefined` | — | — |
+
+So the message names `dist/capture.js` in **both** `ERR_MODULE_NOT_FOUND` cases
+and cannot discriminate. Only `err.url` can. The catch now tests
+`new URL(err.url).pathname.endsWith('/dist/capture.js')` — pathname suffix, not
+full href, because `pathToFileURL` does not resolve symlinks and `/tmp` is
+`/private/tmp` on macOS.
+
+### Round-14 falsifiability reverts
+
+Five reverts, each measured, each hitting exactly one assertion:
+
+| Revert | Measured |
+|---|---|
+| A — `ravenElapsedSince` consults `performance.now` only (round-13 behaviour) | 1 fail / 15 pass — the **frozen-`performance.now`** test, and only it |
+| B — take the **smaller** delta instead of the larger | 2 fail / 14 pass — **both** clock tests, which is what separates MAX from MIN |
+| C — drop the `$` anchor on the Max-Age digit test | 1 fail / 15 pass, on the **`5junk`** assertion |
+| D — drop the overflow clamp and restore the `expiresAt === null` guard | 1 fail / 15 pass, on the **overflow-beats-Expires** assertion |
+| E — gate span bound back to 200 | 1 fail / 3 pass, on the **deep-nesting** assertion |
+
+C and D fail the same *test*, so the failing assertion text was extracted for
+each to confirm they are different defects — round 13 lost a measurement to
+exactly this shape (a silently-failed patch produced a duplicate reading), and
+identical `'' !== 'session=live'` output is not evidence of a distinct hit.
+
+A and B together are why there are two clock tests rather than one: the
+frozen-`performance.now` case separates the new reading from the old perf-only
+one, and the frozen-`Date.now` case separates MAX from MIN. Neither alone does
+both.
+
+### Round-14 verification
+
+- `RAVEN_NO_USAGE_LOG=1 npm test` — **1265 tests / 1262 pass / 0 fail / 3
+  skipped**, 44.4s. (+3 over round 13: two clock tests and one cookie test. The
+  gate's two new assertions and the `capture.test.mjs` rewrite live inside
+  existing tests and move no count.)
+- `node test/e2e-pattern-library.mjs` — `ALL CHECKS PASSED`, real Chromium
+  against proxied live `github.com`.
+- `cmp browser/raven-grab.js web/public/raven-grab.js` — byte-identical.
+- Frozen surfaces — `108 45
+  f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`, unchanged.
+  `src/grab-bridge.ts` changed, so `dist/` was rebuilt before all of the above.
+
 ## 4. Committed set — round 12
 
 Round 12 committed: `CLAUDE.md`, `browser/raven-grab.js`, `web/public/raven-grab.js`,

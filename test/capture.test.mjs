@@ -43,10 +43,25 @@ let extractStaticTraits;
 // remaining tests never even register, so the count silently drops to one.
 //
 // Only one load failure is legitimately an un-built tree: the entry module
-// itself not existing. Node reports that as `ERR_MODULE_NOT_FOUND` with the
-// missing specifier in `err.url` — and the url check is the load-bearing half,
-// because a missing dependency INSIDE capture.js raises the same code with a
-// different url. Anything else rethrows.
+// itself not existing. `err.url` is the ONLY sound discriminator, and the first
+// version of this narrowing was wrong to fall back to the message. Measured on
+// Node v26.5.0, both cases raise `ERR_MODULE_NOT_FOUND`:
+//
+//   missing entry module   → err.url = "file://…/dist/capture.js"
+//                            message: "Cannot find module '…/dist/capture.js'
+//                                      imported from …/capture.test.mjs"
+//   missing transitive dep → err.url = undefined
+//                            message: "Cannot find package 'x' imported from
+//                                      …/dist/capture.js"
+//
+// So the message names `dist/capture.js` in BOTH — as the missing module in one
+// and as the IMPORTER in the other. An adverse pass found that a
+// `message.includes(distCapture)` fallback therefore routes a missing dependency
+// straight back into the skip branch, which is the exact defect this block was
+// rewritten to remove. Only `err.url` separates them, and a missing dep does not
+// have one. Compared by pathname suffix rather than by full href because
+// `pathToFileURL` does not resolve symlinks (`/tmp` → `/private/tmp` on macOS)
+// while Node's own url may or may not have. Anything else rethrows.
 try {
   const mod = await import(distCapture);
   capturePage = mod.capturePage;
@@ -54,10 +69,12 @@ try {
   classifyVideoArtifact = mod.classifyVideoArtifact;
   extractStaticTraits = mod.extractStaticTraits;
 } catch (err) {
-  const distUrl = pathToFileURL(distCapture).href;
-  const missingSelf =
-    err && err.code === 'ERR_MODULE_NOT_FOUND' &&
-    (err.url === distUrl || String(err.message).includes(distCapture));
+  let missingSelf = false;
+  if (err && err.code === 'ERR_MODULE_NOT_FOUND' && typeof err.url === 'string') {
+    try {
+      missingSelf = new URL(err.url).pathname.endsWith('/dist/capture.js');
+    } catch { missingSelf = false; }
+  }
   if (!missingSelf) {
     throw new Error(
       'dist/capture.js exists but failed to load, which is a real defect and ' +

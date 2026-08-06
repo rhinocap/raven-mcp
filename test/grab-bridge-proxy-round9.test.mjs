@@ -236,3 +236,64 @@ test('a NEGATIVE Max-Age deletes, and a malformed one is ignored', async () => {
     await new Promise((resolve) => upstream.close(resolve));
   }
 });
+
+// ───────────────────────────── Round 14 ─────────────────────────────
+
+test('a trailing-garbage Max-Age is ignored, and an overflowing one still beats Expires', async () => {
+  // Two more §5.2.2/§5.3 cases an adverse pass found after round 13, both of
+  // which every existing cookie test passes through without noticing:
+  //
+  //   * `Max-Age=5junk` — INVALID. The old anchor was `/^-?\d+$/` which does
+  //     reject it, but the pass pointed out that a plausible weakening to
+  //     `/^-?\d+/` (drop the `$`) reads it as 5 seconds and every other test
+  //     stays green. This is the test that makes the anchor load-bearing.
+  //   * A 400-digit Max-Age sent alongside a PAST `Expires`. `Number()` of it is
+  //     Infinity, the old parse dropped the attribute for being unrepresentable,
+  //     and the Expires branch — which only ran when Max-Age had set nothing —
+  //     then deleted a cookie the server had just asked to keep effectively
+  //     forever. §5.3 gives Max-Age precedence over Expires whenever it is
+  //     SYNTACTICALLY valid; representability is a separate question and the
+  //     answer to it is to clamp, not to discard.
+  const seen = [];
+  let issued = 0;
+  const forever = '9'.repeat(400);
+  const upstream = createServer((req, res) => {
+    seen.push({ url: req.url, cookie: req.headers.cookie || '' });
+    const headers = { 'Content-Type': 'text/html; charset=utf-8' };
+    if (issued === 0) headers['Set-Cookie'] = 'session=live; Path=/; SameSite=Strict';
+    // Trailing garbage: must be ignored, so `session=live` survives untouched.
+    if (issued === 1) headers['Set-Cookie'] = 'session=live; Path=/; SameSite=Strict; Max-Age=5junk';
+    // Overflowing Max-Age with a long-past Expires on the same header.
+    if (issued === 2) {
+      headers['Set-Cookie'] =
+        'session=live; Path=/; SameSite=Strict; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=' + forever;
+    }
+    issued += 1;
+    res.writeHead(200, headers);
+    res.end('<!doctype html><html><body><h1>up</h1></body></html>');
+  });
+  await new Promise((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+  const upstreamUrl = 'http://127.0.0.1:' + upstream.address().port;
+
+  try {
+    const session = await bridge.startGrabSession(await designMd(), undefined, upstreamUrl, 'consumer');
+
+    await request(session.url + '/login', { headers: SAME_ORIGIN });     // issues session=live
+    await request(session.url + '/garbage', { headers: SAME_ORIGIN });   // carries it; sends Max-Age=5junk
+    await request(session.url + '/overflow', { headers: SAME_ORIGIN });  // must STILL carry it
+    await request(session.url + '/after', { headers: SAME_ORIGIN });     // must STILL carry it
+
+    assert.equal(seen[1].cookie, 'session=live',
+      'the control failed — the session cookie was never stored: ' + seen[1].cookie);
+    assert.equal(seen[2].cookie, 'session=live',
+      '`Max-Age=5junk` was read as a value instead of being ignored. §5.2.2 ' +
+      'requires the WHOLE value to be digits: ' + seen[2].cookie);
+    assert.equal(seen[3].cookie, 'session=live',
+      'an overflowing but syntactically valid Max-Age was discarded, and the past ' +
+      'Expires on the same header then deleted the cookie. §5.3 gives Max-Age ' +
+      'precedence — clamp the magnitude, do not drop the attribute: ' + seen[3].cookie);
+  } finally {
+    await bridge.stopGrabSession();
+    await new Promise((resolve) => upstream.close(resolve));
+  }
+});

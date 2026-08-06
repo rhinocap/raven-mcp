@@ -471,26 +471,47 @@
   //     send handler unmarked. The bridge injects the overlay before `</body>`,
   //     so a listener registered in `<head>` wins — this cannot be closed from
   //     inside the page, only noted.
+  //   * A page can FORGE the whole lifecycle without touching any prototype.
+  //     Raven's shadow root is OPEN, so `document.querySelector(
+  //     "[data-raven-grab-overlay]").shadowRoot` reaches the field, and a
+  //     synthetic `compositionstart`/`compositionend` pair dispatched at it arms
+  //     the marker exactly as a real IME would. Capturing the WeakSet methods
+  //     does nothing about this — the page is not tampering with the mechanism,
+  //     it is feeding it. `event.isTrusted` on the arming `compositionend` would
+  //     close it, and it is deliberately NOT used, for a reason worth stating:
+  //     a page that can dispatch into the shadow root can also `remove()` the
+  //     host, read every keystroke in the panel, and synthesise the Send click
+  //     itself. The forged verdict only ever SUPPRESSES one Enter, which is
+  //     strictly less than what the same attacker already has. This guard is a
+  //     correctness mechanism against the browser's own event ordering, not a
+  //     security boundary against the page — the open shadow root means there
+  //     is no such boundary to hold. (The cost of `isTrusted` is real and
+  //     one-sided: every composition test in the repo drives synthetic events,
+  //     so it would have to be rewritten onto CDP IME input, buying nothing.)
   //   * The 100ms bound is a FALSE-NEGATIVE risk as well as a guard. A page
   //     handler that blocks the main thread for longer than that between
   //     `compositionend` and the commit keydown produces a correctly-ordered pair
   //     that the clock rejects, and WebKit's stray send comes back. Ordering
   //     alone would fix that — and it is deliberately not the design, because
   //     the clock is the only bound on the mouse-candidate residual above.
-  //   * `performance.now` is page-replaceable. Capturing it at load stops
-  //     after-injection tampering, and `ravenElapsedSince` rejects a negative
-  //     delta so a clock that runs BACKWARD expires the marker instead of
-  //     un-bounding it — but a `<head>` script that installed a monotonically
-  //     slow clock before injection can still hold the window open. Same realm,
-  //     same unclosable residual as the prototype capture above.
-  //     Without it, "accept a candidate with the mouse, walk away, come back and
+  //   * Both clocks are page-replaceable. Capturing them at load stops
+  //     after-injection tampering; rejecting a negative delta closes a clock
+  //     that runs BACKWARD; and taking the LARGER of the `performance.now` and
+  //     `Date.now` deltas means freezing one is not enough — a page has to
+  //     freeze BOTH, before injection, to hold the window open. That last case
+  //     is the same realm and the same unclosable residual as the prototype
+  //     capture above. (An earlier version claimed the sign check alone made
+  //     this a bound; it did not. A constant clock — `performance.now = () => 0`
+  //     — produced `0 - 0 < 100` forever, and an adverse pass found it.)
+  //   * Why the bound stays at all, since ordering already decides the verdict:
+  //     without it, "accept a candidate with the mouse, walk away, come back and
   //     press Enter" eats the send however many minutes later it happens, since
   //     that Enter is still the next keydown. A narrow false negative on a
   //     main-thread-blocking page beats an unbounded false positive on every
   //     mouse-driven IME, so the clock stays. Clearing the marker on
   //     blur/pointerdown instead does NOT rescue it: selecting a candidate from
   //     the IME's own popup is OS chrome and fires no DOM event at all.
-  var ravenCompositionEnd = null;   // { at, origin } or null
+  var ravenCompositionEnd = null;   // { at: { perf, date }, origin } or null
   var ravenCommitEnterAlreadySeen = false;
   var RAVEN_COMPOSITION_COMMIT_MS = 100;
   // Per-event, module-private. See the third narrowing above for why this is not
@@ -527,16 +548,52 @@
       : null;
   var ravenDateNow = Date.now;
 
-  function ravenNow() {
-    return ravenPerfNow ? ravenPerfNow() : ravenDateNow();
+  // Rejecting a negative delta closes a clock that runs BACKWARD and nothing
+  // else — an adverse pass pointed out that a CONSTANT clock defeats it just as
+  // completely and more simply: `performance.now = function () { return 0; }`
+  // makes every delta exactly `0 - 0`, which passes `< 100` forever, and the
+  // marker never expires. Sign checking is necessary and was never sufficient.
+  //
+  // So the stamp records BOTH clocks and elapsed time is the LARGER of the two
+  // deltas. Any clock that reports progress is believed, which means a page has
+  // to freeze `performance.now` AND `Date.now` — both before injection, since
+  // both are captured above — to hold the window open. Taking the larger also
+  // keeps the round-13 property: a backward reading yields Infinity, and
+  // Infinity wins, so a tampered clock expires the marker rather than pinning
+  // it open. Fail toward "expired": the cost is one stray send on WebKit, and
+  // the cost of failing the other way is the user's Enter silently doing
+  // nothing.
+  //
+  // The accepted cost of consulting `Date.now`, stated rather than discovered
+  // later: it is wall-clock and can step (NTP, manual set, a suspended laptop).
+  // A forward step of more than 100ms landing in the gap between
+  // `compositionend` and the commit keydown expires a marker that should have
+  // held, and WebKit's stray send comes back for that one keystroke. That is
+  // the same false-negative direction the 100ms bound already accepts for a
+  // main-thread-blocking page, and it is rarer.
+  //
+  // Residual, unclosable from inside the page realm: a `<head>` script that
+  // freezes both clocks before the overlay is injected.
+  function ravenStamp() {
+    return {
+      perf: ravenPerfNow ? ravenPerfNow() : null,
+      date: ravenDateNow()
+    };
   }
 
-  // Elapsed time since a stamp, or Infinity when the clock did not move forward.
-  // A non-monotonic reading means the bound cannot be trusted, and the safe
-  // answer for a credential-adjacent guard is "expired" — never "still armed".
+  function ravenSaneDelta(now, then) {
+    if (typeof now !== "number" || typeof then !== "number") return Infinity;
+    var delta = now - then;
+    return delta >= 0 ? delta : Infinity;
+  }
+
   function ravenElapsedSince(stamp) {
-    var delta = ravenNow() - stamp;
-    return (typeof delta === "number" && delta >= 0) ? delta : Infinity;
+    if (!stamp) return Infinity;
+    var perfDelta = (ravenPerfNow && stamp.perf !== null)
+      ? ravenSaneDelta(ravenPerfNow(), stamp.perf)
+      : Infinity;
+    var dateDelta = ravenSaneDelta(ravenDateNow(), stamp.date);
+    return perfDelta > dateDelta ? perfDelta : dateDelta;
   }
 
   // Both listeners must agree on what "the element" is. From `window`, a
@@ -571,7 +628,7 @@
     // coming and nothing to absorb. Arming here is what ate the Enter after an
     // Escape.
     if (typeof event.data !== "string" || event.data === "") return;
-    ravenCompositionEnd = { at: ravenNow(), origin: origin };
+    ravenCompositionEnd = { at: ravenStamp(), origin: origin };
   }, true);
 
   // Bookkeeping only — it decides nothing and blocks nothing. It runs in window

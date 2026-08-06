@@ -1713,6 +1713,10 @@ function defaultCookiePath(responsePath: string): string {
   return responsePath.slice(0, lastSlash);
 }
 
+// The largest value `Date` can represent (ECMA-262 "time clip"). A Max-Age past
+// this is clamped rather than dropped — see the §5.3 note in the parser.
+var MAX_COOKIE_EXPIRY_MS = 8.64e15;
+
 function readCookieAttributes(attributes: string[], responseUrl: URL): CookieAttributes {
   var path = defaultCookiePath(responseUrl.pathname);
   var explicitPath: string | null = null;
@@ -1722,6 +1726,8 @@ function readCookieAttributes(attributes: string[], responseUrl: URL): CookieAtt
   // Absent SameSite is Lax in every current browser, and defaulting it to None
   // here would hand back exactly the cross-site protection this is enforcing.
   var sameSite: "strict" | "lax" | "none" = "lax";
+  // Set by a SYNTACTICALLY valid Max-Age, whatever its magnitude. See §5.3 below.
+  var maxAgeApplied = false;
   for (var attribute of attributes) {
     var index = attribute.indexOf("=");
     var attributeName = (index === -1 ? attribute : attribute.slice(0, index)).trim().toLowerCase();
@@ -1742,13 +1748,30 @@ function readCookieAttributes(attributes: string[], responseUrl: URL): CookieAtt
       // a real `Max-Age=0` logout was indistinguishable from it. The digit test
       // is what separates "the server said expire this" from "the server sent
       // something we could not read".
+      //
+      // Syntactic validity and representability are separate questions, and an
+      // earlier version conflated them: it dropped the attribute whenever
+      // `Number()` overflowed, which is a §5.3 violation with teeth. `Max-Age`
+      // takes PRECEDENCE over `Expires`, so ignoring a 400-digit Max-Age let a
+      // past `Expires` on the same header delete a cookie the server had just
+      // asked to keep for longer than the universe. A well-formed digit string is
+      // always applied; only its magnitude is clamped, to the range `Date` can
+      // actually hold. Clamping a huge positive to the max date and a huge
+      // negative to 0 preserves the sign, which is the only thing the caller
+      // reads it for.
       if (/^-?\d+$/.test(attributeValue)) {
-        var seconds = Number(attributeValue);
-        if (Number.isFinite(seconds)) expiresAt = Date.now() + seconds * 1000;
+        maxAgeApplied = true;
+        var when = Date.now() + Number(attributeValue) * 1000;
+        if (Number.isNaN(when)) when = 0;
+        else if (when > MAX_COOKIE_EXPIRY_MS) when = MAX_COOKIE_EXPIRY_MS;
+        else if (when < 0) when = 0;
+        expiresAt = when;
       }
     }
-    // Max-Age wins over Expires per RFC 6265, so only read Expires if unset.
-    if (attributeName === "expires" && expiresAt === null) {
+    // Max-Age wins over Expires per RFC 6265 §5.3 — and the flag, not
+    // `expiresAt === null`, is what encodes that. A syntactically valid Max-Age
+    // whose value clamps still suppresses Expires; a malformed one does not.
+    if (attributeName === "expires" && !maxAgeApplied) {
       var parsed = Date.parse(attributeValue);
       if (!Number.isNaN(parsed)) expiresAt = parsed;
     }

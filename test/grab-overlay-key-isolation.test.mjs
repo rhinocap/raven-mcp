@@ -908,3 +908,96 @@ test('a page whose clock runs backwards cannot make the 100ms bound unbounded', 
     'clock turned the 100ms bound into no bound at all. A negative elapsed time ' +
     'must be treated as expired, not as "just now"');
 });
+
+// ───────────────────────────── Round 14 ─────────────────────────────
+// The backwards-clock test above closes a clock that runs BACKWARD and nothing
+// else. An adverse pass pointed out the simpler attack it does not cover: a
+// CONSTANT clock. `performance.now = () => 0` makes every delta exactly `0 - 0`,
+// which is non-negative, passes the sign check, and satisfies `< 100` forever.
+// The fix is to stamp BOTH clocks and take the LARGER delta, so a page has to
+// freeze both. These two tests pin each half of that:
+//   * freeze `performance.now` only  → falsifies the old perf-only reading
+//   * freeze `Date.now` only         → falsifies taking the MIN instead of the MAX
+// Neither passes against the other's defect, which is the point.
+
+function constantClockHost(which) {
+  return `<!doctype html><html><head><title>constant ${which} host</title>
+<script>
+  // Frozen BEFORE the overlay is injected, so the load-time capture grabs this
+  // one. Every reading is identical, so the delta is 0 forever — non-negative,
+  // and therefore invisible to a sign check.
+  ${which === 'performance'
+      ? 'performance.now = function () { return 0; };'
+      : 'Date.now = function () { return 1700000000000; };'}
+</script>
+</head><body><h1 id="heading">Host page</h1></body></html>`;
+}
+
+async function lateEnterUnderFrozenClock(t, which) {
+  try {
+    return await withOverlay(async (page) => {
+      return page.evaluate(async (frozen) => {
+        const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+        const field = root.querySelector('.raven-grab-textarea');
+        field.focus();
+
+        // Confirm the fixture actually took. Without this the test passes
+        // against a page whose head script never ran, which is exactly how a
+        // test ends up detecting nothing.
+        const read = () => (frozen === 'performance' ? performance.now() : Date.now());
+        const a = read();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        const clockIsFrozen = read() === a;
+
+        field.dispatchEvent(new CompositionEvent('compositionend', {
+          data: 'にほんご', bubbles: true, composed: true
+        }));
+
+        // Well past the 100ms bound in real time. The frozen clock reports 0ms.
+        await new Promise((resolve) => setTimeout(resolve, 300));
+
+        const event = new KeyboardEvent('keydown', {
+          key: 'Enter', keyCode: 13, isComposing: false,
+          bubbles: true, composed: true, cancelable: true
+        });
+        field.dispatchEvent(event);
+
+        return { clockIsFrozen, late: event.defaultPrevented };
+      }, which);
+    }, constantClockHost(which));
+  } catch (err) {
+    if (/browserType\.launch|Executable doesn't exist/.test(err.message)) {
+      t.skip(`browser unavailable for overlay key isolation (${err.message})`);
+      return null;
+    }
+    throw err;
+  }
+}
+
+test('a page that freezes performance.now cannot make the 100ms bound unbounded', async (t) => {
+  const seen = await lateEnterUnderFrozenClock(t, 'performance');
+  if (!seen) return;
+
+  assert.equal(seen.clockIsFrozen, true,
+    'the fixture never froze performance.now, so this test proves nothing — ' +
+    'the head script did not run before the overlay loaded');
+  assert.equal(seen.late, true,
+    'an Enter 300ms after the composition was still swallowed under a CONSTANT ' +
+    'performance.now. A frozen clock reports a 0ms delta forever, which no sign ' +
+    'check can catch — elapsed time must consult Date.now as well and believe ' +
+    'whichever clock reports progress');
+});
+
+test('a page that freezes Date.now cannot make the 100ms bound unbounded', async (t) => {
+  const seen = await lateEnterUnderFrozenClock(t, 'date');
+  if (!seen) return;
+
+  assert.equal(seen.clockIsFrozen, true,
+    'the fixture never froze Date.now, so this test proves nothing — ' +
+    'the head script did not run before the overlay loaded');
+  assert.equal(seen.late, true,
+    'an Enter 300ms after the composition was still swallowed under a CONSTANT ' +
+    'Date.now, even though performance.now was reporting real progress. Elapsed ' +
+    'time must be the LARGER of the two deltas, not the smaller — taking the ' +
+    'minimum lets either single frozen clock hold the marker open');
+});

@@ -52,6 +52,10 @@
 //     nobody has invented yet.
 //   * Text inside a file with an extension in SKIP_EXT (a text-bearing PDF), a
 //     file over 8MB, or one containing a NUL byte.
+//   * A NESTED path whose middle segment runs past NESTED_SPAN_MAX (4096) chars.
+//     That is longer than PATH_MAX on either platform, so it cannot name a real
+//     location — but the bound exists and is a bound. It was 200 until an adverse
+//     pass pointed out that 201 characters of nesting walked straight through.
 //
 // Do not read a green run as "nothing private is committed". Read it as "no
 // absolute private-tooling path is staged". The human check before committing
@@ -107,8 +111,19 @@ const PRIVATE_PATH = new RegExp(
 // SHORTEST span ending at a tooling directory, so the in-repo path is discarded
 // on its own and the scan resumes at the next one. An adverse pass demonstrated
 // the greedy bypass with a literal two-path line.
+//
+// The span bound was 200 and a later adverse pass showed that is itself a bypass:
+// a home directory, 201 characters of nesting, then `/.claude/settings.json`
+// matched nothing at all. 200 was never a considered number. NESTED_SPAN_MAX is
+// now 4096, which is PATH_MAX on Linux and four times macOS's 1024 — every path
+// that can exist on a real filesystem fits, so a longer one is not a location
+// anybody's machine could have handed over. The bound is kept rather than removed
+// because an unbounded lazy class over an 8MB blob is quadratic in the worst case,
+// and this gate runs on every `npm test`. It remains a real, stated limit: see the
+// "what this does NOT catch" list in the header.
+const NESTED_SPAN_MAX = 4096;
 const NESTED_PRIVATE_PATH = new RegExp(
-  '(?:(?:\\/Users|\\/home)\\/[A-Za-z0-9._@-]+|\\/root)\\/[^\\s"\'`]{1,200}?\\/\\.' + TOOL_DIRS + '\\b',
+  '(?:(?:\\/Users|\\/home)\\/[A-Za-z0-9._@-]+|\\/root)\\/[^\\s"\'`]{1,' + NESTED_SPAN_MAX + '}?\\/\\.' + TOOL_DIRS + '\\b',
   'g'
 );
 
@@ -304,6 +319,17 @@ test('the gate is falsifiable — its own pattern matches a synthetic leak', () 
     'a greedy middle segment matched an in-repo path and an out-of-repo path as ' +
     'ONE span, which the repoRoot exclusion then discarded whole — taking the ' +
     'real leak with it');
+
+  // The third bypass, from the round-13 adverse pass: the span bound itself.
+  // At 200 characters a leak nested 201 deep matched nothing. These two pin the
+  // bound where it now is — a deep-but-real path is caught, and the limit is
+  // asserted to be where the header says it is rather than wherever it drifted.
+  const deep = ROOT_MAC + '/someone/' + 'a/'.repeat(150) + 'x' + DOT + 'claude/settings.json';
+  assert.ok(findPrivatePath(deep),
+    'a leak nested more than 200 characters deep was missed — the span bound is ' +
+    'a bypass, and 200 was never a considered number');
+  assert.equal(NESTED_SPAN_MAX, 4096,
+    'the span bound moved without the header\'s stated-limits list moving with it');
 });
 
 test('the gate scans this file too — it has no self-exclusion', () => {
