@@ -2881,3 +2881,62 @@ That distinction is the point of the step. The measurement before it was a
 fixture in headless Chromium, and the partial-fix rule says a fix is not landed
 until he sees it on the page he was actually using — a passing test and a live
 surface are two different claims, and only the second one is his.
+
+## 15. Push to main, and the deploy verification Sol said was missing
+
+Andrew confirmed the scroll fix on his own surface ("It stayed") and authorised
+the push in the same breath. Pre-push gate: 1324 tests / 1321 pass / 0 fail /
+3 skipped in 44.3s; local frozen probe `109 45 f64bb18…2bb0a6`; `node
+test/e2e-pattern-library.mjs` ALL CHECKS PASSED; and a LIVE production probe
+taken **before** the push, so that afterwards a difference could be told from a
+coincidence — 45 tools, golden hash.
+
+Pushed `985e5ce..9613764`, 38 commits. `site` production deployment
+`dpl_UrHzP6KdCT5WV5eY1S5LZqtgmXBa` reached Ready in ~1m, watched with `vercel
+inspect --wait` rather than a poll loop.
+
+**Sol's verdict on the push was DOES NOT SURVIVE, and one of its two findings
+was a real miss of mine.** The brief said "these 36 commits". By the time the
+push happened there were 38 — I had committed the motion.ai queue entry and a
+session-log note while the review was running, and pushed before the review
+returned. Sol read the two extra commits and found they touch only
+`.claude/linear-backlog-queue.jsonl` and a conversation log, so there is no
+runtime consequence, but that is a fact established after the fact. The
+evidence set named in a falsification brief has to be the object that actually
+ships, and a review running concurrently with the thing it reviews cannot
+clear it.
+
+The second finding was an evidence defect and is the more useful one. My local
+probe built the server as `buildServer({ remote: false })`, and **remote
+exclusion happens inside the registration wrapper only when `remote` is true**
+(`src/index.ts:2225`) — so a stdio-built probe structurally cannot prove the
+production gating branch executes. Sol confirmed by reading the source that all
+four pattern tools sit in `REMOTE_GATED_TOOLS`, but reading a gate is the same
+inference that would have written the bug.
+
+Closed by measurement instead. Two probes the earlier checks could not make:
+
+1. **The name hash under-specifies.** Two tool sets with identical NAMES can
+   differ in schema, description, annotation or behaviour, so the frozen hash
+   would not have caught a live change to an existing anonymous tool. The whole
+   `tools/list` payload was captured before the push and diffed after —
+   byte-identical, 63,453 characters.
+2. **The gate was called, not read.** Against the live endpoint, anonymously:
+   `capture_reference`, `search_references`, `map_reference_to_tokens`,
+   `forget_references` and a gated control `decision_list` all return `Tool not
+   found` — never registered, which is stronger than refused — while
+   `get_principles` returns 34 real principles, so the anonymous path is
+   genuinely working rather than uniformly broken. A gate that answered "not
+   found" to everything would look identical without that control.
+
+**One residual, stated rather than papered over.** Nothing anonymously
+observable distinguishes the old build from the new one on that host, because
+the push deliberately changed nothing anonymous — that is the intended outcome
+and it is also why the domain's own freshness cannot be proven from outside.
+What is established is Vercel's own record that the commit built and went Ready
+in production, plus the invariant holding on the live host afterwards.
+
+Untouched and still Andrew's: `npm publish` (nothing was released — npm stays at
+2.3.0 / 105 tools), `cd web && vercel deploy --prod` for the apex site and the
+public `.mcpb`, and the legal opinion gating any stored corpus of third-party
+patterns.
