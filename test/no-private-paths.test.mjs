@@ -136,6 +136,17 @@ const NESTED_PRIVATE_PATH = new RegExp(
 // points somewhere else entirely. Same adverse pass, same file. Any match
 // containing a `..` segment is therefore never excluded: a legitimate reference
 // to this repo's own tooling directory has no reason to route through the parent.
+// Iterating every match is necessary and was not sufficient. `exec` with `/g`
+// resumes at the END of the previous match, so a hit that gets EXCLUDED takes
+// every overlapping start with it — `<repoRoot>/artifact:/Users/someone/work/
+// private-thing/.claude/settings.json` matches once from the in-repo `/Users`,
+// is discarded by the prefix test, and the scan resumes past the foreign
+// `/.claude` without ever trying the second `/Users`. Round 13 fixed the
+// symptom (one match per line) and left the mechanism; a later adverse pass
+// produced the overlapping variant. On an exclusion, `lastIndex` is therefore
+// rewound to one character past where the discarded match STARTED, so every
+// later start is still reachable. Advancing by one rather than to `match.index`
+// is what keeps this terminating.
 function findPrivatePath(text) {
   const direct = PRIVATE_PATH.exec(text);
   if (direct) return direct[0];
@@ -145,6 +156,7 @@ function findPrivatePath(text) {
     const hit = match[0];
     const escapesRepo = hit.split('/').includes('..');
     if (escapesRepo || !hit.startsWith(repoRoot + '/')) return hit;
+    NESTED_PRIVATE_PATH.lastIndex = match.index + 1;
   }
   return null;
 }
@@ -321,15 +333,37 @@ test('the gate is falsifiable — its own pattern matches a synthetic leak', () 
     'real leak with it');
 
   // The third bypass, from the round-13 adverse pass: the span bound itself.
-  // At 200 characters a leak nested 201 deep matched nothing. These two pin the
-  // bound where it now is — a deep-but-real path is caught, and the limit is
-  // asserted to be where the header says it is rather than wherever it drifted.
-  const deep = ROOT_MAC + '/someone/' + 'a/'.repeat(150) + 'x' + DOT + 'claude/settings.json';
-  assert.ok(findPrivatePath(deep),
-    'a leak nested more than 200 characters deep was missed — the span bound is ' +
-    'a bypass, and 200 was never a considered number');
+  // At 200 characters a leak nested 201 deep matched nothing.
+  //
+  // The fixtures are built FROM `NESTED_SPAN_MAX` rather than from a literal,
+  // because a fixed 301-character path plus a standalone `NESTED_SPAN_MAX ===
+  // 4096` assertion does NOT prove the matcher honours the constant — round 14's
+  // version did exactly that, and the next adverse pass produced the weakening it
+  // survives: leave the constant at 4096 and build the regex with `{1,512}`. Both
+  // assertions stay green while a 601-character path walks through. Measuring at
+  // the boundary is what ties the test to the effective bound.
+  const nestAt = (chars) => {
+    const filler = 'a/'.repeat(Math.ceil(chars / 2)).slice(0, chars - 1) + '/';
+    return ROOT_MAC + '/someone/' + filler + DOT + 'claude/settings.json';
+  };
+  assert.ok(findPrivatePath(nestAt(NESTED_SPAN_MAX - 1)),
+    'a leak nested to just inside NESTED_SPAN_MAX was missed, so the matcher is ' +
+    'built with a SMALLER bound than the constant advertises — asserting the ' +
+    'constant alone does not detect that');
+  assert.equal(findPrivatePath(nestAt(NESTED_SPAN_MAX + 200)), null,
+    'a leak nested past NESTED_SPAN_MAX was caught, so the bound is not where ' +
+    'the header says it is — the documented limit must be the real one in both ' +
+    'directions');
   assert.equal(NESTED_SPAN_MAX, 4096,
     'the span bound moved without the header\'s stated-limits list moving with it');
+
+  // The fourth bypass, from the round-14 pass: OVERLAPPING matches. An in-repo
+  // path and a foreign one on the same line, where the foreign `/.claude` sits
+  // inside the span the in-repo match consumed.
+  assert.ok(findPrivatePath(repoRoot + '/artifact:' + leakNested(ROOT_MAC, 'claude', '/settings.json')),
+    'an excluded in-repo match swallowed an OVERLAPPING foreign path — `exec` ' +
+    'with /g resumes past the whole discarded match, so the second start was ' +
+    'never tried');
 });
 
 test('the gate scans this file too — it has no self-exclusion', () => {

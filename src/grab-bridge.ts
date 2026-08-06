@@ -1717,6 +1717,25 @@ function defaultCookiePath(responsePath: string): string {
 // this is clamped rather than dropped — see the §5.3 note in the parser.
 var MAX_COOKIE_EXPIRY_MS = 8.64e15;
 
+// RFC 6265 §5.2 removes leading and trailing **WSP** — SP (0x20) and HTAB (0x09)
+// — and nothing else. JavaScript's `String.prototype.trim` removes the whole
+// Unicode WhiteSpace set, which is a superset: U+00A0, U+2028, U+FEFF and the
+// rest. That gap is not cosmetic. `Max-Age=<U+00A0>5` is INVALID under the RFC,
+// so the attribute must be ignored and any `Expires` on the same header must
+// then apply; `.trim()` turned it into a valid five-second lifetime that
+// SUPPRESSED the Expires, keeping a cookie the server had asked to delete. An
+// adverse pass found it with a live bridge probe. Every attribute is trimmed
+// this way, not just Max-Age: the same over-trim would launder a mangled
+// `SameSite`, `Path` or `Domain` into a value the origin server never sent, and
+// each of those fails in the conservative direction only by accident.
+function trimWsp(value: string): string {
+  var start = 0;
+  var end = value.length;
+  while (start < end && (value.charCodeAt(start) === 0x20 || value.charCodeAt(start) === 0x09)) start += 1;
+  while (end > start && (value.charCodeAt(end - 1) === 0x20 || value.charCodeAt(end - 1) === 0x09)) end -= 1;
+  return value.slice(start, end);
+}
+
 function readCookieAttributes(attributes: string[], responseUrl: URL): CookieAttributes {
   var path = defaultCookiePath(responseUrl.pathname);
   var explicitPath: string | null = null;
@@ -1730,8 +1749,8 @@ function readCookieAttributes(attributes: string[], responseUrl: URL): CookieAtt
   var maxAgeApplied = false;
   for (var attribute of attributes) {
     var index = attribute.indexOf("=");
-    var attributeName = (index === -1 ? attribute : attribute.slice(0, index)).trim().toLowerCase();
-    var attributeValue = index === -1 ? "" : attribute.slice(index + 1).trim();
+    var attributeName = trimWsp(index === -1 ? attribute : attribute.slice(0, index)).toLowerCase();
+    var attributeValue = index === -1 ? "" : trimWsp(attribute.slice(index + 1));
     if (attributeName === "path" && attributeValue.startsWith("/")) { path = attributeValue; explicitPath = attributeValue; }
     if (attributeName === "secure") secure = true;
     if (attributeName === "domain" && attributeValue) domain = attributeValue;

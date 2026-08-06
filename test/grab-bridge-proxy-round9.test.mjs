@@ -297,3 +297,64 @@ test('a trailing-garbage Max-Age is ignored, and an overflowing one still beats 
     await new Promise((resolve) => upstream.close(resolve));
   }
 });
+
+// ───────────────────────────── Round 15 ─────────────────────────────
+
+test('a Max-Age padded with non-WSP whitespace is invalid, and Expires then wins', async () => {
+  // RFC 6265 §5.2 strips leading and trailing **WSP** — SP and HTAB — and nothing
+  // else. JavaScript's `.trim()` strips the whole Unicode WhiteSpace set, so
+  // `Max-Age=<U+00A0>5` arrived at the digit test as a clean "5": a value the RFC
+  // says is INVALID became a valid five-second lifetime, which then SUPPRESSED
+  // the `Expires` on the same header and kept a cookie the server had asked to
+  // delete. Found by an adverse pass with a live bridge probe, not by reading.
+  //
+  // The interesting part is that this defect is invisible to the Max-Age tests
+  // above AND to the precedence fix that shipped with them — over-trimming makes
+  // an invalid value valid, and every existing case feeds the parser a value that
+  // is already clean.
+  //
+  // The pad is written as an ESCAPE rather than a literal. A literal U+00A0 in a
+  // source file is one editor normalisation away from becoming an ordinary space
+  // - at which point the header is well-formed, the cookie is correctly retained,
+  // and this test passes while measuring nothing. NBSP is asserted below for the
+  // same reason the conforming-IME test asserts its own fixture.
+  const NBSP = '\u00A0';
+  assert.equal(NBSP.charCodeAt(0), 0xA0, 'the fixture pad is not U+00A0');
+
+  const seen = [];
+  let issued = 0;
+  const upstream = createServer((req, res) => {
+    seen.push({ url: req.url, cookie: req.headers.cookie || '' });
+    const headers = { 'Content-Type': 'text/html; charset=utf-8' };
+    if (issued === 0) headers['Set-Cookie'] = 'session=live; Path=/; SameSite=Strict';
+    // Max-Age must be IGNORED, so the past Expires on the same header applies.
+    if (issued === 1) {
+      headers['Set-Cookie'] =
+        'session=live; Path=/; SameSite=Strict; Max-Age=' + NBSP + '5; ' +
+        'Expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    }
+    issued += 1;
+    res.writeHead(200, headers);
+    res.end('<!doctype html><html><body><h1>up</h1></body></html>');
+  });
+  await new Promise((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+  const upstreamUrl = 'http://127.0.0.1:' + upstream.address().port;
+
+  try {
+    const session = await bridge.startGrabSession(await designMd(), undefined, upstreamUrl, 'consumer');
+
+    await request(session.url + '/login', { headers: SAME_ORIGIN });   // issues session=live
+    await request(session.url + '/nbsp', { headers: SAME_ORIGIN });    // carries it; sends the NBSP header
+    await request(session.url + '/after', { headers: SAME_ORIGIN });   // must be logged out
+
+    assert.equal(seen[1].cookie, 'session=live',
+      'the control failed — the session cookie was never stored: ' + seen[1].cookie);
+    assert.equal(seen[2].cookie, '',
+      'a Max-Age padded with U+00A0 was accepted as valid and suppressed the past ' +
+      'Expires, so a cookie the server deleted is still being sent. §5.2 strips ' +
+      'SP and HTAB only — `.trim()` strips far more: ' + seen[2].cookie);
+  } finally {
+    await bridge.stopGrabSession();
+    await new Promise((resolve) => upstream.close(resolve));
+  }
+});

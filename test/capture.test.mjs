@@ -58,10 +58,26 @@ let extractStaticTraits;
 // and as the IMPORTER in the other. An adverse pass found that a
 // `message.includes(distCapture)` fallback therefore routes a missing dependency
 // straight back into the skip branch, which is the exact defect this block was
-// rewritten to remove. Only `err.url` separates them, and a missing dep does not
-// have one. Compared by pathname suffix rather than by full href because
-// `pathToFileURL` does not resolve symlinks (`/tmp` → `/private/tmp` on macOS)
-// while Node's own url may or may not have. Anything else rethrows.
+// rewritten to remove. Only `err.url` separates them, and a missing bare package
+// does not have one.
+//
+// The comparison is EXACT, against the URL this file's own import resolves to.
+// The version before it tested `pathname.endsWith('/dist/capture.js')`, and the
+// next adverse pass showed the suffix is not the entry module: a missing
+// RELATIVE transitive specifier does populate `err.url`, and one that happens to
+// resolve to some other `…/dist/capture.js` was classified as a missing self and
+// skipped. Measured — entry at `<tmp>/a/dist/capture.js` importing a missing
+// `../../b/dist/capture.js` yields `err.url` under `b/`, which the suffix
+// predicate accepts and the exact one rejects.
+//
+// Suffix matching was a workaround for a symlink worry, and the worry does not
+// apply to the case it was protecting. Measured on Node v26.5.0 through a
+// deliberately symlinked path: for a MISSING entry module Node reports `err.url`
+// as the specifier's own href with symlinks UNRESOLVED, so it equals
+// `pathToFileURL(distCapture).href` exactly, `/var` vs `/private/var` and all.
+// Realpath only enters once a module has actually loaded and Node resolves that
+// module's own imports — which is the transitive case, the one that must rethrow
+// anyway. Anything other than the exact match rethrows.
 try {
   const mod = await import(distCapture);
   capturePage = mod.capturePage;
@@ -69,12 +85,10 @@ try {
   classifyVideoArtifact = mod.classifyVideoArtifact;
   extractStaticTraits = mod.extractStaticTraits;
 } catch (err) {
-  let missingSelf = false;
-  if (err && err.code === 'ERR_MODULE_NOT_FOUND' && typeof err.url === 'string') {
-    try {
-      missingSelf = new URL(err.url).pathname.endsWith('/dist/capture.js');
-    } catch { missingSelf = false; }
-  }
+  const missingSelf =
+    err && err.code === 'ERR_MODULE_NOT_FOUND' &&
+    typeof err.url === 'string' &&
+    err.url === pathToFileURL(distCapture).href;
   if (!missingSelf) {
     throw new Error(
       'dist/capture.js exists but failed to load, which is a real defect and ' +

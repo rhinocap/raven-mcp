@@ -1282,6 +1282,120 @@ both.
   f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`, unchanged.
   `src/grab-bridge.ts` changed, so `dist/` was rebuilt before all of the above.
 
+### 3l. Round 15 — dispositioning Sol round 14
+
+Sol round 14 (xhigh, detached, report-only) returned **`OVERALL: DOES NOT
+SURVIVE`**. Two claims held, four did not.
+
+| Claim | Verdict | Round-15 disposition |
+|---|---|---|
+| C1 — the overlay's threat model is now stated honestly | **SURVIVES.** "No greater capability is exposed. Gating on `isTrusted` would not create a security boundary." | none needed |
+| C2 — the two-clock bound cannot be made unbounded | **SURVIVES.** Probed absent `performance`, a BigInt `performance.now`, a throwing `performance.now`, a throwing `Date.now` — every one yields `Infinity` or throws at the fixture, never a passing delta | none needed |
+| C3 — Max-Age parsing follows RFC 6265 | **FAILS** — the bridge trims attributes with JavaScript `.trim()` | fixed |
+| C4 — the private-path gate's bypasses are closed | **FAILS** — overlapping matches | fixed |
+| C5 — the `err.url` discriminator separates the two `ERR_MODULE_NOT_FOUND` shapes | **FAILS** — suffix ≠ identity | fixed |
+| C6 — the round-14 tests encode rather than detect | **FAILS** — the span bound is asserted, not measured | fixed |
+
+**C3 — `.trim()` is not RFC 6265 §5.2.** §5.2 removes **WSP** and only WSP: SP
+(0x20) and HTAB (0x09). `String.prototype.trim()` removes the entire Unicode
+WhiteSpace set — U+00A0, U+2028, U+FEFF and the rest. So `Max-Age=<U+00A0>5`
+reached the digit test as a clean `5`. Under the RFC that value is **invalid**,
+which means the `Expires` on the same header decides and the cookie is deleted;
+the parser instead accepted a five-second lifetime and, because round 14 had
+just given Max-Age precedence, *suppressed* the Expires. A cookie the server
+asked to delete kept being sent. Sol confirmed it against a live bridge probe,
+not by reading — the probe returned `session=live`.
+
+The shape is worth naming: over-trimming turns an **invalid** value into a
+**valid** one, so every existing Max-Age test walks past it. They all feed the
+parser a value that is already clean, and the round-14 precedence fix is what
+converted a parse bug into a retained session.
+
+Fix: a `trimWsp()` helper that walks charCodes for 0x20/0x09 only, applied to
+both halves of each attribute in `src/grab-bridge.ts`.
+
+**C4 — an excluded hit took an overlapping foreign path with it.** `RegExp.exec`
+under `/g` resumes at the **end** of the previous match. Round 13 made the scan
+iterate every match rather than take the first, which fixed the symptom it was
+looking at; it did not fix the mechanism. A line holding a repo-relative path,
+a delimiter, and a foreign one produced a single span starting inside the repo,
+the repoRoot exclusion discarded it, and `lastIndex` had already moved past the
+foreign path's own start offset. Sol's input: the repo root, then `/artifact:`,
+then a nested private path under another user's home — `findPrivatePath()`
+returned `null`. Fix: on an excluded hit, rewind `lastIndex = match.index + 1`.
+
+**C5 — a suffix is not an identity.** Round 14 discriminated "the entry module
+is missing" from "a transitive dependency is missing" by testing whether
+`err.url`'s pathname *ends with* `/dist/capture.js`. That holds for a missing
+*bare* specifier, which populates no `url` at all — but a missing **relative**
+transitive specifier does populate it, and Sol's fixture produced a `url` under
+a temp dir ending in exactly that suffix, classified as `missingSelf` and
+swallowed by `process.exit(0)`. Fix: compare against
+`pathToFileURL(distCapture).href` exactly. The symlink worry that motivated the
+suffix does not arise — `new URL(href)` and `import(path)` resolve from the same
+base.
+
+**C6 — asserting a constant does not measure the matcher.** The round-14 gate
+test pinned `NESTED_SPAN_MAX === 4096` and separately caught a 301-character
+path. Leave the constant at 4096 and build the regex with `{1,512}` and every
+test still passes while a 601-character path goes unseen. Fix: build the
+fixtures *from* the constant and measure both directions at the boundary — a
+path at `NESTED_SPAN_MAX - 1` must be caught, one at `NESTED_SPAN_MAX + 200`
+must not.
+
+Sol independently re-confirmed the frozen surfaces (108 stdio, 45 anonymous,
+hash unchanged, overlay mirror byte-identical, only `src/grab-bridge.ts` touched
+under `src/`) and measured that raising the span bound costs nothing — median
+20.93ms against 20.97ms over a 14.8MB blob. Its own `npm test` read 1265 total /
+1194 pass / 0 fail / **71 skipped**; the extra skips are Playwright Chromium
+Mach-port denials inside its sandbox, not failures.
+
+### Round-15 falsifiability reverts
+
+| Revert | Measured |
+|---|---|
+| R1 — restore `.trim()` at both attribute call sites | 1 fail / 5 pass in round 9, on the **`accepted as valid and suppressed`** assertion |
+| R2 — drop the `lastIndex = match.index + 1` rewind | 1 fail / 3 pass, on the **overlapping-path** assertion |
+| R3 — leave `NESTED_SPAN_MAX` at 4096 and build the regex with `{1,512}` | 1 fail / 3 pass, on the **at-bound** assertion |
+| R4 — restore `pathname.endsWith('/dist/capture.js')` | probe, not a suite test — see below |
+
+R3 is the important one to read carefully: the constant is untouched at 4096 and
+the standalone `assert.equal(NESTED_SPAN_MAX, 4096)` still passes. Only the
+boundary fixtures catch it, which is the whole point of building them from the
+constant instead of from a literal.
+
+R4 has no in-suite test and cannot have one — the suite cannot make its own entry
+module vanish — so both predicates were run against the same thrown error. Entry
+at `<tmp>/a/dist/capture.js` importing a missing `../../b/dist/capture.js`:
+`err.url` lands under `b/`, the suffix predicate calls it `missingSelf` and exits
+0, the exact predicate rethrows.
+
+A second probe settled the symlink question that motivated the suffix in the
+first place. Through a deliberately symlinked path, a **missing entry module**
+gives `err.url` as the specifier's own href with symlinks UNRESOLVED — it equals
+`pathToFileURL(distCapture).href` exactly, `/var` against `/private/var` and all.
+Realpath only enters once a module has loaded and Node resolves *that* module's
+imports, which is the transitive case that must rethrow anyway. The comment now
+carries the measurement instead of the reasoning that replaced it.
+
+### Round-15 verification
+
+- `RAVEN_NO_USAGE_LOG=1 npm test` — **1266 tests / 1263 pass / 0 fail / 3
+  skipped**, 44.9s. +1 over round 14, which is the NBSP cookie test; the gate and
+  `capture.test.mjs` fixes live inside existing tests and move no count.
+- `node test/e2e-pattern-library.mjs` — `ALL CHECKS PASSED`.
+- `cmp browser/raven-grab.js web/public/raven-grab.js` — byte-identical. No
+  overlay change this round: C1 and C2 both survived.
+- Frozen surfaces — `108 45
+  f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`, unchanged.
+
+One note on the fixture itself. The U+00A0 is written as the escape `'\u00A0'` and asserted
+(`NBSP.charCodeAt(0) === 0xA0`) rather than pasted literally: a literal is one
+editor normalisation away from an ordinary space, at which point the header is
+well-formed, the cookie is correctly retained, and the test passes while
+measuring nothing. That is the same failure this file has now recorded three
+times under a different disguise.
+
 ## 4. Committed set — round 12
 
 Round 12 committed: `CLAUDE.md`, `browser/raven-grab.js`, `web/public/raven-grab.js`,
