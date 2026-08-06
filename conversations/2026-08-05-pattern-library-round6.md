@@ -2633,3 +2633,107 @@ anon 45 hash unmoved.
 Gate: 1312 tests / 1309 pass / 0 fail / 3 skipped (+5, all in
 `test/pattern-library-tools.test.mjs`); `node test/e2e-pattern-library.mjs` ALL
 CHECKS PASSED at 43 checks (+4); frozen probe `109 45 f64bb18…2bb0a6`.
+
+## §13 — Sol round 3 on the takedown, and the five fixes it earned
+
+Commit `b9b734e`. Sol returned nine findings against the round-2 takedown (4 P1,
+5 P2). Every one was measured against the code before being accepted or refused;
+five were fixed, three were partly refused with the reason recorded, and one was
+already true.
+
+**P1-a — a hostname that parses but cannot name a site. FIXED.**
+Measured first, on Node 26.5.0: `linear..app`, `.linear.app`, `linear.app.`,
+`-x.app` and a 300-character label all pass through `new URL()` without
+throwing. So `canonicalHost` returned them unchanged, nothing matched, and the
+caller was answered with `removed: []` and every failure field empty — the exact
+shape of a host that really is clear. The typo produced the empty result.
+
+The half of P1-a about `linear.app:65535` and `linear%2eapp` "widening" the
+request is **refused**: a record stores no port, so `example.com:443` can only
+mean the site, and `%2e` IS a dot. Both are correct canonicalization and both
+are pinned by an existing test.
+
+Where the check lives was the real decision. `hostMatches` canonicalises the
+STORED host through the same function, so putting the syntax gate inside
+`canonicalHost` would make a record captured from `-x.app` unmatchable by any
+takedown at all — still on disk, never reported. That is the same false
+all-clear one layer down, and it now has its own test.
+
+**P1-b — an unpinned removal cannot report what appeared. FIXED at the seam.**
+Correctly described and not fixable in the store: without `expected_ref_ids`
+there is no baseline. The note now says so, because `appeared_since_preview`
+being empty means nothing was compared, not that nothing arrived.
+
+**P1-c — even a pinned confirmation can falsely clear. FIXED, partially.**
+The plan is one scan taken before the first unlink, so the answer describes the
+directory as it was. `still_present` re-reads it after the sweep. This does not
+make the sweep atomic and the comment says so: a capture landing after the
+re-read is still missed. It moves the unobserved window from the whole sweep to
+the last few syscalls.
+
+The positive direction is **not covered by a test and that is stated in the test
+file**: the sweep is synchronous, so nothing in-process can create a record
+while it runs, and a genuinely concurrent writer is timing-flaky. What IS tested
+is the exclusion rule in both directions — a pinned-out record and a failed one
+are already named and must not appear twice.
+
+**P1-d — a thumbnail can resurrect a removed reference. FIXED.**
+My round-2 disposition of this class was **wrong**: I reasoned about fresh
+ref_ids, and Sol's case is the SAME reference, with a whole Chromium render
+between the read and the write-back. A takedown landing there was reported
+successful and then had both the record and a rendered PNG restored underneath
+it.
+
+The test needed a real synchronous hook into the middle of the function, and
+`size.height` is read after the record is loaded — a getter on it deletes the
+record mid-call. **The first draft deleted the record first and passed against
+the defect**, because the opening `getReference` already catches that case. Same
+class as the round-9 overlay redispatch test: assume a new test does not work
+until a revert proves it red.
+
+**P2-a — a missing record file reported as an unreadable one. FIXED.**
+`recordFiles` unions the index with the directory, so an id whose file is gone
+survives the scan, hits ENOENT in `readRecord`, and lands in `skipped` — which
+the tool renders as "N record(s) could not be read and were left on disk" about
+a disk that is clean. Permanently: nothing prunes the index for a file that is
+not there. This is the delete path's own half-state producing a false NOT-clear
+on every subsequent read.
+
+**P2-b — the note claimed a repair that had not happened. FIXED.**
+The rebuild happens inside `deleteReference`, so a run matching nothing rebuilt
+nothing while the sentence said it had.
+
+**P2-c — "no input reaches this line" was false. FIXED (the comment).**
+`hostMatches("127.0.0.1", "127.0.0.2")` reaches `isIpLiteral` on the first
+operand. The claim should have been, and now is, that no input reaches it and
+CHANGES the outcome — the version I wrote made a live clause look like dead code
+a cleanup could take.
+
+**P2-d and P2-e — accepted as real, not fixed this round.** The `isReadableFile`
+weakening is only killed by a Chromium-gated test though file classification
+needs no browser, and `serviceWorkers: "block"` has no mutant-killing test. Both
+are coverage gaps in tests that already pass; neither is a live defect. Carried.
+
+### Mutants
+
+| Mutant | Fails |
+|---|---|
+| V1 no hostname-syntax gate | the typo test only |
+| V2 gate moved into `canonicalHost` | the typo test AND the malformed-stored-host test — which is the point: it proves the check's LOCATION, not just its presence |
+| V3 missing record file classified unreadable | the index-entry test only |
+| V4 `still_present` does not exclude what is already named | the still-present test only |
+| V5 no record check before write-back | the resurrect test only |
+| V6 note claims the rebuild again | the note test only |
+| V7 no unpinned warning | the note test only |
+
+The first harness run was junk and looked like a result: it crashed after
+writing V1 into `dist/` and before restoring, so the next run backed up an
+already-mutated file and every subsequent mutant showed the typo test red. The
+harness now runs a clean baseline and aborts if it is not green. V6's first
+version was a syntax error rather than a mutant — a string replacement that left
+`"…" + "` dangling — and reported the FILE red rather than a test, which is the
+tell.
+
+Gate: 1319 tests / 1316 pass / 0 fail / 3 skipped (+7, all in
+`test/reference-forget.test.mjs`); `node test/e2e-pattern-library.mjs` ALL CHECKS
+PASSED at 43 checks; frozen probe `109 45 f64bb18…2bb0a6`.
