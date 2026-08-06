@@ -1765,6 +1765,127 @@ hash, and byte-identical overlays.
 
 Sol round 18 is the open item; no completion claim until it is dispositioned.
 
+### 3p. Round 19 — dispositioning Sol round 18
+
+Sol round 18 ran xhigh, detached, in the neutral correctness-review framing, and
+returned `SUMMARY: SOME CLAIMS DO NOT HOLD`. His own targeted subset was 11 pass
+/ 0 fail / 0 skipped; he could **not** run the full suite (it rebuilds `dist`,
+and a temp checkout failed `Operation not permitted`), so there is no independent
+full-suite skip count from that review — do not read his 11/11 as coverage.
+
+| Claim | Verdict | His rank | Disposition |
+|---|---|---|---|
+| C1 — Expires §5.1.1 conformance complete | DOES NOT HOLD | 2/4 | comment precision only; the round-trip itself measured correct |
+| C2 — the gate's two end-based discriminators are correct | DOES NOT HOLD | 1/4 | rule replaced |
+| C3 — the sweep is honest and well chosen | **HOLDS** | — | — |
+| C4 — the load discriminator classifies broken trees correctly | DOES NOT HOLD | 3/4 | symlink resolution added |
+| C5 — the cookie tests fail on any wrong replayed header | DOES NOT HOLD | 4/4 | fixture added |
+| C6 — frozen surfaces unchanged | **HOLDS** | — | re-verified independently |
+
+#### C2 — path-boundary detection from raw text is undecidable, so pick a reading
+
+Sol's three counterexamples were **reproduced here before being accepted**, and
+all three behaved exactly as reported. Discriminator (1) skipped a span starting
+with the repo root and a space, so a foreign path after it was discarded whole;
+discriminator (2) skipped a tooling directory preceded by a space, so a home
+directory whose folder name legitimately **ends** in a space was never reported.
+
+The finding underneath both: a space is a legal path character, so
+`A /B/.claude` is simultaneously one path whose directory name ends in a space
+and two space-separated tokens. Leftmost (round 17), innermost (round 16),
+all-anchors (round 18) and the two end-based discriminators are each a **bet on
+one reading**, and each was refuted by an input exercising the other. There is
+no discriminator to find. The fix is to choose a reading deliberately, state it,
+and pin the residual.
+
+The chosen rule: a tooling directory belongs to the **nearest home-directory
+start that BEGINS A TOKEN**. The token-start half is not a refinement — it is
+the other half of the rule, and it is what keeps the round-16 nesting case
+(`<home>/backup<repoRoot>/.claude`, no spaces, exactly one legal reading)
+caught. An anchor preceded by `[A-Za-z0-9._-]` continues a segment name; one
+preceded by anything else — space, `/`, `:`, or start-of-span — is a genuine
+token start. `/` and `:` are in the second class deliberately: the existing
+`<repoRoot>/artifact:<home>/someone/My Project/.claude` fixture would have been
+discarded by a bare "preceded by a space" test.
+
+Both discriminators are deleted. Choosing the rule was a **measurement, not an
+argument**: the prototype was run against the real index first — **0 hits across
+1153 tracked files** — which is what established that the round-18 prose fixture
+I had constructed was hypothetical rather than a real tracked file, and
+therefore that the trailing-space miss was the right side of the trade to accept
+and document. It is pinned as `assert.equal(..., null)` with a message telling a
+future reader to check the prose fixture still returns null before calling a
+change to that verdict an improvement.
+
+#### C4 — `lstat` and `stat` answer different questions
+
+Round 18 walked ancestors with `lstat` alone, so a `dist -> /real/build` symlink
+pointing at a **live** directory was classified as a broken tree. It is not: the
+symlink is transparent and the entry below it is simply not built yet. `lstat`
+says what the entry *is*; `stat` says what it *resolves to*, and the ancestor
+walk needs both. This is not theoretical on this machine — on macOS `/tmp` is
+itself a symlink to `/private/tmp`, so every temp-dir fixture in the suite sits
+under one.
+
+#### C5 — the branch no fixture reached
+
+`if (separator <= 0)` folds two rejections together: `indexOf` returning `-1`
+(no `=` at all) and returning `0` (an empty name). No fixture anywhere in
+`test/` sent a `Set-Cookie` pair without an `=`, so weakening it to `=== 0`
+passed everything. The harm is not a dropped cookie, it is an **invented** one —
+measured with exactly that mutant, `Set-Cookie: flag; Path=/` is stored under a
+name sliced at `-1` and replayed upstream as `Cookie: fla=flag; real=yes`. Same
+harm class as the U+00A0 cases, reached through the other branch. The new
+fixture sends the no-`=` pair, an empty-name pair, and a control that must
+survive, and asserts the **exact** replayed header.
+
+#### C1 — RFC-conformant and browser-equivalent are two different claims
+
+The round-trip is correct; re-measured here: `1600 April 15 21:01:22` → ignored,
+`1601 …` → parses, `31 Apr 2020` → ignored, `01 Apr 2020` → parses, `29 Feb
+2020` → parses, `29 Feb 2021` → ignored. What does not hold is the comment's
+"which is what browsers do": §5.1.1 floors the year at ≥1601 and Chromium
+accepts 1600 as an out-of-RFC extension, so that one header is a live session
+cookie here and an expired one there. The floor stays where the RFC puts it —
+the comment now states the divergence, names the direction honestly (an ignored
+`Expires` **keeps** a cookie the server was trying to kill, which is not free
+even though it never invents one), and tells a reader not to treat "what
+browsers do" anywhere in the file as parity with any engine.
+
+#### Round-19 falsifiability reverts
+
+Each was applied, measured, and reverted. Note the assertion-ordering limit:
+these fixtures live inside one test function and `assert` aborts at the first
+failure, so isolating (a) from (b) needed **two** mutants, not one.
+
+| Revert | Fails | Isolates only its own assertion |
+|---|---|---|
+| drop the `PATH_NAME_CHAR` token-start filter (bare nearest anchor) | the round-16 nesting assertion | yes |
+| drop the nearest-anchor rule → all-anchors | the **real staged index** AND the prose fixture | see below |
+| restore both round-18 discriminators | fixture (a): repo root + space + foreign path | first of two |
+| discriminator (2) alone, on top of the round-19 rule | fixture (b): directory name ending in a space | reaches (b) past (a) |
+| `separator <= 0` → `separator === 0` in `dist/grab-bridge.js` | the new no-`=` cookie test | yes, 1 of 11 |
+| remove the `statSync` resolution in `entryPresent` | the live-directory-symlink fixture | yes |
+
+The all-anchors revert is the strongest result of the round and was not
+predicted: it fails on a **genuinely tracked file** —
+`.claude/pregate-2026-08-02/round2/raw/round2-judges-refuters.json`, whose text
+is the repo root, a space, prose, then a rooted path back into this checkout's
+own `.claude`. That is the round-18 discriminators earning their keep on real
+content, and the round-19 rule subsuming them without the two misses.
+
+#### Round-19 verification
+
+- `RAVEN_NO_USAGE_LOG=1 npm test` — **1272 tests / 1269 pass / 0 fail / 3
+  skipped**, 44.9s. The +1 over round 18 is the one new cookie test; the gate
+  rewrite, its four fixtures, the `entryPresent` symlink resolution and fixture
+  (h) all live inside existing tests and move no count.
+- `node test/e2e-pattern-library.mjs` — `ALL CHECKS PASSED`.
+- `cmp browser/raven-grab.js web/public/raven-grab.js` — byte-identical.
+- frozen probe — `108 45 f64bb18…2bb0a6`, unchanged.
+
+Sol round 19 is the open item; no completion claim until it is dispositioned.
+
 ## 4. Committed set — round 12
 
 Round 12 committed: `CLAUDE.md`, `browser/raven-grab.js`, `web/public/raven-grab.js`,

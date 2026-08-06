@@ -569,3 +569,50 @@ test('an Expires naming a day that does not exist fails to parse, and is ignored
     await new Promise((resolve) => upstream.close(resolve));
   }
 });
+
+test('a Set-Cookie with no "=" is ignored, not split at character zero', async () => {
+  // §5.2 step 1: if the name-value pair contains no `=`, ignore the Set-Cookie
+  // header entirely. The guard is `separator <= 0`, which folds two different
+  // rejections together — `indexOf` returning -1 (no `=` at all) and returning 0
+  // (an empty name). Weaken it to `=== 0` and every existing fixture still
+  // passes, because none of them sends a pair without an `=`.
+  //
+  // The failure is not a dropped cookie, it is an INVENTED one: `flag` with no
+  // separator gets stored under a name sliced at -1 and replayed as `fla=flag`,
+  // so the bridge sends upstream a credential no server ever set. That is the
+  // same harm class as the U+00A0 cases above, reached through the other branch.
+  const seen = [];
+  let issued = 0;
+  const upstream = createServer((req, res) => {
+    seen.push({ url: req.url, cookie: req.headers.cookie || '' });
+    const headers = { 'Content-Type': 'text/html; charset=utf-8' };
+    if (issued === 0) {
+      headers['Set-Cookie'] = [
+        'flag; Path=/; SameSite=Strict',          // no `=` at all: must be ignored
+        '=orphan; Path=/; SameSite=Strict',       // empty name: must be ignored
+        'real=yes; Path=/; SameSite=Strict'       // the control: must be kept
+      ];
+    }
+    issued += 1;
+    res.writeHead(200, headers);
+    res.end('<!doctype html><html><body><h1>up</h1></body></html>');
+  });
+  await new Promise((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+  const upstreamUrl = 'http://127.0.0.1:' + upstream.address().port;
+
+  try {
+    const session = await bridge.startGrabSession(await designMd(), undefined, upstreamUrl, 'consumer');
+
+    await request(session.url + '/login', { headers: SAME_ORIGIN });
+    await request(session.url + '/replay', { headers: SAME_ORIGIN });
+
+    assert.equal(seen[1].cookie, 'real=yes',
+      'a Set-Cookie with no "=" (or an empty name) was stored and replayed — the ' +
+      'bridge is sending upstream a credential the server never set. The control ' +
+      'cookie must survive, or the header is being ignored wholesale: ' +
+      JSON.stringify(seen[1].cookie));
+  } finally {
+    await bridge.stopGrabSession();
+    await new Promise((resolve) => upstream.close(resolve));
+  }
+});

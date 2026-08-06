@@ -16,7 +16,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
-import { lstatSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { lstatSync, mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 
 // ── Resolve paths ────────────────────────────────────────────────────────────
@@ -125,8 +125,23 @@ let extractStaticTraits;
 //     entry itself is unreachable rather than merely missing
 // ENOTDIR is now correctly rethrown. The dangling-ANCESTOR case is genuinely
 // indistinguishable from an absent entry at the syscall level (both ENOENT), so
-// it is resolved by walking up: if any ancestor exists but is not a directory,
-// or is a symlink that does not resolve to one, the tree is broken.
+// it is resolved by walking up the chain.
+//
+// Walking with `lstat` ALONE was wrong, and a round-18 pass produced the input:
+// a symlinked ancestor that resolves to a real directory. `dist -> /real/build`
+// with `capture.js` not yet written is a legitimately unbuilt tree, and it is a
+// shape people actually have — but `lstat(dist).isDirectory()` is false for any
+// symlink, live or dangling, so the run rethrew and demanded a build that had
+// simply not happened. The reviewer hit it on this machine via `/tmp`, which on
+// macOS is itself a symlink to `/private/tmp`; every temp-dir fixture in this
+// file sits under one.
+//
+// So the walk asks BOTH questions, in order, because they are different
+// questions: `lstat` says "what is this entry" (is it a symlink at all), and
+// `stat` says "what does it resolve to" (a real directory, or nothing). A
+// symlink that resolves to a directory is transparent — keep descending the
+// logic as if it were one. A symlink that resolves to nothing, or to a
+// non-directory, is the malformed case.
 function entryPresent(candidate) {
   try {
     lstatSync(candidate);
@@ -134,8 +149,9 @@ function entryPresent(candidate) {
   } catch (err) {
     if (!err || err.code !== 'ENOENT') return true;   // ENOTDIR, EACCES, ELOOP…
     // ENOENT on the entry itself is only an unbuilt tree if the whole ancestor
-    // chain is either absent or a real directory. An ancestor that exists as a
-    // dangling symlink is a malformed tree wearing an unbuilt one's errno.
+    // chain is either absent or resolves to a real directory. An ancestor that
+    // exists but resolves to nothing is a malformed tree wearing an unbuilt
+    // one's errno.
     let dir = path.dirname(candidate);
     for (;;) {
       let st;
@@ -151,7 +167,17 @@ function entryPresent(candidate) {
         return true;
       }
       if (st.isDirectory()) return false;              // a real directory: absent below it
-      return true;                                     // file or unresolvable link: broken
+      if (st.isSymbolicLink()) {
+        // Resolve it. A live directory symlink is transparent and the entry
+        // below it is simply not built yet; a dangling or non-directory target
+        // is the broken tree this branch exists to catch.
+        try {
+          return !statSync(dir).isDirectory();
+        } catch {
+          return true;                                 // dangling or looping: broken
+        }
+      }
+      return true;                                     // a regular file: broken
     }
   }
 }
@@ -1111,6 +1137,25 @@ test('the load discriminator distinguishes an unbuilt tree from a broken one', (
       'an entry module under a dangling directory symlink is a MALFORMED tree — ' +
       'ENOENT on the entry is the same errno an unbuilt tree gives, so the ' +
       'ancestor chain is the only thing that separates them'
+    );
+
+    // (h) an ancestor that is a LIVE directory symlink with the entry not yet
+    // written — `dist -> /real/build-directory` before a build. A round-18 pass
+    // found this classified as broken, because `lstat` reports every symlink as
+    // a non-directory. It is the ordinary unbuilt case for anyone whose build
+    // output is symlinked, and on macOS `/tmp` itself has this shape, so the
+    // fixtures in this very test sit under one.
+    const realBuild = path.join(tmp, 'real-build');
+    mkdirSync(realBuild);
+    const liveDirLink = path.join(tmp, 'live-dir-link');
+    symlinkSync(realBuild, liveDirLink);
+    const underLiveLink = path.join(liveDirLink, 'capture.js');
+    assert.equal(
+      isMissingEntryModule(notFound(hrefOf(underLiveLink)), underLiveLink, hrefOf(underLiveLink)),
+      true,
+      'an entry module under a LIVE directory symlink was called a broken tree — ' +
+      'a symlink that resolves to a real directory is transparent, and the entry ' +
+      'below it is simply not built yet'
     );
 
     // …and the control that keeps (f)/(g) from becoming rethrow-everything: a

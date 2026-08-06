@@ -52,6 +52,11 @@
 //     nobody has invented yet.
 //   * Text inside a file with an extension in SKIP_EXT (a text-bearing PDF), a
 //     file over 8MB, or one containing a NUL byte.
+//   * A foreign home directory whose LAST segment ends in a space, immediately
+//     followed by a rooted path into this checkout. The nearest home-directory
+//     start is then the repo root, so it reads as this repo's own. That input is
+//     byte-identical in shape to ordinary prose naming two paths on one line,
+//     which tracked files do constantly — see the anchor discussion below.
 //   * A NESTED path whose middle segment runs past NESTED_SPAN_MAX (4096) chars.
 //     That is longer than PATH_MAX on either platform, so it cannot name a real
 //     location — but the bound exists and is a bound. It was 200 until an adverse
@@ -203,43 +208,76 @@ const NESTED_SPAN_MAX = 4096;
 // starts inside that window with a non-backtracking pass. Cost is bounded by
 // `NESTED_SPAN_MAX` per tooling hit.
 //
-// Two discriminators are still needed, and BOTH are about where a path ends —
-// which is the only genuinely hard question here, because the bytes are
-// ambiguous. `<home a> <home b>/.claude` is either one path whose directory name
-// ends in a space or two paths with prose between them, and nothing in the
-// string settles it. The first version of this guessed from the MIDDLE ("does a
-// second rooted home start appear after a space?"), and an adverse pass showed
-// that guess is wrong in both directions: it missed a foreign home followed by a
-// space and this checkout, and it flagged an ordinary sentence naming a home
-// directory and a bare tooling directory. Both discriminators below look at the
-// ENDS instead, where there is real evidence.
+// The all-anchors rule above lasted exactly one round. A later adverse pass
+// produced three measured counterexamples, and taken together they say something
+// stronger than "this rule has bugs": SPACE IS A LEGAL PATH CHARACTER, so
+// `A /B/.claude` is BOTH a single path whose directory name ends in a space AND
+// two space-separated tokens, and nothing in the bytes distinguishes them. Every
+// rule stated so far — leftmost, innermost, all-anchors, and the two end-based
+// discriminators that replaced the middle-of-span guess — is a bet on one of
+// those readings, and each was refuted by an input exercising the other.
 //
-// (1) An anchor whose span begins with this repo's root followed by a SPACE is
-//     excluded. That is the tracked-JSON shape: repo root, prose, repo root,
-//     tooling directory. Reading it as one path requires a directory literally
-//     named `raven-mcp ` sitting beside this checkout — and even under that
-//     reading the leak would be repo-local. Whatever follows the space gets its
-//     own anchor and is judged on its own, so a genuinely foreign path after a
-//     repo-local one is still caught. This is what replaced the middle test, and
-//     it is what makes the foreign-home-then-space-then-checkout case a hit.
+// So this no longer pretends to decide. It picks the reading deliberately and
+// says which one:
 //
-// (2) A tooling-directory hit immediately preceded by a SPACE is skipped by the
-//     nested scan entirely. `/.claude` starting its own space-delimited token is
-//     rooted at the filesystem root, not continuing anybody's home path — a path
-//     segment cannot be empty, so a continuation always has a non-space
-//     character before the separator. This is what kills the prose false
-//     positive, and it cannot touch the nesting case, where the character before
-//     the tooling directory is an ordinary path character.
+//   A tooling directory belongs to the NEAREST home-directory start that BEGINS
+//   A TOKEN. That anchor alone decides — inside this checkout means clean,
+//   anywhere else means a leak.
 //
-// Residual, stated rather than left to be found: a real leak of the form
-// `<home>/<dir ending in a space>/.claude` is missed by (2), and a real leak
-// under a directory beside this checkout named with a trailing space is missed
-// by (1). Both require a trailing-space directory name, which no tool here
-// produces. The direct matcher is unaffected by either — it only ever matches a
-// contiguous home-to-tooling path.
+// The token-start half is not a refinement, it is the other half of the rule,
+// and it is what keeps the round-16 nesting case caught. `<home>/backup<repoRoot>
+// /.claude` contains two matching starts but only ONE legal reading: the inner
+// one is preceded by an ordinary path-name character, so it is the continuation
+// of a segment, not a second path. Bare nearest-anchor takes it, lands on the
+// repo root and publishes a foreign home. An anchor preceded by a space, a
+// separator, a colon, or nothing at all is a genuine token start; one preceded
+// by a letter, digit, dot, underscore or hyphen is not.
+//
+// Nearest wins because the competing readings are not equally likely in the text
+// this gate actually scans. A nearer in-repo anchor means the foreign reading
+// requires a directory whose name ends in a space sitting immediately before a
+// rooted path — a shape no tool here produces — while the benign reading is
+// ordinary prose naming two paths on one line, which tracked runbooks, session
+// logs and pre-gate JSON do constantly. Measured against the real index at the
+// time of writing: zero hits across 1153 tracked files.
+//
+// The three inputs that killed the previous rule, all now correct:
+//
+//   `<repoRoot> /backup/.claude/x`              → LEAK. Only one anchor exists,
+//                                                 and its span is not inside the
+//                                                 checkout. (1) used to skip it.
+//   `<home>/My Project /.claude/x`              → LEAK. Same: the nearest and
+//                                                 only anchor is foreign. (2)
+//                                                 used to skip it.
+//   `prose <home>/p then <repoRoot>/.claude/x`  → CLEAN. The nearest anchor is
+//                                                 the repo root. All-anchors
+//                                                 returned the foreign one.
+//
+// ── The residual this buys, stated in full ────────────────────────────────────
+//
+// A foreign home directory whose LAST segment ends in a space, immediately
+// followed by a rooted path into this checkout and its tooling directory —
+// `<home>/Backup <repoRoot>/.claude/x` — reads as clean, because the nearest
+// anchor is the repo root. Under the one-path reading that is somebody else's
+// backup publishing silently.
+//
+// It is not closable. That input and the third case above are byte-identical in
+// shape; a rule that catches one flags the other, and the other is the shape
+// real tracked files have. This is a hygiene backstop, not a security control,
+// and the primary defense remains reading anything staged under a tooling
+// directory before committing it. Both cases are pinned as tests below so the
+// verdict cannot change silently.
+//
+// The direct matcher is unaffected — it only ever matches a contiguous
+// home-to-tooling path with no space in it.
 const TOOL_DIR_HIT = new RegExp('\\/\\.' + TOOL_DIRS + '\\b', 'g');
 const HOME_START = /(?:(?:\/Users|\/home)\/[A-Za-z0-9._@-]+|\/root)\//g;
 const SPAN_BREAK = new Set(['\n', '\r', '\t', '"', "'", '`']);
+// An ordinary character inside a path SEGMENT name. Deliberately excludes `/`
+// and `:` — a home start after either of those begins a new token in the text
+// this scans (a second rooted path, a `file:` prefix, a `key:value` log line),
+// while one after a letter or digit is the continuation of a segment name.
+const PATH_NAME_CHAR = /[A-Za-z0-9._-]/;
 
 function findPrivatePath(text) {
   const direct = PRIVATE_PATH.exec(text);
@@ -249,9 +287,6 @@ function findPrivatePath(text) {
   let tool;
   while ((tool = TOOL_DIR_HIT.exec(text)) !== null) {
     const end = tool.index + tool[0].length;
-    // Discriminator (2): this tooling directory starts its own token, so it is
-    // rooted at `/`, not continuing the home path to its left.
-    if (tool.index > 0 && text[tool.index - 1] === ' ') continue;
     // Widest window a middle segment could legally occupy: back to the nearest
     // span-breaking character, and never further than the bound plus room for
     // the home-start prefix itself.
@@ -262,15 +297,31 @@ function findPrivatePath(text) {
     const window = text.slice(from, tool.index);
     HOME_START.lastIndex = 0;
     let start;
+    // The NEAREST anchor that STARTS A TOKEN decides — see the header. Every
+    // start is still enumerated (the scan cannot know which is nearest until it
+    // has seen them all, and `lastIndex` advances by one so overlapping starts
+    // stay reachable); the last one to survive both filters is judged.
+    //
+    // The token-start test is what separates the two ambiguity classes. An
+    // anchor preceded by an ordinary path-name character is a CONTINUATION of
+    // the path to its left — `<home>/backup<repoRoot>/.claude` has one legal
+    // reading and one real anchor, and taking the inner one there discards a
+    // whole foreign home. An anchor preceded by anything else begins its own
+    // token and is a candidate for nearest. `outermost` is the fallback for text
+    // where no anchor qualifies, so the scan never silently drops a hit.
+    let nearest = -1;
+    let outermost = -1;
     while ((start = HOME_START.exec(window)) !== null) {
       const at = from + start.index;
       const middleLength = tool.index - (at + start[0].length);
       HOME_START.lastIndex = start.index + 1;
       if (middleLength < 1 || middleLength > NESTED_SPAN_MAX) continue;
-      const hit = text.slice(at, end);
-      // Discriminator (1): this anchor's own path IS this checkout's root, and
-      // the span only reaches the tooling directory by absorbing a space.
-      if (hit.startsWith(repoRoot + ' ')) continue;
+      if (outermost < 0) outermost = at;
+      if (at === 0 || !PATH_NAME_CHAR.test(text[at - 1])) nearest = at;
+    }
+    if (nearest < 0) nearest = outermost;
+    if (nearest >= 0) {
+      const hit = text.slice(nearest, end);
       const escapesRepo = hit.split('/').includes('..');
       if (escapesRepo || !hit.startsWith(repoRoot + '/')) return hit;
     }
@@ -511,19 +562,21 @@ test('the gate is falsifiable — its own pattern matches a synthetic leak', () 
     'the space fix and the rewind have to hold at the same time');
 
   // The sixth bypass, from the round-16 pass: a foreign home directory whose
-  // inner segments spell this checkout — someone else's backup. Re-anchoring on
-  // the INNERMOST start lands on the repo root, the exclusion fires, and a whole
-  // foreign home publishes. Leftmost is wrong for the space case and innermost is
-  // wrong for this one, which is why the verdict is taken over every anchor.
+  // inner segments spell this checkout — someone else's backup, with NO space
+  // anywhere. Re-anchoring on the innermost start lands on the repo root and the
+  // exclusion fires, so a whole foreign home publishes. This one is unambiguous:
+  // there is exactly one legal reading, and the nearest anchor is the foreign
+  // home, because `<repoRoot>` here is a middle segment rather than a start.
   assert.ok(findPrivatePath(ROOT_MAC + '/bob/backup' + repoRoot + DOT + 'claude/settings.json'),
-    'a foreign home path that NESTS this checkout was excluded — the innermost ' +
-    'anchor is the repo root, so a single-anchor rule discards someone else\'s ' +
-    'entire home directory');
+    'a foreign home path that NESTS this checkout was excluded — the inner start ' +
+    'is preceded by an ordinary path character, so it CONTINUES the outer path ' +
+    'rather than beginning a token, and taking it as the anchor discards ' +
+    'someone else\'s entire home directory');
 
   // …and the negative control that keeps the rule above from becoming
   // report-everything. Prose naming this repo twice, with a space before the
-  // second path, is not a leak. This exact shape is in a tracked file, so
-  // dropping the prose-join filter turns the whole-tree scan red.
+  // second path, is not a leak. This exact shape is in a tracked file, so a rule
+  // that reports it turns the whole-tree scan red.
   assert.equal(
     findPrivatePath(repoRoot + ' and then run node ' + repoRoot + DOT + 'claude/x.mjs'),
     null,
@@ -531,31 +584,63 @@ test('the gate is falsifiable — its own pattern matches a synthetic leak', () 
     'gate that fires on its own repo gets muted, which is how this class got ' +
     'through three times already');
 
-  // The seventh and eighth findings, from the round-17 pass, are the two ways
-  // the previous middle-based discriminator misread where a path ends.
+  // ── The nearest-anchor rule, and the ambiguity it resolves by choosing ──────
   //
-  // (a) A foreign home whose directory name ends in a space, then this checkout.
-  //     The old filter saw ` <home start>` in the middle and called the whole
-  //     thing prose, so a foreign home directory published silently.
+  // Round 17 replaced a middle-of-span guess with two end-based discriminators;
+  // round 18 refuted BOTH with measured inputs. The three that follow are those
+  // inputs. They are here because each one, individually, is what makes the
+  // nearest-anchor rule the only remaining candidate — see the header.
+  //
+  // (a) This checkout's root, a space, then a foreign path. Discriminator (1)
+  //     skipped the whole span on the `repoRoot + ' '` prefix. There is only ONE
+  //     anchor here, so "nearest" and "only" coincide, and it is foreign.
   assert.ok(
-    findPrivatePath(ROOT_MAC + '/bob/Backup ' + repoRoot + DOT + 'claude/settings.json'),
-    'a foreign home path whose directory name ends in a space, followed by this ' +
-    'checkout, was discarded as prose — the outer anchor is foreign and it is ' +
-    'the one that decides');
+    findPrivatePath(repoRoot + ' /backup' + DOT + 'claude/settings.json'),
+    'a path beginning with this checkout\'s root followed by a space was ' +
+    'discarded whole — the span it reaches is not inside the checkout, and the ' +
+    'repo-root prefix is not evidence about where the path ends');
 
-  // (b) An ordinary sentence naming a home directory and, separately, a bare
-  //     tooling directory. Nothing joins them: the tooling directory begins its
-  //     own token, so it is rooted at `/`. The old filter had no second home
-  //     start to key on and reported the entire sentence as a leak.
+  // (b) A foreign home whose directory name ends in a space, then a tooling
+  //     directory. Discriminator (2) skipped every tooling hit preceded by a
+  //     space, on the reasoning that a path segment cannot be empty — true, but
+  //     it assumes the space is a token break rather than the last character of
+  //     the directory name, which is exactly the thing that cannot be known.
+  assert.ok(
+    findPrivatePath(ROOT_MAC + '/alice/My Project ' + DOT + 'claude/settings.json'),
+    'a private path whose directory name ends in a space was skipped because ' +
+    'the tooling directory was preceded by one — a trailing space is a legal ' +
+    'part of a directory name, not proof of a token boundary');
+
+  // (c) The false positive the all-anchors rule produced, and the reason the
+  //     verdict cannot be taken over every anchor: an ordinary sentence naming a
+  //     foreign path and then this checkout's own tooling directory. The foreign
+  //     anchor can legally reach the hit, so all-anchors reported it.
   assert.equal(
     findPrivatePath(
-      'Docs mention ' + ROOT_MAC + '/alice/project is local; the tooling ' +
-      'directory is ' + DOT + 'claude/settings.json'
+      'Docs mention ' + ROOT_MAC + '/alice/project then see ' + repoRoot +
+      DOT + 'claude/settings.json'
     ),
     null,
-    'prose naming a home directory and a bare tooling directory in one sentence ' +
-    'was reported as a leak — a path segment cannot be empty, so a tooling ' +
-    'directory preceded by a space is not continuing anybody\'s home path');
+    'prose naming a foreign path and then this repo\'s own tooling directory was ' +
+    'reported as a leak — the tooling directory belongs to the NEAREST start ' +
+    'that can reach it, and that one is inside the checkout');
+
+  // (d) The residual, pinned as a test so it cannot change silently. A foreign
+  //     home whose directory name ends in a space, immediately followed by a
+  //     rooted path into this checkout, reads as CLEAN. Under the one-path
+  //     reading that is someone else's backup publishing.
+  //
+  //     This is byte-identical in shape to (c), which is the shape real tracked
+  //     files have — so a rule that catches this one flags those. It is not
+  //     closable from raw text, and the assertion below records the choice
+  //     rather than the wish.
+  assert.equal(
+    findPrivatePath(ROOT_MAC + '/bob/Backup ' + repoRoot + DOT + 'claude/settings.json'),
+    null,
+    'the documented residual changed verdict. A foreign home ending in a space ' +
+    'followed by this checkout is deliberately NOT flagged, because the input is ' +
+    'indistinguishable from the prose in (c). If this now returns a hit, check ' +
+    'that (c) still returns null before calling it an improvement');
 
   // The interior of the span, not just its boundary. Two adjacent endpoints
   // cannot separate a contiguous matcher from a discontiguous one that happens

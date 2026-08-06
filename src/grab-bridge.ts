@@ -1771,8 +1771,22 @@ function isCookieDateDelimiter(code: number): boolean {
 // than `Date.parse` (token order is free, the timezone is ignored, two-digit
 // years are mapped) and stricter (ISO forms fail, a three-digit day fails), so
 // only the algorithm itself gets both directions right. The known behaviour
-// change is that an ISO-8601 `Expires` now fails to parse — which is what
-// browsers do, and what the RFC requires.
+// change is that an ISO-8601 `Expires` now fails to parse, which the RFC
+// requires and which matches what browsers do.
+//
+// RFC-conformant and browser-equivalent are two different claims, and this is
+// the first only. An adverse pass measured the divergence: §5.1.1 step 5 says
+// a year below 1601 fails to parse, so `Expires=1600 April 15 21:01:22` is
+// IGNORED here and the cookie stays a live session cookie — Chromium accepts
+// 1600 as an out-of-RFC extension and treats the cookie as already expired.
+// The floor stays where the RFC puts it: the divergence is confined to dates
+// nine decades before the epoch, and moving it would be a bet against the spec
+// to match one engine's leniency. Name the direction honestly rather than
+// calling it safe — an ignored Expires KEEPS a cookie the server was trying to
+// kill, for the life of the grab session. It never invents a credential the
+// server did not set (that is the Max-Age and U+00A0 failure class, and it is
+// the worse one), but it is not free. Do not read "what browsers do" anywhere
+// in this file as a claim of byte-for-byte parity with any engine.
 function parseCookieDate(value: string): number | null {
   var tokens: string[] = [];
   var current = "";
