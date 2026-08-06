@@ -141,10 +141,15 @@ const NESTED_SPAN_MAX = 4096;
 // the `\b`-terminated tooling-directory anchor makes rare, and which is loud
 // and one rename away from fixed. A false negative publishes private context to
 // a public repo; that asymmetry is the whole reason this file exists.
-const NESTED_PRIVATE_PATH = new RegExp(
-  '(?:(?:\\/Users|\\/home)\\/[A-Za-z0-9._@-]+|\\/root)\\/[^\\n\\r\\t"\'`]{1,' + NESTED_SPAN_MAX + '}?\\/\\.' + TOOL_DIRS + '\\b',
-  'g'
-);
+//
+// Still NOT excluded, and named here rather than left to be rediscovered: the
+// apostrophe, the double quote, the backtick and the tab are all legal POSIX
+// filename characters, so a directory named with one of them is a remaining
+// bypass. They stay excluded because this scans source, JSON and Markdown, where
+// they are the delimiters that keep a span from swallowing a whole line — the
+// space was worth the trade because "My Project" is ordinary and `Andrew's
+// Project` is rarer than the false-positive cost of unquoting every string
+// literal in the repo. That is a judgement, not a proof.
 
 // True when the text stages an absolute private-tooling path from a machine
 // other than this checkout.
@@ -175,27 +180,80 @@ const NESTED_PRIVATE_PATH = new RegExp(
 // of the space, and was reported as a leak. Re-anchoring on the innermost start
 // is what makes the space safe to allow — it is not a convenience.
 //
-// Terminates because every iteration matches strictly inside the previous hit.
-const NESTED_ONE = new RegExp(NESTED_PRIVATE_PATH.source);
-function tightestHit(hit) {
-  let best = hit;
-  for (;;) {
-    const inner = NESTED_ONE.exec(best.slice(1));
-    if (inner === null) return best;
-    best = inner[0];
-  }
-}
+// Re-anchoring on the innermost start was ALSO wrong, and a later adverse pass
+// produced the input that shows it: a foreign home directory containing a
+// directory literally named `Users`, whose inner segments happen to spell this
+// checkout — `<foreign home>/backup<repoRoot>/.claude/settings.json`. The
+// innermost start is the repo root, the exclusion fires, and a backup of someone
+// else's home directory publishes silently. Leftmost was wrong for the space
+// case; innermost is wrong for the nesting case; there is no single correct
+// anchor.
+//
+// So the verdict is taken over ALL of them: a tooling directory is a leak when
+// ANY home-directory start that can legally reach it is outside this checkout,
+// and is excluded only when EVERY such start is inside it. That is strictly
+// stronger than either single-anchor rule, and it is what makes both the space
+// and the nesting case come out right.
+//
+// The scan is deliberately NOT the lazy-quantifier regex any more. Allowing the
+// space made that pattern's backtracking adversarial — the same pass measured
+// 640ms on 48KB of legal nested home starts, which extrapolates to roughly two
+// minutes on the 8MB blob ceiling, on every `npm test`. This walks each tooling
+// hit backwards to the nearest forbidden character instead, then finds the
+// starts inside that window with a non-backtracking pass. Cost is bounded by
+// `NESTED_SPAN_MAX` per tooling hit.
+//
+// One discriminator is still needed, and it is the thing that separates the two
+// wrong anchors from each other. Taking the verdict over every anchor puts the
+// space false positive back: a tracked JSON file writes this repo's own root,
+// then prose, then this repo's own tooling directory, and the OUTER anchoring of
+// that span starts at the repo root but does not start with `repoRoot + '/'` —
+// because the next character is a space — so it reads as foreign. What makes it
+// prose rather than a path is that the second absolute home path inside it is
+// preceded by a SPACE. A real directory name with a space in it does not then
+// contain another rooted home path; a sentence that mentions two paths does.
+// An anchor whose middle contains ` <home start>` is therefore not considered.
+//
+// The nesting case survives that filter precisely because it has no space: the
+// inner `Users` there is an ordinary path segment inside a backup directory.
+// Known residual, stated rather than left to be found: a foreign home path whose
+// directory name contains a space AND that then nests this checkout would be
+// missed. Prose that names a foreign home and a bare tooling directory on one
+// line is still a false positive — loud, and one rename from fixed.
+const TOOL_DIR_HIT = new RegExp('\\/\\.' + TOOL_DIRS + '\\b', 'g');
+const HOME_START = /(?:(?:\/Users|\/home)\/[A-Za-z0-9._@-]+|\/root)\//g;
+const PROSE_JOIN = / (?:(?:\/Users|\/home)\/[A-Za-z0-9._@-]+|\/root)\//;
+const SPAN_BREAK = new Set(['\n', '\r', '\t', '"', "'", '`']);
 
 function findPrivatePath(text) {
   const direct = PRIVATE_PATH.exec(text);
   if (direct) return direct[0];
-  NESTED_PRIVATE_PATH.lastIndex = 0;
-  let match;
-  while ((match = NESTED_PRIVATE_PATH.exec(text)) !== null) {
-    const hit = tightestHit(match[0]);
-    const escapesRepo = hit.split('/').includes('..');
-    if (escapesRepo || !hit.startsWith(repoRoot + '/')) return hit;
-    NESTED_PRIVATE_PATH.lastIndex = match.index + 1;
+
+  TOOL_DIR_HIT.lastIndex = 0;
+  let tool;
+  while ((tool = TOOL_DIR_HIT.exec(text)) !== null) {
+    const end = tool.index + tool[0].length;
+    // Widest window a middle segment could legally occupy: back to the nearest
+    // span-breaking character, and never further than the bound plus room for
+    // the home-start prefix itself.
+    const floor = Math.max(0, tool.index - NESTED_SPAN_MAX * 2);
+    let from = tool.index;
+    while (from > floor && !SPAN_BREAK.has(text[from - 1])) from -= 1;
+
+    const window = text.slice(from, tool.index);
+    HOME_START.lastIndex = 0;
+    let start;
+    while ((start = HOME_START.exec(window)) !== null) {
+      const at = from + start.index;
+      const middleLength = tool.index - (at + start[0].length);
+      HOME_START.lastIndex = start.index + 1;
+      if (middleLength < 1 || middleLength > NESTED_SPAN_MAX) continue;
+      const middle = text.slice(at + start[0].length, tool.index);
+      if (PROSE_JOIN.test(middle)) continue;
+      const hit = text.slice(at, end);
+      const escapesRepo = hit.split('/').includes('..');
+      if (escapesRepo || !hit.startsWith(repoRoot + '/')) return hit;
+    }
   }
   return null;
 }
@@ -431,6 +489,51 @@ test('the gate is falsifiable — its own pattern matches a synthetic leak', () 
   assert.ok(findPrivatePath(repoRoot + '/artifact:' + ROOT_MAC + '/someone/My Project' + DOT + 'claude/settings.json'),
     'a space-containing leak overlapping an excluded in-repo match was missed — ' +
     'the space fix and the rewind have to hold at the same time');
+
+  // The sixth bypass, from the round-16 pass: a foreign home directory whose
+  // inner segments spell this checkout — someone else's backup. Re-anchoring on
+  // the INNERMOST start lands on the repo root, the exclusion fires, and a whole
+  // foreign home publishes. Leftmost is wrong for the space case and innermost is
+  // wrong for this one, which is why the verdict is taken over every anchor.
+  assert.ok(findPrivatePath(ROOT_MAC + '/bob/backup' + repoRoot + DOT + 'claude/settings.json'),
+    'a foreign home path that NESTS this checkout was excluded — the innermost ' +
+    'anchor is the repo root, so a single-anchor rule discards someone else\'s ' +
+    'entire home directory');
+
+  // …and the negative control that keeps the rule above from becoming
+  // report-everything. Prose naming this repo twice, with a space before the
+  // second path, is not a leak. This exact shape is in a tracked file, so
+  // dropping the prose-join filter turns the whole-tree scan red.
+  assert.equal(
+    findPrivatePath(repoRoot + ' and then run node ' + repoRoot + DOT + 'claude/x.mjs'),
+    null,
+    'prose naming this repo\'s own tooling directory was reported as a leak — a ' +
+    'gate that fires on its own repo gets muted, which is how this class got ' +
+    'through three times already');
+
+  // The interior of the span, not just its boundary. A discontiguous mutant —
+  // `(?:class{1,512}|a{4096})` — passes both boundary assertions above while
+  // leaving everything between them unmatched.
+  assert.ok(findPrivatePath(nestWithMiddle(Math.floor(NESTED_SPAN_MAX / 2))),
+    'a leak nested to half the bound was missed, so the matcher is not ' +
+    'contiguous across the range — measuring only the endpoints cannot see that');
+
+  // Cost, asserted rather than assumed. Allowing the space turned the lazy
+  // quantifier into an adversarial backtracker: the round-16 pass measured
+  // 640ms on 48KB of legal nested home starts, which is about two minutes on
+  // this file's own 8MB blob ceiling — paid on every `npm test`, and paid by an
+  // ordinary large fixture rather than by an attacker. The window-and-anchor
+  // scan is bounded by NESTED_SPAN_MAX per tooling hit instead. The bound is
+  // loose on purpose; it is here to catch a return to quadratic behaviour, not
+  // to police milliseconds.
+  const adversarial = '/Us' + 'ers/alice/' + ('Us' + 'ers/alice/').repeat(3000) + 'x' + DOT + 'claude/s';
+  const startedAt = Date.now();
+  findPrivatePath(adversarial);
+  const elapsed = Date.now() - startedAt;
+  assert.ok(elapsed < 2000,
+    'scanning ' + adversarial.length + ' bytes of legal nested home starts took ' +
+    elapsed + 'ms — the matcher is backtracking again, and this file scans blobs ' +
+    'up to 8MB');
 
   // The fourth bypass, from the round-14 pass: OVERLAPPING matches. An in-repo
   // path and a foreign one on the same line, where the foreign `/.claude` sits

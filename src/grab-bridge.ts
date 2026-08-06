@@ -1743,6 +1743,87 @@ function trimWsp(value: string): string {
   return value.slice(start, end);
 }
 
+var COOKIE_MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+// RFC 6265 §5.1.1 delimiter set. Everything else — including every code point
+// at or above 0x7F — is a non-delimiter and therefore part of a date-token.
+function isCookieDateDelimiter(code: number): boolean {
+  return code === 0x09 ||
+    (code >= 0x20 && code <= 0x2f) ||
+    (code >= 0x3b && code <= 0x40) ||
+    (code >= 0x5b && code <= 0x60) ||
+    (code >= 0x7b && code <= 0x7e);
+}
+
+// `Date.parse` is not a cookie-date parser, and using it here recreated exactly
+// the laundering class the Max-Age digit test exists to prevent. An adverse pass
+// found it with a live probe: `Expires=Thu, <U+00A0>01 Jan 1970 00:00:00 GMT`.
+// U+00A0 is a NON-delimiter under §5.1.1, so `<U+00A0>01` is a single date-token
+// that matches neither `day-of-month` (which must START with 1*2DIGIT) nor any
+// other production — the day is never found, and §5.1.1 says a cookie-date with
+// an unset flag FAILS to parse, which under §5.2.1 means the Expires attribute
+// is IGNORED and the cookie stays a live session cookie. `Date.parse` instead
+// tolerates the pad, returns 0, and the bridge reads epoch as a past expiry and
+// destroys the session. Same shape as `Number("") === 0`: a value the RFC says
+// is unreadable arriving at the caller as a deletion.
+//
+// This is deliberately not "Date.parse plus a validator". §5.1.1 is BOTH looser
+// than `Date.parse` (token order is free, the timezone is ignored, two-digit
+// years are mapped) and stricter (ISO forms fail, a three-digit day fails), so
+// only the algorithm itself gets both directions right. The known behaviour
+// change is that an ISO-8601 `Expires` now fails to parse — which is what
+// browsers do, and what the RFC requires.
+function parseCookieDate(value: string): number | null {
+  var tokens: string[] = [];
+  var current = "";
+  for (var i = 0; i < value.length; i += 1) {
+    if (isCookieDateDelimiter(value.charCodeAt(i))) {
+      if (current !== "") { tokens.push(current); current = ""; }
+    } else {
+      current += value.charAt(i);
+    }
+  }
+  if (current !== "") tokens.push(current);
+
+  var hour: number | null = null;
+  var minute = 0;
+  var second = 0;
+  var dayOfMonth: number | null = null;
+  var month: number | null = null;
+  var year: number | null = null;
+
+  for (var token of tokens) {
+    if (hour === null) {
+      // time = 1*2DIGIT ":" 1*2DIGIT ":" 1*2DIGIT *non-digit
+      var hms = /^(\d{1,2}):(\d{1,2}):(\d{1,2})\D*$/.exec(token);
+      if (hms) { hour = Number(hms[1]); minute = Number(hms[2]); second = Number(hms[3]); continue; }
+    }
+    if (dayOfMonth === null) {
+      // day-of-month = 1*2DIGIT *non-digit — anchored, so `<pad>01` and `123`
+      // both fail, which is the whole point.
+      var dom = /^(\d{1,2})\D*$/.exec(token);
+      if (dom) { dayOfMonth = Number(dom[1]); continue; }
+    }
+    if (month === null && token.length >= 3) {
+      var named = COOKIE_MONTHS.indexOf(token.slice(0, 3).toLowerCase());
+      if (named !== -1) { month = named; continue; }
+    }
+    if (year === null) {
+      var yr = /^(\d{2,4})\D*$/.exec(token);
+      if (yr) { year = Number(yr[1]); continue; }
+    }
+  }
+
+  if (year !== null && year >= 70 && year <= 99) year += 1900;
+  else if (year !== null && year >= 0 && year <= 69) year += 2000;
+
+  if (hour === null || dayOfMonth === null || month === null || year === null) return null;
+  if (dayOfMonth < 1 || dayOfMonth > 31) return null;
+  if (year < 1601) return null;
+  if (hour > 23 || minute > 59 || second > 59) return null;
+  return Date.UTC(year, month, dayOfMonth, hour, minute, second);
+}
+
 function readCookieAttributes(attributes: string[], responseUrl: URL): CookieAttributes {
   var path = defaultCookiePath(responseUrl.pathname);
   var explicitPath: string | null = null;
@@ -1798,8 +1879,8 @@ function readCookieAttributes(attributes: string[], responseUrl: URL): CookieAtt
     // `expiresAt === null`, is what encodes that. A syntactically valid Max-Age
     // whose value clamps still suppresses Expires; a malformed one does not.
     if (attributeName === "expires" && !maxAgeApplied) {
-      var parsed = Date.parse(attributeValue);
-      if (!Number.isNaN(parsed)) expiresAt = parsed;
+      var parsed = parseCookieDate(attributeValue);
+      if (parsed !== null) expiresAt = parsed;
     }
   }
   return { path: path, explicitPath: explicitPath, expiresAt: expiresAt, secure: secure, domain: domain, sameSite: sameSite };

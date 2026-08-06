@@ -16,7 +16,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
-import { existsSync } from 'node:fs';
+import { lstatSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 
 // ── Resolve paths ────────────────────────────────────────────────────────────
 
@@ -99,6 +100,39 @@ let extractStaticTraits;
 // identically, and that real top-level failure reached `process.exit(0)`. The
 // filesystem answers the question the error cannot: the entry has to be
 // genuinely ABSENT.
+//
+// "Absent" is `lstat`, not `existsSync`, and the difference is a whole class of
+// broken tree. `existsSync` follows symlinks, so a DANGLING `dist/capture.js ->
+// missing-target.js` reports false — while ESM resolution, seeing the same
+// missing target, raises `ERR_MODULE_NOT_FOUND` carrying the entry href. Every
+// condition is satisfied and a broken build exits 0 having run nothing. `lstat`
+// answers the question actually being asked: is there an entry there at all.
+// The residual is a TOCTOU window between the rejected import and this call —
+// unclosable, and narrow enough to state rather than paper over.
+//
+// The predicate is a named function so it can be tested. The catch itself cannot
+// be exercised in-suite (this file cannot make its own entry module vanish), and
+// hand-probing it establishes point-in-time behaviour but encodes no regression
+// guard — an adverse pass made exactly that objection. The tests at the bottom
+// of this file drive it against real fixtures instead.
+function entryPresent(candidate) {
+  try {
+    lstatSync(candidate);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isMissingEntryModule(err, entryPath, entryHref) {
+  return Boolean(
+    err && err.code === 'ERR_MODULE_NOT_FOUND' &&
+    typeof err.url === 'string' &&
+    err.url === entryHref &&
+    !entryPresent(entryPath)
+  );
+}
+
 try {
   const mod = await import(distCaptureHref);
   capturePage = mod.capturePage;
@@ -106,11 +140,7 @@ try {
   classifyVideoArtifact = mod.classifyVideoArtifact;
   extractStaticTraits = mod.extractStaticTraits;
 } catch (err) {
-  const missingSelf =
-    err && err.code === 'ERR_MODULE_NOT_FOUND' &&
-    typeof err.url === 'string' &&
-    err.url === distCaptureHref &&
-    !existsSync(distCapture);
+  const missingSelf = isMissingEntryModule(err, distCapture, distCaptureHref);
   if (!missingSelf) {
     throw new Error(
       'dist/capture.js exists but failed to load, which is a real defect and ' +
@@ -940,5 +970,88 @@ test('overall_timeout_ms — a page whose load never fires aborts at the deadlin
   } finally {
     server.close();
     server.closeAllConnections?.();
+  }
+});
+
+// ── The load discriminator, driven against real fixtures ────────────────────
+//
+// `isMissingEntryModule` decides whether a failed `import()` means "this tree
+// was never built" (skip, exit 0) or "the build is broken" (rethrow). Round 16
+// verified it by hand against errors thrown in a probe; an adverse pass pointed
+// out — correctly — that a hand-probe establishes point-in-time behaviour and
+// encodes no regression guard. These tests do.
+//
+// They cannot exercise the `catch` block itself (this file cannot make its own
+// entry module vanish mid-run), so they drive the predicate directly with error
+// objects of the exact shape Node produces, against real filesystem fixtures.
+
+test('the load discriminator distinguishes an unbuilt tree from a broken one', () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'raven-capture-load-'));
+  try {
+    const absent = path.join(tmp, 'absent.js');
+    const present = path.join(tmp, 'present.js');
+    const dangling = path.join(tmp, 'dangling.js');
+    writeFileSync(present, 'export const x = 1;\n');
+    symlinkSync(path.join(tmp, 'no-such-target.js'), dangling);
+
+    const notFound = (href) => Object.assign(new Error(`Cannot find module ${href}`), {
+      code: 'ERR_MODULE_NOT_FOUND',
+      url: href,
+    });
+
+    const hrefOf = (p) => pathToFileURL(p).href;
+
+    // (a) genuinely absent — the only legitimate skip.
+    assert.equal(
+      isMissingEntryModule(notFound(hrefOf(absent)), absent, hrefOf(absent)),
+      true,
+      'an absent entry module must classify as an unbuilt tree'
+    );
+
+    // (b) DANGLING SYMLINK — this is the case `existsSync` gets wrong. It
+    // follows the link, finds nothing, and reports false, so a broken build
+    // exits 0 having run nothing. `lstat` sees the link itself.
+    assert.equal(
+      isMissingEntryModule(notFound(hrefOf(dangling)), dangling, hrefOf(dangling)),
+      false,
+      'a DANGLING SYMLINK is a broken build, not an unbuilt tree — it must rethrow'
+    );
+
+    // (c) present regular file that failed to load — a broken build.
+    assert.equal(
+      isMissingEntryModule(notFound(hrefOf(present)), present, hrefOf(present)),
+      false,
+      'a present entry module that failed to load must rethrow'
+    );
+
+    // (d) a MISSING TRANSITIVE dependency. Node reports the importer in the
+    // message but `url` is either undefined or some other module's href — the
+    // href comparison is the only thing that separates the two, which is why
+    // the message is never consulted.
+    assert.equal(
+      isMissingEntryModule(notFound(hrefOf(path.join(tmp, 'other.js'))), absent, hrefOf(absent)),
+      false,
+      'a missing transitive dependency must rethrow, not be read as an unbuilt tree'
+    );
+    assert.equal(
+      isMissingEntryModule(
+        Object.assign(new Error('Cannot find module x imported from ' + absent), {
+          code: 'ERR_MODULE_NOT_FOUND',
+        }),
+        absent,
+        hrefOf(absent)
+      ),
+      false,
+      'an ERR_MODULE_NOT_FOUND with no url must rethrow'
+    );
+
+    // (e) a syntax error — code is undefined, so the shape check alone rejects it.
+    assert.equal(
+      isMissingEntryModule(new SyntaxError('Unexpected token'), absent, hrefOf(absent)),
+      false,
+      'a syntax error in the entry module must rethrow'
+    );
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
   }
 });

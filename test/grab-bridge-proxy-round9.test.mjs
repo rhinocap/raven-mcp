@@ -399,14 +399,67 @@ test('the cookie NAME/VALUE split trims WSP only, like the attribute split', asy
     await request(session.url + '/login', { headers: SAME_ORIGIN });
     await request(session.url + '/replay', { headers: SAME_ORIGIN });
 
+    // Asserted as an EXACT header, not by substring presence. A round-16
+    // adverse pass showed why: a replay that emits BOTH the raw pair and a
+    // `.trim()`-ed duplicate satisfies every `includes()` check while sending a
+    // credential the server never issued. Presence is not the property under
+    // test — the exact set of pairs is.
     const replayed = seen[1].cookie;
-    assert.ok(replayed.includes('sid=' + NBSP + 'live'),
-      'the pad was stripped from the cookie VALUE, so the bridge is replaying a ' +
-      'value the server never set. §5.2 removes SP and HTAB only: ' +
+    assert.equal(replayed, 'sid=' + NBSP + 'live; ' + NBSP + 'pad=plain',
+      'the replayed header is not exactly the two pairs the server set. A ' +
+      'stripped pad means the bridge invented a value or merged two cookies; an ' +
+      'EXTRA pair means it is replaying a credential alongside the real one: ' +
       JSON.stringify(replayed));
-    assert.ok(replayed.includes(NBSP + 'pad=plain'),
-      'the pad was stripped from the cookie NAME, which silently merges a ' +
-      'distinct cookie into a different one: ' + JSON.stringify(replayed));
+  } finally {
+    await bridge.stopGrabSession();
+    await new Promise((resolve) => upstream.close(resolve));
+  }
+});
+
+// ───────────────────────────── Round 17 ─────────────────────────────
+
+test('an Expires that fails RFC 6265 §5.1.1 is ignored, not read as the epoch', async () => {
+  // The last `.trim()`-shaped laundering in the cookie path was not a `.trim()`
+  // at all — it was `Date.parse`. U+00A0 is a NON-delimiter under §5.1.1, so
+  // `<U+00A0>01` is one date-token that matches no production; the day is never
+  // found, the cookie-date FAILS to parse, and §5.2.1 says the attribute is
+  // ignored — leaving a live session cookie. `Date.parse` tolerates the pad and
+  // returns 0, which the jar reads as a past expiry and deletes the session.
+  //
+  // The second cookie is the control that keeps this honest: a WELL-FORMED past
+  // Expires must still delete. Without it, "ignore every Expires" passes.
+  const NBSP = '\u00A0';
+  assert.equal(NBSP.charCodeAt(0), 0xA0, 'the fixture pad is not U+00A0');
+
+  const seen = [];
+  let issued = 0;
+  const upstream = createServer((req, res) => {
+    seen.push({ url: req.url, cookie: req.headers.cookie || '' });
+    const headers = { 'Content-Type': 'text/html; charset=utf-8' };
+    if (issued === 0) {
+      headers['Set-Cookie'] = [
+        'kept=yes; Path=/; SameSite=Strict; Expires=Thu, ' + NBSP + '01 Jan 1970 00:00:00 GMT',
+        'gone=yes; Path=/; SameSite=Strict; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
+      ];
+    }
+    issued += 1;
+    res.writeHead(200, headers);
+    res.end('<!doctype html><html><body><h1>up</h1></body></html>');
+  });
+  await new Promise((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+  const upstreamUrl = 'http://127.0.0.1:' + upstream.address().port;
+
+  try {
+    const session = await bridge.startGrabSession(await designMd(), undefined, upstreamUrl, 'consumer');
+
+    await request(session.url + '/login', { headers: SAME_ORIGIN });
+    await request(session.url + '/after', { headers: SAME_ORIGIN });
+
+    assert.equal(seen[1].cookie, 'kept=yes',
+      'an Expires the RFC says is unparseable was applied anyway, so a malformed ' +
+      'header logged the user out — or the well-formed past Expires beside it ' +
+      'failed to delete, which would mean Expires is being ignored wholesale: ' +
+      JSON.stringify(seen[1].cookie));
   } finally {
     await bridge.stopGrabSession();
     await new Promise((resolve) => upstream.close(resolve));

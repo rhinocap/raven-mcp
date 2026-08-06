@@ -1509,6 +1509,129 @@ assertions, which is the thing a test-name-level count cannot tell you.
 - Frozen surfaces — `108 45
   f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`, unchanged.
 
+### 3n. Round 17 — dispositioning Sol round 16
+
+Sol round 16 (xhigh, detached, report-only) returned `OVERALL: DOES NOT SURVIVE`.
+Two claims survived, four failed.
+
+| Claim | Verdict | Round-17 disposition |
+|---|---|---|
+| C1 — cookie parser follows §5.2 at both splits | **FAILS** | fixed — RFC 6265 §5.1.1 date parser |
+| C2 — gate matches spaces with no false positives | **FAILS** | fixed — all-anchor verdict + prose-join + windowed scan |
+| C3 — span bound measured at the boundary | SURVIVES, narrowly | hardened — interior fixture at `MAX/2` |
+| C4 — load discriminator exact and grounded | **FAILS** | fixed — `lstat`, not `existsSync` |
+| C5 — tests encode rather than detect | **FAILS** | fixed — exact-header assertion + in-suite predicate tests |
+| C6 — frozen surfaces unchanged | SURVIVES | n/a |
+
+Sol's own `npm test` was 1267 / 1196 pass / 0 fail / **71 skipped** — the 68 extra
+skips are Chromium `Permission denied (1100)` Mach-port denials in its sandbox,
+not failures. Its brief had said so; it read them correctly.
+
+**C1 — the `Expires` branch recreated the exact class round 16 had just closed.**
+Round 16 fixed the WSP-only trim at the cookie NAME/VALUE split, and the
+`Expires` attribute right underneath it was still being handed to `Date.parse`.
+Measured: a date whose day-of-month is preceded by U+00A0 parses to **0** under
+`Date.parse` — the pad is tolerated, epoch comes back, and the jar reads that as
+a past expiry and **deletes a live session**. Identical in shape to
+`Number("") === 0`, one attribute over. §5.1.1 is not a subset of `Date.parse`
+in either direction: it is looser (token order free, timezone ignored, two-digit
+years mapped) and stricter (ISO-8601 fails, three-digit days fail), so
+"`Date.parse` plus a validator" cannot be right both ways — only the algorithm
+is. `src/grab-bridge.ts` now carries `isCookieDateDelimiter` (delimiters are
+`%x09`, `%x20-2F`, `%x3B-40`, `%x5B-60`, `%x7B-7E`; everything at or above 0x7F
+is a NON-delimiter, which is precisely why the pad joins its neighbours into one
+unparseable token) and `parseCookieDate` with the anchored day/time/year
+productions, the month prefix match, the 70–99/0–69 year mapping and the §5.1.1
+post-checks. Any unset flag ⇒ fail to parse ⇒ §5.2.1 says ignore the attribute.
+The one behaviour change is stated in the comment rather than discovered later:
+an ISO-8601 `Expires` now fails to parse, which is what browsers do.
+
+**C2 — `tightestHit()` was the wrong anchor, and so was the leftmost one.** Sol's
+counterexample is a foreign home directory whose path *contains* this checkout's
+root as a middle segment. Re-anchoring to the innermost hit lands on the
+in-repo start, the repo-root prefix test says "ours", and a real leak is
+discarded. Leftmost is equally wrong — that is the space case round 16 fixed.
+There is no single correct anchor: the verdict has to be taken over **all** of
+them, leak if ANY is non-excluded. The false positive that killed leftmost is
+kept dead by a separate discriminator: an anchor whose middle contains a space
+immediately followed by another rooted home start is prose, not a path, and is
+not considered. Verified all three shapes come out right — a directory with a
+space in its name caught, Sol's nesting caught, the tracked pregate JSON null.
+Sol also measured the lazy-quantifier cost at 39.32 ms / 3,046 bytes and
+639.74 ms / 48,736 bytes — quadratic, extrapolating to ~107 s on the 8 MB blob
+ceiling this gate runs against on every `npm test`. The regex is gone: the scan
+walks backward from each tooling-directory hit to the nearest span break and
+enumerates anchors in one non-backtracking pass, bounded per hit. A cost
+assertion on a 36 KB adversarial input pins it. Apostrophe, quote, backtick and
+tab remain span breaks and therefore remain bypasses — now written down as a
+stated, unclosed residual rather than left implicit.
+
+**C3 survived narrowly.** Sol's point stands: adjacent boundary fixtures cannot
+distinguish a contiguous matcher from a discontiguous mutant that happens to
+cover both endpoints. An interior fixture at half the bound closes it.
+
+**C4 — `existsSync` follows symlinks and the question is about the entry.** A
+dangling `dist/capture.js` symlink makes `existsSync` false while ESM resolution
+raises `ERR_MODULE_NOT_FOUND` carrying the entry href — every condition
+satisfied, and a genuinely broken build exits 0 having executed nothing. `lstat`
+answers the question actually being asked. The TOCTOU window between the
+rejected import and the filesystem call is unclosable and is now named in the
+comment instead of being implied.
+
+**C5 — two tests were detecting, not encoding.** The round-16 NAME/VALUE
+assertions were `includes()` checks, which a replay emitting both the raw pair
+and a `.trim()`-ed duplicate satisfies while sending a credential the server
+never issued; the assertion is now the exact header string. And the C4 predicate
+had no in-suite coverage at all — hand-probing establishes point-in-time
+behaviour and encodes no guard. It is extracted as a named function and driven
+against real fixtures.
+
+**Reintroduced-then-fixed, worth recording.** The first all-anchor rewrite
+brought back the pregate-JSON false positive round 16 had fixed, because a hit
+beginning at the repo root and continuing past a space is legal prose. The fix
+was the prose-join discriminator, not a revert to innermost anchoring — reverting
+would have re-opened C2.
+
+#### Round-17 falsifiability reverts
+
+| # | Revert | Result |
+|---|---|---|
+| R1 | restore `Date.parse` in the compiled `expires` branch | 7 pass / **1 fail** — the new §5.1.1 Expires test only |
+| R2 | replay a stripped duplicate alongside the raw pair | **1 fail** under the exact assertion; **0 fail** under `includes()` |
+| R3 | innermost-only anchoring (stop at the tightest hit) | 3 pass / **1 fail** — on the greedy-span assertion |
+| R4 | drop the prose-join discriminator | 2 pass / **2 fail** — the whole-tree scan on the tracked pregate JSON, plus the prose assertion |
+| R5 | middle-length bound `>=` instead of `>` | 3 pass / **1 fail** — on the at-bound assertion |
+| R8 | discontiguous matcher: small lengths and the exact bound only | 3 pass / **1 fail** — on the interior (`MAX/2`) assertion, and only that one |
+| R7 | `existsSync` in place of `lstat` | 38 pass / **1 fail** — the dangling-symlink case |
+
+R2 is the one worth reading twice. Weakening the assertion on its own proves
+nothing — the suite stays green, because a looser assertion cannot fail on
+correct output. The proof needs a **mutant**: a replay emitting both the raw
+`name=value` and a `.trim()`-ed duplicate. Under the exact-header assertion that
+fails; under `includes()` it passes clean. That is Sol's C5 objection reproduced
+as a measurement rather than accepted as an argument.
+
+A shortened scan window was also tried and is **not** in the table: it fails on
+the at-bound assertion, which runs first, so the interior fixture never
+executes and nothing is proven about it. R8 is the mutant that leaves the two
+endpoints intact and misses only the middle — the one thing adjacent boundary
+fixtures cannot see, and the reason C3 needed hardening at all.
+
+R3, R5 and R8 land on the same test name and were checked to fail on three
+**different** assertion messages.
+
+#### Round-17 verification
+
+- `RAVEN_NO_USAGE_LOG=1 npm test` — **1269 tests / 1266 pass / 0 fail / 3
+  skipped**, 43.8s. +2 over round 16: the §5.1.1 `Expires` test and the
+  load-discriminator test. The C2/C3 gate rewrite and the exact-header
+  assertion live inside existing tests and move no count.
+- `node test/e2e-pattern-library.mjs` — `ALL CHECKS PASSED`.
+- `cmp browser/raven-grab.js web/public/raven-grab.js` — byte-identical. No
+  overlay change this round.
+- Frozen surfaces — `108 45
+  f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`, unchanged.
+
 ## 4. Committed set — round 12
 
 Round 12 committed: `CLAUDE.md`, `browser/raven-grab.js`, `web/public/raven-grab.js`,
