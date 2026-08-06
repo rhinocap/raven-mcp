@@ -46,6 +46,7 @@ import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtra
 import { FAIL_ON_RULES, proposePolish, reviewDiff } from "./design-review.js";
 import { configureSource, readSourceConfig, inventoryFromDesignMd, diffDesignSystem, listBaselineComponents } from "./design-system-diff.js";
 import { saveReference, getReference, searchReferences, deleteReference, deleteReferencesByHost, referencesForHost, attachReferenceImage, referenceImagePath, referenceAttribution, THIRD_PARTY_NOTICE } from "./reference-store.js";
+import { PATTERN_TAXONOMY } from "./reference-taxonomy.js";
 import { renderReferenceThumbnail } from "./reference-thumbnail.js";
 import { mapReferenceToTokens } from "./reference-tokens.js";
 
@@ -3227,6 +3228,18 @@ server.tool(
     styles: z.record(z.string()).describe("Computed styles exactly as captured; rejected over 200 properties"),
     owner: z.enum(["self", "third-party"]).describe("Whether the pattern came from the user's own product or someone else's site"),
     tags: z.array(z.string()).describe("Topic tags for later filtering, e.g. ['hero','typography']"),
+    // The vocabulary is INTERPOLATED, not transcribed. saveReference rejects an
+    // unknown id, so a description naming ids that have since been renamed sends
+    // every capture into a hard failure — and a hand-copied list is one edit away
+    // from that. Read from the same array the validator reads, and it cannot
+    // drift. An enum here would be the stronger enforcement, but it is not the
+    // right one: the field is optional and legacy records carry no taxonomy, so a
+    // vocabulary change must fail one capture loudly rather than change the tool's
+    // schema shape underneath a pinned client.
+    taxonomy: z.array(z.string()).optional().describe(
+      "Stable pattern-kind ids binding this element to Raven's controlled vocabulary — this is what makes it findable by INTENT ('a scrolling mouse icon in a hero') rather than by the words that happen to be in the note. Bind every applicable kind; an unrecognized id is rejected with near matches. One of: "
+      + PATTERN_TAXONOMY.map(function(entry) { return entry.id; }).join(", ")
+    ),
     app: z.string().optional().describe("Human name of the source app, e.g. 'Linear'"),
     html: z.string().optional().describe("outerHTML of the grabbed element; truncated to 8000 chars on save"),
     rect: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }).optional().describe("Bounding rect of the grabbed element in page coordinates"),
@@ -3239,7 +3252,7 @@ server.tool(
     stateStyles: StateStylesSchema.optional().describe("Alias of state_styles, matching the field name get_grabbed_elements returns"),
     note: z.string().optional().describe("The designer's own words about why this pattern was kept; the highest-weighted field in search")
   },
-  async ({ url, selector, styles, owner, tags, app, html, rect, state_styles, stateStyles, note }) => {
+  async ({ url, selector, styles, owner, tags, taxonomy, app, html, rect, state_styles, stateStyles, note }) => {
     try {
       var suppliedStateStyles = state_styles ?? stateStyles;
       var normalizedStateStyles = suppliedStateStyles === undefined ? undefined : Object.fromEntries(
@@ -3251,7 +3264,7 @@ server.tool(
             : value as Record<string, string>
         ])
       );
-      var reference = saveReference({ url, selector, styles, owner, tags, app, html, rect, state_styles: normalizedStateStyles, note });
+      var reference = saveReference({ url, selector, styles, owner, tags, taxonomy, app, html, rect, state_styles: normalizedStateStyles, note });
 
       // Best effort, and the ordering matters: the record is already committed
       // before the render is attempted, so a machine with no chromium, a launch
@@ -3295,9 +3308,9 @@ function isReadableFile(file: string): boolean {
 
 server.tool(
   "search_references",
-  "Find patterns previously kept with capture_reference — call it before rebuilding something already grabbed, or to recall 'that hero from Linear'. host, owner, and tags filters compose with AND; the free-text query matches case-insensitively against note, app, tags, and selector, and every result carries a score and a 'why' naming the matched fields. Ordering is deterministic. Returns stored JSON records. Every result carries a `display` object holding the credit line, the source URL, and `image_path` — the PNG on disk for records captured with html, so results can be shown as pictures rather than style maps (the tool returns the path, never the bytes). **Browsing does not hand back the other site's markup.** A result reports `html_available` and `html_truncated` but omits the html itself; pass include_html:true to receive it, which is a deliberate step because that markup is the site's own authored expression rather than a measurement of it. Everything needed to LOOK at a pattern and to translate it onto this project's tokens — the picture, the selector, the rect, the computed styles — is in the default result. **Show the credit whenever you show the pattern**: this corpus holds other people's design work, Raven does not own it, and a third-party result also carries a notice saying so. Use these as references to build your own implementation, not as work to republish. Corrupt records are named in skipped[] instead of failing the call. It does not rank against live code and does not fetch the source site.",
+  "Find patterns previously kept with capture_reference — call it before rebuilding something already grabbed, or to recall 'that hero from Linear'. host, owner, and tags filters compose with AND; the free-text query expands recognized pattern intent through Raven's controlled vocabulary, then matches case-insensitively against note, app, tags, bound taxonomy ids, and selector. Every result carries a score and a 'why' naming the matched fields and any alias that connected the query to the record. Ordering is deterministic. Returns stored JSON records. Every result carries a `display` object holding the credit line, the source URL, and `image_path` — the PNG on disk for records captured with html, so results can be shown as pictures rather than style maps (the tool returns the path, never the bytes). **Browsing does not hand back the other site's markup.** A result reports `html_available` and `html_truncated` but omits the html itself; pass include_html:true to receive it, which is a deliberate step because that markup is the site's own authored expression rather than a measurement of it. Everything needed to LOOK at a pattern and to translate it onto this project's tokens — the picture, the selector, the rect, the computed styles — is in the default result. **Show the credit whenever you show the pattern**: this corpus holds other people's design work, Raven does not own it, and a third-party result also carries a notice saying so. Use these as references to build your own implementation, not as work to republish. Corrupt records are named in skipped[] instead of failing the call. It does not rank against live code and does not fetch the source site.",
   {
-    query: z.string().optional().describe("Free text matched against note, app, tags, and selector; omit to list everything passing the filters"),
+    query: z.string().optional().describe("Free text expanded through the pattern taxonomy and matched against note, app, tags, bound taxonomy ids, and selector; omit to list everything passing the filters"),
     host: z.string().optional().describe("Only references grabbed from this host, e.g. 'linear.app'"),
     owner: z.enum(["self", "third-party"]).optional().describe("Only the user's own product, or only third-party sites"),
     tags: z.array(z.string()).optional().describe("Only references carrying ALL of these tags"),

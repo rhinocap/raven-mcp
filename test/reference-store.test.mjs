@@ -136,6 +136,204 @@ test('equal-scoring search results keep deterministic order across calls', () =>
   });
 });
 
+// Mutation proof: remove "mouse wheel icon" from scroll-cue.aliases in
+// dist/reference-taxonomy.js. Only this test turns red in this file.
+test('scroll cue in a hero finds a record tagged only mouse wheel icon', () => {
+  withReferenceHome(() => {
+    const target = referenceStore.saveReference(input({
+      note: undefined,
+      app: undefined,
+      selector: '.wheel-symbol',
+      tags: ['mouse wheel icon'],
+    }));
+    const result = referenceStore.searchReferences({ query: 'scroll cue in a hero' });
+    assert.deepEqual(result.results.map((item) => item.reference.ref_id), [target.ref_id]);
+    const naturalLanguage = referenceStore.searchReferences({ query: 'examples of a scrolling mouse icon in a hero image from around the web' });
+    assert.deepEqual(naturalLanguage.results.map((item) => item.reference.ref_id), [target.ref_id]);
+  });
+});
+
+// The test above cannot see an over-matching search, because a ONE-record
+// corpus returns "1 of 1" whether the query discriminated or matched everything.
+// It passed against the shipped defect for exactly that reason.
+//
+// Measured before the fix on this three-record fixture: "scroll cue in a hero"
+// matched 3 of 3 and ranked `.pricing-table` at 7.0 ABOVE `.wheel-symbol` at
+// 6.9 — "in" is a substring of "pricing", "a" of "annual", both scoring as
+// exact hits at full weight, while the one correct record reached its tag
+// through an alias and paid the 0.1 penalty. The alias penalty was demoting the
+// right answer beneath noise.
+//
+// TWO mutants are needed, because the stop-word filter lives at two independent
+// seams and either one alone reproduces the defect: (a) the filter in
+// expandQuery, (b) the filter in originalQueryTerms. Each turns this test red on
+// its own — measured.
+//
+// An earlier version of this comment named the fieldMatchesTerm revert as the
+// second half. Measured, and it is FALSE: with stop words gone, `.includes` on
+// "scroll cue" and "hero" reaches neither the pricing record nor the footer, so
+// that mutant leaves this test green and turns only its own word-start test red.
+// The two fixes are independent, not two halves of one — the substring bug is
+// what makes "cue" hit "rescue", and no query in this fixture exercises it.
+// A mutation claim is falsifiable exactly like an assertion; this one was wrong.
+test('an intent query discriminates instead of matching the whole corpus', () => {
+  withReferenceHome(() => {
+    const cue = referenceStore.saveReference(input({
+      url: 'https://stripe.com/x', app: undefined, selector: '.wheel-symbol',
+      tags: ['mouse wheel icon'], note: 'animated scroll hint at the bottom',
+    }));
+    referenceStore.saveReference(input({
+      url: 'https://figma.com/y', app: undefined, selector: '.pricing-table',
+      tags: ['pricing'], note: 'annual toggle saves money',
+    }));
+    referenceStore.saveReference(input({
+      url: 'https://linear.app/z', app: undefined, selector: '.footer-legal',
+      tags: ['footer'], note: 'tiny legal print',
+    }));
+
+    const result = referenceStore.searchReferences({ query: 'scroll cue in a hero' });
+    assert.equal(result.corpus_size, 3, 'fixture must hold three records to be able to discriminate');
+    assert.equal(result.total, 1, 'the pricing table and the footer must not match');
+    assert.equal(result.results[0].reference.ref_id, cue.ref_id);
+  });
+});
+
+// A term must not match letters sitting inside an unrelated word. This is the
+// half of the fix that stop words alone do NOT cover: "cue" is not a stop word,
+// and under raw substring matching it hits "rescue".
+//
+// Mutation proof: revert fieldMatchesTerm to `field.includes(term)`. Only this
+// test turns red.
+test('a term matches at a word start, not anywhere inside a word', () => {
+  withReferenceHome(() => {
+    referenceStore.saveReference(input({
+      app: undefined, selector: '.rescue-banner', tags: ['rescue'],
+      note: 'account rescue flow',
+    }));
+    assert.equal(referenceStore.searchReferences({ query: 'cue' }).total, 0, '"cue" must not match "rescue"');
+    // The prefix half stays deliberately loose so a searcher's word still finds
+    // an inflected note.
+    assert.equal(referenceStore.searchReferences({ query: 'rescu' }).total, 1, 'a word-start prefix still matches');
+  });
+});
+
+// This asserted `total === 0` when the constituent words were DISCARDED. That
+// bought precision with a recall cliff — see partialQueryTerms. The property it
+// was actually reaching for is RANK: a record matching the whole phrase must
+// beat one carrying a single word of it. That is now what is measured, and it
+// is the stronger claim, because exclusion is satisfied by a search that finds
+// nothing at all.
+//
+// Mutation proof: change the partial penalty in weightedMatch from 0.5 to 0.
+// Only this test turns red.
+test('a phrase outranks a record carrying one word of it alone', () => {
+  withReferenceHome(() => {
+    // Both selectors are inert to this query and neither record has a note or
+    // app name, so the ONLY field in play is tags — otherwise the fragment
+    // picks up a second partial hit on its own selector and ties the score.
+    const whole = referenceStore.saveReference(input({
+      note: undefined, app: undefined, selector: '.alpha', tags: ['scroll down arrow'],
+    }));
+    const fragment = referenceStore.saveReference(input({
+      note: undefined, app: undefined, selector: '.beta', tags: ['arrow'],
+    }));
+    const result = referenceStore.searchReferences({ query: 'scroll down arrow' });
+    const ranked = result.results.map((item) => item.reference.ref_id);
+    assert.equal(ranked[0], whole.ref_id, 'the full phrase match ranks first');
+    assert.ok(ranked.includes(fragment.ref_id), 'the fragment is still findable, just below');
+    const wholeScore = result.results.find((r) => r.reference.ref_id === whole.ref_id).score;
+    const fragmentScore = result.results.find((r) => r.reference.ref_id === fragment.ref_id).score;
+    assert.ok(wholeScore > fragmentScore, `${wholeScore} must beat ${fragmentScore}`);
+  });
+});
+
+// The recall cliff itself, pinned. Measured before partialQueryTerms existed:
+// "pricing" found the record, "toggle" found the record, and "pricing toggle"
+// found NOTHING — because the phrase is a taxonomy entry, was consumed
+// atomically, and no record was bound to it.
+//
+// Mutation proof: make partialQueryTerms return []. Measured — this test AND
+// the ranking test above go red, because discarding the held-back words removes
+// the fragment record from the result set entirely instead of ranking it below.
+// That is why the ranking test's own proof is the PENALTY mutant (0.5 → 0),
+// which is the one that isolates rank from presence.
+test('adding a word to a query does not delete every result', () => {
+  withReferenceHome(() => {
+    referenceStore.saveReference(input({
+      app: undefined, selector: '.pricing-table', tags: ['pricing'],
+      note: 'annual toggle saves money',
+    }));
+    assert.equal(referenceStore.searchReferences({ query: 'pricing' }).total, 1);
+    assert.equal(referenceStore.searchReferences({ query: 'toggle' }).total, 1);
+    assert.equal(
+      referenceStore.searchReferences({ query: 'pricing toggle' }).total, 1,
+      'the more specific query must not return fewer results than either word alone',
+    );
+  });
+});
+
+// Mutation proof: change the alias penalty in weightedMatch from 0.1 to 0 in
+// dist/reference-store.js. Only this test turns red.
+test('an exact term outranks an alias on the same field', () => {
+  withReferenceHome(() => {
+    const alias = referenceStore.saveReference(input({ note: undefined, app: undefined, selector: '.alias', tags: ['command menu'] }));
+    const exact = referenceStore.saveReference(input({ note: undefined, app: undefined, selector: '.exact', tags: ['command palette'] }));
+    const result = referenceStore.searchReferences({ query: 'command palette' });
+    assert.deepEqual(result.results.map((item) => item.reference.ref_id), [exact.ref_id, alias.ref_id]);
+    assert.equal(result.results[0].score, 2);
+    assert.equal(result.results[1].score, 1.9);
+  });
+});
+
+// Mutation proof: replace "Near matches:" with "Known ids:" in the unknown-id
+// error in dist/reference-store.js. Only this test turns red.
+test('an unknown taxonomy id is rejected with the id and near matches', () => {
+  withReferenceHome(() => {
+    assert.throws(
+      () => referenceStore.saveReference(input({ taxonomy: ['sticky-navigation'] })),
+      /sticky-navigation.*Near matches:.*sticky-nav/i,
+    );
+    assert.equal(referenceStore.listReferences().total, 0);
+  });
+});
+
+// Mutation proof: always write taxonomy=[] when it was omitted in
+// dist/reference-store.js. Only this compatibility test turns red.
+test('a pre-existing record with no taxonomy still searches and returns', () => {
+  withReferenceHome(() => {
+    const legacy = referenceStore.saveReference(input({ note: 'A legacy pattern.', taxonomy: undefined }));
+    assert.equal(Object.hasOwn(legacy, 'taxonomy'), false);
+    const result = referenceStore.searchReferences({ query: 'legacy pattern' });
+    assert.deepEqual(result.results.map((item) => item.reference.ref_id), [legacy.ref_id]);
+  });
+});
+
+// Mutation proof: make matchReason always return field in
+// dist/reference-store.js. Only this test turns red.
+test('why distinguishes literal and alias matches', () => {
+  withReferenceHome(() => {
+    referenceStore.saveReference(input({ note: undefined, app: undefined, selector: '.literal', tags: ['hero'] }));
+    referenceStore.saveReference(input({ note: undefined, app: undefined, selector: '.alias', tags: ['masthead'] }));
+    const result = referenceStore.searchReferences({ query: 'hero' });
+    const literal = result.results.find((item) => item.reference.tags.includes('hero'));
+    const alias = result.results.find((item) => item.reference.tags.includes('masthead'));
+    assert.equal(literal.why, 'Matched tags.');
+    assert.equal(alias.why, 'Matched tags via alias "masthead".');
+  });
+});
+
+// Mutation proof: remove the taxonomy concat from the tag field in
+// dist/reference-store.js. Only this test turns red.
+test('bound taxonomy ids search at the tags weight and round-trip', () => {
+  withReferenceHome(() => {
+    const saved = referenceStore.saveReference(input({ note: undefined, app: undefined, selector: '.cue', tags: [], taxonomy: ['scroll-cue', 'hero'] }));
+    assert.deepEqual(saved.taxonomy, ['scroll-cue', 'hero']);
+    const result = referenceStore.searchReferences({ query: 'hero image' });
+    assert.deepEqual(result.results.map((item) => item.reference.ref_id), [saved.ref_id]);
+    assert.ok(result.results[0].score > 1 && result.results[0].score <= 2);
+  });
+});
+
 test('non-http URLs are rejected', () => {
   withReferenceHome(() => {
     assert.throws(() => referenceStore.saveReference(input({ url: 'file:///tmp/pattern.html' })), /http:.*https:|http: or https:/);

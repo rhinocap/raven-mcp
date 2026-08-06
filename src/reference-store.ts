@@ -2,6 +2,8 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSyn
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { PATTERN_TAXONOMY, expandQuery, resolveTaxonomy, isStopWord } from "./reference-taxonomy.js";
+import { BLOCKED_HOSTS, blockedEntryFor, localBlockedHosts, ReferenceBlockedError } from "./reference-blocklist.js";
 
 var __dirname = dirname(fileURLToPath(import.meta.url));
 var PKG_ROOT = resolve(join(__dirname, ".."));
@@ -26,6 +28,7 @@ export interface PatternReference {
   state_styles?: Record<string, Record<string, string>>;
   note?: string;
   tags: string[];
+  taxonomy?: string[];
   image?: ReferenceImage;
   captured_at: string;
   raven_version: string;
@@ -60,6 +63,7 @@ export interface SaveReferenceInput {
   state_styles?: Record<string, Record<string, string>>;
   note?: string;
   tags: string[];
+  taxonomy?: string[];
 }
 
 export interface ReferenceFilters {
@@ -95,6 +99,27 @@ export function referenceHome(): string {
 
 export function saveReference(input: SaveReferenceInput): PatternReference {
   var url = validatedUrl(input.url);
+  // The do-not-capture check goes FIRST, ahead of every other validation.
+  //
+  // Its position is the point: a blocked host must be refused for being blocked,
+  // not incidentally rescued by a missing selector. Behind the other checks, a
+  // well-formed capture from a taken-down site would sail through them all and
+  // only then be refused — same outcome — while a MALFORMED one would report a
+  // selector problem, get corrected, and be resubmitted. The user would learn
+  // the host is off-limits on the second try, from an error that reads like the
+  // first one was nearly fine.
+  //
+  // It also lives in saveReference rather than at the tool seam, because this is
+  // the single function every capture path converges on — the MCP handler, the
+  // e2e, and any future internal caller. A gate on the handler is a gate one
+  // call site can walk around, which is the class of miss this whole feature has
+  // been paying for.
+  var blocked = blockedEntryFor(
+    url.hostname,
+    BLOCKED_HOSTS.concat(localBlockedHosts(referenceHome())),
+    hostMatches,
+  );
+  if (blocked) throw new ReferenceBlockedError(blocked, url.hostname);
   if (input.owner !== "self" && input.owner !== "third-party") {
     throw new Error('owner must be "self" or "third-party"');
   }
@@ -125,6 +150,7 @@ export function saveReference(input: SaveReferenceInput): PatternReference {
   if (!Array.isArray(input.tags) || !input.tags.every(function(tag) { return typeof tag === "string"; })) {
     throw new Error("tags must be an array of strings");
   }
+  var taxonomy = validateTaxonomyIds(input.taxonomy);
 
   var html = input.html;
   var truncated = typeof html === "string" && html.length > HTML_LIMIT;
@@ -145,6 +171,7 @@ export function saveReference(input: SaveReferenceInput): PatternReference {
   if (input.rect !== undefined) reference.rect = Object.assign({}, input.rect);
   if (input.state_styles !== undefined) reference.state_styles = cloneStateStyles(input.state_styles);
   if (input.note !== undefined) reference.note = input.note;
+  if (input.taxonomy !== undefined) reference.taxonomy = taxonomy;
 
   // A half-written index must not brick every future capture. Search already
   // recovers by scanning record files; do the same here, keep the corrupt file
@@ -203,17 +230,25 @@ export function listReferences(opts: ReferenceFilters = {}): ReferenceListResult
 
 export function searchReferences(opts: SearchReferenceOptions): ReferenceSearchResult {
   var corpus = listReferences();
-  var query = typeof opts.query === "string" ? opts.query.trim().toLowerCase() : "";
+  var query = typeof opts.query === "string" ? opts.query.trim() : "";
+  var allExpanded = expandQuery(query);
+  var exactTerms = originalQueryTerms(query);
+  var expandedTerms = matchableQueryTerms(query, allExpanded, exactTerms);
+  var partialTerms = partialQueryTerms(query, allExpanded, exactTerms);
   var results: Array<{ reference: PatternReference; score: number; why: string }> = [];
   for (var reference of corpus.references) {
     if (!matchesFilters(reference, opts)) continue;
     var matches: string[] = [];
     var score = 0;
     if (query) {
-      if ((reference.note || "").toLowerCase().includes(query)) { score += 4; matches.push("note"); }
-      if ((reference.app || "").toLowerCase().includes(query)) { score += 3; matches.push("app name"); }
-      if (reference.tags.some(function(tag) { return tag.includes(query); })) { score += 2; matches.push("tags"); }
-      if (reference.selector.toLowerCase().includes(query)) { score += 1; matches.push("selector"); }
+      var noteMatch = bestTermMatch([reference.note || ""], expandedTerms, exactTerms, partialTerms);
+      var appMatch = bestTermMatch([reference.app || ""], expandedTerms, exactTerms, partialTerms);
+      var tagMatch = bestTermMatch(reference.tags.concat(reference.taxonomy || []), expandedTerms, exactTerms, partialTerms);
+      var selectorMatch = bestTermMatch([reference.selector], expandedTerms, exactTerms, partialTerms);
+      if (noteMatch) { score += weightedMatch(4, noteMatch.tier); matches.push(matchReason("note", noteMatch)); }
+      if (appMatch) { score += weightedMatch(3, appMatch.tier); matches.push(matchReason("app name", appMatch)); }
+      if (tagMatch) { score += weightedMatch(2, tagMatch.tier); matches.push(matchReason("tags", tagMatch)); }
+      if (selectorMatch) { score += weightedMatch(1, selectorMatch.tier); matches.push(matchReason("selector", selectorMatch)); }
       if (score === 0) continue;
     }
     results.push({
@@ -594,6 +629,168 @@ function normalizeTags(tags: string[]): string[] {
   return Array.from(new Set(tags.map(function(tag) { return tag.trim().toLowerCase(); }).filter(Boolean)));
 }
 
+function normalizedSearchTerm(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+}
+
+function originalQueryTerms(query: string): string[] {
+  var words = normalizedSearchTerm(query).split(" ").filter(Boolean);
+  var phrases = PATTERN_TAXONOMY.flatMap(function(entry) {
+    return [entry.id, entry.label].concat(entry.aliases).map(normalizedSearchTerm);
+  }).filter(function(term) { return term.includes(" "); }).sort(function(a, b) {
+    return b.split(" ").length - a.split(" ").length;
+  });
+  var exact: string[] = [];
+  var i = 0;
+  while (i < words.length) {
+    var phrase = phrases.find(function(candidate) {
+      return candidate.split(" ").every(function(part, offset) { return words[i + offset] === part; });
+    });
+    // A standalone stop word never becomes an exact term. This is the path that
+    // scored at FULL weight, so leaving it here would keep "in" beating a real
+    // alias hit even after expandQuery was cleaned up.
+    if (phrase || !isStopWord(words[i])) exact.push(phrase || words[i]);
+    i += phrase ? phrase.split(" ").length : 1;
+  }
+  return Array.from(new Set(exact));
+}
+
+function matchableQueryTerms(query: string, expandedTerms: string[], exactTerms: string[]): string[] {
+  var originalWords = new Set(normalizedSearchTerm(query).split(" ").filter(Boolean));
+  var exact = new Set(exactTerms);
+  var resolvedTerms = new Set(exactTerms.flatMap(function(term) {
+    return resolveTaxonomy(term).flatMap(function(entry) {
+      return [entry.id, entry.label].concat(entry.aliases).map(normalizedSearchTerm);
+    });
+  }));
+  // Original tokens remain visible in expandQuery's public result, as promised.
+  // A word consumed by a recognized multi-word phrase does not match at full
+  // strength, so "scroll down arrow" cannot score a lone "arrow" record like a
+  // real hit. Terms produced by the resolved entry survive: "hero image" must
+  // still match a reference bound to the one-word taxonomy id "hero".
+  return expandedTerms.filter(function(term) {
+    var normalizedTerm = normalizedSearchTerm(term);
+    return exact.has(normalizedTerm) || resolvedTerms.has(normalizedTerm) || !originalWords.has(normalizedTerm);
+  });
+}
+
+// The words the filter above held back — the constituents of a recognized
+// phrase. They are DEMOTED, not discarded.
+//
+// Discarding them made the search non-monotonic in the worst direction:
+// measured, "pricing" found the pricing record and "toggle" found it, while
+// "pricing toggle" found NOTHING, because the phrase is a taxonomy entry, was
+// consumed atomically, and no record was bound to it. Adding a word to a query
+// deleted every result. On a tool whose whole job is "show me some examples",
+// a recall cliff triggered by being more specific is the same failure as having
+// no search — and it is invisible in a one-record fixture.
+//
+// Precision is preserved by rank instead of by exclusion: a record matching the
+// whole phrase still outscores one matching only a constituent word, which is
+// the property the original suppression was reaching for.
+function partialQueryTerms(query: string, expandedTerms: string[], exactTerms: string[]): string[] {
+  var matchable = new Set(matchableQueryTerms(query, expandedTerms, exactTerms).map(normalizedSearchTerm));
+  var held: string[] = [];
+  for (var term of expandedTerms) {
+    var normalizedTerm = normalizedSearchTerm(term);
+    if (!normalizedTerm || matchable.has(normalizedTerm)) continue;
+    held.push(normalizedTerm);
+  }
+  return Array.from(new Set(held));
+}
+
+// Word-START matching, not raw substring.
+//
+// `field.includes(term)` matched "in" inside "pricing" and would match "cue"
+// inside "rescue" — a captured pattern was scoring on letters that happen to
+// sit in the middle of an unrelated word. A term only counts where it begins a
+// word. Both sides are normalized to space-separated lowercase words by
+// normalizedSearchTerm, so testing for a leading space is a token-boundary test
+// and needs no regex.
+//
+// PREFIX rather than whole-word is deliberate, and it is the one place this
+// stays deliberately loose: "scroll" must still match a note that says
+// "scrolling", which is the most likely way a searcher's word and a captured
+// note disagree. The cost is that a short non-stop-word term over-matches by
+// prefix ("nav" hits "navigation", wanted; "ui" hits "uikit", tolerable). Stop
+// words are what made that cost unacceptable, and they are gone before we get
+// here.
+function fieldMatchesTerm(field: string, term: string): boolean {
+  if (!term) return false;
+  return (" " + field).includes(" " + term);
+}
+
+type MatchTier = "exact" | "alias" | "partial";
+
+function bestTermMatch(
+  fields: string[],
+  terms: string[],
+  exactTerms: string[],
+  partialTerms: string[],
+): { term: string; tier: MatchTier } | null {
+  var normalizedFields = fields.map(normalizedSearchTerm);
+  function hit(term: string): boolean {
+    return normalizedFields.some(function(field) { return fieldMatchesTerm(field, term); });
+  }
+  // Strongest tier wins the field, so a record is never described by a weaker
+  // reason than the one it actually earned.
+  for (var exact of exactTerms) {
+    if (hit(exact)) return { term: exact, tier: "exact" };
+  }
+  for (var term of terms) {
+    var normalizedTerm = normalizedSearchTerm(term);
+    if (hit(normalizedTerm)) return { term: normalizedTerm, tier: "alias" };
+  }
+  for (var partial of partialTerms) {
+    if (hit(partial)) return { term: partial, tier: "partial" };
+  }
+  return null;
+}
+
+function weightedMatch(weight: number, tier: MatchTier): number {
+  // 0.1 breaks a same-field tie without changing the field hierarchy. 0.5 is
+  // larger on purpose: a partial hit is a genuinely weaker claim and must lose
+  // to any full hit on the same field, while still ranking above nothing.
+  // Both stay under 1 so the 4/3/2/1 field weights are never reordered.
+  if (tier === "exact") return weight;
+  return tier === "alias" ? weight - 0.1 : weight - 0.5;
+}
+
+function matchReason(field: string, match: { term: string; tier: MatchTier }): string {
+  if (match.tier === "exact") return field;
+  if (match.tier === "alias") return field + ' via alias "' + match.term + '"';
+  return field + ' partially via "' + match.term + '"';
+}
+
+function validateTaxonomyIds(value: string[] | undefined): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || !value.every(function(id) { return typeof id === "string"; })) {
+    throw new Error("taxonomy must be an array of strings");
+  }
+  var ids = Array.from(new Set(value));
+  var known = new Set(PATTERN_TAXONOMY.map(function(entry) { return entry.id; }));
+  for (var id of ids) {
+    if (known.has(id)) continue;
+    var near = PATTERN_TAXONOMY.map(function(entry) {
+      return { id: entry.id, distance: editDistance(id, entry.id) };
+    }).sort(function(a, b) { return a.distance - b.distance || a.id.localeCompare(b.id); }).slice(0, 3);
+    throw new Error('Unknown taxonomy id "' + id + '". Near matches: ' + near.map(function(item) { return item.id; }).join(", "));
+  }
+  return ids;
+}
+
+function editDistance(a: string, b: string): number {
+  var previous = Array.from({ length: b.length + 1 }, function(_, index) { return index; });
+  for (var i = 0; i < a.length; i += 1) {
+    var current = [i + 1];
+    for (var j = 0; j < b.length; j += 1) {
+      current.push(Math.min(current[j] + 1, previous[j + 1] + 1, previous[j] + (a[i] === b[j] ? 0 : 1)));
+    }
+    previous = current;
+  }
+  return previous[b.length];
+}
+
 function cloneStateStyles(styles: Record<string, Record<string, string>>): Record<string, Record<string, string>> {
   var copy: Record<string, Record<string, string>> = {};
   for (var state of Object.keys(styles)) copy[state] = Object.assign({}, styles[state]);
@@ -661,10 +858,22 @@ export interface ReferenceAttribution {
   notice?: string;
 }
 
+// The takedown route travels WITH the notice, and that placement is the point.
+//
+// docs/PATTERN-LIBRARY-POLICY.md states the route, but a rights holder does not
+// read the policy file of a tool they have never installed — they encounter this
+// corpus through an agent showing them a pattern of theirs, and this string is
+// what is attached to it at that moment. A takedown apparatus nobody can find
+// from the artifact is the same as not having one, which is most of what
+// separates a curated corpus from a scrape.
+export var TAKEDOWN_URL = "https://github.com/rhinocap/raven-mcp/issues";
+
 export var THIRD_PARTY_NOTICE =
   "This pattern belongs to its original site, not to Raven or to you. "
   + "Show the source with it, use it as a reference for your own implementation, "
-  + "and do not republish it as your own work.";
+  + "and do not republish it as your own work. "
+  + "If you own it and want it removed, open an issue at " + TAKEDOWN_URL
+  + " naming the site — a link is enough.";
 
 export function referenceAttribution(reference: PatternReference): ReferenceAttribution {
   var label = reference.app ? reference.app + " (" + reference.host + ")" : reference.host;
@@ -797,6 +1006,7 @@ function readRecord(file: string, expectedId: string): PatternReference {
   if (!Array.isArray(value.tags) || !value.tags.every(function(tag) { return typeof tag === "string"; })) throw new Error("record tags are invalid");
   var storedTags = value.tags as string[];
   if (JSON.stringify(storedTags) !== JSON.stringify(normalizeTags(storedTags))) throw new Error("record tags are not normalized");
+  if (value.taxonomy !== undefined) validateTaxonomyIds(value.taxonomy as string[]);
   if (
     typeof value.captured_at !== "string"
     || !Number.isFinite(Date.parse(value.captured_at))
