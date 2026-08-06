@@ -98,20 +98,38 @@ const PRIVATE_PATH = new RegExp(
 // checkout's own `.claude/` path is not a disclosure and flagging it is how a
 // gate gets muted. So a hit only counts when the path is NOT inside this
 // checkout — which is exactly the condition that makes it someone else's machine.
+// The middle segment is LAZY, and that is load-bearing rather than stylistic. A
+// greedy class swallows as much as it can before the last `/.claude` on the
+// line, so a line holding an in-repo path and an out-of-repo one — separated by
+// anything that is not whitespace or a quote, `:` in a PATH-style list being the
+// obvious case — matched as ONE span that started inside the repo, got dropped by
+// the prefix exclusion, and took the real leak with it. Lazy makes each match the
+// SHORTEST span ending at a tooling directory, so the in-repo path is discarded
+// on its own and the scan resumes at the next one. An adverse pass demonstrated
+// the greedy bypass with a literal two-path line.
 const NESTED_PRIVATE_PATH = new RegExp(
-  '(?:(?:\\/Users|\\/home)\\/[A-Za-z0-9._@-]+|\\/root)\\/[^\\s"\'`]{1,200}\\/\\.' + TOOL_DIRS + '\\b',
+  '(?:(?:\\/Users|\\/home)\\/[A-Za-z0-9._@-]+|\\/root)\\/[^\\s"\'`]{1,200}?\\/\\.' + TOOL_DIRS + '\\b',
   'g'
 );
 
 // True when the text stages an absolute private-tooling path from a machine
 // other than this checkout.
+//
+// The `repoRoot` exclusion is a STRING PREFIX test, not a path resolution, so a
+// `..` segment walks straight back out of the checkout while still satisfying it
+// — `<repoRoot>/../private/.claude/settings.json` starts with `<repoRoot>/` and
+// points somewhere else entirely. Same adverse pass, same file. Any match
+// containing a `..` segment is therefore never excluded: a legitimate reference
+// to this repo's own tooling directory has no reason to route through the parent.
 function findPrivatePath(text) {
   const direct = PRIVATE_PATH.exec(text);
   if (direct) return direct[0];
   NESTED_PRIVATE_PATH.lastIndex = 0;
   let match;
   while ((match = NESTED_PRIVATE_PATH.exec(text)) !== null) {
-    if (!match[0].startsWith(repoRoot + '/')) return match[0];
+    const hit = match[0];
+    const escapesRepo = hit.split('/').includes('..');
+    if (escapesRepo || !hit.startsWith(repoRoot + '/')) return hit;
   }
   return null;
 }
@@ -276,6 +294,16 @@ test('the gate is falsifiable — its own pattern matches a synthetic leak', () 
     'the matcher flagged this repo\'s OWN project-scoped tooling directory');
   assert.equal(findPrivatePath(repoRoot + '/.cl' + 'aude'), null,
     'the matcher flagged this checkout root\'s own tooling directory');
+
+  // The two ways round 12's exclusion was bypassed, both demonstrated by an
+  // adverse pass with literal strings rather than argued.
+  assert.ok(findPrivatePath(repoRoot + '/../private' + DOT + 'claude/settings.json'),
+    'a `..` segment walks out of the checkout while still satisfying the repoRoot ' +
+    'string prefix — the exclusion is a prefix test, not a path resolution');
+  assert.ok(findPrivatePath(repoRoot + '/.cl' + 'aude:' + leakNested(ROOT_MAC, 'claude', '/settings.json')),
+    'a greedy middle segment matched an in-repo path and an out-of-repo path as ' +
+    'ONE span, which the repoRoot exclusion then discarded whole — taking the ' +
+    'real leak with it');
 });
 
 test('the gate scans this file too — it has no self-exclusion', () => {

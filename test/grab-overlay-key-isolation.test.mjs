@@ -701,3 +701,210 @@ test('a page listener between the marker and the send handler cannot forge the v
   assert.equal(seen.deliberate, true,
     'a deliberate Enter stopped sending while a page listener was writing the flag');
 });
+
+// ── Round 13 — three holes an adverse pass found in the round-12 fix ──────────
+//
+// All three share one shape: round 12 secured an OBJECT and called the mechanism
+// out of the page's reach, when what the guard actually depends on is a set of
+// page-realm OPERATIONS. A WeakSet the page cannot name is still manipulated
+// through `WeakSet.prototype.*`, which the page owns; a bound in milliseconds is
+// still a subtraction over `performance.now()`, which the page owns; and an
+// event marked once is still an object the page can dispatch again.
+
+test('a page that replaces WeakSet.prototype after load cannot break the IME guard', async (t) => {
+  // The round-12 comment claimed "the page holds no reference to it". True of the
+  // SET, false of the operations on it. `WeakSet.prototype.add/has/delete` are
+  // ordinary page-realm properties, so a page that swaps them out reaches the
+  // verdict without ever naming the set: make `has` return false and every IME
+  // commit is read as a deliberate send; make it return true and every Enter is
+  // swallowed. The overlay now captures all three at load through
+  // `Function.prototype.call.bind`.
+  //
+  // Reverting that capture fails this on the first assertion. What it does NOT
+  // buy — and the overlay comment says so rather than claiming immunity — is
+  // protection from a `<head>` script that poisons the prototype BEFORE the
+  // overlay is injected. That is unclosable from inside a shared realm, which is
+  // why this fixture tampers after load: it is exactly the case the fix covers.
+  let seen;
+  try {
+    seen = await withOverlay(async (page) => {
+      return page.evaluate(async () => {
+        const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+        const field = root.querySelector('.raven-grab-textarea');
+        field.focus();
+
+        // Both directions of sabotage at once: nothing is ever recorded, and
+        // every lookup answers "no verdict here".
+        WeakSet.prototype.add = function () { return this; };
+        WeakSet.prototype.has = function () { return false; };
+        WeakSet.prototype.delete = function () { return false; };
+
+        const press = () => {
+          const event = new KeyboardEvent('keydown', {
+            key: 'Enter', keyCode: 13, isComposing: false,
+            bubbles: true, composed: true, cancelable: true
+          });
+          field.dispatchEvent(event);
+          return event.defaultPrevented;
+        };
+
+        field.dispatchEvent(new CompositionEvent('compositionend', {
+          data: 'にほんご', bubbles: true, composed: true
+        }));
+        const commit = press();
+        const deliberate = press();
+
+        return { commit, deliberate };
+      });
+    });
+  } catch (err) {
+    if (/browserType\.launch|Executable doesn't exist/.test(err.message)) {
+      t.skip(`browser unavailable for overlay key isolation (${err.message})`);
+      return;
+    }
+    throw err;
+  }
+
+  assert.equal(seen.commit, false,
+    'a page that replaced WeakSet.prototype.has neutralised the IME guard: the ' +
+    'candidate-commit Enter fired the instruction off. The overlay must capture ' +
+    'the WeakSet methods at load, not look them up on the prototype at call time');
+  assert.equal(seen.deliberate, true,
+    'a deliberate Enter stopped sending on a prototype-tampering page');
+});
+
+test('the same commit Enter redispatched a second time is not swallowed again', async (t) => {
+  // A `KeyboardEvent` is an object, and `dispatchEvent` may be called on it as
+  // many times as a page likes. Round 12 MARKED the event and never consumed the
+  // mark, so a page that re-dispatched the user's own commit Enter had it
+  // suppressed on every pass — a silent, unbounded "Enter does nothing" for as
+  // long as the page keeps replaying it. One mark, one suppression: the read
+  // deletes the entry before returning true.
+  //
+  // Reverting the consume-on-read fails this on `second`. Note the first two
+  // assertions are the controls — without them a guard that never fires at all
+  // would pass the third.
+  let seen;
+  try {
+    seen = await withOverlay(async (page) => {
+      return page.evaluate(async () => {
+        const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+        const field = root.querySelector('.raven-grab-textarea');
+        field.focus();
+
+        // ONE event object, dispatched twice — that is the whole point. A second
+        // freshly-constructed event was never marked in the first place, so it
+        // would sail through whether or not the verdict is consumed, and the
+        // test would pass against the defect. (It did, on the first draft.)
+        // `defaultPrevented` only ever goes false → true here, so reading it
+        // after each dispatch is a valid before/after despite being sticky.
+        const event = new KeyboardEvent('keydown', {
+          key: 'Enter', keyCode: 13, isComposing: false,
+          bubbles: true, composed: true, cancelable: true
+        });
+
+        field.dispatchEvent(new CompositionEvent('compositionend', {
+          data: 'にほんご', bubbles: true, composed: true
+        }));
+
+        field.dispatchEvent(event);
+        const first = event.defaultPrevented;
+        field.dispatchEvent(event);
+        const second = event.defaultPrevented;
+
+        return { first, second };
+      });
+    });
+  } catch (err) {
+    if (/browserType\.launch|Executable doesn't exist/.test(err.message)) {
+      t.skip(`browser unavailable for overlay key isolation (${err.message})`);
+      return;
+    }
+    throw err;
+  }
+
+  assert.equal(seen.first, false,
+    'the control failed — the candidate-commit Enter was not suppressed at all, ' +
+    'so the assertion below proves nothing');
+  assert.equal(seen.second, true,
+    'the Enter after a consumed IME commit did not send. The verdict must be ' +
+    'consumed on read, so one composition suppresses exactly one Enter');
+});
+
+const HOST_PAGE_BACKWARDS_CLOCK = `<!doctype html><html><head><title>backwards clock host</title>
+<script>
+  // Poisoned BEFORE the overlay is injected, so capturing performance.now at
+  // load does not help — the overlay captures this one. The only thing that
+  // saves the bound is refusing to believe a negative elapsed time.
+  var __ravenFakeClock = 1e9;
+  performance.now = function () {
+    __ravenFakeClock -= 1e6;   // every reading is far EARLIER than the last
+    return __ravenFakeClock;
+  };
+</script>
+</head><body><h1 id="heading">Host page</h1></body></html>`;
+
+test('a page whose clock runs backwards cannot make the 100ms bound unbounded', async (t) => {
+  // The marker's expiry is a subtraction over two `performance.now()` readings,
+  // and `performance.now` is a page-realm property. Hand back a LARGE value when
+  // the composition ends and a SMALL one at a much later Enter and the delta is
+  // negative — which satisfies `delta < 100` forever. The bound stops bounding
+  // anything, and the mouse-selected-candidate residual the bound exists to
+  // cap becomes unbounded in time, which is the trade the overlay comment says
+  // it is buying.
+  //
+  // `ravenElapsedSince` now returns Infinity whenever the delta is not a
+  // non-negative number. Reverting it to a raw subtraction fails this test's
+  // second assertion: the Enter long after the composition is swallowed.
+  let seen;
+  try {
+    seen = await withOverlay(async (page) => {
+      return page.evaluate(async () => {
+        const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+        const field = root.querySelector('.raven-grab-textarea');
+        field.focus();
+
+        // Confirm the fixture actually took, or this passes against a page whose
+        // head script never ran.
+        const a = performance.now();
+        const b = performance.now();
+        const clockRunsBackwards = b < a;
+
+        const press = () => {
+          const event = new KeyboardEvent('keydown', {
+            key: 'Enter', keyCode: 13, isComposing: false,
+            bubbles: true, composed: true, cancelable: true
+          });
+          field.dispatchEvent(event);
+          return event.defaultPrevented;
+        };
+
+        field.dispatchEvent(new CompositionEvent('compositionend', {
+          data: 'にほんご', bubbles: true, composed: true
+        }));
+
+        // Well past the 100ms bound in real time. Under a backwards clock the
+        // measured delta only gets MORE negative, so a raw subtraction reads
+        // this as "0ms ago".
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        const late = press();
+
+        return { clockRunsBackwards, late };
+      });
+    }, HOST_PAGE_BACKWARDS_CLOCK);
+  } catch (err) {
+    if (/browserType\.launch|Executable doesn't exist/.test(err.message)) {
+      t.skip(`browser unavailable for overlay key isolation (${err.message})`);
+      return;
+    }
+    throw err;
+  }
+
+  assert.equal(seen.clockRunsBackwards, true,
+    'the fixture never replaced performance.now, so this test proves nothing — ' +
+    'the head script did not run before the overlay loaded');
+  assert.equal(seen.late, true,
+    'an Enter 300ms after the composition was still swallowed, so a page-controlled ' +
+    'clock turned the 100ms bound into no bound at all. A negative elapsed time ' +
+    'must be treated as expired, not as "just now"');
+});

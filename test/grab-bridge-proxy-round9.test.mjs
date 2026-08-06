@@ -188,3 +188,51 @@ test('a cookie deleted with Max-Age=0 stops being sent', async () => {
     await new Promise((resolve) => upstream.close(resolve));
   }
 });
+
+test('a NEGATIVE Max-Age deletes, and a malformed one is ignored', async () => {
+  // Two more values RFC 6265 §5.2.2 separates and `Number()` does not, both found
+  // by an adverse pass that mutated the `Max-Age=0` fix rather than reading it.
+  //
+  //   * `Max-Age=-1` — a VALID non-positive value, so it deletes. Narrow the
+  //     parse to `seconds >= 0` and the zero test above, the Expires test, the
+  //     rotation test and round 2's `Max-Age=1` all stay green while a whole
+  //     class of real logout headers stops working.
+  //   * `Max-Age=` — INVALID, because the first character is neither a digit nor
+  //     "-", so the attribute must be ignored and the cookie left alone.
+  //     `Number("")` is 0, so the old parse read it as a deletion — a malformed
+  //     header silently destroying a live session.
+  const seen = [];
+  let issued = 0;
+  const upstream = createServer((req, res) => {
+    seen.push({ url: req.url, cookie: req.headers.cookie || '' });
+    const headers = { 'Content-Type': 'text/html; charset=utf-8' };
+    if (issued === 0) headers['Set-Cookie'] = 'session=live; Path=/; SameSite=Strict';
+    if (issued === 1) headers['Set-Cookie'] = 'session=live; Path=/; SameSite=Strict; Max-Age=';
+    if (issued === 2) headers['Set-Cookie'] = 'session=; Path=/; SameSite=Strict; Max-Age=-1';
+    issued += 1;
+    res.writeHead(200, headers);
+    res.end('<!doctype html><html><body><h1>up</h1></body></html>');
+  });
+  await new Promise((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+  const upstreamUrl = 'http://127.0.0.1:' + upstream.address().port;
+
+  try {
+    const session = await bridge.startGrabSession(await designMd(), undefined, upstreamUrl, 'consumer');
+
+    await request(session.url + '/login', { headers: SAME_ORIGIN });     // issues session=live
+    await request(session.url + '/malformed', { headers: SAME_ORIGIN }); // carries it; sends `Max-Age=`
+    await request(session.url + '/still-in', { headers: SAME_ORIGIN });  // must STILL carry it
+    await request(session.url + '/after', { headers: SAME_ORIGIN });     // logged out via Max-Age=-1
+
+    assert.equal(seen[1].cookie, 'session=live',
+      'the control failed — the session cookie was never stored: ' + seen[1].cookie);
+    assert.equal(seen[2].cookie, 'session=live',
+      'a malformed `Max-Age=` destroyed a live session. RFC 6265 §5.2.2 says an ' +
+      'unparseable value means IGNORE the attribute, not expire the cookie: ' + seen[2].cookie);
+    assert.equal(seen[3].cookie, '',
+      'a cookie deleted with a negative Max-Age is still being sent: ' + seen[3].cookie);
+  } finally {
+    await bridge.stopGrabSession();
+    await new Promise((resolve) => upstream.close(resolve));
+  }
+});

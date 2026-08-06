@@ -34,6 +34,19 @@ let CaptureUnavailableError;
 let classifyVideoArtifact;
 let extractStaticTraits;
 
+// The catch below used to swallow EVERY load failure as "run npm run build" and
+// then `process.exit(0)` — a green run with one skip. That is the same mute this
+// file was rewritten to remove, one layer earlier: a syntax error in
+// `dist/capture.js`, a throwing top-level statement, or a genuinely missing
+// TRANSITIVE dependency all present as "not built yet", and the suite reports
+// success having executed nothing. `process.exit(0)` makes it worse — the
+// remaining tests never even register, so the count silently drops to one.
+//
+// Only one load failure is legitimately an un-built tree: the entry module
+// itself not existing. Node reports that as `ERR_MODULE_NOT_FOUND` with the
+// missing specifier in `err.url` — and the url check is the load-bearing half,
+// because a missing dependency INSIDE capture.js raises the same code with a
+// different url. Anything else rethrows.
 try {
   const mod = await import(distCapture);
   capturePage = mod.capturePage;
@@ -41,7 +54,22 @@ try {
   classifyVideoArtifact = mod.classifyVideoArtifact;
   extractStaticTraits = mod.extractStaticTraits;
 } catch (err) {
-  // Module missing means `npm run build` hasn't run — skip all tests.
+  const distUrl = pathToFileURL(distCapture).href;
+  const missingSelf =
+    err && err.code === 'ERR_MODULE_NOT_FOUND' &&
+    (err.url === distUrl || String(err.message).includes(distCapture));
+  if (!missingSelf) {
+    throw new Error(
+      'dist/capture.js exists but failed to load, which is a real defect and ' +
+      'used to be reported as "not built yet" with a passing exit code. ' +
+      `(${err && err.code ? err.code + ': ' : ''}${err && err.message})`,
+      { cause: err }
+    );
+  }
+  // Genuinely un-built tree. `process.exit(0)` stays here on purpose: nothing
+  // below this point can run without the module, and every later test would
+  // fail with a TypeError on an undefined `capturePage` rather than skip. It is
+  // safe ONLY because the branch is now narrow — one specifier, one error code.
   const msg = `dist/capture.js not found — run \`npm run build\` first. (${err.message})`;
   test('capture module available', (t) => { t.skip(msg); });
   process.exit(0);
@@ -65,6 +93,22 @@ try {
 // The probe is deliberately minimal (import, launch, close). It cannot prove
 // every later capture will succeed, only that "unavailable" is the wrong
 // diagnosis when it does not.
+//
+// Two limits, stated rather than papered over — an adverse pass named both:
+//
+//   1. The probe walks the LOCAL branch of `launchAuditChromium()`
+//      (`src/browser-launch.ts:294`): `import("playwright")` then
+//      `chromium.launch()`. The REMOTE branch is a different stack entirely —
+//      `playwright-core` plus `@sparticuz/chromium`, an egress proxy, and a
+//      concurrency slot — and a green probe says nothing at all about it. This
+//      gate covers the path these tests actually exercise, and only that.
+//   2. A probe that fails INTERMITTENTLY (a slow or resource-starved machine)
+//      sets `chromiumAvailable = false` and re-enables skipping for that whole
+//      run. That is the deliberate direction to fail in — a flaky probe must
+//      not manufacture failures — but it means a run reporting skips is
+//      reporting "chromium did not launch for the probe", not "chromium is not
+//      installed". The self-check test below prints the probe error so the two
+//      are distinguishable after the fact rather than by assumption.
 let chromiumAvailable = false;
 let chromiumProbeError = null;
 try {

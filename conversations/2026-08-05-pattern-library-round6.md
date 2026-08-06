@@ -971,14 +971,18 @@ Round 11 moved the gate onto the index, which was the right fix for the
 worktree-vs-index hole. Sol attacked the matcher instead, and named three shapes
 that are ordinary rather than exotic:
 
-- **`/home/alice@example.com/.claude/…`** — a realm-qualified home directory, what
-  an AD/LDAP-joined Linux box hands every user. `@` was outside the username class.
-- **`/root/.codex/…`** — root's home has no username segment at all. This is the
-  shape *every container agent running as root* produces, which is precisely the
-  environment a CI transcript comes from.
-- **`/Users/someone/work/thing/.claude/settings.local.json`** — a project-scoped
-  tooling directory. The old pattern only ever saw the tooling dir sitting
+- **a realm-qualified home directory** — `/home/` + a name like
+  `alice@example.com` + the tooling dir. That is what an AD/LDAP-joined Linux box
+  hands every user, and `@` was outside the username class.
+- **root's own home** — `/root/` + the tooling dir, with no username segment at
+  all. This is the shape *every container agent running as root* produces, which
+  is precisely the environment a CI transcript comes from.
+- **a project-scoped tooling directory** — a home dir, then a project path, then
+  the tooling dir. The old pattern only ever saw the tooling dir sitting
   *directly* in `$HOME`.
+
+(Those three are described rather than spelled out, because this file is scanned
+by the gate it describes — see below.)
 
 The third one cannot simply be folded in, and that is the interesting part: **this
 repo's own `.claude/` has exactly that shape**, and it is named legitimately in
@@ -1051,6 +1055,165 @@ test's interpretation of it changed.
 - `cmp browser/raven-grab.js web/public/raven-grab.js` — byte-identical.
 - Frozen surfaces — `108 45
   f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`, unchanged.
+
+## 3j. Round 13 — dispositioning Sol round 12
+
+Sol round 12 (xhigh, detached, cwd confirmed) returned **`OVERALL: DOES NOT
+SURVIVE` with all five claims FAILING**. It confirmed the frozen surfaces
+independently — 108 stdio, 45 anon, hash unchanged, mirror byte-identical, no
+`src/` change in round 12 — and then took every claim apart.
+
+| Claim | Sol's finding | Round-13 disposition |
+|---|---|---|
+| C1 — the verdict is out of the page's reach | FAILS. A `WeakSet` *object* is unreachable; `WeakSet.prototype.add/has/delete` are ordinary page-realm properties a page can replace. Separately, a `KeyboardEvent` can be dispatched more than once, and the verdict was never consumed — a page redispatching the user's commit Enter has it swallowed forever. | Fixed and the claim softened |
+| C2 — the 100ms bound holds | FAILS. `performance.now` is page-replaceable, and the expiry is a subtraction over two of its return values: return a large value at `compositionend` and a small one much later and the delta is **negative**, which satisfies any `< 100` test. Bounded becomes unbounded. | Fixed |
+| C3 — the new cookie tests are load-bearing | FAILS. `Max-Age=-1` was uncovered, and `Max-Age=` (empty) was *incorrectly deleting* the cookie — RFC 6265 §5.2.2 says ignore an unparseable value. | Fixed in `src/` + two new tests |
+| C4 — the private-path matcher covers the real shapes | FAILS. Two bypasses, **and the gate was RED on the committed tree**. | Fixed; gate green |
+| C5 — `capture.test.mjs` no longer skips a real failure | FAILS. The module-load `catch` still swallowed every load error as "not built yet" and exited 0. Plus two limits the comment did not state. | Fixed + stated |
+
+### The committed-red incident
+
+`a4829f7` was committed with its own gate failing. The sequence: I ran the full
+suite, *then* wrote §3i into this log, then committed without re-running. §3i
+spelled out the three machine layouts round 12 had just widened the matcher to
+catch — so the prose describing the fix was itself a leak the fix now detects.
+
+The rule this earns is mechanical, not a resolution: **any edit to a scanned file
+after the last green run invalidates that run.** The gate scans the index, so a
+session log written between `npm test` and `git commit` is exactly the blind spot.
+Re-run before committing, always. The three bullets are now de-literalized —
+"a realm-qualified home", "root's own home", "the tooling directory nested under
+a project" — which says the same thing and does not trip the gate.
+
+Note what this proves about the gate: it caught its own author's prose, on the
+very shapes it was written for, one commit after being widened. That is the
+argument against a `KNOWN_PUBLISHED` escape hatch in a sentence.
+
+### C1 — a closed-over WeakSet is not a closed-over WeakSet method
+
+The round-12 comment claimed "the page holds no reference to it". True of the set,
+false of the operations. `ravenWeakSetAdd/Has/Delete` are now captured at load via
+`Function.prototype.call.bind`, so post-injection tampering with the prototype
+cannot reach them. What that does **not** buy: a `<head>` script that poisons
+`WeakSet.prototype` *before* the overlay is injected still wins, and that is
+unclosable from inside a shared realm. The comment now says so instead of
+claiming immunity.
+
+The redispatch hole is closed by consuming the entry on read —
+`ravenIsCompositionCommit` deletes it before returning true. One mark, one
+suppression. A redispatched event is a fresh decision.
+
+### C2 — a clock you do not own is not a bound
+
+Same shape as C1, one layer down: `performance.now` is captured at load, and
+`ravenElapsedSince` returns `Infinity` whenever the delta is not a non-negative
+number. That is the arithmetic half, and it is the one that matters — capturing
+the function stops a *later* swap, but a page that replaced `performance.now`
+before injection still hands back whatever it likes, and a negative delta is the
+only value that turns a bound into no bound at all. Rejecting it closes the hole
+regardless of who owns the clock.
+
+### C3 — `Number("")` is 0, and a malformed header was deleting sessions
+
+`Max-Age` now has to match `/^-?\d+$/` before it is read as a number. Two values
+RFC 6265 §5.2.2 separates and `Number()` does not:
+
+- `Max-Age=-1` — a **valid non-positive** value, so it deletes. Narrow the parse
+  to `seconds >= 0` and every other cookie test in the repo stays green while a
+  whole class of real logout headers stops working.
+- `Max-Age=` — **invalid**, first character is neither DIGIT nor `-`, so the
+  attribute is ignored and the cookie survives. `Number("")` is 0, so the old
+  parse read it as a deletion: a malformed header silently destroying a live
+  session.
+
+Both are now in `test/grab-bridge-proxy-round9.test.mjs`, in one fixture that
+proves the malformed case does **not** delete (a third request still carrying the
+cookie) before the negative case deletes.
+
+### C4 — two bypasses in the nested matcher
+
+1. **`..` escape.** The `repoRoot` exclusion is a string prefix, not path
+   resolution, so a path that starts with the repo root and then walks out of it
+   satisfied `startsWith(repoRoot + '/')` and was discarded. A match containing a
+   `..` segment is now never excluded.
+2. **The greedy class ate two paths as one.** With `[^\s"'`]{1,200}` greedy, an
+   in-repo path followed by a delimiter and an out-of-repo path matched as a
+   *single* span starting inside the repo — discarded by the prefix exclusion,
+   taking the real leak with it. The quantifier is now lazy, so each match is the
+   shortest span and the scan resumes at the next candidate. The scan also
+   iterates all matches on a line rather than taking the first.
+
+Both bypasses are pinned by assertions reproducing exactly the inputs Sol
+demonstrated.
+
+### C5 — the mute one layer earlier
+
+`runOrSkip` and `usedFileFallback` were hardened in round 12; the module-load
+`catch` above them was not. It reported *every* load failure as "run npm run
+build", registered one skipped test, and called `process.exit(0)` — so a syntax
+error in `dist/capture.js`, a throwing top-level statement, or a missing
+transitive dependency all produced a green run that executed nothing, with the
+test count silently collapsing to one.
+
+Only one failure is legitimately an un-built tree: the entry module itself not
+existing. That is `ERR_MODULE_NOT_FOUND` **with a url matching `dist/capture.js`** —
+and the url check is the load-bearing half, because a missing dependency *inside*
+capture.js raises the identical code. Everything else rethrows. `process.exit(0)`
+stays in the narrow branch on purpose and the comment says why: nothing below can
+run without the module, so every later test would fail on an undefined
+`capturePage` rather than skip.
+
+Two limits are now stated in the probe comment rather than implied away: the probe
+walks only the **local** branch of `launchAuditChromium()` (`src/browser-launch.ts:294`)
+and says nothing about the remote `playwright-core` + `@sparticuz/chromium` stack;
+and an intermittently-failing probe re-enables skipping for that run, which is the
+right direction to fail in but means "skipped" reports *the probe did not launch*,
+not *chromium is absent*.
+
+### A test that passed against the defect, caught by its own revert
+
+The redispatch test did not work on the first draft, and only the falsifiability
+revert showed it: with consume-on-read deleted, the suite stayed **14/14 green**.
+
+The draft dispatched a *second, freshly-constructed* event. That event was never
+marked, so it sails through whether or not the verdict is consumed — the test was
+measuring nothing. It now dispatches ONE event object twice, which is the actual
+attack, and `defaultPrevented` only ever goes false → true so reading it after
+each dispatch is a valid before/after despite being sticky.
+
+Third occurrence of "detecting rather than encoding" in this file. Operating rule:
+**a new test does not work until a revert proves it red.** Writing it and watching
+it pass proves only that the tree is currently green.
+
+### Falsifiability, measured one revert at a time
+
+| Revert | Expected | Measured |
+|---|---|---|
+| `WeakSet` methods looked up on the prototype at call time | only the prototype-tampering test red | 1 fail / 13 pass |
+| `ravenElapsedSince` → raw subtraction | only the backwards-clock test red | 1 fail / 13 pass |
+| consume-on-read deleted | only the redispatch test red | 1 fail / 13 pass (**0 fail before the test was rewritten**) |
+| `Max-Age` digit test removed entirely | only the new round-9 test red | 1 fail / 14 pass (r2+r8+r9) |
+| `Max-Age` narrowed to non-negative digits | only the new round-9 test red | 1 fail / 14 pass, on the negative-value assertion |
+| gate quantifier → greedy | the greedy-bypass assertion red | 1 fail / 3 pass, on that assertion's own message |
+| gate `..` rejection removed | the `..`-bypass assertion red | 1 fail / 3 pass, on that assertion's own message |
+
+The two gate reverts share a test name, so the messages were read to confirm they
+fail on different assertions — a shared name is exactly how two reverts can look
+like one measurement.
+
+### Round-13 verification
+
+- `RAVEN_NO_USAGE_LOG=1 npm test` — **1262 tests / 1259 pass / 0 fail / 3
+  skipped**, 43.9s. (+4 over round 12: three overlay tests and one `Max-Age`
+  test. The gate and `capture.test.mjs` changes are assertions and control flow
+  inside existing tests and move no count.)
+- `node test/e2e-pattern-library.mjs` — 33/33, `ALL CHECKS PASSED`, real Chromium
+  against proxied live `github.com`.
+- `cmp browser/raven-grab.js web/public/raven-grab.js` — byte-identical.
+- Frozen surfaces — `108 45
+  f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`, unchanged.
+  `src/grab-bridge.ts` changed this round, so `dist/` was rebuilt
+  (`npm run build` = `clean && tsc`) before any of the above.
 
 ## 4. Committed set — round 12
 

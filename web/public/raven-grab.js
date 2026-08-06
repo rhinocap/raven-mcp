@@ -445,8 +445,17 @@
   //     passed to `Object.preventExtensions` throws under `"use strict"` — which
   //     this file is — killing the rest of the listener, including the
   //     `ravenCommitEnterAlreadySeen` update on the next line. `WeakSet.add`
-  //     works on a non-extensible object and the set is closed over by this IIFE,
-  //     so nothing in the page can reach it.
+  //     works on a non-extensible object and the set is closed over by this IIFE.
+  //
+  //     Do NOT read that as "the page cannot reach the verdict" — an adverse pass
+  //     called that phrasing out and it was wrong. The set object is unreachable;
+  //     `WeakSet.prototype.add`/`has`/`delete` are ordinary page-realm properties
+  //     and a page can replace them. The methods are captured at load below so
+  //     post-injection tampering fails, which leaves a real, named residual: a
+  //     `<head>` script that poisons `WeakSet.prototype` before the overlay is
+  //     injected still wins. That is unclosable from inside a shared realm. The
+  //     honest claim is that this is strictly smaller than the hole it replaced,
+  //     not that it is airtight.
   //
   // Residuals that remain, stated rather than hidden:
   //
@@ -468,6 +477,12 @@
   //     that the clock rejects, and WebKit's stray send comes back. Ordering
   //     alone would fix that — and it is deliberately not the design, because
   //     the clock is the only bound on the mouse-candidate residual above.
+  //   * `performance.now` is page-replaceable. Capturing it at load stops
+  //     after-injection tampering, and `ravenElapsedSince` rejects a negative
+  //     delta so a clock that runs BACKWARD expires the marker instead of
+  //     un-bounding it — but a `<head>` script that installed a monotonically
+  //     slow clock before injection can still hold the window open. Same realm,
+  //     same unclosable residual as the prototype capture above.
   //     Without it, "accept a candidate with the mouse, walk away, come back and
   //     press Enter" eats the send however many minutes later it happens, since
   //     that Enter is still the next keydown. A narrow false negative on a
@@ -481,11 +496,47 @@
   // Per-event, module-private. See the third narrowing above for why this is not
   // a property on the event.
   var ravenCompositionCommits = new WeakSet();
+  // The SET is unreachable from the page, but its prototype methods are not:
+  // `WeakSet.prototype.add`/`has`/`delete` are ordinary page-realm properties and
+  // a page script can replace them to read, erase or forge a verdict. So the
+  // methods are captured here, at load, into module-private references, and the
+  // set is only ever touched through those.
+  //
+  // Stated honestly, because this is a narrowing and not a closure: it defeats
+  // tampering that happens AFTER the overlay loads. A page script that poisoned
+  // `WeakSet.prototype` before injection still wins, and nothing inside the page
+  // realm can change that — the overlay shares the realm by construction. The
+  // bridge injects before `</body>`, so a `<head>` script is upstream of us. This
+  // is a smaller hole than the event property it replaced (which needed no
+  // tampering at all and threw outright on a sealed event), not the absence of
+  // one.
+  var ravenWeakSetAdd = Function.prototype.call.bind(WeakSet.prototype.add);
+  var ravenWeakSetHas = Function.prototype.call.bind(WeakSet.prototype.has);
+  var ravenWeakSetDelete = Function.prototype.call.bind(WeakSet.prototype["delete"]);
+
+  // Captured for the same reason, and it matters MORE here: `performance.now` is
+  // replaceable, and the marker's expiry is a subtraction over two of its return
+  // values. A page that returns a large value at `compositionend` and a small one
+  // at a much later Enter produces a NEGATIVE delta, which satisfies any
+  // `delta < BOUND` test and makes the supposedly bounded marker unbounded. The
+  // capture closes the after-load case; `ravenElapsedSince` below closes the
+  // arithmetic regardless of where the numbers came from.
+  var ravenPerfNow =
+    (typeof performance !== "undefined" && performance && typeof performance.now === "function")
+      ? Function.prototype.call.bind(performance.now, performance)
+      : null;
+  var ravenDateNow = Date.now;
 
   function ravenNow() {
-    return (typeof performance !== "undefined" && performance && typeof performance.now === "function")
-      ? performance.now()
-      : Date.now();
+    return ravenPerfNow ? ravenPerfNow() : ravenDateNow();
+  }
+
+  // Elapsed time since a stamp, or Infinity when the clock did not move forward.
+  // A non-monotonic reading means the bound cannot be trusted, and the safe
+  // answer for a credential-adjacent guard is "expired" — never "still armed".
+  function ravenElapsedSince(stamp) {
+    var delta = ravenNow() - stamp;
+    return (typeof delta === "number" && delta >= 0) ? delta : Infinity;
   }
 
   // Both listeners must agree on what "the element" is. From `window`, a
@@ -537,9 +588,9 @@
     // no keydown follows at all (compose, click away, come back minutes later).
     if (event.key === "Enter" &&
         !!pending &&
-        ravenNow() - pending.at < RAVEN_COMPOSITION_COMMIT_MS &&
+        ravenElapsedSince(pending.at) < RAVEN_COMPOSITION_COMMIT_MS &&
         pending.origin === ravenEventOrigin(event)) {
-      ravenCompositionCommits.add(event);
+      ravenWeakSetAdd(ravenCompositionCommits, event);
     }
     // Assigned, never OR-ed: it must describe THIS keydown only, so a character
     // key clears a commit Enter that never produced a `compositionend`. A stale
@@ -548,9 +599,19 @@
   }, true);
 
   // True for the Enter that only committed an IME candidate.
+  //
+  // The verdict is CONSUMED on read. A marked event is a single commit, but a
+  // `KeyboardEvent` object can be dispatched more than once — `dispatchEvent` on
+  // a stored event is ordinary, and a page holding a reference to the user's
+  // commit Enter could re-fire it at the send button forever, with each
+  // redispatch swallowed as "that was just an IME commit". One mark, one
+  // suppression.
   function ravenIsCompositionCommit(event) {
-    return event.key === "Enter" &&
-      (event.isComposing === true || ravenCompositionCommits.has(event));
+    if (event.key !== "Enter") return false;
+    if (event.isComposing === true) return true;
+    if (!ravenWeakSetHas(ravenCompositionCommits, event)) return false;
+    ravenWeakSetDelete(ravenCompositionCommits, event);
+    return true;
   }
   ["keydown", "keypress", "keyup"].forEach(function (eventName) {
     window.addEventListener(eventName, function (event) {

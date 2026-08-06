@@ -1734,8 +1734,18 @@ function readCookieAttributes(attributes: string[], responseUrl: URL): CookieAtt
       if (declared === "strict" || declared === "lax" || declared === "none") sameSite = declared;
     }
     if (attributeName === "max-age") {
-      var seconds = Number(attributeValue);
-      if (Number.isFinite(seconds)) expiresAt = Date.now() + seconds * 1000;
+      // RFC 6265 §5.2.2 draws a line this used to blur: a value whose first
+      // character is neither a DIGIT nor "-" is INVALID and the attribute must be
+      // ignored, while a valid NON-POSITIVE value is a deletion. `Number()` maps
+      // both onto the same number — `Number("") === 0` — so a malformed
+      // `Max-Age=` was silently deleting the cookie instead of being skipped, and
+      // a real `Max-Age=0` logout was indistinguishable from it. The digit test
+      // is what separates "the server said expire this" from "the server sent
+      // something we could not read".
+      if (/^-?\d+$/.test(attributeValue)) {
+        var seconds = Number(attributeValue);
+        if (Number.isFinite(seconds)) expiresAt = Date.now() + seconds * 1000;
+      }
     }
     // Max-Age wins over Expires per RFC 6265, so only read Expires if unset.
     if (attributeName === "expires" && expiresAt === null) {
