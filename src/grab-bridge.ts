@@ -1821,7 +1821,33 @@ function parseCookieDate(value: string): number | null {
   if (dayOfMonth < 1 || dayOfMonth > 31) return null;
   if (year < 1601) return null;
   if (hour > 23 || minute > 59 || second > 59) return null;
-  return Date.UTC(year, month, dayOfMonth, hour, minute, second);
+
+  // §5.1.1 step 6: "Let the parsed-cookie-date be the date whose day-of-month,
+  // month, year, hour, minute, and second (in UTC) are [the parsed values]. If
+  // no such date exists, abort these steps and fail to parse the cookie-date."
+  //
+  // The day range test above is 1–31, which §5.1.1 states directly and which is
+  // NOT a calendar check — April 31 and February 30 both pass it. `Date.UTC`
+  // then NORMALISES rather than rejecting: `Date.UTC(2025, 3, 31)` is
+  // 2025-05-01, so `Expires=Thu, 31 Apr 2025 …` silently became a real date one
+  // day later. Any such date already in the past makes the jar delete a cookie
+  // the RFC says to KEEP as a session cookie, because the attribute should have
+  // failed to parse and been ignored. Chromium validates the exploded date for
+  // the same reason. The round-trip is the check: if the fields come back
+  // changed, no such date exists.
+  var utc = Date.UTC(year, month, dayOfMonth, hour, minute, second);
+  var roundTrip = new Date(utc);
+  if (
+    roundTrip.getUTCFullYear() !== year ||
+    roundTrip.getUTCMonth() !== month ||
+    roundTrip.getUTCDate() !== dayOfMonth ||
+    roundTrip.getUTCHours() !== hour ||
+    roundTrip.getUTCMinutes() !== minute ||
+    roundTrip.getUTCSeconds() !== second
+  ) {
+    return null;
+  }
+  return utc;
 }
 
 function readCookieAttributes(attributes: string[], responseUrl: URL): CookieAttributes {

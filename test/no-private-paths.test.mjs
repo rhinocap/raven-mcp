@@ -203,26 +203,42 @@ const NESTED_SPAN_MAX = 4096;
 // starts inside that window with a non-backtracking pass. Cost is bounded by
 // `NESTED_SPAN_MAX` per tooling hit.
 //
-// One discriminator is still needed, and it is the thing that separates the two
-// wrong anchors from each other. Taking the verdict over every anchor puts the
-// space false positive back: a tracked JSON file writes this repo's own root,
-// then prose, then this repo's own tooling directory, and the OUTER anchoring of
-// that span starts at the repo root but does not start with `repoRoot + '/'` —
-// because the next character is a space — so it reads as foreign. What makes it
-// prose rather than a path is that the second absolute home path inside it is
-// preceded by a SPACE. A real directory name with a space in it does not then
-// contain another rooted home path; a sentence that mentions two paths does.
-// An anchor whose middle contains ` <home start>` is therefore not considered.
+// Two discriminators are still needed, and BOTH are about where a path ends —
+// which is the only genuinely hard question here, because the bytes are
+// ambiguous. `<home a> <home b>/.claude` is either one path whose directory name
+// ends in a space or two paths with prose between them, and nothing in the
+// string settles it. The first version of this guessed from the MIDDLE ("does a
+// second rooted home start appear after a space?"), and an adverse pass showed
+// that guess is wrong in both directions: it missed a foreign home followed by a
+// space and this checkout, and it flagged an ordinary sentence naming a home
+// directory and a bare tooling directory. Both discriminators below look at the
+// ENDS instead, where there is real evidence.
 //
-// The nesting case survives that filter precisely because it has no space: the
-// inner `Users` there is an ordinary path segment inside a backup directory.
-// Known residual, stated rather than left to be found: a foreign home path whose
-// directory name contains a space AND that then nests this checkout would be
-// missed. Prose that names a foreign home and a bare tooling directory on one
-// line is still a false positive — loud, and one rename from fixed.
+// (1) An anchor whose span begins with this repo's root followed by a SPACE is
+//     excluded. That is the tracked-JSON shape: repo root, prose, repo root,
+//     tooling directory. Reading it as one path requires a directory literally
+//     named `raven-mcp ` sitting beside this checkout — and even under that
+//     reading the leak would be repo-local. Whatever follows the space gets its
+//     own anchor and is judged on its own, so a genuinely foreign path after a
+//     repo-local one is still caught. This is what replaced the middle test, and
+//     it is what makes the foreign-home-then-space-then-checkout case a hit.
+//
+// (2) A tooling-directory hit immediately preceded by a SPACE is skipped by the
+//     nested scan entirely. `/.claude` starting its own space-delimited token is
+//     rooted at the filesystem root, not continuing anybody's home path — a path
+//     segment cannot be empty, so a continuation always has a non-space
+//     character before the separator. This is what kills the prose false
+//     positive, and it cannot touch the nesting case, where the character before
+//     the tooling directory is an ordinary path character.
+//
+// Residual, stated rather than left to be found: a real leak of the form
+// `<home>/<dir ending in a space>/.claude` is missed by (2), and a real leak
+// under a directory beside this checkout named with a trailing space is missed
+// by (1). Both require a trailing-space directory name, which no tool here
+// produces. The direct matcher is unaffected by either — it only ever matches a
+// contiguous home-to-tooling path.
 const TOOL_DIR_HIT = new RegExp('\\/\\.' + TOOL_DIRS + '\\b', 'g');
 const HOME_START = /(?:(?:\/Users|\/home)\/[A-Za-z0-9._@-]+|\/root)\//g;
-const PROSE_JOIN = / (?:(?:\/Users|\/home)\/[A-Za-z0-9._@-]+|\/root)\//;
 const SPAN_BREAK = new Set(['\n', '\r', '\t', '"', "'", '`']);
 
 function findPrivatePath(text) {
@@ -233,6 +249,9 @@ function findPrivatePath(text) {
   let tool;
   while ((tool = TOOL_DIR_HIT.exec(text)) !== null) {
     const end = tool.index + tool[0].length;
+    // Discriminator (2): this tooling directory starts its own token, so it is
+    // rooted at `/`, not continuing the home path to its left.
+    if (tool.index > 0 && text[tool.index - 1] === ' ') continue;
     // Widest window a middle segment could legally occupy: back to the nearest
     // span-breaking character, and never further than the bound plus room for
     // the home-start prefix itself.
@@ -248,9 +267,10 @@ function findPrivatePath(text) {
       const middleLength = tool.index - (at + start[0].length);
       HOME_START.lastIndex = start.index + 1;
       if (middleLength < 1 || middleLength > NESTED_SPAN_MAX) continue;
-      const middle = text.slice(at + start[0].length, tool.index);
-      if (PROSE_JOIN.test(middle)) continue;
       const hit = text.slice(at, end);
+      // Discriminator (1): this anchor's own path IS this checkout's root, and
+      // the span only reaches the tooling directory by absorbing a space.
+      if (hit.startsWith(repoRoot + ' ')) continue;
       const escapesRepo = hit.split('/').includes('..');
       if (escapesRepo || !hit.startsWith(repoRoot + '/')) return hit;
     }
@@ -511,12 +531,54 @@ test('the gate is falsifiable — its own pattern matches a synthetic leak', () 
     'gate that fires on its own repo gets muted, which is how this class got ' +
     'through three times already');
 
-  // The interior of the span, not just its boundary. A discontiguous mutant —
-  // `(?:class{1,512}|a{4096})` — passes both boundary assertions above while
-  // leaving everything between them unmatched.
-  assert.ok(findPrivatePath(nestWithMiddle(Math.floor(NESTED_SPAN_MAX / 2))),
-    'a leak nested to half the bound was missed, so the matcher is not ' +
-    'contiguous across the range — measuring only the endpoints cannot see that');
+  // The seventh and eighth findings, from the round-17 pass, are the two ways
+  // the previous middle-based discriminator misread where a path ends.
+  //
+  // (a) A foreign home whose directory name ends in a space, then this checkout.
+  //     The old filter saw ` <home start>` in the middle and called the whole
+  //     thing prose, so a foreign home directory published silently.
+  assert.ok(
+    findPrivatePath(ROOT_MAC + '/bob/Backup ' + repoRoot + DOT + 'claude/settings.json'),
+    'a foreign home path whose directory name ends in a space, followed by this ' +
+    'checkout, was discarded as prose — the outer anchor is foreign and it is ' +
+    'the one that decides');
+
+  // (b) An ordinary sentence naming a home directory and, separately, a bare
+  //     tooling directory. Nothing joins them: the tooling directory begins its
+  //     own token, so it is rooted at `/`. The old filter had no second home
+  //     start to key on and reported the entire sentence as a leak.
+  assert.equal(
+    findPrivatePath(
+      'Docs mention ' + ROOT_MAC + '/alice/project is local; the tooling ' +
+      'directory is ' + DOT + 'claude/settings.json'
+    ),
+    null,
+    'prose naming a home directory and a bare tooling directory in one sentence ' +
+    'was reported as a leak — a path segment cannot be empty, so a tooling ' +
+    'directory preceded by a space is not continuing anybody\'s home path');
+
+  // The interior of the span, not just its boundary. Two adjacent endpoints
+  // cannot separate a contiguous matcher from a discontiguous one that happens
+  // to cover both — and neither can three points: the round-17 pass produced
+  // `n >= 1 && (n <= 2048 || n === 4096)`, which accepts 1, MAX/2 and MAX while
+  // silently dropping 2,047 lengths in between.
+  //
+  // No finite set of fixtures can PROVE contiguity, and this one does not claim
+  // to. What it does is make a passing interval mutant have to reproduce the
+  // accepted set almost exactly, which is no longer a plausible accident. The
+  // sweep is deterministic (a prime-ish stride so the samples do not land on
+  // round powers of two, which is where a hand-written mutant's boundaries go)
+  // and cheap — each probe is one bounded scan.
+  const sweep = [1, 2, 3];
+  for (let k = 1; k < 17; k += 1) sweep.push(Math.round((NESTED_SPAN_MAX * k) / 17));
+  sweep.push(NESTED_SPAN_MAX - 2, NESTED_SPAN_MAX - 1);
+  for (const len of sweep) {
+    assert.ok(findPrivatePath(nestWithMiddle(len)),
+      'a leak nested to ' + len + ' characters was missed while the endpoints ' +
+      'matched, so the accepted lengths are not one contiguous interval — ' +
+      'measuring only the endpoints, or only the endpoints and the midpoint, ' +
+      'cannot see that');
+  }
 
   // Cost, asserted rather than assumed. Allowing the space turned the lazy
   // quantifier into an adversarial backtracker: the round-16 pass measured

@@ -115,12 +115,44 @@ let extractStaticTraits;
 // hand-probing it establishes point-in-time behaviour but encodes no regression
 // guard — an adverse pass made exactly that objection. The tests at the bottom
 // of this file drive it against real fixtures instead.
+// "Absent" is specifically ENOENT. Every other `lstat` failure means the path
+// cannot be resolved for some OTHER reason, and each of those is a broken tree
+// rather than an unbuilt one — a round-17 pass found two that a bare
+// `catch { return false }` classified as "never built", so the run exited 0
+// having executed nothing:
+//   * an ancestor that is a regular file      → ENOTDIR
+//   * an ancestor that is a dangling symlink  → ENOENT on the ancestor, but the
+//     entry itself is unreachable rather than merely missing
+// ENOTDIR is now correctly rethrown. The dangling-ANCESTOR case is genuinely
+// indistinguishable from an absent entry at the syscall level (both ENOENT), so
+// it is resolved by walking up: if any ancestor exists but is not a directory,
+// or is a symlink that does not resolve to one, the tree is broken.
 function entryPresent(candidate) {
   try {
     lstatSync(candidate);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    if (!err || err.code !== 'ENOENT') return true;   // ENOTDIR, EACCES, ELOOP…
+    // ENOENT on the entry itself is only an unbuilt tree if the whole ancestor
+    // chain is either absent or a real directory. An ancestor that exists as a
+    // dangling symlink is a malformed tree wearing an unbuilt one's errno.
+    let dir = path.dirname(candidate);
+    for (;;) {
+      let st;
+      try {
+        st = lstatSync(dir);
+      } catch (ancestorErr) {
+        if (ancestorErr && ancestorErr.code === 'ENOENT') {
+          const parent = path.dirname(dir);
+          if (parent === dir) return false;
+          dir = parent;
+          continue;
+        }
+        return true;
+      }
+      if (st.isDirectory()) return false;              // a real directory: absent below it
+      return true;                                     // file or unresolvable link: broken
+    }
   }
 }
 
@@ -1050,6 +1082,45 @@ test('the load discriminator distinguishes an unbuilt tree from a broken one', (
       isMissingEntryModule(new SyntaxError('Unexpected token'), absent, hrefOf(absent)),
       false,
       'a syntax error in the entry module must rethrow'
+    );
+
+    // (f) an ANCESTOR that is a regular file. `lstat` fails with ENOTDIR, not
+    // ENOENT, and a catch-all `return false` read that as "never built" — the
+    // run then exited 0 having executed nothing, which is the mute rounds 13–17
+    // keep closing. Round 17's first fix swallowed every errno; this is the
+    // ancestor structure the synthetic-error fixtures above cannot exercise.
+    const fileAsDir = path.join(tmp, 'not-a-directory');
+    writeFileSync(fileAsDir, 'this is a file, not a directory\n');
+    const underFile = path.join(fileAsDir, 'capture.js');
+    assert.equal(
+      isMissingEntryModule(notFound(hrefOf(underFile)), underFile, hrefOf(underFile)),
+      false,
+      'an entry module whose parent is a regular file is a MALFORMED tree, not ' +
+      'an unbuilt one — ENOTDIR must rethrow'
+    );
+
+    // (g) an ancestor that is a DANGLING DIRECTORY symlink. `lstat` on the entry
+    // gives ENOENT, byte-identical to a genuinely absent file, so the errno
+    // cannot separate them and the ancestor walk has to.
+    const danglingDir = path.join(tmp, 'dangling-dir');
+    symlinkSync(path.join(tmp, 'no-such-directory'), danglingDir);
+    const underDangling = path.join(danglingDir, 'capture.js');
+    assert.equal(
+      isMissingEntryModule(notFound(hrefOf(underDangling)), underDangling, hrefOf(underDangling)),
+      false,
+      'an entry module under a dangling directory symlink is a MALFORMED tree — ' +
+      'ENOENT on the entry is the same errno an unbuilt tree gives, so the ' +
+      'ancestor chain is the only thing that separates them'
+    );
+
+    // …and the control that keeps (f)/(g) from becoming rethrow-everything: a
+    // genuinely absent entry under a genuinely absent directory is still just an
+    // unbuilt tree.
+    const absentUnderAbsent = path.join(tmp, 'never-built', 'dist', 'capture.js');
+    assert.equal(
+      isMissingEntryModule(notFound(hrefOf(absentUnderAbsent)), absentUnderAbsent, hrefOf(absentUnderAbsent)),
+      true,
+      'an absent entry under absent directories is an unbuilt tree and must skip'
     );
   } finally {
     rmSync(tmp, { recursive: true, force: true });

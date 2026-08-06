@@ -465,3 +465,107 @@ test('an Expires that fails RFC 6265 §5.1.1 is ignored, not read as the epoch',
     await new Promise((resolve) => upstream.close(resolve));
   }
 });
+
+// ───────────────────────────── Round 18 ─────────────────────────────
+
+test('the NAME/VALUE split trims WSP only at the END as well as the start', async () => {
+  // Round 16 fixed the name/value split and round 17 asserted it exactly — but
+  // every fixture in both rounds pads the LEADING edge. §5.2 removes WSP from
+  // both ends of the name and both ends of the value, so a trailing pad is a
+  // separate code path through the same rule, and the round-17 assertion walks
+  // straight past it: add `|| value.charCodeAt(end - 1) === 0xa0` to the
+  // trailing-trim loop and every existing cookie test stays green while
+  // `sid=live<U+00A0>` is stored and replayed as `sid=live`.
+  //
+  // That is the same harm as the leading case and not a smaller one: the bridge
+  // sends upstream a credential the server never issued. Fixing one end of a
+  // two-ended rule is the round-16 lesson (one of two call sites) one layer in.
+  const NBSP = '\u00A0';
+  assert.equal(NBSP.charCodeAt(0), 0xA0, 'the fixture pad is not U+00A0');
+
+  const seen = [];
+  let issued = 0;
+  const upstream = createServer((req, res) => {
+    seen.push({ url: req.url, cookie: req.headers.cookie || '' });
+    const headers = { 'Content-Type': 'text/html; charset=utf-8' };
+    if (issued === 0) {
+      headers['Set-Cookie'] = [
+        'sid=live' + NBSP + '; Path=/; SameSite=Strict',
+        'pad' + NBSP + '=plain; Path=/; SameSite=Strict'
+      ];
+    }
+    issued += 1;
+    res.writeHead(200, headers);
+    res.end('<!doctype html><html><body><h1>up</h1></body></html>');
+  });
+  await new Promise((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+  const upstreamUrl = 'http://127.0.0.1:' + upstream.address().port;
+
+  try {
+    const session = await bridge.startGrabSession(await designMd(), undefined, upstreamUrl, 'consumer');
+
+    await request(session.url + '/login', { headers: SAME_ORIGIN });
+    await request(session.url + '/replay', { headers: SAME_ORIGIN });
+
+    const replayed = seen[1].cookie;
+    assert.equal(replayed, 'sid=live' + NBSP + '; pad' + NBSP + '=plain',
+      'a TRAILING U+00A0 was stripped from the cookie name or value, so the ' +
+      'bridge is replaying a credential the server never issued — or an extra ' +
+      'pair appeared alongside the real one: ' + JSON.stringify(replayed));
+  } finally {
+    await bridge.stopGrabSession();
+    await new Promise((resolve) => upstream.close(resolve));
+  }
+});
+
+test('an Expires naming a day that does not exist fails to parse, and is ignored', async () => {
+  // §5.1.1 step 5 checks the day-of-month against 1–31, which is what the RFC
+  // says and which is NOT a calendar check: April 31 and February 30 both pass
+  // it. Step 6 then says "let the parsed-cookie-date be the date whose [fields]
+  // are [the parsed values]. If no such date exists, abort these steps and fail
+  // to parse the cookie-date."
+  //
+  // `Date.UTC` NORMALISES instead of failing — `Date.UTC(2025, 3, 31)` is
+  // 2025-05-01 — so a nonexistent date silently became a real one. Any such date
+  // in the past deletes a cookie the RFC says to KEEP as a session cookie,
+  // because the attribute should have been ignored. Chromium validates the
+  // exploded date for the same reason.
+  //
+  // The second cookie is the control: a well-formed past Expires must still
+  // delete, or "ignore every Expires" passes this test.
+  const seen = [];
+  let issued = 0;
+  const upstream = createServer((req, res) => {
+    seen.push({ url: req.url, cookie: req.headers.cookie || '' });
+    const headers = { 'Content-Type': 'text/html; charset=utf-8' };
+    if (issued === 0) {
+      headers['Set-Cookie'] = [
+        // 31 April 2020 does not exist. Un-normalised it is in the past, so a
+        // normalising parser deletes this cookie; the RFC keeps it.
+        'kept=yes; Path=/; SameSite=Strict; Expires=Thu, 31 Apr 2020 00:00:00 GMT',
+        'gone=yes; Path=/; SameSite=Strict; Expires=Wed, 01 Apr 2020 00:00:00 GMT'
+      ];
+    }
+    issued += 1;
+    res.writeHead(200, headers);
+    res.end('<!doctype html><html><body><h1>up</h1></body></html>');
+  });
+  await new Promise((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+  const upstreamUrl = 'http://127.0.0.1:' + upstream.address().port;
+
+  try {
+    const session = await bridge.startGrabSession(await designMd(), undefined, upstreamUrl, 'consumer');
+
+    await request(session.url + '/login', { headers: SAME_ORIGIN });
+    await request(session.url + '/after', { headers: SAME_ORIGIN });
+
+    assert.equal(seen[1].cookie, 'kept=yes',
+      'a cookie-date naming a day that does not exist was normalised into a real ' +
+      'one and applied, so a malformed header logged the user out — or the ' +
+      'well-formed past Expires beside it failed to delete, which would mean ' +
+      'Expires is being ignored wholesale: ' + JSON.stringify(seen[1].cookie));
+  } finally {
+    await bridge.stopGrabSession();
+    await new Promise((resolve) => upstream.close(resolve));
+  }
+});

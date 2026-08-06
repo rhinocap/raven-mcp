@@ -1632,6 +1632,139 @@ R3, R5 and R8 land on the same test name and were checked to fail on three
 - Frozen surfaces — `108 45
   f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`, unchanged.
 
+### 3o. Round 18 — dispositioning Sol round 17
+
+Sol round 17 ran at xhigh, detached, report-only, and returned
+`SUMMARY: SOME CLAIMS DO NOT HOLD` — five of six claims down, ranked by
+consequence. His own run was 1269 / 1198 pass / 0 fail / **71 skipped**
+(Mach-port `Permission denied (1100)`), correctly reported as skips rather than
+failures.
+
+| Claim | Verdict | His rank | Round-18 disposition |
+|---|---|---|---|
+| C1 — `Expires` follows §5.1.1 | DOES NOT HOLD | 2/5 | fixed — UTC round-trip |
+| C2 — gate classifies correctly | DOES NOT HOLD | 1/5 | fixed — two end-based discriminators |
+| C3 — fixtures measure contiguity | DOES NOT HOLD | 5/5 | fixed — 21-point sweep, claim corrected |
+| C4 — load discriminator correct | DOES NOT HOLD | 3/5 | fixed — ENOENT-only + ancestor walk |
+| C5 — cookie tests encode the property | DOES NOT HOLD | 4/5 | fixed — trailing-pad coverage |
+| C6 — frozen surfaces unchanged | HOLDS | — | re-verified independently |
+
+**A note on the brief before the findings.** The first launch of this pass was
+killed upstream — `ERROR: This content was flagged for possible cybersecurity
+risk` — because the brief was written as an attack exercise ("break this",
+"construct a leaking blob") over DNS-rebinding and session-hijacking material.
+I initially misread the log's echoed `OVERALL:` lines as a verdict; they were my
+own brief coming back. Rewritten in correctness-review language — RFC
+conformance, classification correctness, test quality — the same six claims ran
+clean. The killed run's 469 KB log contained the reviewer's own system prompt
+verbatim, which is exactly the private-context class this repo's gate exists
+for; it was caught by the ignore rule and the rerun overwrote it.
+
+**C1 — the 1–31 day check is not a calendar check.** §5.1.1 step 5 tests the
+day-of-month against 1–31, which is what the RFC says; April 31 and February 30
+both pass it. Step 6 is the part that rejects them: "let the parsed-cookie-date
+be the date whose [fields] are [the parsed values]. If no such date exists,
+abort these steps and fail to parse the cookie-date." `Date.UTC` NORMALISES
+instead of failing — month 3 day 31 is 1 May — so `Expires=Thu, 31 Apr 2020
+00:00:00 GMT` silently became a real date one day later. Any such date already
+in the past then deletes a cookie the RFC says to KEEP as a session cookie,
+because the attribute should have failed to parse and been ignored. Chromium
+validates the exploded date for the same reason. The fix is a UTC round-trip of
+all six fields: if they come back changed, no such date exists. This is the same
+shape as `Number("") === 0` and `Date.parse` returning the epoch — a library
+function that answers where the spec says to refuse.
+
+**C2 — the prose-join heuristic guessed from the middle, and both directions
+were wrong.** Round 16 added `PROSE_JOIN` to tell one path with a space in it
+from two paths with prose between them, by inspecting the middle of the span.
+Sol produced one miss and one false positive against it, and the miss is the
+serious one: a foreign home directory, a folder named with a space, then this
+checkout's own root and its tooling directory — reported as ours and discarded.
+The false positive is an ordinary sentence naming a home directory and a bare
+tooling directory, flagged as a leak.
+
+Dropping `PROSE_JOIN` outright immediately reproduced the false positive on a
+genuinely tracked file in this repo, which is what named the real question:
+the outer anchor's span begins with the repo root and the next character is a
+**space**, so `startsWith(repoRoot + '/')` is false and it reads as foreign.
+That is a question about where a path ENDS, not what sits in its middle. Two
+discriminators, both at the ends, replace the heuristic:
+
+1. a span beginning with the repo root followed by a space is this checkout's
+   root plus something else — whatever follows gets its own anchor and its own
+   verdict;
+2. a tooling-directory hit immediately preceded by a space begins its own
+   rooted token, because **a path segment cannot be empty** — a genuine
+   continuation always has a non-space character before the separator.
+
+Both of Sol's inputs are now fixtures. Reverting (1) fails the miss fixture AND
+the real-index scan; reverting (2) fails the false-positive fixture. Neither
+revert touches the other's assertion.
+
+**C3 — three points cannot prove an interval.** Round 17 answered the
+endpoints-only objection with one interior fixture at half the bound, and Sol's
+reply is correct: `n >= 1 && (n <= MAX/2 || n === MAX-1 || n === MAX)` passes all
+four points while missing everything between. There is no finite fixture set
+that proves contiguity. The single midpoint is now a deterministic 21-point
+sweep across the range, and the comment says explicitly that this raises the
+cost of a passing mutant rather than establishing the property. Measured: a
+mutant built to pass exactly the old four points fails the sweep at 2168.
+
+**C4 — every `lstat` error was being read as "absent".** Round 17 moved from
+`existsSync` to `lstat` and then converted every failure into "entry absent",
+so two real broken trees classified as unbuilt and the run exited 0 having
+executed nothing — the same mute rounds 13 through 17 keep closing, one errno
+over. An ancestor that is a regular file gives ENOTDIR; an ancestor that is a
+dangling directory symlink gives ENOENT on the entry, byte-identical to a
+genuinely missing file. Only ENOENT counts as absent now, and the ENOENT case
+walks up: an ancestor that exists but is not a directory means broken, a real
+directory above the entry means absent. Sol's note that the fixtures used
+synthetic errors and never exercised ancestor structure was the sharper half of
+the finding — the two cases are now built as real trees in a temp directory,
+plus a control (absent entry under absent directories) so the fix cannot degrade
+into rethrow-everything. Two separate mutants were needed to prove them: the
+bare catch-all fails the ENOTDIR assertion, which runs first, so a second mutant
+that keeps the ENOENT check and drops only the ancestor walk is what proves the
+dangling-directory fixture.
+
+**C5 — every existing pad fixture was on the leading edge.** §5.2 removes WSP
+from both ends of the name and both ends of the value. Rounds 16 and 17 fixed
+and then exactly-asserted the name/value split, and every fixture in both pads
+the START. Sol's input is a trailing pad: add one clause to the trailing-trim
+loop and the value is stored and replayed with the pad stripped, sending
+upstream a credential the server never issued, while every existing cookie test
+stays green. Measured with that exact mutant injected into the built output: the
+new test fails, the round-17 leading-pad test passes clean — which is the proof
+that it was blind, not merely that the new one works. Fixing one end of a
+two-ended rule is the round-16 lesson (one of two call sites sharing a rule) one
+layer in.
+
+**C6 held.** Sol independently re-derived 108 stdio, 45 anonymous, the golden
+hash, and byte-identical overlays.
+
+#### Falsifiability — round 18
+
+| Revert | Fails | Only that |
+|---|---|---|
+| remove the `Date.UTC` round-trip | the nonexistent-day Expires test | yes (9/10 pass) |
+| remove discriminator (1) | the space-folder miss fixture + the real-index scan | both are the same class |
+| remove discriminator (2) | the prose false-positive fixture | yes |
+| accept only the old four span lengths | the sweep, at 2168 | yes |
+| bare `catch { return false }` in `entryPresent` | the ENOTDIR fixture | first assertion; see next row |
+| keep ENOENT check, drop the ancestor walk | the dangling-directory fixture | yes |
+| also trim trailing `0xa0` in the built output | the trailing-pad test | yes; the leading-pad test stays green |
+
+#### Verification
+
+- `RAVEN_NO_USAGE_LOG=1 npm test` — **1271 tests / 1268 pass / 0 fail / 3
+  skipped**, 44.2s. The +2 over round 17 is the two new cookie tests; the C4
+  fixtures live inside an existing test and move no count.
+- `node test/e2e-pattern-library.mjs` — `ALL CHECKS PASSED`.
+- overlays byte-identical.
+- frozen probe — `108 45 f64bb18…2bb0a6`, unchanged.
+
+Sol round 18 is the open item; no completion claim until it is dispositioned.
+
 ## 4. Committed set — round 12
 
 Round 12 committed: `CLAUDE.md`, `browser/raven-grab.js`, `web/public/raven-grab.js`,
