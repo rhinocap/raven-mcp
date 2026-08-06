@@ -24,8 +24,27 @@ export interface PatternReference {
   state_styles?: Record<string, Record<string, string>>;
   note?: string;
   tags: string[];
+  image?: ReferenceImage;
   captured_at: string;
   raven_version: string;
+}
+
+// A stored reference is HTML plus computed styles, which nobody can look at.
+// The image is what makes a corpus pickable — you cannot choose "that scrolling
+// mouse cue" from a style map.
+//
+// `fidelity` is on the record rather than assumed, because the render is
+// deliberately OFFLINE: the page is rebuilt from the stored markup with every
+// external request blocked, so a stored reference can never phone the site it
+// came from later. That is a privacy and a correctness property (the source page
+// may have changed, or require a login), and it costs remote images and
+// webfonts. A thumbnail that silently omits them while presenting itself as a
+// picture of the pattern is the failure mode; naming the fidelity is the fix.
+export interface ReferenceImage {
+  file: string;
+  width: number;
+  height: number;
+  fidelity: "offline";
 }
 
 export interface SaveReferenceInput {
@@ -205,6 +224,17 @@ export function deleteReference(ref_id: string): boolean {
   }
   var index = existing.filter(function(id) { return id !== ref_id; });
   unlinkSync(file);
+  // The image is part of the record, so a delete that leaves it behind is not a
+  // delete. This is the takedown path: a third-party pattern removed from the
+  // corpus must not survive as a picture of itself sitting next to a gap in the
+  // index. Unlinked BEFORE the index is rewritten, and tolerated if absent —
+  // most records have no image, and a missing file is the expected case rather
+  // than an error.
+  try {
+    unlinkSync(referenceImagePath(ref_id));
+  } catch (_error) {
+    // no image, or already gone
+  }
   atomicWriteJson(indexPath(), { version: 1, ref_ids: index });
   return true;
 }
@@ -280,6 +310,51 @@ function recordPath(ref_id: string): string {
 
 function indexPath(): string {
   return join(referenceHome(), "index.json");
+}
+
+export function referenceImagePath(ref_id: string): string {
+  validateReferenceId(ref_id);
+  return join(referenceHome(), ref_id + ".png");
+}
+
+// Attach a rendered thumbnail to an already-saved record.
+//
+// Separate from saveReference on purpose. saveReference is synchronous and must
+// stay that way — the capture itself has to survive a browser that will not
+// launch, a render that times out, or a machine with no chromium at all. A
+// reference with no image is a usable reference; a capture that FAILS because
+// its picture did not render is a lost grab. Every caller treats this as
+// best-effort, and the record is the same record either way.
+export function attachReferenceImage(
+  ref_id: string,
+  png: Uint8Array,
+  size: { width: number; height: number },
+): PatternReference {
+  var reference = getReference(ref_id);
+  if (!reference) throw new Error("no reference with ref_id " + ref_id);
+  if (!(png instanceof Uint8Array) || png.length === 0) {
+    throw new Error("png must be a non-empty byte array");
+  }
+  if (!isFiniteNumber(size.width) || !isFiniteNumber(size.height)
+    || size.width <= 0 || size.height <= 0) {
+    throw new Error("image size must be positive numbers");
+  }
+  var file = ref_id + ".png";
+  var target = referenceImagePath(ref_id);
+  mkdirSync(dirname(target), { recursive: true });
+  // Same temp-then-rename shape as atomicWriteJson: a half-written PNG next to a
+  // record that advertises it is worse than no image at all.
+  var temp = target + ".tmp";
+  writeFileSync(temp, png);
+  renameSync(temp, target);
+  reference.image = {
+    file: file,
+    width: Math.round(size.width),
+    height: Math.round(size.height),
+    fidelity: "offline",
+  };
+  atomicWriteJson(recordPath(ref_id), reference);
+  return reference;
 }
 
 function recordFiles(skipped: string[]): string[] {

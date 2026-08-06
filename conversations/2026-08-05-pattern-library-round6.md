@@ -2134,3 +2134,95 @@ disk per request), but bridge-server fixes need a `/mcp` reconnect.
    site and the public `.mcpb` download.
 5. No hold-open bridge is currently running; he has nothing to click yet. A fresh
    `start_grab_session` with `proxy_target` is needed before handoff.
+
+## 7. Pattern library — element thumbnails (leg 1 of the Mobbin work)
+
+The review loop is closed (`6230b8c`). This is the switch Andrew approved:
+"Close it out, then switch."
+
+### Why this leg first
+
+His use case is a picking surface — *"I wanted examples of a scrolling mouse icon
+in a hero image from around the web, and I wish Raven would show me some then I
+could have chosen one."* Everything downstream of that (corpus, attribution,
+takedown, implement) is blocked on a corpus you can **look at**. Confirmed by
+reading rather than assumed: `PatternReference` had no image field at all, the
+overlay captures no pixels, and `search_references`' own description said
+"never images".
+
+### What changed
+
+- **`src/reference-thumbnail.ts` (new).** `thumbnailDocument()` rebuilds the
+  captured element in a bare document with the stored computed styles applied to
+  a host wrapper; `renderReferenceThumbnail()` renders it in headless Chromium
+  via the existing `launchAuditChromium()` path and screenshots the host.
+- **`src/reference-store.ts`.** `ReferenceImage` (`file`/`width`/`height`/
+  `fidelity`), `image?` on the record, `referenceImagePath()`,
+  `attachReferenceImage()` (validates, temp-then-rename, rewrites the record),
+  and **`deleteReference` now unlinks the PNG** — noticed while reading, fixed in
+  the same change because it *is* the takedown path.
+- **`src/index.ts`.** `capture_reference` renders after the record is committed,
+  inside a try/catch, and returns `image`. `search_references` maps `image_path`
+  onto results that have one. Both descriptions rewritten — they previously
+  advertised the opposite.
+
+### The three properties that are deliberate
+
+1. **Offline.** Every external request is aborted at the route layer. A stored
+   third-party pattern must never reach back out to the site it came from, at any
+   later moment. Cost: remote images and webfonts, which is why the record says
+   `fidelity: "offline"` instead of claiming to be a faithful picture.
+2. **Best effort, and the ordering carries it.** The record is committed *before*
+   the render is attempted; every failure path returns null. A failed thumbnail
+   costs a picture, never a capture — the grab is the part that cannot be redone.
+3. **The styles decide the size, not `rect`.** The host is `inline-block` and
+   shrinks to fit; the overlay always reports a resolved `width`. `rect` only
+   sizes the viewport. Found by eyes-on, not by reading: a hand-built fixture with
+   no width in its styles rendered 575px against a 760px rect, while the real
+   GitHub grab came out at its true 640px.
+
+### Falsifiability — the part that took the time
+
+Two tests were caught measuring nothing, both only by running a mutant:
+
+| Mutant | Before | After |
+|---|---|---|
+| render's `page.route` abort deleted | **all 7 green** — a refused connection and a blocked request render identically | the network test fails |
+| `capture_reference`'s render call stubbed to null | **e2e 33/33 green** — nothing observed the wiring | 3 e2e checks fail |
+
+The first was fixed by replacing "point an `<img>` at a dead port" with a real
+`node:http` server that records `req.url` and asserting `hits` is `[]`. The only
+instrument that answers *did it fetch?* is something that counts requests.
+
+The second is the sharper one: the unit suite covers the renderer and the store
+completely and **cannot see whether the tool calls the renderer at all**. That is
+the same class of defect the e2e was originally written for (a schema silently
+dropping a field). Four checks added there; three go red under the stub.
+
+Other mutants, each hitting exactly one test: value sanitisation removed → the
+CSS-breakout test; delete leaves the PNG → the takedown test; the index rebuild's
+`.json` filter loosened to `!index*` → the new store test (thumbnails would
+otherwise enter the index as phantom ref_ids and half of every search would come
+back in `skipped[]`).
+
+### Verified
+
+- `RAVEN_NO_USAGE_LOG=1 npm test` → **1280 / 1277 pass / 0 fail / 3 skipped**
+  (+8: seven new thumbnail tests, one new store test).
+- `node test/e2e-pattern-library.mjs` → **ALL CHECKS PASSED, 37 checks** (was 33).
+  The real GitHub hero rendered at 640×217.
+- Frozen probe → `108 45 f64bb18…2bb0a6`, unchanged. No tool was added.
+- Overlay mirror byte-identical.
+- **Eyes-on**: rendered a scroll cue and a wide hero at 2× and looked at both at
+  full size. Legible, correctly coloured, correct type weights. The scroll cue is
+  literally the thing he asked to be able to browse.
+
+### Not done yet (Mobbin legs 2–4)
+
+Attribution carried on every record *and every result shown*; a published
+takedown address plus one-command host-wide removal; keeping "show" separate from
+"copy wholesale"; and rebuilding the implement step — `compose_build_prompt` was
+deleted in pre-gate round 5 for emitting token *names* but never *values* and
+crashing on the path its own docs recommended, so that is two specific fixes, not
+a restart. A real legal opinion is still required before a stored corpus of
+third-party patterns goes public — Andrew's gate, unchanged.

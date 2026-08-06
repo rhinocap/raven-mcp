@@ -171,6 +171,34 @@ test('the corrupt index is kept for diagnosis rather than overwritten silently',
   });
 });
 
+// The corpus now keeps a PNG beside every imaged record, in the SAME directory
+// the index is rebuilt from. The rebuild takes its ref_ids off the filenames, so
+// the `.json` filter is the only thing stopping every thumbnail from becoming a
+// phantom id: `ref_x.png` would enter the index as `ref_x.png`, fail the id
+// pattern or fail to read as a record, and turn one corruption into a store
+// where every search is half skipped[]. Loosen that filter to `!index*` and this
+// is the test that goes red.
+test('rebuilding the index ignores the thumbnails sitting beside the records', () => {
+  withReferenceHome((home) => {
+    const first = referenceStore.saveReference(input());
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const imaged = referenceStore.attachReferenceImage(first.ref_id, png, { width: 40, height: 20 });
+    assert.ok(imaged.image, 'the fixture never attached an image, so this measures nothing');
+
+    writeFileSync(path.join(home, 'index.json'), '{"version":1,"ref_ids":[', 'utf8');
+    const second = referenceStore.saveReference(input({ note: 'after the corruption' }));
+
+    const listed = referenceStore.listReferences();
+    assert.deepEqual(listed.skipped, [], 'a thumbnail was read as a record');
+    assert.deepEqual(listed.references.map((reference) => reference.ref_id).sort(),
+      [first.ref_id, second.ref_id].sort());
+    // …and the picture survived the rebuild, or the corpus silently stops being
+    // pickable the first time an index is repaired.
+    const recovered = listed.references.find((reference) => reference.ref_id === first.ref_id);
+    assert.deepEqual(recovered.image, imaged.image);
+  });
+});
+
 // Sol round 2, defect #12. Capture self-healed a corrupt index; delete still
 // called the throwing readIndex first, so the one operation you reach for to
 // clean up a broken store was the one the broken store refused.

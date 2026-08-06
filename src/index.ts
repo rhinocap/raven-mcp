@@ -45,7 +45,8 @@ import { startGrabSession, getGrabbedElements, stopGrabSession, getPageTemplate,
 import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, recordConsultation, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
 import { FAIL_ON_RULES, proposePolish, reviewDiff } from "./design-review.js";
 import { configureSource, readSourceConfig, inventoryFromDesignMd, diffDesignSystem, listBaselineComponents } from "./design-system-diff.js";
-import { saveReference, getReference, searchReferences } from "./reference-store.js";
+import { saveReference, getReference, searchReferences, attachReferenceImage, referenceImagePath } from "./reference-store.js";
+import { renderReferenceThumbnail } from "./reference-thumbnail.js";
 import { mapReferenceToTokens } from "./reference-tokens.js";
 
 // ── Path setup ──────────────────────────────────────────────────────
@@ -3218,7 +3219,7 @@ var StateStylesSchema = z.record(z.union([
 
 server.tool(
   "capture_reference",
-  "Persist a pattern grabbed from any page so it survives the browser tab. Call it after get_grabbed_elements returns a selection, passing that selection's selector/styles/html/rect/stateStyles plus the URL it was grabbed from. Stores one JSON record under ~/.raven/references; html over 8000 chars is truncated and flagged, style maps over 200 properties are rejected, and non-http(s) URLs are rejected. Every save gets a fresh ref_id, so grabbing the same element twice keeps both. It does not screenshot, does not fetch the URL, and does not map anything onto the project's tokens — that is map_reference_to_tokens.",
+  "Persist a pattern grabbed from any page so it survives the browser tab. Call it after get_grabbed_elements returns a selection, passing that selection's selector/styles/html/rect/stateStyles plus the URL it was grabbed from. Stores one JSON record under ~/.raven/references; html over 8000 chars is truncated and flagged, style maps over 200 properties are rejected, and non-http(s) URLs are rejected. Every save gets a fresh ref_id, so grabbing the same element twice keeps both. When html is supplied it also renders a PNG thumbnail beside the record by rebuilding that markup offline in headless Chromium — every external request is blocked, so remote images and webfonts are absent and the record says so (image.fidelity 'offline'). The thumbnail is best-effort: if no browser is available the capture still succeeds, with no image field. It does not fetch the source URL, and does not map anything onto the project's tokens — that is map_reference_to_tokens.",
   {
     url: z.string().describe("Full http(s) URL of the page the pattern was grabbed from"),
     selector: z.string().describe("CSS selector of the grabbed element, from the grab selection"),
@@ -3250,10 +3251,28 @@ server.tool(
         ])
       );
       var reference = saveReference({ url, selector, styles, owner, tags, app, html, rect, state_styles: normalizedStateStyles, note });
+
+      // Best effort, and the ordering matters: the record is already committed
+      // before the render is attempted, so a machine with no chromium, a launch
+      // failure or a timeout costs a thumbnail and never the capture. The grab
+      // is the part that cannot be redone — by the time a render fails, the user
+      // has moved on from the page.
+      var imaged = reference;
+      if (typeof html === "string" && html.trim().length > 0) {
+        try {
+          var thumbnail = await renderReferenceThumbnail({ html, styles, rect });
+          if (thumbnail) {
+            imaged = attachReferenceImage(reference.ref_id, thumbnail.png, thumbnail);
+          }
+        } catch (_thumbnailError) {
+          // keep the record exactly as saved
+        }
+      }
+
       return {
         content: [{
           type: "text" as const,
-          text: JSON.stringify({ ref_id: reference.ref_id, host: reference.host, captured_at: reference.captured_at, reference }, null, 2)
+          text: JSON.stringify({ ref_id: imaged.ref_id, host: imaged.host, captured_at: imaged.captured_at, image: imaged.image ?? null, reference: imaged }, null, 2)
         }]
       };
     } catch (err) {
@@ -3264,7 +3283,7 @@ server.tool(
 
 server.tool(
   "search_references",
-  "Find patterns previously kept with capture_reference — call it before rebuilding something already grabbed, or to recall 'that hero from Linear'. host, owner, and tags filters compose with AND; the free-text query matches case-insensitively against note, app, tags, and selector, and every result carries a score and a 'why' naming the matched fields. Ordering is deterministic. Returns stored JSON records only, never images; corrupt records are named in skipped[] instead of failing the call. It does not rank against live code and does not fetch the source site.",
+  "Find patterns previously kept with capture_reference — call it before rebuilding something already grabbed, or to recall 'that hero from Linear'. host, owner, and tags filters compose with AND; the free-text query matches case-insensitively against note, app, tags, and selector, and every result carries a score and a 'why' naming the matched fields. Ordering is deterministic. Returns stored JSON records; a record captured with html carries an image object naming a PNG file on disk beside it, so results can be shown as pictures rather than style maps — the tool returns the path, never the bytes. Corrupt records are named in skipped[] instead of failing the call. It does not rank against live code and does not fetch the source site.",
   {
     query: z.string().optional().describe("Free text matched against note, app, tags, and selector; omit to list everything passing the filters"),
     host: z.string().optional().describe("Only references grabbed from this host, e.g. 'linear.app'"),
@@ -3277,7 +3296,20 @@ server.tool(
       return {
         content: [{
           type: "text" as const,
-          text: JSON.stringify({ total: found.total, corpus_size: found.corpus_size, skipped: found.skipped, results: found.results }, null, 2)
+          // `image.file` on the record is a bare filename, which is the right
+          // thing to STORE — the corpus stays relocatable. A caller that wants
+          // to show the picture needs a path it can open, so it is resolved here
+          // rather than baked into the record.
+          text: JSON.stringify({
+            total: found.total,
+            corpus_size: found.corpus_size,
+            skipped: found.skipped,
+            results: found.results.map((result) => (
+              result.reference.image
+                ? { ...result, image_path: referenceImagePath(result.reference.ref_id) }
+                : result
+            ))
+          }, null, 2)
         }]
       };
     } catch (err) {

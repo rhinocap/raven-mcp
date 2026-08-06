@@ -3,6 +3,7 @@
 // not belong in the suite. Lives inside the project because ESM resolves imports
 // from the script's own path.
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { existsSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -303,9 +304,27 @@ check("the grab's own stateStyles survived the tool schema",
   saved.reference?.state_styles?.hover?.color === 'rgb(255, 255, 255)',
   JSON.stringify(saved.reference?.state_styles));
 
+// The thumbnail. test/reference-thumbnail.test.mjs proves the renderer and the
+// store, and neither of them can see whether capture_reference actually CALLS
+// the renderer — the tool could return a record with no image and every unit
+// test stays green. This is the only place the wiring is observed. Chromium is a
+// hard requirement of this script (it fails at the top without it), so a null
+// image here is a defect and never a missing browser.
+const imageFile = store.referenceImagePath(saved.ref_id);
+check('capture_reference rendered a thumbnail of what was grabbed',
+  saved.image && saved.image.width > 0 && saved.image.height > 0 && saved.image.fidelity === 'offline',
+  JSON.stringify(saved.image));
+check('the thumbnail is a PNG on disk beside the record',
+  existsSync(imageFile) && readFileSync(imageFile).subarray(0, 4).toString('latin1') === '\x89PNG',
+  imageFile);
+
 const found = await callTool('search_references', { query: 'hero headline weight' });
 check('search_references found it by note', found.total === 1 && found.results[0].reference.ref_id === saved.ref_id,
   found.total ? `score ${found.results[0].score}: ${found.results[0].why}` : 'no results');
+// A picking surface needs the picture in the SEARCH result, not only on the
+// record it just wrote — this is the field a client renders a grid from.
+check('search results carry the image path so results can be shown, not just listed',
+  found.results[0]?.image_path === imageFile, String(found.results[0]?.image_path));
 
 const reloaded = found.results[0]?.reference;
 check('the record survives a fresh read', Boolean(reloaded) && reloaded.note === saved.reference.note);
@@ -333,6 +352,10 @@ check('nothing bound outside its own token family',
 
 // There is no delete tool, so this one assertion is module-level by necessity.
 check('deleting the record removes it', store.deleteReference(saved.ref_id) && store.getReference(saved.ref_id) === null);
+// …and takes the picture with it. This is the takedown path for a third-party
+// pattern: a record removed from the corpus must not survive as an image of
+// itself sitting next to a gap in the index.
+check('deleting the record removes its thumbnail too', !existsSync(imageFile), imageFile);
 
 await client.close();
 await server.close();
