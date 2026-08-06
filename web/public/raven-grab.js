@@ -158,6 +158,10 @@
   var previewOriginals = Object.create(null);
   var activeTabA = "design";
   var activeTabB = "layers";
+  // What each panel was showing at the last render, so renderPanel can tell a
+  // rebuild of the same list (keep the scroll position) from a switch to a
+  // different one (start at the top). Indexed like `panels`: [A, B].
+  var lastRenderIdentity = [null, null];
   var activeGlobalActionSurface = "design";
   var expandedSections = { styles: true };
   // Pending-changes tray sections start expanded; the user can collapse each to
@@ -9686,6 +9690,51 @@
         <button class="raven-grab-tab" type="button" role="tab" data-tab="styles" aria-selected="${activeTabB === "styles" ? "true" : "false"}">Styles</button>
         <button class="raven-grab-tab" type="button" role="tab" data-tab="instructions" aria-selected="${activeTabB === "instructions" ? "true" : "false"}">Instructions</button>
       </div>` : "";
+    // Every render rebuilds the panel from a string, which throws away the
+    // scrolled .raven-grab-body and builds a fresh one at the top. Renders are
+    // not only background events — opening a style editor, picking a token and
+    // expanding a section all call this — so clicking a value halfway down a long
+    // panel scrolled the panel back to the top under the click, and the field the
+    // user was reaching for moved out from under them. expandLayerDuringDrag
+    // already saved and restored around its own rebuild; there are 81 call sites,
+    // so it belongs here rather than at each one.
+    // Scroll is only preserved across renders of the SAME content. A different
+    // selected element (or a different tab) is a different list, and starting
+    // that one part-scrolled would be its own bug — so identity is checked, not
+    // assumed. Panel A is the selected element's styles; panel B is the layer /
+    // asset tree, which does not change with selection.
+    // bodyKeyA mirrors the bodyMarkupA ternary below BRANCH FOR BRANCH, and that
+    // correspondence is the whole property: a key that drifts from the markup it
+    // is supposed to describe silently restores a position taken on a different
+    // list. Note the third branch — in mobile tabbed mode panel A's body is
+    // mobileBodyMarkup, chosen by activeTabB, so panel A is keyed on activeTabB
+    // THERE AND ONLY THERE. Keying it on activeTabB everywhere would reset the
+    // style list every time the layer panel's tab changed, which is the reported
+    // bug; leaving it out of the mobile branch carries a scroll taken on the
+    // Layers list onto the Styles list.
+    var mobileTab = mobileTabbedSheetMode() ? activeTabB : null;
+    var bodyKeyA = simpleMode() ? "simple"
+      : mobileTab ? "mobile:" + mobileTab
+      : "design:" + activeTabA;
+    // A first draft also exempted mobile's Layers and Assets tabs from the
+    // element check, on the grounds that those lists are the same list whatever
+    // is selected. It was deleted because it has no observable effect: selecting
+    // an element scrolls its layer row into view AFTER this render, so the tree
+    // moves either way and no test can tell the two versions apart. Measured,
+    // not argued — the test written for it read 149 against an expected 100,
+    // which is the scrollIntoView, not the key.
+    var renderIdentity = [
+      { element: selectedElement, key: bodyKeyA + "|" + editScope },
+      { element: null, key: activeTabB }
+    ];
+    var priorScroll = [];
+    for (var si = 0; si < panels.length; si++) {
+      var prior = lastRenderIdentity[si];
+      var sameContent = !!prior && prior.element === renderIdentity[si].element && prior.key === renderIdentity[si].key;
+      var priorBody = sameContent ? panels[si].querySelector(".raven-grab-body") : null;
+      priorScroll.push(priorBody ? priorBody.scrollTop || 0 : 0);
+    }
+    lastRenderIdentity = renderIdentity;
     panel.innerHTML = `
       <button class="raven-grab-sheet-handle" type="button" data-sheet-drag-handle aria-label="Resize Raven sheet"></button>
       <div class="raven-grab-top">
@@ -9714,6 +9763,14 @@
       var isCollapsed = collapsedSides[sideOf(panels[pi])];
       panels[pi].setAttribute("aria-hidden", isCollapsed ? "true" : "false");
       panels[pi].setAttribute("data-collapsed", isCollapsed ? "true" : "false");
+    }
+    // Restore the scroll captured above. Reading scrollTop back is what makes
+    // this falsifiable — a shorter panel clamps, and a collapsed one is
+    // display:none and silently keeps 0, which is also what it read.
+    for (var ri = 0; ri < panels.length; ri++) {
+      if (!priorScroll[ri]) continue;
+      var freshBody = panels[ri].querySelector(".raven-grab-body");
+      if (freshBody) freshBody.scrollTop = priorScroll[ri];
     }
     syncMobileSheetEdgeTabs();
     syncPanelPresets();

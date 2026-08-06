@@ -2737,3 +2737,136 @@ tell.
 Gate: 1319 tests / 1316 pass / 0 fail / 3 skipped (+7, all in
 `test/reference-forget.test.mjs`); `node test/e2e-pattern-library.mjs` ALL CHECKS
 PASSED at 43 checks; frozen probe `109 45 f64bb18…2bb0a6`.
+
+## §14 — The panel-scroll bug (2026-08-06)
+
+Andrew, mid-turn, verbatim:
+
+> One thing to riage, as I have been using the panels sometimes I click in to
+> change a value and the panel resets scrolling back to the top instewad of just
+> letting me use the input to change whatever I am trying to change
+
+### Mechanism
+
+`renderPanel()` (`browser/raven-grab.js:9479`) rebuilds both panels by assigning
+`panel.innerHTML` and `panelLeft.innerHTML` wholesale. Each panel's scroll
+container is the `<div class="raven-grab-body">` inside that markup
+(`overflow-y: auto`, line 866), so every render destroys the scrolled node and
+builds a fresh one at `scrollTop` 0. There are 81 `renderPanel()` call sites and
+exactly one — `expandLayerDuringDrag` — saved and restored around its own
+rebuild.
+
+Two things explain the "sometimes". First, the render is usually not the one the
+user just triggered: `pollBatch`, `pollLayerOperation`, the dispatch lifecycle
+and change-tray mutations all render asynchronously, so the panel jumps at a
+moment with no obvious cause. Second, the existing
+`activeStyleEditorFlush || activeStyleScrub` early-return only defers renders
+while an editor is OPEN — the window before the click lands and the window after
+the commit are both unguarded.
+
+Worth recording because it was a wrong first theory: opening a style editor does
+NOT rerender. `beginStyleEdit` swaps the value cell for an editor in place and
+sets `activeStyleEditorFlush`, and neither `cancelStyleEdit` nor
+`commitStyleEdit` calls `renderPanel`. The reset is collateral from an unrelated
+render, not from the edit interaction itself.
+
+### Fix
+
+Scroll capture and restore inside `renderPanel()` — one place, not 81 — gated on
+a content-identity key so the fix cannot become its own bug. Panel A is keyed on
+`selectedElement + activeTabA + editScope`, panel B on `activeTabB`; a rebuild of
+the same list keeps the position, a switch to a different list starts at the top.
+Restoring unconditionally would open a newly selected element's shorter style
+list part-scrolled with nothing to explain why.
+
+`expandLayerDuringDrag`'s own save/restore is now redundant and was left alone —
+it restores the same value the generic path already restored.
+
+Mirrored to `web/public/raven-grab.js` (`test/grab-bridge.test.mjs` asserts
+byte-identity).
+
+### Test
+
+`test/grab-overlay-scroll-preservation.test.mjs`, real Chromium through the real
+bridge against a proxied fixture. Five tests — two preserve cases, three reset
+cases — each mechanism killed by its own mutant served via
+`RAVEN_GRAB_ASSET_PATH`:
+
+| Mutant | Fails |
+|---|---|
+| restore loop disabled | both preserve tests ("same panel content", "the layer tree") |
+| identity check always true | all three reset tests (simple mode, mobile tab, different element) |
+| key drops the simple-mode branch | "switching the overlay into simple mode…" only |
+| restore panel A only | "the layer tree keeps its scroll position…" only |
+| key drops the mobile branch | "switching tabs in the mobile sheet…" only |
+
+The first mutant is the pre-fix overlay, so that run is also the reproduction.
+
+The fixture's overflow is asserted before anything else — a panel that does not
+overflow cannot lose a scroll position, so both assertions would pass against a
+completely unfixed overlay. That precondition is the load-bearing half of the
+test, and it fails with the actual `scrollHeight`/`clientHeight` numbers rather
+than skipping.
+
+One test bug on the way: the selection readout used a guessed
+`[data-element-chip]` selector, returned `null` for both clicks, and failed on
+"the second click did not change the selection" — the real attribute is
+`[data-element-selector]`, read via its `title`, which is what
+`test/e2e-pattern-library.mjs` already used.
+
+### Sol adverse pass (round 2) — two of eight findings were real
+
+The first Sol run produced no review at all: `codex exec` wandered into loading
+gstack/graphify skills and dumped 171KB of skill and session-log content. Fixed
+by moving the transcript to the gitignored `agent-output/` directory and
+relaunching with a self-contained `PACKET.md` plus an explicit "do not invoke any
+skill or explore the repository."
+
+Findings 4, 5, 6 and 8 Sol itself marked theoretical. Finding 2 (the key is too
+strict when two `editScope` values happen to render the same list) and finding 3
+(a host framework replacing the selected DOM node causes a spurious reset) are
+both real but describe **today's behaviour everywhere** — the panel reset in
+those cases before this change too, so neither is a regression, and the extra
+retention in finding 3 is one node for one render, which `selectedElement`
+already holds. Not actioned, deliberately.
+
+**Finding 1 was real and I had the mobile case wrong.** `bodyMarkupA` is
+`simpleMode() ? elementMarkup : (mobileTabbedSheetMode() ? mobileBodyMarkup :
+designMarkup)`, and `mobileBodyMarkup` is selected by **`activeTabB`** — so in
+the mobile sheet, panel A's key had to include the variable panel B is keyed on,
+and only there. Keying panel A on `activeTabB` everywhere would reset the style
+list every time the layer panel's tab changed, which is the reported bug. The key
+is now written to mirror that ternary branch for branch, because the
+correspondence IS the property.
+
+**Finding 7 was real: all the tests measured panel A.** An implementation that
+restored panel A and dropped panel B passed every one of them while the layer
+tree — the list a designer actually scrolls — still snapped to the top on every
+background render. Now covered, and `restore panel A only` is the mutant.
+
+Three drafts of the mobile test passed against the defect before one worked, and
+each failure was a different way of being vacuous: (a) the destination list was
+shorter than the carried-over offset, so it CLAMPED to 0 and read exactly like a
+correct reset; (b) the direction was Styles → Layers, and `switchTab("layers")`
+calls `scrollIntoView` on the selected row after the render, landing a near-top
+selection at ~0 whatever the key decided; (c) the selection readout was
+`[data-element-selector]`, which the mobile sheet does not render while Layers is
+showing, so a good selection read `null`. All three were caught by reverting the
+mechanism and finding the test still green.
+
+**One mechanism was deleted rather than kept.** A `selectionMattersA` exemption
+excluded mobile's Layers/Assets tabs from the element check, so selecting an
+element would not reset a tree that did not change. It has no observable effect —
+that same `scrollIntoView` moves the tree either way — and the test written for
+it read 149 against an expected 100, which is the scrollIntoView and not the key.
+An unfalsifiable guard is not a guard, so it went.
+
+Gate after the adverse pass: 1324 tests / 1321 pass / 0 fail / 3 skipped in
+~44.9s; `node test/e2e-pattern-library.mjs` ALL CHECKS PASSED; frozen probe
+`109 45 f64bb18…2bb0a6` (109 stdio, 45 anon, hash unchanged).
+
+Captured to `.claude/linear-backlog-queue.jsonl` as a P2 bug.
+
+**Not verified on Andrew's own surface.** The measurement above is a fixture in
+headless Chromium; the partial-fix rule says this is not landed until he sees it
+on the page he was actually using.
