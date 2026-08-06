@@ -2867,6 +2867,17 @@ Gate after the adverse pass: 1324 tests / 1321 pass / 0 fail / 3 skipped in
 
 Captured to `.claude/linear-backlog-queue.jsonl` as a P2 bug.
 
-**Not verified on Andrew's own surface.** The measurement above is a fixture in
-headless Chromium; the partial-fix rule says this is not landed until he sees it
-on the page he was actually using.
+**Verified on Andrew's own surface, 2026-08-06 — "It stayed."** A grab session
+was started in proxy mode against github.com (the surface he had been reporting
+from), and the bridge URL handed to him: he scrolled the style panel down,
+changed a value, and the panel held its position. Before handing it over the
+served bytes were checked rather than the repo — `curl` on the bridge's own
+`/raven-grab.js` returned three occurrences of `lastRenderIdentity`, which is
+what proves the fix is on the wire; the overlay is `readFileSync`'d per request
+with `Cache-Control: no-store`, so a page reload was the whole propagation step
+and no MCP reconnect was needed.
+
+That distinction is the point of the step. The measurement before it was a
+fixture in headless Chromium, and the partial-fix rule says a fix is not landed
+until he sees it on the page he was actually using — a passing test and a live
+surface are two different claims, and only the second one is his.
