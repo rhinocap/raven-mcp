@@ -9,6 +9,8 @@ var RAVEN_VERSION = JSON.parse(readFileSync(join(PKG_ROOT, "package.json"), "utf
 
 var HTML_LIMIT = 8000;
 var STYLE_LIMIT = 200;
+// The 8 bytes every PNG starts with (PNG spec §5.2).
+var PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 export interface PatternReference {
   ref_id: string;
@@ -232,11 +234,97 @@ export function deleteReference(ref_id: string): boolean {
   // than an error.
   try {
     unlinkSync(referenceImagePath(ref_id));
-  } catch (_error) {
-    // no image, or already gone
+  } catch (error) {
+    // Only "it was not there" is fine — most records have no image, and that is
+    // the expected case rather than an error. Anything else (EACCES, EISDIR, a
+    // busy file) means the picture is STILL ON DISK, and swallowing it returns
+    // true from a takedown that did not happen. A false all-clear is the one
+    // outcome this path must never produce, so it surfaces. The record is
+    // already unlinked at this point, so the caller sees a partial removal it
+    // can act on rather than a clean report over a surviving copy.
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      atomicWriteJson(indexPath(), { version: 1, ref_ids: index });
+      throw new Error(
+        "removed the record for " + ref_id + " but could not remove its image ("
+        + (error as NodeJS.ErrnoException).code + "): " + referenceImagePath(ref_id)
+      );
+    }
   }
   atomicWriteJson(indexPath(), { version: 1, ref_ids: index });
   return true;
+}
+
+// Remove everything captured from one host.
+//
+// A takedown request names a SITE, not a ref_id — nobody writes in asking you to
+// remove `ref_msh3j20c_ckucnrcp`. Deleting one at a time is also the shape that
+// half-completes: you remove four of six, and the corpus still holds work
+// somebody asked you to stop holding.
+//
+// Host matching is exact, on the stored `host` field, plus subdomains of it
+// (`app.linear.app` is Linear's; `notlinear.app` is not, and a naive
+// `endsWith(host)` says it is). It is deliberately NOT a substring or pattern
+// match — over-deleting somebody else's records in response to a takedown is its
+// own failure, and the caller gets a count back so a partial result is visible
+// rather than assumed.
+//
+// Corrupt records are counted in `skipped` and their files are left alone. That
+// is the honest answer: this function must not report a host cleared while a
+// record it could not parse still sits in the directory.
+export interface ForgetResult {
+  host: string;
+  removed: string[];
+  skipped: string[];
+  // Records this run TRIED to remove and could not — an image that would not
+  // unlink, a record file that came back EACCES. Separate from `skipped`, which
+  // is unreadable JSON that was never attempted: conflating "we could not parse
+  // it" with "we could not delete it" hides the more serious of the two.
+  failed: Array<{ ref_id: string; reason: string }>;
+}
+
+export function hostMatches(recordHost: string, requested: string): boolean {
+  var a = String(recordHost || "").toLowerCase().replace(/\.$/, "");
+  var b = String(requested || "").toLowerCase().replace(/^\*\./, "").replace(/\.$/, "");
+  if (!a || !b) return false;
+  return a === b || a.endsWith("." + b);
+}
+
+// What a host-wide removal WOULD take. The confirmation prompt and the deletion
+// must be answers to the same question — a preview computed by a different rule
+// than the delete understates the damage in exactly the moment the user is being
+// asked to authorise it. The first version of this called searchReferences({ host }),
+// whose host filter is EXACT by design (a search for linear.app should not
+// silently include app.linear.app), so it offered "1 record" and removed 2.
+export function referencesForHost(host: string): ForgetResult {
+  var requested = String(host || "").trim();
+  if (!requested) throw new Error("host is required");
+  var listed = listReferences();
+  var matched: string[] = [];
+  for (var reference of listed.references) {
+    if (hostMatches(reference.host, requested)) matched.push(reference.ref_id);
+  }
+  // listReferences() already names what it could not parse. A record whose JSON
+  // is unreadable may well be from this host, so reporting the host as cleared
+  // while it is still on disk would be a false all-clear.
+  return { host: requested, removed: matched, skipped: listed.skipped.slice(), failed: [] };
+}
+
+export function deleteReferencesByHost(host: string): ForgetResult {
+  var planned = referencesForHost(host);
+  var removed: string[] = [];
+  var failed: Array<{ ref_id: string; reason: string }> = [];
+  for (var ref_id of planned.removed) {
+    // One record that will not delete must not abandon the rest of the takedown
+    // half-done — that is the shape this function exists to avoid. It is
+    // recorded and the sweep continues, so the caller learns exactly which
+    // records still need a human.
+    try {
+      if (deleteReference(ref_id)) removed.push(ref_id);
+    } catch (error) {
+      failed.push({ ref_id: ref_id, reason: (error as Error).message });
+    }
+  }
+  return { host: planned.host, removed: removed, skipped: planned.skipped, failed: failed };
 }
 
 function validatedUrl(value: string): URL {
@@ -377,28 +465,51 @@ export function attachReferenceImage(
 ): PatternReference {
   var reference = getReference(ref_id);
   if (!reference) throw new Error("no reference with ref_id " + ref_id);
-  if (!(png instanceof Uint8Array) || png.length === 0) {
+  // "Non-empty byte array" accepted a single byte as a PNG. The record then
+  // advertises an image that no viewer can open, which is worse than no image:
+  // the corpus reports a picture it does not have. Checking the 8-byte signature
+  // is not validation of the whole file, and does not claim to be — it is the
+  // cheap check that separates "a render came back" from "some bytes came back".
+  if (!(png instanceof Uint8Array) || png.length < PNG_SIGNATURE.length) {
     throw new Error("png must be a non-empty byte array");
   }
+  for (var i = 0; i < PNG_SIGNATURE.length; i++) {
+    if (png[i] !== PNG_SIGNATURE[i]) throw new Error("png must be PNG bytes");
+  }
+  // Rounded AFTER the check, or 0.4 × 0.4 passes "> 0" and is stored as 0 × 0 —
+  // a size no consumer can lay out, recorded as though it were measured.
+  var width = Math.round(size.width);
+  var height = Math.round(size.height);
   if (!isFiniteNumber(size.width) || !isFiniteNumber(size.height)
-    || size.width <= 0 || size.height <= 0) {
+    || width <= 0 || height <= 0) {
     throw new Error("image size must be positive numbers");
   }
   var file = ref_id + ".png";
   var target = referenceImagePath(ref_id);
   mkdirSync(dirname(target), { recursive: true });
   // Same temp-then-rename shape as atomicWriteJson: a half-written PNG next to a
-  // record that advertises it is worse than no image at all.
-  var temp = target + ".tmp";
-  writeFileSync(temp, png);
-  renameSync(temp, target);
-  reference.image = {
-    file: file,
-    width: Math.round(size.width),
-    height: Math.round(size.height),
-    fidelity: "offline",
-  };
-  atomicWriteJson(recordPath(ref_id), reference);
+  // record that advertises it is worse than no image at all. The temp name is
+  // per-call rather than fixed: a fixed `<ref>.png.tmp` is a collision between
+  // two processes attaching to the same reference, and the loser writes the
+  // other's bytes. Cleaned up in `finally`, because a failed rename otherwise
+  // leaves the temp file behind forever.
+  var temp = target + "." + process.pid + "-" + Math.random().toString(36).slice(2, 10) + ".tmp";
+  try {
+    writeFileSync(temp, png);
+    renameSync(temp, target);
+  } finally {
+    try { unlinkSync(temp); } catch (_error) { /* renamed away on the success path */ }
+  }
+  reference.image = { file: file, width: width, height: height, fidelity: "offline" };
+  try {
+    atomicWriteJson(recordPath(ref_id), reference);
+  } catch (error) {
+    // The PNG landed but the record that points at it did not. Leaving it is an
+    // orphan copy of somebody's design work with no provenance beside it —
+    // exactly what the attribution work exists to prevent — so it goes.
+    try { unlinkSync(target); } catch (_cleanup) { /* nothing to remove */ }
+    throw error;
+  }
   return reference;
 }
 

@@ -22,11 +22,11 @@ Raven gives Claude access to a comprehensive design knowledge base:
 
 ## Install
 
-Local stdio (npx / from source) is the **full product**: **108 tools**, including Grab, the pattern library, and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
+Local stdio (npx / from source) is the **full product**: **109 tools**, including Grab, the pattern library, and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
 
 | Path | How | Tools | Taste | Grab |
 |------|-----|-------|-------|------|
-| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **108** | Yes | Yes |
+| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **109** | Yes | Yes |
 | Public remote | `https://mcp.ravenmcp.ai/api/mcp` | **~45** | No | No |
 | Auth remote | `https://mcp.ravenmcp.ai/api/mcp-user` (OAuth) | Taste + audits (no Grab) | Yes | **No** |
 
@@ -212,16 +212,25 @@ Use `read_design_md` to inspect a DESIGN.md file and its flattened token index, 
 
 `proxy_target` also accepts a third-party URL, so you can grab from any site you are allowed to
 view, not just your own dev server. What you grab is otherwise gone when the tab closes, and it
-arrives as another site's literal values. Three tools close that loop:
+arrives as another site's literal values. Four tools close that loop:
 
 - `capture_reference` — persist a grabbed selection under `~/.raven/references`: selector, computed
   styles, hover/focus states, bounding rect, truncated HTML, your own note, and tags. One JSON
-  record per capture, so grabbing the same element twice keeps both.
+  record per capture, so grabbing the same element twice keeps both. It also renders the captured
+  element back into a PNG beside the record, because nobody can pick a pattern out of a style map.
+  That render is **offline** — every external request is aborted, so a stored reference never
+  reaches back out to the site it came from — and it runs with **scripting disabled**, so a script
+  in a captured element cannot execute. The record says so: `fidelity: "offline"`.
 - `search_references` — find it again later by free text, host, owner, or tags, with a per-result
-  score and a `why` naming the fields that matched.
+  score and a `why` naming the fields that matched. Each result carries a `display` object holding
+  the credit line *and* the image path together, so a consumer reaching for the picture carries the
+  attribution out with it.
 - `map_reference_to_tokens` — translate the captured literals onto **your** DESIGN.md tokens, so
   the code an agent writes uses your type ramp and palette instead of pasted values. Pure and
   deterministic: no model, no network.
+- `forget_references` — remove a single reference by `ref_id`, or every reference from a host
+  (subdomains included). Takes the PNGs with it. Destructive and permanent, so the host sweep
+  refuses to run without `confirm: true` and tells you how many records that would remove first.
 
 How the mapping decides, because a wrong binding is worse than a stated gap:
 
@@ -244,6 +253,25 @@ How the mapping decides, because a wrong binding is worse than a stated gap:
 
 Respect the source. Grab from sites you are permitted to access; the tools never bypass a paywall
 or a login, and `owner: "third-party"` is recorded on every capture.
+
+**Attribution and takedown.** Every third-party record keeps the URL, host, app name and capture
+date it came from, and `search_references` derives a credit line from them on read — so the credit
+cannot go stale, and it travels with the picture rather than beside it. Raven claims no ownership
+of anything you capture.
+
+Your corpus is **local**: it lives in `~/.raven/references` on your own machine, and this project
+hosts no copy of it. So a takedown is something you run, not something you request — if a rights
+holder asks you to remove their material, `forget_references` with their host removes every record
+from that host and every subdomain, and the images with it:
+
+```
+forget_references({ host: "example.com", confirm: true })
+```
+
+It reports what it removed, what it could not read, and anything it tried to remove and failed —
+those are three different answers and it does not collapse them into one. If you believe this
+project itself is distributing your material, open an issue at
+<https://github.com/rhinocap/raven-mcp/issues>.
 
 One boundary worth stating plainly: while the bridge is proxying a third-party site, that page is
 served from the bridge's own origin, so scripts on it are same-origin with the Raven overlay and can

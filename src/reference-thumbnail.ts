@@ -95,6 +95,14 @@ export async function renderReferenceThumbnail(
     var page = await browser.newPage({
       viewport: { width: width || 1280, height: height || 800 },
       deviceScaleFactor: 2,
+      // The captured HTML is another site's markup. Filtering `<>{}` out of the
+      // style VALUES is not a trust boundary and was never one — `input.html`
+      // already authors the whole document, including <script>, event handlers
+      // and frames. This is the boundary: with scripting off, a captured
+      // element is laid out and painted and nothing in it executes. Combined
+      // with the route abort below, the render is offline and inert. It costs
+      // nothing real — a thumbnail of a static element wants no scripting.
+      javaScriptEnabled: false,
     });
     page.setDefaultTimeout(RENDER_TIMEOUT_MS);
 

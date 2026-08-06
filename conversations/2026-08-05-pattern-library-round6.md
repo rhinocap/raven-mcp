@@ -2290,3 +2290,125 @@ third-party HTML plus computed styles is defensible is a different question, and
 the structural difference from Mobbin still stands — they ship screenshots, this
 stores the expression and the implement leg reproduces it. **A real opinion is
 still required before any stored corpus is published. Andrew's gate.**
+
+## 9. Pattern library — takedown (leg 3), and the Sol dispositions on legs 1–2
+
+### What leg 3 is for
+
+Legs 1 and 2 make a stored third-party pattern *visible* and *credited*. Neither
+of them lets anyone take it back out. `forget_references` is the removal half:
+one `ref_id`, or every record from a host including its subdomains, images and
+all. Without it the attribution work is a promise with no mechanism behind it —
+Raven would be able to say where a pattern came from and unable to honour a
+request to stop keeping it.
+
+### The mechanism
+
+- `hostMatches(recordHost, requested)` — case-insensitive, trailing-dot
+  tolerant, accepts a `*.` prefix on the request, and matches a subdomain only
+  on a **label boundary**. A naive `endsWith` binds `notexample.com` to
+  `example.com`, which over-deletes somebody else's records on a takedown; that
+  is the M1 mutant and it fails two tests.
+- **`referencesForHost()` is the single source both the preview and the delete
+  read.** This was a real defect found by the tests, not a precaution: the
+  confirm prompt originally previewed via `searchReferences({ host })`, which
+  filters on an EXACT host, while the delete included subdomains. The prompt
+  said "1 record would be removed" and confirming removed 2. **A preview
+  computed by a different rule than the action understates the damage at exactly
+  the moment the user is asked to authorise it.**
+- The host sweep **continues past a failure** and files it under `failed[]`.
+  `skipped` (unreadable JSON, never attempted) and `failed` (attempted, could
+  not delete) are different answers to a takedown request and are never
+  collapsed — one means "there is something here I could not read", the other
+  means "this is still on your disk".
+- Destructive, so it is in `REMOTE_GATED_TOOLS` and classified `"destructive"`
+  in `TOOL_ACCESS`; the host sweep refuses without `confirm: true`.
+
+### Sol's findings on legs 1–2, dispositioned
+
+Every one of these was a real defect in code that had already passed a full
+gate.
+
+| Finding | Fix |
+|---|---|
+| `deleteReference` swallowed EVERY image-unlink error and still returned `true` | catch **ENOENT only**; anything else means the picture is still on disk, so it rethrows naming the errno and the path |
+| `attachReferenceImage` accepted a single byte as an image | the 8-byte PNG signature (spec §5.2) is checked before anything is written |
+| a 0.4 × 0.4 size passed `> 0` and stored as 0 × 0 | the check runs on the **rounded** value, which is what a consumer actually gets |
+| a fixed `<ref>.png.tmp` collides between two processes attaching to the same reference | per-call temp name (pid + random), removed in `finally` |
+| a failed record write left the PNG behind | the orphan is unlinked before the error propagates |
+| `search_references` handed back an `image_path` without checking the file exists | existence-checked at the seam |
+| the thumbnail render executed captured third-party markup | `javaScriptEnabled: false` |
+
+That last one is the one worth reading twice. The render already aborted every
+network request and stripped `<>{}` from style *values*, and the comment claimed
+the value filter was a safety boundary. **It never was** — `input.html` authors
+the whole document, `<script>` included. Scripting off is the actual boundary,
+and it costs nothing: a thumbnail of a static element wants no scripting.
+
+### Falsifiability
+
+Every mutant was `import()`-checked before its result was counted — a
+syntax-broken mutant reads exactly like a detection and is not one.
+
+| Mutant | Fails |
+|---|---|
+| M1 `hostMatches` → naive `endsWith` | the predicate test + the over-delete test |
+| M2 host delete leaves the thumbnail | the thumbnail test only |
+| M3 `skipped` → `[]` | the corrupt-record test only |
+| M4 empty-host guard removed | the empty-host test only |
+| M5 preview via exact-host search | the confirm-count test only |
+| M6 confirm gate removed | the confirm test only |
+| M7 both-args accepted | the both-args test only |
+| U1 scripting re-enabled | the scripting test only |
+| U2 image unlink swallows everything again | 2 tests |
+| U3 host sweep aborts on the first failure | the continue-past-failure test only |
+| U4 `failed` filed as `skipped` | the continue-past-failure test only |
+| U5 `image_path` emitted unchecked | the missing-file test only |
+| U6 orphan PNG left behind | the orphan test only |
+| U7 the record-write failure is swallowed | the orphan test only |
+
+**Two tests in this leg were found measuring nothing, and both were found by
+probing rather than by reasoning.**
+
+1. The scripting test's fixture set `display: block` on the render host, which
+   overrides the inline-block base rule and makes the host take the viewport
+   width — so a script that grows the child could not move the reported
+   geometry. It read 100 with scripting off **and** 100 with scripting on. With
+   `styles: {}` and a viewport wider than the grown element it reads 100 vs 400.
+   *A confounded fixture is a test that cannot fail.*
+2. The "no temp file survived" assertion was written against a predicted name
+   (`file + '.tmp'`) and silently stopped measuring anything the moment the temp
+   name gained its pid/random suffix. It now scans the directory for **any**
+   `.tmp`.
+
+The orphan-cleanup test needed a seam and there is no permissions trick that is
+portable — `chattr +i` needs root, `chflags` is macOS-only, and a read-only
+directory blocks the PNG write too, which happens first. The seam used instead
+is the `size` object the caller passes: `width` is read **before** the PNG is
+written and the record is written **after**, so a getter on it fires in between
+and turns the record's path into a non-empty directory, which `renameSync`
+cannot replace on any platform. The record was already in memory by then, so
+nothing else notices. Deterministic, portable, and the test asserts the fixture
+actually held rather than that it ran.
+
+### Verified
+
+- `RAVEN_NO_USAGE_LOG=1 npm test` → **1301 / 1298 pass / 0 fail / 3 skipped**.
+- Frozen probe → `109 45 f64bb18…2bb0a6`. One tool added, anon hash unchanged.
+- `node test/e2e-pattern-library.mjs` → **ALL CHECKS PASSED, 39 checks**.
+
+### Two Sol findings deliberately NOT fixed — out of leg-3 scope
+
+1. **The wiring test lives outside `npm test`.** `test/e2e-pattern-library.mjs`
+   proxies live `github.com` and launches real Chromium, so it cannot run in the
+   ordinary suite. It has to be run by hand, and it is the only thing that
+   exercises the tool schemas against a real MCP client.
+2. **Concurrent local captures launch one Chromium each.** `src/browser-launch.ts:294`
+   is the local branch; the concurrency limiter at 311–329 is remote-only. A
+   burst of captures on one machine will start a browser per capture.
+
+### Still Andrew's gate
+
+A real legal opinion before any stored corpus of third-party patterns goes
+public. Nothing in legs 1–3 changes that — they make the local corpus honest and
+removable, which is a precondition, not a substitute.

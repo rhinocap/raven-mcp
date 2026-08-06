@@ -479,7 +479,7 @@ test('decision_import is local-only and preserves the anonymous golden tool surf
   const localNames = Object.keys(buildServer({ remote: false })._registeredTools);
   const remoteNames = Object.keys(buildServer({ remote: true })._registeredTools).sort();
   const authedRemoteNames = Object.keys(buildServer({ remote: true, tasteStore: {} })._registeredTools).sort();
-  assert.equal(localNames.length, 108);
+  assert.equal(localNames.length, 109);
   assert.equal(localNames.includes('decision_import'), true);
   assert.equal(remoteNames.length, 45);
   assert.equal(remoteNames.includes('decision_import'), false);

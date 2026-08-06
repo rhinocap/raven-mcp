@@ -128,6 +128,10 @@
       "description": "Find patterns previously kept with capture_reference — call it before rebuilding something already grabbed, or to…"
     },
     {
+      "name": "forget_references",
+      "description": "Remove stored patterns from the local corpus — one by ref_id, or every pattern captured from a site."
+    },
+    {
       "name": "map_reference_to_tokens",
       "description": "Translate a captured pattern's raw literals (font-size: 64px, color: rgb(247,248,248)) onto the project's own design…"
     },

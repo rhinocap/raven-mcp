@@ -45,7 +45,7 @@ import { startGrabSession, getGrabbedElements, stopGrabSession, getPageTemplate,
 import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, recordConsultation, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
 import { FAIL_ON_RULES, proposePolish, reviewDiff } from "./design-review.js";
 import { configureSource, readSourceConfig, inventoryFromDesignMd, diffDesignSystem, listBaselineComponents } from "./design-system-diff.js";
-import { saveReference, getReference, searchReferences, attachReferenceImage, referenceImagePath, referenceAttribution, THIRD_PARTY_NOTICE } from "./reference-store.js";
+import { saveReference, getReference, searchReferences, deleteReference, deleteReferencesByHost, referencesForHost, attachReferenceImage, referenceImagePath, referenceAttribution, THIRD_PARTY_NOTICE } from "./reference-store.js";
 import { renderReferenceThumbnail } from "./reference-thumbnail.js";
 import { mapReferenceToTokens } from "./reference-tokens.js";
 
@@ -1851,14 +1851,14 @@ function numberedDocMaterial(repoRelative: string, content: string): string {
   }).join("\n");
 }
 
-// The 63 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
+// The 64 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
 // 33 are stateful/local (per-user ~/.raven files, or the create_generation_job
 // subprocess), 6 reach the filesystem/network or have an external side effect,
 // 2 are Talon tools pending a remote-safety pass, 14 are DESIGN.md / review /
 // grab-bridge tools, 4 are design-system diff tools, 3 are pattern-library tools
 // backed by ~/.raven/references, plus the local audit dispatcher.
 // Everything else (45 stateless tools, including the 5 guarded browser URL audits
-// added in Phase 3) is remote-safe, from 108 local tools.
+// added in Phase 3) is remote-safe, from 109 local tools.
 // Traced to docs/remote-mcp-scope.md §2; asserted at build time.
 function resolveDesignSystemPath(projectDir?: string, designFilePath?: string): string {
   if (designFilePath) return resolve(designFilePath);
@@ -1912,7 +1912,7 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   // Pattern library. All three read or write ~/.raven/references, which is
   // per-machine state with no hosted equivalent yet — same reason the grab
   // bridge tools above are gated, and it keeps the frozen anonymous 45 intact.
-  "capture_reference", "search_references", "map_reference_to_tokens",
+  "capture_reference", "search_references", "map_reference_to_tokens", "forget_references",
   // Local orchestration over existing tool handlers; excluded to preserve the
   // frozen anonymous 45-tool surface and hash.
   "audit"
@@ -2108,6 +2108,7 @@ const TOOL_ACCESS: Record<string, "readOnly" | "destructive"> = {
   // the other two only read. None of them fetches the captured URL — it is stored
   // for provenance — so none is open-world.
   capture_reference: "destructive",
+  forget_references: "destructive",
   search_references: "readOnly",
   map_reference_to_tokens: "readOnly",
   audit: "readOnly"
@@ -2170,18 +2171,18 @@ function toolAnnotations(toolName: string): {
     : { title: toolTitle(toolName), readOnlyHint: true, destructiveHint: false, openWorldHint: openWorld };
 }
 
-// buildServer() returns a FRESH McpServer with all 108 local tools + the usage-log/
+// buildServer() returns a FRESH McpServer with all 109 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
 export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }): McpServer {
-// remote = serve only the 45 stateless remote-safe tools (gate off the 63 gated tools
+// remote = serve only the 45 stateless remote-safe tools (gate off the 64 gated tools
 // as appropriate; authenticated stores selectively restore taste tools). evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 108.
+// without threading opts. stdio callers pass nothing → remote=false → all 109.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -3317,11 +3318,86 @@ server.tool(
               ...result,
               display: {
                 ...referenceAttribution(result.reference),
+                // Existence is checked, not assumed. The record says an image was
+                // attached; the file is what a consumer actually opens, and the
+                // two come apart — a PNG removed out of band, a corpus copied
+                // without its sidecars, a takedown that could not unlink one
+                // image. Handing back a path to a file that is not there is the
+                // same false all-clear the takedown path refuses to give.
                 image_path: result.reference.image
+                  && existsSync(referenceImagePath(result.reference.ref_id))
                   ? referenceImagePath(result.reference.ref_id)
                   : null
               }
             }))
+          }, null, 2)
+        }]
+      };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
+    }
+  }
+);
+
+server.tool(
+  "forget_references",
+  "Remove stored patterns from the local corpus — one by ref_id, or every pattern captured from a site. This is the takedown path: if a site asks that their design work not be kept, `forget_references({ host: 'their.site', confirm: true })` removes every record and every rendered thumbnail from that host in one call. Host matching is exact plus subdomains ('linear.app' takes 'app.linear.app', never 'notlinear.app'), and a host-wide removal requires confirm:true because it is not reversible — there is no trash. Returns the ref_ids actually removed, so a partial result is visible rather than assumed; records whose JSON could not be parsed are reported in skipped[] and left on disk rather than counted as cleared. Local only: it deletes files under the reference home and contacts nobody.",
+  {
+    ref_id: z.string().optional().describe("Remove exactly this one reference. Supply this or host."),
+    host: z.string().optional().describe("Remove every reference captured from this host and its subdomains, e.g. 'linear.app'"),
+    confirm: z.boolean().optional().describe("Required when removing by host — the removal is permanent")
+  },
+  async ({ ref_id, host, confirm }) => {
+    try {
+      if (ref_id && host) {
+        throw new Error("supply ref_id or host, not both — a host-wide removal is not a filter on one record");
+      }
+      if (ref_id) {
+        var gone = deleteReference(ref_id);
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              host: null,
+              removed: gone ? [ref_id] : [],
+              skipped: [],
+              note: gone ? "Removed, including its thumbnail." : "No reference with that ref_id; nothing was removed."
+            }, null, 2)
+          }]
+        };
+      }
+      if (!host) throw new Error("supply ref_id or host");
+      if (confirm !== true) {
+        // Not ceremony: the caller is usually an agent acting on a sentence a
+        // human typed, and "clear out linear" should not be one inferred
+        // argument away from erasing a corpus that took real browsing to build.
+        // referencesForHost, not searchReferences: search filters on an EXACT
+        // host and the takedown includes subdomains, so the two disagreed and
+        // the prompt undercounted what confirming would actually remove.
+        var preview = referencesForHost(host);
+        throw new Error(
+          "Removing every reference from " + host + " is permanent and there is no trash. "
+          + preview.removed.length + " record(s) would be removed"
+          + (preview.skipped.length
+            ? ", and " + preview.skipped.length + " unreadable record(s) would be left on disk"
+            : "")
+          + ". Call again with confirm:true."
+        );
+      }
+      var result = deleteReferencesByHost(host);
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            ...result,
+            note: (result.skipped.length || result.failed.length)
+              ? "Removed " + result.removed.length + " record(s) and their thumbnails. "
+                + (result.skipped.length
+                  ? result.skipped.length + " record(s) could not be read and were left on disk. " : "")
+                + (result.failed.length
+                  ? result.failed.length + " record(s) could not be removed (see failed[]). " : "")
+                + "This host is NOT fully cleared."
+              : "Removed " + result.removed.length + " record(s) and their thumbnails."
           }, null, 2)
         }]
       };
@@ -7987,7 +8063,7 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 108 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 109 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });
