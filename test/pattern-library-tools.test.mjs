@@ -210,3 +210,169 @@ test('a search over the user\'s own patterns carries no third-party disclaimer',
       'a self-owned pattern still needs its source shown: ' + found.results[0].display.credit);
   });
 });
+
+// SHOW vs COPY. Browsing a corpus of other people's design work should not hand
+// back their markup as a side effect of looking at it — the picture and the
+// computed styles are what a browse needs, and the whole
+// show-it-then-translate-it path runs without the markup ever leaving the
+// server. Asking for it is a separate, named decision.
+test('a browse does not hand back the other site the markup it authored', async () => {
+  await withClient(async (client) => {
+    const markup = '<h1 class="hero">Ship faster<span class="cue">scroll</span></h1>';
+    const saved = await call(client, 'capture_reference', {
+      url: 'https://linear.app/features',
+      selector: 'h1.hero',
+      html: markup,
+      styles: { 'font-size': '64px' },
+      owner: 'third-party',
+      tags: ['hero']
+    });
+
+    const browsed = await call(client, 'search_references', { query: 'hero' });
+    const shown = browsed.results[0];
+
+    // Not merely absent from `reference` — absent from the whole response. A
+    // caller reads the serialized text, so markup surviving anywhere in it is
+    // markup that changed hands.
+    assert.equal(shown.reference.html, undefined);
+    assert.equal(JSON.stringify(browsed).includes('Ship faster'), false);
+    assert.equal(shown.html_available, true, 'a caller cannot ask for markup it does not know is there');
+    assert.equal(browsed.markup_notice, undefined, 'nothing was handed over, so nothing to notice');
+
+    // Everything a browse is FOR is still here: the picture, the credit, and the
+    // measurements the token mapper reads.
+    assert.equal(shown.reference.selector, 'h1.hero');
+    assert.deepEqual(shown.reference.styles, { 'font-size': '64px' });
+    assert.ok(shown.display.credit.includes('linear.app'));
+
+    // And the mapping half runs from the ref_id alone, which is what makes the
+    // omission cost nothing: the markup never had to leave to get here.
+    const designPath = path.join(process.env.RAVEN_REFERENCE_HOME, 'DESIGN.md');
+    await writeFile(designPath, '---\ntype:\n  size:\n    hero: "64px"\n---\n\n# Fixture\n', 'utf8');
+    const mapped = await call(client, 'map_reference_to_tokens', { ref_id: saved.ref_id, design_file_path: designPath });
+    assert.equal(mapped.bindings[0].token, 'type.size.hero');
+
+    const asked = await call(client, 'search_references', { query: 'hero', include_html: true });
+    assert.equal(asked.results[0].reference.html, markup);
+    assert.match(asked.markup_notice, /linear\.app/);
+    assert.match(asked.markup_notice, /write your own implementation/);
+  });
+});
+
+test('the truncation flag travels with the markup it describes, not on its own', async () => {
+  // `html_truncated: true` sitting beside no html is a flag about a field that
+  // is not there. It is reported at the result level either way, where it means
+  // "there is more of this than was kept" rather than describing an absent key.
+  await withClient(async (client) => {
+    await call(client, 'capture_reference', {
+      url: 'https://linear.app/features',
+      selector: 'section.pricing',
+      html: '<section>' + 'x'.repeat(9000) + '</section>',
+      styles: { gap: '24px' },
+      owner: 'third-party',
+      tags: ['pricing']
+    });
+
+    const browsed = await call(client, 'search_references', { query: 'pricing' });
+    assert.equal(browsed.results[0].reference.html_truncated, undefined);
+    assert.equal(browsed.results[0].html_truncated, true);
+    assert.equal(browsed.results[0].html_available, true);
+
+    const asked = await call(client, 'search_references', { query: 'pricing', include_html: true });
+    assert.equal(asked.results[0].reference.html_truncated, true);
+    assert.ok(asked.results[0].reference.html.length > 0);
+  });
+});
+
+test('a record captured without markup reports that, rather than looking withheld', async () => {
+  // html_available distinguishes "there is markup and you did not ask" from
+  // "there is no markup". Collapsing them would send a caller asking for
+  // something that does not exist, and — worse — would make a corpus of
+  // style-only captures look like it was holding something back.
+  await withClient(async (client) => {
+    await call(client, 'capture_reference', {
+      url: 'https://linear.app/features',
+      selector: 'nav.top',
+      styles: { gap: '12px' },
+      owner: 'third-party',
+      tags: ['nav']
+    });
+    const browsed = await call(client, 'search_references', { query: 'nav' });
+    assert.equal(browsed.results[0].html_available, false);
+    assert.equal(browsed.results[0].html_truncated, false);
+
+    const asked = await call(client, 'search_references', { query: 'nav', include_html: true });
+    assert.equal(asked.results[0].reference.html, undefined);
+    assert.equal(asked.markup_notice, undefined, 'nothing was handed over');
+  });
+});
+
+test('the markup notice fires on third-party markup only, and names whose', async () => {
+  await withClient(async (client) => {
+    await call(client, 'capture_reference', {
+      url: 'https://myapp.example/dashboard',
+      selector: '.card',
+      html: '<div class="card">mine</div>',
+      styles: { gap: '8px' },
+      owner: 'self',
+      tags: ['card']
+    });
+    const own = await call(client, 'search_references', { query: 'card', include_html: true });
+    assert.equal(own.results[0].reference.html, '<div class="card">mine</div>');
+    assert.equal(own.markup_notice, undefined, "the user's own markup is not third-party");
+
+    await call(client, 'capture_reference', {
+      url: 'https://stripe.com/pricing',
+      selector: '.card',
+      html: '<div class="card">theirs</div>',
+      styles: { gap: '8px' },
+      owner: 'third-party',
+      tags: ['card']
+    });
+    const both = await call(client, 'search_references', { query: 'card', include_html: true });
+    assert.match(both.markup_notice, /stripe\.com/);
+    assert.equal(/myapp\.example/.test(both.markup_notice), false,
+      'naming a host the user owns as a source to be careful with is noise that trains the notice out');
+  });
+});
+
+// The defect that killed compose_build_prompt: it cited DESIGN.md as its
+// grounding and emitted token NAMES with no VALUES, so an agent holding only
+// that output had to invent its colors. map_reference_to_tokens does emit
+// values — measured — and until now nothing asserted it. Every existing check
+// reads `binding.token`, so nulling `token_value` reproduced that exact defect
+// with the whole suite green.
+test('a binding carries the token VALUE, not only its name', async () => {
+  await withClient(async (client, home) => {
+    const designPath = path.join(home, 'DESIGN.md');
+    // The alias has to WIN for the alias assertion to measure anything. Winners
+    // order by distance, then family fit, then SHORTEST path — so a fixture with
+    // the alias nested under the token it points at binds the base instead, and
+    // the assertion passes against a mutant that never resolves aliases at all
+    // (measured: returning the raw value left all 13 tests green). `color.ink`
+    // is shorter than `color.palette.neutral.base`, so the alias wins.
+    await writeFile(designPath, '---\ncolor:\n  ink: "{color.palette.neutral.base}"\n  palette:\n    neutral:\n      base: "#f7f8f8"\ntype:\n  size:\n    hero: "64px"\n---\n\n# Fixture\n', 'utf8');
+
+    const mapped = await call(client, 'map_reference_to_tokens', {
+      captured: { 'font-size': '64px', color: 'rgb(247, 248, 248)' },
+      design_file_path: designPath
+    });
+
+    for (const binding of mapped.bindings) {
+      assert.equal(typeof binding.token_value, 'string',
+        binding.property + ' bound to ' + binding.token + ' with no value — an agent holding this has to invent one');
+      assert.ok(binding.token_value.length > 0, binding.property + ' bound to an empty value');
+      assert.equal(typeof binding.css_var, 'string', binding.property + ' has no css_var to write');
+    }
+
+    const byProperty = Object.fromEntries(mapped.bindings.map((b) => [b.property, b]));
+    assert.equal(byProperty['font-size'].token_value, '64px');
+    // An ALIAS resolves to the literal at the end of the chain rather than to
+    // the reference text. `{color.base.ink}` is not something you can put in a
+    // stylesheet, and a value that still needs resolving is the same defect one
+    // indirection along.
+    assert.equal(byProperty.color.token, 'color.ink', 'the fixture must bind the ALIAS, or the next assertion measures nothing');
+    assert.equal(byProperty.color.token_value, '#f7f8f8');
+    assert.equal(/[{}]/.test(byProperty.color.token_value), false);
+  });
+});

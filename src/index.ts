@@ -3295,14 +3295,15 @@ function isReadableFile(file: string): boolean {
 
 server.tool(
   "search_references",
-  "Find patterns previously kept with capture_reference — call it before rebuilding something already grabbed, or to recall 'that hero from Linear'. host, owner, and tags filters compose with AND; the free-text query matches case-insensitively against note, app, tags, and selector, and every result carries a score and a 'why' naming the matched fields. Ordering is deterministic. Returns stored JSON records. Every result carries a `display` object holding the credit line, the source URL, and `image_path` — the PNG on disk for records captured with html, so results can be shown as pictures rather than style maps (the tool returns the path, never the bytes). **Show the credit whenever you show the pattern**: this corpus holds other people's design work, Raven does not own it, and a third-party result also carries a notice saying so. Use these as references to build your own implementation, not as work to republish. Corrupt records are named in skipped[] instead of failing the call. It does not rank against live code and does not fetch the source site.",
+  "Find patterns previously kept with capture_reference — call it before rebuilding something already grabbed, or to recall 'that hero from Linear'. host, owner, and tags filters compose with AND; the free-text query matches case-insensitively against note, app, tags, and selector, and every result carries a score and a 'why' naming the matched fields. Ordering is deterministic. Returns stored JSON records. Every result carries a `display` object holding the credit line, the source URL, and `image_path` — the PNG on disk for records captured with html, so results can be shown as pictures rather than style maps (the tool returns the path, never the bytes). **Browsing does not hand back the other site's markup.** A result reports `html_available` and `html_truncated` but omits the html itself; pass include_html:true to receive it, which is a deliberate step because that markup is the site's own authored expression rather than a measurement of it. Everything needed to LOOK at a pattern and to translate it onto this project's tokens — the picture, the selector, the rect, the computed styles — is in the default result. **Show the credit whenever you show the pattern**: this corpus holds other people's design work, Raven does not own it, and a third-party result also carries a notice saying so. Use these as references to build your own implementation, not as work to republish. Corrupt records are named in skipped[] instead of failing the call. It does not rank against live code and does not fetch the source site.",
   {
     query: z.string().optional().describe("Free text matched against note, app, tags, and selector; omit to list everything passing the filters"),
     host: z.string().optional().describe("Only references grabbed from this host, e.g. 'linear.app'"),
     owner: z.enum(["self", "third-party"]).optional().describe("Only the user's own product, or only third-party sites"),
-    tags: z.array(z.string()).optional().describe("Only references carrying ALL of these tags")
+    tags: z.array(z.string()).optional().describe("Only references carrying ALL of these tags"),
+    include_html: z.boolean().optional().describe("Return each record's captured markup verbatim. Off by default: browsing a corpus of other people's work should not hand back their markup as a side effect of looking at it. Ask for it when you are actually reading the structure.")
   },
-  async ({ query, host, owner, tags }) => {
+  async ({ query, host, owner, tags, include_html }) => {
     try {
       var found = searchReferences({ query, host, owner, tags });
       return {
@@ -3325,8 +3326,50 @@ server.tool(
             notice: found.results.some((result) => result.reference.owner === "third-party")
               ? THIRD_PARTY_NOTICE
               : undefined,
+            // The standing notice covers looking. This one fires only when
+            // someone else's MARKUP is actually in the response, which is the
+            // moment the distinction stops being abstract — and it names the
+            // hosts, because "some of this is third-party" is not something a
+            // caller can act on.
+            markup_notice: include_html
+              && found.results.some((result) => result.reference.owner === "third-party" && result.reference.html)
+              ? "This response contains markup authored by "
+                + Array.from(new Set(found.results
+                    .filter((result) => result.reference.owner === "third-party" && result.reference.html)
+                    .map((result) => result.reference.host))).sort().join(", ")
+                + ". Read it to understand how the pattern is built; write your own implementation. Do not paste it into the user's project."
+              : undefined,
             results: found.results.map((result) => ({
               ...result,
+              // SHOW and COPY are different acts and this is where they were the
+              // same call. Spreading the record handed back `html` — another
+              // site's authored markup, verbatim — to anyone who so much as
+              // listed the corpus. Nothing in a browse needs it: the picture is
+              // what makes a pattern pickable, and map_reference_to_tokens reads
+              // `styles` from the record server-side, so the whole
+              // show-it-then-translate-it path runs without the markup ever
+              // leaving here.
+              //
+              // It is omitted rather than removed from storage. The markup is
+              // what a reader needs to understand a structure, and this corpus
+              // is local to the user; the boundary is about DEFAULTS and intent,
+              // not about denying access to files they own. include_html makes
+              // taking it a thing a caller decides to do instead of a thing that
+              // happens to them — and `html_available` is what keeps that from
+              // being a hidden field, since a caller cannot ask for markup it
+              // does not know is there.
+              // `html_truncated` leaves with the html it describes. On its own,
+              // beside no markup, it is a flag about a field that is not there.
+              reference: include_html
+                ? result.reference
+                : (function() {
+                    var visible: Record<string, unknown> = { ...result.reference };
+                    delete visible.html;
+                    delete visible.html_truncated;
+                    return visible;
+                  })(),
+              html_available: typeof result.reference.html === "string" && result.reference.html.length > 0,
+              html_truncated: result.reference.html_truncated === true,
               display: {
                 ...referenceAttribution(result.reference),
                 // Existence is checked, not assumed. The record says an image was

@@ -224,10 +224,17 @@ arrives as another site's literal values. Four tools close that loop:
 - `search_references` — find it again later by free text, host, owner, or tags, with a per-result
   score and a `why` naming the fields that matched. Each result carries a `display` object holding
   the credit line *and* the image path together, so a consumer reaching for the picture carries the
-  attribution out with it.
+  attribution out with it. **Looking is not copying**: a result reports `html_available` but omits
+  the captured markup, because browsing a corpus of other people's work should not hand back their
+  markup as a side effect of looking at it. Pass `include_html: true` when you actually mean to read
+  the structure — the response then names whose markup it contains. Everything a browse is *for* is
+  in the default result: the picture, the selector, the rect and the computed styles.
 - `map_reference_to_tokens` — translate the captured literals onto **your** DESIGN.md tokens, so
-  the code an agent writes uses your type ramp and palette instead of pasted values. Pure and
-  deterministic: no model, no network.
+  the code an agent writes uses your type ramp and palette instead of pasted values. Every binding
+  carries the resolved **value** and CSS variable alongside the token name — a name alone is not
+  something you can write into a stylesheet — and an aliased token resolves to the literal at the
+  end of its `$ref` chain. Pure and deterministic: no model, no network. It reads the stored styles
+  directly, so the whole show-it-then-translate-it path runs without the markup ever leaving Raven.
 - `forget_references` — remove a single reference by `ref_id`, or every reference from a host
   (subdomains included). Takes the PNGs with it. Destructive and permanent, so the host sweep
   refuses to run without `confirm: true` and tells you how many records that would remove first.

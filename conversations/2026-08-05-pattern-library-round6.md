@@ -2561,3 +2561,75 @@ Gate after the fixes: `RAVEN_NO_USAGE_LOG=1 npm test` → **1307 / 1304 pass /
 0 fail / 3 skipped** in 44.3s (+6, all six in `test/reference-forget.test.mjs`);
 `node /tmp/raven-r13-falsify/frozen.mjs` → `109 45 f64bb18…2bb0a6`, unmoved;
 `node test/e2e-pattern-library.mjs` → ALL CHECKS PASSED, 39 checks.
+
+## 12. Leg 4 — separating "show" from "copy wholesale"
+
+Andrew's use case is *"I wanted examples of a scrolling mouse icon in a hero
+image from around the web, and I wish Raven would show me some, then I could
+have chosen one and it would then implement for me."* Leg 4 is the show → choose
+→ implement half. Two defects, both found by reading the seam rather than the
+module.
+
+**Defect 1: browsing handed back the markup.** `search_references` spread the
+whole record into every result, so listing the corpus returned each site's
+verbatim `html` as a side effect of looking at it. Show and copy were the same
+call. Nothing in a browse needs the markup — the PNG is what makes a pattern
+pickable, and `map_reference_to_tokens` reads `styles` from the record
+server-side, so **the whole show-it-then-translate-it path runs without the
+markup ever leaving**. It is omitted by default now and returned on
+`include_html: true`, with a `markup_notice` that fires only when third-party
+markup is actually in the response and names the hosts.
+
+Three details are load-bearing rather than tidy:
+
+- `html_available` is reported either way. **A caller cannot ask for markup it
+  does not know is there** — and collapsing "you did not ask" into "there is
+  none" would also make a style-only corpus look like it was withholding
+  something.
+- `html_truncated` is stripped from the record alongside the html and reported at
+  the result level. On its own, beside no markup, it is a flag about a field that
+  is not there.
+- The omission is a **default, not a denial**. The corpus is local and the user
+  owns the files; the boundary is about intent, and `include_html` makes taking
+  the markup something a caller decides rather than something that happens to it.
+
+**Defect 2: the e2e graded token NAMES and never values.** That is precisely the
+defect that killed `compose_build_prompt` — it cited DESIGN.md as its grounding
+and emitted names with no values, so an agent holding only its output had to
+invent its colors. Measured before writing anything: `map_reference_to_tokens`
+DOES emit `token_value` and `css_var`, and an aliased token resolves to the
+literal at the end of its `$ref` chain. So this is a guard, not a fix — but
+nothing guarded it, and nulling `token_value` reproduced the composer's exact
+defect with the whole suite green.
+
+**The alias assertion needed a corrected fixture before it measured anything.**
+Winners order by distance, then family fit, then SHORTEST path, so a fixture with
+the alias nested under the token it points at (`color.text.primary ->
+{color.base.ink}`) binds the BASE, and the assertion passes against a mutant that
+never resolves aliases at all — measured, all 13 tests stayed green.
+`color.ink -> {color.palette.neutral.base}` makes the alias win. The test now
+asserts the fixture bound the alias before asserting anything about its value.
+Fourth time in this repo a new test was found detecting rather than encoding.
+
+**Mutants — each hitting exactly its own test except M1, which legitimately hits
+two:**
+
+| Mutant | Fails |
+|---|---|
+| M1 browse keeps the html (the defect) | the browse test AND the truncation test — both assert the same omission from different angles |
+| M2 `html_truncated` left on the stripped record | the truncation test only |
+| M3 `html_available` hardcoded true | the no-markup test only |
+| M4 markup notice ignores ownership | the notice test only |
+| M5 `token_value` dropped entirely | the value test only |
+| M6 `token_value` emits raw `value` (typeof-guarded) | **nothing** — an alias's `value` is an object, so the guard falls through to `resolved`; the mutant did not mutate |
+| M6b `token_value` emits the `$ref` text | the value test only |
+
+**This leg is not a route back to a prompt-composer tool.** §13 deleted
+`compose_build_prompt` on five rounds of evidence that the full tool surface
+WITHOUT it did better. The implement path runs through the existing tools; leg 4
+guards their output rather than wrapping it. No new tool: 109 stdio / 64 gated,
+anon 45 hash unmoved.
+
+Gate: 1312 tests / 1309 pass / 0 fail / 3 skipped (+5, all in
+`test/pattern-library-tools.test.mjs`); `node test/e2e-pattern-library.mjs` ALL
+CHECKS PASSED at 43 checks (+4); frozen probe `109 45 f64bb18…2bb0a6`.

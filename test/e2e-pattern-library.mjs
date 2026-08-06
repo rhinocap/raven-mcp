@@ -357,6 +357,33 @@ check('coverage is self-consistent with what it reported',
 check('nothing bound outside its own token family',
   mapped.bindings.every((b) => !/^color\./.test(b.token) || b.property.includes('color')),
   mapped.bindings.filter((b) => /^color\./.test(b.token) && !b.property.includes('color')).map((b) => b.property + '→' + b.token).join(', '));
+// Every check above grades the token NAME. That is the exact shape of the defect
+// that killed compose_build_prompt: it cited DESIGN.md as its grounding and
+// emitted names with no values, so an agent holding only its output had to
+// invent its colors. A name is not buildable — this asserts the thing you can
+// actually write into a stylesheet came back too.
+check('every binding carries the value and the css var, not just the token name',
+  mapped.bindings.length > 0 && mapped.bindings.every((b) => typeof b.token_value === 'string' && b.token_value.length > 0
+    && typeof b.css_var === 'string' && b.css_var.length > 0),
+  mapped.bindings.map((b) => `${b.token}=${JSON.stringify(b.token_value)}/${b.css_var}`).join(' '));
+check('the values are the fixture literals, so a plausible-looking wrong value would show',
+  mapped.bindings.find((b) => b.property === 'font-size')?.token_value === '64px'
+    && mapped.bindings.find((b) => b.property === 'color')?.token_value === '#f7f8f8',
+  mapped.bindings.filter((b) => ['font-size', 'color'].includes(b.property)).map((b) => b.property + '=' + b.token_value).join(', '));
+
+// SHOW vs COPY, over a real MCP client. The unit test at the seam proves the
+// shape; this proves the shape survives the transport, which is where the
+// attribution field was silently dropped once before.
+const browsed = await callTool('search_references', { query: 'hero headline weight' });
+check('browsing does not hand back the markup the site authored',
+  browsed.results[0].reference.html === undefined && browsed.results[0].html_available === true
+    && !JSON.stringify(browsed).includes('</h1>'),
+  `html_available ${browsed.results[0].html_available}`);
+const copied = await callTool('search_references', { query: 'hero headline weight', include_html: true });
+check('asking for it returns it, with a notice naming whose it is',
+  typeof copied.results[0].reference.html === 'string' && copied.results[0].reference.html.length > 0
+    && /github\.com/.test(copied.markup_notice || ''),
+  copied.markup_notice);
 
 // There is no delete tool, so this one assertion is module-level by necessity.
 check('deleting the record removes it', store.deleteReference(saved.ref_id) && store.getReference(saved.ref_id) === null);
