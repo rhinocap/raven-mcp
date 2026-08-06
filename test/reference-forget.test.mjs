@@ -167,7 +167,7 @@ test('an unreadable record is reported as skipped and left on disk, not counted 
   });
 });
 
-test('an image that cannot be unlinked is reported, not swallowed into a clean result', () => {
+test('an image that cannot be unlinked leaves the record in place so the takedown is retryable', () => {
   // The one outcome a takedown must never produce is a false all-clear. The
   // unlink caught EVERY error, so an EACCES / EISDIR / busy file left the
   // picture on disk while deleteReference returned true and the caller was told
@@ -175,19 +175,38 @@ test('an image that cannot be unlinked is reported, not swallowed into a clean r
   // image, and that is the expected case rather than an error.
   //
   // The fixture puts a DIRECTORY at the image path, which is how Sol reproduced
-  // it: unlinkSync raises EPERM/EISDIR rather than ENOENT, and nothing about the
-  // record's own removal changes.
+  // it: unlinkSync raises EPERM/EISDIR rather than ENOENT.
+  //
+  // Surfacing that failure loudly was necessary and NOT sufficient, which is what
+  // the second half of this test now pins. The earlier version unlinked the
+  // record first, so the throw was honest about THIS call and the next call was
+  // silent: no record named the surviving PNG any more, so a retry matched
+  // nothing, removed nothing, and returned a clean empty result over a
+  // third-party image still on disk. A false all-clear one call later is the
+  // same false all-clear. Removing the image first makes every failure
+  // retryable — assert the RETRY, not just the throw, because the throw passes
+  // under both orderings.
   withReferenceHome((home) => {
     const ref = save('https://linear.app/pricing');
     mkdirSync(store.referenceImagePath(ref.ref_id));
 
     assert.throws(() => store.deleteReference(ref.ref_id), /could not remove its image/);
-    // The record IS gone — the throw reports a partial removal, it does not
-    // pretend nothing happened — and the index agrees, so a later list does not
-    // resurrect a record whose file is missing.
-    assert.equal(existsSync(path.join(home, ref.ref_id + '.json')), false);
-    assert.deepEqual(JSON.parse(readFileSync(path.join(home, 'index.json'), 'utf8')).ref_ids, []);
+    assert.equal(existsSync(path.join(home, ref.ref_id + '.json')), true,
+      'the record was removed while its image survived — nothing on disk names the ' +
+      'orphan any more and no later takedown can rediscover it');
+    assert.deepEqual(JSON.parse(readFileSync(path.join(home, 'index.json'), 'utf8')).ref_ids, [ref.ref_id]);
     assert.equal(existsSync(store.referenceImagePath(ref.ref_id)), true);
+
+    // The retry: still visible, still matched, still reported as unremoved.
+    const retry = store.deleteReferencesByHost('linear.app');
+    assert.deepEqual(retry.removed, [], 'a second takedown reported removing something it did not');
+    assert.equal(retry.failed.length, 1, 'the surviving image was invisible to the second takedown');
+    assert.equal(retry.failed[0].ref_id, ref.ref_id);
+
+    // And once the obstruction is gone, the ordinary path finishes the job.
+    rmSync(store.referenceImagePath(ref.ref_id), { recursive: true });
+    assert.equal(store.deleteReference(ref.ref_id), true);
+    assert.equal(existsSync(path.join(home, ref.ref_id + '.json')), false);
   });
 });
 
@@ -210,6 +229,132 @@ test('a record that will not delete does not abandon the rest of the takedown', 
     assert.match(result.failed[0].reason, /could not remove its image/);
     assert.deepEqual(result.skipped, [], 'a delete failure was filed as unreadable JSON');
     assert.equal(existsSync(store.referenceImagePath(stuck.ref_id)), true);
+  });
+});
+
+test('a numeric fragment of an address is not a takedown for the whole address', () => {
+  // Suffix matching means "is a subdomain of", and an ADDRESS has no
+  // subdomains — so a request that is merely a tail of one must not match it.
+  // Under the raw-string rule `"127.0.0.1".endsWith(".0.0.1")` was true, and a
+  // takedown typed as `0.0.1` erased a record stored at 127.0.0.1. That record
+  // is ordinarily storable (`http://127.0.0.1:3000/`), so this direction is
+  // reachable through the tool's own API.
+  //
+  // WHICH clause closes it, measured rather than assumed: CANONICALIZATION does.
+  // WHATWG parses a trailing all-numeric label as an IPv4 candidate, so `0.0.1`,
+  // `0.1` and `1` all canonicalize to the address `0.0.0.1`, which is no longer a
+  // suffix of anything. The isIpLiteral guard in hostMatches is belt-and-braces
+  // behind that and has no reachable trigger left — see its comment. Do not read
+  // this test as proof of that clause; it is proof of the canonicalization.
+  //
+  // The other direction Sol reported — `hostMatches("x.127.0.0.1", "127.0.0.1")`
+  // deleting a DNS name that ends in numeric labels — is NOT reachable: the same
+  // WHATWG rule makes `x.127.0.0.1` an invalid URL hostname, so validatedUrl
+  // rejects it at capture and no record can ever hold it. Asserted below so a
+  // future reader does not go looking for the fixture that "should" exist.
+  assert.equal(store.hostMatches('127.0.0.1', '0.0.1'), false);
+  assert.equal(store.hostMatches('127.0.0.1', '0.1'), false);
+  assert.equal(store.hostMatches('127.0.0.1', '1'), false);
+  assert.equal(store.hostMatches('127.0.0.1', '127.0.0.1'), true);
+  assert.equal(store.hostMatches('[::1]', '[::1]'), true);
+  assert.throws(() => new URL('https://x.127.0.0.1/'),
+    'x.127.0.0.1 parsed as a hostname — the unreachability argument above no longer holds');
+
+  withReferenceHome(() => {
+    const address = save('http://127.0.0.1:3000/pricing');
+    assert.equal(address.host, '127.0.0.1', 'fixture: the store did not keep the address as its host');
+    const result = store.deleteReferencesByHost('0.0.1');
+    assert.deepEqual(result.removed, [],
+      'a takedown typed as the fragment 0.0.1 removed a record stored at 127.0.0.1');
+    assert.equal(store.listReferences().total, 1);
+  });
+});
+
+test('the requested host is canonicalized the same way the stored one was', () => {
+  // A stored host is `new URL(url).hostname` — punycode, portless, lowercase.
+  // The requested host is free text a human typed into a takedown, so comparing
+  // them raw compares two different alphabets: measured against dist/, a request
+  // for `bücher.example` missed a record stored as `xn--bcher-kva.example`, and
+  // `example.com:443` missed `example.com`. Both returned a clean empty result,
+  // which reads as "already clear".
+  assert.equal(store.hostMatches('xn--bcher-kva.example', 'bücher.example'), true);
+  assert.equal(store.hostMatches('example.com', 'example.com:443'), true);
+  assert.equal(store.hostMatches('[::1]', '[::1]:443'), true);
+  assert.equal(store.hostMatches('example.com', 'EXAMPLE.com.'), true);
+  assert.equal(store.hostMatches('app.linear.app', '*.linear.app'), true);
+
+  withReferenceHome(() => {
+    const ref = save('https://bücher.example/pricing');
+    assert.equal(ref.host, 'xn--bcher-kva.example', 'fixture: the store did not punycode the host');
+    const result = store.deleteReferencesByHost('bücher.example');
+    assert.deepEqual(result.removed, [ref.ref_id]);
+  });
+});
+
+test('a host that is not a bare hostname is refused rather than silently widened', () => {
+  // `new URL("http://" + raw)` accepts `linear.app/pricing` and hands back the
+  // hostname `linear.app`, so canonicalizing without a round-trip check would
+  // turn a typo into a whole-site takedown. Refusing is the only safe answer,
+  // and it must be a THROW: returning no matches would read as "already clear".
+  withReferenceHome(() => {
+    save('https://linear.app/pricing');
+    assert.throws(() => store.deleteReferencesByHost('linear.app/pricing'), /bare hostname/);
+    assert.throws(() => store.deleteReferencesByHost('https://linear.app'), /bare hostname/);
+    assert.throws(() => store.deleteReferencesByHost('user@linear.app'), /bare hostname/);
+    assert.equal(store.listReferences().total, 1, 'a refused host removed something anyway');
+  });
+});
+
+test('a record captured after the preview is reported, not removed, when the caller pins the set', () => {
+  // The preview and the confirmation are separate calls and each reads the
+  // directory for itself, so "the same function computes both" makes them the
+  // same RULE and never the same SNAPSHOT. Preview linear.app with one record,
+  // capture app.linear.app, confirm: the prompt said one and the delete took
+  // two, silently.
+  withReferenceHome(() => {
+    const shown = save('https://linear.app/pricing');
+    const preview = store.referencesForHost('linear.app');
+    assert.deepEqual(preview.removed, [shown.ref_id], 'fixture: the preview did not see one record');
+
+    // Between the two calls.
+    const late = save('https://app.linear.app/team');
+
+    const result = store.deleteReferencesByHost('linear.app', preview.removed);
+    assert.deepEqual(result.removed, [shown.ref_id]);
+    assert.deepEqual(result.appeared_since_preview, [late.ref_id],
+      'a record that appeared after the preview was deleted under an authorisation ' +
+      'that never named it');
+    assert.equal(store.getReference(late.ref_id).ref_id, late.ref_id, 'the late record was removed anyway');
+
+    // Unpinned is still the old behaviour, on purpose: a caller who means
+    // "everything from this host, now" gets exactly that.
+    const second = store.deleteReferencesByHost('linear.app');
+    assert.deepEqual(second.removed, [late.ref_id]);
+    assert.deepEqual(second.appeared_since_preview, []);
+  });
+});
+
+test('a corrupt index is not reported as an unreadable record left on disk', () => {
+  // `skipped` means "a record I could not read, still on disk" — the sentence
+  // built from it says the host is NOT fully cleared. An unreadable INDEX is a
+  // different condition with the opposite consequence: recordFiles falls back to
+  // scanning the directory, so every record is still found and deleted and the
+  // index is rebuilt on the way through. Filing it in `skipped` made a fully
+  // successful takedown report a record left behind that was not there — a false
+  // NOT-clear, which is as much a lie about the disk as a false all-clear.
+  withReferenceHome((home) => {
+    const ref = save('https://linear.app/pricing');
+    writeFileSync(path.join(home, 'index.json'), '{ not json');
+
+    const result = store.deleteReferencesByHost('linear.app');
+    assert.deepEqual(result.removed, [ref.ref_id]);
+    assert.deepEqual(result.skipped, [],
+      'the corrupt index was counted as an unreadable record, so a complete ' +
+      'takedown reported leaving one behind');
+    assert.equal(result.index_unreadable, true, 'the corrupt index was not reported at all');
+    assert.equal(existsSync(path.join(home, ref.ref_id + '.json')), false);
+    assert.deepEqual(JSON.parse(readFileSync(path.join(home, 'index.json'), 'utf8')).ref_ids, [],
+      'the index was not rebuilt');
   });
 });
 
@@ -335,6 +480,52 @@ test('search_references does not hand back an image_path whose file is gone', { 
     // The record still knows it HAD one — this is about what a consumer can open,
     // not about rewriting history.
     assert.ok(after.results[0].reference.image);
+
+    // Absence was the only case covered, and it is not the case this codebase
+    // already knows about: the failure it handles elsewhere leaves a DIRECTORY
+    // at the image path — that is what makes an unlink come back EPERM/EISDIR in
+    // the first place — and existsSync answers true for a directory. The
+    // consumer then opens a directory expecting a PNG. Nothing but isFile()
+    // separates the two, so this assertion is the whole reason that call changed.
+    mkdirSync(store.referenceImagePath(saved.reference.ref_id));
+    const asDirectory = await call(client, 'search_references', {});
+    assert.equal(asDirectory.results[0].display.image_path, null,
+      'a directory sitting at the image path was handed back as an image');
+    rmSync(store.referenceImagePath(saved.reference.ref_id), { recursive: true });
+
+    // And a file that is not a PNG at all is still a file, so this stays a path:
+    // the check is "something readable is there", not a format validation. Stated
+    // so the next reader does not mistake it for one.
+    writeFileSync(store.referenceImagePath(saved.reference.ref_id), 'not a png');
+    const asJunk = await call(client, 'search_references', {});
+    assert.equal(typeof asJunk.results[0].display.image_path, 'string');
+  });
+});
+
+test('forget_references by ref_id reports a failure in failed[], the same shape the host path uses', async () => {
+  // The two modes answer the same question and must answer it the same way. By
+  // host, an image that would not unlink lands in failed[] with the ref_id and
+  // the reason. By ref_id it fell through to the outer catch and came back as
+  // isError plus free text — the caller could see that something went wrong but
+  // not, structurally, which record still needs a human, so anything reading
+  // failed[] silently saw a clean result.
+  await withClient(async (client, home) => {
+    const saved = await call(client, 'capture_reference', {
+      url: 'https://linear.app/pricing',
+      selector: '.hero',
+      styles: { color: 'rgb(0, 0, 0)' },
+      owner: 'third-party',
+      tags: ['hero']
+    });
+    mkdirSync(store.referenceImagePath(saved.reference.ref_id));
+
+    const result = await call(client, 'forget_references', { ref_id: saved.reference.ref_id });
+    assert.deepEqual(result.removed, []);
+    assert.equal(result.failed.length, 1, 'the ref_id path reported no structured failure');
+    assert.equal(result.failed[0].ref_id, saved.reference.ref_id);
+    assert.match(result.failed[0].reason, /could not remove its image/);
+    // And the record survives, so this is retryable rather than an orphan.
+    assert.equal(existsSync(path.join(home, saved.reference.ref_id + '.json')), true);
   });
 });
 

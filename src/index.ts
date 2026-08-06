@@ -3282,6 +3282,17 @@ server.tool(
   }
 );
 
+// A path only counts as an image if a regular file is there. statSync follows
+// symlinks and throws on a missing or dangling target, which is the answer this
+// wants: everything that is not a readable regular file is "no image".
+function isReadableFile(file: string): boolean {
+  try {
+    return statSync(file).isFile();
+  } catch (_error) {
+    return false;
+  }
+}
+
 server.tool(
   "search_references",
   "Find patterns previously kept with capture_reference — call it before rebuilding something already grabbed, or to recall 'that hero from Linear'. host, owner, and tags filters compose with AND; the free-text query matches case-insensitively against note, app, tags, and selector, and every result carries a score and a 'why' naming the matched fields. Ordering is deterministic. Returns stored JSON records. Every result carries a `display` object holding the credit line, the source URL, and `image_path` — the PNG on disk for records captured with html, so results can be shown as pictures rather than style maps (the tool returns the path, never the bytes). **Show the credit whenever you show the pattern**: this corpus holds other people's design work, Raven does not own it, and a third-party result also carries a notice saying so. Use these as references to build your own implementation, not as work to republish. Corrupt records are named in skipped[] instead of failing the call. It does not rank against live code and does not fetch the source site.",
@@ -3324,8 +3335,16 @@ server.tool(
                 // without its sidecars, a takedown that could not unlink one
                 // image. Handing back a path to a file that is not there is the
                 // same false all-clear the takedown path refuses to give.
+                //
+                // isFile(), not existsSync(): the one failure this path already
+                // knows about leaves a DIRECTORY at the image path (that is how
+                // an unlink comes back EPERM/EISDIR in the first place), and
+                // existsSync answers true for it. The consumer then opens a
+                // directory expecting a PNG. Anything that is not a regular file
+                // is nothing, including a dangling symlink, which is why the
+                // stat is not lstat.
                 image_path: result.reference.image
-                  && existsSync(referenceImagePath(result.reference.ref_id))
+                  && isReadableFile(referenceImagePath(result.reference.ref_id))
                   ? referenceImagePath(result.reference.ref_id)
                   : null
               }
@@ -3341,19 +3360,32 @@ server.tool(
 
 server.tool(
   "forget_references",
-  "Remove stored patterns from the local corpus — one by ref_id, or every pattern captured from a site. This is the takedown path: if a site asks that their design work not be kept, `forget_references({ host: 'their.site', confirm: true })` removes every record and every rendered thumbnail from that host in one call. Host matching is exact plus subdomains ('linear.app' takes 'app.linear.app', never 'notlinear.app'), and a host-wide removal requires confirm:true because it is not reversible — there is no trash. Returns the ref_ids actually removed, so a partial result is visible rather than assumed; records whose JSON could not be parsed are reported in skipped[] and left on disk rather than counted as cleared. Local only: it deletes files under the reference home and contacts nobody.",
+  "Remove stored patterns from the local corpus — one by ref_id, or every pattern captured from a site. This is the takedown path: if a site asks that their design work not be kept, `forget_references({ host: 'their.site', confirm: true })` removes every record and every rendered thumbnail from that host in one call. Host matching is exact plus subdomains ('linear.app' takes 'app.linear.app', never 'notlinear.app'; an IP address matches only itself), and a host-wide removal requires confirm:true because it is not reversible — there is no trash. The refusal names the ref_ids it would remove: pass them back as expected_ref_ids to pin the removal to what you were shown, and anything that appeared since is reported in appeared_since_preview[] rather than deleted. Returns the ref_ids actually removed, so a partial result is visible rather than assumed; records whose JSON could not be parsed are reported in skipped[] and left on disk rather than counted as cleared, and records that could not be deleted are reported separately in failed[]. Local only: it deletes files under the reference home and contacts nobody.",
   {
     ref_id: z.string().optional().describe("Remove exactly this one reference. Supply this or host."),
     host: z.string().optional().describe("Remove every reference captured from this host and its subdomains, e.g. 'linear.app'"),
-    confirm: z.boolean().optional().describe("Required when removing by host — the removal is permanent")
+    confirm: z.boolean().optional().describe("Required when removing by host — the removal is permanent"),
+    expected_ref_ids: z.array(z.string()).optional().describe("The ref_ids the confirmation prompt listed. Supplying them pins the removal to that set: anything matching the host that appeared since is reported, not deleted.")
   },
-  async ({ ref_id, host, confirm }) => {
+  async ({ ref_id, host, confirm, expected_ref_ids }) => {
     try {
       if (ref_id && host) {
         throw new Error("supply ref_id or host, not both — a host-wide removal is not a filter on one record");
       }
       if (ref_id) {
-        var gone = deleteReference(ref_id);
+        // The same shape as the host path, including failed[]. This branch used
+        // to let a delete error fall through to the outer catch, so an image
+        // that would not unlink came back as free text with isError — the
+        // caller could see that something went wrong but not, structurally,
+        // which record still needs a human. The two modes answer the same
+        // question and must answer it the same way.
+        var gone = false;
+        var oneFailed: Array<{ ref_id: string; reason: string }> = [];
+        try {
+          gone = deleteReference(ref_id);
+        } catch (error) {
+          oneFailed.push({ ref_id: ref_id, reason: (error as Error).message });
+        }
         return {
           content: [{
             type: "text" as const,
@@ -3361,9 +3393,16 @@ server.tool(
               host: null,
               removed: gone ? [ref_id] : [],
               skipped: [],
-              note: gone ? "Removed, including its thumbnail." : "No reference with that ref_id; nothing was removed."
+              failed: oneFailed,
+              appeared_since_preview: [],
+              note: oneFailed.length
+                ? "NOT removed — see failed[]. The record was left in place so this can be retried."
+                : gone
+                  ? "Removed, including its thumbnail."
+                  : "No reference with that ref_id; nothing was removed."
             }, null, 2)
-          }]
+          }],
+          isError: oneFailed.length > 0
         };
       }
       if (!host) throw new Error("supply ref_id or host");
@@ -3374,30 +3413,43 @@ server.tool(
         // referencesForHost, not searchReferences: search filters on an EXACT
         // host and the takedown includes subdomains, so the two disagreed and
         // the prompt undercounted what confirming would actually remove.
+        //
+        // The ids are named, not just counted, so the confirming call can pin
+        // itself to this answer — the two calls each read the directory for
+        // themselves, and a capture landing in between otherwise widens the
+        // removal past what was authorised without saying so.
         var preview = referencesForHost(host);
         throw new Error(
           "Removing every reference from " + host + " is permanent and there is no trash. "
           + preview.removed.length + " record(s) would be removed"
+          + (preview.removed.length ? " (" + preview.removed.join(", ") + ")" : "")
           + (preview.skipped.length
             ? ", and " + preview.skipped.length + " unreadable record(s) would be left on disk"
             : "")
-          + ". Call again with confirm:true."
+          + ". Call again with confirm:true, and pass expected_ref_ids to pin the removal to exactly these records."
         );
       }
-      var result = deleteReferencesByHost(host);
+      var result = deleteReferencesByHost(host, expected_ref_ids);
+      var cleared = !result.skipped.length && !result.failed.length && !result.appeared_since_preview.length;
       return {
         content: [{
           type: "text" as const,
           text: JSON.stringify({
             ...result,
-            note: (result.skipped.length || result.failed.length)
-              ? "Removed " + result.removed.length + " record(s) and their thumbnails. "
-                + (result.skipped.length
-                  ? result.skipped.length + " record(s) could not be read and were left on disk. " : "")
-                + (result.failed.length
-                  ? result.failed.length + " record(s) could not be removed (see failed[]). " : "")
-                + "This host is NOT fully cleared."
-              : "Removed " + result.removed.length + " record(s) and their thumbnails."
+            note: "Removed " + result.removed.length + " record(s) and their thumbnails. "
+              + (result.skipped.length
+                ? result.skipped.length + " record(s) could not be read and were left on disk. " : "")
+              + (result.failed.length
+                ? result.failed.length + " record(s) could not be removed (see failed[]). " : "")
+              + (result.appeared_since_preview.length
+                ? result.appeared_since_preview.length + " record(s) from this host appeared after the "
+                  + "preview and were NOT removed (see appeared_since_preview[]); call again to take them. " : "")
+              // Reported, but it does not make the host un-cleared: an unreadable
+              // index leaves no record behind. The directory scan finds them all
+              // and the index is rebuilt on the way through.
+              + (result.index_unreadable
+                ? "The index could not be read and was rebuilt; no record was left behind by it. " : "")
+              + (cleared ? "" : "This host is NOT fully cleared.")
           }, null, 2)
         }]
       };

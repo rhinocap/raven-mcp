@@ -2412,3 +2412,152 @@ actually held rather than that it ran.
 A real legal opinion before any stored corpus of third-party patterns goes
 public. Nothing in legs 1–3 changes that — they make the local corpus honest and
 removable, which is a precondition, not a substitute.
+
+## 10. The private-content leak class, closed by a DESTINATION instead of a glob
+
+§3d, §3f and §3g are three consecutive rounds of the same defect: a raw agent
+transcript landing inside tracked `.claude/` in a public repo, with an auto-save
+hook that runs `git add -A` and commits. Each round narrowed a `.gitignore`
+pattern and each narrowing was defeated on the next round:
+
+| Round | Pattern added | Defeated by |
+|---|---|---|
+| §3d | `.claude/pregate-*/sol/` — a LOCATION | the next evidence directory |
+| §3f | `SOL-*.log` — one agent's NAME | four `*-codex.log` from the same fan-out |
+| §3g | `.claude/**/*.log` — an EXTENSION | `SOL-ROUND2.md`, 794KB, 11485 lines |
+
+This window it reopened a fourth time. The leg-3 Sol transcript was writing to
+`.claude/patternlib-2026-08-04/leg3-sol/SOL-LEG3.out` — `.out` matches none of
+the four patterns. Caught before any commit (`git log` confirmed nothing had
+been committed), which is luck, not a gate.
+
+**The fix is the shape of the rule, not another instance of it.** Every earlier
+pattern had to predict a FILENAME, and this class is defined by CONTENT — which
+is exactly why four filename predictions in a row lost. A DESTINATION cannot be
+guessed wrong the way a filename can, so `.gitignore` now carries
+`.claude/**/agent-output/`: any raw agent or tool output goes in a directory
+with that name, whoever wrote it, whatever it is called, whatever it ends in.
+Both leg-3 files were moved there and `git check-ignore -v` confirms the match
+(`.gitignore:113`). Hand-written verdicts and briefs stay OUTSIDE it, where they
+are meant to be read — `BRIEF.md` is tracked and committed.
+
+The standing rule from §3g still holds and is now load-bearing in the other
+direction: **if this pattern blocks something you meant to commit, move the file
+out — never add a negation inside `agent-output/`.** A negation there lets the
+next raw transcript dropped into that directory ship, which is the hole this
+rule keeps reopening.
+
+`test/no-private-paths.test.mjs` remains the actual defense; the ignore rule is
+convenience so the usual suspects never reach the index. Verified on the staged
+index this window: 4/4 pass.
+
+### Two process misses in the same window, both worth keeping
+
+1. **A watcher predicate that can never go false.** `until ! pgrep -qf 'codex
+   exec'` matches *any* session's codex process, and nine of them have been up
+   for over a day on this machine — so the watcher would have waited forever
+   while reporting nothing, the exact "a check whose failure mode is
+   indistinguishable from its success mode is not a check" shape. Caught by
+   running `ps -o pid,etime` per pid instead of continuing to wait. Replaced
+   with a pid-bound `until ! ps -p 75428`. **Bind a watcher to the thing you
+   started, never to a name pattern.**
+2. **I killed the Sol run by mistake.** Intending to kill the broken watcher I
+   ran `kill 71439`, which was the codex process. Relaunched as pid 75428 and
+   the pid written to `agent-output/sol.pid` so the next reader does not have to
+   re-derive it. Separately: the output file looked frozen at 101350 bytes and I
+   suspected a stall — `ps -o etime` said 1m37s elapsed. Output buffering, not a
+   stall. Check elapsed time before acting on a suspected hang.
+
+## 11. Leg 3, round 2 — Sol's falsification verdict and its dispositions
+
+Sol's verdict on the `forget_references` leg was **DOES NOT SURVIVE**: three P1
+and five P2. Seven fixed, one documented. The whole class Sol was aiming at is
+one sentence: **a takedown's single forbidden outcome is a false all-clear**, and
+making a failure loud once does not help if the RETRY is silent.
+
+| # | Finding | Disposition |
+|---|---|---|
+| P1-1 | A failed image unlink left a non-retryable orphan | **Fixed** — image unlinked FIRST |
+| P1-2 | IP literals treated as DNS suffixes | **Fixed** (the reachable half; see below) |
+| P1-3 | Preview and confirm are separate unsnapshotted reads | **Fixed** — `expected_ref_ids` pin |
+| P2-1 | The requested host was not canonicalized like the stored one | **Fixed** — `canonicalHost` |
+| P2-2 | `ref_id` mode had no structured `failed[]` | **Fixed** |
+| P2-3 | `skipped` conflated a corrupt index with an unreadable record | **Fixed** — `index_unreadable` |
+| P2-4 | Concurrent attachments are incoherent | **NOT fixed** — documented |
+| P2-5 | `javaScriptEnabled:false` is not an inert document | **Fixed** — honest comment, `serviceWorkers:"block"` |
+| P2-6 | `existsSync` does not prove a PNG is there | **Fixed** — `isReadableFile` |
+
+**P1-1 is the one worth remembering. Ordering decides retryability.** The old
+code unlinked the record first and the image second, so a failed unlink took the
+only thing that could rediscover the orphan. The failure was reported honestly
+and the state was still worse: a second takedown matched nothing, removed
+nothing, and returned a clean empty result over a third-party image still on
+disk. Image first, record second — a failed image unlink now leaves the record
+in place, so the orphan stays visible to `search_references`, still matched by
+host, and still reported in `failed[]` on every retry. The reverse half-state
+(image gone, record left) is benign because `search_references` checks the file
+rather than trusting a flag. **One pre-existing test asserted the defect** — it
+checked `existsSync(record) === false` and an emptied index, i.e. the
+non-retryable orphan, exactly as Sol reported. Rewritten to assert the record
+SURVIVES and that a second `deleteReferencesByHost` still reports it.
+
+**Part of P1-2 is wrong, and measuring it is what showed the fix's real
+mechanism.** Sol's example assumed `x.127.0.0.1` and `127.0.0.1` are both
+accepted URL hostnames. They are not: WHATWG URL parsing reads a trailing
+all-numeric label as an IPv4 candidate, so on Node 26.5.0 `x.127.0.0.1`, `foo.1`
+and `x.[::1]` all **throw** `ERR_INVALID_URL`, while `0.0.1`, `0.1` and `1` all
+canonicalize to the address `0.0.0.1`. So the over-delete direction Sol named is
+unreachable through the store's own API — `readRecord` enforces
+`host === url.hostname`. The direction that IS reachable is the inverse: a
+takedown typed as `0.0.1` deleting a record stored at `127.0.0.1`, verified true
+under the old suffix rule. The test was rewritten around that, and the source
+comment now attributes the fix to canonicalization rather than to the
+`isIpLiteral` clause. Mutant V4 confirms it: removing that clause breaks
+nothing. Kept as belt-and-braces, and **no test pretends it is load-bearing** —
+a clause with no reachable trigger must say so.
+
+Two smaller rules came out of the rest. **Canonicalization has to round-trip**:
+`new URL("http://" + raw)` accepts `linear.app/pricing` and returns hostname
+`linear.app`, so a typo would silently widen a takedown from one page to a whole
+site — anything carrying `/ ? # @ \` or whitespace is rejected before parsing,
+and a refused host **throws** rather than returning zero matches, because a
+silent no-op reads as "already clear". And **preview and confirm are the same
+RULE but never the same SNAPSHOT** — two MCP calls, two directory reads, so the
+caller can now pin the set with `expected_ref_ids` and anything captured in
+between is reported rather than swept up.
+
+P2-3 was the inverse error and just as much a lie about the disk: filing a
+corrupt `index.json` in `skipped` produced a false NOT-clear. `skipped` means an
+unreadable record still on disk; an unreadable index costs nothing and leaves
+nothing behind, so it is its own field.
+
+P2-4 stands unfixed on purpose. There is no locking anywhere in this codebase
+and each capture mints a fresh ref_id, so a concurrent attach cannot collide
+with a takedown on identity — only on visibility, which the pin already reports.
+
+**Mutants — every one `import()`-checked before its result counted, each hitting
+exactly its own test:**
+
+| Mutant | Fails |
+|---|---|
+| V1 record unlinked first (the original defect) | the retryability test + the ref_id-mode test (both legitimately assert it) |
+| V2 canonicalization removed | the canonicalization test only |
+| V3 bare-host guard removed | the bare-hostname test only |
+| V4 `isIpLiteral` clause removed | **nothing — the clause is unreachable, as documented** |
+| V5 `index.json` back into `skipped` | the corrupt-index test only |
+| V6 `expected_ref_ids` ignored | the preview-pin test only |
+| V7 `isReadableFile` → `existsSync` | the image_path test only |
+| V8 ref_id-mode rethrows instead of filing `failed[]` | the ref_id-mode test only |
+
+Two smaller measurements worth keeping. `existsSync` answers **true for a
+directory**, and a directory at the image path is exactly what this codebase's
+own failure mode produces — hence `statSync().isFile()`. And
+`javaScriptEnabled:false` means "no script runs", not "inert document": CSS
+animations, SVG SMIL, meta refresh and media/frame parsing are declarative and
+keep running, so the comment says that and the test is renamed to the property
+it actually measures.
+
+Gate after the fixes: `RAVEN_NO_USAGE_LOG=1 npm test` → **1307 / 1304 pass /
+0 fail / 3 skipped** in 44.3s (+6, all six in `test/reference-forget.test.mjs`);
+`node /tmp/raven-r13-falsify/frozen.mjs` → `109 45 f64bb18…2bb0a6`, unmoved;
+`node test/e2e-pattern-library.mjs` → ALL CHECKS PASSED, 39 checks.

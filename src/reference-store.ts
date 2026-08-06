@@ -75,7 +75,10 @@ export interface SearchReferenceOptions extends ReferenceFilters {
 export interface ReferenceListResult {
   references: PatternReference[];
   total: number;
+  // RECORD files whose JSON could not be read. Only record files — see
+  // index_unreadable, which is a different condition with different consequences.
   skipped: string[];
+  index_unreadable: boolean;
 }
 
 export interface ReferenceSearchResult {
@@ -83,6 +86,7 @@ export interface ReferenceSearchResult {
   total: number;
   corpus_size: number;
   skipped: string[];
+  index_unreadable: boolean;
 }
 
 export function referenceHome(): string {
@@ -167,7 +171,8 @@ export function getReference(ref_id: string): PatternReference | null {
 export function listReferences(opts: ReferenceFilters = {}): ReferenceListResult {
   var skipped: string[] = [];
   var references: PatternReference[] = [];
-  for (var file of recordFiles(skipped)) {
+  var state = { index_unreadable: false };
+  for (var file of recordFiles(state)) {
     try {
       var reference = readRecord(join(referenceHome(), file), file.slice(0, -5));
       if (matchesFilters(reference, opts)) references.push(reference);
@@ -176,7 +181,12 @@ export function listReferences(opts: ReferenceFilters = {}): ReferenceListResult
     }
   }
   references.sort(compareReferences);
-  return { references: references, total: references.length, skipped: skipped.sort() };
+  return {
+    references: references,
+    total: references.length,
+    skipped: skipped.sort(),
+    index_unreadable: state.index_unreadable,
+  };
 }
 
 export function searchReferences(opts: SearchReferenceOptions): ReferenceSearchResult {
@@ -208,6 +218,7 @@ export function searchReferences(opts: SearchReferenceOptions): ReferenceSearchR
     total: results.length,
     corpus_size: corpus.references.length,
     skipped: corpus.skipped,
+    index_unreadable: corpus.index_unreadable,
   };
 }
 
@@ -225,31 +236,41 @@ export function deleteReference(ref_id: string): boolean {
     existing = rebuildIndexFromRecords();
   }
   var index = existing.filter(function(id) { return id !== ref_id; });
-  unlinkSync(file);
+  // ORDER: the image goes FIRST, and the record only after it is gone.
+  //
   // The image is part of the record, so a delete that leaves it behind is not a
-  // delete. This is the takedown path: a third-party pattern removed from the
-  // corpus must not survive as a picture of itself sitting next to a gap in the
-  // index. Unlinked BEFORE the index is rewritten, and tolerated if absent —
-  // most records have no image, and a missing file is the expected case rather
-  // than an error.
+  // delete — a third-party pattern removed from the corpus must not survive as a
+  // picture of itself. The earlier version unlinked the record first and then the
+  // image, which surfaced a failed image unlink honestly and still produced the
+  // worse outcome: the record was already gone, so nothing on disk named the
+  // surviving PNG any more. A second takedown for that host could not rediscover
+  // it — it would match no record, remove nothing, and return a clean, empty,
+  // apparently-successful result over a third-party image still sitting there.
+  // A false all-clear is the one outcome this path must never produce, and
+  // making the failure loud once does not help when the retry is silent.
+  //
+  // Reversed, every failure is retryable: the record survives a failed image
+  // unlink, so it is still matched, still counted, and still reported by the next
+  // call. The opposite half-state — record removed, image gone, index not yet
+  // rewritten — is repaired by rebuildIndexFromRecords() on the next read, and an
+  // orphan RECORD whose image is missing is already handled everywhere (search
+  // checks the file rather than trusting the flag).
   try {
     unlinkSync(referenceImagePath(ref_id));
   } catch (error) {
     // Only "it was not there" is fine — most records have no image, and that is
     // the expected case rather than an error. Anything else (EACCES, EISDIR, a
-    // busy file) means the picture is STILL ON DISK, and swallowing it returns
-    // true from a takedown that did not happen. A false all-clear is the one
-    // outcome this path must never produce, so it surfaces. The record is
-    // already unlinked at this point, so the caller sees a partial removal it
-    // can act on rather than a clean report over a surviving copy.
+    // busy file) means the picture is STILL ON DISK, so nothing is removed and
+    // the caller is told which record still needs a human.
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-      atomicWriteJson(indexPath(), { version: 1, ref_ids: index });
       throw new Error(
-        "removed the record for " + ref_id + " but could not remove its image ("
-        + (error as NodeJS.ErrnoException).code + "): " + referenceImagePath(ref_id)
+        "could not remove its image (" + (error as NodeJS.ErrnoException).code
+        + "): " + referenceImagePath(ref_id) + " — the record for " + ref_id
+        + " was left in place so this removal can be retried"
       );
     }
   }
+  unlinkSync(file);
   atomicWriteJson(indexPath(), { version: 1, ref_ids: index });
   return true;
 }
@@ -280,13 +301,76 @@ export interface ForgetResult {
   // is unreadable JSON that was never attempted: conflating "we could not parse
   // it" with "we could not delete it" hides the more serious of the two.
   failed: Array<{ ref_id: string; reason: string }>;
+  // The INDEX could not be read. Reported separately from `skipped` because it is
+  // not a record and nothing is left behind by it: recordFiles falls back to
+  // scanning the directory, so every record is still found, still matched and
+  // still deleted, and deleteReference rebuilds the index on the way through.
+  // Filing it as a skipped record made a fully successful takedown report "N
+  // unreadable record(s) were left on disk. This host is NOT fully cleared." —
+  // a false NOT-clear, which is the inverse of the error this path guards and
+  // just as much a lie about what is on disk.
+  index_unreadable: boolean;
+  // Records matching the host that were NOT removed because the caller pinned the
+  // removal to a preview and these appeared after it. Empty unless expected_ref_ids
+  // was supplied.
+  appeared_since_preview: string[];
+}
+
+// A stored `host` is always `new URL(record.url).hostname` — readRecord enforces
+// it — so it is lowercase, punycode, portless, and IPv6 in brackets. The
+// REQUESTED host is free text a human typed into a takedown, and comparing raw
+// text against a parser's output is comparing two different alphabets:
+// `bücher.example` never matches the stored `xn--bcher-kva.example`, and
+// `example.com:443` never matches `example.com`. Both were measured against
+// dist/. So the request goes through the same parser the record did.
+//
+// Round-tripping is not optional. `new URL("http://" + raw)` happily accepts
+// `linear.app/foo` and hands back the hostname `linear.app` — a typo would widen
+// a takedown from one page to a whole site, silently. Anything that is not a
+// bare authority is rejected before parsing rather than quietly reinterpreted.
+export function canonicalHost(value: string): string {
+  var raw = String(value || "").trim().toLowerCase().replace(/^\*\./, "");
+  raw = raw.replace(/\.$/, "");
+  if (!raw) return "";
+  // A bare authority only. Anything carrying a path, query, fragment, userinfo,
+  // scheme or whitespace is a different string than the caller thinks it is.
+  if (/[\/?#@\\\s]/.test(raw)) return "";
+  try {
+    var hostname = new URL("http://" + raw + "/").hostname;
+    return hostname.replace(/\.$/, "");
+  } catch (_error) {
+    return "";
+  }
+}
+
+// An IPv4 literal or a bracketed IPv6 literal, AFTER canonicalHost has run — the
+// URL parser normalises the odd IPv4 spellings (`0x7f.1` becomes `127.0.0.1`), so
+// this only ever sees the one form.
+function isIpLiteral(host: string): boolean {
+  return host.startsWith("[") || /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
 }
 
 export function hostMatches(recordHost: string, requested: string): boolean {
-  var a = String(recordHost || "").toLowerCase().replace(/\.$/, "");
-  var b = String(requested || "").toLowerCase().replace(/^\*\./, "").replace(/\.$/, "");
+  var a = canonicalHost(recordHost);
+  var b = canonicalHost(requested);
   if (!a || !b) return false;
-  return a === b || a.endsWith("." + b);
+  if (a === b) return true;
+  // Suffix matching means "is a subdomain of", and an address has no subdomains.
+  // The reachable failure was on the REQUESTED side: `"127.0.0.1".endsWith(".0.0.1")`
+  // is true, so a takedown typed as `0.0.1` erased a record stored at 127.0.0.1.
+  //
+  // Canonicalization is what actually closes that, and this clause is
+  // belt-and-braces behind it — stated plainly rather than left to look
+  // load-bearing. WHATWG reads a trailing all-numeric label as an IPv4
+  // candidate, so every numeric tail (`0.0.1`, `0.1`, `1`) canonicalizes to the
+  // address 0.0.0.1 and stops being a suffix of anything, and the mirrored case
+  // (`x.127.0.0.1` read as a subdomain of the address) cannot arise at all
+  // because that string is not a parseable hostname — validatedUrl rejects it at
+  // capture, so no record can hold it. Measured on Node 26.5.0, both facts.
+  // There is therefore no input reaching this line today; it is here so a future
+  // change to canonicalHost cannot quietly reopen the class.
+  if (isIpLiteral(a) || isIpLiteral(b)) return false;
+  return a.endsWith("." + b);
 }
 
 // What a host-wide removal WOULD take. The confirmation prompt and the deletion
@@ -298,6 +382,15 @@ export function hostMatches(recordHost: string, requested: string): boolean {
 export function referencesForHost(host: string): ForgetResult {
   var requested = String(host || "").trim();
   if (!requested) throw new Error("host is required");
+  // An unparseable host must not become a silent no-op. canonicalHost returns ""
+  // for `linear.app/pricing`, `http://linear.app` and anything else that is not a
+  // bare authority; matching would then quietly remove nothing and report a clean
+  // result, which reads exactly like "this host was already clear".
+  if (!canonicalHost(requested)) {
+    throw new Error(
+      "host must be a bare hostname like 'linear.app' — got " + JSON.stringify(requested)
+    );
+  }
   var listed = listReferences();
   var matched: string[] = [];
   for (var reference of listed.references) {
@@ -306,14 +399,38 @@ export function referencesForHost(host: string): ForgetResult {
   // listReferences() already names what it could not parse. A record whose JSON
   // is unreadable may well be from this host, so reporting the host as cleared
   // while it is still on disk would be a false all-clear.
-  return { host: requested, removed: matched, skipped: listed.skipped.slice(), failed: [] };
+  return {
+    host: requested,
+    removed: matched,
+    skipped: listed.skipped.slice(),
+    failed: [],
+    index_unreadable: listed.index_unreadable,
+    appeared_since_preview: [],
+  };
 }
 
-export function deleteReferencesByHost(host: string): ForgetResult {
+// `expected_ref_ids` is the preview's answer handed back.
+//
+// The confirmation prompt and the deletion are two separate calls, and each one
+// reads the directory for itself — so "the same function computes both" makes
+// them the same RULE, never the same SNAPSHOT. Preview linear.app with one
+// record, capture app.linear.app, confirm: the prompt said one and the delete
+// takes two. Nothing in the earlier version noticed.
+//
+// When the caller passes the ids it was shown, anything matching the host that is
+// NOT in that set is left alone and reported in `appeared_since_preview` — the
+// over-delete becomes a visible no-op instead of a silent extra removal. Ids in
+// the set that no longer match are simply absent from `removed`. Omitting the
+// argument keeps the old unsnapshotted behaviour, which is what a caller who
+// genuinely means "everything from this host, now" wants.
+export function deleteReferencesByHost(host: string, expected_ref_ids?: string[]): ForgetResult {
   var planned = referencesForHost(host);
+  var expected = Array.isArray(expected_ref_ids) ? new Set(expected_ref_ids) : null;
   var removed: string[] = [];
   var failed: Array<{ ref_id: string; reason: string }> = [];
+  var appeared: string[] = [];
   for (var ref_id of planned.removed) {
+    if (expected && !expected.has(ref_id)) { appeared.push(ref_id); continue; }
     // One record that will not delete must not abandon the rest of the takedown
     // half-done — that is the shape this function exists to avoid. It is
     // recorded and the sweep continues, so the caller learns exactly which
@@ -324,7 +441,14 @@ export function deleteReferencesByHost(host: string): ForgetResult {
       failed.push({ ref_id: ref_id, reason: (error as Error).message });
     }
   }
-  return { host: planned.host, removed: removed, skipped: planned.skipped, failed: failed };
+  return {
+    host: planned.host,
+    removed: removed,
+    skipped: planned.skipped,
+    failed: failed,
+    index_unreadable: planned.index_unreadable,
+    appeared_since_preview: appeared,
+  };
 }
 
 function validatedUrl(value: string): URL {
@@ -513,7 +637,7 @@ export function attachReferenceImage(
   return reference;
 }
 
-function recordFiles(skipped: string[]): string[] {
+function recordFiles(state: { index_unreadable: boolean }): string[] {
   var home = referenceHome();
   if (!existsSync(home)) return [];
   var indexed: string[] = [];
@@ -523,7 +647,11 @@ function recordFiles(skipped: string[]): string[] {
       return id + ".json";
     });
   } catch (_error) {
-    skipped.push("index.json");
+    // NOT a skipped record. The directory scan below finds every record file
+    // regardless, so an unreadable index costs nothing and leaves nothing
+    // behind; naming it in `skipped` told a caller that a record it could not
+    // read was still on disk when the record had in fact just been deleted.
+    state.index_unreadable = true;
   }
   var discovered = readdirSync(home).filter(function(file) {
     return file.endsWith(".json") && file !== "index.json" && !file.startsWith("index.corrupt-");

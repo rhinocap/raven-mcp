@@ -156,12 +156,20 @@ test('the render never reaches the network', { skip: !chromiumAvailable && 'chro
   }
 });
 
-test('captured markup does not execute in the render', { skip: !chromiumAvailable && 'chromium did not launch' }, async () => {
+test('no JavaScript in the captured markup runs in the render', { skip: !chromiumAvailable && 'chromium did not launch' }, async () => {
   // input.html is another site's markup, and it authors the whole document —
   // <script>, event handlers, frames, everything. Stripping `<>{}` out of the
   // style VALUES never touched that and was never a boundary; this is the
-  // boundary. With scripting off the element is laid out and painted and
-  // nothing in it runs.
+  // boundary. With scripting off the element is laid out and painted and no
+  // script in it runs.
+  //
+  // The title used to say "captured markup does not execute", which claims more
+  // than one inline <script> can measure and more than the flag actually buys:
+  // CSS animations, SVG SMIL, meta refresh and media/frame parsing are
+  // declarative and keep running with JavaScript disabled. That residual is
+  // cosmetic — the route abort is what keeps any of it off the network — and it
+  // is stated in reference-thumbnail.ts rather than implied away here. This test
+  // measures the script half, which is the half with a mutant.
   //
   // The instrument is a script that CHANGES the rendered geometry, because
   // geometry is the one thing this function reports back. A script that only

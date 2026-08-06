@@ -101,6 +101,16 @@ dist/
 .claude/**/SOL-VERDICT*.txt
 SOL-*.log
 sol-*.log
+# The one rule above that is shaped like the CLASS rather than like a filename or
+# an extension: ANY raw agent or tool output goes in a directory called
+# `agent-output/`, whoever wrote it, whatever it is called, whatever it ends in.
+# Every earlier pattern here had to predict a name (`SOL-*.log`) or an extension
+# (`*.log`), and each one leaked on the next round because the class is defined by
+# CONTENT — a 794KB transcript that happens to end in `.md` satisfied all of them.
+# A destination cannot be guessed wrong the way a filename can. Route agent output
+# here and keep hand-written verdicts and briefs outside it, where they are meant
+# to be read. Do NOT add a negation inside this directory; move the file out.
+.claude/**/agent-output/
 
 # local scratch probes (never committed)
 .scratch/

@@ -98,11 +98,25 @@ export async function renderReferenceThumbnail(
       // The captured HTML is another site's markup. Filtering `<>{}` out of the
       // style VALUES is not a trust boundary and was never one — `input.html`
       // already authors the whole document, including <script>, event handlers
-      // and frames. This is the boundary: with scripting off, a captured
-      // element is laid out and painted and nothing in it executes. Combined
-      // with the route abort below, the render is offline and inert. It costs
-      // nothing real — a thumbnail of a static element wants no scripting.
+      // and frames. This is the boundary: with scripting off, no JavaScript in a
+      // captured element runs. It costs nothing real — a thumbnail of a static
+      // element wants no scripting.
+      //
+      // What it is NOT: an inert document. An earlier version of this comment
+      // said "nothing in it executes" and "the render is offline and inert",
+      // and both overstate what the flag buys. CSS animations and transitions,
+      // SVG SMIL, meta refresh, and media/object/frame parsing are declarative
+      // and keep running with scripting off. The accepted residual is cosmetic
+      // rather than a reach: those can change how the thumbnail LOOKS or spend
+      // a little time, and the route abort below is what stops any of them
+      // reaching the network. Do not read `javaScriptEnabled: false` as a
+      // sandbox — read it as "no script runs".
       javaScriptEnabled: false,
+      // Route interception does not see requests a service worker answers, so a
+      // worker registered by the captured document would sit outside property 1
+      // entirely. Scripting-off already prevents registering one; blocking them
+      // means the offline claim does not depend on that single flag holding.
+      serviceWorkers: "block",
     });
     page.setDefaultTimeout(RENDER_TIMEOUT_MS);
 

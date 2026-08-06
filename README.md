@@ -269,9 +269,12 @@ forget_references({ host: "example.com", confirm: true })
 ```
 
 It reports what it removed, what it could not read, and anything it tried to remove and failed —
-those are three different answers and it does not collapse them into one. If you believe this
-project itself is distributing your material, open an issue at
-<https://github.com/rhinocap/raven-mcp/issues>.
+those are three different answers and it does not collapse them into one. A removal that fails
+part-way leaves the record in place rather than the picture, so running it again finds and finishes
+what was left. The confirmation prompt names the exact records it would take, and passing those ids
+back as `expected_ref_ids` pins the removal to them — anything captured in between is reported
+rather than swept up. If you believe this project itself is distributing your material, open an
+issue at <https://github.com/rhinocap/raven-mcp/issues>.
 
 One boundary worth stating plainly: while the bridge is proxying a third-party site, that page is
 served from the bridge's own origin, so scripts on it are same-origin with the Raven overlay and can
