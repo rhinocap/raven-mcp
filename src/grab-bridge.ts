@@ -1639,8 +1639,15 @@ function storeProxyCookies(cookies: string[], responseUrl: URL): void {
     var parts = cookie.split(";");
     var separator = parts[0].indexOf("=");
     if (separator <= 0) continue;
-    var name = parts[0].slice(0, separator).trim();
-    var value = parts[0].slice(separator + 1).trim();
+    // WSP-only, exactly as in `readCookieAttributes`. RFC 6265 §5.2 removes
+    // leading and trailing WSP from the name/value pair as well as from each
+    // attribute, and an adverse pass found only the attribute half had been
+    // fixed: `sid=<U+00A0>live` was replayed as `sid=live`, silently renaming
+    // the site's own cookie value. §5.2 does not validate the name as a token
+    // either, so a non-ASCII pad stays part of the name — a different cookie,
+    // which is what a browser would send.
+    var name = trimWsp(parts[0].slice(0, separator));
+    var value = trimWsp(parts[0].slice(separator + 1));
     if (!name) continue;
     var attributes = readCookieAttributes(parts.slice(1), responseUrl);
     // A Domain the responding host is not allowed to set is a cookie for someone

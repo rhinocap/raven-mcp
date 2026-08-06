@@ -358,3 +358,57 @@ test('a Max-Age padded with non-WSP whitespace is invalid, and Expires then wins
     await new Promise((resolve) => upstream.close(resolve));
   }
 });
+
+// ───────────────────────────── Round 16 ─────────────────────────────
+
+test('the cookie NAME/VALUE split trims WSP only, like the attribute split', async () => {
+  // Round 15 fixed the ATTRIBUTE split and left the name/value split above it
+  // still calling `.trim()`. §5.2 applies WSP-only removal to both: it strips
+  // the pair, then each attribute, with the same rule. So `sid=<U+00A0>live`
+  // must be stored and replayed with the pad intact — over-trimming here does
+  // not just mis-parse a lifetime, it silently RENAMES the site's cookie value,
+  // and the bridge then replays a credential the server never issued.
+  //
+  // §5.2 also does not validate the name as a token, so a non-ASCII pad on the
+  // NAME stays part of the name. That is a different cookie, which is exactly
+  // what a browser would send.
+  const NBSP = '\u00A0';
+  assert.equal(NBSP.charCodeAt(0), 0xA0, 'the fixture pad is not U+00A0');
+
+  const seen = [];
+  let issued = 0;
+  const upstream = createServer((req, res) => {
+    seen.push({ url: req.url, cookie: req.headers.cookie || '' });
+    const headers = { 'Content-Type': 'text/html; charset=utf-8' };
+    if (issued === 0) {
+      headers['Set-Cookie'] = [
+        'sid=' + NBSP + 'live; Path=/; SameSite=Strict',
+        NBSP + 'pad=plain; Path=/; SameSite=Strict'
+      ];
+    }
+    issued += 1;
+    res.writeHead(200, headers);
+    res.end('<!doctype html><html><body><h1>up</h1></body></html>');
+  });
+  await new Promise((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+  const upstreamUrl = 'http://127.0.0.1:' + upstream.address().port;
+
+  try {
+    const session = await bridge.startGrabSession(await designMd(), undefined, upstreamUrl, 'consumer');
+
+    await request(session.url + '/login', { headers: SAME_ORIGIN });
+    await request(session.url + '/replay', { headers: SAME_ORIGIN });
+
+    const replayed = seen[1].cookie;
+    assert.ok(replayed.includes('sid=' + NBSP + 'live'),
+      'the pad was stripped from the cookie VALUE, so the bridge is replaying a ' +
+      'value the server never set. §5.2 removes SP and HTAB only: ' +
+      JSON.stringify(replayed));
+    assert.ok(replayed.includes(NBSP + 'pad=plain'),
+      'the pad was stripped from the cookie NAME, which silently merges a ' +
+      'distinct cookie into a different one: ' + JSON.stringify(replayed));
+  } finally {
+    await bridge.stopGrabSession();
+    await new Promise((resolve) => upstream.close(resolve));
+  }
+});

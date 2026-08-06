@@ -1396,6 +1396,119 @@ well-formed, the cookie is correctly retained, and the test passes while
 measuring nothing. That is the same failure this file has now recorded three
 times under a different disguise.
 
+### 3m. Round 16 — dispositioning Sol round 15
+
+Sol round 15 ran detached at xhigh against `BRIEF-ROUND15.md` (log in the
+round-15 out dir, 540832 bytes, 207,691 tokens) and returned
+**`OVERALL: DOES NOT SURVIVE`**.
+
+| Claim | Verdict | Round-16 action |
+|---|---|---|
+| C1 — Max-Age / attribute parsing follows RFC 6265 | **FAILS** | fixed |
+| C2 — the gate's overlap bypass is closed | **FAILS** | fixed |
+| C3 — the span bound is measured, not asserted | **FAILS** | fixed |
+| C4 — the `err.url` discriminator is exact | **FAILS** | fixed |
+| C5 — the tests encode rather than detect | **FAILS** | covered by C2/C3/C4 |
+| C6 — frozen surfaces unchanged | **SURVIVES** | — |
+
+A note on the environment before the findings: Sol's own `npm test` reported
+1266 total / 1195 pass / 0 fail / **71 skipped**. The 68 extra skips are
+Chromium `Permission denied (1100)` Mach-port denials inside its sandbox, not
+failures — which is exactly the skip-count reading the `capture.test.mjs`
+paragraph in the ledger now tells you to do.
+
+**C1 — the fix landed on one of two call sites that share the rule.** Round 15
+extracted `trimWsp()` and applied it at the attribute split, and left the cookie
+NAME/VALUE split immediately above it still calling `.trim()`. RFC 6265 §5.2
+applies WSP-only removal to both: it splits the pair, then each attribute, under
+the same rule. So `sid=<U+00A0>live` was stored and replayed as `sid=live` —
+not a mis-parsed lifetime but the bridge substituting a credential the server
+never issued — and `<U+00A0>sid=live` was replayed as `sid=live`, merging a
+distinct cookie into a different one, since §5.2 does not validate the name as a
+token either. Fixed at the name/value split with the same helper. The lesson is
+the one the extraction was supposed to encode: if you pull a rule into a
+function because two sites share it, both sites have to call it.
+
+**C2 — the gate's middle segment excluded all whitespace.** A home directory, a
+folder with a SPACE in its name, then the tooling directory matched nothing at
+all, so the leak never reached the `lastIndex` rewind round 15 had just added.
+A space is legal in a macOS or Linux path; excluding `\s` is a bypass wearing a
+bound's clothes. The class is now `\n`, `\r`, `\t` and the quote characters only.
+
+That widening immediately produced a **real** false positive, on a tracked
+pregate JSON: with the space allowed, one match could span a repo-relative path,
+a delimiter, prose, and this repo's own legitimately-named `.claude` — a span
+starting inside the repo, which the `repoRoot` prefix test discarded, and which
+in the other direction reported a hit that was not a leak. The fix is a
+re-anchor rather than a revert: `tightestHit()` re-runs the same pattern on the
+match minus its first character until no shorter hit remains, so every verdict
+is judged against the NEAREST home-directory start. Whole-tree scan after the
+change: zero hits across every tracked blob.
+
+One more datapoint arrived at staging time. The first draft of the comment
+explaining the space bypass spelled the example path out as a literal, and
+staging it turned the gate **red against its own source file** — the newly
+widened pattern matching the newly written prose. That is the gate working, and
+it is why every other literal in that file is split. The example is written in
+prose now.
+
+**C3 — the boundary fixtures measured near the boundary, not at it.** Round 15
+compared `NESTED_SPAN_MAX - 1` against `NESTED_SPAN_MAX + 200`, leaving every
+value in the 201-character gap unconstrained — build the regex with
+`NESTED_SPAN_MAX - 1` and both assertions stay green, which is the mutant Sol
+used. They are adjacent now, at exactly the bound and one past it, and a
+`middleOf()` helper asserts the fixture's middle segment is the length it claims.
+**That self-check caught the bug it was written to prevent:** `DOT` already
+carries its separator, so writing a separator before it produced a doubled one
+and moved the effective boundary by a character. The regex was isolated in node
+first, confirmed correct there, and the constant read after — the fixture was
+wrong, not the matcher.
+
+**C4 — two holes in the exact `err.url` comparison, both measured.** (a) ESM
+specifiers are URLs: `pathToFileURL()` percent-encodes `#`, `?` and `%` and
+`import(rawPath)` does not, so on a checkout under a path containing `#` the
+expected side carried `%23`, the reported side did not, and a legitimate un-built
+tree was rethrown as a failure instead of skipped. Measured on Node v26.5.0 with
+a probe dir named `probe#dir`. Both sides go through the href now. (b) An error's
+shape is not proof of absence: a module that LOADS and throws its own
+`ERR_MODULE_NOT_FOUND` carrying the entry href is identical in `code`, `url` and
+message to a missing entry module, and the shape-only predicate returned true —
+straight to `process.exit(0)` with nothing executed. `missingSelf` now also
+requires `!existsSync(distCapture)`; the filesystem answers what the error cannot.
+
+**C5** is the meta-claim and is addressed by the three fixes above rather than
+separately. Sol confirmed the round-15 NBSP fixture itself is sound — source
+codepoint 160, wire byte `0xA0`, `getSetCookie()` reading back 160 — which is
+worth recording, because that is the one thing in round 15 that was built to be
+falsifiable and measured as such.
+
+**C6** survived on every axis: 108 stdio, 45 anon, hash unchanged, both overlay
+copies at the same digest, and the round-15 commit contains no overlay file.
+
+#### Round-16 falsifiability reverts
+
+| # | Revert | Result |
+|---|---|---|
+| R1 | restore `.trim()` at the name/value split | 6 pass / **1 fail** — the new NAME/VALUE test only |
+| R2 | narrow the middle class back to exclude `\s` | 3 pass / **1 fail** — on the space assertion |
+| R3 | drop `tightestHit()`, use the raw match | 3 pass / **1 fail** — the whole-tree scan, on the pregate JSON |
+| R4 | build the regex with `NESTED_SPAN_MAX - 1` | 3 pass / **1 fail** — on the at-bound assertion |
+| R5 | raw-path import / no `existsSync` | probe only; both divergences reproduced by hand |
+
+R2 and R4 land on the same test name and were checked to fail on **different**
+assertions, which is the thing a test-name-level count cannot tell you.
+
+#### Round-16 verification
+
+- `RAVEN_NO_USAGE_LOG=1 npm test` — **1267 tests / 1264 pass / 0 fail / 3
+  skipped**, 46.3s. +1 over round 15, which is the NAME/VALUE cookie test; the
+  gate and `capture.test.mjs` fixes live inside existing tests and move no count.
+- `node test/e2e-pattern-library.mjs` — `ALL CHECKS PASSED`.
+- `cmp browser/raven-grab.js web/public/raven-grab.js` — byte-identical. No
+  overlay change this round.
+- Frozen surfaces — `108 45
+  f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`, unchanged.
+
 ## 4. Committed set — round 12
 
 Round 12 committed: `CLAUDE.md`, `browser/raven-grab.js`, `web/public/raven-grab.js`,

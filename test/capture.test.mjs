@@ -16,11 +16,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 
 // ── Resolve paths ────────────────────────────────────────────────────────────
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distCapture = path.resolve(__dirname, '../dist/capture.js');
+// ESM specifiers are URLs. Import through this, not the raw path — see the note
+// on the load `catch` below.
+const distCaptureHref = pathToFileURL(distCapture).href;
 const fixturesDir = path.resolve(__dirname, 'fixtures');
 
 function fixtureUrl(name) {
@@ -78,8 +82,25 @@ let extractStaticTraits;
 // Realpath only enters once a module has actually loaded and Node resolves that
 // module's own imports — which is the transitive case, the one that must rethrow
 // anyway. Anything other than the exact match rethrows.
+//
+// Two more holes closed after the next pass, and the first is why the import
+// below goes through `distCaptureHref` rather than the raw path. ESM specifiers
+// are URLs: `pathToFileURL()` percent-encodes `#`, `?` and `%`, and passing the
+// unencoded filesystem string to `import()` does not. On a checkout whose path
+// contains any of them — measured with `/tmp/round15#repo/dist/capture.js`,
+// where `err.url` came back unencoded and the expected href carried `%23` —
+// the two sides disagree and a genuinely un-built tree THROWS instead of
+// skipping. That direction is loud rather than silent, but it is still wrong,
+// and importing the href fixes the import as well as the comparison.
+//
+// Second: `err.code === 'ERR_MODULE_NOT_FOUND'` with `err.url` equal to the
+// entry href is not proof the entry is missing. A module that LOADED and then
+// threw such an error itself — or a custom loader that did — presents
+// identically, and that real top-level failure reached `process.exit(0)`. The
+// filesystem answers the question the error cannot: the entry has to be
+// genuinely ABSENT.
 try {
-  const mod = await import(distCapture);
+  const mod = await import(distCaptureHref);
   capturePage = mod.capturePage;
   CaptureUnavailableError = mod.CaptureUnavailableError;
   classifyVideoArtifact = mod.classifyVideoArtifact;
@@ -88,7 +109,8 @@ try {
   const missingSelf =
     err && err.code === 'ERR_MODULE_NOT_FOUND' &&
     typeof err.url === 'string' &&
-    err.url === pathToFileURL(distCapture).href;
+    err.url === distCaptureHref &&
+    !existsSync(distCapture);
   if (!missingSelf) {
     throw new Error(
       'dist/capture.js exists but failed to load, which is a real defect and ' +

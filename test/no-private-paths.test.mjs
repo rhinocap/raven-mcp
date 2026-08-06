@@ -122,8 +122,27 @@ const PRIVATE_PATH = new RegExp(
 // and this gate runs on every `npm test`. It remains a real, stated limit: see the
 // "what this does NOT catch" list in the header.
 const NESTED_SPAN_MAX = 4096;
+// The middle segment excludes line breaks, tabs and quoting characters — but
+// NOT the space. `[^\s…]` did, and a later adverse pass showed that is the same
+// bypass wearing a fourth costume: a home directory, then `work/My Project`,
+// then the tooling directory matched NOTHING, because a space is legal in a
+// macOS or Linux path and "My Project" is the single most ordinary directory
+// name there is. The leak never even reached the rewind logic below.
+//
+// (The example is written in prose rather than as a literal on purpose. The
+// first draft of this comment spelled the path out, and staging it turned this
+// gate red against its own source — which is the gate working, and is the
+// reason its other literals are split too.)
+//
+// Allowing the space widens what a single match can span, so it was measured
+// rather than assumed: with it allowed, the gate still returns zero hits across
+// every tracked blob in this repo. The residual false positive is prose that
+// writes a home path, then a space, then a `/.claude` on the SAME line — which
+// the `\b`-terminated tooling-directory anchor makes rare, and which is loud
+// and one rename away from fixed. A false negative publishes private context to
+// a public repo; that asymmetry is the whole reason this file exists.
 const NESTED_PRIVATE_PATH = new RegExp(
-  '(?:(?:\\/Users|\\/home)\\/[A-Za-z0-9._@-]+|\\/root)\\/[^\\s"\'`]{1,' + NESTED_SPAN_MAX + '}?\\/\\.' + TOOL_DIRS + '\\b',
+  '(?:(?:\\/Users|\\/home)\\/[A-Za-z0-9._@-]+|\\/root)\\/[^\\n\\r\\t"\'`]{1,' + NESTED_SPAN_MAX + '}?\\/\\.' + TOOL_DIRS + '\\b',
   'g'
 );
 
@@ -147,13 +166,33 @@ const NESTED_PRIVATE_PATH = new RegExp(
 // rewound to one character past where the discarded match STARTED, so every
 // later start is still reachable. Advancing by one rather than to `match.index`
 // is what keeps this terminating.
+// Once the middle segment may contain a space, a match can span two separate
+// paths with prose between them, and the exclusion has to be asked about the
+// right one. A tooling directory belongs to the NEAREST home-directory start
+// before it, not the first one on the line: `<repoRoot> and then run <repoRoot>/
+// .claude/x` matched as one span that begins at the repo root and ends at the
+// repo's own tooling directory, yet fails `startsWith(repoRoot + '/')` because
+// of the space, and was reported as a leak. Re-anchoring on the innermost start
+// is what makes the space safe to allow — it is not a convenience.
+//
+// Terminates because every iteration matches strictly inside the previous hit.
+const NESTED_ONE = new RegExp(NESTED_PRIVATE_PATH.source);
+function tightestHit(hit) {
+  let best = hit;
+  for (;;) {
+    const inner = NESTED_ONE.exec(best.slice(1));
+    if (inner === null) return best;
+    best = inner[0];
+  }
+}
+
 function findPrivatePath(text) {
   const direct = PRIVATE_PATH.exec(text);
   if (direct) return direct[0];
   NESTED_PRIVATE_PATH.lastIndex = 0;
   let match;
   while ((match = NESTED_PRIVATE_PATH.exec(text)) !== null) {
-    const hit = match[0];
+    const hit = tightestHit(match[0]);
     const escapesRepo = hit.split('/').includes('..');
     if (escapesRepo || !hit.startsWith(repoRoot + '/')) return hit;
     NESTED_PRIVATE_PATH.lastIndex = match.index + 1;
@@ -342,20 +381,56 @@ test('the gate is falsifiable — its own pattern matches a synthetic leak', () 
   // survives: leave the constant at 4096 and build the regex with `{1,512}`. Both
   // assertions stay green while a 601-character path walks through. Measuring at
   // the boundary is what ties the test to the effective bound.
-  const nestAt = (chars) => {
-    const filler = 'a/'.repeat(Math.ceil(chars / 2)).slice(0, chars - 1) + '/';
-    return ROOT_MAC + '/someone/' + filler + DOT + 'claude/settings.json';
+  // Round 15 built the fixtures from the constant and still did not pin the
+  // bound: it measured `MAX - 1` (must match) against `MAX + 200` (must not),
+  // and every value in the 201-character gap between them is unconstrained.
+  // Build the regex with `NESTED_SPAN_MAX - 1` and BOTH assertions stay green
+  // with an effective bound of 4095. Measuring near a boundary is not measuring
+  // the boundary — the two fixtures have to be adjacent.
+  //
+  // `nestWithMiddle` states the span the regex actually quantifies: the text
+  // between the home directory's trailing `/` and the `/` that precedes the
+  // tooling directory. The filler is a single repeated character with no `/` in
+  // it, so the lazy quantifier has exactly one span to find and the length is
+  // not a guess. The fixture asserts its own middle length first, because a
+  // constructor that silently produced 4095 where it claimed 4096 would make
+  // both boundary assertions meaningless in the same direction.
+  // `DOT` is `/.`, not `.` — it carries the separator the pattern's `\/\.`
+  // consumes. Appending a slash of your own puts a `//` in the fixture, which
+  // costs the span one extra character and moves the boundary by one without
+  // changing anything the assertions look at. That is precisely the class of
+  // silent-fixture error `middleOf` exists to catch, and it caught this one.
+  const nestWithMiddle = (len) =>
+    ROOT_MAC + '/someone/' + 'a'.repeat(len) + DOT + 'claude/settings.json';
+  const middleOf = (text) => {
+    const start = text.indexOf('/someone/') + '/someone/'.length;
+    return text.slice(start, text.lastIndexOf(DOT + 'claude'));
   };
-  assert.ok(findPrivatePath(nestAt(NESTED_SPAN_MAX - 1)),
-    'a leak nested to just inside NESTED_SPAN_MAX was missed, so the matcher is ' +
+  assert.equal(middleOf(nestWithMiddle(NESTED_SPAN_MAX)).length, NESTED_SPAN_MAX,
+    'the boundary fixture does not have the middle length it claims, so neither ' +
+    'assertion below measures the bound');
+
+  assert.ok(findPrivatePath(nestWithMiddle(NESTED_SPAN_MAX)),
+    'a leak nested to exactly NESTED_SPAN_MAX was missed, so the matcher is ' +
     'built with a SMALLER bound than the constant advertises — asserting the ' +
-    'constant alone does not detect that');
-  assert.equal(findPrivatePath(nestAt(NESTED_SPAN_MAX + 200)), null,
-    'a leak nested past NESTED_SPAN_MAX was caught, so the bound is not where ' +
-    'the header says it is — the documented limit must be the real one in both ' +
-    'directions');
+    'constant, or measuring 200 characters away from it, does not detect that');
+  assert.equal(findPrivatePath(nestWithMiddle(NESTED_SPAN_MAX + 1)), null,
+    'a leak nested one character past NESTED_SPAN_MAX was caught, so the bound ' +
+    'is not where the header says it is — the documented limit must be the real ' +
+    'one in both directions');
   assert.equal(NESTED_SPAN_MAX, 4096,
     'the span bound moved without the header\'s stated-limits list moving with it');
+
+  // The fifth bypass, from the round-15 pass: a SPACE in the path. `My Project`
+  // is an ordinary directory name and the middle segment used to exclude all
+  // whitespace, so the leak never reached any of the logic above.
+  assert.ok(findPrivatePath(ROOT_MAC + '/someone/work/My Project' + DOT + 'claude/settings.json'),
+    'a private path containing a space was missed — a space is legal in a macOS ' +
+    'or Linux path, so excluding all whitespace from the middle segment is a ' +
+    'bypass, not a bound');
+  assert.ok(findPrivatePath(repoRoot + '/artifact:' + ROOT_MAC + '/someone/My Project' + DOT + 'claude/settings.json'),
+    'a space-containing leak overlapping an excluded in-repo match was missed — ' +
+    'the space fix and the rewind have to hold at the same time');
 
   // The fourth bypass, from the round-14 pass: OVERLAPPING matches. An in-repo
   // path and a foreign one on the same line, where the foreign `/.claude` sits
