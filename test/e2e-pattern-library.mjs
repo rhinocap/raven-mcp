@@ -322,9 +322,17 @@ const found = await callTool('search_references', { query: 'hero headline weight
 check('search_references found it by note', found.total === 1 && found.results[0].reference.ref_id === saved.ref_id,
   found.total ? `score ${found.results[0].score}: ${found.results[0].why}` : 'no results');
 // A picking surface needs the picture in the SEARCH result, not only on the
-// record it just wrote — this is the field a client renders a grid from.
+// record it just wrote — this is the field a client renders a grid from. It sits
+// underneath the credit on purpose: this corpus holds other people's work, and a
+// caller reaching for the picture has to carry the source out with it.
 check('search results carry the image path so results can be shown, not just listed',
-  found.results[0]?.image_path === imageFile, String(found.results[0]?.image_path));
+  found.results[0]?.display?.image_path === imageFile, String(found.results[0]?.display?.image_path));
+check('the picture cannot be taken without its credit',
+  found.results[0]?.display?.credit?.includes(TARGET + '/features')
+    && found.results[0]?.image_path === undefined,
+  found.results[0]?.display?.credit);
+check('a third-party result carries the ownership notice',
+  Boolean(found.notice) && found.notice === found.results[0]?.display?.notice, found.notice);
 
 const reloaded = found.results[0]?.reference;
 check('the record survives a fresh read', Boolean(reloaded) && reloaded.note === saved.reference.note);

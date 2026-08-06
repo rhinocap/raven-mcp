@@ -45,7 +45,7 @@ import { startGrabSession, getGrabbedElements, stopGrabSession, getPageTemplate,
 import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, recordConsultation, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
 import { FAIL_ON_RULES, proposePolish, reviewDiff } from "./design-review.js";
 import { configureSource, readSourceConfig, inventoryFromDesignMd, diffDesignSystem, listBaselineComponents } from "./design-system-diff.js";
-import { saveReference, getReference, searchReferences, attachReferenceImage, referenceImagePath } from "./reference-store.js";
+import { saveReference, getReference, searchReferences, attachReferenceImage, referenceImagePath, referenceAttribution, THIRD_PARTY_NOTICE } from "./reference-store.js";
 import { renderReferenceThumbnail } from "./reference-thumbnail.js";
 import { mapReferenceToTokens } from "./reference-tokens.js";
 
@@ -3272,7 +3272,7 @@ server.tool(
       return {
         content: [{
           type: "text" as const,
-          text: JSON.stringify({ ref_id: imaged.ref_id, host: imaged.host, captured_at: imaged.captured_at, image: imaged.image ?? null, reference: imaged }, null, 2)
+          text: JSON.stringify({ ref_id: imaged.ref_id, host: imaged.host, captured_at: imaged.captured_at, image: imaged.image ?? null, attribution: referenceAttribution(imaged), reference: imaged }, null, 2)
         }]
       };
     } catch (err) {
@@ -3283,7 +3283,7 @@ server.tool(
 
 server.tool(
   "search_references",
-  "Find patterns previously kept with capture_reference — call it before rebuilding something already grabbed, or to recall 'that hero from Linear'. host, owner, and tags filters compose with AND; the free-text query matches case-insensitively against note, app, tags, and selector, and every result carries a score and a 'why' naming the matched fields. Ordering is deterministic. Returns stored JSON records; a record captured with html carries an image object naming a PNG file on disk beside it, so results can be shown as pictures rather than style maps — the tool returns the path, never the bytes. Corrupt records are named in skipped[] instead of failing the call. It does not rank against live code and does not fetch the source site.",
+  "Find patterns previously kept with capture_reference — call it before rebuilding something already grabbed, or to recall 'that hero from Linear'. host, owner, and tags filters compose with AND; the free-text query matches case-insensitively against note, app, tags, and selector, and every result carries a score and a 'why' naming the matched fields. Ordering is deterministic. Returns stored JSON records. Every result carries a `display` object holding the credit line, the source URL, and `image_path` — the PNG on disk for records captured with html, so results can be shown as pictures rather than style maps (the tool returns the path, never the bytes). **Show the credit whenever you show the pattern**: this corpus holds other people's design work, Raven does not own it, and a third-party result also carries a notice saying so. Use these as references to build your own implementation, not as work to republish. Corrupt records are named in skipped[] instead of failing the call. It does not rank against live code and does not fetch the source site.",
   {
     query: z.string().optional().describe("Free text matched against note, app, tags, and selector; omit to list everything passing the filters"),
     host: z.string().optional().describe("Only references grabbed from this host, e.g. 'linear.app'"),
@@ -3300,15 +3300,28 @@ server.tool(
           // thing to STORE — the corpus stays relocatable. A caller that wants
           // to show the picture needs a path it can open, so it is resolved here
           // rather than baked into the record.
+          //
+          // The path is nested INSIDE `display`, alongside the credit, and that
+          // nesting is the point: this corpus holds other people's work, and a
+          // caller that reaches for the picture has to carry the attribution out
+          // with it. A sibling `image_path` would let the credit be dropped by
+          // omission, which is exactly how it would be dropped.
           text: JSON.stringify({
             total: found.total,
             corpus_size: found.corpus_size,
             skipped: found.skipped,
-            results: found.results.map((result) => (
-              result.reference.image
-                ? { ...result, image_path: referenceImagePath(result.reference.ref_id) }
-                : result
-            ))
+            notice: found.results.some((result) => result.reference.owner === "third-party")
+              ? THIRD_PARTY_NOTICE
+              : undefined,
+            results: found.results.map((result) => ({
+              ...result,
+              display: {
+                ...referenceAttribution(result.reference),
+                image_path: result.reference.image
+                  ? referenceImagePath(result.reference.ref_id)
+                  : null
+              }
+            }))
           }, null, 2)
         }]
       };

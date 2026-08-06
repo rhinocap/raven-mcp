@@ -317,6 +317,51 @@ export function referenceImagePath(ref_id: string): string {
   return join(referenceHome(), ref_id + ".png");
 }
 
+// Everything needed to show a pattern honestly, in one object.
+//
+// The corpus holds other people's design work. Raven does not own it, does not
+// license it, and the only defensible way to show it is to show where it came
+// from — every time, not in a footer somewhere. The provenance was always stored
+// (`url`, `host`, `owner`, `captured_at`); what was missing is that a caller
+// could take the picture and drop the source, and nothing stopped it.
+//
+// So `credit` is a ready-to-display string rather than parts a caller has to
+// assemble, and — see the `display` object in search_references — the image path
+// is nested UNDERNEATH it. A consumer cannot destructure out the picture without
+// carrying the attribution along with it. That is the only version of this rule
+// an engine can hold; a line in a tool description is a request.
+//
+// `notice` is present only for third-party records. The user's own product needs
+// no disclaimer, and a notice attached to everything is a notice nobody reads.
+export interface ReferenceAttribution {
+  source_url: string;
+  host: string;
+  owner: "self" | "third-party";
+  captured_at: string;
+  credit: string;
+  notice?: string;
+}
+
+export var THIRD_PARTY_NOTICE =
+  "This pattern belongs to its original site, not to Raven or to you. "
+  + "Show the source with it, use it as a reference for your own implementation, "
+  + "and do not republish it as your own work.";
+
+export function referenceAttribution(reference: PatternReference): ReferenceAttribution {
+  var label = reference.app ? reference.app + " (" + reference.host + ")" : reference.host;
+  var attribution: ReferenceAttribution = {
+    source_url: reference.url,
+    host: reference.host,
+    owner: reference.owner,
+    captured_at: reference.captured_at,
+    credit: reference.owner === "third-party"
+      ? "Pattern from " + label + " — " + reference.url
+      : "Your own pattern from " + label + " — " + reference.url,
+  };
+  if (reference.owner === "third-party") attribution.notice = THIRD_PARTY_NOTICE;
+  return attribution;
+}
+
 // Attach a rendered thumbnail to an already-saved record.
 //
 // Separate from saveReference on purpose. saveReference is synchronous and must

@@ -146,3 +146,67 @@ test('the snake_case field still wins when both are supplied', async () => {
     assert.deepEqual(saved.reference.state_styles, { hover: { color: 'red' } });
   });
 });
+
+// Attribution is a payload SHAPE question, not a string question, which is why
+// it is pinned here at the tool seam and not in reference-attribution.test.mjs.
+// The corpus holds other people's work; the defensible way to show it is to show
+// where it came from, and the only version of that rule an engine can hold is
+// structural — the image path lives underneath the credit, so a caller reaching
+// for the picture carries the source out with it.
+test('every search result carries its credit, with the image path nested underneath it', async () => {
+  await withClient(async (client) => {
+    await call(client, 'capture_reference', {
+      url: 'https://linear.app/pricing',
+      app: 'Linear',
+      selector: '.PricingCard',
+      styles: { 'border-radius': '12px' },
+      owner: 'third-party',
+      tags: ['pricing'],
+      note: 'the pricing card corner treatment'
+    });
+
+    const found = await call(client, 'search_references', { query: 'pricing card' });
+    assert.equal(found.total, 1);
+    const result = found.results[0];
+
+    assert.ok(result.display, 'a result arrived with no display object');
+    assert.ok(result.display.credit.includes('https://linear.app/pricing'),
+      'the credit does not carry the source URL: ' + result.display.credit);
+    assert.equal(result.display.source_url, 'https://linear.app/pricing');
+    // Nested, not a sibling. A sibling image_path lets the credit be dropped by
+    // omission, which is exactly how it would be dropped.
+    assert.ok('image_path' in result.display, 'image_path is not inside display');
+    assert.equal(result.image_path, undefined,
+      'image_path is also a sibling of display, which defeats the nesting entirely');
+    // This capture passed no html, so there is no picture — the field is present
+    // and null rather than absent, so a consumer can tell "no image" from
+    // "this build does not do images".
+    assert.equal(result.display.image_path, null);
+
+    assert.equal(found.notice, result.display.notice);
+    assert.ok(found.notice, 'a third-party result produced no ownership notice');
+  });
+});
+
+test('a search over the user\'s own patterns carries no third-party disclaimer', async () => {
+  // Both directions. Dropping the notice and attaching it to everything are
+  // equally wrong, and a test that only covered the third-party case passes on
+  // the second — a notice attached to everything is a notice nobody reads.
+  await withClient(async (client) => {
+    await call(client, 'capture_reference', {
+      url: 'https://myapp.example/dashboard',
+      selector: '.Card',
+      styles: { 'border-radius': '8px' },
+      owner: 'self',
+      tags: ['card'],
+      note: 'my own dashboard card'
+    });
+
+    const found = await call(client, 'search_references', { query: 'dashboard card' });
+    assert.equal(found.total, 1);
+    assert.equal(found.notice, undefined, 'the user\'s own pattern was given a third-party disclaimer');
+    assert.equal(found.results[0].display.notice, undefined);
+    assert.ok(found.results[0].display.credit.includes('myapp.example'),
+      'a self-owned pattern still needs its source shown: ' + found.results[0].display.credit);
+  });
+});

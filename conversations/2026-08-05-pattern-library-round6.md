@@ -2226,3 +2226,67 @@ deleted in pre-gate round 5 for emitting token *names* but never *values* and
 crashing on the path its own docs recommended, so that is two specific fixes, not
 a restart. A real legal opinion is still required before a stored corpus of
 third-party patterns goes public — Andrew's gate, unchanged.
+
+## 8. Pattern library — attribution (leg 2)
+
+Andrew's question was *"have you read Mobbin's ToS, how do they get away with
+it?"* The short answer from that research: they disclaim ownership of the
+material, credit the IP holders, restrict what users may republish, and run
+notice-and-takedown. Legs 2 and 3 are the parts of that Raven can actually build.
+
+### What was already there, and what was actually missing
+
+The record has stored `url`, `host`, `app`, `owner` and `captured_at` since the
+first version — provenance was never the gap. The gap was that **a caller could
+take the picture and drop the source, and nothing stopped it.** So this leg is
+not about storing more; it is about making the credit hard to separate from the
+thing it credits.
+
+### The mechanism
+
+- `referenceAttribution(reference)` returns a ready-to-display `credit` string
+  rather than parts a caller has to assemble. Derived on read from fields the
+  record already holds — never written into the record, so a corpus copied
+  between machines cannot carry a stale credit.
+- **`search_references` nests `image_path` INSIDE the `display` object, next to
+  the credit.** That nesting *is* the enforcement: a consumer reaching for the
+  picture carries the attribution out with it. A sibling `image_path` lets the
+  credit be dropped by omission, which is exactly how it would be dropped. This
+  is the "enforce the gate in the engine — prose is for humans who already want
+  to comply" rule applied to a payload shape.
+- `THIRD_PARTY_NOTICE` rides on third-party records only, at the response level
+  and per result. A notice attached to everything is a notice nobody reads, and
+  the user's own product needs no disclaimer.
+
+Rendered credit, from the real GitHub grab:
+`Pattern from GitHub (github.com) — https://github.com/features`
+
+### Falsifiability
+
+| Mutant | Result |
+|---|---|
+| flatten `display`, `image_path` back to a sibling | 1 test red |
+| notice attached to every record | 2 red (both directions covered) |
+| credit built from the host with no source URL | 2 red |
+
+**One near-miss worth keeping:** the first flatten mutant left an unbalanced
+brace, so the whole test file failed to load. That reads exactly like a
+detection and is not one. A mutant has to load clean before its result counts —
+the rewrite was verified with a bare `import()` before the suite was run.
+
+### Verified
+
+- `RAVEN_NO_USAGE_LOG=1 npm test` → **1286 / 1283 pass / 0 fail / 3 skipped**
+  (+6 over leg 1: four in the new `test/reference-attribution.test.mjs`, two at
+  the tool seam in `test/pattern-library-tools.test.mjs`).
+- `node test/e2e-pattern-library.mjs` → **ALL CHECKS PASSED, 39 checks**.
+- Frozen probe `108 45 f64bb18…2bb0a6` — no tool added, count and hash unchanged.
+
+### Explicitly not claimed
+
+This is groundwork, not a legal position. Raven now shows where a pattern came
+from and says it does not own it; whether a *public, hosted* corpus of stored
+third-party HTML plus computed styles is defensible is a different question, and
+the structural difference from Mobbin still stands — they ship screenshots, this
+stores the expression and the implement leg reproduces it. **A real opinion is
+still required before any stored corpus is published. Andrew's gate.**
