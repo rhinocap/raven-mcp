@@ -147,24 +147,50 @@ const NESTED_SPAN_MAX = 4096;
 // and one rename away from fixed. A false negative publishes private context to
 // a public repo; that asymmetry is the whole reason this file exists.
 //
+// The apostrophe, the double quote and the backtick were excluded outright for
+// exactly one round, and the judgement written here — that `Andrew's Project` is
+// rarer than the cost of unquoting — was refuted by a measurement rather than by
+// an argument. They are all legal POSIX filename characters, so a directory
+// named with one of them was a false NEGATIVE on a completely unambiguous path,
+// which is the direction this file exists to prevent.
+//
+// Unquoting them wholesale is not the fix either: dropping all three from
+// SPAN_BREAK took the real-index sweep from 0 hits to 3, every one of them a
+// backtick or a quote sitting exactly at a span boundary in ordinary prose
+// (this file's own landmine paragraph among them). A noisy gate gets muted,
+// which is how this class got through three times already.
+//
+// The rule is therefore positional, not per-character: a quoting character is a
+// span break UNLESS a path-name character sits on BOTH sides of it. Inside a
+// segment name it is part of the name; as an opening or closing delimiter it is
+// adjacent to a `/`, a space, punctuation or the end of the text, and it still
+// breaks. `isSpanBreak` below. Measured both ways before it shipped: the
+// apostrophe path is found, all four quoted permutations resolve to the right
+// side, and the sweep is back to 0 hits across every tracked blob.
+//
 // Still NOT excluded, and named here rather than left to be rediscovered: the
-// apostrophe, the double quote, the backtick and the tab are all legal POSIX
-// filename characters, so a directory named with one of them is a remaining
-// bypass. They stay excluded because this scans source, JSON and Markdown, where
-// they are the delimiters that keep a span from swallowing a whole line — the
-// space was worth the trade because "My Project" is ordinary and `Andrew's
-// Project` is rarer than the false-positive cost of unquoting every string
-// literal in the repo. That is a judgement, not a proof.
+// TAB. It stays a hard break — it is a legal filename character too, but it is
+// also the column delimiter in every tabular format this scans, and no
+// measurement justified the trade. That one is a judgement, not a proof.
 
 // True when the text stages an absolute private-tooling path from a machine
 // other than this checkout.
 //
-// The `repoRoot` exclusion is a STRING PREFIX test, not a path resolution, so a
-// `..` segment walks straight back out of the checkout while still satisfying it
-// — `<repoRoot>/../private/.claude/settings.json` starts with `<repoRoot>/` and
-// points somewhere else entirely. Same adverse pass, same file. Any match
-// containing a `..` segment is therefore never excluded: a legitimate reference
-// to this repo's own tooling directory has no reason to route through the parent.
+// A STRING PREFIX test is not a path resolution, so a `..` segment walks
+// straight back out of the checkout while still satisfying it —
+// `<repoRoot>/../private/.claude/settings.json` starts with `<repoRoot>/` and
+// points somewhere else entirely. The first fix for that treated ANY match
+// containing a `..` segment as foreign, on the reasoning that a legitimate
+// reference to this repo's own tooling directory has no reason to route through
+// the parent. A later adverse pass produced the obvious counterexample —
+// `<repoRoot>/docs/../.claude/settings.json` normalises straight back into the
+// checkout and was reported as a leak. Both directions of the same mistake:
+// asking a substring question about a path.
+//
+// `normalizeSegments` below answers it properly. `.` segments drop, `..`
+// segments pop, popping past the root clamps there (POSIX, not an error), and
+// the verdict is a prefix test against the RESOLVED form. The reported hit stays
+// the raw text, because that is what a human has to go find and rename.
 // Iterating every match is necessary and was not sufficient. `exec` with `/g`
 // resumes at the END of the previous match, so a hit that gets EXCLUDED takes
 // every overlapping start with it — `<repoRoot>/artifact:/Users/someone/work/
@@ -279,6 +305,32 @@ const SPAN_BREAK = new Set(['\n', '\r', '\t', '"', "'", '`']);
 // while one after a letter or digit is the continuation of a segment name.
 const PATH_NAME_CHAR = /[A-Za-z0-9._-]/;
 
+// A quoting character breaks a span only when it is acting as a delimiter. With
+// a path-name character on both sides it is part of a segment name — see the
+// header for the measurement that chose this over excluding all three outright.
+// Line breaks and the tab always break.
+function isSpanBreak(text, at) {
+  const ch = text[at];
+  if (!SPAN_BREAK.has(ch)) return false;
+  if (ch === '\n' || ch === '\r' || ch === '\t') return true;
+  const before = text[at - 1];
+  const after = text[at + 1];
+  return !(before !== undefined && after !== undefined &&
+           PATH_NAME_CHAR.test(before) && PATH_NAME_CHAR.test(after));
+}
+
+// Resolve `.` and `..` in an absolute path. Popping past the root clamps there,
+// which is what POSIX does — `/../x` is `/x`, not an error.
+function normalizeSegments(absolutePath) {
+  const out = [];
+  for (const segment of absolutePath.split('/')) {
+    if (segment === '' || segment === '.') continue;
+    if (segment === '..') { out.pop(); continue; }
+    out.push(segment);
+  }
+  return '/' + out.join('/');
+}
+
 function findPrivatePath(text) {
   const direct = PRIVATE_PATH.exec(text);
   if (direct) return direct[0];
@@ -292,7 +344,7 @@ function findPrivatePath(text) {
     // the home-start prefix itself.
     const floor = Math.max(0, tool.index - NESTED_SPAN_MAX * 2);
     let from = tool.index;
-    while (from > floor && !SPAN_BREAK.has(text[from - 1])) from -= 1;
+    while (from > floor && !isSpanBreak(text, from - 1)) from -= 1;
 
     const window = text.slice(from, tool.index);
     HOME_START.lastIndex = 0;
@@ -322,8 +374,8 @@ function findPrivatePath(text) {
     if (nearest < 0) nearest = outermost;
     if (nearest >= 0) {
       const hit = text.slice(nearest, end);
-      const escapesRepo = hit.split('/').includes('..');
-      if (escapesRepo || !hit.startsWith(repoRoot + '/')) return hit;
+      const resolved = normalizeSegments(hit);
+      if (!resolved.startsWith(normalizeSegments(repoRoot) + '/')) return hit;
     }
   }
   return null;
@@ -338,6 +390,11 @@ function findPrivatePath(text) {
 const ROOT_MAC = '/Us' + 'ers';
 const ROOT_LINUX = '/ho' + 'me';
 const DOT = '/.';
+// Assembled from char codes for the same reason the roots are split: a literal
+// quote inside a fixture is one editor pass away from being normalised into
+// something else, and these two are the characters under test.
+const APOSTROPHE = String.fromCharCode(0x27);
+const DOUBLE_QUOTE = String.fromCharCode(0x22);
 function leak(root, tool, tail) {
   return root + '/someone' + DOT + tool + tail;
 }
@@ -641,6 +698,74 @@ test('the gate is falsifiable — its own pattern matches a synthetic leak', () 
     'followed by this checkout is deliberately NOT flagged, because the input is ' +
     'indistinguishable from the prose in (c). If this now returns a hit, check ' +
     'that (c) still returns null before calling it an improvement');
+
+  // ── The quoting rule, and the `..` resolution ───────────────────────────────
+  //
+  // (e) A quoting character INSIDE a segment name. This was a false negative on
+  //     a completely unambiguous path for one full round, because all three
+  //     quote characters were hard span breaks. The header records the sweep
+  //     that rejected the obvious fix (unquote everything → 3 real-index hits)
+  //     in favour of the positional one.
+  assert.ok(
+    findPrivatePath(ROOT_MAC + '/alice/work/O' + APOSTROPHE + 'Reilly' + DOT + 'claude/settings.json'),
+    'a private path whose directory name contains an apostrophe was missed — an ' +
+    'apostrophe between two path-name characters is part of the name, and ' +
+    'treating every quote as a hard break is a false negative on an unambiguous ' +
+    'path');
+
+  // (f) …and the control that keeps (e) from becoming unquote-everything. A
+  //     quote acting as a DELIMITER still breaks the span, which is what keeps
+  //     the sweep at zero: every one of the three hits the wholesale version
+  //     produced had a quote adjacent to punctuation or a space, not to a
+  //     path-name character on both sides.
+  //
+  //     The first draft of this fixture put a second rooted path after the
+  //     prose, which returns null under the wholesale version TOO — the later
+  //     anchor is a token start either way. It measured nothing. This shape has
+  //     exactly one anchor, so the quote is the only thing deciding the verdict,
+  //     and it is transcribed from one of the three real tracked files the
+  //     wholesale version turned red.
+  assert.equal(
+    findPrivatePath(repoRoot + DOUBLE_QUOTE + '))</code> is <code>projects</code> then run node ' + DOT + 'claude/x.mjs'),
+    null,
+    'prose where a quote closes a rooted path was reported as a leak — a quote ' +
+    'adjacent to punctuation is a delimiter, and unquoting every one of them ' +
+    'turns real tracked files in this repo red');
+
+  // (g) A `..` that resolves back INTO this checkout. Treating any `..` as
+  //     escaping was the first fix for the prefix-test bypass and it false-
+  //     positives here; the verdict is a prefix test on the RESOLVED path now.
+  assert.equal(
+    findPrivatePath(repoRoot + '/docs/..' + DOT + 'claude/settings.json'),
+    null,
+    'a path routing through `..` back into this checkout was reported as a leak ' +
+    '— `..` is not evidence of escaping, only the resolved path is');
+
+  // (h) …and its counterpart, which must still fire: `..` that genuinely leaves
+  //     the checkout is the bypass the whole normalisation exists for.
+  //
+  //     Stated plainly rather than left to be assumed — this one is NOT
+  //     independently falsifiable. Every mutant that defeats it defeats the
+  //     round-13 single-`..` assertion above first, and `assert` aborts there.
+  //     It is a control against a resolver that pops the wrong number of
+  //     segments, not a measurement of its own.
+  assert.ok(
+    findPrivatePath(repoRoot + '/../../private/backup' + DOT + 'codex/config.toml'),
+    'a path walking out of this checkout with `..` was excluded by the prefix ' +
+    'test — resolving is what closes that, and a resolver that never leaves is ' +
+    'the same bug facing the other way');
+
+  // (i) The `.` in PATH_NAME_CHAR, which nothing above measures. The nesting
+  //     case above puts a LETTER before the inner start; put a dot there and the
+  //     verdict flips on that character class alone. Drop `.` and the inner
+  //     start reads as a token start, becomes nearest, resolves inside this
+  //     checkout, and a whole foreign home is excluded — with every other
+  //     assertion in this test still green.
+  assert.ok(
+    findPrivatePath(ROOT_MAC + '/bob/backup.' + repoRoot + DOT + 'claude/settings.json'),
+    'a foreign home nesting this checkout after a `.` was excluded — a dot ' +
+    'continues a segment name, so the inner start does not begin a token, and ' +
+    'dropping `.` from PATH_NAME_CHAR passes every other assertion here');
 
   // The interior of the span, not just its boundary. Two adjacent endpoints
   // cannot separate a contiguous matcher from a discontiguous one that happens

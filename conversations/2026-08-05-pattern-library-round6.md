@@ -1886,6 +1886,128 @@ content, and the round-19 rule subsuming them without the two misses.
 
 Sol round 19 is the open item; no completion claim until it is dispositioned.
 
+### 3q. Round 20 — dispositioning Sol round 19
+
+Sol round 19 (xhigh, detached, neutral correctness-review framing, against
+detached clone of `4882d1b`) returned `SUMMARY: SOME CLAIMS DO NOT HOLD`.
+
+| Claim | Verdict | Sol's rank | Round-20 status |
+|---|---|---|---|
+| C1 — gate anchor rule correctly stated | DOES NOT HOLD | 2/4 | reproduced; both halves in flight |
+| C2 — four fixtures encode rather than detect | DOES NOT HOLD | 3/4 | reproduced; fixture pending |
+| C3 — load discriminator resolves symlinks | **HOLDS** | — | — |
+| C4 — round-9 fails on any wrong header | DOES NOT HOLD | 4/4 | reproduced; claim restatement pending |
+| C5 — Expires comment separates the claims | DOES NOT HOLD | 1/4 | reproduced AND measured in real Chromium |
+| C6 — frozen surfaces unchanged | **HOLDS** | — | Sol's own probe: 108 / 45 / `f64bb18…`, both overlays sha256 `bc5e50d…0ce7` |
+
+Sol's isolated run: 1272 tests / 1201 pass / 0 fail / **71 skipped** (Chromium
+`Permission denied (1100)` in his sandbox — a skip is not a failure, and the
+brief said so).
+
+#### All four reproduced independently before acceptance
+
+- **C1(i)** — a home path whose middle segment contains an apostrophe
+  (`work/O'Reilly`) returns `null`. The apostrophe is a `SPAN_BREAK`, so the
+  walk-back stops before the anchor. Controls held: a plain foreign leak → hit,
+  this repo's own path → null. The file's header already names the apostrophe as
+  a residual, but claim (c) as written said "no false negative on any input where
+  the reading is unambiguous", and this reading IS unambiguous. **The claim was
+  too strong, not the code necessarily wrong.**
+- **C1(ii)** — `<repoRoot>/docs/../.claude/settings.json` → reported as a leak.
+  `hit.split('/').includes('..')` treats ANY `..` as escaping, but this one
+  normalises back into the checkout. A genuine false positive, which is the
+  failure mode that gets a gate muted.
+- **C2** — mutant `PATH_NAME_CHAR = /[A-Za-z0-9_-]/` (drop the `.`) passes all
+  four round-19 fixtures 4/4 green, while `<home>/bob/backup<repoRoot>` + tooling
+  dir goes from hit → `null`. The `.` in the character class is load-bearing and
+  nothing measures it.
+- **C4** — mutant `trimWsp(index === -1 ? "" : …)` in the ATTRIBUTE split leaves
+  round 9 at 11/11 pass. Round 4 catches it (3 pass / 2 fail). So the repo is not
+  blind — the *claim* "the round-9 suite fails on any incorrect replayed header"
+  was over-scoped. C4 is a claim-accuracy defect, not a coverage hole.
+- **C5** — **measured in real Chromium**, not inferred from `cookie_util.cc`.
+  A local `node:http` server issued four `Set-Cookie` headers; Chromium was
+  driven through two navigations. The second navigation replayed only the 2099
+  control. So: the 5-char year `02020` was accepted-and-expired by Chromium (our
+  2–4-digit RFC grammar ignores it → we KEEP the cookie), the year 1600 was
+  accepted-and-expired by Chromium (our ≥1601 floor ignores it → we KEEP it —
+  independently confirming the round-19 comment's 1600 claim by measurement for
+  the first time), and both controls behaved. **Two divergences of this kind, not
+  one; the comment named only one.**
+
+#### The C1(i) prototype that did not ship, and why
+
+Removing `'`, `"` and backtick from `SPAN_BREAK` (keeping `\n`, `\r`, `\t`)
+resolves every synthetic quoting permutation correctly through the round-19
+token-start anchor — apostrophe path found, quoted own-repo null, quoted foreign
+found, own-then-foreign found, foreign-then-own null.
+
+**But the real-index sweep went from 0 hits to 3 across 1148 files.** All three
+involve a backtick or double quote sitting exactly at a boundary: this file's own
+landmine prose about root's home, a promotion-queue line, and a revisit report
+where a repo-root path is followed by `"))</code> is <code>projects</code>`.
+The round-19 rule shipped *because* its prototype measured 0 hits; a 3-hit
+prototype does not clear that bar, and the file's own header says a noisy gate
+gets muted — which is how this class got through three times already.
+
+Diagnosis: the token-start rule resolves the **anchor**. A quote or backtick at
+the **end** of a span is a different question the anchor rule does not answer.
+
+#### What round 20 shipped
+
+1. **C1(i) — closed, positionally.** A quoting character breaks a span UNLESS a
+   path-name character sits on both sides (`isSpanBreak`). Delimiter vs. part of
+   a name. Measured: apostrophe path found, all four quoted permutations on the
+   right side, real-index sweep back to **0 hits across 1148 files in 766 ms**.
+   The tab stays a hard break, unmeasured, and is now the only thing in that
+   paragraph labelled a judgement rather than a measurement.
+2. **C1(ii) — closed by resolution.** `normalizeSegments` (`.` drops, `..` pops,
+   popping past root clamps); the verdict is a prefix test on the resolved path,
+   the reported hit stays the raw text.
+3. **C2 — fixture (i)** puts a `.` immediately before the nested checkout, which
+   is the only input where that character class flips the verdict.
+4. **C4 — bounded rather than patched.** Round 9's upstream is plaintext http, so
+   `Secure` and the prefix rules cannot be exercised there; a fixture would
+   measure nothing. The boundary is written into round 9's header and
+   `CLAUDE.md`: attribute split = round 4, name/value split and jar = round 9.
+5. **C5 — both divergences named, both measured.** The five-character year joins
+   the 1600 floor, and the comment now says the measurement came from driving
+   Chromium, not from reading `cookie_util.cc`.
+
+#### Round-20 falsifiability — and one fixture caught measuring nothing
+
+| Mutant | Fails on |
+|---|---|
+| quotes always break (revert `isSpanBreak`) | (e) apostrophe — and only that |
+| quotes never break (wholesale unquote) | the whole-index scan **and** (f) |
+| any `..` escapes (round-19 rule) | (g) — and only that |
+| plain prefix, no resolution | the round-13 `..` assertion (aborts before (h)) |
+| drop `.` from `PATH_NAME_CHAR` | (i) — and only that |
+
+The wholesale-unquote mutant is what exposed the round's own bad fixture: the
+first version of (f) put a second rooted path after the prose, which returns null
+under the mutant too, because the later anchor is a token start either way. It
+measured nothing. Replaced with a single-anchor shape transcribed from one of the
+three real tracked files the mutant turns red. Fourth time in this file that a
+new test was found detecting rather than encoding.
+
+Fixture (h) is labelled in the source as NOT independently falsifiable — every
+mutant that defeats it defeats the round-13 single-`..` assertion first, and
+`assert` aborts there. It is a control, and says so.
+
+#### Round-20 verification
+
+`RAVEN_NO_USAGE_LOG=1 npm test` → **1272 / 1269 pass / 0 fail / 3 skipped**
+(44.7s). The count is UNCHANGED, because every round-20 addition lives inside an
+existing test function or a comment — a non-delta is no more evidence that
+nothing moved than a delta is evidence of coverage.
+`node test/e2e-pattern-library.mjs` → `ALL CHECKS PASSED`.
+`cmp browser/raven-grab.js web/public/raven-grab.js` → byte-identical.
+Frozen probe → `108 45 f64bb18…2bb0a6`.
+
+Then **stop the review loop** (Andrew: "Close it out, then switch") and start
+Mobbin leg 1 — element screenshots at grab time. Do not launch a Sol round 20.
+
 ## 4. Committed set — round 12
 
 Round 12 committed: `CLAUDE.md`, `browser/raven-grab.js`, `web/public/raven-grab.js`,

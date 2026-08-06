@@ -13,6 +13,20 @@
 //
 // So this file is the opposite fixture from round 8's: the upstream rotates
 // deliberately, and the assertions are on the jar tracking it.
+//
+// WHAT THIS FILE DOES NOT COVER, stated so the next reader does not assume it
+// does. A later adverse pass showed the claim "this suite fails on any incorrect
+// replayed header" was too strong: break the ATTRIBUTE split in
+// `readCookieAttributes` — `index === -1 ? attribute : attribute.slice(0, index)`
+// weakened so a bare attribute yields an empty name — and every test here still
+// passes, while round 4 goes red on two. That is not a hole to plug here. This
+// suite's upstream is plaintext http, so the attributes whose loss is observable
+// (`Secure`, and the `__Secure-`/`__Host-` prefix rules that depend on it) cannot
+// be exercised over it at all; a fixture added here to "cover" the attribute
+// split would measure nothing, which is the failure mode this file's own
+// round-9 rewrite exists to prevent. The attribute split is
+// `test/grab-bridge-proxy-round4.test.mjs`'s job, on its https fixtures. This
+// file covers the NAME/VALUE split and jar mutation.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, request as httpRequest } from 'node:http';

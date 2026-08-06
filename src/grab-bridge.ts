@@ -1775,18 +1775,30 @@ function isCookieDateDelimiter(code: number): boolean {
 // requires and which matches what browsers do.
 //
 // RFC-conformant and browser-equivalent are two different claims, and this is
-// the first only. An adverse pass measured the divergence: §5.1.1 step 5 says
-// a year below 1601 fails to parse, so `Expires=1600 April 15 21:01:22` is
-// IGNORED here and the cookie stays a live session cookie — Chromium accepts
-// 1600 as an out-of-RFC extension and treats the cookie as already expired.
-// The floor stays where the RFC puts it: the divergence is confined to dates
-// nine decades before the epoch, and moving it would be a bet against the spec
-// to match one engine's leniency. Name the direction honestly rather than
-// calling it safe — an ignored Expires KEEPS a cookie the server was trying to
-// kill, for the life of the grab session. It never invents a credential the
-// server did not set (that is the Max-Age and U+00A0 failure class, and it is
-// the worse one), but it is not free. Do not read "what browsers do" anywhere
-// in this file as a claim of byte-for-byte parity with any engine.
+// the first only. There are TWO known divergences, not one — the first version
+// of this comment named only the year floor, which is how it came back for a
+// second pass. Both were MEASURED by driving real Chromium against a local
+// server issuing the headers and reading back what it replayed on a second
+// navigation; neither is inferred from reading engine source, which is where
+// the first draft's confidence came from and is not evidence about behaviour.
+//
+//   1. `Expires=…1600…` — §5.1.1 step 5 floors the year at 1601, so this is
+//      IGNORED here; Chromium accepts 1600 as an out-of-RFC extension and
+//      treats the cookie as already expired.
+//   2. `Expires=…02020…` — a five-character year. The year production here is
+//      2-to-4 digits per the grammar, so this is IGNORED; Chromium accepts it
+//      and expires the cookie.
+//
+// Both stay as the RFC has them. The trade is the same in each case: matching
+// one engine's leniency means betting against the spec on inputs no real server
+// emits, and the RFC's own instruction for an unparseable cookie-date is to
+// ignore the attribute. Name the direction honestly rather than calling it safe
+// — an ignored Expires KEEPS a cookie the server was trying to kill, for the
+// life of the grab session. It never invents a credential the server did not set
+// (that is the Max-Age and U+00A0 failure class, and it is the worse one), but
+// it is not free, and "confined to absurd dates" is a judgement about what
+// servers send rather than a proof. Do not read "what browsers do" anywhere in
+// this file as a claim of byte-for-byte parity with any engine.
 function parseCookieDate(value: string): number | null {
   var tokens: string[] = [];
   var current = "";

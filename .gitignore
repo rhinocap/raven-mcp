@@ -101,3 +101,6 @@ dist/
 .claude/**/SOL-VERDICT*.txt
 SOL-*.log
 sol-*.log
+
+# local scratch probes (never committed)
+.scratch/
