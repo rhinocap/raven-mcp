@@ -168,6 +168,45 @@ no script.
   in Layers → `capture_reference`), or authorize teaching
   `scripts/seed-reference.mjs` selection-widening as new scope.
 
+## 2026-08-07 — First record landed; hand test verified end-to-end
+
+Andrew reconnected the MCP server (`/mcp`, "you do the rest") — that
+authorization is what unblocked the hand flow the cap had parked. Executed the
+named remedy exactly: grab session proxying `https://lusion.co`, bridge opened
+in Chrome, click on the cue selected the `div.word` leaf (the diagnosed
+failure, reproduced live), **widened via the Layers panel parent row** to
+`div#home-hero-scroll` (inspector confirmed 224.6×26.7px — the measured rect),
+sent with an instruction, drained one selection, `capture_reference` saved it.
+
+- **`ref_msjbzbd0_hzf7zqdq`** — host lusion.co, owner third-party, taxonomy
+  `[scroll-cue, hero]`, tags + note per the seed command, thumbnail
+  `ref_msjbzbd0_hzf7zqdq.png` (225×27, fidelity offline), credit "Pattern from
+  Lusion (lusion.co) — https://lusion.co".
+- **Hand test PASSES:** `search_references("scroll cue hero")` → 1 result,
+  score 7, why "Matched note, tags, selector.", `display.image_path` +
+  credit + third-party notice all present. Eyes-on the PNG: reads "SCROLL TO"
+  in a serif fallback — Aeonik is a remote webfont and the offline render
+  blocks it, so the wider fallback wraps "explore" out of the fixed 27px
+  height. Documented offline-fidelity cost, honest per design; noted, not fixed.
+- Grab session stopped, tab closed, no pending overlay changes left (one
+  accidental Move pending from the drag test was Removed before teardown).
+
+## 2026-08-07 — New /goal (four items) + live drag-drop evidence
+
+Andrew's new goal: (1) voice input to the Instructions box and every overlay
+input; (2) mood boards from the Taste Engine interview; (3) Higgsfield
+brand→design-system flow — BLOCKED on a YouTube link he will share; (4)
+drag-and-drop "wasn't working for me yesterday". All four captured in
+`.claude/linear-backlog-queue.jsonl` (2026-08-07 entries, verbatim quotes).
+
+Drag-drop evidence, gathered on the live proxied session before teardown:
+panel drag-by-header WORKS (panel moved freely), Layers row drag-to-reorder
+WORKS (Reorder preview, "Move pending" chip, live page preview, "Send 1
+change"). Both function in Chrome via synthetic drag on this machine, so
+either Andrew's surface/browser differs or he means direct on-canvas element
+dragging, which does not exist. Question to Andrew pending; do not build on a
+guess.
+
 ## Must reach Andrew up front in the final message
 
 1. Restart/reconnect the MCP server — it runs stale code that silently drops
