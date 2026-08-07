@@ -69,28 +69,36 @@ generate_design_system({
   name: "Smash & Grab Burger Co",
   brand_color: "#E8442E",   // the hex from step 2
   style: "bold",            // the vibe word from step 2
-  format: "all"             // html doc + css vars + DTCG + Figma + svg
+  format: "all",            // html doc + css vars + DTCG + Figma + svg
+  save: true                // store it — this is what makes it an OUTPUT
 })
 ```
 
 One brand color in, a full harmonious token set out — palette, spacing,
-radii, shadows, motion, typography — with dark mode alongside.
+radii, shadows, motion, typography — with dark mode alongside. `save: true`
+stores the system under its slugified name (`smash-grab-burger-co` here) in
+`~/.raven/design-systems`, and from then on the id works everywhere a bundled
+system's does: `base_system`, `get_design_system`, `list_design_systems`
+(category `user`), and `init_design_md`. A name that collides with a bundled
+system is refused rather than silently shadowed — pick another name.
 
 ### 5. Land it where the agent reads
 
 `DESIGN.md` is the import: every coding-agent session that reads the repo
 builds against the brand's actual tokens, and `review_diff` / `polish_diff`
 can hold diffs to it. No export, no zip, no reupload — the design system
-lives in the project. Landing the generated tokens there today takes two
-calls plus the agent's hands: `init_design_md` (from blank, or from a bundled
-system like `stripe`/`linear` as scaffolding), then transcribe the generated
-DTCG groups into the frontmatter — `update_design_md` keeps later edits
-surgical. Ask your agent to do the transcription; the DTCG JSON from step 4
-is unambiguous input.
+lives in the project, and landing it is one call:
+
+```
+init_design_md({ path: "DESIGN.md", source: "smash-grab-burger-co" })
+```
+
+The saved system's palette, spacing, radii, and typography arrive in the
+frontmatter directly; `update_design_md` keeps later edits surgical.
 
 ## What this flow does not do yet
 
-Three gaps are known and deliberate — they add tool surface, which is a
+Two gaps are known and deliberate — they add tool surface, which is a
 product decision, not a doc fix:
 
 1. **Generated images as references.** `capture_reference` captures from a
@@ -102,9 +110,10 @@ product decision, not a doc fix:
    project; a dedicated brand-genesis question set (name exploration, hero
    products, avoid-list as a first-class answer) would make step 1 sharper
    for someone starting from nothing.
-3. **Generated systems aren't stored.** `generate_design_system` returns its
-   token set and persists nothing, so `init_design_md` cannot consume it in
-   one call — the transcription in step 5 exists because of this. Storing
-   generated systems beside the bundled ones would collapse steps 4–5 into
-   `generate_design_system` → `init_design_md`, and is the single highest-value
-   fix for making the design system a true *output* of the taste engine.
+
+A third gap closed since this doc first shipped: generated systems used to
+vanish with the response, which is why step 5 once required hand-transcribing
+DTCG into the frontmatter. `save: true` (step 4) is the fix — the design
+system is now a durable output of the taste engine, not a string that
+scrolls past. Saved systems are local-only: the hosted endpoint neither
+stores nor lists them.

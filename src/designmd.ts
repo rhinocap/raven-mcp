@@ -1,10 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
-import { dirname, join, resolve } from "path";
-import { fileURLToPath } from "url";
+import { dirname, resolve } from "path";
+import { storedSystemPath } from "./user-systems.js";
 
-var __dirname = dirname(fileURLToPath(import.meta.url));
-var PKG_ROOT = resolve(join(__dirname, ".."));
-var SYSTEMS_DIR = join(PKG_ROOT, "src", "data", "tokens", "systems");
 var STARTER_BASE_URL = "https://raw.githubusercontent.com/VoltAgent/awesome-design-md/main/design-md/";
 
 export interface DesignMdRef {
@@ -318,8 +315,11 @@ function createBlankDesignMd(): ParsedDesignMd {
 }
 
 function convertStoredSystemToDesignMd(id: string): ParsedDesignMd {
-  var systemPath = join(SYSTEMS_DIR, id + ".json");
-  if (!storedSystemExists(id)) {
+  // storedSystemPath owns the lookup rule (bundled first, then the user's
+  // saved systems) and refuses traversal-shaped ids — the old join(SYSTEMS_DIR,
+  // id + ".json") would probe outside the dir for an id carrying "../".
+  var systemPath = storedSystemPath(id);
+  if (!systemPath) {
     throw new Error("Stored design system not found: " + id);
   }
 
@@ -363,7 +363,7 @@ async function fetchStarterDesignMd(slug: string): Promise<ParsedDesignMd> {
 }
 
 function storedSystemExists(id: string): boolean {
-  return typeof id === "string" && id.length > 0 && existsSync(join(SYSTEMS_DIR, id + ".json"));
+  return typeof id === "string" && id.length > 0 && storedSystemPath(id) !== null;
 }
 
 function mapStoredGroupName(name: string): string {

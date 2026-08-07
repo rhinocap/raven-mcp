@@ -42,6 +42,7 @@ import { readFile } from "fs/promises";
 import { registerCalls } from "./calls.js";
 import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
 import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet, type FlattenedDesignToken } from "./designmd.js";
+import { loadStoredSystem, listUserSystemIds, saveUserSystem, bundledSystemPath, userSystemsDir } from "./user-systems.js";
 import { startGrabSession, getGrabbedElements, stopGrabSession, getPageTemplate, setTemplateSlots, listTemplates, getGrabLayers, moveGrabLayer, getGrabOperation, isProxyGrabSession } from "./grab-bridge.js";
 import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, recordConsultation, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
 import { FAIL_ON_RULES, proposePolish, reviewDiff } from "./design-review.js";
@@ -237,17 +238,17 @@ function isSafeDataId(id: string): boolean {
 
 function loadSystem(id: string) {
   if (!isSafeDataId(id)) return null;
-  var filePath = join(SYSTEMS_DIR, id + ".json");
-  if (!existsSync(filePath)) return null;
-  var raw = readFileSync(filePath, "utf-8");
-  return JSON.parse(raw);
+  // Bundled first, then the user's saved systems (~/.raven/design-systems) —
+  // src/user-systems.ts owns that rule; remote mode never sees the user dir.
+  return loadStoredSystem(id);
 }
 
 function getAvailableSystemIds(): string[] {
-  if (!existsSync(SYSTEMS_DIR)) return [];
-  return readdirSync(SYSTEMS_DIR)
-    .filter(f => f.endsWith(".json"))
-    .map(f => f.replace(".json", ""));
+  var bundled: string[] = existsSync(SYSTEMS_DIR)
+    ? readdirSync(SYSTEMS_DIR).filter(f => f.endsWith(".json")).map(f => f.replace(".json", ""))
+    : [];
+  var user = listUserSystemIds().filter(id => bundled.indexOf(id) === -1);
+  return bundled.concat(user);
 }
 
 function loadContentRegistry() {
@@ -2850,8 +2851,43 @@ server.tool(
   },
   async ({ category, search }) => {
     var registry = loadRegistry();
-    var systems = registry.systems;
     var available = getAvailableSystemIds();
+    // The user's saved systems (generate_design_system save:true) are not in
+    // the curated registry, so they are appended as entries with category
+    // "user" BEFORE the filters run — same search/category semantics as the
+    // bundled ones, and concat (not push) so a cached registry is never
+    // mutated. Empty in remote mode by construction (listUserSystemIds).
+    // Two guards on the way in, both because the user dir is hand-editable
+    // input, not trusted state:
+    // - an id that is curated or bundled is skipped — bundled wins on load,
+    //   so a user stripe.json would list as a "user" system that can never
+    //   load as itself (the load answers the bundled one);
+    // - a per-entry unreadable file (corrupt JSON) is still LISTED, marked
+    //   unreadable, rather than throwing — one bad entry must not kill the
+    //   whole listing for every caller, and silently omitting it would hide
+    //   the file that needs fixing.
+    var curatedIds = registry.systems.map(function (s: any) { return s.id; });
+    var userEntries = listUserSystemIds()
+      .filter(function (id) { return curatedIds.indexOf(id) === -1 && !bundledSystemPath(id); })
+      .map(function (id) {
+        var sys: any = null;
+        var unreadable: string | null = null;
+        try {
+          sys = loadStoredSystem(id);
+        } catch (err: any) {
+          unreadable = err && err.message ? err.message : String(err);
+        }
+        return {
+          id: id,
+          name: (sys && typeof sys.$name === "string" && sys.$name) || id,
+          description: unreadable
+            ? "Stored file could not be read (" + unreadable + ") — fix or remove it in " + userSystemsDir()
+            : (sys && typeof sys.$description === "string" && sys.$description) || "User-generated design system",
+          category: "user",
+          tags: unreadable ? ["user-generated", "unreadable"] : ["user-generated"]
+        };
+      });
+    var systems = registry.systems.concat(userEntries);
 
     if (category) {
       systems = systems.filter((s: any) => s.category === category);
@@ -5042,18 +5078,34 @@ function tokensToSVGPalette(tokens: any, systemName: string): string {
 
 // ── Tool 13: generate_design_system ─────────────────────────────────
 
+// The `save` param is stdio-only, and OMITTED from the schema in remote mode
+// rather than arg-guarded: this tool is served anonymously, and leaving the
+// param out keeps the anon tools/list payload byte-identical (the property the
+// ledger's post-push probe actually verified) instead of merely refusing at
+// call time. saveUserSystem() still throws under isRemoteRuntime() — the same
+// defense-in-depth shape as writeCreativeRecord.
+var generateDesignSystemSchema: any = {
+  name: z.string().describe("Name for the design system (e.g. 'Acme Corp', 'NightOwl')"),
+  base_system: z.string().optional().describe("Start from an existing system as foundation (e.g. 'stripe', 'linear'). Colors will be replaced by brand_color if provided."),
+  brand_color: z.string().optional().describe("Primary brand hex color (e.g. '#FF6B35'). Auto-generates a full harmonious palette using color theory."),
+  style: z.enum(["minimal", "bold", "warm", "corporate", "playful", "dark"]).optional().describe("Aesthetic direction — influences spacing, radii, shadows, motion, and typography. Default: minimal"),
+  dark_mode: z.boolean().optional().describe("Generate dark mode tokens alongside light. Default: true"),
+  format: z.enum(["html", "css", "dtcg", "figma", "svg", "all"]).optional().describe("Export format: html (visual doc page), css (custom properties), dtcg (W3C JSON), figma (Figma Variables JSON), svg (color palette card), all. Default: html")
+};
+// !isRemoteRuntime() as well as !remote: the latch is one-way per process, so
+// a local server built after a remote one in the same process has throwing
+// stores — advertising `save` there would be a dead param (false affordance).
+// Production never mixes modes in one process; this keeps schema and store
+// telling the same story if anything ever does.
+if (!remote && !isRemoteRuntime()) {
+  generateDesignSystemSchema.save = z.boolean().optional().describe("Persist the generated token set to ~/.raven/design-systems so its id works everywhere a bundled system's does: base_system here, get_design_system, list_design_systems, and init_design_md. Refused if the id (the slugified name) collides with a bundled system. Default: false");
+}
+
 server.tool(
   "generate_design_system",
-  "Generate a complete, custom design system with full token set. Provide a brand color to auto-generate a harmonious palette, pick a style preset, and export as visual HTML documentation, CSS variables, W3C DTCG JSON, Figma Variables, or SVG palette card. The HTML export is a beautiful, self-contained page suitable for sharing with stakeholders.",
-  {
-    name: z.string().describe("Name for the design system (e.g. 'Acme Corp', 'NightOwl')"),
-    base_system: z.string().optional().describe("Start from an existing system as foundation (e.g. 'stripe', 'linear'). Colors will be replaced by brand_color if provided."),
-    brand_color: z.string().optional().describe("Primary brand hex color (e.g. '#FF6B35'). Auto-generates a full harmonious palette using color theory."),
-    style: z.enum(["minimal", "bold", "warm", "corporate", "playful", "dark"]).optional().describe("Aesthetic direction — influences spacing, radii, shadows, motion, and typography. Default: minimal"),
-    dark_mode: z.boolean().optional().describe("Generate dark mode tokens alongside light. Default: true"),
-    format: z.enum(["html", "css", "dtcg", "figma", "svg", "all"]).optional().describe("Export format: html (visual doc page), css (custom properties), dtcg (W3C JSON), figma (Figma Variables JSON), svg (color palette card), all. Default: html")
-  },
-  async function(params: { name: string; base_system?: string; brand_color?: string; style?: string; dark_mode?: boolean; format?: string }) {
+  "Generate a complete, custom design system with full token set. Provide a brand color to auto-generate a harmonious palette, pick a style preset, and export as visual HTML documentation, CSS variables, W3C DTCG JSON, Figma Variables, or SVG palette card. The HTML export is a beautiful, self-contained page suitable for sharing with stakeholders." + ((remote || isRemoteRuntime()) ? "" : " Pass save:true to store the system for reuse by id — this is how a taste-engine session's design system becomes durable."),
+  generateDesignSystemSchema,
+  async function(params: { name: string; base_system?: string; brand_color?: string; style?: string; dark_mode?: boolean; format?: string; save?: boolean }) {
     var tokens = generateTokenSet({
       name: params.name,
       base_system: params.base_system,
@@ -5064,6 +5116,7 @@ server.tool(
 
     var fmt = params.format || "html";
     var systemId = params.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
     var output: string;
 
     if (fmt === "css") {
@@ -5089,12 +5142,37 @@ server.tool(
       output = tokensToHTML(tokens, params.name);
     }
 
-    return {
-      content: [{
-        type: "text" as const,
-        text: output
-      }]
-    };
+    // Save AFTER formatting, and fail the whole call on refusal. Ordering:
+    // a formatter throw after a completed save would report an error over a
+    // file that persisted — "output disagrees with state" mirrored (the
+    // takedown lesson in the other direction); formatting first means any
+    // error path leaves nothing on disk. Refusing still fails the WHOLE call:
+    // returning the formatted output anyway would read as "generated and
+    // saved" when nothing was written — the false all-clear shape. The saved
+    // file is always the DTCG token set regardless of `format`; the slug is
+    // trimmed of edge dashes for the FILENAME only, so format output (which
+    // uses systemId as a CSS prefix) is byte-unchanged for every caller.
+    var savedNote: string | null = null;
+    if (params.save) {
+      var saveId = systemId.replace(/^-+|-+$/g, "");
+      try {
+        var saved = saveUserSystem(saveId, tokens);
+        savedNote = "Saved as '" + saved.id + "' (" + saved.path + "). Use it by id from now on: base_system:'" + saved.id + "' here, get_design_system, list_design_systems, or init_design_md with source '" + saved.id + "'.";
+      } catch (err: any) {
+        return {
+          content: [{
+            type: "text" as const,
+            text: "Not saved: " + (err && err.message ? err.message : String(err)) + " Nothing was written. Re-run with a different name, or with save omitted to just generate."
+          }],
+          isError: true
+        };
+      }
+    }
+
+    var content: Array<{ type: "text"; text: string }> = savedNote
+      ? [{ type: "text" as const, text: savedNote }, { type: "text" as const, text: output }]
+      : [{ type: "text" as const, text: output }];
+    return { content: content };
   }
 );
 
