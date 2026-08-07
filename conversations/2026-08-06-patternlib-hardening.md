@@ -380,3 +380,17 @@ Also: full `npm test` caught four exact interview-id-list assertions in test/tas
 - CLAUDE.md ledger updated: headline figure, 109/64 → 110/65 with generate_mood_board named as the fifth gated addition and explicitly LOCAL-only ("do not quote 110 as shipped").
 - Committed with explicit paths (hash recorded below after commit). NOT pushed — push deploys live mcp.ravenmcp.ai and is Andrew's call.
 - Commit: `d384727` — 18 files, 1036 insertions. Local only; 8 commits ahead of origin/main (origin unmoved, verified by fetch before commit).
+
+### Higgsfield incorporation — analysis drafted, video link still pending (2026-08-07)
+
+**Source status: the specific video is GUESSED.** Andrew said he'd share the link in a subsequent input; it has not arrived. Search found FIVE plausible candidates (Louis Borrego "Claude Design 3.0 (Higgsfield + Claude = $5K+ Websites)" spFlkNscexQ, Jack Roberts "Claude Design 3.0 Destroys AI Slop" wJWO91mi5o0, Andy Stauring kwQhj8kaaY8, Creating with Conor xwSVLN4qPhk, Chase AI 7FU98O0JLHs) — the earlier single-candidate 85% guess was overconfident and is withdrawn. The WORKFLOW below is KNOWN from written sources (Higgsfield's own MCP page, MindStudio's walkthrough), not from any video.
+
+**The workflow class:** Higgsfield connects to Claude two ways — an MCP connector (`https://mcp.higgsfield.ai/mcp`) for exploration, a CLI for Claude Code automation. It generates brand imagery across 15+ models, supports mood boards and reference images as INPUT, locks brand colors to exact hex/RGB, and keeps reusable brand kits + campaign presets. The "brand from scratch" demos have Claude Code orchestrate research → naming/identity → product lines → asset generation.
+
+**Incorporation proposal (draft for Andrew's call — nothing built):**
+1. **Cold-start references, not a new dependency.** Raven's taste engine currently assumes the user has references to capture from live sites. The Higgsfield flow fills the cold-start gap: a user with NO product yet generates brand exploration imagery there, and those images become the taste interview's references / mood-board input. The integration point is making Raven's reference intake accept LOCAL IMAGE FILES (with palette/trait extraction), not bundling Higgsfield — the open-source server should not hard-depend on a paid third-party, and the user connects Higgsfield's own MCP themselves.
+2. **Hex-locked brand kits → design tokens.** Higgsfield brand kits carry exact hex values; `generate_design_system` is the taste engine's core output (Andrew: "the design system is the core piece upfront"). A small importer — brand-kit colors/type in → token scale out — makes the generated brand land as a REAL design system in Claude Code rather than vibes.
+3. **A flow skill, not a tool.** The chain (Higgsfield MCP generate → save locally → mood board → approve → generate_design_system) is orchestration an agent can already do; what's missing is the documented path. A `.claude/skills/` flow doc (or a docs page) is the cheap first ship, and it exercises `generate_mood_board`'s approval stop exactly as designed.
+4. **Existing creative surface:** Raven already has `create_generation_job` / `register_creative_asset` / `score_creative` — if deeper integration is wanted later, Higgsfield slots in as a generation backend behind the existing job model rather than as new tool surface.
+
+**Blocked on Andrew:** the actual video link (to confirm/adjust against what he saw) and a direction call among 1–4.
