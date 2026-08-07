@@ -415,6 +415,8 @@ The appended entries auto-approve those tools, so review the printed list; newer
 
 Taste is per-surface: the same designer wants monochrome one-accent rules enforced on their portfolio and *none* of them on a product site, with a slightly different voice on each. The Taste Engine handles this with a **kickoff interview** (once per project — every question skippable, most with plain-language multiple-choice options, from navigation pattern to aesthetic family to specialty libraries) whose answers persist as a surface binding that every future audit applies automatically. And when generated work misses, `mode:'refine'` turns that dissatisfaction into a re-interview against the stored binding instead of a dead end.
 
+Starting a brand from *nothing* — no product, no palette, just an idea? The same interview is step one of a full genesis flow (invent the brand in conversation, generate assets with your own image tools, approve a mood board, land a design system in `DESIGN.md`): [docs/brand-genesis-flow.md](./docs/brand-genesis-flow.md).
+
 Raven ships this flow in its MCP server instructions, so agents that honor server instructions (Claude Code, Claude Desktop) run the interview at project kickoff on their own: `get_taste_interview` → ask the user → `bind_taste_surface` → done. If your client doesn't surface server instructions — or you want the ritual to be non-negotiable — add one line to the project's `CLAUDE.md` / `AGENTS.md`:
 
 ```markdown
