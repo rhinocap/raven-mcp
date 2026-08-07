@@ -379,3 +379,4 @@ Also: full `npm test` caught four exact interview-id-list assertions in test/tas
 - 18-mutant matrix all killed, radii measured (node --test prints each failure twice; halved): fifteen ×1, escape-nothing ×2, tie-reads-dark ×2, never-embed ×3 — each wide radius one shared mechanism. `statSync().isFile()` deliberately unmutated (EISDIR lands in the same catch, same warning; comment admits belt-and-braces).
 - CLAUDE.md ledger updated: headline figure, 109/64 → 110/65 with generate_mood_board named as the fifth gated addition and explicitly LOCAL-only ("do not quote 110 as shipped").
 - Committed with explicit paths (hash recorded below after commit). NOT pushed — push deploys live mcp.ravenmcp.ai and is Andrew's call.
+- Commit: `d384727` — 18 files, 1036 insertions. Local only; 8 commits ahead of origin/main (origin unmoved, verified by fetch before commit).
