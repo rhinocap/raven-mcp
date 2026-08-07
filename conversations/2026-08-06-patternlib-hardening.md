@@ -394,3 +394,21 @@ Also: full `npm test` caught four exact interview-id-list assertions in test/tas
 4. **Existing creative surface:** Raven already has `create_generation_job` / `register_creative_asset` / `score_creative` — if deeper integration is wanted later, Higgsfield slots in as a generation backend behind the existing job model rather than as new tool surface.
 
 **Blocked on Andrew:** the actual video link (to confirm/adjust against what he saw) and a direction call among 1–4.
+
+### Higgsfield — all five candidate videos watched via transcript; incorporation grounded (2026-08-07)
+
+**Video identified by CONTENT MATCH, not by link:** transcripts of all five candidates were pulled with yt-dlp and read. Jack Roberts, "Claude Design 3.0 Destroys AI Slop" (wJWO91mi5o0) matches Andrew's description point for point — Higgsfield creates the brand, the result becomes a design system, the design system is imported into Claude Code, and "get the initial design system correct and you can do anything" is the video's own thesis. The other four are content-creation/photo-shoot tutorials with 0–1 design-system mentions (measured by grep). Still needs Andrew's confirmation, but whichever of the five he saw, it has now been watched.
+
+**The video's actual flow (Jack Roberts):**
+1. A pasted skill connects Claude to Higgsfield via CLI.
+2. Claude INTERVIEWS the user about the brand — product, name, vibe, hero products, what to avoid — for someone starting with NOTHING (the demo brand is invented on the spot).
+3. Higgsfield generates the brand pack: logos, product photography, texture packs, palette research, plus a brand explainer doc.
+4. The generated files are uploaded into Claude Design's "design systems" feature → a reusable, shareable design system.
+5. "The handover": export the design system as a zip, reimport it into Claude Code, and tell Claude to reference it for all future design work. Plus a "one moving piece" showstopper (Higgsfield video / UI sniping from 21st.dev, aceternity, reactbits).
+
+**Refined incorporation thesis:** the video's flow is five manual steps across two products with a ZIP-FILE handover — and Raven natively IS steps 2, 4 and 5. `get_taste_interview` is the brand interview; `generate_design_system` + DESIGN.md is the design system living where the coding agent already reads it (no export/reimport); the new `generate_mood_board` is the approval surface between generation and system. The genuine gaps, in build order:
+1. **Local-image reference intake** — `capture_reference` takes a URL + live DOM; a Higgsfield brand pack is a DIRECTORY OF IMAGES. Accept local image files as references (owner:'self', palette extraction for scheme/trait votes) and the whole pack flows into mood board → design system.
+2. **Brand-genesis interview mode** — the existing interview calibrates an EXISTING project; the video's interview invents a brand from nothing (name, vibe, avoid-list). A `mode:'genesis'` (or a genesis question set) closes the cold-start gap, and its output brief is exactly what the user pastes into Higgsfield.
+3. **Flow skill/docs page** — the documented chain: genesis interview → generate in Higgsfield (user's own MCP/CLI account, never bundled) → import pack as references → mood board → approve → generate_design_system → DESIGN.md. Cheapest ship, exercises the approval stop as designed.
+
+**Remaining user-only inputs:** confirm the video (or supply the real link if it is none of the five), and the direction call on gaps 1–3.
