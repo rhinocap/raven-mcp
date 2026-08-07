@@ -149,6 +149,25 @@ no script.
 - Commit explicit paths, trailer, **NOT pushed** (push deploys mcp.ravenmcp.ai —
   Andrew's call). Local main is 2 ahead of origin; stash@{0} intact.
 
+## Committed
+
+- **`c425150`** — "Harden the pattern library against its own Sol findings, and
+  measure every proof" (9 files, 774 insertions, 37 deletions; explicit paths
+  via `git commit --only`, trailer present). Post-commit re-run of
+  `test/no-private-paths.test.mjs` against the NEW index: 4/4 green. Tree
+  clean afterwards; local main now **3 ahead of origin**
+  (`c425150`, `6593897`, `1c42ccc`), NOT pushed; stash@{0} intact.
+- Final report delivered to Andrew with the two up-front gates (MCP restart;
+  empty corpus), the product fork (twelve sites / one scroll cue / galleries
+  refused by design), and GLM's #1 refutation quoted verbatim.
+- Completion disposition: the goal's done-means offered "one real record …
+  **or a stopped-at-four report**" and capped seeding at attempt four
+  ("don't grind"); the stopped-at-four branch was taken. The remaining gap to
+  the hand test is gated on Andrew: reconnect the MCP server, then hand-seed
+  the first record (grab session on lusion.co → widen to `#home-hero-scroll`
+  in Layers → `capture_reference`), or authorize teaching
+  `scripts/seed-reference.mjs` selection-widening as new scope.
+
 ## Must reach Andrew up front in the final message
 
 1. Restart/reconnect the MCP server — it runs stale code that silently drops
