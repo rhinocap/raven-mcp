@@ -413,3 +413,81 @@ test('a corrupt index does not stop you deleting a reference', () => {
     assert.deepEqual(listed.references.map((reference) => reference.ref_id), [second.ref_id]);
   });
 });
+
+// A zero-result search is where this feature dead-ends for the person it was
+// built for: they asked for "a scrolling mouse cue in a hero", got nothing, and
+// cannot tell an empty corpus from a missed query. The vocabulary answers the
+// second case with words the corpus can actually honour.
+//
+// Mutation proof: return a fixed id list from corpusVocabulary instead of the
+// ids present. Measured — BOTH this test and the round-trip test below turn red.
+// I predicted one and was wrong: this test deepEquals the exact list, so it
+// catches a wrong list as readily as a wrong RULE. Which means it is the
+// round-trip test that carries the design decision, not this one — widen this
+// assertion to a superset check and the mutant survives here while the
+// round-trip test still kills it.
+test('a zero-result search reports what the corpus can answer to', () => {
+  withReferenceHome(() => {
+    referenceStore.saveReference(input({
+      url: 'https://linear.app/x', note: undefined, tags: ['hero'], taxonomy: ['hero'],
+    }));
+    referenceStore.saveReference(input({
+      url: 'https://stripe.com/y', note: undefined, tags: ['nav'], taxonomy: ['top-nav'],
+    }));
+    const miss = referenceStore.searchReferences({ query: 'quantum harmonica' });
+    assert.equal(miss.total, 0);
+    assert.equal(miss.corpus_size, 2);
+    assert.deepEqual(miss.vocabulary.taxonomy, ['hero', 'top-nav']);
+    assert.deepEqual(miss.vocabulary.hosts, ['linear.app', 'stripe.com']);
+    assert.ok(miss.vocabulary.tags.includes('hero') && miss.vocabulary.tags.includes('nav'));
+  });
+});
+
+// The property that makes the vocabulary worth printing, and the only one that
+// separates it from handing back the 36-id taxonomy: every value in it returns
+// something. A suggestion list containing a term that matches nothing is worse
+// than no suggestion, because the caller spends a round-trip proving it.
+test('every term the vocabulary suggests actually returns a record', () => {
+  withReferenceHome(() => {
+    referenceStore.saveReference(input({
+      url: 'https://linear.app/x', note: undefined, tags: ['hero'], taxonomy: ['hero'],
+    }));
+    referenceStore.saveReference(input({
+      url: 'https://stripe.com/y', note: undefined, tags: ['nav'], taxonomy: ['top-nav'],
+    }));
+    const vocabulary = referenceStore.searchReferences({ query: 'quantum harmonica' }).vocabulary;
+    for (const id of vocabulary.taxonomy) {
+      assert.ok(referenceStore.searchReferences({ query: id }).total > 0, `taxonomy id "${id}" returns nothing`);
+    }
+    for (const host of vocabulary.hosts) {
+      assert.ok(referenceStore.searchReferences({ host }).total > 0, `host "${host}" returns nothing`);
+    }
+    for (const tag of vocabulary.tags) {
+      assert.ok(referenceStore.searchReferences({ query: tag }).total > 0, `tag "${tag}" returns nothing`);
+    }
+  });
+});
+
+// Both omissions are deliberate and are different from each other. With hits,
+// the results ARE the answer and a vocabulary beside them is noise. With an
+// empty corpus there is no vocabulary to report, and an empty object would read
+// as "the corpus has nothing to say about this" when the true answer is "capture
+// something first" — a distinction the tool seam turns into two sentences.
+//
+// Mutation proof: drop either half of the guard. Measured — EACH half turns
+// only this test red, and no other test in the file moves. I predicted the
+// has-hits half would also take the two tests above with it; it does not, and
+// the reason is worth keeping: both of those assert on a MISS, where the
+// vocabulary is present under the mutant and under the fix alike. A test that
+// exercises the true branch of a guard can never see the false branch go wrong,
+// however thoroughly it exercises it — which is the entire reason this test
+// exists separately rather than being folded into them.
+test('the vocabulary is omitted when there are hits, and when there is no corpus', () => {
+  withReferenceHome(() => {
+    assert.equal(referenceStore.searchReferences({ query: 'anything' }).vocabulary, undefined);
+    referenceStore.saveReference(input({ tags: ['hero'], taxonomy: ['hero'] }));
+    const hit = referenceStore.searchReferences({ query: 'hero' });
+    assert.ok(hit.total > 0);
+    assert.equal(hit.vocabulary, undefined);
+  });
+});

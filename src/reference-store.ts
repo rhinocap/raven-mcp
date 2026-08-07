@@ -91,6 +91,18 @@ export interface ReferenceSearchResult {
   corpus_size: number;
   skipped: string[];
   index_unreadable: boolean;
+  // What the corpus can actually answer to, reported ONLY when a search over a
+  // non-empty corpus returned nothing.
+  //
+  // It is computed from the records that were just scanned, deliberately NOT
+  // from PATTERN_TAXONOMY. Handing back the full 36-id vocabulary would name 32
+  // ids nothing is filed under and send the caller straight back to another
+  // empty result; every entry here is guaranteed to return at least one record,
+  // which is the only property that makes a suggestion worth printing.
+  //
+  // Omitted entirely when there were hits (the results are the answer) and when
+  // the corpus is empty (there is no vocabulary yet — that is the other branch).
+  vocabulary?: { taxonomy: string[]; hosts: string[]; tags: string[] };
 }
 
 export function referenceHome(): string {
@@ -266,6 +278,31 @@ export function searchReferences(opts: SearchReferenceOptions): ReferenceSearchR
     corpus_size: corpus.references.length,
     skipped: corpus.skipped,
     index_unreadable: corpus.index_unreadable,
+    vocabulary: results.length === 0 && corpus.references.length > 0
+      ? corpusVocabulary(corpus.references)
+      : undefined,
+  };
+}
+
+// The vocabulary a zero-result search should be answered with. Every value here
+// came off a record that is actually in the corpus, so re-querying with any one
+// of them cannot return nothing.
+function corpusVocabulary(references: PatternReference[]): { taxonomy: string[]; hosts: string[]; tags: string[] } {
+  var taxonomy: Record<string, true> = {};
+  var hosts: Record<string, true> = {};
+  var tags: Record<string, true> = {};
+  for (var reference of references) {
+    for (var id of reference.taxonomy || []) taxonomy[id] = true;
+    if (reference.host) hosts[reference.host] = true;
+    for (var tag of reference.tags || []) tags[tag] = true;
+  }
+  return {
+    taxonomy: Object.keys(taxonomy).sort(),
+    hosts: Object.keys(hosts).sort(),
+    // Tags are user-authored and unbounded, so this is the one list that can run
+    // long. Capped, and the cap is visible in the count the caller can compare
+    // against corpus_size rather than being a silent truncation.
+    tags: Object.keys(tags).sort().slice(0, 40),
   };
 }
 
@@ -369,6 +406,18 @@ export interface ForgetResult {
   // window (a capture landing after it is still missed), but it moves the
   // unobserved gap from "the whole sweep" to "the last few syscalls".
   still_present: string[];
+  // The post-sweep re-read itself could not run. Present ONLY on that failure,
+  // and it is the reason this field exists rather than the re-read simply
+  // swallowing: an unreadable directory and a verified-empty one both produce
+  // `still_present: []`, so without a separate signal a verification FAILURE is
+  // byte-identical to a verification PASS and the tool reports the host cleared.
+  //
+  // That is the one forbidden outcome for a takedown — a false all-clear — and
+  // it is the same shape as every other one this file has already fixed
+  // (deleteReference swallowing a failed unlink and returning true; an index
+  // entry with no record file filed as `skipped`). A check whose failure mode is
+  // indistinguishable from its success mode is not a check.
+  verification_failed?: string;
 }
 
 // A stored `host` is always `new URL(record.url).hostname` — readRecord enforces
@@ -568,6 +617,7 @@ export function deleteReferencesByHost(host: string, expected_ref_ids?: string[]
   // whole sweep to the gap between the last unlink and this read, and turns the
   // common case from a false all-clear into a named leftover the caller can act on.
   var remaining: string[] = [];
+  var verificationFailed: string | undefined;
   try {
     for (var stillThere of referencesForHost(host).removed) {
       // Only what is not already named. A pinned-out record and a failed one are
@@ -577,10 +627,18 @@ export function deleteReferencesByHost(host: string, expected_ref_ids?: string[]
       if (failed.some(function(entry) { return entry.ref_id === stillThere; })) continue;
       remaining.push(stillThere);
     }
-  } catch (_error) {
-    // The re-read is a check on the sweep, not part of it. If it cannot run, the
-    // removals above still happened and are still reported; swallowing here keeps
-    // a verification failure from being read as a deletion failure.
+  } catch (error) {
+    // The re-read is a check on the sweep, not part of it — so a failure here is
+    // NOT a deletion failure and does not belong in `failed`. But it must not be
+    // silent either. The earlier version swallowed it entirely, which left
+    // `still_present: []` and let the tool compute `cleared` from four empty
+    // arrays: an unreadable reference directory reported the host cleared with
+    // exactly the same words as a directory that was read and found empty.
+    //
+    // Reported as its own field so it can be neither mistaken for a deletion
+    // failure nor mistaken for a clean verification.
+    verificationFailed = (error as Error).message;
+    remaining = [];
   }
   return {
     host: planned.host,
@@ -590,6 +648,7 @@ export function deleteReferencesByHost(host: string, expected_ref_ids?: string[]
     index_unreadable: planned.index_unreadable,
     appeared_since_preview: appeared,
     still_present: remaining,
+    verification_failed: verificationFailed,
   };
 }
 

@@ -3336,6 +3336,20 @@ server.tool(
             total: found.total,
             corpus_size: found.corpus_size,
             skipped: found.skipped,
+            // A search that finds nothing and says only `total: 0` is where this
+            // feature dead-ends for the person it was built for — someone who
+            // asked for "examples of a scrolling mouse cue in a hero" and has no
+            // way to tell an EMPTY corpus from a MISSED query. They are different
+            // situations with different answers, so they get different sentences.
+            next_step: found.total > 0
+              ? undefined
+              : found.corpus_size === 0
+                ? "The pattern corpus is empty — nothing has been captured yet. Fill it by browsing a site with `start_grab_session` "
+                  + "(pass `proxy_target` for a third-party site), selecting the element you want, draining it with `get_grabbed_elements`, "
+                  + "and storing it with `capture_reference`. Then this search has something to find."
+                : "Nothing matched, but the corpus is not empty. `vocabulary` lists the taxonomy ids, hosts and tags actually present "
+                  + "— every one of them returns at least one record, so re-query with those rather than guessing.",
+            vocabulary: found.vocabulary,
             notice: found.results.some((result) => result.reference.owner === "third-party")
               ? THIRD_PARTY_NOTICE
               : undefined,
@@ -3486,8 +3500,13 @@ server.tool(
         );
       }
       var result = deleteReferencesByHost(host, expected_ref_ids);
+      // A verification that could not RUN is not a verification that passed.
+      // Without this clause `cleared` is computed from four arrays that a failed
+      // post-sweep re-read leaves empty for the wrong reason, so an unreadable
+      // reference directory answers with the same silence as a clean one.
       var cleared = !result.skipped.length && !result.failed.length
-        && !result.appeared_since_preview.length && !result.still_present.length;
+        && !result.appeared_since_preview.length && !result.still_present.length
+        && !result.verification_failed;
       return {
         content: [{
           type: "text" as const,
@@ -3504,6 +3523,13 @@ server.tool(
               + (result.still_present.length
                 ? result.still_present.length + " record(s) from this host are STILL on disk after "
                   + "the sweep (see still_present[]); call again. " : "")
+              // The removals above still happened — this says the CHECK on them
+              // did not, which is a different sentence from "records were left
+              // behind" and must not be collapsed into it.
+              + (result.verification_failed
+                ? "The post-sweep verification could not run (" + result.verification_failed
+                  + "), so whether anything from this host is still on disk is UNKNOWN, not clear. "
+                  + "Re-run this call once the reference directory is readable. " : "")
               // Reported, but it does not make the host un-cleared: an unreadable
               // index leaves no record behind. The directory scan finds them all.
               //

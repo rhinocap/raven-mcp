@@ -376,3 +376,49 @@ test('a binding carries the token VALUE, not only its name', async () => {
     assert.equal(/[{}]/.test(byProperty.color.token_value), false);
   });
 });
+
+// The two dead ends a person actually hits, at the seam where they hit them.
+// Andrew's use case is "show me examples of a scrolling mouse cue in a hero" —
+// the first call returns nothing, and `total: 0` alone cannot tell him whether
+// the corpus is empty or his words were wrong. Those need different answers, so
+// the tool gives different sentences.
+//
+// Mutation proof: collapse the two branches into one message. Measured — this
+// test turns red and nothing else does, because the store-level tests cannot see
+// this field at all; it exists only at the seam.
+test('a search with nothing to show says which kind of nothing it is', async () => {
+  await withClient(async (client) => {
+    const empty = await call(client, 'search_references', { query: 'scrolling mouse cue in a hero' });
+    assert.equal(empty.total, 0);
+    assert.equal(empty.corpus_size, 0);
+    assert.match(empty.next_step, /corpus is empty/i);
+    assert.match(empty.next_step, /start_grab_session/);
+    assert.match(empty.next_step, /capture_reference/);
+    // Nothing to suggest yet — an empty vocabulary object here would read as
+    // "the corpus has nothing to say about this", which is a different and
+    // wrong answer.
+    assert.equal(empty.vocabulary, undefined);
+
+    await call(client, 'capture_reference', {
+      url: 'https://linear.app/features',
+      selector: 'h1.hero',
+      styles: { 'font-size': '64px' },
+      owner: 'third-party',
+      tags: ['hero'],
+      taxonomy: ['hero'],
+    });
+
+    const missed = await call(client, 'search_references', { query: 'quantum harmonica' });
+    assert.equal(missed.total, 0);
+    assert.equal(missed.corpus_size, 1);
+    assert.match(missed.next_step, /not empty/i);
+    assert.deepEqual(missed.vocabulary.taxonomy, ['hero']);
+    assert.deepEqual(missed.vocabulary.hosts, ['linear.app']);
+
+    // And a search that finds something says neither — the results are the answer.
+    const hit = await call(client, 'search_references', { query: 'hero' });
+    assert.ok(hit.total > 0);
+    assert.equal(hit.next_step, undefined);
+    assert.equal(hit.vocabulary, undefined);
+  });
+});
