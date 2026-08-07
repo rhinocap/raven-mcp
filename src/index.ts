@@ -42,7 +42,7 @@ import { readFile } from "fs/promises";
 import { registerCalls } from "./calls.js";
 import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
 import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet, type FlattenedDesignToken } from "./designmd.js";
-import { loadStoredSystem, listUserSystemIds, saveUserSystem, bundledSystemPath, userSystemsDir } from "./user-systems.js";
+import { loadStoredSystem, listUserSystemIds, saveUserSystem, bundledSystemPath, userSystemsDir, userSystemsDirProblem } from "./user-systems.js";
 import { startGrabSession, getGrabbedElements, stopGrabSession, getPageTemplate, setTemplateSlots, listTemplates, getGrabLayers, moveGrabLayer, getGrabOperation, isProxyGrabSession } from "./grab-bridge.js";
 import { FsDecisionGraphStore, LexicalEmbedder, buildConflictPayload, buildExtractionPrompt, buildImportExtractionPrompt, buildGapDigest, flagRationaleMissing, gapScanConfig, parseExtractionJson, persistItemsIndependently, recordConsultation, scanGaps, similarityThreshold, type DecisionNode, type EvidenceNode, type SourceNode } from "./decision-graph.js";
 import { FAIL_ON_RULES, proposePolish, reviewDiff } from "./design-review.js";
@@ -2877,6 +2877,14 @@ server.tool(
         } catch (err: any) {
           unreadable = err && err.message ? err.message : String(err);
         }
+        // loadStoredSystem returns null (no throw) when the file stopped
+        // resolving between the listing and this load — the dir is hand-
+        // editable, so that window is real. Unmarked, the entry renders
+        // HEALTHY (default description, clean tags) while get_design_system
+        // answers not-found: the listing would assert an id the lookup denies.
+        if (!sys && !unreadable) {
+          unreadable = "the stored file disappeared or stopped being a regular file between listing and load — retry, or check the dir";
+        }
         return {
           id: id,
           name: (sys && typeof sys.$name === "string" && sys.$name) || id,
@@ -2901,15 +2909,33 @@ server.tool(
       );
     }
 
+    // An unreadable entry is in `available` (the id listing never parses the
+    // file), so ungated it ships tokens_available: true on a file that cannot
+    // load — and that flag is the one field a caller pipelines on. The tag is
+    // the single unreadable marker set where the failure was seen; read it,
+    // do not re-derive readability here.
     systems = systems.map((s: any) => ({
       ...s,
       tokens_available: available.includes(s.id)
+        && !(s.tags && s.tags.indexOf("unreadable") !== -1)
     }));
+
+    // The user DIR itself can be unusable (RAVEN_SYSTEMS_HOME at a regular
+    // file, an unreadable dir) — listing then degrades to curated-only, and
+    // without this note the user's saved systems look silently vanished.
+    // Naming the dir and the error is deliberate: this output is local-only
+    // by construction (remote lists no user systems), and the path IS the fix
+    // instruction — same stance as the per-entry unreadable description above.
+    var dirProblem = userSystemsDirProblem();
+    var payload: any = { count: systems.length, systems };
+    if (dirProblem) {
+      payload.user_systems_note = "Saved user design systems could not be listed (" + dirProblem + ") — fix " + userSystemsDir() + " to see them again.";
+    }
 
     return {
       content: [{
         type: "text" as const,
-        text: JSON.stringify({ count: systems.length, systems }, null, 2)
+        text: JSON.stringify(payload, null, 2)
       }]
     };
   }

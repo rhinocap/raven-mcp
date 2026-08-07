@@ -10,7 +10,7 @@
 // deleted, so the seeded dir is the load-bearing half of that fixture.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync, readdirSync, chmodSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -188,6 +188,9 @@ test('list_design_systems lists a saved system as category user and finds it by 
       assert.ok(searched.systems.some((s) => s.id === 'listed-brand'), 'search reaches user systems');
       const fintech = JSON.parse((await client.callTool({ name: 'list_design_systems', arguments: { category: 'fintech' } })).content[0].text);
       assert.ok(!fintech.systems.some((s) => s.id === 'listed-brand'), 'a category filter excludes it like any other non-member');
+      // A healthy user dir carries NO note — the note firing on every listing
+      // would be a notice nobody reads (the attribution-notice rule).
+      assert.ok(!('user_systems_note' in all), 'no dir note when the dir is healthy');
     });
   });
 });
@@ -213,6 +216,10 @@ test('one malformed user entry cannot kill the listing, and a directory named *.
       assert.ok(bad, 'the unreadable entry is LISTED, not silently omitted — hiding it hides the file that needs fixing');
       assert.ok(bad.tags.includes('unreadable'));
       assert.match(bad.description, /could not be read/);
+      // The id listing never parses the file, so 'broken' IS in the available
+      // ids — ungated, the one field a caller pipelines on would say true
+      // about a file that cannot load (round-2 adverse finding).
+      assert.equal(bad.tokens_available, false, 'an unreadable entry must not claim its tokens are available');
       assert.ok(!all.systems.some((s) => s.id === 'dir'), 'no phantom entry for the directory');
 
       // Asking for the corrupt id directly errors honestly rather than
@@ -222,6 +229,112 @@ test('one malformed user entry cannot kill the listing, and a directory named *.
       assert.equal(direct.isError, true);
     });
   });
+});
+
+// Round-2 adverse finding (P1): the dir ITSELF is hand-editable state.
+// existsSync answers true for a regular file at the dir path, readdirSync then
+// throws ENOTDIR, and the whole listing — curated systems included — died.
+test('RAVEN_SYSTEMS_HOME pointing at a regular file degrades the listing, never kills it', async () => {
+  const previous = process.env.RAVEN_SYSTEMS_HOME;
+  const parent = mkdtempSync(path.join(tmpdir(), 'raven-dirfile-'));
+  const fake = path.join(parent, 'not-a-dir');
+  writeFileSync(fake, 'x', 'utf-8');
+  process.env.RAVEN_SYSTEMS_HOME = fake;
+  try {
+    assert.deepEqual(us.listUserSystemIds(), [], 'ids degrade to none, not a throw');
+    assert.ok(us.userSystemsDirProblem(), 'the probe names the problem');
+    assert.equal(us.userSystemPath('anything'), null, 'lookups degrade the same way');
+    await withClient(async (client) => {
+      const res = await client.callTool({ name: 'list_design_systems', arguments: {} });
+      assert.equal(res.isError ?? false, false, 'a broken user DIR must not kill the curated listing');
+      const all = JSON.parse(res.content[0].text);
+      assert.ok(all.systems.some((s) => s.id === 'stripe'), 'curated systems still list');
+      // Degrading to [] silently would render saved systems as vanished —
+      // the note is what separates "none saved" from "cannot be read".
+      assert.match(all.user_systems_note, /could not be listed/);
+      assert.ok(all.user_systems_note.includes(fake), 'the note names the dir to fix');
+    });
+  } finally {
+    if (previous === undefined) delete process.env.RAVEN_SYSTEMS_HOME;
+    else process.env.RAVEN_SYSTEMS_HOME = previous;
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+// Same finding, other repro: a dir that exists but cannot be read (EACCES).
+// Root ignores mode bits, so the fixture is meaningless there — skip, as the
+// blocklist EACCES test does.
+test('an unreadable user dir degrades the listing with the note, never kills it', { skip: process.getuid && process.getuid() === 0 ? 'running as root — chmod 000 does not deny' : false }, async () => {
+  const previous = process.env.RAVEN_SYSTEMS_HOME;
+  const parent = mkdtempSync(path.join(tmpdir(), 'raven-dir000-'));
+  const locked = path.join(parent, 'locked');
+  mkdirSync(locked);
+  chmodSync(locked, 0o000);
+  process.env.RAVEN_SYSTEMS_HOME = locked;
+  try {
+    assert.deepEqual(us.listUserSystemIds(), []);
+    assert.ok(us.userSystemsDirProblem(), 'EACCES is a named problem, not a crash and not silence');
+    await withClient(async (client) => {
+      const res = await client.callTool({ name: 'list_design_systems', arguments: {} });
+      assert.equal(res.isError ?? false, false);
+      const all = JSON.parse(res.content[0].text);
+      assert.match(all.user_systems_note, /could not be listed/);
+    });
+  } finally {
+    if (previous === undefined) delete process.env.RAVEN_SYSTEMS_HOME;
+    else process.env.RAVEN_SYSTEMS_HOME = previous;
+    chmodSync(locked, 0o755);
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+// Round-2 adverse finding (P3): loadStoredSystem returns null — no throw —
+// when the file stops resolving between the listing and the load, and the
+// old map only marked THROWN errors, so the entry rendered healthy while
+// get_design_system answered not-found. The seam is the same one
+// reference-forget.test.mjs measured: userSystemsDir() reads process.env at
+// call time, so an env Proxy can answer the listing and the load differently
+// — fs monkeypatching is invisible to ESM named imports. The getter
+// discriminates by CALLER (stack), not by call count, so a reordering of
+// reads inside the handler fails this test loudly instead of passing it
+// silently.
+test('an id that stops resolving between listing and load is marked, not rendered healthy', async () => {
+  const dirA = mkdtempSync(path.join(tmpdir(), 'raven-toctou-a-'));
+  const dirB = mkdtempSync(path.join(tmpdir(), 'raven-toctou-b-'));
+  writeFileSync(path.join(dirA, 'foo.json'), JSON.stringify({ $name: 'Foo' }), 'utf-8');
+  const realEnv = process.env;
+  try {
+    // Control first, no proxy: with one dir for both reads the entry is
+    // healthy — proof the proxied fixture below can fail.
+    process.env.RAVEN_SYSTEMS_HOME = dirA;
+    await withClient(async (client) => {
+      const all = JSON.parse((await client.callTool({ name: 'list_design_systems', arguments: {} })).content[0].text);
+      const foo = all.systems.find((s) => s.id === 'foo');
+      assert.ok(foo && !foo.tags.includes('unreadable') && foo.tokens_available === true,
+        'control: same dir for both reads lists healthy');
+    });
+    process.env = new Proxy(realEnv, {
+      get(target, prop, receiver) {
+        if (prop === 'RAVEN_SYSTEMS_HOME') {
+          return new Error().stack.includes('listUserSystemIds') ? dirA : dirB;
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+    await withClient(async (client) => {
+      const all = JSON.parse((await client.callTool({ name: 'list_design_systems', arguments: {} })).content[0].text);
+      const foo = all.systems.find((s) => s.id === 'foo');
+      assert.ok(foo, 'precondition: the listing saw dirA and listed foo');
+      assert.ok(foo.tags.includes('unreadable'), 'a vanished file must be marked, not rendered healthy');
+      assert.match(foo.description, /between listing and load/);
+      assert.equal(foo.tokens_available, false);
+    });
+  } finally {
+    process.env = realEnv;
+    delete process.env.RAVEN_SYSTEMS_HOME;
+    rmSync(dirA, { recursive: true, force: true });
+    rmSync(dirB, { recursive: true, force: true });
+  }
 });
 
 test('base_system consumes a saved system through the same lookup as every other consumer', async () => {

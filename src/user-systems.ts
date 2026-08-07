@@ -83,17 +83,43 @@ export function loadStoredSystem(id: string): any | null {
   return JSON.parse(readFileSync(p, "utf-8"));
 }
 
-export function listUserSystemIds(): string[] {
-  if (isRemoteRuntime()) return [];
+// The dir ITSELF is hand-editable state, same as its contents: RAVEN_SYSTEMS_HOME
+// can point at a regular file, and a chmod can make the dir unreadable —
+// existsSync answers true to BOTH, and readdirSync then throws (ENOTDIR /
+// EACCES), which used to kill list_design_systems for every caller while
+// per-ENTRY oddities were already survived. One shared read owns the rule so
+// the id listing and the health probe below cannot diverge; "never created
+// yet" is normal and is NOT a problem.
+function readUserSystemsDir(): { files: string[]; problem: string | null } {
+  if (isRemoteRuntime()) return { files: [], problem: null };
   var dir = userSystemsDir();
-  if (!existsSync(dir)) return [];
+  if (!existsSync(dir)) return { files: [], problem: null };
+  try {
+    return { files: readdirSync(dir), problem: null };
+  } catch (err: any) {
+    return { files: [], problem: err && err.message ? err.message : String(err) };
+  }
+}
+
+// null when the user dir is healthy or simply absent; a message when it exists
+// but cannot be read AS a directory. In that state listUserSystemIds degrades
+// to [], which is indistinguishable from "no saved systems" — a caller that
+// wants to tell the user (rather than render their saved systems as silently
+// vanished) reads this. Local-only surface by construction: remote reads
+// answer nothing before touching the filesystem.
+export function userSystemsDirProblem(): string | null {
+  return readUserSystemsDir().problem;
+}
+
+export function listUserSystemIds(): string[] {
+  var dir = userSystemsDir();
   // Same isRegularFile as userSystemPath — the listing and the lookup must
   // share one rule, or an id appears in one and not the other. It excludes a
   // subdirectory named <x>.json, which would otherwise become a listed id
   // that every loadStoredSystem consumer either EISDIRs on or renders as a
   // phantom entry that can never load. statSync (not Dirent.isFile) so a
   // symlinked system file is treated the same here as at load time.
-  return readdirSync(dir)
+  return readUserSystemsDir().files
     .filter(function (f) { return f.endsWith(".json") && isRegularFile(join(dir, f)); })
     .map(function (f) { return f.slice(0, -".json".length); })
     .filter(isSafeSystemId)
