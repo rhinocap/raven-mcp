@@ -213,3 +213,59 @@ guess.
    taxonomy; corpus is empty until the seed lands.
 2. Product fork: twelve sites scanned, one hero scroll cue; the galleries that
    would find more are exactly what the blocklist refuses. His call.
+
+## 2026-08-07 — Drag-drop answered; voice input built
+
+Andrew answered the drag-drop fork: **"Dragging elements on the page itself"**
+— direct manipulation of actual page content, a NEW feature, not a repro of
+the working panel/row drags. This is `idea_grab_live_move_preview` (captured
+2026-07-24) promoted to a confirmed ask: on-canvas drag → optimistic
+`insertBefore` preview → pending-changes tray → agent applies. Backlog entry
+updated. Build after voice input (same overlay file, serialize).
+
+Voice input v1 SHIPPED to the working tree (not committed at time of writing):
+- `browser/raven-grab.js` (+ byte-identical mirror): module-scope `dictation`
+  state beside `instructionDraft`; `speechRecognitionCtor()` feature detection
+  (button simply absent when no recognizer — required or the vm harness's
+  window stub changes behavior for every existing test); mic button rendered
+  by `voiceButtonMarkup()` in the existing `.raven-grab-section-heading` flex
+  idiom on the Instructions composer AND both use-case textareas; one
+  delegated `onPanels("click")` branch; final transcripts append via
+  `field.value` + dispatched bubbling `input` event so the existing delegated
+  handler updates `instructionDraft`/`componentRequest.useCase` and send
+  enablement — one code path with a keystroke. `continuous: true`,
+  `interimResults: false`. Fields are queried at result time, never captured
+  as nodes (renderPanel rebuilds, 81 call sites). Pulse animation clamped in
+  the reduced-motion block (separate rule — the pinned line stays untouched).
+- `test/grab-overlay-voice-input.test.mjs` (5 tests, real Chromium, fake
+  SpeechRecognition installed by the fixture BEFORE overlay injection —
+  headless Chromium ships webkitSpeechRecognition with no speech service, so
+  the feature-absent fixture must force BOTH ctors undefined or it measures
+  nothing). Falsifiability: five mutants served through
+  `RAVEN_GRAB_ASSET_PATH`, each load-checked first; M2–M5 redden exactly one
+  test each, M1 (delete the click branch) reddens the four interaction tests —
+  shared entry point, radius measured and documented in the file header.
+  Runner: scratchpad `run-voice-mutants.mjs` (session-ephemeral, results
+  recorded here).
+- Live-surface caveat: the fake recognizer proves the wiring; real dictation
+  quality/mic permission flow is UNVERIFIED until Andrew tries it on his
+  machine (loopback bridge pages are secure contexts, so Chrome will show the
+  mic permission prompt on first use).
+
+Mood-board recon+spec drafted by a delegated leg (taste interview mechanics at
+src/taste.ts, reuse of pattern-library display objects, taste-portrait.ts as
+the artifact template; board = derived artifact keyed by ref_ids so takedowns
+hole it automatically). Three open questions for Andrew queued in the final
+report. Higgsfield still blocked on his link.
+
+### Adverse pass on voice input (Kimi K3 via ow-run, 2026-08-07) — SURVIVES, 1 P2 + 3 P3, two fixed
+
+Codex is out of credits, so the falsification pass ran through `ow-run moonshotai/kimi-k3 8000 medium` with a fully inline stdin payload (~28KB: brief + diff + test suite + panelQuery/input-handler excerpts) — ow-run is a single-shot OpenRouter call with NO file access, so "read these files" briefs are useless to it. First invocation failed by passing the prompt as an argv (parsed as int max_tokens); the prompt goes on STDIN.
+
+Dispositions:
+1. **P2→P3, exclusion verified + pinned in a comment.** Claimed both `[data-use-case]` fields (consumer use-case, maintainer notes) could coexist and first-match `panelQuery` would misroute a transcript. Structurally false: `componentProcessMarkup` (raven-grab.js:9732) renders maintainer OR consumer via one ternary and is consumed exactly once (9742) — at most one `[data-use-case]` in the DOM. The exclusion is now named in `appendDictatedText`'s comment.
+2. **P3, FIXED.** The empty-text early return ran before the field-existence check, so a noise-only final (Chrome emits them) arriving after the user navigated away never queried the field and left the recognizer live forever. Reordered: field check first. New test removes the field nodes directly (a re-render would rebuild them) and asserts a `'   '` final stops the recognizer. Mutant M6 (revert the ordering) reddens exactly that test.
+3. **P3, FIXED (test + mutant; code was already correct).** The `dictation.recognizer === recognizer` identity guard in onend was load-bearing and unmeasured — the fake's synchronous `stop()`→`onend` can't model real Chrome's async delivery. New test replays a stale onend from a replaced recognizer by hand and asserts the new session survives. Mutant M7 (weaken the guard to bare `dictation`) reddens exactly that test.
+4. **P3, ACCEPTED.** `\s+`→space collapse flattens newlines in transcripts. Deliberate normalization; dictated text is spoken prose, and the field is editable.
+
+Mutant radii after the additions (all seven measured): M1 six red (shared click entry), M4 two red (both assert stop() was called), M2/M3/M5/M6/M7 exactly one each. Voice suite now 7 tests.

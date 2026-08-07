@@ -168,6 +168,10 @@
   // reclaim vertical space (critical on the mobile sheet). Keyed by section role.
   var changeTrayCollapsed = Object.create(null);
   var instructionDraft = "";
+  // Live dictation session ({ recognizer, targetAttr }) or null. Module scope
+  // on purpose: renderPanel() rebuilds panel DOM wholesale, so nothing about
+  // an in-flight dictation may live on the button or textarea node.
+  var dictation = null;
   var componentRequestStep = "form";
   var componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
   var componentRequestId = "";
@@ -885,6 +889,11 @@
     .raven-grab-assets-cta { margin-top: 12px; }
     .raven-grab-composer { margin: 0 0 12px; }
     .raven-grab-composer .raven-grab-textarea { width: 100%; box-sizing: border-box; max-height: 30vh; }
+    .raven-grab-voice { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 24px; height: 24px; padding: 0; color: var(--raven-grab-muted); background: transparent; border: 1px solid rgba(255,255,255,.12); border-radius: 6px; cursor: pointer; }
+    .raven-grab-voice:hover { color: var(--raven-grab-accent); border-color: rgba(0,191,255,.45); }
+    .raven-grab-voice:focus-visible { outline: 2px solid rgba(0, 191, 255, .35); outline-offset: 2px; }
+    .raven-grab-voice[aria-pressed="true"] { color: var(--raven-grab-accent); background: rgba(0,191,255,.1); border-color: rgba(0,191,255,.45); animation: raven-grab-voice-pulse 1.6s ease-in-out infinite; }
+    @keyframes raven-grab-voice-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(0,191,255,.25); } 50% { box-shadow: 0 0 0 4px rgba(0,191,255,0); } }
     .raven-grab-section-title { margin: 0 0 8px; color: var(--raven-grab-tertiary); font: 500 calc(12px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-ui); letter-spacing: -.01em; }
     .raven-grab-section-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; margin: 0; padding: 0; color: var(--raven-grab-tertiary); background: transparent; border: 0; cursor: pointer; text-align: left; font: 500 calc(12px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-ui); letter-spacing: -.01em; }
     .raven-grab-section-toggle:hover { color: var(--raven-grab-text); }
@@ -1406,6 +1415,7 @@
          new code defeats the guard. New reduced-motion clamps go here. */
       .raven-grab-sheet-handle::before { transition: none !important; }
       .raven-grab-check path, .raven-grab-pen-dot, .raven-grab-sent-message, .raven-grab-border-trace rect { animation: none !important; }
+      .raven-grab-voice[aria-pressed="true"] { animation: none !important; }
       .raven-grab-border-trace { display: none !important; }
       .raven-grab-send[data-send-state="sent"] { animation: none !important; border-color: #00BFFF !important; }
       .raven-grab-check path { stroke-dashoffset: 0 !important; }
@@ -1481,6 +1491,106 @@
     return '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">' +
       '<rect x="1" y="1" width="6" height="6" rx="1.2"/><rect x="9" y="1" width="6" height="6" rx="1.2"/>' +
       '<rect x="1" y="9" width="6" height="6" rx="1.2"/><rect x="9" y="9" width="6" height="6" rx="1.2"/></svg>';
+  }
+  // --- Voice dictation for panel text fields (Web Speech API). ---
+  // Feature-detected: the mic button is simply absent when the browser has no
+  // recognizer (headless Chromium, the vm test harness), so nothing else
+  // changes shape when the API is missing.
+  function speechRecognitionCtor() {
+    try {
+      return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+    } catch (error) {
+      return null;
+    }
+  }
+  function micSvg() {
+    return '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<rect x="5.5" y="1.5" width="5" height="8" rx="2.5"/><path d="M2.5 7.5a5.5 5.5 0 0 0 11 0"/><line x1="8" y1="13" x2="8" y2="15"/></svg>';
+  }
+  function voiceButtonMarkup(targetAttr, label) {
+    if (!speechRecognitionCtor()) return "";
+    var active = !!(dictation && dictation.targetAttr === targetAttr);
+    var caption = active ? "Stop dictation" : "Dictate " + label;
+    return '<button class="raven-grab-voice" type="button" data-voice-dictate="' + targetAttr + '"' +
+      ' aria-pressed="' + (active ? "true" : "false") + '" aria-label="' + caption + '" title="' + caption + '">' + micSvg() + "</button>";
+  }
+  function appendDictatedText(targetAttr, transcript) {
+    // Query at result time, never a captured node: renderPanel() may have
+    // rebuilt the panel (81 call sites) since dictation started. The field
+    // check runs FIRST, before the empty-text return — a noise-only final
+    // (Chrome emits near-empty results) arriving after the user navigated
+    // away must still end the session, or the mic stays live forever
+    // against a panel that no longer has the field (adverse-pass finding,
+    // 2026-08-07). First-match panelQuery cannot misroute between the two
+    // [data-use-case] fields: componentProcessMarkup renders maintainer OR
+    // consumer via one ternary and is consumed exactly once.
+    var field = panelQuery("[" + targetAttr + "]");
+    if (!field) return false;
+    var text = String(transcript || "").replace(/\s+/g, " ").trim();
+    if (!text) return true;
+    var existing = field.value;
+    field.value = existing + (existing && !/\s$/.test(existing) ? " " : "") + text;
+    // Route through the same delegated input handler a keystroke uses, so the
+    // draft mirror and send-button enablement stay a single code path.
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    return true;
+  }
+  function stopDictation() {
+    if (!dictation) return;
+    var recognizer = dictation.recognizer;
+    // Clear state before stop(): the recognizer's own onend must read this
+    // session as already over, not re-render a second time.
+    dictation = null;
+    try { recognizer.stop(); } catch (error) {}
+    renderPanel();
+  }
+  function toggleDictation(targetAttr) {
+    if (dictation) {
+      var wasSameTarget = dictation.targetAttr === targetAttr;
+      stopDictation();
+      if (wasSameTarget) return;
+    }
+    var Recognition = speechRecognitionCtor();
+    if (!Recognition) return;
+    var recognizer;
+    try {
+      recognizer = new Recognition();
+      recognizer.continuous = true;
+      recognizer.interimResults = false;
+    } catch (error) {
+      return;
+    }
+    recognizer.onresult = function (event) {
+      if (!dictation || dictation.recognizer !== recognizer) return;
+      var text = "";
+      for (var i = event.resultIndex || 0; i < event.results.length; i += 1) {
+        var result = event.results[i];
+        if (result && result.isFinal && result[0]) text += (text ? " " : "") + result[0].transcript;
+      }
+      // A missing target field means the user navigated away mid-dictation
+      // (tab switch, flow change): end the session rather than transcribe
+      // into nothing.
+      if (!appendDictatedText(targetAttr, text)) stopDictation();
+    };
+    recognizer.onerror = function () {
+      if (dictation && dictation.recognizer === recognizer) {
+        dictation = null;
+        renderPanel();
+      }
+    };
+    recognizer.onend = function () {
+      if (dictation && dictation.recognizer === recognizer) {
+        dictation = null;
+        renderPanel();
+      }
+    };
+    try {
+      recognizer.start();
+    } catch (error) {
+      return;
+    }
+    dictation = { recognizer: recognizer, targetAttr: targetAttr };
+    renderPanel();
   }
   function makeEdgeTab(side) {
     var tab = document.createElement("button");
@@ -9582,7 +9692,7 @@
       </section>`;
     var instructionsMarkup = `
       <section class="raven-grab-section raven-grab-composer">
-        <h2 class="raven-grab-section-title">Instructions</h2>
+        <div class="raven-grab-section-heading"><h2 class="raven-grab-section-title">Instructions</h2>${voiceButtonMarkup("data-instruction", "instructions")}</div>
         <textarea class="raven-grab-textarea" data-instruction spellcheck="true" aria-label="Instructions" placeholder="Tell the agent what to change…">${escapeHtml(instructionDraft)}</textarea>
       </section>`;
     var issueTypes = ["UX/Usability", "Visual bug", "Missing variant", "Accessibility", "New pattern", "Other"];
@@ -9598,7 +9708,7 @@
         <div class="raven-grab-token"><label class="raven-grab-field"><span>Issue size</span><select class="raven-grab-select" data-issue-size required><option value="">Select…</option>${issueSizes.map(function (value) { return optionMarkup(value, value, componentRequest.issueSize); }).join("")}</select></label></div>
       </section>
       <section class="raven-grab-section">
-        <h2 class="raven-grab-section-title">Describe the use case and impact</h2>
+        <div class="raven-grab-section-heading"><h2 class="raven-grab-section-title">Describe the use case and impact</h2>${voiceButtonMarkup("data-use-case", "use case")}</div>
         <textarea class="raven-grab-textarea raven-grab-use-case" data-use-case spellcheck="true" placeholder="${emailFlow ? "Describe why you need this…" : "Tell the design team why you need this…"}">${escapeHtml(componentRequest.useCase)}</textarea>
       </section>`;
     var emailMarkup = emailFlow ? `
@@ -9612,7 +9722,7 @@
       </section>`;
     var maintainerFormMarkup =
       '<section class="raven-grab-section">' +
-        '<h2 class="raven-grab-section-title">Component notes</h2>' +
+        '<div class="raven-grab-section-heading"><h2 class="raven-grab-section-title">Component notes</h2>' + voiceButtonMarkup("data-use-case", "component notes") + '</div>' +
         '<textarea class="raven-grab-textarea raven-grab-use-case" data-use-case spellcheck="true" placeholder="Describe the reusable component, variants, or behavior…">' + escapeHtml(componentRequest.useCase) + '</textarea>' +
       '</section>';
     // Layers is the default left tab — load the tree on first paint, not only when
@@ -10507,6 +10617,11 @@
     var panelPreset = event.target.closest("[data-panel-preset]");
     if (panelPreset) {
       applyPanelPreset(panelPreset.getAttribute("data-panel-preset"));
+      return;
+    }
+    var voiceToggle = event.target.closest("[data-voice-dictate]");
+    if (voiceToggle) {
+      toggleDictation(voiceToggle.getAttribute("data-voice-dictate"));
       return;
     }
     if (event.target.closest("[data-maintainer-send]")) sendSelection();
