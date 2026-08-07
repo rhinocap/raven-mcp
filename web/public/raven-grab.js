@@ -216,6 +216,11 @@
   // auto-fires when the active one finishes (single-slot conveyor, never concurrent).
   var sendQueued = false;
   var layerDrag = null; // pointer-drag state: source block, floating clone, sibling bounds
+  // On-canvas element drag: pointer id, dragged element, resolved layer node id, live
+  // drop plan. Drives the SAME reorderLayer/reparentLayer machinery as the Layers tab —
+  // one rule for preview, tray, revert, and the agent protocol, never a parallel path.
+  var canvasDrag = null;
+  var suppressCanvasClick = false; // one-shot: swallow the click that trails a completed canvas drag
   var collapsedLayerElements = new WeakSet();
   var hoveredLayerElement = null;
   var hoveredLayerRow = null; // the row currently carrying data-layer-hovered
@@ -727,6 +732,11 @@
       position: fixed; display: block; pointer-events: none; z-index: 1; border: 2px solid var(--raven-grab-accent);
       background: rgba(0, 191, 255, .08); border-radius: 3px;
       box-shadow: 0 0 0 1px rgba(10, 10, 18, .72) inset, 0 0 0 1px rgba(0, 191, 255, .35);
+    }
+    .raven-grab-drop-indicator {
+      position: fixed; display: none; pointer-events: none; z-index: 1;
+      background: var(--raven-grab-accent); border-radius: 2px;
+      box-shadow: 0 0 0 1px rgba(10, 10, 18, .72), 0 0 8px rgba(0, 191, 255, .55);
     }
     .raven-grab-label {
       position: fixed; display: none; z-index: 1; max-width: min(420px, calc(100vw - 24px));
@@ -1427,6 +1437,8 @@
   highlight.className = "raven-grab-highlight";
   var label = document.createElement("div");
   label.className = "raven-grab-label";
+  var dropIndicator = document.createElement("div");
+  dropIndicator.className = "raven-grab-drop-indicator";
   var panelPresetTooltip = document.createElement("div");
   panelPresetTooltip.className = "raven-grab-panel-preset-tip";
   panelPresetTooltip.setAttribute("aria-hidden", "true");
@@ -1611,6 +1623,7 @@
   shadow.appendChild(style);
   shadow.appendChild(highlight);
   shadow.appendChild(label);
+  shadow.appendChild(dropIndicator);
   shadow.appendChild(panelPresetTooltip);
   shadow.appendChild(settingsModal);
   shadow.appendChild(panel);
@@ -11799,7 +11812,315 @@
     }
   }, true);
 
+  // ---- On-canvas element drag ------------------------------------------------
+  // Dragging the SELECTED element on the page reorders or reparents it through the
+  // Layers tab's own draft machinery, so the optimistic preview, the tray row, the
+  // revert, and the agent protocol are all the one existing rule — a second gesture
+  // into reorderLayer/reparentLayer, never a second implementation.
+
+  function layerNodeIdForElement(element) {
+    var found = null;
+    layerElements.forEach(function (candidate, id) {
+      if (found === null && candidate === element) found = id;
+    });
+    return found;
+  }
+
+  // The layout axis decides which pointer coordinate orders siblings: a flex row lays
+  // children out along x; everything else — block flow, flex column, grid (v1
+  // approximation) — reads top-to-bottom along y.
+  function canvasLayoutAxis(containerElement) {
+    var style = null;
+    try { style = getComputedStyle(containerElement); } catch (error) {}
+    if (!style) return "y";
+    var display = String(style.display || "");
+    var direction = String(style.flexDirection || "");
+    if (display.indexOf("flex") !== -1 && direction.indexOf("row") === 0) return "x";
+    return "y";
+  }
+
+  // A truncated placeholder node has no element, which would desynchronise
+  // pointer-derived indices from reorderLayer's own indexOf arithmetic — refuse the
+  // whole container rather than move the wrong slot.
+  function canvasChildEntries(parentNode) {
+    var entries = [];
+    for (var i = 0; i < parentNode.children.length; i += 1) {
+      var childNode = parentNode.children[i];
+      var childElement = layerElements.get(childNode.id);
+      if (!childElement) return null;
+      entries.push({ node: childNode, element: childElement });
+    }
+    return entries;
+  }
+
+  function canvasInsertionIndex(entries, excludeId, axis, clientX, clientY) {
+    var coord = axis === "x" ? clientX : clientY;
+    var index = 0;
+    for (var i = 0; i < entries.length; i += 1) {
+      if (entries[i].node.id === excludeId) continue;
+      var rect = entries[i].element.getBoundingClientRect();
+      var mid = axis === "x" ? rect.left + rect.width / 2 : rect.top + rect.height / 2;
+      if (coord > mid) index += 1;
+    }
+    return index;
+  }
+
+  function canvasDropPlanAt(clientX, clientY) {
+    var fromId = canvasDrag.fromId;
+    var fromNode = findLayerNode(layerTree, fromId);
+    if (!fromNode || fromNode.parentId == null) return null;
+    var parentNode = findLayerNode(layerTree, fromNode.parentId);
+    if (!parentNode) return null;
+    var dragged = canvasDrag.element;
+    var stack = (document.elementsFromPoint ? document.elementsFromPoint(clientX, clientY) : []) || [];
+    if (!stack.length || stack[0] === host) return null; // pointer is over Raven's own UI
+    var over = null;
+    for (var i = 0; i < stack.length; i += 1) {
+      var entry = stack[i];
+      if (entry === host || entry === dragged) continue;
+      if (dragged.contains && dragged.contains(entry)) continue;
+      over = entry;
+      break;
+    }
+    if (!over) return null;
+    // The first tree-known element up the chain decides the drop family. Page shadow
+    // components resolve to their host here (document.elementsFromPoint retargets),
+    // which matches buildLayerTree never descending into them.
+    var cursor = over;
+    var hitId = null;
+    while (cursor && cursor.nodeType === 1) {
+      var candidateId = layerNodeIdForElement(cursor);
+      if (candidateId != null && candidateId !== fromId) { hitId = candidateId; break; }
+      cursor = cursor.parentElement;
+    }
+    if (hitId == null) return null;
+    var hitNode = findLayerNode(layerTree, hitId);
+    if (!hitNode) return null;
+    if (hitId === fromNode.parentId || hitNode.parentId === fromNode.parentId) {
+      // Same parent: hovering a sibling or the parent's own gaps positions the drop by
+      // sibling midpoints along the parent's layout axis. toNode = children[ins] is
+      // exactly reorderLayer's splice arithmetic — remove fromNode, insert at toNode's
+      // ORIGINAL index — so counting non-dragged midpoints below the pointer lands the
+      // element precisely where the indicator says (derivation in the test file).
+      var entries = canvasChildEntries(parentNode);
+      if (!entries) return null;
+      var parentElement = layerElements.get(parentNode.id);
+      if (!parentElement) return null;
+      var axis = canvasLayoutAxis(parentElement);
+      var ins = canvasInsertionIndex(entries, fromId, axis, clientX, clientY);
+      if (ins === parentNode.children.indexOf(fromNode)) return { kind: "none" };
+      return {
+        kind: "reorder", toId: parentNode.children[ins].id,
+        containerNode: parentNode, containerElement: parentElement, axis: axis, ins: ins
+      };
+    }
+    // Cross-parent: drop INTO a container that has tree children, BESIDE a leaf. An
+    // empty container reads as a leaf here (no children to midpoint against) — a v1
+    // limit; reparentLayer's own cycle/boundary/depth guards own every refusal.
+    var containerNode = hitNode.children.length ? hitNode : findLayerNode(layerTree, hitNode.parentId);
+    if (!containerNode) return null;
+    var kidEntries = canvasChildEntries(containerNode);
+    if (!kidEntries) return null;
+    var containerElement = layerElements.get(containerNode.id);
+    if (!containerElement) return null;
+    var containerAxis = canvasLayoutAxis(containerElement);
+    var toIndex = canvasInsertionIndex(kidEntries, fromId, containerAxis, clientX, clientY);
+    return {
+      kind: "reparent", containerId: containerNode.id, toIndex: toIndex,
+      containerNode: containerNode, containerElement: containerElement, axis: containerAxis, ins: toIndex
+    };
+  }
+
+  function positionDropIndicator(plan) {
+    if (!plan || plan.kind === "none") {
+      dropIndicator.style.display = "none";
+      return;
+    }
+    var entries = canvasChildEntries(plan.containerNode);
+    if (!entries) {
+      dropIndicator.style.display = "none";
+      return;
+    }
+    var real = [];
+    for (var i = 0; i < entries.length; i += 1) {
+      if (entries[i].node.id !== canvasDrag.fromId) real.push(entries[i]);
+    }
+    var containerRect = plan.containerElement.getBoundingClientRect();
+    var edge;
+    if (!real.length) {
+      edge = plan.axis === "x" ? containerRect.left : containerRect.top;
+    } else if (plan.ins < real.length) {
+      var targetRect = real[plan.ins].element.getBoundingClientRect();
+      edge = plan.axis === "x" ? targetRect.left : targetRect.top;
+    } else {
+      var lastRect = real[real.length - 1].element.getBoundingClientRect();
+      edge = plan.axis === "x" ? lastRect.right : lastRect.bottom;
+    }
+    dropIndicator.style.display = "block";
+    if (plan.axis === "x") {
+      dropIndicator.style.left = (edge - 2) + "px";
+      dropIndicator.style.top = containerRect.top + "px";
+      dropIndicator.style.width = "4px";
+      dropIndicator.style.height = containerRect.height + "px";
+    } else {
+      dropIndicator.style.left = containerRect.left + "px";
+      dropIndicator.style.top = (edge - 2) + "px";
+      dropIndicator.style.width = containerRect.width + "px";
+      dropIndicator.style.height = "4px";
+    }
+  }
+
+  function activateCanvasDrag() {
+    // One rebuild attempt covers both a missing tree and a stale one; while drafts are
+    // pending, refreshAppliedLayerTree keeps the previous identities on its own terms.
+    var fromId = layerTree ? layerNodeIdForElement(canvasDrag.element) : null;
+    if (fromId == null) {
+      refreshAppliedLayerTree();
+      fromId = layerTree ? layerNodeIdForElement(canvasDrag.element) : null;
+    }
+    var fromNode = fromId != null ? findLayerNode(layerTree, fromId) : null;
+    if (!fromNode || fromNode.parentId == null) {
+      layerNotice = fromNode ? "Cannot move the page root" : "This element is not in the layer tree";
+      renderPanel();
+      clearCanvasDrag();
+      return false;
+    }
+    canvasDrag.fromId = fromId;
+    canvasDrag.active = true;
+    return true;
+  }
+
+  function clearCanvasDrag() {
+    canvasDrag = null;
+    dropIndicator.style.display = "none";
+  }
+
+  function finishCanvasDrag(apply, expectTrailingClick) {
+    var drag = canvasDrag;
+    clearCanvasDrag();
+    if (!drag || !drag.active) return;
+    // The click that trails a completed drag would re-run selection — swallow it
+    // once. But only when a click is actually coming: a release produces one
+    // (pointerup, or Escape with the button still down), while a pointercancel or
+    // a lost pointerup never does — arming on those leaves the flag live until the
+    // next pointerdown, silently eating an unrelated click, including a
+    // keyboard-generated one that no pointerdown precedes to clear it.
+    if (expectTrailingClick !== false) suppressCanvasClick = true;
+    if (!apply || !drag.plan || drag.plan.kind === "none") return;
+    if (drag.plan.kind === "reorder") reorderLayer(drag.fromId, drag.plan.toId);
+    else reparentLayer(drag.fromId, drag.plan.containerId, drag.plan.toIndex);
+    // The optimistic preview moved the element; the selection outline must follow it.
+    setHighlight(drag.element);
+    paintSelectionOverlays();
+  }
+
+  document.addEventListener("pointerdown", function (event) {
+    suppressCanvasClick = false; // a new gesture always clears a stale one-shot
+    // A drag still here at pointerdown is stale — its pointerup was lost (released
+    // outside the window, or over an iframe whose document swallowed it) or a second
+    // pointer pressed mid-drag. Its plan is untrustworthy either way: abandon it,
+    // never apply it, or the indicator strands visible and the discarded drop reads
+    // as landed.
+    if (canvasDrag) clearCanvasDrag();
+    // Proxy sessions are capture-only: the bridge withholds /layers*, so a move draft
+    // could never reach the agent — the gesture never arms rather than failing late.
+    if (captureOnly) return;
+    if (textEditingElement) return;
+    if (!armed || bothCollapsed()) return;
+    // Shift extends the selection and alt targets the parent — both belong to click.
+    if (event.button !== 0 || event.shiftKey || event.altKey) return;
+    // Touch drag fights page scrolling without touch-action surgery; the Layers tab
+    // stays the touch path for moves.
+    if (event.pointerType === "touch") return;
+    if (!selectedElement) return;
+    var path = event.composedPath ? event.composedPath() : [];
+    if (path.indexOf(host) !== -1) return;
+    var target = composedTarget(event);
+    if (!target || inIgnoredRegion(target)) return;
+    if (target !== selectedElement && !(selectedElement.contains && selectedElement.contains(target))) return;
+    canvasDrag = {
+      pointerId: event.pointerId,
+      element: selectedElement,
+      startX: event.clientX,
+      startY: event.clientY,
+      active: false,
+      fromId: null,
+      plan: null
+    };
+    // Cancelling pointerdown suppresses the compatibility mousedown — native text
+    // selection and image/link drag — while click and dblclick still fire per UI
+    // Events, so re-selection and the dblclick text editor keep working.
+    event.preventDefault();
+  }, true);
+
+  document.addEventListener("pointermove", function (event) {
+    if (!canvasDrag || event.pointerId !== canvasDrag.pointerId) return;
+    // Button up but no pointerup ever reached this document — released outside the
+    // window, or over an iframe (pointer events retarget to the iframe's own
+    // document and the parent never hears the release). Without this check the
+    // drag stays active forever: every later pointermove is preventDefault-ed
+    // viewport-wide and the indicator repaints on a plan the user already
+    // abandoned. The release happened where no click will follow here, so no
+    // trailing-click suppression either.
+    if ((event.buttons & 1) === 0) {
+      finishCanvasDrag(false, false);
+      return;
+    }
+    if (!canvasDrag.active) {
+      var dx = event.clientX - canvasDrag.startX;
+      var dy = event.clientY - canvasDrag.startY;
+      if (dx * dx + dy * dy < 36) return; // 6px slop: below it this is a click, not a drag
+      if (!activateCanvasDrag()) return;
+    }
+    event.preventDefault();
+    canvasDrag.plan = canvasDropPlanAt(event.clientX, event.clientY);
+    positionDropIndicator(canvasDrag.plan);
+  }, true);
+
+  document.addEventListener("pointerup", function (event) {
+    if (!canvasDrag || event.pointerId !== canvasDrag.pointerId) return;
+    if (canvasDrag.active) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+    finishCanvasDrag(true);
+  }, true);
+
+  document.addEventListener("pointercancel", function (event) {
+    if (!canvasDrag || event.pointerId !== canvasDrag.pointerId) return;
+    // No click ever follows a cancelled pointer — do not arm the click suppression.
+    finishCanvasDrag(false, false);
+  }, true);
+
+  // A window switch mid-drag (cmd-tab, a modal from another app) delivers neither
+  // pointerup nor click while unfocused; without this the indicator strands frozen
+  // until the pointer happens to wander back.
+  window.addEventListener("blur", function () {
+    if (canvasDrag) finishCanvasDrag(false, false);
+  });
+
+  // Escape abandons an active drag without applying. Registered before the main
+  // keydown handler on the same node and phase, so stopImmediatePropagation keeps a
+  // drag-cancel Escape from also closing the settings modal.
+  document.addEventListener("keydown", function (event) {
+    if (!canvasDrag || !canvasDrag.active) return;
+    if (event.key !== "Escape" && event.code !== "Escape") return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    finishCanvasDrag(false);
+  }, true);
+
   document.addEventListener("click", function (event) {
+    // A completed canvas drag leaves a trailing click on whatever ended up under the
+    // pointer; consuming the one-shot BEFORE every other guard keeps it from becoming
+    // a surprise re-selection. pointerdown clears a stale flag, so it can never eat a
+    // later, genuine click.
+    if (suppressCanvasClick) {
+      suppressCanvasClick = false;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     // While a caption is being edited, let clicks reach it (caret placement, text
     // selection). Clicking a DIFFERENT element blurs the caption first (blur commits),
     // clearing textEditingElement before this fires, so re-selection still works.

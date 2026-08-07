@@ -269,3 +269,74 @@ Dispositions:
 4. **P3, ACCEPTED.** `\s+`→space collapse flattens newlines in transcripts. Deliberate normalization; dictated text is spoken prose, and the field is editable.
 
 Mutant radii after the additions (all seven measured): M1 six red (shared click entry), M4 two red (both assert stop() was called), M2/M3/M5/M6/M7 exactly one each. Voice suite now 7 tests.
+
+### Checkpoint: on-canvas drag-and-drop (2026-08-07, in progress)
+
+Voice input is DONE and committed (`0531faf`, explicit paths, not pushed — 6 commits ahead, push is Andrew's call). Active work: /goal item 4, Andrew's answer "Dragging elements on the page itself" — drag a SELECTED element directly on the canvas to reorder/reparent it, optimistic preview, tray row, agent applies from the drain.
+
+**Design decision (Option A): drive the EXISTING layer-move machinery from a canvas gesture. No new payload field, no bridge change.** The Layers tab already has the full draft system and the canvas gesture just becomes a second entry point into it:
+- `reorderLayer(fromId, toId)` browser/raven-grab.js:7828 — same-parent; toId = sibling whose index becomes the target (splice semantics: take the sibling's slot — lands after it when dragging down, before it when dragging up; classic list-drag UX, so hovering a sibling = take its slot, NO midpoint math needed for same-parent).
+- `reparentLayer(fromId, toParentId, toIndex)` :7933 — cross-parent; guards cycle/shadow-iframe boundary/depth-12 internally, surfaces layerNotice + renderPanel on refusal.
+- Both do applyLiveMovePreview (optimistic DOM move) + tray row + sendLayerOrderRecord themselves. Draft removal/revert exists at removeChange ~8704.
+- `refreshAppliedLayerTree()` :7469 is SYNCHRONOUS — call it when `!layerTree` before mapping elements to node ids.
+- `layerElements` (Map id→element, :190) — reverse lookup by iteration to get a node id from a DOM element.
+
+**Gesture plan:** document-level pointerdown/pointermove/pointerup in CAPTURE next to the existing canvas click listener (:11802), reusing its guard ladder (textEditingElement / armed / bothCollapsed / host-in-composedPath / inIgnoredRegion / button 0). pointerdown only arms when the target is inside `selectedElement`. ~6px threshold before activating (below threshold = plain click, selection works unchanged). While active: `elementsFromPoint` (plural — skip host + dragged subtree, NO inline pointer-events mutation on the page element), walk up to find (a) a sibling of the dragged node → reorder, or (b) a container with a node id → reparent with toIndex from the child under the pointer (+1 past its midpoint along the container's flex axis). Drop indicator = new div in the shadow root beside `highlight` (:1426 idiom). On drop: call reorderLayer/reparentLayer, re-highlight, suppress the trailing click via a one-shot flag consumed at the top of the click listener.
+
+**Proxy mode:** `captureOnly` flag already exists at :50 (`suppliedGrabConfig.authoring === "withheld"`) — gesture never arms when captureOnly; /layers* routes are withheld by the bridge in proxy mode (src/grab-bridge.ts:1100-1121) so a draft could never be sent anyway.
+
+**Verification ladder queued:** cp mirror + cmp; new test/grab-overlay-drag-move.test.mjs (real Chromium: optimistic order change, tray row, removal revert, below-threshold = click, proxy-disabled, reparent boundary refusal); measured mutants via a scratchpad harness (same pattern as run-voice-mutants.mjs); RAVEN_NO_USAGE_LOG=1 npm test full suite; ledger; Kimi K3 adverse pass via ow-run (STDIN payload, ~8000 max_tokens medium); explicit-path commit.
+
+Blocked elsewhere: mood boards on Andrew's 3 answers; Higgsfield on his YouTube link.
+
+### Drag-and-drop mutant measurement, round 1 (2026-08-07)
+
+First run of the 7-mutant falsifiability matrix against `test/grab-overlay-drag-move.test.mjs` falsified two of the header's own claims — exactly the "a first-run-green test is guessed until proven red" rule firing:
+
+- **M1 (never arm): 4 red, not the claimed 5.** Reorder, reparent, remove-revert, trailing-click went red. The below-threshold, Escape, and proxy tests all SURVIVED because they assert the same nothing-happens the mutant produces. The Escape survival is the real defect: the test never asserted a drag was active before Escape, so "nothing to abandon" and "abandoned" were byte-identical in every observable it read.
+- **M2 (zero slop): 0 red — the below-threshold test could not fail.** Root cause is geometric: in non-overlapping block flow, any pointer that stays inside the dragged element yields ins === fromIndex → plan "none" → the release changes nothing whether or not the drag armed. A 3px in-place wiggle inside a 48px row makes the zero-slop mutant behaviorally invisible; suppressCanvasClick is likewise invisible for a same-element press.
+- M3–M7: exactly 1 red each, each on its intended test — those five rows were honest.
+
+Fixes applied before round 2:
+1. **Dense fixture** `#dense` (three 6px-tall rows, no margin) added to FIXTURE_BODY. The below-threshold test now presses 1px above #m1's bottom edge and wiggles 5px down — sub-slop (25 < 36) but past #m2's midpoint, so under zero slop the wiggle applies a REAL reorder ([m2,m1,m3] + draft), which is the accidental-move harm the 6px threshold exists to prevent, made observable.
+2. **Escape precondition**: mid-drag `indicatorVisible === true` asserted before Escape, so never-arm now reddens it (M1 expected radius becomes 5).
+3. Header matrix rewritten to measured radii with both first-draft failures named in place.
+
+Round 2 of the mutant run in flight; expected M1=5, M2=1 (exactly below-threshold), M3–M7 unchanged at 1 each.
+
+### Drag-and-drop mutant measurement, round 2 (2026-08-07)
+
+Re-run after the dense-fixture and Escape-precondition fixes — all seven radii now measured and matching the header:
+
+- M1 (never arm): **5 red** (reorder, Escape, reparent, remove-revert, trailing-click); below-threshold + proxy survive on the same-nothing-happens principle. The Escape red is the new precondition earning its keep.
+- M2 (zero slop): **exactly 1 red** — the below-threshold test, via the dense fixture's sub-slop midpoint crossing. Fixed from 0 red in round 1.
+- M3 (no indicator): **2 red**, up from 1 — the Escape mid-drag precondition reads the same indicator as the reorder test. Shared observable, shared radius; header row corrected to say so rather than claiming two independent guards.
+- M4 (Escape applies), M5 (no click suppression), M6 (no reparent), M7 (no captureOnly guard): exactly 1 red each, each on its intended test.
+
+Clean suite 7/7 (~1.8s). Full `npm test` + Kimi K3 adverse pass in flight; ledger update and explicit-path commit after both land.
+
+### Drag-and-drop: Kimi K3 adverse pass + round 3 mutant measurement (2026-08-07)
+
+Kimi K3 adverse pass (`ow-run moonshotai/kimi-k3 8000 medium`, $0.15, 632s, truncated mid-finding-8 at the token cap; raw output in gitignored `.claude/agent-output/kimi-drag-adverse-2026-08-07.md`). Eight findings, dispositioned in full:
+
+- **F1 (P1, CONFIRMED — lost pointerup wedges the page).** No `event.buttons` check meant a release outside the window, or over an iframe (whose document swallows the pointerup), left `canvasDrag.active` forever — every subsequent pointermove viewport-wide was preventDefault-ed until the next press. Fix: pointermove now aborts the drag when `(event.buttons & 1) === 0`, plus a window `blur` listener abandons an active drag (window switch delivers neither pointerup nor click).
+- **F2 (P1 — teardown untested).** True: no pointercancel, lost-pointerup, foreign-pointer, or second-pointerdown tests existed; a delete-the-pointercancel-handler mutant survived all 7. Fix: tests 11–14 + mutants M8/M9/M10/M13/M14.
+- **F3 (P2 — untested branches).** True: flex-row x-axis, upward reorder, and INTO-container reparent were all unexercised. Fix: fixture gained `#row` (flex row) and test 8 (upward, splice arithmetic `[d,a,b,c]`), test 9 (INTO a container's own padding), test 10 (x-axis via order change that is a no-op on the wrong axis); mutants M11/M12/M15.
+- **F4 (P2, CONFIRMED — suppression armed on non-click paths).** `suppressCanvasClick` was set unconditionally, so a pointercancel (no click ever follows) left the flag armed to eat a later keyboard-generated click. Fix: `finishCanvasDrag(apply, expectTrailingClick)` — cancel/lost-pointerup/blur pass `false`; pointerup and Escape-with-button-down arm it.
+- **F5 (P2, CONFIRMED — second pointerdown overwrote in-flight state).** Stale drag's indicator stranded, plan silently discarded. Fix: `if (canvasDrag) clearCanvasDrag();` at the top of pointerdown; test 14 + M13.
+- **F6 (P3 — midpoint arithmetic under transforms/overlap).** ACCEPTED as v1 residual: getBoundingClientRect midpoints are approximate under scale/rotate and overlapping absolute positioning; the tray row is the guard. Documented, not fixed.
+- **F7 (P3 — preventDefault at arming).** Deliberate: the selected element's own mousedown handlers are within the constraint's letter ("beyond the selected element"); documented in code.
+- **F8 (P3 — Escape/modal ordering unverifiable from the diff).** VERIFIED TRUE by reading both registrations: drag Escape keydown at ~12105, settings-modal keydown at ~12153, same node/phase, registration order holds, `stopImmediatePropagation` protects the modal. Untested residual, accepted.
+
+Round 3 mutant matrix — 15 mutants, all measured, every radius matching prediction:
+
+- M1 (never arm): **12 red** — every local drag test; below-threshold + proxy survive on the nothing-happens principle.
+- M2 (zero slop): 1 red (below-threshold, dense fixture). M4 (Escape applies), M7 (captureOnly): 1 each.
+- M3 (no indicator): **6 red** — every test asserting the indicator mid-drag (reorder, Escape, lost-pointerup, foreign-pointer, pointercancel, second-pointerdown). Shared observable, shared radius.
+- M5 (no click suppression): 1 red — **aborted first on a stale find-string** (the F4 rewrite turned the suppression line conditional); harness corrected, re-run, exactly the trailing-click test. A find-string mutant goes stale the moment its line is edited — re-verify the whole matrix after any fix round, never carry a radius forward.
+- M6 (no reparent): **2 red** — both reparent tests (cross-parent leaf + INTO-container) share the killed line.
+- M8 (no buttons check) → lost-pointerup only; M9 (no pointercancel) → pointercancel only; M10 (no pointerId check) → foreign-pointer only; M11 (leaf-only reparent) → INTO-container only; M12 (axis always y) → flex-row only; M13 (no stale clear) → second-pointerdown only; M14 (unconditional suppression) → pointercancel only; M15 (`<=` directional no-op, the natural typo) → upward-reorder only.
+
+Suite green 14/14 (~3.3s); overlay parses and `web/public/raven-grab.js` mirror is byte-identical. Full `npm test` + ledger + explicit-path commit next. Not pushed — push is Andrew's call.
+
+**Full-suite catch (2026-08-07):** the blur listener shipped as bare `addEventListener("blur", ...)` — fine in Chromium where the implicit receiver is window, but `grab-bridge.test.mjs`'s `loadOverlayInternals` runs the overlay in a `vm` sandbox that stubs `window`/`document` and defines no global `addEventListener`, so the whole internals load threw. The drag suite (real browser) could never see it; only the full run did. Fixed to `window.addEventListener` (the file's idiom, 15 existing uses) + re-mirrored. Also a harness lesson re-learned: `npm test | tail -12` in a background task made the notification report tail's exit 0, not npm's failure — never pipe a background verification run's output through anything that eats its exit code.
