@@ -147,5 +147,5 @@ test('buildServer gating: store injection un-gates the authed taste subset', asy
 test('stdio (non-remote) surface is unaffected by the P4.2 change', async () => {
   const local = buildServer({});
   const names = Object.keys(local._registeredTools);
-  assert.equal(names.length, 109, 'stdio keeps all tools, including audit, template/layer, review/polish, and 14 local Decision Graph tools');
+  assert.equal(names.length, 110, 'stdio keeps all tools, including audit, template/layer, review/polish, and 14 local Decision Graph tools');
 });

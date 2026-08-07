@@ -1166,7 +1166,7 @@ test('surface calibration interview is built from the profile’s own scopes and
     // non-global scope — every kickoff starts fresh (does not presume the
     // profile's pre-existing scopes apply). The scopes array is still returned.
     assert.deepEqual(ids, [
-      'identity', 'references',
+      'identity', 'references', 'mood_board',
       'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
       'design:entrance', 'design:loading', 'design:navigation', 'design:aesthetic', 'design:libraries',
       'voice', 'exceptions', 'matchers', 'special',
@@ -1186,7 +1186,7 @@ test('surface calibration interview is built from the profile’s own scopes and
     await taste.createTasteProfile(store, { name: 'plain', rules: [baseRules()[2]] });
     const bare = await taste.getTasteInterview(store, 'plain', undefined, undefined, 'full');
     assert.deepEqual(bare.questions.map((q) => q.id), [
-      'identity', 'references',
+      'identity', 'references', 'mood_board',
       'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
       'design:entrance', 'design:loading', 'design:navigation', 'design:aesthetic', 'design:libraries',
       'voice', 'exceptions', 'matchers', 'special',
@@ -1246,7 +1246,7 @@ test('the AI-cinematic-video / scroll-scrub interview options are present, and t
 
     // The dimension/question count is unaffected by adding options to existing questions.
     assert.deepEqual(interview.questions.map((q) => q.id), [
-      'identity', 'references',
+      'identity', 'references', 'mood_board',
       'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
       'design:entrance', 'design:loading', 'design:navigation', 'design:aesthetic', 'design:libraries',
       'voice', 'exceptions', 'matchers', 'special',
@@ -1304,7 +1304,7 @@ test('getTasteInterview depth: first_run (default) returns exactly 4 core questi
     const full = await taste.getTasteInterview(store, 'depth-test', 'some-project', undefined, 'full');
     assert.deepEqual(full.more_questions, []);
     assert.deepEqual(full.questions.map((q) => q.id), [
-      'identity', 'references',
+      'identity', 'references', 'mood_board',
       'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
       'design:entrance', 'design:loading', 'design:navigation', 'design:aesthetic', 'design:libraries',
       'voice', 'exceptions', 'matchers', 'special',

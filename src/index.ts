@@ -32,6 +32,7 @@ import { auditLayoutSnapshot, dispatchAudit, type AuditInput } from "./audit-dis
 import { createTasteProfile, getTasteProfile, listTasteProfiles, labelFinding, auditTaste, ruleInScope, getTasteInterview, bindTasteSurface, listSurfaceBindings, resolveSurfaceBinding, recordTasteDecision, listTasteDecisions, checkBindingConsistency, isPngPathReference } from "./taste.js";
 import type { ReferenceCapture, SurfaceBinding } from "./taste.js";
 import { generateTastePortrait, generateTastePortraitInline } from "./taste-portrait.js";
+import { generateMoodBoard } from "./mood-board.js";
 import { setRemoteRuntime, isRemoteRuntime } from "./remote-runtime.js";
 import { ClosedTasteStore, FsTasteStore, type TasteStore } from "./taste-store.js";
 import { remoteUrlGuardError } from "./remote-url-guard.js";
@@ -1859,7 +1860,7 @@ function numberedDocMaterial(repoRelative: string, content: string): string {
 // grab-bridge tools, 4 are design-system diff tools, 3 are pattern-library tools
 // backed by ~/.raven/references, plus the local audit dispatcher.
 // Everything else (45 stateless tools, including the 5 guarded browser URL audits
-// added in Phase 3) is remote-safe, from 109 local tools.
+// added in Phase 3) is remote-safe, from 110 local tools.
 // Traced to docs/remote-mcp-scope.md §2; asserted at build time.
 function resolveDesignSystemPath(projectDir?: string, designFilePath?: string): string {
   if (designFilePath) return resolve(designFilePath);
@@ -1874,10 +1875,10 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   // also what keeps the anonymous set frozen at the golden 45.
   "configure_design_system_source", "inventory_design_system",
   "diff_design_system", "list_design_system_components",
-  // stateful / local (32)
+  // stateful / local (33)
   "create_taste_profile", "get_taste_profile", "list_taste_profiles",
   "get_taste_interview", "bind_taste_surface", "record_taste_decision",
-  "list_taste_decisions", "generate_taste_portrait", "label_finding", "audit_taste",
+  "list_taste_decisions", "generate_taste_portrait", "generate_mood_board", "label_finding", "audit_taste",
   "delete_taste_data",
   "create_brand_profile", "get_brand_profile", "list_brand_profiles",
   "register_creative_asset", "create_character_profile", "create_generation_job",
@@ -2100,6 +2101,7 @@ const TOOL_ACCESS: Record<string, "readOnly" | "destructive"> = {
   delete_taste_data: "destructive",
   list_taste_decisions: "readOnly",
   generate_taste_portrait: "destructive",
+  generate_mood_board: "destructive",
   list_taste_profiles: "readOnly",
   label_finding: "destructive",
   audit_taste: "readOnly",
@@ -2172,7 +2174,7 @@ function toolAnnotations(toolName: string): {
     : { title: toolTitle(toolName), readOnlyHint: true, destructiveHint: false, openWorldHint: openWorld };
 }
 
-// buildServer() returns a FRESH McpServer with all 109 local tools + the usage-log/
+// buildServer() returns a FRESH McpServer with all 110 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
@@ -2183,7 +2185,7 @@ export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }
 // as appropriate; authenticated stores selectively restore taste tools). evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 109.
+// without threading opts. stdio callers pass nothing → remote=false → all 110.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -7920,6 +7922,21 @@ server.tool(
 );
 
 server.tool(
+  "generate_mood_board",
+  "Compose a mood board from what the Taste Engine already holds for a bound project — the binding's design_notes as chips, its captured references, and pattern-library thumbnails captured from those same reference sites — written as one self-contained HTML file (plus a best-effort PNG of the board) under the taste home's moodboards/ directory, or output_dir. Use it right after the kickoff interview binds a surface ('get a mood board going'), or pass mode:'example' to show a labeled sample board to a user who has never made one, to get their thinking started BEFORE the interview. The board invents nothing: note text stays text (never fabricated color swatches), the ground (light/dark) is measured from the captured references' scheme traits, and every embedded pattern carries its credit. It is an APPROVAL STOP: the result and the board's footer name generate_design_system — the taste engine's core output — as the next step once the user says the direction is right; this tool never runs it. mode:'board' requires an existing surface binding and throws naming get_taste_interview when there is none.",
+  {
+    profile: z.string().min(1).describe("Taste profile name (see list_taste_profiles)."),
+    project: z.string().optional().describe("Bound project name (see get_taste_interview / bind_taste_surface). Required for mode:'board'; ignored for mode:'example'."),
+    mode: z.enum(["board", "example"]).optional().describe("'board' (default): compose the real board from the project's binding. 'example': write a clearly-labeled sample board that shows what a mood board is — use it to seed the user's thinking before calibration."),
+    output_dir: z.string().optional().describe("Directory for the board files. Defaults to <taste home>/moodboards."),
+  },
+  async function ({ profile, project, mode, output_dir }) {
+    var board = await generateMoodBoard({ store: tasteStore, profile: profile, project: project, mode: mode, output_dir: output_dir });
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "generate_mood_board", html_path: board.html_path, image_path: board.image_path, example: board.example, counts: board.counts, warnings: board.warnings, next: board.next }, null, 2) }] };
+  }
+);
+
+server.tool(
   "list_taste_profiles",
   "List locally stored taste profiles with rule/corpus counts and last-updated timestamps.",
   async function () {
@@ -8217,7 +8234,7 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 109 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 110 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });

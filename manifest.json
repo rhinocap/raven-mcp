@@ -452,6 +452,10 @@
       "description": "Render a bound Taste Engine surface as a self-contained designed HTML portrait."
     },
     {
+      "name": "generate_mood_board",
+      "description": "Compose a mood board from what the Taste Engine already holds for a bound project — the binding's design_notes as…"
+    },
+    {
       "name": "list_taste_profiles",
       "description": "List locally stored taste profiles with rule/corpus counts and last-updated timestamps."
     },

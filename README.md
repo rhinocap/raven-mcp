@@ -22,11 +22,11 @@ Raven gives Claude access to a comprehensive design knowledge base:
 
 ## Install
 
-Local stdio (npx / from source) is the **full product**: **109 tools**, including Grab, the pattern library, and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
+Local stdio (npx / from source) is the **full product**: **110 tools**, including Grab, the pattern library, and the file-backed Taste Engine. Hosted endpoints are smaller subsets — pick one path and stick to it.
 
 | Path | How | Tools | Taste | Grab |
 |------|-----|-------|-------|------|
-| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **109** | Yes | Yes |
+| Local stdio | `npx -y raven-mcp` (Claude Code, Cursor `mcp.json`, Codex, Desktop mcpb) | **110** | Yes | Yes |
 | Public remote | `https://mcp.ravenmcp.ai/api/mcp` | **~45** | No | No |
 | Auth remote | `https://mcp.ravenmcp.ai/api/mcp-user` (OAuth) | Taste + audits (no Grab) | Yes | **No** |
 
