@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,9 +37,24 @@ function input(overrides = {}) {
   };
 }
 
+// deepEqual(getReference(saved.ref_id), saved) is satisfied by a field dropped
+// SYMMETRICALLY from both what saveReference writes and what it returns —
+// getReference just re-reads the same file saveReference just wrote, so the
+// two can drift together in lockstep and that assertion stays green throughout.
+// Reading the record file independently of both functions is the only way to
+// see what actually landed on disk.
+//
+// Mutation proof (measured): delete the line
+// `if (input.rect !== undefined) reference.rect = Object.assign({}, input.rect);`
+// from saveReference in dist/reference-store.js. `rect` disappears from the
+// object BEFORE it is either written or returned, so
+// deepEqual(getReference(...), saved) still passes (both sides equally lack it)
+// and only the field-presence loop below turns red. No other test in npm test
+// reads `.rect`; test/e2e-pattern-library.mjs constructs one but is outside
+// npm test.
 test('save and get round-trip every captured field', () => {
-  withReferenceHome(() => {
-    const saved = referenceStore.saveReference(input());
+  withReferenceHome((home) => {
+    const saved = referenceStore.saveReference(input({ taxonomy: ['hero'] }));
     assert.deepEqual(referenceStore.getReference(saved.ref_id), saved);
     assert.equal(saved.host, 'linear.app');
     assert.deepEqual(saved.tags, ['hero', 'button']);
@@ -48,6 +63,14 @@ test('save and get round-trip every captured field', () => {
     });
     assert.match(saved.captured_at, /^\d{4}-\d{2}-\d{2}T/);
     assert.equal(typeof saved.raven_version, 'string');
+
+    const onDisk = JSON.parse(readFileSync(path.join(home, saved.ref_id + '.json'), 'utf8'));
+    for (const field of [
+      'url', 'host', 'owner', 'selector', 'styles', 'tags', 'state_styles',
+      'note', 'rect', 'html', 'taxonomy', 'captured_at', 'raven_version',
+    ]) {
+      assert.ok(Object.hasOwn(onDisk, field), `"${field}" is missing from the record file on disk`);
+    }
   });
 });
 
@@ -73,11 +96,88 @@ test('html is truncated only above 8000 characters', () => {
   });
 });
 
+// The test above uses 20000 and 100 chars — nowhere near the 8000 boundary, so
+// a `>` vs `>=` flip on HTML_LIMIT passes it either way. slice(0, HTML_LIMIT)
+// still returns all 8000 chars under that mutant; what it breaks is
+// html_truncated, wrongly set on an untouched document.
+//
+// Mutation proof: change `html.length > HTML_LIMIT` to `>= HTML_LIMIT` in
+// dist/reference-store.js. Only this test turns red (measured).
+test('html of exactly 8000 characters saves whole with no truncation flag', () => {
+  withReferenceHome(() => {
+    const saved = referenceStore.saveReference(input({ html: 'z'.repeat(8000) }));
+    assert.equal(saved.html, 'z'.repeat(8000));
+    assert.equal(Object.hasOwn(saved, 'html_truncated'), false);
+  });
+});
+
+// The converse boundary: one character past the limit must truncate. The
+// 20000-char test is well past any off-by-one, so a `> HTML_LIMIT + 1` mutant
+// passes it while missing exactly this case.
+//
+// Mutation proof: change `html.length > HTML_LIMIT` to `> HTML_LIMIT + 1` in
+// dist/reference-store.js. Only this test turns red (measured).
+test('html of exactly 8001 characters truncates to 8000 with the flag', () => {
+  withReferenceHome(() => {
+    const saved = referenceStore.saveReference(input({ html: 'z'.repeat(8001) }));
+    assert.equal(saved.html, 'z'.repeat(8000));
+    assert.equal(saved.html_truncated, true);
+  });
+});
+
 test('styles over 200 properties are rejected with the count', () => {
   withReferenceHome(() => {
     const styles = Object.fromEntries(Array.from({ length: 201 }, (_, index) => ['prop-' + index, 'value']));
     assert.throws(() => referenceStore.saveReference(input({ styles })), /201/);
     assert.equal(referenceStore.listReferences().total, 0);
+  });
+});
+
+// The test above only proves 201 is rejected. A `>` vs `>=` flip on
+// STYLE_LIMIT in validateStyleMap also passes it (201 throws either way)
+// while wrongly rejecting exactly 200 — this is the only place the accepted
+// side of that boundary is exercised at the top level.
+//
+// Mutation proof: change `keys.length > STYLE_LIMIT` to `>=` in
+// validateStyleMap, dist/reference-store.js. validateStyleMap is shared by
+// the top-level `styles` field and each state in `state_styles`, so this
+// mutant turns this test AND the per-state 200-property test below red
+// together (measured — exactly those two) — shared blast radius, both
+// exercise the same function.
+test('styles with exactly 200 properties are accepted', () => {
+  withReferenceHome(() => {
+    const styles = Object.fromEntries(Array.from({ length: 200 }, (_, index) => ['prop-' + index, 'value']));
+    const saved = referenceStore.saveReference(input({ styles }));
+    assert.equal(Object.keys(saved.styles).length, 200);
+  });
+});
+
+// state_styles has TWO independent length checks in saveReference, and neither
+// had a test of any kind before these two: the per-state PROPERTY count (this
+// test — routed through the same validateStyleMap as top-level styles) and the
+// count of STATE NAMES (next test — a separate `if` with its own limit).
+//
+// Mutation proof: same validateStyleMap `>` to `>=` flip as the test above;
+// both go red together.
+test('a single state_styles entry with exactly 200 properties is accepted', () => {
+  withReferenceHome(() => {
+    const hover = Object.fromEntries(Array.from({ length: 200 }, (_, index) => ['prop-' + index, 'value']));
+    const saved = referenceStore.saveReference(input({ state_styles: { hover } }));
+    assert.equal(Object.keys(saved.state_styles.hover).length, 200);
+  });
+});
+
+// Mutation proof: change `states.length > STYLE_LIMIT` to `>=` in
+// dist/reference-store.js (the state-NAME count check, not validateStyleMap).
+// Only this test turns red (measured) — no other test constructs state_styles
+// with 200 distinct state keys.
+test('state_styles with exactly 200 distinct state names is accepted', () => {
+  withReferenceHome(() => {
+    const stateStyles = Object.fromEntries(
+      Array.from({ length: 200 }, (_, index) => ['state-' + index, { color: 'red' }]),
+    );
+    const saved = referenceStore.saveReference(input({ state_styles: stateStyles }));
+    assert.equal(Object.keys(saved.state_styles).length, 200);
   });
 });
 
@@ -268,6 +368,53 @@ test('adding a word to a query does not delete every result', () => {
     assert.equal(
       referenceStore.searchReferences({ query: 'pricing toggle' }).total, 1,
       'the more specific query must not return fewer results than either word alone',
+    );
+  });
+});
+
+// The test above holds 'pricing' and 'toggle' on the SAME record, so either
+// held-back word alone keeps that record's score above zero — it cannot tell
+// "every held-back word is independently searchable" from "at least one is".
+// This fixture forces that: two DISJOINT records, each reachable by exactly one
+// of the two words and invisible to the other. The only searchable signal on
+// each record is its tag — selectors are the inert `.alpha`/`.beta` because the
+// selector field IS searched, and a selector containing the query word would
+// hand each record a second hit (the exact confounder the ranking test above
+// already shipped once).
+//
+// Mutation proof: truncate partialQueryTerms's return to its first element
+// (`.slice(0, 1)`) in dist/reference-store.js — one held-back word survives,
+// the other record silently disappears, and the combined total drops to 1.
+// Measured blast radius: this test and 'a phrase outranks a record carrying
+// one word of it alone' (its fragment record depends on the LAST of three
+// held-back words surviving) — and the one-record test above stays GREEN under
+// the same mutant, which is precisely the blindness this fixture closes. Two
+// tests sharing the mutant is expected: same property, different corpus shapes.
+test('adding a word to a query does not delete either half of a two-record result', () => {
+  withReferenceHome(() => {
+    const pricingOnly = referenceStore.saveReference(input({
+      url: 'https://example-a.test/x', app: undefined, note: undefined,
+      selector: '.alpha', tags: ['pricing'],
+    }));
+    const toggleOnly = referenceStore.saveReference(input({
+      url: 'https://example-b.test/y', app: undefined, note: undefined,
+      selector: '.beta', tags: ['toggle'],
+    }));
+
+    // Fixture self-check: each single-word query finds exactly its own record.
+    // If either record is reachable through any other field — html, url, a
+    // default the fixture forgot to null out — these deepEquals fail before the
+    // combined-query assertion can pass vacuously.
+    const pricingAlone = referenceStore.searchReferences({ query: 'pricing' });
+    const toggleAlone = referenceStore.searchReferences({ query: 'toggle' });
+    assert.deepEqual(pricingAlone.results.map((item) => item.reference.ref_id), [pricingOnly.ref_id]);
+    assert.deepEqual(toggleAlone.results.map((item) => item.reference.ref_id), [toggleOnly.ref_id]);
+
+    const combined = referenceStore.searchReferences({ query: 'pricing toggle' });
+    const combinedIds = combined.results.map((item) => item.reference.ref_id).sort();
+    assert.deepEqual(
+      combinedIds, [pricingOnly.ref_id, toggleOnly.ref_id].sort(),
+      'the more specific query must not lose a record either single word alone can find',
     );
   });
 });

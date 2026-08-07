@@ -5,8 +5,10 @@ import path from "node:path";
 // different promises and must stay distinguishable in the refusal a user reads.
 //
 // docs/PATTERN-LIBRARY-POLICY.md makes both of them in prose:
-//   "Raven does not scrape pattern galleries. Not Mobbin, not Refero, not
-//    Screensdesign, not Clicky, not any other curated library."
+//   "Raven refuses captures from the curated galleries it knows about" — the
+//    named-list mechanism, which the doc-reading test in
+//    test/reference-blocklist.test.mjs holds equal to GALLERY_HOSTS in both
+//    directions;
 //   "the host is added to a do-not-capture list"
 // A promise that lives only in a document is kept by whoever happens to have
 // read it. This module is the same promise as a refusal.
@@ -28,10 +30,17 @@ export interface BlockedHost {
 //
 // This list is NOT exhaustive and is not a legal determination — it names the
 // galleries the policy document names plus their obvious peers. A gallery that
-// is missing is a gap in this list, not permission. The corresponding claim in
-// the policy is deliberately worded "not any other curated library", which the
-// code cannot enumerate; this is the enforceable subset of it.
-var GALLERY_HOSTS: BlockedHost[] = [
+// is missing is a gap in this list, not permission. The policy's wording is
+// deliberately split to match: the named list is the ONLY enforcement, and its
+// stance sentence ("covers every curated library") is the position the code
+// cannot enumerate — this is the enforceable subset of it.
+//
+// Exported so the doc-parity test compares MEMBERSHIP in this array, not the
+// `reason` label — filtering BLOCKED_HOSTS by reason === "gallery" let an
+// entry added here with a mislabeled reason escape the doc equality entirely
+// (Kimi adverse pass, 2026-08-06, claim 1: the equality was over the label,
+// not the list).
+export var GALLERY_HOSTS: BlockedHost[] = [
   { host: "mobbin.com", reason: "gallery", note: "Mobbin is a curated pattern library. Capture the pattern from the live product instead — the app or site Mobbin screenshotted." },
   { host: "refero.design", reason: "gallery", note: "Refero is a curated pattern library. Capture from the live product it screenshotted." },
   { host: "screensdesign.com", reason: "gallery", note: "Screensdesign is a curated pattern library. Capture from the live app instead." },

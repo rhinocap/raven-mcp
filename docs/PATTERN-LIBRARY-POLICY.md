@@ -41,15 +41,23 @@ picture of the structure, not a faithful reproduction of the page.
 
 ## Where captures come from
 
-**You capture them, from pages you are already looking at.** Raven's grab overlay
-runs on a page you opened. An agent using Raven cannot go and find references on
-its own — `capture_reference` works against a URL that came from you.
+**The intended source is a page you are already looking at.** Raven's grab
+overlay runs on a page you opened, and the capture flow is built around handing
+its selection to `capture_reference`. Enforcement ends there: the tool takes a
+URL as an argument, so nothing stops an agent from passing one you never opened.
+What Raven guarantees is what it provides and records — no crawler, no search,
+full provenance on every record — not what a caller chooses to pass in.
 
-**Raven does not scrape pattern galleries.** Not Mobbin, not Refero, not
-Screensdesign, not Clicky, not any other curated library. Their terms forbid
-mirroring and scraping their corpus, and re-hosting someone else's curation is a
-different act from capturing a pattern off the live product it ships in. If a
-pattern is in Raven's library, it was taken from the site that actually runs it.
+**Raven refuses captures from the curated galleries it knows about.** The seeded
+list names these galleries — Mobbin, Refero, Screensdesign, Clicky, Screenlane,
+Pttrns, UI Patterns, Collect UI, Land-book, Godly, Lapa, SiteInspire,
+SaaS Landing Page, Awwwards, Dribbble, Behance — plus anything you add to your
+local do-not-capture file. That list is the only enforcement; it is finite, and
+a gallery missing from it is a gap in the list, not permission. The position
+behind the list covers every curated library: their terms forbid mirroring
+their corpus, and re-hosting someone else's curation is a different act from
+capturing a pattern off the live product it ships in. Capture from the site
+that actually runs the pattern.
 
 **Captures stay on your machine by default.** They are written to
 `~/.raven/references/` as ordinary files you own. Nothing is uploaded. The hosted

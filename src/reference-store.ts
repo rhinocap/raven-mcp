@@ -194,6 +194,32 @@ export function saveReference(input: SaveReferenceInput): PatternReference {
   } catch (_error) {
     index = rebuildIndexFromRecords();
   }
+  // Re-checked immediately before the write, not only at entry. The entry check
+  // and this one bracket the validation work between them: a host added to the
+  // local do-not-capture file in that window would otherwise be stored by a
+  // call that began before the entry landed. Same shape as the takedown's
+  // still_present re-read — it does not make check-and-write atomic (the last
+  // few syscalls stay unobserved; that residual is a written decision, not an
+  // oversight), it narrows the window from the whole function to those
+  // syscalls. The re-check recomputes the home rather than reusing an
+  // entry-time value on purpose: a re-check running on stale state re-checks
+  // nothing, and the fresh read is also what lets the test inject a mid-call
+  // list change to prove this line exists.
+  //
+  // Second residual, named rather than implied (Kimi adverse pass, 2026-08-06,
+  // claim 2): localBlockedHosts degrades a corrupt file to [] by design — a
+  // hand-edited list must not brick every capture — so a NON-ATOMIC in-place
+  // edit of do-not-capture.json observed mid-write parses as garbage and this
+  // re-check passes as if the list were empty. That is the cost of the swallow
+  // direction on this path, accepted with it: an editor that writes
+  // temp-then-rename (most do) never exposes the torn state, and the failure
+  // needs the tear to land exactly between the entry check and this line.
+  var recheck = blockedEntryFor(
+    url.hostname,
+    BLOCKED_HOSTS.concat(localBlockedHosts(referenceHome())),
+    hostMatches,
+  );
+  if (recheck) throw new ReferenceBlockedError(recheck, url.hostname);
   atomicWriteJson(recordPath(reference.ref_id), reference);
   index.push(reference.ref_id);
   atomicWriteJson(indexPath(), { version: 1, ref_ids: index });
@@ -616,6 +642,28 @@ export function deleteReferencesByHost(host: string, expected_ref_ids?: string[]
   // after this line is still missed. It narrows the unobserved window from the
   // whole sweep to the gap between the last unlink and this read, and turns the
   // common case from a false all-clear into a named leftover the caller can act on.
+  //
+  // DECISION (2026-08-06, adverse-pass finding 1): that residual window — the
+  // last few syscalls between this re-read and the return — is ACCEPTED, not
+  // scheduled for a lock. The harm, stated at its worst rather than its most
+  // reassuring (Kimi adverse pass, 2026-08-06, claim 6): a record landing in
+  // the window survives a takedown that was reported clean — including
+  // attachReferenceImage's rewrite putting back a third-party record AND its
+  // rendered PNG — and because its ref_id was never in this sweep's plan,
+  // nothing in this result names it. "Self-heals" is contingent: the record
+  // stays an ordinary record, visible to search_references and removable by
+  // the next forget_references, but the clean report is itself the reason no
+  // one runs one — retention lasts until someone looks again, and the caller
+  // who relayed the all-clear to a rights holder has no cue to. That is the
+  // accepted cost. Against it: no locking primitive exists anywhere in this
+  // codebase, multi-process authoring is not a supported mode, and a
+  // cross-process lock imported for a two-syscall window would be the largest
+  // mechanism in the module guarding its smallest hole. Reopen this decision
+  // if any of three things changes: a locking primitive lands in the codebase
+  // for some other reason, multi-process authoring becomes supported, or a
+  // real user reports a resurrected record. Until one does, the window is
+  // documented here and in the test file's note that the positive direction
+  // is untestable in-process.
   var remaining: string[] = [];
   var verificationFailed: string | undefined;
   try {
@@ -771,9 +819,14 @@ function partialQueryTerms(query: string, expandedTerms: string[], exactTerms: s
 // stays deliberately loose: "scroll" must still match a note that says
 // "scrolling", which is the most likely way a searcher's word and a captured
 // note disagree. The cost is that a short non-stop-word term over-matches by
-// prefix ("nav" hits "navigation", wanted; "ui" hits "uikit", tolerable). Stop
-// words are what made that cost unacceptable, and they are gone before we get
-// here.
+// prefix ("nav" hits "navigation", wanted; "ui" hits "uikit", tolerable) — and
+// that includes semantically unrelated words sharing a prefix: "nav" also hits
+// "navy" in a color note. Accepted (2026-08-06 adverse pass, finding 7): a
+// false prefix hit costs one extra result in a ranked list a human is looking
+// at, while the whole-word alternative silently loses the scroll/"scrolling"
+// class of match — a wrong absence, which in a small corpus reads as "Raven has
+// nothing" and is the worse direction. Stop words are what made the over-match
+// cost unacceptable, and they are gone before we get here.
 function fieldMatchesTerm(field: string, term: string): boolean {
   if (!term) return false;
   return (" " + field).includes(" " + term);

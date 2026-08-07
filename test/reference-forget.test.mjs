@@ -11,7 +11,7 @@
 // "the call returned" would pass against a delete that removed nothing.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, existsSync, writeFileSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -725,5 +725,147 @@ test('forget_references does not claim a repair it did not make, and says when i
     assert.equal(ids.length, 1, 'the preview must name the id the confirm pins to');
     const pinnedRun = await call(client, 'forget_references', { host: 'linear.app', confirm: true, expected_ref_ids: ids });
     assert.doesNotMatch(pinnedRun.note, /not pinned to a preview/);
+  });
+});
+
+// --- verification_failed: a check that could not RUN is not a check that passed ---
+//
+// deleteReferencesByHost re-reads the directory after the sweep and reports what
+// survived in still_present[]. The earlier version swallowed any error from that
+// re-read, so an unreadable reference directory left still_present: [] and the
+// tool computed `cleared` from four empty arrays — a takedown against a directory
+// it could no longer read answered with exactly the same words as one that was
+// read back and found empty. That is the forbidden outcome (a false all-clear),
+// one layer up: not "the sweep lied" but "the check on the sweep lied by dying
+// silently".
+//
+// Forcing the failure needs care, because the whole call is synchronous and
+// dist/ is ESM: monkeypatching node:fs is invisible to its named-import bindings
+// (measured on Node 26.5.0 — a patched fs.readdirSync is NOT seen by an ESM
+// importer), and any real permission change made before the call breaks the
+// PLAN read, which throws before the sweep starts and never reaches the
+// verification at all. The one seam the product code re-consults mid-call is
+// process.env: referenceHome() reads RAVEN_REFERENCE_HOME on every call, and
+// process.env is a replaceable property. The proxy below answers with the real
+// home while any record file remains and with a REGULAR FILE once the sweep has
+// emptied the corpus (no record json, index rewritten to []), so the plan and
+// every unlink run against real state and exactly the post-sweep re-read gets
+// ENOTDIR from readdirSync. The trigger is state-described, not call-counted —
+// a change to how often referenceHome() is consulted cannot silently move it.
+function withVerificationOutage(home, run) {
+  const decoyDir = mkdtempSync(path.join(tmpdir(), 'raven-forget-decoy-'));
+  const decoy = path.join(decoyDir, 'not-a-directory');
+  writeFileSync(decoy, 'a reference home that exists and cannot be readdir-ed');
+  // Fixture self-check: the decoy must be a regular file, or existsSync(home)
+  // goes false in recordFiles and the re-read "succeeds" over an empty scan —
+  // the exact silent pass this helper exists to prevent.
+  assert.ok(statSync(decoy).isFile(), 'the decoy must be a regular file');
+  const sweepComplete = () => {
+    let entries;
+    try { entries = readdirSync(home); } catch { return false; }
+    const records = entries.filter((f) =>
+      f.endsWith('.json') && f !== 'index.json' && !f.startsWith('index.corrupt-'));
+    if (records.length > 0) return false;
+    try {
+      const idx = JSON.parse(readFileSync(path.join(home, 'index.json'), 'utf8'));
+      return Array.isArray(idx.ref_ids) && idx.ref_ids.length === 0;
+    } catch { return false; }
+  };
+  const realEnv = process.env;
+  const state = { redirected: 0 };
+  process.env = new Proxy({ ...realEnv }, {
+    get(target, prop, receiver) {
+      if (prop === 'RAVEN_REFERENCE_HOME' && sweepComplete()) {
+        state.redirected++;
+        return decoy;
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+  });
+  // If the outage never fired, the test measured a working verification and
+  // proves nothing about the failing one. Refuse to pass quietly. The first
+  // draft of this helper asserted and cleaned up synchronously, which for an
+  // async run() restored the real env before the tool call ever executed — the
+  // outage could not fire, and this assertion is what caught it.
+  const verify = () => assert.ok(state.redirected > 0, 'the outage never fired — the fixture measured nothing');
+  const cleanup = () => {
+    process.env = realEnv;
+    rmSync(decoyDir, { recursive: true, force: true });
+  };
+  let result;
+  try {
+    result = run();
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
+  if (result && typeof result.then === 'function') {
+    return result.then((value) => { verify(); return value; }).finally(cleanup);
+  }
+  try {
+    verify();
+    return result;
+  } finally {
+    cleanup();
+  }
+}
+
+test('a post-sweep re-read that throws is reported in verification_failed, not swallowed as clean', () => {
+  // Pins the store half: the catch must RECORD the failure. Reverting it to a
+  // bare swallow leaves verification_failed undefined while still_present is []
+  // for the wrong reason, and the first assertion below goes red.
+  //
+  // Mutation proof (measured, full suite): drop `verificationFailed =
+  // error.message` from the catch in dist/reference-store.js — this test and
+  // the tool-seam test below turn red, and nothing else does. That pair is the
+  // whole coverage of this field; before these two tests the same mutant left
+  // the suite entirely green, which is how the fix shipped untested.
+  withReferenceHome((home) => {
+    const saved = save('https://linear.app/pricing');
+    const result = withVerificationOutage(home, () =>
+      store.deleteReferencesByHost('linear.app', undefined));
+    assert.match(String(result.verification_failed), /ENOTDIR/,
+      'the re-read failure must be recorded, with the underlying error named');
+    // The SWEEP succeeded — this is a failed check on a completed removal, and
+    // filing it anywhere else would misreport which thing needs a human.
+    assert.deepEqual(result.removed, [saved.ref_id]);
+    assert.deepEqual(result.failed, []);
+    // An unverifiable directory has no business asserting leftovers either:
+    // still_present is empty because nothing was READ, and verification_failed
+    // is what says so.
+    assert.deepEqual(result.still_present, []);
+  });
+});
+
+test('the tool reports a failed verification as UNKNOWN — never as cleared, never as records left behind', async () => {
+  // Pins the tool half, both mechanisms separately:
+  // - the `cleared` guard: with verification_failed set the note must still end
+  //   "This host is NOT fully cleared." — drop `&& !result.verification_failed`
+  //   from the guard and that sentence disappears while everything else holds;
+  // - the note sentence: the failure must read as "the CHECK did not run", which
+  //   is a different sentence from "records were left behind" — the two negative
+  //   phrasings the other fields use ("left on disk", "STILL on disk") must not
+  //   appear, because nothing was observed on disk at all.
+  //
+  // Mutation proof (measured, full suite, one mutant at a time in dist/index.js):
+  // dropping `&& !result.verification_failed` from the cleared guard turns this
+  // test red and ONLY this test (it dies on the "NOT fully cleared" match; the
+  // UNKNOWN sentence is asserted earlier and still passes); deleting the
+  // verification_failed note branch also turns this test red and ONLY this test
+  // (it dies earlier, on the "could not run" match). One test, two mechanisms,
+  // each mutant killed by its own assertion.
+  await withClient(async (client, home) => {
+    const saved = save('https://linear.app/pricing');
+    const payload = await withVerificationOutage(home, () =>
+      call(client, 'forget_references', {
+        host: 'linear.app', confirm: true, expected_ref_ids: [saved.ref_id],
+      }));
+    assert.match(String(payload.verification_failed), /ENOTDIR/);
+    assert.deepEqual(payload.removed, [saved.ref_id]);
+    assert.match(payload.note, /The post-sweep verification could not run \(/);
+    assert.match(payload.note, /UNKNOWN, not clear/);
+    assert.match(payload.note, /This host is NOT fully cleared\./);
+    assert.doesNotMatch(payload.note, /left on disk/);
+    assert.doesNotMatch(payload.note, /STILL on disk/);
   });
 });
