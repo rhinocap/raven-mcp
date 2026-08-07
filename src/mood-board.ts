@@ -26,7 +26,7 @@
 //      engine, and a mood board is the moment a human looks and says "yes,
 //      that" — generating past that look would delete the reason to look.
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import {
   getTasteProfile,
   resolveSurfaceBinding,
@@ -57,6 +57,11 @@ export type MoodBoardInput = {
   project?: string;
   mode?: MoodBoardMode;
   output_dir?: string;
+  // The user's OWN images — a generated brand pack, product shots, mood images
+  // — embedded into the board as data URIs. Local file paths on the caller's
+  // machine; the tool is in REMOTE_GATED_TOOLS, so the hosted endpoint never
+  // sees this field any more than it sees output_dir.
+  image_paths?: string[];
 };
 
 export type MoodBoardResult = {
@@ -66,7 +71,7 @@ export type MoodBoardResult = {
   // and must never be lost to a missing browser.
   image_path: string | null;
   example: boolean;
-  counts: { notes: number; references: number; patterns: number };
+  counts: { notes: number; references: number; patterns: number; images: number };
   warnings: string[];
   // The approval stop, stated on the result as well as in the document footer.
   next: string;
@@ -92,6 +97,9 @@ export type MoodBoardData = {
   notes: { key: string; text: string }[];
   references: { url: string; liked?: string; scheme?: string }[];
   patterns: MoodBoardPattern[];
+  // Optional so the exported pure builder keeps working for every existing
+  // caller; a board with none simply has no "Your assets" section.
+  local_images?: { name: string; data_uri: string }[];
 };
 
 const NEXT_STEP =
@@ -182,6 +190,14 @@ export function buildMoodBoardDocument(data: MoodBoardData): string {
       + '<figcaption class="pattern-credit">' + escapeHtml(pattern.credit) + "</figcaption></figure>";
   }).join("");
 
+  const localCards = (data.local_images || []).map(function (image) {
+    // Same rule as pattern cards: escape the data URI too, not just the name —
+    // the builder is exported and pure, so self-containment must hold against
+    // any caller's data, never ride on what this module's own producer builds.
+    return '<figure class="pattern"><img class="pattern-img" alt="' + escapeHtml(image.name) + '" src="' + escapeHtml(image.data_uri) + '">'
+      + '<figcaption class="pattern-credit">' + escapeHtml(image.name) + "</figcaption></figure>";
+  }).join("");
+
   const exampleBanner = data.example
     ? '<div class="example-banner">EXAMPLE — this is a sample mood board, not your project. Yours is composed from the references and patterns you actually capture.</div>'
     : "";
@@ -229,6 +245,7 @@ export function buildMoodBoardDocument(data: MoodBoardData): string {
     + '<div class="meta">' + escapeHtml(data.surface) + " · profile " + escapeHtml(data.profile) + " · " + escapeHtml(data.generated_at) + " · " + escapeHtml(data.ground) + " ground " + groundProvenance + "</div>"
     + (data.notes.length > 0 ? "<h2>Design notes</h2><div class=\"notes\">" + chips + "</div>" : "")
     + (data.voice_note.length > 0 ? "<h2>Voice</h2><div class=\"voice\">" + escapeHtml(data.voice_note) + "</div>" : "")
+    + (localCards.length > 0 ? "<h2>Your assets</h2><div class=\"patterns\">" + localCards + "</div>" : "")
     + (data.references.length > 0 ? "<h2>References</h2>" + referenceRows : "")
     + (data.patterns.length > 0 ? "<h2>Captured patterns</h2><div class=\"patterns\">" + patternCards + "</div>" : "")
     + "<footer>Next step, when this direction feels right: generate_design_system — the taste engine's core output. This board never runs it; a human looks first.</footer>"
@@ -305,13 +322,98 @@ async function renderBoardImage(html: string): Promise<Uint8Array | null> {
   }
 }
 
+// The MIME type is sniffed from the BYTES, never the extension: a data URI
+// declares a type to the browser, and declaring one the file's own bytes
+// contradict would be this module inventing a fact (property 2, applied to
+// metadata). Anything unrecognised — including SVG, which is a scriptable
+// DOCUMENT, not a bitmap, and has no place inside a self-contained board —
+// is skipped with a warning naming the path and why. Never a silent drop.
+function sniffImageMime(bytes: Buffer): string | null {
+  // All EIGHT signature bytes, not just "\x89PNG" — the trailing
+  // \r\n\x1a\n is part of the signature, and checking half of it typed
+  // "\x89PNG<anything>" as a PNG. (Kimi adverse pass, 2026-08-07.)
+  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a) return "image/png";
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+  if (bytes.length >= 6 && bytes.toString("latin1", 0, 4) === "GIF8") return "image/gif";
+  if (bytes.length >= 12 && bytes.toString("latin1", 0, 4) === "RIFF" && bytes.toString("latin1", 8, 12) === "WEBP") return "image/webp";
+  return null;
+}
+
+// The user's own images, embedded under the SAME caps as pattern thumbnails.
+// They run first and hand their byte count to embeddablePatterns, because the
+// budget is ONE budget: two counters would let a single board carry double the
+// cap the constants promise. User assets take priority in that order on
+// purpose — they are the user's own brand material, the thing the board
+// exists to show; a corpus thumbnail is the thing that yields.
+function localImages(
+  paths: string[],
+  warnings: string[],
+): { images: { name: string; data_uri: string }[]; embeddedBytes: number } {
+  const images: { name: string; data_uri: string }[] = [];
+  let embeddedBytes = 0;
+  for (const rawPath of paths) {
+    const imagePath = resolve(rawPath);
+    let bytes: Buffer;
+    try {
+      // statSync().isFile(), not existsSync — a directory at the path is this
+      // codebase's own known failure shape and must read as unusable, not
+      // fall into readFileSync's EISDIR with a less specific message.
+      const stat = statSync(imagePath);
+      if (!stat.isFile()) {
+        warnings.push("Local image '" + rawPath + "' is not a regular file — skipped.");
+        continue;
+      }
+      // The per-image cap is enforced from stat BEFORE readFileSync: the cap
+      // exists so a bad path costs an image, never the board — and reading
+      // first means a 12GB file with a PNG header costs the PROCESS before
+      // the cap ever runs. (Kimi adverse pass, 2026-08-07.) The post-read
+      // check below stays for a file that GROWS between stat and read, but
+      // say plainly what that means: this pre-check owns every stable file,
+      // so no deterministic test can reach the post-read one — its deletion
+      // SURVIVES the mutant matrix and is documented there as expected, not
+      // pretended killed. (It also cannot stop the grown read itself; it
+      // only keeps an over-cap result out of the board.)
+      // The total-embed budget is deliberately NOT pre-checked here — any
+      // file passing this cap is small enough to read safely, and the budget
+      // is charged from the bytes actually read, one authority, post-read.
+      if (stat.size > MAX_EMBED_IMAGE_BYTES) {
+        warnings.push("Local image '" + rawPath + "' (" + stat.size + " bytes) exceeds the per-image embed cap — skipped.");
+        continue;
+      }
+      bytes = readFileSync(imagePath);
+    } catch (error) {
+      warnings.push("Local image '" + rawPath + "' could not be read (" + String(error instanceof Error ? error.message : error) + ") — skipped.");
+      continue;
+    }
+    const mime = sniffImageMime(bytes);
+    if (mime === null) {
+      warnings.push("Local image '" + rawPath + "' is not recognisable as png/jpeg/gif/webp (sniffed from the bytes, never the extension) — skipped.");
+      continue;
+    }
+    if (bytes.length > MAX_EMBED_IMAGE_BYTES) {
+      warnings.push("Local image '" + rawPath + "' (" + bytes.length + " bytes) exceeds the per-image embed cap — skipped.");
+      continue;
+    }
+    if (embeddedBytes + bytes.length > MAX_EMBED_TOTAL_BYTES) {
+      warnings.push("Local image '" + rawPath + "' skipped: the board reached its total embed budget.");
+      continue;
+    }
+    embeddedBytes += bytes.length;
+    images.push({ name: basename(imagePath), data_uri: "data:" + mime + ";base64," + bytes.toString("base64") });
+  }
+  return { images: images, embeddedBytes: embeddedBytes };
+}
+
 function embeddablePatterns(
   hosts: string[],
   warnings: string[],
+  // Bytes already spent by the user's own images — the shared-budget half of
+  // the contract above.
+  alreadyEmbeddedBytes: number,
 ): MoodBoardPattern[] {
   const patterns: MoodBoardPattern[] = [];
   const seen = new Set<string>();
-  let embeddedBytes = 0;
+  let embeddedBytes = alreadyEmbeddedBytes;
   for (const host of hosts) {
     let found;
     try {
@@ -391,6 +493,19 @@ export async function generateMoodBoard(input: MoodBoardInput): Promise<MoodBoar
     throw new Error("profile is required");
   }
   const mode: MoodBoardMode = input.mode === "example" ? "example" : "board";
+  let imagePaths: string[] = [];
+  if (input.image_paths !== undefined) {
+    if (!Array.isArray(input.image_paths) || input.image_paths.some(function (p) { return typeof p !== "string" || p.trim().length === 0; })) {
+      throw new Error("image_paths must be an array of non-empty file path strings");
+    }
+    // The RAW path is used, never a trimmed copy: leading/trailing whitespace
+    // is legal in a filename on macOS/Linux, and trimming here made the
+    // ENOENT warning name a path that exists and is readable — a warning
+    // pointing at the wrong fact. trim() appears only in the emptiness
+    // refusal above, where whitespace-only is the thing being refused.
+    // (Kimi adverse pass, 2026-08-07.)
+    imagePaths = input.image_paths.slice();
+  }
   const profile = await getTasteProfile(input.store, input.profile.trim());
   const warnings: string[] = [];
   const generatedAt = new Date().toISOString();
@@ -400,6 +515,12 @@ export async function generateMoodBoard(input: MoodBoardInput): Promise<MoodBoar
   if (mode === "example") {
     data = exampleMoodBoardData(profile.name, generatedAt);
     fileStem = safeFilename(profile.name) + "--example";
+    if (imagePaths.length > 0) {
+      // The example is canned and LABELED as not-yours; mixing the user's
+      // real assets into it would contradict the label. Ignored loudly, never
+      // silently — same rule as every other skip in this module.
+      warnings.push("image_paths is ignored for mode:'example' — the sample board is canned; generate the real board (mode:'board') to include your images.");
+    }
   } else {
     const project = typeof input.project === "string" ? input.project.trim() : "";
     if (project.length === 0) {
@@ -421,8 +542,9 @@ export async function generateMoodBoard(input: MoodBoardInput): Promise<MoodBoar
       if (ref.traits && ref.traits.scheme !== "unknown") row.scheme = ref.traits.scheme;
       return row;
     });
-    const patterns = embeddablePatterns(referenceHosts(binding), warnings);
-    if (notes.length === 0 && references.length === 0 && patterns.length === 0) {
+    const local = localImages(imagePaths, warnings);
+    const patterns = embeddablePatterns(referenceHosts(binding), warnings, local.embeddedBytes);
+    if (notes.length === 0 && references.length === 0 && patterns.length === 0 && local.images.length === 0) {
       warnings.push("The binding for '" + binding.project + "' has no design notes, references, or captured patterns yet — the board is a header and a next step. Deepen the interview (more_questions) or capture references first.");
     }
     data = {
@@ -436,6 +558,7 @@ export async function generateMoodBoard(input: MoodBoardInput): Promise<MoodBoar
       notes: notes,
       references: references,
       patterns: patterns,
+      local_images: local.images,
     };
     // safeFilename is lossy on purpose, and the collision it allows is
     // ACCEPTED: projects "a/b" and "a b" (or two all-punctuation names) land
@@ -478,7 +601,7 @@ export async function generateMoodBoard(input: MoodBoardInput): Promise<MoodBoar
     html_path: htmlPath,
     image_path: imagePath,
     example: mode === "example",
-    counts: { notes: data.notes.length, references: data.references.length, patterns: data.patterns.length },
+    counts: { notes: data.notes.length, references: data.references.length, patterns: data.patterns.length, images: (data.local_images || []).length },
     warnings: warnings,
     next: NEXT_STEP,
   };

@@ -27,9 +27,14 @@ is built and everything downstream inherits it.
 Run the kickoff interview even though the project doesn't exist yet:
 
 - `get_taste_interview` with your profile and the new brand's working name.
-- Answer the four core questions as *decisions*, not descriptions: what the
-  product is, how it should read (aesthetic), how it should sound (voice), and
-  what hosts will identify it later.
+- Answer the five core questions as *decisions*, not descriptions: what the
+  product is, what already exists for it (genesis — a brand, a design system,
+  brand assets, or nothing yet), how it should read (aesthetic), how it should
+  sound (voice), and what hosts will identify it later.
+- The genesis answer is the fork in this whole flow: point Raven at a design
+  system you already have (`configure_design_system_source`, or `base_system`
+  on `generate_design_system`), or say you have nothing and the interview
+  routes you through the steps below — mood board, saved system, DESIGN.md.
 - Persist with `bind_taste_surface`. Anything you already know — palette
   leanings, type feelings, cliches to avoid — goes in `design_notes`.
 
@@ -54,7 +59,9 @@ than the pretty pictures:
 
 Back in Raven, `generate_mood_board` (`mode:'board'`) composes what the
 binding now holds — your notes as chips, your references — into one
-self-contained HTML board. Put the generated pack next to it and look.
+self-contained HTML board. Pass the generated pack's files as `image_paths`
+and they render inside it as a "Your assets" section, so the board and the
+pack are one page to look at, not two windows to compare.
 
 This is deliberately a stop, not a step. The board names the next tool and
 never runs it: a human decides the direction is right first. If it isn't,
@@ -96,24 +103,21 @@ init_design_md({ path: "DESIGN.md", source: "smash-grab-burger-co" })
 The saved system's palette, spacing, radii, and typography arrive in the
 frontmatter directly; `update_design_md` keeps later edits surgical.
 
-## What this flow does not do yet
+## Gaps this doc used to name, now closed
 
-Two gaps are known and deliberate — they add tool surface, which is a
-product decision, not a doc fix:
+Three gaps were known when this doc first shipped; all three are closed, and
+each closure is the reason a step above reads the way it does:
 
-1. **Generated images as references.** `capture_reference` captures from a
-   live page; a generated brand pack is a directory of image files. Until a
-   local-image intake exists, the pack informs the flow through the interview
-   notes and the hex, and the images themselves stay beside the mood board
-   rather than inside it.
-2. **A genesis interview mode.** The kickoff interview calibrates taste for a
-   project; a dedicated brand-genesis question set (name exploration, hero
-   products, avoid-list as a first-class answer) would make step 1 sharper
-   for someone starting from nothing.
-
-A third gap closed since this doc first shipped: generated systems used to
-vanish with the response, which is why step 5 once required hand-transcribing
-DTCG into the frontmatter. `save: true` (step 4) is the fix — the design
-system is now a durable output of the taste engine, not a string that
-scrolls past. Saved systems are local-only: the hosted endpoint neither
-stores nor lists them.
+1. **Generated images ride inside the board now.** `generate_mood_board`
+   takes `image_paths` — a generated brand pack, product shots, mood images —
+   and embeds them as a "Your assets" section, typed from their bytes (never
+   the extension), under the same embed budget as everything else. They are
+   your material, so no third-party credit rides on them.
+2. **The kickoff interview IS the genesis interview.** Its second core
+   question asks what already exists and routes what's missing to generation —
+   there is no separate mode to remember to run.
+3. **Generated systems are durable.** They used to vanish with the response,
+   which is why step 5 once required hand-transcribing DTCG into the
+   frontmatter. `save: true` (step 4) is the fix — the design system is a
+   durable output of the taste engine, not a string that scrolls past. Saved
+   systems are local-only: the hosted endpoint neither stores nor lists them.

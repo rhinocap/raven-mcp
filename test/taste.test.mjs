@@ -1166,7 +1166,7 @@ test('surface calibration interview is built from the profile’s own scopes and
     // non-global scope — every kickoff starts fresh (does not presume the
     // profile's pre-existing scopes apply). The scopes array is still returned.
     assert.deepEqual(ids, [
-      'identity', 'references', 'mood_board',
+      'identity', 'genesis', 'references', 'mood_board',
       'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
       'design:entrance', 'design:loading', 'design:navigation', 'design:aesthetic', 'design:libraries',
       'voice', 'exceptions', 'matchers', 'special',
@@ -1186,7 +1186,7 @@ test('surface calibration interview is built from the profile’s own scopes and
     await taste.createTasteProfile(store, { name: 'plain', rules: [baseRules()[2]] });
     const bare = await taste.getTasteInterview(store, 'plain', undefined, undefined, 'full');
     assert.deepEqual(bare.questions.map((q) => q.id), [
-      'identity', 'references', 'mood_board',
+      'identity', 'genesis', 'references', 'mood_board',
       'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
       'design:entrance', 'design:loading', 'design:navigation', 'design:aesthetic', 'design:libraries',
       'voice', 'exceptions', 'matchers', 'special',
@@ -1246,7 +1246,7 @@ test('the AI-cinematic-video / scroll-scrub interview options are present, and t
 
     // The dimension/question count is unaffected by adding options to existing questions.
     assert.deepEqual(interview.questions.map((q) => q.id), [
-      'identity', 'references', 'mood_board',
+      'identity', 'genesis', 'references', 'mood_board',
       'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
       'design:entrance', 'design:loading', 'design:navigation', 'design:aesthetic', 'design:libraries',
       'voice', 'exceptions', 'matchers', 'special',
@@ -1271,7 +1271,7 @@ test('libraries question suggests Next.js as the default build target, and the k
   });
 });
 
-test('getTasteInterview depth: first_run (default) returns exactly 4 core questions + more_questions; full returns everything with more_questions empty', async () => {
+test('getTasteInterview depth: first_run (default) returns exactly 5 core questions + more_questions; full returns everything with more_questions empty', async () => {
   await withTasteHome(async (_home, store) => {
     await taste.createTasteProfile(store, { name: 'depth-test', rules: baseRules() });
 
@@ -1279,9 +1279,12 @@ test('getTasteInterview depth: first_run (default) returns exactly 4 core questi
     const byDefault = await taste.getTasteInterview(store, 'depth-test', 'some-project');
     const explicitFirstRun = await taste.getTasteInterview(store, 'depth-test', 'some-project', undefined, 'first_run');
     for (const interview of [byDefault, explicitFirstRun]) {
-      assert.deepEqual(interview.questions.map((q) => q.id), ['identity', 'design:aesthetic', 'voice', 'matchers']);
+      assert.deepEqual(interview.questions.map((q) => q.id), ['identity', 'genesis', 'design:aesthetic', 'voice', 'matchers']);
       const identityQ = interview.questions.find((q) => q.id === 'identity');
       assert.equal(identityQ.skippable, false);
+      const genesisQ = interview.questions.find((q) => q.id === 'genesis');
+      assert.equal(genesisQ.priority, 'core');
+      assert.equal(genesisQ.skippable, true);
       const aestheticQ = interview.questions.find((q) => q.id === 'design:aesthetic');
       assert.equal(aestheticQ.priority, 'core');
       assert.ok(Array.isArray(aestheticQ.options) && aestheticQ.options.length > 0, 'aesthetic keeps its options when promoted to core');
@@ -1294,6 +1297,7 @@ test('getTasteInterview depth: first_run (default) returns exactly 4 core questi
       assert.ok(moreIds.includes('exceptions'));
       assert.ok(moreIds.includes('special'));
       assert.equal(moreIds.includes('design:aesthetic'), false, 'aesthetic is core, not deferred');
+      assert.equal(moreIds.includes('genesis'), false, 'genesis is core, not deferred');
       assert.equal(moreIds.includes('identity'), false);
       assert.equal(moreIds.includes('voice'), false);
       assert.equal(moreIds.includes('matchers'), false);
@@ -1304,7 +1308,7 @@ test('getTasteInterview depth: first_run (default) returns exactly 4 core questi
     const full = await taste.getTasteInterview(store, 'depth-test', 'some-project', undefined, 'full');
     assert.deepEqual(full.more_questions, []);
     assert.deepEqual(full.questions.map((q) => q.id), [
-      'identity', 'references', 'mood_board',
+      'identity', 'genesis', 'references', 'mood_board',
       'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
       'design:entrance', 'design:loading', 'design:navigation', 'design:aesthetic', 'design:libraries',
       'voice', 'exceptions', 'matchers', 'special',
@@ -1917,22 +1921,60 @@ test('the interview closes with an open-ended special question that learns sugge
   });
 });
 
-test('the references question invites examples right after identity and the then-contract folds them into notes', async () => {
+test('the references question invites examples right behind identity and genesis, and the then-contract folds them into notes', async () => {
   await withTasteHome(async (_home, store) => {
     await taste.createTasteProfile(store, { name: 'refs', rules: baseRules() });
     const interview = await taste.getTasteInterview(store, 'refs', 'demo', undefined, 'full');
-    assert.equal(interview.questions[1].id, 'references');
-    assert.equal(interview.questions[1].skippable, true);
-    assert.equal(interview.questions[1].priority, 'core');
-    assert.ok(/examples/i.test(interview.questions[1].question));
-    assert.ok(/what specifically draws you/i.test(interview.questions[1].question));
+    assert.equal(interview.questions[2].id, 'references');
+    assert.equal(interview.questions[2].skippable, true);
+    assert.equal(interview.questions[2].priority, 'core');
+    assert.ok(/examples/i.test(interview.questions[2].question));
+    assert.ok(/what specifically draws you/i.test(interview.questions[2].question));
     assert.ok(interview.then.includes('design_notes.references'));
 
     // depth:'first_run' (the default) defers references into more_questions —
-    // it is not one of the 4 core questions.
+    // it is not one of the 5 core questions.
     const firstRun = await taste.getTasteInterview(store, 'refs', 'demo');
     assert.equal(firstRun.questions.find((q) => q.id === 'references'), undefined);
     assert.ok(firstRun.more_questions.some((q) => q.id === 'references'));
+  });
+});
+
+test('the genesis question rides second, is core in first_run, and routes missing assets to generation', async () => {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'genesis-test', rules: baseRules() });
+    const full = await taste.getTasteInterview(store, 'genesis-test', 'demo', undefined, 'full');
+    const q = full.questions[1];
+    assert.equal(q.id, 'genesis', 'genesis rides directly behind identity — kickoff is when a project comes into existence');
+    assert.equal(q.priority, 'core');
+    assert.equal(q.skippable, true);
+    // The question asks what EXISTS (brand / design system / assets) and names
+    // the full generation route for whatever is missing — mood board approval
+    // stop, saved design system, DESIGN.md — plus the consume-not-regenerate
+    // route for a system the user already has.
+    assert.ok(/what already exists/i.test(q.question));
+    assert.ok(q.question.includes('brand'), 'asks about an existing brand');
+    assert.ok(q.question.includes('design system'), 'asks about an existing design system');
+    assert.ok(q.question.includes('generate_mood_board'), 'routes to the mood board approval stop');
+    assert.ok(q.question.includes('image_paths'), 'names the local-image intake for brand-pack images');
+    assert.ok(q.question.includes('save:true'), 'routes to the SAVED design system, not a throwaway one');
+    assert.ok(q.question.includes('init_design_md'), 'routes to the DESIGN.md the coding agent builds from');
+    assert.ok(q.question.includes('configure_design_system_source'), 'an existing system is consumed, never regenerated');
+    assert.ok(q.question.includes('design_notes.genesis'), 'names where the answer is stored');
+
+    // first_run keeps genesis in the core list AND carries the routing in `then`.
+    const firstRun = await taste.getTasteInterview(store, 'genesis-test', 'demo');
+    assert.ok(firstRun.questions.some((question) => question.id === 'genesis'));
+    assert.ok(firstRun.then.includes('design_notes.genesis'), 'thenFirstRun persists genesis');
+    assert.ok(firstRun.then.includes('save:true'), 'thenFirstRun carries the generation route');
+    assert.ok(firstRun.then.includes('init_design_md'), 'thenFirstRun routes through DESIGN.md');
+    assert.ok(full.then.includes('design_notes.genesis'), 'thenFull persists genesis too');
+
+    // A decision recorded under the dimension 'genesis' must not spawn a
+    // duplicate learned question — the standard question already covers it.
+    await taste.recordTasteDecision(store, 'genesis-test', { project: 'other-proj', dimension: 'genesis', decision: 'generated from scratch' });
+    const after = await taste.getTasteInterview(store, 'genesis-test', 'demo', undefined, 'full');
+    assert.equal(after.questions.filter((question) => question.id === 'design:genesis').length, 0, "a 'genesis' decision dimension is reserved, never a learned duplicate");
   });
 });
 

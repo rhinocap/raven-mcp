@@ -8,23 +8,60 @@
 // measured from reference traits, never prose), and the approval stop (the
 // board names generate_design_system and never runs it).
 //
-// Mutant radii, MEASURED (18 string-edit mutants against dist/, clean baseline
-// first, each import()-load-checked, restore verified by string equality):
-// unsafe-href (javascript: kept as an anchor), no-example-banner,
-// no-binding-no-throw, ignore-host-filter, no-image-cap, no-total-budget,
+// Mutant radii, MEASURED — matrix v3, 41 string-edit mutants against dist/,
+// clean baseline first, each import()-load-checked, restore verified by string
+// equality, every mutant run over the mood-board AND taste suites combined.
+// The WHOLE matrix re-runs on every fix round, not carried forward — v2's
+// re-run caught two stale v1 anchors, and v3's re-anchored the sniff mutant
+// after the 8-byte signature fix moved its find-string. v3 is the Kimi
+// round-1 fix round (2026-08-07): stat-first cap, raw paths, full PNG
+// signature, exact boundaries.
+// FORTY killed, ONE expected survivor. The survivor is local-cap-dropped
+// (the POST-READ local cap deleted): the stat pre-check now owns every
+// stable over-cap file, so that clause's only trigger is a file that GROWS
+// between stat and read — a TOCTOU race no deterministic test can stage
+// (fs monkeypatching is invisible to ESM named imports, measured). It stays
+// as belt-and-braces and both its comment and the harness say so — a clause
+// with no reachable trigger must say so, never pretend a test kills it.
+// Twenty-nine mutants redden exactly ONE test: unsafe-href, no-example-banner,
+// no-binding-no-throw, ignore-host-filter, no-pattern-image-cap,
 // silent-empty-board, never-render-png, footer-drops-next-step,
-// interview-drops-question (dist/taste.js), unstable-filename,
-// always-claims-measured, silent-missing-image, unescaped-ground and
-// unescaped-data-uri-src each redden exactly ONE test. Three redden more, and
-// each wide radius is a fact about a shared mechanism, not extra guards:
-// escape-nothing reddens 2 (both escaping tests pass through the one
-// escapeHtml), tie-reads-dark reddens 2 (the vote and the sparse board's
-// provenance line read the same ground), never-embed reddens 3 (the compose,
-// per-image-cap and budget tests share the one data-URI assignment). The
-// statSync().isFile() clause in embeddablePatterns is deliberately NOT
-// mutated: a directory at the image path lands in the same catch via EISDIR
-// with or without it — same warning either way — so no test can turn exactly
-// that clause red; its own comment says so.
+// unstable-filename, always-claims-measured, silent-missing-image,
+// unescaped-ground, unescaped-data-uri-src, unreadable-local-silent,
+// budget-not-shared (`let embeddedBytes = alreadyEmbeddedBytes` reverted to
+// `= 0` — only the shared-budget test can see it, which is why that test
+// seeds BOTH locals and a pattern), example-ignores-silently,
+// unescaped-local-alt, unescaped-local-figcaption, unescaped-local-data-uri
+// (the alt/figcaption/data-uri escapes are three separate sites all observed
+// through assertSelfContained's <script regex — one observable, three
+// mechanisms, three mutants), reserved-genesis-dropped, then-drops-genesis-route
+// (both dist/taste.js), local-isfile-dropped, sniff-half-signature (the
+// 4-of-8-bytes sniff restored — only the half-signature fixture can see it),
+// stat-precheck-dropped (only the chmod-000 discriminator separates
+// "capped from stat" from "read then capped" — as root it discriminates via
+// the ABSENCE of the cap warning instead), stat-cap-inclusive,
+// postread-cap-inclusive, local-budget-inclusive (the three >-to->= flips,
+// each killed by the exact-boundary test alone: at-cap files and an
+// exactly-spent budget must embed), and trim-restored (only the
+// trailing-space-filename test reads the difference between the raw path
+// and its trimmed impostor). Wider radii, each a shared mechanism and not
+// extra guards: escape-nothing 3 (every escaping test passes through the one
+// escapeHtml), tie-reads-dark 2, no-pattern-total-budget 2 (the shared
+// budget means the pattern-side check is also observed by the shared-budget
+// test), never-embed 3, never-embed-local 4 (widened 2→4 in v3: the
+// boundary and raw-path tests assert their embeds through the same push),
+// local-budget-dropped 2 (widened 1→2: the exactly-spent-budget fixture
+// also crosses it), sniff-everything-is-png 2, your-assets-section-dropped 3,
+// interview-drops-mood-board-question 4 (dist/taste.js),
+// genesis-dropped-from-full 5 (dist/taste.js), genesis-dropped-from-first-run
+// 2 (dist/taste.js). The statSync().isFile() clause in embeddablePatterns is
+// deliberately NOT mutated: a directory at the image path lands in the same
+// catch via EISDIR with or without it — same warning either way — so no test
+// can turn exactly that clause red; its own comment says so. localImages'
+// stat.isFile() IS load-bearing by contrast — a directory named x.png is
+// refused with "not a regular file", a DIFFERENT warning than the read
+// failure — and that is measured, not reasoned: local-isfile-dropped reddens
+// exactly the unusable-path test, whose directory assertion pins the wording.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp } from 'node:fs/promises';
@@ -271,7 +308,7 @@ test('mode:board composes notes and references, and embeds only host-matched pat
 
     const result = await mood.generateMoodBoard({ store, profile: 'mood-bound', project: 'night-product' });
     assert.equal(result.example, false);
-    assert.deepEqual(result.counts, { notes: 2, references: 2, patterns: 1 });
+    assert.deepEqual(result.counts, { notes: 2, references: 2, patterns: 1, images: 0 });
     const html = readFileSync(result.html_path, 'utf8');
     assertSelfContained(html);
     // Measured ground: both references are dark.
@@ -311,7 +348,7 @@ test('re-running overwrites the same file, and an empty binding is reported hone
     // voice_note is calibration, but the board's SECTIONS are all empty — that
     // is said out loud instead of handing back a bare header as if it were done.
     assert.ok(second.warnings.some((w) => w.includes('no design notes, references, or captured patterns')));
-    assert.deepEqual(second.counts, { notes: 0, references: 0, patterns: 0 });
+    assert.deepEqual(second.counts, { notes: 0, references: 0, patterns: 0, images: 0 });
     // And with zero scheme-bearing references, the meta line must not claim a
     // measurement that never happened.
     const html = readFileSync(second.html_path, 'utf8');
@@ -401,6 +438,267 @@ test('the total embed budget caps the board, and the skip is named', async () =>
     const embeds = html.match(/data:image\/png;base64,/g) || [];
     assert.equal(embeds.length, 3, 'three images fit the budget, the fourth is a placeholder');
   });
+});
+
+// A minimal binding for the local-image tests: one note so the board is not
+// "empty", no references so no pattern machinery runs unless a test seeds it.
+async function bindBare(store, profileName, project) {
+  await taste.createTasteProfile(store, { name: profileName, rules: [] });
+  await taste.bindTasteSurface(store, profileName, {
+    project,
+    surface: 'product site',
+    voice_note: 'Calm.',
+    design_notes: { color: 'warm neutrals' },
+  });
+}
+
+const JPEG_MAGIC = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+
+test("image_paths embeds the user's own images under 'Your assets', typed by their BYTES, never their extension", async () => {
+  await withHomes(async ({ tasteHome, store }) => {
+    // Four real image types, one of them deliberately misnamed .txt — the
+    // sniff must type it image/png anyway, because the extension is a claim
+    // and the bytes are the fact.
+    const png = path.join(tasteHome, 'brand-mark.png');
+    writeFileSync(png, Buffer.concat([PNG_MAGIC, Buffer.from('local-png')]));
+    const jpg = path.join(tasteHome, 'hero-shot.jpg');
+    writeFileSync(jpg, Buffer.concat([JPEG_MAGIC, Buffer.from('local-jpeg')]));
+    const webp = path.join(tasteHome, 'texture.webp');
+    writeFileSync(webp, Buffer.concat([Buffer.from('RIFF'), Buffer.from([16, 0, 0, 0]), Buffer.from('WEBP-local')]));
+    const gif = path.join(tasteHome, 'loader.gif');
+    writeFileSync(gif, Buffer.from('GIF89a-local'));
+    const misnamed = path.join(tasteHome, 'actually-a-png.txt');
+    writeFileSync(misnamed, Buffer.concat([PNG_MAGIC, Buffer.from('misnamed-png')]));
+
+    await bindBare(store, 'mood-local', 'local-proj');
+    const result = await mood.generateMoodBoard({
+      store, profile: 'mood-local', project: 'local-proj',
+      image_paths: [png, jpg, webp, gif, misnamed],
+    });
+    assert.equal(result.counts.images, 5, 'every readable image embeds');
+    // Every path was readable and in budget, so no EMBED warning may fire;
+    // the board PNG render is best-effort and its warning is not an embed's.
+    const embedWarnings = result.warnings.filter((w) => !w.includes('Board PNG'));
+    assert.deepEqual(embedWarnings, [], 'nothing was skipped, so nothing warns');
+    const html = readFileSync(result.html_path, 'utf8');
+    assertSelfContained(html);
+    assert.ok(html.includes('Your assets'), 'the user-image section renders');
+    assert.ok(html.includes('data:image/png;base64,' + Buffer.concat([PNG_MAGIC, Buffer.from('local-png')]).toString('base64')), 'the png bytes round-trip');
+    assert.ok(html.includes('data:image/jpeg;base64,'), 'jpeg is typed image/jpeg from its bytes');
+    assert.ok(html.includes('data:image/webp;base64,'), 'webp is typed image/webp from its bytes');
+    assert.ok(html.includes('data:image/gif;base64,'), 'gif is typed image/gif from its bytes');
+    assert.ok(html.includes('data:image/png;base64,' + Buffer.concat([PNG_MAGIC, Buffer.from('misnamed-png')]).toString('base64')), 'a .txt file with png bytes embeds as png');
+    assert.ok(html.includes('brand-mark.png'), 'the caption is the basename');
+    assert.ok(!html.includes('Pattern from'), 'the user’s own assets carry no third-party credit');
+  });
+});
+
+test('an unusable image path is skipped with a warning naming the path — never silently', async () => {
+  await withHomes(async ({ tasteHome, store }) => {
+    const missing = path.join(tasteHome, 'not-there.png');
+    const notAnImage = path.join(tasteHome, 'notes-pretending.png');
+    writeFileSync(notAnImage, 'just some prose with a lying extension');
+    const directory = path.join(tasteHome, 'folder.png');
+    const { mkdirSync } = await import('node:fs');
+    mkdirSync(directory);
+    // Half a PNG signature: "\x89PNG" followed by NOT-\r\n\x1a\n. The full
+    // signature is 8 bytes, and a sniff that checks only the first 4 types
+    // "\x89PNG<anything>" as an image. (Kimi adverse pass, 2026-08-07.)
+    const halfSignature = path.join(tasteHome, 'half-signature.png');
+    writeFileSync(halfSignature, Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.from('XXXX not a png body')]));
+
+    await bindBare(store, 'mood-bad-paths', 'bad-paths-proj');
+    const result = await mood.generateMoodBoard({
+      store, profile: 'mood-bad-paths', project: 'bad-paths-proj',
+      image_paths: [missing, notAnImage, directory, halfSignature],
+    });
+    assert.equal(result.counts.images, 0);
+    assert.ok(result.warnings.some((w) => w.includes(missing) && w.includes('could not be read')), 'the missing file is named');
+    assert.ok(result.warnings.some((w) => w.includes(notAnImage) && w.includes('sniffed from the bytes')), 'the lying extension is named, with why');
+    assert.ok(result.warnings.some((w) => w.includes(halfSignature) && w.includes('sniffed from the bytes')), 'four of eight signature bytes is not a PNG');
+    assert.ok(result.warnings.some((w) => w.includes(directory) && w.includes('not a regular file')), 'the directory is named');
+    const html = readFileSync(result.html_path, 'utf8');
+    assert.ok(!html.includes('Your assets'), 'no section renders when nothing embedded');
+    // The board itself still writes — a bad image path costs an image, never the board.
+    assert.ok(existsSync(result.html_path));
+  });
+});
+
+test('local images obey the per-image cap, and the board budget is ONE budget shared with pattern thumbnails', async () => {
+  await withHomes(async ({ tasteHome, refHome, store }) => {
+    // One local image over the 2,500,000-byte per-image cap: skipped, named.
+    const oversized = path.join(tasteHome, 'oversized.png');
+    writeFileSync(oversized, Buffer.concat([PNG_MAGIC, Buffer.alloc(2_600_000, 3)]));
+    // Four locals at 2.4MB: the first three spend 7.2MB of the 8MB budget, the
+    // fourth must hit the budget ITSELF (a board cannot carry unlimited local
+    // bytes), and the 1MB pattern thumbnail then cannot fit either. If the
+    // pattern embeds anyway, local images have their own counter and one board
+    // can carry double the promised cap.
+    const locals = [oversized];
+    for (let i = 0; i < 4; i++) {
+      const p = path.join(tasteHome, `pack-${i}.png`);
+      writeFileSync(p, Buffer.concat([PNG_MAGIC, Buffer.alloc(2_400_000, i + 1)]));
+      locals.push(p);
+    }
+    const patternId = seedPatternWithImage(
+      refHome, 'https://example.com/pack', 'the displaced capture',
+      Buffer.concat([PNG_MAGIC, Buffer.alloc(1_000_000, 9)]),
+    );
+
+    await taste.createTasteProfile(store, { name: 'mood-shared-budget', rules: [] });
+    await taste.bindTasteSurface(store, 'mood-shared-budget', {
+      project: 'shared-budget-proj',
+      surface: 'product site',
+      voice_note: 'Calm.',
+      design_notes: {},
+      references: [{ url: 'https://example.com', traits: { scheme: 'light' } }],
+    });
+    const result = await mood.generateMoodBoard({
+      store, profile: 'mood-shared-budget', project: 'shared-budget-proj',
+      image_paths: locals,
+    });
+    assert.ok(result.warnings.some((w) => w.includes(oversized) && w.includes('per-image embed cap')), 'the oversized local is named');
+    assert.ok(
+      result.warnings.some((w) => w.includes('pack-3.png') && w.includes('total embed budget')),
+      'the fourth local hits the budget itself — locals are not budget-exempt',
+    );
+    assert.equal(result.counts.images, 3, 'the three in-budget locals embed');
+    assert.equal(result.counts.patterns, 1, 'the pattern keeps its card');
+    assert.ok(
+      result.warnings.some((w) => w.includes(patternId) && w.includes('total embed budget')),
+      'the pattern thumbnail yields to the user’s own images under the SHARED budget',
+    );
+    const html = readFileSync(result.html_path, 'utf8');
+    const embeds = html.match(/data:image\/png;base64,/g) || [];
+    assert.equal(embeds.length, 3, 'three local embeds, zero pattern embeds');
+  });
+});
+
+test('the per-image cap is enforced from stat, BEFORE the bytes are read', async () => {
+  await withHomes(async ({ tasteHome, store }) => {
+    // An over-cap file that is UNREADABLE (chmod 000) is the discriminator:
+    // the stat-first order skips it with the cap warning without ever
+    // opening it; a read-first order produces "could not be read (EACCES)"
+    // instead. This is the observable stand-in for the real failure — a
+    // 12GB file with a PNG header OOMing the process before the cap runs —
+    // which no test can afford to construct. (Kimi adverse pass, 2026-08-07.)
+    // Caveat: as root the mutant path reads the file fine and emits NO cap
+    // warning at all, so the assertion still discriminates, just via absence.
+    const hugeUnreadable = path.join(tasteHome, 'render-farm-dump.png');
+    writeFileSync(hugeUnreadable, Buffer.concat([PNG_MAGIC, Buffer.alloc(2_600_000, 7)]));
+    const { chmodSync } = await import('node:fs');
+    chmodSync(hugeUnreadable, 0o000);
+    try {
+      await bindBare(store, 'mood-stat-first', 'stat-first-proj');
+      const result = await mood.generateMoodBoard({
+        store, profile: 'mood-stat-first', project: 'stat-first-proj',
+        image_paths: [hugeUnreadable],
+      });
+      assert.ok(
+        result.warnings.some((w) => w.includes(hugeUnreadable) && w.includes('per-image embed cap')),
+        'the cap verdict comes from stat — the file was never opened',
+      );
+      assert.ok(
+        !result.warnings.some((w) => w.includes('could not be read')),
+        'no read was attempted, so no read error can fire',
+      );
+      assert.equal(result.counts.images, 0);
+    } finally {
+      chmodSync(hugeUnreadable, 0o644);
+    }
+  });
+});
+
+test('both caps are exclusive bounds: a file AT the cap embeds, and a budget landing EXACTLY at the limit embeds', async () => {
+  await withHomes(async ({ tasteHome, store }) => {
+    // Exactly 2,500,000 bytes — the per-image cap uses >, so exactly-at-cap
+    // must embed; a >= mutant at either the stat check or the post-read
+    // check turns this red. Three of these plus one 500,000-byte file land
+    // the budget at exactly 8,000,000 (also >), so all four must embed and
+    // only a fifth byte-carrying image falls past. (Kimi adverse pass,
+    // 2026-08-07: the previous fixtures bracketed both caps but pinned
+    // neither boundary.)
+    const paths = [];
+    for (let i = 0; i < 3; i++) {
+      const p = path.join(tasteHome, `exact-cap-${i}.png`);
+      const body = Buffer.alloc(2_500_000, i + 1);
+      PNG_MAGIC.copy(body, 0);
+      writeFileSync(p, body);
+      paths.push(p);
+    }
+    const filler = path.join(tasteHome, 'filler.png');
+    const fillerBody = Buffer.alloc(500_000, 9);
+    PNG_MAGIC.copy(fillerBody, 0);
+    writeFileSync(filler, fillerBody);
+    paths.push(filler);
+    const past = path.join(tasteHome, 'one-byte-too-far.png');
+    writeFileSync(past, Buffer.concat([PNG_MAGIC, Buffer.from('x')]));
+    paths.push(past);
+
+    await bindBare(store, 'mood-boundaries', 'boundaries-proj');
+    const result = await mood.generateMoodBoard({
+      store, profile: 'mood-boundaries', project: 'boundaries-proj',
+      image_paths: paths,
+    });
+    assert.equal(result.counts.images, 4, 'at-cap files and an exactly-spent budget both embed');
+    assert.ok(
+      !result.warnings.some((w) => w.includes('per-image embed cap')),
+      'exactly at the cap is not over the cap',
+    );
+    assert.ok(
+      result.warnings.some((w) => w.includes(past) && w.includes('total embed budget')),
+      'the first byte past the exactly-spent budget is refused',
+    );
+  });
+});
+
+test('a path is used RAW: a filename with trailing whitespace embeds, never a trimmed impostor', async () => {
+  await withHomes(async ({ tasteHome, store }) => {
+    // Trailing space in the basename — legal on macOS/Linux. A trimmed copy
+    // of the full path names a file that does not exist, and the ENOENT
+    // warning then points at a path the user can verify IS readable.
+    // (Kimi adverse pass, 2026-08-07.)
+    const padded = path.join(tasteHome, 'logo.png ');
+    writeFileSync(padded, Buffer.concat([PNG_MAGIC, Buffer.from('padded-name')]));
+    await bindBare(store, 'mood-raw-path', 'raw-path-proj');
+    const result = await mood.generateMoodBoard({
+      store, profile: 'mood-raw-path', project: 'raw-path-proj',
+      image_paths: [padded],
+    });
+    assert.equal(result.counts.images, 1, 'the exact path given is the path read');
+    const embedWarnings = result.warnings.filter((w) => !w.includes('Board PNG'));
+    assert.deepEqual(embedWarnings, [], 'nothing was skipped');
+  });
+});
+
+test("mode:'example' ignores image_paths with a warning — the sample stays canned", async () => {
+  await withHomes(async ({ tasteHome, store }) => {
+    const real = path.join(tasteHome, 'real-asset.png');
+    writeFileSync(real, Buffer.concat([PNG_MAGIC, Buffer.from('real')]));
+    await taste.createTasteProfile(store, { name: 'mood-example-imgs', rules: [] });
+    const result = await mood.generateMoodBoard({
+      store, profile: 'mood-example-imgs', mode: 'example', image_paths: [real],
+    });
+    assert.equal(result.counts.images, 0);
+    assert.ok(result.warnings.some((w) => w.includes("image_paths is ignored for mode:'example'")), 'ignored loudly, never silently');
+    const html = readFileSync(result.html_path, 'utf8');
+    assert.ok(!html.includes('data:image/png'), 'no real asset leaks into the labeled example');
+    assert.ok(!html.includes('Your assets'));
+  });
+});
+
+test('the exported builder escapes local-image name and data URI — self-containment against any caller', () => {
+  const html = mood.buildMoodBoardDocument({
+    profile: 'p', project: 'x', surface: 's', generated_at: 'now',
+    example: false, ground: 'light', voice_note: '', notes: [], references: [], patterns: [],
+    local_images: [{
+      name: '<script>alert("name")</script>',
+      data_uri: '"><script>alert("uri")</script>',
+    }],
+  });
+  assertSelfContained(html);
+  assert.ok(html.includes('&lt;script&gt;'), 'the hostile name is escaped, not executed');
+  assert.ok(!html.includes('"><script>'), 'the hostile data URI cannot break out of the src attribute');
 });
 
 test('the board PNG is best-effort, and with a working chromium it actually renders', async () => {

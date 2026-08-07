@@ -20,14 +20,16 @@ import { RedisTasteStore } from '../dist/taste-store-redis.js';
 import { buildServer } from '../dist/index.js';
 
 const GOLDEN_45_HASH = 'f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6';
-// Rebaselined 2026-07-26 when main merged into this branch: the anonymous
-// instructions/description TEXT evolved across 364 main commits. These two pins
-// guard against authed tuning leaking into an anon build, not against the text
-// changing. Re-verified at the merge: anon never contains the authed block, and
-// an anon build made AFTER an authed one is byte-identical to an anon-first
-// build. GOLDEN_45_HASH — the frozen wire contract — is unchanged.
-const ANONYMOUS_INSTRUCTIONS_HASH = '215a17260e7855eac34cffc68a195cc4537309114fbda9ee51f604bc9a0bc903';
-const ANONYMOUS_INSTRUCTIONS_AND_TOOL_DESCRIPTIONS_HASH = 'cb3c1e5e0e503c33de873fa190340fcfc1ec60fbc73a9aa163e0d8644d9dccd7';
+// Rebaselined 2026-07-26 when main merged into this branch (the anonymous
+// instructions/description TEXT evolved across 364 main commits), and again
+// 2026-08-07 when the kickoff interview grew its genesis question (the shared
+// server instructions moved from 4 to 5 core questions). These two pins guard
+// against authed tuning leaking into an anon build, not against the text
+// changing. Re-verified at each rebaseline: anon never contains the authed
+// block, and an anon build made AFTER an authed one is byte-identical to an
+// anon-first build. GOLDEN_45_HASH — the frozen wire contract — is unchanged.
+const ANONYMOUS_INSTRUCTIONS_HASH = '3ccce9cf2e9366439f0ffed251815176bb7ee7b78ace0f03252c6c7807090658';
+const ANONYMOUS_INSTRUCTIONS_AND_TOOL_DESCRIPTIONS_HASH = 'fda3c22dbacc65455d42401a89abf850a6b87d84aab23c5046869a1dbd961e2d';
 const AUTHED_STARTUP_INSTRUCTIONS = "AUTHENTICATED STARTUP: this remote endpoint is connected to a per-user taste store. At project kickoff or the first real design/copy/UI work for a project, call get_taste_interview for the connected user's taste profile and project name before choosing direction. Ask the returned questions, then persist the user's answers with bind_taste_surface before generating design work. If the profile name is not known yet, call list_taste_profiles first.";
 const AUTHED_INTERVIEW_DESCRIPTION = "AUTHENTICATED STARTUP: on the remote authed endpoint, use this as the first taste step for the connected user's per-user store at project kickoff; if you do not know the profile name, call list_taste_profiles first, then call get_taste_interview with that profile and project name before design/copy/UI decisions.";
 const ALL_TASTE = [
