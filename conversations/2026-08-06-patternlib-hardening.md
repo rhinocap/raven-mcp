@@ -584,3 +584,430 @@ Andrew's feedback on phase 2: (a) drag was "really hard to grab" — diagnosed t
 **Eyes-on wave capture (2026-08-07):** agent-output/capture-wave.mjs — real Chromium with --use-fake-{ui,device}-for-media-stream + grantPermissions(microphone) drives the SHIPPED getUserMedia→AnalyserNode→rAF path; fake SpeechRecognition installed pre-load (headless has the ctor but no service). Pixel-readback probe asserts painted>0: painted=96/960 = exactly 12 bars × 4px × 2px MIN height — the fake tone was silent at the sampled instant, so the bars read flat; mechanism proven painting, capture undersells the motion. fieldValue "make the hero headline bolder and tighten the" = final+interim composition live in the field. Shots: wave-{1,2,3}-*.png.
 
 Remaining on #5: fresh-build full suite (expect ~1446/1443/0/3 = 1430+6 drag+10 voice — verify), design-judge on the captures (flat-bars caveat), Kimi K3 adverse pass, gates, session-log finalize, explicit-path commit. Push Andrew-gated.
+
+**Voice round-2 adverse verdicts + fix round (2026-08-07, post-compaction checkpoint):** Both adverse passes complete and dispositioned. Kimi K3 (voice-r2-kimi-verdict.md): 2 P2 + 5 P3. Sol GPT-5.6 (voice-r2-sol-verdict.md, "Sol has credits again" per Andrew): DOES NOT SURVIVE — 2 P1 + 2 P2; V2/V6 survivors and `event.resultIndex || 0` confirmed SAFE. Joint disposition: Sol#1 (resultIndex>0 deletes unchanged interims) FIXED — finals commit from resultIndex, interim tail rebuilt by scanning ALL non-final entries of event.results. Sol#2 = Kimi F1 (hidden-not-removed surfaces strand a hot mic) FIXED — stopDictationIfFieldInside(container) hooked into closeSettingsModal + setPanelCollapsed, plus dictation stop in dismiss(). Kimi F2 (stop() flushes a trailing final BEFORE onend in real Chrome; nulling dictation first drops short utterances) FIXED — dictation.stopping flag; onresult commits FINALS ONLY while stopping (interim forced ""); UI reads stopping as inactive; second stop while stopping hard-clears (wedge escape). Kimi F3 (onresult pre-check load-bearing for the STRIP block) comment corrected, test+mutant pending. Kimi F4 FIXED (recognizer.lang = navigator.language || documentElement.lang || en-US). Kimi F5 FIXED (escapeHtml on label/caption in voiceButtonMarkup attributes). Kimi F7 FIXED (AudioContext resume() if suspended in grant handler). Sol#4 FIXED (shared clampDictatedValue backs off one unit when the cut lands after a high surrogate). Sol#3 = Kimi F6 ACCEPTED+narrowed: suffix equality is heuristic, not provenance — claim narrowed to "never eats user text THAT DIFFERS from the injected chunk"; final-resurrects-deleted-preview pinned as intended (deletion doesn't unsay speech). ALL NINE overlay fixes LANDED in browser/raven-grab.js (node --check clean); mirror re-synced byte-identical. dismiss() hook has NO cheap page-side trigger (internal setArmed(false) only, line 2571) — no dedicated test; harm bounded because dismiss REMOVES fields so the tested vanished-field guard ends the session; stated in suite header, mutant documented as review-verified.
+Remaining: 8 new tests (F1-modal, F1-panel, F2-flush, second-stop hard-clear, F3-interim-pending-vanished, Sol#1 multi-result, F6 pin, Sol#4 surrogate) + lang assertions in config test (DONE, first two edits post-compaction); ~11 new mutants; whole-matrix re-run (fix round staled onresult/stopDictation/clamp find-strings); header matrix v3 rewrite; mirror re-sync if overlay touched again; fresh-build full suite (count grows from 1446); Sol done-gate falsification pass on the completion claim; explicit-path commit (browser/raven-grab.js web/public/raven-grab.js test/grab-overlay-drag-move.test.mjs test/grab-overlay-voice-input.test.mjs conversations/2026-08-06-patternlib-hardening.md). Push Andrew-gated. Higgsfield (#3) still blocked on the YouTube link.
+
+## Voice round 2 — fix-round tests + matrix v3 (2026-08-07, post-compaction)
+
+- All eight fix-round tests written and green, then TWO more gaps found during mutant planning:
+  - Kimi F7 resume() was unobservable — the fake AudioContext had no `state`, so the shipped
+    resume branch never executed in any test. Fixture now starts `state: 'suspended'` with a
+    `resumeCalls` counter; new test asserts resumeCalls >= 1 after grant.
+  - N11 went behaviorally stale under the stopping flag — onend now performs the full clear
+    (identity guard passes), so with the fake's synchronous stop()->onend, deleting
+    stopDictation's own stopVoiceWave survived the teardown tests. New test noops fake.stop
+    and asserts trackStops >= 1 BEFORE onend: the mic releases at STOP time, not when Chrome
+    eventually flushes.
+- Suite is 30/30 green (test/grab-overlay-voice-input.test.mjs).
+- Matrix v3: 39 mutants (27 re-run whole + 12 new: F1a/b/c, F2a/b/c, F3, Sol1, Sol4, F4, F7,
+  N15); V9/N7 re-anchored to the clampDictatedValue call sites, N11 to the stopping-flag path.
+  Run COMPLETE -> .claude/genesis-2026-08-07/agent-output/voice-r2-mutants-run3.out:
+  37 killed, exactly the two documented expected survivors (V2 append-path dispatch, V6
+  ordering swap), zero find-string misses, zero syntax skips. Every traced radius confirmed:
+  F2a -> flush + hard-clear (2); F3 -> ONLY the new interim-pending test (the old
+  vanished-field test is rescued by appendDictatedText's own guard — that discrimination is
+  why the new test exists); V9 -> clamp + surrogate (2, shared clamp); N15 -> 9 incl. the
+  PINNED resurrect test (a pin that cannot go red pins nothing). Radii that WIDENED under
+  re-measurement (V1 15->24, V4 3->9, N6 6->9, V8 4->5, V10 3->4, N1 3->4, N13 1->2) are
+  facts about shared mechanisms, not extra guards — recorded as such in the header.
+- Suite header rewritten to matrix v3 (measured radii, the two gap lessons, F5
+  review-verified-no-mutant, dismiss()-no-hook decision, Sol#3 narrowed claim, finals-loop
+  `resultIndex || 0` deliberately unmutated with the interim loop now Sol1-mutated).
+  Comment-only edit; suite re-run 30/30 green.
+- First fresh-build full suite: 1456 tests, 1452 pass, 1 FAIL, 3 skipped — the panel-collapse
+  hook turned `if (next) hidePanelPresetTooltip();` into a block, and grab-bridge.test.mjs
+  (~5836) pins that exact single-statement shape. The pinned PROPERTY (collapse hides the
+  tooltip) is intact; the regex was updated to the block form
+  (`/if \(next\) \{\s*hidePanelPresetTooltip\(\);/`) with a comment naming the voice hook.
+  Test edit only — overlay untouched, mirror still byte-identical. Lesson: the wrapper's
+  appended `echo exit:$?` reported 0 for the WRAPPER; the suite's own exit lives in the
+  .done file — read the file, never the notification's exit code.
+- Remaining: full-suite re-run (expect 1456/1453/0/3), Sol done-gate, explicit-path
+  local commit now INCLUDING test/grab-bridge.test.mjs (push is Andrew-gated).
+
+## Voice round 3 — Sol done-gate DOES NOT SURVIVE, all four findings fixed (2026-08-08)
+
+The mandatory Sol done-gate on the round-2 completion claim returned DOES NOT SURVIVE
+(1 P1, 1 P2, 2 P3 — .claude/genesis-2026-08-07/agent-output/voice-r2-donegate-sol.md).
+Dispositions, all FIXED:
+
+- **#1 P1 — rebuild drops the field, mic stays hot.** switchTab (or any renderPanel rebuild)
+  that drops a tab-scoped dictation field left the session live: onresult's vanished-field
+  guard only fires when the user SPEAKS, so a silent user kept a hot microphone with its only
+  off switch gone. Fix: a rebuild guard as renderPanel's LITERAL LAST statement (~10311) —
+  `if (dictation && !dictation.stopping && !dictationQuery(...)) stopDictation()`. Last on
+  purpose (must see the final rebuilt DOM); `!stopping` bounds the recursion
+  (stopDictation→renderPanel) and protects a tearing-down session's flush.
+- **#2 P2, upgraded by my own trace to DETERMINISTIC loss.** Sol called it a stopping+second-
+  click race; the sibling is certain: a different-target mic click on a live session ALWAYS
+  loses the pending flush in real Chrome, because `dictation = {new}` clobbers the old session
+  in the same task while its last final is still in flight (the fake's synchronous stop→onend
+  hides it). Fix: `flushingDictation` park slot — one slot, newest wins; onresult/onerror/onend
+  resolve sessions by recognizer identity across BOTH slots; a parked session is always
+  `stopping` so its flush commits finals-only to its OWN field; parked failure paths release
+  the slot instead of calling stopDictation (which would kill the LIVE session).
+- **#3 P3 — header claimed "dismiss() deliberately gets NO hook" while dismiss() at ~10410
+  calls stopDictation(). Rewritten to state the eager stop; the "every fix has its own
+  test and mutant" sentence now carries the explicit Kimi F5 exception.**
+- **#4 P3 — mutant harness baseline accepted exit-0/no-✖, so an all-skip Chromium-less run
+  read green. Baseline now pins the exact pass count and zero skips.**
+
+State: overlay edited (6 edits, node --check clean), mirror re-synced byte-identical (cmp),
+suite at 33/33 (three new tests: rebuild-guard via the assets-tab `data-template-name` field —
+`data-instruction` rides footer-A through every tab and cannot fixture this; park-flush
+commits to its own field with the live session untouched, made observable post-onend by
+redispatch; parked-vanished-field releases the slot without killing the live session, with the
+append-failure parked clause documented as unreachable belt-and-braces, deliberately
+unmutated). Harness EXPECTED_PASS bumped 32→33; stale find-strings re-anchored
+(N1/N2/N3/N6/F2b/F3/V5 — the `dictation.`→`session.` rename); five R3 mutants added
+(R3a rebuild guard, R3b never-park, R3c onresult ignores parked, R3d onend never releases,
+R3e parked vanished-release deleted). WHOLE matrix v4 (44 mutants) running in background →
+voice-r2-mutants-run4.out.
+
+Remaining: read run4 (expect V2+V6 survivors only; V1 radius grows with the new panel-mic
+tests), header → matrix v4, full suite fresh-build (expect 1459/1456/0/3 — +3 voice tests over
+1456/1453), Sol re-gate on the round-3 fix claim, explicit-path local commit
+(browser/raven-grab.js, web/public/raven-grab.js, test/grab-bridge.test.mjs,
+test/grab-overlay-voice-input.test.mjs, this log). Push is Andrew-gated. Higgsfield (#3)
+still blocked on his YouTube link.
+
+### Matrix v4 + suites (same day, post-checkpoint)
+- Matrix v4 run COMPLETE -> voice-r2-mutants-run4.out: 44 mutants, 42 killed, exactly the two
+  documented expected survivors (V2, V6), zero find-string misses, zero syntax skips. Baseline
+  pinned 33/0-skips and passed. All five R3 mutants redden exactly their own test. F3 widened
+  1->2 (its `if (false)` form neutralizes the whole pre-check block, which also contains the
+  parked release — shared block, not two guards). Radii widened by the three new tests:
+  V1 24->27, V4 9->11, V5 2->3, V7 1->2, V10 4->5, N1 4->5, N15 9->10 — shared mechanisms,
+  recorded as such. Header rewritten to matrix v4 (incl. the second deliberately-unmutated
+  clause: the append-failure parked early-return, unreachable by same-descriptor argument).
+- Voice suite 33/33/0/0; fresh-build full suite 1459/1456/0/3 (exits read from inside the out
+  files, never the wrapper). Mirror cmp-verified byte-identical.
+- Sol round-3 RE-GATE launched (gpt-5.6-sol medium, detached) -> voice-r3-donegate-sol.md;
+  brief at voice-r3-donegate-brief.md. Commit held until the verdict is dispositioned.
+
+### Sol round-4 re-gate verdict arrived — DOES NOT SURVIVE, one P2 (2026-08-08)
+- voice-r3-donegate-sol.md (5660 lines, sol-exit:0). Everything else RECONCILES per Sol's own
+  closing: mirrors byte-identical, run4 consistent (44/42, V2+V6 only, no failed anchors),
+  header corrections + hardened 33-pass/zero-skip baseline present. Sol's fresh browser rerun
+  was environment-blocked (MachPortRendezvousServer Permission denied 1100, all 33 skipped —
+  Sol's sandbox, not the code; the hardened harness itself would reject that run).
+- THE finding (P2, confidence 10/10, raven-grab.js:1815): `flushingDictation` is ONE slot,
+  newest wins. A->B parks A; B->C overwrites the slot with B; A's delayed final resolves to
+  neither live nor parked and is discarded. Harm bounded (recognizer stopped — no hot mic, no
+  wedge) but the first utterance's flush is silently lost across a rapid three-field switch,
+  refuting the unqualified "different-target switching no longer loses pending flushes" claim.
+- DISPOSITION: FIX. One slot -> identity-keyed LIST (`flushingDictations` array +
+  parkedDictationFor/releaseParkedDictation), the natural generalization of the mechanism the
+  round-3 fix built. New three-field interleave test (34th), new mutant reintroducing the
+  one-slot overwrite, re-anchor R3b–R3e/V5, EXPECTED_PASS 34, WHOLE 45-mutant matrix v5 re-run,
+  header to v5, suites, Sol round-5 re-gate. Commit stays held.
+
+### Round-4 fix landed + matrix v5 COMPLETE (2026-08-08)
+- Fix ON DISK: `flushingDictation` slot -> `flushingDictations` LIST + `parkedDictationFor(recognizer)`
+  / `releaseParkedDictation(session)` helpers; 6 edit sites in browser/raven-grab.js (declaration,
+  helpers, park site, onresult identity resolution, both parked early-returns, onerror/onend
+  releases). node --check SYNTAX-OK; mirror re-synced, cmp byte-identical (MIRROR-OK).
+- 34th test added: 'two parked flushes both survive a third-field switch — the park is a list,
+  not a slot' (mics on data-instruction / data-template-name / settings-modal data-feedback-message;
+  two parks in flight, both delayed finals commit to their own fields, onend replays commit nothing,
+  third session stays live). Voice suite 34/34/0/0.
+- Harness -> 45 mutants: R3b–R3e/V5 re-anchored to the new code, R4-park-overwrites-oldest added
+  (reintroduces one-slot newest-wins verbatim: `flushingDictations.length = 0;` before the push),
+  EXPECTED_PASS 34, anchor check mutants=45 badAnchors=0.
+- Matrix v5 run COMPLETE -> voice-r2-mutants-run5.out (task b9l8gs2l2; run was accidentally
+  launched via a load-check import — importing the harness EXECUTES it — and was kept as the real
+  run since mutants run from copies via RAVEN_GRAB_ASSET_PATH). Baseline green 34/0-skips.
+  45 mutants, 43 killed, survivors exactly V2+V6 (documented expected), zero find misses, zero
+  syntax skips, "tracked file untouched". R4 reddens EXACTLY the new three-field test. Radii
+  widened by the new test joining shared mechanisms (facts about the mechanisms, not new guards):
+  V1 27->28, V4 11->12, V5 3->4, V7 2->3, V8 5->6, V10 5->6, V11 2->3, N1 5->6, N15 10->11,
+  R3b/R3c/R3d each 1->2. Task wrapper exited 1 from a trailing broken third statement (SyntaxError
+  after "done") — noise; the verdict is read from inside the output, never the wrapper exit.
+- NEXT: header v5 rewrite, voice suite re-run, full suite fresh build, Sol round-5 re-gate,
+  then the held explicit-path local commit.
+- Header v5 rewritten (suite + harness), voice suite re-run 34/34/0/0, fresh-build full suite
+  1460/1457/0/3 (the predicted +1; exits read from inside the out files). git fetch: local is
+  3 auto-save commits ahead of origin/main (4e1284b), 0 behind. Sol ROUND-5 re-gate launched
+  (gpt-5.6-sol medium, detached) -> voice-r4-donegate-sol.md; brief at voice-r4-donegate-brief.md.
+  Commit held until the verdict is dispositioned.
+- Sol ROUND-5 gotcha: voice-r4-donegate-sol.md contains the ROUND-4 session's closing verdict
+  REPLAYED mid-file (lines ~4122-4145: one-slot finding at 1815, run4 44/42 counts, the 33-skip
+  browser run, "tokens used 124,410"), followed by my wrapper's premature "sol-exit:0" — the
+  codex parent exited while a live child (pid 52200) kept writing. Every concrete fact in that
+  block belongs to the pre-fix tree; do NOT disposition it. The fresh analysis continues after
+  it (reads flushingDictations at 188/1818-1826, counts 34 tests, finds the three-field test).
+  The real verdict is at the file's true END, after pid 52200 exits (Monitor armed).
+
+### Sol round-5 verdict arrived — DOES NOT SURVIVE, one P2 (2026-08-08)
+- voice-r4-donegate-sol.md finished (pid 52200 exited; 6097 lines). The file contains a REPLAYED
+  round-4 verdict at ~4122–4145 with a premature sol-exit:0 — the live verdict is at the true
+  tail and lacks the "VERDICT:" prefix. Do not disposition the mid-file block.
+- Live verdict: DOES NOT SURVIVE, exactly one finding (P2, 10/10, raven-grab.js:1839): a parked
+  entry whose recognizer never emits onend is retained FOREVER — the successful onresult flush
+  path (dispatch at :1948) never releases; releases exist only at :1882/:1928 (dead-end parked
+  paths), :1960 (onerror), :1970 (onend). stopDictation's own hard-clear comment (:1782–1784)
+  names "onend never arrived" as a real state, and the declaration comment at :185–187 claims
+  release-on-flush, which the code deliberately does NOT do. The 34th test supplies both onends,
+  so it never exercises the path; matrix v5 has no missing-terminal-event mutant. Everything
+  else RECONCILES per Sol: run5 internally consistent (45/43, V2+V6 only, R4 exact), mirror
+  byte-identical, A->B->C overwrite genuinely fixed.
+- DISPOSITION: FIX, but NOT Sol's grace-timer — a time window bounds nothing (unboundedly many
+  parks fit inside it) and needs a clock the synchronous harness cannot honestly drive. Instead:
+  MAX_PARKED_DICTATIONS = 8, evict OLDEST at the push site (while length >= MAX, shift).
+  Retention-until-onend stays — releasing on successful flush would be WRONG (a stopped
+  recognizer may deliver multiple finals before onend; releasing at the first would discard the
+  rest, reintroducing the lost-flush class). Evicting the oldest past 8 simultaneous unresolved
+  recognizers loses that entry's late flush — the pre-list behavior — at a concurrency real
+  Chrome does not produce. Also correcting the :185–187 declaration comment (the false
+  release-on-flush claim). New 35th flood test + 3 mutants (cap-deleted / evicts-newest /
+  off-by-one), EXPECTED_PASS 35, WHOLE matrix v6 re-run, header v6, suites, Sol round-6.
+  Commit stays held.
+
+### Matrix v6 COMPLETE — expected result, header rewritten (2026-08-08)
+
+Run: `.claude/genesis-2026-08-07/agent-output/voice-r2-mutants-run6.out` (task beygxylis, matrix-exit:0, "tracked file untouched"). Baseline green 35 pass / 0 skipped. 48 mutants, 46 killed, survivors exactly V2+V6 (documented expected), zero find-string misses — the eviction line went above the push, so R4/R3b anchors held without re-anchoring.
+
+R5a/R5b/R5c each redden EXACTLY the flood test. Radii widened by the flood test joining shared mechanisms (facts about the mechanisms, not extra guards): V1 28→29, V4 12→13, N15 11→12, R3b 2→3, R3c 2→3, R4 1→2. The v5 header's "ONLY that one" claim for R4 was true at v5 and is now false — measured v6: R4 reddens three-field + flood (one-slot newest-wins under nine parks keeps only the newest, park0..park7 vanish). Header rewritten to v6 with the measured radii, the R5 section, and the corrected R4 claim. All other radii unchanged (V5 4, V7 3, V8 6, V10 6, V11 3, N1 6, R3d 2, R3e 1, singles as at v5).
+
+Remaining: voice suite re-run (expect 35/35/0/0), fresh-build full suite (expect 1461/1458/0/3), Sol round-6 re-gate on the cap fix, then the held explicit-path commit (push Andrew-gated).
+
+### Sol round-6 verdict → FIX landed → matrix v7 COMPLETE (2026-08-08)
+
+- **Sol round-6 (voice-r5-donegate-sol.md, sol-exit:0): DOES NOT SURVIVE — exactly ONE P2 (8/10).** Two halves: (a) the eviction comment's "a concurrency real Chrome does not produce" was an unevidenced claim — the flood test proves the memory bound, not unreachability; (b) plain oldest-eviction is refutable — a valid interleaving leaves the OLDEST entry the only recognizer still owed its FIRST final while newer entries have already flushed and await only onend. Everything else reconciled (matrix v6 counts, find-string uniqueness, mirror parity, saved full-suite totals); Sol's fresh browser run was env-blocked (`listen EPERM 127.0.0.1`) and correctly not treated as verification. Out-file had verdict blocks at lines 3393 AND 3408 — read the TRUE TAIL only (third occurrence of this trap, handled per the standing rule).
+- **Disposition: FIX, both remedy halves.** (1) Comment rewritten honestly: the bound is bounded-loss MITIGATION, no unreachability claim. (2) Eviction is FLUSH-AWARE: onresult marks a parked entry that delivers a post-stop final (`session.flushedOnce = true`, guarded by `session !== dictation && finals`); the push-site eviction scans for the oldest FLUSHED entry (onend is all it's owed) and falls back to oldest-overall only when none has flushed. Flood test unchanged in behavior (none flushed there → fallback). `node --check` clean; mirror `cp`+`cmp` byte-identical.
+- **36th test added:** "eviction prefers an already-flushed entry — an older unflushed park keeps its spoken text". Ten alternating panel mics; s1 flushes early (asserted fixture precondition `earlyTemplate === 'park1'`); at the cap the scan must evict flushed s1 over older unflushed s0; discriminator: park0 COMMITS (instruction = "park0 park2 park4 park6 park8") — plain oldest-eviction kills s0 and goes red. `park1-late` on the evicted entry commits nothing (the accepted bounded loss made observable). Suite 36/36/0/0 green.
+- **Harness v7 (50 mutants, EXPECTED_PASS 36):** R5a/R5b find-strings STALED by the fix (the one-line eviction became a block) and were re-anchored; all 50 pre-verified anchoring exactly once before the run (`{"mutants":50,"bad":[]}`). R5a = delete the whole while-block; R5b = fallback evicts newest; R5c unchanged; NEW R5d = delete the flushedOnce scan (plain oldest verbatim); NEW R5e = neutralize the marking line (`if (false && …)`).
+- **Matrix v7 run (voice-r2-mutants-run7.out, matrix-exit:0): baseline 36/0 skips, 50 mutants, 48 killed, survivors exactly V2+V6, zero find misses, tracked file untouched.** R5d and R5e each redden EXACTLY the new test (one per mechanism half). Measured widenings vs v6, each = the new test joining a shared mechanism: V1 29→30, V4 13→14, N15 12→13, R3b 3→4, R3c 3→4, R4 2→3, R5a 1→2, R5c 1→2. One prediction corrected by measurement: **R5b stays at 1 (flood only)** — in the new test an entry HAS flushed, so the scan finds it and the fallback line R5b mutates never executes. Suite header rewritten to v7 from run7.out's measured radii (never predictions).
+- Next: voice suite re-run (expect 36/36/0/0) → fresh-build full suite (expect 1462/1459/0/3) → Sol round-7 brief + detached run → on SURVIVES, explicit-path local commit (push Andrew-gated).
+
+### Sol round-7 verdict → FIX landed → 37th test green → harness v8 in progress (2026-08-08)
+
+- **Sol round-7 (voice-r6-donegate-sol.md, true sol-exit:0 at line 4458): DOES NOT SURVIVE — exactly ONE P2 (9/10).** The whitespace-only-final false-mark: `appendDictatedText` returns success on a whitespace-only final without committing anything (`if (!text) return true;` after trim), but the mark tested the RAW string's truthiness (`session !== dictation && finals`) — so an entry that committed NOTHING got marked flushedOnce, was preferentially evicted at capacity, and its subsequent substantive final found no owner and was discarded. Two comment halves also false: "onend is all it is still owed" contradicts the code's own multiple-post-stop-finals design, and the 36th test's park1-late comment called a genuine FURTHER final a "replay/redispatch". Everything else reconciled: mirror parity, all 50 anchors unique, 48/50 kill accounting, R5b's one-test radius, saved suite totals. **Out-file trap, FOURTH occurrence, NEW VARIANT:** the file's first ~2314 lines were a complete REPLAY of the round-6 session INCLUDING a replayed `sol-exit:0` at line 2314 — only the LAST sol-exit line marks the true tail; grep line numbers first, read only past the final marker's preceding verdict block (4444–4458 here).
+- **Disposition: FIX, all three parts.** (1) Mark only on non-whitespace: `if (session !== dictation && /\S/.test(finals)) session.flushedOnce = true;` — mirrors appendDictatedText's own trim-based emptiness rule exactly. (2) Declaration comment rewritten: flush-preference is "a least-bad victim, not a safe one"; an evicted flushed entry may still be owed FURTHER finals — the accepted bounded loss, pinned observable in the eviction test; whitespace rule stated; accepted residual stated (a final clamped to nothing by a FULL field still marks — later finals to that field are equally unclampable, so the eviction loses nothing the cap would not drop). (3) The 36th test's three "replay" wordings corrected to "genuine FURTHER final … PINS the loss class; it does not bless it". `node --check` SYNTAX-OK, ES5 clean, mirror `cp`+`cmp` MIRROR-OK.
+- **37th test added:** "a whitespace-only final does not mark a parked entry flushed — its real text is still coming". Same ten-click flood; s1's early parked final is PURE WHITESPACE (`'  \t '`), asserted fixture precondition `earlyTemplate === ''` (it committed nothing — a substantive string there would mark legitimately and measure nothing). DOUBLE discriminator: under fixed code nothing is flushed at eviction → fallback evicts oldest s0 → instruction "park2 park4 park6 park8" AND s1's later substantive park1 commits → template "park1 park3 park5 park7"; under the raw-truthiness defect s1 is evicted, park1 dies, park0 commits — BOTH fields flip. Suite 37/37/0/0 green.
+- **Harness v8 plan (next):** R5e's find-string STALED by the fix (anchors the old raw-truthy line) — re-anchor to the `/\S/` line; NEW R5f = revert the mark to raw truthiness (the round-7 defect verbatim), expected to redden exactly the whitespace test; EXPECTED_PASS 37; header prose → v8. Predictions to be MEASURED, not asserted: whitespace test likely joins V1/V4/N15/R3b/R3c/R4/R5a/R5c AND R5b (it exercises the fallback path); R5d/R5e should stay exactly the 36th test. Then: pre-verify 51 anchors → whole matrix v8 → run8.out → header v8 from measured radii → voice suite (37) → fresh-build full suite (expect 1463/1460/0/3) → Sol round-8 → on SURVIVES the held explicit-path commit (push Andrew-gated).
+
+### Matrix v8 COMPLETE → Sol round-8 verdict → FIX landed → 38th test green → matrix v9 in progress (2026-08-08)
+
+- **Matrix v8 run (voice-r2-mutants-run8.out, matrix-exit:0): baseline 37/0 skips, 51 mutants, 49 killed, survivors exactly V2+V6, zero find misses, tracked file untouched.** R5f (raw-truthiness revert, the round-7 defect verbatim) reddened EXACTLY the whitespace test. R5d/R5e each stayed exactly the eviction-prefers-flushed test. R5b widened 1→2 as predicted-and-measured (flood + whitespace — both legitimately reach the fallback; the widening is the fix working). Other widenings from the 37th test joining shared mechanisms: V1 30→31, V4 14→15, N15 13→14, R3b 4→5, R3c 4→5, R4 3→4, R5a 2→3, R5c 2→3. Header rewritten to v8 from run8's measured radii. Voice suite 37/37/0/0; fresh-build full suite 1463/1460/0/3; mirror cmp clean.
+- **Sol round-8 (voice-r7-donegate-sol.md, true tail 2844–2859, sol-exit:0; 114,189 tokens): DOES NOT SURVIVE — exactly ONE P2 (9/10).** The round-7 "accepted residual" rested on a FALSE invariant: the declaration comment claimed a final clamped to nothing by a full field loses nothing because later finals are "equally unclampable" — but every append clamps against the field's CURRENT value and capped voice fields stay user-editable (e.g. the 2,000-char fixed-move note). Loss path: full field → substantive final commits nothing but /\S/ still marks flushedOnce → user SHRINKS the field → capacity eviction prefers the marked entry → its later final, which now FITS, is discarded with no owner. The 37th test's field is uncapped, so nothing falsified it. Out-file trap FIFTH occurrence, new variant: verdict-looking lines mid-file at 439/452 where Sol QUOTED the round-7 file inside its own transcript — only the LAST sol-exit marks the true tail.
+- **Disposition: FIX, sharpened one step past Sol's letter.** Sol demanded "mark only when the append actually changes the field"; the bare value delta still marks a SEPARATOR-ONLY commit (one char of room → field gains exactly ' ', no delivered speech) — same defect one character over. The mark is now a NON-WHITESPACE field delta: `var beforeAppend = field.value;` snapshotted immediately before onresult's append (after the injected-strip, which also mutates the field), then `if (session !== dictation && field.value.replace(/\s+/g, "") !== beforeAppend.replace(/\s+/g, "")) session.flushedOnce = true;`. Subsumes the round-7 /\S/ rule (a whitespace final never writes → values equal). Marking-site comment rewritten (delivery vs intent); declaration comment's residual sentence REWRITTEN — the residual is fixed, and the old "equally unclampable" claim is named as false with the reason (capped fields user-editable, clamp is against current value). `node --check` SYNTAX-OK, ES5 clean, mirror `cp`+`cmp` MIRROR-OK.
+- **38th test added:** "a final clamped away by a full field does not mark the entry — the field can shrink and its text still land". Sharpest fixture: template field value 'full' under maxLength 5 — exactly ONE char of room — so s1's early substantive final 'park1x' commits ONLY the separator space. That single fixture separates the fixed mark from BOTH wrong forms at once: /\S/ marks (carried text) and a bare delta marks (field changed by ' '); only the non-whitespace comparison declines. Precondition asserted: `earlyTemplate === 'full '`. Then user-shrink (value='' + input; cap raise is fixture convenience, the mark decision already happened) → flood → eviction must take s0 not s1 → s1's later 'park1' lands in the shrunken field. Double discriminator as in tests 36/37. **Fixture lesson (first draft failed honestly):** a mic click rebuilds the panel and the recreated field carries its DRAFT value and no node-level maxLength — a fixture set before the clicks is silently erased (read back 'park1x', unfilled and uncapped). Set the fixture after the clicks, immediately before the final, and mirror the value into the draft with an input dispatch. Suite 38/38/0/0 green.
+- **Harness v9 (53 mutants, EXPECTED_PASS 38):** R5e AND R5f both STALED (both anchored the /\S/ line) — re-anchored to the field-delta line; NEW R5g = revert to /\S/ (the round-8 defect verbatim, expect exactly the clamp test); NEW R5h = weaken to bare value delta (expect exactly the clamp test — the separator-only fixture is the one separator); R5f's radius expected to widen (clamp test's 'park1x' is truthy). All 53 anchors pre-verified `{"mutants":53,"bad":[]}`. Matrix v9 running backgrounded → run9.out. Then: header v9 from measured radii → voice suite (38) → fresh-build full suite (expect 1464/1461/0/3) → Sol round-9 → on SURVIVES the held explicit-path commit (push Andrew-gated).
+
+### Matrix v9 COMPLETE and clean (2026-08-08)
+
+- **Matrix v9 run (voice-r2-mutants-run9.out, matrix-exit:0): baseline 38/0 skips, 53 mutants, 51 killed, survivors exactly V2+V6, zero find misses, tracked file untouched.** R5g (revert to /\S/ — the round-8 defect verbatim) and R5h (bare value delta) each reddened EXACTLY the new clamp test; R5f widened 1→2 (whitespace + clamp — 'park1x' is truthy, so the raw mark marks the clamped-away entry too); R5d/R5e each stayed exactly the eviction-prefers-flushed test (under the fixed code the clamp test marks nothing, so scan and fallback pick the same victim — the fix working). Widenings from the 38th test joining shared mechanisms: V1 31→32, V4 15→16, N15 14→15, R3b 5→6, R3c 5→6, R4 4→5, R5a 3→4, R5b 2→3 (flood + whitespace + clamp — all three legitimately reach the fallback), R5c 3→4.
+- **One unpredicted-but-legitimate widening, investigated before writing it into the header: F3 2→3.** The noise-only-final test (an OLD test) joined the field-pre-check-deleted radius because the round-8 fix put `var beforeAppend = field.value;` BETWEEN the pre-check and appendDictatedText — with the pre-check neutralized, ANY final against a vanished field now throws TypeError at the snapshot before appendDictatedText's own guard can rescue it, so no stop path runs. At v8 the noise-only final fell through to appendDictatedText's re-query, failed there, and the failure path still stopped the session — which is why the header said TWO. The pre-check's load-bearing duty grew from "the STRIP block only" to "the strip block AND the snapshot"; header F3 entry rewritten accordingly. V9 (finals clamp dropped) also widened 2→3 for the stated fixture reason: the clamp test's `earlyTemplate === 'full '` precondition depends on the append clamp itself — without it 'park1x' commits fully.
+- Next: header v9 rewrite from run9's measured radii → voice suite re-run (38) → fresh-build full suite (expect 1464/1461/0/3) → Sol round-9 brief + detached run → on SURVIVES the held explicit-path commit (push Andrew-gated).
+- Header v9 rewritten from run9's measured radii (F3 entry carries the snapshot-widening explanation; R5g/R5h entries added; R5f now TWO; stale-reference sweep clean — remaining "v8" mentions are deliberate history). Voice suite 38/38/0/0 (voice-suite-v9header.out); fresh-build full suite 1464/1461/0/3 (full-suite-r8fix.out); mirror cmp MIRROR-OK. Sol round-9 brief written (voice-r8-donegate-brief.md — claim: round-8 defect fixed via non-whitespace field delta, sharpened past Sol's bare-delta letter; attack angles include snapshot placement after the injected-strip, Unicode \s vs the append's normalization, the one-char-of-room fixture's honesty, R5g/R5h verbatim-ness, header-vs-run9 reconciliation) and launched detached → voice-r8-donegate-sol.md.
+
+### Sol round-9 verdict → FIX landed → tests 39/40 green → matrix v10 launching (2026-08-08)
+
+- **Sol round-9 (voice-r8-donegate-sol.md, true tail 5187–5207, final sol-exit at 5210): DOES NOT SURVIVE — exactly ONE P2 (8/10).** JS `\s` does NOT match U+200B ZERO WIDTH SPACE or U+2060 WORD JOINER (it does match NBSP and U+FEFF — measured). So an invisible-only final survived the append's normalize+trim, appended unseeable junk, and the mark's `\s`-strip comparison read the delta as delivery → flushedOnce marked → capacity eviction prefers the marked entry → its later substantive final discarded. Deterministic loss path. Everything else reconciled (mirrors byte-identical, all 53 anchors unique, run9 accounting, Sol's fresh browser run env-blocked `listen EPERM` — not a finding). **Out-file trap SIXTH occurrence:** TWO sol-exit lines (a replayed one at 1038 after a mid-file verdict block at 1026); only the block before the FINAL sol-exit is the verdict.
+- **Disposition: FIX, sharpened past Sol's letter.** Sol's remedy said "normalize explicit default-ignorable characters before append and marking" — but STRIPPING would corrupt legitimate dictation (ZWNJ is load-bearing Persian orthography; ZWJ builds emoji sequences). Instead ONE shared predicate `dictatedVisibleContent(value)` — "does this string contain anything the user can SEE" — that inspects but never edits. Two callers: (a) append noise gate `if (!dictatedVisibleContent(text)) return true;` (invisible-only finals decline, the established whitespace-only semantic; finals CARRYING visible content pass verbatim); (b) mark comparison runs both sides through the predicate (closes the clamp-truncation case the gate alone cannot: a final `ZWSP+'park1x'` passes the gate, clamps to separator+ZWSP — a field change with no visible delta). Character class is an ES5 approximation of Unicode default-ignorables (soft hyphen, ALM, Mongolian vowel sep, ZWSP..RLM, WJ..invisible ops, deprecated formatting, BOM); accepted residual in comment: a lone variation selector still reads as content. MAX_PARKED_DICTATIONS comment updated. `node --check` SYNTAX-OK, ES5 clean, mirror `cp`+`cmp` MIRROR-OK.
+- **Tests 39+40 added (suite 40/40/0/0, voice-suite-r9fix.out).** Test 39: invisible-only final (fromCharCode 0x200B,0x2060) neither writes nor marks — earlyTemplate === '' precondition, flood, eviction must take s0. Test 40: maxLength-6 clamp retains only separator+ZWSP — the ONLY test separating the visibility comparison from `\s`-only; asserts earlyCodes '66,75,6c,6c,20,200b'. **Escape-conversion gotcha (NEW, binding for the rest of this repo's life):** writing `\uXXXX` through Edit/Write tool params lands LITERAL invisible chars (the JSON layer decodes them) — the regex had to go in via perl; all test fixtures use String.fromCharCode (pure ASCII); verify with `cat -v`.
+- **Harness v10 patched via Python (never retyping backslash-bearing strings — every one extracted from existing file bytes):** V6 re-anchored (insert-early-copy form — same trigger set, still expected survivor: onresult pre-checks the field); R5e–R5h finds re-anchored to the new mark line (R5e's replace too); NEW R5i = revert mark to the round-8 whitespace-strip (the round-9 defect verbatim, expect exactly test 40) and R5j = revert append gate to bare emptiness (expect exactly test 39); EXPECTED_PASS 38→40; v10 preamble + R5i/R5j descriptions added. All 55 finds pre-verified anchoring exactly once (a first scanner pass missed N8's double-quoted find and mis-checked it against N9's — scanner fixed to handle both quote styles before trusting the result). Harness `node --check` clean.
+- **Predictions to be MEASURED, never asserted:** R5g widens 1→3 (`/\S/` matches ZWSP so tests 38/39/40), R5h 1→2 (38/40), R5f likely widens (invisible finals are truthy); shared-mechanism widenings expected on V1/V4/N15/R3b/R3c/R4/R5a/R5b/R5c from tests 39/40 joining the flood shape. Investigate ANY unpredicted radius before writing the header.
+- Next: matrix v10 backgrounded → run10.out → header v10 from measured radii → voice suite (40) → fresh-build full suite (expect 1466/1463/0/3 — measure) → Sol round-10 brief + detached → on SURVIVES the held explicit-path commit (push Andrew-gated). Higgsfield still blocked on Andrew's YouTube link.
+
+### Matrix v10 COMPLETE → header v10 → suites green → Sol round-10 launching (2026-08-08)
+
+- **Matrix v10 run (voice-r2-mutants-run10.out, matrix-exit:0): baseline 40/0 skips, 55 mutants, 53 killed, survivors exactly V2+V6, zero find misses, tracked file untouched.** R5i (whitespace-strip mark revert — the round-9 defect verbatim) reddened EXACTLY test 40 (zero-width-clamp); R5j (bare-emptiness gate revert) reddened EXACTLY test 39 (invisible-only). Every one of the 15 changed radii matched a pre-run prediction — the first fix round in this ladder with zero unpredicted radii: V1 32→34, V4 16→18, V9 3→4 (test 40's precondition depends on the clamp; test 39 correctly did NOT join — the gate declines its final before the clamp), N15 15→17, R3b 6→8, R3c 6→8, R4 5→7, R5a 4→6, R5b 3→5 (both new tests reach the fallback), R5c 4→6, R5f 2→4 (invisible finals are truthy), R5g 1→3 (`/\S/` matches ZWSP/WJ — tests 38/39/40), R5h 1→2 (38/40; test 39's field never changes). R5d/R5e stayed exactly the eviction-prefers-flushed test; F3 stayed 3. V6's insert-early-copy re-anchor survived as documented (same trigger set).
+- **Header rewritten to v10 from run10's measured radii** (~16 edits: matrix intro with the scanner-N8 lesson "a checker whose failure mode is a silent skip is not a check", V1/V4/V9/N15/R3b/R3c/R4/R5a/R5b/R5c/R5d-prose/R5f/R5g/R5h counts, R5 preamble → rounds 5–9 with the visible-content-delta mark, new R5i/R5j entries with the gate-masks-mark rationale written into R5i's honesty tail).
+- **Suites: voice 40/40/0/0 post-header (voice-suite-v10header.out); fresh-build full suite 1466 tests / 1463 pass / 0 fail / 3 skipped (full-suite-r9fix.out, exit 0) — measured, matches the +2 prediction over 1464/1461.** Mirror cmp MIRROR-OK.
+- **Sol round-10 brief written (voice-r9-donegate-brief.md)** — claim: round-9 P2 fixed via the shared `dictatedVisibleContent` predicate (inspect-don't-strip, sharpened past Sol's normalize remedy because stripping corrupts ZWNJ/ZWJ); attack angles include character-class completeness (Hangul filler/Braille blank direction-of-harm), other `\s` decision sites, the gate-masks-mark claim, test 40's clamp arithmetic, V6's re-anchored trigger set, R5i/R5j verbatim-ness, header-vs-run10 reconciliation, ES5, rounds 3–8 regression. Out-file trap warning embedded (round-9 file had TWO sol-exit lines; true verdict 5187–5207).
+- Next: Sol round-10 detached → on SURVIVES the held explicit-path commit (push Andrew-gated). Higgsfield still blocked on Andrew's YouTube link.
+
+## Checkpoint — Sol round-10 verdict + round-11 fix in progress (2026-08-08)
+
+Sol round-10 (`.claude/genesis-2026-08-07/agent-output/voice-r9-donegate-sol.md`, tail
+verdict before the FINAL sol-exit line): **DOES NOT SURVIVE** — one P2 at confidence
+10/10. The predicate's class omits U+FE00-FE0F variation selectors and U+2066-2069 bidi
+isolates, and because the append gate AND the flushedOnce mark share the ONE predicate,
+any invisible char it wrongly calls visible both writes unseeable junk and marks the
+parked entry -> preferential eviction -> a later substantive final is lost. That refutes
+the round-9 comment's residual claim ("a spurious mark, not a lost final") — a lone
+U+FE00 final reproduces the round-9 loss path exactly. Sol's fresh browser run was
+env-blocked (listen EPERM), reported as such, not a finding.
+
+Round-11 fix plan: widen the class to the COMPLETE Unicode Default_Ignorable_Code_Point
+set plus \s (BMP enumerated; supplementary via surrogate-pair alternations incl. the
+whole plane-14 block via \uDB40[\uDC00-\uDFFF]); widen test 39 fixture to
+200B,2060,FE00,2066 and test 40 to 200B,FE00,2066 under maxLength 8; add mutant R5k
+(class narrowed back to the round-9 form) predicted to redden exactly tests 39+40 —
+closing Sol's observation that R5i/R5j revert the call sites but never mutate the class
+boundary itself; whole matrix v11 re-run; header v11 from measured radii; suites; Sol
+round-11.
+
+State at this checkpoint: predicate comment rewrite LANDED in browser/raven-grab.js
+(names the old sentence FALSE, commits the class to the named property, references R5k);
+regex line replacement, mirror sync, fixture widening, harness v11 all PENDING. Mirror
+is OUT OF SYNC until the cp lands.
+
+## Round-11 complete — matrix v11 clean, suites measured, Sol round-11 launched (2026-08-08)
+
+- **Class replacement LANDED** (browser/raven-grab.js:1695): the return line now strips
+  the COMPLETE Default_Ignorable_Code_Point set plus \s — BMP 00AD 034F 061C 115F-1160
+  17B4-17B5 180B-180F 200B-200F 202A-202E 2060-206F 3164 FE00-FE0F FEFF FFA0 FFF0-FFF8,
+  supplementary via surrogate pairs \uD82F[\uDCA0-\uDCA3] (1BCA0-1BCA3),
+  \uD834[\uDD73-\uDD7A] (1D173-1D17A), \uDB40[\uDC00-\uDFFF] (whole plane-14 block).
+  Built from ASCII pieces by scratchpad patch-class-v11.py (no \uXXXX through tool
+  params); node --check clean; cat -v pure ASCII. Lone surrogates stay content,
+  deliberately. Mirror cp + cmp → MIRROR-OK.
+- **Fixtures widened**: test 39 invisible run = fromCharCode(200B,2060,FE00,2066)
+  self-asserted '200b,2060,fe00,2066'; test 40 leads with 200B,FE00,2066 under
+  maxLength 8, cut char U+2066 not a high surrogate so no back-off, earlyCodes
+  '66,75,6c,6c,20,200b,fe00,2066' + exact string value.
+- **Harness v11 adds R5k** (class narrowed back to the round-9 form) — closes Sol's
+  observation that R5i/R5j revert the two call sites but never mutate the class
+  boundary; the round-9 class shipped 53/55 with that gap unmeasured. Harness strings
+  JS-escaped with backslashes DOUBLED (js_sq helper; single-backslash would decode
+  into literal invisibles and the find would miss). All 56 anchors pre-verified.
+- **Matrix v11 MEASURED clean** (voice-r2-mutants-run11.out, matrix-exit:0): baseline
+  40 pass / 0 skips; 56 mutants, 54 killed, survivors exactly V2+V6 (documented
+  expected); zero find misses; R5k reddened EXACTLY tests 39+40 as predicted; every
+  other radius byte-for-byte identical to v10 (V1 34, V4 18, V9 4, N15 17, R3b 8,
+  R3c 8, R4 7, R5a 6, R5b 5, R5c 6, R5d 1, R5e 1, R5f 4, R5g 3, R5h 2, R5i 1, R5j 1,
+  F3 3). Second consecutive zero-surprise round.
+- **Header v11 rewritten from run11's measured radii** — intro tells the round-10
+  story (class rewrite staled NOTHING because no mutant anchored the return line —
+  the exact gap R5k closes; any future class change must move R5k's find-string or
+  the harness aborts), R5 preamble extended, new R5k entry, R5h/R5i descriptions
+  corrected from single-ZWSP to the widened three-invisible-leads fixtures, raw
+  pointer → run11.out, "54 killed".
+- **Suites MEASURED**: voice 40/40/0/0 (voice-suite-v11header.out, voice-exit:0);
+  fresh-build full suite 1466 tests / 1463 pass / 0 fail / 3 skipped
+  (full-suite-v11.out, suite-exit:0) — matches the no-new-tests prediction exactly
+  (fixture widening only this round).
+- **Sol round-11 brief written** (voice-r10-donegate-brief.md) — claim: complete-DI
+  class + R5k boundary mutant + widened fixtures, falsifiably tested. Attack angles:
+  DI enumeration vs DerivedCoreProperties (180E absence, Hangul fillers, FFA0),
+  surrogate-pair alternation semantics + lone-surrogate harm direction, ES5 validity
+  of the (?:...) group without /u, the shared-predicate architecture itself, fixture
+  honesty (clamp arithmetic at maxLength 8, self-assert strength vs editor
+  normalization), R5k verbatim-ness + harness escaping, header-vs-run11
+  reconciliation, comments-as-claims, rounds 3-9 regression. Out-file trap warning
+  embedded.
+- Next: Sol round-11 detached → on SURVIVES the held explicit-path local commit
+  ("committed locally, not yet pushed" — push is Andrew-gated). Higgsfield still
+  blocked on Andrew's YouTube link.
+
+## Checkpoint — Sol round-11 verdict + round-12 fix in flight (2026-08-08)
+
+Sol round-11 (voice-r10-donegate-sol.md, tail verdict before the FINAL sol-exit line):
+**DOES NOT SURVIVE** — one P2 at 10/10, and it is real surrogate arithmetic: the v11
+plane-14 alternation used a single lead surrogate, which covers only U+E0000-E03FF —
+the block's first QUARTER. U+E0400 begins at lead 0xDB41; U+E0FFF is lead 0xDB43. A
+U+E0400-only final reproduces the loss path while every BMP fixture stays green, and
+R5k cannot see it (its replace is the round-9 BMP form — narrowing the lead range
+stays green under the whole v11 matrix). Sol's remedy verified by hand: the four-lead
+range 0xDB40-0xDB43 x any trail maps exactly onto U+E0000-E0FFF, no over-match; the
+other two alternations' math re-derived and correct. Sol's fresh browser run was
+env-blocked (listen EPERM), reported as such, not a finding.
+
+Round-12 fix, LANDED so far: overlay return line now carries the four-lead range
+(patch-class-v12.py, ASCII pieces; node --check clean — the patcher's own first draft
+had a literal plane-14 char leak into a comment via the tool-param escape layer,
+scrubbed before running: the hazard the convention exists for, caught by cat -v);
+predicate comment names the round-11 lead miss and points at R5k/R5l; test 39's
+fixture gains U+E0400 as DB41 DC00 with the self-assert switched to split('')
+per-UTF-16-unit (Array.from would fuse the pair and hide its trail), expecting
+'200b,2060,fe00,2066,db41,dc00'; harness at v12 — R5k's find moved to the v12 line,
+new R5l (lead narrowed back to single 0xDB40, predicted to redden exactly test 39),
+preamble rewritten; all 57 anchors pre-verified; mirror MIRROR-OK. Matrix v12 running
+(run12.out). Predictions: baseline 40/0; R5l exactly test 39; R5k still exactly
+39+40; all other radii unchanged from v11; survivors V2+V6.
+
+Pending: matrix v12 result -> header v12 (from measured radii) -> voice suite ->
+fresh-build full suite (expect 1466/1463/0/3, MEASURE) -> Sol round-12 -> on SURVIVES
+the held explicit-path commit (push Andrew-gated).
+
+## Round-12 completion — matrix v12 clean, header v12, suites measured (2026-08-08)
+
+Matrix v12 (voice-r2-mutants-run12.out, matrix-exit:0): baseline 40 pass / 0 skips;
+57 mutants, 55 killed, survivors exactly V2+V6 (both documented expected), zero find
+misses, tracked file untouched. Every prediction confirmed: R5l reddened EXACTLY
+test 39 (invisible-only — its U+E0400 is the only assertion separating the lead
+RANGE from the single lead; test 40 stays green honestly, BMP-only leads); R5k
+still EXACTLY tests 39+40; every other radius byte-for-byte identical to v11
+(V1 34, V4 18, V9 4, N15 17, R3b 8, R3c 8, R4 7, R5a 6, R5b 5, R5c 6, F3 3, the
+rest per run12.out). The fix STALED R5k's anchor as the header promised a class
+change would — migrated to the v12 line before the run, uniqueness check earning
+its keep.
+
+Header rewritten to v12 from run12's MEASURED radii (57 mutants / 55 killed /
+run12.out; v12 story leads, v11 story demoted; R5k tail now names R5k+R5l as the
+two class-boundary mutants and records the anchor migration; new R5l entry).
+Code-point references in the header written as 0x/U+ notation, never backslash-u
+(the tool-param escape hazard) — and the hazard bit anyway: the Sol round-12 BRIEF
+came out of Write with a literal U+E0FFF character embedded where the text discussed
+it (index 4242, caught by a post-write python scan, scrubbed via python). Writing
+ABOUT plane-14 characters through tool params is how they leak; scan every artifact
+that names them.
+
+Post-header suites, MEASURED: voice suite 40/40/0/0 (voice-suite-v12header.out,
+voice-exit:0); full suite on a fresh build pending in full-suite-v12.out (expect
+1466/1463/0/3 — no new tests this round, fixture+header only). Mirror MIRROR-OK
+post-round. Sol round-12 brief at voice-r12-donegate-brief.md — invites attack on
+the lead-range arithmetic itself, other multi-lead supplementary DI ranges, fixture
+honesty (split('') vs Array.from), the shared R5k/R5l anchor, and header-vs-run12
+reconciliation.
+
+Full suite MEASURED: 1466 tests / 1463 pass / 0 fail / 3 skipped on a fresh build
+(full-suite-v12.out, suite-exit:0) — matches the v11 figure exactly, as expected for
+a fixture+header-only round. Sol round-12 launched detached.
+
+## Round 13 — Sol round-12 verdict + harness fail-closed fix (2026-08-08)
+
+- Sol round-12 verdict read (voice-r12-donegate-sol.md, 6105 lines; duplicate-verdict trap applied — the true block is the one immediately before the FINAL sol-exit line): **DOES NOT SURVIVE — one P3, confidence 10/10.** The mutation harness's anchor handling was FAIL-OPEN: anchors were checked inside the mutation loop and a miss printed "not applied" then continued to matrix-exit:0, contradicting the suite header's abort claim — a matrix could report clean while a mutant never ran. Everything substantive was CONFIRMED by Sol: the v12 regex repair is complete against Unicode 17 ("independent exhaustive comparison under Node's Unicode 17 data found zero missing or extra code points" — only U+1BCA0-1BCA3, U+1D173-1D17A, U+E0000-E0FFF are supplementary DI ranges); run12 itself had no anchor misses (57 records, 55 killed, survivors exactly V2+V6, R5l reddening test 39); fixture and R5l exercise U+E0400 honestly; voice 40/40, full suite exit 0, mirror byte-exact. Sol's fresh browser run was env-blocked (listen EPERM) — reported as environment-blocked, not as verification and not as a finding.
+- Harness fix LANDED in .claude/genesis-2026-08-07/agent-output/voice-r2-mutants.mjs: (a) fail-closed anchor preflight BEFORE the baseline — all 57 find-strings must match exactly once against the pristine overlay or the run exits 1 before any Chromium launch; (b) the in-loop anchor check DELETED (the preflight owns the rule — two copies of one rule is how they drift); (c) a syntax-failing mutant now aborts the run (exit 1) instead of being skipped with exit 0, same fail-closed rule.
+- Negative test PROVEN: a doctored harness copy (first find-string prefixed ZZZ-BROKEN-) exits 1 in milliseconds — "V1-panel-delegation-deleted: FIND-STRING MATCHES 0 TIMES — fatal / 1 bad anchor(s) — aborting before any run." — fail-closed AND pre-baseline (no browser launched). node --check on the fixed harness: HARNESS-SYNTAX-OK.
+- Header honesty corrections in test/grab-overlay-voice-input.test.mjs: the v12 story now credits the EXTERNAL pre-run anchor scan for catching R5k's staled anchor at run12 time and names Sol round-12 P3 plus the in-harness preflight fix; the R5k tail's "the harness aborts on a stale anchor — the round-11 fix proved it" (false as history — nothing aborted, the migration happened before the run) rewritten to date the abort to the round-13 preflight. Run-file pointer moved to voice-r2-mutants-run12b.out.
+- Next: whole-matrix re-run under the fixed harness (run12b — expect the preflight line, baseline 40/0, radii identical to run12, survivors exactly V2+V6, matrix-exit:0), voice suite re-run post-header-edit, Sol round-13 brief + detached run, then on SURVIVES the held explicit-path commit (push stays Andrew-gated).
+
+### Round 13 measured results (2026-08-08)
+
+- Voice suite post-header-edit: 40 tests / 40 pass / 0 fail / 0 skipped, voice-exit:0 (voice-suite-v12b-header.out) — comment-only edits moved nothing.
+- Matrix run12b under the FIXED harness (voice-r2-mutants-run12b.out, matrix-exit:0): first line is "anchor preflight: all 57 find-strings match exactly once" — the fail-closed preflight guarded the run that produced these radii. Reconciled against run12 with a raw diff: the two files differ by EXACTLY that one added preflight line; all 57 mutant records byte-identical, survivors exactly V2+V6, baseline 40/0. Suite header's run-file pointer already moved to run12b.
+- Sol round-13 launched detached (voice-r13-donegate-brief.md → voice-r13-donegate-sol.md): narrow claim — round-12's P3 fixed fail-closed and proven; invited attack on any remaining fail-open path (runSuite output parsing, unmutated-copy runs now the in-loop check is gone, replace-string validity), negative-test scope (one broken anchor vs all), header-vs-history honesty, and the judgment not to re-run the full suite for comment-only edits.
+
+## Round 14 — Sol round-13 verdict: two more fail-open paths + the pointer I forgot (2026-08-08)
+
+- Sol round-13 (voice-r13-donegate-sol.md; true verdict = block before FINAL sol-exit): **DOES NOT SURVIVE — three P3s, all real.** (1) 10/10: runSuite graded ONLY from parsed ✖ lines, never the summary — a timed-out or crashed node --test parsed as zero ✖ and reported "0 red — SURVIVED" with matrix-exit:0 (Sol demoed it live with a spawnSync ETIMEDOUT reading "0 red — SURVIVED"). (2) 9/10: nothing proved a mutant copy differed from the pristine overlay — a replace===find entry would run UNMUTATED and report a survivor. (3) 10/10: the header's "Harness + raw output" pointer still named run12.out — the "update after the re-run" step from the compaction summary that never got done. Sol also confirmed: run12b reconciles (preflight line precedes 40/0 baseline, remaining lines byte-identical to run12, survivors V2+V6), mirrors byte-identical and predating both runs, node --check passes.
+- Fixes LANDED in voice-r2-mutants.mjs: runSuite now parses the FULL summary (tests/pass/fail/cancelled/skipped + spawn error) and a new validateRun() aborts (exit 1) on ANY unmeasurable run — spawn error, status null, missing summary lines, skips, cancels, tests !== 40, pass+fail !== tests, distinct ✖ names !== fail, or exit status disagreeing with fail count — applied to the baseline AND every mutant. The preflight additionally rejects replace===find (with count===1, that is the one way a copy can equal the original), so a no-op mutant dies before any run; preflight success line now reads "…match exactly once and mutate".
+- Negative tests PROVEN, one per mechanism: a 50ms-timeout doctored copy exits 1 at baseline ("RUN NOT MEASURABLE — spawn error: ETIMEDOUT; summary line missing: …"); a duplicate-R5l-with-replace===find copy exits 1 in the preflight ("REPLACE EQUALS FIND — a no-op mutant measures nothing — fatal"). HARNESS-SYNTAX-OK; both copies also node --check clean before running.
+- Header edits: story block extended with the round-13 findings and fixes (honest history — the false-survivor path and the unproven-mutation gap both named); raw-output pointer corrected run12.out → run12c.out. Non-ASCII scan clean (only pre-existing typography + three new ✖ in prose about the ✖ parsing).
+- Round-14 chain launched backgrounded: voice suite (voice-suite-v12c-header.out) → whole-matrix re-run under the hardened harness (voice-r2-mutants-run12c.out; expect the new preflight line, baseline 40/0, radii identical to run12/run12b, survivors exactly V2+V6, matrix-exit:0). Then Sol round-14, then the held explicit-path commit (push Andrew-gated).
+
+### Round 14 measured results (2026-08-08)
+
+- Voice suite post-header-edit (voice-suite-v12c-header.out): 40 tests / 40 pass / 0 fail / 0 skipped, voice-exit:0.
+- Matrix run12c (voice-r2-mutants-run12c.out, 61 lines): diff vs run12b is EXACTLY line 1 — the preflight success line gained the "and mutate" suffix, which is the in-band proof the round-14 preflight (no-op rejection) guarded this run. All 57 mutant records byte-identical to run12b/run12; survivors exactly V2+V6 (documented expected); baseline green 40/0; matrix-exit:0. (diff exit 1 read as "files differ", body inspected — never the code alone.)
+- Sol round-14 launched detached (voice-r14-donegate-brief.md → voice-r14-donegate-sol.md): claim = all three round-13 P3s fixed fail-closed with per-mechanism negative tests, run12c radii unchanged, header honest with the pointer at run12c. Invited attack on: validateRun residual fail-open paths (✖-name regex merge/truncation vs the fail-count cross-check, summary-shape variants, TDZ), the (fail===0)===(status===0) consistency check's legitimate-disagreement edge cases, writeFileSync failure, String.replace $-pattern expansion making an UNDECLARED mutation, negative-test scope (baseline vs mid-matrix timeout), header honesty, run12c reconciliation, and the no-full-suite-re-run judgment (uncontested in round 13).
+
+## Round 15 — Sol round-14 verdict: the $-pattern hole in the no-op check (2026-08-08)
+
+- Sol round-14 (voice-r14-donegate-sol.md, 1447 lines; true verdict = block before FINAL sol-exit): **DOES NOT SURVIVE — one P3, 10/10**, the String.replace $-pattern attack the brief invited: the preflight compared find===replace as STRINGS while the mutation used the two-arg string form, which gives the replacement $-pattern semantics — replace:'$&' differs from its find yet expands to the match and reproduces the pristine overlay, so pristine code could be graded a survivor and reach matrix-exit:0. Sol confirmed the current 57 mutants all produce changed copies, so run12c's radii are unaffected. Remedy taken verbatim: construct the mutated source in the preflight and reject mutated===original; function replacer so replacement text is literal.
+- Fix LANDED in voice-r2-mutants.mjs: one `applyMutation(source, m) = source.replace(m.find, () => m.replace)` (function replacer — replacement literal) shared by preflight and run loop; the preflight's find===replace check replaced by `applyMutation(original, m) === original` → fatal "MUTATION PRODUCES NO CHANGE" — the guard is on the CONSTRUCTED output, never a string proxy. HARNESS-SYNTAX-OK.
+- Measured (verify-r15-semantics.mjs): all 57 declared mutations byte-identical under string vs function semantics (the two `$`-containing replaces are `/\s$/` regex anchors, `$` before `/` is not a special pattern) — so the switch can move no radius; every mutation differs from the original; Sol's demo reproduced both directions (string semantics reproduce the original, function replacer does not).
+- Negative tests, all three PROVEN exit 1 under the fixed harness: replace===find copy dies in preflight ("MUTATION PRODUCES NO CHANGE"); a string-semantics-reverted + replace:'$&' copy dies in preflight the same way (the effect-check, not the replacer switch, is the fail-closed backstop); the 50ms-timeout copy still dies at baseline ("RUN NOT MEASURABLE — spawn error: ETIMEDOUT"). All copies node --check clean first.
+- Header edits: story extended with the round-14 finding and round-15 fix; pointer run12c.out → run12d.out. Non-ASCII scan clean (+2 em-dashes only).
+- Round-15 chain launching backgrounded: voice suite (voice-suite-v12d-header.out) → whole-matrix run12d (expect: preflight line unchanged, baseline 40/0, all 57 records byte-identical to run12c, survivors V2+V6, matrix-exit:0). Then Sol round-15, then the held explicit-path commit (push Andrew-gated).
+
+### Round 15 measured results (2026-08-08)
+
+- Voice suite post-header-edit (voice-suite-v12d-header.out): 40/40/0/0, voice-exit:0.
+- Matrix run12d (voice-r2-mutants-run12d.out, 61 lines): BYTE-IDENTICAL to run12c (diff exit 0 — and identical IS the expectation this round: the preflight success-line text did not change in round 15, only the mechanism behind it). Survivors exactly V2+V6, baseline 40/0, matrix-exit:0.
+- Sol round-15 launched detached (voice-r15-donegate-brief.md → voice-r15-donegate-sol.md). Invited attack on: fix-matches-remedy (any residual two-arg string replace), function-replacer edge cases, the no-change check's blind spots (behaviorally-inert mutations), negative-test (b) honesty, run12d reconciliation, header honesty, and the fifth-layer question (does the preflight's `original` match what the baseline and mutants actually run — OVERLAY constant, RAVEN_GRAB_ASSET_PATH plumbing, scratch-dir staleness).
+
+## Round 16 — Sol round-15 verdict: the evidence was ephemeral (2026-08-08)
+
+- Sol round-15 (voice-r15-donegate-sol.md, 3087 lines; true verdict = block before FINAL sol-exit): **DOES NOT SURVIVE — one P3, 10/10, about retention, not the fix.** Sol independently re-verified the round-15 semantics with its own script (57 mutants, zero string-vs-function semantic diffs, zero function-replacer no-ops, the `$&` demo confirmed both directions) — the FIX stands. The finding: `verify-r15-semantics.mjs` lived only in the session scratchpad (ephemeral, garbage-collected — the ledger named it without quoting it), and the three negative tests existed only as prose summaries with no fabrication commands or raw outputs, so negative test (b) could not be audited to establish the `$&` entry — rather than some other malformed edit — caused the stated preflight failure.
+- Round-16 response (no harness or tracked-file edits — evidence retention only): `verify-r15-semantics.mjs` copied to agent-output; `make-broken-harnesses-r15.mjs` written there as the durable fabricator (four copies into agent-output/negative-copies/); everything re-run with raw output captured to `voice-r15-negative-tests.out`, including the harness sha256 the copies were fabricated from (1925f6ed…6007).
+- The new fourth copy is the discriminator Sol asked for: (c) stringsem+`$&` and (d) stringsem CONTROL share the identical semantics revert and differ ONLY by the `$&` entry — (d) prints the preflight PASS line then dies at the 50ms baseline (ETIMEDOUT), (c) dies IN the preflight naming `ZZZ-dollar-amp-mutant: MUTATION PRODUCES NO CHANGE`. The revert alone clears the preflight (consistent with the measured all-57-mutate-under-either-semantics), so the `$&` entry is provably the trigger.
+- All four raw outcomes in the out-file: (a) noop exit 1 preflight; (b) timeout50 exit 1 baseline after preflight pass; (c) exit 1 preflight; (d) exit 1 baseline after preflight pass. All four node --check clean first.
+- Judgment stated for Sol round-16: no tracked file and no harness byte changed this round, so neither the voice suite nor the matrix re-ran — run12d remains the current matrix and voice-suite-v12d-header.out the current suite run.
+
+Sol round-16 brief written (`voice-r16-donegate-brief.md`) and launched detached (gpt-5.6-sol, medium, read-only) to `voice-r16-donegate-sol.md` — attacks the retention response: fabricator honesty, the (c)/(d) control's discrimination, run12d currency via the sha256 tie.

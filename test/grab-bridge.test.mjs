@@ -5833,7 +5833,10 @@ test('panel preset tooltip escapes panel clipping through one fixed shadow-root 
   assert.match(source, /settingsProjectMarkup \+ settingsGearMarkup/);
   assert.match(source, /onPanels\("focusin", function \(event\) \{[\s\S]*showPanelPresetTooltip\(preset\);/);
   assert.match(source, /window\.addEventListener\("scroll", function \(\) \{\s*hidePanelPresetTooltip\(\);/);
-  assert.match(source, /if \(next\) hidePanelPresetTooltip\(\);/);
+  // Block form: setPanelCollapsed's collapse branch also ends any dictation whose
+  // field the collapse is about to hide (voice round 2) — the pinned property is
+  // still "collapsing hides the tooltip", now first statement in the block.
+  assert.match(source, /if \(next\) \{\s*hidePanelPresetTooltip\(\);/);
   assert.match(source, /<span class="raven-grab-panel-preset-tip-source" aria-hidden="true">[\s\S]*<kbd>/);
   assert.doesNotMatch(source, /\.raven-grab-panel-preset-tip \{\s*position: absolute;[^}]*top: calc\(100% \+ 10px\);[^}]*right: 0;/);
 

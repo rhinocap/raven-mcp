@@ -172,6 +172,55 @@
   // on purpose: renderPanel() rebuilds panel DOM wholesale, so nothing about
   // an in-flight dictation may live on the button or textarea node.
   var dictation = null;
+  // Stopped-but-unflushed sessions parked by different-target mic clicks.
+  // Real Chrome's stop() delivers one last final AFTER stop() returns, and
+  // without parking a target switch loses it deterministically: the new
+  // session overwrites `dictation` in the same task, so the old recognizer's
+  // flush arrives to find the identity guard pointing at the new session
+  // (Sol round-3 P2, 2026-08-08). onresult/onend resolve a parked session by
+  // recognizer identity and commit its finals to its OWN field, finals only —
+  // a parked session is always stopping. A LIST, not a slot: the one-slot
+  // newest-wins version silently dropped the oldest orphan's flush when the
+  // user crossed three fields inside the flush window (Sol round-4 P2,
+  // 2026-08-08). An entry releases on its recognizer's onerror/onend — or at
+  // flush time only on the dead-end paths (vanished field, failed append). A
+  // SUCCESSFUL flush deliberately retains the entry: a stopped recognizer may
+  // deliver more than one final onresult before onend, and releasing at the
+  // first would discard the rest — the lost-flush class this list exists to
+  // prevent. The cost is that a recognizer whose onend never arrives (the
+  // state stopDictation's hard-clear branch exists for) retains its entry
+  // forever, so the push site bounds the list at MAX_PARKED_DICTATIONS
+  // (Sol round-5 P2, 2026-08-08). The bound is bounded-loss MITIGATION, not
+  // a proof of unreachability: an evicted entry's late flush is discarded —
+  // the pre-list behavior — and no claim is made that real Chrome cannot
+  // reach nine unresolved recognizers. Eviction therefore prefers the
+  // oldest entry that has ALREADY committed a post-stop final carrying real
+  // text (flushedOnce) and takes the oldest overall only when none has,
+  // because an unflushed entry may be the one recognizer still owed its
+  // ONLY spoken text, whatever its age (Sol round-6 P2, 2026-08-08). The
+  // preference is a least-bad victim, not a safe one: multiple post-stop
+  // finals are this list's own stated design, so an evicted flushed entry
+  // may still be owed FURTHER finals and those are discarded — the accepted
+  // bounded loss, pinned observable in the eviction test. And flushedOnce
+  // requires the final's text to have LANDED — the field's VISIBLE content
+  // changed across the append (non-whitespace AND non-zero-width: a
+  // default-ignorable character is not delivery, Sol round-9 P2) — because
+  // the raw string cannot answer that from either side: appendDictatedText
+  // reports success on a
+  // whitespace-only final without committing anything (Sol round-7 P2), and
+  // a substantive final against a FULL field clamps to nothing — or to a
+  // bare separator with one char of room — while still reading as real text.
+  // An earlier draft accepted that clamp case as a residual on the claim
+  // that later finals were "equally unclampable"; false, because capped
+  // fields stay user-editable and every append clamps against the CURRENT
+  // value, so a field that shrinks after the non-commit makes the marked
+  // entry the preferred eviction victim exactly when its text could still
+  // land (Sol round-8 P2, 2026-08-08).
+  // A post-stop grace TIMER was considered and rejected: a time window
+  // bounds nothing (unboundedly many parks fit inside it) and needs a clock
+  // no synchronous test can honestly drive.
+  var MAX_PARKED_DICTATIONS = 8;
+  var flushingDictations = [];
   var componentRequestStep = "form";
   var componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
   var componentRequestId = "";
@@ -1537,7 +1586,11 @@
     // turn exactly this clause red; it guards future id shapes, not today's.
     if (!/^[A-Za-z-]+(='[A-Za-z0-9_-]+')?$/.test(targetAttr)) return "";
     if (!speechRecognitionCtor()) return "";
-    var active = !!(dictation && dictation.targetAttr === targetAttr);
+    // A stopping session reads INACTIVE: the user already clicked stop, and
+    // the only thing still pending is the recognizer's trailing flush (see
+    // stopDictation) — a mic that stays lit until onend reads as a stop
+    // click that didn't take.
+    var active = !!(dictation && !dictation.stopping && dictation.targetAttr === targetAttr);
     var caption = active ? "Stop dictation" : "Dictate " + label;
     // The wave canvas renders ONLY beside the active mic — one dictation
     // session exists at a time, so at most one [data-voice-wave] is in the
@@ -1545,10 +1598,14 @@
     var wave = active
       ? '<canvas class="raven-grab-voice-wave" data-voice-wave width="60" height="16" aria-hidden="true"></canvas>'
       : "";
+    // label is escaped like any other interpolated text — every current call
+    // site passes a literal, but targetAttr gets a fail-closed guard for the
+    // same "safe today" reason, and an unescaped sibling is where the next
+    // quote-carrying label would break attribute structure (Kimi F5).
     return '<span class="raven-grab-voice-slot">' + wave +
       '<button class="raven-grab-voice" type="button" data-voice-dictate="' + targetAttr + '"' +
-      ' data-voice-label="' + label + '"' +
-      ' aria-pressed="' + (active ? "true" : "false") + '" aria-label="' + caption + '" title="' + caption + '">' + micSvg() + "</button></span>";
+      ' data-voice-label="' + escapeHtml(label) + '"' +
+      ' aria-pressed="' + (active ? "true" : "false") + '" aria-label="' + escapeHtml(caption) + '" title="' + escapeHtml(caption) + '">' + micSvg() + "</button></span>";
   }
   function dictationQuery(selector) {
     // The feedback form lives in the settings modal, outside both panels, so
@@ -1564,7 +1621,7 @@
     if (!settingsModal || !settingsModal.querySelectorAll) return;
     var buttons = settingsModal.querySelectorAll("[data-voice-dictate]");
     for (var i = 0; i < buttons.length; i += 1) {
-      var active = !!(dictation && dictation.targetAttr === buttons[i].getAttribute("data-voice-dictate"));
+      var active = !!(dictation && !dictation.stopping && dictation.targetAttr === buttons[i].getAttribute("data-voice-dictate"));
       var caption = active ? "Stop dictation" : "Dictate " + (buttons[i].getAttribute("data-voice-label") || "message");
       buttons[i].setAttribute("aria-pressed", active ? "true" : "false");
       buttons[i].setAttribute("aria-label", caption);
@@ -1588,6 +1645,60 @@
       }
     }
   }
+  function clampDictatedValue(field, next) {
+    // maxLength constrains TYPING, not assignment — setting .value walks
+    // right past it — so a dictated write has to honour the field's own cap
+    // or a long dictation ships a value the form promised its consumer it
+    // never would. maxLength is -1 when unset. ONE helper for both the final
+    // and interim paths: two copies of the clamp is the two-copies-of-one-
+    // rule drift, and the cut must be surrogate-aware — a raw slice landing
+    // between the halves of a pair persists a lone high surrogate, which
+    // every consumer renders as a replacement character (Sol #4, 2026-08-07).
+    // Backing off one unit under-fills the cap by one; shipping half an
+    // emoji is the worse direction.
+    if (!(field.maxLength > 0) || next.length <= field.maxLength) return next;
+    var cut = field.maxLength;
+    var last = next.charCodeAt(cut - 1);
+    if (last >= 0xd800 && last <= 0xdbff) cut -= 1;
+    return next.slice(0, cut);
+  }
+  function dictatedVisibleContent(value) {
+    // \s does not cover the zero-width/format characters: U+200B ZERO WIDTH
+    // SPACE and U+2060 WORD JOINER match neither \s nor the append's
+    // whitespace normalization, unlike NBSP and FEFF (measured — Sol round-9
+    // P2, 2026-08-08). This helper answers ONE question for two callers —
+    // does the string contain anything the user can SEE — the append's noise
+    // gate and the flushedOnce mark's delta. It never edits text that reaches
+    // the field, which is why the joiners and bidi marks are safely in the
+    // set: ZWNJ is load-bearing Persian orthography and ZWJ builds emoji
+    // sequences, so STRIPPING them from a transcript would corrupt
+    // legitimate dictation — but a transcript or delta made ONLY of them
+    // delivered nothing visible. The class is the COMPLETE Unicode
+    // Default_Ignorable_Code_Point set plus \s: the BMP entries enumerated,
+    // the plane-14 tag/variation-selector block (U+E0000..U+E0FFF, all of it
+    // default-ignorable, assigned and reserved alike) and the shorthand and
+    // musical format controls via explicit surrogate pairs. The plane-14
+    // alternation's LEAD is a range — the block spans four lead surrogates
+    // (0xDB40..0xDB43), and round 11 shipped it as \uDB40 alone, which
+    // covers only U+E0000..U+E03FF, the first quarter (Sol round-11 P2): a
+    // U+E0400-only final reproduced the loss path while every BMP fixture
+    // stayed green. Round 10
+    // replaced an "ES5 approximation" that omitted the variation selectors
+    // (U+FE00..U+FE0F) and bidi isolates (U+2066..U+2069) — and the sentence
+    // beside it calling that omission an accepted residual whose harm was a
+    // spurious mark. That sentence was FALSE (Sol round-10 P2): the gate and
+    // the mark share this ONE predicate, so a character it wrongly calls
+    // visible both WRITES unseeable junk and MARKS the parked entry — a lone
+    // U+FE00 final reproduced the round-9 loss path exactly. The true
+    // residual is a character OUTSIDE the property that still renders
+    // invisibly, or a future Unicode DI addition: either reproduces the loss
+    // path, not a mere spurious mark — which is why the class tracks a
+    // named, checkable Unicode property rather than a judgment call, and why
+    // any change to it must move the class-boundary mutants (R5k, R5l) with it.
+    // Lone unpaired surrogates stay "content" deliberately: they are not DI,
+    // and the clamp already refuses to create them.
+    return String(value || "").replace(/(?:[\s\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180F\u200B-\u200F\u202A-\u202E\u2060-\u206F\u3164\uFE00-\uFE0F\uFEFF\uFFA0\uFFF0-\uFFF8]|\uD82F[\uDCA0-\uDCA3]|\uD834[\uDD73-\uDD7A]|[\uDB40-\uDB43][\uDC00-\uDFFF])+/g, "");
+  }
   function appendDictatedText(targetAttr, transcript) {
     // Query at result time, never a captured node: renderPanel() may have
     // rebuilt the panel (81 call sites) since dictation started. The field
@@ -1609,14 +1720,17 @@
     var field = dictationQuery("[" + targetAttr + "]");
     if (!field) return false;
     var text = String(transcript || "").replace(/\s+/g, " ").trim();
-    if (!text) return true;
+    // Noise gate: a final with no VISIBLE content never writes. The old
+    // emptiness test caught only whitespace-only finals; an invisible-only
+    // final (U+200B and friends survive both \s passes above) appended
+    // unseeable junk to the field — and marked a parked entry flushed one
+    // layer up (Sol round-9 P2, 2026-08-08). Declining is the established
+    // whitespace-only semantic, not a new one: keep listening, commit
+    // nothing. Finals that CARRY visible content pass through verbatim —
+    // the gate inspects, it never strips.
+    if (!dictatedVisibleContent(text)) return true;
     var existing = field.value;
-    var next = existing + (existing && !/\s$/.test(existing) ? " " : "") + text;
-    // maxLength constrains TYPING, not assignment — setting .value walks right
-    // past it — so a dictated append has to honour the field's own cap or a
-    // long dictation ships a value the form promised its consumer it never
-    // would. maxLength is -1 when unset.
-    if (field.maxLength > 0 && next.length > field.maxLength) next = next.slice(0, field.maxLength);
+    var next = clampDictatedValue(field, existing + (existing && !/\s$/.test(existing) ? " " : "") + text);
     field.value = next;
     // Route through the same delegated input handler a keystroke uses, so the
     // draft mirror and send-button enablement stay a single code path. Through
@@ -1709,6 +1823,13 @@
         wave.analyser.fftSize = 256;
         wave.data = new Uint8Array(wave.analyser.frequencyBinCount);
         wave.context.createMediaStreamSource(stream).connect(wave.analyser);
+        // A slow permission prompt can outlive the click's user activation,
+        // leaving a fresh context suspended — and a suspended context feeds
+        // the analyser silence, so the wave sits permanently flat. Fail-soft
+        // resume: a refusal costs the wave, never the dictation (Kimi F7).
+        if (wave.context.state === "suspended" && typeof wave.context.resume === "function") {
+          try { wave.context.resume(); } catch (error) {}
+        }
         drawVoiceWaveFrame();
       } catch (error) {
         if (voiceWave === wave) stopVoiceWave();
@@ -1737,20 +1858,79 @@
   }
   function stopDictation() {
     if (!dictation) return;
+    if (dictation.stopping) {
+      // A second stop on an already-stopping session (another teardown route
+      // fired, or onend never arrived): hard-clear rather than re-stop, so
+      // the session can never wedge in a state no click can leave.
+      dictation = null;
+      stopVoiceWave();
+      renderPanel();
+      syncModalVoiceButtons();
+      return;
+    }
     var recognizer = dictation.recognizer;
-    // Clear state before stop(): the recognizer's own onend must read this
-    // session as already over, not re-render a second time.
-    dictation = null;
+    // Mark the session stopping instead of nulling it: real Chrome's stop()
+    // (unlike abort()) flushes pending audio as one last final onresult
+    // BEFORE onend, and a nulled session drops that flush at the identity
+    // guard — a short utterance ("blue") that produced no interim yet would
+    // vanish entirely (Kimi F2, 2026-08-07). The fake's synchronous
+    // stop()->onend cannot deliver this ordering, which is why its test
+    // replays the flush by hand. While stopping, onresult commits FINALS
+    // ONLY and the UI reads the session as inactive; the recognizer's own
+    // onend (identity-guarded) does the actual clearing.
+    dictation.stopping = true;
     stopVoiceWave();
     try { recognizer.stop(); } catch (error) {}
     renderPanel();
     syncModalVoiceButtons();
   }
+  function stopDictationIfFieldInside(container) {
+    // Hiding a surface must end its dictation session. The render-once
+    // settings modal and collapsed panels HIDE (hidden / inert + off-screen
+    // transform) — the field node stays queryable, so the vanished-field
+    // guard can never fire, and the only stop control, the mic beside the
+    // field, is hidden with it. Left alone that is a hot microphone with no
+    // reachable off switch (Kimi F1 / Sol #2, 2026-08-07). targetAttr is a
+    // selector-safe descriptor by voiceButtonMarkup's grammar guard.
+    if (!dictation || !container || typeof container.querySelector !== "function") return;
+    if (container.querySelector("[" + dictation.targetAttr + "]")) stopDictation();
+  }
+  function parkedDictationFor(recognizer) {
+    for (var i = 0; i < flushingDictations.length; i += 1) {
+      if (flushingDictations[i].recognizer === recognizer) return flushingDictations[i];
+    }
+    return null;
+  }
+  function releaseParkedDictation(session) {
+    var at = flushingDictations.indexOf(session);
+    if (at !== -1) flushingDictations.splice(at, 1);
+  }
   function toggleDictation(targetAttr) {
     if (dictation) {
       var wasSameTarget = dictation.targetAttr === targetAttr;
+      var prior = dictation;
       stopDictation();
       if (wasSameTarget) return;
+      // Park the prior session so its pending flush still commits (see
+      // flushingDictations). Both stopDictation outcomes need it: a live
+      // session was marked stopping and would be clobbered by the
+      // assignment below; an already-stopping one was just hard-cleared.
+      // Either way prior.stopping is true, so a parked flush is finals-only.
+      // Bound the list before pushing: see the declaration comment — an
+      // entry whose recognizer never fires onend would otherwise be
+      // retained forever. Evict the oldest entry that has already delivered
+      // a post-stop final; only when none has flushed does the oldest
+      // overall go — an unflushed entry may be the only one still owed
+      // spoken text, whatever its age.
+      while (flushingDictations.length >= MAX_PARKED_DICTATIONS) {
+        var evictAt = 0;
+        for (var pi = 0; pi < flushingDictations.length; pi += 1) {
+          if (flushingDictations[pi].flushedOnce) { evictAt = pi; break; }
+        }
+        flushingDictations.splice(evictAt, 1);
+      }
+      flushingDictations.push(prior);
+      dictation = null;
     }
     var Recognition = speechRecognitionCtor();
     if (!Recognition) return;
@@ -1763,18 +1943,36 @@
       // the user speaks. Each event's non-final tail REPLACES the previous
       // one (strip-and-reinject below), so half-recognized text never stacks.
       recognizer.interimResults = true;
+      // Unset, recognition language defaults to the HOST document's — and
+      // this overlay injects into arbitrary third-party pages, so dictating
+      // English on a lang="ja" page would silently transcribe as Japanese.
+      // The user's own browser locale is the best signal available; the
+      // page's declared lang is only a fallback (Kimi F4, 2026-08-07).
+      recognizer.lang = (typeof navigator !== "undefined" && navigator.language) ||
+        (document.documentElement && document.documentElement.lang) || "en-US";
     } catch (error) {
       return;
     }
     recognizer.onresult = function (event) {
-      if (!dictation || dictation.recognizer !== recognizer) return;
+      // Resolve the owning session by recognizer identity: the live one, or
+      // a parked one whose flush this event is (see flushingDictations).
+      var session = dictation && dictation.recognizer === recognizer ? dictation
+        : parkedDictationFor(recognizer);
+      if (!session) return;
       // A missing target field means the user navigated away mid-dictation
       // (tab switch, flow change): end the session rather than transcribe
-      // into nothing. This check runs before anything else for the same
-      // reason the empty-text ordering in appendDictatedText does — a
-      // noise-only event must still end an orphaned session.
+      // into nothing. This check runs before anything else, and it is
+      // load-bearing for the STRIP block below, not just a mirror of
+      // appendDictatedText's ordering — with an interim pending, a removed
+      // field would send field.value.slice into a TypeError that escapes
+      // the handler, and no stop path ever runs (Kimi F3, 2026-08-07).
       var field = dictationQuery("[" + targetAttr + "]");
       if (!field) {
+        // A parked session's recognizer is already stopped; releasing its
+        // entry is the whole teardown. stopDictation() here would act on the
+        // LIVE session instead — ending the new dictation the user just
+        // started because the old one's field went away.
+        if (session !== dictation) { releaseParkedDictation(session); return; }
         stopDictation();
         return;
       }
@@ -1782,35 +1980,79 @@
       // replaces it instead of stacking beside it. A field that no longer
       // ENDS with the injection means the user edited mid-dictation — their
       // edit wins: drop the tracking and leave their text alone (the old
-      // interim is silently promoted to kept text).
-      if (dictation.injected) {
-        if (field.value.slice(-dictation.injected.length) === dictation.injected) {
-          field.value = field.value.slice(0, field.value.length - dictation.injected.length);
+      // interim is silently promoted to kept text). String equality is a
+      // heuristic, not provenance: a user who retypes the injected chunk
+      // byte-identically is indistinguishable from the injection itself,
+      // and a promoted interim's own final still appends (pinned — the
+      // resurrect test). Both misreads leave EXTRA dictated text the user
+      // can delete, never lost user text that differs from the dictated
+      // text; per-result identity does not survive the snapshot model, so
+      // provenance tracking could not tell the pending final from new
+      // speech either (Sol #3 disposition, 2026-08-07).
+      if (session.injected) {
+        if (field.value.slice(-session.injected.length) === session.injected) {
+          field.value = field.value.slice(0, field.value.length - session.injected.length);
         }
-        dictation.injected = "";
+        session.injected = "";
       }
+      // Finals are immutable once final and each is reported exactly once,
+      // so committing from resultIndex onward is complete. The interim tail
+      // is NOT: the spec allows resultIndex > 0 with UNCHANGED interim
+      // results below it, and rebuilding only from resultIndex would strip
+      // "make the hero" and re-inject just "blue" — dictated text deleted
+      // by the event that didn't change it (Sol #1, 2026-08-07). The
+      // interim rebuild therefore scans EVERY result: the non-final entries
+      // of event.results ARE the complete current tail, whatever changed.
       var finals = "";
-      var interim = "";
       for (var i = event.resultIndex || 0; i < event.results.length; i += 1) {
         var result = event.results[i];
         if (!result || !result[0]) continue;
         if (result.isFinal) finals += (finals ? " " : "") + result[0].transcript;
-        else interim += (interim ? " " : "") + result[0].transcript;
+      }
+      var interim = "";
+      for (var j = 0; j < event.results.length; j += 1) {
+        var tail = event.results[j];
+        if (!tail || !tail[0] || tail.isFinal) continue;
+        interim += (interim ? " " : "") + tail[0].transcript;
       }
       // Finals commit through the same path a finals-only recognizer used —
       // whitespace-normalized, separator-spaced, maxLength-clamped.
+      var beforeAppend = field.value;
       if (!appendDictatedText(targetAttr, finals)) {
+        if (session !== dictation) { releaseParkedDictation(session); return; }
         stopDictation();
         return;
       }
-      var interimText = String(interim || "").replace(/\s+/g, " ").trim();
+      // A parked entry is the preferred eviction victim only when its final
+      // actually LANDED — the field's non-whitespace content changed. The
+      // final's own text cannot answer that: a whitespace-only final
+      // "succeeds" in appendDictatedText without committing (Sol round-7
+      // P2), and a substantive final against a FULL field clamps to nothing
+      // — or to a bare separator when exactly one char of room remains —
+      // while the raw string still reads as real text (Sol round-8 P2,
+      // 2026-08-08). Capped fields stay user-editable, so the field can
+      // SHRINK after such a non-commit; a mark here would then evict the
+      // one entry whose spoken text could still land. Comparing the field
+      // around the append is the only test that measures delivery rather
+      // than intent, and stripping whitespace from both sides keeps the
+      // separator-only commit unmarked. But \s alone under-strips: the
+      // clamp can truncate a final's visible text and retain a leading
+      // zero-width character — a delta the user cannot see reading as
+      // delivery (Sol round-9 P2, 2026-08-08). Both sides therefore
+      // compare through dictatedVisibleContent, the same visibility rule
+      // the append's noise gate applies — one rule, two callers, no drift.
+      if (session !== dictation && dictatedVisibleContent(field.value) !== dictatedVisibleContent(beforeAppend)) session.flushedOnce = true;
+      // A stopping session commits finals only: the flush after a user stop
+      // finalizes everything it keeps, and re-injecting an interim once the
+      // mic reads off would strand it as tracked text no later event will
+      // ever strip.
+      var interimText = session.stopping ? "" : String(interim || "").replace(/\s+/g, " ").trim();
       if (interimText) {
         var base = field.value;
-        var next = base + (base && !/\s$/.test(base) ? " " : "") + interimText;
-        if (field.maxLength > 0 && next.length > field.maxLength) next = next.slice(0, field.maxLength);
+        var next = clampDictatedValue(field, base + (base && !/\s$/.test(base) ? " " : "") + interimText);
         // Track the EXACT appended chunk (separator included, clamp applied)
         // so the next event's strip removes precisely what was injected.
-        dictation.injected = next.slice(base.length);
+        session.injected = next.slice(base.length);
         field.value = next;
       }
       // Unconditional: a strip-only event (recognition abandoned its interim)
@@ -1824,6 +2066,11 @@
         stopVoiceWave();
         renderPanel();
         syncModalVoiceButtons();
+      } else {
+        // A parked session's wave/UI were torn down when it was stopped;
+        // releasing its entry is the whole teardown. Identity-resolved: a
+        // foreign recognizer's error releases nothing (null is a no-op).
+        releaseParkedDictation(parkedDictationFor(recognizer));
       }
     };
     recognizer.onend = function () {
@@ -1832,6 +2079,8 @@
         stopVoiceWave();
         renderPanel();
         syncModalVoiceButtons();
+      } else {
+        releaseParkedDictation(parkedDictationFor(recognizer));
       }
     };
     try {
@@ -2105,6 +2354,12 @@
   }
   function closeSettingsModal() {
     if (!settingsModalOpen) return;
+    // The modal is render-once and HIDES — its fields stay queryable — so a
+    // live dictation into the feedback form must end here or the mic stays
+    // hot behind an invisible surface with its only stop control hidden
+    // (Kimi F1 / Sol #2, 2026-08-07). Every close route (close button,
+    // backdrop, Escape, toggle) converges on this function.
+    stopDictationIfFieldInside(settingsModal);
     settingsModalOpen = false;
     settingsModal.hidden = true;
     var returnTarget = settingsReturnFocus;
@@ -2364,7 +2619,15 @@
     // Reopening properties by any route retracts the dismissal, so selections
     // follow it again instead of staying silently opted out for the session.
     if (el === panel && !next) propertiesDismissed = false;
-    if (next) hidePanelPresetTooltip();
+    if (next) {
+      hidePanelPresetTooltip();
+      // Collapsing hides (inert + off-screen transform) — the panel's fields
+      // stay in the DOM, so the vanished-field guard cannot see this. Every
+      // collapse route (layout tiles, keyboard toggle, mobile snap, edge
+      // buttons) converges here, which is what makes this the one hook that
+      // ends a dictation whose field is being hidden (Kimi F1 / Sol #2).
+      stopDictationIfFieldInside(el);
+    }
     collapsedSides[sideOf(el)] = !!next;
     el.setAttribute("data-collapsed", next ? "true" : "false");
     el.setAttribute("aria-hidden", next ? "true" : "false");
@@ -10160,6 +10423,19 @@
     // callers (tests, post-mutation checks) re-derive from live selection state.
     selectionMembershipForRender = null;
     applyPanelFontSize();
+    // A rebuild that DROPPED the dictation field (tab switch, deselection,
+    // any state change whose fresh markup no longer includes it) must end
+    // the session here: onresult's vanished-field guard only runs when the
+    // user speaks, so a silent user would otherwise keep a hot microphone
+    // with its only off switch gone (Sol round-3 P1, 2026-08-08). Last
+    // statement on purpose — it must see the FINAL rebuilt DOM. The
+    // !stopping gate bounds recursion (stopDictation calls renderPanel
+    // after marking the session stopping) and keeps this from hard-clearing
+    // a session already tearing down, which would drop its pending flush.
+    // A rebuild that KEEPS the field is a no-op: dictationQuery re-finds it
+    // (pinned by the survives-a-panel-re-render test), and the render-once
+    // settings modal field is found through dictationQuery's fallthrough.
+    if (dictation && !dictation.stopping && !dictationQuery("[" + dictation.targetAttr + "]")) stopDictation();
   }
 
   function applyPanelFontSize() {
@@ -10261,6 +10537,11 @@
   function dismiss() {
     hidePanelPresetTooltip();
     if (layerDrag) endLayerDrag();
+    // Disarming ends any live dictation with the rest of the session state:
+    // the panel contents are cleared below, and a recognizer left running
+    // would keep the mic hot against fields that no longer exist until the
+    // next speech event happened to notice (Sol #2, 2026-08-07).
+    if (dictation) stopDictation();
     var previewedLayerDrafts = localLayerDrafts().concat(allLayerOrders().filter(function (order) {
       return !!order.livePreviewApplied && order.state !== "mismatch" && order.state !== "stale" && order.state !== "applied";
     }));
