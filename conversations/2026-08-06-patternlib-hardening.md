@@ -556,3 +556,7 @@ First run was the documented failure mode again — `finish_reason: 'length'`, E
 Post-fix: voice/drag mutant matrix re-run WHOLE (per the fix-round rule) + full suite re-run — results recorded when complete. Eyes-on captures of both mic placements taken from the real overlay (agent-output/mic-*.png).
 
 Post-fix verification complete: voice/drag matrix re-ran WHOLE after the P2-2 guard — all 15 mutants killed, every radius identical to round 1 (the guard sits above the mutated lines and disturbs nothing). Full suite after the guard: 1430 / 1427 / 0 fail / 3 skipped, fresh tsc build. Phase-2 build is verification-complete; committing locally, not pushing (push is Andrew-gated).
+
+### Design-judge pass on the mic UI (2026-08-07)
+
+Ran the design-judge skill against the eyes-on captures (`.claude/genesis-2026-08-07/agent-output/mic-{1,2,3}-*.png`), global layer only, surface = raven-mcp product-site binding. **Verdict: PASS** — zero block/warn findings; one nit (SPACING-generous-negative-space): the Feedback pane's mic sits ~4px off the "Message" label while the Instructions row right-aligns its mic to the field edge, two idioms in one surface. Remedy if wanted: right-align the mic at the `data-feedback-message` call site (browser/raven-grab.js ~1859). Not applied — outside the asked scope, reported as one line. Completion claim stands: `9ebc27c` committed locally, not pushed.
