@@ -920,3 +920,302 @@ Working tree only. Nothing committed, nothing pushed, no release, no endpoint
 change. Next: round-6 Sol brief attacking the round-5 fixes — the glue view's
 own lexing dependence, the concatenation rule's false-positive surface, the
 token lookbehinds, and the relocated gate.
+
+---
+
+## Round 6 — Sol adverse pass on the round-5 fixes
+
+Brief: `.claude/dialkit-2026-08-08/SOL-BRIEF-R6.md`. Raw output:
+`.claude/dialkit-2026-08-08/agent-output/SOL-R6.out` (3097 lines, gitignored).
+
+**VERDICT: DOES NOT SURVIVE — 4 × P1 + 1 × P2.** Three of the four P1s are
+defects in round 5's own fixes, which is the fifth consecutive round where the
+previous round's fix introduced the next round's finding. All five confirmed by
+reading the code before any edit, and all five fixed.
+
+### R6-1 (P1) — call-site enumeration was not lexical
+
+`/voiceButtonMarkup\(/g` ran on `view.code`, which blanks JS comments but
+RETAINS string contents. So the enumeration — the half of the test that decides
+what even gets examined — was the one consumer still reading text that may never
+be code. Measured both directions:
+
+- behaviour-neutral literal text `"voiceButtonMarkup("` inside a string →
+  **9 sites**, count assertion red on correct code (a FALSE FAIL)
+- a real template-only mic written `voiceButtonMarkup /* gap */ (…)` →
+  **8 sites / 0 uncovered**, whole suite **2 pass / 0 fail** on an uncovered mic
+
+The second is the serious one: the site is invisible to BOTH assertions, so the
+only guard on the two template-mode mics silently stops covering a third.
+
+Fix: the scan runs on `glue` and matches the bare identifier, then walks
+forward over whitespace to require `(`. Identifier boundaries are checked on
+both sides (so `xvoiceButtonMarkup` and `voiceButtonMarkupFoo` are not sites),
+and `identBefore` skips the declaration by rejecting a preceding `function`
+token. A `/* gap */` between the name and its paren is blanked in `glue`, so the
+whitespace walk crosses it; a comment CANNOT hide a call site any more.
+
+### R6-2 (P1) — the `lastIndexOf` sufficiency claim was false
+
+Round 5's comment argued that checking only the LAST occurrence of each opener
+is sufficient because "an earlier occurrence's glue region is a superset of the
+later one's". That is true of the GLUE predicate and **says nothing about the
+DEPTH WALK that runs after it**. Sol's construct:
+
+```js
+'<label class="raven-grab-field"><span>class="raven-grab-field"><span></span>' + voiceButtonMarkup(…)
+```
+
+The first occurrence is a real opener and correctly encloses the mic. The second
+is rendered TEXT inside the label — it opens a `<span>` and closes it, so it is
+balanced to depth zero, `lastIndexOf` selects it, the walk then sees the trailing
+`</span>` as negative depth and rejects the row. Measured: **8 sites, `:8552`
+falsely uncovered → 1 pass / 1 fail** on a correctly built row.
+
+Fix: **enclosure is EXISTENTIAL, so the rule is too.** There is no single
+correct anchor — the same lesson the private-path gate spent four rounds
+learning (round 19 there: leftmost, innermost and both end-based discriminators
+were each a bet on one reading, each refuted). Every occurrence of every opener
+is tried and the row passes if ANY of them satisfies both the glue predicate and
+the depth walk. That is not a weakening: a candidate only passes if it really
+does leave a covered container open at the mic. `balancedToDepthZero` was
+extracted so the two halves are separately readable.
+
+### R6-3 (P1) — `glue` rejects provably safe concatenation
+
+`'…<span>' + ('') + voiceButtonMarkup(…)` emits byte-identical HTML and measured
+**8 sites, `:8552` falsely uncovered → 1 pass / 1 fail**. Round 5's comment
+justified the conservatism as "nothing in this scan can tell whether that call
+emits a `</span>`", which is the right answer for a function call and the wrong
+description of what is happening: **it is not that a function's output is
+unknowable — it is that this scan does not EVALUATE expressions at all.**
+
+Disposition: ACCEPTED, with the reasoning corrected in place rather than the
+rule widened. Admitting `('')` immediately raises `(cond ? a : b)`, and the step
+after that is dataflow analysis a test cannot do. The cost is bounded because it
+is LEGIBLE, so the mitigation is the failure MESSAGE: it now names both
+possibilities — the mic really is outside a covered container, or it is joined
+to one by something other than plain `+` concatenation of literal fragments —
+and tells the reader to concatenate the fragments directly rather than widen the
+rule. A false red that explains itself is a different thing from one that does
+not.
+
+### R6-4 (P1) — line continuations misaligned `markup` with runtime output
+
+Round 5's escape decoder placed every escape's decoded character into `markup`.
+A **LineContinuation** — `\` immediately before a line terminator — emits
+NOTHING: JavaScript removes both characters. Decoding it to a newline meant:
+
+```js
+'…<\
+em style="display:block;width:100px">' + voiceButtonMarkup(…)
+```
+
+renders a real, wide `<em>` wrapper at runtime while the scanner sees
+`<\nem…>` — and its tag regex requires a letter DIRECTLY after `<`, so it misses
+the tag entirely. Measured **8 sites / 0 uncovered → 2 pass / 0 fail** on a mic
+inside an uncovered wrapper.
+
+First attempt: an `emits` flag on the decode branch. LF, U+2028, U+2029 and CR
+all emit nothing; `\r\n` is ONE terminator and consumes three characters. The
+desync invariant already exempted line continuations
+(`s.text.replace(/\\\r?\n/g, '')`), so it needed no change.
+
+**That attempt was measured and it was not a fix.** Building the mutant is what
+caught it: the views are OFFSET-PRESERVING, so a non-emitting escape cannot be
+removed, only blanked — and `<` followed by two blanks followed by `em` defeats
+the tag regex exactly as `<\nem` did. Measured against the round-6 code with the
+flag in place and nothing else, A21 came back **2 pass / 0 fail — SURVIVED**.
+This is the file's own recurring lesson landing on me rather than on Sol: an
+edit that addresses the described symptom is not a fix until a mutant says so.
+
+Real fix: `scanSource` now also returns `content`, a byte per source position
+marking the ones that actually CONTRIBUTE A CHARACTER to the rendered string,
+and the enclosure walk runs over `emittedWindow(a, b)` — the emitted characters
+only, with a map back to source offsets so the glue check can still be applied.
+Padding is absent rather than blank, so `'…<\<LF>em …>'`, `'<' + 'em>'` and
+`'<\x65m>'` all present the walk with the `<em>` a browser would render. The
+last two are a hole Sol did not name and the same class; fusing fragments is
+safe here precisely because the glue predicate already requires the anchor-to-mic
+region to be nothing but concatenation.
+
+Attribution measured in two stages, and the answer is a genuine CONJUNCTION:
+
+```
+compression off, `emits` on        A21 SURVIVES   2 pass / 0 fail
+compression on,  `emits` forced    A21 SURVIVES   2 pass / 0 fail
+both                               A21 KILLED     radius 1 @ :8553
+```
+
+Neither half kills it. Both comments now say so — this file has twice described
+one mechanism as two and once described two as one, so the measurement is
+recorded rather than the reasoning.
+
+**Near-miss worth recording as a lesson, not a footnote.** The first draft wrote
+U+2028 and U+2029 as literal characters, and they were silently normalised to
+ordinary spaces — producing `if (next === '\n' || next === ' ' || next === ' ')`,
+which would have made every `\<space>` escape emit nothing and deleted escaped
+spaces from the markup view. It was caught by reading the bytes back
+(`JSON.stringify` on the line), not by any test; the follow-up `Edit` then
+failed with "String to replace not found" because my replacement string was
+normalised the same way, so the fix had to route around the editor entirely. The
+cookie suite learned this with NBSP and wrote it down; the rule is **write
+special characters as escapes, never as literals**, and a comment at the site now
+says so.
+
+### R6-5 (P2) — the probe did not cover the path it claimed
+
+Round 5's probe walked listen → launch → newPage → goto → close, and the header
+called that "the whole path". `withOverlay` also does `mkdtemp` and `writeFile`.
+Sol measured a `mkdtemp` EPERM in its sandbox: sockets and chromium both fine,
+temporary writes refused → **1 pass / 1 fail / 0 skipped**, an environment
+reported as a product defect. That is precisely the misclassification the probe
+exists to prevent, and it is the third time in this file a probe has been found
+narrower than the test it gates.
+
+Fix: the probe now also does `mkdtemp` → `writeFile` → `rm`. The lazy
+`dist/grab-bridge.js` import and `startGrabSession` are deliberately NOT probed,
+and that is the boundary rather than an omission: **they are product code**, and
+probing them would make a real bridge defect register as a missing environment
+and skip — the same misclassification pointing the other way.
+
+Same finding's second half: round 5 opened the upstream server and then did
+three more awaits before entering the try, so a failure in any of them leaked a
+listening socket for the rest of the run. All setup moved inside the try;
+`session` and `browser` are declared outside so the `finally` tears down only
+what actually started.
+
+### State
+
+Working tree only. Nothing committed, nothing pushed, no release, no endpoint
+change. Product code still untouched in rounds 3, 4, 5 and 6 — every fix in all
+four is test-side.
+
+Post-fix baseline: `node --check` clean, `node --test
+test/grab-overlay-voice-alignment.test.mjs` → **2 pass / 0 fail / 0 skipped**,
+and the enumeration still finds exactly 8 sites through `glue` (the real risk of
+moving the scan onto a more aggressively blanked view).
+
+Next: round-6 mutants, matrix re-run WHOLE → v8 (round 6 edited the enumeration
+scan, the enclosure rule, the escape decoder and the probe — every one of those
+is a mutant target surface and find-strings may have gone stale), full suite,
+mirror, missing-browser path, header, ledger, then a round-7 brief.
+
+### Round 6 verification
+
+```
+matrix v8        .claude/dialkit-2026-08-08/agent-output/align-r6-v8.out
+                 preflight ok: 21 anchors unique, all mutations change the file
+                 baseline 2 pass / 0 fail, exit 0
+                 A1,A2,A3 = 1     A4 = 1 @:8518    A5 = 1 @:8552
+                 A6 = 2           A7 = 2           A8,A9 = 1 @:8552
+                 A10, A11 CONTROLS 0 red  ok
+                 A12,A13,A14,A15,A16,A17 = 1 @:8552
+                 A18 = 1 (count assertion, 9 !== 8)
+                 A19, A20 CONTROLS 0 red  ok
+                 A21 = 1 @:8553
+                 17 mutants, 17 killed, 0 survived; 4 controls, 0 false-failed
+                 EXIT=0
+full suite       RAVEN_NO_USAGE_LOG=1 npm test
+                 1481 tests / 1478 pass / 0 fail / 3 skipped, EXIT=0  (unchanged)
+browser-absent   PLAYWRIGHT_BROWSERS_PATH=/nonexistent
+                 2 tests / 1 pass / 1 skipped / 0 fail, node exit 0
+                 the widened probe still classifies a missing browser as a skip
+mirror           cmp browser/raven-grab.js web/public/raven-grab.js  -> identical
+product code     untouched in rounds 3, 4, 5 and 6 — every fix is test-side
+```
+
+**No v7 radius moved in v8**, and that was again not a foregone conclusion:
+round 6 rewrote the call-site enumeration, the enclosure rule and the escape
+decoder, so the whole matrix was re-measured rather than carried forward. The
+control count went 2 → 4, deliberately: two of round 6's four findings were
+correct code reported as a defect, so the round that found them leaves more of
+the matrix pointing in that direction.
+
+The test count is unchanged because every round-6 fix lives inside an existing
+test or in the scanner those tests share, and the four new mutants live outside
+`npm test` entirely. Read the parts, not the total.
+
+## Round 7 — launched
+
+Brief: `.claude/dialkit-2026-08-08/SOL-BRIEF-R7.md`. Attack surface, named from
+round 6's own fixes rather than left for Sol to find: the existential
+all-anchors rule's false-POSITIVE surface (round 5 was too narrow — is "any
+anchor" now too wide?); `content` correctness at its two write sites; the
+`endSrc = map[…] + 1` offset arithmetic when an opener's last emitted character
+came from a multi-slot escape; `REACH = 200` now counting SOURCE characters
+while the window it feeds is measured in EMITTED ones; `identBefore` against
+`new`, `obj.`, `?.(` and a Unicode identifier; the widened probe's remaining
+unprobed prerequisites and whether the product-code boundary is drawn right;
+and any claim in the v8 header or the round-6 landmine that is now false.
+
+### Pre-checked before Sol returned
+
+Measured directly rather than argued, because REACH is exactly the kind of
+tunable the standing rule says to verify by its EFFECT:
+
+```
+source distance, covered opener -> mic, all 8 sites
+  :2339   11      :8518   13      :8552   13      :10567  57
+  :10583  77      :10601  62      :10612  17      :10623  18
+max from opener END = 77     max from opener START = 111     REACH = 200
+```
+
+The binding metric is the one from opener START, because the window is
+`match.index - REACH` and the opener must fall inside it: **111**, leaving 89
+characters of headroom. The header comment claims the widest real site
+"measures ~95 chars", which is the max in NEITHER metric — 96 is the
+`:10601` site measured from its opener's start, so the figure was taken off one
+site rather than the widest. Stale by 16 characters and understating the true
+maximum. P3, found here rather than by Sol, corrected below.
+
+### Sol round 7 — VERDICT: DOES NOT SURVIVE (5 P1, 2 P2, 1 P3)
+
+Sol's chromium verification was blocked in its own sandbox
+(`MachPortRendezvousServer … Permission denied (1100)`), so every counterexample
+it gave was a source injection I measured here. All eight dispositioned; seven
+fixed, one was a comment correction.
+
+| # | Sev | Finding | Fix |
+|---|-----|---------|-----|
+| 1 | P1 | `COVERED[2]` was a bare attribute substring, so free TEXT carrying `class="raven-grab-section-heading"` counted as a container | the three openers are regexes requiring a real element tag; `[^<>]*` cannot cross a `>`, so attribute text has to belong to the tag that opened before it |
+| 2 | P1 | `<em></span>` returns a depth COUNTER to zero while a browser closes both and leaves the mic a sibling | `wellNested` keeps a stack; `pop()` on empty yields `undefined`, which never equals a tag name, so the old `depth < 0` case falls out of the same comparison |
+| 3 | P1 | the glue check ran from the opener's END, so a decoy fused across a statement boundary passed — only its second half was ever tested | glue is taken from the opener's FIRST emitted character (`map[hit.index]`) |
+| 4 | P1 | `<!--` inside a quoted attribute VALUE is ordinary text; blanking it at scan time deleted the rest of a real tag | the drop moved into `emittedWindow`, where the text is linear and `inTag` is answerable |
+| 5 | P1 | `voiceButtonMarkup?.(…)` was not a call site at all | token walk: whitespace, an adjacent `?.`, whitespace, then `(` — the adjacency is what keeps `x ? (a) : (b)` out |
+| 6 | P2 | `REACH` bounded SOURCE while feeding EMITTED text | `windowStartFor` walks `content` in emitted units; `REACH_SOURCE_CAP` is a cost bound only |
+| 7 | P2 | the probe closed its loopback server before launching, so browser→loopback was never verified | it navigates to the live server with an `.ok()` check; the close moved to an outer `finally` so the temp-dir steps cannot leak the socket |
+| 8 | P3 | the scanner header described two views, sites found in `code`, walk over `markup` — all three false | rewritten against what the code does: four artefacts (`code`, `glue`, `markup`, `content`), each with the reason it exists |
+
+**#5 was found here before Sol reported it**, by walking the round-6 fix's own
+blind spot rather than waiting: a mic written `voiceButtonMarkup?.(…)` in an
+uncovered template-mode row left the count at 8, left the mic unexamined, and
+the whole suite reported **2 pass / 0 fail** on a real misalignment.
+
+Nothing in `browser/raven-grab.js` changed. **No product code has changed in
+rounds 3, 4, 5, 6 or 7** — every fix in all five is test-side.
+
+### Measured after the round-7 fixes
+
+```
+matrix v9  22 mutants, 22 killed, 0 survived; 5 controls, 0 false-failed
+           (re-run WHOLE — round 7 rewrote the openers, the nesting rule,
+            the comment handling and the window bound)
+           no v8 radius moved: A6 and A7 are 2, every other mutant is 1
+npm test   1481 tests / 1478 pass / 0 fail / 3 skipped, exit 0
+mirror     browser/raven-grab.js == web/public/raven-grab.js
+no browser 2 tests / 1 pass / 1 skipped, node exit 0
+```
+
+REACH is now a measured number in the unit it actually consumes. Emitted
+distance from each covered opener's first character to its mic:
+
+```
+:2339 54   :8518 47   :8552 47   :10567 94
+:10583 114 :10601 97  :10612 51  :10623 52
+widest real site 114, REACH 200 -> 86 characters of margin (1.75x)
+```
+
+The source figures recorded above this section (max 111) were the right
+measurement of the wrong quantity — correct for the round-6 code, which bounded
+source, and superseded the moment fix #6 changed the unit.

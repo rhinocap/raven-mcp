@@ -157,7 +157,107 @@ const MUTANTS = [
     '<label class="raven-grab-field"><span>Add note…</span><div class="raven-grab-loose">\' + (function () { if /* pad pad pad pad pad pad pad */ (Date) /\'class="raven-grab-field"><span>\'/.test(\'x\'); return \'\'; }()) + voiceButtonMarkup("data-template-note='],
   ['A17 a comment between the control-header ) and the / hides an uncovered mic',
     '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
-    '<label class="raven-grab-field"><span>Add note…</span><div class="raven-grab-loose">\' + (function () { if (Date) /* g */ /\'class="raven-grab-field"><span>\'/.test(\'x\'); return \'\'; }()) + voiceButtonMarkup("data-template-note=']
+    '<label class="raven-grab-field"><span>Add note…</span><div class="raven-grab-loose">\' + (function () { if (Date) /* g */ /\'class="raven-grab-field"><span>\'/.test(\'x\'); return \'\'; }()) + voiceButtonMarkup("data-template-note='],
+
+  // ── Round 6 ──────────────────────────────────────────────────────────────
+  // Every one of these four was MEASURED SURVIVING (or false-failing) against
+  // the round-5 code before the round-6 fixes were written. All four anchor on
+  // the `:8552` template-mode row, which no browser test can render, so the
+  // radius grades the SOURCE rule and not the geometry test — the A7/A8 trap.
+  //
+  //   A18 the enumeration read `code`, which keeps string contents, and matched
+  //       `voiceButtonMarkup(` as a literal substring. A real call written with
+  //       a comment between the name and its paren was therefore not a call site
+  //       at all: 8 sites, 0 uncovered, whole suite GREEN on a mic in an
+  //       uncovered container. The kill lands on the COUNT assertion, because
+  //       `assert` aborts at the first failure and a ninth mic must pass that
+  //       one first — which is the point: pre-fix it passed NEITHER assertion.
+  //   A19 the same defect in the false-fail direction, and therefore a CONTROL:
+  //       behaviour-neutral literal text `voiceButtonMarkup(` inside a rendered
+  //       label measured as a NINTH site, turning correct code red.
+  //   A20 a CONTROL for the `lastIndexOf` claim. The first opener genuinely
+  //       encloses the mic; the second is rendered TEXT, balanced by its own
+  //       `</span>`, and `lastIndexOf` took it — depth -1, a correct row
+  //       reported as a defect. Under the existential rule the first candidate
+  //       carries it. (It changes the label's visible text, which is inert here:
+  //       this row is template-mode and the geometry test cannot reach it.)
+  //   A21 a LineContinuation inside the label opens a real `<em>` wrapper at
+  //       runtime. Round 5 decoded it to a newline and round 6's first attempt
+  //       blanked it, and BOTH leave `<` separated from `em` by characters the
+  //       tag regex will not cross — 8 sites, 0 uncovered, whole suite green.
+  //       Only dropping non-emitting positions from the walk turns it red, which
+  //       is why `content` exists rather than another blanking rule.
+  ['A18 a real mic whose call is written with a comment before its paren',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label class="raven-grab-field"><span>Add note…</span></label><div class="raven-grab-loose">\' + voiceButtonMarkup /* gap */ ("data-decoy-note", "note") + \'</div><label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note='],
+  ['A19 literal call-shaped TEXT in a rendered label is not a call site',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label class="raven-grab-field"><span>Add note (see voiceButtonMarkup(…) below)…\' + voiceButtonMarkup("data-template-note=',
+    'green'],
+  ['A20 a covered opener rendered as TEXT after the real one must not win',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label class="raven-grab-field"><span>Add note class="raven-grab-field"><span></span>…\' + voiceButtonMarkup("data-template-note=',
+    'green'],
+  ['A21 a line continuation opens a real wrapper the walk must see',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label class="raven-grab-field"><span>Add note…<\\\nem style="display:block;width:100px">\' + voiceButtonMarkup("data-template-note='],
+
+  // ── Round 7 ──
+  // A22 is round 6's A18 reached through a different token. A18 proved the scan
+  // must find a call written `voiceButtonMarkup /* gap */ (…)`; round 6 fixed
+  // that by walking whitespace forward to the `(` and stopped there, so an
+  // OPTIONAL call — which emits byte-identical markup — was not a call at all.
+  // Measured BEFORE the fix: 2 pass / 0 fail. The count stayed at 8 because the
+  // decoy was never counted, the decoy mic was never examined, and it sits on a
+  // template-mode row the browser test structurally cannot render, so nothing
+  // in the suite could see it. That is the exact A7-vs-A8 discipline applied to
+  // this round: a counterexample against the SOURCE rule has to live where no
+  // rendered assertion can cover for it, or its radius grades the wrong guard.
+  ['A22 an optional call emits the same markup and must count as a site',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label class="raven-grab-field"><span>Add note…</span></label><div class="raven-grab-loose">\' + voiceButtonMarkup?.("data-decoy-opt", "note") + \'</div><label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note='],
+  // A23-A27 are Sol round 7's counterexamples. Four are RED and one is a
+  // CONTROL, and they attack four DIFFERENT halves of the enclosure rule rather
+  // than four doors into one lexer — which is what makes this round different
+  // from rounds 4-6. Every one anchors on the `:8552` template-mode row (A7/A8),
+  // and every one was measured against the round-6 code before its fix existed.
+  //
+  //   A23 the section-heading opener was a BARE ATTRIBUTE SUBSTRING, so the same
+  //       characters appearing as free TEXT counted as a container. Presence
+  //       inside a tag is not the same as presence. (pre-fix: 2 pass / 0 fail)
+  //   A24 `<em></span>` returns a DEPTH COUNTER to zero while a browser closes
+  //       both and leaves the mic a sibling. Balanced is not well-nested.
+  //       (pre-fix: 2 pass / 0 fail)
+  //   A25 `<!--` inside a quoted attribute VALUE is ordinary text. Dropping HTML
+  //       comments while scanning source blanked the rest of a real tag, which
+  //       deleted the uncovered wrapper and left the mic looking enclosed.
+  //       (pre-fix: 2 pass / 0 fail)
+  //   A26 the glue check ran from the opener's END, so a decoy fused across a
+  //       STATEMENT BOUNDARY passed: its two halves are joined to each other by
+  //       a function call, but only the second half was ever tested for
+  //       concatenation. (pre-fix: 2 pass / 0 fail)
+  //   A27 CONTROL. REACH bounded SOURCE characters while feeding EMITTED text,
+  //       and the ratio is unbounded. Forty `\x61` escapes inside a correctly
+  //       covered label emit forty characters for 160 source ones, which pushed
+  //       the real opener outside the window and reported correct markup as a
+  //       defect. (pre-fix: 0 pass / 1 fail — a FALSE FAIL, which is why it is a
+  //       control and not a mutant.)
+  ['A23 free TEXT carrying the heading class is not a container',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label class="raven-grab-field"><span>Add note…</span><div class="raven-grab-loose">use class="raven-grab-section-heading" here\' + voiceButtonMarkup("data-template-note='],
+  ['A24 mismatched tags balance to zero but do not nest',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label class="raven-grab-field"><span>Add note…<em></span>\' + voiceButtonMarkup("data-template-note='],
+  ['A25 an HTML comment opener inside an attribute value is text',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label class="raven-grab-field"><span>Add note…<div title="<!--" class="raven-grab-loose">-->\' + voiceButtonMarkup("data-template-note='],
+  ['A26 a decoy opener fused across a statement boundary',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label class="raven-grab-field"><span>Add note…</span></label><div class="raven-grab-loose">\' + (function () { return \'<label class="raven-grab-\'; }()) + \'field"><span>\' + voiceButtonMarkup("data-template-note='],
+  [`A27 CONTROL  escapes inflate SOURCE length inside a covered label`,
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    `<label class="raven-grab-field"><span>Add note${'\\x61'.repeat(40)}…' + voiceButtonMarkup("data-template-note=`,
+    'green']
 ];
 
 function apply(source, find, replace) {

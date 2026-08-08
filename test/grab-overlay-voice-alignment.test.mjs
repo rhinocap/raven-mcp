@@ -22,15 +22,17 @@
 // were already correct — the control gap is asserted too, but only where a
 // control exists.
 //
-// Mutation matrix v7 — MEASURED, re-run WHOLE after the round-5 fixes: 15
-// mutants, 15 killed, 0 survived, plus 2 CONTROLS that must stay green and do.
+// Mutation matrix v9 — MEASURED, re-run WHOLE after the round-7 fixes: 22
+// mutants, 22 killed, 0 survived, plus 5 CONTROLS that must stay green and do.
 // The controls arrived in v5 and they are not decoration: a matrix that only
 // ever asks "does this turn red" is structurally blind to a FALSE FAIL, and
-// a gate that cries wolf on correct code is how a gate gets muted. No radius
-// measured in v6 moved in v7 either — but that was NOT a foregone conclusion
-// this round the way it was last round: round 5 rewrote the scanner's
-// lookbehinds AND changed the enclosure rule itself, so a moved radius was a
-// live possibility and the whole matrix was re-measured rather than carried
+// a gate that cries wolf on correct code is how a gate gets muted. Round 6
+// doubled the control count for a reason — two of its four findings WERE false
+// fails, so the round that found them should leave more of the matrix pointing
+// that way; round 7 added a fifth for the same reason. No radius measured in v8
+// moved in v9, and once again that was not a foregone conclusion: round 7
+// rewrote the covered-opener patterns, the nesting rule, the comment handling
+// and the window bound, so the whole matrix was re-measured rather than carried
 // forward. Each is a string edit on a copy of
 // browser/raven-grab.js served through RAVEN_GRAB_ASSET_PATH. Radii are
 // near-uniform because this file holds TWO tests and each mutant reaches one of
@@ -180,6 +182,85 @@
 // and the glue check owns A15 — the glue check would have killed all three, and
 // a single final run could not have told those apart.
 //
+// A18/A19/A20/A21 are round 6, and TWO of the four are controls — because two
+// of that round's four findings were correct code being reported as a defect,
+// which a red-only matrix cannot see at all. Every one was measured against the
+// round-5 code first:
+//
+//   A18 a real call written `voiceButtonMarkup /* gap */ (…)` -> PRE-FIX fail=0
+//         8 sites, 0 uncovered: the mic was invisible to BOTH assertions
+//   A19 CONTROL literal `voiceButtonMarkup(` in a rendered label
+//         PRE-FIX 9 sites -> the count assertion red on correct code
+//   A20 CONTROL a covered opener rendered as TEXT after the real one
+//         PRE-FIX `lastIndexOf` picked the text -> :8552 falsely uncovered
+//   A21 a LineContinuation opening a real <em> wrapper       -> PRE-FIX fail=0
+//         8 sites, 0 uncovered, whole suite green on a real misalignment
+//
+// A18 and A19 are ONE defect in two directions. Finding the call sites is a
+// LEXICAL question and round 5 answered it with a substring scan of `code`,
+// which blanks comments but keeps string contents — so text that merely LOOKS
+// like a call counted as one, and a call with a comment in it did not. The scan
+// runs on `glue` now and matches the bare identifier, then walks forward over
+// whitespace to require the `(`. A18's kill lands on the COUNT assertion
+// (`9 !== 8`) because assert aborts at the first failure and a ninth mic has to
+// pass that one first — which is exactly the point, since pre-fix it passed
+// neither.
+//
+// A20 refutes round 5's claim that checking only the LAST occurrence of each
+// opener was "sufficient and not a shortcut". That argument was about the GLUE
+// predicate and said nothing about the DEPTH WALK that runs after it. Enclosure
+// is existential, so the rule is now existential too: every occurrence of every
+// opener is a candidate and the mic is covered if ANY of them is both
+// concatenation-joined and balanced. Same lesson as the private-path gate's
+// round 19 — there is no single correct anchor.
+//
+// A21's attribution was MEASURED IN TWO STAGES and the result is a genuine
+// CONJUNCTION, which is worth stating plainly because this file has twice
+// described one mechanism as two and once described two as one:
+//
+//   compression off, `emits` flag on   -> A21 SURVIVES (2 pass / 0 fail)
+//   compression on,  `emits` forced    -> A21 SURVIVES (2 pass / 0 fail)
+//
+// Neither half kills it. Round 6's first attempt was the `emits` flag alone —
+// stop a LineContinuation decoding to a newline — and it reads as a fix while
+// measuring nothing, because the two source slots are still PADDING and the tag
+// regex requires a letter directly after `<`; `<  em>` is missed exactly as
+// `<\nem>` was. Dropping non-emitting positions is what makes the walk see the
+// `<em>` the browser renders, and the flag is what stops a newline being emitted
+// in their place. Do not remove either believing the other covers it.
+//
+// A22-A27 are round 7, and unlike rounds 4-6 they are NOT four doors into one
+// lexer — each attacks a different half of the enclosure rule, which is the
+// reason this round's fixes touch four separate functions. All six anchor on the
+// :8552 template-mode row, so the radius grades the SOURCE rule and no rendered
+// assertion can cover for them (the A7/A8 discipline). Measured pre-fix:
+//
+//   A22 a mic written `voiceButtonMarkup?.(…)`             -> PRE-FIX fail=0
+//         an OPTIONAL call emits byte-identical markup and was not a site at
+//         all: round 6 walked whitespace to the `(` and stopped there
+//   A23 free TEXT carrying the heading class                -> PRE-FIX fail=0
+//         COVERED[2] was a bare attribute substring, so the same characters
+//         outside any tag counted as a container
+//   A24 `<em></span>`                                       -> PRE-FIX fail=0
+//         a depth COUNTER returns to zero while a browser closes both tags and
+//         leaves the mic a sibling — balanced is not well-nested
+//   A25 `<!--` inside a quoted attribute VALUE              -> PRE-FIX fail=0
+//         dropping HTML comments at scan time blanked the rest of a real tag,
+//         deleting the uncovered wrapper the mic was actually sitting in
+//   A26 a decoy opener fused across a STATEMENT BOUNDARY    -> PRE-FIX fail=0
+//         the glue check ran from the opener's END, so only the decoy's second
+//         half was ever tested for concatenation
+//   A27 CONTROL forty `\x61` escapes in a covered label      -> PRE-FIX 1 fail
+//         REACH bounded SOURCE while feeding EMITTED text, and the ratio is
+//         unbounded — correct markup reported as a defect
+//
+// A23/A24/A25 are one class stated three ways: a cheap approximation of "is this
+// mic inside that container" that a browser does not share. A substring is not a
+// tag, a counter is not a stack, and a comment is not a comment when it sits
+// inside an attribute value. A26 is the round-5 decoy lesson one step further —
+// it was already known that an unrendered string can supply an opener, and what
+// A26 adds is that HALF of one can.
+//
 // The first draft of this test asserted per row and was measured NOT to
 // separate A1 from A3: assert aborts at the first failure, all three mutants
 // break panel/data-template-name first, and the message was byte-identical.
@@ -192,7 +273,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtemp, writeFile, readFile } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -252,23 +333,62 @@ try {
 let chromiumAvailable = false;
 let chromiumProbeError = playwrightError;
 if (chromium) {
+  // Held outside the try so the outer finally can close it however the probe
+  // exits. Round 7 moved the close AFTER the browser navigation, which put the
+  // mkdtemp/writeFile/rm steps between `listen` and any close — a throw there
+  // would otherwise leak a listening socket for the rest of the run, which is
+  // the same defect Sol round 5 found in `withOverlay` and it is not allowed to
+  // come back through the probe.
+  let probeServer = null;
   try {
-    const probeServer = createServer((_q, r) => r.end('ok'));
+    probeServer = createServer((_q, r) => r.end('ok'));
     await new Promise((resolve, reject) => {
       probeServer.once('error', reject);
       probeServer.listen(0, '127.0.0.1', resolve);
     });
-    await new Promise((resolve) => probeServer.close(resolve));
+    // The temp-directory write is an environmental prerequisite exactly like the
+    // socket, and round 5's probe did not cover it. Sol round 6 measured a
+    // `mkdtemp` EPERM in its sandbox: on a host where sockets and chromium work
+    // but temporary writes do not, the gate passed and the suite reported
+    // 1 pass / 1 fail / 0 skipped — an environment reported as a product defect,
+    // which is the one thing this probe exists to prevent.
+    //
+    // The lazy `dist/grab-bridge.js` import and `startGrabSession` are
+    // deliberately NOT probed, and that is the boundary rather than an omission:
+    // they are PRODUCT CODE. Probing them would make a real bridge defect
+    // register as a missing environment and skip, which is the same
+    // misclassification pointing the other way.
+    const probeDir = await mkdtemp(path.join(tmpdir(), 'raven-mic-probe-'));
+    await writeFile(path.join(probeDir, 'probe.txt'), 'ok', 'utf8');
+    await rm(probeDir, { recursive: true, force: true });
+    // The probe navigates to the LOOPBACK SERVER, not to about:blank, and the
+    // server stays open until it has. Sol round 7 (P2): binding a socket from
+    // node and launching a browser are two prerequisites, and the browser
+    // REACHING that socket is a third — a sandbox can permit the first two and
+    // deny the third, at which point the probe passes, `withOverlay` fails on
+    // its own `goto`, and the suite reports 1 pass / 1 fail / 0 skipped. That is
+    // an environment reported as a product defect, which is the single failure
+    // this probe exists to prevent, and it is the fourth time a round has found
+    // the probe narrower than the test it gates. Closing the server before the
+    // launch is what made the old version unable to ask the question at all.
+    const probeUrl = `http://127.0.0.1:${probeServer.address().port}/`;
     const probe = await chromium.launch({ headless: true });
     try {
       const probePage = await probe.newPage();
-      await probePage.goto('about:blank');
+      const probeResponse = await probePage.goto(probeUrl);
+      if (!probeResponse || !probeResponse.ok()) {
+        throw new Error(`probe navigation to ${probeUrl} did not succeed`);
+      }
     } finally {
       await probe.close();
     }
     chromiumAvailable = true;
   } catch (err) {
     chromiumProbeError = err;
+  } finally {
+    if (probeServer && probeServer.listening) {
+      await new Promise((resolve) => probeServer.close(resolve));
+    }
   }
 }
 
@@ -298,13 +418,19 @@ async function withOverlay(fn) {
   });
   const upstreamUrl = 'http://127.0.0.1:' + upstream.address().port;
 
-  const dir = await mkdtemp(path.join(tmpdir(), 'raven-mic-align-'));
-  const designPath = path.join(dir, 'DESIGN.md');
-  await writeFile(designPath, '---\ncolor:\n  text:\n    primary: "#ffffff"\n---\n\n# Fixture\n', 'utf8');
-
-  const session = await bridge.startGrabSession(designPath, undefined, upstreamUrl, 'consumer');
+  // Everything after the listen is inside the try, so the upstream server is
+  // closed on EVERY path. Round 5 opened it and then did three more awaits —
+  // mkdtemp, writeFile, startGrabSession — before entering the try, so a failure
+  // in any of them leaked a listening socket for the rest of the run (Sol round
+  // 6). `session` and `browser` are declared outside so the finally can tell
+  // what was actually started, rather than tearing down what never began.
+  let session = null;
   let browser;
   try {
+    const dir = await mkdtemp(path.join(tmpdir(), 'raven-mic-align-'));
+    const designPath = path.join(dir, 'DESIGN.md');
+    await writeFile(designPath, '---\ncolor:\n  text:\n    primary: "#ffffff"\n---\n\n# Fixture\n', 'utf8');
+    session = await bridge.startGrabSession(designPath, undefined, upstreamUrl, 'consumer');
     browser = await chromium.launch();
     const page = await browser.newPage();
     await page.goto(session.url + '/', { waitUntil: 'domcontentloaded' });
@@ -312,7 +438,7 @@ async function withOverlay(fn) {
     return await fn(page);
   } finally {
     if (browser) await browser.close();
-    await bridge.stopGrabSession();
+    if (session) await bridge.stopGrabSession();
     await new Promise((resolve) => upstream.close(resolve));
   }
 }
@@ -470,16 +596,54 @@ test('every mic in the overlay source sits in a container the shared rule aligns
   // The three row containers the stylesheet gives flex/space-between. Any
   // other wrapper renders the mic inline after the label text, which is the
   // 396px defect this file exists to prevent.
+  // An opener must be an actual ELEMENT carrying the class, not the class text
+  // by itself. Sol round 7 (P1) measured the difference: the third entry used to
+  // be the bare attribute substring, and nothing required it to sit inside a
+  // tag, so `'<div class="raven-grab-loose">class="raven-grab-section-heading"'`
+  // followed by a mic satisfied the rule with no tags left to unbalance it —
+  // the mic renders in the loose div and the suite reported green. `[^<>]*`
+  // is what carries the fix: it cannot cross a `>`, so the attribute text has to
+  // belong to the tag that opened before it.
   const COVERED = [
-    'class="raven-grab-feedback-field"><span>',
-    'class="raven-grab-field"><span>',
-    'class="raven-grab-section-heading"'
+    /<[a-zA-Z][\w-]*(?=[\s>])[^<>]*\bclass="raven-grab-feedback-field"[^<>]*><span>/g,
+    /<[a-zA-Z][\w-]*(?=[\s>])[^<>]*\bclass="raven-grab-field"[^<>]*><span>/g,
+    /<[a-zA-Z][\w-]*(?=[\s>])[^<>]*\bclass="raven-grab-section-heading"[^<>]*>/g
   ];
-  // Tight enough that a renamed wrapper at the call site falls out of range
-  // rather than matching some earlier row's container further up the file.
-  // The widest real site (the Instructions heading, which carries an <h2> and
-  // a section title between the container and the mic) measures ~95 chars.
+  // REACH counts EMITTED characters. Round 6 compressed the window it feeds to
+  // emitted text and left the bound in SOURCE units, and Sol round 7 (P2)
+  // measured the divergence: forty `a` escapes inside a correctly covered
+  // label emit forty characters while consuming 240 source ones, which pushed
+  // the real opener outside a 200-SOURCE-character window and reported correct
+  // markup as a defect (measured 0 pass / 1 fail on the :8552 row). The two
+  // units diverge without bound — `\u{1F600}` is ten source characters for one
+  // emitted — so raising the number would have been a band-aid on the wrong
+  // unit rather than a fix.
+  //
+  // The source cap is a COST bound and nothing else: it stops a pathological
+  // region walking to the top of a 580k-character file, and it is deliberately
+  // far larger than any real site. Do not read it as the false-positive guard —
+  // that job belongs to CONCATENATION_ONLY, which rejects an opener not joined
+  // to the mic by plain concatenation however near it happens to sit.
+  //
+  // 200 is a MEASURED number, and the metric is the distance from the opener's
+  // FIRST emitted character (the whole opener has to fit inside the window, or
+  // its regex cannot match at all). Measured across all eight sites, emitted:
+  //   :2339 54  :8518 47  :8552 47  :10567 94
+  //   :10583 114  :10601 97  :10612 51  :10623 52
+  // Widest real site is 114, so the margin is 86 emitted characters — 1.75x.
+  // The number that moves if this is wrong is the enumeration test's uncovered
+  // count: too small and a correct row is reported as a defect (that is exactly
+  // the Sol round 7 P2 above, measured 0 pass / 1 fail), too large costs only
+  // scan time. Re-measure rather than reason if a wider row is ever written.
   const REACH = 200;
+  const REACH_SOURCE_CAP = 20000;
+  function windowStartFor(micAt) {
+    const floor = Math.max(0, micAt - REACH_SOURCE_CAP);
+    let i = micAt;
+    let emitted = 0;
+    while (i > floor && emitted < REACH) { i -= 1; if (view.content[i]) emitted += 1; }
+    return i;
+  }
 
   // "A covered opener appears somewhere in the window" was the first version of
   // this check and it has a demonstrated FALSE NEGATIVE: a covered container
@@ -506,20 +670,34 @@ test('every mic in the overlay source sits in a container the shared rule aligns
   // because an HTML comment handed it an unbalanced tag. A comment is not
   // markup, and JavaScript is not markup either.
   //
-  // So the file is scanned ONCE from the top — not from the 200-char window,
-  // which cannot know whether it began inside a string literal — into two
-  // offset-preserving views:
+  // So the file is scanned ONCE from the top — not from the window, which cannot
+  // know whether it began inside a string literal — into FOUR offset-preserving
+  // artefacts. This list has been wrong before (it described two views, put the
+  // call sites in `code` and the walk over raw `markup`, all three false by round
+  // 6), so it is written against what the code below actually does:
   //
-  //   code   JS comments blanked, everything else kept. Mic CALL SITES are found
-  //          here, so a commented-out call is not a site.
-  //   markup only the contents of string literals kept, with HTML comments
-  //          inside them blanked. The depth walk runs here, so JS sitting
-  //          between two markup fragments can never be parsed as a tag, and no
-  //          comment of either kind can contribute an opener or a closer.
+  //   code    JS comments blanked, everything else kept. The LEXER's own
+  //           lookbehinds read this — "the previous significant character" and
+  //           the preceding identifier — so a comment above the cursor can never
+  //           decide whether a `/` opens a regex.
+  //   glue    `code` with string INTERIORS, their quotes, escape runs and `${`
+  //           blanked. Mic CALL SITES are found here (round 6: searching `code`
+  //           made the literal text "voiceButtonMarkup(" a ninth site), and
+  //           CONCATENATION_ONLY is tested here, which is what stops an
+  //           unrendered decoy string from acting as an opener.
+  //   markup  only the contents of string literals kept. HTML comments are NOT
+  //           dropped here — `<!--` inside a quoted attribute value is ordinary
+  //           text, and nothing at scan time knows whether a given `<!--` is
+  //           inside a tag. That decision moved into `emittedWindow`, where the
+  //           text is linear and "inside a tag" is answerable.
+  //   content one byte per source position, marking the positions that actually
+  //           EMIT a character. `emittedWindow` walks it to build the string the
+  //           browser will see, which is what the enclosure rule runs over.
   //
   // Blanked characters become spaces and newlines are preserved, so one index
-  // means the same thing in the source and in both views — that is what lets the
-  // call sites and the windows come from different strings.
+  // means the same thing in the source and in every view — that is what lets the
+  // call sites, the glue check and the emitted window come from different
+  // strings and still be compared by offset.
   //
   // REGEX LITERALS ARE PART OF THE LEXER, not a nicety. The first version of
   // this scanner skipped them and desynced on `browser/raven-grab.js:2968` —
@@ -548,6 +726,16 @@ test('every mic in the overlay source sits in a container the shared rule aligns
     const code = new Array(js.length);
     const markup = new Array(js.length);
     const glue = new Array(js.length);
+    // Which source positions actually CONTRIBUTE A CHARACTER to the rendered
+    // string. A view slot must hold exactly one character or every offset below
+    // it shifts, so `markup` pads everything else with blanks — and a blank is
+    // not nothing. `\x65` occupies four slots and emits one, a LineContinuation
+    // occupies two and emits none, and `'<' + 'em>'` emits `<em>` with four
+    // slots of quote-and-operator between the two halves. In every one of those
+    // the tag regex, which requires a letter DIRECTLY after `<`, walks past a
+    // real tag. Marking the emitting positions lets the enclosure walk run over
+    // the characters the browser will see rather than over their padding.
+    const content = new Uint8Array(js.length);
     for (let k = 0; k < js.length; k += 1) {
       const blank = js[k] === '\n' ? '\n' : ' ';
       code[k] = js[k];
@@ -675,7 +863,36 @@ test('every mic in the overlay source sits in a container the shared rule aligns
         const next = js[i + 1];
         let width = 2;
         let ch = next === undefined ? ' ' : next;
-        if (next === 'x' && /^[0-9a-fA-F]{2}$/.test(js.slice(i + 2, i + 4))) {
+        // A LineContinuation — `\` immediately before a line terminator — emits
+        // NOTHING: JavaScript removes both characters, so the string contains no
+        // character at all there. Round 5 decoded it to a newline, and Sol round
+        // 6 measured what that costs. `'…<\<LF>em style="display:block">'`
+        // renders a real `<em>` that nests the mic in a wide wrapper, while the
+        // walk sees `<\nem…>` and its tag regex — which requires a letter
+        // DIRECTLY after `<` — misses it entirely: 8 sites, 0 uncovered, the
+        // whole suite green on a real misalignment in a template row the browser
+        // test cannot render. `\r\n` is ONE terminator and must consume three
+        // characters, or the `\n` is read as string content on the next pass.
+        //
+        // This flag is HALF the fix and measured so (A21, both stages): with the
+        // flag and without the `content` compression the mutant still survives,
+        // because two padding slots between `<` and `em` defeat the tag regex
+        // just as a newline did. The flag stops a character being emitted where
+        // none should be; `content` stops the padding being walked. Neither is
+        // sufficient alone — see the A21 note in the header before deleting one.
+        let emits = true;
+        // Written as ESCAPES, never as literals: pasted as characters, U+2028
+        // and U+2029 are one editor normalisation away from ordinary spaces,
+        // at which point a backslash-space would stop emitting and every
+        // escaped space in the overlay would vanish from the markup view. The
+        // first draft of this line was normalised exactly that way, and it was
+        // caught by reading the bytes back rather than by any test.
+        if (next === '\n' || next === '\u2028' || next === '\u2029') {
+          emits = false;
+        } else if (next === '\r') {
+          emits = false;
+          width = js[i + 2] === '\n' ? 3 : 2;
+        } else if (next === 'x' && /^[0-9a-fA-F]{2}$/.test(js.slice(i + 2, i + 4))) {
           ch = String.fromCharCode(parseInt(js.slice(i + 2, i + 4), 16));
           width = 4;
         } else if (next === 'u' && js[i + 2] === '{') {
@@ -692,7 +909,10 @@ test('every mic in the overlay source sits in a container the shared rule aligns
           ch = SIMPLE_ESCAPES[next];
         }
         if (ch.length !== 1) ch = ' ';
-        if (i + width - 1 < js.length) markup[i + width - 1] = ch;
+        if (emits && i + width - 1 < js.length) {
+          markup[i + width - 1] = ch;
+          content[i + width - 1] = 1;
+        }
         blankRange(glue, i, i + width);
         i += width;
         continue;
@@ -712,14 +932,15 @@ test('every mic in the overlay source sits in a container the shared rule aligns
         i += 2;
         continue;
       }
-      if (js.startsWith('<!--', i)) {
-        const end = js.indexOf('-->', i + 4);
-        const stop = end === -1 ? js.length : end + 3;
-        blankRange(glue, i, stop);
-        i = stop;
-        continue;
-      }
+      // NO `<!--` branch here on purpose. Dropping HTML comments while scanning
+      // SOURCE cannot know whether the `<!--` sits at text level or inside a
+      // quoted attribute value, where it is ordinary text — Sol round 7 (P1)
+      // measured a mic reported covered because a comment inside a class value
+      // was blanked and the two halves of the class fused. The drop happens in
+      // `emittedWindow`, where the text is linear and "inside a tag" has an
+      // answer.
       markup[i] = c;
+      content[i] = 1;
       glue[i] = c === '\n' ? '\n' : ' ';
       i += 1;
     }
@@ -734,7 +955,7 @@ test('every mic in the overlay source sits in a container the shared rule aligns
     const desynced = spans
       .filter((s) => s.quote !== '`' && s.text.replace(/\\\r?\n/g, '').includes('\n'))
       .map((s) => `browser/raven-grab.js:${js.slice(0, s.start).split('\n').length}`);
-    return { code: code.join(''), markup: markup.join(''), glue: glue.join(''), desynced };
+    return { code: code.join(''), markup: markup.join(''), glue: glue.join(''), content, desynced };
   }
   const view = scanSource(source);
   assert.deepEqual(view.desynced, [], `the source scanner lost its string/comment state at:\n  ${view.desynced.join('\n  ')}\nEvery verdict below it is meaningless — fix the lexer, do not adjust the expectations.`);
@@ -761,48 +982,193 @@ test('every mic in the overlay source sits in a container the shared rule aligns
   // opener and the mic and rejects that one too. Both rejected means uncovered,
   // which is the correct verdict for A15.
   //
-  // Checking only the LAST occurrence of each opener string is sufficient and
-  // not a shortcut: an earlier occurrence's glue region is a superset of the
-  // later one's, so if the later fails, the earlier fails too.
+  // Round 5 claimed that checking only the LAST occurrence of each opener was
+  // "sufficient and not a shortcut", on the grounds that an earlier occurrence's
+  // glue region is a superset of the later one's. That argument is true of the
+  // GLUE predicate and says nothing about the DEPTH WALK that runs after it, and
+  // Sol round 6 measured the gap:
   //
-  // This is CONSERVATIVE, in the direction that costs a red rather than a green.
-  // A future site that puts a real function call between its container and its
-  // mic — `'…<span>' + escapeHtml(label) + voiceButtonMarkup(…)` — will fail
-  // here, and it should: nothing in this scan can tell whether that call emits a
-  // `</span>`. All eight of today's sites are pure concatenation.
+  //   '<label class="raven-grab-field"><span>class="raven-grab-field"><span></span>'
+  //     + voiceButtonMarkup(…)
+  //
+  // The first opener genuinely encloses the mic. The second is TEXT that renders
+  // as visible characters, and it is balanced by its own `</span>`, so the walk
+  // from it lands at -1 and the row was reported uncovered — a correct row
+  // reported as a defect, 1 pass / 1 fail on a browser-capable host. Selecting
+  // one anchor and letting its verdict stand is the same mistake the private-path
+  // gate spent four rounds on: there is no single correct anchor.
+  //
+  // Enclosure is EXISTENTIAL, so the rule is too. Every occurrence of every
+  // opener is a candidate, and the mic is covered if ANY candidate is both
+  // concatenation-joined to it and balanced to depth zero. That is not a
+  // weakening: a candidate only passes if it really does leave a covered
+  // container open at the mic, which is exactly the property being asserted. The
+  // A7/A8 escape still fails from every anchor, because the walk from each one
+  // crosses the `</span>` that closes the container before the mic is reached.
+  //
+  // The glue rule is CONSERVATIVE, in the direction that costs a red rather than
+  // a green, and round 5 stated its reason too generously. It is not that a
+  // function's output is unknowable — it is that this scan does not EVALUATE
+  // expressions at all, so a grouping parenthesis is refused on the same footing
+  // as a call. Sol round 6 measured that too: `+ ('') +` between the container
+  // and the mic emits byte-identical HTML and is reported uncovered. That is a
+  // false red on correct code, it is accepted rather than fixed, and the reason
+  // is that every widening is a step onto the dataflow analysis a test cannot do
+  // — admit `('')` and the next question is `(cond ? a : b)`. The cost is bounded
+  // because it is LEGIBLE: the failure message below names the rule, so a future
+  // author who writes it is told what to do instead rather than left guessing.
+  // All eight of today's sites are pure concatenation, checked by hand.
   const CONCATENATION_ONLY = /^[\s+]*$/;
-  function enclosedByCovered(before, windowStart, micAt) {
-    let openerEnd = -1;
-    for (const opener of COVERED) {
-      const at = before.lastIndexOf(opener);
-      if (at === -1) continue;
-      const end = at + opener.length;
-      if (!CONCATENATION_ONLY.test(view.glue.slice(windowStart + end, micAt))) continue;
-      if (end > openerEnd) openerEnd = end;
-    }
-    if (openerEnd === -1) return false;
-    const between = before.slice(openerEnd);
+  // Counting tags is not checking nesting, and Sol round 7 (P1) measured the
+  // gap: `<label class="raven-grab-field"><span>Add note…<em></span>` scores +1
+  // for `<em>` and -1 for `</span>` and returns to zero, while a browser closes
+  // BOTH and leaves the mic a SIBLING of the aligned span — the 396px defect
+  // this file exists to prevent, reported green. A stack answers the question a
+  // counter only approximates: a closer must name the element it closes, and an
+  // unmatched one is a mis-nesting rather than a decrement. `stack.pop()` on an
+  // empty stack yields undefined, which never equals a tag name, so the old
+  // depth<0 case is covered by the same comparison.
+  function wellNested(between) {
     const tag = /<(\/?)([a-zA-Z][\w-]*)([^>]*)>/g;
-    let depth = 0;
+    const stack = [];
     let hit;
     while ((hit = tag.exec(between)) !== null) {
-      if (hit[1] === '/') depth -= 1;
-      else if (!hit[3].trim().endsWith('/') && !VOID_TAGS.has(hit[2].toLowerCase())) depth += 1;
-      if (depth < 0) return false;
+      const name = hit[2].toLowerCase();
+      if (hit[1] === '/') {
+        if (stack.pop() !== name) return false;
+      } else if (!hit[3].trim().endsWith('/') && !VOID_TAGS.has(name)) {
+        stack.push(name);
+      }
     }
-    return depth === 0;
+    return stack.length === 0;
+  }
+  // The emitted text of a source range, with a map back to source offsets so a
+  // hit inside it can still be judged against `glue`. Everything the runtime
+  // does NOT put in the string — escape padding, line continuations, quotes,
+  // `+` operators, whitespace between fragments — is absent rather than blanked,
+  // so `'…<\<LF>em style="display:block">'` and `'<' + 'em>'` and `'<\x65m>'`
+  // all present the walk with the `<em>` a browser would render. Round 5 blanked
+  // instead of dropping, which reads as a fix and measures as nothing: the tag
+  // regex misses `<  em>` exactly as it missed `<\nem>`.
+  function emittedWindow(a, b) {
+    let raw = '';
+    const rawMap = [];
+    for (let i = a; i < b; i += 1) {
+      if (view.content[i]) { raw += view.markup[i]; rawMap.push(i); }
+    }
+    // An HTML comment is dropped only where a browser would read it AS a
+    // comment, which is at TEXT level. Sol round 7 (P1) showed the decision
+    // cannot be made while scanning source: inside a quoted attribute value
+    // `<!--` is ordinary text, so blanking it there fused
+    // `class="raven-grab-<!--r7-->field"` back into the covered class and
+    // reported a mic in an uncovered row as covered (measured green; the real
+    // element's class is `raven-grab-<!--r7-->field` and matches no selector).
+    // Here the emitted text is linear, so "inside a tag" is answerable — and
+    // round 3's reason for dropping comments at all, `<!-- <em> -->` handing the
+    // walk an opener that never renders, is preserved for the text-level case it
+    // was actually written for.
+    let text = '';
+    const map = [];
+    let inTag = false;
+    for (let k = 0; k < raw.length;) {
+      if (!inTag && raw.startsWith('<!--', k)) {
+        const end = raw.indexOf('-->', k + 4);
+        k = end === -1 ? raw.length : end + 3;
+        continue;
+      }
+      if (raw[k] === '<') inTag = true;
+      else if (raw[k] === '>') inTag = false;
+      text += raw[k];
+      map.push(rawMap[k]);
+      k += 1;
+    }
+    return { text, map };
+  }
+  function enclosedByCovered(windowStart, micAt) {
+    const { text, map } = emittedWindow(windowStart, micAt);
+    for (const opener of COVERED) {
+      opener.lastIndex = 0;
+      let hit;
+      while ((hit = opener.exec(text)) !== null) {
+        // The glue region runs from the opener's FIRST emitted character, not
+        // from just past its last. Sol round 7 (P1) measured why: a decoy
+        // assembled across a statement boundary — `'<div class="raven-grab-'`,
+        // then `var decoy = 'class="raven-grab-'`, then `'field"><span>' +`
+        // the mic — fuses in the emitted view into an opener that never renders,
+        // and checking only AFTER the fake opener never examines the assignment
+        // that proves it is not one. Starting at the opener's own first
+        // character puts every source position it spans under the same rule, so
+        // an anchor is accepted only when nothing but concatenation of literal
+        // fragments builds it AND joins it to the call.
+        const startSrc = map[hit.index];
+        const after = hit.index + hit[0].length;
+        opener.lastIndex = hit.index + 1;
+        if (CONCATENATION_ONLY.test(view.glue.slice(startSrc, micAt))
+          && wellNested(text.slice(after))) return true;
+      }
+    }
+    return false;
   }
 
+  // Finding the call sites is a LEXICAL question, and round 5 answered it with a
+  // substring scan of `code` — which keeps string contents. Sol round 6 broke it
+  // in both directions, and both are silent:
+  //
+  //   the literal text "voiceButtonMarkup(" inside a string   -> 9 sites, correct code RED
+  //   a real site written `voiceButtonMarkup /* gap */ (…)`   -> 8 sites, the new mic
+  //                                                              never examined at all
+  //
+  // The second is the dangerous one: the count assertion still reads 8, the new
+  // mic is in an uncovered container, and on a template-mode row the browser test
+  // cannot render the whole suite reports 2 pass / 0 fail.
+  //
+  // So the scan runs over `glue`, where string interiors AND comments are both
+  // blanked — a literal cannot masquerade as a call, and a commented-out call is
+  // still not a site (the round-3 property, preserved). The identifier is then
+  // required to be a WHOLE token with `(` as its next significant character,
+  // which is the round-5 lesson applied to the search itself: a fixed-window
+  // regex is defeated by distance, a token read is not. The declaration is
+  // skipped by reading the preceding token rather than a 12-character window,
+  // for the same reason.
+  const IDENT = /[\w$]/;
+  const identBefore = (at) => {
+    let p = at - 1;
+    while (p >= 0 && /\s/.test(view.glue[p])) p -= 1;
+    let w = p;
+    while (w >= 0 && IDENT.test(view.glue[w])) w -= 1;
+    return view.glue.slice(w + 1, p + 1);
+  };
   const sites = [];
-  const call = /voiceButtonMarkup\(/g;
+  const call = /voiceButtonMarkup/g;
   let match;
-  while ((match = call.exec(view.code)) !== null) {
-    // Skip the declaration itself.
-    if (/function\s+$/.test(view.code.slice(Math.max(0, match.index - 12), match.index))) continue;
-    const windowStart = Math.max(0, match.index - REACH);
-    const before = view.markup.slice(windowStart, match.index);
+  while ((match = call.exec(view.glue)) !== null) {
+    const end = match.index + 'voiceButtonMarkup'.length;
+    if (match.index > 0 && IDENT.test(view.glue[match.index - 1])) continue;
+    if (end < view.glue.length && IDENT.test(view.glue[end])) continue;
+    let k = end;
+    const skipSpace = () => { while (k < view.glue.length && /\s/.test(view.glue[k])) k += 1; };
+    skipSpace();
+    // An OPTIONAL call emits byte-identical markup, so it is a site. Round 6
+    // walked whitespace to `(` and stopped, which made `voiceButtonMarkup?.(…)`
+    // not a call at all — measured on a copy: a mic written that way in an
+    // uncovered template-mode row left the count at 8, left the mic unexamined,
+    // and the whole suite reported 2 pass / 0 fail on a real misalignment. That
+    // is round 6's own A18 finding (a real call the scan does not recognise)
+    // reached through a different token, which is why the fix is a token walk
+    // rather than another literal spelling.
+    //
+    // `?` and `.` must be ADJACENT here even though JS allows whitespace either
+    // side of the operator, and that adjacency is what keeps a CONDITIONAL out:
+    // `voiceButtonMarkup ? (a) : (b)` has a space where the `.` would be, so it
+    // falls through to the `(` test and is correctly rejected. `?.name(` is a
+    // property access on the function rather than a call of it, and is likewise
+    // rejected because the character after the space walk is not `(`.
+    if (view.glue[k] === '?' && view.glue[k + 1] === '.') { k += 2; skipSpace(); }
+    if (view.glue[k] !== '(') continue;
+    if (identBefore(match.index) === 'function') continue;
+    const windowStart = windowStartFor(match.index);
     const line = source.slice(0, match.index).split('\n').length;
-    sites.push({ line, covered: enclosedByCovered(before, windowStart, match.index) });
+    sites.push({ line, covered: enclosedByCovered(windowStart, match.index) });
   }
 
   // A count assertion is what makes the coverage claim hold going forward: a
@@ -810,5 +1176,11 @@ test('every mic in the overlay source sits in a container the shared rule aligns
   assert.equal(sites.length, 8, 'the number of mics in the overlay changed — check the new one sits in a covered row');
 
   const uncovered = sites.filter((site) => !site.covered).map((site) => `browser/raven-grab.js:${site.line}`);
-  assert.deepEqual(uncovered, [], `mics in a container the shared alignment rule does not cover:\n  ${uncovered.join('\n  ')}`);
+  assert.deepEqual(uncovered, [], `mics in a container the shared alignment rule does not cover:\n  ${uncovered.join('\n  ')}\n`
+    + 'Either the mic really is outside `.raven-grab-field` / `.raven-grab-feedback-field` /\n'
+    + '`.raven-grab-section-heading` — put it back inside one — or it is joined to that\n'
+    + 'container by something other than plain `+` concatenation of literal fragments.\n'
+    + 'This scan does not evaluate expressions, so a call, a grouping, or a conditional\n'
+    + 'between the container and the mic reads as uncovered even when its output is inert.\n'
+    + 'Concatenate the literal fragments directly rather than widening this rule.');
 });
