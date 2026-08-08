@@ -201,12 +201,13 @@ test('a drain that parked reports the mode of the session it parked on, not the 
   //
   // The immediate-drain path cannot be raced from outside — it returns without
   // ever yielding — so this is the only shape of the bug the public API exposes.
-  const upstream = createServer((_req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end('<!doctype html><html><body><h1>up</h1></body></html>');
-  });
-  await new Promise((resolve) => upstream.listen(0, '127.0.0.1', resolve));
-  const upstreamUrl = 'http://127.0.0.1:' + upstream.address().port;
+  //
+  // The parked session proxies a NON-loopback origin (never contacted — the
+  // session is started, never fetched through), because captureOnly is the
+  // field the agent protocol actually keys on now, and a loopback upstream is
+  // captureOnly false just like the local session that replaces it — the race
+  // would be invisible on the field that matters.
+  const upstreamUrl = 'https://fixture.test';
 
   try {
     await bridge.startGrabSession(await designMd(), undefined, upstreamUrl, 'consumer');
@@ -220,9 +221,11 @@ test('a drain that parked reports the mode of the session it parked on, not the 
     assert.equal(drained.proxyMode, true,
       'a drain that parked on the proxied session was classified by the local one ' +
       'that replaced it — the agent gets told to wait for a batchCommit that cannot arrive');
+    assert.equal(drained.captureOnly, true,
+      'same classification, on the field the protocol keys on: a post-await read of the ' +
+      'global would report the replacing LOCAL session\'s false');
   } finally {
     await bridge.stopGrabSession();
-    await new Promise((resolve) => upstream.close(resolve));
   }
 });
 
@@ -239,10 +242,15 @@ test('the stdio server carries the proxy exception to its own batchCommit rule, 
 
   assert.match(local, /proxyMode/,
     'the stdio instructions never mention proxy mode, so the standing "wait for batchCommit" rule stands unqualified');
+  assert.match(local, /captureOnly/,
+    'the exception keys on captureOnly — a loopback proxy is proxyMode true and still waits for its commit, ' +
+    'so an instruction written against proxyMode strands the drag/authoring flow on the designer\'s own server');
   assert.match(local, /capture_reference/,
     'the proxy exception does not say what to do instead of waiting');
   assert.doesNotMatch(remote, /proxyMode/,
     'the proxy paragraph leaked onto the remote surface, whose instructions are hash-frozen');
+  assert.doesNotMatch(remote, /captureOnly/,
+    'both spellings of the exception stay off the hash-frozen remote surface');
 });
 
 test('a local drain reports proxyMode false', async () => {

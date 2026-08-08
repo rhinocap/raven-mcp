@@ -1520,11 +1520,47 @@
       '<rect x="5.5" y="1.5" width="5" height="8" rx="2.5"/><path d="M2.5 7.5a5.5 5.5 0 0 0 11 0"/><line x1="8" y1="13" x2="8" y2="15"/></svg>';
   }
   function voiceButtonMarkup(targetAttr, label) {
+    // targetAttr is a CSS attribute descriptor, not just an attribute name:
+    // "data-instruction" for singleton fields, or a value-qualified form like
+    // data-template-note='12' when several instances of one attribute can
+    // exist across rebuilds — the selector text IS the descriptor, so the
+    // button, the active-state check, and the result-time query can never
+    // disagree about which field a session belongs to. Values are internal
+    // numeric layer ids (plus the "truncated-N" form), so the single quotes
+    // never need escaping — but that was an ASSUMED invariant, and the text
+    // lands verbatim in an HTML attribute and is reused as a selector. The
+    // grammar check makes it enforced: a descriptor that could break out of
+    // either context yields NO mic (fail closed) instead of injected markup.
+    // No current call site can produce a violating descriptor, so no test can
+    // turn exactly this clause red; it guards future id shapes, not today's.
+    if (!/^[A-Za-z-]+(='[A-Za-z0-9_-]+')?$/.test(targetAttr)) return "";
     if (!speechRecognitionCtor()) return "";
     var active = !!(dictation && dictation.targetAttr === targetAttr);
     var caption = active ? "Stop dictation" : "Dictate " + label;
     return '<button class="raven-grab-voice" type="button" data-voice-dictate="' + targetAttr + '"' +
+      ' data-voice-label="' + label + '"' +
       ' aria-pressed="' + (active ? "true" : "false") + '" aria-label="' + caption + '" title="' + caption + '">' + micSvg() + "</button>";
+  }
+  function dictationQuery(selector) {
+    // The feedback form lives in the settings modal, outside both panels, so
+    // the dictation target lookup has to cover it too.
+    var inPanel = panelQuery(selector);
+    if (inPanel) return inPanel;
+    return settingsModal && settingsModal.querySelector ? settingsModal.querySelector(selector) : null;
+  }
+  function syncModalVoiceButtons() {
+    // The settings modal is render-once (see markChoiceChosen), so unlike the
+    // panels its mic buttons never pass back through voiceButtonMarkup; stamp
+    // the dictation state onto them directly whenever it changes.
+    if (!settingsModal || !settingsModal.querySelectorAll) return;
+    var buttons = settingsModal.querySelectorAll("[data-voice-dictate]");
+    for (var i = 0; i < buttons.length; i += 1) {
+      var active = !!(dictation && dictation.targetAttr === buttons[i].getAttribute("data-voice-dictate"));
+      var caption = active ? "Stop dictation" : "Dictate " + (buttons[i].getAttribute("data-voice-label") || "message");
+      buttons[i].setAttribute("aria-pressed", active ? "true" : "false");
+      buttons[i].setAttribute("aria-label", caption);
+      buttons[i].setAttribute("title", caption);
+    }
   }
   function appendDictatedText(targetAttr, transcript) {
     // Query at result time, never a captured node: renderPanel() may have
@@ -1533,15 +1569,24 @@
     // (Chrome emits near-empty results) arriving after the user navigated
     // away must still end the session, or the mic stays live forever
     // against a panel that no longer has the field (adverse-pass finding,
-    // 2026-08-07). First-match panelQuery cannot misroute between the two
+    // 2026-08-07). First-match dictationQuery cannot misroute between the two
     // [data-use-case] fields: componentProcessMarkup renders maintainer OR
-    // consumer via one ternary and is consumed exactly once.
-    var field = panelQuery("[" + targetAttr + "]");
+    // consumer via one ternary and is consumed exactly once. The multi-instance
+    // field (data-template-note) is value-qualified instead, so a rebuild that
+    // expanded a DIFFERENT note lands here as "field gone" and ends the
+    // session rather than transcribing into the wrong slot.
+    var field = dictationQuery("[" + targetAttr + "]");
     if (!field) return false;
     var text = String(transcript || "").replace(/\s+/g, " ").trim();
     if (!text) return true;
     var existing = field.value;
-    field.value = existing + (existing && !/\s$/.test(existing) ? " " : "") + text;
+    var next = existing + (existing && !/\s$/.test(existing) ? " " : "") + text;
+    // maxLength constrains TYPING, not assignment — setting .value walks right
+    // past it — so a dictated append has to honour the field's own cap or a
+    // long dictation ships a value the form promised its consumer it never
+    // would. maxLength is -1 when unset.
+    if (field.maxLength > 0 && next.length > field.maxLength) next = next.slice(0, field.maxLength);
+    field.value = next;
     // Route through the same delegated input handler a keystroke uses, so the
     // draft mirror and send-button enablement stay a single code path.
     field.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1555,6 +1600,7 @@
     dictation = null;
     try { recognizer.stop(); } catch (error) {}
     renderPanel();
+    syncModalVoiceButtons();
   }
   function toggleDictation(targetAttr) {
     if (dictation) {
@@ -1588,12 +1634,14 @@
       if (dictation && dictation.recognizer === recognizer) {
         dictation = null;
         renderPanel();
+        syncModalVoiceButtons();
       }
     };
     recognizer.onend = function () {
       if (dictation && dictation.recognizer === recognizer) {
         dictation = null;
         renderPanel();
+        syncModalVoiceButtons();
       }
     };
     try {
@@ -1603,6 +1651,7 @@
     }
     dictation = { recognizer: recognizer, targetAttr: targetAttr };
     renderPanel();
+    syncModalVoiceButtons();
   }
   function makeEdgeTab(side) {
     var tab = document.createElement("button");
@@ -1814,7 +1863,7 @@
       '<section class="raven-grab-settings-pane" data-settings-pane="feedback" hidden><h2>Feedback</h2>' +
         '<p class="raven-grab-feedback-copy">Tell us what is wrong or missing. We send your message, the Raven version, and your viewport size — nothing else from this page.</p>' +
         '<form class="raven-grab-feedback-form" data-feedback-form>' +
-          '<label class="raven-grab-feedback-field">Message<textarea name="message" maxlength="5000" required></textarea></label>' +
+          '<label class="raven-grab-feedback-field"><span>Message' + voiceButtonMarkup("data-feedback-message", "feedback message") + '</span><textarea name="message" data-feedback-message maxlength="5000" required></textarea></label>' +
           '<label class="raven-grab-feedback-field">Email (optional, so we can reply)<input name="email" type="email" autocomplete="email"></label>' +
           // Off by default. Grab runs on other people's dev servers, where a path like
           // /admin/unreleased-feature is itself product information. Opt-in, and the
@@ -1958,6 +2007,15 @@
   settingsModal.addEventListener("click", function (event) {
     if (event.target === settingsModal || (event.target.closest && event.target.closest('[data-settings-close]'))) {
       closeSettingsModal();
+      return;
+    }
+    // The panel's delegated click handler never sees modal clicks (the modal is a
+    // sibling of the panel in the shadow root), so the mic on the feedback field
+    // needs its own delegation here. Same contract as the panel path: the button's
+    // data-voice-dictate value IS the selector descriptor for the target field.
+    var voiceToggle = event.target.closest ? event.target.closest("[data-voice-dictate]") : null;
+    if (voiceToggle) {
+      toggleDictation(voiceToggle.getAttribute("data-voice-dictate"));
       return;
     }
     var nav = event.target.closest ? event.target.closest('[data-settings-section]') : null;
@@ -7656,7 +7714,7 @@
       : '<span class="raven-grab-layer-toggle-spacer" aria-hidden="true"></span>';
     var markup = '<li class="raven-grab-layer-row" role="treeitem" tabindex="' + rowTabIndex + '" aria-level="' + (node.depth + 1) + '" data-layer-id="' + node.id + '" data-layer-parent="' + (node.parentId == null ? "" : node.parentId) + '"' + (hasChildren ? ' aria-expanded="' + (isCollapsed ? "false" : "true") + '"' : "") + (isSelected ? ' data-selected="true"' : "") + (isPrimary ? ' data-primary="true"' : "") + (isPending ? ' data-layer-pending="true"' : "") + (isHovered ? ' data-layer-hovered="true"' : "") + ' style="--layer-depth:' + node.depth + '">' + toggleMarkup + '<span class="raven-grab-layer-index">' + displayIndex + '</span><span class="raven-grab-layer-label">' + escapeHtml(node.label) + "</span>" + badges.map(function (badge) { return '<span class="raven-grab-badge">' + escapeHtml(badge) + "</span>"; }).join("") + (isPending ? '<span class="raven-grab-layer-pending-badge">Move pending</span>' : "") + "</li>";
     if (pendingFixedMove && layerPreview && layerPreview.movedElement === element) {
-      markup += '<li class="raven-grab-template-detail" style="--layer-depth:' + node.depth + '"><p class="raven-grab-layer-notice raven-grab-layer-info">You are moving a fixed layer, the design system team will be notified.</p><label class="raven-grab-field"><span>Add note…</span><textarea class="raven-grab-textarea" data-fixed-move-note maxlength="2000" spellcheck="true" placeholder="Add note…">' + escapeHtml(fixedMoveNote) + '</textarea></label></li>';
+      markup += '<li class="raven-grab-template-detail" style="--layer-depth:' + node.depth + '"><p class="raven-grab-layer-notice raven-grab-layer-info">You are moving a fixed layer, the design system team will be notified.</p><label class="raven-grab-field"><span>Add note…' + voiceButtonMarkup("data-fixed-move-note", "note") + '</span><textarea class="raven-grab-textarea" data-fixed-move-note maxlength="2000" spellcheck="true" placeholder="Add note…">' + escapeHtml(fixedMoveNote) + '</textarea></label></li>';
     }
     if (!isCollapsed) {
       node.children.forEach(function (child, index) {
@@ -7690,7 +7748,7 @@
       (slot.role === "flexible" ? '<span class="raven-grab-badge">Flex</span>' : '') +
       '<button class="raven-grab-layer-action" type="button" data-remove-template-layer="' + node.id + '" aria-label="Remove ' + escapeHtml(node.label) + '">' + removeLayerIconMarkup() + '</button></li>';
     if (expanded) {
-      markup += '<li class="raven-grab-template-detail" style="--layer-depth:' + node.depth + '"><div class="raven-grab-role" role="group" aria-label="Layer role"><button type="button" data-template-role="fixed" data-template-index="' + node.id + '" data-active="' + (slot.role === "fixed" ? "true" : "false") + '">Fixed</button><button type="button" data-template-role="flexible" data-template-index="' + node.id + '" data-active="' + (slot.role === "flexible" ? "true" : "false") + '">Flexible</button></div><label class="raven-grab-field"><span>Add note…</span><textarea class="raven-grab-textarea" data-template-note="' + node.id + '" maxlength="2000" spellcheck="true" placeholder="Add note…">' + escapeHtml(slot.note || "") + '</textarea></label></li>';
+      markup += '<li class="raven-grab-template-detail" style="--layer-depth:' + node.depth + '"><div class="raven-grab-role" role="group" aria-label="Layer role"><button type="button" data-template-role="fixed" data-template-index="' + node.id + '" data-active="' + (slot.role === "fixed" ? "true" : "false") + '">Fixed</button><button type="button" data-template-role="flexible" data-template-index="' + node.id + '" data-active="' + (slot.role === "flexible" ? "true" : "false") + '">Flexible</button></div><label class="raven-grab-field"><span>Add note…' + voiceButtonMarkup("data-template-note=\'" + node.id + "\'", "note") + '</span><textarea class="raven-grab-textarea" data-template-note="' + node.id + '" maxlength="2000" spellcheck="true" placeholder="Add note…">' + escapeHtml(slot.note || "") + '</textarea></label></li>';
     }
     node.children.forEach(function (child) { markup += templateLayerRowMarkup(child); });
     return markup;
@@ -9746,7 +9804,7 @@
     var pageTemplateMarkup = '<section class="raven-grab-section raven-grab-assets-block">' +
       '<h2 class="raven-grab-assets-title">Page template</h2>' +
       '<p class="raven-grab-note">Save the entire page as a reusable template. All layers are included automatically.</p>' +
-      '<label class="raven-grab-field"><span>Template name</span><input class="raven-grab-input" type="text" data-template-name value="' + escapeHtml(templateName) + '" placeholder="Product page" spellcheck="false"></label>' +
+      '<label class="raven-grab-field"><span>Template name' + voiceButtonMarkup("data-template-name", "template name") + '</span><input class="raven-grab-input" type="text" data-template-name value="' + escapeHtml(templateName) + '" placeholder="Product page" spellcheck="false"></label>' +
       '<button class="raven-grab-send raven-grab-assets-cta" type="button" data-save-template data-send-state="default"' + (templateName.trim() ? "" : " disabled") + '><span class="raven-grab-send-label">Save page as template</span></button>' +
       '</section>';
     var componentProcessMarkup = !liveSelectionAvailable()
@@ -9757,7 +9815,7 @@
     var componentNameMarkup = '<section class="raven-grab-section raven-grab-assets-block">' +
       '<h2 class="raven-grab-assets-title">Component</h2>' +
       (liveSelectionAvailable()
-        ? '<p class="raven-grab-note">Captures the selected element and its full descendants into DESIGN.md, then ' + (grabRole === "maintainer" ? "adds it to the design system." : "sends a component request.") + '</p><label class="raven-grab-field"><span>Component name</span><input class="raven-grab-input" type="text" data-component-name value="' + escapeHtml(componentName) + '" placeholder="Primary button" spellcheck="false"></label>'
+        ? '<p class="raven-grab-note">Captures the selected element and its full descendants into DESIGN.md, then ' + (grabRole === "maintainer" ? "adds it to the design system." : "sends a component request.") + '</p><label class="raven-grab-field"><span>Component name' + voiceButtonMarkup("data-component-name", "component name") + '</span><input class="raven-grab-input" type="text" data-component-name value="' + escapeHtml(componentName) + '" placeholder="Primary button" spellcheck="false"></label>'
         : '<p class="raven-grab-empty">Select a component on the page</p>') +
       componentProcessMarkup +
       componentAssetsCtaMarkup() +
@@ -12022,8 +12080,9 @@
     // never apply it, or the indicator strands visible and the discarded drop reads
     // as landed.
     if (canvasDrag) clearCanvasDrag();
-    // Proxy sessions are capture-only: the bridge withholds /layers*, so a move draft
-    // could never reach the agent — the gesture never arms rather than failing late.
+    // A capture-only session (third-party proxy — a loopback proxy of the user's own
+    // dev server keeps authoring): the bridge withholds /layers* there, so a move
+    // draft could never reach the agent — the gesture never arms rather than failing late.
     if (captureOnly) return;
     if (textEditingElement) return;
     if (!armed || bothCollapsed()) return;

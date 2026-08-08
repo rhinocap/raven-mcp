@@ -15,27 +15,52 @@
 // overlay's feature detection reads SpeechRecognition ahead of the webkit
 // prefix, so the fake wins deterministically.
 //
-// Mutation matrix — every radius below is MEASURED (seven mutants, each a
+// Mutation matrix — every radius below is MEASURED (twelve mutants, each a
 // string edit on a copy served through RAVEN_GRAB_ASSET_PATH, load-checked
-// before its run so a parse failure cannot masquerade as a detection):
+// before its run so a parse failure cannot masquerade as a detection). The
+// matrix re-ran WHOLE on 2026-08-07 when the modal/maxLength/value-qualifier
+// tests joined the suite — three old radii widened because the new tests
+// share those mechanisms, which is a fact about the mechanisms, not extra
+// guards:
 //   - delete the onPanels("click") [data-voice-dictate] branch
-//       -> SIX tests red (every interaction test clicks through that branch;
-//          only the feature-absence test survives). A wide radius here is the
-//          entry point being shared, not six independent guards.
+//       -> SEVEN tests red: every test that clicks a PANEL mic — the six
+//          original interaction tests plus the maxLength test. The two
+//          modal-driven tests survive because the settings modal carries its
+//          own delegation; the feature-absence test survives by design.
 //   - appendDictatedText sets field.value but skips the input-event dispatch
 //       -> exactly "a dictated transcript ... survives a panel re-render" red
 //   - drop the speechRecognitionCtor() gate in voiceButtonMarkup
 //       -> exactly "no recognizer, no mic button" red
 //   - stopDictation clears state without calling recognizer.stop()
-//       -> TWO red: the toggle-off test and the vanished-field test, because
-//          both assert the recognizer was actually stopped, not just the state
-//          cleared.
+//       -> THREE red: the toggle-off test, the vanished-field test, and the
+//          feedback-modal test — all three assert the recognizer was actually
+//          STOPPED (the fake's stop-call count), not just the state cleared.
 //   - remove the onend state reset
 //       -> exactly "a recognizer that ends on its own resets the button" red
 //   - move the empty-text early return back ahead of the field check
 //       -> exactly "a noise-only final against a vanished field" red
 //   - weaken onend's identity guard from recognizer equality to bare dictation
 //       -> exactly "a stale onend from a replaced recognizer" red
+//   - delete the settings-modal click delegation for [data-voice-dictate]
+//       -> TWO red: the feedback-modal test and the value-qualified test —
+//          both start dictation from a modal button the panel handler can
+//          never see (the modal is the panel's sibling in the shadow root).
+//   - drop the maxLength clamp in appendDictatedText
+//       -> exactly "a dictated append honours the field's own maxLength cap"
+//          red: .value assignment walks straight past the markup attribute,
+//          so the clamp is the only thing separating a capped field from an
+//          uncapped one.
+//   - drop dictationQuery's settings-modal fallback (query panels only)
+//       -> TWO red: the same two modal tests — their target FIELDS live in
+//          the modal, so the panel-only lookup finds nothing and the session
+//          ends instead of transcribing. Shared lookup, shared radius.
+//   - make syncModalVoiceButtons a no-op
+//       -> exactly the feedback-modal test red: the modal is render-once, so
+//          nothing else ever re-stamps aria-pressed onto its buttons.
+//   - strip the value qualifier at query time (targetAttr.split("=")[0])
+//       -> exactly "a value-qualified descriptor routes ..." red: both
+//          template-note instances match the bare attribute and the
+//          transcript lands in the first, wrong, slot.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -301,6 +326,118 @@ test('a stale onend from a replaced recognizer does not kill the live session', 
   assert.equal(result.instances, 2, 'fixture check: the second toggle-on must mint a fresh recognizer');
   assert.equal(result.pressed, 'true',
     'a stale onend from the replaced recognizer tore down the live session — the identity guard is gone');
+});
+
+test('a dictated append honours the field\'s own maxLength cap', async (t) => {
+  // maxLength constrains TYPING, not assignment — setting .value walks right
+  // past it — so appendDictatedText clamps to the field's own cap or a long
+  // dictation ships a value the form promised its consumer it never would
+  // (the note fields promise 2000, the feedback form promises 5000). The cap
+  // is stamped on the live node here because the instruction textarea carries
+  // none of its own; appendDictatedText reads field.maxLength at result time,
+  // so the node being queried is the node that was stamped.
+  let result;
+  try {
+    result = await withOverlay(async (page) => {
+      return page.evaluate(shadowEval(`
+        root.querySelector('[data-voice-dictate="data-instruction"]').click();
+        const fake = window.__voiceFake.instances[0];
+        const field = root.querySelector('[data-instruction]');
+        field.maxLength = 20;
+        fake.emitFinal('this transcript is far longer than twenty characters');
+        return { value: root.querySelector('[data-instruction]').value };
+      `));
+    });
+  } catch (err) {
+    if (skipIfNoBrowser(t, err)) return;
+    throw err;
+  }
+  assert.equal(result.value.length, 20,
+    'the dictated append walked past the field\'s maxLength: ' + JSON.stringify(result.value));
+  assert.equal(result.value, 'this transcript is f', 'and the clamp is a truncation, not a rejection');
+});
+
+test('the feedback mic dictates into the settings-modal field and syncs its own state', async (t) => {
+  // The feedback form lives in the settings modal, which is render-once: unlike
+  // the panels its mic never passes back through voiceButtonMarkup, so
+  // renderPanel() alone leaves its aria-pressed stale. syncModalVoiceButtons
+  // stamps it directly at every dictation state change — delete those calls and
+  // the pressed assertions here go red while every panel test stays green.
+  // The click also exercises the modal's OWN [data-voice-dictate] delegation:
+  // the panel's delegated listener never sees modal clicks (siblings in the
+  // shadow root).
+  let result;
+  try {
+    result = await withOverlay(async (page) => {
+      return page.evaluate(shadowEval(`
+        const modal = root.querySelector('.raven-grab-settings-modal') ||
+          Array.from(root.children).find((el) => el.querySelector && el.querySelector('[data-feedback-message]'));
+        const mic = modal ? modal.querySelector('[data-voice-dictate="data-feedback-message"]') : null;
+        if (!mic) return { error: 'no feedback mic in the settings modal' };
+        mic.click();
+        const pressedLive = mic.getAttribute('aria-pressed');
+        const fake = window.__voiceFake.instances[0];
+        fake.emitFinal('The layers tab is hard to find');
+        const value = modal.querySelector('[data-feedback-message]').value;
+        mic.click();
+        const pressedAfter = mic.getAttribute('aria-pressed');
+        return { pressedLive, value, pressedAfter, stopped: fake.stopped };
+      `));
+    });
+  } catch (err) {
+    if (skipIfNoBrowser(t, err)) return;
+    throw err;
+  }
+  assert.equal(result.error, undefined, result.error);
+  assert.equal(result.pressedLive, 'true',
+    'the modal mic never learned dictation started — renderPanel cannot reach a render-once modal');
+  assert.equal(result.value, 'The layers tab is hard to find',
+    'the transcript never reached the feedback field — dictationQuery does not cover the modal');
+  assert.equal(result.stopped, 1, 'the second click must stop the recognizer through the modal delegation');
+  assert.equal(result.pressedAfter, 'false', 'the modal mic shows dictation live after it ended');
+});
+
+test('a value-qualified descriptor routes the transcript to exactly its own instance', async (t) => {
+  // data-template-note exists once per expanded note across rebuilds, so its
+  // mic carries a value-qualified descriptor (data-template-note='<id>') — the
+  // selector text IS the descriptor, and the button, the active-state check,
+  // and the result-time query can never disagree about which instance a
+  // session belongs to. The fixture plants two instances plus a button in the
+  // settings modal because the modal is the one surface renderPanel() never
+  // rebuilds — the panel's own template flow would wipe planted nodes at the
+  // toggle's first render. Synthetic placement, real mechanism: the click
+  // travels the modal delegation, toggleDictation, and appendDictatedText's
+  // result-time query exactly as the template tab's own mic does.
+  let result;
+  try {
+    result = await withOverlay(async (page) => {
+      return page.evaluate(shadowEval(`
+        const modal = Array.from(root.children).find((el) => el.querySelector && el.querySelector('[data-feedback-message]'));
+        if (!modal) return { error: 'no settings modal to plant the fixture in' };
+        const holder = document.createElement('div');
+        holder.innerHTML = '<textarea data-template-note="1"></textarea>' +
+          '<textarea data-template-note="2"></textarea>' +
+          '<button type="button" data-voice-dictate="data-template-note=\\'2\\'">mic</button>';
+        modal.appendChild(holder);
+        holder.querySelector('button').click();
+        const fake = window.__voiceFake.instances[0];
+        if (!fake) return { error: 'the value-qualified click never started a recognizer' };
+        fake.emitFinal('into slot two');
+        return {
+          first: holder.querySelector('[data-template-note="1"]').value,
+          second: holder.querySelector('[data-template-note="2"]').value
+        };
+      `));
+    });
+  } catch (err) {
+    if (skipIfNoBrowser(t, err)) return;
+    throw err;
+  }
+  assert.equal(result.error, undefined, result.error);
+  assert.equal(result.second, 'into slot two', 'the qualified instance never received its transcript');
+  assert.equal(result.first, '',
+    'the transcript leaked into a SIBLING instance of the same attribute — the descriptor\'s ' +
+    'value qualifier is being dropped at query time');
 });
 
 test('no recognizer, no mic button — and the composer is otherwise intact', async (t) => {

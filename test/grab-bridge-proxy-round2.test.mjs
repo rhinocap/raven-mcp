@@ -89,23 +89,36 @@ test('a withheld authoring route is answered here, never forwarded upstream', { 
   // capability key. A site that happens to own /layers could be made to act on a
   // request the designer never issued, and the overlay's move silently did
   // nothing. Refusing locally is the only correct answer for Raven's own traffic.
-  await withUpstream((req, res) => {
-    if (req.url.startsWith('/page')) return html(res);
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end('{"upstream":true}');
-  }, async (origin, seen) => {
-    await withSession(origin, async (session, key) => {
-      const before = seen.length;
+  //
+  // The upstream is a STUBBED non-loopback origin now (round 4's pattern):
+  // capture-only narrowed to third-party upstreams on 2026-08-07, and a
+  // loopback fixture would sit on the one origin where the old rule and the
+  // new rule disagree — /layers is SERVED there, so the 404 this test pins
+  // would flip for a reason it is not about. The recorder answers the same
+  // question `seen` did: did the bridge's forwarder ever get called?
+  const sent = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async function (input, init) {
+    const url = String(input instanceof Request ? input.url : input);
+    sent.push({ method: (init && init.method) || 'GET', url });
+    return new Response('<!doctype html><html><body><main>Fixture</main></body></html>',
+      { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+  };
+  try {
+    await withSession('https://fixture.test', async (session, key) => {
+      const before = sent.length;
       const moved = await request(session.url + '/layers?key=' + key, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ op: 'move', from: 1, to: 2 })
       });
       assert.equal(moved.status, 404);
-      assert.equal(seen.length, before,
-        'a keyed Raven route must not reach the proxied site: ' + JSON.stringify(seen.slice(before)));
+      assert.equal(sent.length, before,
+        'a keyed Raven route must not reach the proxied site: ' + JSON.stringify(sent.slice(before)));
     });
-  });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test('the same path without the key still belongs to the site that owns it', { skip: sandboxNoNetwork ? 'sandbox does not permit loopback listeners' : false }, async () => {

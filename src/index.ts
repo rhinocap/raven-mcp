@@ -2220,7 +2220,7 @@ if (remote && hasUserStore) {
 // only: grab is a stdio feature, the remote endpoints register none of its
 // tools, and the anonymous instructions are a hash-frozen surface.
 if (!remote) {
-  (server as any).server._options.instructions += "\n\nGRAB, PROXY MODE — the exception to waiting for batchCommit. When a drain returns proxyMode true the session is proxying a third-party site: the authoring routes are withheld, no batchCommit will ever arrive, and waiting for one strands the capture. Keep each selection with capture_reference and map it onto this project's tokens with map_reference_to_tokens. The grab itself is the outcome; do not try to apply anything to the page.";
+  (server as any).server._options.instructions += "\n\nGRAB, CAPTURE-ONLY PROXY — the exception to waiting for batchCommit. When a drain returns captureOnly true the session is proxying a third-party site: the authoring routes are withheld, no batchCommit will ever arrive, and waiting for one strands the capture. Keep each selection with capture_reference and map it onto this project's tokens with map_reference_to_tokens. The grab itself is the outcome; do not try to apply anything to the page. A proxy of the user's own loopback server is proxyMode true but captureOnly FALSE: it keeps the full authoring surface, so wait for batchCommit exactly as in a local session.";
 }
 
 // Wrap every tool handler: log the call to the local usage log, then inject
@@ -3194,10 +3194,11 @@ server.tool(
         protocol += " Now run watch_command as a background Bash task. Sends may arrive before a commit: acknowledge them without implementing and re-launch watch_command. When batchCommit appears, use the batch field already present in the watch_command output; it is pinned to the committed batchId. Do not re-fetch via batch:true. Resolve every target against the pre-reorder baseline, then implement batch.pending in ascending sequence in one patch.";
       } else if (proxy_target) {
         // watch_command comes back empty for two unrelated reasons, and naming
-        // the wrong one changes what the agent does next. Proxying withholds the
-        // watcher route on purpose, and nothing gets applied to someone else's
-        // page — so no batchCommit will ever arrive, and an agent told to wait
-        // for one waits forever. Here the grab IS the outcome.
+        // the wrong one changes what the agent does next. A capture-only proxy
+        // withholds the watcher route on purpose (a LOOPBACK proxy keeps it and
+        // takes the watch_command branch above), and nothing gets applied to
+        // someone else's page — so no batchCommit will ever arrive, and an
+        // agent told to wait for one waits forever. Here the grab IS the outcome.
         protocol = "Tell the user in ONE line that the overlay is capture-only on this proxied site: they can measure and grab, and nothing will be written to the page. Drain sends with get_grabbed_elements whenever control returns to you, keep each selection with capture_reference, and map it onto this project's tokens with map_reference_to_tokens. Do not wait for a batchCommit marker — none is coming.";
       } else {
         protocol += " This environment has no HTTP listener for a watcher to poll, so drain sends by calling get_grabbed_elements whenever control returns to you.";
@@ -3233,13 +3234,15 @@ server.tool(
       var payload: Record<string, unknown> = { ...grabbed };
       if (grabbed.batchCommit) {
         payload.agent_protocol = "Implement this committed batch now in one patch. Use batch.pending in ascending sequence, resolve every style and reorder target against the batch baseline before structural changes, apply same-parent reorders strictly by sequence, and mark each successful change applied with get_grab_operation. Reject ambiguous or disconnected targets instead of guessing.";
-      } else if (grabbed.count > 0 && grabbed.proxyMode) {
+      } else if (grabbed.count > 0 && grabbed.captureOnly) {
         // start_grab_session already told the agent no batchCommit is coming in
-        // proxy mode, and this line used to contradict it on the very next call
-        // — the drain said "wait for the batchCommit marker from Apply" while the
-        // bridge withholds the route that would ever produce one. An agent that
-        // believes the drain waits forever and the capture is never kept, which
-        // is the whole feature failing at its last step. Say what to do instead.
+        // capture-only proxy mode, and this line used to contradict it on the
+        // very next call — the drain said "wait for the batchCommit marker from
+        // Apply" while the bridge withholds the route that would ever produce
+        // one. An agent that believes the drain waits forever and the capture is
+        // never kept, which is the whole feature failing at its last step. Say
+        // what to do instead. Keyed on captureOnly, not proxyMode: a loopback
+        // proxy serves the authoring routes and its commit IS coming.
         //
         // Read off the drain result, not from a live lookup: the await above can
         // block for timeout_ms, and a global read after it describes whatever

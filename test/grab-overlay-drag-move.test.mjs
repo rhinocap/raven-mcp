@@ -10,10 +10,12 @@
 // observable reflow. None of that exists in a fake DOM.
 //
 // The harness boots a LOCAL session and embeds session.script_tag in its own
-// fixture page — deliberately not the proxy harness the other overlay suites
-// use, because a proxied session is capture-only (authoring: "withheld") and
-// the gesture never arms there. That refusal is itself under test, in the one
-// proxy-mode test at the bottom.
+// fixture page. A THIRD-PARTY proxied session is capture-only (authoring:
+// "withheld") and the gesture never arms there — that refusal is under test
+// against a stubbed non-loopback upstream; and since capture-only narrowed to
+// third-party origins (2026-08-07), the granted direction — a proxy of the
+// designer's OWN loopback dev server, Andrew's actual preview flow — has its
+// own test proving the gesture arms through the proxy.
 //
 // Same-parent drop arithmetic, derived once and pinned here: reorderLayer(from,
 // to) removes fromNode and splices it at toNode's ORIGINAL index. Counting the
@@ -32,9 +34,14 @@
 // line, so re-measure the whole matrix after any fix, never carry a radius
 // forward. Tests 8-14 and mutants M8-M15 come from a Kimi K3 adverse pass
 // (2026-08-07) that found the teardown paths and three plan branches untested.
+// The never-arm, no-indicator, and captureOnly radii were re-measured when the
+// loopback-proxy test joined the suite (2026-08-07): the first two each grew
+// by one because the new test drags for real, which is a fact about the
+// shared mechanism, not an extra guard.
 //   - delete the pointerdown arming (canvasDrag never set)
-//       -> TWELVE tests red: every local drag test. The below-threshold and
-//          proxy tests SURVIVE because they assert the same nothing-happens
+//       -> THIRTEEN tests red: every test that actually drags, the loopback-
+//          proxy test included. The below-threshold and capture-only proxy
+//          tests SURVIVE because they assert the same nothing-happens
 //          the mutant produces — and the Escape test only reddens because of
 //          its explicit mid-drag precondition (first draft lacked it and
 //          stayed green here). A wide radius here is the entry point being
@@ -46,10 +53,10 @@
 //          inside a 48px row, where the no-op plan makes zero slop
 //          observationally invisible; this mutant survived all 7 tests.
 //   - never call positionDropIndicator during pointermove
-//       -> SIX tests red: reorder, Escape, lost-pointerup, foreign-pointer,
-//          pointercancel, second-pointerdown — every test that asserts the
-//          indicator mid-drag as its active-drag precondition. Shared
-//          observable, shared radius — not six guards.
+//       -> SEVEN tests red: reorder, Escape, loopback-proxy, lost-pointerup,
+//          foreign-pointer, pointercancel, second-pointerdown — every test
+//          that asserts the indicator mid-drag as its active-drag
+//          precondition. Shared observable, shared radius — not seven guards.
 //   - make Escape apply the drag instead of abandoning it
 //       -> exactly "Escape abandons an active drag" red
 //   - never set suppressCanvasClick (neutralize the conditional arm)
@@ -176,14 +183,51 @@ async function withLocalOverlay(fn) {
   }
 }
 
+// A capture-only session needs a genuinely NON-loopback upstream: capture-only
+// narrowed to third-party origins on 2026-08-07 (a proxy of the designer's own
+// loopback dev server keeps the full authoring surface, drag included), so the
+// old loopback fixture here sat on the one origin where the old rule and the
+// new rule disagree — keeping it would have flipped this suite's capture-only
+// test rather than preserved its trigger. The upstream never exists: the
+// bridge's outbound fetch is stubbed in this process, and the browser only
+// ever talks to the bridge.
 async function withProxiedOverlay(fn) {
+  const dir = await mkdtemp(path.join(tmpdir(), 'raven-drag-proxy-'));
+  const designPath = path.join(dir, 'DESIGN.md');
+  await writeFile(designPath, '---\ncolor:\n  text:\n    primary: "#ffffff"\n---\n\n# Fixture\n', 'utf8');
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async function () {
+    return new Response(`<!doctype html><html><head><title>drag proxy host</title></head><body>${FIXTURE_BODY}</body></html>`,
+      { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+  };
+  const session = await bridge.startGrabSession(designPath, undefined, 'https://fixture.test', 'consumer');
+  let browser;
+  try {
+    browser = await chromium.launch();
+    const page = await browser.newPage({ viewport: VIEWPORT });
+    await page.goto(session.url + '/', { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => Boolean(document.querySelector('[data-raven-grab-overlay]')?.shadowRoot), null, { timeout: 15000 });
+    return await fn(page);
+  } finally {
+    if (browser) await browser.close();
+    globalThis.fetch = originalFetch;
+    await bridge.stopGrabSession();
+  }
+}
+
+// Andrew's actual preview flow: his OWN dev server proxied through the bridge.
+// This is the session shape where drag silently died while every local test
+// stayed green — the loopback grant is what fixed it, so the granted direction
+// runs against a REAL upstream on the same wire path a designer uses.
+async function withLoopbackProxiedOverlay(fn) {
   const upstream = createServer((_req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(`<!doctype html><html><head><title>drag proxy host</title></head><body>${FIXTURE_BODY}</body></html>`);
   });
   await new Promise((resolve) => upstream.listen(0, '127.0.0.1', resolve));
 
-  const dir = await mkdtemp(path.join(tmpdir(), 'raven-drag-proxy-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'raven-drag-loopback-'));
   const designPath = path.join(dir, 'DESIGN.md');
   await writeFile(designPath, '---\ncolor:\n  text:\n    primary: "#ffffff"\n---\n\n# Fixture\n', 'utf8');
 
@@ -438,6 +482,34 @@ test('a proxied capture-only session never arms the gesture', async (t) => {
   assert.equal(result.midDrag.indicatorVisible, false, 'no indicator in a capture-only session');
   assert.deepEqual(result.after.listOrder, ['a', 'b', 'c', 'd'], 'the DOM order never changed');
   assert.equal(result.after.draftCount, 0, 'no draft was queued');
+});
+
+test('a loopback proxy arms the gesture like a local session', async (t) => {
+  // The granted half of the capture-only narrowing, at the browser level: the
+  // bridge tests pin the flag's absence, but the reported defect was drag
+  // itself dying in the proxied-preview flow, so the drag has to be seen
+  // working through the proxy — indicator up mid-drag, reorder applied, draft
+  // queued, exactly the local-session observables.
+  let result;
+  try {
+    result = await withLoopbackProxiedOverlay(async (page) => {
+      await selectElement(page, '#a');
+      const a = await centerOf(page, '#a');
+      const c = await centerOf(page, '#c');
+      const d = await centerOf(page, '#d');
+      await dragTo(page, a, a.x, (c.y + d.y) / 2, { release: false });
+      const midDrag = await page.evaluate(readState);
+      await page.mouse.up();
+      const after = await page.evaluate(readState);
+      return { midDrag, after };
+    });
+  } catch (err) {
+    if (skipIfNoBrowser(t, err)) return;
+    throw err;
+  }
+  assert.equal(result.midDrag.indicatorVisible, true, 'the indicator shows mid-drag through the proxy');
+  assert.deepEqual(result.after.listOrder, ['b', 'c', 'a', 'd'], 'the reorder applied through the proxy');
+  assert.equal(result.after.draftCount, 1, 'exactly one pending move draft queued');
 });
 
 // ---------------------------------------------------------------------------

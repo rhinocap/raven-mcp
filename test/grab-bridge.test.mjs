@@ -959,9 +959,13 @@ test('proxy mode withholds the authoring routes and forwards paths it does not o
   // in grab-bridge-proxy-round2 asserts upstream received nothing at all.
   const designPath = await makeDesignFixture();
   await withClient(indexMod.buildServer({}), async (client) => {
-      // Port 9 (discard) is closed here, so anything reaching the proxy 502s —
-      // which is exactly how "Raven did not answer this itself" is observable.
-      const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath, proxy_target: 'http://127.0.0.1:9' } });
+      // A THIRD-PARTY origin: capture-only is a property of a non-loopback
+      // upstream now, not of proxying (a loopback proxy keeps the authoring
+      // surface — see grab-bridge-proxy-round5). `.invalid` is reserved to
+      // never resolve (RFC 2606), so anything reaching the forwarder fails
+      // fast into a 502 — which is exactly how "Raven did not answer this
+      // itself" is observable.
+      const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath, proxy_target: 'https://fixture.invalid' } });
       const session = JSON.parse(started.content[0].text);
       const key = sessionKey(session);
       const authoringRoutes = [
@@ -1525,11 +1529,11 @@ test('/agent/wait returns an empty result after a short timeout', async () => {
     const key = sessionKey(session);
     const response = await fetch(`${session.url}/agent/wait?key=${key}&timeout_ms=200`);
     assert.equal(response.status, 200);
-    // proxyMode rides on every drain result now, including the empty one — it
-    // is pinned to the session that was drained rather than looked up after the
-    // await, so it cannot be omitted on the timeout path without reintroducing
-    // the lookup. This session is local, hence false.
-    assert.deepEqual(await response.json(), { count: 0, elements: [], proxyMode: false });
+    // proxyMode and captureOnly ride on every drain result now, including the
+    // empty one — both are pinned to the session that was drained rather than
+    // looked up after the await, so neither can be omitted on the timeout path
+    // without reintroducing the lookup. This session is local, hence both false.
+    assert.deepEqual(await response.json(), { count: 0, elements: [], proxyMode: false, captureOnly: false });
     await client.callTool({ name: 'stop_grab_session', arguments: {} });
   });
 });
@@ -1576,16 +1580,18 @@ test('start_grab_session returns a keyed wait URL and background watch command',
   });
 });
 
-test('proxy mode advertises no wait URL or watch command', async () => {
-  // /agent/wait is one of the routes proxy mode withholds, so handing back a
-  // keyed wait_url pointed at it is an instruction to run a command that 404s
-  // for as long as the agent is willing to retry. Worse, the watch_command is
-  // the shape an agent is most likely to run unattended — it loops on curl and
-  // only exits on a selection, so the advertised-but-withheld route reads as
-  // "the designer has not grabbed anything yet" instead of as a refusal.
+test('a capture-only proxy advertises no wait URL or watch command', async () => {
+  // /agent/wait is one of the routes a THIRD-PARTY proxy withholds, so handing
+  // back a keyed wait_url pointed at it is an instruction to run a command that
+  // 404s for as long as the agent is willing to retry. Worse, the watch_command
+  // is the shape an agent is most likely to run unattended — it loops on curl
+  // and only exits on a selection, so the advertised-but-withheld route reads
+  // as "the designer has not grabbed anything yet" instead of as a refusal.
+  // The target must be non-loopback: a loopback proxy keeps the watcher (its
+  // batchCommit IS coming — grab-bridge-proxy-round5 pins that direction).
   const designPath = await makeDesignFixture();
   await withClient(indexMod.buildServer({}), async (client) => {
-    const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath, proxy_target: 'http://127.0.0.1:9' } });
+    const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath, proxy_target: 'https://fixture.invalid' } });
     const session = JSON.parse(started.content[0].text);
     assert.equal(session.mode, 'server', 'the proxy only exists in server mode');
     assert.equal(session.wait_url, '');

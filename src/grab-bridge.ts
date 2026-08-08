@@ -321,11 +321,15 @@ export interface GrabBridgeDrainResult {
   elements: GrabBridgeSelection[];
   batchCommit?: { batchId: string; committedAt: string };
   batch?: GrabBatchResult;
-  // Whether the session these selections came from was proxying a third-party
-  // site. It rides on the result rather than being looked up afterwards because
-  // a drain can block for timeoutMs, and a global read after that await belongs
-  // to whatever session is current THEN — see getGrabbedElements.
+  // Whether the session these selections came from was proxying. It rides on
+  // the result rather than being looked up afterwards because a drain can
+  // block for timeoutMs, and a global read after that await belongs to
+  // whatever session is current THEN — see getGrabbedElements.
   proxyMode?: boolean;
+  // Whether that proxy withheld the authoring surface (third-party upstream).
+  // This is the field the drain protocol keys on — a loopback proxy is
+  // proxyMode true, captureOnly false, and waits for batchCommit as usual.
+  captureOnly?: boolean;
 }
 
 interface BridgeSession {
@@ -491,7 +495,7 @@ export async function startGrabSession(path?: string, port?: number, proxyTarget
   if (warning && normalizedTarget) {
     warning += " proxy_target is ignored in shim mode.";
   }
-  if (!warning && mode === "server" && normalizedTarget) {
+  if (!warning && mode === "server" && normalizedTarget && proxyCaptureOnly(normalizedTarget)) {
     // Say the real boundary out loud rather than implying isolation the bridge
     // does not have: the proxied page is served from this origin, so its own
     // scripts can read the overlay's key and call the routes it unlocks. The
@@ -499,12 +503,20 @@ export async function startGrabSession(path?: string, port?: number, proxyTarget
     // is withheld from /tokens, but the token names and values are readable.
     warning = "Proxy mode is capture-only: measure and grab a third-party page, then map what you grabbed onto your own tokens. The authoring surface — templates, layers, batch edits and the agent watcher — is withheld while proxying and its controls will not work. The reason is that the proxied page is served from this bridge's own origin, so scripts on that page can both read your DESIGN.md token names and values and post their own selections and instructions into the grab queue, which get_grabbed_elements will hand to your agent as if you had grabbed them. Raven withholds the file path and every authoring route, but treat what comes back from a proxied grab as untrusted input, and proxy sites you would be comfortable showing your token list to.";
   }
+  if (!warning && mode === "server" && normalizedTarget) {
+    // The loopback counterpart has to say the OPPOSITE out loud, or an agent
+    // that learned "proxy means capture-only" from the line above strands the
+    // session waiting on nothing — or worse, refuses to wait for the commit
+    // that is now coming.
+    warning = "Proxying the user's own loopback server: the full authoring surface (templates, layers, batch edits, the agent watcher) is served, exactly as in a script-tag local session. Wait for batchCommit as usual.";
+  }
   var bridgeUrl = "http://127.0.0.1:" + actualPort;
   // Watcher only exists in server mode — shim has no HTTP listener for curl to
-  // reach — and NOT while proxying, where /agent/wait is one of the withheld
-  // routes. Handing back a wait_url that 404s is worse than handing back none:
-  // the agent polls a dead URL and reads the silence as "nothing grabbed yet".
-  var waitUrl = mode === "server" && !normalizedTarget ? bridgeUrl + "/agent/wait?key=" + key + "&timeout_ms=240000" : "";
+  // reach — and NOT while capture-only proxying, where /agent/wait is one of the
+  // withheld routes. Handing back a wait_url that 404s is worse than handing
+  // back none: the agent polls a dead URL and reads the silence as "nothing
+  // grabbed yet". A loopback proxy serves /agent/wait, so it gets the URL.
+  var waitUrl = mode === "server" && !proxyCaptureOnly(normalizedTarget) ? bridgeUrl + "/agent/wait?key=" + key + "&timeout_ms=240000" : "";
   var watchCommand = waitUrl
     ? "f=0; while :; do r=$(curl -sf '" + waitUrl + "') || { f=$((f+1)); [ \"$f\" -ge 5 ] && exit 1; sleep 2; continue; }; f=0; if [ -n \"$r\" ] && { ! printf '%s' \"$r\" | grep -q '\"count\": 0' || printf '%s' \"$r\" | grep -q '\"batchCommit\"'; }; then printf '%s\\n' \"$r\"; exit 0; fi; done"
     : "";
@@ -577,15 +589,24 @@ export async function getGrabbedElements(timeoutMs?: number): Promise<GrabBridge
   } else {
     result = await waitForGrabItems(session, timeoutMs);
   }
-  return { ...result, proxyMode: Boolean(session.proxyTarget) };
+  // captureOnly is the field the drain protocol actually keys on: proxyMode
+  // says HOW the page is served, captureOnly says whether a batchCommit can
+  // ever arrive. A loopback proxy is proxyMode true, captureOnly false — wait
+  // for the commit exactly as in a local session.
+  return {
+    ...result,
+    proxyMode: Boolean(session.proxyTarget),
+    captureOnly: proxyCaptureOnly(session.proxyTarget)
+  };
 }
 
-// Whether the session that is live RIGHT NOW is proxying someone else's site.
-// The two modes end differently: a local session finishes at a batchCommit
-// marker, a proxied one has no commit to wait for because the authoring routes
-// are withheld. Safe only where no await separates this call from the thing it
-// describes — to classify a drain, read `proxyMode` off the drain result, which
-// is pinned to the session the selections actually came from.
+// Whether the session that is live RIGHT NOW is proxying. Note proxying no
+// longer implies capture-only — a loopback proxy keeps its authoring routes
+// and finishes at a batchCommit like a local session; only a third-party
+// upstream has no commit to wait for. Safe only where no await separates this
+// call from the thing it describes — to classify a drain, read `captureOnly`
+// off the drain result, which is pinned to the session the selections
+// actually came from.
 export function isProxyGrabSession(): boolean {
   return Boolean(currentSession && currentSession.proxyTarget);
 }
@@ -1084,6 +1105,41 @@ function isLoopbackHost(hostHeader: string, port: number): boolean {
   return hostHeader === "127.0.0.1:" + port || hostHeader === "localhost:" + port;
 }
 
+/**
+ * Whether a proxied session is capture-only. ONE function owns this rule —
+ * route withholding, the injected `authoring` flag, the session warning, the
+ * wait_url, and the drain's `captureOnly` field all call it, because a preview
+ * computed by a different rule than the action is the takedown-confirm defect
+ * over again: the overlay would advertise authoring the routes then refuse.
+ *
+ * A proxy of the designer's OWN loopback dev server keeps the authoring
+ * surface. The trust boundary is identical to a script-tag local session: on
+ * their own page the overlay's key already sits in the DOM next to whatever
+ * scripts that page loads, so withholding authoring there protects nothing and
+ * silently kills drag, layers, templates, and commits in the standard
+ * proxy-the-preview flow. Third-party sites stay capture-only.
+ *
+ * The judgment is the HOSTNAME LITERAL the caller typed, never DNS: a public
+ * name that happens to resolve to 127.0.0.1 (the rebinding shape the Host
+ * check above exists for) is not loopback here. Exact match against the three
+ * spellings dev servers actually print — no subdomains (`foo.localhost` is
+ * refused), no other 127.x addresses. Anything unparseable is capture-only:
+ * fail closed. That catch has no reachable trigger through the public API —
+ * startGrabSession already normalizes proxy_target to `new URL(...).origin`
+ * and throws on anything unparseable, so every stored proxyTarget re-parses.
+ * It stays as belt-and-braces for a caller this module cannot see, and no
+ * test pretends it is load-bearing.
+ */
+function proxyCaptureOnly(proxyTarget: string | undefined): boolean {
+  if (!proxyTarget) return false;
+  try {
+    var hostname = new URL(proxyTarget).hostname;
+    return hostname !== "127.0.0.1" && hostname !== "localhost" && hostname !== "[::1]";
+  } catch (_err) {
+    return true;
+  }
+}
+
 async function handleGrabRequest(designMdPath: string, key: string, req: IncomingMessage, res: ServerResponse, proxyTarget?: string, role: GrabRole = "consumer"): Promise<void> {
   var method = req.method || "GET";
   var requestUrl = req.url || "/";
@@ -1111,13 +1167,22 @@ async function handleGrabRequest(designMdPath: string, key: string, req: Incomin
     // answering 403 and breaking the site the designer came to measure.
     var overlayRoute = pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/grab";
     var keyed = new URL(requestUrl, "http://127.0.0.1").searchParams.get("key") === key;
-    bridgeRoute = overlayRoute && keyed;
-    // A withheld route that still carries the right key is Raven's own traffic,
-    // and forwarding it was strictly worse than refusing it: the overlay's layer
-    // move went to the proxied site as an authenticated POST carrying its session
-    // cookie and Raven's capability key, so a site that happens to own /layers
-    // could be made to act on a request the designer never issued. Answer here.
-    withheldRoute = !overlayRoute && keyed;
+    if (proxyCaptureOnly(proxyTarget)) {
+      bridgeRoute = overlayRoute && keyed;
+      // A withheld route that still carries the right key is Raven's own traffic,
+      // and forwarding it was strictly worse than refusing it: the overlay's layer
+      // move went to the proxied site as an authenticated POST carrying its session
+      // cookie and Raven's capability key, so a site that happens to own /layers
+      // could be made to act on a request the designer never issued. Answer here.
+      withheldRoute = !overlayRoute && keyed;
+    } else {
+      // A loopback upstream is the designer's own dev server, so the full
+      // authoring surface stays served — see proxyCaptureOnly for the trust
+      // argument. The key requirement stays for every bridge path: an un-keyed
+      // request for /tokens or /components may be the proxied app's own route,
+      // and it forwards upstream exactly as in capture-only mode.
+      bridgeRoute = keyed;
+    }
   }
   // OPTIONS was excluded from forwarding wholesale, which meant every upstream
   // preflight got Raven's own 204 advertising GET/POST and Content-Type. Any real
@@ -1455,17 +1520,25 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
       var proxyConfig: Record<string, string> = {
         bridgeOrigin: proxyBridgeOrigin,
         projectName: proxyProjectName,
-        ravenVersion: RAVEN_VERSION,
-        // The authoring routes — /batch-commit, /layers, /template, /components —
-        // are withheld from a proxied third-party origin on purpose, a few dozen
-        // lines up in handleGrabRequest. The overlay could not see that, so it
-        // finished every send by POSTing the commit, got the designed 404, and
-        // showed the designer "Retry send" on a grab that had in fact landed in
-        // Raven's queue. Telling it what the bridge is already doing costs one
-        // field; inferring it from a 404 is how a deliberate refusal reads as a
-        // bug. Grabbing from someone else's site is capture, not authoring.
-        authoring: "withheld"
+        ravenVersion: RAVEN_VERSION
       };
+      // The authoring routes — /batch-commit, /layers, /template, /components —
+      // are withheld from a proxied third-party origin on purpose, a few dozen
+      // lines up in handleGrabRequest. The overlay could not see that, so it
+      // finished every send by POSTing the commit, got the designed 404, and
+      // showed the designer "Retry send" on a grab that had in fact landed in
+      // Raven's queue. Telling it what the bridge is already doing costs one
+      // field; inferring it from a 404 is how a deliberate refusal reads as a
+      // bug. Grabbing from someone else's site is capture, not authoring.
+      // A loopback upstream is the designer's own server, keeps its authoring
+      // routes, and — like a script-tag local session — carries no flag at all,
+      // so the overlay's capture-only gate and its drag/layers/commit surface
+      // behave identically in both. proxyCaptureOnly owns the rule; reading
+      // currentSession.proxyTarget here matches what the route gate was handed,
+      // because sameProxyHost pins any mid-session https upgrade to one host.
+      if (proxyCaptureOnly(currentSession ? currentSession.proxyTarget : proxyTarget)) {
+        proxyConfig.authoring = "withheld";
+      }
       if (role === "maintainer") proxyConfig.role = "maintainer";
       var proxyConfigJson = JSON.stringify(proxyConfig).replace(/</g, "\\u003c");
       var script = '<script src="/raven-grab.js?key=' + key + '&cfg=' + encodeURIComponent(proxyConfigJson) + '"></script>';
