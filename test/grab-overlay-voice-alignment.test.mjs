@@ -22,13 +22,16 @@
 // were already correct — the control gap is asserted too, but only where a
 // control exists.
 //
-// Mutation matrix v6 — MEASURED, re-run WHOLE after the round-4 fixes: 12
-// mutants, 12 killed, 0 survived, plus 2 CONTROLS that must stay green and do.
+// Mutation matrix v7 — MEASURED, re-run WHOLE after the round-5 fixes: 15
+// mutants, 15 killed, 0 survived, plus 2 CONTROLS that must stay green and do.
 // The controls arrived in v5 and they are not decoration: a matrix that only
 // ever asks "does this turn red" is structurally blind to a FALSE FAIL, and
 // a gate that cries wolf on correct code is how a gate gets muted. No radius
-// measured in v5 moved in v6, which is the expected result — round 4 changed the
-// scanner's lexing and touched no product code. Each is a string edit on a copy of
+// measured in v6 moved in v7 either — but that was NOT a foregone conclusion
+// this round the way it was last round: round 5 rewrote the scanner's
+// lookbehinds AND changed the enclosure rule itself, so a moved radius was a
+// live possibility and the whole matrix was re-measured rather than carried
+// forward. Each is a string edit on a copy of
 // browser/raven-grab.js served through RAVEN_GRAB_ASSET_PATH. Radii are
 // near-uniform because this file holds TWO tests and each mutant reaches one of
 // them — a radius here is mostly a fact about the file, not evidence that a
@@ -143,6 +146,40 @@
 // `<` — round 3's version read `\"` correctly and read a real closing tag as
 // `x3c/span>`.
 //
+// A15/A16/A17 are round 5, and A15 is the one that names the CLASS the three
+// rounds before it were each attacking one instance of. All three were measured
+// surviving before the fix, all three on the per-template row the browser test
+// cannot render, so the whole suite was green on a real misalignment:
+//
+//   A15 an unrendered decoy string carrying a covered opener  -> PRE-FIX fail=0
+//   A16 a comment longer than the 24-char control lookback    -> PRE-FIX fail=0
+//   A17 a comment between the control-header `)` and the `/`  -> PRE-FIX fail=0
+//
+// A16 and A17 are ordinary lexer holes and the last of that family: the round-3
+// and round-4 lookbehinds read a fixed 24-character window of the RAW source, so
+// a comment could defeat them by DISTANCE alone (A16 hides the `if` from the
+// control-word check) or by simply sitting where the walk did not skip (A17 —
+// `opensRegex` skipped spaces and tabs, never comments, so it never reached the
+// `)` and never consulted lastCloseWasControl). Both lookbehinds read `code` now,
+// where every comment above the cursor is already blanked, and both read a WHOLE
+// identifier rather than a window — which is what makes them token-based instead
+// of window-based, and which gives the `notif (` exclusion for free.
+//
+// A15 has NO lexer error in it at all, and that is the point. It is a string
+// literal that is never rendered, carrying a covered opener, sitting between the
+// real opener and the mic. The scan is correct and the verdict is still wrong,
+// because `lastIndexOf` takes the LAST covered opener in the window and the
+// decoy sits after the real one. So "the walk reads markup, not JavaScript" was
+// never the property: a string is not markup either — it becomes markup when
+// something concatenates it into the output. The fix is a third view, `glue`,
+// and a concatenation-only check between anchor and mic; see enclosedByCovered.
+//
+// The attribution was MEASURED IN TWO STAGES rather than read off the final
+// matrix. The lexer fix was applied alone and re-measured first: 15 mutants,
+// 14 killed, A15 still surviving. That is what proves the lexer fix owns A16/A17
+// and the glue check owns A15 — the glue check would have killed all three, and
+// a single final run could not have told those apart.
+//
 // The first draft of this test asserted per row and was measured NOT to
 // separate A1 from A3: assert aborts at the first failure, all three mutants
 // break panel/data-template-name first, and the message was byte-identical.
@@ -249,7 +286,16 @@ async function withOverlay(fn) {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(HOST_PAGE);
   });
-  await new Promise((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+  // The 'error' listener is not decoration: `listen` reports EPERM and EADDRINUSE
+  // by emitting on the server, and an emitted 'error' with nothing listening
+  // throws from the event loop — OUTSIDE this function's caller's try/catch, so
+  // it can never be classified. Sol round 5 replayed exactly that under a
+  // sandbox: 1 pass / 1 fail / 0 skipped on `listen EPERM 127.0.0.1`, an
+  // environment reported as a product defect.
+  await new Promise((resolve, reject) => {
+    upstream.once('error', reject);
+    upstream.listen(0, '127.0.0.1', resolve);
+  });
   const upstreamUrl = 'http://127.0.0.1:' + upstream.address().port;
 
   const dir = await mkdtemp(path.join(tmpdir(), 'raven-mic-align-'));
@@ -271,83 +317,79 @@ async function withOverlay(fn) {
   }
 }
 
-function skipIfNoBrowser(t, err) {
-  // `!chromiumAvailable` is the WHOLE gate, and the message regex that used to
-  // sit beside it was a hole rather than a second guard (Sol round 3, P3). The
-  // probe above walks launch → newPage → goto → close, but the regex only
-  // recognised `browserType.launch`, so a probe that died at `newPage` set
-  // chromiumAvailable = false and then reported the identical failure in every
-  // test as a PRODUCT defect. Widening the probe without widening the
-  // classification is worse than not widening it: the environment is now known
-  // to be broken and the suite says the overlay is.
-  //
-  // The laundering risk the regex was meant to cover is already covered: if the
-  // probe came up, chromiumAvailable is true and nothing here can skip, whatever
-  // the error says. If the probe did NOT come up, no test in this file can be
-  // meaningful — every one of them starts by launching chromium — so the reason
-  // the environment is unusable does not change the verdict.
-  //
-  // Not independently falsifiable on a machine where chromium works: reverting
-  // this only changes behaviour when the probe has already failed, which is not
-  // a state this suite can construct. The probe error travels with the skip so
-  // that state is legible when it happens.
+// The gate runs BEFORE any setup, and that placement is the fix rather than a
+// tidy-up. Round 4 called this from the geometry test's CATCH, which meant
+// `withOverlay` had already booted a server, a session and a browser by the
+// time anything asked whether chromium existed — and one of those steps can
+// fail in a way the catch never sees (see the 'error' listener above). A gate
+// that only runs once setup has succeeded is not a gate.
+//
+// `!chromiumAvailable` is the WHOLE condition, and the message regex that used
+// to sit beside it was a hole rather than a second guard (Sol round 3, P3). The
+// probe walks listen -> launch -> newPage -> goto -> close, but the regex only
+// recognised `browserType.launch`, so a probe that died at `newPage` set
+// chromiumAvailable = false and then reported the identical environment failure
+// in every test as a PRODUCT defect. Widening a probe without widening its
+// classification is worse than not widening it.
+//
+// Once the probe has come up, nothing in this file skips: every later failure is
+// a real failure and is thrown. Not independently falsifiable on a machine where
+// chromium works — reverting it only changes behaviour in a state this suite
+// cannot construct — so the probe error travels with the skip to make that state
+// legible when it happens.
+function skipIfNoBrowser(t) {
   if (!chromiumAvailable) {
-    t.skip(`browser unavailable for overlay mic alignment (${err.message}); probe said: ${chromiumProbeError && chromiumProbeError.message}`);
+    t.skip(`browser unavailable for overlay mic alignment; probe said: ${chromiumProbeError && chromiumProbeError.message}`);
     return true;
   }
   return false;
 }
 
 test('every mic is flush with the right edge of the row that holds it', async (t) => {
-  let rows;
-  try {
-    rows = await withOverlay(async (page) => {
-      // A selection is what makes the Component / Template rows exist at all;
-      // page.click fails actionability against the overlay host, so this is a
-      // raw mouse click at the heading's own centre.
-      const heading = await page.$('#heading');
-      const hb = await heading.boundingBox();
-      await page.mouse.click(hb.x + hb.width / 2, hb.y + hb.height / 2);
-      await page.waitForTimeout(300);
+  if (skipIfNoBrowser(t)) return;
+  const rows = await withOverlay(async (page) => {
+    // A selection is what makes the Component / Template rows exist at all;
+    // page.click fails actionability against the overlay host, so this is a
+    // raw mouse click at the heading's own centre.
+    const heading = await page.$('#heading');
+    const hb = await heading.boundingBox();
+    await page.mouse.click(hb.x + hb.width / 2, hb.y + hb.height / 2);
+    await page.waitForTimeout(300);
 
-      return page.evaluate(() => {
-        const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
-        // The settings modal's markup is built once and kept in the tree, so its
-        // mic is present-but-zero-sized while the modal is closed. Measuring a
-        // hidden row is measuring nothing; the target-set assertion below is
-        // what stops this filter from quietly shrinking the sample.
-        const visible = (mic) => mic.getBoundingClientRect().width > 0;
-        const measure = (surface) => [...root.querySelectorAll('[data-voice-dictate]')].filter(visible).map((mic) => {
-          // closest() from the mic itself lands on .raven-grab-voice-slot, the
-          // mic's own inline wrapper, whose right edge is trivially the mic's.
-          // The row is the label span or section heading ABOVE that wrapper.
-          const row = mic.parentElement.closest('span:not(.raven-grab-voice-slot), .raven-grab-section-heading');
-          const label = mic.closest('label');
-          const control = label && label.querySelector('input, textarea');
-          const micBox = mic.getBoundingClientRect();
-          return {
-            surface,
-            target: mic.getAttribute('data-voice-dictate'),
-            hasRow: Boolean(row),
-            rowWidth: row ? +row.getBoundingClientRect().width.toFixed(2) : null,
-            micWidth: +micBox.width.toFixed(2),
-            rowGap: row ? +(row.getBoundingClientRect().right - micBox.right).toFixed(2) : null,
-            controlGap: control ? +(control.getBoundingClientRect().right - micBox.right).toFixed(2) : null
-          };
-        });
-
-        root.querySelector('[data-tab="assets"]').click();
-        const panel = measure('panel');
-        root.querySelector('[data-settings-open]').click();
-        root.querySelector('[data-settings-section="feedback"]').click();
-        const settings = measure('settings').filter((row) => row.target === 'data-feedback-message');
-        return [...panel, ...settings];
+    return page.evaluate(() => {
+      const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+      // The settings modal's markup is built once and kept in the tree, so its
+      // mic is present-but-zero-sized while the modal is closed. Measuring a
+      // hidden row is measuring nothing; the target-set assertion below is
+      // what stops this filter from quietly shrinking the sample.
+      const visible = (mic) => mic.getBoundingClientRect().width > 0;
+      const measure = (surface) => [...root.querySelectorAll('[data-voice-dictate]')].filter(visible).map((mic) => {
+        // closest() from the mic itself lands on .raven-grab-voice-slot, the
+        // mic's own inline wrapper, whose right edge is trivially the mic's.
+        // The row is the label span or section heading ABOVE that wrapper.
+        const row = mic.parentElement.closest('span:not(.raven-grab-voice-slot), .raven-grab-section-heading');
+        const label = mic.closest('label');
+        const control = label && label.querySelector('input, textarea');
+        const micBox = mic.getBoundingClientRect();
+        return {
+          surface,
+          target: mic.getAttribute('data-voice-dictate'),
+          hasRow: Boolean(row),
+          rowWidth: row ? +row.getBoundingClientRect().width.toFixed(2) : null,
+          micWidth: +micBox.width.toFixed(2),
+          rowGap: row ? +(row.getBoundingClientRect().right - micBox.right).toFixed(2) : null,
+          controlGap: control ? +(control.getBoundingClientRect().right - micBox.right).toFixed(2) : null
+        };
       });
+
+      root.querySelector('[data-tab="assets"]').click();
+      const panel = measure('panel');
+      root.querySelector('[data-settings-open]').click();
+      root.querySelector('[data-settings-section="feedback"]').click();
+      const settings = measure('settings').filter((row) => row.target === 'data-feedback-message');
+      return [...panel, ...settings];
     });
-  } catch (err) {
-    if (skipIfNoBrowser(t, err)) return;
-    throw err;
-  }
+  });
 
   // Fail loudly if a surface stopped rendering its mics — a shrinking set would
   // otherwise turn this into a test that passes by measuring less.
@@ -497,7 +539,7 @@ test('every mic in the overlay source sits in a container the shared rule aligns
   // (`(a + b) / 2` — division), and nothing local to the `)` separates the two.
   // You have to remember what the matching `(` was, which is why there is a
   // stack below rather than another character in the set above.
-  const CONTROL_HEAD = /(?:^|[^\w$])(if|while|for|switch|catch|with)\s*$/;
+  const CONTROL_WORDS = new Set(['if', 'while', 'for', 'switch', 'catch', 'with']);
   // Decoded so an escape can still produce a `<`. Astral code points collapse to
   // a space: a view slot must hold exactly ONE character or every offset below
   // it shifts, and no astral character can be part of a tag anyway.
@@ -505,25 +547,60 @@ test('every mic in the overlay source sits in a container the shared rule aligns
   function scanSource(js) {
     const code = new Array(js.length);
     const markup = new Array(js.length);
+    const glue = new Array(js.length);
     for (let k = 0; k < js.length; k += 1) {
       const blank = js[k] === '\n' ? '\n' : ' ';
       code[k] = js[k];
       markup[k] = blank;
+      glue[k] = js[k];
     }
-    const blankRange = (target, from, to) => {
-      for (let k = from; k < to && k < js.length; k += 1) target[k] = js[k] === '\n' ? '\n' : ' ';
+    const blankRange = (...targets) => {
+      const to = targets.pop();
+      const from = targets.pop();
+      for (const target of targets) {
+        for (let k = from; k < to && k < js.length; k += 1) target[k] = js[k] === '\n' ? '\n' : ' ';
+      }
     };
     const parenIsControl = [];
     let lastCloseWasControl = false;
-    const opensRegex = (at) => {
+    // Both lookbehinds read `code`, NEVER the raw source. The scan is strictly
+    // left-to-right, so every comment below the cursor is already blanked to
+    // spaces there, and "the previous significant character" becomes an
+    // ordinary whitespace skip. Sol round 5 hit both halves of reading `js`
+    // instead, and both were measured surviving with the whole suite green:
+    // `if (Date) /* g */ /re/` never walked back far enough to reach the `)`,
+    // and `if /* …longer than 24 chars… */ (Date)` never saw the `if`.
+    //
+    // Newlines are skipped for the control-word lookbehind (`if\n(x)` is
+    // ordinary JavaScript) and NOT for the regex one, where a leading `\n` is a
+    // deliberate REGEX_PRECEDERS entry — a line that begins with `/` is a regex
+    // far more often than it is a continued division.
+    const prevSignificant = (at, skipNewlines) => {
       let k = at - 1;
-      while (k >= 0 && (js[k] === ' ' || js[k] === '\t')) k -= 1;
+      while (k >= 0 && (code[k] === ' ' || code[k] === '\t' || (skipNewlines && code[k] === '\n'))) k -= 1;
+      return k;
+    };
+    // The identifier ending at k, or '' if k does not end one. Reading the whole
+    // word is what makes this token-based rather than window-based: the
+    // 24-character regex it replaces could be defeated by distance alone, and
+    // `notif (` was only ever excluded by a `[^\w$]` guard that the word read
+    // gives for free.
+    const wordEndingAt = (k) => {
+      if (k < 0 || !/[\w$]/.test(code[k])) return '';
+      let w = k;
+      while (w >= 0 && /[\w$]/.test(code[w])) w -= 1;
+      return code.slice(w + 1, k + 1).join('');
+    };
+    const isControlHead = (at) => CONTROL_WORDS.has(wordEndingAt(prevSignificant(at, true)));
+    const opensRegex = (at) => {
+      const k = prevSignificant(at, false);
       if (k < 0) return true;
       // The `)` at k is necessarily the most recently CLOSED paren: only
-      // whitespace was skipped to reach it, so nothing could have closed since.
-      if (js[k] === ')') return lastCloseWasControl;
-      if (REGEX_PRECEDERS.has(js[k])) return true;
-      return REGEX_KEYWORDS.test(js.slice(Math.max(0, k - 12), k + 1));
+      // whitespace and blanked comments were skipped to reach it, so nothing
+      // could have closed since.
+      if (code[k] === ')') return lastCloseWasControl;
+      if (REGEX_PRECEDERS.has(code[k])) return true;
+      return REGEX_KEYWORDS.test(wordEndingAt(k));
     };
     const spans = [];
     // Template interpolation frames. `${…}` is CODE inside a template literal,
@@ -541,14 +618,14 @@ test('every mic in the overlay source sits in a container the shared rule aligns
         if (c === '/' && js[i + 1] === '*') {
           const end = js.indexOf('*/', i + 2);
           const stop = end === -1 ? js.length : end + 2;
-          blankRange(code, i, stop);
+          blankRange(code, glue, i, stop);
           i = stop;
           continue;
         }
         if (c === '/' && js[i + 1] === '/') {
           const end = js.indexOf('\n', i);
           const stop = end === -1 ? js.length : end;
-          blankRange(code, i, stop);
+          blankRange(code, glue, i, stop);
           i = stop;
           continue;
         }
@@ -568,8 +645,8 @@ test('every mic in the overlay source sits in a container the shared rule aligns
           i = k;
           continue;
         }
-        if (c === '"' || c === "'" || c === '`') { quote = c; start = i; i += 1; continue; }
-        if (c === '(') { parenIsControl.push(CONTROL_HEAD.test(js.slice(Math.max(0, i - 24), i))); i += 1; continue; }
+        if (c === '"' || c === "'" || c === '`') { quote = c; start = i; glue[i] = ' '; i += 1; continue; }
+        if (c === '(') { parenIsControl.push(isControlHead(i)); i += 1; continue; }
         if (c === ')') { lastCloseWasControl = parenIsControl.length ? parenIsControl.pop() : false; i += 1; continue; }
         if (c === '{') { braceDepth += 1; i += 1; continue; }
         if (c === '}') {
@@ -616,17 +693,20 @@ test('every mic in the overlay source sits in a container the shared rule aligns
         }
         if (ch.length !== 1) ch = ' ';
         if (i + width - 1 < js.length) markup[i + width - 1] = ch;
+        blankRange(glue, i, i + width);
         i += width;
         continue;
       }
       if (c === quote) {
         spans.push({ quote, start, text: js.slice(start, i) });
+        glue[i] = ' ';
         quote = null;
         i += 1;
         continue;
       }
       if (quote === '`' && c === '$' && js[i + 1] === '{') {
         interp.push({ start, braceDepth });
+        blankRange(glue, i, i + 2);
         quote = null;
         braceDepth = 0;
         i += 2;
@@ -634,10 +714,13 @@ test('every mic in the overlay source sits in a container the shared rule aligns
       }
       if (js.startsWith('<!--', i)) {
         const end = js.indexOf('-->', i + 4);
-        i = end === -1 ? js.length : end + 3;
+        const stop = end === -1 ? js.length : end + 3;
+        blankRange(glue, i, stop);
+        i = stop;
         continue;
       }
       markup[i] = c;
+      glue[i] = c === '\n' ? '\n' : ' ';
       i += 1;
     }
     // The desync invariant, and it is a real check rather than a hopeful
@@ -651,17 +734,51 @@ test('every mic in the overlay source sits in a container the shared rule aligns
     const desynced = spans
       .filter((s) => s.quote !== '`' && s.text.replace(/\\\r?\n/g, '').includes('\n'))
       .map((s) => `browser/raven-grab.js:${js.slice(0, s.start).split('\n').length}`);
-    return { code: code.join(''), markup: markup.join(''), desynced };
+    return { code: code.join(''), markup: markup.join(''), glue: glue.join(''), desynced };
   }
   const view = scanSource(source);
   assert.deepEqual(view.desynced, [], `the source scanner lost its string/comment state at:\n  ${view.desynced.join('\n  ')}\nEvery verdict below it is meaningless — fix the lexer, do not adjust the expectations.`);
 
   const VOID_TAGS = new Set(['br', 'hr', 'img', 'input', 'source', 'wbr', 'meta', 'link']);
-  function enclosedByCovered(before) {
+  // Rounds 3 and 4 each fixed one way the scanner could read JavaScript as
+  // markup. Sol round 5 then produced a counterexample with NO lexer error in
+  // it at all (A15, measured surviving with the whole suite green): a string
+  // literal that is never rendered, carrying a covered opener, sitting between
+  // the real opener and the mic. The scan was correct and the verdict was still
+  // wrong, because `lastIndexOf` takes the LAST covered opener in the window.
+  //
+  // The honest reading is that "the walk reads markup, not JavaScript" was never
+  // the property. A string is not markup either — it becomes markup when
+  // something concatenates it into the output. So the anchor must be connected
+  // to the mic by nothing but concatenation: every character between the opener
+  // and the call site, once string CONTENT is blanked out, has to be whitespace
+  // or `+`. That is what `glue` is — `code` with every string interior, quote,
+  // escape run, `${`, and in-string HTML comment blanked.
+  //
+  // A decoy therefore cannot help, whichever side of it the anchor sits on. As
+  // the anchor, its own `String(…).slice(0, 0)` wrapper is in the glue and the
+  // opener is rejected; as an obstacle, that same wrapper sits between the REAL
+  // opener and the mic and rejects that one too. Both rejected means uncovered,
+  // which is the correct verdict for A15.
+  //
+  // Checking only the LAST occurrence of each opener string is sufficient and
+  // not a shortcut: an earlier occurrence's glue region is a superset of the
+  // later one's, so if the later fails, the earlier fails too.
+  //
+  // This is CONSERVATIVE, in the direction that costs a red rather than a green.
+  // A future site that puts a real function call between its container and its
+  // mic — `'…<span>' + escapeHtml(label) + voiceButtonMarkup(…)` — will fail
+  // here, and it should: nothing in this scan can tell whether that call emits a
+  // `</span>`. All eight of today's sites are pure concatenation.
+  const CONCATENATION_ONLY = /^[\s+]*$/;
+  function enclosedByCovered(before, windowStart, micAt) {
     let openerEnd = -1;
     for (const opener of COVERED) {
       const at = before.lastIndexOf(opener);
-      if (at !== -1 && at + opener.length > openerEnd) openerEnd = at + opener.length;
+      if (at === -1) continue;
+      const end = at + opener.length;
+      if (!CONCATENATION_ONLY.test(view.glue.slice(windowStart + end, micAt))) continue;
+      if (end > openerEnd) openerEnd = end;
     }
     if (openerEnd === -1) return false;
     const between = before.slice(openerEnd);
@@ -682,9 +799,10 @@ test('every mic in the overlay source sits in a container the shared rule aligns
   while ((match = call.exec(view.code)) !== null) {
     // Skip the declaration itself.
     if (/function\s+$/.test(view.code.slice(Math.max(0, match.index - 12), match.index))) continue;
-    const before = view.markup.slice(Math.max(0, match.index - REACH), match.index);
+    const windowStart = Math.max(0, match.index - REACH);
+    const before = view.markup.slice(windowStart, match.index);
     const line = source.slice(0, match.index).split('\n').length;
-    sites.push({ line, covered: enclosedByCovered(before) });
+    sites.push({ line, covered: enclosedByCovered(before, windowStart, match.index) });
   }
 
   // A count assertion is what makes the coverage claim hold going forward: a

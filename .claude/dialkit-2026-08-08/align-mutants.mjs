@@ -128,7 +128,36 @@ const MUTANTS = [
     '<label class="raven-grab-field"><span>Add note…</span><div class="raven-grab-loose">\' + `${/* class="raven-grab-field"><span> */ \'\'}` + voiceButtonMarkup("data-template-note='],
   ['A14 an escaped </span> renders the mic outside its span',
     '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
-    '<label class="raven-grab-field"><span>Add note…\\x3c/span>\' + voiceButtonMarkup("data-template-note=']
+    '<label class="raven-grab-field"><span>Add note…\\x3c/span>\' + voiceButtonMarkup("data-template-note='],
+  // A15-A17 are Sol round 5's counterexamples, and A15 is the one that names the
+  // class the four rounds before it were each attacking one instance of.
+  //
+  //   A15 a string literal that is NEVER RENDERED but contains a covered
+  //       opener. No lexer error at all — the scan is correct and the verdict
+  //       is still wrong, because `lastIndexOf` takes the LAST covered opener in
+  //       the window and a decoy sits after the real one. This is what killed
+  //       "the walk reads markup, not JavaScript" as a claim: a string is not
+  //       markup either until something concatenates it into the output.
+  //   A16 a control keyword separated from its `(` by a comment longer than the
+  //       24-character CONTROL_HEAD lookback, so `if` is not seen and the regex
+  //       after the `)` is read as division.
+  //   A17 a comment between the control-header `)` and the `/`. opensRegex
+  //       skipped spaces and tabs only, so it never reached the `)` and never
+  //       consulted lastCloseWasControl.
+  //
+  // A16/A17 are killed by the LEXER fix (measured in isolation before the glue
+  // check was added — see the round-5 block in the suite header). The glue check
+  // would kill them too, which is why the attribution was measured in two stages
+  // rather than read off the final matrix.
+  ['A15 an unrendered decoy string carrying a covered opener',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label class="raven-grab-field"><span>Add note…</span><div class="raven-grab-loose">\' + String(\'class="raven-grab-field"><span>\').slice(0, 0) + voiceButtonMarkup("data-template-note='],
+  ['A16 a comment longer than the control-header lookback hides an uncovered mic',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label class="raven-grab-field"><span>Add note…</span><div class="raven-grab-loose">\' + (function () { if /* pad pad pad pad pad pad pad */ (Date) /\'class="raven-grab-field"><span>\'/.test(\'x\'); return \'\'; }()) + voiceButtonMarkup("data-template-note='],
+  ['A17 a comment between the control-header ) and the / hides an uncovered mic',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label class="raven-grab-field"><span>Add note…</span><div class="raven-grab-loose">\' + (function () { if (Date) /* g */ /\'class="raven-grab-field"><span>\'/.test(\'x\'); return \'\'; }()) + voiceButtonMarkup("data-template-note=']
 ];
 
 function apply(source, find, replace) {

@@ -777,3 +777,146 @@ product code:    untouched in rounds 3 and 4 (overlay mtime 10:59, test file 11:
 
 No v5 radius moved, which is the expected result rather than a happy one: round 4
 changed a test-side lexer and two gates and touched no product code.
+
+---
+
+## Sol round 5 — DOES NOT SURVIVE (4 × P2), all four fixed
+
+Brief: `.claude/dialkit-2026-08-08/SOL-BRIEF-R5.md`.
+Raw verdict: `.claude/dialkit-2026-08-08/agent-output/SOL-R5.out` (5213 lines).
+
+Round 5 attacked round 4's fixes, and — as in rounds 2, 3 and 4 — found a fresh
+false claim introduced by the previous round's fix. No credit carries over.
+
+### The four findings
+
+| # | Site | Claim |
+|---|---|---|
+| R5-1 | `:471` | every JS string is treated as rendered markup; a syntax-valid, NEVER-RENDERED decoy string containing a covered opener false-covers an uncovered mic |
+| R5-2 | `:500` | `CONTROL_HEAD` reads only 24 raw characters, so `if /* …>24 chars… */ (x)` loses its control classification |
+| R5-3 | `:518` | `opensRegex` skips spaces and tabs but not comments, so `if (x) /* g */ /re/` never reaches the `)` and never consults `lastCloseWasControl` |
+| R5-4 | `:219` | the probe does not protect the real setup path: `withOverlay` still runs when the probe fails, and its `listen` promise has no error listener |
+
+### Verified by MEASUREMENT before accepting, not by reading
+
+Three counterexamples built as mutants A15/A16/A17, all anchored on the
+**per-template note row at `browser/raven-grab.js:8552`** — deliberately a row
+the browser test structurally cannot render, so the radius grades the
+enumeration test rather than the geometry test. That is the A7-vs-A8 trap, and
+this is the third round it has had to be honoured explicitly.
+
+```
+align-r5-prefix.out
+  A15 an unrendered decoy string carrying a covered opener      radius 0  *** SURVIVED ***
+  A16 a comment longer than the control-header lookback …       radius 0  *** SURVIVED ***
+  A17 a comment between the control-header ) and the / …        radius 0  *** SURVIVED ***
+  matrix: 15 mutants, 12 killed, 3 survived; 2 control(s), 0 false-failed   EXIT=2
+```
+
+Radius 0 means the WHOLE SUITE passed green on a real misalignment. A1–A14 all
+held their v6 radii in that same pre-fix run, so the three survivals are the
+finding and not a broken harness.
+
+R5-4 was verified by reading instead: the skip sat in the geometry test's
+`catch` (`48:  } catch (err)` / `49:    if (skipIfNoBrowser(t, err)) return;`),
+and `upstream.listen` had no `'error'` listener. An emitted `'error'` with
+nothing listening throws from the event loop — **outside** any surrounding
+try/catch — so it can never be classified. Sol replayed exactly that under a
+sandbox: 1 pass / 1 fail / 0 skipped on `listen EPERM 127.0.0.1`.
+
+### The fixes, and why R5-1's is a reframing rather than a patch
+
+**R5-2/R5-3 — token-based lookbehinds.** `CONTROL_HEAD` (a 24-char regex over
+the RAW source) became a `CONTROL_WORDS` Set plus `prevSignificant(at, skipNewlines)`
+and `wordEndingAt(k)`, both reading `code` — the view where every comment above
+the cursor is already blanked to spaces, so "the previous significant character"
+collapses to an ordinary whitespace skip. Reading a WHOLE identifier rather than
+a fixed window is what makes it token-based: the old regex could be defeated by
+distance alone, and the word read gives the `notif (` exclusion for free.
+
+**R5-1 — the third view.** Rounds 3 and 4 each fixed one way the scanner could
+read JavaScript as markup. A15 has no lexer error in it at all: the scan is
+correct and the verdict is still wrong, because `lastIndexOf` takes the LAST
+covered opener in the window and the decoy sits after the real one.
+
+The honest reading is that **"the walk reads markup, not JavaScript" was never
+the property**. A string is not markup either — it becomes markup when something
+concatenates it into the output. So `scanSource` now returns a third view,
+`glue` (= `code` with every string interior, quote, escape run, `${`, and
+in-string HTML comment blanked), and `enclosedByCovered(before, windowStart, micAt)`
+requires `/^[\s+]*$/` over the glue between anchor and mic.
+
+A decoy cannot help whichever side of it the anchor sits on: as the anchor, its
+own `String(…).slice(0, 0)` wrapper is in the glue and the opener is rejected;
+as an obstacle, that same wrapper sits between the REAL opener and the mic and
+rejects that one too. Both rejected → uncovered, the correct verdict.
+
+Checking only `lastIndexOf` is **sufficient, not a shortcut**: an earlier
+occurrence's glue region is a superset of a later one's, so if the later fails
+the earlier fails too.
+
+Accepted conservatism, written into the code rather than discovered later: a
+future site putting a real call between container and mic —
+`'…<span>' + escapeHtml(label) + voiceButtonMarkup(…)` — fails RED here, and it
+should. Nothing in this scan can tell whether that call emits a `</span>`. All
+eight of today's sites are pure concatenation; that was checked by hand against
+each before the rule was written.
+
+Sol's two suggested alternatives were both refused with reasons: "track actual
+HTML-producing expressions" needs dataflow analysis a test cannot do, and
+"render the template rows" needs a fixed-position element with a pending move
+plus a built template with an expanded layer — a cost this suite's header
+already documents refusing.
+
+**R5-4 — two changes, and the placement IS the fix.** `upstream.listen` gained
+`upstream.once('error', reject)`, and the skip moved from the geometry test's
+`catch` to its first line. A gate that only runs once setup has succeeded is not
+a gate: round 4's version meant a server, a session and a browser had all booted
+before anything asked whether chromium existed, and one of those steps fails in
+a way the catch never sees. `skipIfNoBrowser` also lost its second parameter —
+`!chromiumAvailable` is the whole condition, and the message regex beside it was
+a hole rather than a guard (Sol round 3, P3).
+
+### Attribution measured in TWO stages, not read off the final matrix
+
+The lexer fix was applied alone and re-measured before the glue check existed:
+
+```
+align-r5-lexeronly.out
+  matrix: 15 mutants, 14 killed, 1 survived    (A16, A17 killed; A15 still surviving)
+```
+
+That is what proves the lexer fix owns A16/A17 and the glue check owns A15. The
+glue check would have killed all three, and a single final run could not have
+told those apart.
+
+### Round-5 verification
+
+```
+align matrix v7: preflight ok 17 anchors unique, all mutations change the file
+                 baseline 2 pass / 0 fail, exit 0
+                 A1,A2,A3 = 1   A4 = 1 @:8518   A5 = 1 @:8552   A6 = 2   A7 = 2
+                 A8,A9,A12,A13,A14 = 1 @:8552   A15,A16,A17 = 1 @:8552
+                 A10, A11 controls: 0 red  ok
+                 15 mutants, 15 killed, 0 survived; 2 controls, 0 false-failed  EXIT=0
+full suite:      1481 / 1478 / 0 / 3, EXIT=0   (unchanged — no test added or deleted)
+browser-absent:  PLAYWRIGHT_BROWSERS_PATH=/nonexistent
+                 2 tests / 1 pass / 1 skipped / 0 fail, EXIT=0
+                 skip message carries the probe error, so the two environments stay legible
+mirror:          browser/raven-grab.js == web/public/raven-grab.js  (cmp clean)
+product code:    untouched in rounds 3, 4 and 5 — every fix is test-side
+```
+
+**No v6 radius moved in v7 — and unlike round 4, that was not a foregone
+conclusion.** Round 5 rewrote the scanner's lookbehinds AND changed the
+enclosure rule itself, so a moved radius was a live possibility; the whole
+matrix was re-measured rather than carried forward, which is the standing rule
+earning its keep for the second time in this file (the round-3 stale
+find-string was the first).
+
+### State
+
+Working tree only. Nothing committed, nothing pushed, no release, no endpoint
+change. Next: round-6 Sol brief attacking the round-5 fixes — the glue view's
+own lexing dependence, the concatenation rule's false-positive surface, the
+token lookbehinds, and the relocated gate.
