@@ -1,8 +1,11 @@
 // On-canvas element drag (Andrew, /goal 2026-08-07: "Dragging elements on the
-// page itself"). Dragging the SELECTED element on the canvas drives the Layers
-// tab's own reorderLayer/reparentLayer draft machinery — the optimistic DOM
-// preview, the pending-tray row, the Remove revert, and the agent protocol are
-// all the one existing rule, and this suite exercises them through the gesture.
+// page itself"; round 2 same day: "it was really hard to grab and drag things"
+// — the selection-prerequisite arming was removed, so a press now SELECTS at
+// slop-crossing and drags in one gesture). Dragging an element on the canvas
+// drives the Layers tab's own reorderLayer/reparentLayer draft machinery — the
+// optimistic DOM preview, the pending-tray row, the Remove revert, and the
+// agent protocol are all the one existing rule, and this suite exercises them
+// through the gesture.
 //
 // This needs a real browser: the mechanism spans pointer-event capture on the
 // document, document.elementsFromPoint hit testing, getBoundingClientRect
@@ -26,69 +29,98 @@
 // ins === indexOf(fromNode) is the no-op.
 //
 // Mutation matrix — every radius below is MEASURED (each mutant a string edit
-// on a copy served through RAVEN_GRAB_ASSET_PATH, load-checked before its run).
-// The first run of this matrix falsified two claims in the first draft of this
-// header, which is the matrix earning its keep — do not trust an unmeasured row.
-// And a find-string mutant goes STALE the moment its target line is edited:
-// the suppression mutant aborted in round 3 because a fix round rewrote its
-// line, so re-measure the whole matrix after any fix, never carry a radius
-// forward. Tests 8-14 and mutants M8-M15 come from a Kimi K3 adverse pass
-// (2026-08-07) that found the teardown paths and three plan branches untested.
-// The never-arm, no-indicator, and captureOnly radii were re-measured when the
-// loopback-proxy test joined the suite (2026-08-07): the first two each grew
-// by one because the new test drags for real, which is a fact about the
-// shared mechanism, not an extra guard.
-//   - delete the pointerdown arming (canvasDrag never set)
-//       -> THIRTEEN tests red: every test that actually drags, the loopback-
-//          proxy test included. The below-threshold and capture-only proxy
-//          tests SURVIVE because they assert the same nothing-happens
-//          the mutant produces — and the Escape test only reddens because of
-//          its explicit mid-drag precondition (first draft lacked it and
-//          stayed green here). A wide radius here is the entry point being
-//          shared, not twelve independent guards.
-//   - weaken the 6px slop to zero (every press becomes a drag)
-//       -> exactly "a press below the drag threshold stays a click" red — and
-//          ONLY because that test presses in the dense fixture where a sub-slop
-//          wiggle crosses a sibling midpoint. The first draft wiggled in-place
-//          inside a 48px row, where the no-op plan makes zero slop
-//          observationally invisible; this mutant survived all 7 tests.
-//   - never call positionDropIndicator during pointermove
-//       -> SEVEN tests red: reorder, Escape, loopback-proxy, lost-pointerup,
-//          foreign-pointer, pointercancel, second-pointerdown — every test
-//          that asserts the indicator mid-drag as its active-drag
-//          precondition. Shared observable, shared radius — not seven guards.
-//   - make Escape apply the drag instead of abandoning it
+// on a copy served through RAVEN_GRAB_ASSET_PATH, load-checked before its run;
+// harness dedupes node --test's summary-repeat ✖ lines before counting).
+// The matrix has now falsified header claims in THREE separate runs, which is
+// it earning its keep — do not trust an unmeasured row. And a find-string
+// mutant goes STALE the moment its target line is edited (the suppression
+// mutant aborted in round 3 because a fix rewrote its line; the round-2
+// select-on-press rewrite stale'd every pointerdown anchor), so re-measure the
+// WHOLE matrix after any fix round, never carry a radius forward. Tests 8-14
+// and mutants D8-D15 come from a Kimi K3 adverse pass (2026-08-07) that found
+// the teardown paths and three plan branches untested. Mutants D16-D20 come
+// from the round-2 select-on-press rewrite (2026-08-07): drag-element choice,
+// selection promotion, the grabbing-cursor affordance, and the html/body root
+// guard. Current radii are the 2026-08-07 round-2 whole-matrix run (20/20
+// killed, baseline 21 green):
+//   D1  - delete the pointerdown arming (canvasDrag never set)
+//       -> SEVENTEEN red: every test that actually drags, the loopback-proxy,
+//          select-on-press, and cursor tests included. The below-threshold,
+//          sub-slop-unselected, capture-only-proxy, and root-guard tests
+//          SURVIVE because they assert the same nothing-happens the mutant
+//          produces — and the Escape test only reddens because of its explicit
+//          mid-drag precondition (first draft lacked it and stayed green
+//          here). A wide radius here is the entry point being shared, not
+//          seventeen independent guards.
+//   D2  - weaken the 6px slop to zero (every press becomes a drag)
+//       -> TWO red: "a press below the drag threshold stays a click" and the
+//          round-2 "a sub-slop press on an unselected element moves nothing"
+//          — both press in the dense fixture where a sub-slop wiggle crosses
+//          a sibling midpoint. The first draft wiggled in-place inside a 48px
+//          row, where the no-op plan makes zero slop observationally
+//          invisible; this mutant survived all 7 tests then.
+//   D3  - never call positionDropIndicator during pointermove
+//       -> EIGHT red: reorder, Escape, loopback-proxy, lost-pointerup,
+//          foreign-pointer, pointercancel, second-pointerdown, and the
+//          select-on-press reorder — every test that asserts the indicator
+//          mid-drag as its active-drag precondition. Shared observable,
+//          shared radius — not eight guards.
+//   D4  - make Escape apply the drag instead of abandoning it
 //       -> exactly "Escape abandons an active drag" red
-//   - never set suppressCanvasClick (neutralize the conditional arm)
-//       -> exactly "the trailing click after a drop does not re-select" red
-//   - return null from the cross-parent branch of canvasDropPlanAt
-//       -> TWO red: both reparent tests (leaf sibling and INTO-container)
-//          share the killed line.
-//   - drop the captureOnly guard in pointerdown
+//   D5  - never set suppressCanvasClick (neutralize the conditional arm)
+//       -> TWO red: "the trailing click after a drop does not re-select" and
+//          "press-dragging B while A is selected drags and selects B" — the
+//          round-2 test asserts the post-drop selection stays on B, which the
+//          unsuppressed trailing click would move.
+//   D6  - return null from the cross-parent branch of canvasDropPlanAt
+//       -> THREE red: both reparent tests (leaf sibling and INTO-container)
+//          plus "pressing a child of the selected container drags the
+//          container" — its drop is cross-parent too. Shared killed line.
+//   D7  - drop the captureOnly guard in pointerdown
 //       -> exactly "a proxied capture-only session never arms the gesture" red
-//   - delete the pointermove (event.buttons & 1) abort
+//   D8  - delete the pointermove (event.buttons & 1) abort
 //       -> exactly "a lost pointerup abandons the drag" red
-//   - make pointercancel a no-op
+//   D9  - make pointercancel a no-op
 //       -> exactly "pointercancel abandons the drag" red
-//   - drop the pointerId match in pointermove
+//   D10 - drop the pointerId match in pointermove
 //       -> exactly "a foreign pointer's events do not disturb" red
-//   - reparent only via hitNode.parentId (delete the container-hit branch)
+//   D11 - reparent only via hitNode.parentId (delete the container-hit branch)
 //       -> exactly "dropping over a container's own padding reparents INTO
 //          it" red
-//   - make canvasLayoutAxis always return "y"
+//   D12 - make canvasLayoutAxis always return "y"
 //       -> exactly "a horizontal flex row reorders along the x axis" red —
 //          that test's order change IS the axis: on the wrong axis the plan
 //          is a no-op, so a passing reorder can only come from measuring x.
-//   - drop the stale-drag clear at the top of pointerdown
+//   D13 - drop the stale-drag clear at the top of pointerdown
 //       -> exactly "a second pointerdown mid-drag abandons the stale drag" red
-//   - arm suppressCanvasClick unconditionally (ignore expectTrailingClick)
+//   D14 - arm suppressCanvasClick unconditionally (ignore expectTrailingClick)
 //       -> exactly "pointercancel ... without arming the click suppression"
 //          red — the cancel path is where the conditional matters, because no
 //          click ever follows a cancelled pointer to consume the flag.
-//   - turn the no-op check from === into <= (the natural typo)
+//   D15 - turn the no-op check from === into <= (the natural typo)
 //       -> exactly "an upward drag reorders with the same splice arithmetic"
 //          red: <= reads every upward target as a no-op while downward still
 //          works, which is why the upward test exists.
+//   D16 - drag element always = selection (never the press target)
+//       -> TWO red: both select-on-press tests — an unselected press drags
+//          nothing real, and pressing B while A is selected drags A.
+//   D17 - delete the slop-crossing selection promotion
+//       -> TWO red (tests 16+17) — but ONLY after those tests were rewritten.
+//          Run 1 measured this mutant SURVIVING all 21 tests: the first draft
+//          asserted the canvas labelText, which HOVER paints on the element as
+//          the mouse travels to the press point, and which the drop path
+//          repaints from drag.element directly — neither reads the selection,
+//          so the label is the same with the promotion deleted. The
+//          selection-derived observable is the panel Element chip
+//          [data-element-selector] (rendered only when a selection exists,
+//          title = its selector); readState now reads that. Assume a new test
+//          does not work until a mutant proves it red.
+//   D18 - never inject the grabbing-cursor style
+//       -> exactly "an active drag shows a page-wide grabbing cursor" red
+//   D19 - never remove the grabbing-cursor style on drop
+//       -> exactly the same test red — it asserts both directions.
+//   D20 - drop the html/body root guard in pointerdown
+//       -> exactly "a press on the page background arms nothing" red
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -259,6 +291,12 @@ const readState = `(() => {
   const indicator = root.querySelector('.raven-grab-drop-indicator');
   const label = root.querySelector('.raven-grab-label');
   const draftButtons = Array.from(root.querySelectorAll('[data-remove-change^="draft-"]'));
+  // The panel's Element chip is the SELECTION-derived observable. The canvas
+  // label is not: hover paints it before the press (the mouse travels over the
+  // element on its way in) and the drop path repaints it from drag.element
+  // directly, so a label assertion passes with the promotion deleted —
+  // measured: the promotion-deleted mutant survived exactly that assertion.
+  const chip = root.querySelector('[data-element-selector]');
   return {
     listOrder: Array.from(document.querySelectorAll('#list > div')).map((el) => el.id),
     otherOrder: Array.from(document.querySelectorAll('#other > div')).map((el) => el.id),
@@ -266,6 +304,7 @@ const readState = `(() => {
     rowOrder: Array.from(document.querySelectorAll('#row > div')).map((el) => el.id),
     indicatorVisible: indicator ? indicator.style.display === 'block' : null,
     labelText: label ? label.textContent : '',
+    elementChip: chip ? chip.getAttribute('title') : null,
     draftCount: draftButtons.length,
     panelText: root.textContent
   };
@@ -718,4 +757,190 @@ test('a second pointerdown mid-drag abandons the stale drag cleanly', async (t) 
   assert.equal(result.afterSecond.indicatorVisible, false, 'the stale drag was torn down, indicator included');
   assert.deepEqual(result.afterRelease.listOrder, ['a', 'b', 'c', 'd'], 'the discarded plan was never applied');
   assert.equal(result.afterRelease.draftCount, 0, 'no draft was queued');
+});
+
+// ---------------------------------------------------------------------------
+// Tests 16–21: select-on-press (round 2, Andrew 2026-08-07: "really hard to
+// grab and drag things"). The old pointerdown required the pressed element to
+// ALREADY be selected, so the natural press-and-pull did nothing until a
+// separate click had landed — every test above starts with selectElement() and
+// so never noticed. Any canvas press arms a candidate now; selection promotes
+// at slop-crossing; a press on/inside the current selection still drags the
+// SELECTED element (sticky container); html/body presses arm nothing; and an
+// active drag shows a page-wide grabbing cursor.
+// ---------------------------------------------------------------------------
+
+test('press-dragging an unselected element arms, selects it, and reorders', async (t) => {
+  let result;
+  try {
+    result = await withLocalOverlay(async (page) => {
+      // Deliberately NO selectElement first — the press is the whole gesture.
+      const a = await centerOf(page, '#a');
+      const c = await centerOf(page, '#c');
+      const d = await centerOf(page, '#d');
+      await dragTo(page, a, a.x, (c.y + d.y) / 2, { release: false });
+      const midDrag = await page.evaluate(readState);
+      await page.mouse.up();
+      const after = await page.evaluate(readState);
+      return { midDrag, after };
+    });
+  } catch (err) {
+    if (skipIfNoBrowser(t, err)) return;
+    throw err;
+  }
+  assert.equal(result.midDrag.indicatorVisible, true, 'the drag armed with nothing selected beforehand');
+  assert.match(String(result.midDrag.elementChip), /#a\b/,
+    'selection promoted to the pressed element at slop-crossing — the panel Element chip must show it ' +
+    '(the canvas label cannot discriminate: hover paints it before the press)');
+  assert.deepEqual(result.after.listOrder, ['b', 'c', 'a', 'd'], 'the reorder applied');
+  assert.equal(result.after.draftCount, 1, 'exactly one pending move draft queued');
+});
+
+test('press-dragging B while A is selected drags and selects B', async (t) => {
+  let result;
+  try {
+    result = await withLocalOverlay(async (page) => {
+      await selectElement(page, '#a');
+      const b = await centerOf(page, '#b');
+      const c = await centerOf(page, '#c');
+      const d = await centerOf(page, '#d');
+      // #b is neither the selection nor inside it, so the press re-targets.
+      // Non-dragged siblings [a,c,d] with midpoints above (c.y+d.y)/2: a and c
+      // → ins=2, removed [a,c,d] splice at 2 → [a,c,b,d].
+      await dragTo(page, b, b.x, (c.y + d.y) / 2);
+      return page.evaluate(readState);
+    });
+  } catch (err) {
+    if (skipIfNoBrowser(t, err)) return;
+    throw err;
+  }
+  assert.deepEqual(result.listOrder, ['a', 'c', 'b', 'd'], 'the PRESSED element moved, not the previously selected one');
+  assert.match(String(result.elementChip), /#b\b/,
+    'selection followed the drag to B — the panel Element chip must read #b, not the stale #a');
+  assert.equal(result.draftCount, 1, 'exactly one pending move draft queued');
+});
+
+test('pressing a child of the selected container drags the container', async (t) => {
+  let result;
+  try {
+    result = await withLocalOverlay(async (page) => {
+      // Select #list by clicking its bottom padding (no child under the pointer).
+      const d = await centerOf(page, '#d');
+      await page.mouse.click(d.x, d.rect.bottom + 80);
+      await page.waitForFunction(() => {
+        const root = document.querySelector('[data-raven-grab-overlay]')?.shadowRoot;
+        return root && /#list\b/.test(root.querySelector('.raven-grab-label')?.textContent || '');
+      }, null, { timeout: 5000 });
+      // Press #b — INSIDE the selection. Sticky rule: the container drags, so a
+      // child press moves the frame the designer chose, not the child.
+      const b = await centerOf(page, '#b');
+      const x = await centerOf(page, '#x');
+      await dragTo(page, b, x.x, x.y + 8);
+      return page.evaluate(`(() => {
+        const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+        return {
+          listParent: document.querySelector('#list').parentElement.id || document.querySelector('#list').parentElement.tagName,
+          listOrder: Array.from(document.querySelectorAll('#list > div')).map((el) => el.id),
+          draftCount: root.querySelectorAll('[data-remove-change^="draft-"]').length,
+          panelText: root.textContent
+        };
+      })()`);
+    });
+  } catch (err) {
+    if (skipIfNoBrowser(t, err)) return;
+    throw err;
+  }
+  assert.equal(result.listParent, 'other', 'the CONTAINER moved (reparented beside the drop target), not the pressed child');
+  assert.deepEqual(result.listOrder, ['a', 'b', 'c', 'd'], 'the container’s own children never reordered');
+  assert.equal(result.draftCount, 1, 'exactly one pending move draft queued');
+  assert.match(result.panelText, /Reparent/, 'the tray row names the change a Reparent');
+});
+
+// Guards the promote-at-SLOP-crossing boundary: a mutant that promotes and
+// activates at pointerdown turns this sub-slop wiggle into a real reorder
+// (same dense-fixture geometry as the selected-case slop test above — in #list
+// a sub-slop wiggle is a no-op plan whether or not the drag armed).
+test('a sub-slop press on an unselected element moves nothing', async (t) => {
+  let result;
+  try {
+    result = await withLocalOverlay(async (page) => {
+      const m1 = await centerOf(page, '#m1');
+      const pressY = m1.rect.bottom - 1;
+      await page.mouse.move(m1.x, pressY);
+      await page.mouse.down();
+      await page.mouse.move(m1.x, pressY + 5); // < 6px slop, past #m2's midpoint
+      await page.mouse.up();
+      return page.evaluate(readState);
+    });
+  } catch (err) {
+    if (skipIfNoBrowser(t, err)) return;
+    throw err;
+  }
+  assert.deepEqual(result.denseOrder, ['m1', 'm2', 'm3'], 'the DOM order never changed');
+  assert.equal(result.draftCount, 0, 'no draft was queued');
+});
+
+test('a press on the page background arms nothing and raises no notice', async (t) => {
+  let result;
+  try {
+    result = await withLocalOverlay(async (page) => {
+      // Find a point where the pointer genuinely lands on bare <body>/<html> —
+      // the docked panels own the viewport edges (a first draft pressed at
+      // x=100 and drag-reordered a Layers row), and the fixture columns own
+      // the center, so the safe region has to be measured, not guessed.
+      const pt = await page.evaluate(() => {
+        for (let y = 80; y < 620; y += 20) {
+          for (let x = 300; x < 1000; x += 20) {
+            const el = document.elementFromPoint(x, y);
+            if (el === document.body || el === document.documentElement) return { x, y };
+          }
+        }
+        return null;
+      });
+      if (!pt) throw new Error('precondition: no bare body/html point found in the viewport');
+      await page.mouse.move(pt.x, pt.y);
+      await page.mouse.down();
+      await page.mouse.move(pt.x, pt.y + 15);
+      await page.mouse.move(pt.x, pt.y + 45, { steps: 3 });
+      const midDrag = await page.evaluate(readState);
+      await page.mouse.up();
+      const after = await page.evaluate(readState);
+      return { midDrag, after };
+    });
+  } catch (err) {
+    if (skipIfNoBrowser(t, err)) return;
+    throw err;
+  }
+  assert.equal(result.midDrag.indicatorVisible, false, 'no drag armed on a body press');
+  assert.doesNotMatch(result.after.panelText, /Cannot move the page root/, 'no page-root notice spammed the panel');
+  assert.deepEqual(result.after.listOrder, ['a', 'b', 'c', 'd'], 'nothing moved');
+  assert.equal(result.after.draftCount, 0, 'no draft was queued');
+});
+
+test('an active drag shows a page-wide grabbing cursor and removes it on drop', async (t) => {
+  const readCursor = `(() => ({
+    styleTag: Boolean(document.querySelector('style[data-raven-grab-drag-cursor]')),
+    cursor: getComputedStyle(document.querySelector('#c')).cursor
+  }))()`;
+  let result;
+  try {
+    result = await withLocalOverlay(async (page) => {
+      await selectElement(page, '#a');
+      const a = await centerOf(page, '#a');
+      const c = await centerOf(page, '#c');
+      const d = await centerOf(page, '#d');
+      await dragTo(page, a, a.x, (c.y + d.y) / 2, { release: false });
+      const midDrag = await page.evaluate(readCursor);
+      await page.mouse.up();
+      const after = await page.evaluate(readCursor);
+      return { midDrag, after };
+    });
+  } catch (err) {
+    if (skipIfNoBrowser(t, err)) return;
+    throw err;
+  }
+  assert.equal(result.midDrag.styleTag, true, 'the cursor style is injected mid-drag');
+  assert.equal(result.midDrag.cursor, 'grabbing', 'page elements show the grabbing cursor mid-drag');
+  assert.equal(result.after.styleTag, false, 'the cursor style is removed on drop');
+  assert.notEqual(result.after.cursor, 'grabbing', 'the page cursor is back to its own rules');
 });

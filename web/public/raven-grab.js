@@ -904,6 +904,8 @@
     .raven-grab-voice:focus-visible { outline: 2px solid rgba(0, 191, 255, .35); outline-offset: 2px; }
     .raven-grab-voice[aria-pressed="true"] { color: var(--raven-grab-accent); background: rgba(0,191,255,.1); border-color: rgba(0,191,255,.45); animation: raven-grab-voice-pulse 1.6s ease-in-out infinite; }
     @keyframes raven-grab-voice-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(0,191,255,.25); } 50% { box-shadow: 0 0 0 4px rgba(0,191,255,0); } }
+    .raven-grab-voice-slot { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+    .raven-grab-voice-wave { width: 60px; height: 16px; flex: 0 0 auto; opacity: .9; }
     .raven-grab-section-title { margin: 0 0 8px; color: var(--raven-grab-tertiary); font: 500 calc(12px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-ui); letter-spacing: -.01em; }
     .raven-grab-section-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; margin: 0; padding: 0; color: var(--raven-grab-tertiary); background: transparent; border: 0; cursor: pointer; text-align: left; font: 500 calc(12px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-ui); letter-spacing: -.01em; }
     .raven-grab-section-toggle:hover { color: var(--raven-grab-text); }
@@ -1537,9 +1539,16 @@
     if (!speechRecognitionCtor()) return "";
     var active = !!(dictation && dictation.targetAttr === targetAttr);
     var caption = active ? "Stop dictation" : "Dictate " + label;
-    return '<button class="raven-grab-voice" type="button" data-voice-dictate="' + targetAttr + '"' +
+    // The wave canvas renders ONLY beside the active mic — one dictation
+    // session exists at a time, so at most one [data-voice-wave] is in the
+    // tree, which is what lets drawVoiceWaveFrame re-query it blindly.
+    var wave = active
+      ? '<canvas class="raven-grab-voice-wave" data-voice-wave width="60" height="16" aria-hidden="true"></canvas>'
+      : "";
+    return '<span class="raven-grab-voice-slot">' + wave +
+      '<button class="raven-grab-voice" type="button" data-voice-dictate="' + targetAttr + '"' +
       ' data-voice-label="' + label + '"' +
-      ' aria-pressed="' + (active ? "true" : "false") + '" aria-label="' + caption + '" title="' + caption + '">' + micSvg() + "</button>";
+      ' aria-pressed="' + (active ? "true" : "false") + '" aria-label="' + caption + '" title="' + caption + '">' + micSvg() + "</button></span>";
   }
   function dictationQuery(selector) {
     // The feedback form lives in the settings modal, outside both panels, so
@@ -1560,6 +1569,23 @@
       buttons[i].setAttribute("aria-pressed", active ? "true" : "false");
       buttons[i].setAttribute("aria-label", caption);
       buttons[i].setAttribute("title", caption);
+      // The wave canvas half of the active state: panel markup regenerates it
+      // through voiceButtonMarkup, the render-once modal needs it inserted and
+      // removed here, inside the same slot span the markup would have used.
+      var slot = buttons[i].parentNode;
+      if (!slot || !slot.querySelector) continue;
+      var wave = slot.querySelector("[data-voice-wave]");
+      if (active && !wave) {
+        wave = document.createElement("canvas");
+        wave.className = "raven-grab-voice-wave";
+        wave.setAttribute("data-voice-wave", "");
+        wave.width = 60;
+        wave.height = 16;
+        wave.setAttribute("aria-hidden", "true");
+        slot.insertBefore(wave, buttons[i]);
+      } else if (!active && wave && wave.parentNode) {
+        wave.parentNode.removeChild(wave);
+      }
     }
   }
   function appendDictatedText(targetAttr, transcript) {
@@ -1569,7 +1595,12 @@
     // (Chrome emits near-empty results) arriving after the user navigated
     // away must still end the session, or the mic stays live forever
     // against a panel that no longer has the field (adverse-pass finding,
-    // 2026-08-07). First-match dictationQuery cannot misroute between the two
+    // 2026-08-07). Round 2 moved that guard's live duty one layer up:
+    // onresult now runs its own field pre-check before calling here, so
+    // through the only current caller this ordering has NO reachable trigger
+    // (measured — the matrix's ordering-swap mutant survives). It stays as
+    // belt-and-braces for any future caller that skips the pre-check.
+    // First-match dictationQuery cannot misroute between the two
     // [data-use-case] fields: componentProcessMarkup renders maintainer OR
     // consumer via one ternary and is consumed exactly once. The multi-instance
     // field (data-template-note) is value-qualified instead, so a rebuild that
@@ -1588,9 +1619,121 @@
     if (field.maxLength > 0 && next.length > field.maxLength) next = next.slice(0, field.maxLength);
     field.value = next;
     // Route through the same delegated input handler a keystroke uses, so the
-    // draft mirror and send-button enablement stay a single code path.
+    // draft mirror and send-button enablement stay a single code path. Through
+    // the only current caller this is redundant — onresult dispatches input
+    // unconditionally after every event (measured: the dispatch-deleted mutant
+    // survives) — but it stays because this function's contract is a
+    // self-contained commit; a double dispatch is idempotent.
     field.dispatchEvent(new Event("input", { bubbles: true }));
     return true;
+  }
+  // --- Voice waveform (round 2, Andrew 2026-08-07: "a proper voice attention
+  // system with soundwaves"). A live amplitude readout beside the active mic:
+  // getUserMedia -> AnalyserNode -> rAF loop painting mirrored bars onto the
+  // [data-voice-wave] canvas. Everything here is fail-soft on purpose — the
+  // SpeechRecognition engine captures its own audio, so a denied or missing
+  // getUserMedia costs the wave and never the dictation. And every browser
+  // global is referenced inside a function behind a typeof guard, because
+  // overlay internals also load in a vm sandbox with no navigator /
+  // AudioContext / requestAnimationFrame (the bare window-blur
+  // addEventListener from the drag feature threw exactly there, and only the
+  // full suite's sandbox caught it).
+  var voiceWave = null;
+  function voiceWaveCanvas() {
+    // Re-query every frame, never a captured node: renderPanel() rebuilds the
+    // panel (~81 call sites) so a held canvas goes stale mid-session; the
+    // settings modal is render-once but its canvas is inserted/removed by
+    // syncModalVoiceButtons. Same panel-then-modal order as dictationQuery.
+    var inPanel = panelQuery("[data-voice-wave]");
+    if (inPanel) return inPanel;
+    return settingsModal && settingsModal.querySelector ? settingsModal.querySelector("[data-voice-wave]") : null;
+  }
+  function drawVoiceWaveFrame() {
+    if (!voiceWave || !voiceWave.analyser) return;
+    voiceWave.raf = requestAnimationFrame(drawVoiceWaveFrame);
+    var canvas = voiceWaveCanvas();
+    if (!canvas || !canvas.getContext) return;
+    var ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    var data = voiceWave.data;
+    voiceWave.analyser.getByteTimeDomainData(data);
+    var w = canvas.width;
+    var h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    var fill = "#00BFFF";
+    try {
+      var accent = getComputedStyle(canvas).getPropertyValue("--raven-grab-accent").trim();
+      if (accent) fill = accent;
+    } catch (error) {}
+    ctx.fillStyle = fill;
+    var bars = 12;
+    var gap = 1;
+    var barWidth = Math.max(1, Math.floor(w / bars) - gap);
+    var step = Math.floor(data.length / bars) || 1;
+    for (var i = 0; i < bars; i += 1) {
+      // Peak deviation from the 128 midline within this bar's slice, so a
+      // short spike still registers instead of averaging away to nothing.
+      var peak = 0;
+      for (var j = i * step; j < (i + 1) * step && j < data.length; j += 1) {
+        var dev = Math.abs(data[j] - 128);
+        if (dev > peak) peak = dev;
+      }
+      var barHeight = Math.max(2, Math.round((peak / 128) * h));
+      ctx.fillRect(i * (barWidth + gap), Math.round((h - barHeight) / 2), barWidth, barHeight);
+    }
+  }
+  function startVoiceWave() {
+    if (voiceWave) return;
+    if (typeof navigator === "undefined" || !navigator.mediaDevices ||
+      typeof navigator.mediaDevices.getUserMedia !== "function") return;
+    var Ctx = (typeof AudioContext !== "undefined" && AudioContext) ||
+      (typeof webkitAudioContext !== "undefined" && webkitAudioContext) || null;
+    if (!Ctx || typeof requestAnimationFrame !== "function") return;
+    var wave = { raf: 0, stream: null, context: null, analyser: null, data: null };
+    voiceWave = wave;
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      // The permission prompt can outlive the dictation session: if this
+      // grant landed after stopVoiceWave() ran, release the mic immediately
+      // instead of leaving the recording indicator lit for a dead session.
+      if (voiceWave !== wave) {
+        try {
+          var stale = stream.getTracks();
+          for (var i = 0; i < stale.length; i += 1) stale[i].stop();
+        } catch (error) {}
+        return;
+      }
+      try {
+        wave.stream = stream;
+        wave.context = new Ctx();
+        wave.analyser = wave.context.createAnalyser();
+        wave.analyser.fftSize = 256;
+        wave.data = new Uint8Array(wave.analyser.frequencyBinCount);
+        wave.context.createMediaStreamSource(stream).connect(wave.analyser);
+        drawVoiceWaveFrame();
+      } catch (error) {
+        if (voiceWave === wave) stopVoiceWave();
+      }
+    }).catch(function () {
+      // Denied or unavailable: dictation continues without the wave.
+      if (voiceWave === wave) voiceWave = null;
+    });
+  }
+  function stopVoiceWave() {
+    var wave = voiceWave;
+    if (!wave) return;
+    voiceWave = null;
+    if (wave.raf && typeof cancelAnimationFrame === "function") {
+      try { cancelAnimationFrame(wave.raf); } catch (error) {}
+    }
+    if (wave.stream) {
+      try {
+        var tracks = wave.stream.getTracks();
+        for (var i = 0; i < tracks.length; i += 1) tracks[i].stop();
+      } catch (error) {}
+    }
+    if (wave.context) {
+      try { wave.context.close(); } catch (error) {}
+    }
   }
   function stopDictation() {
     if (!dictation) return;
@@ -1598,6 +1741,7 @@
     // Clear state before stop(): the recognizer's own onend must read this
     // session as already over, not re-render a second time.
     dictation = null;
+    stopVoiceWave();
     try { recognizer.stop(); } catch (error) {}
     renderPanel();
     syncModalVoiceButtons();
@@ -1614,25 +1758,70 @@
     try {
       recognizer = new Recognition();
       recognizer.continuous = true;
-      recognizer.interimResults = false;
+      // Round 2 (Andrew, 2026-08-07: "voice would be way better if it live
+      // streamed it into the box"): interim results stream into the field as
+      // the user speaks. Each event's non-final tail REPLACES the previous
+      // one (strip-and-reinject below), so half-recognized text never stacks.
+      recognizer.interimResults = true;
     } catch (error) {
       return;
     }
     recognizer.onresult = function (event) {
       if (!dictation || dictation.recognizer !== recognizer) return;
-      var text = "";
-      for (var i = event.resultIndex || 0; i < event.results.length; i += 1) {
-        var result = event.results[i];
-        if (result && result.isFinal && result[0]) text += (text ? " " : "") + result[0].transcript;
-      }
       // A missing target field means the user navigated away mid-dictation
       // (tab switch, flow change): end the session rather than transcribe
-      // into nothing.
-      if (!appendDictatedText(targetAttr, text)) stopDictation();
+      // into nothing. This check runs before anything else for the same
+      // reason the empty-text ordering in appendDictatedText does — a
+      // noise-only event must still end an orphaned session.
+      var field = dictationQuery("[" + targetAttr + "]");
+      if (!field) {
+        stopDictation();
+        return;
+      }
+      // Strip the previously injected interim so this event's snapshot
+      // replaces it instead of stacking beside it. A field that no longer
+      // ENDS with the injection means the user edited mid-dictation — their
+      // edit wins: drop the tracking and leave their text alone (the old
+      // interim is silently promoted to kept text).
+      if (dictation.injected) {
+        if (field.value.slice(-dictation.injected.length) === dictation.injected) {
+          field.value = field.value.slice(0, field.value.length - dictation.injected.length);
+        }
+        dictation.injected = "";
+      }
+      var finals = "";
+      var interim = "";
+      for (var i = event.resultIndex || 0; i < event.results.length; i += 1) {
+        var result = event.results[i];
+        if (!result || !result[0]) continue;
+        if (result.isFinal) finals += (finals ? " " : "") + result[0].transcript;
+        else interim += (interim ? " " : "") + result[0].transcript;
+      }
+      // Finals commit through the same path a finals-only recognizer used —
+      // whitespace-normalized, separator-spaced, maxLength-clamped.
+      if (!appendDictatedText(targetAttr, finals)) {
+        stopDictation();
+        return;
+      }
+      var interimText = String(interim || "").replace(/\s+/g, " ").trim();
+      if (interimText) {
+        var base = field.value;
+        var next = base + (base && !/\s$/.test(base) ? " " : "") + interimText;
+        if (field.maxLength > 0 && next.length > field.maxLength) next = next.slice(0, field.maxLength);
+        // Track the EXACT appended chunk (separator included, clamp applied)
+        // so the next event's strip removes precisely what was injected.
+        dictation.injected = next.slice(base.length);
+        field.value = next;
+      }
+      // Unconditional: a strip-only event (recognition abandoned its interim)
+      // also changed the field, and the draft mirror must follow every change
+      // or the streamed text dies on the next panel rebuild.
+      field.dispatchEvent(new Event("input", { bubbles: true }));
     };
     recognizer.onerror = function () {
       if (dictation && dictation.recognizer === recognizer) {
         dictation = null;
+        stopVoiceWave();
         renderPanel();
         syncModalVoiceButtons();
       }
@@ -1640,6 +1829,7 @@
     recognizer.onend = function () {
       if (dictation && dictation.recognizer === recognizer) {
         dictation = null;
+        stopVoiceWave();
         renderPanel();
         syncModalVoiceButtons();
       }
@@ -1649,7 +1839,10 @@
     } catch (error) {
       return;
     }
-    dictation = { recognizer: recognizer, targetAttr: targetAttr };
+    // injected: the exact interim chunk currently sitting in the field —
+    // what onresult's strip-and-reinject removes before writing the next one.
+    dictation = { recognizer: recognizer, targetAttr: targetAttr, injected: "" };
+    startVoiceWave();
     renderPanel();
     syncModalVoiceButtons();
   }
@@ -12029,6 +12222,12 @@
   }
 
   function activateCanvasDrag() {
+    // Select-on-press promotion: the outline, panel state, and the layer mapping
+    // below all key off the selection, so an unselected press target becomes the
+    // selection the moment the gesture proves to be a drag rather than a click. If
+    // activation then fails (element not in the layer tree) the selection sticks
+    // anyway — the press meant "this element" either way.
+    if (canvasDrag.element !== selectedElement) selectTarget(canvasDrag.element, false, "canvas");
     // One rebuild attempt covers both a missing tree and a stale one; while drafts are
     // pending, refreshAppliedLayerTree keeps the previous identities on its own terms.
     var fromId = layerTree ? layerNodeIdForElement(canvasDrag.element) : null;
@@ -12045,12 +12244,34 @@
     }
     canvasDrag.fromId = fromId;
     canvasDrag.active = true;
+    setCanvasDragCursor(true);
     return true;
+  }
+
+  // Mid-drag the pointer crosses elements with their own cursor rules (pointer on
+  // links, text on paragraphs), so an inline style on one element can't hold the
+  // affordance — a page-level `*` rule can. Injected only while a drag is active;
+  // it does not pierce the overlay's shadow root, which is fine: an active drag
+  // lives on the canvas. clearCanvasDrag is the single teardown every finish path
+  // funnels through, so the rule can never outlive its drag.
+  var canvasDragCursorStyle = null;
+  function setCanvasDragCursor(active) {
+    if (active) {
+      if (canvasDragCursorStyle) return;
+      canvasDragCursorStyle = document.createElement("style");
+      canvasDragCursorStyle.setAttribute("data-raven-grab-drag-cursor", "");
+      canvasDragCursorStyle.textContent = "* { cursor: grabbing !important; }";
+      (document.head || document.documentElement).appendChild(canvasDragCursorStyle);
+    } else if (canvasDragCursorStyle) {
+      if (canvasDragCursorStyle.parentNode) canvasDragCursorStyle.parentNode.removeChild(canvasDragCursorStyle);
+      canvasDragCursorStyle = null;
+    }
   }
 
   function clearCanvasDrag() {
     canvasDrag = null;
     dropIndicator.style.display = "none";
+    setCanvasDragCursor(false);
   }
 
   function finishCanvasDrag(apply, expectTrailingClick) {
@@ -12091,15 +12312,30 @@
     // Touch drag fights page scrolling without touch-action surgery; the Layers tab
     // stays the touch path for moves.
     if (event.pointerType === "touch") return;
-    if (!selectedElement) return;
     var path = event.composedPath ? event.composedPath() : [];
     if (path.indexOf(host) !== -1) return;
     var target = composedTarget(event);
     if (!target || inIgnoredRegion(target)) return;
-    if (target !== selectedElement && !(selectedElement.contains && selectedElement.contains(target))) return;
+    // The page root is never movable (activateCanvasDrag refuses it with a notice),
+    // so a press on bare html/body arms nothing — which also keeps native behavior
+    // on background presses instead of spamming "Cannot move the page root".
+    if (target === document.documentElement || target === document.body) return;
+    // Select-on-press (round 2 — "really hard to grab"): the old gate required the
+    // pressed element to ALREADY be selected, so the natural press-and-pull gesture
+    // silently did nothing until a separate click had landed first. Any canvas press
+    // arms a candidate now. A press on or inside the current selection still drags
+    // the SELECTED element (sticky: a child press moves the container you chose);
+    // anything else drags the element under the pointer, and selection promotes at
+    // slop-crossing (activateCanvasDrag), so a plain click still selects via the
+    // unchanged click path. Cost: preventDefault below now fires on every armed
+    // canvas press, so native text selection dies page-wide while armed — accepted;
+    // armed mode already owns clicks and wheel, and dblclick text editing still works.
+    var dragElement = selectedElement && (target === selectedElement || (selectedElement.contains && selectedElement.contains(target)))
+      ? selectedElement
+      : target;
     canvasDrag = {
       pointerId: event.pointerId,
-      element: selectedElement,
+      element: dragElement,
       startX: event.clientX,
       startY: event.clientY,
       active: false,
