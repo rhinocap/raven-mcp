@@ -154,6 +154,11 @@ async function loadOverlayInternals(options = {}) {
     beginOverflowEdit: typeof beginOverflowEdit === "function" ? beginOverflowEdit : undefined,
     beginSizeEdit: typeof beginSizeEdit === "function" ? beginSizeEdit : undefined,
     classifyStyleControl: typeof classifyStyleControl === "function" ? classifyStyleControl : undefined,
+    parseEasingValue: typeof parseEasingValue === "function" ? parseEasingValue : undefined,
+    timingFunctionCount: typeof timingFunctionCount === "function" ? timingFunctionCount : undefined,
+    formatCubicBezier: typeof formatCubicBezier === "function" ? formatCubicBezier : undefined,
+    unitOptionsForProperty: typeof unitOptionsForProperty === "function" ? unitOptionsForProperty : undefined,
+    EASING_KEYWORDS: typeof EASING_KEYWORDS !== "undefined" ? EASING_KEYWORDS : undefined,
     enumOptionsForProperty: typeof enumOptionsForProperty === "function" ? enumOptionsForProperty : undefined,
     fontFamilyOptions: typeof fontFamilyOptions === "function" ? fontFamilyOptions : undefined,
     fontFamilyOptionLabel: typeof fontFamilyOptionLabel === "function" ? fontFamilyOptionLabel : undefined,
@@ -5677,13 +5682,119 @@ test('REGRESSION: keyword styles use enums/structured editors; exotic CSS goes t
   assert.equal(decoRow.child.getAttribute('data-control'), 'text-decoration');
 });
 
+// The cubic-bezier curve editor's PARSER is the risky half of that feature, not
+// the widget. A control that accepts a value it cannot represent writes back its
+// own approximation on commit and destroys the original — the same failure the
+// stacked-box-shadow fallback already exists to prevent. So most of this test is
+// about what classifyStyleControl REFUSES to call "easing".
+//
+// Mutants (each a string edit on a copy served through RAVEN_GRAB_TEST_OVERLAY,
+// radii measured, recorded in test/grab-overlay-easing-control.test.mjs's header
+// alongside the widget mutants).
+test('REGRESSION: cubic-bezier parsing refuses everything it cannot draw', async () => {
+  // The overlay runs in a vm context, so an array it returns has that realm's
+  // Array.prototype and deepStrictEqual rejects it against a host literal on
+  // prototype identity alone — a failure about realms, not about the value.
+  // Array.from re-homes it; null passes through so a "must not parse" assertion
+  // still reads as null rather than [].
+  const realm = (value) => (Array.isArray(value) || (value && typeof value.length === 'number') ? Array.from(value) : value);
+  const { internals } = await loadOverlayInternals();
+  const { parseEasingValue, timingFunctionCount, formatCubicBezier, classifyStyleControl } = internals;
+
+  // The five CSS keywords that ARE two-control-point curves, at their spec-exact
+  // points. Case-insensitive: a hand-typed "EASE-OUT" is the same function.
+  assert.deepEqual(realm(parseEasingValue('linear')), [0, 0, 1, 1]);
+  assert.deepEqual(realm(parseEasingValue('ease')), [0.25, 0.1, 0.25, 1]);
+  assert.deepEqual(realm(parseEasingValue('ease-in')), [0.42, 0, 1, 1]);
+  assert.deepEqual(realm(parseEasingValue('ease-out')), [0, 0, 0.58, 1]);
+  assert.deepEqual(realm(parseEasingValue('ease-in-out')), [0.42, 0, 0.58, 1]);
+  assert.deepEqual(realm(parseEasingValue('EASE-OUT')), [0, 0, 0.58, 1]);
+
+  // A keyword lookup must not hand out the EASING_KEYWORDS entry itself: the
+  // drag handler mutates the array it is given, so one drag on "ease" would
+  // rewrite the constant for the rest of the session.
+  const borrowed = parseEasingValue('ease');
+  borrowed[0] = 0.999;
+  assert.deepEqual(realm(parseEasingValue('ease')), [0.25, 0.1, 0.25, 1]);
+  assert.deepEqual(realm(internals.EASING_KEYWORDS.ease), [0.25, 0.1, 0.25, 1]);
+
+  assert.deepEqual(realm(parseEasingValue('cubic-bezier(0.4, 0, 0.2, 1)')), [0.4, 0, 0.2, 1]);
+  assert.equal(timingFunctionCount('cubic-bezier(0.4, 0, 0.2, 1)'), 1,
+    'the commas INSIDE the function are not separators');
+
+  // Two transitions on one element. Splitting on every comma reads this as five
+  // functions; not splitting at all reads it as one and lets a single dragged
+  // handle rewrite BOTH curves, silently deleting the sibling sub-value.
+  assert.equal(timingFunctionCount('cubic-bezier(0.4, 0, 0.2, 1), ease'), 2);
+  assert.equal(parseEasingValue('cubic-bezier(0.4, 0, 0.2, 1), ease'), null);
+  assert.equal(classifyStyleControl('transition-timing-function', 'cubic-bezier(0.4, 0, 0.2, 1), ease'), 'text');
+  assert.equal(timingFunctionCount('cubic-bezier(0,0,1,1), cubic-bezier(0.4,0,0.2,1)'), 2);
+
+  // None of these is a two-control-point curve, so none may be coerced into the
+  // nearest-looking bezier.
+  for (const value of ['steps(4, end)', 'steps(4)', 'step-start', 'step-end', 'linear(0, 0.25 75%, 1)']) {
+    assert.equal(parseEasingValue(value), null, value + ' must not parse as a bezier');
+    assert.equal(classifyStyleControl('transition-timing-function', value), 'text', value + ' must stay plain text');
+  }
+
+  // CSS Easing L1: x MUST be in [0,1] or the declaration is invalid — a curve
+  // editor accepting one would be drawing a value the browser already dropped.
+  assert.equal(parseEasingValue('cubic-bezier(-0.1, 0, 0.2, 1)'), null);
+  assert.equal(parseEasingValue('cubic-bezier(0.4, 0, 1.2, 1)'), null);
+  assert.deepEqual(realm(parseEasingValue('cubic-bezier(0, 0, 1, 1)')), [0, 0, 1, 1], 'exactly at the bounds is valid');
+  // y is UNBOUNDED, and that is the whole reason to open a curve editor by hand:
+  // overshoot and anticipation live outside the unit square. Clamping y would
+  // flatten exactly the curves someone came here to build.
+  assert.deepEqual(realm(parseEasingValue('cubic-bezier(0.68, -0.55, 0.27, 1.55)')), [0.68, -0.55, 0.27, 1.55]);
+
+  assert.equal(parseEasingValue('cubic-bezier(0.4, 0, 0.2)'), null, 'three arguments is not a curve');
+  assert.equal(parseEasingValue('cubic-bezier(0.4, 0, 0.2, 1, 5)'), null, 'five arguments is not a curve');
+  assert.equal(parseEasingValue('cubic-bezier(0.4, 0, 0.2, abc)'), null);
+  assert.equal(parseEasingValue('cubic-bezier()'), null);
+  assert.equal(parseEasingValue(''), null);
+  assert.equal(parseEasingValue(null), null);
+  assert.equal(parseEasingValue('wobble'), null, 'an unknown keyword is not a curve');
+  // Legal CSS numbers this deliberately rejects. getComputedStyle emits neither,
+  // so they arrive only hand-typed, and the text fallback preserves them
+  // verbatim — the safe direction. Pinned so a widening states its intent.
+  assert.equal(parseEasingValue('cubic-bezier(1e-1, 0, 0.2, 1)'), null);
+  assert.equal(parseEasingValue('cubic-bezier(+0.5, 0, 0.2, 1)'), null);
+
+  assert.equal(classifyStyleControl('transition-timing-function', 'ease-out'), 'easing');
+  assert.equal(classifyStyleControl('animation-timing-function', 'ease-in'), 'easing');
+  // Mixed is handled BEFORE the easing branch: a multi-select whose elements
+  // disagree has no single curve to render.
+  assert.equal(classifyStyleControl('transition-timing-function', internals.MIXED_STYLE_VALUE), 'text');
+  // The branch must not leak onto neighbouring motion rows.
+  assert.equal(classifyStyleControl('transition-property', 'transform'), 'text');
+
+  // A duration is a time. Handing it the length list lets the unit dropdown
+  // offer "0.2rem" as a transition-duration — a value the browser drops, from a
+  // control that presented it.
+  assert.deepEqual(realm(internals.unitOptionsForProperty('transition-duration')), ['ms', 's']);
+  assert.deepEqual(realm(internals.unitOptionsForProperty('transition-delay')), ['ms', 's']);
+  assert.ok(internals.unitOptionsForProperty('width').indexOf('px') !== -1);
+  assert.equal(internals.unitOptionsForProperty('width').indexOf('s'), -1);
+
+  assert.equal(formatCubicBezier([0.5, 0, 0.5, 1]), 'cubic-bezier(0.5, 0, 0.5, 1)',
+    'a handle landing on a round number reads 0.5, not 0.500');
+  assert.deepEqual(realm(parseEasingValue(formatCubicBezier([0.68, -0.55, 0.27, 1.55]))), [0.68, -0.55, 0.27, 1.55],
+    'a formatted curve must parse back unchanged, or a drag drifts on every re-open');
+});
+
 test('REGRESSION: style categories, Mixed multi-select write-through, size modes, overflow axes', async () => {
   const { internals, document } = await loadOverlayInternals();
   assert.ok(internals.STYLE_CATEGORIES);
   assert.equal(
     internals.STYLE_CATEGORIES.map((category) => category.id).join(','),
-    'layout,size,spacing,typography,fill,stroke,effects,interaction'
+    'layout,size,spacing,typography,fill,stroke,effects,motion,interaction'
   );
+  const motion = internals.STYLE_CATEGORIES.find((category) => category.id === 'motion');
+  assert.ok(motion.properties.indexOf('transition-timing-function') !== -1);
+  // STYLE_PROPERTIES is derived from STYLE_CATEGORIES and is what computedStylesFor
+  // captures, so a motion row that never reaches the capture set would render in
+  // the panel and arrive at the agent empty.
+  assert.ok(internals.STYLE_PROPERTIES.indexOf('transition-timing-function') !== -1);
   const typography = internals.STYLE_CATEGORIES.find((category) => category.id === 'typography');
   assert.ok(typography.properties.indexOf('color') !== -1, 'text color lives under Typography');
   assert.equal(typography.properties[typography.properties.length - 1], 'color');

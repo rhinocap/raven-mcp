@@ -108,6 +108,15 @@
     { id: "fill", label: "Fill", properties: ["background-color", "fill", "opacity"] },
     { id: "stroke", label: "Stroke", properties: ["__raven-stroke__", "border-radius", "stroke"] },
     { id: "effects", label: "Effects", properties: ["box-shadow"] },
+    // transition-property rides along because a Motion section reading "0.2s /
+    // ease" with no statement of WHAT is animating is contextless — it is the
+    // only row here that says whether the curve below it applies to transform,
+    // opacity or nothing at all.
+    {
+      id: "motion",
+      label: "Motion",
+      properties: ["transition-property", "transition-duration", "transition-timing-function", "transition-delay"]
+    },
     { id: "interaction", label: "Interaction", properties: ["visibility", "pointer-events", "cursor"] }
   ];
 
@@ -995,7 +1004,7 @@
     }
     .raven-grab-state-token-value { color: var(--raven-grab-text); font: 400 calc(11px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-mono); overflow-wrap: anywhere; text-align: right; }
     .raven-grab-field { display: block; margin-top: 8px; }
-    .raven-grab-field > span { display: block; margin-bottom: 4px; color: var(--raven-grab-muted); font: 600 calc(11px * var(--raven-grab-font-scale))/1.35 var(--raven-grab-ui); }
+    .raven-grab-field > span { margin-bottom: 4px; color: var(--raven-grab-muted); font: 600 calc(11px * var(--raven-grab-font-scale))/1.35 var(--raven-grab-ui); }
     .raven-grab-input, .raven-grab-select, .raven-grab-textarea {
       width: 100%; min-height: 44px; padding: 7px 14px; color: var(--raven-grab-text); background: var(--raven-grab-bg);
       border: 1px solid rgba(255, 255, 255, .12); border-radius: 10px; outline: none;
@@ -1105,6 +1114,17 @@
     .raven-grab-style-editor[data-control="overflow"],
     .raven-grab-style-editor[data-control="size"] { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 8px; padding-top: 4px; }
     .raven-grab-style-editor[data-control="size"] { grid-template-columns: minmax(0, 1fr) auto; }
+    .raven-grab-style-editor[data-control="easing"] { grid-column: 1 / -1; padding-top: 4px; }
+    .raven-grab-easing { display: grid; gap: 8px; width: 100%; min-width: 0; }
+    .raven-grab-easing-canvas { width: 100%; aspect-ratio: 240 / 96; background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .1); border-radius: 8px; touch-action: none; }
+    .raven-grab-easing-track { stroke: rgba(255, 255, 255, .16); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+    .raven-grab-easing-arm { stroke: rgba(0, 191, 255, .35); stroke-width: 1; vector-effect: non-scaling-stroke; }
+    .raven-grab-easing-curve { fill: none; stroke: var(--raven-grab-accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .raven-grab-easing-handle { fill: var(--raven-grab-bg); stroke: var(--raven-grab-accent); stroke-width: 2; cursor: grab; vector-effect: non-scaling-stroke; }
+    .raven-grab-easing-handle:active { cursor: grabbing; }
+    .raven-grab-easing-presets { display: flex; flex-wrap: wrap; gap: 4px; }
+    .raven-grab-easing-preset { padding: 3px 7px; color: var(--raven-grab-muted); background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .1); border-radius: 999px; cursor: pointer; font: 500 calc(10px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-mono); }
+    .raven-grab-easing-preset:hover { color: var(--raven-grab-text); background: rgba(0, 191, 255, .12); border-color: rgba(0, 191, 255, .4); }
     .raven-grab-structured-row[data-disabled="true"] { opacity: .45; }
     .raven-grab-stroke-field, .raven-grab-structured-field { display: grid; gap: 4px; min-width: 0; }
     .raven-grab-stroke-field > span, .raven-grab-structured-field > span { color: var(--raven-grab-muted); font: 600 calc(9px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-ui); }
@@ -1347,6 +1367,17 @@
     .raven-grab-feedback-copy { max-width: 52ch; margin: -18px 0 28px; color: var(--raven-grab-muted); font: 400 calc(12px * var(--raven-grab-font-scale))/1.55 var(--raven-grab-ui); }
     .raven-grab-feedback-form { display: grid; gap: 18px; }
     .raven-grab-feedback-field { display: grid; gap: 7px; color: var(--raven-grab-text); font: 500 calc(12px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-ui); }
+    /* Every label row that can carry a mic, in ONE rule rather than one copy per
+       field class — the five rows (feedback message, fixed-move note, template
+       note, template name, component name) are the same row and drift the moment
+       they are two declarations. Both were block-level, so the mic rendered
+       immediately after the label text: measured 396px short of the textarea's
+       right edge in the Feedback pane, while the Instructions mic — which sits in
+       .raven-grab-section-heading, already flex/space-between — was flush. Same
+       treatment, scoped here: the heading rule is shared by surfaces that do not
+       want it. A row with no mic has one anonymous flex item and looks identical. */
+    .raven-grab-field > span,
+    .raven-grab-feedback-field > span { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .raven-grab-feedback-field textarea, .raven-grab-feedback-field input { width: 100%; padding: 10px 12px; color: var(--raven-grab-text); background: var(--raven-grab-raised); border: 1px solid rgba(255,255,255,.12); border-radius: 8px; outline: none; font: 400 calc(12px * var(--raven-grab-font-scale))/1.45 var(--raven-grab-ui); box-sizing: border-box; }
     .raven-grab-feedback-field textarea { min-height: 128px; resize: vertical; }
     /* flex, not the form's grid: the label wraps to three lines at 390px and the wrapped
@@ -2306,6 +2337,14 @@
         '<p class="raven-grab-feedback-copy">Tell us what is wrong or missing. We send your message, the Raven version, and your viewport size — nothing else from this page.</p>' +
         '<form class="raven-grab-feedback-form" data-feedback-form>' +
           '<label class="raven-grab-feedback-field"><span>Message' + voiceButtonMarkup("data-feedback-message", "feedback message") + '</span><textarea name="message" data-feedback-message maxlength="5000" required></textarea></label>' +
+          // No mic here, and that is a DECISION rather than an omission — same for
+          // the two [data-component-email] fields. "Anytime we have any sort of
+          // input, we should be able to have voice" (Andrew, 2026-08-07) is the
+          // standing rule and every other field follows it; an address is the one
+          // input dictation reliably gets wrong (no spoken form for @ or the dot,
+          // homophone-dense local parts), and a wrong reply-to is silent — the
+          // report sends, the reply never arrives. autocomplete="email" is the
+          // faster path to the same value. Reverse this if Andrew says so.
           '<label class="raven-grab-feedback-field">Email (optional, so we can reply)<input name="email" type="email" autocomplete="email"></label>' +
           // Off by default. Grab runs on other people's dev servers, where a path like
           // /admin/unreleased-feature is itself product information. Opt-in, and the
@@ -4932,6 +4971,9 @@
       if (STYLE_ENUM_OPTIONS[property]) return "enum";
       return "text";
     }
+    // After the Mixed check on purpose: a multi-select with differing curves has
+    // no single curve to draw, so it stays plain text.
+    if (isTimingFunctionProperty(property)) return parseEasingValue(raw) ? "easing" : "text";
     if (isColorProperty(property) && isSingleColorValue(value)) return "color";
     if (STYLE_ENUM_OPTIONS[property] && STYLE_ENUM_OPTIONS[property].indexOf(raw) !== -1) return "enum";
     if (parseNumericValue(value)) return "number";
@@ -5168,6 +5210,126 @@
     var text = String(value || "").trim();
     if (!text || text === "none") return 0;
     return text.split(/,(?![^(]*\))/).filter(function (part) { return part.trim(); }).length;
+  }
+
+  // ---- Motion / easing -------------------------------------------------
+
+  // The five CSS keywords that ARE cubic beziers, with their spec-exact control
+  // points. steps(), step-start, step-end and linear() are deliberately ABSENT:
+  // none of them is a two-control-point curve, so they fall through to the
+  // plain-text control rather than being coerced into the nearest-looking
+  // bezier. Same rule that keeps a stacked box-shadow out of the single-layer
+  // editor — a control that cannot represent a value must not claim it, because
+  // the commit would write back the representable approximation and silently
+  // destroy the real one.
+  var EASING_KEYWORDS = {
+    linear: [0, 0, 1, 1],
+    ease: [0.25, 0.1, 0.25, 1],
+    "ease-in": [0.42, 0, 1, 1],
+    "ease-out": [0, 0, 0.58, 1],
+    "ease-in-out": [0.42, 0, 0.58, 1]
+  };
+
+  // The same top-level-comma split shadowLayerCount uses: a comma NOT inside
+  // parentheses. "cubic-bezier(.4, 0, .2, 1), ease" is TWO functions, not five —
+  // splitting on every comma would read a single curve as a compound value and
+  // (worse) a compound value as a single one.
+  function timingFunctionCount(value) {
+    var text = String(value || "").trim();
+    if (!text) return 0;
+    return text.split(/,(?![^(]*\))/).filter(function (part) { return part.trim(); }).length;
+  }
+
+  // [x1, y1, x2, y2] for a SINGLE timing function that is a cubic bezier, else
+  // null (which routes the row to the plain-text control).
+  //
+  // Per CSS Easing L1 the X coordinates MUST be in [0, 1] — outside that the
+  // curve stops being a function of time and the whole declaration is invalid —
+  // while the Y coordinates are UNBOUNDED. An overshoot or anticipation curve
+  // has y outside the unit square and is perfectly valid CSS, so y is never
+  // range-checked here; clamping it would silently flatten exactly the curves
+  // someone opens a curve editor to build.
+  //
+  // Scientific notation ("1e-1") and a leading plus ("+0.5") are legal CSS
+  // numbers this rejects. getComputedStyle emits neither, so they can only
+  // arrive hand-typed, and rejecting them falls back to plain text — the value
+  // is preserved verbatim, which is the safe direction.
+  function parseEasingValue(value) {
+    var text = String(value || "").trim();
+    if (!text || timingFunctionCount(text) !== 1) return null;
+    var keyword = EASING_KEYWORDS[text.toLowerCase()];
+    if (keyword) return keyword.slice();
+    var match = text.match(/^cubic-bezier\(([^)]*)\)$/i);
+    if (!match) return null;
+    var parts = match[1].split(",");
+    if (parts.length !== 4) return null;
+    var points = [];
+    for (var i = 0; i < 4; i += 1) {
+      var raw = parts[i].trim();
+      if (!/^-?\d*\.?\d+$/.test(raw)) return null;
+      var n = parseFloat(raw);
+      if (!isFinite(n)) return null;
+      if ((i === 0 || i === 2) && (n < 0 || n > 1)) return null;
+      points.push(n);
+    }
+    return points;
+  }
+
+  // Rounding happens where a PIXEL becomes a number (setEasingFromPointer), not
+  // where a number becomes text. That distinction is the whole finding: this
+  // formatter runs over all four coordinates every time any one handle moves, so
+  // rounding here rewrote the two coordinates the user never touched. Measured —
+  // opening cubic-bezier(0.12345, -2.34567, 0.98765, 3.45678) and pressing a
+  // handle without moving it committed cubic-bezier(0.123, -2.346, 0.988, 3.457),
+  // which is exactly the "a control that accepts a value it cannot represent
+  // destroys the original on commit" defect this editor's parser exists to avoid,
+  // arriving through the formatter instead.
+  //
+  // String() is lossless and still reads well: a parsed coordinate round-trips
+  // its author's own literal, and a dragged one was already quantised to three
+  // decimals at capture, so String(Math.round(x * 1000) / 1000) prints "0.5"
+  // and "0.123" rather than "0.500" or a float artefact.
+  //
+  // The two edges String() is normally distrusted for were MEASURED on this
+  // host rather than reasoned about, and neither is reachable as a defect.
+  // (1) Exponential notation below 1e-6: Chromium's own getComputedStyle
+  //     already serialises cubic-bezier(0.0000001, ...) as "1.00000e-7", so
+  //     exponential is what the ENGINE hands the parser in the first place, and
+  //     re-emitting "1e-7" parses back to the identical computed value.
+  // (2) Negative zero: String(-0) is "0", so a drag that rounds a hair below
+  //     the axis cannot commit "-0".
+  // The drag path cannot reach either — its values are Math.round(v * 1000) /
+  // 1000 over x in [0, 1] and y in [-0.5, 1.5], so the smallest non-zero
+  // magnitude is exactly 0.001.
+  function formatBezierNumber(n) {
+    return String(n);
+  }
+
+  function formatCubicBezier(points) {
+    return "cubic-bezier(" + points.map(formatBezierNumber).join(", ") + ")";
+  }
+
+  // Drag-surface geometry, shared by the SVG viewBox and the CSS aspect-ratio so
+  // the two cannot drift apart and reintroduce the stretch distortion.
+  var EASING_VIEW_W = 240;
+  var EASING_VIEW_H = 96;
+
+  function isTimingFunctionProperty(property) {
+    return property === "transition-timing-function" || property === "animation-timing-function";
+  }
+
+  // A duration is a time, so its unit dropdown offers times. Handing a duration
+  // the length list would let one pick "0.2rem" as a transition-duration — a
+  // value the browser drops on the floor, from a control that presented it.
+  var TIME_UNIT_OPTIONS = ["ms", "s"];
+
+  function isTimeProperty(property) {
+    return property === "transition-duration" || property === "transition-delay" ||
+      property === "animation-duration" || property === "animation-delay";
+  }
+
+  function unitOptionsForProperty(property) {
+    return isTimeProperty(property) ? TIME_UNIT_OPTIONS : STYLE_UNIT_OPTIONS;
   }
 
   // Reformat a color between hex and rgb WITHOUT losing alpha (a passive
@@ -6310,7 +6472,14 @@
       || cls.indexOf("raven-grab-style-unit") !== -1
       || cls.indexOf("raven-grab-style-format") !== -1
       || cls.indexOf("raven-grab-color-input") !== -1
-      || cls.indexOf("raven-grab-color-suggestion") !== -1;
+      || cls.indexOf("raven-grab-color-suggestion") !== -1
+      // The easing PRESETS are real <button>s, so `disabled` blocks their click
+      // natively and this list is the whole mechanism for them. The SVG HANDLES
+      // are not: `disabled` has no meaning on an SVG element, which is why they
+      // are refused in their own pointerdown instead. Two mechanisms, because
+      // the platform gives the two control types different levers — not two
+      // guards over one.
+      || cls.indexOf("raven-grab-easing-preset") !== -1;
   }
 
   function styleValueControlsInEditor(editor) {
@@ -6664,7 +6833,7 @@
         var unitSelect = document.createElement("select");
         unitSelect.className = "raven-grab-style-unit";
         unitSelect.setAttribute("aria-label", property + " unit");
-        var units = STYLE_UNIT_OPTIONS.slice();
+        var units = unitOptionsForProperty(property).slice();
         if (units.indexOf(parsed.unit) === -1) units.unshift(parsed.unit);
         unitSelect.innerHTML = units.map(function (u) { return optionMarkup(u, u, parsed.unit); }).join("");
         unitSelect.value = parsed.unit;
@@ -6731,6 +6900,182 @@
         // queued and the preview silently reverted on the next click-away.
         commit();
       }, relatedInternal);
+    } else if (control === "easing") {
+      // The text input stays the source of truth for commit — readValue() reads
+      // it, replaceStyleInput writes it back, and typing a curve by hand still
+      // works. The canvas is a second way to author the SAME string, so every
+      // drag and every preset writes input.value before previewing. Preview
+      // without writing it is how a picked value gets stranded: the later
+      // blur-commit reads the input and would write back the untouched original.
+      input.type = "text";
+      input.value = previousValue;
+
+      var easingPoints = parseEasingValue(previousValue);
+      var wrap = document.createElement("div");
+      wrap.className = "raven-grab-easing";
+      // Keep focus on the input through every gesture inside the canvas. A blur
+      // here fires handleBlur -> commit, which tears the editor down on the first
+      // pixel of a drag. mousedown+preventDefault is the mechanism already proven
+      // for this in the token-suggestion chips; clicks OUTSIDE the editor still
+      // blur normally, so the value is never stranded.
+      wrap.addEventListener("mousedown", function (event) { event.preventDefault(); });
+
+      var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("class", "raven-grab-easing-canvas");
+      // The viewBox aspect is pinned to the CSS aspect-ratio (240:96) rather than
+      // stretched with preserveAspectRatio="none". Stretching scales x and y by
+      // different factors, which turns every round handle into a wide ellipse and
+      // makes the grab target a different size on each axis.
+      svg.setAttribute("viewBox", "0 0 " + EASING_VIEW_W + " " + EASING_VIEW_H);
+      svg.setAttribute("aria-hidden", "true");
+
+      function svgNode(name, attrs) {
+        var node = document.createElementNS("http://www.w3.org/2000/svg", name);
+        Object.keys(attrs).forEach(function (key) { node.setAttribute(key, String(attrs[key])); });
+        return node;
+      }
+
+      // y spans [-0.5, 1.5] rather than [0, 1] so an overshoot curve's handles
+      // stay on screen. A hand-typed curve reaching past even that renders
+      // clipped — the picture is bounded, the VALUE in the input is not, and the
+      // input is what commits.
+      function viewX(x) { return x * EASING_VIEW_W; }
+      function viewY(y) { return (1.5 - y) / 2 * EASING_VIEW_H; }
+
+      var track = svgNode("line", { x1: 0, y1: viewY(0), x2: EASING_VIEW_W, y2: viewY(1), class: "raven-grab-easing-track" });
+      var lineA = svgNode("line", { x1: 0, y1: viewY(0), x2: 0, y2: 0, class: "raven-grab-easing-arm" });
+      var lineB = svgNode("line", { x1: EASING_VIEW_W, y1: viewY(1), x2: 0, y2: 0, class: "raven-grab-easing-arm" });
+      var curve = svgNode("path", { d: "", class: "raven-grab-easing-curve" });
+      var handleA = svgNode("circle", { r: 5, class: "raven-grab-easing-handle" });
+      var handleB = svgNode("circle", { r: 5, class: "raven-grab-easing-handle" });
+      [track, lineA, lineB, curve, handleA, handleB].forEach(function (node) { svg.appendChild(node); });
+
+      function drawEasing() {
+        if (!easingPoints) return;
+        var ax = viewX(easingPoints[0]);
+        var ay = viewY(easingPoints[1]);
+        var bx = viewX(easingPoints[2]);
+        var by = viewY(easingPoints[3]);
+        curve.setAttribute("d", "M 0 " + viewY(0) + " C " + ax + " " + ay + ", " + bx + " " + by + ", " + EASING_VIEW_W + " " + viewY(1));
+        lineA.setAttribute("x2", ax); lineA.setAttribute("y2", ay);
+        lineB.setAttribute("x2", bx); lineB.setAttribute("y2", by);
+        handleA.setAttribute("cx", ax); handleA.setAttribute("cy", ay);
+        handleB.setAttribute("cx", bx); handleB.setAttribute("cy", by);
+      }
+      drawEasing();
+
+      function setEasingFromPointer(handleIndex, event) {
+        var rect = svg.getBoundingClientRect();
+        if (!rect || !rect.width || !rect.height) return;
+        var x = (event.clientX - rect.left) / rect.width;
+        var y = 1.5 - ((event.clientY - rect.top) / rect.height) * 2;
+        // x is clamped because CSS REQUIRES it in [0, 1]; y is clamped only to
+        // the drawn viewport, which is a limit of the surface, not of the value.
+        x = Math.min(1, Math.max(0, x));
+        y = Math.min(1.5, Math.max(-0.5, y));
+        easingPoints[handleIndex * 2] = Math.round(x * 1000) / 1000;
+        easingPoints[handleIndex * 2 + 1] = Math.round(y * 1000) / 1000;
+        drawEasing();
+        input.value = formatCubicBezier(easingPoints);
+        pendingTokenPick = null;
+        previewed = previewValue(input.value) || previewed;
+      }
+
+      function bindHandle(node, handleIndex) {
+        node.addEventListener("pointerdown", function (event) {
+          if (!easingPoints) return;
+          // A token-linked row refuses raw style writes at commit(), so a drag
+          // here would preview a curve onto the element and then commit
+          // NOTHING — inline CSS moved with no styleEdits entry behind it,
+          // which is the output-disagrees-with-state shape this file has paid
+          // for twice. The refusal has to live here rather than in
+          // setStyleEditorTokenLinked because `disabled` is meaningless on an
+          // SVG element (and `className` on one is an SVGAnimatedString, so it
+          // cannot even be matched by class there). The whole editor is already
+          // at opacity .45 while linked, so the affordance reads as locked and
+          // a silent return matches what the disabled sibling controls do.
+          if (editor.getAttribute("data-token-linked") === "true") return;
+          event.preventDefault();
+          event.stopPropagation();
+          if (typeof node.setPointerCapture === "function") node.setPointerCapture(event.pointerId);
+          // Snapshotted BEFORE the pointerdown's own setEasingFromPointer, which
+          // previews immediately — by the time cancelDrag can run, the element's
+          // inline style has already moved.
+          var dragStartPoints = easingPoints.slice();
+          var dragStartValue = input.value;
+          var dragStartPreviewed = previewed;
+          var move = function (moveEvent) { setEasingFromPointer(handleIndex, moveEvent); };
+          var up = function () {
+            node.removeEventListener("pointermove", move);
+            node.removeEventListener("pointerup", up);
+            node.removeEventListener("pointercancel", cancelDrag);
+            // Release commits, matching beginStyleScrub: a finished drag is a
+            // decision, and leaving it as a preview is how tuned values get lost.
+            commit();
+          };
+          var cancelDrag = function () {
+            node.removeEventListener("pointermove", move);
+            node.removeEventListener("pointerup", up);
+            node.removeEventListener("pointercancel", cancelDrag);
+            // A cancelled pointer is NOT a decision, and removing the listeners
+            // is not enough: the preview already wrote the element's inline
+            // style, so bailing out silently leaves the page rendering a curve
+            // nobody authored with no matching entry in styleEdits — output
+            // disagreeing with state, the shape this codebase has paid for
+            // before. Same verdict as finishCanvasDrag(false): restore, do not
+            // apply. The restore point is the value THIS drag started from, not
+            // previousValue — a second drag inside one editor session must fall
+            // back to the first drag's committed result, not to the row's
+            // original.
+            easingPoints = dragStartPoints.slice();
+            input.value = dragStartValue;
+            drawEasing();
+            if (dragStartPreviewed) previewed = previewValue(dragStartValue) || previewed;
+            else rollbackPreviewState();
+          };
+          node.addEventListener("pointermove", move);
+          node.addEventListener("pointerup", up);
+          node.addEventListener("pointercancel", cancelDrag);
+          setEasingFromPointer(handleIndex, event);
+        });
+      }
+      bindHandle(handleA, 0);
+      bindHandle(handleB, 1);
+
+      var presets = document.createElement("div");
+      presets.className = "raven-grab-easing-presets";
+      Object.keys(EASING_KEYWORDS).forEach(function (keyword) {
+        var button = document.createElement("button");
+        button.type = "button";
+        button.className = "raven-grab-easing-preset";
+        button.textContent = keyword;
+        button.setAttribute("aria-label", "Use " + keyword + " easing");
+        button.addEventListener("click", function () {
+          // The keyword itself is written, not its bezier expansion: "ease-out"
+          // is what the author meant and what a token would hold, and expanding
+          // it to cubic-bezier(0, 0, 0.58, 1) makes every later diff read as a
+          // change nobody made.
+          easingPoints = EASING_KEYWORDS[keyword].slice();
+          drawEasing();
+          input.value = keyword;
+          pendingTokenPick = null;
+          commit();
+        });
+        presets.appendChild(button);
+      });
+
+      wrap.appendChild(svg);
+      wrap.appendChild(input);
+      wrap.appendChild(presets);
+      editor.appendChild(wrap);
+      relatedInternal.push(input);
+      // Typing keeps the curve honest: an unparseable string leaves the last
+      // drawn curve in place rather than redrawing a lie, and the row still
+      // commits whatever was typed.
+      input.addEventListener("input", function () {
+        var next = parseEasingValue(input.value);
+        if (next) { easingPoints = next; drawEasing(); }
+      });
     } else {
       input.type = "text";
       input.value = previousValue;
@@ -10238,6 +10583,10 @@
         <div class="raven-grab-section-heading"><h2 class="raven-grab-section-title">Describe the use case and impact</h2>${voiceButtonMarkup("data-use-case", "use case")}</div>
         <textarea class="raven-grab-textarea raven-grab-use-case" data-use-case spellcheck="true" placeholder="${emailFlow ? "Describe why you need this…" : "Tell the design team why you need this…"}">${escapeHtml(componentRequest.useCase)}</textarea>
       </section>`;
+    // Both branches deliberately carry no mic — see the reasoning on the
+    // feedback pane's email field. An address is the one input dictation gets
+    // reliably wrong, and here the failure is worse than a wrong reply-to: the
+    // required branch is how the component reaches the person who asked for it.
     var emailMarkup = emailFlow ? `
       <section class="raven-grab-section">
         <h2 class="raven-grab-section-title">Email yourself the component</h2>
