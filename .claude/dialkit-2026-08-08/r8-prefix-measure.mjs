@@ -1,3 +1,11 @@
+// SUPERSEDED — PINNED TO THE ROUND-8 TREE. Its revert anchors are the round-8
+// source text, and round 9 replaced four of the five lines they anchor on, so
+// this file THROWS on the current tree rather than measuring anything. It is
+// kept as the round-8 record, not as a runnable harness; `r9-prefix-measure.mjs`
+// is the live one. Sol round 9 (P2) also found `run()` below grading a child
+// that printed a summary and then died — status, signal and error were all
+// ignored. Fixed here too, so the shape is not copied forward from the record.
+//
 // Measures the PRE-FIX behaviour claimed in each round-8 mutant comment.
 // A mutation claim is falsifiable exactly like an assertion (round 6's lesson),
 // so "PRE-FIX: 2 pass / 0 fail" is measured here rather than reasoned about.
@@ -70,11 +78,18 @@ function run(suiteSrc, assetPath) {
     encoding: 'utf8',
     env: { ...process.env, RAVEN_GRAB_ASSET_PATH: assetPath, RAVEN_NO_USAGE_LOG: '1' }
   });
+  // Sol round 9 (P2): none of these three is visible in the summary, and each
+  // means the run did not finish the way its numbers claim it did.
+  if (out.error) throw new Error(`spawn error: ${out.error.message}`);
+  if (out.signal) throw new Error(`killed by ${out.signal} — never grade a killed run`);
   const text = (out.stdout || '') + (out.stderr || '');
   const num = (re) => Number((text.match(re) || [])[1] ?? NaN);
   const pass = num(/^ℹ pass (\d+)$/m);
   const fail = num(/^ℹ fail (\d+)$/m);
   const skipped = num(/^ℹ skipped (\d+)$/m);
+  if (Number.isFinite(fail) && (out.status === 0) !== (fail === 0)) {
+    throw new Error(`exit status ${out.status} disagrees with fail ${fail}`);
+  }
   if (![pass, fail, skipped].every(Number.isFinite)) {
     console.error(text.slice(-1500));
     throw new Error('no summary — never grade a crash as a result');

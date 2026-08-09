@@ -1125,6 +1125,10 @@
     .raven-grab-easing-presets { display: flex; flex-wrap: wrap; gap: 4px; }
     .raven-grab-easing-preset { padding: 3px 7px; color: var(--raven-grab-muted); background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .1); border-radius: 999px; cursor: pointer; font: 500 calc(10px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-mono); }
     .raven-grab-easing-preset:hover { color: var(--raven-grab-text); background: rgba(0, 191, 255, .12); border-color: rgba(0, 191, 255, .4); }
+    .raven-grab-springs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+    .raven-grab-spring-hint { color: var(--raven-grab-muted); font: 600 calc(9px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-ui); text-transform: uppercase; letter-spacing: .06em; }
+    .raven-grab-spring-preset { padding: 3px 7px; color: var(--raven-grab-muted); background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .1); border-radius: 999px; cursor: pointer; font: 500 calc(10px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-mono); }
+    .raven-grab-spring-preset:hover { color: var(--raven-grab-text); background: rgba(0, 191, 255, .12); border-color: rgba(0, 191, 255, .4); }
     .raven-grab-structured-row[data-disabled="true"] { opacity: .45; }
     .raven-grab-stroke-field, .raven-grab-structured-field { display: grid; gap: 4px; min-width: 0; }
     .raven-grab-stroke-field > span, .raven-grab-structured-field > span { color: var(--raven-grab-muted); font: 600 calc(9px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-ui); }
@@ -5318,6 +5322,138 @@
     return property === "transition-timing-function" || property === "animation-timing-function";
   }
 
+  // ---- Spring -> linear() -------------------------------------------------
+  //
+  // The last motion gap against DialKit. A cubic bezier cannot express a spring
+  // at all — it has two control points and a spring oscillates — and CSS's only
+  // way to say "spring" is linear(), a sampled progress curve. So this block
+  // GENERATES a linear() from spring physics; it is the CSS analogue of
+  // DialKit's spring editor, not a port of it.
+  //
+  // GENERATIVE-ONLY, and that is the load-bearing decision rather than a
+  // simplification. Many different springs sample to visually identical curves,
+  // so a linear() cannot be read BACK into stiffness/damping/mass — any attempt
+  // would be a guess. This file has already paid twice for "a control that
+  // accepts a value it cannot represent destroys the original on commit", so
+  // this control never claims to have parsed anything: it only ever REPLACES,
+  // and until the user picks a preset the existing value is untouched. That is
+  // also why it renders alongside whichever control opened rather than
+  // replacing it — an existing linear() from the page stays in the plain-text
+  // control, verbatim, where it round-trips.
+  // Deliberately NOT memoised. All four curves regenerate on every timing-row
+  // editor open, measured at 1.0–1.6ms for the set on this machine — below any
+  // perceptual threshold, on a surface that only opens from an explicit click.
+  // A cache would be a mechanism guarding a non-problem, and every mechanism in
+  // this file has to be worth a mutant.
+  var SPRING_PRESETS = [
+    // [label, stiffness, damping, mass]. Named after the motion, not the
+    // physics, because the label is what a designer picks by.
+    ["gentle", 120, 20, 1],
+    ["smooth", 180, 26, 1],
+    ["snappy", 300, 24, 1],
+    ["bouncy", 320, 14, 1]
+  ];
+
+  // Position of a unit step response at time t (seconds) for a damped
+  // oscillator, solved analytically rather than integrated: an integrator's
+  // error depends on its step size, and the step size here would silently
+  // decide how bouncy the emitted curve looks.
+  function springPosition(t, omega0, zeta) {
+    if (zeta < 1) {
+      var wd = omega0 * Math.sqrt(1 - zeta * zeta);
+      return 1 - Math.exp(-zeta * omega0 * t) * (Math.cos(wd * t) + (zeta * omega0 / wd) * Math.sin(wd * t));
+    }
+    if (zeta === 1) return 1 - Math.exp(-omega0 * t) * (1 + omega0 * t);
+    var root = omega0 * Math.sqrt(zeta * zeta - 1);
+    var r1 = -omega0 * zeta + root;
+    var r2 = -omega0 * zeta - root;
+    return 1 - (r2 * Math.exp(r1 * t) - r1 * Math.exp(r2 * t)) / (r2 - r1);
+  }
+
+  var SPRING_SETTLE_EPSILON = 0.001;
+  var SPRING_MAX_MS = 10000;
+
+  // Sampled points plus the time the spring actually takes to settle. The
+  // settle time is REPORTED, never written: linear() is a normalised progress
+  // curve, so applying it under a shorter transition-duration compresses the
+  // same shape rather than distorting it, and writing a second property from a
+  // single-property editor is a different feature.
+  function springCurve(stiffness, damping, mass) {
+    var k = Number(stiffness);
+    var c = Number(damping);
+    var m = Number(mass);
+    if (!isFinite(k) || !isFinite(c) || !isFinite(m) || k <= 0 || m <= 0 || c < 0) return null;
+    var omega0 = Math.sqrt(k / m);
+    var zeta = c / (2 * Math.sqrt(k * m));
+    // Settle = the last moment the curve is still outside the epsilon band, not
+    // the first moment it enters one. An underdamped spring crosses 1 on every
+    // oscillation, so "first time within epsilon" reports a settle time in the
+    // middle of the bounce and truncates the whole overshoot.
+    var settleMs = 0;
+    for (var probe = 1; probe <= SPRING_MAX_MS; probe += 1) {
+      if (Math.abs(springPosition(probe / 1000, omega0, zeta) - 1) >= SPRING_SETTLE_EPSILON) settleMs = probe;
+    }
+    settleMs = Math.max(settleMs + 1, 1);
+    var samples = [];
+    var steps = 100;
+    for (var i = 0; i <= steps; i += 1) {
+      var fraction = i / steps;
+      samples.push([fraction, springPosition((fraction * settleMs) / 1000, omega0, zeta)]);
+    }
+    // Pin the ends: the last analytic sample is within epsilon of 1 but not
+    // equal to it, and a curve that does not finish at exactly 1 leaves the
+    // element a hair short of its target forever.
+    samples[0][1] = 0;
+    samples[steps][1] = 1;
+    return { points: simplifySpringSamples(samples, 0.002), settleMs: settleMs, zeta: zeta };
+  }
+
+  // Ramer-Douglas-Peucker on the (t, value) polyline. Uniform samples would
+  // emit 101 numbers for a curve most of which is a straight line; dropping a
+  // point only when the straight line through its neighbours is within
+  // tolerance keeps the overshoot dense and the tail cheap.
+  function simplifySpringSamples(points, tolerance) {
+    if (points.length < 3) return points.slice();
+    var first = 0;
+    var last = points.length - 1;
+    var keep = { 0: true };
+    keep[last] = true;
+    var stack = [[first, last]];
+    while (stack.length) {
+      var range = stack.pop();
+      var a = points[range[0]];
+      var b = points[range[1]];
+      var worst = 0;
+      var worstAt = -1;
+      for (var i = range[0] + 1; i < range[1]; i += 1) {
+        var span = b[0] - a[0];
+        var projected = span === 0 ? a[1] : a[1] + ((points[i][0] - a[0]) / span) * (b[1] - a[1]);
+        var delta = Math.abs(points[i][1] - projected);
+        if (delta > worst) { worst = delta; worstAt = i; }
+      }
+      if (worstAt !== -1 && worst > tolerance) {
+        keep[worstAt] = true;
+        stack.push([range[0], worstAt]);
+        stack.push([worstAt, range[1]]);
+      }
+    }
+    return points.filter(function (point, index) { return keep[index]; });
+  }
+
+  // Every kept point carries its own stop. Values alone would be spread
+  // EVENLY by the browser, which is exactly wrong after simplification —
+  // the points are deliberately not evenly spaced any more.
+  function formatSpringLinear(points) {
+    if (!points || points.length < 2) return null;
+    var parts = points.map(function (point, index) {
+      var value = Math.round(point[1] * 10000) / 10000;
+      if (index === 0) return String(value);
+      if (index === points.length - 1) return String(value);
+      return String(value) + " " + Math.round(point[0] * 1000) / 10 + "%";
+    });
+    return "linear(" + parts.join(", ") + ")";
+  }
+
   // A duration is a time, so its unit dropdown offers times. Handing a duration
   // the length list would let one pick "0.2rem" as a transition-duration — a
   // value the browser drops on the floor, from a control that presented it.
@@ -6479,7 +6615,13 @@
       // are refused in their own pointerdown instead. Two mechanisms, because
       // the platform gives the two control types different levers — not two
       // guards over one.
-      || cls.indexOf("raven-grab-easing-preset") !== -1;
+      || cls.indexOf("raven-grab-easing-preset") !== -1
+      // Same reasoning for the spring presets, and they need it MORE than the
+      // easing ones: a spring preset REPLACES the value outright, so a click
+      // that previewed a linear() and then committed nothing (which is what
+      // commit() does while linked) is the output-disagrees-with-state shape
+      // this file documents elsewhere.
+      || cls.indexOf("raven-grab-spring-preset") !== -1;
   }
 
   function styleValueControlsInEditor(editor) {
@@ -7080,6 +7222,49 @@
       input.type = "text";
       input.value = previousValue;
       editor.appendChild(input);
+    }
+
+    // Springs attach to the PROPERTY, not to the control, so they are here
+    // rather than inside the easing branch: a row whose current value is
+    // steps(4) or linear(...) falls back to the plain-text control and must
+    // still be able to become a spring. Appending leaves the bezier editor and
+    // its matrix untouched — nothing above this line changed.
+    if (isTimingFunctionProperty(property)) {
+      var springs = document.createElement("div");
+      springs.className = "raven-grab-springs";
+      var springHint = document.createElement("span");
+      springHint.className = "raven-grab-spring-hint";
+      springHint.textContent = "spring";
+      springs.appendChild(springHint);
+      SPRING_PRESETS.forEach(function (preset) {
+        var curve = springCurve(preset[1], preset[2], preset[3]);
+        var value = curve && formatSpringLinear(curve.points);
+        // A preset that cannot produce a value is not rendered at all. A
+        // button that looks live and writes nothing is worse than an absent
+        // one, and this is unreachable with the shipped presets — it guards
+        // the next one somebody adds.
+        if (!value) return;
+        var button = document.createElement("button");
+        button.type = "button";
+        button.className = "raven-grab-spring-preset";
+        button.textContent = preset[0];
+        // The settle time is a HINT on the button, never written: linear() is
+        // a normalised progress curve, so this row owns the shape and
+        // transition-duration still owns the speed.
+        button.title = preset[0] + " spring — natural settle ≈ " + curve.settleMs + "ms";
+        button.setAttribute("aria-label", "Use " + preset[0] + " spring easing");
+        button.addEventListener("click", function () {
+          input.value = value;
+          pendingTokenPick = null;
+          commit();
+        });
+        springs.appendChild(button);
+      });
+      // The same focus guard the easing wrapper uses: a mousedown that moves
+      // focus fires handleBlur -> commit and tears the editor down before the
+      // click lands.
+      springs.addEventListener("mousedown", function (event) { event.preventDefault(); });
+      editor.appendChild(springs);
     }
 
     if (tokenUi) {

@@ -308,16 +308,78 @@ const MUTANTS = [
   ['A33 a ninth mic written as a parenthesized call, in an uncovered wrapper',
     '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
     '<div class="raven-grab-loose">\' + (voiceButtonMarkup)("data-extra-note", "extra") + \'</div><label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note='],
-  // A34 is the ONLY mutant in this matrix not separated by its radius: it is red
-  // before the fix and red after it, and what changed is WHICH assertion fires
-  // and what it tells the author. Before, a window that ran out of source was
-  // reported as a mic in the wrong container — an instruction to go move code
-  // that is already correct. After, it says the scan could not look far enough.
-  // Read the DETAIL line, not the count: the kill is `REACH_SOURCE_CAP`
-  // appearing in the message. Same shape as E14/E15 in the easing suite.
-  [`A34 a source region emitting nothing pushes the opener past the cost cap`,
+  // A34 was round 8's ONLY mutant not separated by its radius — red before the
+  // fix and red after it, differing only in WHICH assertion fired. Round 9 (Sol
+  // P1) established that both reds were wrong: this is CORRECT CODE. A comment
+  // emits nothing, so a browser puts the mic exactly where the covered opener
+  // put it, and the cap was rejecting the row for a reason that has nothing to
+  // do with alignment. A better error message does not redeem a red on correct
+  // code. `REACH_SOURCE_CAP` is deleted and A34 is a CONTROL now.
+  [`A34 CONTROL  a source region emitting nothing sits between opener and mic`,
     '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
-    `<label class="raven-grab-field"><span>Add note…' + /*${'x'.repeat(20001)}*/ voiceButtonMarkup("data-template-note=`]
+    `<label class="raven-grab-field"><span>Add note…' + /*${'x'.repeat(20001)}*/ voiceButtonMarkup("data-template-note=`,
+    'green'],
+  // A35-A42 are Sol round 9, and every one of them anchors on the same
+  // TEMPLATE-NOTE row (:8552) for the same reason. Round 9's finding, stated
+  // once: a REGEX cannot know where an attribute value ends and the next
+  // attribute begins, so it cannot answer "does this element carry this class"
+  // at all. Round 8 wrote a better regex; round 9 replaced it with a tokenizer
+  // (`parseStartTag`), which is the only thing that can be right in every
+  // direction at once — A35/A36 are silent greens the regex allowed and
+  // A37/A41/A42 are reds it produced on correct markup.
+  //
+  // A35  an attribute VALUE holding the text ` class="raven-grab-field"`. The
+  //      element carries no such class; the old opener matched the text.
+  ['A35 a class attribute quoted inside another attribute is not a class',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    `<div class="raven-grab-loose" title=\\' class="raven-grab-field"\\'><span>Add note…' + voiceButtonMarkup("data-template-note=`],
+  // A36  the HTML parser DROPS a duplicate attribute — first wins — so this
+  //      element's class is `raven-grab-loose` and nothing else. The old opener
+  //      scanned the whole tag and found the second one.
+  ['A36 a duplicate class attribute is dropped by the parser, first wins',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label class="raven-grab-loose" class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note='],
+  // A37  attribute names are ASCII case-insensitive and whitespace around `=`
+  //      is legal. Correct, correctly-styled markup; the old `\sclass="` said
+  //      no. A control, for that reason.
+  ['A37 CONTROL  CLASS = "…" is the class attribute, uppercase and spaced',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label CLASS = "raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    'green'],
+  // A38  `(0, f)(x)` is the standard indirect-call idiom and emits byte-identical
+  //      markup, so it is the same call site. Round 8's strip was ADJACENCY-based
+  //      (the `(` had to sit right before the identifier), so this was not a site
+  //      at all: the count stayed 8, the ninth mic was never examined, and the
+  //      only guard on that row reported nothing. A33 through a different token.
+  ['A38 a ninth mic written as a comma-expression call, in an uncovered wrapper',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<div class="raven-grab-loose">\' + (0, voiceButtonMarkup)("data-extra-note", "extra") + \'</div><label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note='],
+  // A39  `<![CDATA[` is real only in FOREIGN content (svg/math). In HTML content
+  //      it is a BOGUS COMMENT, which ends at the first `>` — here the `>` of the
+  //      `<label>` inside it. So a browser renders `<span> ]]>` in the loose div
+  //      and the mic is uncovered. Round 8 handled `<!--` and let `<!` through.
+  ['A39 a CDATA section in HTML content is a bogus comment, not a container',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<div class="raven-grab-loose"><![CDATA[ <label class="raven-grab-field"><span> ]]>Add note…\' + voiceButtonMarkup("data-template-note='],
+  // A40  an ordinary closed raw-text element inside a correct row. Round 8's
+  //      raw-text skip jumped to the closer WITHOUT pushing, so the closer popped
+  //      an empty stack and every such row was reported as a defect.
+  ['A40 CONTROL  a closed script element inside a correctly covered row',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label class="raven-grab-field"><span>Add note…<script></script>\' + voiceButtonMarkup("data-template-note=',
+    'green'],
+  // A41/A42  the round-8 header called single-quoted and unquoted class
+  //      attributes an ACCEPTED RESIDUAL "whose failure direction is a red".
+  //      Both halves were false: they are valid HTML, and a red on valid HTML is
+  //      not an acceptable residual. Controls now, not a documented limitation.
+  ['A41 CONTROL  a single-quoted class attribute',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    `<label class=\\'raven-grab-field\\'><span>Add note…' + voiceButtonMarkup("data-template-note=`,
+    'green'],
+  ['A42 CONTROL  an unquoted class attribute value',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label class=raven-grab-field><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    'green']
 ];
 
 function apply(source, find, replace) {

@@ -1284,8 +1284,244 @@ no browser  2 tests / 1 pass / 0 fail / 1 skipped
 product     git diff --stat browser/ web/public/ -> empty
 ```
 
+## Round 9 — the last round — `DOES NOT SURVIVE`, 5 × P1 + 1 × P2 + 1 × P3
+
+Andrew, while round 9 was in flight: *"Let's stop this after this round comes
+back."* So this is the end of the cadence — round 9's findings are dispositioned
+and no round 10 is launched. Sol's chromium was sandbox-blocked again
+(`MachPortRendezvousServer … Permission denied (1100)`), so every counterexample
+is a SOURCE claim; each was replayed here before being believed. Sol edited no
+repo file. **No product code changed in rounds 3–9 — every fix in all seven is
+test-side.**
+
+**The round's shape, stated once:** round 8 answered a PARSING question with a
+better regex. A regex cannot know where one attribute's value ends and the next
+attribute begins, so it cannot answer "does this element carry this class" at
+all — and it was wrong in BOTH directions at once. Five of round 9's seven
+findings are reds on valid HTML, which is why the control count went 7 → 12.
+
+| # | Sev | Finding | Fix |
+|---|-----|---------|-----|
+| 1 | P1 | `coveredBy` fooled by attribute TEXT: `title=' class="raven-grab-field"'` on an uncovered row read as covered, and a duplicate `class` matched the second occurrence where the HTML parser keeps the FIRST. In the other direction it rejected `CLASS = "…"`, `class='…'` and `class=…` — all valid HTML — as defects. | The three opener regexes became `parseStartTag()`, a real start-tag tokenizer: attribute names lowercased, whitespace around `=` skipped, quoted and unquoted values read to their real end, first occurrence wins. `hasClass()` then asks the class question of a parsed attribute map. |
+| 2 | P1 | `(0, voiceButtonMarkup)(x)` — the standard indirect-call idiom — was not a call site. Round 8 stripped a grouping paren by ADJACENCY, so a comma expression left the count at 8 and the ninth mic unexamined. | The walk finds the MATCHING paren by balance rather than adjacency, which covers `(0, f)(x)`, `((f))(x)` and `(a ? f : g)(x)` alike. Balance is safe to count in `glue`, where string interiors and comments are already blanked. |
+| 3 | P1 | `<![CDATA[ <label class="raven-grab-field"><span> ]]>` supplied a fake covered opener. CDATA is real only in FOREIGN content; in HTML it is a BOGUS COMMENT ending at the first `>`, so a browser renders `<span> ]]>` and the mic is uncovered. Round 8 dropped `<!--` and let every other `<!` / `<?` form through. | `emittedWindow` drops a bogus comment to the next `>`, and the tag-open class narrowed to `[a-zA-Z/]` — `!` and `?` are handled above it now, not by it. |
+| 4 | P1 | Every CLOSED raw-text element was a false RED. The round-8 skip jumped to the closer WITHOUT pushing, so `<script></script>` between a correct opener and its mic popped an empty stack. `style`, `textarea`, `title` alike. | Push, then jump. The closer only counts when the tag name is followed by whitespace, `/` or `>` — `</scriptx` is text inside the script. |
+| 5 | P1 | `REACH_SOURCE_CAP` still rejected correct code. Round 8 answered the same finding by making the stop LOUD; a better error message does not redeem a red on correct code. | The cap is DELETED. Measured against the 20,001-character mutant — exactly the pathological case it was invented for — 3 reps each: 63.1 / 63.5 / 65.2 ms with the cap, 63.3 / 61.2 / 62.8 ms without. The difference is inside the spread. There was no cost to bound; it was inherited reasoning from the quadratic-regex design this walk replaced. |
+| 6 | P2 | `r8-prefix-measure.mjs`'s `run()` read only the parsed summary and ignored `out.status`, `out.signal` and `out.error`, so a child that printed a summary and then died was graded as a measurement. | Both harnesses now require the exit status and the summary to AGREE, and reject a killed or unspawnable run. `r9-prefix-measure.mjs` is the live one; r8's is PINNED to the round-8 tree (four of its five anchors no longer resolve) and its header says so. |
+| 7 | P3 | Two round-8 claims false: that `coveredBy` "asks the question CSS asks" (a regex cannot), and that single-quoted / unquoted class attributes were an accepted residual "whose failure direction is a red, not a silent green" — both halves wrong, since they are valid HTML and a red on valid HTML is not acceptable. Both appeared in the suite header AND `CLAUDE.md`. | Corrected in place in both, with the reason rather than a softened wording. A41/A42 turn the ex-residual into controls. |
+
+Sol found no contrary evidence for the 27/27 matrix count, the unchanged v9
+radii, or the three-unrendered-mic accounting.
+
+### Pre-fix vs post-fix — MEASURED, not asserted
+
+`.claude/dialkit-2026-08-08/r9-prefix-measure.mjs`. A revert reproduces the
+round-8 DECISION, not its source text — what is measured is what the old rule
+ANSWERED, and transcribing forty lines of deleted code would add its own failure
+modes.
+
+```
+pristine suite, pristine overlay: 2 pass / 0 fail
+A35 attr text    PRE 2p/0f  -> POST 1p/1f  [mics in a container … does not cover]
+A36 dup class    PRE 2p/0f  -> POST 1p/1f  [mics in a container … does not cover]
+A37 CLASS =      PRE 1p/1f  -> POST 2p/0f
+A41 single-quot  PRE 1p/1f  -> POST 2p/0f
+A42 unquoted     PRE 1p/1f  -> POST 2p/0f
+A38 (0, f)(x)    PRE 2p/0f  -> POST 1p/1f  [the number of mics in the overlay changed]
+A39 CDATA        PRE 2p/0f  -> POST 1p/1f  [mics in a container … does not cover]
+A40 script       PRE 1p/1f  -> POST 2p/0f
+A34 dead source  PRE 1p/1f  -> POST 2p/0f
+```
+
+A35/A36/A38/A39 measured **2 pass / 0 fail pre-fix** — the whole suite green on a
+real misalignment, the P1 direction. A37/A40/A41/A42/A34 measured **1 pass /
+1 fail pre-fix** — red on correct code, which is why they are CONTROLS.
+
+**A34 is the entry worth carrying forward.** It has been graded three ways in
+three rounds: a silent stop (round 7), a kill separated only by its assertion
+message (round 8), and finally a CONTROL — because it was correct code the whole
+time and both reds were wrong. **A mutant that is red before AND after a fix is
+not automatically evidence the fix worked; ask first whether the mutant is
+correct code.**
+
+### Measured after the round-9 fixes
+
+```
+baseline    2 tests / 2 pass / 0 fail / 0 skipped, EXIT=0 (source test 44.8ms)
+matrix v11  30 mutants, 30 killed, 0 survived; 12 controls, 0 false-failed, EXIT=0
+            A35/A36/A38/A39 radius 1 each; A34/A37/A40/A41/A42 controls green
+            re-run WHOLE — round 9 replaced the openers with a tokenizer, made
+            the raw-text skip push, added bogus-comment handling, rewrote the
+            grouping strip as a balance scan and deleted the source cap
+            no v10 radius moved; A34's change is a RECLASSIFICATION, not a radius
+r9-prefix   all nine claims measured, EXIT=0 (table above)
+cap cost    3 reps each on the 20,001-char mutant: 63.1/63.5/65.2 ms with the
+            cap, 63.3/61.2/62.8 ms without — inside the spread
+npm test    1481 tests / 1478 pass / 0 fail / 3 skipped, EXIT=0 (unchanged; every
+            fix lives inside the two existing tests or the scanner they share,
+            and the eight new mutants run outside npm test)
+mirror      cmp browser/raven-grab.js web/public/raven-grab.js -> MIRROR OK
+no browser  playwright resolution forced to throw: 2 tests / 1 pass / 0 fail /
+            1 skipped, EXIT=0 — and the SOURCE test still ran (43ms), which is
+            the point, since it is the only guard on the three unrendered mics
+product     git diff --stat browser/ web/public/ -> empty
+```
+
 ### Where this stands
 
+The Sol falsification cadence on the mic-alignment suite is **closed at round 9**,
+on Andrew's instruction. Nine rounds, seven of them (3–9) fixing only test-side
+code: rounds 1–2 found real product defects in the easing control and the mic
+CSS; rounds 3–9 found nine successive ways the SOURCE-enumeration guard answered
+a question a browser does not ask. The guard is now a hand-written HTML start-tag
+tokenizer with an existential enclosure walk over an emitted-character view, and
+its matrix carries 12 controls precisely because five of round 9's seven findings
+were reds on correct code.
+
 Changed in the working tree only (the auto-save hook commits locally; nothing
-pushed). No release, no endpoint change. Round 9 brief is the next step; the
-cadence continues until a round returns `SURVIVES`.
+pushed). No release, no endpoint change, npm untouched. Repo `main` stays at
+110 stdio / 65 gated; npm v2.3.0 at 105/60; the anon 45-tool hash is unmoved
+because nothing in `src/` was touched.
+
+Open, unchanged: **Thread A (Higgsfield)** is blocked until Andrew names the
+brand — the runbook is `docs/brand-genesis-flow.md`. **Thread B spec 2** (named
+motion presets/versions) is the optional next DialKit gap; **spec 1**
+(`set_grabbed_style`) stays HELD pending Andrew's word AND `proxyCaptureOnly()`
+gating wired first.
+
+Known debt, deliberately untouched and named rather than discovered: the same
+probe-self-check tautology at `test/capture.test.mjs:293`, and the same
+skip-vs-pass hole in `test/grab-overlay-drag-move.test.mjs`,
+`test/grab-overlay-voice-input.test.mjs` and
+`test/grab-overlay-scroll-preservation.test.mjs`.
+
+---
+
+## Thread B build — spring → `linear()`, DialKit's last motion gap
+
+Spec posted before the first edit. Built in the working tree only; nothing
+pushed, nothing released, `src/` untouched, so the anon-45 hash and the 110/65
+stdio count cannot have moved.
+
+**Why this was the gap.** Re-derived from primary sources (the DialKit page plus
+greps of the 13,220-line overlay) rather than from my earlier framing, which
+narrowed "anything DialKit has that Raven is missing" to exactly two items:
+theme, and spring editing. CSS has exactly one way to express a spring —
+`linear()`, a sampled progress curve — and a cubic-bezier has two control points
+and cannot oscillate. Round 1's `motion` capture category is what made this
+reachable at all.
+
+**The load-bearing decision is GENERATIVE-ONLY.** Many springs sample to
+visually identical curves, so a `linear()` cannot be read back into
+stiffness/damping/mass. The control never claims to have parsed anything; it
+only ever REPLACES. That is the direct answer to the lesson this repo has now
+paid for twice: a control that ACCEPTS a value it cannot represent destroys the
+original on commit. The springs are therefore attached on the PROPERTY, after
+the whole control if/else chain — not inside the easing branch — so a row that
+fell back to plain text (`steps()`, an existing `linear()`, a compound list)
+still gets them, and the bezier editor plus its 15-mutant matrix are untouched.
+
+**Product changes — the first product code to change since round 2** (rounds
+3–9 were all test-side):
+
+- `browser/raven-grab.js` — new spring block after `isTimingFunctionProperty`
+  (~:5317): `SPRING_PRESETS`, `springPosition`, `SPRING_SETTLE_EPSILON`,
+  `SPRING_MAX_MS`, `springCurve`, `simplifySpringSamples`,
+  `formatSpringLinear`. `raven-grab-spring-preset` added to
+  `isStyleValueControl` (~:6609). UI block appended AFTER the control chain,
+  gated on `isTimingFunctionProperty(property)`. CSS at ~:1128–1131.
+- `web/public/raven-grab.js` — `cp` mirror, re-verified with `cmp`.
+
+**Three details that are decisions, not incidentals.** Settle is the LAST moment
+outside the epsilon band, never the first moment inside it: an underdamped
+spring crosses 1 on every oscillation, so first-crossing lands mid-bounce and
+truncates the entire overshoot. Percentage stops are mandatory after RDP
+simplification, because bare values are spread EVENLY by the browser and
+simplified points are deliberately not evenly spaced. And the position is
+solved analytically in three branches (ζ<1, ζ=1, ζ>1) rather than integrated,
+because an integrator's error depends on its step size and that step size would
+silently decide how bouncy the emitted curve looks.
+
+**Test changes:** `test/grab-bridge.test.mjs` — five internals exported, plus a
+new `REGRESSION: spring -> linear() generation`. NEW
+`test/grab-overlay-spring-control.test.mjs`, 6 browser tests on the FULL probe
+pattern (loopback listen with `once('error')`, mkdtemp/writeFile/rm, launch,
+newPage, goto with `.ok()`, close) — deliberately not the older
+`catch → t.skip` shape, so it does not join the three files carrying the known
+skip-vs-pass hole.
+
+**Measured.** `node --test test/grab-bridge.test.mjs` → 288 / 286 pass / 0 fail
+/ 2 skipped, EXIT=0. `node --test test/grab-overlay-spring-control.test.mjs` →
+6 / 6 pass / 0 fail / 0 skipped, EXIT=0. Spring math probe: gentle ζ=0.913
+settle 579ms 21pts peak 1.0000 · smooth ζ=0.969 617ms 22pts 1.0000 · snappy
+ζ=0.693 597ms 27pts 1.0489 · bouncy ζ=0.391 995ms 38pts 1.2628; all four
+invalid-input cases return `null`. Cost probe 1.63 / 1.02 / 1.05 ms for all four
+presets, which is what justifies the explicit **not memoised** decision — and
+the comment carries the numbers, so the decision is falsifiable rather than
+asserted.
+
+**One false fail, caught and recorded.** Test 4 asserted
+`reopened.value === committed.inline` and went red on correct code: Chromium
+re-serializes an inline `linear(0, …, 1)` as `linear(0 0%, …, 1 100%)`, so the
+assertion was comparing the generator's output to the ENGINE'S NORMALISATION of
+it. Split into two assertions that each measure what they claim — verbatim
+against `committed.raw`, and `/^linear\(0 0%,.*, 1 100%\)$/` on `inline` as the
+strongest available evidence that Chromium PARSED it, since an unparseable
+timing function leaves the declaration empty. This repo's own rule, hit live: a
+derived expected-value is exactly as falsifiable as the thing it grades.
+
+**Two decisions owed to Andrew, each for a one-word overrule.** Theme /
+`prefers-color-scheme` is DECLINED as a deliberate design position — an overlay
+over arbitrary sites needs a stable dark boundary, and a light theme over a
+light page loses it; reported, not built. And the `type="email"` mic exclusion
+from Thread C still awaits his word.
+
+### Spring mutation matrix — measured, two rounds
+
+Harness `.claude/dialkit-2026-08-08/spring-mutants.mjs`. It serves each mutant to
+BOTH suites at once (`RAVEN_GRAB_ASSET_PATH` is what the bridge serves the
+browser, `RAVEN_GRAB_TEST_OVERLAY` is what `grab-bridge.test.mjs`'s internals
+loader reads) — a mutant reaching only one would report a radius measured against
+half the guards. It runs a clean baseline first and aborts if it is not green,
+`node --check`s every mutant, requires each find-string to be present AND unique,
+requires the exit status and the summary line to AGREE, treats a non-zero skip
+count in the browser suite as a failed measurement, and carries CONTROLS because
+a red-only matrix is structurally blind to a false fail.
+
+**v1: 9 mutants, 8 killed, 1 SURVIVED, 2 controls, 0 false-failed (EXIT=1).** The
+survivor was S9 — `springCurve` skips simplification and emits all 101 raw
+samples. It survived because every simplification test drove
+`simplifySpringSamples` in ISOLATION, which that mutation satisfies completely.
+Measured before writing the guard: the presets keep 21/22/27/38 of 101 points,
+worst vertical deviation 0.00197 against the 0.002 tolerance, `linear()` string
+233/242/299/432 chars; at tolerance 0.05 bouncy collapses to 7 points, at 0.2 to 4.
+
+**Guard added** in `test/grab-bridge.test.mjs`, inside the existing spring test so
+no test-count changes: a loop over `SPRING_PRESETS` asserting
+`curve.points.length <= 45` and worst vertical deviation `<= 0.005`, both bounds
+with their measured margin recorded in the comment. Two bounds because the two
+directions fail differently — too many points is an unreadable ~1100-character
+value in a row a human reads, too few is a curve that no longer traces the
+spring. S10 (tolerance 0.002 → 0.05) added for that inverse defect.
+
+**v2, re-run WHOLE per the standing rule: 10 mutants, 10 killed, 0 survived; 2
+controls, 0 false-failed (EXIT=0).** Baseline spring-control 6p/0f, grab-bridge
+286p/0f. Radii (spring-control, grab-bridge): S1 2 (2,0) · S2 1 (1,0) · S3 2
+(2,0) · S4 2 (2,0) · S5 1 (1,0) · S6 1 (0,1) · S7 2 (1,1) · S8 1 (0,1) · S9 1
+(0,1) · S10 1 (0,1). C1/C2 green.
+
+**S6 is the interesting radius and it is an honest boundary, not a gap to paper
+over:** dropping the percentage stops reddens ONLY the unit test, because
+Chromium re-serializes both the correct form and the evenly-spread form into the
+same `linear(0 0%, …, 1 100%)` shape and nothing in a rendered assertion measures
+timing. The browser suite is structurally blind to it; the unit test owns it, and
+the header says so.
+
+The suite header carried an UNMEASURED matrix declaration for a full round (S1–S7
+with stale labels and no radii) — an unmeasured claim in a comment is a defect by
+this repo's own rule. Replaced with the v2 figures, the four-invisible-mutants
+note, and the S9 story. Its "served through RAVEN_GRAB_ASSET_PATH" sentence was
+also false once the harness gained the second env var; corrected in the same pass.
+
+**Mirror verified:** `cmp browser/raven-grab.js web/public/raven-grab.js` →
+byte-identical.

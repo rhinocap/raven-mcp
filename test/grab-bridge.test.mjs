@@ -159,6 +159,11 @@ async function loadOverlayInternals(options = {}) {
     formatCubicBezier: typeof formatCubicBezier === "function" ? formatCubicBezier : undefined,
     unitOptionsForProperty: typeof unitOptionsForProperty === "function" ? unitOptionsForProperty : undefined,
     EASING_KEYWORDS: typeof EASING_KEYWORDS !== "undefined" ? EASING_KEYWORDS : undefined,
+    springCurve: typeof springCurve === "function" ? springCurve : undefined,
+    springPosition: typeof springPosition === "function" ? springPosition : undefined,
+    simplifySpringSamples: typeof simplifySpringSamples === "function" ? simplifySpringSamples : undefined,
+    formatSpringLinear: typeof formatSpringLinear === "function" ? formatSpringLinear : undefined,
+    SPRING_PRESETS: typeof SPRING_PRESETS !== "undefined" ? SPRING_PRESETS : undefined,
     enumOptionsForProperty: typeof enumOptionsForProperty === "function" ? enumOptionsForProperty : undefined,
     fontFamilyOptions: typeof fontFamilyOptions === "function" ? fontFamilyOptions : undefined,
     fontFamilyOptionLabel: typeof fontFamilyOptionLabel === "function" ? fontFamilyOptionLabel : undefined,
@@ -5780,6 +5785,141 @@ test('REGRESSION: cubic-bezier parsing refuses everything it cannot draw', async
     'a handle landing on a round number reads 0.5, not 0.500');
   assert.deepEqual(realm(parseEasingValue(formatCubicBezier([0.68, -0.55, 0.27, 1.55]))), [0.68, -0.55, 0.27, 1.55],
     'a formatted curve must parse back unchanged, or a drag drifts on every re-open');
+});
+
+test('REGRESSION: spring -> linear() generation', async () => {
+  const { internals } = await loadOverlayInternals();
+  const { springCurve, springPosition, simplifySpringSamples, formatSpringLinear, SPRING_PRESETS } = internals;
+  assert.equal(typeof springCurve, 'function', 'the spring generator must be reachable from the overlay');
+
+  // A step response starts at 0 and ends at 1. Both ends are ASSERTED rather
+  // than assumed: the analytic tail is within epsilon of 1 and not equal to it,
+  // so an unpinned endpoint leaves the element a hair short of its target
+  // forever — invisible on a colour, obvious on a translate.
+  for (const [label, k, c, m] of SPRING_PRESETS) {
+    const curve = springCurve(k, c, m);
+    assert.ok(curve, label + ' must produce a curve');
+    assert.equal(curve.points[0][0], 0, label + ' starts at t=0');
+    assert.equal(curve.points[0][1], 0, label + ' starts at value 0');
+    assert.equal(curve.points[curve.points.length - 1][0], 1, label + ' ends at t=1');
+    assert.equal(curve.points[curve.points.length - 1][1], 1, label + ' ends at exactly 1');
+    // Time must be strictly increasing: linear() reads its stops in order, and
+    // a repeated or reversed stop is a value the browser drops.
+    for (let i = 1; i < curve.points.length; i += 1) {
+      assert.ok(curve.points[i][0] > curve.points[i - 1][0],
+        label + ' stop ' + i + ' must advance in time');
+    }
+  }
+
+  // The whole reason a spring is not a bezier: it overshoots. `bouncy` must
+  // exceed 1 and `smooth` must not, or the preset names are decoration.
+  const bouncy = springCurve.apply(null, SPRING_PRESETS.find((p) => p[0] === 'bouncy').slice(1));
+  const smooth = springCurve.apply(null, SPRING_PRESETS.find((p) => p[0] === 'smooth').slice(1));
+  assert.ok(Math.max(...bouncy.points.map((p) => p[1])) > 1.1, 'bouncy overshoots visibly');
+  assert.ok(Math.max(...smooth.points.map((p) => p[1])) <= 1, 'smooth never overshoots');
+  assert.ok(bouncy.zeta < smooth.zeta, 'bouncy is the less damped of the two');
+
+  // Settle is the LAST moment outside the epsilon band, not the first moment
+  // inside it. An underdamped spring crosses 1 on every oscillation, so
+  // first-crossing lands mid-bounce and truncates the overshoot entirely.
+  const settleT = bouncy.settleMs / 1000;
+  const omega0 = Math.sqrt(320 / 1);
+  const zeta = 14 / (2 * Math.sqrt(320 * 1));
+  assert.ok(Math.abs(springPosition(settleT, omega0, zeta) - 1) < 0.001, 'settled by settleMs');
+  assert.ok(Math.abs(springPosition(settleT * 0.5, omega0, zeta) - 1) > 0.001,
+    'and NOT already settled at half that time — otherwise settleMs is measuring nothing');
+
+  // Overdamped and critically damped are separate branches of the solution and
+  // each has its own singularity waiting: omega_d is 0 at zeta === 1 and the
+  // two roots coincide there too.
+  const critical = springCurve(100, 20, 1);
+  assert.equal(critical.zeta, 1, 'fixture is exactly critically damped');
+  assert.ok(critical.points.every((p) => Number.isFinite(p[1])), 'no NaN at zeta === 1');
+  const over = springCurve(100, 40, 1);
+  assert.ok(over.zeta > 1);
+  assert.ok(over.points.every((p) => Number.isFinite(p[1])), 'no NaN when overdamped');
+  assert.ok(Math.max(...over.points.map((p) => p[1])) <= 1, 'an overdamped spring cannot overshoot');
+
+  // Refusal, not a guessed curve. A control that emits something for an
+  // impossible spring is the accepts-what-it-cannot-represent hazard again.
+  assert.equal(springCurve(0, 10, 1), null, 'zero stiffness is not a spring');
+  assert.equal(springCurve(-100, 10, 1), null, 'negative stiffness is not a spring');
+  assert.equal(springCurve(100, -1, 1), null, 'negative damping is not a spring');
+  assert.equal(springCurve(100, 10, 0), null, 'zero mass is not a spring');
+  assert.equal(springCurve('x', 10, 1), null);
+  assert.equal(springCurve(Infinity, 10, 1), null);
+
+  // Simplification must keep the endpoints and must not flatten the overshoot:
+  // the peak is the one point whose removal changes what the user sees.
+  const dense = [];
+  for (let i = 0; i <= 100; i += 1) dense.push([i / 100, i === 50 ? 5 : i / 100]);
+  const kept = simplifySpringSamples(dense, 0.002);
+  assert.equal(kept[0][0], 0);
+  assert.equal(kept[kept.length - 1][0], 1);
+  assert.ok(kept.some((p) => p[1] === 5), 'the spike survives simplification');
+  assert.ok(kept.length < dense.length, 'and the straight runs around it do not');
+  const straight = [];
+  for (let i = 0; i <= 100; i += 1) straight.push([i / 100, i / 100]);
+  // The overlay runs in its own realm, so its Arrays are not this realm's —
+  // rebuild the pairs here rather than comparing across the boundary.
+  const flattened = Array.from(simplifySpringSamples(straight, 0.002)).map((p) => [p[0], p[1]]);
+  assert.deepEqual(flattened, [[0, 0], [1, 1]],
+    'a perfectly straight line simplifies to its two endpoints');
+
+  // ...and springCurve must actually USE it. Everything above tests the
+  // simplifier in ISOLATION, which a curve handing back all 101 raw samples
+  // satisfies completely — that mutation (S9) survived the entire first matrix,
+  // so this block exists because it was measured missing, not because it reads
+  // thorough. Two bounds, because the two directions fail differently: too many
+  // points is an unreadable ~1100-character value in a row a human has to read,
+  // too few is a curve that no longer traces the spring. Both are measured with
+  // their margin recorded rather than guessed — the four presets keep
+  // 21/22/27/38 of 101 points, and the worst vertical deviation across all four
+  // is 0.00197 against the 0.002 RDP tolerance.
+  for (const [label, stiffness, damping, mass] of SPRING_PRESETS) {
+    const curve = springCurve(stiffness, damping, mass);
+    assert.ok(curve.points.length <= 45,
+      `${label}: springCurve emits the SIMPLIFIED curve, not all 101 samples (got ${curve.points.length})`);
+    const omega0 = Math.sqrt(stiffness / mass);
+    const zeta = damping / (2 * Math.sqrt(stiffness * mass));
+    let worst = 0;
+    for (let i = 0; i <= 100; i += 1) {
+      const fraction = i / 100;
+      // Endpoints are pinned by springCurve, so compare against what it pinned.
+      const exact = i === 0 ? 0
+        : i === 100 ? 1
+        : springPosition((fraction * curve.settleMs) / 1000, omega0, zeta);
+      let seg = 0;
+      while (seg < curve.points.length - 2 && curve.points[seg + 1][0] < fraction) seg += 1;
+      const [x0, y0] = curve.points[seg];
+      const [x1, y1] = curve.points[seg + 1];
+      const drawn = x1 === x0 ? y0 : y0 + ((fraction - x0) / (x1 - x0)) * (y1 - y0);
+      worst = Math.max(worst, Math.abs(exact - drawn));
+    }
+    assert.ok(worst <= 0.005,
+      `${label}: the simplified curve still traces the spring (worst deviation ${worst.toFixed(5)})`);
+  }
+
+  // Every interior point carries its own stop. Values alone are spread EVENLY
+  // by the browser, which is exactly wrong after simplification — the points
+  // are deliberately no longer evenly spaced.
+  const emitted = formatSpringLinear([[0, 0], [0.25, 1.2], [1, 1]]);
+  assert.equal(emitted, 'linear(0, 1.2 25%, 1)');
+  assert.equal(formatSpringLinear([[0, 0], [1, 1]]), 'linear(0, 1)');
+  assert.equal(formatSpringLinear([[0, 0]]), null, 'one point is not a curve');
+  assert.equal(formatSpringLinear([]), null);
+  assert.equal(formatSpringLinear(null), null);
+
+  // The generated value must fall back to the PLAIN-TEXT control, not to the
+  // bezier editor: linear() has no two control points to drag, and an editor
+  // that opened on one would rewrite it on commit. This is the whole
+  // generative-only contract, asserted rather than described.
+  const value = formatSpringLinear(bouncy.points);
+  assert.equal(internals.parseEasingValue(value), null, 'a spring is not a bezier');
+  assert.equal(internals.classifyStyleControl('transition-timing-function', value), 'text',
+    'a committed spring re-opens in the text control, where it round-trips verbatim');
+  assert.equal(internals.timingFunctionCount(value), 1,
+    'the commas INSIDE linear() are not top-level — one timing function, not twenty');
 });
 
 test('REGRESSION: style categories, Mixed multi-select write-through, size modes, overflow axes', async () => {
