@@ -270,6 +270,12 @@
   // Un-sent changes carried over from a prior page load (see the persistence
   // block near freezePendingDispatch); populated at boot once PENDING_STORE_KEY exists.
   var carriedPending = [];
+  // Last send-ready snapshot of each live draft, taken while its target was still
+  // CONNECTED, keyed by clientKey. This is the only thing that can rescue a draft
+  // whose element leaves the DOM without a page load — a slide deck, a tab switch,
+  // any in-page view change. It cannot be rebuilt at detach time: a detached node
+  // reports empty computed styles, so the payload has to already exist.
+  var lastConnectedPending = Object.create(null);
   // Set when Send is pressed while a dispatch is in flight; the next batch
   // auto-fires when the active one finishes (single-slot conveyor, never concurrent).
   var sendQueued = false;
@@ -4088,6 +4094,50 @@
     if (restore) restoreStyleDraftPreview(draft);
     if (styleDrafts[draft.clientKey] === draft) delete styleDrafts[draft.clientKey];
     if (activeStyleDraftKey === draft.clientKey) clearActiveStyleDraftState();
+    // Clear the rescue snapshot LAST, and unconditionally. Every route out of a
+    // draft comes through here — sent, deleted, or swept — so leaving the memo
+    // behind is how already-sent work would resurrect as a zombie Carried row.
+    // carryDetachedDraft() therefore has to run BEFORE the drop, not after.
+    delete lastConnectedPending[draft.clientKey];
+  }
+
+  // An element can leave the DOM with no navigation at all: a slide deck advancing,
+  // a tab panel swapping, a route change in an SPA. The sweep below used to treat
+  // that as garbage and drop the draft, which silently threw away typed
+  // instructions — the most common kind of feedback, and the one case with no
+  // styleEdits/tokenIntents to make draftAwaitingReconnect() hold it.
+  //
+  // pagehide never fires for any of those, so the sessionStorage carry cannot help
+  // either; it only ever ran on a real page load. Promoting the last connected
+  // snapshot into carriedPending reuses the existing carried-row path verbatim —
+  // rendered as a "Carried" row, removable, and sendable by POSTing the frozen
+  // payload with no live target — rather than inventing a second mechanism.
+  function carryDetachedDraft(draft) {
+    if (!draft) return false;
+    var entry = lastConnectedPending[draft.clientKey];
+    if (!entry) return false;
+    var already = carriedPending.some(function (existing) { return existing.key === entry.key; });
+    if (!already) carriedPending.push(entry);
+    // SCHEDULED, never persistPendingNow(): this runs inside the allStyleDrafts()
+    // sweep, and persistPendingNow() calls serializeLivePending() which calls
+    // allStyleDrafts() straight back. The debounced path breaks that cycle.
+    schedulePersistPending();
+    return !already;
+  }
+
+  // ONE owner for the stale-draft sweep. It shipped as two byte-identical copies
+  // (orderedSelection and allStyleDrafts), which is the two-copies-of-one-rule
+  // drift this codebase has paid for repeatedly: rescuing detached drafts in one
+  // of them would have left whichever ran first still dropping the work, and the
+  // bug would have looked half-fixed and intermittent.
+  function sweepStaleStyleDrafts() {
+    localStyleDrafts().forEach(function (draft) {
+      if (!draft.target) { carryDetachedDraft(draft); dropStyleDraft(draft, true); return; }
+      if (draft.target.isConnected === false && !draftAwaitingReconnect(draft)) {
+        carryDetachedDraft(draft);
+        dropStyleDraft(draft, true);
+      }
+    });
   }
 
   function draftAwaitingReconnect(draft) {
@@ -4945,12 +4995,80 @@
     return String(Math.round(number * 1000000000000) / 1000000000000);
   }
 
-  function steppedNumericValue(value, delta, defaultUnit) {
+  function steppedNumericValue(value, delta, defaultUnit, minPrecision) {
     var parsed = parseNumericExpression(value, defaultUnit);
     if (!parsed) return null;
     var next = parsed.number + delta;
     if (!isFinite(next)) return null;
-    return (parsed.precision ? next.toFixed(parsed.precision) : String(Math.round(next))) + parsed.unit;
+    var digits = Math.max(parsed.precision || 0, minPrecision || 0);
+    return (digits ? next.toFixed(digits) : String(Math.round(next))) + parsed.unit;
+  }
+
+  // The three-tier precision rule for every numeric edit — the two arrow-key
+  // steppers and the pointer scrub — kept in ONE function because it is one
+  // rule. Three private copies of it is the preview-vs-action drift this file
+  // documents elsewhere, and it is exactly how the coarse tier would end up
+  // meaning x10 in two places and x5 in the third.
+  //
+  // minPrecision is the load-bearing half and is NOT a formatting preference.
+  // Every consumer renders through `parsed.precision ? toFixed(...) :
+  // Math.round(...)`, where the precision comes from the value ALREADY IN THE
+  // FIELD — so on a whole-number value like "16px" an unfloored fine tier is
+  // quantised to whole units, and what that looks like DEPENDS ON THE CONTROL.
+  // Stated precisely because the first version of this paragraph said "rounds
+  // straight back to 16" of all three sites and an adverse pass refuted it:
+  //   - the two ARROW steppers move by exactly one 0.1 increment per press,
+  //     so 16 -> 16.1 -> Math.round -> 16. The key is observably DEAD.
+  //   - the pointer SCRUB accumulates, so a 5px drag is +0.5 and rounds to 17.
+  //     Not dead — it snaps by a whole unit, which is the COARSE behaviour
+  //     wearing the fine tier's label, and no finer value is reachable at all.
+  // Both are the same defect (the tier stops existing) and only the first is a
+  // dead control. Raising the floor to 1 digit is what makes the tier exist.
+  //
+  // WHAT MEASURES THAT, precisely — the previous version of this sentence said
+  // the fine-tier assertions in test/grab-bridge.test.mjs "fail if minPrecision
+  // is dropped from either the helper or a call site", and the measured matrix
+  // (.claude/dialkit-2026-08-08/precision-mutants.mjs) refuted the second half:
+  // dropping the floor at any of the three call sites left the ENTIRE suite
+  // green. The unit assertions grade this function and steppedNumericValue and
+  // can see nothing past them. test/grab-overlay-precision-tiers.test.mjs is
+  // what covers the wiring — it drives all three real controls in a browser on
+  // a whole-number value, where an unfloored step is quantised to whole units
+  // per the paragraph above. v3 of the matrix kills each call-site mutant at
+  // radius 1.
+  //
+  // What the RADIUS is evidence of, and what it is not. An earlier version of
+  // this sentence read "radius 1, one test each, which is what proves those are
+  // three separate wirings" — and radius proves no such thing, which this
+  // codebase's own standing rule says out loud: a radius is a fact about a
+  // mechanism, never evidence of independent guards, and two mutations on ONE
+  // execution path can each redden the same single test. What actually
+  // establishes three separate wirings is that P5/P6/P7 sit at three distinct
+  // source locations and each reddens a DIFFERENT NAMED test — which is only
+  // readable at all because the harness reports failing test names rather than
+  // counts. Radius 1 adds one narrower fact on top: no call site is covered
+  // incidentally by another site's test.
+  //
+  // The ROUNDING rule genuinely does have two copies, and that is a residual
+  // rather than an oversight: beginStyleScrub's move() re-derives
+  // `Math.max(precision, minPrecision)` inline instead of calling
+  // steppedNumericValue, which is why mutant P4 (the shared formatter ignores
+  // its floor) reddens the two arrow-key tests and NOT the scrub. They are not
+  // trivially unifiable — the scrub parses with parseNumericValue and the helper
+  // with parseNumericExpression, so they accept different inputs, and collapsing
+  // them is a behaviour change, not a refactor. Both copies are covered.
+  //
+  // SHIFT WINS when both keys are held. Stated rather than left to fall out of
+  // the branch order: shift is the older binding and a user holding both should
+  // get the tier they already know, not a surprise.
+  //
+  // `alt` is free here. It is bound on the CANVAS to select-parent and to the
+  // armed toggle, but the scrub begins in the panel mousedown handler, which
+  // filters on `event.button` alone — checked before choosing the key, not after.
+  function scrubPrecisionMode(event) {
+    if (event && event.shiftKey) return { multiplier: 10, minPrecision: 0 };
+    if (event && event.altKey) return { multiplier: 0.1, minPrecision: 1 };
+    return { multiplier: 1, minPrecision: 0 };
   }
 
   // A single hex or rgb()/rgba() color — NOT a compound shorthand like the
@@ -5403,6 +5521,24 @@
     // Pin the ends: the last analytic sample is within epsilon of 1 but not
     // equal to it, and a curve that does not finish at exactly 1 leaves the
     // element a hair short of its target forever.
+    //
+    // The pin is CORRECT only because settleMs found a real settle time, and it
+    // is unconditional, so a spring too slow to settle inside SPRING_MAX_MS gets
+    // its unfinished tail yanked to 1. Stated at its worst rather than its most
+    // reassuring: springCurve(0.0001, 0.02, 1) is critically damped with
+    // omega0 = 0.01, the search runs off the end and returns settleMs = 10001,
+    // and the true position there is 0.00468 — so the emitted curve ends with a
+    // ~0.995 vertical jump, which is not a spring, it is a snap.
+    //
+    // NOT guarded, deliberately. SPRING_PRESETS are the only inputs any surface
+    // can hand this function — there is no stiffness/damping/mass field in the
+    // UI, by the generative-only decision this feature rests on — and all four
+    // settle in 579/617/597/995ms against a 10000ms cap, where the pin moves the
+    // endpoint by less than 0.001 (the epsilon band, by construction). Measured,
+    // not reasoned: scripts/measure-spring-settle.mjs. A refusal here would be a
+    // mechanism guarding a non-problem, which this file refuses on principle.
+    // Reopen if a custom-spring input ever ships: at that point the branch is
+    // reachable and the honest answer is to refuse the curve, not to pin it.
     samples[0][1] = 0;
     samples[steps][1] = 1;
     return { points: simplifySpringSamples(samples, 0.002), settleMs: settleMs, zeta: zeta };
@@ -6543,12 +6679,14 @@
       if (event.key === "ArrowUp" || event.key === "ArrowDown") {
         if (currentSizeMode() !== "fixed") return;
         event.preventDefault();
-        var delta = event.shiftKey ? 10 : 1;
+        var mode = scrubPrecisionMode(event);
+        var delta = mode.multiplier;
         if (event.key === "ArrowDown") delta *= -1;
         var stepped = steppedNumericValue(
           numberInput.value.trim() || (parsed ? String(parsed.number) : "0"),
           delta,
-          unitSelect.value || "px"
+          unitSelect.value || "px",
+          mode.minPrecision
         );
         if (stepped === null) return;
         var steppedParsed = parseNumericValue(stepped);
@@ -7377,9 +7515,10 @@
     input.addEventListener("keydown", function (event) {
       if (control === "number" && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
         event.preventDefault();
-        var delta = event.shiftKey ? 10 : 1;
+        var mode = scrubPrecisionMode(event);
+        var delta = mode.multiplier;
         if (event.key === "ArrowDown") delta *= -1;
-        var stepped = steppedNumericValue(input.value, delta, input.unitSelect ? input.unitSelect.value : "");
+        var stepped = steppedNumericValue(input.value, delta, input.unitSelect ? input.unitSelect.value : "", mode.minPrecision);
         if (stepped !== null) {
           var parsedStep = parseNumericValue(stepped);
           input.value = parsedStep.number;
@@ -7443,10 +7582,13 @@
 
     function move(moveEvent) {
       if (target !== selectedElement || valueCell.isConnected === false) { cancel(); return; }
-      var delta = moveEvent.clientX - startX;
-      if (moveEvent.shiftKey) delta *= 10;
+      var mode = scrubPrecisionMode(moveEvent);
+      var delta = (moveEvent.clientX - startX) * mode.multiplier;
       var nextNumber = Number(parsed.number) + delta;
-      var nextText = precision ? nextNumber.toFixed(precision) : String(Math.round(nextNumber));
+      // Math.max, not `mode.minPrecision ||` — a value that already carries two
+      // decimals must not LOSE one to the fine tier's floor of 1.
+      var digits = Math.max(precision, mode.minPrecision);
+      var nextText = digits ? nextNumber.toFixed(digits) : String(Math.round(nextNumber));
       var nextValue = nextText + parsed.unit;
       if (!previewStyleEdit(property, nextValue)) return;
       moved = true;
@@ -7712,10 +7854,7 @@
     var live = [];
     var previousPrimary = selectedElement;
     var previousActiveDraft = activeStyleDraft();
-    localStyleDrafts().forEach(function (draft) {
-      if (!draft.target) { dropStyleDraft(draft, true); return; }
-      if (draft.target.isConnected === false && !draftAwaitingReconnect(draft)) dropStyleDraft(draft, true);
-    });
+    sweepStaleStyleDrafts();
     multiSelections.forEach(function (element) {
       if (!element || element.isConnected === false || live.indexOf(element) !== -1) return;
       live.push(element);
@@ -9492,10 +9631,7 @@
   }
 
   function allStyleDrafts() {
-    localStyleDrafts().forEach(function (draft) {
-      if (!draft.target) { dropStyleDraft(draft, true); return; }
-      if (draft.target.isConnected === false && !draftAwaitingReconnect(draft)) dropStyleDraft(draft, true);
-    });
+    sweepStaleStyleDrafts();
     var drafts = localStyleDrafts();
     var active = activeStyleDraft();
     if (active) drafts.push(active);
@@ -10018,13 +10154,18 @@
       try {
         var ctx = styleDraftContextForFreeze(draft, instruction);
         var payload = JSON.parse(JSON.stringify(payloadForSend(true, draft.target, ctx)));
-        out.push({
+        var entry = {
           key: "live:" + draft.clientKey,
           pathname: location.pathname,
           endpoint: grabConfig ? grabConfig.grabEndpoint : bridgeUrl("/grab"),
           label: payload.selector || draft.selector || "element",
           payload: payload
-        });
+        };
+        // Remember it while the node is still connected. carryDetachedDraft()
+        // promotes this exact object later if the element disappears without a
+        // navigation, which is the only moment the payload is still buildable.
+        lastConnectedPending[draft.clientKey] = entry;
+        out.push(entry);
       } catch (error) { /* selection resolved to nothing mid-serialize — skip it */ }
     });
     return out;
@@ -12384,6 +12525,14 @@
     if (preset) showPanelPresetTooltip(preset);
   });
   onPanels("focusout", function (event) {
+    // Snapshot immediately when the instruction box loses focus. The persist is
+    // otherwise debounced 250ms, and clicking a deck's next-slide control blurs
+    // this field and then detaches the element well inside that window — the
+    // rescue in carryDetachedDraft() can only promote a snapshot that exists.
+    // Blur is the right hook because focus always moves before the click lands.
+    if (event.target && event.target.getAttribute && event.target.getAttribute("data-instruction") !== null) {
+      persistPendingNow();
+    }
     var preset = panelPresetTrigger(event.target);
     if (!preset || (event.relatedTarget && preset.contains(event.relatedTarget))) return;
     if (typeof preset.matches === "function" && preset.matches(":hover")) return;

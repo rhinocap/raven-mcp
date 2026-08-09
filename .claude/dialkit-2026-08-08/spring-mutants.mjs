@@ -60,11 +60,33 @@ const MUTANTS = [
   ['S10', 'the simplification tolerance is loose enough to flatten the curve',
     '    return { points: simplifySpringSamples(samples, 0.002), settleMs: settleMs, zeta: zeta };',
     '    return { points: simplifySpringSamples(samples, 0.05), settleMs: settleMs, zeta: zeta };', 'red'],
+  // Round-1 adverse pass (Sol). S11 and S12 exist because the call-site guard
+  // used to grade `curve.points` — the numbers BEFORE formatSpringLinear — while
+  // the browser consumes the STRING, so the whole matrix was blind to the two
+  // roundings on the way out. S13 exists because the suite header named three
+  // plain-text fallbacks and only one of them had a fixture.
+  ['S11', 'the formatter rounds values to one decimal instead of four',
+    '      var value = Math.round(point[1] * 10000) / 10000;',
+    '      var value = Math.round(point[1] * 10) / 10;', 'red'],
+  ['S12', 'the simplification tolerance drifts 0.002 -> 0.005 (under the OLD 0.005 bound this survived)',
+    '    return { points: simplifySpringSamples(samples, 0.002), settleMs: settleMs, zeta: zeta };',
+    '    return { points: simplifySpringSamples(samples, 0.005), settleMs: settleMs, zeta: zeta };', 'red'],
+  ['S13', 'springs are gated on a SINGLE timing function, dropping them from a compound list',
+    '    if (isTimingFunctionProperty(property)) {\n      var springs = document.createElement("div");',
+    '    if (isTimingFunctionProperty(property) && timingFunctionCount(previousValue) === 1) {\n      var springs = document.createElement("div");', 'red'],
   // CONTROLS. Both change the shipped bytes and neither changes any behaviour
   // under test, so a matrix reporting either as red is over-reporting.
-  ['C1', 'CONTROL: the section hint reads "springs" instead of "spring"',
-    '      springHint.textContent = "spring";',
-    '      springHint.textContent = "springs";', 'green'],
+  //
+  // C1 was 'the section hint reads "springs" instead of "spring"' for one round
+  // and the round-1 adverse pass was right to refuse it: that edit changes text
+  // a human READS, so its greenness said only that no assertion happened to
+  // cover the copy — a control has to be behaviour-neutral, not merely
+  // unasserted. Swapping the two RDP recursion pushes is neutral by
+  // construction: `keep` is a set keyed by index and the result is produced by
+  // an index-ordered filter, so processing order cannot reach the output.
+  ['C1', 'CONTROL: the RDP recursion pushes its two halves in the other order',
+    '        stack.push([range[0], worstAt]);\n        stack.push([worstAt, range[1]]);',
+    '        stack.push([worstAt, range[1]]);\n        stack.push([range[0], worstAt]);', 'green'],
   ['C2', 'CONTROL: the settle search cap drops to 9s (every preset settles in <1s)',
     '  var SPRING_MAX_MS = 10000;',
     '  var SPRING_MAX_MS = 9000;', 'green']

@@ -1525,3 +1525,347 @@ also false once the harness gained the second env var; corrected in the same pas
 
 **Mirror verified:** `cmp browser/raven-grab.js web/public/raven-grab.js` →
 byte-identical.
+
+---
+
+## Gates on the spring feature — all green (2026-08-08)
+
+**Full suite** `RAVEN_NO_USAGE_LOG=1 npm test` → **1488 tests / 1485 pass / 0 fail
+/ 3 skipped, EXIT=0** — exactly the predicted +7 (6 browser + 1 unit). The 3 skips
+are the pre-existing ones at output lines 109/713/714 (the file-URL fallback
+notice and the two removed-capability phase2 tests); **none is the new suite**,
+checked by READING the skip lines rather than inferred from the total being
+unchanged. All 6 spring browser tests passed (output lines 838–843) plus the unit
+test (line 636).
+
+**Browser-absent path**, measured separately with playwright resolution forced to
+throw: 6 tests / 0 pass / 0 fail / **6 skipped**, exit 0, each skip carrying
+`# browser unavailable for overlay spring control; probe said: Cannot find
+package 'playwright'`. My first invocation passed `NOPW_RESOLVER=1` and got
+`ERR_MODULE_NOT_FOUND … '/Users/accunliffe/projects/raven-mcp/1'` — the env var
+is the resolver PATH, not a flag.
+
+**Mirror** byte-identical. **Private-paths gate** 4/4 green *after* `git add` —
+it scans the INDEX, not the worktree.
+
+**Three header claims were false when read, and each is corrected:** it named a
+single env var where the harness serves two; it pointed at
+`agent-output/spring-matrix-v2.txt` as the run of record, which is GITIGNORED, so
+the figures are reproduced inline instead; and it carried an unmeasured S1–S7
+declaration with stale labels and no radii for a full round.
+
+## Sol falsification round 1 on the spring feature — DOES NOT SURVIVE
+
+Log `.claude/dialkit-2026-08-08/agent-output/spring-sol.log`, 1,613,974 bytes (so
+not a silent clean exit). Brief at `.claude/dialkit-2026-08-08/spring-sol-brief.md`.
+Verdict **4 × P2 + 2 × P3**. Every arithmetic claim was independently reproduced
+with my own probe before any fix — none accepted on report.
+
+**P2-1 (REAL, fixed) — the matrix was blind to formatter precision loss.** The
+call-site guard measured `curve.points`, the numbers BEFORE `formatSpringLinear`,
+and the browser consumes the STRING. The formatter loses precision twice: values
+`Math.round(v*10000)/10000`, stops `Math.round(x*1000)/10` (0.1%). Coarsen the
+value rounding to ONE decimal and the emitted curve's worst deviation goes
+0.001930 → 0.048877 while every `curve.points` assertion stays green. The guard
+now parses the emitted `linear()` back and grades THAT.
+
+**P2-3 (REAL, fixed by the same edit) — the 0.002 tolerance was not pinned.**
+Loosening `simplifySpringSamples(samples, 0.002)` to `0.005` yields worst 0.005017,
+which the old `<= 0.005` bound passed. A single **0.0025** bound on the FORMATTED
+curve kills both, with ~30% headroom over the measured 0.001930.
+
+**P2-4 (REAL, fixed) — compound-list placement was claimed and never exercised.**
+The header names three plain-text fallbacks (`steps()`, an existing `linear()`, a
+compound list) and only `steps()` had a fixture; a gate of
+`isTimingFunctionProperty(property) && timingFunctionCount(previousValue) === 1`
+left every fixture green while silently dropping springs from a compound row.
+Added `#compound` to the fixture and a 7th browser test. **The first draft of that
+comment took the whole file down at parse time** — it quoted the gate in backticks
+inside the fixture's template literal and closed the string; the comment now says
+so, since the next person to document a JS expression in that block will reach for
+backticks too.
+
+**P2-2 (REAL, DOCUMENTED not guarded) — the 10s cap can pin an unsettled curve.**
+`samples[steps][1] = 1` is unconditional, so a spring too slow to settle inside
+`SPRING_MAX_MS` gets its unfinished tail yanked to 1. Measured against the
+product's own `springPosition`: `springCurve(0.0001, 0.02, 1)` returns
+`settleMs = 10001` (cap+1) with a true position there of 0.004680 — a **0.9953
+vertical jump**, which is a snap, not a spring. NOT guarded, deliberately: the
+four presets are the only inputs any surface can produce (there is no
+stiffness/damping/mass field, by the generative-only decision this feature rests
+on) and they settle in 579/617/597/995ms, where the pin moves the endpoint by
+<0.001. A refusal would be a mechanism guarding a non-problem. The comment states
+the harm at its worst and names the reopen condition (a custom-spring input).
+
+**P3-1 (REAL, fixed) — control C1 was not behaviour-neutral.** It changed the
+section hint from "spring" to "springs", which is text a human READS, so its
+greenness said only that no assertion happened to cover the copy. Replaced with a
+swap of the two RDP recursion pushes: `keep` is a set keyed by index and the
+result is an index-ordered filter, so processing order cannot reach the output.
+
+**P3-2 (REAL, fixed) — "NOTHING rendered can see it" was false.** Corrected in
+BOTH the suite header and the CLAUDE.md landmine: this suite's assertions read DOM
+properties and committed strings, and Chromium re-serializes the stopped and bare
+forms identically — but a rendered element WOULD move differently, so it is a
+limit of the instruments, not a claim the defect is unobservable.
+
+**New durable artifact: `scripts/measure-spring-settle.mjs`.** Both comments now
+cite numbers, and the scratchpad probes that produced them are garbage-collected,
+so the measurement of record is a tracked script. It slices `springPosition`,
+`simplifySpringSamples` and `formatSpringLinear` VERBATIM out of the overlay and
+evaluates them — grading the product's own arithmetic, not a reimplementation —
+and each slice is shape-checked, because the failure mode of a text-anchored
+extractor is silently grabbing the wrong span. Output: settle time, how far the
+pin moves the endpoint, kept/101, emitted characters and worst FORMATTED deviation
+per preset, plus the unsettled branch stated at its worst.
+
+**Three mutants added** (S11 one-decimal formatting, S12 tolerance drift to 0.005,
+S13 the compound gate) and the WHOLE matrix re-run per the standing rule — a
+find-string mutant dies silently the moment its target line is edited.
+
+### Round-1 dispositions all landed; matrix v3 and both gates re-run on the fixed tree
+
+**Matrix v3** (`.claude/dialkit-2026-08-08/agent-output/spring-matrix-v3.txt`,
+gitignored): baseline spring-control **7p/0f**, grab-bridge **286p/0f**;
+**13 mutants, 13 killed, 0 survived; 2 controls, 0 false-failed, EXIT=0.**
+Re-run WHOLE per the standing rule. Radii: S1 3 · S2 1 · S3 2 · S4 2 · S5 1 ·
+S6 1 (bridge) · S7 2 (1+1) · S8 1 (bridge) · S9 1 (bridge) · S10 1 (bridge) ·
+S11 1 (bridge) · S12 1 (bridge) · S13 1 (spring-control).
+
+**Only S1 moved between v2 and v3 (2 → 3)** — the new compound test shares its
+mechanism. A fact about the mechanism, not an extra guard.
+
+**S11 and S12 redden the SAME assertion** (the 0.0025 bound) and are separated
+only by the number in its message (0.048877 vs 0.005017). Stated in the suite
+header so two radius-1 rows do not read as two independent guards.
+
+**Full suite** `RAVEN_NO_USAGE_LOG=1 npm test` → **1489 tests / 1486 pass /
+0 fail / 3 skipped, EXIT=0** — exactly the predicted +1. Skip lines READ, not
+inferred: line 109 (`file URL fallback marks reveal and settle checks as
+unavailable # browser available — fallback path not used`), 713 and 714 (the two
+removed-capability phase2 tests). **None is the spring suite.**
+
+**Browser-absent path**: 7 tests / 0 pass / 0 fail / **7 skipped**, exit 0, each
+carrying `# browser unavailable for overlay spring control; probe said: Cannot
+find package 'playwright'`.
+
+**Mirror** `cmp browser/raven-grab.js web/public/raven-grab.js` → byte-identical
+(re-done after the P2-2 comment landed in the overlay).
+
+**Private-paths gate** `node --test test/no-private-paths.test.mjs` →
+**4 tests / 4 pass / 0 fail**, run AFTER `git add` — it scans the INDEX, not the
+worktree.
+
+**Staged (8 explicit paths):** `M .claude/dialkit-2026-08-08/spring-mutants.mjs` ·
+`M CLAUDE.md` · `M browser/raven-grab.js` ·
+`M conversations/2026-08-08-dialkit-voice.md` ·
+`A scripts/measure-spring-settle.mjs` · `M test/grab-bridge.test.mjs` ·
+`M test/grab-overlay-spring-control.test.mjs` · `M web/public/raven-grab.js`.
+
+**Not committed by me, not pushed, no release. `src/` untouched** — the anon-45
+hash and the 110/65 stdio count cannot have moved.
+
+**No Sol round 2 on the fixed tree, deliberately.** Andrew ended the cadence
+("Let's stop this after this round comes back") while round 9 of the
+mic-alignment suite was in flight. The spring suite's round 1 came back, every
+finding is dispositioned, and opening a second round here would be the thing he
+stopped. The consequence is stated rather than hidden: **the round-1 FIXES have
+not themselves been adversarially reviewed**, so this is reported as changed in
+the working tree, not as finished work.
+
+### Still owed to Andrew — two decisions and one blocker
+
+1. **Theme / `prefers-color-scheme`: DECLINED as a deliberate design position**,
+   reported for his overrule rather than built. The overlay sits over arbitrary
+   third-party sites and its dark chrome is what separates Raven's surface from
+   the page underneath; a light theme over a light page loses that boundary.
+   DialKit is a standalone app and has no such constraint.
+2. **The `type="email"` mic exclusion** (three address inputs carry no mic)
+   stands against the standing "any input should take voice" rule, because
+   dictated addresses fail silently. Awaiting his one-word overrule.
+3. **Thread A (Higgsfield) is blocked on one thing only: Andrew must name the
+   brand.** Runbook is `docs/brand-genesis-flow.md` — interview →
+   `generate_mood_board` (approval stop) → `generate_design_system({brand_color,
+   style, format:"all", save:true})` → `init_design_md({source:"<slug>"})`.
+
+---
+
+## Checkpoint — Andrew's deck bug, and the coverage hole my own matrix found
+
+### Deck bug — FIXED, working tree only
+
+Report: *"I am trying to give feedback on my deck on my portfolio, and I can
+only give instructions on one slide at a time, when I navigate to a new one I
+lose the rest"*; confirmed *"the url does not change for each slide, it stays
+the same"* — so every slide swap is an in-page node swap, not a navigation.
+
+Diagnosis: an instruction-only draft has nothing making `draftAwaitingReconnect`
+hold it, so selecting on the NEXT slide stashes the previous draft and the very
+next sweep drops it for having a detached target. The cross-navigation carry
+(sessionStorage + `pagehide`) never applied — `pagehide` does not fire on an
+in-page swap. A detached node reports empty computed styles, so the rescue has
+to be a snapshot taken WHILE the node is still connected.
+
+Six edits in `browser/raven-grab.js`, mirrored byte-identical to
+`web/public/raven-grab.js`. New `test/grab-overlay-detached-draft.test.mjs`
+(2 tests, full chromium probe, local session, two-slide fixture whose outgoing
+slide is REMOVED).
+
+Mutant matrix v2 (`.claude/dialkit-2026-08-08/detached-draft-mutants.mjs`):
+**5 mutants, 4 killed, 0 unexpected survivors, 1 EXPECTED survivor; 1 control,
+0 false-failed.** D2/D3/D4/D5 each radius 2. D1 (`!draft.target` arm) is an
+expected survivor — drafts are built `target: styleEditTarget || selectedElement`
+(`browser/raven-grab.js:3963`), so no constructible input reaches it. Both tests
+passed on the first run, which was worth nothing until the matrix proved them red.
+
+**Andrew must reload his deck page** — the bridge serves the overlay from disk
+per request, so the running tab still has the old one.
+
+### Precision matrix repaired — and it found a real hole in my own feature
+
+v1 was defective (7/7 survived, control false-failed). Three faults, all mine:
+the `- 1` radius correction was still in the CODE while only its COMMENT had
+been edited away; the control renamed `mode` on two of three lines and was
+therefore a real break, not a control; and it reported counts with no failing
+test names.
+
+v2 answered the question it was built to ask, in the wrong direction:
+**4 killed, 3 survived, and the three survivors were exactly the three CALL
+SITES.** Nothing observed whether the pointer scrub or either arrow-step passed
+the precision floor through. The comment above `scrubPrecisionMode` claimed the
+opposite.
+
+### Closing it
+
+New `test/grab-overlay-precision-tiers.test.mjs` — 3 browser tests, one per call
+site, on a whole-number fixture (`font-size: 16px`, `width: 240px`) where an
+unfloored fine-tier step rounds straight back and the control is observably dead.
+
+Two things had to be corrected before it measured anything:
+
+- The scrub arms on the property **LABEL** (`[data-style-label]` mousedown), not
+  the value cell. Pressing the value opens the editor — a different call site —
+  so the first draft measured the arrow-step site twice and its scrub assertion
+  read `null`/`''`.
+- Reading `data-style-raw` after a scrub reads null: the mouseup's trailing click
+  opens the editor and takes that cell out of the DOM. The element's inline style
+  is available either way and is the stronger measurement.
+
+**Matrix v3 (`agent-output/precision-matrix-v3.txt`): 7 mutants, 7 killed, 0
+survived; 1 control, 0 false-failed.** P5/P6/P7 each radius 1, a *different*
+test each — that is what proves three separate wirings. P4 (shared formatter
+ignores its floor) reddens the two ARROW tests but NOT the scrub, because
+`beginStyleScrub.move()` re-derives the rounding inline rather than calling
+`steppedNumericValue`. Stated residual, not fixed: the two use different parsers
+(`parseNumericValue` vs `parseNumericExpression`), so collapsing them is a
+behaviour change. Both copies are covered.
+
+Two further harness repairs, both found by v3 itself:
+- The name regex was lazy and truncated at the first `(`, so all three call-site
+  names collapsed to `CALL SITE` — unattributable again, one version after being
+  fixed for exactly that. Anchored on the duration suffix now, in both harnesses.
+- `skipped === 0` was the wrong shape: `grab-bridge.test.mjs` carries two
+  legitimate skips and the guard aborted the matrix on a healthy tree. The count
+  is pinned against the BASELINE now, so what fails is a count that MOVED.
+
+`browser/raven-grab.js` comment above `scrubPrecisionMode` rewritten to say what
+actually measures what.
+
+### Measured
+
+`RAVEN_NO_USAGE_LOG=1 npm test` → **1495 tests / 1492 pass / 0 fail / 3 skipped**,
+EXIT=0. +3 over 1492 is exactly the three new call-site tests. The 3 skips READ
+at output lines 109/714/715 — the file-URL fallback notice and the two
+removed-capability phase2 tests. Mirror `cmp` clean.
+
+CLAUDE.md updated: ledger figure 1492 → 1495 with the accounting, the harness
+landmine extended with faults (d) and (e), and a new landmine for the precision
+call sites.
+
+### Thread-B correction owed to Andrew
+
+I told him the open DialKit items were "spring time mode and panel
+repositioning". This log is the durable record and it says otherwise: **spec 1
+(`set_grabbed_style`) is HELD** — unhold is his word AND `proxyCaptureOnly()`
+gating wired through it first — and **spec 2 (named presets/versions) is
+optional-next**. The timeline (DialKit #27–40) is OUT of scope: Jitter/Morven
+territory. Corrected to him in-line.
+
+### State
+
+Nothing committed, nothing pushed, `src/` untouched — so the anon-45 golden hash
+and the 110/65 stdio count cannot have moved. Thread A still blocked on Andrew
+naming the brand. The `type="email"` mic exclusion stands until he overrules it.
+
+---
+
+## Sol falsification round on the precision call-site work (2026-08-08, late)
+
+**Verdict: DOES NOT SURVIVE — 2 × P2 + 2 × P3, all four real, all four fixed.**
+
+The FIRST Sol run was a failed run wearing a clean bill: exit 0, 1094 bytes, no
+model turn at all — output stopped after the UserPromptSubmit hooks. Recorded
+here because the standing rule says never disposition an empty adverse output as
+"no findings"; the re-run produced 680KB and the verdict above.
+
+### P2 (f) — a relative skip guard cannot detect a baseline that measures nothing
+
+v3 pinned each mutant's skip count to the BASELINE's. Sol reproduced the hole
+under a denied loopback (`listen EPERM`): the precision suite returns
+0 pass / 0 fail / 3 skipped, every mutant matches it exactly, the guard passes,
+and P5/P6/P7 print SURVIVED on a machine where nothing ran. That output is
+byte-identical to the real v2 verdict that started this entire round — the
+instrument could not tell "the call sites are unguarded" from "chromium is
+unavailable".
+
+Fixed with `EXPECTED_BASELINE_SKIPS` declared per suite (grab-bridge 2,
+precision 0 — both MEASURED off the baseline line, not assumed) plus a
+`pass > 0` floor, graded before any mutant runs.
+
+### P2 (g) — `EXIT=0` proved only that the script reached its last line
+
+v3 printed survivors and false-fails and then exited 0 regardless. Since the
+matrix result is captured to a file with `echo "EXIT=$?"` appended and read
+back later, that number was pure noise. Both harnesses now set
+`process.exitCode = 1` on an unexpected survivor or a false fail; the
+detached-draft harness excludes its one DECLARED expected survivor (D1).
+
+### P3 — "rounds straight back to 16" was false of one of the three sites
+
+The comment (and the CLAUDE.md landmine) said an unfloored fine tier rounds back
+to its start and the control is observably dead, of all three sites. True of the
+two ARROW steppers (16 -> 16.1 -> `Math.round` -> 16, dead key). FALSE of the
+pointer SCRUB, which accumulates: a 5px drag is +0.5 and rounds to **17**. Not
+dead — snapping by a whole unit, i.e. the COARSE behaviour wearing the fine
+tier's label. Same defect, two different symptoms. Corrected in both places.
+
+### P3 — radius 1 does not prove separate wiring
+
+Sol cited this repo's own standing rule back at it: a radius is a fact about a
+mechanism, never evidence of independent guards, and two mutations on ONE
+execution path can each redden the same single test. What actually establishes
+three separate wirings is that P5/P6/P7 sit at three distinct source locations
+and each reddens a **different NAMED test** — readable only because the harness
+reports names rather than counts. Radius 1 adds the narrower fact that no call
+site is covered incidentally by another site's test. Corrected in both places.
+
+### Measured after the fixes
+
+- Matrix **v4**, re-run WHOLE per the standing rule: baseline
+  `grab-bridge 287p/0f/2s  precision 3p/0f/0s`; **7 mutants, 7 killed, 0
+  survived; 1 control, 0 false-failed.** No radius moved from v3 (P1 4, P2 4,
+  P3 1, P4 3, P5/P6/P7 1 each) — expected, since the only product change is a
+  comment, but re-measured rather than carried forward.
+- Both new guards proven FALSIFIABLE rather than asserted:
+  - Probe A — a copy with the declared expectation deliberately wrong (3 vs the
+    measured 0) aborts on its own named assertion, exit 1.
+  - Probe B — a copy declaring the behaviour-neutral control as `red` reports
+    SURVIVED and exits 1.
+- Mirror `cmp` clean after the comment edit.
+
+### Still owed
+
+Full `npm test` re-run after the comment edit (comment-only, so the 1495/1492
+figure should hold — but it is a MEASUREMENT and gets re-measured before it is
+quoted). Then commit with `git commit --only <explicit paths>`; the index
+carries four files from earlier in the session.

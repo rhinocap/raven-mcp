@@ -143,6 +143,8 @@ async function loadOverlayInternals(options = {}) {
     layerMeasurable: typeof layerMeasurable === "function" ? layerMeasurable : undefined,
     shortenedLayerText: typeof shortenedLayerText === "function" ? shortenedLayerText : undefined,
     parseNumericExpression: typeof parseNumericExpression === "function" ? parseNumericExpression : undefined,
+    steppedNumericValue: typeof steppedNumericValue === "function" ? steppedNumericValue : undefined,
+    scrubPrecisionMode: typeof scrubPrecisionMode === "function" ? scrubPrecisionMode : undefined,
     alternativesFor: alternativesFor,
     tokenIntentFor: tokenIntentFor,
     computedStylesFor: computedStylesFor,
@@ -5870,16 +5872,52 @@ test('REGRESSION: spring -> linear() generation', async () => {
   // simplifier in ISOLATION, which a curve handing back all 101 raw samples
   // satisfies completely — that mutation (S9) survived the entire first matrix,
   // so this block exists because it was measured missing, not because it reads
-  // thorough. Two bounds, because the two directions fail differently: too many
-  // points is an unreadable ~1100-character value in a row a human has to read,
-  // too few is a curve that no longer traces the spring. Both are measured with
-  // their margin recorded rather than guessed — the four presets keep
-  // 21/22/27/38 of 101 points, and the worst vertical deviation across all four
-  // is 0.00197 against the 0.002 RDP tolerance.
+  // thorough.
+  //
+  // It grades the FORMATTED STRING, not `curve.points`. That is the whole
+  // correction from the round-1 adverse pass: the browser consumes the string,
+  // and `formatSpringLinear` loses precision twice on the way there — values
+  // round to 4 decimals and stops to 0.1%. A guard reading the pre-format
+  // numbers is blind to both. Measured: coarsen the value rounding to ONE
+  // decimal and the emitted curve's worst deviation goes 0.00193 -> 0.04888
+  // while every assertion on `curve.points` stays green.
+  //
+  // Three bounds, because three things fail differently. Too many points is an
+  // unreadable ~1100-character value in a row a human has to read. Too few is a
+  // curve that no longer traces the spring. And a formatter that DROPS points
+  // would satisfy both while emitting a different curve, so the parse is
+  // required to round-trip the count.
+  //
+  // Every bound is measured with its margin recorded rather than guessed: the
+  // four presets keep 21/22/27/38 of 101 points and emit 233/242/299/432
+  // characters, and the worst deviation of the FORMATTED curve across all four
+  // is 0.001930 against the 0.0025 bound — about 30% of headroom. 0.0025 rather
+  // than 0.005 on purpose: at 0.005 an RDP tolerance silently loosened from
+  // 0.002 to 0.005 still passes (measured worst 0.005017), so the looser bound
+  // pins nothing about the tolerance this file documents.
+  const linearPoints = (str) => {
+    assert.ok(/^linear\(.+\)$/.test(str), `expected a linear() curve, got ${str}`);
+    const parts = str.slice('linear('.length, -1).split(', ');
+    return parts.map((part, index) => {
+      const [value, stop] = part.split(' ');
+      // CSS Easing Level 2: an omitted input position on the FIRST control
+      // point is 0 and on the LAST is 1. Any other omission is a defect here,
+      // because evenly-spread interior stops are exactly the S6 retiming.
+      if (stop === undefined) {
+        assert.ok(index === 0 || index === parts.length - 1,
+          `interior point ${index} carries no stop — the browser would spread it evenly`);
+        return [index === 0 ? 0 : 1, Number(value)];
+      }
+      return [Number(stop.replace('%', '')) / 100, Number(value)];
+    });
+  };
   for (const [label, stiffness, damping, mass] of SPRING_PRESETS) {
     const curve = springCurve(stiffness, damping, mass);
     assert.ok(curve.points.length <= 45,
       `${label}: springCurve emits the SIMPLIFIED curve, not all 101 samples (got ${curve.points.length})`);
+    const drawn = linearPoints(formatSpringLinear(curve.points));
+    assert.equal(drawn.length, curve.points.length,
+      `${label}: the emitted curve carries every kept point`);
     const omega0 = Math.sqrt(stiffness / mass);
     const zeta = damping / (2 * Math.sqrt(stiffness * mass));
     let worst = 0;
@@ -5890,14 +5928,14 @@ test('REGRESSION: spring -> linear() generation', async () => {
         : i === 100 ? 1
         : springPosition((fraction * curve.settleMs) / 1000, omega0, zeta);
       let seg = 0;
-      while (seg < curve.points.length - 2 && curve.points[seg + 1][0] < fraction) seg += 1;
-      const [x0, y0] = curve.points[seg];
-      const [x1, y1] = curve.points[seg + 1];
-      const drawn = x1 === x0 ? y0 : y0 + ((fraction - x0) / (x1 - x0)) * (y1 - y0);
-      worst = Math.max(worst, Math.abs(exact - drawn));
+      while (seg < drawn.length - 2 && drawn[seg + 1][0] < fraction) seg += 1;
+      const [x0, y0] = drawn[seg];
+      const [x1, y1] = drawn[seg + 1];
+      const at = x1 === x0 ? y0 : y0 + ((fraction - x0) / (x1 - x0)) * (y1 - y0);
+      worst = Math.max(worst, Math.abs(exact - at));
     }
-    assert.ok(worst <= 0.005,
-      `${label}: the simplified curve still traces the spring (worst deviation ${worst.toFixed(5)})`);
+    assert.ok(worst <= 0.0025,
+      `${label}: the EMITTED curve still traces the spring (worst deviation ${worst.toFixed(6)})`);
   }
 
   // Every interior point carries its own stop. Values alone are spread EVENLY
@@ -5920,6 +5958,59 @@ test('REGRESSION: spring -> linear() generation', async () => {
     'a committed spring re-opens in the text control, where it round-trips verbatim');
   assert.equal(internals.timingFunctionCount(value), 1,
     'the commas INSIDE linear() are not top-level — one timing function, not twenty');
+});
+
+// DialKit ships three precision tiers on every numeric control; Raven had two
+// (normal, and shift for coarse) at three separate sites. These grade the SHARED
+// rule and the thing that makes the new tier exist rather than merely be wired:
+// the precision floor.
+//
+// The floor is graded through steppedNumericValue rather than through the mode
+// object alone, because `{multiplier: 0.1, minPrecision: 1}` is satisfiable by a
+// call site that reads the multiplier and drops the floor — which is precisely
+// the inert-control defect, and it renders identically to a dead key.
+test('REGRESSION: numeric precision tiers — fine must survive the rounding, not just be offered', async () => {
+  const { internals } = await loadOverlayInternals();
+  const { scrubPrecisionMode, steppedNumericValue } = internals;
+  assert.equal(typeof scrubPrecisionMode, 'function', 'the precision rule is exposed as ONE function');
+
+  // Spread into THIS realm before comparing: the overlay is evaluated in a vm
+  // sandbox, so its object literals carry the sandbox's Object.prototype and a
+  // deepEqual against a local literal fails on the prototype while printing two
+  // identical-looking objects.
+  const mode = (event) => ({ ...scrubPrecisionMode(event) });
+
+  assert.deepEqual(mode({}), { multiplier: 1, minPrecision: 0 }, 'no modifier is the normal tier');
+  assert.deepEqual(mode({ shiftKey: true }), { multiplier: 10, minPrecision: 0 }, 'shift is coarse');
+  assert.deepEqual(mode({ altKey: true }), { multiplier: 0.1, minPrecision: 1 }, 'alt is fine');
+  // Stated in the helper's comment and pinned here so a later branch reorder
+  // cannot silently flip which tier a two-key hold produces.
+  assert.deepEqual(mode({ shiftKey: true, altKey: true }), { multiplier: 10, minPrecision: 0 },
+    'shift wins when both are held');
+  // A missing event must not throw its way out of a keydown handler.
+  assert.deepEqual(mode(undefined), { multiplier: 1, minPrecision: 0 }, 'no event is the normal tier');
+
+  const fine = scrubPrecisionMode({ altKey: true });
+  // THE defect this feature would otherwise ship with: "16px" carries zero
+  // decimals, so without the floor the 0.1 step rounds back to 16 and the user
+  // holding alt sees a control that does not move.
+  assert.equal(steppedNumericValue('16px', fine.multiplier, 'px', fine.minPrecision), '16.1px',
+    'the fine tier moves a whole-number value');
+  assert.equal(steppedNumericValue('16px', fine.multiplier, 'px', 0), '16px',
+    'and it is INERT without the floor — this is what the floor buys, measured rather than asserted');
+
+  // The floor is a floor, never a cap: a value already carrying more precision
+  // keeps it, or the fine tier would coarsen the very values it exists to serve.
+  assert.equal(steppedNumericValue('1.25rem', fine.multiplier, 'rem', fine.minPrecision), '1.35rem',
+    'two decimals survive the fine tier');
+
+  const coarse = scrubPrecisionMode({ shiftKey: true });
+  assert.equal(steppedNumericValue('16px', coarse.multiplier, 'px', coarse.minPrecision), '26px',
+    'coarse still steps by 10 and stays integral');
+  assert.equal(steppedNumericValue('16px', 1, 'px', 0), '17px', 'normal is unchanged by any of this');
+  // The unit is carried, and an unparseable value still refuses.
+  assert.equal(steppedNumericValue('auto', fine.multiplier, 'px', fine.minPrecision), null,
+    'a non-numeric value has no step at any tier');
 });
 
 test('REGRESSION: style categories, Mixed multi-select write-through, size modes, overflow axes', async () => {

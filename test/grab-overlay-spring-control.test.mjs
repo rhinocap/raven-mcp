@@ -29,15 +29,15 @@
 // line is edited.
 //
 // The harness is .claude/dialkit-2026-08-08/spring-mutants.mjs (tracked); its
-// run of record was agent-output/spring-matrix-v2.txt, which is GITIGNORED, so
-// the figures are reproduced here rather than referenced — 10 mutants, 10
+// run of record is agent-output/spring-matrix-v3.txt, which is GITIGNORED, so
+// the figures are reproduced here rather than referenced — 13 mutants, 13
 // killed, 0 survived, plus 2 CONTROLS (expect: green), 0 false-failed, on a
-// baseline of spring-control 6p/0f and grab-bridge 286p/0f. Radii below are
+// baseline of spring-control 7p/0f and grab-bridge 286p/0f. Radii below are
 // the count across BOTH suites, since the harness serves each mutant to both at
 // once — a mutant reaching only one of them would report a radius measured
 // against half the guards.
 //
-//   S1  keys on the CONTROL, not the property                  radius 2 (here 2)
+//   S1  keys on the CONTROL, not the property                  radius 3 (here 3)
 //   S2  renders for every property                             radius 1 (here 1)
 //   S3  a preset writes its label, not the generated curve      radius 2 (here 2)
 //   S4  every preset writes the SAME curve                      radius 2 (here 2)
@@ -47,16 +47,39 @@
 //   S8  settle is the FIRST moment inside the epsilon band      radius 1 (bridge)
 //   S9  simplification is skipped — all 101 samples emitted     radius 1 (bridge)
 //   S10 the tolerance is loose enough to flatten the curve      radius 1 (bridge)
+//   S11 the formatter rounds values to ONE decimal, not four    radius 1 (bridge)
+//   S12 the tolerance drifts 0.002 -> 0.005                     radius 1 (bridge)
+//   S13 springs gated on a SINGLE timing function               radius 1 (here 1)
 //
-// FOUR of those ten are invisible to this file, and that is a measurement
+// Only S1 moved between v2 and v3, 2 -> 3, because the compound-list test added
+// in the same round shares its mechanism — a fact about the mechanism, not an
+// extra guard. S11/S12/S13 and the C1 replacement all come out of the round-1
+// adverse pass and are described where they matter: S11 and S12 below, S13 at
+// the compound test, C1 in the harness.
+//
+// S11 and S12 both redden the SAME assertion in the same test — the 0.0025
+// bound on the emitted curve's worst deviation — and `assert` aborts at the
+// first failure, so which one fired is read off the reported NUMBER (0.048877
+// for S11, 0.005017 for S12) and off nothing else. That is worth stating rather
+// than letting two radius-1 rows imply two independent guards.
+//
+// SIX of those thirteen are invisible to this file (S6/S8/S9/S10/S11/S12; six
+// more are invisible to the unit test, and S7 alone reddens both), and that is
+// a measurement
 // rather than an omission. S6 is the instructive one: dropping the percentage
-// stops silently retimes the curve, and NOTHING rendered can see it, because
-// Chromium re-serializes both the stopped and the bare form into the same
-// `linear(0 0%, …, 1 100%)` shape and no assertion here measures timing. S8,
-// S9 and S10 are arithmetic. The unit test in test/grab-bridge.test.mjs owns
-// all four; this file owns placement, wiring and the round trip.
+// stops silently retimes the curve, and no assertion HERE can see it — every
+// one of them reads a DOM property or a committed string, and Chromium
+// re-serializes both the stopped and the bare form into the same
+// `linear(0 0%, …, 1 100%)` shape, so the two are indistinguishable to
+// anything short of sampling an animation in flight. That is a limit of this
+// suite's instruments, NOT a claim that the defect is unobservable in a
+// browser: a rendered element would move differently, and a test that ran the
+// transition and sampled getComputedStyle mid-flight would catch it. It does
+// not exist because the arithmetic is cheaper to grade directly. S8, S9, S10,
+// S11 and S12 are arithmetic outright. The unit test in test/grab-bridge.test.mjs
+// owns all six; this file owns placement, wiring and the round trip.
 //
-// S9 is why the count is 10 and not 9. It SURVIVED the first matrix: every
+// S9 is why the count is 13 and not 12. It SURVIVED the first matrix: every
 // simplification assertion drove the simplifier in ISOLATION, which a
 // springCurve handing back all 101 raw samples satisfies completely. The guard
 // added at the call site kills it, and S10 covers the inverse defect.
@@ -140,13 +163,24 @@ let bridge = null;
 const FIXTURE_BODY = `<style>
   :root { --motion-easing-standard: cubic-bezier(0.4, 0, 0.2, 1); }
   body { margin: 0; font-family: system-ui, sans-serif; }
-  #target, #stepped, #linked {
+  #target, #stepped, #linked, #compound {
     width: 280px; height: 64px; margin: 24px auto; border-radius: 10px;
     display: flex; align-items: center; justify-content: center;
     font-weight: 600; color: #1c2540; background: #dfe7ff;
   }
   #target { transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; }
   #stepped { transition: opacity 300ms steps(4, end) 0ms; background: #f3d9d9; }
+  /* Two timing functions in one declaration. The header claims a compound list
+     still reaches the presets, and until this fixture existed that claim had
+     nothing behind it — a gate reading isTimingFunctionProperty(property) AND
+     timingFunctionCount(previousValue) === 1 left every other fixture green
+     while silently dropping springs here. (No backticks in this comment: it
+     lives inside a template literal, and the first draft closed the fixture
+     string and took the whole file down at parse time.) */
+  #compound {
+    background: #f5eede;
+    transition: transform 200ms ease-in 0ms, opacity 300ms ease-out 0ms;
+  }
   #linked {
     background: #e0efe6;
     transition-property: transform; transition-duration: 200ms;
@@ -155,6 +189,7 @@ const FIXTURE_BODY = `<style>
 </style>
 <div id="target">Target</div>
 <div id="stepped">Stepped</div>
+<div id="compound">Compound</div>
 <div id="linked">Linked</div>`;
 
 // The token #linked binds to. The PATH decides the CSS variable name
@@ -354,6 +389,30 @@ test('a steps() timing row falls back to text and STILL offers springs', async (
   assert.equal(state.hasCanvas, false);
   assert.equal(state.easingPresets, 0);
   assert.deepEqual(state.springs, ['gentle', 'smooth', 'snappy', 'bouncy']);
+});
+
+test('a COMPOUND timing list falls back to text and STILL offers springs', async (t) => {
+  if (skipIfNoBrowser(t)) return;
+  const state = await withLocalOverlay(async (page) => {
+    await selectElement(page, '#compound');
+    await openStyleEditor(page, 'transition-timing-function');
+    return editorState(page, 'transition-timing-function');
+  });
+  // The third fallback the header names, and the one that had no fixture for a
+  // full round — an unmeasured claim in a comment is a defect by this repo's
+  // own rule, and the adverse pass found it by writing the gate that exploits
+  // it. `steps()` and a compound list reach the plain-text control by two
+  // DIFFERENT routes: steps() is a single unparseable function, this is two
+  // parseable ones separated by a top-level comma. A gate keyed on the count
+  // rather than the property passes the steps() test and fails only here.
+  assert.equal(state.control, 'text', 'a two-function list has no single curve to drag');
+  assert.equal(state.hasCanvas, false);
+  assert.equal(state.easingPresets, 0);
+  assert.deepEqual(state.springs, ['gentle', 'smooth', 'snappy', 'bouncy']);
+  // Asserting the fixture is genuinely compound, or a browser that collapsed
+  // the shorthand would turn this into a second steps()-shaped test measuring
+  // nothing.
+  assert.ok(state.value.includes(','), `fixture is a compound list, got ${state.value}`);
 });
 
 test('a non-timing motion row offers no springs', async (t) => {
