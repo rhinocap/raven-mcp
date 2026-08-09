@@ -3711,3 +3711,122 @@ STATE: three files modified, uncommitted:
   test/grab-overlay-style-versions.test.mjs
 Local main is AHEAD of origin/main. Touches no src/ or api/, so it does not move
 the live MCP endpoint. Push is Andrew's call and has NOT been given.
+
+#### Round 8 CLOSED — committed 2ace0d3
+
+Full suite read from `.claude/dialkit-2026-08-08/agent-output/R8-FULLSUITE.log`,
+from the runner's own summary lines and NOT from the shell exit code:
+
+    ℹ tests 1523 / suites 6 / pass 1520 / fail 0 / cancelled 0 / skipped 3 / todo 0
+    ℹ duration_ms 44096.000541
+    EXIT=0   FULLSUITE-DONE
+    grep -c '✖' -> 0
+
+The 3 skips READ INDIVIDUALLY (`grep '﹣'`), not inferred from the total — the
+same three this ledger has always carried:
+
+    109  file URL fallback marks reveal and settle checks as unavailable
+         # browser available — fallback path not used
+    714  [phase2D fix B] a later committed batch applies on the first poll while
+         the head is pending   # removed capability
+    715  [phase2C tray] overlapping committed batches both finish and Apply counts
+         only batch B          # removed capability
+
+NEAR MISS WORTH CARRYING: `grep -nc 'style-versions' R8-FULLSUITE.log` returns
+ZERO, and that is NOT evidence the suite did not run — `node --test`'s SPEC
+reporter prints no file paths. Confirmed the suite ran by grepping its own TEST
+NAMES: 3 hits on distinctive names including "an engine that carries setProperty
+on each declaration INSTANCE still commits supported edits", and 14 `✔ .*version`
+lines. An unchanged total is exactly the shape that would hide a suite silently
+not running, so the check has to be by name.
+
+CLAUDE.md ledger updated by python exact-substring replace (`Read` fails on the
+file, 25601 tokens > 25000). Anchor:
+
+    '(measured live 2026-08-09 after the SEVENTH Sol falsification round on named
+     style versions). Its **+1** over 1522'
+
+with `assert s.count(old) == 1`. Round 8 entry inserted; round 7 demoted to "The
+previous ledgered figure was 1523/1520 (…SEVENTH…)".
+
+COMMITTED: `2ace0d3` "Make the instance-shim test falsifiable and re-derive the
+matrix table" — 4 files changed, 297 insertions(+), 54 deletions(-), via
+`git commit --only` on four explicit paths with the body from a scratch file.
+Pre-commit: `git fetch origin`; `origin/main` = `ad36eeb`, an ANCESTOR of local
+HEAD, no divergence. Tree now CLEAN, local main 4 AHEAD of origin/main, UNPUSHED.
+Touches no `src/` or `api/`, so it does not move the live MCP endpoint. Push is
+Andrew's call and has NOT been given.
+
+FOUR stale/duplicate monitor notifications arrived after the fact (by937a9l9
+EXIT=0 / timeout / FULLSUITE-DONE; bjzfy71rf timeout; bl9lijow2 timeout /
+MATRIX-DONE). All for runs already consumed and read. Nothing re-armed; no
+background work is in flight.
+
+#### Stop-hook: parked too early — reopened threads A and B
+
+The Stop hook (NOT a user turn) flagged that the /goal wanted a spec + fanned-out
+workflow and that I had gone idle awaiting Andrew on everything. Correct read:
+two threads have work that does NOT need him.
+
+**Thread A blocker RE-READ rather than paraphrased from memory.** Lines 1386 and
+1686 of this log both say Thread A "is blocked until Andrew names the brand" —
+and BOTH ARE STALE. The Higgsfield section at line ~1940 is LATER: the brand was
+named, the pack was generated (task b6xylrrua, 21 credits, 3762 → 3741), three
+2048×2048 PNGs were fetched by hand and looked at at 900px, and `01` was picked
+as the hero. The live gate is the one written at the end of that section — the
+`/mcp` reconnect — which is what I have been telling Andrew. Correct, but it was
+GUESSED until this read; the two earlier lines say something different and a
+future reader grepping for "blocked" will hit them first.
+
+**Thread B: there is NO DialKit gap spec/backlog file** in
+`.claude/dialkit-2026-08-08/` — that directory holds only the mutant harnesses
+(align / detached-draft / easing / precision / spring / version), the Sol briefs
+(SOL-BRIEF R2–R9, SOL-BRIEF-VERSIONS R2–R8 + R5b), `r8-`/`r9-prefix-measure.mjs`
+and `precision-callsite-brief.md`. The gap list lives in this session log, not in
+a tracked spec file.
+
+#### Thread A — step-3 blocker found and cleared BEFORE the reconnect
+
+The `/mcp` gate is now MEASURED, not remembered: the connected Raven server's
+tool list carries `generate_design_system` and `init_design_md` but has **no
+`generate_mood_board`** — the running build predates that tool. So step 3 of
+`docs/brand-genesis-flow.md` cannot run until Andrew reconnects. That much was
+already the standing claim; this is the first time it was checked against the
+live tool list rather than asserted.
+
+**The new finding is one layer past it.** `src/mood-board.ts:47` sets
+`MAX_EMBED_IMAGE_BYTES = 2_500_000`, and the generated pack is
+
+    smashgrab-hero-01.png  6,760,562 bytes
+    smashgrab-hero-02.png  6,448,270 bytes
+    smashgrab-hero-03.png  7,783,467 bytes
+
+— **all three over the per-image cap.** Passing them as `image_paths` would have
+produced a board whose "Your assets" section embeds NOTHING, plus three
+`exceeds the per-image embed cap — skipped` warnings. That would have surfaced
+only AFTER the reconnect, i.e. in front of Andrew, on the approval stop.
+
+Downscale measured rather than guessed. First attempt `sips -Z 1400` (PNG) was
+STILL over — 3,032,816 / 3,087,775 / 3,439,696 — so PNG at any useful pixel size
+does not fit. JPEG does, and is the right format for photography anyway; the
+sniff at `src/mood-board.ts:336` accepts `ff d8 ff`, checked against the actual
+bytes of the output rather than the extension.
+
+    board/smashgrab-hero-01.jpg  540,346   UNDER 2,500,000
+    board/smashgrab-hero-02.jpg  562,461   UNDER 2,500,000
+    board/smashgrab-hero-03.jpg  697,626   UNDER 2,500,000
+    total                      1,800,433   UNDER 8,000,000  (shared budget)
+    first three bytes ffd8ff -> sniffs image/jpeg
+
+Command of record:
+`sips -s format jpeg -s formatOptions 82 -Z 1400 <in>.png --out board/<in>.jpg`
+
+Eyes-on at full size on 01 after the re-encode, not inferred from the byte
+count: near-black ground, single hard source, long sharp cast shadow to the
+upper left, crisp lacy patty edges, cheese still the only saturated element, no
+banding in the shadow falloff at q82. The re-encode costs nothing the board
+needs.
+
+Originals untouched at `~/projects/raven-genesis-demo/pack/*.png`; the board
+copies are a sibling `board/` directory, so the takedown/regenerate path is
+unaffected.
